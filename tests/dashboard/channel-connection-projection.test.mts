@@ -8,13 +8,23 @@ import {
   hasCompleteOfficialDashboardChannelState,
   mergeDashboardHydrationState,
   projectCanonicalChannelConnection,
+  resolveLinkedinPublicUrl,
 } from "../../lib/dashboardChannelSync.ts";
 
 const completePayload = () => ({
   gmb: { connected: true, accountConnected: true, configured: true, connection_status: "connected", resource_id: "locations/1" },
   facebook: { connected: true, accountConnected: true, pageConnected: true, connection_status: "connected", resource_id: "page-1" },
   instagram: { connected: true, accountConnected: true, connection_status: "connected", resource_id: "ig-1" },
-  linkedin: { connected: true, accountConnected: true, connection_status: "connected", resource_id: "urn:li:person:1" },
+  linkedin: {
+    connected: true,
+    accountConnected: true,
+    connection_status: "connected",
+    resource_id: "urn:li:organization:2",
+    profile_url: "https://www.linkedin.com/in/inrcy-demo",
+    organization_id: "2",
+    organization_name: "iNrCy",
+    organization_url: "https://www.linkedin.com/company/inrcy",
+  },
   tiktok: { connected: true, connection_status: "connected", username: "demo" },
   youtube_shorts: { connected: true, connection_status: "connected", channel_url: "https://youtube.test/channel/1" },
   pinterest: { connected: true, connection_status: "connected" },
@@ -88,6 +98,9 @@ test("the complete canonical payload updates every dashboard channel in one atom
   assert.equal(projected.facebookPageConnected, true);
   assert.equal(projected.instagramConnected, true);
   assert.equal(projected.linkedinConnected, true);
+  assert.equal(projected.linkedinProfileUrl, "https://www.linkedin.com/in/inrcy-demo");
+  assert.equal(projected.linkedinOrganizationUrl, "https://www.linkedin.com/company/inrcy");
+  assert.equal(projected.linkedinUrl, "https://www.linkedin.com/company/inrcy");
   assert.equal(projected.tiktokConnected, true);
   assert.equal(projected.youtubeShortsConnected, true);
   assert.equal(projected.pinterestConnected, true);
@@ -97,6 +110,32 @@ test("the complete canonical payload updates every dashboard channel in one atom
   assert.equal(projected.inrSearchUrl, "https://app.inrcy.test/entreprises/inrcy");
   assert.equal(projected.inrSearchDirectoryEnabled, true);
   assert.equal(projected.mailAccountsConnectedCount, 1);
+});
+
+test("LinkedIn dashboard links prefer a live selected organization and otherwise fall back to the personal profile", () => {
+  const common = {
+    organizationId: "2",
+    organizationUrl: "https://www.linkedin.com/company/inrcy",
+    profileUrl: "https://www.linkedin.com/in/inrcy-demo",
+    legacyUrl: "https://www.linkedin.com/in/legacy",
+  };
+
+  assert.equal(
+    resolveLinkedinPublicUrl({ ...common, connected: true }),
+    "https://www.linkedin.com/company/inrcy",
+  );
+  assert.equal(
+    resolveLinkedinPublicUrl({ ...common, connected: false }),
+    "https://www.linkedin.com/in/inrcy-demo",
+  );
+  assert.equal(
+    resolveLinkedinPublicUrl({ ...common, connected: true, organizationId: "" }),
+    "https://www.linkedin.com/in/inrcy-demo",
+  );
+  assert.equal(
+    resolveLinkedinPublicUrl({ ...common, connected: true, profileUrl: "", organizationUrl: "" }),
+    "https://www.linkedin.com/in/legacy",
+  );
 });
 
 test("server-confirmed boot state wins over a stale browser snapshot for every channel", () => {

@@ -40,17 +40,20 @@ import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
 import BusinessDnaAnalysisScheduleModal from "./BusinessDnaAnalysisScheduleModal";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
+import ActivityContent from "./ActivityContent";
+import ProfilContent from "./ProfilContent";
 
-type ProfileFoundation = { sector: string; profession: string };
-type WorkspaceTab =
+export type AiMemoryWorkspaceTab =
   | "analysis"
+  | "documents"
+  | "profile"
   | "activity"
   | "audience"
   | "local"
   | "identity"
   | "news"
-  | "documents"
   | "strategy";
+type EmbeddedWorkspaceTab = Extract<AiMemoryWorkspaceTab, "profile" | "activity">;
 type VoiceTarget =
   | "detailedDescription"
   | "mission"
@@ -100,6 +103,13 @@ const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
 
 type Props = {
   edition?: DashboardEdition;
+  initialTab?: AiMemoryWorkspaceTab;
+  profileLabel?: string;
+  onTabChange?: (tab: AiMemoryWorkspaceTab) => void;
+  onProfileSaved?: () => unknown | Promise<unknown>;
+  onProfileReset?: () => unknown | Promise<unknown>;
+  onActivitySaved?: () => unknown | Promise<unknown>;
+  onActivityReset?: () => unknown | Promise<unknown>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
 };
@@ -160,18 +170,31 @@ function parseAnalysisChannels(value: unknown): BusinessDnaDashboardChannelAvail
 }
 
 export default function AiMemoryContent({
+  initialTab = "analysis",
+  profileLabel = "Mon profil",
+  onTabChange,
+  onProfileSaved,
+  onProfileReset,
+  onActivitySaved,
+  onActivityReset,
   onUnsavedChange,
   onVoiceBusyChange,
 }: Props) {
   const t = useTranslations("dashboard.aiMemory");
   const moduleT = useTranslations("dashboard.moduleCards");
   const settingsT = useTranslations("settings");
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("analysis");
+  const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab);
+  const [mountedEmbeddedTabs, setMountedEmbeddedTabs] = useState<Set<EmbeddedWorkspaceTab>>(
+    () => new Set(
+      initialTab === "profile" || initialTab === "activity" ? [initialTab] : [],
+    ),
+  );
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [activityDirty, setActivityDirty] = useState(false);
   const [memory, setMemory] = useState<AiMemory>(EMPTY_AI_MEMORY);
   const [businessKnowledge, setBusinessKnowledge] = useState<AiBusinessKnowledge>(
     EMPTY_AI_BUSINESS_KNOWLEDGE,
   );
-  const [foundation, setFoundation] = useState<ProfileFoundation>({ sector: "", profession: "" });
   // La stratégie fait désormais partie du socle iNrADN de toutes les éditions.
   const strategyEnabled = true;
   const [loading, setLoading] = useState(true);
@@ -237,21 +260,25 @@ export default function AiMemoryContent({
     const next = busy ? target : current === target ? null : current;
     voiceTargetRef.current = next;
     setVoiceTarget(next);
-    if (next === null) {
-      onUnsavedChange?.(
-        workspaceSignature(memoryRef.current, businessKnowledgeRef.current) !== savedSignatureRef.current,
-      );
-    }
     onVoiceBusyChange?.(next !== null);
   };
 
   useEffect(() => {
-    if (loading) {
-      onUnsavedChange?.(false);
-      return;
+    const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
+    onUnsavedChange?.(memoryDirty || profileDirty || activityDirty);
+  }, [activityDirty, loaded, loading, onUnsavedChange, profileDirty, signature]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+    if (initialTab === "profile" || initialTab === "activity") {
+      setMountedEmbeddedTabs((current) => {
+        if (current.has(initialTab)) return current;
+        const next = new Set(current);
+        next.add(initialTab);
+        return next;
+      });
     }
-    onUnsavedChange?.(signature !== savedSignatureRef.current);
-  }, [loading, onUnsavedChange, signature]);
+  }, [initialTab]);
 
   useEffect(() => () => {
     if (analysisProgressTimerRef.current !== null) {
@@ -306,15 +333,10 @@ export default function AiMemoryContent({
 
         updateMemory(synchronizedMemory);
         updateBusinessKnowledge(nextBusinessKnowledge);
-        setFoundation({
-          sector: String(rawFoundation.sector || ""),
-          profession: String(rawFoundation.profession || ""),
-        });
         setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
         setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
         setLoaded(true);
         savedSignatureRef.current = workspaceSignature(synchronizedMemory, nextBusinessKnowledge);
-        onUnsavedChange?.(false);
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : t("loadError"));
       } finally {
@@ -325,7 +347,7 @@ export default function AiMemoryContent({
     return () => {
       active = false;
     };
-  }, [loadAttempt, onUnsavedChange, t, updateBusinessKnowledge, updateMemory]);
+  }, [loadAttempt, t, updateBusinessKnowledge, updateMemory]);
 
   const setField = <K extends keyof AiMemory>(key: K, value: AiMemory[K]) => {
     setSaved(false);
@@ -597,7 +619,6 @@ export default function AiMemoryContent({
       updateMemory(nextMemory);
       updateBusinessKnowledge(nextBusinessKnowledge);
       savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
-      onUnsavedChange?.(false);
       setSaved(true);
 
       const [publicProfileRefreshed] = await Promise.all([
@@ -634,7 +655,6 @@ export default function AiMemoryContent({
       updateBusinessKnowledge(savedBusinessKnowledge);
       setSaved(false);
       setError("");
-      onUnsavedChange?.(false);
     } catch {
       // La signature est toujours créée par JSON.stringify sur des objets validés.
     }
@@ -797,9 +817,10 @@ export default function AiMemoryContent({
       })
     : "";
 
-  const tabs: Array<{ key: WorkspaceTab; icon: string; label: string }> = [
+  const tabs: Array<{ key: AiMemoryWorkspaceTab; icon: string; label: string }> = [
     { key: "analysis", icon: "✦", label: t("tabAnalysis") },
     { key: "documents", icon: "📎", label: t("tabDocuments") },
+    { key: "profile", icon: "👤", label: profileLabel },
     { key: "activity", icon: "🏢", label: t("tabActivity") },
     { key: "audience", icon: "🎯", label: t("tabAudience") },
     { key: "local", icon: "📍", label: t("tabLocal") },
@@ -809,10 +830,23 @@ export default function AiMemoryContent({
   ];
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
-  const selectTabAt = (index: number) => {
+  const activeTabRequiresAiMemory = activeTab !== "profile" && activeTab !== "activity";
+  const selectTab = (tab: AiMemoryWorkspaceTab) => {
     if (voiceTargetRef.current) return;
+    if (tab === "profile" || tab === "activity") {
+      setMountedEmbeddedTabs((current) => {
+        if (current.has(tab)) return current;
+        const next = new Set(current);
+        next.add(tab);
+        return next;
+      });
+    }
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
+  const selectTabAt = (index: number) => {
     const next = tabs[index];
-    if (next) setActiveTab(next.key);
+    if (next) selectTab(next.key);
   };
 
   return (
@@ -827,7 +861,7 @@ export default function AiMemoryContent({
               disabled={voiceBusy}
               role="tab"
               aria-selected={active}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => selectTab(tab.key)}
               style={{ ...tabButtonStyle, ...(active ? activeTabButtonStyle : {}) }}
             >
               <span aria-hidden>{tab.icon}</span>
@@ -868,22 +902,11 @@ export default function AiMemoryContent({
         </button>
       </nav>
 
-      {loading ? (
-        <section style={cardStyle}>{t("loading")}</section>
-      ) : !loaded ? (
-        <section style={cardStyle}>
-          <span style={hintStyle}>{t("loadError")}</span>
-          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} style={secondaryButtonStyle}>
-            {t("retry")}
-          </button>
-        </section>
-      ) : (
-        <div
-          key={activeTab}
-          role="tabpanel"
-          data-ai-memory-active-tab={activeTab}
-          style={tabPanelStyle}
-          onTouchStart={(event) => {
+      <div
+        role="tabpanel"
+        data-ai-memory-active-tab={activeTab}
+        style={tabPanelStyle}
+        onTouchStart={(event) => {
             const touch = event.touches[0];
             const target = event.target as HTMLElement | null;
             tabSwipeStartRef.current = touch
@@ -903,8 +926,57 @@ export default function AiMemoryContent({
             const deltaY = touch.clientY - start.y;
             if (Math.abs(deltaX) < 54 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return;
             selectTabAt(activeTabIndex + (deltaX < 0 ? 1 : -1));
-          }}
-        >
+        }}
+      >
+            {mountedEmbeddedTabs.has("profile") ? (
+              <section
+                data-ai-memory-tab="profile"
+                hidden={activeTab !== "profile"}
+                style={activeTab === "profile" ? sectionStackStyle : hiddenWorkspaceTabStyle}
+              >
+                <ProfilContent
+                  mode="page"
+                  showIntro={false}
+                  workspaceCompact
+                  onProfileSaved={onProfileSaved}
+                  onProfileReset={onProfileReset}
+                  onUnsavedChange={setProfileDirty}
+                />
+              </section>
+            ) : null}
+
+            {mountedEmbeddedTabs.has("activity") ? (
+              <section
+                data-ai-memory-tab="activity-foundation"
+                hidden={activeTab !== "activity"}
+                style={activeTab === "activity" ? sectionStackStyle : hiddenWorkspaceTabStyle}
+              >
+                <ActivityContent
+                  mode="page"
+                  contentScope="profile-core"
+                  showIntro={false}
+                  onActivitySaved={onActivitySaved}
+                  onActivityReset={onActivityReset}
+                  onUnsavedChange={setActivityDirty}
+                />
+              </section>
+            ) : null}
+
+            {activeTabRequiresAiMemory && loading ? (
+              <section style={cardStyle}>{t("loading")}</section>
+            ) : null}
+
+            {activeTabRequiresAiMemory && !loading && !loaded ? (
+              <section style={cardStyle}>
+                <span style={hintStyle}>{t("loadError")}</span>
+                <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} style={secondaryButtonStyle}>
+                  {t("retry")}
+                </button>
+              </section>
+            ) : null}
+
+            {!loading && loaded ? (
+              <>
             {activeTab === "analysis" ? (
               <section
                 data-business-dna-channel-analysis
@@ -1099,18 +1171,6 @@ export default function AiMemoryContent({
 
             {activeTab === "activity" ? (
               <div data-ai-memory-tab="activity" style={sectionStackStyle}>
-                <section style={foundationCardStyle}>
-                  <span aria-hidden style={foundationCompactIconStyle}>🔗</span>
-                  <div style={foundationCompactContentStyle}>
-                    <div style={foundationCompactValuesStyle}>
-                      <strong><span style={foundationCompactLabelStyle}>{t("sectorLabel")} :</span> {foundation.sector || t("foundationEmpty")}</strong>
-                      <span aria-hidden style={foundationCompactDividerStyle} />
-                      <strong><span style={foundationCompactLabelStyle}>{t("professionLabel")} :</span> {foundation.profession || t("foundationEmpty")}</strong>
-                    </div>
-                    <span style={foundationCompactHintStyle}>{t("foundationTitle")}</span>
-                  </div>
-                </section>
-
                 <section style={cardStyle}>
                   <SectionHeader icon="🏢" title={t("identityTitle")} description={t("identityDescription")} />
                   <div style={fieldStyle}>
@@ -1604,10 +1664,11 @@ export default function AiMemoryContent({
                 </div>
               </section>
             ) : null}
-        </div>
-      )}
+              </>
+            ) : null}
+      </div>
 
-      {error ? <div style={errorStyle}>{error}</div> : null}
+      {activeTabRequiresAiMemory && error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
 
       <BusinessDnaAnalysisScheduleModal
@@ -1615,7 +1676,10 @@ export default function AiMemoryContent({
         onClose={() => setAnalysisScheduleOpen(false)}
       />
 
-      {!loading && loaded && (activeTab !== "analysis" || signature !== savedSignatureRef.current) ? (
+      {!loading && loaded && (
+        (activeTab !== "analysis" && activeTab !== "profile") ||
+        signature !== savedSignatureRef.current
+      ) ? (
         <div data-ai-memory-actions style={actionsStyle}>
           <button type="button" disabled={saving || voiceBusy} onClick={() => void resetWorkspace()} style={dangerButtonStyle}>{t("reset")}</button>
           <button type="button" disabled={saving || voiceBusy || signature === savedSignatureRef.current} onClick={() => void cancelChanges()} style={secondaryButtonStyle}>{t("cancelChanges")}</button>
@@ -1811,6 +1875,7 @@ export default function AiMemoryContent({
             padding-top: 52px;
           }
           [data-dna-score-summary] { top: 6px !important; }
+          [data-dna-assembly] { margin-top: 16px; }
           [data-business-dna-channel-states] {
             width: 100% !important;
             flex-wrap: wrap !important;
@@ -2021,7 +2086,7 @@ const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
 const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
 const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
-const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
+const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(9, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
 const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 5px", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden" };
 const activeTabButtonStyle: CSSProperties = { border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(124,58,237,0.18))", color: "white", boxShadow: "0 7px 22px rgba(14,165,233,0.10)" };
 const mobileTabNavigatorStyle: CSSProperties = { position: "relative", zIndex: 3, display: "none", gridTemplateColumns: "42px minmax(0, 1fr) 42px", alignItems: "stretch", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(125,211,252,.20)", background: "linear-gradient(135deg, rgba(4,18,38,.98), rgba(25,16,54,.98))", boxShadow: "0 13px 34px rgba(0,0,0,.24)" };
@@ -2033,13 +2098,7 @@ const mobileTabProgressTrackStyle: CSSProperties = { gridColumn: "1 / -1", heigh
 const mobileTabProgressValueStyle: CSSProperties = { display: "block", height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", transition: "width .2s ease" };
 const tabPanelStyle: CSSProperties = { minWidth: 0 };
 const sectionStackStyle: CSSProperties = { display: "grid", gap: 15, minWidth: 0 };
-const foundationCardStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "center", gap: 11, padding: "11px 14px", borderRadius: 16, border: "1px solid rgba(103,232,249,0.22)", background: "linear-gradient(145deg, rgba(8,145,178,0.13), rgba(38,20,78,0.68))", boxShadow: "0 14px 38px rgba(0,0,0,.16)" };
-const foundationCompactIconStyle: CSSProperties = { width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: 11, border: "1px solid rgba(103,232,249,.22)", background: "rgba(56,189,248,.10)" };
-const foundationCompactContentStyle: CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
-const foundationCompactValuesStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "5px 12px", color: "white", fontSize: 12.5, lineHeight: 1.35 };
-const foundationCompactLabelStyle: CSSProperties = { color: "#67e8f9", fontSize: 10.5, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em" };
-const foundationCompactDividerStyle: CSSProperties = { width: 1, height: 15, background: "rgba(255,255,255,.15)" };
-const foundationCompactHintStyle: CSSProperties = { color: "rgba(203,213,225,.60)", fontSize: 10.5, lineHeight: 1.35 };
+const hiddenWorkspaceTabStyle: CSSProperties = { display: "none" };
 const sectionHeadingRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: 12 };
 const sectionHeaderStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 11, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.09)" };
 const sectionIconStyle: CSSProperties = { width: 36, height: 36, flex: "0 0 auto", display: "grid", placeItems: "center", borderRadius: 11, border: "1px solid rgba(125,211,252,0.22)", background: "rgba(56,189,248,0.10)" };

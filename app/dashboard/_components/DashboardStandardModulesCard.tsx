@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import styles from "../dashboard.module.css";
-import RequiredSetupLock from "./RequiredSetupLock";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import standardStyles from "./DashboardStandardModulesCard.module.css";
 
@@ -21,7 +20,6 @@ type Props = {
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
-  requiredSetupLockVisible: boolean;
 };
 
 function ArrowIcon() {
@@ -62,17 +60,13 @@ export default function DashboardStandardModulesCard({
   onOpenStats,
   onOpenBoosterPublish,
   onOpenBoosterStats,
-  requiredSetupLockVisible,
 }: Props) {
   const i18nT = useTranslations("shell");
   const t = useTranslations("dashboard.standard");
-  const modulesT = useTranslations("dashboard.modules");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { pendingKey, beginAction, completeAction, isVisible } = useDelayedPendingAction<string>();
   const [agentPlanningOpen, setAgentPlanningOpen] = useState(false);
-  const requiredSetupLocked = requiredSetupLockVisible;
-  const requiredSetupLockMessage = modulesT("requiredSetupLocked");
 
   useEffect(() => {
     if (!pendingKey) return;
@@ -104,7 +98,6 @@ export default function DashboardStandardModulesCard({
   };
 
   const openPublishModal = () => {
-    if (requiredSetupLocked) return;
     if (!beginAction("modal:publish")) return;
     if (onOpenBoosterPublish) onOpenBoosterPublish();
     else goToModule("/dashboard?action=publish");
@@ -207,27 +200,16 @@ export default function DashboardStandardModulesCard({
           <div className={standardStyles.boosterCopy}>
             <h3>{i18nT("booster_8e4caec0")}</h3>
             <p>{t("boosterLine1")}<br /><strong>{t("boosterLine2")}</strong></p>
-            <span
-              className={`${standardStyles.boosterCtaShell} ${requiredSetupLocked ? standardStyles.boosterCtaShellLocked : ""}`.trim()}
-            >
-              {requiredSetupLocked ? (
-                <RequiredSetupLock
-                  message={requiredSetupLockMessage}
-                  className={standardStyles.boosterCtaLock}
-                  compact
-                />
-              ) : null}
+            <span className={standardStyles.boosterCtaShell}>
               <button
                 type="button"
                 data-testid="standard-booster-publish"
-                onClick={requiredSetupLocked ? undefined : openPublishModal}
-                disabled={requiredSetupLocked || isVisible("modal:publish")}
-                aria-disabled={requiredSetupLocked || undefined}
-                aria-busy={!requiredSetupLocked && isVisible("modal:publish") ? true : undefined}
-                aria-label={requiredSetupLocked ? `${t("boosterCta")}. ${requiredSetupLockMessage}` : t("boosterCta")}
-                title={requiredSetupLocked ? requiredSetupLockMessage : undefined}
+                onClick={openPublishModal}
+                disabled={isVisible("modal:publish")}
+                aria-busy={isVisible("modal:publish") || undefined}
+                aria-label={t("boosterCta")}
               >
-                {!requiredSetupLocked && isVisible("modal:publish") ? t("loading") : t("boosterCta")} <ArrowIcon />
+                {isVisible("modal:publish") ? t("loading") : t("boosterCta")} <ArrowIcon />
               </button>
             </span>
           </div>
@@ -259,22 +241,12 @@ export default function DashboardStandardModulesCard({
               <h3>{i18nT("inr_agent_e5261e85")}</h3>
           <p>{t("agentLine1")} <strong>{t("agentLine2")}</strong></p>
         </div>
-        <span className={`${standardStyles.agentActions} ${requiredSetupLocked ? standardStyles.agentActionsLocked : ""}`.trim()}>
-          {requiredSetupLocked ? (
-            <RequiredSetupLock
-              message={requiredSetupLockMessage}
-              className={standardStyles.agentCtaLock}
-              compact
-            />
-          ) : null}
+        <span className={standardStyles.agentActions}>
           <button
             className={standardStyles.agentPlanningButton}
             type="button"
             data-testid="standard-agent-planning"
-            onClick={requiredSetupLocked ? undefined : () => setAgentPlanningOpen(true)}
-            disabled={requiredSetupLocked}
-            aria-disabled={requiredSetupLocked || undefined}
-            title={requiredSetupLocked ? requiredSetupLockMessage : undefined}
+            onClick={() => setAgentPlanningOpen(true)}
           >
             <PlanningIcon /> {t("agentPlanning")}
           </button>
@@ -283,13 +255,11 @@ export default function DashboardStandardModulesCard({
             type="button"
             data-testid="standard-agent-pilotage"
             data-dashboard-prefetch={agentPath}
-            onClick={requiredSetupLocked ? undefined : () => startModuleNavigation(agentPath)}
-            disabled={requiredSetupLocked || isVisible(`route:${agentPath}`)}
-            aria-disabled={requiredSetupLocked || undefined}
-            aria-busy={!requiredSetupLocked && isVisible(`route:${agentPath}`) ? true : undefined}
-            title={requiredSetupLocked ? requiredSetupLockMessage : undefined}
+            onClick={() => startModuleNavigation(agentPath)}
+            disabled={isVisible(`route:${agentPath}`)}
+            aria-busy={isVisible(`route:${agentPath}`) || undefined}
           >
-            {!requiredSetupLocked && isVisible(`route:${agentPath}`) ? t("loading") : t("agentCta")} <ArrowIcon />
+            {isVisible(`route:${agentPath}`) ? t("loading") : t("agentCta")} <ArrowIcon />
           </button>
         </span>
       </section>

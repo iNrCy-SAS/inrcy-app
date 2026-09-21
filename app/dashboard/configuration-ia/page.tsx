@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -11,9 +11,12 @@ import DashboardWorkspaceHeader, {
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
+import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
+import { useDashboardPreparationScores } from "../_hooks/useDashboardPreparationScores";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import AiConfigurationContent from "../settings/_components/AiConfigurationContent";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
+import styles from "../dashboard.module.css";
 
 export default function AiConfigurationPage() {
   const router = useRouter();
@@ -21,6 +24,8 @@ export default function AiConfigurationPage() {
   const settingsT = useTranslations("settings");
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
   const edition = useDashboardEdition();
+  const { accountId } = useDashboardCompletionChecks();
+  const { aiScore } = useDashboardPreparationScores({ accountId, edition });
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -57,8 +62,20 @@ export default function AiConfigurationPage() {
         )}
         title={settingsT("votre_signature_ia_329379e6")}
         subtitle={settingsT("reglez_une_fois_votre_facon_de_4a141f29")}
+        status={(
+          <span
+            className={styles.cockpitGlobalPower}
+            aria-label={`${copy.userMenu.ai} : ${aiScore}%`}
+            title={`${copy.userMenu.ai} : ${aiScore}%`}
+            style={{
+              "--cockpit-global-power-mid": `${aiScore * 1.8}deg`,
+              "--cockpit-global-power": `${aiScore * 3.6}deg`,
+            } as CSSProperties}
+          >
+            {aiScore}%
+          </span>
+        )}
         actions={[
-          { label: copy.userMenu.profile, onClick: () => navigate("/dashboard/mon-profil"), tone: "cyan" },
           { label: copy.userMenu.aiMemory, onClick: () => navigate("/dashboard/adn-entreprise"), tone: "violet" },
           { label: copy.drawer.close, onClick: () => navigate("/dashboard"), tone: "neutral" },
         ]}

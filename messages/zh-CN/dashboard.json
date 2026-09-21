@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "关闭",
+    "allChannels": "所有频道",
     "titles": {
       "contact": "联系我们",
       "compte": "帐户 iNrCytizen",
@@ -104,6 +105,35 @@
     "powerDialogAria": "发电机功率详细信息",
     "powerPanelTitle": "电源详情",
     "kicker": "你的驾驶舱 iNrCy",
+    "cockpitTitle": "您的驾驶舱",
+    "cockpitShortTitle": "驾驶舱",
+    "inertiaPower": "惯性动力",
+    "connectStep": "连接",
+    "enrichStep": "完善",
+    "configureStep": "配置",
+    "channelsStepLabel": "活跃渠道",
+    "dnaStepLabel": "企业 DNA",
+    "aiStepLabel": "配置我的 AI",
+    "channelsInfoAria": "查看渠道动力明细",
+    "channelsInfoTitle": "11 个渠道的动力",
+    "channelsInfoHint": "每个渠道贡献各自的比例，11 项贡献合计正好为 100%。",
+    "dnaInfoAria": "了解企业 DNA 分数",
+    "dnaInfoTitle": "个性化内容",
+    "dnaInfoHint": "iNr’DNA 信息越完整，AI 创建的内容就越个性化，也越贴合您的企业。",
+    "aiInfoAria": "了解 AI 个性化分数",
+    "aiInfoTitle": "为什么要配置我的 AI？",
+    "aiInfoHint": "配置 AI 可提升其效率，并优化语言风格，使其更符合您的企业。",
+    "channelOverviewTitle": "连接我的渠道",
+    "channelColumn": "渠道",
+    "powerColumn": "功率",
+    "powerInfoAria": "了解渠道功率",
+    "powerInfoTitle": "渠道的功率",
+    "powerInfoText": "功率衡量每个渠道对品牌曝光和潜在客户获取的贡献。百分比越高，该渠道在吸引潜在客户方面发挥的作用越重要。",
+    "statusColumn": "状态",
+    "configureColumn": "配置",
+    "stateColumn": "连接状态",
+    "createColumn": "创建",
+    "createdLabel": "已创建",
     "expandCockpitAria": "展开你的驾驶舱 iNrCy",
     "collapseCockpitAria": "折叠你的驾驶舱 iNrCy",
     "title": "生成器已启动！",
@@ -209,7 +239,6 @@
     "connectedAria": "通道已连接"
   },
   "modules": {
-    "requiredSetupLocked": "完善您的个人资料以解锁此工具。",
     "dashboardTitle": "仪表板",
     "dashboardSub": "驾驶",
     "statsSub": "您的所有线索终于可见",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "参见",
     "configure": "配置",
+    "create": "创建",
     "disabled": "选项已禁用",
     "open": "打开"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "账户设置",
-    "title": "5 个入门步骤",
+    "title": "4 个入门步骤",
     "bothIncomplete": "请按顺序完成，以充分使用 iNrCy。",
     "profileIncomplete": "请按顺序完成，以充分使用 iNrCy。",
     "activityIncomplete": "请按顺序完成，以充分使用 iNrCy。",
-    "stepProfile": "完善您的个人资料",
-    "stepChannels": "连接您的渠道",
-    "stepDna": "自动或手动填写您的 iNr’ADN",
-    "stepAi": "配置您的 AI",
-    "stepFirstPublication": "创建您的首个发布内容",
-    "confirm": "完善我的个人资料",
+    "stepChannels": "连接我的渠道",
+    "stepDna": "丰富我公司的 DNA",
+    "stepAi": "配置我的 AI",
+    "stepFirstPublication": "发布",
+    "confirm": "连接我的渠道",
     "cancel": "稍后"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "该窗口包含未保存的更改。如果你现在关闭它，它们就会丢失。",
     "closeWithoutSaving": "关闭而不保存",
     "continueEditing": "继续编辑"
-  },
-  "requiredSetup": {
-    "loading": "需要配置..."
   },
   "settingsSections": {
     "activityIdentityTitle": "行业与职业",

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
+import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
 import {
   DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
@@ -64,14 +65,6 @@ export default function InstagramPanel(props: any) {
   };
 
   const instagramNeedsUpdate = instagramConnectionStatus === "needs_update" && (instagramConnected || instagramAccountConnected);
-  const instagramStatusLabel = instagramNeedsUpdate ? "À actualiser" : instagramConnected ? "Connecté" : instagramAccountConnected ? "Compte connecté" : "À connecter";
-  const instagramStatusDot = instagramNeedsUpdate
-    ? "rgba(245,158,11,0.95)"
-    : instagramConnected
-      ? "rgba(34,197,94,0.95)"
-      : instagramAccountConnected
-        ? "rgba(59,130,246,0.95)"
-        : "rgba(148,163,184,0.9)";
   const instagramProfileDetected = igAccountsPhase === "connecting";
   const instagramProfileActivity =
     instagramProfileBusy && instagramProfileAction === "disconnect"
@@ -116,7 +109,8 @@ export default function InstagramPanel(props: any) {
   const displayAccountsError = !instagramConnected && !instagramAccountConnected ? null : igAccountsError;
 
   const singleFieldStyle = {
-    width: "100%" as const,
+    width: "auto" as const,
+    flex: "1 1 260px",
     minWidth: 0,
     maxWidth: "100%",
     borderRadius: 12,
@@ -129,8 +123,8 @@ export default function InstagramPanel(props: any) {
   };
 
   const responsiveActionsRow = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))",
+    display: "flex",
+    flexWrap: "wrap",
     gap: 10,
     alignItems: "center",
     width: "100%",
@@ -147,121 +141,72 @@ export default function InstagramPanel(props: any) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 14, minWidth: 0 }}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(15,23,42,0.65)",
-            colorScheme: "dark",
-            padding: "8px 10px",
-            borderRadius: 999,
-            color: "rgba(255,255,255,0.92)",
-            fontSize: 13,
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              background: instagramStatusDot,
-            }}
-          />
-          {i18nT("statut_b20e7fc2")}{" "}<strong>{instagramStatusLabel}</strong>
-        </span>
-      </div>
-
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.03)",
-          borderRadius: 14,
-          padding: 12,
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
-          <ConnectionPill connected={instagramAccountConnected} status={instagramNeedsUpdate ? "needs_update" : undefined} />
+    <div className={`${socialStyles.journey} ${socialStyles.instagram}`}>
+      <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}>
+        <div className={socialStyles.stepHeader}>
+          <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
+          <div className={socialStyles.stepCopy}>
+            <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
+            <div className={styles.blockSub}>
+              {i18nT("instagram_peut_etre_connecte_en_32ac6030")}{" "}<strong>standard</strong> {" "}{i18nT("ou_en_d680c328")}{" "}<strong>{i18nT("business_via_facebook_business_eb4c034d")}</strong>{i18nT("pour_la_selection_du_profil_un_7c8dbfce")}{" "}<strong>{i18nT("business_creator_e28ea3ce")}</strong> {" "}{i18nT("relie_a_une_page_facebook_reste_5141f18f")}{" "}
+            </div>
+          </div>
+          <div className={socialStyles.stepStatus}>
+            <ConnectionPill connected={instagramAccountConnected} status={instagramNeedsUpdate ? "needs_update" : undefined} />
+          </div>
         </div>
-        <div className={styles.blockSub}>
-          {i18nT("instagram_peut_etre_connecte_en_32ac6030")}{" "}<strong>standard</strong> {" "}{i18nT("ou_en_d680c328")}{" "}<strong>{i18nT("business_via_facebook_business_eb4c034d")}</strong>{i18nT("pour_la_selection_du_profil_un_7c8dbfce")}{" "}<strong>{i18nT("business_creator_e28ea3ce")}</strong> {" "}{i18nT("relie_a_une_page_facebook_reste_5141f18f")}{" "}</div>
-
-        <div style={{ width: "100%", minWidth: 0 }}>
-          <input
-            value={instagramUsername}
-            readOnly
-            placeholder={instagramAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
-            style={{
-              ...singleFieldStyle,
-              opacity: instagramAccountConnected ? 1 : 0.8,
-            }}
-          />
+        <div className={socialStyles.stepBody}>
+          <div style={{ ...responsiveActionsRow, justifyItems: "stretch" }}>
+            <input
+              value={instagramUsername}
+              readOnly
+              placeholder={instagramAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
+              style={{
+                ...singleFieldStyle,
+                opacity: instagramAccountConnected ? 1 : 0.8,
+              }}
+            />
+            {instagramAccountConnected ? (
+              <>
+                {instagramNeedsUpdate ? (
+                  <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={repairStandardAuthorization} disabled={instagramAccountBusy}>
+                    {i18nT("actualiser_9d3b2a7d")}{" "}</button>
+                ) : null}
+                <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={disconnectAll} disabled={instagramAccountBusy}>
+                  {instagramAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnexion_903dca17")}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={startStandard}>
+                  {i18nT("connexion_standard_7718db4b")}{" "}</button>
+                <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startBusiness}>
+                  {i18nT("connexion_business_fbb4bbc5")}{" "}</button>
+              </>
+            )}
+          </div>
         </div>
-
-        <div style={{ ...responsiveActionsRow, justifyItems: "stretch" }}>
-          {instagramAccountConnected ? (
-            <>
-              {instagramNeedsUpdate ? (
-                <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={repairStandardAuthorization} disabled={instagramAccountBusy} style={{ width: "100%" }}>
-                  {i18nT("actualiser_9d3b2a7d")}{" "}</button>
-              ) : null}
-              <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={disconnectAll} disabled={instagramAccountBusy} style={{ width: "100%" }}>
-                {instagramAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnexion_903dca17")}
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={startStandard} style={{ width: "100%" }}>
-                {i18nT("connexion_standard_7718db4b")}{" "}</button>
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startBusiness} style={{ width: "100%" }}>
-                {i18nT("connexion_business_fbb4bbc5")}{" "}</button>
-            </>
-          )}
-        </div>
-      </div>
+      </section>
 
       {instagramAccountConnected ? (
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.03)",
-            borderRadius: 14,
-            padding: 12,
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>{i18nT("compte_instagram_a_connecter_fe4d850a")}</div>
-            <ConnectionPill
-              connected={instagramConnected || instagramProfileDetected}
-              status={instagramNeedsUpdate ? "needs_update" : undefined}
-              activity={instagramProfileActivity}
-              label={instagramProfileActivityLabel}
-            />
+        <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}>
+          <div className={socialStyles.stepHeader}>
+            <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
+            <div className={socialStyles.stepCopy}>
+              <div className={styles.blockTitle}>{i18nT("compte_instagram_a_connecter_fe4d850a")}</div>
+              <div className={styles.blockSub}>{i18nT("on_liste_les_pages_facebook_qui_bf01d3e9")}</div>
+            </div>
+            <div className={socialStyles.stepStatus}>
+              <ConnectionPill
+                connected={instagramConnected || instagramProfileDetected}
+                status={instagramNeedsUpdate ? "needs_update" : undefined}
+                activity={instagramProfileActivity}
+                label={instagramProfileActivityLabel}
+              />
+            </div>
           </div>
-          <div className={styles.blockSub}>{i18nT("on_liste_les_pages_facebook_qui_bf01d3e9")}</div>
-
-          <div style={responsiveActionsRow}>
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.secondaryBtn} ${!instagramConnected && igAccountsPhase === "connecting" ? styles.connectingActionBtn : !instagramConnected && (igAccountsPhase === "searching" || igAccountsLoading) ? styles.searchingActionBtn : ""}`}
-              onClick={() => {
-                setInstagramPickerUnlocked(true);
-                loadInstagramAccounts();
-              }}
-              disabled={igAccountsLoading || instagramProfileBusy}
-              style={{ width: "100%" }}
-            >
-              {i18nT("charger_mes_comptes_feac3a8e")}{" "}</button>
-
+          <div className={socialStyles.stepBody}>
+            <div style={responsiveActionsRow}>
             <select
               value={selectedInstagramPageId}
               onChange={(e) => setIgSelectedPageId(e.target.value)}
@@ -280,6 +225,17 @@ export default function InstagramPanel(props: any) {
               ))}
             </select>
 
+            <button
+              type="button"
+              className={`${styles.actionBtn} ${styles.secondaryBtn} ${!instagramConnected && igAccountsPhase === "connecting" ? styles.connectingActionBtn : !instagramConnected && (igAccountsPhase === "searching" || igAccountsLoading) ? styles.searchingActionBtn : ""}`}
+              onClick={() => {
+                setInstagramPickerUnlocked(true);
+                loadInstagramAccounts();
+              }}
+              disabled={igAccountsLoading || instagramProfileBusy}
+            >
+              {i18nT("charger_mes_comptes_feac3a8e")}{" "}</button>
+
             {instagramConnected ? (
               <>
                 <button
@@ -287,7 +243,6 @@ export default function InstagramPanel(props: any) {
                   className={`${styles.actionBtn} ${styles.connectBtn} ${!instagramConnected && instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handleProfileConnect()}
                   disabled={!canChangeInstagramProfile}
-                  style={{ width: "100%" }}
                 >
                   {i18nT("changer_de_compte_6a10073f")}{" "}</button>
                 <button
@@ -295,7 +250,6 @@ export default function InstagramPanel(props: any) {
                   className={`${styles.actionBtn} ${styles.disconnectBtn} ${instagramProfileBusy && instagramProfileAction === "disconnect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handleProfileDisconnect()}
                   disabled={igAccountsLoading || instagramProfileBusy}
-                  style={{ width: "100%" }}
                 >
                   {i18nT("deconnecter_le_compte_d78850d1")}{" "}</button>
               </>
@@ -305,139 +259,82 @@ export default function InstagramPanel(props: any) {
                 className={`${styles.actionBtn} ${styles.connectBtn} ${!instagramConnected && instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
                 onClick={() => void handleProfileConnect()}
                 disabled={!canConnectInstagramProfile}
-                style={{ width: "100%" }}
               >
                 {i18nT("connecter_le_compte_a88dc864")}{" "}</button>
             )}
-          </div>
-
-          {displayAccountsError ? (
-            <div style={{ display: "grid", gap: 8 }}>
-              <StatusMessage variant="error">{displayAccountsError}</StatusMessage>
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.secondaryBtn}`}
-                onClick={repairStandardAuthorization}
-                disabled={igAccountsLoading || instagramProfileBusy}
-                style={{ width: "100%" }}
-              >
-                {i18nT("actualiser_les_autorisations_meta_85e7f589")}{" "}</button>
             </div>
-          ) : null}
-        </div>
+
+            {displayAccountsError ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <StatusMessage variant="error">{displayAccountsError}</StatusMessage>
+                <button
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.secondaryBtn}`}
+                  onClick={repairStandardAuthorization}
+                  disabled={igAccountsLoading || instagramProfileBusy}
+                >
+                  {i18nT("actualiser_les_autorisations_meta_85e7f589")}{" "}</button>
+              </div>
+            ) : null}
+            {instagramConnected || instagramUrl ? (
+              <div style={responsiveActionsRow}>
+                <input
+                  value={instagramUrl}
+                  readOnly
+                  aria-label={i18nT("lien_du_compte_890d040b")}
+                  placeholder="Lien récupéré automatiquement"
+                  style={{
+                    ...singleFieldStyle,
+                    opacity: instagramUrl ? 1 : 0.8,
+                  }}
+                />
+                <a
+                  href={instagramUrl || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`${styles.actionBtn} ${styles.viewBtn}`}
+                  style={{ pointerEvents: instagramUrl ? "auto" : "none", opacity: instagramUrl ? 1 : 0.5 }}
+                >
+                  {i18nT("voir_le_compte_1cbd7501")}{" "}
+                </a>
+              </div>
+            ) : null}
+            {instagramUrlNotice && <StatusMessage variant="success">{instagramUrlNotice}</StatusMessage>}
+            {instagramUrlError && <StatusMessage variant="error">{instagramUrlError}</StatusMessage>}
+          </div>
+        </section>
       ) : null}
 
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.03)",
-          borderRadius: 14,
-          padding: 12,
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("lien_du_compte_890d040b")}</div>
-          <ConnectionPill connected={instagramConnected && !!instagramUrl?.trim()} />
-        </div>
-        <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_apres_selection_2e5c819f")}</div>
-
-        <div style={responsiveActionsRow}>
-          <input
-            value={instagramUrl}
-            readOnly
-            placeholder={instagramConnected ? "Lien récupéré automatiquement" : "Sélectionne un compte pour générer le lien"}
-            style={{
-              ...singleFieldStyle,
-              opacity: instagramUrl ? 1 : 0.8,
-            }}
-          />
-
-          <a
-            href={instagramUrl || "#"}
-            target="_blank"
-            rel="noreferrer"
-            className={`${styles.actionBtn} ${styles.viewBtn}`}
-            style={{ pointerEvents: instagramUrl ? "auto" : "none", opacity: instagramUrl ? 1 : 0.5, width: "100%" }}
-          >
-            {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
-        </div>
-
-        {instagramUrlNotice && <StatusMessage variant="success">{instagramUrlNotice}</StatusMessage>}
-        {instagramUrlError && <StatusMessage variant="error">{instagramUrlError}</StatusMessage>}
-      </div>
-
-      <div
-        style={{
-          border: "1px solid rgba(76,195,255,0.24)",
-          background:
-            "linear-gradient(135deg, rgba(14,165,233,0.08), rgba(168,85,247,0.08))",
-          borderRadius: 14,
-          padding: 12,
-          display: "grid",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "grid", gap: 4 }}>
-          <div className={styles.blockTitle}>
-            {i18nT("instagram_publication_modes_title")}
-          </div>
-          <div className={styles.blockSub}>
-            {i18nT("instagram_publication_modes_help")}
+      <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}>
+        <div className={socialStyles.stepHeader}>
+          <span className={socialStyles.stepNumber} aria-hidden="true">03</span>
+          <div className={socialStyles.stepCopy}>
+            <div className={styles.blockTitle}>
+              {i18nT("instagram_publication_modes_title")}
+            </div>
+            <div className={styles.blockSub}>
+              {i18nT("instagram_publication_modes_help")}
+            </div>
           </div>
         </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(210px, 100%), 1fr))",
-            gap: 10,
-          }}
-        >
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: 11,
-              borderRadius: 12,
-              border: "1px solid rgba(34,197,94,0.26)",
-              background: "rgba(34,197,94,0.08)",
-              cursor: "default",
-            }}
-          >
-            <input type="checkbox" checked disabled style={{ marginTop: 3 }} />
-            <span style={{ display: "grid", gap: 3 }}>
+        <div className={socialStyles.stepBody}>
+        <div className={socialStyles.choiceGrid}>
+          <label className={socialStyles.choiceCard}>
+            <span className={socialStyles.choiceCopy}>
               <strong>{i18nT("instagram_classic_mode")}</strong>
-              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
-                {i18nT("instagram_classic_mode_help")}
-              </span>
+              <span>{i18nT("instagram_classic_mode_help")}</span>
             </span>
+            <input className={socialStyles.choiceInput} type="checkbox" checked disabled />
+            <span className={socialStyles.choiceIndicator} aria-hidden="true">✓</span>
           </label>
 
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: 11,
-              borderRadius: 12,
-              border: instagramPublicationPreferences.reelsEnabled
-                ? "1px solid rgba(76,195,255,0.30)"
-                : "1px solid rgba(255,255,255,0.10)",
-              background: instagramPublicationPreferences.reelsEnabled
-                ? "rgba(76,195,255,0.08)"
-                : "rgba(255,255,255,0.025)",
-              cursor:
-                instagramPublicationPreferencesLoading ||
-                instagramPublicationPreferencesSaving
-                  ? "wait"
-                  : "pointer",
-            }}
-          >
+          <label className={socialStyles.choiceCard}>
+            <span className={socialStyles.choiceCopy}>
+              <strong>{i18nT("instagram_reels_mode")}</strong>
+              <span>{i18nT("instagram_reels_mode_help")}</span>
+            </span>
             <input
+              className={socialStyles.choiceInput}
               type="checkbox"
               checked={instagramPublicationPreferences.reelsEnabled}
               disabled={
@@ -453,37 +350,17 @@ export default function InstagramPanel(props: any) {
                     : {}),
                 })
               }
-              style={{ marginTop: 3 }}
             />
-            <span style={{ display: "grid", gap: 3 }}>
-              <strong>{i18nT("instagram_reels_mode")}</strong>
-              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
-                {i18nT("instagram_reels_mode_help")}
-              </span>
-            </span>
+            <span className={socialStyles.choiceIndicator} aria-hidden="true">✓</span>
           </label>
 
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: 11,
-              borderRadius: 12,
-              border: instagramPublicationPreferences.storiesEnabled
-                ? "1px solid rgba(168,85,247,0.30)"
-                : "1px solid rgba(255,255,255,0.10)",
-              background: instagramPublicationPreferences.storiesEnabled
-                ? "rgba(168,85,247,0.08)"
-                : "rgba(255,255,255,0.025)",
-              cursor:
-                instagramPublicationPreferencesLoading ||
-                instagramPublicationPreferencesSaving
-                  ? "wait"
-                  : "pointer",
-            }}
-          >
+          <label className={socialStyles.choiceCard}>
+            <span className={socialStyles.choiceCopy}>
+              <strong>{i18nT("instagram_stories_mode")}</strong>
+              <span>{i18nT("instagram_stories_mode_help")}</span>
+            </span>
             <input
+              className={socialStyles.choiceInput}
               type="checkbox"
               checked={instagramPublicationPreferences.storiesEnabled}
               disabled={
@@ -499,14 +376,8 @@ export default function InstagramPanel(props: any) {
                     : {}),
                 })
               }
-              style={{ marginTop: 3 }}
             />
-            <span style={{ display: "grid", gap: 3 }}>
-              <strong>{i18nT("instagram_stories_mode")}</strong>
-              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
-                {i18nT("instagram_stories_mode_help")}
-              </span>
-            </span>
+            <span className={socialStyles.choiceIndicator} aria-hidden="true">✓</span>
           </label>
         </div>
 
@@ -553,7 +424,7 @@ export default function InstagramPanel(props: any) {
               instagramPublicationPreferencesSaving
             }
             onClick={() => void saveInstagramPublicationPreferences?.()}
-            style={{ width: "100%", alignSelf: "end" }}
+            style={{ alignSelf: "end" }}
           >
             {instagramPublicationPreferencesSaving
               ? i18nT("instagram_publication_modes_saving")
@@ -571,7 +442,8 @@ export default function InstagramPanel(props: any) {
             {instagramPublicationPreferencesError}
           </StatusMessage>
         ) : null}
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

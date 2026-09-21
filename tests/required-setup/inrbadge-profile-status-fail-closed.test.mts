@@ -10,6 +10,10 @@ const fluxBubblesSource = readFileSync(
   new URL("../../app/dashboard/dashboard.flux-bubbles.ts", import.meta.url),
   "utf8",
 );
+const channelConnectionsModalSource = readFileSync(
+  new URL("../../app/dashboard/_components/ChannelConnectionsModal.tsx", import.meta.url),
+  "utf8",
+);
 const dashboardMessages = JSON.parse(
   readFileSync(new URL("../../messages/fr-FR/dashboard.json", import.meta.url), "utf8"),
 ) as { status: { syncing: string } };
@@ -53,5 +57,20 @@ test("iNrBadge actions stay disabled only while neither cache nor profile check 
   assert.match(
     fluxBubblesSource,
     /if \(m\.key === "inrbadge"\) \{[\s\S]*if \(!inrBadgeProfileCheckReady\) return;/,
+  );
+});
+
+test("the channel overview reuses the authoritative business essentials signal for iNrBadge and iNrSearch", () => {
+  assert.match(
+    dashboardClientSource,
+    /businessEssentialsReady=\{inrBadgeProfileReady\}/,
+  );
+  assert.match(
+    channelConnectionsModalSource,
+    /item\.key === "inrbadge" \|\| item\.key === "inr_search"/,
+  );
+  assert.match(
+    channelConnectionsModalSource,
+    /usesBusinessEssentials && businessEssentialsReady/,
   );
 });

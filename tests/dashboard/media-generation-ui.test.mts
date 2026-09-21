@@ -336,7 +336,6 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
     "app/dashboard/generer-media/mediaGeneratorStudio.module.css"
   );
   const edition = read("lib/dashboardEdition.ts");
-  const requiredSetup = read("lib/dashboardRequiredSetupAccess.ts");
   const desktopMenu = read("app/dashboard/_components/UserMenu.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const dashboardFr = JSON.parse(read("messages/fr-FR/dashboard.json"));
@@ -349,9 +348,11 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
   assert.doesNotMatch(studio, /heroTop|heroBottom|ai_studio_quota_badge/);
   assert.doesNotMatch(studioStyles, /\.heroTop|\.heroBottom|\.sideCard/);
   assert.doesNotMatch(edition, /dashboard\/generer-media/);
-  for (const source of [requiredSetup, desktopMenu, mobileMenu]) {
+  for (const source of [desktopMenu, mobileMenu]) {
     assert.ok(source.includes("/dashboard/generer-media"));
   }
+  assert.equal(existsSync("lib/dashboardRequiredSetupAccess.ts"), false);
+  assert.equal(existsSync("app/dashboard/generer-media/layout.tsx"), false);
   assert.match(desktopMenu, /mediaGenerator/);
   assert.match(mobileMenu, /mediaGenerator/);
   assert.equal(

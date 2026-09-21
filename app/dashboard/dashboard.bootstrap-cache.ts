@@ -9,8 +9,10 @@ export const FORCED_SERVER_CACHE_CHECK_DEDUP_MS = 30_000;
 export const AUTO_DAILY_REFRESH_DEDUP_MS = 5 * 60_000;
 export const CHANNEL_REFRESH_DEDUP_MS = 30_000;
 export const GENERATOR_POWER_SETTLE_MS = 700;
-export const GENERATOR_POWER_CACHE_KEY = "inrcy_generator_power_percent_v1";
-export const GENERATOR_POWER_SNAPSHOT_CACHE_KEY = "inrcy_generator_power_snapshot_v1";
+// v2 correspond au calcul par canal. Les anciennes clés v1 décrivaient les
+// étapes Profil/Activité et ne doivent jamais hydrater cette nouvelle jauge.
+export const GENERATOR_POWER_CACHE_KEY = "inrcy_generator_power_percent_v2";
+export const GENERATOR_POWER_SNAPSHOT_CACHE_KEY = "inrcy_generator_power_snapshot_v2";
 export const GENERATOR_ACTIVE_CACHE_KEY = "inrcy_generator_active_v1";
 export const SITE_BUBBLE_PROGRESS_CACHE_KEY = "inrcy_site_bubble_progress_v1";
 export const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";

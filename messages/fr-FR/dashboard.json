@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "Fermer",
+    "allChannels": "Tous les canaux",
     "titles": {
       "contact": "Nous contacter",
       "compte": "Compte iNrCytizen",
@@ -104,6 +105,35 @@
     "powerDialogAria": "Détail de la puissance du générateur",
     "powerPanelTitle": "Détail puissance",
     "kicker": "Votre cockpit iNrCy",
+    "cockpitTitle": "Votre cockpit",
+    "cockpitShortTitle": "Cockpit",
+    "inertiaPower": "Puissance d’inertie",
+    "connectStep": "Connecter",
+    "enrichStep": "Enrichir",
+    "configureStep": "Paramétrer",
+    "channelsStepLabel": "Canaux actifs",
+    "dnaStepLabel": "ADN de l’entreprise",
+    "aiStepLabel": "Configurer mon IA",
+    "channelsInfoAria": "Voir la grille de puissance des canaux",
+    "channelsInfoTitle": "Puissance des 11 canaux",
+    "channelsInfoHint": "Chaque canal alimente sa propre part. Les 11 contributions totalisent exactement 100 %.",
+    "dnaInfoAria": "Comprendre le score ADN",
+    "dnaInfoTitle": "Des contenus personnalisés",
+    "dnaInfoHint": "Plus votre iNr’ADN est complet, plus l’IA réalise des contenus personnalisés et fidèles à votre entreprise.",
+    "aiInfoAria": "Comprendre le score de personnalisation IA",
+    "aiInfoTitle": "Pourquoi configurer mon IA ?",
+    "aiInfoHint": "Configurer votre IA améliore son efficacité et affine son langage pour qu’elle s’exprime comme votre entreprise.",
+    "channelOverviewTitle": "Connecter mes canaux",
+    "channelColumn": "Canal",
+    "powerColumn": "Puissance",
+    "powerInfoAria": "Comprendre la puissance d’un canal",
+    "powerInfoTitle": "La puissance d’un canal",
+    "powerInfoText": "La puissance mesure la contribution de chaque canal à votre visibilité et à la génération de contacts. Plus le pourcentage est élevé, plus ce canal joue un rôle important pour attirer des prospects.",
+    "statusColumn": "Statut",
+    "configureColumn": "Configurer",
+    "stateColumn": "État",
+    "createColumn": "Créer",
+    "createdLabel": "Créé",
     "expandCockpitAria": "Déplier votre cockpit iNrCy",
     "collapseCockpitAria": "Replier votre cockpit iNrCy",
     "title": "Le Générateur est lancé !",
@@ -209,7 +239,6 @@
     "connectedAria": "canaux connectés sur"
   },
   "modules": {
-    "requiredSetupLocked": "Complétez votre profil pour débloquer cet outil.",
     "dashboardTitle": "Tableau de bord",
     "dashboardSub": "Pilotage",
     "statsSub": "Tous vos leads, enfin visibles",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "Voir",
     "configure": "Configurer",
+    "create": "Créer",
     "disabled": "Option désactivée",
     "open": "Ouvrir"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "Configuration de votre compte",
-    "title": "5 étapes pour bien démarrer",
+    "title": "4 étapes pour bien démarrer",
     "bothIncomplete": "Suivez-les dans l’ordre pour profiter pleinement d’iNrCy.",
     "profileIncomplete": "Suivez-les dans l’ordre pour profiter pleinement d’iNrCy.",
     "activityIncomplete": "Suivez-les dans l’ordre pour profiter pleinement d’iNrCy.",
-    "stepProfile": "Complétez votre profil",
-    "stepChannels": "Connectez vos canaux",
-    "stepDna": "Remplissez votre iNr’ADN, automatiquement ou manuellement",
-    "stepAi": "Configurez votre IA",
-    "stepFirstPublication": "Réalisez votre première publication",
-    "confirm": "Compléter mon profil",
+    "stepChannels": "Connecter mes canaux",
+    "stepDna": "Enrichir l'ADN de mon entreprise",
+    "stepAi": "Configurer mon IA",
+    "stepFirstPublication": "Publier",
+    "confirm": "Connecter mes canaux",
     "cancel": "Plus tard"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "Cette fenêtre contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
     "closeWithoutSaving": "Fermer sans enregistrer",
     "continueEditing": "Continuer l’édition"
-  },
-  "requiredSetup": {
-    "loading": "Configuration requise…"
   },
   "settingsSections": {
     "activityIdentityTitle": "Secteur et métier",

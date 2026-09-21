@@ -26,11 +26,12 @@ test("X configuration owns status, OAuth start and disconnect actions", () => {
   const panel = read("app/dashboard/settings/_components/XSettingsContent.tsx");
 
   assert.match(routing, /\| "x"/);
-  assert.match(drawer, /panel === "x" && xAccessEnabled && <XSettingsContent/);
+  assert.match(drawer, /shouldKeepPanel\("x"\) && xAccessEnabled/);
+  assert.match(drawer, /<MemorizedPanel active=\{panel === "x"\}>[\s\S]*?<XSettingsContent \/>/);
   assert.match(panel, /fetch\("\/api\/integrations\/x\/status"/);
   assert.match(panel, /\/api\/integrations\/x\/start\?returnTo=/);
   assert.match(panel, /fetch\("\/api\/integrations\/x\/disconnect", \{ method: "POST" \}\)/);
   assert.match(panel, /inrcy:x-settings-updated/);
-  assert.match(panel, /X facture son API à l'usage/);
-  assert.match(panel, /publication contenant un lien peut coûter nettement plus cher/);
+  assert.doesNotMatch(panel, /X facture son API à l'usage/);
+  assert.doesNotMatch(panel, /publication contenant un lien peut coûter nettement plus cher/);
 });

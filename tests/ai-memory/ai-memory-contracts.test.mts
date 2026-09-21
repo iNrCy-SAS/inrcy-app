@@ -61,7 +61,7 @@ test("Business DNA strategy is available to Standard and Premium generations", (
   assert.match(configurationUi, /contentLengthPremiumPillStyle/);
 });
 
-test("profile, Business DNA and AI settings are three real full-page tools", () => {
+test("profile is embedded in Business DNA while AI settings remains a dedicated tool", () => {
   const menu = read("app/dashboard/_components/UserMenu.tsx");
   const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
@@ -79,15 +79,16 @@ test("profile, Business DNA and AI settings are three real full-page tools", () 
   assert.match(dnaPage, /data-business-dna-page/);
   assert.match(dnaPage, /<AiMemoryContent/);
   assert.match(dnaPage, /business-dna\.svg/);
-  assert.match(profilePage, /data-profile-workspace-page/);
-  assert.match(profilePage, /profile-workspace\.svg/);
+  assert.match(profilePage, /redirect\(`\/dashboard\/adn-entreprise\?tab=\$\{tab\}`\)/);
+  assert.match(dnaPage, /"profile"/);
+  assert.match(dnaPage, /"activity"/);
   assert.match(configurationPage, /data-ai-configuration-page/);
   assert.match(configurationPage, /<AiConfigurationIcon/);
   assert.doesNotMatch(configurationPage, /ai-configuration\.svg/);
   assert.match(configurationPage, /<AiConfigurationContent/);
   assert.doesNotMatch(profile, /onOpenAiMemory/);
-  assert.match(profilePage, /navigate\("\/dashboard\/adn-entreprise"\)/);
-  assert.match(profilePage, /navigate\("\/dashboard\/configuration-ia"\)/);
+  assert.match(read("app/dashboard/settings/_components/AiMemoryContent.tsx"), /data-ai-memory-tab="profile"/);
+  assert.match(read("app/dashboard/settings/_components/AiMemoryContent.tsx"), /data-ai-memory-tab="activity-foundation"/);
   assert.match(configuration, /tabParameters/);
   assert.match(configuration, /tabInstructions/);
   assert.doesNotMatch(read("app/dashboard/settings/_components/AiMemoryContent.tsx"), /<AiConfigurationContent/);
@@ -106,17 +107,21 @@ test("the two length controls cover the requested channel families", () => {
   assert.match(rules, /isBoosterWebChannel\(channel\)[\s\S]*\? preferences\.webLength[\s\S]*: preferences\.socialLength/);
 });
 
-test("all three dedicated tools protect unsaved work independently", () => {
+test("Business DNA and AI settings protect unsaved work while the legacy profile route only redirects", () => {
   const dnaPage = read("app/dashboard/adn-entreprise/page.tsx");
   const profilePage = read("app/dashboard/mon-profil/page.tsx");
   const configurationPage = read("app/dashboard/configuration-ia/page.tsx");
   const dashboard = read("app/dashboard/DashboardClient.tsx");
-  for (const page of [dnaPage, profilePage, configurationPage]) {
+  for (const page of [dnaPage, configurationPage]) {
     assert.match(page, /useUnsavedExitGuard/);
     assert.match(page, /shouldBlock: hasUnsavedChanges/);
     assert.match(page, /requestNavigation/);
     assert.match(page, /onUnsavedChange=\{setHasUnsavedChanges\}/);
   }
+  assert.doesNotMatch(profilePage, /useUnsavedExitGuard/);
+  assert.match(profilePage, /redirect\(/);
+  assert.match(dnaPage, /onProfileSaved=/);
+  assert.match(dnaPage, /onActivitySaved=/);
   assert.doesNotMatch(dashboard, /variant=\{panel === "ai_memory"/);
 });
 
@@ -193,14 +198,13 @@ test("Business DNA rich text uses a safe visual toolbar instead of exposing mark
   assert.match(sanitizer, /script\|style\|iframe\|object\|embed\|svg\|math/);
 });
 
-test("Business DNA keeps the compact profile foundation and inline service action", () => {
+test("Business DNA keeps the compact activity foundation and inline service action", () => {
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const editableTags = read("app/dashboard/settings/_components/EditableTags.tsx");
 
-  assert.match(memoryUi, /foundationCardStyle/);
-  assert.match(memoryUi, /foundationCompactHintStyle/);
-  assert.match(memoryUi, /t\("foundationTitle"\)/);
-  assert.match(memoryUi, /t\("baseServicesLabel"\)[\s\S]*?<EditableTags[\s\S]*?values=\{businessKnowledge\.services\}[\s\S]*?inlineAdd/);
+  assert.match(memoryUi, /data-ai-memory-tab="activity-foundation"/);
+  assert.match(memoryUi, /contentScope="profile-core"/);
+  assert.match(memoryUi, /activeTab === "activity"[\s\S]*?t\("baseServicesLabel"\)[\s\S]*?<EditableTags[\s\S]*?values=\{businessKnowledge\.services\}[\s\S]*?inlineAdd/);
   assert.doesNotMatch(memoryUi, /function FoundationValue/);
   assert.match(editableTags, /inlineAdd\?: boolean/);
   assert.match(editableTags, /\{inlineAdd && !adding/);
@@ -212,11 +216,11 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
   const configurationUi = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
   const memory = read("lib/aiMemory.ts");
 
-  assert.match(memoryUi, /\| "identity"\s*\| "news"\s*\| "documents"\s*\| "strategy"/);
+  assert.match(memoryUi, /\| "profile"\s*\| "activity"\s*\| "audience"\s*\| "local"\s*\| "identity"\s*\| "news"\s*\| "strategy"/);
   assert.match(memoryUi, /t\("tabIdentity"\)/);
-  assert.match(memoryUi, /\{ key: "analysis"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "activity"/);
+  assert.match(memoryUi, /\{ key: "analysis"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "profile"[\s\S]*?\{ key: "activity"/);
   assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "strategy"/);
-  assert.match(memoryUi, /gridTemplateColumns: "repeat\(8, minmax\(0, 1fr\)\)"/);
+  assert.match(memoryUi, /gridTemplateColumns: "repeat\(9, minmax\(0, 1fr\)\)"/);
   assert.doesNotMatch(memoryUi, /activeTab === "voice"/);
   assert.doesNotMatch(memoryUi, /configurationLink/);
   assert.match(memoryUi, /memoryTags\([\s\S]*?"preferredVocabulary"/);
@@ -285,7 +289,8 @@ test("a failed memory load can be retried but can never overwrite data with the 
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
 
   assert.match(memoryUi, /const \[loaded, setLoaded\] = useState\(false\)/);
-  assert.match(memoryUi, /loading \? \([\s\S]*: !loaded \? \(/);
+  assert.match(memoryUi, /activeTabRequiresAiMemory && loading \? \(/);
+  assert.match(memoryUi, /activeTabRequiresAiMemory && !loading && !loaded \? \(/);
   assert.match(memoryUi, /!loading && loaded &&/);
   assert.match(memoryUi, /setLoadAttempt\(\(attempt\) => attempt \+ 1\)/);
 });

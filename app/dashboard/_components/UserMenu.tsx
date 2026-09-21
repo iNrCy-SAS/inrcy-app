@@ -115,11 +115,19 @@ export default function UserMenu(props: {
           </button>
           <button
             type="button"
+            className={styles.userMenuItem}
+            role="menuitem"
+            onClick={() => closeAndNavigate("/dashboard?action=channels")}
+          >
+            {t.hero.channelOverviewTitle}
+          </button>
+          <button
+            type="button"
             className={`${styles.userMenuItem} ${hasCompletionWarning ? styles.userMenuItemWithWarning : ""}`}
             role="menuitem"
-            onClick={() => closeAndOpen("profil")}
+            onClick={() => closeAndOpen("ai_memory")}
           >
-            <span>{t.userMenu.profile}</span>
+            <span>{t.userMenu.aiMemory}</span>
             {hasCompletionWarning && (
               <span className={styles.menuWarningTriangle} aria-hidden="true">⚠️</span>
             )}
@@ -131,14 +139,6 @@ export default function UserMenu(props: {
             onClick={() => closeAndOpen("ia")}
           >
             {t.userMenu.ai}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
-            onClick={() => closeAndOpen("ai_memory")}
-          >
-            {t.userMenu.aiMemory}
           </button>
           <button
             type="button"

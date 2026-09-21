@@ -481,8 +481,8 @@ test("iNrADN verrouille la page pendant la dictée et délègue toute capture au
   );
   assert.equal(
     (businessDnaPage.match(/disabled: voiceBusy/g) || []).length,
-    3,
-    "les trois raccourcis du header iNrADN doivent être verrouillés",
+    2,
+    "les deux actions du header iNrADN doivent être verrouillées",
   );
   assert.match(
     businessDnaPage,

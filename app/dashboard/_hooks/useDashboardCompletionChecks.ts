@@ -6,14 +6,14 @@ import { readAccountCacheValue, resolveActiveBrowserUserId, writeAccountCacheVal
 import {
   DASHBOARD_ACTIVITY_COMPLETION_SELECT,
   DASHBOARD_PROFILE_COMPLETION_SELECT,
-  evaluateDashboardRequiredSetupCompletion,
+  evaluateDashboardPreparationCompletion,
   type DashboardActivityCompletionField,
   type DashboardCompletionSection,
   type DashboardProfileCompletionField,
 } from "@/lib/dashboardCompletion";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { createClient } from "@/lib/supabaseClient";
-import { useDashboardRequiredSetupBypass } from "../_components/DashboardRequiredSetupBypassProvider";
+import { useDashboardCompletionBypass } from "../_components/DashboardCompletionBypassProvider";
 
 type CompletionSnapshot = {
   accountId: string;
@@ -29,8 +29,6 @@ export type DashboardCompletionState = {
   activityIncomplete: boolean;
   profileCompleted: boolean;
   activityCompleted: boolean;
-  requiredSetupCompleted: boolean;
-  requiredSetupIncomplete: boolean;
   missingSections: DashboardCompletionSection[];
   profileMissingFields: DashboardProfileCompletionField[];
   activityMissingFields: DashboardActivityCompletionField[];
@@ -45,8 +43,6 @@ const INITIAL_COMPLETION_STATE: DashboardCompletionState = {
   activityIncomplete: false,
   profileCompleted: false,
   activityCompleted: false,
-  requiredSetupCompleted: false,
-  requiredSetupIncomplete: false,
   missingSections: [],
   profileMissingFields: [],
   activityMissingFields: [],
@@ -61,8 +57,6 @@ const BYPASSED_COMPLETION_STATE: DashboardCompletionState = {
   activityIncomplete: false,
   profileCompleted: true,
   activityCompleted: true,
-  requiredSetupCompleted: true,
-  requiredSetupIncomplete: false,
   missingSections: [],
   profileMissingFields: [],
   activityMissingFields: [],
@@ -72,9 +66,9 @@ const BYPASSED_COMPLETION_STATE: DashboardCompletionState = {
 };
 
 
-// Bump this key whenever the required-field contract changes. Reusing an
-// older ready state can redirect a newly valid account before revalidation.
-const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v2";
+// Bump this key whenever the completion contract changes. This snapshot is
+// informational (onboarding and profile-dependent previews), never an access gate.
+const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v3";
 
 function readCachedCompletionState(): DashboardCompletionState | null {
   try {
@@ -181,7 +175,7 @@ async function loadCompletionSnapshot(
 }
 
 function buildReadyState(snapshot: CompletionSnapshot): DashboardCompletionState {
-  const completion = evaluateDashboardRequiredSetupCompletion(
+  const completion = evaluateDashboardPreparationCompletion(
     snapshot.profile,
     snapshot.business,
   );
@@ -192,8 +186,6 @@ function buildReadyState(snapshot: CompletionSnapshot): DashboardCompletionState
     activityIncomplete: completion.activity.incomplete,
     profileCompleted: completion.profile.completed,
     activityCompleted: completion.activity.completed,
-    requiredSetupCompleted: completion.completed,
-    requiredSetupIncomplete: completion.incomplete,
     missingSections: completion.missingSections,
     profileMissingFields: completion.profile.missingFields,
     activityMissingFields: completion.activity.missingFields,
@@ -210,8 +202,6 @@ function buildFailedState(accountId: string | null): DashboardCompletionState {
     activityIncomplete: true,
     profileCompleted: false,
     activityCompleted: false,
-    requiredSetupCompleted: false,
-    requiredSetupIncomplete: true,
     missingSections: ["profile", "activity"],
     profileMissingFields: [],
     activityMissingFields: [],
@@ -242,10 +232,6 @@ function markSectionCompleted(
     activityIncomplete: !activityCompleted,
     profileCompleted,
     activityCompleted,
-    requiredSetupCompleted:
-      completionCheckReady && profileCompleted && activityCompleted,
-    requiredSetupIncomplete:
-      completionCheckReady && (!profileCompleted || !activityCompleted),
     missingSections,
     profileMissingFields:
       section === "profile" ? [] : current.profileMissingFields,
@@ -258,7 +244,7 @@ function markSectionCompleted(
 }
 
 export function useDashboardCompletionChecks() {
-  const bypassRequiredSetup = useDashboardRequiredSetupBypass();
+  const bypassCompletionChecks = useDashboardCompletionBypass();
   const [completionState, setCompletionState] = useState<DashboardCompletionState>(
     () => readCachedCompletionState() ?? INITIAL_COMPLETION_STATE,
   );
@@ -266,7 +252,7 @@ export function useDashboardCompletionChecks() {
   const activeAccountIdRef = useRef<string | null>(null);
 
   const refreshCompletion = useCallback(async (options?: { force?: boolean }) => {
-    if (bypassRequiredSetup) return BYPASSED_COMPLETION_STATE;
+    if (bypassCompletionChecks) return BYPASSED_COMPLETION_STATE;
 
     const refreshSequence = ++refreshSequenceRef.current;
     const accountId = await resolveCompletionAccountId();
@@ -300,7 +286,7 @@ export function useDashboardCompletionChecks() {
       broadcastCompletionState(failedState);
       return failedState;
     }
-  }, [bypassRequiredSetup]);
+  }, [bypassCompletionChecks]);
 
   // Conservés pour les formulaires existants : les deux callbacks rafraîchissent
   // désormais le même état atomique du profil unifié.
@@ -332,7 +318,7 @@ export function useDashboardCompletionChecks() {
   }, [completionState]);
 
   useEffect(() => {
-    if (bypassRequiredSetup) return;
+    if (bypassCompletionChecks) return;
 
     void refreshCompletion();
 
@@ -354,9 +340,9 @@ export function useDashboardCompletionChecks() {
       window.removeEventListener(DASHBOARD_COMPLETION_STATE_EVENT, handleCompletionState);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange);
     };
-  }, [bypassRequiredSetup, refreshCompletion]);
+  }, [bypassCompletionChecks, refreshCompletion]);
 
-  const effectiveCompletionState = bypassRequiredSetup
+  const effectiveCompletionState = bypassCompletionChecks
     ? BYPASSED_COMPLETION_STATE
     : completionState;
 

@@ -12,6 +12,7 @@ import {
   translateDashboardStatusText,
   type DashboardCopy,
 } from "@/i18n/dashboard";
+import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "./dashboard.channel-setup";
 
 type BuildFluxBubbleItemsArgs = {
   bubbleAccessMap: AppBubbleAccessMap;
@@ -331,6 +332,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       if (["site_web", "instagram", "linkedin", "gmb", "facebook"].includes(m.key)) openPanel(m.key as any);
     };
 
+    const createHref = m.key in DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY
+      ? DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY[m.key as keyof typeof DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY]
+      : null;
+
     return {
       key: m.key,
       name: moduleCopy?.name || m.name,
@@ -348,6 +353,13 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       canViewSpecial: accessEnabled ? canViewSpecial : false,
       onSpecialView: accessEnabled && m.key === "inrbadge" ? onOpenInrBadgeModal : undefined,
       viewAction: accessEnabled && !(specialViewHref || m.key === "inrbadge") ? viewAction : undefined,
+      createHref,
+      // « Créer » est réservé aux réseaux traditionnels disposant d'une page
+      // officielle de création. Les outils iNrCy, Mails et les sites conservent
+      // strictement leurs actions existantes.
+      onCreate: undefined,
+      createLabel: copy.bubble.create,
+      createDisabled: !accessEnabled || (m.key === "inrbadge" && !inrBadgeProfileCheckReady),
       onConfigure,
       configureDestination,
       configureDisabled:

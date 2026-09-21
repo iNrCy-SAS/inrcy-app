@@ -39,7 +39,7 @@ test("the cached visual state never unlocks Site iNrCy actions", () => {
 test("generator power waits for the real channel refresh and site progress waits for authoritative access", () => {
   assert.match(
     dashboardClientSource,
-    /const generatorPowerReady = siteConnectionsReady && profileCheckReady && activityCheckReady;/,
+    /const generatorPowerReady = siteConnectionsReady && profileCheckReady && officialChannelStatesReady && inrSearchConnected !== null;/,
   );
   assert.match(
     dashboardClientSource,

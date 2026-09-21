@@ -7,6 +7,8 @@ type WorkspaceHeaderAction = {
   onClick: () => void;
   tone?: "cyan" | "violet" | "neutral";
   disabled?: boolean;
+  mobileIcon?: ReactNode;
+  mobileBare?: boolean;
 };
 
 type Props = {
@@ -14,7 +16,9 @@ type Props = {
   logo?: ReactNode;
   title: string;
   subtitle: string;
+  status?: ReactNode;
   actions: WorkspaceHeaderAction[];
+  responsiveTwoRow?: boolean;
 };
 
 export default function DashboardWorkspaceHeader({
@@ -22,26 +26,39 @@ export default function DashboardWorkspaceHeader({
   logo,
   title,
   subtitle,
+  status,
   actions,
+  responsiveTwoRow = false,
 }: Props) {
   return (
-    <header data-dashboard-workspace-header style={headerStyle}>
-      <div style={brandStyle}>
-        {logo || (logoSrc ? <img src={logoSrc} alt="" aria-hidden="true" width={42} height={42} style={logoStyle} /> : null)}
-        <span aria-hidden style={dividerStyle} />
-        <span style={titleGroupStyle}>
+    <header
+      data-dashboard-workspace-header
+      data-responsive-two-row={responsiveTwoRow ? "true" : undefined}
+      style={headerStyle}
+    >
+      <div data-dashboard-workspace-brand style={brandStyle}>
+        <span data-dashboard-workspace-logo style={logoSlotStyle}>
+          {logo || (logoSrc ? <img src={logoSrc} alt="" aria-hidden="true" width={42} height={42} style={logoStyle} /> : null)}
+        </span>
+        <span data-dashboard-workspace-divider aria-hidden style={dividerStyle} />
+        <span data-dashboard-workspace-title-group style={titleGroupStyle}>
           <h1 style={titleStyle}>{title}</h1>
-          <span style={subtitleStyle}>{subtitle}</span>
+          <span data-dashboard-workspace-subtitle style={subtitleStyle}>{subtitle}</span>
         </span>
       </div>
 
       <nav aria-label={title} style={actionsStyle}>
+        {status}
         {actions.map((action) => (
           <button
             key={action.label}
             type="button"
             disabled={action.disabled}
             onClick={action.onClick}
+            aria-label={action.label}
+            title={action.label}
+            data-has-mobile-icon={action.mobileIcon ? "true" : undefined}
+            data-mobile-bare={action.mobileBare ? "true" : undefined}
             style={{
               ...headerButtonBase,
               ...buttonToneStyles[action.tone || "neutral"],
@@ -49,12 +66,20 @@ export default function DashboardWorkspaceHeader({
               opacity: action.disabled ? 0.52 : 1,
             }}
           >
-            {action.label}
+            <span data-dashboard-workspace-action-label>{action.label}</span>
+            {action.mobileIcon ? (
+              <span data-dashboard-workspace-action-icon aria-hidden="true">
+                {action.mobileIcon}
+              </span>
+            ) : null}
           </button>
         ))}
       </nav>
 
       <style jsx>{`
+        header[data-dashboard-workspace-header] [data-dashboard-workspace-action-icon] {
+          display: none;
+        }
         @media (max-width: 820px) {
           header[data-dashboard-workspace-header] {
             align-items: stretch !important;
@@ -64,6 +89,71 @@ export default function DashboardWorkspaceHeader({
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             width: 100% !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] {
+            display: grid !important;
+            grid-template-columns: auto auto minmax(0, 1fr) auto !important;
+            grid-template-rows: auto auto !important;
+            align-items: center !important;
+            gap: 6px 10px !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] > [data-dashboard-workspace-brand],
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-title-group] {
+            display: contents !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-logo] {
+            grid-column: 1;
+            grid-row: 1;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-divider] {
+            grid-column: 2;
+            grid-row: 1;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] h1 {
+            grid-column: 3;
+            grid-row: 1;
+            min-width: 0;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-subtitle] {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            max-width: none !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav {
+            grid-column: 4;
+            grid-row: 1;
+            display: flex !important;
+            grid-template-columns: none !important;
+            width: auto !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] {
+            display: inline-flex;
+            width: 38px;
+            min-width: 38px;
+            height: 38px;
+            min-height: 38px;
+            padding: 0 !important;
+            align-items: center;
+            justify-content: center;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] [data-dashboard-workspace-action-label] {
+            display: none;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] [data-dashboard-workspace-action-icon] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            line-height: 1;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-mobile-bare="true"] {
+            border-color: transparent !important;
+            background: transparent !important;
+            box-shadow: none !important;
           }
         }
         header[data-dashboard-workspace-header] nav button:focus-visible {
@@ -89,6 +179,15 @@ export default function DashboardWorkspaceHeader({
           }
           header[data-dashboard-workspace-header] h1 {
             overflow-wrap: anywhere !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] > [data-dashboard-workspace-brand] {
+            width: auto !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] {
+            width: 36px;
+            min-width: 36px !important;
+            height: 36px;
+            min-height: 36px;
           }
         }
       `}</style>
@@ -129,6 +228,7 @@ const headerStyle: CSSProperties = {
   backdropFilter: "blur(20px)",
 };
 const brandStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10, minWidth: 0 };
+const logoSlotStyle: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" };
 const logoStyle: CSSProperties = { width: 42, height: 42, flex: "0 0 auto", filter: "drop-shadow(0 9px 22px rgba(124,58,237,0.26))" };
 const dividerStyle: CSSProperties = { width: 1, height: 30, flex: "0 0 auto", background: "var(--inrcy-theme-border-strong, rgba(255,255,255,0.13))" };
 const titleGroupStyle: CSSProperties = { display: "grid", gap: 2, minWidth: 0 };

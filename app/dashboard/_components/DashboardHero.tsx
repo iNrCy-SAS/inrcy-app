@@ -1,17 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import HelpButton from "./HelpButton";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import styles from "../dashboard.module.css";
-
-type GeneratorPowerStep = {
-  readonly label: string;
-  readonly shortLabel: string;
-  readonly weight: number;
-  readonly completed: boolean;
-};
 
 type InertiaSnapshot = {
   multiplier: number;
@@ -19,32 +12,21 @@ type InertiaSnapshot = {
   totalChannels: number;
 };
 
-
-function getMobileHeroCopy(locale: string, i18nT: (key: string) => string) {
-  const language = String(locale || "fr").slice(0, 2).toLowerCase();
-  const copyByLanguage: Record<string, { title1: string; title2: string; subtitle1: string; subtitle2: string }> = {
-    en: { title1: "your_business_generator_df29b041", title2: "is_live_5d0609ac", subtitle1: "all_your_channels_now_feed_c9df1042", subtitle2: "one_single_machine_d3ce3030" },
-    es: { title1: "tu_generador_de_negocio_b63ada17", title2: "esta_activo_64430b89", subtitle1: "todos_tus_canales_alimentan_ahora_34a46a6f", subtitle2: "una_sola_maquina_5e6c6550" },
-    it: { title1: "il_tuo_generatore_di_business_53256a69", title2: "e_attivo_55801ec5", subtitle1: "tutti_i_tuoi_canali_alimentano_ora_75b2ecc9", subtitle2: "un_unica_macchina_31b7ded2" },
-    de: { title1: "ihr_business_generator_64182920", title2: "lauft_56fb4d66", subtitle1: "alle_kanale_speisen_jetzt_c4251806", subtitle2: "eine_einzige_maschine_980093ae" },
-    nl: { title1: "uw_businessgenerator_7050b758", title2: "is_actief_0046dac7", subtitle1: "al_uw_kanalen_voeden_nu_5fd4723d", subtitle2: "een_enkele_machine_7a9be13e" },
-    pt: { title1: "o_seu_gerador_de_negocio_2270c558", title2: "esta_ativo_adb7b222", subtitle1: "todos_os_canais_alimentam_agora_68c2d867", subtitle2: "uma_unica_maquina_ecd78664" },
-    fr: { title1: "votre_generateur_de_business_2a1172dd", title2: "est_lance_1dda6f1c", subtitle1: "tous_vos_canaux_alimentent_maintenant_978f2df8", subtitle2: "une_seule_machine_00b77b87" },
-  };
-  const copy = copyByLanguage[language] || copyByLanguage.fr;
-  return {
-    title1: i18nT(copy.title1),
-    title2: i18nT(copy.title2),
-    subtitle1: i18nT(copy.subtitle1),
-    subtitle2: i18nT(copy.subtitle2),
-  };
-}
+type ChannelPowerStep = {
+  key: string;
+  label: string;
+  weight: number;
+  completed: boolean;
+};
 
 type DashboardHeroProps = {
   generatorPower: number;
-  generatorPowerSteps: readonly GeneratorPowerStep[];
-  remainingGeneratorPowerSteps: number;
-  nextGeneratorPowerStep: GeneratorPowerStep | null;
+  dnaPower: number;
+  aiPower: number;
+  channelPowerSteps: readonly ChannelPowerStep[];
+  onOpenChannels: () => void;
+  onOpenDna: () => void;
+  onOpenAi: () => void;
   onOpenGeneratorHelp: () => void;
   onOpenGeneratorSettings: () => void;
   onRefreshGenerator: () => void;
@@ -61,9 +43,12 @@ type DashboardHeroProps = {
 
 export default function DashboardHero({
   generatorPower,
-  generatorPowerSteps,
-  remainingGeneratorPowerSteps,
-  nextGeneratorPowerStep,
+  dnaPower,
+  aiPower,
+  channelPowerSteps,
+  onOpenChannels,
+  onOpenDna,
+  onOpenAi,
   onOpenGeneratorHelp,
   onOpenGeneratorSettings,
   onRefreshGenerator,
@@ -80,164 +65,148 @@ export default function DashboardHero({
   const i18nT = useTranslations("shell");
   const t = useDashboardI18n();
   const heroT = useTranslations("dashboard.hero");
-  const mobileCopy = getMobileHeroCopy(t.locale, i18nT);
-  const [cockpitOpen, setCockpitOpen] = useState(false);
-  const [powerBreakdownOpen, setPowerBreakdownOpen] = useState(false);
-  const powerBreakdownRef = useRef<HTMLDivElement | null>(null);
+  const [openInfo, setOpenInfo] = useState<"channels" | "dna" | "ai" | null>(null);
+  const cockpitRef = useRef<HTMLDivElement | null>(null);
+  const globalPower = Math.round(
+    ([generatorPower, dnaPower, aiPower]
+      .map((value) => Math.min(100, Math.max(0, value)))
+      .reduce((total, value) => total + value, 0)) / 3,
+  );
 
   useEffect(() => {
-    if (!powerBreakdownOpen) return;
+    if (!openInfo) return;
 
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
-      if (target && powerBreakdownRef.current?.contains(target)) return;
-      setPowerBreakdownOpen(false);
+      if (target && cockpitRef.current?.contains(target)) return;
+      setOpenInfo(null);
     };
-
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPowerBreakdownOpen(false);
+      if (event.key === "Escape") setOpenInfo(null);
     };
 
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
-
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [powerBreakdownOpen]);
+  }, [openInfo]);
 
-  const powerInfoPanel = powerBreakdownOpen ? (
-    <div className={styles.powerInfoPanel} role="dialog" aria-label={t.hero.powerDialogAria}>
-      <div className={styles.powerInfoPanelTitle}>{t.hero.powerPanelTitle}</div>
-
-      <div className={styles.powerInfoCompact}>
-        {generatorPowerSteps.map((step) => (
-          <span
-            key={step.label}
-            className={`${styles.powerInfoMiniItem} ${step.completed ? styles.powerInfoMiniItemCompleted : ""}`}
-          >
-            <span className={styles.powerInfoMiniDot} aria-hidden />
-            <span>{step.shortLabel}</span>
-            <strong>{step.weight}%</strong>
-          </span>
-        ))}
-      </div>
-    </div>
-  ) : null;
+  const setupSteps = [
+    {
+      key: "channels",
+      title: heroT("channelsStepLabel"),
+      actionLabel: heroT("connectStep"),
+      value: generatorPower,
+      action: onOpenChannels,
+      infoAria: heroT("channelsInfoAria"),
+      infoTitle: heroT("channelsInfoTitle"),
+      infoHint: heroT("channelsInfoHint"),
+    },
+    {
+      key: "dna",
+      title: heroT("dnaStepLabel"),
+      actionLabel: heroT("enrichStep"),
+      value: dnaPower,
+      action: onOpenDna,
+      infoAria: heroT("dnaInfoAria"),
+      infoTitle: heroT("dnaInfoTitle"),
+      infoHint: heroT("dnaInfoHint"),
+    },
+    {
+      key: "ai",
+      title: heroT("aiStepLabel"),
+      actionLabel: heroT("configureStep"),
+      value: aiPower,
+      action: onOpenAi,
+      infoAria: heroT("aiInfoAria"),
+      infoTitle: heroT("aiInfoTitle"),
+      infoHint: heroT("aiInfoHint"),
+    },
+  ] as const;
 
   return (
-    <section className={`${styles.hero} ${powerBreakdownOpen ? styles.heroPowerOpen : ""}`}>
-      <div className={`${styles.heroLeft} ${styles.cockpitPanel} ${cockpitOpen ? styles.cockpitPanelOpen : ""}`}>
-        <button
-          type="button"
-          className={styles.cockpitToggle}
-          onClick={() => {
-            setCockpitOpen((open) => {
-              if (open) setPowerBreakdownOpen(false);
-              return !open;
-            });
-          }}
-          aria-expanded={cockpitOpen}
-          aria-controls="dashboard-cockpit-details"
-          aria-label={cockpitOpen ? t.hero.collapseCockpitAria : t.hero.expandCockpitAria}
-        >
-          <span className={`${styles.kicker} ${styles.cockpitToggleKicker}`}>
-            <img className={styles.kickerLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
-            <span className={styles.kickerText}>{t.hero.kicker}</span>
+    <section className={styles.hero}>
+      <div ref={cockpitRef} className={`${styles.heroLeft} ${styles.cockpitPanel}`}>
+        <header className={styles.cockpitSummaryHeader}>
+          <strong>
+            <span className={styles.cockpitTitleDesktop}>{heroT("cockpitTitle")}</span>
+            <span className={styles.cockpitTitleMobile}>{heroT("cockpitShortTitle")}</span>
+          </strong>
+          <span>{heroT("inertiaPower")}</span>
+          <span
+            className={styles.cockpitGlobalPower}
+            aria-label={`${heroT("inertiaPower")} : ${globalPower}%`}
+            title={`${heroT("inertiaPower")} : ${globalPower}%`}
+            style={{
+              "--cockpit-global-power-mid": `${globalPower * 1.8}deg`,
+              "--cockpit-global-power": `${globalPower * 3.6}deg`,
+            } as CSSProperties}
+          >
+            {globalPower}%
           </span>
-          <svg className={styles.cockpitChevron} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="m7 9.5 5 5 5-5" />
-          </svg>
-        </button>
+        </header>
 
-        <div
-          id="dashboard-cockpit-details"
-          className={styles.cockpitDetails}
-        >
-          <div className={styles.cockpitDetailsInner}>
-            <div className={styles.heroTop}>
-              <div className={styles.kicker}>
-                <img className={styles.kickerLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
-                <span className={styles.kickerText}>{t.hero.kicker}</span>
-              </div>
-
-              <h1 className={styles.title}>
-                <span className={`${styles.titleAccent} ${styles.heroDesktopCopy}`}>{t.hero.title}</span>
-                <span className={`${styles.titleAccent} ${styles.heroMobileCopy}`}>
-                  <span>{mobileCopy.title1}</span>
-                  <span>{mobileCopy.title2}</span>
-                </span>
-              </h1>
-
-              <p className={styles.subtitle}>
-                <span className={styles.heroDesktopCopy}>{t.hero.subtitle}</span>
-                <span className={styles.heroMobileCopy}>
-                  <span>{mobileCopy.subtitle1}</span>
-                  <span>{mobileCopy.subtitle2}</span>
-                </span>
-              </p>
-
-              <div className={styles.signatureFlow}>
-                <span>{t.hero.flowContacts}</span>
-                <span className={styles.flowArrow}>→</span>
-                <span>{t.hero.flowQuotes}</span>
-                <span className={styles.flowArrow}>→</span>
-                <span>{t.hero.flowRevenue}</span>
-              </div>
-            </div>
-
-            <div className={styles.powerBlock} ref={powerBreakdownRef}>
-              <div className={styles.powerHeader}>
-                <div className={styles.powerInlineTitle}>
-                  {t.hero.powerTitle}
-                  <span className={styles.powerValueWrap}>
-                    <span className={styles.powerInlineValue}>{generatorPower}%</span>
-                    <button
-                      type="button"
-                      className={styles.powerInfoBtn}
-                      onClick={() => setPowerBreakdownOpen((open) => !open)}
-                      aria-label={t.hero.powerDetailsAria}
-                      aria-expanded={powerBreakdownOpen}
-                      title={t.hero.powerDetailsTitle}
-                    >
-                      i
-                    </button>
-                  </span>
+        <div className={styles.cockpitStages}>
+          {setupSteps.map((step, index) => (
+            <article
+              className={`${styles.cockpitStage} ${openInfo === step.key ? styles.cockpitStageInfoOpen : ""}`}
+              key={step.key}
+            >
+              <div className={styles.cockpitStageHeading}>
+                <span className={styles.cockpitStageNumber}>{index + 1}</span>
+                <div className={styles.cockpitStageTitleWrap}>
+                  <small>{step.title}</small>
+                  <button
+                    type="button"
+                    className={styles.cockpitInfoButton}
+                    aria-label={step.infoAria}
+                    aria-expanded={openInfo === step.key}
+                    onClick={() => setOpenInfo((current) => current === step.key ? null : step.key)}
+                  >
+                    i
+                  </button>
                 </div>
-                <div className={styles.powerMeta}>
-                  {remainingGeneratorPowerSteps === 0
-                    ? t.hero.fullPower
-                    : `${remainingGeneratorPowerSteps} ${remainingGeneratorPowerSteps > 1 ? t.hero.stepPlural : t.hero.stepSingular} ${remainingGeneratorPowerSteps > 1 ? t.hero.remainingPlural : t.hero.remainingSingular}`}
-                </div>
+                <span className={styles.cockpitStageScore}>
+                  <b>{step.value}%</b>
+                </span>
               </div>
-
-              {powerInfoPanel}
-
+              {openInfo === step.key ? (
+                <div className={styles.cockpitInfoPopover} role="dialog" aria-label={step.infoTitle}>
+                  <strong>{step.infoTitle}</strong>
+                  <p>{step.infoHint}</p>
+                  {step.key === "channels" ? (
+                    <div className={styles.cockpitPowerGrid}>
+                      {channelPowerSteps.map((channel) => (
+                        <span
+                          className={channel.completed ? styles.cockpitPowerItemConnected : ""}
+                          key={channel.key}
+                        >
+                          <i aria-hidden />
+                          <em>{channel.label}</em>
+                          <b>+{channel.weight}%</b>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div
-                className={styles.powerBar}
+                className={styles.cockpitStageBar}
                 role="progressbar"
-                aria-label={t.hero.progressAria}
+                aria-label={`${step.title} ${step.value}%`}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={generatorPower}
+                aria-valuenow={step.value}
               >
-                <div className={styles.powerBarFill} style={{ width: `${generatorPower}%` }} />
+                <span style={{ width: `${step.value}%` }} />
               </div>
-
-              <div className={styles.powerFooter}>
-                {nextGeneratorPowerStep ? (
-                  <span className={styles.powerHint}>
-                    {t.hero.nextRise} {nextGeneratorPowerStep.label} <strong>(+{nextGeneratorPowerStep.weight}%)</strong>
-                  </span>
-                ) : (
-                  <span className={styles.powerHintComplete}>{t.hero.completeHint}</span>
-                )}
-              </div>
-            </div>
-          </div>
+              <button type="button" onClick={step.action}>{step.actionLabel}</button>
+            </article>
+          ))}
         </div>
       </div>
 
@@ -252,7 +221,10 @@ export default function DashboardHero({
               <div className={styles.generatorTitle}>{t.hero.generatorTitle}</div>
               <HelpButton onClick={onOpenGeneratorHelp} title={t.hero.generatorHelpTitle} />
             </div>
-            <div className={styles.generatorDesc}>{t.hero.generatorDesc}</div>
+          </div>
+
+          <div className={styles.generatorEfficiencyFlow}>
+            {t.hero.flowContacts} <b>→</b> {t.hero.flowQuotes} <b>→</b> {t.hero.flowRevenue}
           </div>
 
           <div className={styles.generatorHeaderRight}>

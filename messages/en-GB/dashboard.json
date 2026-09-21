@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "Close",
+    "allChannels": "All channels",
     "titles": {
       "contact": "Contact us",
       "compte": "iNrCytizen account",
@@ -104,6 +105,35 @@
     "powerDialogAria": "Generator power detail",
     "powerPanelTitle": "Power detail",
     "kicker": "Your iNrCy cockpit",
+    "cockpitTitle": "Your cockpit",
+    "cockpitShortTitle": "Cockpit",
+    "inertiaPower": "Inertia power",
+    "connectStep": "Connect",
+    "enrichStep": "Enrich",
+    "configureStep": "Configure",
+    "channelsStepLabel": "Active channels",
+    "dnaStepLabel": "Company DNA",
+    "aiStepLabel": "Configure my AI",
+    "channelsInfoAria": "View the channel power grid",
+    "channelsInfoTitle": "Power across 11 channels",
+    "channelsInfoHint": "Each channel supplies its own share. The 11 contributions add up to exactly 100%.",
+    "dnaInfoAria": "Understand the DNA score",
+    "dnaInfoTitle": "Personalised content",
+    "dnaInfoHint": "The more complete your iNr’DNA is, the more personalised and true-to-your-business the AI’s content becomes.",
+    "aiInfoAria": "Understand the AI personalisation score",
+    "aiInfoTitle": "Why configure my AI?",
+    "aiInfoHint": "Configuring your AI improves its effectiveness and refines its language to match your business.",
+    "channelOverviewTitle": "Connect my channels",
+    "channelColumn": "Channel",
+    "powerColumn": "Power",
+    "powerInfoAria": "Learn about channel power",
+    "powerInfoTitle": "A channel’s power",
+    "powerInfoText": "Power measures each channel’s contribution to your visibility and lead generation. The higher the percentage, the more important that channel is in attracting prospects.",
+    "statusColumn": "Status",
+    "configureColumn": "Configure",
+    "stateColumn": "State",
+    "createColumn": "Create",
+    "createdLabel": "Created",
     "expandCockpitAria": "Expand your iNrCy cockpit",
     "collapseCockpitAria": "Collapse your iNrCy cockpit",
     "title": "Generator is live!",
@@ -209,7 +239,6 @@
     "connectedAria": "channels connected out of"
   },
   "modules": {
-    "requiredSetupLocked": "Complete your profile to unlock this tool.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Control",
     "statsSub": "All your leads, finally visible",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "View",
     "configure": "Set up",
+    "create": "Create",
     "disabled": "Option off",
     "open": "Open"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "Account setup",
-    "title": "5 steps to get started",
+    "title": "4 steps to get started",
     "bothIncomplete": "Follow them in order to get the most out of iNrCy.",
     "profileIncomplete": "Follow them in order to get the most out of iNrCy.",
     "activityIncomplete": "Follow them in order to get the most out of iNrCy.",
-    "stepProfile": "Complete your profile",
-    "stepChannels": "Connect your channels",
-    "stepDna": "Fill in your iNr’ADN automatically or manually",
-    "stepAi": "Configure your AI",
-    "stepFirstPublication": "Create your first publication",
-    "confirm": "Complete my profile",
+    "stepChannels": "Connect my channels",
+    "stepDna": "Enrich my company's DNA",
+    "stepAi": "Configure my AI",
+    "stepFirstPublication": "Publish",
+    "confirm": "Connect my channels",
     "cancel": "Later"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "This window contains unsaved changes. If you close it now, they will be lost.",
     "closeWithoutSaving": "Close without saving",
     "continueEditing": "Continue editing"
-  },
-  "requiredSetup": {
-    "loading": "Setup required…"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector and profession",

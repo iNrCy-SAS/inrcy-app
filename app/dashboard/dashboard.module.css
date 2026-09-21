@@ -1142,10 +1142,10 @@
 
 .generatorHeader {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
-  row-gap: 4px;
+  row-gap: 0;
   margin-bottom: 12px;
 }
 
@@ -1180,7 +1180,7 @@
 }
 
 .generatorHeaderRight {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1;
   justify-self: end;
   display: inline-flex;
@@ -1954,6 +1954,209 @@
   overflow-wrap: anywhere;
 }
 
+.inrBadgeSettingsHeaderIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.inrBadgeSettingsHeaderLogo {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: block;
+  overflow: hidden;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.28),
+    0 0 22px rgba(168, 85, 247, 0.28);
+}
+
+.inrBadgeSettingsHeaderCopy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.inrBadgeSettingsHeaderCopy > strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: clamp(16px, 1.5vw, 19px);
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelSettingsHeaderNav {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 620px);
+  min-width: 0;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.channelSettingsHeaderIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+}
+
+.channelSettingsHeaderIdentity > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: clamp(16px, 1.2vw, 20px);
+  font-weight: 950;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 2px 18px rgba(2, 8, 23, 0.46);
+}
+
+.channelSettingsHeaderLogoBubble {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 8px 24px rgba(2, 8, 23, 0.3),
+    0 0 20px rgba(125, 211, 252, 0.16);
+}
+
+.channelSettingsHeaderLogo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.channelSettingsCycleButton {
+  display: inline-grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0 0 2px;
+  border: 1px solid rgba(125, 211, 252, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.4), rgba(124, 58, 237, 0.54));
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 26px;
+  font-weight: 850;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 5px 14px rgba(56, 189, 248, 0.2);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.channelSettingsCycleButton:hover {
+  transform: translateY(-1px) scale(1.05);
+  border-color: rgba(253, 186, 116, 0.9);
+  filter: brightness(1.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 7px 18px rgba(168, 85, 247, 0.3);
+}
+
+.channelSettingsCycleButton:focus-visible,
+.channelSettingsAllChannelsButton:focus-visible {
+  outline: 3px solid rgba(251, 191, 36, 0.42);
+  outline-offset: 2px;
+}
+
+.channelSettingsAllChannelsButton {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 1px solid rgba(125, 211, 252, 0.38);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.23), rgba(124, 58, 237, 0.28));
+  color: #f8fbff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 7px 20px rgba(2, 8, 23, 0.16);
+  transition: transform 160ms ease, border-color 160ms ease, filter 160ms ease;
+}
+
+.channelSettingsAllChannelsButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(216, 180, 254, 0.62);
+  filter: brightness(1.12);
+}
+
+.channelSettingsAllChannelsIcon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.inrBadgeSettingsHeaderCopy > span {
+  overflow: hidden;
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inrBadgeSettingsAutoSave {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 999px;
+  background: rgba(20, 105, 65, 0.3);
+  color: rgba(220, 252, 231, 0.96);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(34, 197, 94, 0.1);
+}
+
+.inrBadgeSettingsAutoSave > span:first-child {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.72);
+}
+
 .channelConfigPanel {
   display: grid;
   gap: 14px;
@@ -1997,6 +2200,57 @@
 }
 
 @media (max-width: 640px) {
+  .channelSettingsHeaderNav {
+    grid-template-columns: 28px minmax(0, 1fr) 28px;
+    gap: 6px;
+  }
+
+  .channelSettingsCycleButton {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    font-size: 22px;
+  }
+
+  .channelSettingsHeaderIdentity {
+    gap: 7px;
+  }
+
+  .channelSettingsHeaderLogoBubble {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .channelSettingsHeaderIdentity > strong {
+    font-size: 14px;
+  }
+
+  .inrBadgeSettingsHeaderIdentity {
+    gap: 9px;
+  }
+
+  .inrBadgeSettingsHeaderLogo {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .inrBadgeSettingsHeaderCopy > strong {
+    font-size: 14px;
+    white-space: normal;
+  }
+
+  .inrBadgeSettingsHeaderCopy > span {
+    display: none;
+  }
+
+  .inrBadgeSettingsAutoSave {
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
   .settingsDrawerContent .actionBtn {
     max-width: 100%;
     min-width: 0;
@@ -7664,6 +7918,41 @@
   pointer-events: none;
 }
 
+@media (max-width: 520px) {
+  .channelSettingsAllChannelsButton {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+
+  .channelSettingsAllChannelsLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (max-width: 440px) {
+  .inrBadgeSettingsAutoSave {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .inrBadgeSettingsAutoSave > span:last-child {
+    display: none;
+  }
+}
+
 .carouselIconViewport {
   width: 100%;
   height: 100%;
@@ -9683,6 +9972,52 @@
   }
 }
 
+/* Phone dashboard scroll handoff — the document owns vertical scrolling so
+   mouse wheels, trackpads and native touch panning share the same fallback.
+   The fixed bottom dock keeps its normal-flow spacer as the final sibling. */
+@media (max-width: 640px) {
+  :global(html:has(.inrcy-dashboard-shell)),
+  :global(body:has(.inrcy-dashboard-shell)) {
+    height: auto;
+    min-height: 100%;
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    overscroll-behavior-y: auto;
+  }
+
+  .mobileViewport {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: auto;
+    touch-action: pan-y;
+  }
+
+  .page,
+  .blockCard {
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+
+  .mobileViewport :global(section[data-business-dna-channel-analysis]) {
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+
+  .mobileViewport :global(section[data-business-dna-channel-analysis])::before,
+  .mobileViewport :global(section[data-business-dna-channel-analysis])::after {
+    content: none !important;
+  }
+}
+
 /* Mobile cockpit architecture — no responsive header, identity integrated into hero */
 .kickerLogo {
   display: none;
@@ -10037,26 +10372,6 @@
   }
 }
 
-/* Prérequis — cadenas des outils dépendant de Mon profil + Mon activité */
-.requiredSetupLockTopbar {
-  margin-left: 2px;
-}
-
-/* Cadenas intégrés aux composants — prérequis Profil / Activité */
-.requiredSetupLockLoopBadge {
-  position: absolute !important;
-  top: 10px;
-  left: 10px;
-  width: 24px !important;
-  height: 24px !important;
-  flex-basis: 24px !important;
-}
-
-.requiredSetupLockLoopBadge svg {
-  width: 13px !important;
-  height: 13px !important;
-}
-
 .gearTitleRow {
   width: min(100%, 230px);
   display: grid;
@@ -10066,35 +10381,18 @@
   gap: 5px;
 }
 
-.gearTitleLock {
-  width: 24px !important;
-  height: 24px !important;
-  flex-basis: 24px !important;
-}
-
-.gearTitleLock svg {
-  width: 13px !important;
-  height: 13px !important;
-}
-
 .gearTitleSpacer {
   width: 24px;
   height: 24px;
 }
 
 @media (max-width: 1100px) {
-  .requiredSetupLockLoopBadge {
-    top: 10px;
-    left: 10px;
-  }
-
   .gearTitleRow {
     width: min(100%, 220px);
     grid-template-columns: 24px minmax(0, 1fr) 24px;
     gap: 4px;
   }
 
-  .gearTitleLock,
   .gearTitleSpacer {
     width: 22px !important;
     height: 22px !important;
@@ -10866,11 +11164,16 @@
     padding-bottom: 10px;
   }
 
+  .generatorEfficiencyFlow {
+    display: none;
+  }
+
   .generatorHeaderLead {
     gap: 6px;
   }
 
   .generatorHeaderRight {
+    grid-column: 2;
     gap: 6px;
     min-width: 0;
   }
@@ -12837,5 +13140,1413 @@
   .gearBlockCard .gearCapsule {
     width: min(330px, calc(100% - 8px));
     height: 112px;
+  }
+}
+
+/* Cockpit d'onboarding : trois alimentations lisibles, sans modifier les
+   sources de connexion ni les panneaux existants. */
+@media (min-width: 1081px) {
+  .hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .generatorCard {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .generatorHeader {
+    flex: 0 0 auto;
+    margin-bottom: 14px;
+  }
+
+  .generatorGrid {
+    flex: 1 1 auto;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+    margin-bottom: 3px;
+  }
+
+  .metricCard {
+    min-height: 0;
+  }
+}
+
+.heroLeft.cockpitPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 16px;
+  min-height: 332px;
+  padding: 22px 24px;
+  text-align: left;
+}
+
+.cockpitSummaryHeader {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 0;
+  color: rgba(226, 232, 240, 0.84);
+  font-size: clamp(12px, 0.78vw, 15px);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.cockpitSummaryHeader > strong {
+  justify-self: start;
+  color: transparent;
+  font-size: clamp(16px, 1.05vw, 20px);
+  font-weight: 950;
+  background: linear-gradient(105deg, #fff 8%, #7dd3fc 40%, #c4b5fd 70%, #f9a8d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 0 28px rgba(125, 211, 252, 0.16);
+}
+
+.cockpitTitleMobile {
+  display: none;
+}
+
+.cockpitSummaryHeader > span:nth-child(2) {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(159, 207, 255, 0.42);
+  border-radius: 999px;
+  color: #f8fbff;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(104, 223, 255, 0.28), transparent 42%),
+    linear-gradient(105deg, rgba(15, 111, 185, 0.64), rgba(104, 73, 198, 0.7) 55%, rgba(203, 52, 166, 0.64));
+  box-shadow:
+    0 8px 24px rgba(24, 73, 160, 0.26),
+    0 0 24px rgba(110, 89, 221, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  text-shadow: 0 1px 12px rgba(5, 13, 38, 0.55);
+  justify-self: center;
+}
+
+.cockpitSummaryHeader > span:nth-child(2)::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -80% 48% -80% -18%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  animation: powerSweep 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cockpitGlobalPower {
+  position: relative;
+  isolation: isolate;
+  justify-self: end;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(216, 180, 254, 0.72);
+  border-radius: 50%;
+  color: #fff;
+  background: conic-gradient(
+    from -90deg,
+    #38bdf8 0deg,
+    #a78bfa var(--cockpit-global-power-mid),
+    #f472b6 var(--cockpit-global-power),
+    rgba(30, 41, 83, 0.72) var(--cockpit-global-power),
+    rgba(30, 41, 83, 0.72) 360deg
+  );
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.08),
+    0 0 24px rgba(167, 139, 250, 0.32),
+    0 9px 22px rgba(2, 8, 23, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  font-size: 14px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  text-shadow: 0 2px 12px rgba(2, 8, 23, 0.9);
+}
+
+.cockpitGlobalPower::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.2), transparent 31%),
+    radial-gradient(circle at center, rgba(19, 35, 79, 0.96), rgba(15, 17, 54, 0.98));
+  box-shadow:
+    inset 0 0 18px rgba(56, 189, 248, 0.13),
+    0 0 15px rgba(244, 114, 182, 0.2);
+}
+
+.cockpitGlobalPower::after {
+  content: "";
+  position: absolute;
+  inset: -45% 38% -45% -18%;
+  z-index: 1;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  animation: powerSweep 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.generatorEfficiencyFlow {
+  position: relative;
+  z-index: 2;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: center;
+  min-height: 32px;
+  margin: 0;
+  padding: 6px 16px;
+  border: 1px solid rgba(158, 174, 231, 0.2);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.92);
+  background: linear-gradient(110deg, rgba(22, 43, 89, 0.5), rgba(67, 35, 102, 0.43));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 7px 20px rgba(3, 10, 30, 0.15);
+}
+
+.generatorEfficiencyFlow b {
+  color: rgba(125, 211, 252, 0.88);
+}
+
+.cockpitStages {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 0;
+}
+
+.cockpitStage {
+  --cockpit-stage-rgb: 56, 189, 248;
+  --cockpit-stage-accent: #38bdf8;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 9px 14px;
+  padding: 14px 16px 14px 18px;
+  border: 1px solid rgba(var(--cockpit-stage-rgb), 0.28);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 9% 30%, rgba(var(--cockpit-stage-rgb), 0.15), transparent 34%),
+    linear-gradient(118deg, rgba(4, 20, 49, 0.82), rgba(28, 25, 72, 0.7) 72%, rgba(54, 24, 91, 0.58));
+  box-shadow:
+    0 12px 26px rgba(2, 8, 23, 0.19),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 24px rgba(var(--cockpit-stage-rgb), 0.035);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.cockpitStage:nth-child(2) {
+  --cockpit-stage-rgb: 139, 92, 246;
+  --cockpit-stage-accent: #a78bfa;
+}
+
+.cockpitStage:nth-child(3) {
+  --cockpit-stage-rgb: 236, 72, 153;
+  --cockpit-stage-accent: #f472b6;
+}
+
+.cockpitStage::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 7px auto 7px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--cockpit-stage-accent);
+  box-shadow: 0 0 18px rgba(var(--cockpit-stage-rgb), 0.9);
+}
+
+.cockpitStage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -44px;
+  right: 62px;
+  width: 150px;
+  height: 90px;
+  border-radius: 999px;
+  background: rgba(var(--cockpit-stage-rgb), 0.09);
+  filter: blur(26px);
+  pointer-events: none;
+}
+
+.cockpitStage:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--cockpit-stage-rgb), 0.46);
+  box-shadow:
+    0 15px 34px rgba(2, 8, 23, 0.24),
+    0 0 28px rgba(var(--cockpit-stage-rgb), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.cockpitStageHeading {
+  display: grid;
+  grid-template-columns: 27px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.cockpitStageHeading > div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.cockpitStageTitleWrap {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.cockpitInfoButton {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(var(--cockpit-stage-rgb), 0.52);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(var(--cockpit-stage-rgb), 0.24), rgba(76, 29, 149, 0.28));
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 14px rgba(var(--cockpit-stage-rgb), 0.2);
+}
+
+.cockpitInfoButton:hover,
+.cockpitInfoButton[aria-expanded="true"] {
+  border-color: rgba(255, 255, 255, 0.68);
+  background: linear-gradient(135deg, rgba(var(--cockpit-stage-rgb), 0.48), rgba(124, 58, 237, 0.48));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 19px rgba(var(--cockpit-stage-rgb), 0.42);
+}
+
+.cockpitStageInfoOpen {
+  z-index: 30;
+}
+
+.cockpitInfoPopover {
+  position: absolute;
+  z-index: 40;
+  top: 48px;
+  left: 52px;
+  width: min(430px, calc(100% - 190px));
+  padding: 14px;
+  border: 1px solid rgba(var(--cockpit-stage-rgb), 0.42);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(var(--cockpit-stage-rgb), 0.18), transparent 38%),
+    linear-gradient(145deg, rgba(8, 24, 55, 0.98), rgba(22, 19, 58, 0.98) 62%, rgba(45, 19, 67, 0.98));
+  color: #f8fbff;
+  box-shadow:
+    0 22px 52px rgba(0, 0, 0, 0.46),
+    0 0 34px rgba(var(--cockpit-stage-rgb), 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.cockpitInfoPopover::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 48px;
+  width: 11px;
+  height: 11px;
+  transform: rotate(45deg);
+  border-left: 1px solid rgba(var(--cockpit-stage-rgb), 0.42);
+  border-top: 1px solid rgba(var(--cockpit-stage-rgb), 0.42);
+  background: rgba(10, 25, 56, 0.98);
+}
+
+.cockpitInfoPopover > strong {
+  display: block;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.cockpitInfoPopover > p {
+  margin: 5px 0 11px;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.cockpitPowerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cockpitPowerGrid > span {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 29px;
+  padding: 6px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.52);
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 10px;
+}
+
+.cockpitPowerGrid > span > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.65);
+}
+
+.cockpitPowerGrid > span > em {
+  overflow: hidden;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cockpitPowerGrid > span > b {
+  color: #fff;
+  font-size: 10px;
+}
+
+.cockpitPowerGrid > .cockpitPowerItemConnected {
+  border-color: rgba(74, 222, 128, 0.23);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.14), rgba(var(--cockpit-stage-rgb), 0.08));
+  color: rgba(240, 253, 244, 0.94);
+}
+
+.cockpitPowerGrid > .cockpitPowerItemConnected > i {
+  background: #22c55e;
+  box-shadow: 0 0 9px rgba(34, 197, 94, 0.66);
+}
+
+.cockpitStageHeading small {
+  color: var(--cockpit-stage-accent);
+  font-size: 12.5px;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  text-shadow: 0 0 18px rgba(var(--cockpit-stage-rgb), 0.28);
+}
+
+.cockpitStageScore {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.cockpitStageScore > b {
+  color: #e0f2fe;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 15px rgba(var(--cockpit-stage-rgb), 0.32);
+}
+
+.cockpitStageNumber {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid rgba(var(--cockpit-stage-rgb), 0.46);
+  border-radius: 9px;
+  background: rgba(var(--cockpit-stage-rgb), 0.13);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(var(--cockpit-stage-rgb), 0.12);
+}
+
+.cockpitStageBar {
+  grid-column: 1;
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.09);
+  border-radius: 999px;
+  background: rgba(4, 10, 27, 0.82);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.58),
+    0 0 14px rgba(var(--cockpit-blue), 0.07);
+}
+
+.cockpitStageBar > span {
+  position: relative;
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--inrcy-theme-accent-rgb-1, 56, 189, 248)) 0%,
+    rgb(var(--inrcy-theme-accent-rgb-2, 167, 139, 250)) 38%,
+    rgb(var(--inrcy-theme-accent-rgb-3, 244, 114, 182)) 68%,
+    rgb(var(--inrcy-theme-accent-rgb-4, 251, 146, 60)) 100%
+  );
+  box-shadow:
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.36),
+    0 0 28px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.2),
+    0 0 36px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.12);
+  transition: width 320ms ease;
+}
+
+.cockpitStageBar > span::before {
+  content: "";
+  position: absolute;
+  inset: -45% auto -45% -42%;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.62),
+    rgba(255, 255, 255, 0.18),
+    transparent
+  );
+  filter: blur(3px);
+  animation: powerSweep 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cockpitStageBar > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.01));
+  pointer-events: none;
+}
+
+.cockpitStageBar::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 2px;
+  width: 3px;
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 0 7px rgba(244, 114, 182, 0.8),
+    0 0 12px rgba(167, 139, 250, 0.62);
+  pointer-events: none;
+}
+
+.cockpitStage > button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  min-width: 104px;
+  min-height: 38px;
+  border: 1px solid rgba(var(--cockpit-stage-rgb), 0.54);
+  border-radius: 13px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.88), rgba(124, 58, 237, 0.9) 56%, rgba(219, 39, 119, 0.82));
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow:
+    0 9px 22px rgba(49, 46, 129, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0 18px rgba(var(--cockpit-stage-rgb), 0.08);
+  transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+}
+
+.cockpitStage > button:hover {
+  border-color: rgba(186, 230, 253, 0.78);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 28px rgba(49, 46, 129, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 22px rgba(var(--cockpit-stage-rgb), 0.16);
+}
+
+@media (max-width: 1100px) {
+  .heroLeft.cockpitPanel {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .cockpitSummaryHeader {
+    grid-template-columns: auto auto minmax(240px, 1fr);
+    white-space: normal;
+  }
+}
+
+@media (max-width: 560px) {
+  .heroLeft.cockpitPanel {
+    gap: 13px;
+    padding: 15px 13px;
+  }
+
+  .cockpitSummaryHeader {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 6px;
+    padding: 0;
+    text-align: center;
+  }
+
+  .cockpitSummaryHeader > strong {
+    font-size: 14px;
+  }
+
+  .cockpitTitleDesktop {
+    display: none;
+  }
+
+  .cockpitTitleMobile {
+    display: inline;
+  }
+
+  .cockpitSummaryHeader > span:nth-child(2) {
+    min-height: 29px;
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+
+  .cockpitGlobalPower {
+    width: 42px;
+    height: 42px;
+    font-size: 12.5px;
+  }
+
+  .generatorEfficiencyFlow {
+    display: none;
+  }
+
+  .cockpitInfoPopover {
+    position: fixed;
+    inset: 50% auto auto 50%;
+    width: min(340px, calc(100vw - 28px));
+    max-height: min(520px, calc(100dvh - 64px));
+    overflow: auto;
+    transform: translate(-50%, -50%);
+  }
+
+  .cockpitInfoPopover::before {
+    display: none;
+  }
+
+  .cockpitPowerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cockpitStage {
+    gap: 9px;
+    padding: 11px 10px 11px 13px;
+  }
+
+  .cockpitStageHeading > div {
+    display: grid;
+    gap: 1px;
+  }
+
+  .cockpitStageHeading small {
+    font-size: 11px;
+  }
+
+  .cockpitStageScore {
+    display: grid;
+    gap: 0;
+    text-align: right;
+  }
+
+  .cockpitStage > button {
+    min-width: 86px;
+  }
+}
+
+/* Vue d'ensemble des connexions — couche dédiée, sans modifier les états ni
+   les panneaux de configuration existants. */
+.channelConnectionsBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  place-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(45, 189, 255, 0.2), transparent 34%),
+    radial-gradient(circle at 86% 90%, rgba(218, 59, 255, 0.18), transparent 38%),
+    rgba(2, 8, 28, 0.86);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+
+.channelConnectionsModal {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  color: #f6f8ff;
+  border: 0;
+  border-radius: 0;
+  box-sizing: border-box;
+  background:
+    linear-gradient(145deg, rgba(14, 38, 78, 0.98), rgba(12, 20, 57, 0.99) 48%, rgba(35, 18, 70, 0.98)),
+    #07132d;
+  box-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.channelConnectionsModal::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, rgba(84, 207, 255, 0.055), transparent),
+    radial-gradient(circle at 85% 0%, rgba(194, 79, 255, 0.18), transparent 32%);
+}
+
+.channelConnectionsHeader {
+  position: relative;
+  z-index: 6;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px 12px 24px;
+  border-bottom: 1px solid rgba(128, 177, 235, 0.18);
+  background: rgba(4, 17, 48, 0.46);
+  box-sizing: border-box;
+}
+
+.channelConnectionsHeader > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.channelConnectionsHeader h2 {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.35rem, 2.1vw, 2rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.channelConnectionsHeader > button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 3px;
+  border: 1px solid rgba(151, 185, 234, 0.28);
+  border-radius: 15px;
+  color: #fff;
+  background: rgba(53, 58, 112, 0.62);
+  font: inherit;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.channelConnectionsHeader > button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(116, 222, 255, 0.62);
+  background: rgba(68, 72, 139, 0.82);
+}
+
+.channelConnectionsHeader > button:focus-visible,
+.channelConnectionsAction:focus-visible {
+  outline: 2px solid #67dcff;
+  outline-offset: 2px;
+}
+
+.channelConnectionsRow {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: 12px;
+  padding: 5px 18px;
+  box-sizing: border-box;
+}
+
+.channelConnectionsColumns {
+  position: relative;
+  z-index: 4;
+  min-height: 38px;
+  color: rgba(213, 228, 252, 0.7);
+  border-bottom: 1px solid rgba(128, 177, 235, 0.15);
+  background: rgba(7, 21, 56, 0.52);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.channelConnectionsColumns > :not(:first-child) {
+  text-align: center;
+}
+
+.channelConnectionsPowerHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.channelConnectionsInfoButton {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(103, 220, 255, 0.54);
+  border-radius: 999px;
+  color: #f8fbff;
+  background: linear-gradient(135deg, rgba(38, 151, 216, 0.42), rgba(122, 71, 211, 0.46));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 13px rgba(77, 205, 255, 0.22);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  line-height: 1;
+  text-transform: none;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.channelConnectionsInfoButton:hover,
+.channelConnectionsInfoButton[aria-expanded="true"] {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.76);
+  background: linear-gradient(135deg, rgba(35, 179, 224, 0.64), rgba(145, 73, 218, 0.68));
+}
+
+.channelConnectionsInfoButton:focus-visible {
+  outline: 2px solid #67dcff;
+  outline-offset: 2px;
+}
+
+.channelConnectionsPowerPopover {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 11px);
+  left: 50%;
+  width: min(390px, calc(100vw - 44px));
+  transform: translateX(-50%);
+  padding: 14px 15px;
+  border: 1px solid rgba(103, 220, 255, 0.42);
+  border-radius: 15px;
+  color: #f8fbff;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(72, 202, 255, 0.18), transparent 42%),
+    linear-gradient(145deg, rgba(7, 27, 62, 0.99), rgba(27, 20, 67, 0.99));
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.channelConnectionsPowerPopover::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translateX(-50%) rotate(45deg);
+  border-top: 1px solid rgba(103, 220, 255, 0.42);
+  border-left: 1px solid rgba(103, 220, 255, 0.42);
+  background: rgba(9, 29, 65, 0.99);
+}
+
+.channelConnectionsPowerPopover strong {
+  display: block;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.channelConnectionsPowerPopover p {
+  margin: 7px 0 0;
+  color: rgba(225, 235, 252, 0.78);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.channelConnectionsList {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: repeat(13, minmax(52px, 1fr));
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+  box-sizing: border-box;
+}
+
+.channelConnectionsList > .channelConnectionsRow {
+  min-height: 0;
+  border-bottom: 1px solid rgba(128, 177, 235, 0.105);
+  transition: background 150ms ease;
+}
+
+.channelConnectionsList > .channelConnectionsRow:last-child {
+  border-bottom: 0;
+}
+
+.channelConnectionsList > .channelConnectionsRow:hover {
+  background: linear-gradient(90deg, rgba(44, 169, 255, 0.08), rgba(183, 75, 255, 0.065));
+}
+
+.channelConnectionsIdentity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.channelConnectionsIdentity img {
+  width: 34px;
+  height: 34px;
+  display: block;
+  object-fit: contain;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 1px rgba(135, 198, 255, 0.22);
+}
+
+.channelConnectionsIdentity > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(248, 250, 255, 0.96);
+  font-size: 0.84rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelConnectionsPowerCell,
+.channelConnectionsStatusCell,
+.channelConnectionsConfigureCell {
+  min-width: 0;
+  display: grid;
+}
+
+.channelConnectionsPowerCell {
+  place-items: center;
+}
+
+.channelConnectionsStatusCell,
+.channelConnectionsConfigureCell {
+  align-items: center;
+  justify-items: stretch;
+}
+
+.channelConnectionsMobileLabel {
+  display: none;
+}
+
+.channelConnectionsState {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+}
+
+.channelConnectionsState small {
+  display: inline-grid;
+  width: min(118px, 100%);
+  min-height: 24px;
+  place-items: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelConnected {
+  color: #48e39b;
+  background: rgba(18, 141, 90, 0.14);
+}
+
+.channelDisconnected {
+  color: #9caed0;
+  background: rgba(101, 119, 157, 0.12);
+}
+
+.channelConnectionsForce {
+  justify-self: center;
+  color: #68dfff;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 16px rgba(48, 197, 255, 0.32);
+}
+
+.channelConnectionsAction {
+  min-height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 7px 12px;
+  border: 1px solid rgba(102, 211, 255, 0.34);
+  border-radius: 11px;
+  color: #f7f9ff;
+  background: linear-gradient(135deg, rgba(25, 117, 188, 0.58), rgba(85, 74, 189, 0.58));
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.05;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, filter 150ms ease;
+}
+
+.channelConnectionsAction:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(121, 229, 255, 0.72);
+  filter: brightness(1.12);
+}
+
+.channelConnectionsAction:disabled {
+  color: rgba(207, 217, 239, 0.48);
+  border-color: rgba(135, 155, 196, 0.15);
+  background: rgba(66, 76, 112, 0.22);
+  cursor: not-allowed;
+}
+
+.channelConnectionsCreate {
+  border-color: rgba(213, 111, 255, 0.37);
+  background: linear-gradient(135deg, rgba(83, 84, 208, 0.64), rgba(189, 53, 202, 0.62));
+}
+
+.channelConnectionsUnavailable {
+  justify-self: stretch;
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  color: rgba(190, 204, 232, 0.46);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+
+.channelConnectionsUnavailable[aria-label] {
+  color: rgba(216, 198, 255, 0.88);
+}
+
+@media (max-width: 760px) {
+  .channelConnectionsBackdrop {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .channelConnectionsModal {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .channelConnectionsHeader {
+    min-height: 68px;
+    padding: 10px 12px 10px 16px;
+  }
+
+  .channelConnectionsHeader > div {
+    display: block;
+  }
+
+  .channelConnectionsHeader h2 {
+    margin-top: 3px;
+    font-size: 1.28rem;
+  }
+
+  .channelConnectionsHeader > button {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .channelConnectionsRow {
+    grid-template-columns: minmax(100px, 1fr) 54px 78px 92px 92px;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .channelConnectionsColumns {
+    font-size: 0.57rem;
+    letter-spacing: 0.035em;
+  }
+
+  .channelConnectionsPowerHeader {
+    gap: 4px;
+  }
+
+  .channelConnectionsInfoButton {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+    font-size: 10px;
+  }
+
+  .channelConnectionsPowerPopover {
+    position: fixed;
+    top: 108px;
+    left: 50%;
+    width: min(370px, calc(100vw - 24px));
+  }
+
+  .channelConnectionsIdentity {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .channelConnectionsIdentity img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .channelConnectionsIdentity > span {
+    font-size: 0.72rem;
+  }
+
+  .channelConnectionsState small {
+    min-height: 22px;
+    padding-inline: 5px;
+    font-size: 0.55rem;
+  }
+
+  .channelConnectionsForce {
+    font-size: 0.72rem;
+  }
+
+  .channelConnectionsAction {
+    min-height: 31px;
+    padding: 5px 6px;
+    border-radius: 9px;
+    font-size: 0.61rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .channelConnectionsHeader {
+    padding-right: calc(20px + env(safe-area-inset-right));
+    padding-left: calc(16px + env(safe-area-inset-left));
+  }
+
+  .channelConnectionsColumns {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 5px calc(20px + env(safe-area-inset-right)) 5px calc(14px + env(safe-area-inset-left));
+  }
+
+  .channelConnectionsColumns > span {
+    display: none;
+  }
+
+  .channelConnectionsPowerHeader {
+    width: auto;
+    justify-content: flex-end;
+    color: rgba(221, 234, 255, 0.76);
+    font-size: 0.62rem;
+    letter-spacing: 0.07em;
+  }
+
+  .channelConnectionsList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: auto;
+    padding: 12px max(12px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .channelConnectionsList > .channelConnectionsRow {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr) minmax(118px, 0.72fr);
+    grid-template-areas:
+      "identity power"
+      "status state"
+      "configure configure";
+    gap: 11px 12px;
+    padding: 13px;
+    border: 1px solid rgba(128, 177, 235, 0.18);
+    border-radius: 16px;
+    background:
+      linear-gradient(135deg, rgba(21, 50, 95, 0.7), rgba(30, 25, 78, 0.72)),
+      rgba(8, 24, 60, 0.88);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.055),
+      0 10px 25px rgba(0, 0, 0, 0.16);
+  }
+
+  .channelConnectionsList > .channelConnectionsRow:last-child {
+    border-bottom: 1px solid rgba(128, 177, 235, 0.18);
+  }
+
+  .channelConnectionsList > .channelConnectionsRow:hover {
+    background:
+      linear-gradient(135deg, rgba(25, 61, 111, 0.78), rgba(43, 29, 91, 0.78)),
+      rgba(8, 24, 60, 0.9);
+  }
+
+  .channelConnectionsIdentity {
+    grid-area: identity;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 9px;
+    align-self: center;
+  }
+
+  .channelConnectionsIdentity img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .channelConnectionsIdentity > span {
+    overflow: visible;
+    font-size: 0.84rem;
+    line-height: 1.2;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .channelConnectionsPowerCell {
+    grid-area: power;
+    align-content: center;
+    justify-items: end;
+    gap: 5px;
+  }
+
+  .channelConnectionsStatusCell {
+    grid-area: status;
+  }
+
+  .channelConnectionsConfigureCell {
+    grid-area: configure;
+  }
+
+  .channelConnectionsState {
+    grid-area: state;
+  }
+
+  .channelConnectionsStatusCell,
+  .channelConnectionsConfigureCell,
+  .channelConnectionsState {
+    align-content: start;
+    justify-items: stretch;
+    gap: 6px;
+  }
+
+  .channelConnectionsMobileLabel {
+    display: block;
+    min-width: 0;
+    color: rgba(205, 224, 251, 0.66);
+    font-size: 0.61rem;
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: 0.075em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .channelConnectionsPowerCell .channelConnectionsMobileLabel {
+    text-align: right;
+  }
+
+  .channelConnectionsForce {
+    justify-self: end;
+    font-size: 0.86rem;
+  }
+
+  .channelConnectionsAction,
+  .channelConnectionsUnavailable,
+  .channelConnectionsState small {
+    width: 100%;
+    max-width: none;
+    min-height: 40px;
+    padding: 7px 9px;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 430px) {
+  .channelConnectionsHeader h2 {
+    font-size: 1.16rem;
+  }
+
+  .channelConnectionsList {
+    gap: 8px;
+    padding-right: calc(8px + env(safe-area-inset-right));
+    padding-left: calc(8px + env(safe-area-inset-left));
+  }
+
+  .channelConnectionsList > .channelConnectionsRow {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 9px 10px;
+    padding: 11px;
+    border-radius: 14px;
+  }
+
+  .channelConnectionsIdentity {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .channelConnectionsIdentity img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .channelConnectionsIdentity > span {
+    font-size: 0.78rem;
+  }
+
+  .channelConnectionsAction,
+  .channelConnectionsUnavailable,
+  .channelConnectionsState small {
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 761px) {
+  .channelConnectionsModal {
+    min-height: 0;
+  }
+
+  .channelConnectionsHeader {
+    min-height: 60px;
+    padding-block: 8px;
+  }
+
+  .channelConnectionsRow {
+    padding-block: 3px;
+  }
+
+  .channelConnectionsIdentity img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .channelConnectionsAction {
+    min-height: 29px;
+    padding-block: 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .channelConnectionsHeader > button,
+  .channelConnectionsList > .channelConnectionsRow,
+  .channelConnectionsAction {
+    transition: none !important;
   }
 }

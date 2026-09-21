@@ -8,7 +8,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
 import DashboardActionButton from "./DashboardActionButton";
-import RequiredSetupLock from "./RequiredSetupLock";
 import type { ModuleAction, ModuleStatus } from "../dashboard.types";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 
@@ -33,6 +32,10 @@ export type DashboardFluxBubbleData = {
   canViewSpecial?: boolean;
   onSpecialView?: () => void;
   viewAction?: ModuleAction;
+  createHref?: string | null;
+  onCreate?: () => void;
+  createLabel?: string;
+  createDisabled?: boolean;
   onConfigure: () => void;
   configureDestination?: DashboardConfigureDestination;
   configureDisabled?: boolean;
@@ -45,8 +48,6 @@ export type DashboardFluxBubbleData = {
 type Props = {
   item: DashboardFluxBubbleData;
   itemKey?: string;
-  requiredSetupLocked?: boolean;
-  requiredSetupLockMessage?: string;
 };
 
 function WarningTriangle({ className }: { className?: string }) {
@@ -70,7 +71,7 @@ function WarningTriangle({ className }: { className?: string }) {
   );
 }
 
-export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked = false, requiredSetupLockMessage = "" }: Props) {
+export default function DashboardFluxBubble({ item, itemKey }: Props) {
   const i18nT = useTranslations("shell");
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -81,13 +82,14 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
     isVisible,
   } = useDelayedPendingAction<string>();
   const isComingSoon = item.bubbleStatus === "coming";
-  const isReconnect = item.bubbleStatus === "reconnect" && !requiredSetupLocked;
-  const isAvailableToConnect = item.bubbleStatus === "available" && !requiredSetupLocked;
+  const isReconnect = item.bubbleStatus === "reconnect";
+  const isAvailableToConnect = item.bubbleStatus === "available";
   const emphasizeDisabledReason = isComingSoon && item.emphasizeDisabledReason === true;
   const shouldHighlightConfigure = (isAvailableToConnect || isReconnect) && !item.configureDisabled;
   const configureActionKey = `configure:${item.key}`;
   const configurePending = pendingKey === configureActionKey;
   const configureLoadingVisible = isVisible(configureActionKey);
+  const showCreateAction = isAvailableToConnect && Boolean(item.createHref || item.onCreate);
 
   useEffect(() => {
     if (!configurePending || !item.configureDestination) return;
@@ -121,13 +123,7 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
         <div className={bubbleStyles.title}>{item.name}</div>
 
         <div className={`${bubbleStyles.status} ${isAvailableToConnect ? bubbleStyles.statusAvailable : ""} ${isReconnect ? bubbleStyles.statusReconnect : ""} ${emphasizeDisabledReason ? bubbleStyles.statusDisabledReason : ""}`}>
-          {requiredSetupLocked ? (
-            <RequiredSetupLock
-              message={requiredSetupLockMessage}
-              className={bubbleStyles.statusLock}
-              compact
-            />
-          ) : isReconnect ? (
+          {isReconnect ? (
             <WarningTriangle className={bubbleStyles.warningTriangle} />
           ) : (
             <span
@@ -148,32 +144,56 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
         <div className={bubbleStyles.tagline} title={item.description}>{item.description}</div>
 
         <div className={bubbleStyles.actions}>
-          {item.onSpecialView && item.specialViewLabel ? (
+          {showCreateAction ? (
+            item.createHref ? (
+              <a
+                href={item.createHref}
+                className={bubbleStyles.action}
+                target={/^https?:\/\//.test(item.createHref) ? "_blank" : undefined}
+                rel={/^https?:\/\//.test(item.createHref) ? "noreferrer" : undefined}
+                aria-disabled={item.createDisabled}
+                onClick={(event) => {
+                  if (item.createDisabled) event.preventDefault();
+                }}
+              >
+                {item.createLabel || "Créer"}
+              </a>
+            ) : (
+              <button
+                type="button"
+                className={bubbleStyles.action}
+                onClick={item.createDisabled ? undefined : item.onCreate}
+                disabled={item.createDisabled}
+              >
+                {item.createLabel || "Créer"}
+              </button>
+            )
+          ) : item.onSpecialView && item.specialViewLabel ? (
             <button
               type="button"
               className={bubbleStyles.action}
-              onClick={requiredSetupLocked ? undefined : item.onSpecialView}
-              disabled={requiredSetupLocked || !item.canViewSpecial}
-              aria-disabled={requiredSetupLocked || !item.canViewSpecial}
-              style={{ opacity: requiredSetupLocked || !item.canViewSpecial ? 0.5 : 1, pointerEvents: requiredSetupLocked || !item.canViewSpecial ? "none" : "auto" }}
+              onClick={item.onSpecialView}
+              disabled={!item.canViewSpecial}
+              aria-disabled={!item.canViewSpecial}
+              style={{ opacity: !item.canViewSpecial ? 0.5 : 1, pointerEvents: !item.canViewSpecial ? "none" : "auto" }}
             >
               {item.specialViewLabel}
             </button>
           ) : item.specialViewHref && item.specialViewLabel ? (
             <a
-              href={!requiredSetupLocked && item.canViewSpecial ? item.specialViewHref : "#"}
+              href={item.canViewSpecial ? item.specialViewHref : "#"}
               className={bubbleStyles.action}
-              target={!requiredSetupLocked && item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "_blank" : undefined}
-              rel={!requiredSetupLocked && item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "noreferrer" : undefined}
-              aria-disabled={requiredSetupLocked || !item.canViewSpecial}
+              target={item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "_blank" : undefined}
+              rel={item.canViewSpecial && /^https?:\/\//.test(item.specialViewHref) ? "noreferrer" : undefined}
+              aria-disabled={!item.canViewSpecial}
               onClick={(event) => {
-                if (requiredSetupLocked || !item.canViewSpecial) event.preventDefault();
+                if (!item.canViewSpecial) event.preventDefault();
               }}
-              style={{ opacity: requiredSetupLocked || !item.canViewSpecial ? 0.5 : 1, pointerEvents: requiredSetupLocked || !item.canViewSpecial ? "none" : "auto" }}
+              style={{ opacity: !item.canViewSpecial ? 0.5 : 1, pointerEvents: !item.canViewSpecial ? "none" : "auto" }}
             >
               {item.specialViewLabel}
             </a>
-          ) : item.viewAction && !requiredSetupLocked ? (
+          ) : item.viewAction ? (
             <DashboardActionButton action={item.viewAction} className={bubbleStyles.action} />
           ) : (
             <button className={bubbleStyles.action} type="button" disabled>
@@ -185,13 +205,13 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
             className={`${bubbleStyles.action} ${bubbleStyles.actionMain} ${shouldHighlightConfigure ? bubbleStyles.actionMainAvailable : ""} ${isReconnect ? bubbleStyles.actionMainReconnect : ""}`}
             type="button"
             data-dashboard-prefetch={item.configureDestination?.kind === "path" ? item.configureDestination.value : undefined}
-            onClick={requiredSetupLocked ? undefined : () => {
+            onClick={() => {
               if (!beginAction(configureActionKey)) return;
               item.onConfigure();
             }}
-            disabled={requiredSetupLocked || item.configureDisabled || configureLoadingVisible}
+            disabled={item.configureDisabled || configureLoadingVisible}
             aria-busy={configureLoadingVisible || undefined}
-            title={requiredSetupLocked ? requiredSetupLockMessage : item.configureTitle}
+            title={item.configureTitle}
           >
             {configureLoadingVisible ? i18nT("chargement_01cba1df") : item.configureLabel || i18nT("configurer_382efbe9")}
           </button>

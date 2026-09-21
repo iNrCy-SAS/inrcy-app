@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
 import BaseModal from "./WorkflowBaseModal";
-import RequiredSetupLock from "./RequiredSetupLock";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
@@ -48,9 +47,6 @@ type DashboardPanelName =
 type DashboardModulesCardProps = {
   goToModule: (path: string) => void;
   openPanel: (panel: DashboardPanelName) => void;
-  requiredSetupAccessAllowed: boolean;
-  requiredSetupLockVisible: boolean;
-  onRequiredSetupBlocked: () => void;
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
@@ -71,7 +67,7 @@ function PlanningIcon() {
   );
 }
 
-export default function DashboardModulesCard({ goToModule, openPanel, requiredSetupAccessAllowed, requiredSetupLockVisible, onRequiredSetupBlocked, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats }: DashboardModulesCardProps) {
+export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
   const t = useDashboardI18n();
@@ -89,8 +85,6 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
     completeAction,
     isVisible,
   } = useDelayedPendingAction<string>();
-  const requiredSetupLocked = requiredSetupLockVisible;
-  const requiredSetupLockMessage = t.modules.requiredSetupLocked;
 
   useEffect(() => {
     if (!pendingKey) return;
@@ -105,10 +99,6 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
         completeAction(pendingKey);
         return;
       }
-      // A destination protected by the mandatory setup can legitimately open
-      // the unified profile panel instead of the requested route. In that
-      // case the click has completed too and must not leave the button pending.
-      if (searchParams.get("panel")) completeAction(pendingKey);
       return;
     }
 
@@ -129,19 +119,19 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
     }
 
     if (pendingKey === "modal:publish") {
-      if (searchParams.get("action") === "publish" || searchParams.get("panel")) {
+      if (searchParams.get("action") === "publish") {
         completeAction(pendingKey);
       }
     }
   }, [campaignModalOpen, cashModalOpen, completeAction, pathname, pendingKey, searchParams]);
 
   useEffect(() => {
-    if (accountingEnabled && searchParams.get("action") === "cash" && requiredSetupAccessAllowed) {
+    if (accountingEnabled && searchParams.get("action") === "cash") {
       setCashModalOpen(true);
       return;
     }
-    if (!accountingEnabled || !requiredSetupAccessAllowed) setCashModalOpen(false);
-  }, [accountingEnabled, requiredSetupAccessAllowed, searchParams]);
+    if (!accountingEnabled) setCashModalOpen(false);
+  }, [accountingEnabled, searchParams]);
 
   const closeCashModal = () => {
     setCashModalOpen(false);
@@ -167,10 +157,6 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   };
 
   const openCampaignModal = () => {
-    if (!requiredSetupAccessAllowed) {
-      onRequiredSetupBlocked();
-      return;
-    }
     if (!beginAction("modal:campaigns")) return;
     setCampaignModalOpen(true);
   };
@@ -186,10 +172,6 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   };
 
   const openAgentPlanning = () => {
-    if (!requiredSetupAccessAllowed) {
-      onRequiredSetupBlocked();
-      return;
-    }
     setAgentPlanningOpen(true);
   };
 
@@ -201,15 +183,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
 
   const renderGearTitle = (title: string) => (
     <div className={styles.gearTitleRow}>
-      {requiredSetupLocked ? (
-        <RequiredSetupLock
-          message={requiredSetupLockMessage}
-          className={styles.gearTitleLock}
-          compact
-        />
-      ) : (
-        <span className={styles.gearTitleSpacer} aria-hidden />
-      )}
+      <span className={styles.gearTitleSpacer} aria-hidden />
       <div className={styles.gearTitle}>{title}</div>
       <span className={styles.gearTitleSpacer} aria-hidden />
     </div>
@@ -309,15 +283,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
     </div>
 
     <div className={`${styles.loopNode} ${styles.loopRight} ${styles.loop_purple}`}>
-{requiredSetupLocked ? (
-        <RequiredSetupLock
-          message={requiredSetupLockMessage}
-          className={styles.requiredSetupLockLoopBadge}
-          compact
-        />
-      ) : (
-        <span className={`${styles.loopBadge} ${styles.badgePurple}`}></span>
-      )}
+<span className={`${styles.loopBadge} ${styles.badgePurple}`}></span>
 
      <div className={styles.loopTopRow}>
   <div className={styles.loopTitle}>COMS</div>
@@ -328,11 +294,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   type="button"
   aria-label={t.modules.mailsSettingsAria}
   title={t.notifications.settings}
-  onClick={() => {
-    if (requiredSetupLocked) return;
-    startPanelOpening("mails");
-  }}
-  disabled={requiredSetupLocked || isPanelLoadingVisible("mails")}
+  onClick={() => startPanelOpening("mails")}
+  disabled={isPanelLoadingVisible("mails")}
   aria-busy={isPanelLoadingVisible("mails") || undefined}
 >
   <svg className={styles.loopGearSvg} viewBox="0 0 24 24" aria-hidden="true">
@@ -488,11 +451,10 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <span
                     className={`${styles.gearSettingsBtn} ${styles.gearPlanningBtn}`}
                     role="button"
-                    tabIndex={requiredSetupAccessAllowed ? 0 : -1}
+                    tabIndex={0}
                     data-testid="premium-agent-planning"
-                    title={requiredSetupAccessAllowed ? standardT("agentPlanning") : requiredSetupLockMessage}
-                    aria-label={requiredSetupAccessAllowed ? standardT("agentPlanning") : requiredSetupLockMessage}
-                    aria-disabled={!requiredSetupAccessAllowed || undefined}
+                    title={standardT("agentPlanning")}
+                    aria-label={standardT("agentPlanning")}
                     onClick={(event) => {
                       event.stopPropagation();
                       openAgentPlanning();

@@ -51,8 +51,37 @@ test("every active Google OAuth callback rejects partial consent before persiste
 test("the dashboard explains Google consent and offers product-specific retries", () => {
   const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const banner = read("app/dashboard/_components/GoogleOAuthConsentBanner.tsx");
+  const googleBusiness = read("app/dashboard/_components/GoogleBusinessPanel.tsx");
+  const siteInrcy = read("app/dashboard/_components/SiteInrcyPanel.tsx");
+  const siteWeb = read("app/dashboard/_components/SiteWebPanel.tsx");
+  const youtube = read("app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx");
 
-  assert.match(drawer, /<GoogleOAuthConsentBanner panel=\{panel\} \/>/);
+  const localPanelSet = drawer.match(
+    /const PANELS_WITH_LOCAL_GOOGLE_NOTICE = new Set\(\[([\s\S]*?)\]\);/,
+  )?.[1] ?? "";
+  assert.deepEqual(
+    [...localPanelSet.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
+    ["gmb", "site_inrcy", "site_web", "youtube_shorts"],
+  );
+  assert.match(
+    drawer,
+    /<GoogleOAuthConsentBanner panel=\{panel && !PANELS_WITH_LOCAL_GOOGLE_NOTICE\.has\(panel\) \? panel : null\} \/>/,
+  );
+  assert.match(googleBusiness, /<GoogleOAuthConsentBanner panel="gmb" variant="inline" \/>/);
+  assert.match(youtube, /<GoogleOAuthConsentBanner panel="youtube_shorts" variant="inline" \/>/);
+  for (const [source, panel] of [
+    [siteInrcy, "site_inrcy"],
+    [siteWeb, "site_web"],
+  ] as const) {
+    assert.ok(
+      source.includes(`<GoogleOAuthConsentBanner panel="${panel}" product="ga4" variant="inline" />`),
+      `missing inline GA4 consent notice for ${panel}`,
+    );
+    assert.ok(
+      source.includes(`<GoogleOAuthConsentBanner panel="${panel}" product="gsc" variant="inline" />`),
+      `missing inline GSC consent notice for ${panel}`,
+    );
+  }
   for (const endpoint of [
     "google-business/start",
     "google/start",
@@ -63,4 +92,6 @@ test("the dashboard explains Google consent and offers product-specific retries"
   }
   assert.match(banner, /error === GOOGLE_OAUTH_PERMISSION_ERROR_CODE/);
   assert.match(banner, /error === "access_denied"/);
+  assert.match(banner, /!product \|\| !linked \|\| linked === product/);
+  assert.match(banner, /buildRetryHref\(panel, product \?\? linked\)/);
 });

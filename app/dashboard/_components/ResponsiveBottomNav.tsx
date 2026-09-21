@@ -16,7 +16,6 @@ import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import NotificationMenu from "./NotificationMenu";
 import EstablishmentMenu from "./EstablishmentMenu";
-import RequiredSetupLock from "./RequiredSetupLock";
 import {
   DEFAULT_MOBILE_SHORTCUTS,
   MOBILE_SHORTCUTS_EVENT,
@@ -28,7 +27,6 @@ import {
   type MobileShortcutId,
 } from "@/lib/mobileShortcuts";
 import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from "@/lib/appLanguage";
-import { isDashboardRequiredSetupProtectedDestination } from "@/lib/dashboardRequiredSetupAccess";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
@@ -185,13 +183,7 @@ function ResponsiveBottomNavMobile() {
   const {
     profileIncomplete,
     activityIncomplete,
-    completionCheckReady,
-    requiredSetupCompleted,
-    requiredSetupIncomplete,
   } = useDashboardCompletionChecks();
-  const requiredSetupAccessAllowed = !completionCheckReady || requiredSetupCompleted;
-  const requiredSetupLocked = completionCheckReady && requiredSetupIncomplete;
-  const requiredSetupLockMessage = t.modules.requiredSetupLocked;
   const notificationsApi = useDashboardNotifications();
   const {
     pendingKey,
@@ -367,27 +359,13 @@ function ResponsiveBottomNavMobile() {
 
   const resolveHrefDestination = useCallback(
     (href: string): MobileHrefDestination => {
-      let targetHref = href;
-
-      if (
-        isDashboardRequiredSetupProtectedDestination(href) &&
-        !requiredSetupAccessAllowed
-      ) {
-        const panel = profileIncomplete
-          ? "profil"
-          : activityIncomplete
-            ? "activite"
-            : "profil";
-        targetHref = `/dashboard?panel=${encodeURIComponent(panel)}`;
+      if (href === "/dashboard?action=publish") {
+        return { key: "modal:publish", kind: "publish", href };
       }
 
-      if (targetHref === "/dashboard?action=publish") {
-        return { key: "modal:publish", kind: "publish", href: targetHref };
-      }
-
-      return { key: `route:${targetHref}`, kind: "href", href: targetHref };
+      return { key: `route:${href}`, kind: "href", href };
     },
-    [activityIncomplete, profileIncomplete, requiredSetupAccessAllowed],
+    [],
   );
 
   const destinationIsReached = useCallback((destination: MobilePendingDestination) => {
@@ -512,6 +490,8 @@ function ResponsiveBottomNavMobile() {
   const mediaActionKey = resolveHrefDestination("/dashboard/mediatheque").key;
   const mediaGeneratorHref = "/dashboard/generer-media";
   const mediaGeneratorActionKey = resolveHrefDestination(mediaGeneratorHref).key;
+  const channelConnectionsHref = "/dashboard?action=channels";
+  const channelConnectionsActionKey = resolveHrefDestination(channelConnectionsHref).key;
   const cashActionKey = resolveHrefDestination("/dashboard?action=cash").key;
   const gpsActionKey = resolveHrefDestination("/dashboard/gps").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
@@ -544,13 +524,12 @@ function ResponsiveBottomNavMobile() {
                 {displayedShortcuts.map((id) => {
                   const option = getMobileShortcutOption(id);
                   const label = getMobileShortcutLabel(id, t.locale);
-                  const shortcutLocked = requiredSetupLocked && isDashboardRequiredSetupProtectedDestination(option.href);
                   const shortcutActionKey = resolveHrefDestination(option.href).key;
                   const shortcutLoadingVisible = isVisible(shortcutActionKey);
                   return (
                     <button
                       key={id}
-                      className={`${styles.shortcutItem} ${shortcutLocked ? styles.shortcutItemLocked : ""}`}
+                      className={styles.shortcutItem}
                       type="button"
                       role="menuitem"
                       aria-busy={shortcutLoadingVisible || undefined}
@@ -562,13 +541,6 @@ function ResponsiveBottomNavMobile() {
                         {id === "agent" && pendingInrAgentCount > 0 ? <span className={styles.shortcutBadge}>{pendingLabel}</span> : null}
                       </span>
                       <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
-                      {shortcutLocked ? (
-                        <RequiredSetupLock
-                          message={requiredSetupLockMessage}
-                          className={styles.requiredSetupLockShortcut}
-                          compact
-                        />
-                      ) : null}
                     </button>
                   );
                 })}
@@ -596,20 +568,20 @@ function ResponsiveBottomNavMobile() {
                   onClick={() => openDashboardPanel("preferences")}
                 />
                 <MobileMenuActionButton
-                  label={t.userMenu.profile}
-                  loading={isVisible("panel:profil")}
-                  onClick={() => openDashboardPanel("profil")}
+                  label={t.hero.channelOverviewTitle}
+                  loading={isVisible(channelConnectionsActionKey)}
+                  onClick={() => navigate(channelConnectionsHref)}
+                />
+                <MobileMenuActionButton
+                  label={t.userMenu.aiMemory}
+                  loading={isVisible("panel:ai_memory")}
+                  onClick={() => openDashboardPanel("ai_memory")}
                   warning={profileIncomplete || activityIncomplete}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.ai}
                   loading={isVisible("panel:ia")}
                   onClick={() => openDashboardPanel("ia")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.aiMemory}
-                  loading={isVisible("panel:ai_memory")}
-                  onClick={() => openDashboardPanel("ai_memory")}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.mediaGenerator}
@@ -745,13 +717,6 @@ function ResponsiveBottomNavMobile() {
             }}
           >
             <span className={styles.publishButton}>{publishLoadingVisible ? i18nT("chargement_01cba1df") : labels.publish}</span>
-            {requiredSetupLocked ? (
-              <RequiredSetupLock
-                message={requiredSetupLockMessage}
-                className={styles.requiredSetupLockPublish}
-                compact
-              />
-            ) : null}
           </button>
 
           <div className={styles.notificationDockWrap}>

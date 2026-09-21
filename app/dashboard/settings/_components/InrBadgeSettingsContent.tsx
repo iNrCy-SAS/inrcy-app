@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
@@ -26,6 +26,7 @@ import {
   type InrBadgeThemeId,
   type InrBadgeThemeSettings,
 } from "@/lib/inrBadgeTheme";
+import styles from "../../dashboard.module.css";
 
 type InrBadgeChannelStatus = {
   connected: boolean;
@@ -72,7 +73,63 @@ type AppointmentSettings = InrBadgeAppointmentSettings;
 type ThemeSettings = InrBadgeThemeSettings;
 
 const INRBADGE_HEADER_LINE = "iNr'Badge : mon entreprise en QR Code";
-const INRBADGE_ICON_SRC = "/icons/inrbadge-dashboard.png";
+export function InrBadgeAutoSaveStatus() {
+  const i18nT = useTranslations("settings");
+
+  return (
+    <div
+      className={styles.inrBadgeSettingsAutoSave}
+      aria-label={i18nT("sauvegarde_automatique_activee_592ea89d")}
+    >
+      <span aria-hidden="true" />
+      <span>{i18nT("sauvegarde_automatique_6312ea6c")}</span>
+    </div>
+  );
+}
+
+type InrBadgeStepHeaderProps = {
+  step: number;
+  title: ReactNode;
+  description?: ReactNode;
+  accent: string;
+  trailing?: ReactNode;
+};
+
+function InrBadgeStepHeader({ step, title, description, accent, trailing }: InrBadgeStepHeaderProps) {
+  return (
+    <div style={stepHeaderStyle}>
+      <span
+        style={{
+          ...stepNumberStyle,
+          color: accent,
+          borderColor: `${accent}99`,
+          background: `${accent}1f`,
+          boxShadow: `0 0 22px ${accent}24`,
+        }}
+        aria-hidden="true"
+      >
+        {step}
+      </span>
+      <div style={stepHeaderCopyStyle}>
+        <div style={stepTitleRowStyle}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0 }}>{title}</h3>
+          {trailing}
+        </div>
+        {description ? <p style={stepDescriptionStyle}>{description}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function stepCardStyle(accent: string): CSSProperties {
+  return {
+    ...cardStyle,
+    borderColor: `${accent}42`,
+    borderLeft: `3px solid ${accent}`,
+    background: `linear-gradient(135deg, ${accent}12 0%, rgba(15,23,42,0.78) 42%, rgba(30,20,62,0.70) 100%)`,
+    boxShadow: `0 18px 40px rgba(0,0,0,0.18), inset 0 1px 0 ${accent}1c`,
+  };
+}
 
 function trim(value: unknown) {
   return String(value || "").trim();
@@ -612,7 +669,7 @@ export default function InrBadgeSettingsContent({
 
     const logoAnalysisUrl = getLogoAnalysisUrl(publicUrl, profile.logoUrl);
     if (!hasCompanyLogo || !logoAnalysisUrl) {
-      setNotice("Ajoutez d’abord le logo de l’entreprise dans Mon profil.");
+      setNotice("Ajoutez d’abord le logo de l’entreprise dans votre ADN.");
       window.setTimeout(() => setNotice(null), 2400);
       return;
     }
@@ -704,10 +761,10 @@ export default function InrBadgeSettingsContent({
   const canShowMailButton = standardMode ? Boolean(email) : Boolean(email || mailAccounts.length > 0);
   const mailHelper = standardMode
     ? email
-      ? "Le bouton Mail utilise toujours l'adresse renseignée dans Mon profil."
-      : "Ajoutez une adresse dans Mon profil pour afficher le bouton Mail."
+      ? "Le bouton Mail utilise toujours l'adresse renseignée dans votre ADN."
+      : "Ajoutez une adresse dans votre ADN pour afficher le bouton Mail."
     : !canShowMailButton
-      ? "Ajoutez un email dans Mon profil ou connectez une boîte dans Mails."
+      ? "Ajoutez un email dans votre ADN ou connectez une boîte dans Mails."
       : selectedMailValue
         ? "Le bouton Mail utilisera cette boîte connectée."
         : "Le bouton Mail utilisera l'email du profil.";
@@ -729,28 +786,6 @@ export default function InrBadgeSettingsContent({
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div style={autoSaveBadgeStyle} aria-label={i18nT("sauvegarde_automatique_activee_592ea89d")}>
-        <span aria-hidden="true" style={autoSaveDotStyle} />
-        <span>{i18nT("sauvegarde_automatique_6312ea6c")}</span>
-      </div>
-
-      <div style={heroCardStyle}>
-        <div style={heroIconStyle}><img
-          src={INRBADGE_ICON_SRC}
-          alt=""
-          width={128}
-          height={128}
-          loading="eager"
-          decoding="sync"
-          fetchPriority="high"
-          style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.04)", display: "block" }}
-        /></div>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={heroTitleStyle}>{INRBADGE_HEADER_LINE}</h2>
-          <p style={heroSubTextStyle}>{i18nT("le_qr_reste_permanent_les_informations_173e9fb9")}</p>
-        </div>
-      </div>
-
       {!profileReady ? (
         <div style={warningCardStyle}>
           <strong>{i18nT("profil_incomplet_8a8f765c")}</strong>
@@ -759,8 +794,13 @@ export default function InrBadgeSettingsContent({
         </div>
       ) : null}
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>{i18nT("qr_code_44742187")}</h3>
+      <div style={stepCardStyle("#38bdf8")}>
+        <InrBadgeStepHeader
+          step={1}
+          title={i18nT("qr_code_44742187")}
+          description="Prévisualisez, partagez ou téléchargez votre QR Code permanent."
+          accent="#38bdf8"
+        />
         <p style={mutedStyle}>{publicUrl || i18nT("le_lien_sera_genere_des_que_25e0b814")}</p>
         <div style={buttonGridStyle}>
           <button type="button" style={smallButtonStyle} onClick={openPreview} disabled={!publicUrl}>{i18nT("apercu_fiche_c431fffe")}</button>
@@ -787,9 +827,13 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Apparence du badge</h3>
-        <p style={mutedStyle}>Choisissez une ambiance ou reprenez automatiquement les couleurs du logo de l’entreprise.</p>
+      <div style={stepCardStyle("#8b5cf6")}>
+        <InrBadgeStepHeader
+          step={2}
+          title="Apparence du badge"
+          description="Choisissez une ambiance ou reprenez automatiquement les couleurs du logo de l’entreprise."
+          accent="#8b5cf6"
+        />
         <div style={themeGridStyle}>
           {INRBADGE_THEME_PRESETS.map((preset) => (
             <ThemeChoice
@@ -805,7 +849,7 @@ export default function InrBadgeSettingsContent({
           <ThemeChoice
             id="identity"
             label="Identité entreprise"
-            description={hasCompanyLogo ? "Couleurs détectées depuis votre logo" : "Ajoutez un logo dans Mon profil"}
+            description={hasCompanyLogo ? "Couleurs détectées depuis votre logo" : "Ajoutez un logo dans votre ADN"}
             colors={identityPalette}
             selected={theme.id === "identity"}
             disabled={!hasCompanyLogo}
@@ -847,8 +891,13 @@ export default function InrBadgeSettingsContent({
       </div>
 
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>{i18nT("informations_partagees_cbea91ba")}</h3>
+      <div style={stepCardStyle("#a78bfa")}>
+        <InrBadgeStepHeader
+          step={3}
+          title={i18nT("informations_partagees_cbea91ba")}
+          description="Choisissez les informations d’identité visibles sur votre badge."
+          accent="#a78bfa"
+        />
         <div style={twoColumnsGridStyle}>
           <FieldToggle label={i18nT("logo_83fce832")} checked={Boolean(settings.logo)} helper={profile.logoUrl ? "Affiché en haut du badge." : "Logo iNr’Badge utilisé par défaut."} onChange={(value) => updateSetting("logo", value)} />
           <FieldToggle label={i18nT("nom_du_professionnel_421772e3")} checked={Boolean(settings.name)} onChange={(value) => updateSetting("name", value)} />
@@ -856,10 +905,15 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>{i18nT("actions_rapides_abe69a9c")}</h3>
+      <div style={stepCardStyle("#ec4899")}>
+        <InrBadgeStepHeader
+          step={4}
+          title={i18nT("actions_rapides_abe69a9c")}
+          description="Activez les raccourcis qui permettent à vos visiteurs de vous contacter immédiatement."
+          accent="#ec4899"
+        />
         <div style={twoColumnsGridStyle}>
-          <FieldToggle label={i18nT("telephone_d3b023ea")} checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? "À compléter dans Mon profil." : undefined} onChange={(value) => updateSetting("phone", value)} />
+          <FieldToggle label={i18nT("telephone_d3b023ea")} checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? "À compléter dans votre ADN." : undefined} onChange={(value) => updateSetting("phone", value)} />
           <FieldToggle label={i18nT("enregistrer_le_contact_fac37051")} checked={Boolean(settings.saveContact)} helper="Prépare la fiche contact vCard pour l'étape publique." onChange={(value) => updateSetting("saveContact", value)} />
 
           <div style={fullWidthGridItemStyle}>
@@ -894,8 +948,13 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>{i18nT("canaux_disponibles_au_partage_ef3028d3")}</h3>
+      <div style={stepCardStyle("#f97316")}>
+        <InrBadgeStepHeader
+          step={5}
+          title={i18nT("canaux_disponibles_au_partage_ef3028d3")}
+          description="Sélectionnez les canaux connectés que vos visiteurs pourront ouvrir depuis le badge."
+          accent="#f97316"
+        />
         <div style={twoColumnsGridStyle}>
           {channelItems.map((item) => (
             <FieldToggle
@@ -911,8 +970,13 @@ export default function InrBadgeSettingsContent({
       </div>
 
       {!standardMode ? (
-        <div style={cardStyle}>
-          <h3 style={sectionTitleStyle}>{i18nT("prise_de_rdv_d4e3d750")}</h3>
+        <div style={stepCardStyle("#22c55e")}>
+          <InrBadgeStepHeader
+            step={6}
+            title={i18nT("prise_de_rdv_d4e3d750")}
+            description="Ajoutez un accès direct à votre agenda pour transformer les visites en rendez-vous."
+            accent="#22c55e"
+          />
           <div style={appointmentActionRowStyle}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <FieldToggle label={i18nT("afficher_prendre_rdv_a0d7cb8f")} checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
@@ -930,11 +994,14 @@ export default function InrBadgeSettingsContent({
           <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>{i18nT("inr_badge_affiche_le_bouton_les_3ee354bc")}</p>
         </div>
       ) : (
-        <div style={lockedAppointmentCardStyle} aria-label={i18nT("prise_de_rdv_reservee_au_forfait_c652d03f")}>
-          <div style={lockedAppointmentHeadingStyle}>
-            <h3 style={{ ...sectionTitleStyle, margin: 0 }}>{i18nT("prise_de_rdv_d4e3d750")}</h3>
-            <span style={premiumPillStyle}>{i18nT("premium_6c2f2888")}</span>
-          </div>
+        <div style={{ ...stepCardStyle("#64748b"), ...lockedAppointmentCardStyle }} aria-label={i18nT("prise_de_rdv_reservee_au_forfait_c652d03f")}>
+          <InrBadgeStepHeader
+            step={6}
+            title={i18nT("prise_de_rdv_d4e3d750")}
+            description={i18nT("disponible_avec_inr_calendar_dans_le_a627ba6d")}
+            accent="#94a3b8"
+            trailing={<span style={premiumPillStyle}>{i18nT("premium_6c2f2888")}</span>}
+          />
           <div style={lockedAppointmentToggleStyle} aria-disabled="true">
             <span style={{ minWidth: 0, textAlign: "left" }}>
               <strong style={toggleTitleStyle}>{i18nT("afficher_prendre_rdv_a0d7cb8f")}</strong>
@@ -956,8 +1023,49 @@ const cardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.10)",
   background: "rgba(15,23,42,0.72)",
   borderRadius: 18,
-  padding: 14,
+  padding: 16,
   boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
+};
+
+const stepHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const stepNumberStyle: CSSProperties = {
+  width: 34,
+  height: 34,
+  flex: "0 0 34px",
+  display: "grid",
+  placeItems: "center",
+  border: "1px solid",
+  borderRadius: 11,
+  fontSize: 14,
+  fontWeight: 950,
+};
+
+const stepHeaderCopyStyle: CSSProperties = {
+  minWidth: 0,
+  flex: 1,
+  display: "grid",
+  gap: 4,
+};
+
+const stepTitleRowStyle: CSSProperties = {
+  minWidth: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+};
+
+const stepDescriptionStyle: CSSProperties = {
+  margin: 0,
+  color: "rgba(226,232,240,0.70)",
+  fontSize: 11.5,
+  lineHeight: 1.45,
 };
 
 const themeGridStyle: CSSProperties = {
@@ -1081,57 +1189,6 @@ const themePreviewButtonStyle: CSSProperties = {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
 };
 
-const autoSaveBadgeStyle: CSSProperties = {
-  width: "fit-content",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 7,
-  margin: "3px 0 0",
-  padding: "7px 10px",
-  lineHeight: 1.1,
-  borderRadius: 999,
-  border: "1px solid rgba(34,197,94,0.20)",
-  background: "rgba(34,197,94,0.08)",
-  color: "rgba(187,247,208,0.92)",
-  fontSize: 12,
-  fontWeight: 850,
-};
-
-const autoSaveDotStyle: CSSProperties = {
-  width: 7,
-  height: 7,
-  borderRadius: 999,
-  background: "rgba(34,197,94,0.95)",
-  boxShadow: "0 0 12px rgba(34,197,94,0.55)",
-  flex: "0 0 auto",
-};
-
-const heroCardStyle: CSSProperties = {
-  ...cardStyle,
-  display: "flex",
-  gap: 14,
-  alignItems: "center",
-  background: "linear-gradient(135deg, rgba(139,92,246,0.22), rgba(14,165,233,0.10)), rgba(15,23,42,0.76)",
-};
-
-const heroIconStyle: CSSProperties = {
-  width: 58,
-  height: 58,
-  borderRadius: 999,
-  overflow: "hidden",
-  flex: "0 0 auto",
-  display: "grid",
-  placeItems: "center",
-  color: "#fff",
-  fontWeight: 900,
-  background: "rgba(255,255,255,0.08)",
-  border: "1px solid rgba(255,255,255,0.22)",
-  boxShadow: "0 12px 28px rgba(0,0,0,0.24), 0 0 18px rgba(168,85,247,0.16)",
-  padding: 0,
-};
-
-const heroTitleStyle: CSSProperties = { margin: 0, color: "#fff", fontSize: 18, lineHeight: 1.3 };
-const heroSubTextStyle: CSSProperties = { margin: "6px 0 0", color: "rgba(226,232,240,0.72)", fontSize: 12, lineHeight: 1.45 };
 const sectionTitleStyle: CSSProperties = { margin: "0 0 10px", color: "#fff", fontSize: 15 };
 const mutedStyle: CSSProperties = { margin: "0 0 12px", color: "rgba(226,232,240,0.70)", fontSize: 12, overflowWrap: "anywhere" };
 const twoColumnsGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 };
@@ -1166,9 +1223,9 @@ const downloadDropdownItemStyle: CSSProperties = {
 };
 
 const smallButtonStyle: CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.08)",
-  color: "rgba(255,255,255,0.92)",
+  border: "1px solid rgba(125,211,252,0.34)",
+  background: "linear-gradient(135deg, rgba(14,165,233,0.20), rgba(139,92,246,0.22))",
+  color: "rgba(255,255,255,0.96)",
   borderRadius: 999,
   padding: "9px 12px",
   fontSize: 12,
@@ -1177,6 +1234,7 @@ const smallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 20px rgba(14,165,233,0.08)",
 };
 
 const primarySmallButtonStyle: CSSProperties = {
@@ -1198,14 +1256,6 @@ const lockedAppointmentCardStyle: CSSProperties = {
   background: "rgba(71,85,105,0.22)",
   border: "1px solid rgba(148,163,184,0.22)",
   filter: "grayscale(0.35)",
-};
-
-const lockedAppointmentHeadingStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  marginBottom: 10,
 };
 
 const premiumPillStyle: CSSProperties = {

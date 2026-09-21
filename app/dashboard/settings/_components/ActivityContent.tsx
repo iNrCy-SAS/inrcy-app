@@ -87,6 +87,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
 ) {
   const i18nT = useTranslations("settings");
   const sectionT = useTranslations("dashboard.settingsSections");
+  const aiMemoryT = useTranslations("dashboard.aiMemory");
   const initial: BusinessActivityForm = useMemo(
     () => ({
       sectorCategory: "",
@@ -346,6 +347,11 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     onUnsavedChange?.(snapshot !== activityBaselineRef.current);
   }, [form, loading, onUnsavedChange]);
 
+  const hasUnsavedChanges =
+    !loading &&
+    Boolean(activityBaselineRef.current) &&
+    activitySnapshot(form) !== activityBaselineRef.current;
+
   const set = <K extends keyof BusinessActivityForm>(
     key: K,
     value: BusinessActivityForm[K],
@@ -586,6 +592,27 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     onUnsavedChange?.(false);
     await onActivityReset?.();
     return true;
+  };
+
+  const handleCancelChanges = () => {
+    if (!activityBaselineRef.current) return;
+    try {
+      const baseline = JSON.parse(
+        activityBaselineRef.current,
+      ) as BusinessActivityForm;
+      setForm(baseline);
+      setJobSearch(
+        getJobLabel(baseline.sectorCategory, baseline.sector) ||
+          baseline.sector,
+      );
+      setJobSearchOpen(false);
+      setManualSelectionOpen(false);
+      setSaved(false);
+      setError("");
+      onUnsavedChange?.(false);
+    } catch {
+      // La référence est produite localement par activitySnapshot.
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -1107,28 +1134,25 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
             {showActions ? (
               <div
                 data-activity-actions
+                data-activity-actions-layout={isProfileCore ? "compact" : "default"}
                 style={{
-                  position: "sticky",
-                  bottom: 0,
-                  zIndex: 8,
+                  position: isProfileCore ? "relative" : "sticky",
+                  bottom: isProfileCore ? undefined : 0,
+                  zIndex: isProfileCore ? 2 : 8,
                   display: "grid",
-                  gap: 10,
-                  gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
-                  padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
-                  background:
-                    "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
+                  gap: isProfileCore ? 8 : 10,
+                  gridTemplateColumns: isProfileCore
+                    ? "minmax(105px, 130px) minmax(135px, 175px) minmax(180px, 220px)"
+                    : "minmax(130px, 0.72fr) minmax(135px, 0.8fr) minmax(180px, 1.35fr)",
+                  justifyContent: "end",
+                  padding: isProfileCore
+                    ? "2px 0 0"
+                    : "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
+                  background: isProfileCore
+                    ? "transparent"
+                    : "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
                 }}
               >
-                <button
-                  type="button"
-                  style={primaryBtn}
-                  disabled={saving}
-                  onClick={() => void save()}
-                >
-                  {saving
-                    ? i18nT("enregistrement_e7d5f232")
-                    : i18nT("enregistrer_f7c8bcd8")}
-                </button>
                 <button
                   type="button"
                   disabled={saving}
@@ -1144,6 +1168,36 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
                   }}
                 >
                   {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+                <button
+                  type="button"
+                  disabled={saving || !hasUnsavedChanges}
+                  onClick={handleCancelChanges}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white",
+                    borderRadius: 14,
+                    padding: "10px 12px",
+                    cursor:
+                      saving || !hasUnsavedChanges
+                        ? "not-allowed"
+                        : "pointer",
+                    fontWeight: 800,
+                    opacity: saving || !hasUnsavedChanges ? 0.55 : 1,
+                  }}
+                >
+                  {aiMemoryT("cancelChanges")}
+                </button>
+                <button
+                  type="button"
+                  style={primaryBtn}
+                  disabled={saving}
+                  onClick={() => void save()}
+                >
+                  {saving
+                    ? i18nT("enregistrement_e7d5f232")
+                    : i18nT("enregistrer_f7c8bcd8")}
+                </button>
               </div>
             ) : null}
 
@@ -1160,7 +1214,10 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
             grid-template-columns: 1fr !important;
           }
           div[data-activity-actions] {
-            grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.72fr) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          div[data-activity-actions] button:last-child {
+            grid-column: 1 / -1;
           }
         }
         @media (min-width: 621px) and (max-width: 1040px) {

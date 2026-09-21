@@ -8,6 +8,8 @@ import SettingsDrawer from "./SettingsDrawer";
 import HelpButton from "./_components/HelpButton";
 import DashboardHelpModals from "./_components/DashboardHelpModals";
 import DashboardHero from "./_components/DashboardHero";
+import ChannelConnectionsModal from "./_components/ChannelConnectionsModal";
+import ChannelSettingsHeader from "./_components/ChannelSettingsHeader";
 import GeneratorSettingsModal from "./_components/GeneratorSettingsModal";
 import DashboardTopbar from "./_components/DashboardTopbar";
 import { useDashboardEdition } from "./_components/DashboardEditionProvider";
@@ -16,6 +18,7 @@ import DashboardChannelsSection from "./_components/DashboardChannelsSection";
 import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer";
 import DashboardSettingsDrawerContent from "./_components/DashboardSettingsDrawerContent";
 import InrBadgePreviewModal from "./_components/InrBadgePreviewModal";
+import { InrBadgeAutoSaveStatus } from "./settings/_components/InrBadgeSettingsContent";
 import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
 import { useUnsavedExitGuard } from "./_hooks/useUnsavedExitGuard";
 import { useDashboardNotifications } from "./_hooks/useDashboardNotifications";
@@ -25,6 +28,7 @@ import { useDashboardCompletionChecks } from "./_hooks/useDashboardCompletionChe
 import { useDashboardSetupAlert } from "./_hooks/useDashboardSetupAlert";
 import { useDashboardMenus } from "./_hooks/useDashboardMenus";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
+import { useDashboardPreparationScores } from "./_hooks/useDashboardPreparationScores";
 import { useFacebookChannel } from "./_hooks/channels/useFacebookChannel";
 import { useInstagramChannel } from "./_hooks/channels/useInstagramChannel";
 import { useLinkedinChannel } from "./_hooks/channels/useLinkedinChannel";
@@ -57,11 +61,19 @@ import type { ActusFont, GoogleProduct, GoogleSource, Ownership } from "./dashbo
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
+import {
+  DASHBOARD_CHANNEL_POWER_SETUP,
+  type DashboardSetupChannelKey,
+} from "./dashboard.channel-setup";
+import {
+  CHANNEL_SETTINGS_PANEL_ORDER,
+  getChannelSettingsHeaderStyle,
+  isChannelSettingsPanel,
+} from "./channel-settings";
 import { createInrBadgePublicUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { buildDashboardPanelProps } from "./dashboard.panel-props";
 import { createEmptyChannelBlock, createEmptyChannelBlocks, type InrstatsChannelBlock, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
-import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupProtectedLocation } from "@/lib/dashboardRequiredSetupAccess";
 import { reportHandledClientError } from "@/lib/clientExpectedErrors";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
 import {
@@ -69,6 +81,7 @@ import {
   createLatestChannelResponseGate,
   hasCompleteOfficialDashboardChannelState,
   mergeDashboardHydrationState,
+  resolveLinkedinPublicUrl,
 } from "@/lib/dashboardChannelSync";
 import {
   STANDARD_BONUS_CHANNEL_KEYS,
@@ -195,6 +208,8 @@ export default function DashboardClient({
   const [helpInertieOpen, setHelpInertieOpen] = useState(false);
   const [helpInstagramOpen, setHelpInstagramOpen] = useState(false);
   const [helpFacebookOpen, setHelpFacebookOpen] = useState(false);
+  const [channelConnectionsOpen, setChannelConnectionsOpen] = useState(false);
+  const channelConnectionsOpenedFromRouteRef = useRef(false);
   const [dashboardBoosterModal, setDashboardBoosterModal] = useState<null | "publish" | "stats">(null);
   const [siteConnectionsReady, setSiteConnectionsReady] = useState(false);
   const [officialChannelStatesReady, setOfficialChannelStatesReady] = useState(() => (
@@ -292,33 +307,29 @@ export default function DashboardClient({
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardCopy = useDashboardI18n();
   const { panel, openPanel, closePanel, goToModule } = useDashboardPanelRouting();
-  const openCombinedProfilePanel = useCallback(() => {
-    openPanel("profil");
-  }, [openPanel]);
+  const openInitialChannelConnections = useCallback(() => {
+    setChannelConnectionsOpen(true);
+  }, []);
   const {
     accountId: completionAccountId,
     profileIncomplete,
     activityIncomplete,
-    profileCompleted,
-    activityCompleted,
     profileCheckReady,
-    activityCheckReady,
     completionCheckReady,
-    requiredSetupCompleted,
-    requiredSetupIncomplete,
   } = useDashboardCompletionChecks();
-  // Les boutons restent immédiatement cliquables pendant la vérification.
-  // Seul un état incomplet déjà confirmé bloque réellement la destination.
-  const requiredSetupAccessAllowed = !completionCheckReady || requiredSetupCompleted;
-  const requiredSetupLockVisible = completionCheckReady && requiredSetupIncomplete;
+  const { dnaScore, aiScore } = useDashboardPreparationScores({
+    accountId: completionAccountId,
+    edition: dashboardEdition,
+  });
   useDashboardSetupAlert({
     accountId: completionAccountId,
     completionCheckReady,
     profileIncomplete,
     activityIncomplete,
-    onOpenProfile: openCombinedProfilePanel,
+    onOpenChannels: openInitialChannelConnections,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
+  const [settingsPanelDiscardRevisions, setSettingsPanelDiscardRevisions] = useState<Record<string, number>>({});
   const settingsDrawerGuardActive = panel === "preferences" || panel === "documents" || panel === "mails" || panel === "compte" || panel === "parrainage" || panel === "youtube_shorts" || panel === "pinterest";
   const settingsDrawerRequiresExplicitClose = settingsDrawerGuardActive;
 
@@ -336,6 +347,13 @@ export default function DashboardClient({
     active: settingsDrawerGuardActive,
     shouldBlock: settingsDrawerHasUnsavedChanges,
     onConfirmExit: () => {
+      if (settingsDrawerHasUnsavedChanges && panel) {
+        setSettingsPanelDiscardRevisions((current) => ({
+          ...current,
+          [panel]: (current[panel] ?? 0) + 1,
+        }));
+        setSettingsDrawerHasUnsavedChanges(false);
+      }
       void closeSettingsDrawer();
     },
     eyebrow: settingsDrawerT("settings"),
@@ -362,26 +380,8 @@ export default function DashboardClient({
     setSettingsDrawerHasUnsavedChanges(hasUnsavedChanges);
   }, []);
 
-
-  const openRequiredSetupPanel = useCallback(() => {
-    openPanel(profileIncomplete ? "profil" : activityIncomplete ? "activite" : "profil");
-  }, [activityIncomplete, openPanel, profileIncomplete]);
-
-  const goToRequiredSetupAwareModule = useCallback((path: string) => {
-    if (isDashboardRequiredSetupProtectedDestination(path) && !requiredSetupAccessAllowed) {
-      openRequiredSetupPanel();
-      return;
-    }
-    goToModule(path);
-  }, [goToModule, openRequiredSetupPanel, requiredSetupAccessAllowed]);
-
   const navigateDashboardCta = useCallback((ctaUrl: string) => {
     if (!isDashboardDestinationAllowedForEdition(ctaUrl, dashboardEdition)) return;
-
-    if (isDashboardRequiredSetupProtectedDestination(ctaUrl) && !requiredSetupAccessAllowed) {
-      openRequiredSetupPanel();
-      return;
-    }
 
     void requestNavigation(() => {
       if (ctaUrl.startsWith("/")) {
@@ -390,14 +390,9 @@ export default function DashboardClient({
         window.location.href = ctaUrl;
       }
     });
-  }, [dashboardEdition, openRequiredSetupPanel, requestNavigation, requiredSetupAccessAllowed, router]);
+  }, [dashboardEdition, requestNavigation, router]);
 
   const openBoosterPublish = useCallback(() => {
-    if (!requiredSetupAccessAllowed) {
-      openRequiredSetupPanel();
-      return;
-    }
-
     void requestNavigation(() => {
       // L'URL est aussi l'état partagé avec le bandeau mobile. Sans ce
       // paramètre, l'ouverture locale de la modale laisse le bouton « Publier »
@@ -405,15 +400,11 @@ export default function DashboardClient({
       setDashboardBoosterModal("publish");
       router.replace("/dashboard?action=publish", { scroll: false });
     });
-  }, [openRequiredSetupPanel, requestNavigation, requiredSetupAccessAllowed, router]);
+  }, [requestNavigation, router]);
 
   const openBoosterStats = useCallback(() => {
-    if (!requiredSetupAccessAllowed) {
-      openRequiredSetupPanel();
-      return;
-    }
     setDashboardBoosterModal("stats");
-  }, [openRequiredSetupPanel, requiredSetupAccessAllowed]);
+  }, []);
 
   const openStatsModule = useCallback(() => {
     void requestNavigation(() => {
@@ -428,25 +419,31 @@ export default function DashboardClient({
   }, [requestNavigation, router]);
 
   useEffect(() => {
-    if (!completionCheckReady) return;
-
-    if (
-      !requiredSetupCompleted &&
-      isDashboardRequiredSetupProtectedLocation("/dashboard", searchParams)
-    ) {
-      setDashboardBoosterModal(null);
-      router.replace("/dashboard", { scroll: false });
-      return;
-    }
-
     const action = searchParams.get("action");
     const stats = searchParams.get("stats");
+
+    if (action === "channels") {
+      channelConnectionsOpenedFromRouteRef.current = true;
+      setChannelConnectionsOpen(true);
+    } else if (channelConnectionsOpenedFromRouteRef.current) {
+      channelConnectionsOpenedFromRouteRef.current = false;
+      setChannelConnectionsOpen(false);
+    }
+
     if (action === "publish") {
       setDashboardBoosterModal("publish");
     } else if (stats === "1") {
       setDashboardBoosterModal("stats");
     }
-  }, [completionCheckReady, requiredSetupCompleted, router, searchParams]);
+  }, [searchParams]);
+
+  const closeChannelConnections = useCallback(() => {
+    channelConnectionsOpenedFromRouteRef.current = false;
+    setChannelConnectionsOpen(false);
+    if (searchParams.get("action") === "channels") {
+      router.replace("/dashboard", { scroll: false });
+    }
+  }, [router, searchParams]);
 
   // Orientation: gérée globalement via <OrientationGuard />
 
@@ -912,6 +909,10 @@ const {
 const {
   linkedinUrl,
   setLinkedinUrl,
+  linkedinProfileUrl,
+  setLinkedinProfileUrl,
+  linkedinOrganizationUrl,
+  setLinkedinOrganizationUrl,
   linkedinAccountConnected,
   setLinkedinAccountConnected,
   linkedinConnected,
@@ -927,6 +928,7 @@ const {
   connectLinkedinBusinessAccount,
   disconnectLinkedinAccount,
   saveLinkedinProfileUrl,
+  saveLinkedinOrganizationUrl,
   linkedinOrganizations,
   linkedinOrganizationsLoading,
   linkedinOrganizationsPhase,
@@ -951,6 +953,14 @@ const {
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
   triggerChannelRefresh: triggerChannelRefreshProxy,
   updateRootSettingsKey,
+});
+
+const linkedinPreferredUrl = resolveLinkedinPublicUrl({
+  connected: linkedinConnected && linkedinConnectionStatus === "connected",
+  organizationId: linkedinSelectedOrganizationId,
+  organizationUrl: linkedinOrganizationUrl,
+  profileUrl: linkedinProfileUrl,
+  legacyUrl: linkedinUrl,
 });
 
 const {
@@ -1068,6 +1078,8 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (typeof state.instagramUsername === "string") setInstagramUsername(state.instagramUsername);
 
   if (typeof state.linkedinUrl === "string") setLinkedinUrl(state.linkedinUrl);
+  if (typeof state.linkedinProfileUrl === "string") setLinkedinProfileUrl(state.linkedinProfileUrl);
+  if (typeof state.linkedinOrganizationUrl === "string") setLinkedinOrganizationUrl(state.linkedinOrganizationUrl);
   if (typeof state.linkedinAccountConnected === "boolean") setLinkedinAccountConnected(state.linkedinAccountConnected);
   if (typeof state.linkedinConnected === "boolean") setLinkedinConnected(state.linkedinConnected);
   if (isConnectionStatus(state.linkedinConnectionStatus)) setLinkedinConnectionStatus(state.linkedinConnectionStatus);
@@ -1152,6 +1164,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   setGscProperty, setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
   setInstagramUsername, setLinkedinAccountConnected, setLinkedinConnected, setLinkedinConnectionStatus,
   setLinkedinDisplayName, setLinkedinSelectedOrganizationId, setLinkedinSelectedOrganizationName, setLinkedinUrl,
+  setLinkedinProfileUrl, setLinkedinOrganizationUrl,
   setSiteInrcyActusFont, setSiteInrcyActusLayout, setSiteInrcyActusLimit, setSiteInrcyActusDesign, setSiteInrcyActusTheme, setSiteInrcyActusAccent, setSiteInrcyContactEmail,
   setSiteInrcyGa4Connected, setSiteInrcyGscConnected, setSiteInrcyOwnership, setSiteInrcySavedUrl,
   setSiteInrcySettingsError, setSiteInrcySettingsText, setSiteInrcyUrl, setSiteWebActusFont, setSiteWebActusLayout,
@@ -1232,6 +1245,8 @@ const resetAccountScopedDashboardState = useCallback(() => {
     linkedinConnected: false,
     linkedinConnectionStatus: "disconnected",
     linkedinUrl: "",
+    linkedinProfileUrl: "",
+    linkedinOrganizationUrl: "",
     linkedinDisplayName: "",
     linkedinSelectedOrganizationId: "",
     linkedinSelectedOrganizationName: "",
@@ -2013,36 +2028,45 @@ const hasSiteWebUrl = !!savedSiteWebUrlMeta;
 const canConnectSiteInrcyGoogle = canConfigureSite && hasSiteInrcyUrl;
 const canConnectSiteWebGoogle = hasSiteWebUrl;
 
+const inrBadgeProfileCheckReady = profileCheckReady || lastKnownInrBadgeProfileReady !== null;
+const inrBadgeProfileReady = profileCheckReady
+  ? !profileIncomplete
+  : lastKnownInrBadgeProfileReady === true;
+
 const siteInrcyProgressCount = (hasSiteInrcyUrl ? 1 : 0) + (hasSiteInrcyUrl && siteInrcyGa4Connected ? 1 : 0) + (hasSiteInrcyUrl && siteInrcyGscConnected ? 1 : 0);
 const siteWebProgressCount = (hasSiteWebUrl ? 1 : 0) + (hasSiteWebUrl && siteWebGa4Connected ? 1 : 0) + (hasSiteWebUrl && siteWebGscConnected ? 1 : 0);
 const siteInrcyAllGreen = canAccessSiteInrcy && siteInrcyProgressCount === 3;
 const siteWebAllGreen = siteWebProgressCount === 3;
-// La puissance commerciale du pack Standard ne dépend que de son canal Site web.
-// Un Site iNrCy loué reste un droit indépendant et ne modifie jamais ce calcul.
-const sitePowerLinkConnected = hasSiteWebUrl;
-const sitePowerGa4Connected = hasSiteWebUrl && siteWebGa4Connected;
-const sitePowerGscConnected = hasSiteWebUrl && siteWebGscConnected;
-const videoPowerConnected = Boolean(tiktokConnected || youtubeShortsConnected);
-const proNetworkPowerConnected = Boolean(
-  (linkedinConnected && linkedinConnectionStatus !== "needs_update") || (canAccessPinterest && pinterestConnected)
-);
 
-const generatorPowerSteps = [
-  { key: "profile", label: dashboardCopy.generatorSteps.profile.label, shortLabel: dashboardCopy.generatorSteps.profile.shortLabel, weight: 10, completed: profileCompleted },
-  { key: "activity", label: dashboardCopy.generatorSteps.activity.label, shortLabel: dashboardCopy.generatorSteps.activity.shortLabel, weight: 10, completed: activityCompleted },
-  { key: "site_link", label: dashboardCopy.generatorSteps.site_link.label, shortLabel: dashboardCopy.generatorSteps.site_link.shortLabel, weight: 10, completed: sitePowerLinkConnected },
-  { key: "site_ga4", label: dashboardCopy.generatorSteps.site_ga4.label, shortLabel: dashboardCopy.generatorSteps.site_ga4.shortLabel, weight: 5, completed: sitePowerGa4Connected },
-  { key: "site_gsc", label: dashboardCopy.generatorSteps.site_gsc.label, shortLabel: dashboardCopy.generatorSteps.site_gsc.shortLabel, weight: 5, completed: sitePowerGscConnected },
-  { key: "gmb", label: dashboardCopy.generatorSteps.gmb.label, shortLabel: dashboardCopy.generatorSteps.gmb.shortLabel, weight: 20, completed: gmbConnected && gmbConnectionStatus !== "needs_update" },
-  { key: "facebook", label: dashboardCopy.generatorSteps.facebook.label, shortLabel: dashboardCopy.generatorSteps.facebook.shortLabel, weight: 10, completed: facebookPageConnected && facebookConnectionStatus !== "needs_update" },
-  { key: "instagram", label: dashboardCopy.generatorSteps.instagram.label, shortLabel: dashboardCopy.generatorSteps.instagram.shortLabel, weight: 10, completed: instagramConnected && instagramConnectionStatus !== "needs_update" },
-  { key: "pro_network", label: dashboardCopy.generatorSteps.pro_network.label, shortLabel: dashboardCopy.generatorSteps.pro_network.shortLabel, weight: 7, completed: proNetworkPowerConnected },
-  { key: "inr_search", label: dashboardCopy.generatorSteps.inr_search.label, shortLabel: dashboardCopy.generatorSteps.inr_search.shortLabel, weight: 5, completed: Boolean(canAccessInrSearch && inrSearchConnected) },
-  { key: "video", label: dashboardCopy.generatorSteps.video.label, shortLabel: dashboardCopy.generatorSteps.video.shortLabel, weight: 8, completed: videoPowerConnected },
-] as const;
+// Chaque canal alimente désormais sa propre part de puissance. Aucun état de
+// connexion n'est fusionné : les mêmes booléens autoritatifs que les bulles
+// sont seulement projetés dans la jauge du cockpit.
+const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
+  inrbadge: inrBadgeProfileReady,
+  site_web: siteWebAllGreen,
+  gmb: Boolean(gmbConnected && gmbConnectionStatus !== "needs_update"),
+  inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
+  facebook: Boolean(facebookPageConnected && facebookConnectionStatus !== "needs_update"),
+  instagram: Boolean(instagramConnected && instagramConnectionStatus !== "needs_update"),
+  linkedin: Boolean(linkedinConnected && linkedinConnectionStatus !== "needs_update"),
+  tiktok: Boolean(tiktokConnected && !tiktokRequiresUpdate),
+  youtube_shorts: Boolean(youtubeShortsConnected && !youtubeShortsRequiresUpdate),
+  pinterest: Boolean(canAccessPinterest && pinterestConnected && !pinterestRequiresUpdate),
+  x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update" && !xRequiresUpdate),
+  mails: Boolean(mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate),
+  site_inrcy: siteInrcyAllGreen,
+};
+
+const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP.map((channel) => ({
+  key: channel.key,
+  label: channel.key,
+  shortLabel: channel.key,
+  weight: channel.weight,
+  completed: channelPowerConnected[channel.key],
+}));
 
 const computedGeneratorPower = generatorPowerSteps.reduce((sum, step) => sum + (step.completed ? step.weight : 0), 0);
-const generatorPowerReady = siteConnectionsReady && profileCheckReady && activityCheckReady;
+const generatorPowerReady = siteConnectionsReady && profileCheckReady && officialChannelStatesReady && inrSearchConnected !== null;
 
 // La valeur visible est toujours la dernière puissance confirmée.
 // Pendant un retour OAuth, une connexion ou une déconnexion, les états des
@@ -2065,31 +2089,12 @@ const displayedGeneratorPowerSnapshotSignature = displayedGeneratorPowerSnapshot
 const confirmedGeneratorPowerSnapshot = displayedGeneratorPowerSnapshot?.power === generatorPower
   ? displayedGeneratorPowerSnapshot
   : null;
-const shouldUseConfirmedGeneratorPowerDetails = !generatorPowerReady || generatorPowerIsSettling;
-const displayedGeneratorPowerSteps = shouldUseConfirmedGeneratorPowerDetails
+const displayedGeneratorPowerSteps = (!generatorPowerReady || generatorPowerIsSettling) && confirmedGeneratorPowerSnapshot
   ? generatorPowerSteps.map((step) => ({
       ...step,
-      completed: generatorPower >= 100
-        ? true
-        : confirmedGeneratorPowerSnapshot
-          ? confirmedGeneratorPowerSnapshot.completedStepKeys.includes(step.key)
-          : step.completed,
+      completed: confirmedGeneratorPowerSnapshot.completedStepKeys.includes(step.key),
     }))
   : generatorPowerSteps;
-const confirmedNextGeneratorPowerStep = confirmedGeneratorPowerSnapshot?.nextStepKey
-  ? generatorPowerSteps.find((step) => step.key === confirmedGeneratorPowerSnapshot.nextStepKey) ?? null
-  : null;
-const nextGeneratorPowerStep = shouldUseConfirmedGeneratorPowerDetails
-  ? generatorPower >= 100
-    ? null
-    : confirmedNextGeneratorPowerStep ?? computedNextGeneratorPowerStep
-  : computedNextGeneratorPowerStep;
-const remainingGeneratorPowerSteps = shouldUseConfirmedGeneratorPowerDetails
-  ? generatorPower >= 100
-    ? 0
-    : confirmedGeneratorPowerSnapshot?.remainingSteps ?? computedRemainingGeneratorPowerSteps
-  : computedRemainingGeneratorPowerSteps;
-
 useEffect(() => {
   if (!generatorPowerReady || displayedGeneratorPower === computedGeneratorPower) return;
 
@@ -3668,6 +3673,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       instagramConnectionStatus,
       instagramUsername,
       linkedinUrl,
+      linkedinProfileUrl,
+      linkedinOrganizationUrl,
       linkedinAccountConnected,
       linkedinConnected,
       linkedinConnectionStatus,
@@ -3733,11 +3740,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     mergeCachedDashboardChannelState({ inrBadgeProfileReady: nextReady });
   }, [profileCheckReady, profileIncomplete]);
 
-  const inrBadgeProfileCheckReady = profileCheckReady || lastKnownInrBadgeProfileReady !== null;
-  const inrBadgeProfileReady = profileCheckReady
-    ? !profileIncomplete
-    : lastKnownInrBadgeProfileReady === true;
-
   const inrBadgePublicUrl = useMemo(() => {
     if (!inrBadgeProfileReady) return "";
     return createInrBadgePublicUrl(inrBadgeProfile);
@@ -3772,10 +3774,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     inrBadgeProfileReady,
     inrBadgeProfileCheckReady,
     onOpenInrBadgeModal: openInrBadgeModal,
-    onOpenInrAgent: () => goToRequiredSetupAwareModule("/dashboard/agent"),
+    onOpenInrAgent: () => goToModule("/dashboard/agent"),
     linkedinConnected,
     linkedinConnectionStatus,
-    linkedinUrl,
+    linkedinUrl: linkedinPreferredUrl,
     xConnected,
     xConnectionStatus,
     xRequiresUpdate,
@@ -3815,7 +3817,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     facebookConnectionStatus,
     facebookUrl,
     getSiteBubbleProgress,
-    goToRequiredSetupAwareModule,
+    goToModule,
     gmbConnected,
     gmbConnectionStatus,
     gmbUrl,
@@ -3829,7 +3831,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     openInrBadgeModal,
     linkedinConnected,
     linkedinConnectionStatus,
-    linkedinUrl,
+    linkedinPreferredUrl,
     xConnected,
     xConnectionStatus,
     xRequiresUpdate,
@@ -3861,6 +3863,47 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     [fluxBubbleItems, isStandardEdition],
   );
 
+  const channelSettingsItemsByKey = useMemo(() => new Map(
+    displayedFluxBubbleItems
+      .filter((item) => (
+        item.configureDestination?.kind === "panel" &&
+        !item.configureDisabled &&
+        isChannelSettingsPanel(item.key)
+      ))
+      .map((item) => [item.key, item]),
+  ), [displayedFluxBubbleItems]);
+
+  const activeChannelSettingsItem = isChannelSettingsPanel(panel)
+    ? fluxBubbleItems.find((item) => item.key === panel) ?? null
+    : null;
+  const activeChannelSettingsIndex = isChannelSettingsPanel(panel)
+    ? CHANNEL_SETTINGS_PANEL_ORDER.indexOf(panel)
+    : -1;
+
+  const findChannelSettingsNeighbour = (direction: -1 | 1) => {
+    if (activeChannelSettingsIndex < 0 || channelSettingsItemsByKey.size === 0) return null;
+
+    for (let offset = 1; offset <= CHANNEL_SETTINGS_PANEL_ORDER.length; offset += 1) {
+      const index = (
+        activeChannelSettingsIndex + direction * offset + CHANNEL_SETTINGS_PANEL_ORDER.length
+      ) % CHANNEL_SETTINGS_PANEL_ORDER.length;
+      const item = channelSettingsItemsByKey.get(CHANNEL_SETTINGS_PANEL_ORDER[index]);
+      if (item) return item;
+    }
+
+    return null;
+  };
+
+  const previousChannelSettingsItem = findChannelSettingsNeighbour(-1);
+  const nextChannelSettingsItem = findChannelSettingsNeighbour(1);
+
+  const openChannelConnectionsFromSettings = useCallback(() => {
+    void requestNavigation(() => {
+      closePanel();
+      setChannelConnectionsOpen(true);
+    });
+  }, [closePanel, requestNavigation]);
+
   const inrBadgeSettingsProps = useMemo(() => ({
     profile: inrBadgeProfile,
     publicUrl: inrBadgePublicUrl,
@@ -3891,8 +3934,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         url: instagramUrl,
       },
       linkedin: {
-        connected: Boolean(linkedinConnected && linkedinUrl),
-        url: linkedinUrl,
+        connected: Boolean(linkedinConnected && linkedinPreferredUrl),
+        url: linkedinPreferredUrl,
       },
       x: {
         connected: Boolean(canAccessX && xConnected && xProfileUrl),
@@ -3936,7 +3979,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     instagramConnected,
     instagramUrl,
     linkedinConnected,
-    linkedinUrl,
+    linkedinPreferredUrl,
     canAccessX,
     xConnected,
     xProfileUrl,
@@ -3972,7 +4015,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const disconnectInstagramAccountFromDrawer = useCallback(() => runDrawerMutation("instagram:account:disconnect", disconnectInstagramAccount), [runDrawerMutation, disconnectInstagramAccount]);
   const disconnectInstagramProfileFromDrawer = useCallback(() => runDrawerMutation("instagram:profile:disconnect", disconnectInstagramProfile), [runDrawerMutation, disconnectInstagramProfile]);
 
-  const saveLinkedinProfileUrlFromDrawer = useCallback(() => runDrawerMutation("linkedin:url:save", saveLinkedinProfileUrl), [runDrawerMutation, saveLinkedinProfileUrl]);
+  const saveLinkedinProfileUrlFromDrawer = useCallback(() => runDrawerMutation("linkedin:profile-url:save", saveLinkedinProfileUrl), [runDrawerMutation, saveLinkedinProfileUrl]);
+  const saveLinkedinOrganizationUrlFromDrawer = useCallback(() => runDrawerMutation("linkedin:organization-url:save", saveLinkedinOrganizationUrl), [runDrawerMutation, saveLinkedinOrganizationUrl]);
   const disconnectLinkedinAccountFromDrawer = useCallback(() => runDrawerMutation("linkedin:account:disconnect", disconnectLinkedinAccount), [runDrawerMutation, disconnectLinkedinAccount]);
   const disconnectLinkedinOrganizationFromDrawer = useCallback(() => runDrawerMutation("linkedin:organization:disconnect", useLinkedinPersonalProfile), [runDrawerMutation, useLinkedinPersonalProfile]);
 
@@ -4001,14 +4045,14 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     instagramPublicationPreferencesNotice, instagramPublicationPreferencesError,
     updateInstagramPublicationPreferences, saveInstagramPublicationPreferences,
     isDrawerMutationPending,
-    linkedinAccountConnected, linkedinConnected, linkedinConnectionStatus, linkedinDisplayName, linkedinUrl, linkedinUrlError, linkedinUrlNotice,
+    linkedinAccountConnected, linkedinConnected, linkedinConnectionStatus, linkedinDisplayName, linkedinUrl, linkedinProfileUrl, linkedinOrganizationUrl, linkedinUrlError, linkedinUrlNotice,
     linkedinOrganizations, linkedinOrganizationsLoading, linkedinOrganizationsPhase, linkedinOrganizationPickerOpen, linkedinSelectedOrganizationId, linkedinSelectedOrganizationName,
     linkedinShareToPersonalProfile, linkedinShareToPersonalProfileBusy, updateLinkedinShareToPersonalProfile,
     loadLinkedinOrganizations, selectLinkedinOrganization, useLinkedinPersonalProfile,
     loadFacebookPages, loadGmbAccountsAndLocations, loadInstagramAccounts,
     resetSiteInrcyAll, resetSiteWebAll, requestSiteWebWidgetToken, saveSiteInrcyActusWidgetSettings, saveSiteWebActusWidgetSettings,
-    saveFacebookPageFromDrawer, saveGmbLocationFromDrawer, saveInstagramProfileFromDrawer, saveLinkedinProfileUrlFromDrawer, saveSiteInrcyUrlFromDrawer, saveSiteWebUrlFromDrawer,
-    setFbSelectedPageId, setIgSelectedPageId, setGmbLocationName, setLinkedinUrl, setLinkedinUrlNotice,
+    saveFacebookPageFromDrawer, saveGmbLocationFromDrawer, saveInstagramProfileFromDrawer, saveLinkedinProfileUrlFromDrawer, saveLinkedinOrganizationUrlFromDrawer, saveSiteInrcyUrlFromDrawer, saveSiteWebUrlFromDrawer,
+    setFbSelectedPageId, setIgSelectedPageId, setGmbLocationName, setLinkedinUrl, setLinkedinProfileUrl, setLinkedinOrganizationUrl, setLinkedinUrlNotice,
     setShowSiteInrcyWidgetCode, setShowSiteWebWidgetCode,
     setSiteInrcyActusFont, setSiteInrcyActusLayout, setSiteInrcyActusLimit, setSiteInrcyActusDesign, setSiteInrcyActusTheme, setSiteInrcyActusAccent, setSiteInrcyUrl,
     setSiteWebActusFont, setSiteWebActusLayout, setSiteWebActusLimit, setSiteWebActusDesign, setSiteWebActusTheme, setSiteWebActusAccent, setSiteWebUrl,
@@ -4058,7 +4102,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         openPanel={openPanel}
         inrAgentEnabled={canAccessInrAgent}
         showInrAgent
-        requiredSetupLockVisible={requiredSetupLockVisible}
         isAdmin={isAdmin}
         userEmail={userEmail}
         userFirstLetter={userFirstLetter}
@@ -4074,9 +4117,19 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
       <DashboardHero
         generatorPower={generatorPower}
-        generatorPowerSteps={displayedGeneratorPowerSteps}
-        remainingGeneratorPowerSteps={remainingGeneratorPowerSteps}
-        nextGeneratorPowerStep={nextGeneratorPowerStep}
+        dnaPower={dnaScore}
+        aiPower={aiScore}
+        channelPowerSteps={displayedGeneratorPowerSteps.map((step) => ({
+          ...step,
+          label: fluxBubbleItems.find((item) => item.key === step.key)?.name ?? step.key,
+        }))}
+        onOpenChannels={() => setChannelConnectionsOpen(true)}
+        onOpenDna={() => {
+          void requestNavigation(() => router.push("/dashboard/adn-entreprise"));
+        }}
+        onOpenAi={() => {
+          void requestNavigation(() => router.push("/dashboard/configuration-ia"));
+        }}
         onOpenGeneratorHelp={() => setHelpGeneratorOpen(true)}
         onOpenGeneratorSettings={() => setGeneratorSettingsOpen(true)}
         onRefreshGenerator={() => {
@@ -4091,6 +4144,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onOpenStats={openStatsModule}
         leadsWeek={leadsWeek}
         leadsMonth={leadsMonth}
+      />
+
+      <ChannelConnectionsModal
+        isOpen={channelConnectionsOpen}
+        items={displayedFluxBubbleItems}
+        businessEssentialsReady={inrBadgeProfileReady}
+        onClose={closeChannelConnections}
       />
 
       <div className={styles.dashboardQuickJumpRow}>
@@ -4128,11 +4188,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
       <DashboardChannelsSection
         fluxBubbleItems={displayedFluxBubbleItems}
-        goToModule={goToRequiredSetupAwareModule}
+        goToModule={goToModule}
         openPanel={openPanel}
-        requiredSetupAccessAllowed={requiredSetupAccessAllowed}
-        requiredSetupLockVisible={requiredSetupLockVisible}
-        onRequiredSetupBlocked={openRequiredSetupPanel}
         onOpenChannelsHelp={() => setHelpCanauxOpen(true)}
         onOpenStats={openStatsModule}
         onOpenBoosterPublish={openBoosterPublish}
@@ -4141,7 +4198,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       />
 
       <DashboardBoosterModalLayer
-        mode={requiredSetupAccessAllowed ? dashboardBoosterModal : null}
+        mode={dashboardBoosterModal}
         initialConnectedChannels={{
           inrcy_site: Boolean(canAccessSiteInrcy && normalizeSiteUrl(siteInrcySavedUrl)),
           site_web: Boolean(normalizeSiteUrl(siteWebSavedUrl)),
@@ -4183,22 +4240,67 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       <SettingsDrawer
         title={getDrawerTitle(panel, dashboardCopy)}
         isOpen={isDrawerPanel(panel)}
+        presentation={isChannelSettingsPanel(panel) ? "centered" : "drawer"}
+        headerContent={
+          isChannelSettingsPanel(panel) &&
+          activeChannelSettingsItem &&
+          previousChannelSettingsItem &&
+          nextChannelSettingsItem ? (
+            <ChannelSettingsHeader
+              name={activeChannelSettingsItem.name}
+              logoSrc={activeChannelSettingsItem.logoSrc}
+              logoAlt={activeChannelSettingsItem.logoAlt}
+              previous={{
+                name: previousChannelSettingsItem.name,
+                onSelect: previousChannelSettingsItem.onConfigure,
+              }}
+              next={{
+                name: nextChannelSettingsItem.name,
+                onSelect: nextChannelSettingsItem.onConfigure,
+              }}
+            />
+          ) : undefined
+        }
+        headerLead={
+          isChannelSettingsPanel(panel) && activeChannelSettingsItem
+            ? activeChannelSettingsItem.description
+            : undefined
+        }
+        headerStyle={isChannelSettingsPanel(panel) ? getChannelSettingsHeaderStyle(panel) : undefined}
         onClose={requestCloseSettingsDrawer}
         closeOnBackdrop={!settingsDrawerRequiresExplicitClose}
         closeOnEscape={!settingsDrawerRequiresExplicitClose}
         headerActions={
-          panel === "inertie" ? (
+          isChannelSettingsPanel(panel) ? (
+            <>
+              {panel === "inrbadge" ? <InrBadgeAutoSaveStatus /> : null}
+              {panel === "facebook" ? (
+                <HelpButton onClick={() => setHelpFacebookOpen(true)} title={i18nT("aide_connexion_facebook_d02c3216")} />
+              ) : null}
+              {panel === "instagram" ? (
+                <HelpButton onClick={() => setHelpInstagramOpen(true)} title={i18nT("aide_connexion_instagram_64a937e4")} />
+              ) : null}
+              <button
+                type="button"
+                className={styles.channelSettingsAllChannelsButton}
+                onClick={openChannelConnectionsFromSettings}
+                aria-label={dashboardCopy.drawer.allChannels}
+                title={dashboardCopy.drawer.allChannels}
+              >
+                <span className={styles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span>
+                <span className={styles.channelSettingsAllChannelsLabel}>{dashboardCopy.drawer.allChannels}</span>
+              </button>
+            </>
+          ) : panel === "inertie" ? (
             <HelpButton onClick={() => setHelpInertieOpen(true)} title={i18nT("aide_mon_inertie_beeca900")} />
-          ) : panel === "facebook" ? (
-            <HelpButton onClick={() => setHelpFacebookOpen(true)} title={i18nT("aide_connexion_facebook_d02c3216")} />
-          ) : panel === "instagram" ? (
-            <HelpButton onClick={() => setHelpInstagramOpen(true)} title={i18nT("aide_connexion_instagram_64a937e4")} />
           ) : null
         }
       >
         <DashboardSettingsDrawerContent
+            key={completionAccountId || "dashboard-channel-settings"}
             edition={dashboardEdition}
             panel={panel}
+            discardRevisions={settingsPanelDiscardRevisions}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
             inertiaSnapshot={inertiaSnapshot}
             openPanel={openPanel}

@@ -8,6 +8,14 @@ type Props = {
   title: string;
   isOpen: boolean;
   onClose: () => void;
+  /** Présentation latérale historique ou grand dialogue central. */
+  presentation?: "drawer" | "centered";
+  /** Contenu visuel optionnel remplaçant le titre standard du bandeau. */
+  headerContent?: React.ReactNode;
+  /** Courte description affichée à gauche du bandeau des outils plein écran. */
+  headerLead?: React.ReactNode;
+  /** Ajustements visuels optionnels du bandeau, sans modifier sa structure. */
+  headerStyle?: React.CSSProperties;
   /** Ajout optionnel (ex: bouton ? d'aide) placé à gauche de "Fermer" */
   headerActions?: React.ReactNode;
   /** Autorise la fermeture en cliquant sur l'arrière-plan. Activé par défaut. */
@@ -26,6 +34,10 @@ export default function SettingsDrawer({
   title,
   isOpen,
   onClose,
+  presentation = "drawer",
+  headerContent,
+  headerLead,
+  headerStyle,
   headerActions,
   closeOnBackdrop = true,
   closeOnEscape = true,
@@ -36,15 +48,21 @@ export default function SettingsDrawer({
   // Valeurs stables côté serveur/client au premier rendu : évite les erreurs React #418
   // quand le drawer est ouvert directement depuis une URL sur mobile.
   const [portalReady, setPortalReady] = useState(false);
+  const [hasBeenOpened, setHasBeenOpened] = useState(isOpen);
   const [viewportWidth, setViewportWidth] = useState<number>(1440);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const isResponsive = viewportWidth <= RESPONSIVE_BREAKPOINT;
   const isPhone = viewportWidth <= PHONE_BREAKPOINT;
+  const isCentered = presentation === "centered";
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) setHasBeenOpened(true);
+  }, [isOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -75,7 +93,12 @@ export default function SettingsDrawer({
     return `calc(${visibleViewportHeight} - ${MOBILE_BOTTOM_NAV_HEIGHT})`;
   }, [viewportHeight]);
 
-  const drawerHeight = isResponsive ? responsiveDrawerHeight : "100%";
+  const centeredDrawerHeight = viewportHeight ? `${viewportHeight}px` : "100dvh";
+  const drawerHeight = isCentered
+    ? centeredDrawerHeight
+    : isResponsive
+      ? responsiveDrawerHeight
+      : "100%";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,24 +120,26 @@ export default function SettingsDrawer({
     };
   }, [closeOnEscape, isOpen, onClose]);
 
-  if (!isOpen || !portalReady) return null;
+  if (!hasBeenOpened || !portalReady) return null;
 
   const drawer = (
     <div
+      aria-hidden={!isOpen}
       onClick={closeOnBackdrop ? onClose : undefined}
       style={{
         position: "fixed",
-        top: isResponsive ? viewportOffsetTop : 0,
+        top: isCentered || isResponsive ? viewportOffsetTop : 0,
         left: 0,
         right: 0,
         bottom: "auto",
         width: "100%",
         height: drawerHeight,
-        maxHeight: drawerHeight,
+        maxHeight: isCentered ? undefined : drawerHeight,
         background: "var(--inrcy-theme-drawer-backdrop, rgba(0,0,0,0.55))",
         zIndex: 2147483001,
-        display: "flex",
-        justifyContent: isPhone ? "stretch" : "flex-end",
+        display: isOpen ? "flex" : "none",
+        alignItems: "stretch",
+        justifyContent: isPhone ? "stretch" : isCentered ? "center" : "flex-end",
         overflow: "hidden",
         isolation: "isolate",
         pointerEvents: "auto",
@@ -124,23 +149,31 @@ export default function SettingsDrawer({
     >
       <aside
         data-dashboard-settings-drawer="true"
+        data-dashboard-settings-modal={isCentered ? "true" : undefined}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: isPhone
+          width: isCentered
+            ? "100%"
+            : isPhone
             ? "100%"
             : "min(560px, 92%)",
-          maxWidth: "100%",
+          maxWidth: isCentered ? undefined : "100%",
           height: "100%",
-          maxHeight: "100%",
+          maxHeight: isCentered ? undefined : "100%",
           minHeight: 0,
           boxSizing: "border-box",
           background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
           color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.92))",
-          borderLeft: isPhone ? 0 : "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
+          border: 0,
+          borderLeft: isPhone || isCentered
+            ? 0
+            : "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
           borderRight: 0,
+          borderRadius: 0,
+          boxShadow: "none",
           padding: 0,
           display: "flex",
           flexDirection: "column",
@@ -158,7 +191,9 @@ export default function SettingsDrawer({
           data-dashboard-settings-drawer-header="true"
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) auto",
+            gridTemplateColumns: isCentered && !isResponsive
+              ? "minmax(0, 1fr) minmax(0, 620px) minmax(0, 1fr)"
+              : "minmax(0, 1fr) auto",
             alignItems: "center",
             gap: 12,
             minWidth: 0,
@@ -166,30 +201,85 @@ export default function SettingsDrawer({
             flex: "0 0 auto",
             boxSizing: "border-box",
             padding: isPhone
-              ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) 10px max(12px, var(--inrcy-safe-area-left))"
-              : 16,
+              ? "max(9px, var(--inrcy-safe-area-top)) max(10px, var(--inrcy-safe-area-right)) 9px max(10px, var(--inrcy-safe-area-left))"
+              : isCentered
+                ? "10px 14px"
+                : 16,
             borderBottom: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
             background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
+            ...headerStyle,
           }}
         >
-          <div style={{ minWidth: 0, maxWidth: "100%" }}>
-            <h2
-              id={titleId}
+          {isCentered && !isResponsive && headerLead ? (
+            <div
               style={{
-                margin: 0,
-                color: "var(--inrcy-theme-text-primary, white)",
-                fontSize: "clamp(16px, 4.3vw, 18px)",
-                fontWeight: 800,
+                gridColumn: "1",
                 minWidth: 0,
-                maxWidth: "100%",
-                overflowWrap: "break-word",
-                wordBreak: "normal",
-                hyphens: "auto",
-                lineHeight: 1.25,
+                maxWidth: 420,
+                justifySelf: "start",
+                paddingLeft: 4,
+                color: "rgba(241,245,249,0.88)",
+                fontSize: "clamp(0.92rem, 1vw, 1.08rem)",
+                fontWeight: 720,
+                lineHeight: 1.3,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 2,
               }}
             >
-              {title}
-            </h2>
+              {headerLead}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              minWidth: 0,
+              width: "100%",
+              maxWidth: "100%",
+              gridColumn: isCentered && !isResponsive ? "2" : "1",
+              justifySelf: isCentered && !isResponsive ? "center" : "stretch",
+            }}
+          >
+            {headerContent ? (
+              <>
+                <span
+                  id={titleId}
+                  style={{
+                    position: "absolute",
+                    width: 1,
+                    height: 1,
+                    padding: 0,
+                    margin: -1,
+                    overflow: "hidden",
+                    clip: "rect(0, 0, 0, 0)",
+                    whiteSpace: "nowrap",
+                    border: 0,
+                  }}
+                >
+                  {title}
+                </span>
+                {headerContent}
+              </>
+            ) : (
+              <h2
+                id={titleId}
+                style={{
+                  margin: 0,
+                  color: "var(--inrcy-theme-text-primary, white)",
+                  fontSize: "clamp(16px, 4.3vw, 18px)",
+                  fontWeight: 800,
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  overflowWrap: "break-word",
+                  wordBreak: "normal",
+                  hyphens: "auto",
+                  lineHeight: 1.25,
+                }}
+              >
+                {title}
+              </h2>
+            )}
           </div>
 
           {/* Zone actions (ex: ?) + Fermer avec gap */}
@@ -202,6 +292,8 @@ export default function SettingsDrawer({
               flexWrap: "wrap",
               justifyContent: "flex-end",
               maxWidth: "100%",
+              gridColumn: isCentered && !isResponsive ? "3" : "2",
+              justifySelf: "end",
               position: "relative",
               zIndex: 2,
               pointerEvents: "auto",
@@ -211,12 +303,23 @@ export default function SettingsDrawer({
             <button
               type="button"
               onClick={onClose}
+              aria-label={t.drawer.close}
+              title={t.drawer.close}
               style={{
                 border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))",
                 background: "var(--inrcy-theme-surface-soft, transparent)",
                 color: "var(--inrcy-theme-text-primary, white)",
-                borderRadius: 10,
-                padding: "8px 10px",
+                display: "inline-grid",
+                placeItems: "center",
+                width: isResponsive ? 40 : undefined,
+                minWidth: isResponsive ? 40 : undefined,
+                height: isResponsive ? 40 : undefined,
+                minHeight: isResponsive ? 40 : isCentered ? 38 : undefined,
+                borderRadius: isResponsive ? 12 : isCentered ? 999 : 10,
+                padding: isResponsive ? 0 : isCentered ? "8px 14px" : "8px 10px",
+                fontSize: isResponsive ? 24 : undefined,
+                lineHeight: 1,
+                fontWeight: isCentered ? 850 : undefined,
                 cursor: "pointer",
                 position: "relative",
                 zIndex: 3,
@@ -224,7 +327,7 @@ export default function SettingsDrawer({
                 touchAction: "manipulation",
               }}
             >
-              {t.drawer.close}
+              <span aria-hidden="true">{isResponsive ? "×" : t.drawer.close}</span>
             </button>
           </div>
         </div>

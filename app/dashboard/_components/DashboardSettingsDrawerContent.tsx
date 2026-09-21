@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+
 import ContactContent from "../settings/_components/ContactContent";
 import AccountContent from "../settings/_components/AccountContent";
 import GeneralPreferencesContent from "../settings/_components/GeneralPreferencesContent";
@@ -27,6 +31,41 @@ import StandardSubscriptionContent from "../settings/_components/StandardSubscri
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 import styles from "../dashboard.module.css";
+
+const PANELS_WITH_LOCAL_GOOGLE_NOTICE = new Set([
+  "gmb",
+  "site_inrcy",
+  "site_web",
+  "youtube_shorts",
+]);
+
+const MEMORIZED_CHANNEL_PANELS = new Set([
+  "inrbadge",
+  "mails",
+  "site_inrcy",
+  "site_web",
+  "instagram",
+  "linkedin",
+  "gmb",
+  "facebook",
+  "tiktok",
+  "youtube_shorts",
+  "pinterest",
+  "x",
+  "inr_search",
+]);
+
+function MemorizedPanel({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <div
+      hidden={!active}
+      aria-hidden={!active}
+      data-memorized-channel-panel="true"
+    >
+      {children}
+    </div>
+  );
+}
 
 type DashboardPanelName =
   | "contact"
@@ -62,6 +101,7 @@ type DashboardPanelName =
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
   panel: string | null;
+  discardRevisions?: Record<string, number>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   inertiaSnapshot: any;
   openPanel: (name: DashboardPanelName) => void;
@@ -96,6 +136,7 @@ type DashboardSettingsDrawerContentProps = {
 export default function DashboardSettingsDrawerContent({
   edition = "standard",
   panel,
+  discardRevisions = {},
   onUnsavedChange,
   inertiaSnapshot,
   openPanel,
@@ -126,9 +167,47 @@ export default function DashboardSettingsDrawerContent({
   inrSearchUrl = "",
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousPanelRef = useRef<string | null>(panel);
+  const panelScrollPositionsRef = useRef(new Map<string, number>());
+  const [visitedChannelPanels, setVisitedChannelPanels] = useState<Set<string>>(() => (
+    panel && MEMORIZED_CHANNEL_PANELS.has(panel) ? new Set([panel]) : new Set()
+  ));
+
+  useEffect(() => {
+    if (!panel || !MEMORIZED_CHANNEL_PANELS.has(panel)) return;
+    setVisitedChannelPanels((current) => {
+      if (current.has(panel)) return current;
+      const next = new Set(current);
+      next.add(panel);
+      return next;
+    });
+  }, [panel]);
+
+  useLayoutEffect(() => {
+    const scrollContainer = contentRef.current?.closest<HTMLElement>(
+      '[data-dashboard-settings-drawer-scroll="true"]',
+    );
+    if (!scrollContainer) return;
+
+    const previousPanel = previousPanelRef.current;
+    if (previousPanel && MEMORIZED_CHANNEL_PANELS.has(previousPanel) && previousPanel !== panel) {
+      panelScrollPositionsRef.current.set(previousPanel, scrollContainer.scrollTop);
+    }
+
+    previousPanelRef.current = panel;
+    if (panel && MEMORIZED_CHANNEL_PANELS.has(panel)) {
+      scrollContainer.scrollTop = panelScrollPositionsRef.current.get(panel) ?? 0;
+    } else if (panel) {
+      scrollContainer.scrollTop = 0;
+    }
+  }, [panel]);
+
+  const shouldKeepPanel = (name: string) => panel === name || visitedChannelPanels.has(name);
+
   return (
-    <div className={styles.settingsDrawerContent} data-dashboard-settings-drawer-content="true">
-      <GoogleOAuthConsentBanner panel={panel} />
+    <div ref={contentRef} className={styles.settingsDrawerContent} data-dashboard-settings-drawer-content="true">
+      <GoogleOAuthConsentBanner panel={panel && !PANELS_WITH_LOCAL_GOOGLE_NOTICE.has(panel) ? panel : null} />
       {panel === "contact" && <ContactContent mode="drawer" />}
       {panel === "compte" && (
         <AccountContent
@@ -139,7 +218,11 @@ export default function DashboardSettingsDrawerContent({
         />
       )}
       {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
-      {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
+      {shouldKeepPanel("inrbadge") ? (
+        <MemorizedPanel active={panel === "inrbadge"}>
+          <InrBadgeSettingsContent {...inrBadgeSettingsProps} />
+        </MemorizedPanel>
+      ) : null}
       {panel === "abonnement" && (
         edition === "standard"
           ? <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
@@ -147,7 +230,11 @@ export default function DashboardSettingsDrawerContent({
       )}
       {panel === "legal" && <LegalContent mode="drawer" />}
       {panel === "rgpd" && <RgpdContent mode="drawer" />}
-      {panel === "mails" && <MailsSettingsContent onUnsavedChange={onUnsavedChange} />}
+      {shouldKeepPanel("mails") ? (
+        <MemorizedPanel key={`mails:${discardRevisions.mails ?? 0}`} active={panel === "mails"}>
+          <MailsSettingsContent onUnsavedChange={panel === "mails" ? onUnsavedChange : undefined} />
+        </MemorizedPanel>
+      ) : null}
       {panel === "agenda" && <AgendaSettingsContent />}
       {panel === "inertie" && (
         <InertiaContent
@@ -184,24 +271,67 @@ export default function DashboardSettingsDrawerContent({
       {panel === "documents" && edition === "founder" ? (
         <DocumentsSettingsContent onUnsavedChange={onUnsavedChange} />
       ) : null}
-      {panel === "youtube_shorts" && <YoutubeShortsSettingsContent onUnsavedChange={onUnsavedChange} />}
-      {panel === "pinterest" && pinterestAccessEnabled && <PinterestSettingsContent onUnsavedChange={onUnsavedChange} />}
-      {panel === "x" && xAccessEnabled && <XSettingsContent />}
-      {panel === "inr_search" && inrSearchAccessEnabled && (
-        <InrSearchSettingsContent
-          initialConnected={inrSearchConnected}
-          initialPublicUrl={inrSearchUrl}
-          initialDirectoryEnabled={inrSearchDirectoryEnabled}
-        />
-      )}
+      {shouldKeepPanel("youtube_shorts") ? (
+        <MemorizedPanel key={`youtube_shorts:${discardRevisions.youtube_shorts ?? 0}`} active={panel === "youtube_shorts"}>
+          <YoutubeShortsSettingsContent onUnsavedChange={panel === "youtube_shorts" ? onUnsavedChange : undefined} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("pinterest") && pinterestAccessEnabled ? (
+        <MemorizedPanel key={`pinterest:${discardRevisions.pinterest ?? 0}`} active={panel === "pinterest"}>
+          <PinterestSettingsContent onUnsavedChange={panel === "pinterest" ? onUnsavedChange : undefined} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("x") && xAccessEnabled ? (
+        <MemorizedPanel active={panel === "x"}>
+          <XSettingsContent />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("inr_search") && inrSearchAccessEnabled ? (
+        <MemorizedPanel active={panel === "inr_search"}>
+          <InrSearchSettingsContent
+            active={panel === "inr_search"}
+            initialConnected={inrSearchConnected}
+            initialPublicUrl={inrSearchUrl}
+            initialDirectoryEnabled={inrSearchDirectoryEnabled}
+          />
+        </MemorizedPanel>
+      ) : null}
 
-      <SiteInrcyPanelBlock panel={panel} panelProps={siteInrcyPanelProps} />
-      <SiteWebPanelBlock panel={panel} panelProps={siteWebPanelProps} />
-      <InstagramPanelBlock panel={panel} panelProps={instagramPanelProps} />
-      <LinkedinPanelBlock panel={panel} panelProps={linkedinPanelProps} />
-      <GmbPanelBlock panel={panel} panelProps={gmbPanelProps} />
-      <FacebookPanelBlock panel={panel} panelProps={facebookPanelProps} />
-      <TiktokPanelBlock panel={panel} panelProps={tiktokPanelProps} />
+      {shouldKeepPanel("site_inrcy") ? (
+        <MemorizedPanel active={panel === "site_inrcy"}>
+          <SiteInrcyPanelBlock panel="site_inrcy" panelProps={siteInrcyPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("site_web") ? (
+        <MemorizedPanel active={panel === "site_web"}>
+          <SiteWebPanelBlock panel="site_web" panelProps={siteWebPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("instagram") ? (
+        <MemorizedPanel active={panel === "instagram"}>
+          <InstagramPanelBlock panel="instagram" panelProps={instagramPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("linkedin") ? (
+        <MemorizedPanel active={panel === "linkedin"}>
+          <LinkedinPanelBlock panel="linkedin" panelProps={linkedinPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("gmb") ? (
+        <MemorizedPanel active={panel === "gmb"}>
+          <GmbPanelBlock panel="gmb" panelProps={gmbPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("facebook") ? (
+        <MemorizedPanel active={panel === "facebook"}>
+          <FacebookPanelBlock panel="facebook" panelProps={facebookPanelProps} />
+        </MemorizedPanel>
+      ) : null}
+      {shouldKeepPanel("tiktok") ? (
+        <MemorizedPanel active={panel === "tiktok"}>
+          <TiktokPanelBlock panel="tiktok" panelProps={tiktokPanelProps} />
+        </MemorizedPanel>
+      ) : null}
     </div>
   );
 }

@@ -674,20 +674,3 @@
     color: #fff;
   }
 }
-
-@media (max-width: 1100px) {
-  .shortcutItemLocked {
-    grid-template-columns: 32px minmax(0, 1fr) 25px;
-  }
-
-  .requiredSetupLockShortcut {
-    justify-self: end;
-  }
-
-  .requiredSetupLockPublish {
-    position: absolute !important;
-    top: -5px;
-    right: -3px;
-    z-index: 5;
-  }
-}

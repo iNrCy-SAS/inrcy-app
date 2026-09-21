@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {
+  DASHBOARD_CHANNEL_POWER_SETUP,
+  DASHBOARD_CHANNEL_SETUP,
+} from "../../app/dashboard/dashboard.channel-setup.ts";
 
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 
@@ -70,27 +74,43 @@ test("le compteur Standard ignore les deux bulles commerciales", () => {
   );
 });
 
-test("la puissance exclut Mails et Site iNrCy tout en restant sur 100 points", () => {
-  assert.match(dashboardClientSource, /const sitePowerLinkConnected = hasSiteWebUrl;/);
-  assert.match(dashboardClientSource, /const sitePowerGa4Connected = hasSiteWebUrl && siteWebGa4Connected;/);
-  assert.match(dashboardClientSource, /const sitePowerGscConnected = hasSiteWebUrl && siteWebGscConnected;/);
+test("la puissance attribue un pourcentage propre à chacun des onze canaux actifs", () => {
+  assert.equal(DASHBOARD_CHANNEL_SETUP.length, 13);
 
-  const powerBlock = dashboardClientSource.slice(
-    dashboardClientSource.indexOf("const generatorPowerSteps = ["),
-    dashboardClientSource.indexOf("] as const;", dashboardClientSource.indexOf("const generatorPowerSteps = [")),
+  const channelKeys = DASHBOARD_CHANNEL_SETUP.map((channel) => channel.key);
+  assert.equal(new Set(channelKeys).size, 13, "chaque canal doit apparaître une seule fois");
+
+  const weightedChannels = DASHBOARD_CHANNEL_SETUP.filter((channel) => channel.weight > 0);
+  assert.equal(weightedChannels.length, 11);
+  assert.equal(
+    weightedChannels.reduce((sum, channel) => sum + channel.weight, 0),
+    100,
   );
-  assert.doesNotMatch(powerBlock, /key: "mails"/);
-  assert.doesNotMatch(powerBlock, /hasSiteInrcyUrl|siteInrcyGa4Connected|siteInrcyGscConnected/);
-  assert.match(powerBlock, /key: "inr_search"[\s\S]*weight: 5/);
+  assert.deepEqual(DASHBOARD_CHANNEL_POWER_SETUP, weightedChannels);
+  assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "mails")?.weight, 7);
+  assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "inrbadge")?.weight, 0);
+  assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "site_inrcy")?.weight, 0);
 
-  const totalWeight = [...powerBlock.matchAll(/weight: (\d+)/g)]
-    .reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(totalWeight, 100);
+  assert.match(
+    dashboardClientSource,
+    /const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP\.map\(\(channel\) => \(\{[\s\S]*completed: channelPowerConnected\[channel\.key\],/,
+  );
 });
 
-test("le détail de puissance passe devant les pastilles quand il est ouvert", () => {
-  assert.match(heroSource, /powerBreakdownOpen \? styles\.heroPowerOpen/);
-  assert.match(dashboardCssSource, /\.heroPowerOpen\s*\{[\s\S]*position: relative;[\s\S]*z-index: 40;/);
+test("le nouveau cockpit ouvre une infobulle par étape et détaille les onze canaux", () => {
+  assert.match(heroSource, /useState<"channels" \| "dna" \| "ai" \| null>\(null\)/);
+  assert.match(heroSource, /openInfo === step\.key \? styles\.cockpitStageInfoOpen/);
+  assert.match(heroSource, /className=\{styles\.cockpitInfoPopover\} role="dialog"/);
+  assert.match(
+    heroSource,
+    /step\.key === "channels"[\s\S]*className=\{styles\.cockpitPowerGrid\}[\s\S]*channelPowerSteps\.map/,
+  );
+  assert.match(
+    heroSource,
+    /const globalPower = Math\.round\([\s\S]*\[generatorPower, dnaPower, aiPower\][\s\S]*\/ 3/,
+  );
+  assert.match(dashboardCssSource, /\.cockpitStageInfoOpen\s*\{[\s\S]*z-index: 30;/);
+  assert.match(dashboardCssSource, /\.cockpitInfoPopover\s*\{[\s\S]*z-index: 40;/);
 });
 
 test("Supabase possède déjà les deux axes indépendants nécessaires", () => {

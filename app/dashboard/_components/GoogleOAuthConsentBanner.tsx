@@ -7,6 +7,8 @@ import { GOOGLE_OAUTH_PERMISSION_ERROR_CODE } from "@/lib/googleOAuthConsent";
 
 type Props = {
   panel: string | null;
+  variant?: "banner" | "inline";
+  product?: "ga4" | "gsc";
 };
 
 const GOOGLE_PANELS = new Set([
@@ -43,7 +45,7 @@ function buildRetryHref(panel: string, linked: string | null): string | null {
   return null;
 }
 
-export default function GoogleOAuthConsentBanner({ panel }: Props) {
+export default function GoogleOAuthConsentBanner({ panel, variant = "banner", product }: Props) {
   const i18nT = useTranslations("shell");
   const searchParams = useSearchParams();
 
@@ -51,9 +53,11 @@ export default function GoogleOAuthConsentBanner({ panel }: Props) {
 
   const error = searchParams.get("error");
   const linked = searchParams.get("linked");
-  const permissionsIncomplete =
+  const hasPermissionError =
     error === GOOGLE_OAUTH_PERMISSION_ERROR_CODE || error === "access_denied";
-  const retryHref = permissionsIncomplete ? buildRetryHref(panel, linked) : null;
+  const permissionsIncomplete = hasPermissionError && (!product || !linked || linked === product);
+  const retryHref = permissionsIncomplete ? buildRetryHref(panel, product ?? linked) : null;
+  const inline = variant === "inline";
 
   return (
     <div
@@ -62,11 +66,13 @@ export default function GoogleOAuthConsentBanner({ panel }: Props) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: 12,
+        gap: inline ? 8 : 12,
         flexWrap: "wrap",
-        marginBottom: 12,
-        padding: "11px 12px",
-        borderRadius: 14,
+        flex: inline ? "1 1 340px" : undefined,
+        minWidth: inline ? 0 : undefined,
+        marginBottom: inline ? 0 : 12,
+        padding: inline ? "8px 10px" : "11px 12px",
+        borderRadius: inline ? 12 : 14,
         border: permissionsIncomplete
           ? "1px solid rgba(251, 191, 36, 0.55)"
           : "1px solid rgba(96, 165, 250, 0.30)",
@@ -74,11 +80,11 @@ export default function GoogleOAuthConsentBanner({ panel }: Props) {
           ? "rgba(120, 53, 15, 0.28)"
           : "rgba(30, 64, 175, 0.16)",
         color: "rgba(255,255,255,0.92)",
-        fontSize: 13,
-        lineHeight: 1.45,
+        fontSize: inline ? 12 : 13,
+        lineHeight: inline ? 1.35 : 1.45,
       }}
     >
-      <span style={{ flex: "1 1 320px" }}>
+      <span style={{ flex: inline ? "1 1 230px" : "1 1 320px" }}>
         {permissionsIncomplete
           ? i18nT("autorisations_google_incompletes_recommencez_et_cochez_8f39a6b1")
           : i18nT("important_sur_l_ecran_google_cochez_toutes_les_cases_57d2c18a")}
@@ -94,7 +100,7 @@ export default function GoogleOAuthConsentBanner({ panel }: Props) {
             borderRadius: 12,
             background: "rgba(251, 191, 36, 0.20)",
             color: "white",
-            padding: "8px 11px",
+            padding: inline ? "6px 9px" : "8px 11px",
             cursor: "pointer",
             fontWeight: 850,
           }}

@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "Schließen",
+    "allChannels": "Alle Kanäle",
     "titles": {
       "contact": "Kontakt",
       "compte": "iNrCytizen account",
@@ -104,6 +105,35 @@
     "powerDialogAria": "Generator power detail",
     "powerPanelTitle": "Power detail",
     "kicker": "Ihr iNrCy Cockpit",
+    "cockpitTitle": "Ihr Cockpit",
+    "cockpitShortTitle": "Cockpit",
+    "inertiaPower": "Trägheitskraft",
+    "connectStep": "Verbinden",
+    "enrichStep": "Anreichern",
+    "configureStep": "Konfigurieren",
+    "channelsStepLabel": "Aktive Kanäle",
+    "dnaStepLabel": "Unternehmens-DNA",
+    "aiStepLabel": "Meine KI konfigurieren",
+    "channelsInfoAria": "Leistungsübersicht der Kanäle anzeigen",
+    "channelsInfoTitle": "Leistung der 11 Kanäle",
+    "channelsInfoHint": "Jeder Kanal trägt seinen eigenen Anteil bei. Die 11 Beiträge ergeben genau 100 %.",
+    "dnaInfoAria": "DNA-Wert verstehen",
+    "dnaInfoTitle": "Personalisierte Inhalte",
+    "dnaInfoHint": "Je vollständiger Ihre iNr’DNA ist, desto individueller und passender zu Ihrem Unternehmen sind die KI-Inhalte.",
+    "aiInfoAria": "KI-Personalisierungswert verstehen",
+    "aiInfoTitle": "Warum meine KI konfigurieren?",
+    "aiInfoHint": "Die Konfiguration verbessert die Effizienz Ihrer KI und passt ihre Sprache an Ihr Unternehmen an.",
+    "channelOverviewTitle": "Meine Kanäle verbinden",
+    "channelColumn": "Kanal",
+    "powerColumn": "Leistung",
+    "powerInfoAria": "Mehr über die Leistung eines Kanals erfahren",
+    "powerInfoTitle": "Die Leistung eines Kanals",
+    "powerInfoText": "Die Leistung misst den Beitrag jedes Kanals zu Ihrer Sichtbarkeit und zur Gewinnung von Kontakten. Je höher der Prozentsatz, desto wichtiger ist dieser Kanal, um Interessenten anzuziehen.",
+    "statusColumn": "Status",
+    "configureColumn": "Konfigurieren",
+    "stateColumn": "Verbindungsstatus",
+    "createColumn": "Erstellen",
+    "createdLabel": "Erstellt",
     "expandCockpitAria": "Ihr iNrCy Cockpit aufklappen",
     "collapseCockpitAria": "Ihr iNrCy Cockpit zuklappen",
     "title": "Generator läuft!",
@@ -209,7 +239,6 @@
     "connectedAria": "Kanäle verbunden von"
   },
   "modules": {
-    "requiredSetupLocked": "Vervollständigen Sie Ihr Profil, um dieses Tool freizuschalten.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Steuerung",
     "statsSub": "Alle Leads sichtbar",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "Ansehen",
     "configure": "Einrichten",
+    "create": "Erstellen",
     "disabled": "Option aus",
     "open": "Öffnen"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "Kontoeinrichtung",
-    "title": "5 Schritte für einen guten Start",
+    "title": "4 Schritte für einen guten Start",
     "bothIncomplete": "Folgen Sie ihnen der Reihe nach, um iNrCy optimal zu nutzen.",
     "profileIncomplete": "Folgen Sie ihnen der Reihe nach, um iNrCy optimal zu nutzen.",
     "activityIncomplete": "Folgen Sie ihnen der Reihe nach, um iNrCy optimal zu nutzen.",
-    "stepProfile": "Vervollständigen Sie Ihr Profil",
-    "stepChannels": "Verbinden Sie Ihre Kanäle",
-    "stepDna": "Füllen Sie Ihre iNr’ADN automatisch oder manuell aus",
-    "stepAi": "Konfigurieren Sie Ihre KI",
-    "stepFirstPublication": "Erstellen Sie Ihre erste Veröffentlichung",
-    "confirm": "Mein Profil vervollständigen",
+    "stepChannels": "Meine Kanäle verbinden",
+    "stepDna": "Die DNA meines Unternehmens anreichern",
+    "stepAi": "Meine KI konfigurieren",
+    "stepFirstPublication": "Veröffentlichen",
+    "confirm": "Meine Kanäle verbinden",
     "cancel": "Später"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "Dieses Fenster enthält nicht gespeicherte Änderungen. Wenn Sie es jetzt schließen, gehen diese verloren.",
     "closeWithoutSaving": "Ohne Speichern schließen",
     "continueEditing": "Weiter bearbeiten"
-  },
-  "requiredSetup": {
-    "loading": "Konfiguration erforderlich…"
   },
   "settingsSections": {
     "activityIdentityTitle": "Branche und Beruf",

@@ -403,19 +403,13 @@ test("le planning conserve Modifier et Reprogrammer dans la vue de consultation"
   assert.match(agentActionModalsSource, /onClick=\{\(\) => onReschedule\(item\)\}/);
 });
 
-test("le CTA Booster Standard reste verrouillé sans ouvrir Mon profil quand la configuration requise est incomplète", () => {
-  assert.match(
-    channelsSectionSource,
-    /<DashboardStandardModulesCard[\s\S]{0,500}requiredSetupLockVisible=\{requiredSetupLockVisible\}/,
-  );
-  assert.match(standardModulesSource, /import RequiredSetupLock from "\.\/RequiredSetupLock"/);
+test("le CTA Booster Standard reste accessible quel que soit l'état du profil", () => {
+  assert.match(channelsSectionSource, /<DashboardStandardModulesCard/);
   assert.match(standardModulesSource, /data-testid="standard-booster-publish"/);
-  assert.match(standardModulesSource, /if \(requiredSetupLocked\) return;/);
-  assert.match(
-    standardModulesSource,
-    /disabled=\{requiredSetupLocked \|\| isVisible\("modal:publish"\)\}/,
-  );
-  assert.match(standardModulesSource, /message=\{requiredSetupLockMessage\}/);
+  assert.match(standardModulesSource, /onClick=\{openPublishModal\}/);
+  assert.match(standardModulesSource, /disabled=\{isVisible\("modal:publish"\)\}/);
+  assert.doesNotMatch(standardModulesSource, /RequiredSetupLock|requiredSetupLocked|profil/);
+  assert.doesNotMatch(channelsSectionSource, /requiredSetupLockVisible/);
 });
 
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {

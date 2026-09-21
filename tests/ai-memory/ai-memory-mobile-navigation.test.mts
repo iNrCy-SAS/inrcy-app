@@ -33,4 +33,5 @@ test("mobile DNA score keeps a dedicated gap above the illustration", () => {
     /\[data-business-dna-analysis-orb\][\s\S]{0,220}height: 270px !important;[\s\S]{0,160}padding-top: 52px/,
   );
   assert.match(mobileStyles, /\[data-dna-score-summary\] \{ top: 6px !important; \}/);
+  assert.match(mobileStyles, /\[data-dna-assembly\] \{ margin-top: 16px; \}/);
 });

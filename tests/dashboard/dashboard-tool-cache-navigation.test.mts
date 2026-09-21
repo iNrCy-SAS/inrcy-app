@@ -11,8 +11,8 @@ test("dashboard tools use progressive intent-first warmup and immediate click fe
   const actionButton = read("app/dashboard/_components/DashboardActionButton.tsx");
   const warmup = read("app/dashboard/_components/DashboardToolWarmup.tsx");
 
-  assert.match(dashboard, /!completionCheckReady \|\| requiredSetupCompleted/);
-  assert.match(bottomNav, /!completionCheckReady \|\| requiredSetupCompleted/);
+  assert.doesNotMatch(dashboard, /requiredSetup(?:AccessAllowed|Completed|Incomplete)/);
+  assert.doesNotMatch(bottomNav, /requiredSetup(?:AccessAllowed|Completed|Incomplete)/);
   assert.match(warmup, /MAX_CONCURRENT_WARMUPS = 2/);
   assert.match(warmup, /pointerover/);
   assert.match(warmup, /focusin/);
@@ -43,8 +43,8 @@ test("dashboard tools use progressive intent-first warmup and immediate click fe
   assert.match(modules, /data-dashboard-prefetch=/);
   assert.match(actionButton, /i18nT\("chargement_01cba1df"\)/);
   assert.match(actionButton, /event\.preventDefault\(\)/);
-  assert.doesNotMatch(dashboard, /if \(!requiredSetupAccessAllowed\) return/);
-  assert.doesNotMatch(bottomNav, /&& !requiredSetupAccessAllowed\) return/);
+  assert.doesNotMatch(dashboard, /openRequiredSetupPanel|goToRequiredSetupAwareModule/);
+  assert.doesNotMatch(bottomNav, /isDashboardRequiredSetupProtectedDestination/);
 });
 
 test("heavy dashboard tools hydrate from browser snapshots then refresh silently", () => {

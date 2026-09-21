@@ -78,6 +78,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   ref,
 ) {
   const i18nT = useTranslations("settings");
+  const aiMemoryT = useTranslations("dashboard.aiMemory");
   const initial = useMemo<ProfileForm>(
     () => ({
       contactEmail: "",
@@ -95,6 +96,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const baselineRef = useRef("");
+  const persistedFormRef = useRef<ProfileForm | null>(null);
   const loadSucceededRef = useRef(false);
   const [form, setForm] = useState<ProfileForm>(initial);
   const [loading, setLoading] = useState(true);
@@ -144,6 +146,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
           logoPath: resolvedLogo.logoPath,
         };
         setForm(next);
+        persistedFormRef.current = next;
         baselineRef.current = profileSnapshot(next);
         loadSucceededRef.current = true;
       } catch (error) {
@@ -346,6 +349,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         logoFile: null,
       };
       setForm(savedForm);
+      persistedFormRef.current = savedForm;
       baselineRef.current = profileSnapshot(savedForm);
       onUnsavedChange?.(false);
       setSaved(true);
@@ -385,10 +389,25 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     setGlobalError("");
     setLogoError("");
     setSaved(false);
+    persistedFormRef.current = initial;
     baselineRef.current = profileSnapshot(initial);
     onUnsavedChange?.(false);
     await onProfileReset?.();
     return true;
+  };
+
+  const handleCancelChanges = () => {
+    const persistedForm = persistedFormRef.current;
+    if (!persistedForm) return;
+    if (form.logoPreview !== persistedForm.logoPreview) {
+      revokeBlobUrl(form.logoPreview);
+    }
+    setForm(persistedForm);
+    setErrors({});
+    setGlobalError("");
+    setLogoError("");
+    setSaved(false);
+    onUnsavedChange?.(false);
   };
 
   useImperativeHandle(ref, () => ({
@@ -403,6 +422,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       ? "1px solid rgba(248,113,113,0.85)"
       : inputStyle.border,
   });
+  const hasUnsavedChanges = !loading && Boolean(baselineRef.current) && profileSnapshot(form) !== baselineRef.current;
 
   return (
     <div
@@ -585,9 +605,17 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
       {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
       {!loading && showActions ? (
-        <div data-profile-actions style={actionsStyle}>
+        <div data-profile-actions style={workspaceCompact ? compactActionsStyle : actionsStyle}>
           <button type="button" onClick={() => void handleReset()} disabled={saving} style={resetButtonStyle}>
             {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+          <button
+            type="button"
+            onClick={handleCancelChanges}
+            disabled={saving || !hasUnsavedChanges}
+            style={{ ...cancelButtonStyle, opacity: saving || !hasUnsavedChanges ? 0.55 : 1 }}
+          >
+            {aiMemoryT("cancelChanges")}
+          </button>
           <button
             type="button"
             onClick={() => void handleSave()}
@@ -612,7 +640,10 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
             grid-template-columns: 1fr !important;
           }
           div[data-profile-actions] {
-            grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          div[data-profile-actions] button:last-child {
+            grid-column: 1 / -1;
           }
         }
         @media (min-width: 621px) and (max-width: 920px) {
@@ -772,10 +803,20 @@ const actionsStyle: React.CSSProperties = {
   bottom: 0,
   zIndex: 8,
   display: "grid",
-  gridTemplateColumns: "auto minmax(180px, 1fr)",
+  gridTemplateColumns: "auto minmax(150px, 190px) minmax(180px, 1fr)",
   gap: 10,
   padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
   background: "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
+};
+const compactActionsStyle: React.CSSProperties = {
+  position: "relative",
+  zIndex: 2,
+  display: "grid",
+  gridTemplateColumns: "minmax(105px, 130px) minmax(135px, 175px) minmax(220px, 310px)",
+  justifyContent: "end",
+  gap: 8,
+  padding: "2px 0 0",
+  background: "transparent",
 };
 const resetButtonStyle: React.CSSProperties = {
   borderRadius: 12,
@@ -784,6 +825,17 @@ const resetButtonStyle: React.CSSProperties = {
   color: "white",
   padding: "10px 12px",
   cursor: "pointer",
+  fontWeight: 800,
+};
+const cancelButtonStyle: React.CSSProperties = {
+  minHeight: 38,
+  borderRadius: 11,
+  border: "1px solid rgba(255,255,255,0.13)",
+  background: "rgba(255,255,255,0.05)",
+  color: "white",
+  padding: "8px 10px",
+  cursor: "pointer",
+  fontSize: 12,
   fontWeight: 800,
 };
 const primaryButtonStyle: React.CSSProperties = {

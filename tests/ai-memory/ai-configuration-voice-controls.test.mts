@@ -68,7 +68,7 @@ test("all dashboard catalogues expose the new AI configuration labels", () => {
   }
 });
 
-test("Configuration IA keeps text-only menu entries and the historical yellow IA monogram elsewhere", () => {
+test("Configuration IA keeps text-only menu entries and exposes its yellow monogram in the ADN mobile header", () => {
   const menu = read("app/dashboard/_components/UserMenu.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
@@ -83,7 +83,9 @@ test("Configuration IA keeps text-only menu entries and the historical yellow IA
     mobileMenu.indexOf("label={t.userMenu.aiMemory}"),
   );
   assert.doesNotMatch(mobileConfigurationEntry, /AiConfigurationIcon|\bicon=/);
-  assert.doesNotMatch(businessDnaPage, /AiConfigurationIcon|\bicon:/);
+  assert.match(businessDnaPage, /<AiConfigurationIcon/);
+  assert.match(businessDnaPage, /mobileBare: true/);
+  assert.match(businessDnaPage, /mobileIcon: \(/);
   assert.doesNotMatch(profilePage, /AiConfigurationIcon|\bicon:/);
   assert.doesNotMatch(configurationDrawer, /AiConfigurationIcon/);
   assert.match(configurationDrawer, /<h2[\s\S]*?\{i18nT\("configuration_ia_f620c8d8"\)\}/);

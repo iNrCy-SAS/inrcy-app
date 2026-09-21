@@ -8,13 +8,15 @@ const read = (path: string) =>
 test("le panneau Facebook reste contenu dans le tiroir, y compris sur petit écran", () => {
   const panel = read("app/dashboard/_components/FacebookPanel.tsx");
   const css = read("app/dashboard/dashboard.module.css");
+  const socialCss = read("app/dashboard/_components/SocialSettingsSteps.module.css");
 
-  assert.match(panel, /className=\{styles\.facebookConfigPanel\}/);
-  assert.match(panel, /className=\{styles\.facebookConfigCard\}/);
+  assert.match(panel, /className=\{`\$\{styles\.facebookConfigPanel\} \$\{socialStyles\.journey\} \$\{socialStyles\.facebook\}`\}/);
+  assert.match(panel, /className=\{`\$\{socialStyles\.stepCard\} \$\{socialStyles\.facebook\}`\}/);
   assert.match(panel, /className=\{styles\.facebookConfigButtonRow\}/);
   assert.match(panel, /className=\{styles\.facebookConfigResourceRow\}/);
   assert.match(css, /\.facebookConfigPanel\s*\{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;/);
-  assert.match(css, /\.facebookConfigCard\s*\{[\s\S]*?overflow:\s*hidden;/);
+  assert.match(socialCss, /\.stepCard\s*\{[\s\S]*?overflow:\s*hidden;/);
+  assert.match(socialCss, /@media \(max-width: 720px\)[\s\S]*?\.stepHeader/);
 });
 
 test("le bouton du widget Site web peut redemander son jeton au clic", () => {

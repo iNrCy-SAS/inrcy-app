@@ -38,7 +38,7 @@ test("the former three-step startup flow is absent from the runtime", () => {
   }
 });
 
-test("the first dashboard arrival shows one account-scoped setup alert", () => {
+test("the first dashboard arrival shows one account-scoped four-step setup alert", () => {
   const hook = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
   const dashboard = read("app/dashboard/DashboardClient.tsx");
 
@@ -47,17 +47,37 @@ test("the first dashboard arrival shows one account-scoped setup alert", () => {
   assert.match(hook, /writeAccountCacheValue\([^;]*"1", accountId\)/);
   assert.match(hook, /!profileIncomplete && !activityIncomplete/);
   assert.match(hook, /confirmInrcy\(\{/);
-  assert.match(hook, /steps:\s*\[/);
-  assert.match(hook, /t\("stepProfile"\)/);
-  assert.match(hook, /t\("stepChannels"\)/);
-  assert.match(hook, /t\("stepDna"\)/);
-  assert.match(hook, /t\("stepAi"\)/);
-  assert.match(hook, /t\("stepFirstPublication"\)/);
+  assert.match(hook, /steps:\s*\[\s*t\("stepChannels"\),\s*t\("stepDna"\),\s*t\("stepAi"\),\s*t\("stepFirstPublication"\),\s*\]/);
+  assert.doesNotMatch(hook, /t\("stepProfile"\)/);
   assert.match(hook, /confirmLabel: t\("confirm"\)/);
   assert.match(hook, /cancelLabel: t\("cancel"\)/);
-  assert.match(hook, /if \(shouldOpenProfile\) onOpenProfile\(\)/);
+  assert.match(hook, /if \(shouldOpenChannels\) onOpenChannels\(\)/);
   assert.match(dashboard, /useDashboardSetupAlert\(\{/);
-  assert.match(dashboard, /onOpenProfile: openCombinedProfilePanel/);
+  assert.match(dashboard, /onOpenChannels: openInitialChannelConnections/);
+});
+
+test("the French setup copy follows the approved four-step order and channel CTA", () => {
+  const messages = JSON.parse(read("messages/fr-FR/dashboard.json")) as {
+    setupAlert: Record<string, string>;
+  };
+
+  assert.equal(messages.setupAlert.title, "4 étapes pour bien démarrer");
+  assert.deepEqual(
+    [
+      messages.setupAlert.stepChannels,
+      messages.setupAlert.stepDna,
+      messages.setupAlert.stepAi,
+      messages.setupAlert.stepFirstPublication,
+    ],
+    [
+      "Connecter mes canaux",
+      "Enrichir l'ADN de mon entreprise",
+      "Configurer mon IA",
+      "Publier",
+    ],
+  );
+  assert.equal(messages.setupAlert.confirm, "Connecter mes canaux");
+  assert.equal("stepProfile" in messages.setupAlert, false);
 });
 
 test("the setup journey enlarges only dialogs that contain onboarding steps", () => {
@@ -71,8 +91,8 @@ test("the setup journey enlarges only dialogs that contain onboarding steps", ()
   assert.match(provider, /width: "min\(760px, calc\(100vw - 24px\)\)"/);
 });
 
-test("profile and activity saves clear their warning immediately then revalidate", () => {
-  const profilePage = read("app/dashboard/mon-profil/page.tsx");
+test("the business DNA workspace clears profile and activity warnings immediately then revalidates", () => {
+  const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
   const completionHook = read(
     "app/dashboard/_hooks/useDashboardCompletionChecks.ts",
   );
@@ -81,11 +101,11 @@ test("profile and activity saves clear their warning immediately then revalidate
   );
 
   assert.match(
-    profilePage,
+    businessDnaPage,
     /markProfileCompleted\(\);[\s\S]*?void checkProfile\(\);/,
   );
   assert.match(
-    profilePage,
+    businessDnaPage,
     /markActivityCompleted\(\);[\s\S]*?void checkActivity\(\);/,
   );
   assert.match(completionHook, /const markProfileCompleted = useCallback/);

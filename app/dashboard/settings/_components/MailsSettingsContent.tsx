@@ -2,10 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
-
 import React from "react";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import styles from "./MailsSettingsContent.module.css";
 
 type Props = {
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
@@ -50,45 +50,30 @@ function dispatchMailAccountsUpdated() {
 }
 
 function GlassCard({
+  step,
+  tone,
   title,
   subtitle,
   children,
 }: {
+  step: number;
+  tone: "cyan" | "violet";
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className="mailsSettings_glassCard"
-      style={{
-        borderRadius: 18,
-        border: "1px solid rgba(255,255,255,0.14)",
-        background: "rgba(255,255,255,0.06)",
-        boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
-        padding: 14,
-      }}
-    >
-      <div style={{ display: "grid", gap: 4 }}>
-        <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: "-0.2px", color: "rgba(255,255,255,0.92)" }}>
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "rgba(255,255,255,0.68)",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-          }}
-        >
-          {subtitle}
+    <section className={`${styles.stepCard} ${tone === "cyan" ? styles.stepCyan : styles.stepViolet}`}>
+      <div className={styles.stepHeader}>
+        <span className={styles.stepNumber}>{step}</span>
+        <div className={styles.stepCopy}>
+          <h3>{title}</h3>
+          <p>{subtitle}</p>
         </div>
       </div>
 
-      <div className="mailsSettings_glassChildren" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-        {children}
-      </div>
-    </div>
+      <div className={styles.stepBody}>{children}</div>
+    </section>
   );
 }
 
@@ -103,30 +88,10 @@ function Btn({
 }) {
   return (
     <button
+      className={styles.pillButton}
       type="button"
       onClick={onClick}
       disabled={!!disabled}
-      style={{
-        opacity: disabled ? 0.45 : 1,
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.14)",
-        background: "rgba(255,255,255,0.06)",
-        color: "rgba(255,255,255,0.92)",
-        padding: "10px 12px",
-        cursor: disabled ? "not-allowed" : "pointer",
-        transition: "transform .15s ease, background .15s ease, border-color .15s ease",
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = "rgba(255,255,255,0.09)";
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.20)";
-        e.currentTarget.style.transform = "translateY(-1px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
-        e.currentTarget.style.transform = "translateY(0px)";
-      }}
     >
       {label}
     </button>
@@ -529,111 +494,88 @@ Email : {{email}}`));
   const maxReached = oauthAccounts.length >= 3; // slots 1-3
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      {/* Responsive tweaks (mobile only) */}
-      <style jsx>{`
-        .mailsSettings_cardsGrid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-
-        @media (max-width: 640px) {
-          .mailsSettings_cardsGrid {
-            grid-template-columns: 1fr;
-          }
-
-          /* Buttons stack vertically + take full width on mobile */
-          .mailsSettings_glassChildren {
-            flex-direction: column;
-            align-items: stretch;
-            flex-wrap: nowrap;
-          }
-          .mailsSettings_glassChildren > button {
-            width: 100%;
-          }
-        }
-      `}</style>
-
-      <div
-        style={{
-          borderRadius: 18,
-          border: "1px solid rgba(255,255,255,0.14)",
-          background:
-            "linear-gradient(90deg, rgba(56,189,248,0.14), rgba(167,139,250,0.12), rgba(244,114,182,0.10), rgba(251,146,60,0.08))",
-          padding: 14,
-        }}
+    <div className={styles.settings}>
+      <GlassCard
+        step={1}
+        tone="cyan"
+        title="Boîtes d’envoi"
+        subtitle="Connectez jusqu’à trois comptes Gmail ou Microsoft et une boîte IMAP."
       >
-        <div style={{ fontSize: 16, fontWeight: 950, letterSpacing: "-0.2px", color: "rgba(255,255,255,0.95)" }}>
-          {i18nT("reglages_mails_a1957d12")}{" "}</div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
-          {i18nT("vous_pouvez_connecter_jusqu_a_864e4375")}{" "}<b>{i18nT("4_boites_d_envoi_29de69bf")}</b> : <b>3</b> {" "}{i18nT("en_oauth_gmail_outlook_et_5169198f")}{" "}<b>1</b> {" "}{i18nT("en_imap_0b217ac4")}{" "}</div>
+        <div className={styles.stepStack}>
+          {loading || error ? (
+            <div className={`${styles.notice} ${error ? styles.noticeWarning : ""}`} role="status">
+              {loading ? i18nT("chargement_01cba1df") : error}
+            </div>
+          ) : null}
 
-        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-          {loading ? i18nT("chargement_01cba1df") : error ? error : i18nT("boites_connectees_value_4_dc908b9f", { value0: oauthAccounts.length + (imapAccount ? 1 : 0) })}
-        </div>
-{toast === "already_connected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#fbbf24" }}>
-    {i18nT("cette_boite_mail_est_deja_connectee_a0c7c8ce")}{" "}</div>
-)}
+          {toast === "already_connected" && (
+            <div className={`${styles.notice} ${styles.noticeWarning}`} role="status">
+              {i18nT("cette_boite_mail_est_deja_connectee_a0c7c8ce")}
+            </div>
+          )}
+          {toast === "connected" && (
+            <div className={styles.notice} role="status">
+              {i18nT("boite_mail_connectee_vous_pouvez_maintenant_6d472d63")}
+            </div>
+          )}
+          {toast === "gmail_disconnected" && (
+            <div className={styles.notice} role="status">
+              {i18nT("boite_gmail_deconnectee_3d83ef35")}
+            </div>
+          )}
+          {toast === "outlook_disconnected" && (
+            <div className={styles.notice} role="status">
+              {i18nT("boite_outlook_deconnectee_0544620c")}
+            </div>
+          )}
+          {toast === "imap_disconnected" && (
+            <div className={styles.notice} role="status">
+              {i18nT("boite_imap_deconnectee_392ad047")}
+            </div>
+          )}
+          {toast === "imap_test_ok" && (
+            <div className={styles.notice} role="status">
+              {i18nT("test_de_connexion_reussi_vous_pouvez_b896dce1")}
+            </div>
+          )}
+          {toast === "imap_connected" && (
+            <div className={styles.notice} role="status">
+              {i18nT("boite_imap_connectee_vous_pouvez_maintenant_4d98651e")}
+            </div>
+          )}
+          {toast === "imap_updated" && (
+            <div className={styles.notice} role="status">
+              {i18nT("imap_settings_saved")}
+            </div>
+          )}
 
-{toast === "connected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("boite_mail_connectee_vous_pouvez_maintenant_6d472d63")}{" "}</div>
-)}
-
-{toast === "gmail_disconnected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("boite_gmail_deconnectee_3d83ef35")}{" "}</div>
-)}
-
-{toast === "outlook_disconnected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("boite_outlook_deconnectee_0544620c")}{" "}</div>
-)}
-
-{toast === "imap_disconnected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("boite_imap_deconnectee_392ad047")}{" "}</div>
-)}
-
-{toast === "imap_test_ok" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("test_de_connexion_reussi_vous_pouvez_b896dce1")}{" "}</div>
-)}
-
-{toast === "imap_connected" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("boite_imap_connectee_vous_pouvez_maintenant_4d98651e")}{" "}</div>
-)}
-
-{toast === "imap_updated" && (
-  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    {i18nT("imap_settings_saved")}{" "}</div>
-)}
-
-
-      </div>
-
-      <div className="mailsSettings_cardsGrid">
+          <div className={styles.accountList}>
         {slots.map((i) => {
           const isImapSlot = i === 3;
           const acc = isImapSlot ? imapAccount : oauthAccounts[i];
 
           return (
-            <GlassCard
-              key={i}
-              title={i18nT("boite_mail_value_d30aaf7d", { value0: i + 1 })}
-              subtitle={
-                loading
-                  ? "Chargement…"
-                  : acc
-                  ? `Boîte connectée : ${acc.email_address} (${ProviderLabel(acc.provider)})`
-                  : isImapSlot
-                    ? "Vide (IMAP)"
-                    : "Vide"
-              }
-            >
+            <div className={`${styles.accountRow} ${acc ? styles.accountRowConnected : ""}`} key={i}>
+              <div className={styles.accountIdentity}>
+                <span className={styles.slotNumber}>{i + 1}</span>
+                <div className={styles.accountCopy}>
+                  <strong>{acc ? acc.email_address : i18nT("boite_mail_value_d30aaf7d", { value0: i + 1 })}</strong>
+                  <span>{acc ? ProviderLabel(acc.provider) : isImapSlot ? "IMAP · OVH, IONOS, Orange, SFR…" : "Gmail ou Microsoft"}</span>
+                </div>
+              </div>
+
+              {acc ? (
+                <span
+                  className={styles.statusPill}
+                  style={{ color: MailConnectionStatusColor(acc) }}
+                  aria-label={i18nT("statut_value_b14864f1", { value0: MailConnectionStatusLabel(acc) })}
+                >
+                  <span className={styles.statusDot} style={{ background: MailConnectionStatusColor(acc) }} />
+                  {MailConnectionStatusLabel(acc)}
+                </span>
+              ) : null}
+
+              <div className={styles.accountActions}>
               {!acc ? (
                 <>
                   {!isImapSlot && (
@@ -665,7 +607,6 @@ Email : {{email}}`));
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: MailConnectionStatusColor(acc), marginTop: 4 }}>{i18nT("statut_value_b14864f1", { value0: MailConnectionStatusLabel(acc) })}</div>
                   {acc.provider === "imap" ? (
                     <Btn
                       label={i18nT("imap_settings_button")}
@@ -715,70 +656,65 @@ Email : {{email}}`));
 />
                 </>
               )}
-            </GlassCard>
+              </div>
+            </div>
           );
         })}
-
-      </div>
-
+          </div>
+        </div>
+      </GlassCard>
 
       <GlassCard
+        step={2}
+        tone="violet"
         title={i18nT("signature_automatique_77745712")}
-        subtitle="Cette signature est ajoutée automatiquement à la fin des mails iNr’Send. Vous pouvez utiliser les variables {{nom_complet}}, {{nom_entreprise}}, {{telephone}}, {{email}}, {{adresse}}, {{code_postal}}, {{ville}}, {{boite_mail}} et importer une image qui sera ajoutée automatiquement en bas des mails."
+        subtitle="Personnalisez le texte et l’image ajoutés à la fin de vos mails iNr’Send."
       >
-        <div style={{ display: "grid", gap: 10, width: "100%" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.82)" }}>
+        <div className={styles.signatureShell}>
+          <label className={`${styles.toggleCard} ${signatureEnabled ? styles.toggleCardSelected : ""}`}>
             <input
+              className={styles.visuallyHidden}
               type="checkbox"
               checked={signatureEnabled}
               onChange={(e) => setSignatureEnabled(e.target.checked)}
             />
-            {i18nT("activer_la_signature_automatique_d826254a")}{" "}</label>
+            <span className={styles.checkIndicator} aria-hidden="true" />
+            <span className={styles.toggleCopy}>
+              <strong>{i18nT("activer_la_signature_automatique_d826254a")}</strong>
+              <small>Ajoutée automatiquement à chaque message envoyé.</small>
+            </span>
+          </label>
 
           {signatureToast ? (
-            <div style={{ fontSize: 13, color: signatureToast.startsWith("✅") ? "#34d399" : "#fbbf24" }}>
+            <div className={`${styles.notice} ${signatureToast.startsWith("✅") ? "" : styles.noticeWarning}`} role="status">
               {signatureToast}
             </div>
           ) : null}
 
-          <textarea
-            value={signatureTemplate}
-            onChange={(e) => setSignatureTemplate(e.target.value)}
-            rows={6}
-            style={{
-              width: "100%",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.14)",
-              background: "rgba(255,255,255,0.06)",
-              padding: "10px 12px",
-              color: "rgba(255,255,255,0.92)",
-              resize: "vertical",
-            }}
-          />
+          <div className={styles.signatureGrid}>
+            <div className={styles.editorPanel}>
+              <label className={styles.fieldLabel} htmlFor="mails-signature-template">Texte de la signature</label>
+              <textarea
+                id="mails-signature-template"
+                className={styles.signatureTextarea}
+                value={signatureTemplate}
+                onChange={(e) => setSignatureTemplate(e.target.value)}
+                rows={4}
+              />
+              <p className={styles.variablesHelp}>
+                Variables : {"{{nom_complet}}"}, {"{{nom_entreprise}}"}, {"{{telephone}}"}, {"{{email}}"}, {"{{ville}}"}…
+              </p>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
-              {i18nT("image_de_signature_optionnel_e5259abb")}{" "}</label>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div className={styles.mediaTools}>
               <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 12,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.06)",
-                  padding: "10px 12px",
-                  color: "rgba(255,255,255,0.92)",
-                  cursor: signatureBusy ? "not-allowed" : "pointer",
-                  opacity: signatureBusy ? 0.6 : 1,
-                }}
+                className={`${styles.pillButton} ${styles.fileButton}`}
+                aria-disabled={signatureBusy}
               >
                 {i18nT("importer_une_image_fcd9d38d")}{" "}<input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                   disabled={signatureBusy}
-                  style={{ display: "none" }}
+                  className={styles.visuallyHidden}
                   ref={signatureFileInputRef}
                   onChange={async (e) => {
                     const input = e.currentTarget;
@@ -808,6 +744,7 @@ Email : {{email}}`));
               </label>
               {signatureImageUrl ? (
                 <button
+                  className={styles.pillButton}
                   type="button"
                   onClick={async () => {
                     try {
@@ -830,38 +767,17 @@ Email : {{email}}`));
                     }
                   }}
                   disabled={signatureBusy}
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.03)",
-                    padding: "10px 12px",
-                    color: "rgba(255,255,255,0.88)",
-                    cursor: signatureBusy ? "not-allowed" : "pointer",
-                    opacity: signatureBusy ? 0.6 : 1,
-                  }}
                 >
-                  {i18nT("retirer_l_image_aae9b371")}{" "}</button>
+                  {i18nT("retirer_l_image_aae9b371")}
+                </button>
               ) : null}
-            </div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.56)" }}>
-              {i18nT("la_signature_est_ajoutee_automatiquement_en_93c003b1")}{" "}</div>
 
-            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
-              <label style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
-                {i18nT("taille_de_l_image_de_signature_6277a860")}{" "}</label>
+              <label className={styles.widthControl}>
+                <span>{i18nT("taille_de_l_image_de_signature_6277a860")}</span>
               <select
+                className={styles.signatureSelect}
                 value={String(signatureImageWidth)}
                 onChange={(e) => setSignatureImageWidth(Number(e.target.value || 400))}
-                style={{
-                  width: "100%",
-                  borderRadius: 12,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "#ffffff",
-                  padding: "10px 12px",
-                  color: "#111111",
-                  appearance: "auto",
-                  WebkitAppearance: "menulist",
-                }}
               >
                 {SIGNATURE_WIDTH_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value} style={{ background: "#ffffff", color: "#111111" }}>
@@ -869,46 +785,30 @@ Email : {{email}}`));
                   </option>
                 ))}
               </select>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.56)" }}>
-                {i18nT("la_taille_choisie_sera_utilisee_automatiquement_c0d1a018")}{" "}</div>
+              </label>
+              </div>
+            </div>
+
+            <div className={styles.previewPanel}>
+              <span className={styles.fieldLabel}>{i18nT("apercu_actuel_8cb7a75c")}</span>
+              <div className={styles.previewBox}>
+                <pre className={styles.signaturePreview}>
+              {signatureEnabled ? (signaturePreview || i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")) : i18nT("signature_automatique_desactivee_9b6bd821")}
+                </pre>
+                {signatureEnabled && signatureImageUrl ? (
+                  <div className={styles.signatureImageWrap}>
+                    <img
+                      src={signatureImageUrl}
+                      alt={i18nT("apercu_image_de_signature_2631aa60")}
+                      style={{ width: `${signatureImageWidth}px` }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.62)" }}>
-            {i18nT("apercu_actuel_8cb7a75c")}{" "}</div>
-          <div
-            style={{
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.04)",
-              padding: "10px 12px",
-              color: "rgba(255,255,255,0.86)",
-              fontSize: 13,
-            }}
-          >
-            <pre
-              style={{
-                margin: 0,
-                whiteSpace: "pre-wrap",
-                color: "rgba(255,255,255,0.86)",
-                fontFamily: "inherit",
-                fontSize: 13,
-              }}
-            >
-              {signatureEnabled ? (signaturePreview || i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")) : i18nT("signature_automatique_desactivee_9b6bd821")}
-            </pre>
-            {signatureEnabled && signatureImageUrl ? (
-              <div style={{ marginTop: 12 }}>
-                <img
-                  src={signatureImageUrl}
-                  alt={i18nT("apercu_image_de_signature_2631aa60")}
-                  style={{ width: `${signatureImageWidth}px`, maxWidth: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 10, display: "block" }}
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className={styles.saveRow}>
             <Btn
               label={signatureBusy ? "Enregistrement…" : "Sauvegarder la signature"}
               disabled={signatureBusy}

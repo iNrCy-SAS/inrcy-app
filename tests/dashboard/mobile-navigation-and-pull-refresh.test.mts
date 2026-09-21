@@ -55,25 +55,24 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
   assert.match(navigation, /publishLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /panel:ia/);
+  assert.match(navigation, /channelConnectionsHref = "\/dashboard\?action=channels"/);
+  assert.match(navigation, /label=\{t\.hero\.channelOverviewTitle\}/);
   assert.match(navigation, /resolveHrefDestination\("\/dashboard\/mediatheque"\)/);
   assert.match(navigation, /data-disable-pull-refresh/);
   assert.match(navigation, /requestDashboardToolWarmup/);
 });
 
-test("the responsive hamburger keeps one unified profile entry and a regular media button", () => {
+test("the responsive hamburger keeps profile inside Business DNA and a regular media button", () => {
   const navigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const navigationStyles = read(
     "app/dashboard/_components/ResponsiveBottomNav.module.css",
   );
 
-  assert.equal(
-    (navigation.match(/label=\{t\.userMenu\.profile\}/g) || []).length,
-    1,
-  );
+  assert.doesNotMatch(navigation, /label=\{t\.userMenu\.profile\}/);
   assert.doesNotMatch(navigation, /label=\{t\.userMenu\.activity\}/);
   assert.match(
     navigation,
-    /label=\{t\.userMenu\.profile\}[\s\S]*?warning=\{profileIncomplete \|\| activityIncomplete\}/,
+    /label=\{t\.userMenu\.aiMemory\}[\s\S]*?warning=\{profileIncomplete \|\| activityIncomplete\}/,
   );
   assert.doesNotMatch(navigation, /\bwide\??:/);
   assert.doesNotMatch(navigationStyles, /\.menuItemWide\b/);

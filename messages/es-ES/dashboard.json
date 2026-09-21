@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "Cerrar",
+    "allChannels": "Todos los canales",
     "titles": {
       "contact": "Contacto",
       "compte": "Cuenta iNrCytizen",
@@ -104,6 +105,35 @@
     "powerDialogAria": "Detalle potencia",
     "powerPanelTitle": "Detalle potencia",
     "kicker": "Tu cockpit iNrCy",
+    "cockpitTitle": "Tu cockpit",
+    "cockpitShortTitle": "Cockpit",
+    "inertiaPower": "Potencia de inercia",
+    "connectStep": "Conectar",
+    "enrichStep": "Enriquecer",
+    "configureStep": "Configurar",
+    "channelsStepLabel": "Canales activos",
+    "dnaStepLabel": "ADN de la empresa",
+    "aiStepLabel": "Configurar mi IA",
+    "channelsInfoAria": "Ver la parrilla de potencia de los canales",
+    "channelsInfoTitle": "Potencia de los 11 canales",
+    "channelsInfoHint": "Cada canal aporta su propia parte. Las 11 contribuciones suman exactamente el 100 %.",
+    "dnaInfoAria": "Comprender la puntuación ADN",
+    "dnaInfoTitle": "Contenidos personalizados",
+    "dnaInfoHint": "Cuanto más completo esté tu iNr’ADN, más personalizados y fieles a tu empresa serán los contenidos creados por la IA.",
+    "aiInfoAria": "Comprender la puntuación de personalización de IA",
+    "aiInfoTitle": "¿Por qué configurar mi IA?",
+    "aiInfoHint": "Configurar tu IA mejora su eficacia y adapta su lenguaje para que se exprese como tu empresa.",
+    "channelOverviewTitle": "Conectar mis canales",
+    "channelColumn": "Canal",
+    "powerColumn": "Potencia",
+    "powerInfoAria": "Más información sobre la potencia de un canal",
+    "powerInfoTitle": "La potencia de un canal",
+    "powerInfoText": "La potencia mide la contribución de cada canal a su visibilidad y a la generación de contactos. Cuanto mayor sea el porcentaje, más importante será ese canal para atraer clientes potenciales.",
+    "statusColumn": "Estado",
+    "configureColumn": "Configurar",
+    "stateColumn": "Conexión",
+    "createColumn": "Crear",
+    "createdLabel": "Creado",
     "expandCockpitAria": "Desplegar tu cockpit iNrCy",
     "collapseCockpitAria": "Replegar tu cockpit iNrCy",
     "title": "¡Generador activo!",
@@ -209,7 +239,6 @@
     "connectedAria": "canales conectados de"
   },
   "modules": {
-    "requiredSetupLocked": "Completa tu perfil para desbloquear esta herramienta.",
     "dashboardTitle": "Panel",
     "dashboardSub": "Control",
     "statsSub": "Todos tus leads visibles",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "Ver",
     "configure": "Configurar",
+    "create": "Crear",
     "disabled": "Opción off",
     "open": "Abrir"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "Configuración de la cuenta",
-    "title": "5 pasos para empezar",
+    "title": "4 pasos para empezar",
     "bothIncomplete": "Síguelos en orden para aprovechar al máximo iNrCy.",
     "profileIncomplete": "Síguelos en orden para aprovechar al máximo iNrCy.",
     "activityIncomplete": "Síguelos en orden para aprovechar al máximo iNrCy.",
-    "stepProfile": "Completa tu perfil",
-    "stepChannels": "Conecta tus canales",
-    "stepDna": "Completa tu iNr’ADN de forma automática o manual",
-    "stepAi": "Configura tu IA",
-    "stepFirstPublication": "Realiza tu primera publicación",
-    "confirm": "Completar mi perfil",
+    "stepChannels": "Conectar mis canales",
+    "stepDna": "Enriquecer el ADN de mi empresa",
+    "stepAi": "Configurar mi IA",
+    "stepFirstPublication": "Publicar",
+    "confirm": "Conectar mis canales",
     "cancel": "Más tarde"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "Esta ventana contiene cambios no guardados. Si la cierras ahora, se perderán.",
     "closeWithoutSaving": "Cerrar sin guardar",
     "continueEditing": "Seguir editando"
-  },
-  "requiredSetup": {
-    "loading": "Configuración obligatoria…"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector y profesión",

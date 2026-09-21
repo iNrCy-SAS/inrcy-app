@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -10,16 +11,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../../dashboard.module.css";
 import { createClient } from "@/lib/supabaseClient";
 import ConnectionPill from "../../_components/ConnectionPill";
+import GoogleOAuthConsentBanner from "../../_components/GoogleOAuthConsentBanner";
 import StatusMessage from "../../_components/StatusMessage";
-
-const cardStyle = {
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: 14,
-  padding: 12,
-  display: "grid",
-  gap: 10,
-} as const;
+import ChannelSettingsStep from "./ChannelSettingsStep";
+import guideStyles from "./ChannelSettingsSteps.module.css";
 
 const inputStyle = {
   width: "100%",
@@ -38,13 +33,6 @@ const selectStyle = {
   background: "rgba(15,23,42,0.95)",
 } as const;
 
-const switchRowStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 10,
-  alignItems: "stretch",
-} as const;
-
 function PreferenceToggle({
   label,
   checked,
@@ -55,22 +43,15 @@ function PreferenceToggle({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(15,23,42,0.45)",
-        borderRadius: 12,
-        padding: "10px 12px",
-        color: "rgba(255,255,255,0.92)",
-        fontSize: 14,
-      }}
-    >
+    <label className={guideStyles.choiceCard} data-selected={checked ? "true" : undefined}>
       <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        className={guideStyles.choiceInput}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className={guideStyles.choiceIndicator} aria-hidden="true" />
     </label>
   );
 }
@@ -218,6 +199,7 @@ function emitDashboardUpdate(settings: YoutubeShortsSettings) {
 
 export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUnsavedChange?: (hasUnsavedChanges: boolean) => void }) {
   const i18nT = useTranslations("settings");
+  const mountedRef = useRef(true);
   const [settings, setSettings] = useState<YoutubeShortsSettings>(DEFAULT_SETTINGS);
   const settingsBaselineRef = useRef("");
   const [loading, setLoading] = useState(true);
@@ -238,15 +220,25 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       if (!res.ok || json?.ok === false) throw new Error(String(json?.error || "status_failed"));
 
       const nextSettings = normalizeSettings(json?.youtube_shorts);
+      if (!mountedRef.current) return;
       setSettings(nextSettings);
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       emitDashboardUpdate(nextSettings);
     } catch (err) {
       console.warn("[youtube-shorts-settings] status failed", err);
-      setError(i18nT("chargement_de_la_connexion_youtube_impossible_c09a1176"));
+      if (mountedRef.current) {
+        setError(i18nT("chargement_de_la_connexion_youtube_impossible_c09a1176"));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -279,6 +271,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
     try {
       const supabase = createClient();
       const { data: authData } = await supabase.auth.getUser();
+      if (!mountedRef.current) return;
       const user = authData?.user;
       if (!user) throw new Error("Utilisateur non authentifié.");
 
@@ -287,6 +280,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
         .select("settings")
         .eq("user_id", resolveActiveBrowserUserId(user.id))
         .maybeSingle();
+      if (!mountedRef.current) return;
       if (readError) throw readError;
 
       const current = asRecord((data as any)?.settings);
@@ -298,6 +292,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       const { error: upsertError } = await supabase
         .from("pro_tools_configs")
         .upsert({ user_id: resolveActiveBrowserUserId(user.id), settings: merged }, { onConflict: "user_id" });
+      if (!mountedRef.current) return;
       if (upsertError) throw upsertError;
 
       setSettings(nextSettings);
@@ -307,9 +302,11 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       setNotice(i18nT("reglages_youtube_enregistres_f74dc0ab"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] save failed", err);
-      setError(i18nT("enregistrement_des_reglages_youtube_impossible_a3106df5"));
+      if (mountedRef.current) {
+        setError(i18nT("enregistrement_des_reglages_youtube_impossible_a3106df5"));
+      }
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }, [settings]);
 
@@ -328,6 +325,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.ok === false) throw new Error(String(json?.error || "disconnect_failed"));
       const nextSettings = normalizeSettings(json?.youtube_shorts);
+      if (!mountedRef.current) return;
       setSettings(nextSettings);
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       onUnsavedChange?.(false);
@@ -335,9 +333,11 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       setNotice(i18nT("chaine_youtube_deconnectee_2b548afe"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] disconnect failed", err);
-      setError(i18nT("deconnexion_youtube_impossible_76706752"));
+      if (mountedRef.current) {
+        setError(i18nT("deconnexion_youtube_impossible_76706752"));
+      }
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }, []);
 
@@ -345,89 +345,72 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
   const connected = Boolean(settings.connected && !settings.requiresUpdate);
   const statusLabel = settings.requiresUpdate ? "À reconnecter" : connected ? "Connecté" : "À connecter";
-  const statusColor = settings.requiresUpdate ? "rgba(251,146,60,0.95)" : connected ? "rgba(34,197,94,0.95)" : "rgba(148,163,184,0.9)";
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(15,23,42,0.65)",
-            padding: "8px 10px",
-            borderRadius: 999,
-            color: "rgba(255,255,255,0.92)",
-            fontSize: 13,
-          }}
-        >
-          <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: statusColor }} />
-          {i18nT("statut_b20e7fc2")}{" "}<strong>{statusLabel}</strong>
-        </span>
-      </div>
-
-      {loading ? (
-        <div style={{ border: "1px solid rgba(125,211,252,0.18)", background: "rgba(14,165,233,0.08)", borderRadius: 12, padding: "10px 12px", color: "rgba(224,242,254,0.96)", fontSize: 13 }}>
-          {i18nT("chargement_de_la_connexion_youtube_f58580a0")}{" "}</div>
-      ) : null}
-
-      <div style={cardStyle}>
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("compte_youtube_dad8e6eb")}</div>
-          <ConnectionPill connected={connected} />
-        </div>
-        <div className={styles.blockSub}>
-          {i18nT("le_professionnel_autorise_inrcy_a_publier_70c0c2bc")}{" "}</div>
-
-        <input
-          value={connected ? (settings.channelName || settings.channelHandle || "Chaîne YouTube connectée") : ""}
-          readOnly
-          placeholder={connected ? "Chaîne YouTube connectée" : "Aucune chaîne connectée"}
-          style={{ ...inputStyle, opacity: connected ? 1 : 0.8 }}
-        />
-
-        {connected ? (
-          <div style={{ color: "rgba(226,232,240,0.86)", fontSize: 12 }}>
-            {i18nT("compte_utilise_7b6629db")}{" "}<strong>{settings.accountEmail || i18nT("compte_google_connecte_38f3b9c6")}</strong>
+    <div className={guideStyles.steps}>
+      <ChannelSettingsStep
+        step={1}
+        accent="youtube"
+        title={i18nT("compte_youtube_dad8e6eb")}
+        description={i18nT("le_professionnel_autorise_inrcy_a_publier_70c0c2bc")}
+        status={<ConnectionPill connected={connected} />}
+      >
+        <div className={guideStyles.compactActionLine}>
+          <div className={guideStyles.accountSurface}>
+            <Image
+              className={guideStyles.channelIcon}
+              src="/icons/youtube-shorts.png"
+              width={46}
+              height={46}
+              alt=""
+              aria-hidden="true"
+            />
+            <div className={guideStyles.accountCopy}>
+              <strong>
+                {connected
+                  ? settings.channelName || settings.channelHandle || "Chaîne YouTube connectée"
+                  : "Aucune chaîne connectée"}
+              </strong>
+              <span>
+                {i18nT("statut_b20e7fc2")} <b>{statusLabel}</b>
+                {connected
+                  ? ` · ${settings.accountEmail || i18nT("compte_google_connecte_38f3b9c6")}`
+                  : ""}
+              </span>
+            </div>
           </div>
-        ) : null}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {!connected ? (
-            <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-              {saving ? i18nT("connexion_7adf849f") : i18nT("connecter_youtube_b64d7544")}
-            </button>
-          ) : (
-            <>
-              <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-                {i18nT("reconnecter_youtube_c66fd70d")}{" "}</button>
-              <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectYoutube()} disabled={saving || loading}>
-                {saving ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
+          <div className={`${guideStyles.actionRow} ${guideStyles.accountActions}`}>
+            <GoogleOAuthConsentBanner panel="youtube_shorts" variant="inline" />
+            {!connected ? (
+              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectYoutube} disabled={saving || loading}>
+                {saving ? i18nT("connexion_7adf849f") : i18nT("connecter_youtube_b64d7544")}
               </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={connectYoutube} disabled={saving || loading}>
+                  {i18nT("reconnecter_youtube_c66fd70d")}{" "}</button>
+                <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectYoutube()} disabled={saving || loading}>
+                  {saving ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div style={cardStyle}>
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("lien_de_la_chaine_815204fe")}</div>
-          <ConnectionPill connected={Boolean(connected && settings.channelUrl?.trim())} />
-        </div>
-        <div className={styles.blockSub}>
-          {i18nT("lien_public_utilise_pour_le_bouton_e782e367")}{" "}<strong>{i18nT("voir_la_chaine_3c999e92")}</strong> {" "}{i18nT("dans_la_bulle_du_dashboard_689d3e85")}{" "}</div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <input
-            value={settings.channelUrl}
-            onChange={(event) => patchSettings({ channelUrl: event.target.value })}
-            placeholder="https://www.youtube.com/@monentreprise"
-            style={inputStyle}
-          />
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className={guideStyles.inlineSection}>
+          <label className={guideStyles.fieldLabel} htmlFor="youtube-channel-url">
+            {i18nT("lien_de_la_chaine_815204fe")}
+          </label>
+          <div className={guideStyles.actionRow}>
+            <input
+              id="youtube-channel-url"
+              value={settings.channelUrl}
+              onChange={(event) => patchSettings({ channelUrl: event.target.value })}
+              placeholder="https://www.youtube.com/@monentreprise"
+              className={guideStyles.control}
+              style={inputStyle}
+            />
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveSettings()} disabled={saving || loading}>
               {saving ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
             </button>
@@ -441,50 +424,36 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
               {i18nT("voir_la_chaine_3c999e92")}{" "}</a>
           </div>
         </div>
-      </div>
+      </ChannelSettingsStep>
 
-      <div style={cardStyle}>
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("reglages_youtube_par_defaut_1426d0d1")}</div>
-        </div>
-        <div className={styles.blockSub}>
-          {i18nT("ces_preferences_serviront_dans_booster_pour_2d5a6e2f")}{" "}</div>
-
-        <div
-          style={{
-            border: "1px solid rgba(56,189,248,0.22)",
-            background: "rgba(14,165,233,0.08)",
-            borderRadius: 12,
-            padding: "10px 12px",
-            color: "rgba(224,242,254,0.96)",
-            fontSize: 13,
-            lineHeight: 1.45,
-          }}
-        >
-          {i18nT("inrcy_publie_vos_videos_sur_fefeedf5")}{" "}<strong>{i18nT("youtube_558865a1")}</strong>{i18nT("si_la_video_est_courte_et_0b9de2b1")}{" "}</div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span className={styles.blockSub} style={{ opacity: 0.92 }}>{i18nT("visibilite_par_defaut_68ad92d8")}</span>
-            <select value={settings.defaultVisibility} onChange={(event) => patchSettings({ defaultVisibility: event.target.value as YoutubeShortsSettings["defaultVisibility"] })} style={selectStyle}>
+      <ChannelSettingsStep
+        step={2}
+        accent="youtube"
+        title={i18nT("reglages_youtube_par_defaut_1426d0d1")}
+        description={i18nT("ces_preferences_serviront_dans_booster_pour_2d5a6e2f")}
+      >
+        <div className={guideStyles.compactSettings}>
+          <label className={guideStyles.fieldGroup}>
+            <span className={guideStyles.fieldLabel}>{i18nT("visibilite_par_defaut_68ad92d8")}</span>
+            <select className={guideStyles.control} value={settings.defaultVisibility} onChange={(event) => patchSettings({ defaultVisibility: event.target.value as YoutubeShortsSettings["defaultVisibility"] })} style={selectStyle}>
               <option value="public">{i18nT("public_dc5eb704")}</option>
               <option value="unlisted">{i18nT("non_repertorie_42775da7")}</option>
               <option value="private">{i18nT("prive_6e735639")}</option>
             </select>
           </label>
 
-          <div style={switchRowStyle}>
+          <div className={guideStyles.choiceGrid}>
             <PreferenceToggle label={i18nT("hashtags_automatiques_49295275")} checked={settings.autoHashtags} onChange={(autoHashtags) => patchSettings({ autoHashtags })} />
             <PreferenceToggle label={i18nT("contenu_destine_aux_enfants_e07f8415")} checked={settings.madeForKids} onChange={(madeForKids) => patchSettings({ madeForKids })} />
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className={guideStyles.actionRow}>
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveSettings()} disabled={saving || loading}>
               {saving ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_mes_reglages_ec1b1b65")}
             </button>
           </div>
         </div>
-      </div>
+      </ChannelSettingsStep>
 
       {notice ? <StatusMessage variant="success">{notice}</StatusMessage> : null}
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}

@@ -21,10 +21,9 @@ import DashboardUnsavedNavigationProvider from "./_components/DashboardUnsavedNa
 import DashboardPullToRefresh from "./_components/DashboardPullToRefresh";
 import SentryUserContext from "./_components/SentryUserContext";
 import ClientAuthSessionGuard from "./_components/ClientAuthSessionGuard";
-import DashboardRequiredSetupGate from "./_components/DashboardRequiredSetupGate";
 import DashboardToolWarmup from "./_components/DashboardToolWarmup";
-import { DashboardRequiredSetupBypassProvider } from "./_components/DashboardRequiredSetupBypassProvider";
-import { isRequiredSetupE2EBypassEnabled } from "@/lib/e2eServerFlags";
+import { DashboardCompletionBypassProvider } from "./_components/DashboardCompletionBypassProvider";
+import { isDashboardCompletionE2EBypassEnabled } from "@/lib/e2eServerFlags";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardIntlProvider from "./_components/DashboardIntlProvider";
@@ -82,7 +81,7 @@ export default async function DashboardLayout({
 }) {
   noStore();
 
-  const bypassRequiredSetup = isRequiredSetupE2EBypassEnabled();
+  const bypassCompletionChecks = isDashboardCompletionE2EBypassEnabled();
 
   const supabase = await createSupabaseServer();
 
@@ -152,18 +151,16 @@ export default async function DashboardLayout({
         <DashboardToolWarmup />
         <SentryUserContext userId={user.id} accountId={accountScope.activeUserId} />
 
-        <DashboardRequiredSetupBypassProvider enabled={bypassRequiredSetup}>
+        <DashboardCompletionBypassProvider enabled={bypassCompletionChecks}>
           <DashboardUnsavedNavigationProvider>
             <DashboardScrollMemory />
             <DashboardPullToRefresh />
-            <DashboardRequiredSetupGate>
-              <div className={styles.mobileViewport}>
-                {children}
-              </div>
-              <ResponsiveBottomNav />
-            </DashboardRequiredSetupGate>
+            <div className={styles.mobileViewport}>
+              {children}
+            </div>
+            <ResponsiveBottomNav />
           </DashboardUnsavedNavigationProvider>
-        </DashboardRequiredSetupBypassProvider>
+        </DashboardCompletionBypassProvider>
       </DashboardEditionProvider>
       </DashboardIntlProvider>
     </div>

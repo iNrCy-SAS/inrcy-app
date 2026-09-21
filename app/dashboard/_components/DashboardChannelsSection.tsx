@@ -103,9 +103,6 @@ type DashboardChannelsSectionProps = {
   fluxBubbleItems: DashboardFluxBubbleData[];
   goToModule: (path: string) => void;
   openPanel: (panel: DashboardPanelName) => void;
-  requiredSetupAccessAllowed: boolean;
-  requiredSetupLockVisible: boolean;
-  onRequiredSetupBlocked: () => void;
   onOpenChannelsHelp: () => void;
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
@@ -117,9 +114,6 @@ export default function DashboardChannelsSection({
   fluxBubbleItems,
   goToModule,
   openPanel,
-  requiredSetupAccessAllowed,
-  requiredSetupLockVisible,
-  onRequiredSetupBlocked,
   onOpenChannelsHelp,
   onOpenStats,
   onOpenBoosterPublish,
@@ -194,8 +188,6 @@ export default function DashboardChannelsSection({
       key={keyOverride ?? item.key}
       item={item}
       itemKey={keyOverride ?? item.key}
-      requiredSetupLocked={["inr_agent", "mails", "inrbadge", "inr_search"].includes(item.key) && requiredSetupLockVisible}
-      requiredSetupLockMessage={t.modules.requiredSetupLocked}
     />
   );
 
@@ -721,15 +713,11 @@ export default function DashboardChannelsSection({
             onOpenStats={onOpenStats}
             onOpenBoosterPublish={onOpenBoosterPublish}
             onOpenBoosterStats={onOpenBoosterStats}
-            requiredSetupLockVisible={requiredSetupLockVisible}
           />
         ) : (
           <DashboardModulesCard
             goToModule={goToModule}
             openPanel={openPanel}
-            requiredSetupAccessAllowed={requiredSetupAccessAllowed}
-            requiredSetupLockVisible={requiredSetupLockVisible}
-            onRequiredSetupBlocked={onRequiredSetupBlocked}
             onOpenStats={onOpenStats}
             onOpenBoosterPublish={onOpenBoosterPublish}
             onOpenBoosterStats={onOpenBoosterStats}

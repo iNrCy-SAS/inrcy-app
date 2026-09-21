@@ -62,9 +62,9 @@ export function useDashboardPanelRouting() {
     if (rawPanel === "profil" || rawPanel === "activite" || rawPanel === "ai_memory" || rawPanel === "ia") {
       router.replace(
         rawPanel === "profil"
-          ? "/dashboard/mon-profil"
+          ? "/dashboard/adn-entreprise?tab=profile"
           : rawPanel === "activite"
-            ? "/dashboard/mon-profil?section=activity"
+            ? "/dashboard/adn-entreprise?tab=activity"
             : rawPanel === "ia"
               ? "/dashboard/configuration-ia"
               : "/dashboard/adn-entreprise",
@@ -94,9 +94,9 @@ export function useDashboardPanelRouting() {
           setPanel(null);
           router.push(
             name === "profil"
-              ? "/dashboard/mon-profil"
+              ? "/dashboard/adn-entreprise?tab=profile"
               : name === "activite"
-                ? "/dashboard/mon-profil?section=activity"
+                ? "/dashboard/adn-entreprise?tab=activity"
                 : name === "ia"
                   ? "/dashboard/configuration-ia"
                   : "/dashboard/adn-entreprise",

@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "ปิด",
+    "allChannels": "ช่องทั้งหมด",
     "titles": {
       "contact": "ติดต่อเรา",
       "compte": "บัญชี iNrCytizen",
@@ -104,6 +105,35 @@
     "powerDialogAria": "รายละเอียดเครื่องกำเนิดไฟฟ้า",
     "powerPanelTitle": "รายละเอียดขุมพลัง",
     "kicker": "ห้องนักบินของคุณ iNrCy",
+    "cockpitTitle": "ค็อกพิทของคุณ",
+    "cockpitShortTitle": "ค็อกพิท",
+    "inertiaPower": "พลังความเฉื่อย",
+    "connectStep": "เชื่อมต่อ",
+    "enrichStep": "เติมข้อมูล",
+    "configureStep": "ตั้งค่า",
+    "channelsStepLabel": "ช่องทางที่ใช้งานอยู่",
+    "dnaStepLabel": "DNA ของบริษัท",
+    "aiStepLabel": "ตั้งค่า AI ของฉัน",
+    "channelsInfoAria": "ดูตารางพลังของช่องทาง",
+    "channelsInfoTitle": "พลังของ 11 ช่องทาง",
+    "channelsInfoHint": "แต่ละช่องทางมีสัดส่วนของตนเอง โดยทั้ง 11 ส่วนรวมกันเท่ากับ 100% พอดี",
+    "dnaInfoAria": "ทำความเข้าใจคะแนน DNA",
+    "dnaInfoTitle": "เนื้อหาเฉพาะสำหรับธุรกิจ",
+    "dnaInfoHint": "ยิ่งข้อมูล iNr’DNA สมบูรณ์ AI ก็ยิ่งสร้างเนื้อหาที่ตรงกับธุรกิจของคุณได้มากขึ้น",
+    "aiInfoAria": "ทำความเข้าใจคะแนนการปรับแต่ง AI",
+    "aiInfoTitle": "ทำไมต้องตั้งค่า AI ของฉัน?",
+    "aiInfoHint": "การตั้งค่าช่วยเพิ่มประสิทธิภาพของ AI และปรับภาษาให้เหมาะกับธุรกิจของคุณ",
+    "channelOverviewTitle": "เชื่อมต่อช่องทางของฉัน",
+    "channelColumn": "ช่องทาง",
+    "powerColumn": "พลัง",
+    "powerInfoAria": "ดูข้อมูลเกี่ยวกับพลังของช่องทาง",
+    "powerInfoTitle": "พลังของช่องทาง",
+    "powerInfoText": "พลังวัดการมีส่วนร่วมของแต่ละช่องทางต่อการมองเห็นและการสร้างผู้ติดต่อของคุณ ยิ่งเปอร์เซ็นต์สูง ช่องทางนั้นยิ่งมีบทบาทสำคัญในการดึงดูดผู้มีโอกาสเป็นลูกค้า",
+    "statusColumn": "สถานะ",
+    "configureColumn": "ตั้งค่า",
+    "stateColumn": "การเชื่อมต่อ",
+    "createColumn": "สร้าง",
+    "createdLabel": "สร้างแล้ว",
     "expandCockpitAria": "เปิดห้องนักบินของคุณ iNrCy",
     "collapseCockpitAria": "พับห้องนักบินของคุณ iNrCy",
     "title": "เจเนอเรเตอร์เปิดตัวแล้ว!",
@@ -209,7 +239,6 @@
     "connectedAria": "ช่องที่เชื่อมต่ออยู่"
   },
   "modules": {
-    "requiredSetupLocked": "กรอกโปรไฟล์ของคุณให้ครบเพื่อปลดล็อกเครื่องมือนี้",
     "dashboardTitle": "แดชบอร์ด",
     "dashboardSub": "ขับเครื่องบิน",
     "statsSub": "โอกาสในการขายทั้งหมดของคุณ ในที่สุดก็มองเห็นได้",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "ดูสิ",
     "configure": "กำหนดค่า",
+    "create": "สร้าง",
     "disabled": "ตัวเลือกถูกปิดใช้งาน",
     "open": "เปิด"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "การตั้งค่าบัญชี",
-    "title": "5 ขั้นตอนเพื่อเริ่มต้น",
+    "title": "4 ขั้นตอนเพื่อเริ่มต้น",
     "bothIncomplete": "ทำตามลำดับเพื่อใช้งาน iNrCy ได้อย่างเต็มประสิทธิภาพ",
     "profileIncomplete": "ทำตามลำดับเพื่อใช้งาน iNrCy ได้อย่างเต็มประสิทธิภาพ",
     "activityIncomplete": "ทำตามลำดับเพื่อใช้งาน iNrCy ได้อย่างเต็มประสิทธิภาพ",
-    "stepProfile": "กรอกโปรไฟล์ของคุณให้ครบ",
-    "stepChannels": "เชื่อมต่อช่องทางของคุณ",
-    "stepDna": "กรอก iNr’ADN แบบอัตโนมัติหรือด้วยตนเอง",
-    "stepAi": "ตั้งค่า AI ของคุณ",
-    "stepFirstPublication": "สร้างสิ่งพิมพ์แรกของคุณ",
-    "confirm": "กรอกโปรไฟล์ของฉัน",
+    "stepChannels": "เชื่อมต่อช่องทางของฉัน",
+    "stepDna": "เสริมข้อมูล DNA ของธุรกิจของฉัน",
+    "stepAi": "ตั้งค่า AI ของฉัน",
+    "stepFirstPublication": "เผยแพร่",
+    "confirm": "เชื่อมต่อช่องทางของฉัน",
     "cancel": "ไว้ภายหลัง"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "หน้าต่างนี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก หากปิดตอนนี้จะสูญหาย",
     "closeWithoutSaving": "ปิดโดยไม่บันทึก",
     "continueEditing": "แก้ไขต่อ"
-  },
-  "requiredSetup": {
-    "loading": "ต้องตั้งค่า…"
   },
   "settingsSections": {
     "activityIdentityTitle": "ภาคธุรกิจและอาชีพ",

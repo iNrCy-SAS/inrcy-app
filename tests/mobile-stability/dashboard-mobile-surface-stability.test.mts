@@ -26,6 +26,40 @@ test("the mobile dashboard keeps a continuous dark rendering surface", () => {
   assert.match(css, /\.mobileViewport \{[\s\S]*overscroll-behavior-y: contain[\s\S]*background-color: #0b142c/);
 });
 
+test("phone dashboards delegate vertical scrolling to the document", () => {
+  const css = read("app/dashboard/dashboard.module.css");
+  const markerStart = css.indexOf("/* Phone dashboard scroll handoff");
+  const markerEnd = css.indexOf("/* Mobile cockpit architecture", markerStart);
+  const phoneScrollRules = css.slice(markerStart, markerEnd);
+
+  assert.ok(markerStart >= 0 && markerEnd > markerStart);
+  assert.match(phoneScrollRules, /@media \(max-width: 640px\)/);
+  assert.match(
+    phoneScrollRules,
+    /:global\(html:has\(\.inrcy-dashboard-shell\)\),[\s\S]*:global\(body:has\(\.inrcy-dashboard-shell\)\) \{[\s\S]*height: auto;[\s\S]*min-height: 100%;[\s\S]*overflow-x: clip;[\s\S]*overflow-y: visible;/,
+  );
+  assert.match(
+    phoneScrollRules,
+    /\.shell \{[\s\S]*height: auto;[\s\S]*overflow: visible;[\s\S]*overscroll-behavior-y: auto;/,
+  );
+  assert.match(
+    phoneScrollRules,
+    /\.mobileViewport \{[\s\S]*flex: 0 0 auto;[\s\S]*overflow: visible;[\s\S]*touch-action: pan-y;/,
+  );
+  assert.match(
+    phoneScrollRules,
+    /\.page,[\s\S]*\.blockCard \{[\s\S]*overflow-x: clip !important;[\s\S]*overflow-y: visible !important;/,
+  );
+  assert.match(
+    phoneScrollRules,
+    /\.mobileViewport :global\(section\[data-business-dna-channel-analysis\]\) \{[\s\S]*overflow-x: clip !important;[\s\S]*overflow-y: visible !important;/,
+  );
+  assert.match(
+    phoneScrollRules,
+    /\.mobileViewport :global\(section\[data-business-dna-channel-analysis\]\)::before,[\s\S]*\.mobileViewport :global\(section\[data-business-dna-channel-analysis\]\)::after \{[\s\S]*content: none !important;/,
+  );
+});
+
 test("the bottom dock prevents compositor seams while preserving its border", () => {
   const css = read("app/dashboard/_components/ResponsiveBottomNav.module.css");
   const barStart = css.indexOf("  .bar {");

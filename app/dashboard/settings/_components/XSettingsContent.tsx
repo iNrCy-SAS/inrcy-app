@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ConnectionPill from "../../_components/ConnectionPill";
 import StatusMessage from "../../_components/StatusMessage";
 import styles from "../../dashboard.module.css";
+import ChannelSettingsStep from "./ChannelSettingsStep";
+import guideStyles from "./ChannelSettingsSteps.module.css";
 
 type XConnectionStatus = "connected" | "disconnected" | "needs_update";
 
@@ -25,15 +28,6 @@ const EMPTY_STATE: XSettingsState = {
   displayName: "",
   profileUrl: "",
 };
-
-const cardStyle = {
-  border: "1px solid rgba(139, 220, 255, 0.18)",
-  background: "linear-gradient(135deg, rgba(8, 22, 45, 0.88), rgba(23, 18, 51, 0.72))",
-  borderRadius: 16,
-  padding: 16,
-  display: "grid",
-  gap: 13,
-} as const;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -72,6 +66,7 @@ function emitDashboardUpdate(state: XSettingsState) {
 }
 
 export default function XSettingsContent() {
+  const mountedRef = useRef(true);
   const [connection, setConnection] = useState<XSettingsState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -88,13 +83,23 @@ export default function XSettingsContent() {
         throw new Error(String(payload?.error || "Impossible de charger la connexion X."));
       }
       const next = normalizeStatus(payload);
+      if (!mountedRef.current) return;
       setConnection(next);
       emitDashboardUpdate(next);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Impossible de charger la connexion X.");
+      if (mountedRef.current) {
+        setError(caught instanceof Error ? caught.message : "Impossible de charger la connexion X.");
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -132,13 +137,16 @@ export default function XSettingsContent() {
       if (!response.ok || payload?.ok === false) {
         throw new Error(String(payload?.error || "Impossible de déconnecter X."));
       }
+      if (!mountedRef.current) return;
       setConnection(EMPTY_STATE);
       emitDashboardUpdate(EMPTY_STATE);
       setNotice("Compte X déconnecté.");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Impossible de déconnecter X.");
+      if (mountedRef.current) {
+        setError(caught instanceof Error ? caught.message : "Impossible de déconnecter X.");
+      }
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }, []);
 
@@ -149,98 +157,87 @@ export default function XSettingsContent() {
   }, [connection.displayName, connection.username]);
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <section style={cardStyle}>
-        <div className={styles.blockHeaderRow}>
-          <div>
-            <div className={styles.blockTitle}>Compte X</div>
-            <div className={styles.blockSub}>Connexion officielle sécurisée pour publier au nom du professionnel.</div>
-          </div>
+    <div className={guideStyles.steps}>
+      <ChannelSettingsStep
+        step={1}
+        accent="x"
+        title="Connecter le compte X"
+        description="Autorisez iNrCy à publier avec le compte professionnel, via la connexion officielle et sécurisée de X."
+        status={
           <ConnectionPill
             connected={connection.connected}
             status={connection.connectionStatus}
             label={loading ? "Vérification…" : undefined}
           />
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            minWidth: 0,
-            padding: "12px 14px",
-            borderRadius: 13,
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(2, 6, 23, 0.5)",
-          }}
-        >
-          <img src="/icons/x.svg" width={42} height={42} alt="X" style={{ borderRadius: "50%", flex: "0 0 auto" }} />
-          <div style={{ minWidth: 0, display: "grid", gap: 3 }}>
-            <strong style={{ color: "white", overflowWrap: "anywhere" }}>
-              {connection.connected ? accountLabel : "Aucun compte connecté"}
-            </strong>
-            <span style={{ color: "rgba(255,255,255,0.58)", fontSize: 12 }}>
-              {connection.requiresUpdate
-                ? "L'autorisation doit être renouvelée avant toute publication."
-                : connection.connected
-                  ? "Profil autorisé par X et prêt à être utilisé dans iNrCy."
-                  : "Activez d'abord X dans Bubble Access, puis autorisez le compte ici."}
-            </span>
+        }
+      >
+        <div className={guideStyles.compactActionLine}>
+          <div className={guideStyles.accountSurface}>
+            <Image
+              className={guideStyles.channelIcon}
+              src="/icons/x.svg"
+              width={46}
+              height={46}
+              alt=""
+              aria-hidden="true"
+            />
+            <div className={guideStyles.accountCopy}>
+              <strong>
+                {connection.connected ? accountLabel : "Aucun compte connecté"}
+              </strong>
+              <span>
+                {connection.requiresUpdate
+                  ? "Autorisation à renouveler"
+                  : connection.connected
+                    ? "Compte prêt à publier"
+                    : "Autorisez le compte professionnel"}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-          {!connection.connected || connection.requiresUpdate ? (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.connectBtn}`}
-              onClick={connectX}
-              disabled={loading || busy}
-            >
-              {connection.requiresUpdate ? "Reconnecter X" : "Connecter X"}
-            </button>
-          ) : (
-            <>
-              {connection.profileUrl ? (
-                <a
-                  href={connection.profileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${styles.actionBtn} ${styles.viewBtn}`}
-                >
-                  Voir le profil
-                </a>
-              ) : null}
+          <div className={guideStyles.actionRow}>
+            {!connection.connected || connection.requiresUpdate ? (
               <button
                 type="button"
-                className={`${styles.actionBtn} ${styles.secondaryBtn}`}
+                className={`${styles.actionBtn} ${styles.connectBtn}`}
                 onClick={connectX}
-                disabled={busy}
+                disabled={loading || busy}
               >
-                Renouveler l'autorisation
+                {connection.requiresUpdate ? "Reconnecter X" : "Connecter X"}
               </button>
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.disconnectBtn}`}
-                onClick={() => void disconnectX()}
-                disabled={busy}
-              >
-                {busy ? "Déconnexion…" : "Déconnecter"}
-              </button>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section style={cardStyle} aria-label="Informations tarifaires X">
-        <div>
-          <div className={styles.blockTitle}>Publication et coût X</div>
-          <div className={styles.blockSub}>
-            {"X facture son API à l'usage. Une publication contenant un lien peut coûter nettement plus cher qu'une publication sans lien ; les tarifs affichés dans la console développeur X font foi."}
+            ) : (
+              <>
+                {connection.profileUrl ? (
+                  <a
+                    href={connection.profileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`${styles.actionBtn} ${styles.viewBtn}`}
+                  >
+                    Voir le profil
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.secondaryBtn}`}
+                  onClick={connectX}
+                  disabled={busy}
+                >
+                  Renouveler
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.disconnectBtn}`}
+                  onClick={() => void disconnectX()}
+                  disabled={busy}
+                >
+                  {busy ? "Déconnexion…" : "Déconnecter"}
+                </button>
+              </>
+            )}
           </div>
         </div>
-      </section>
+      </ChannelSettingsStep>
 
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
       {notice ? <StatusMessage variant="success">{notice}</StatusMessage> : null}

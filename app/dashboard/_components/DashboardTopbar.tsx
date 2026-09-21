@@ -11,7 +11,6 @@ import NotificationMenu from "./NotificationMenu";
 import UserMenu from "./UserMenu";
 import LanguageSelector from "./LanguageSelector";
 import EstablishmentMenu from "./EstablishmentMenu";
-import RequiredSetupLock from "./RequiredSetupLock";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import type { NotificationItem } from "../dashboard.types";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
@@ -141,7 +140,6 @@ type DashboardTopbarProps = {
   openPanel: (panel: DashboardPanelName) => void;
   inrAgentEnabled: boolean;
   showInrAgent?: boolean;
-  requiredSetupLockVisible: boolean;
   isAdmin?: boolean;
   userEmail: string | null;
   userFirstLetter: string;
@@ -171,7 +169,6 @@ export default function DashboardTopbar({
   openPanel,
   inrAgentEnabled,
   showInrAgent = true,
-  requiredSetupLockVisible,
   isAdmin = false,
   userEmail,
   userFirstLetter,
@@ -186,8 +183,6 @@ export default function DashboardTopbar({
   const router = useRouter();
   const t = useDashboardI18n();
   const pendingInrAgentCount = useInrAgentPendingCount(showInrAgent && inrAgentEnabled);
-  const inrAgentSetupLocked = inrAgentEnabled && requiredSetupLockVisible;
-
   const pendingInrAgentLabel = pendingInrAgentCount > 99 ? "99+" : String(pendingInrAgentCount);
   const agentTitle = inrAgentEnabled
     ? pendingInrAgentCount > 0
@@ -300,13 +295,7 @@ export default function DashboardTopbar({
                 aria-hidden
               />
             </span>
-            {i18nT("inr_agent_e5261e85")}{" "}{inrAgentSetupLocked ? (
-              <RequiredSetupLock
-                message={t.modules.requiredSetupLocked}
-                className={styles.requiredSetupLockTopbar}
-                compact
-              />
-            ) : null}
+            {i18nT("inr_agent_e5261e85")}
             {inrAgentEnabled && pendingInrAgentCount > 0 && (
               <span className={styles.agentTopbarBadge} aria-hidden="true">
                 {pendingInrAgentLabel}

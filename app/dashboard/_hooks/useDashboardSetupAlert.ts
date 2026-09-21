@@ -17,7 +17,7 @@ type DashboardSetupAlertOptions = {
   completionCheckReady: boolean;
   profileIncomplete: boolean;
   activityIncomplete: boolean;
-  onOpenProfile: () => void;
+  onOpenChannels: () => void;
 };
 
 export function useDashboardSetupAlert({
@@ -25,7 +25,7 @@ export function useDashboardSetupAlert({
   completionCheckReady,
   profileIncomplete,
   activityIncomplete,
-  onOpenProfile,
+  onOpenChannels,
 }: DashboardSetupAlertOptions) {
   const t = useTranslations("dashboard.setupAlert");
 
@@ -62,7 +62,6 @@ export function useDashboardSetupAlert({
         title: t("title"),
         message,
         steps: [
-          t("stepProfile"),
           t("stepChannels"),
           t("stepDna"),
           t("stepAi"),
@@ -71,8 +70,8 @@ export function useDashboardSetupAlert({
         confirmLabel: t("confirm"),
         cancelLabel: t("cancel"),
         variant: "warning",
-      }).then((shouldOpenProfile) => {
-        if (shouldOpenProfile) onOpenProfile();
+      }).then((shouldOpenChannels) => {
+        if (shouldOpenChannels) onOpenChannels();
       });
     }, 0);
 
@@ -81,7 +80,7 @@ export function useDashboardSetupAlert({
     accountId,
     activityIncomplete,
     completionCheckReady,
-    onOpenProfile,
+    onOpenChannels,
     profileIncomplete,
     t,
   ]);

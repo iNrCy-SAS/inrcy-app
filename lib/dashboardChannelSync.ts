@@ -27,6 +27,38 @@ export type CanonicalChannelConnection = {
 
 export type OfficialDashboardChannelState = Record<string, unknown>;
 
+type LinkedinPublicUrlInput = {
+  connected: boolean;
+  organizationId?: string | null;
+  organizationUrl?: string | null;
+  profileUrl?: string | null;
+  legacyUrl?: string | null;
+};
+
+/**
+ * Resolves only the public destination used by dashboard links. The canonical
+ * connection booleans remain untouched: an organization URL wins solely when
+ * that organization is both selected and backed by a live LinkedIn channel.
+ */
+export function resolveLinkedinPublicUrl({
+  connected,
+  organizationId,
+  organizationUrl,
+  profileUrl,
+  legacyUrl,
+}: LinkedinPublicUrlInput) {
+  const cleanOrganizationId = String(organizationId || "").trim();
+  const cleanOrganizationUrl = String(organizationUrl || "").trim();
+  const cleanProfileUrl = String(profileUrl || "").trim();
+  const cleanLegacyUrl = String(legacyUrl || "").trim();
+
+  if (connected && cleanOrganizationId && cleanOrganizationUrl) {
+    return cleanOrganizationUrl;
+  }
+
+  return cleanProfileUrl || cleanLegacyUrl;
+}
+
 function asDashboardStateRecord(value: unknown): OfficialDashboardChannelState | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as OfficialDashboardChannelState
@@ -156,6 +188,8 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     linkedinDisplayName: String(linkedin.display_name || ""),
     linkedinSelectedOrganizationId: linkedinOrganizationId,
     linkedinSelectedOrganizationName: String(linkedin.organization_name || ""),
+    linkedinProfileUrl: String(linkedin.profile_url || ""),
+    linkedinOrganizationUrl: String(linkedin.organization_url || ""),
     linkedinUrl: String(
       linkedinOrganizationId
         ? linkedin.organization_url || linkedin.profile_url || ""

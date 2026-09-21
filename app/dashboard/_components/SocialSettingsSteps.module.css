@@ -1,0 +1,331 @@
+.journey {
+  display: grid;
+  min-width: 0;
+  gap: clamp(10px, 1vw, 14px);
+}
+
+.facebook {
+  --channel-rgb: 24, 119, 242;
+  --channel-secondary-rgb: 76, 195, 255;
+}
+
+.instagram {
+  --channel-rgb: 225, 48, 108;
+  --channel-secondary-rgb: 168, 85, 247;
+}
+
+.linkedin {
+  --channel-rgb: 10, 102, 194;
+  --channel-secondary-rgb: 76, 195, 255;
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid rgba(var(--channel-rgb), 0.26);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 0 50%, rgba(var(--channel-rgb), 0.15), transparent 36%),
+    rgba(2, 6, 23, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.statusLabel {
+  color: rgba(226, 232, 240, 0.68);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid rgba(var(--channel-rgb), 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 12px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  box-shadow: 0 0 14px currentColor;
+}
+
+.stepCard {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid rgba(var(--channel-rgb), 0.28);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--channel-secondary-rgb), 0.13), transparent 34%),
+    linear-gradient(135deg, rgba(7, 20, 44, 0.96), rgba(20, 18, 49, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 44px rgba(2, 6, 23, 0.2);
+}
+
+.stepCard::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  content: "";
+  background: linear-gradient(
+    180deg,
+    rgb(var(--channel-rgb)),
+    rgb(var(--channel-secondary-rgb))
+  );
+  box-shadow: 0 0 24px rgba(var(--channel-rgb), 0.62);
+}
+
+.stepHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: clamp(12px, 1.3vw, 16px);
+  border-bottom: 1px solid rgba(var(--channel-rgb), 0.16);
+  background: linear-gradient(
+    100deg,
+    rgba(var(--channel-rgb), 0.11),
+    rgba(var(--channel-secondary-rgb), 0.045)
+  );
+}
+
+.stepNumber {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(var(--channel-rgb), 0.52);
+  border-radius: 13px;
+  background: linear-gradient(
+    145deg,
+    rgba(var(--channel-rgb), 0.22),
+    rgba(var(--channel-secondary-rgb), 0.12)
+  );
+  color: rgb(var(--channel-secondary-rgb));
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.stepCopy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.stepCopy > div:first-child {
+  color: #fff;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.2;
+}
+
+.stepCopy > div:nth-child(2) {
+  max-width: 920px;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stepStatus {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.stepBody {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: clamp(12px, 1.3vw, 16px);
+}
+
+.stepBody :is(input:not(.choiceInput), select) {
+  width: auto !important;
+  flex: 1 1 260px;
+  min-height: 45px;
+  border-color: rgba(var(--channel-rgb), 0.24) !important;
+  background: rgba(2, 6, 23, 0.58) !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.stepBody :is(input:not(.choiceInput), select):focus-visible {
+  border-color: rgba(var(--channel-rgb), 0.82) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--channel-rgb), 0.15);
+}
+
+.stepBody :is(button, a) {
+  width: auto !important;
+  flex: 0 0 auto;
+  min-height: 40px;
+  border-radius: 999px;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.stepBody :is(button, a):not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.stepBody :is(button, a):focus-visible {
+  outline: 2px solid rgb(var(--channel-secondary-rgb));
+  outline-offset: 2px;
+}
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 9px;
+}
+
+.choiceCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.46);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.choiceCard:has(.choiceInput:checked) {
+  border-color: rgba(var(--channel-rgb), 0.64);
+  background: linear-gradient(
+    125deg,
+    rgba(var(--channel-rgb), 0.16),
+    rgba(var(--channel-secondary-rgb), 0.08)
+  );
+  box-shadow: 0 0 22px rgba(var(--channel-rgb), 0.12);
+}
+
+.choiceCard:has(.choiceInput:focus-visible) {
+  outline: 2px solid rgb(var(--channel-secondary-rgb));
+  outline-offset: 2px;
+}
+
+.choiceCard:has(.choiceInput:disabled) {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.choiceInput {
+  position: absolute;
+  width: 1px !important;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.choiceIndicator {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(var(--channel-rgb), 0.44);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.86);
+  color: transparent;
+  font-size: 14px;
+  font-weight: 950;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.choiceInput:checked + .choiceIndicator {
+  background: linear-gradient(135deg, rgb(var(--channel-rgb)), rgb(var(--channel-secondary-rgb)));
+  color: #fff;
+  transform: scale(1.03);
+  box-shadow: 0 0 16px rgba(var(--channel-rgb), 0.3);
+}
+
+.choiceCopy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.choiceCopy strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.choiceCopy span {
+  color: rgba(226, 232, 240, 0.66);
+  font-size: 11.5px;
+  line-height: 1.38;
+}
+
+.inlineChoice {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 11px;
+  border: 1px solid rgba(var(--channel-rgb), 0.24);
+  border-radius: 999px;
+  background: rgba(var(--channel-rgb), 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .statusBar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stepCard {
+    border-radius: 18px;
+  }
+
+  .stepHeader {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 11px;
+    padding: 15px;
+  }
+
+  .stepStatus {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-left: 55px;
+  }
+
+  .stepBody {
+    padding: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepBody :is(input:not(.choiceInput), select, button, a) {
+    transition: none;
+  }
+}

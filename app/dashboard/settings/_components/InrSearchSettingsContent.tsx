@@ -1,14 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../../dashboard.module.css";
 import localStyles from "./InrSearchSettingsContent.module.css";
 import StatusMessage from "../../_components/StatusMessage";
 
 const INR_SEARCH_PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
+const INR_SEARCH_DIRECTORY_URL = "https://inrcy.com/annuaire/";
 
 function getRuntimeInrSearchOrigin() {
   if (typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
@@ -65,19 +64,6 @@ const EMPTY_SETTINGS: InrSearchSettings = {
 };
 
 const INR_SEARCH_PANEL_CACHE_PREFIX = "inrcy:inr-search-panel:";
-
-const cardStyle = {
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: 14,
-  padding: 14,
-  display: "grid",
-  gap: 10,
-  minWidth: 0,
-  maxWidth: "100%",
-  overflow: "hidden",
-  boxSizing: "border-box",
-} as const;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -184,12 +170,14 @@ function emitDashboardUpdate(settings: InrSearchSettings, publicationAllowed: bo
 }
 
 type InrSearchSettingsContentProps = {
+  active?: boolean;
   initialConnected?: boolean | null;
   initialPublicUrl?: string;
   initialDirectoryEnabled?: boolean | null;
 };
 
 export default function InrSearchSettingsContent({
+  active = true,
   initialConnected = null,
   initialPublicUrl = "",
   initialDirectoryEnabled = null,
@@ -210,6 +198,8 @@ export default function InrSearchSettingsContent({
   const [success, setSuccess] = useState<string | null>(null);
   const loadInFlightRef = useRef<Promise<void> | null>(null);
   const lastLoadStartedAtRef = useRef(0);
+  const mountedRef = useRef(true);
+  const [initialLoadBlocking] = useState(() => !initialSnapshot && initialConnected === null);
 
   const publicUrl = useMemo(
     () => settings.slug ? `${INR_SEARCH_PUBLIC_ORIGIN}/entreprises/${settings.slug}` : "",
@@ -225,8 +215,8 @@ export default function InrSearchSettingsContent({
 
     lastLoadStartedAtRef.current = Date.now();
     const request = (async () => {
-      if (blocking) setLoading(true);
-      setError(null);
+      if (blocking && mountedRef.current) setLoading(true);
+      if (mountedRef.current) setError(null);
       try {
         const response = await fetch("/api/inr-search/settings", { cache: "no-store", credentials: "include" });
         const payload = await response.json().catch(() => null);
@@ -251,6 +241,7 @@ export default function InrSearchSettingsContent({
           subscriptionStatus: typeof publicationValue.subscriptionStatus === "string" ? publicationValue.subscriptionStatus : undefined,
         };
 
+        if (!mountedRef.current) return;
         setSettings(next);
         setPublication(nextPublication);
         writePanelSnapshot(
@@ -259,9 +250,11 @@ export default function InrSearchSettingsContent({
         );
         emitDashboardUpdate(next, nextPublication.allowed);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Chargement de la page iNr'Search impossible.");
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : "Chargement de la page iNr'Search impossible.");
+        }
       } finally {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     })();
 
@@ -273,7 +266,15 @@ export default function InrSearchSettingsContent({
   }, []);
 
   useEffect(() => {
-    void load({ blocking: !initialSnapshot && initialConnected === null });
+    mountedRef.current = true;
+    void load({ blocking: initialLoadBlocking });
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [initialLoadBlocking, load]);
+
+  useEffect(() => {
+    if (!active) return;
     const refresh = () => {
       if (
         document.visibilityState === "visible" &&
@@ -288,7 +289,7 @@ export default function InrSearchSettingsContent({
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [initialConnected, initialSnapshot, load]);
+  }, [active, load]);
 
   const isPublished = Boolean(settings.enabled && settings.slug && publication.allowed);
   const hasPage = Boolean(settings.slug);
@@ -352,92 +353,128 @@ export default function InrSearchSettingsContent({
               : "La page est en cours de synchronisation automatique.";
 
   return (
-    <div className={localStyles.root} style={{ display: "grid", gap: 14 }}>
-      {error && feedbackAction !== "directory" ? <StatusMessage variant="error">{error}</StatusMessage> : null}
-      {success && feedbackAction !== "directory" ? <StatusMessage variant="success">{success}</StatusMessage> : null}
-
-      <div className={localStyles.card} style={{ ...cardStyle, gap: 12 }}>
-        <div className={localStyles.headerRow} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-          <div className={localStyles.headerCopy} style={{ display: "grid", gap: 5, flex: "1 1 280px" }}>
-            <div className={styles.blockTitle}>{i18nT("page_publique_inr_apos_search_31dc348f")}</div>
-            <div className={`${styles.smallMuted} ${localStyles.muted}`}>
-              {i18nT("inrcy_transforme_les_informations_du_professionn_1428bd4f")}{" "}</div>
-          </div>
-          <div className={localStyles.headerActions} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button type="button" aria-label={i18nT("comprendre_inr_search_a9cbbbdf")} onClick={() => setHelperOpen(true)} style={{ width: 30, height: 30, borderRadius: 999, border: "1px solid rgba(167,139,250,.55)", background: "rgba(99,102,241,.18)", color: "#ddd6fe", fontWeight: 950, cursor: "pointer" }}>?</button>
-            <span className={`${localStyles.statusPill}`} style={{ display: "inline-flex", alignItems: "center", gap: 7, minHeight: 30, padding: "0 11px", borderRadius: 999, border: `1px solid ${isPublished ? "rgba(34,197,94,.38)" : "rgba(148,163,184,.28)"}`, background: isPublished ? "rgba(34,197,94,.10)" : "rgba(148,163,184,.08)", color: isPublished ? "#86efac" : "rgba(226,232,240,.76)", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" }}>
-              <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, background: isPublished ? "#22c55e" : "#94a3b8" }} />
-              {publicationLabel}
-            </span>
-          </div>
-        </div>
-
-        <div className={localStyles.actionRow} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <button className={isPublished ? `${styles.actionBtn} ${styles.disconnectBtn}` : styles.primaryBtn} type="button" disabled={loading || actionLoading || !hasPage} onClick={() => { if (isPublished) setDisconnectConfirmOpen(true); else void performAction("connect"); }}>
-            {actionLoading && feedbackAction !== "directory" ? i18nT("mise_a_jour_e75ccbf3") : isPublished ? i18nT("deconnecter_9c1ef392") : i18nT("connecter_ca28e250")}
-          </button>
-          <span className={`${styles.smallMuted} ${localStyles.muted}`}>{isPublished ? i18nT("votre_page_est_publique_et_peut_010782c6") : i18nT("connectez_la_page_pour_activer_sa_032f8d6b")}</span>
-        </div>
+    <div className={localStyles.root}>
+      <div className={localStyles.feedbackStack}>
+        {error && feedbackAction !== "directory" ? <StatusMessage variant="error">{error}</StatusMessage> : null}
+        {success && feedbackAction !== "directory" ? <StatusMessage variant="success">{success}</StatusMessage> : null}
       </div>
 
-      <div className={localStyles.card} style={cardStyle}>
-        <div className={localStyles.headerRow} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-          <div className={localStyles.headerCopy} style={{ display: "grid", gap: 5 }}>
-            <div className={styles.blockTitle}>{i18nT("annuaire_public_inrcy_8ec958c2")}</div>
-            <div className={`${styles.smallMuted} ${localStyles.muted}`}>{i18nT("choisissez_si_votre_page_publique_doit_d0eb00aa")}</div>
+      <section className={`${localStyles.stepCard} ${localStyles.stepPublication}`} aria-labelledby="inrsearch-publication-title">
+        <span className={localStyles.stepAccent} aria-hidden="true" />
+        <header className={localStyles.stepHeader}>
+          <div className={localStyles.stepIdentity}>
+            <span className={localStyles.stepNumber} aria-hidden="true">1</span>
+            <div className={localStyles.stepCopy}>
+              <div className={localStyles.titleRow}>
+                <h2 id="inrsearch-publication-title" className={localStyles.stepTitle}>{i18nT("page_publique_inr_apos_search_31dc348f")}</h2>
+                <button className={localStyles.infoButton} type="button" aria-label={i18nT("comprendre_inr_search_a9cbbbdf")} onClick={() => setHelperOpen(true)}>?</button>
+              </div>
+              <p className={`${localStyles.stepDescription} ${localStyles.muted}`}>{i18nT("inrcy_transforme_les_informations_du_professionn_1428bd4f")}</p>
+            </div>
           </div>
-          <span style={{ color: settings.directoryEnabled && isPublished ? "#86efac" : "rgba(226,232,240,.68)", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" }}>{settings.directoryEnabled && isPublished ? i18nT("visible_dans_l_annuaire_855615a9") : i18nT("hors_annuaire_ca958aad")}</span>
+        </header>
+
+        <div className={localStyles.actionPanel}>
+          <p className={localStyles.actionHint}>{isPublished ? i18nT("votre_page_est_publique_et_peut_010782c6") : i18nT("connectez_la_page_pour_activer_sa_032f8d6b")}</p>
+          <button
+            className={isPublished ? `${styles.actionBtn} ${styles.disconnectBtn} ${localStyles.actionButton}` : `${styles.primaryBtn} ${localStyles.actionButton} ${localStyles.primaryAction}`}
+            type="button"
+            disabled={loading || actionLoading || !hasPage}
+            onClick={() => { if (isPublished) setDisconnectConfirmOpen(true); else void performAction("connect"); }}
+          >
+            {actionLoading && feedbackAction !== "directory" ? i18nT("mise_a_jour_e75ccbf3") : isPublished ? i18nT("deconnecter_9c1ef392") : i18nT("connecter_ca28e250")}
+          </button>
         </div>
-        <button className={localStyles.directoryButton} type="button" disabled={!isPublished || actionLoading} aria-pressed={Boolean(settings.directoryEnabled && isPublished)} onClick={() => void performAction("directory", !settings.directoryEnabled)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${settings.directoryEnabled && isPublished ? "rgba(34,197,94,.42)" : "rgba(255,255,255,.12)"}`, background: settings.directoryEnabled && isPublished ? "rgba(34,197,94,.10)" : "rgba(15,23,42,.52)", color: "inherit", textAlign: "left", cursor: isPublished ? "pointer" : "not-allowed", opacity: isPublished ? 1 : .62 }}>
-          <span className={localStyles.directoryCopy} style={{ display: "grid", gap: 3 }}>
-            <strong>{settings.directoryEnabled && isPublished ? i18nT("page_ajoutee_a_l_annuaire_inrcy_923e3fdf") : i18nT("ajouter_ma_page_a_l_annuaire_73afcfce")}</strong>
-            <span className={`${styles.smallMuted} ${localStyles.muted}`}>{isPublished ? i18nT("vous_pouvez_modifier_ce_choix_a_0a54d038") : i18nT("connectez_d_abord_votre_page_inr_4855e41c")}</span>
+
+        <div className={localStyles.statusSummary} data-active={isPublished ? "true" : "false"}>
+          <span className={localStyles.statusOrb} aria-hidden="true" />
+          <div className={localStyles.statusCopy}>
+            <strong>{publicationLabel}</strong>
+            <p>{loading ? i18nT("creation_et_synchronisation_en_cours_c4b272b0") : publicationMessage}</p>
+          </div>
+        </div>
+
+        {publicUrl ? (
+          <div className={localStyles.linkRow}>
+            <div className={localStyles.publicUrl}>{publicUrl}</div>
+            <div className={localStyles.addressActions}>
+              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => void load()} disabled={loading || actionLoading}>{loading ? i18nT("synchronisation_cc8ad3ae") : i18nT("actualiser_9d3b2a7d")}</button>
+              {isPublished ? <a className={`${styles.primaryBtn} ${localStyles.primaryAction}`} href={previewUrl} target="_blank" rel="noreferrer">{i18nT("voir_ma_page_60fa96b6")}</a> : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <section className={`${localStyles.stepCard} ${localStyles.stepDirectory}`} aria-labelledby="inrsearch-directory-title">
+        <span className={localStyles.stepAccent} aria-hidden="true" />
+        <header className={localStyles.stepHeader}>
+          <div className={localStyles.stepIdentity}>
+            <span className={localStyles.stepNumber} aria-hidden="true">2</span>
+            <div className={localStyles.stepCopy}>
+              <h2 id="inrsearch-directory-title" className={localStyles.stepTitle}>{i18nT("annuaire_public_inrcy_8ec958c2")}</h2>
+              <p className={`${localStyles.stepDescription} ${localStyles.muted}`}>{i18nT("choisissez_si_votre_page_publique_doit_d0eb00aa")}</p>
+            </div>
+          </div>
+          <span className={localStyles.directoryState} data-active={settings.directoryEnabled && isPublished ? "true" : "false"}>
+            {settings.directoryEnabled && isPublished ? i18nT("visible_dans_l_annuaire_855615a9") : i18nT("hors_annuaire_ca958aad")}
           </span>
-         <span aria-hidden style={{ width: 38, height: 22, padding: 3, borderRadius: 999, background: settings.directoryEnabled && isPublished ? "#22c55e" : "rgba(148,163,184,.28)", flex: "0 0 auto" }}><span style={{ display: "block", width: 16, height: 16, borderRadius: 999, background: "#fff", transform: settings.directoryEnabled && isPublished ? "translateX(16px)" : "translateX(0)", transition: "transform .18s ease" }} /></span>
+        </header>
+
+        <button
+          className={localStyles.directoryButton}
+          type="button"
+          disabled={!isPublished || actionLoading}
+          aria-pressed={Boolean(settings.directoryEnabled && isPublished)}
+          onClick={() => void performAction("directory", !settings.directoryEnabled)}
+        >
+          <span className={localStyles.directoryCopy}>
+            <strong>{settings.directoryEnabled && isPublished ? i18nT("page_ajoutee_a_l_annuaire_inrcy_923e3fdf") : i18nT("ajouter_ma_page_a_l_annuaire_73afcfce")}</strong>
+            <span>{isPublished ? i18nT("vous_pouvez_modifier_ce_choix_a_0a54d038") : i18nT("connectez_d_abord_votre_page_inr_4855e41c")}</span>
+          </span>
+          <span className={localStyles.switchTrack} data-active={settings.directoryEnabled && isPublished ? "true" : "false"} aria-hidden="true">
+            <span className={localStyles.switchThumb} />
+          </span>
         </button>
+
         {feedbackAction === "directory" && actionLoading ? (
-          <div role="status" aria-live="polite" className={`${styles.smallMuted} ${localStyles.muted}`} style={{ border: "1px solid rgba(167,139,250,.28)", borderRadius: 10, padding: "9px 11px", color: "#ddd6fe" }}>
-            {i18nT("mise_a_jour_de_votre_presence_75bb2ade")}{" "}</div>
+          <div role="status" aria-live="polite" className={localStyles.inlineFeedback}>{i18nT("mise_a_jour_de_votre_presence_75bb2ade")}</div>
         ) : null}
         {feedbackAction === "directory" && error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
         {feedbackAction === "directory" && success ? <StatusMessage variant="success">{success}</StatusMessage> : null}
-      </div>
 
-      <div className={localStyles.card} style={cardStyle}>
-        <div className={styles.blockTitle}>{i18nT("etat_de_publication_d44d3b4d")}</div>
-        <div className={`${styles.smallMuted} ${localStyles.muted}`}>{loading ? i18nT("creation_et_synchronisation_en_cours_c4b272b0") : publicationMessage}</div>
-      </div>
-
-      {publicUrl ? (
-        <div className={localStyles.card} style={cardStyle}>
-          <div className={styles.blockTitle}>{i18nT("adresse_publique_permanente_9b7a2483")}</div>
-          <div className={localStyles.publicUrl} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(15,23,42,0.62)", borderRadius: 12, padding: "10px 12px", overflowWrap: "anywhere" }}>{publicUrl}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-            <button className={styles.ghostBtn} type="button" onClick={() => void load()} disabled={loading || actionLoading}>{loading ? i18nT("synchronisation_cc8ad3ae") : i18nT("actualiser_9d3b2a7d")}</button>
-            {isPublished ? <a className={styles.primaryBtn} href={previewUrl} target="_blank" rel="noreferrer">{i18nT("voir_ma_page_60fa96b6")}</a> : null}
-          </div>
+        <div className={localStyles.directoryLinkRow}>
+          <span>Annuaire public iNrCy</span>
+          <a className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} href={INR_SEARCH_DIRECTORY_URL} target="_blank" rel="noreferrer">Voir l’annuaire</a>
         </div>
-      ) : null}
+      </section>
 
       {helperOpen ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="inrsearch-helper-title" style={{ position: "fixed", inset: 0, zIndex: 10050, display: "grid", placeItems: "center", padding: 20, boxSizing: "border-box", overflowX: "hidden", overflowY: "auto", background: "rgba(2,6,23,.76)" }}>
-          <div style={{ width: "min(680px, 100%)", margin: "auto", overflow: "hidden", border: "1px solid rgba(167,139,250,.35)", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, #111827, #0b1020)", boxShadow: "0 30px 80px rgba(0,0,0,.45)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><div id="inrsearch-helper-title" className={styles.blockTitle}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</div><button className={styles.ghostBtn} type="button" onClick={() => setHelperOpen(false)}>{i18nT("fermer_5ab4ec64")}</button></div>
-            <p className={`${styles.smallMuted} ${localStyles.muted}`} style={{ marginTop: 12 }}>{i18nT("inr_apos_search_transforme_automatiquement_les_99deb0af")}</p>
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-              {[ ["Référencement", "Titre, description, adresse et données structurées."], ["Moteurs IA", "Synthèse factuelle et source publique dédiée."], ["Activité", "Métier, prestations, clientèle et zones d’intervention."], ["Preuves", "Logo, photos, réalisations et publications disponibles."], ["iNr’Guide", "Réponses générées à partir des informations confirmées."], ["Conversion", "Téléphone, email, site, réseaux et formulaire de contact."] ].map(([title, text]) => <div key={title} style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 12, padding: 12, background: "rgba(15,23,42,.64)", display: "grid", gap: 4 }}><strong>{title}</strong><span className={`${styles.smallMuted} ${localStyles.muted}`}>{text}</span></div>)}
+        <div className={localStyles.dialogOverlay} role="dialog" aria-modal="true" aria-labelledby="inrsearch-helper-title">
+          <div className={localStyles.helperDialog}>
+            <div className={localStyles.dialogHeader}>
+              <div id="inrsearch-helper-title" className={styles.blockTitle}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</div>
+              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => setHelperOpen(false)}>{i18nT("fermer_5ab4ec64")}</button>
             </div>
-            <p className={`${styles.smallMuted} ${localStyles.muted}`} style={{ marginBottom: 0, marginTop: 14 }}>{i18nT("aucune_rubrique_n_est_a_recopier_76e710d2")}</p>
+            <p className={localStyles.dialogIntro}>{i18nT("inr_apos_search_transforme_automatiquement_les_99deb0af")}</p>
+            <div className={localStyles.helperGrid}>
+              {[["Référencement", "Titre, description, adresse et données structurées."], ["Moteurs IA", "Synthèse factuelle et source publique dédiée."], ["Activité", "Métier, prestations, clientèle et zones d’intervention."], ["Preuves", "Logo, photos, réalisations et publications disponibles."], ["iNr’Guide", "Réponses générées à partir des informations confirmées."], ["Conversion", "Téléphone, email, site, réseaux et formulaire de contact."]].map(([title, text]) => (
+                <div className={localStyles.helperItem} key={title}><strong>{title}</strong><span>{text}</span></div>
+              ))}
+            </div>
+            <p className={localStyles.dialogFooter}>{i18nT("aucune_rubrique_n_est_a_recopier_76e710d2")}</p>
           </div>
         </div>
       ) : null}
 
       {disconnectConfirmOpen ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="inrsearch-disconnect-title" style={{ position: "fixed", inset: 0, zIndex: 10051, display: "grid", placeItems: "center", padding: 20, background: "rgba(2,6,23,.78)" }}>
-          <div style={{ width: "min(520px, 100%)", border: "1px solid rgba(248,113,113,.38)", borderRadius: 18, padding: 20, background: "#11131b", boxShadow: "0 30px 80px rgba(0,0,0,.48)" }}>
+        <div className={localStyles.dialogOverlay} role="dialog" aria-modal="true" aria-labelledby="inrsearch-disconnect-title">
+          <div className={`${localStyles.confirmDialog} ${localStyles.dangerDialog}`}>
             <div id="inrsearch-disconnect-title" className={styles.blockTitle}>{i18nT("deconnecter_votre_page_inr_apos_search_c5a16ef8")}</div>
-            <p className={`${styles.smallMuted} ${localStyles.muted}`} style={{ lineHeight: 1.6 }}>{i18nT("votre_page_sera_retiree_de_l_f8ed5e53")}</p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}><button className={styles.ghostBtn} type="button" onClick={() => setDisconnectConfirmOpen(false)}>{i18nT("annuler_49ba3292")}</button><button className={`${styles.actionBtn} ${styles.disconnectBtn}`} type="button" onClick={() => { setDisconnectConfirmOpen(false); void performAction("disconnect"); }}>{i18nT("deconnecter_quand_meme_dcf686d8")}</button></div>
+            <p className={localStyles.dialogIntro}>{i18nT("votre_page_sera_retiree_de_l_f8ed5e53")}</p>
+            <div className={localStyles.confirmActions}>
+              <button className={`${styles.ghostBtn} ${localStyles.secondaryAction}`} type="button" onClick={() => setDisconnectConfirmOpen(false)}>{i18nT("annuler_49ba3292")}</button>
+              <button className={`${styles.actionBtn} ${styles.disconnectBtn} ${localStyles.actionButton}`} type="button" onClick={() => { setDisconnectConfirmOpen(false); void performAction("disconnect"); }}>{i18nT("deconnecter_quand_meme_dcf686d8")}</button>
+            </div>
           </div>
         </div>
       ) : null}

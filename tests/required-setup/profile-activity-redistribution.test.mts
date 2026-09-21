@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { evaluateDashboardRequiredSetupCompletion } from "../../lib/dashboardCompletion.ts";
+import { evaluateDashboardPreparationCompletion } from "../../lib/dashboardCompletion.ts";
 
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
@@ -24,11 +24,11 @@ const completeActivity = {
 
 test("completion requires coordinates plus sector and profession, but no DNA enrichment", () => {
   assert.equal(
-    evaluateDashboardRequiredSetupCompletion(completeProfile, completeActivity).completed,
+    evaluateDashboardPreparationCompletion(completeProfile, completeActivity).completed,
     true,
   );
   assert.equal(
-    evaluateDashboardRequiredSetupCompletion(completeProfile, {
+    evaluateDashboardPreparationCompletion(completeProfile, {
       ...completeActivity,
       opening_days: "",
       opening_hours: "",
@@ -42,7 +42,7 @@ test("completion requires coordinates plus sector and profession, but no DNA enr
 
   for (const field of Object.keys(completeProfile)) {
     assert.equal(
-      evaluateDashboardRequiredSetupCompletion(
+      evaluateDashboardPreparationCompletion(
         { ...completeProfile, [field]: "" },
         completeActivity,
       ).completed,
@@ -52,11 +52,11 @@ test("completion requires coordinates plus sector and profession, but no DNA enr
   }
 
   assert.equal(
-    evaluateDashboardRequiredSetupCompletion(completeProfile, { sector: "" }).completed,
+    evaluateDashboardPreparationCompletion(completeProfile, { sector: "" }).completed,
     false,
   );
   assert.equal(
-    evaluateDashboardRequiredSetupCompletion(completeProfile, {
+    evaluateDashboardPreparationCompletion(completeProfile, {
       sector: "[[SECTOR:communication]]",
     }).completed,
     false,
@@ -93,10 +93,11 @@ test("the browser completion cache is versioned with the redistributed required 
 
   assert.match(
     completionHook,
-    /COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v2"/,
+    /COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v3"/,
   );
   assert.match(browserCache, /"inrcy_dashboard_completion_state_v1"/);
   assert.match(browserCache, /"inrcy_dashboard_completion_state_v2"/);
+  assert.match(browserCache, /"inrcy_dashboard_completion_state_v3"/);
 });
 
 test("profile save rejects a missing sector or profession before persistence and success", () => {
@@ -161,10 +162,12 @@ test("Encaisser and the generator keep the exact historical database columns", (
   assert.match(generator, /lead_conversion_rate: normalized\.conversionRate/);
 });
 
-test("profile and activity are grouped into one dedicated full-page profile tool", () => {
+test("profile and activity live inside Business DNA without becoming an access gate", () => {
   const content = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const combined = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
-  const page = read("app/dashboard/mon-profil/page.tsx");
+  const legacyProfilePage = read("app/dashboard/mon-profil/page.tsx");
+  const dnaPage = read("app/dashboard/adn-entreprise/page.tsx");
+  const dnaContent = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
   const activity = read("app/dashboard/settings/_components/ActivityContent.tsx");
   const menu = read("app/dashboard/_components/UserMenu.tsx");
@@ -172,17 +175,22 @@ test("profile and activity are grouped into one dedicated full-page profile tool
   const drawer = read("app/dashboard/SettingsDrawer.tsx");
 
   assert.doesNotMatch(content, /<ProfileAndActivityContent/);
-  assert.match(page, /data-profile-workspace-page/);
-  assert.match(page, /<ProfileAndActivityContent/);
-  assert.match(routing, /"\/dashboard\/mon-profil"/);
+  assert.match(legacyProfilePage, /redirect\(`\/dashboard\/adn-entreprise\?tab=\$\{tab\}`\)/);
+  assert.match(dnaPage, /"profile"/);
+  assert.match(dnaPage, /"activity"/);
+  assert.match(dnaPage, /<AiMemoryContent/);
+  assert.match(dnaPage, /onProfileSaved=/);
+  assert.match(dnaPage, /onActivitySaved=/);
+  assert.match(routing, /"\/dashboard\/adn-entreprise\?tab=profile"/);
+  assert.match(routing, /"\/dashboard\/adn-entreprise\?tab=activity"/);
+  assert.match(dnaContent, /data-ai-memory-tab="profile"/);
+  assert.match(dnaContent, /data-ai-memory-tab="activity-foundation"/);
   assert.match(combined, /data-profile-block="general"/);
   assert.equal((combined.match(/data-profile-block=/g) || []).length, 1);
   assert.match(combined, /data-profile-segment="identity"/);
   assert.match(combined, /data-profile-segment="activity"/);
   assert.ok(combined.indexOf('data-profile-segment="identity"') < combined.indexOf('data-profile-segment="activity"'));
   assert.doesNotMatch(combined, /onOpenAiMemory/);
-  assert.match(page, /navigate\("\/dashboard\/adn-entreprise"\)/);
-  assert.match(page, /navigate\("\/dashboard\/configuration-ia"\)/);
   assert.match(combined, /<ProfilContent[\s\S]*showActions=\{false\}/);
   assert.match(combined, /<ActivityContent[\s\S]*showActions=\{false\}/);
   assert.match(combined, /handleSaveAll/);
@@ -192,5 +200,6 @@ test("profile and activity are grouped into one dedicated full-page profile tool
   assert.doesNotMatch(menu, /closeAndOpen\("activite"\)/);
   assert.doesNotMatch(content, /guidedOnboarding|onOnboarding/);
   assert.doesNotMatch(client, /guidedOnboarding|onboardingProgress/);
+  assert.doesNotMatch(client, /RequiredSetupLock|openRequiredSetupPanel/);
   assert.doesNotMatch(drawer, /presentation.*onboarding|contentDirection/);
 });

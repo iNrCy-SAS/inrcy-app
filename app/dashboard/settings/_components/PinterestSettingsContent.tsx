@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 
 
@@ -12,21 +13,14 @@ import {
   writePinterestBoardUiCache,
 } from "@/lib/pinterestUiSessionCache";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 
 import styles from "../../dashboard.module.css";
 import ConnectionPill from "../../_components/ConnectionPill";
 import StatusMessage from "../../_components/StatusMessage";
-
-const cardStyle = {
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: 14,
-  padding: 12,
-  display: "grid",
-  gap: 10,
-} as const;
+import ChannelSettingsStep from "./ChannelSettingsStep";
+import guideStyles from "./ChannelSettingsSteps.module.css";
 
 const inputStyle = {
   width: "100%",
@@ -302,6 +296,8 @@ function emitDashboardUpdate(settings: PinterestSettings) {
 
 export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsavedChange?: (hasUnsavedChanges: boolean) => void }) {
   const i18nT = useTranslations("settings");
+  const mountedRef = useRef(true);
+  const pendingDashboardUpdateRef = useRef(false);
   const [settings, setSettings] = useState<PinterestSettings>(() =>
     getInitialPinterestSettings(),
   );
@@ -340,18 +336,28 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         ? await statusResponse.json().catch(() => null)
         : null;
 
+      if (!mountedRef.current) return;
+      pendingDashboardUpdateRef.current = true;
       setSettings((current) => {
         const nextSettings = mergeSettings(current, status);
         cachePinterestSettings(nextSettings);
-        emitDashboardUpdate(nextSettings);
         return nextSettings;
       });
     } catch (err) {
       console.warn("[pinterest-settings] load failed", err);
-      setError(i18nT("chargement_des_reglages_pinterest_impossible_d9ba9660"));
+      if (mountedRef.current) {
+        setError(i18nT("chargement_des_reglages_pinterest_impossible_d9ba9660"));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -360,6 +366,9 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
 
   useEffect(() => {
     cachePinterestSettings(settings);
+    if (!pendingDashboardUpdateRef.current) return;
+    pendingDashboardUpdateRef.current = false;
+    emitDashboardUpdate(settings);
   }, [settings]);
 
   useEffect(() => {
@@ -426,10 +435,10 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       })
       .then((status) => {
         if (cancelled || !status?.ok) return;
+        pendingDashboardUpdateRef.current = true;
         setSettings((current) => {
           const nextSettings = mergeSettings(current, status);
           cachePinterestSettings(nextSettings);
-          emitDashboardUpdate(nextSettings);
           return nextSettings;
         });
       })
@@ -461,6 +470,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         throw new Error(
           String(json?.error || "Création du tableau impossible."),
         );
+      if (!mountedRef.current) return;
       const createdBoard = asBoard(json?.board);
       const defaultBoardId = String(json?.defaultBoardId || "").trim();
       if (createdBoard) {
@@ -489,13 +499,15 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       setNotice(i18nT("tableau_value_cree_sur_pinterest_7d83f856", { value0: name }));
     } catch (err) {
       console.warn("[pinterest-settings] board create failed", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Création du tableau Pinterest impossible.",
-      );
+      if (mountedRef.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Création du tableau Pinterest impossible.",
+        );
+      }
     } finally {
-      setBoardAction(null);
+      if (mountedRef.current) setBoardAction(null);
     }
   }, [newBoardName]);
 
@@ -536,6 +548,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
           throw new Error(
             String(json?.error || "Modification du tableau impossible."),
           );
+        if (!mountedRef.current) return;
         const updatedBoard = asBoard(json?.board) || { ...board, name };
         rememberBoardMutation(recentRenamedBoards, board.id, updatedBoard);
         setSettings((current) => ({
@@ -549,13 +562,15 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         setNotice(i18nT("tableau_renomme_value_dc8dea92", { value0: name }));
       } catch (err) {
         console.warn("[pinterest-settings] board rename failed", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Modification du tableau Pinterest impossible.",
-        );
+        if (mountedRef.current) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Modification du tableau Pinterest impossible.",
+          );
+        }
       } finally {
-        setBoardAction(null);
+        if (mountedRef.current) setBoardAction(null);
       }
     },
     [editingBoardName],
@@ -571,7 +586,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         cancelLabel: i18nT("annuler_49ba3292"),
         variant: "danger",
       });
-      if (!confirmed) return;
+      if (!mountedRef.current || !confirmed) return;
 
       setBoardAction(`delete:${board.id}`);
       setNotice(null);
@@ -588,6 +603,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
           throw new Error(
             String(json?.error || "Suppression du tableau impossible."),
           );
+        if (!mountedRef.current) return;
         rememberBoardMutation(recentDeletedBoards, board.id);
         if (editingBoardId === board.id) {
           setEditingBoardId(null);
@@ -605,13 +621,15 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         setNotice(i18nT("tableau_value_supprime_de_pinterest_bc6dcc3c", { value0: board.name }));
       } catch (err) {
         console.warn("[pinterest-settings] board delete failed", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Suppression du tableau Pinterest impossible.",
-        );
+        if (mountedRef.current) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Suppression du tableau Pinterest impossible.",
+          );
+        }
       } finally {
-        setBoardAction(null);
+        if (mountedRef.current) setBoardAction(null);
       }
     },
     [editingBoardId],
@@ -630,17 +648,20 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json?.ok)
         throw new Error(String(json?.error || "Enregistrement impossible."));
+      if (!mountedRef.current) return;
       setSettings((current) => ({ ...current, defaultBoardId: board.id }));
       setNotice(i18nT("value_est_maintenant_le_tableau_par_309d14f4", { value0: board.name }));
     } catch (err) {
       console.warn("[pinterest-settings] default board failed", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Enregistrement du tableau par défaut impossible.",
-      );
+      if (mountedRef.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Enregistrement du tableau par défaut impossible.",
+        );
+      }
     } finally {
-      setBoardAction(null);
+      if (mountedRef.current) setBoardAction(null);
     }
   }, []);
 
@@ -658,7 +679,9 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       if (!response.ok || !json?.ok) {
         throw new Error(String(json?.error || "Enregistrement du lien Pinterest impossible."));
       }
+      if (!mountedRef.current) return;
       const publicProfileUrl = String(json.publicProfileUrl || "");
+      pendingDashboardUpdateRef.current = true;
       setSettings((current) => {
         const next = {
           ...current,
@@ -666,15 +689,16 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
           profileUrl: publicProfileUrl || current.profileUrl,
         };
         cachePinterestSettings(next);
-        emitDashboardUpdate(next);
         return next;
       });
       setProfileLinkDraft(publicProfileUrl);
       setNotice(publicProfileUrl ? "Lien public Pinterest enregistré." : "Lien public Pinterest supprimé.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Enregistrement du lien Pinterest impossible.");
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : "Enregistrement du lien Pinterest impossible.");
+      }
     } finally {
-      setSavingProfileLink(false);
+      if (mountedRef.current) setSavingProfileLink(false);
     }
   }, [profileLinkDraft]);
 
@@ -689,6 +713,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json?.ok)
         throw new Error(String(json?.error || "Déconnexion impossible."));
+      if (!mountedRef.current) return;
       const nextSettings = {
         ...settings,
         connected: false,
@@ -708,9 +733,11 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       setNotice(i18nT("pinterest_deconnecte_72f1ef65"));
     } catch (err) {
       console.warn("[pinterest-settings] disconnect failed", err);
-      setError(i18nT("deconnexion_pinterest_impossible_199f4e79"));
+      if (mountedRef.current) {
+        setError(i18nT("deconnexion_pinterest_impossible_199f4e79"));
+      }
     } finally {
-      setSyncing(false);
+      if (mountedRef.current) setSyncing(false);
     }
   }, [settings]);
 
@@ -723,53 +750,14 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       : settings.accountConnected
         ? "Connecté"
         : "À connecter";
-  const statusColor = settings.requiresUpdate
-    ? "rgba(251,146,60,0.95)"
-    : settings.accountConnected
-    ? "rgba(34,197,94,0.95)"
-    : loading
-      ? "rgba(250,204,21,0.95)"
-      : "rgba(148,163,184,0.9)";
-
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(15,23,42,0.65)",
-            padding: "8px 10px",
-            borderRadius: 999,
-            color: "rgba(255,255,255,0.92)",
-            fontSize: 13,
-          }}
-        >
-          <span
-            aria-hidden
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              background: statusColor,
-            }}
-          />
-          {i18nT("statut_b20e7fc2")}{" "}<strong>{statusLabel}</strong>
-        </span>
-      </div>
-
-      <section style={cardStyle}>
-        <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
+    <div className={guideStyles.steps}>
+      <ChannelSettingsStep
+        step={1}
+        accent="pinterest"
+        title={i18nT("compte_connecte_a442afe1")}
+        description={i18nT("connectez_le_compte_pinterest_utilise_pour_b841b241")}
+        status={
           <ConnectionPill
             connected={settings.accountConnected}
             label={
@@ -778,40 +766,71 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
                 : undefined
             }
           />
-        </div>
-        <div className={styles.blockSub}>
-          {i18nT("connectez_le_compte_pinterest_utilise_pour_b841b241")}{" "}</div>
+        }
+      >
+        <div className={guideStyles.compactActionLine}>
+          <div className={guideStyles.accountSurface}>
+            <Image
+              className={guideStyles.channelIcon}
+              src="/icons/pinterest-logo-128.png"
+              width={46}
+              height={46}
+              alt=""
+              aria-hidden="true"
+            />
+            <div className={guideStyles.accountCopy}>
+              <strong>
+                {settings.accountConnected
+                  ? settings.accountName || settings.username || "Compte Pinterest connecté"
+                  : "Aucun compte connecté"}
+              </strong>
+              <span>
+                {i18nT("statut_b20e7fc2")} <b>{statusLabel}</b>
+              </span>
+            </div>
+          </div>
 
-        <div style={{ display: "grid", gap: 8 }}>
-          <input
-            style={{
-              ...inputStyle,
-              opacity: settings.accountConnected ? 1 : 0.8,
-            }}
-            value={
-              settings.accountConnected
-                ? settings.accountName ||
-                  settings.username ||
-                  "Compte Pinterest connecté"
-                : ""
-            }
-            readOnly
-            placeholder={
-              settings.accountConnected
-                ? "Compte Pinterest connecté"
-                : "Aucun compte connecté"
-            }
-            disabled={loading || !settings.accountConnected}
-          />
+          <div className={`${guideStyles.actionRow} ${guideStyles.pinterestConnectionActions}`}>
+            {!settings.accountConnected ? (
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.connectBtn}`}
+                onClick={connectPinterest}
+                disabled={loading || syncing}
+              >
+                {syncing ? i18nT("connexion_7adf849f") : i18nT("connecter_pinterest_05788f6c")}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.secondaryBtn}`}
+                  onClick={connectPinterest}
+                  disabled={loading || syncing}
+                >
+                  {i18nT("reconnecter_823c9e87")}{" "}</button>
+                <button
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.disconnectBtn}`}
+                  onClick={disconnectPinterest}
+                  disabled={syncing}
+                >
+                  {syncing ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {settings.accountConnected ? (
-          <div style={{ display: "grid", gap: 7 }}>
-            <label style={{ color: "rgba(255,255,255,0.88)", fontSize: 13, fontWeight: 750 }}>
+          <div className={guideStyles.inlineSection}>
+            <label className={guideStyles.fieldLabel} htmlFor="pinterest-profile-url">
               {i18nT("lien_public_de_votre_profil_pinterest_40c8dbbe")}{" "}</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div className={guideStyles.actionRow}>
               <input
-                style={{ ...inputStyle, flex: "1 1 280px" }}
+                id="pinterest-profile-url"
+                className={guideStyles.control}
+                style={inputStyle}
                 value={profileLinkDraft}
                 onChange={(event) => setProfileLinkDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -830,67 +849,22 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
                 className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.connectBtn}`}
                 onClick={() => void savePublicProfileUrl()}
                 disabled={savingProfileLink || loading}
-                style={{ flex: "0 0 auto" }}
               >
                 {savingProfileLink ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_le_lien_147106ab")}
               </button>
-            </div>
-            <small style={{ color: "rgba(255,255,255,0.58)", fontSize: 12 }}>
-              {i18nT("ce_lien_est_deduit_automatiquement_du_fa27ff3a")}{" "}</small>
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "nowrap",
-            alignItems: "center",
-            overflowX: "auto",
-          }}
-        >
-          {!settings.accountConnected ? (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.connectBtn}`}
-              onClick={connectPinterest}
-              disabled={loading || syncing}
-            >
-              {syncing ? i18nT("connexion_7adf849f") : i18nT("connecter_pinterest_05788f6c")}
-            </button>
-          ) : (
-            <>
               {settings.profileUrl ? (
                 <a
                   href={settings.profileUrl}
                   target="_blank"
                   rel="noreferrer"
                   className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.viewBtn}`}
-                  style={{ flex: "0 0 auto" }}
                 >
                   {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
               ) : null}
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.secondaryBtn}`}
-                onClick={connectPinterest}
-                disabled={loading || syncing}
-                style={{ flex: "0 0 auto" }}
-              >
-                {i18nT("reconnecter_823c9e87")}{" "}</button>
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.disconnectBtn}`}
-                onClick={disconnectPinterest}
-                disabled={syncing}
-                style={{ flex: "0 0 auto" }}
-              >
-                {syncing ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
-              </button>
-            </>
-          )}
-        </div>
-      </section>
+            </div>
+          </div>
+        ) : null}
+      </ChannelSettingsStep>
 
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
       {notice ? (
@@ -898,10 +872,13 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       ) : null}
 
       {settings.accountConnected ? (
-        <section style={cardStyle}>
-          <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>{i18nT("mes_tableaux_pinterest_b7d9585a")}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <ChannelSettingsStep
+          step={2}
+          accent="pinterest"
+          title={i18nT("mes_tableaux_pinterest_b7d9585a")}
+          description={i18nT("gerez_ici_vos_tableaux_les_actions_443e4562")}
+          status={
+            <div className={guideStyles.actionRow}>
               <button
                 type="button"
                 className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.secondaryBtn}`}
@@ -915,19 +892,11 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
               </button>
               <ConnectionPill connected={settings.accountConnected} />
             </div>
-          </div>
-          <div className={styles.blockSub}>
-            {i18nT("gerez_ici_vos_tableaux_les_actions_443e4562")}{" "}</div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
+          }
+        >
+          <div className={guideStyles.actionRow}>
             <input
+              className={guideStyles.control}
               style={{ ...inputStyle, flex: "1 1 260px" }}
               value={newBoardName}
               onChange={(event) => setNewBoardName(event.target.value)}
@@ -939,6 +908,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
               }}
               maxLength={180}
               placeholder={i18nT("nom_du_nouveau_tableau_ecd5a307")}
+              aria-label={i18nT("nom_du_nouveau_tableau_ecd5a307")}
               disabled={Boolean(boardAction) || syncing || loading}
             />
             <button
@@ -957,9 +927,8 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
           </div>
 
           <div
+            className={guideStyles.boardList}
             style={{
-              display: "grid",
-              gap: 8,
               maxHeight: boardOptions.length >= 5 ? 360 : undefined,
               overflowY: boardOptions.length >= 5 ? "auto" : "visible",
               overscrollBehavior: "contain",
@@ -988,6 +957,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
                 return (
                   <div
                     key={board.id}
+                    className={guideStyles.boardCard}
                     style={{
                       border: "1px solid rgba(255,255,255,0.10)",
                       background: "rgba(15,23,42,0.45)",
@@ -998,15 +968,9 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
                     }}
                   >
                     {isEditing ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
+                      <div className={guideStyles.actionRow}>
                         <input
+                          className={guideStyles.control}
                           style={{ ...inputStyle, flex: "1 1 240px" }}
                           value={editingBoardName}
                           onChange={(event) =>
@@ -1023,6 +987,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
                             }
                           }}
                           maxLength={180}
+                          aria-label={`${i18nT("renommer_8e8a86e8")} ${board.name}`}
                           autoFocus
                           disabled={isRenaming}
                         />
@@ -1139,7 +1104,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
               })
             )}
           </div>
-        </section>
+        </ChannelSettingsStep>
       ) : null}
     </div>
   );

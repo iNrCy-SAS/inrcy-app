@@ -36,7 +36,7 @@ export type DashboardSectionCompletion<Field extends string> = {
   missingFields: Field[];
 };
 
-export type DashboardRequiredSetupCompletion = {
+export type DashboardPreparationCompletion = {
   profile: DashboardSectionCompletion<DashboardProfileCompletionField>;
   activity: DashboardSectionCompletion<DashboardActivityCompletionField>;
   completed: boolean;
@@ -83,10 +83,10 @@ export function evaluateDashboardActivityCompletion(
   };
 }
 
-export function evaluateDashboardRequiredSetupCompletion(
+export function evaluateDashboardPreparationCompletion(
   profile: Record<string, unknown> | null | undefined,
   business: Record<string, unknown> | null | undefined,
-): DashboardRequiredSetupCompletion {
+): DashboardPreparationCompletion {
   const profileCompletion = evaluateDashboardProfileCompletion(profile);
   const activityCompletion = evaluateDashboardActivityCompletion(business);
   const missingSections: DashboardCompletionSection[] = [];

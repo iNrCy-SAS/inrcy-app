@@ -68,6 +68,7 @@
   },
   "drawer": {
     "close": "Sluiten",
+    "allChannels": "Alle kanalen",
     "titles": {
       "contact": "Contact",
       "compte": "iNrCytizen account",
@@ -104,6 +105,35 @@
     "powerDialogAria": "Generator power detail",
     "powerPanelTitle": "Power detail",
     "kicker": "Uw iNrCy cockpit",
+    "cockpitTitle": "Uw cockpit",
+    "cockpitShortTitle": "Cockpit",
+    "inertiaPower": "Traagheidskracht",
+    "connectStep": "Verbinden",
+    "enrichStep": "Verrijken",
+    "configureStep": "Instellen",
+    "channelsStepLabel": "Actieve kanalen",
+    "dnaStepLabel": "Bedrijfs-DNA",
+    "aiStepLabel": "Mijn AI configureren",
+    "channelsInfoAria": "Het vermogensoverzicht van de kanalen bekijken",
+    "channelsInfoTitle": "Vermogen van de 11 kanalen",
+    "channelsInfoHint": "Elk kanaal levert zijn eigen aandeel. De 11 bijdragen vormen samen precies 100%.",
+    "dnaInfoAria": "De DNA-score begrijpen",
+    "dnaInfoTitle": "Gepersonaliseerde content",
+    "dnaInfoHint": "Hoe completer uw iNr’DNA, hoe persoonlijker en beter afgestemd op uw bedrijf de AI-content wordt.",
+    "aiInfoAria": "De AI-personalisatiescore begrijpen",
+    "aiInfoTitle": "Waarom mijn AI configureren?",
+    "aiInfoHint": "Door uw AI te configureren wordt deze effectiever en sluit het taalgebruik beter aan bij uw bedrijf.",
+    "channelOverviewTitle": "Mijn kanalen verbinden",
+    "channelColumn": "Kanaal",
+    "powerColumn": "Vermogen",
+    "powerInfoAria": "Meer informatie over het vermogen van een kanaal",
+    "powerInfoTitle": "Het vermogen van een kanaal",
+    "powerInfoText": "Het vermogen meet de bijdrage van elk kanaal aan uw zichtbaarheid en het genereren van contacten. Hoe hoger het percentage, hoe belangrijker dit kanaal is om potentiële klanten aan te trekken.",
+    "statusColumn": "Status",
+    "configureColumn": "Instellen",
+    "stateColumn": "Verbinding",
+    "createColumn": "Maken",
+    "createdLabel": "Aangemaakt",
     "expandCockpitAria": "Uw iNrCy-cockpit uitklappen",
     "collapseCockpitAria": "Uw iNrCy-cockpit inklappen",
     "title": "Generator live!",
@@ -209,7 +239,6 @@
     "connectedAria": "kanalen verbonden van"
   },
   "modules": {
-    "requiredSetupLocked": "Vul uw profiel aan om deze tool te ontgrendelen.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Sturing",
     "statsSub": "Al uw leads zichtbaar",
@@ -351,6 +380,7 @@
   "bubble": {
     "viewFallback": "Bekijken",
     "configure": "Instellen",
+    "create": "Maken",
     "disabled": "Optie uit",
     "open": "Openen"
   },
@@ -373,16 +403,15 @@
   },
   "setupAlert": {
     "eyebrow": "Account instellen",
-    "title": "5 stappen om goed te beginnen",
+    "title": "4 stappen om goed te beginnen",
     "bothIncomplete": "Volg ze op volgorde om iNrCy optimaal te benutten.",
     "profileIncomplete": "Volg ze op volgorde om iNrCy optimaal te benutten.",
     "activityIncomplete": "Volg ze op volgorde om iNrCy optimaal te benutten.",
-    "stepProfile": "Vul uw profiel aan",
-    "stepChannels": "Koppel uw kanalen",
-    "stepDna": "Vul uw iNr’ADN automatisch of handmatig in",
-    "stepAi": "Configureer uw AI",
-    "stepFirstPublication": "Maak uw eerste publicatie",
-    "confirm": "Mijn profiel aanvullen",
+    "stepChannels": "Mijn kanalen koppelen",
+    "stepDna": "Het DNA van mijn bedrijf verrijken",
+    "stepAi": "Mijn AI configureren",
+    "stepFirstPublication": "Publiceren",
+    "confirm": "Mijn kanalen koppelen",
     "cancel": "Later"
   },
   "profilePanel": {
@@ -651,9 +680,6 @@
     "exitWithoutSavingMessage": "Dit venster bevat niet-opgeslagen wijzigingen. Als je het nu sluit, gaan deze verloren.",
     "closeWithoutSaving": "Sluiten zonder opslaan",
     "continueEditing": "Doorgaan met bewerken"
-  },
-  "requiredSetup": {
-    "loading": "Configuratie vereist…"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector en beroep",
