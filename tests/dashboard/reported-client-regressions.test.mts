@@ -57,6 +57,24 @@ test("le widget Actus propose un composant React et Next.js auto-redimensionné"
   assert.match(messages, /frame-src https:\/\/app\.inrcy\.com/);
 });
 
+test("le thème gris clair du widget Actus garde des accents entièrement neutres", () => {
+  const component = read("app/dashboard/_components/SiteActusWidgetCode.tsx");
+  const route = read("app/embed/actus/route.ts");
+  const embed = read("app/embed/actus/_lib/render.ts");
+  const grayPalette = embed.match(/case "gray":[\s\S]*?case "sand":/)?.[0] ?? "";
+
+  assert.match(component, /embedUrl\.searchParams\.set\("theme", config\.theme\)/);
+  assert.match(component, /config\.theme === "custom" \? normalizeActusAccent\(config\.accent\) : ""/);
+  assert.match(route, /const theme = clampTheme\(searchParams\.get\("theme"\)\)/);
+  assert.match(route, /const accent = clampAccent\(searchParams\.get\("accent"\)\)/);
+  assert.match(route, /"cache-control": "private, no-store, max-age=0"/);
+  assert.match(grayPalette, /bg: "#f4f5f6"/);
+  assert.match(grayPalette, /brand: "#6b7280"/);
+  assert.match(grayPalette, /brandDeep: "#374151"/);
+  assert.doesNotMatch(grayPalette, /#62d56a|#1f6a32/i);
+  assert.match(embed, /const brand = safeAccent \|\| palette\.brand/);
+});
+
 test("l'émission d'un jeton accepte le dashboard same-origin sans affaiblir l'authentification", () => {
   const route = read("app/api/widgets/issue-token/route.ts");
 
