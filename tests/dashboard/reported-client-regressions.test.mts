@@ -72,7 +72,7 @@ test("le thème gris clair du widget Actus garde des accents entièrement neutre
   assert.match(grayPalette, /brand: "#6b7280"/);
   assert.match(grayPalette, /brandDeep: "#374151"/);
   assert.doesNotMatch(grayPalette, /#62d56a|#1f6a32/i);
-  assert.match(embed, /const brand = safeAccent \|\| palette\.brand/);
+  assert.match(embed, /const brand = palette\.brand/);
 });
 
 test("un rafraîchissement des connexions ne réinitialise pas la couleur du widget Actus", () => {
@@ -88,6 +88,22 @@ test("un rafraîchissement des connexions ne réinitialise pas la couleur du wid
   );
   assert.match(dashboard, /siteInrcyActusAccent:\s*""/);
   assert.match(dashboard, /siteWebActusAccent:\s*""/);
+});
+
+test("la couleur personnalisée pilote toute la palette de l'iframe Actus", () => {
+  const embed = read("app/embed/actus/_lib/render.ts");
+  const customPalette = embed.match(/case "custom": \{[\s\S]*?case "nature":/)?.[0] ?? "";
+
+  assert.match(embed, /function buildCustomThemePalette\(accent: string\): ThemePalette \| null/);
+  assert.match(customPalette, /buildCustomThemePalette\(accent\)/);
+  assert.match(embed, /bg: mixHexColor\(color, white, 0\.9\)/);
+  assert.match(embed, /surfaceSoft: mixHexColor\(color, white, 0\.94\)/);
+  assert.match(embed, /brand: accent/);
+  assert.match(
+    embed,
+    /const safeAccent =[\s\S]*?const palette = getThemePalette\(theme, safeAccent\)/,
+  );
+  assert.doesNotMatch(customPalette, /#6bd05f|#214f24/i);
 });
 
 test("l'émission d'un jeton accepte le dashboard same-origin sans affaiblir l'authentification", () => {

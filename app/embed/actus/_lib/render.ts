@@ -309,7 +309,63 @@ function getDesignSettings(design: DesignMode | undefined, legacyFont: FontMode)
   }
 }
 
-function getThemePalette(mode: ThemeMode): ThemePalette {
+type RgbColor = { r: number; g: number; b: number };
+
+function parseHexColor(value: string): RgbColor | null {
+  const match = /^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i.exec(value.trim());
+  if (!match) return null;
+  return {
+    r: Number.parseInt(match[1], 16),
+    g: Number.parseInt(match[2], 16),
+    b: Number.parseInt(match[3], 16),
+  };
+}
+
+function toHexColor({ r, g, b }: RgbColor) {
+  const channel = (value: number) => Math.round(value).toString(16).padStart(2, "0");
+  return `#${channel(r)}${channel(g)}${channel(b)}`.toUpperCase();
+}
+
+function mixHexColor(color: RgbColor, target: RgbColor, targetWeight: number) {
+  const weight = Math.min(1, Math.max(0, targetWeight));
+  return toHexColor({
+    r: color.r * (1 - weight) + target.r * weight,
+    g: color.g * (1 - weight) + target.g * weight,
+    b: color.b * (1 - weight) + target.b * weight,
+  });
+}
+
+function rgbaColor(color: RgbColor, alpha: number) {
+  return `rgba(${color.r},${color.g},${color.b},${alpha})`;
+}
+
+function buildCustomThemePalette(accent: string): ThemePalette | null {
+  const color = parseHexColor(accent);
+  if (!color) return null;
+  const white = { r: 255, g: 255, b: 255 };
+  const black = { r: 0, g: 0, b: 0 };
+
+  return {
+    // The custom color drives the complete iframe palette. Previously only
+    // buttons and dates used it, while the container silently kept the green
+    // "nature" palette, which made a correctly generated purple iframe look green.
+    bg: mixHexColor(color, white, 0.9),
+    surface: mixHexColor(color, white, 0.97),
+    surfaceSoft: mixHexColor(color, white, 0.94),
+    line: rgbaColor(color, 0.14),
+    lineStrong: rgbaColor(color, 0.26),
+    text: mixHexColor(color, black, 0.82),
+    muted: mixHexColor(color, black, 0.62),
+    brand: accent,
+    brandDeep: mixHexColor(color, black, 0.38),
+    mediaBg: mixHexColor(color, white, 0.86),
+    shadow: `0 18px 42px ${rgbaColor(color, 0.12)}`,
+    shadowSoft: `0 10px 24px ${rgbaColor(color, 0.08)}`,
+    colorScheme: "light",
+  };
+}
+
+function getThemePalette(mode: ThemeMode, accent = ""): ThemePalette {
   switch (mode) {
     case "dark":
       return {
@@ -423,24 +479,33 @@ function getThemePalette(mode: ThemeMode): ThemePalette {
         shadowSoft: "0 10px 24px rgba(15,23,42,.045)",
         colorScheme: "light",
       };
+    case "custom": {
+      const customPalette = buildCustomThemePalette(accent);
+      if (customPalette) return customPalette;
+      // An invalid or missing custom color keeps the historical safe default.
+      break;
+    }
     case "nature":
+      break;
     default:
-      return {
-        bg: "#f3f8ee",
-        surface: "#ffffff",
-        surfaceSoft: "#fbfdf9",
-        line: "rgba(18,35,19,.09)",
-        lineStrong: "rgba(18,35,19,.14)",
-        text: "#102112",
-        muted: "#506251",
-        brand: "#6bd05f",
-        brandDeep: "#214f24",
-        mediaBg: "#edf6e6",
-        shadow: "0 18px 42px rgba(16,28,18,.08)",
-        shadowSoft: "0 10px 24px rgba(16,28,18,.05)",
-        colorScheme: "light",
-      };
+      break;
   }
+
+  return {
+    bg: "#f3f8ee",
+    surface: "#ffffff",
+    surfaceSoft: "#fbfdf9",
+    line: "rgba(18,35,19,.09)",
+    lineStrong: "rgba(18,35,19,.14)",
+    text: "#102112",
+    muted: "#506251",
+    brand: "#6bd05f",
+    brandDeep: "#214f24",
+    mediaBg: "#edf6e6",
+    shadow: "0 18px 42px rgba(16,28,18,.08)",
+    shadowSoft: "0 10px 24px rgba(16,28,18,.05)",
+    colorScheme: "light",
+  };
 }
 
 function renderListItems(articles: Array<Record<string, unknown>>) {
@@ -556,14 +621,14 @@ export function renderEmbedHtml(params: {
   const { title, articles, layout, font, design, theme, accent, frameId = "inrcy-embed" } = params;
   const designSettings = getDesignSettings(design, font);
   const fontFamily = designSettings.font;
-  const palette = getThemePalette(theme);
+  const safeAccent = /^#[0-9A-F]{6}$/i.test(String(accent || "").trim()) ? String(accent).trim().toUpperCase() : "";
+  const palette = getThemePalette(theme, safeAccent);
   const listItems = renderListItems(articles);
   const gridItems = renderGridItems(articles);
   const compactItems = renderCompactItems(articles);
   const carouselItems = renderCarouselItems(articles);
-  const safeAccent = /^#[0-9A-F]{6}$/i.test(String(accent || "").trim()) ? String(accent).trim().toUpperCase() : "";
-  const brand = safeAccent || palette.brand;
-  const brandDeep = safeAccent ? `color-mix(in srgb, ${safeAccent} 68%, ${palette.text})` : palette.brandDeep;
+  const brand = palette.brand;
+  const brandDeep = palette.brandDeep;
   const dots = articles.map((_, i) => `<button class="dot" type="button" aria-label="Actualité ${i + 1}" data-dot="${i}"></button>`).join("");
   const counter = articles.length > 0 ? `<div class="counter" aria-live="polite"><span data-current>1</span>/<span data-total>${articles.length}</span></div>` : "";
   const empty = `<section class="empty reveal"><h2>Aucune actualité pour le moment</h2><p>Les prochaines publications apparaîtront ici automatiquement.</p></section>`;
