@@ -75,6 +75,21 @@ test("le thème gris clair du widget Actus garde des accents entièrement neutre
   assert.match(embed, /const brand = safeAccent \|\| palette\.brand/);
 });
 
+test("un rafraîchissement des connexions ne réinitialise pas la couleur du widget Actus", () => {
+  const dashboard = read("app/dashboard/DashboardClient.tsx");
+
+  assert.match(
+    dashboard,
+    /if \(typeof state\.siteInrcyActusAccent === "string"\) \{\s*setSiteInrcyActusAccent\(normalizeActusAccent\(state\.siteInrcyActusAccent\)\);\s*\}/,
+  );
+  assert.match(
+    dashboard,
+    /if \(typeof state\.siteWebActusAccent === "string"\) \{\s*setSiteWebActusAccent\(normalizeActusAccent\(state\.siteWebActusAccent\)\);\s*\}/,
+  );
+  assert.match(dashboard, /siteInrcyActusAccent:\s*""/);
+  assert.match(dashboard, /siteWebActusAccent:\s*""/);
+});
+
 test("l'émission d'un jeton accepte le dashboard same-origin sans affaiblir l'authentification", () => {
   const route = read("app/api/widgets/issue-token/route.ts");
 
