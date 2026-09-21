@@ -27,7 +27,7 @@ async function expectSettingsPanelUrl(page: Page, panel: string) {
 
 async function expectProfileWorkspaceUrl(
   page: Page,
-  section: 'activity' | null = null,
+  tab: 'profile' | 'activity' = 'profile',
 ) {
   await expect
     .poll(
@@ -35,14 +35,14 @@ async function expectProfileWorkspaceUrl(
         const url = new URL(page.url());
         return {
           pathname: url.pathname,
-          section: url.searchParams.get('section'),
+          tab: url.searchParams.get('tab'),
         };
       },
       { timeout: 30_000 },
     )
     .toEqual({
-      pathname: '/dashboard/mon-profil',
-      section,
+      pathname: '/dashboard/adn-entreprise',
+      tab,
     });
 }
 
@@ -83,7 +83,7 @@ test.describe('settings pages', () => {
 
     await expectProfileWorkspaceUrl(page, 'activity');
     await expect(page.getByText(/Mon profil/i).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('[data-profile-segment="activity"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-ai-memory-tab="activity"]')).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();
   });

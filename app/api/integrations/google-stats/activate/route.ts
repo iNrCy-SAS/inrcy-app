@@ -4,6 +4,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
+import { selectGa4PropertyForDomain } from "@/lib/googleStatsGa4Selection";
+import { selectGscPropertyForSite } from "@/lib/googleStatsGscSelection";
+import { log } from "@/lib/observability/logger";
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
@@ -130,39 +133,19 @@ async function fetchDataStreams(accessToken: string, propertyName: string) {
   return raw;
 }
 
-function normalizeDomainFromUrl(raw: string): string | null {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    const host = (u.hostname || "").toLowerCase().replace(/^www\./, "");
-    return host || null;
-  } catch {
-    return null;
-  }
-}
-
 function extractPropertyId(propertyName: string): string | null {
   const m = /^properties\/(\d+)$/.exec(propertyName);
   return m?.[1] ?? null;
 }
 
-function pickGa4Match(domain: string, candidates: Array<{ propertyId: string; measurementId?: string }>) {
-  if (candidates.length === 0) throw new Error("Aucune propriété GA4 ne correspond à ce domaine.");
-  if (candidates.length > 1) {
-    throw new Error(
-      "Plusieurs propriétés GA4 correspondent à ce domaine. Pour éviter une incohérence, l'application bloque la connexion."
-    );
-  }
-  const c = candidates[0]!;
-  if (!c.propertyId) throw new Error("Impossible d'extraire le Property ID GA4.");
-  return { propertyId: c.propertyId, measurementId: c.measurementId ?? null };
-}
-
 async function resolveGa4FromDomain(accessToken: string, domain: string) {
   const properties = await fetchAllGa4Properties(accessToken);
-  // Dédoublonnage: une propriété peut avoir plusieurs WEB streams.
-  // On ne veut pas qu'un même propertyId compte plusieurs fois (sinon faux "ambiguous").
-  const byProperty = new Map<string, { propertyId: string; measurementId?: string }>();
+  const candidates: Array<{
+    propertyId: string;
+    measurementId?: string;
+    defaultUri?: string;
+    displayName?: string;
+  }> = [];
 
   for (const p of properties) {
     const pid = extractPropertyId(p.name);
@@ -174,20 +157,26 @@ async function resolveGa4FromDomain(accessToken: string, domain: string) {
       const web = asRecord(sr["webStreamData"]);
       const defaultUri = asString(web["defaultUri"]);
       const measurementId = asString(web["measurementId"]) ?? undefined;
-      if (!defaultUri) continue;
-      const d = normalizeDomainFromUrl(String(defaultUri));
-      if (!d) continue;
-      const host = d.replace(/^www\./, "");
-      const wanted = domain.replace(/^www\./, "");
-      if (host === wanted) {
-        if (!byProperty.has(pid)) byProperty.set(pid, { propertyId: pid, measurementId });
-        const cur = byProperty.get(pid)!;
-        if (!cur.measurementId && measurementId) cur.measurementId = measurementId;
-      }
+      candidates.push({
+        propertyId: pid,
+        measurementId,
+        defaultUri: defaultUri ?? undefined,
+        displayName: p.displayName,
+      });
     }
   }
 
-  return pickGa4Match(domain, Array.from(byProperty.values()));
+  const picked = selectGa4PropertyForDomain(domain, candidates);
+  log[picked.ok ? "info" : "warn"]("google_stats_ga4_resolution", {
+    resolution: picked.ok ? picked.resolution : "unresolved",
+    accessible_property_count: picked.accessiblePropertyCount,
+    matching_property_count: picked.matchingPropertyCount,
+  });
+  if (!picked.ok) throw new Error(picked.reason);
+  return {
+    propertyId: picked.candidate.propertyId,
+    measurementId: picked.candidate.measurementId ?? null,
+  };
 }
 
 async function resolveGscFromDomain(accessToken: string, domain: string, siteUrlHint?: string | null) {
@@ -207,30 +196,13 @@ async function resolveGscFromDomain(accessToken: string, domain: string, siteUrl
     .map((e) => asRecord(e))
     .map((e) => ({ siteUrl: asString(e["siteUrl"]) || "" }))
     .filter((e) => Boolean(e.siteUrl));
-  const wantedScDomain = `sc-domain:${domain}`;
-  const exactScDomain = entries.find((e) => String(e.siteUrl).toLowerCase() === wantedScDomain.toLowerCase());
-  if (exactScDomain) return exactScDomain.siteUrl;
-
-  const urlCandidates = entries
-    .map((e) => String(e.siteUrl))
-    .filter((u) => u.startsWith("http://") || u.startsWith("https://"));
-
-  if (siteUrlHint) {
-    const hint = siteUrlHint.endsWith("/") ? siteUrlHint : `${siteUrlHint}/`;
-    const hit = urlCandidates.find((u) => (u.endsWith("/") ? u : `${u}/`) === hint);
-    if (hit) return hit;
-  }
-
-  for (const u of urlCandidates) {
-    try {
-      const host = new URL(u).hostname.toLowerCase().replace(/^www\./, "");
-      if (host === domain.replace(/^www\./, "")) return u;
-    } catch {}
-  }
-
-  throw new Error(
-    "Aucune propriété Search Console ne correspond à ce domaine sur ce compte Google. Veuillez ajouter le domaine dans Search Console, ou donner accès à ce compte, puis relancer l’activation."
-  );
+  const picked = selectGscPropertyForSite(entries, domain, siteUrlHint);
+  log[picked.ok ? "info" : "warn"]("google_stats_gsc_resolution", {
+    resolution: picked.ok ? picked.resolution : "unresolved",
+    accessible_property_count: picked.accessiblePropertyCount,
+  });
+  if (!picked.ok) throw new Error(picked.reason);
+  return picked.property;
 }
 
 export async function POST(req: Request) {

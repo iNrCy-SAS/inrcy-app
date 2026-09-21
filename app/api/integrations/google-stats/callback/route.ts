@@ -7,8 +7,14 @@ import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { safeInternalPath, verifyOAuthState } from "@/lib/security";
 import { asRecord, asString } from "@/lib/tsSafe";
 import { oauthCallbackEvent, oauthCallbackException } from "@/lib/observability/oauth";
+import { log } from "@/lib/observability/logger";
 import { syncSitePresenceIntegrations } from '@/lib/sitePresenceSync';
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
+import { selectGa4PropertyForDomain } from "@/lib/googleStatsGa4Selection";
+import {
+  doesGscPropertyCoverSite,
+  selectGscPropertyForSite,
+} from "@/lib/googleStatsGscSelection";
 import {
   findExplicitlyMissingGoogleScopes,
   GOOGLE_OAUTH_PERMISSION_ERROR_CODE,
@@ -179,35 +185,15 @@ function extractPropertyId(propertyName: string): string | null {
   return m?.[1] ?? null;
 }
 
-function pickGa4Match(domain: string, candidates: Array<{ propertyId: string; measurementId?: string; defaultUri?: string }>) {
-  if (candidates.length === 0) return { ok: false as const, reason: "Aucune propriété GA4 ne correspond à ce domaine." };
-
-  const exactMatches = candidates.filter((c) => c.defaultUri && normalizeComparableDomain(c.defaultUri) === normalizeComparableDomain(domain));
-  const narrowed = exactMatches.length > 0 ? exactMatches : candidates;
-
-  const uniq = new Map<string, { propertyId: string; measurementId?: string; defaultUri?: string }>();
-  for (const c of narrowed) {
-    if (!c.propertyId) continue;
-    if (!uniq.has(c.propertyId)) uniq.set(c.propertyId, c);
-  }
-  const uniqueCandidates = Array.from(uniq.values());
-
-  if (uniqueCandidates.length > 1) {
-    return {
-      ok: false as const,
-      reason:
-        "Plusieurs propriétés GA4 correspondent à ce domaine. Pour éviter une incohérence, l'application bloque la connexion. (Nettoyez / unifiez les propriétés GA4 ou contactez le support.)",
-    };
-  }
-  const c = uniqueCandidates[0]!;
-  if (!c?.propertyId) return { ok: false as const, reason: "Impossible d'extraire le Property ID GA4." };
-  return { ok: true as const, propertyId: c.propertyId, measurementId: c.measurementId ?? null };
-}
-
 async function resolveGa4FromDomain(accessToken: string, domain: string) {
   const properties = await fetchAllGa4Properties(accessToken);
 
-  const matches: Array<{ propertyId: string; measurementId?: string; defaultUri?: string }> = [];
+  const candidates: Array<{
+    propertyId: string;
+    measurementId?: string;
+    defaultUri?: string;
+    displayName?: string;
+  }> = [];
 
   for (const p of properties) {
     const pid = extractPropertyId(p.name);
@@ -222,24 +208,27 @@ async function resolveGa4FromDomain(accessToken: string, domain: string) {
       const defaultUri = asString(web["defaultUri"]);
       const measurementId = asString(web["measurementId"]) ?? undefined;
 
-      const comparableDefaultUri = defaultUri ? normalizeComparableDomain(String(defaultUri)) : null;
-      const comparableDisplayName = p.displayName ? normalizeComparableDomain(String(p.displayName)) : null;
-      const comparableTarget = normalizeComparableDomain(domain);
-      if (!comparableTarget) continue;
-
-      if (
-        (comparableDefaultUri && domainsLooselyMatch(comparableDefaultUri, comparableTarget)) ||
-        (comparableDisplayName && domainsLooselyMatch(comparableDisplayName, comparableTarget))
-      ) {
-        matches.push({ propertyId: pid, measurementId, defaultUri: defaultUri ?? undefined });
-      }
+      candidates.push({
+        propertyId: pid,
+        measurementId,
+        defaultUri: defaultUri ?? undefined,
+        displayName: p.displayName,
+      });
     }
   }
 
-  const picked = pickGa4Match(domain, matches);
+  const picked = selectGa4PropertyForDomain(domain, candidates);
+  log[picked.ok ? "info" : "warn"]("google_stats_ga4_resolution", {
+    resolution: picked.ok ? picked.resolution : "unresolved",
+    accessible_property_count: picked.accessiblePropertyCount,
+    matching_property_count: picked.matchingPropertyCount,
+  });
   if (!picked.ok) throw new Error(picked.reason);
 
-  return { propertyId: picked.propertyId, measurementId: picked.measurementId };
+  return {
+    propertyId: picked.candidate.propertyId,
+    measurementId: picked.candidate.measurementId ?? null,
+  };
 }
 
 async function resolveGscFromDomain(accessToken: string, domain: string, siteUrlHint?: string | null) {
@@ -264,37 +253,13 @@ async function resolveGscFromDomain(accessToken: string, domain: string, siteUrl
     })
     .filter((e) => Boolean(e.siteUrl));
 
-  const wantedScDomain = `sc-domain:${domain}`;
-  const exactScDomain = entries.find((e) => String(e.siteUrl).toLowerCase() === wantedScDomain.toLowerCase());
-  if (exactScDomain) return exactScDomain.siteUrl;
-
-  // Try URL-prefix properties
-  const normalizedTarget = normalizeComparableDomain(domain);
-  if (!normalizedTarget) {
-    throw new Error("Le domaine du site est invalide pour Search Console.");
-  }
-  const urlCandidates = entries
-    .map((e) => String(e.siteUrl))
-    .filter((u) => u.startsWith("http://") || u.startsWith("https://"));
-
-  // Prefer the saved site URL if it matches
-  if (siteUrlHint) {
-    const hint = siteUrlHint.endsWith("/") ? siteUrlHint : `${siteUrlHint}/`;
-    const hit = urlCandidates.find((u) => (u.endsWith("/") ? u : `${u}/`) === hint);
-    if (hit) return hit;
-  }
-
-  // Otherwise match by hostname
-  for (const u of urlCandidates) {
-    try {
-      const host = normalizeComparableDomain(u);
-      if (host && domainsLooselyMatch(host, normalizedTarget)) return u;
-    } catch {}
-  }
-
-  throw new Error(
-    "Aucune propriété Search Console ne correspond à ce domaine sur ce compte Google. Veuillez ajouter le domaine dans Search Console, ou donner accès à ce compte, puis relancer l’activation."
-  );
+  const picked = selectGscPropertyForSite(entries, domain, siteUrlHint);
+  log[picked.ok ? "info" : "warn"]("google_stats_gsc_resolution", {
+    resolution: picked.ok ? picked.resolution : "unresolved",
+    accessible_property_count: picked.accessiblePropertyCount,
+  });
+  if (!picked.ok) throw new Error(picked.reason);
+  return picked.property;
 }
 
 
@@ -318,20 +283,7 @@ async function validateGa4Binding(accessToken: string, domain: string, propertyI
 }
 
 function validateGscPropertyAgainstDomain(domain: string, property: string) {
-  const d = normalizeComparableDomain(domain);
-  const p = String(property || "").trim().toLowerCase();
-  if (!p) return false;
-  if (!d) return false;
-  if (p === `sc-domain:${d}`) return true;
-  if (p.startsWith("http://") || p.startsWith("https://")) {
-    try {
-      const host = normalizeComparableDomain(p);
-      return !!host && domainsLooselyMatch(host, d);
-    } catch {
-      return false;
-    }
-  }
-  return false;
+  return doesGscPropertyCoverSite(property, domain);
 }
 type SiteSettings = {
   ga4?: { property_id?: string; measurement_id?: string; verified_at?: string };
