@@ -167,7 +167,11 @@ for (const kind of ["image", "video"] as const) {
       });
       assert.ok(prompt.includes(SUBJECT));
       assert.ok(prompt.includes(INSTRUCTION));
-      assert.match(prompt, /AVATAR DE MARQUE GUIDÉ/);
+      assert.match(
+        prompt,
+        /AVATAR DE MARQUE GUIDÉ|IDENTITÉS? VISUELLES? GUIDÉES?/,
+        "la normalisation conserve un contrat d’identité strict",
+      );
       assert.match(prompt, /LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE/);
       assert.ok(prompt.includes(ANTI_SWATCH_RULE));
       assert.doesNotMatch(prompt, HEX_CODE);
@@ -184,7 +188,10 @@ for (const kind of ["image", "video"] as const) {
         assert.match(prompt, /La dernière image de référence est le logo officiel/);
         assert.match(prompt, /Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe/);
       } else {
-        assert.match(prompt, /plans vidéo originaux avec 1 référence de personnage autorisée/);
+        assert.match(
+          prompt,
+          /ENTRÉES DE RÉFÉRENCE VIDÉO[\s\S]*?Référence 1 — rôle=character, usage=required/,
+        );
         assert.match(prompt, /Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy/);
         assert.match(
           prompt,
@@ -227,7 +234,12 @@ test("sans texte ou avec composition différée, les règles d’absence de text
       brandColors: INCIDENT_COLORS, hasLogo: true, deferVisibleElementsToComposer: true,
       copy: { headline: HEADLINE },
     });
-    assert.match(deferred, /produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo/);
+    assert.match(
+      deferred,
+      kind === "image"
+        ? /produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo/
+        : /produire des plans sans texte, chiffre, téléphone, coordonnées ni logo/,
+    );
     assert.doesNotMatch(deferred, /Accroche originale sélectionnée/);
     assert.ok(deferred.includes(ANTI_SWATCH_RULE));
     assert.doesNotMatch(deferred, HEX_CODE);

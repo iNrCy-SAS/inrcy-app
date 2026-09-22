@@ -67,8 +67,9 @@ export type EditorialPlanQuotaImpact = {
   lostVideos: number;
   requiredImages: number;
   requiredVideos: number;
+  requiredVideoSeconds: number;
   availableImages: number | null;
-  availableVideos: number | null;
+  availableVideoSeconds: number | null;
   quotaSufficient: boolean;
   quotaAvailable: boolean;
   protectedUntil: string | null;

@@ -37,6 +37,10 @@ test("les réglages média persistants sont limités à des valeurs structurées
     saved: true,
     defaults: {
       peopleMode: "solo",
+      sourceMode: "real",
+      aiPeopleCriterion: "one",
+      aiSettingCriterion: "auto",
+      aiFocusCriterion: "auto",
       identityMode: "professional",
       teamVideoMode: "montage",
       teamVideoSpeechMode: "voiceover",
@@ -397,6 +401,10 @@ test("le mode vidéo d’équipe est rétrocompatible et le consentement Veo res
     saved: true,
     defaults: {
       peopleMode: "team",
+      sourceMode: "real",
+      aiPeopleCriterion: "group",
+      aiSettingCriterion: "auto",
+      aiFocusCriterion: "auto",
       identityMode: "reference_team",
     },
   });
@@ -404,6 +412,10 @@ test("le mode vidéo d’équipe est rétrocompatible et le consentement Veo res
     saved: true,
     defaults: {
       peopleMode: "team",
+      sourceMode: "real",
+      aiPeopleCriterion: "group",
+      aiSettingCriterion: "auto",
+      aiFocusCriterion: "auto",
       identityMode: "reference_team",
       teamVideoMode: "montage",
       teamVideoSpeechMode: "voiceover",

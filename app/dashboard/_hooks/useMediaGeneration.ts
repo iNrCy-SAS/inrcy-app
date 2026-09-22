@@ -10,6 +10,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 
 export type MediaGenerationKind = "image" | "video";
+export type MediaGenerationOperation = "generate" | "modify";
 export type MediaGenerationSource = "booster" | "studio";
 export type MediaGenerationSubjectSource = "publication" | "profile" | "custom";
 export type MediaGenerationFormat =
@@ -45,16 +46,42 @@ export type MediaGenerationPeopleMode = "auto" | "none" | "solo" | "team";
 export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
+export type MediaGenerationVideoSceneMode = "single" | "multi";
 export type MediaGenerationVideoEngine = "omni" | "veo";
 export type MediaGenerationTeamVideoMode = "cinematic" | "montage";
 export type MediaGenerationTeamVideoSpeechMode = "voiceover" | "characters";
 export type MediaGenerationNarrationVoice = "female" | "male";
 export type MediaGenerationNarrationVoiceVariant = AiMediaNarrationVoiceVariant;
 export type MediaGenerationInputMode = "legacy" | "essential";
+export type MediaGenerationTextMode = "none" | "ai" | "exact";
+export type MediaGenerationMode =
+  | "ai_free"
+  | "ai_criteria"
+  | "inspiration";
+export type MediaGenerationPeopleCriterion =
+  | "auto"
+  | "none"
+  | "one"
+  | "two"
+  | "three"
+  | "group";
+export type MediaGenerationSettingCriterion =
+  | "auto"
+  | "interior"
+  | "exterior"
+  | "studio"
+  | "neutral";
+export type MediaGenerationFocusCriterion =
+  | "auto"
+  | "people"
+  | "product"
+  | "environment";
 export type MediaGenerationReferenceRole =
   | "character"
   | "environment"
-  | "product";
+  | "product"
+  | "inspiration";
+export type MediaGenerationReferenceUsage = "required" | "inspiration";
 export type MediaGenerationIdentityMode =
   | "auto"
   | "professional"
@@ -73,6 +100,7 @@ export type MediaGenerationInspirationImage = {
   data: string;
   name: string;
   role?: MediaGenerationReferenceRole;
+  usage?: MediaGenerationReferenceUsage;
   characterIndex?: 1 | 2 | 3;
 };
 
@@ -82,7 +110,8 @@ function characterReferenceCount(
 ) {
   return (images || []).filter(
     (image) =>
-      image.role === "character" || (!image.role && identityMode !== "auto")
+      (image.role === "character" && image.usage !== "inspiration") ||
+      (!image.role && identityMode !== "auto")
   ).length;
 }
 
@@ -103,7 +132,29 @@ function hasStrictIdentityReferences(request: MediaGenerationRequest) {
   );
 }
 
+function resolveMediaGenerationTextMode(request: MediaGenerationRequest) {
+  return request.textMode || (request.withText ? "ai" : "none");
+}
+
+function resolveMediaGenerationSceneMode(
+  request: MediaGenerationRequest
+): MediaGenerationVideoSceneMode {
+  if (request.kind !== "video" || (request.durationSeconds || 16) <= 8) {
+    return "single";
+  }
+  return request.sceneMode || (request.connectScenes ? "single" : "multi");
+}
+
+function resolveMediaGenerationConnectScenes(request: MediaGenerationRequest) {
+  const sceneMode = resolveMediaGenerationSceneMode(request);
+  return shouldConnectAiMediaVideoScenes({
+    ...request,
+    connectScenes: sceneMode === "single",
+  });
+}
+
 export type MediaGenerationQuotaCounter = {
+  unit: "item" | "second";
   limit: number | null;
   used: number;
   reserved: number;
@@ -144,11 +195,21 @@ export type MediaGenerationResult = {
 };
 
 export type MediaGenerationRequest = {
+  operation?: MediaGenerationOperation;
   inputMode?: MediaGenerationInputMode;
+  generationMode?: MediaGenerationMode;
+  peopleCriterion?: MediaGenerationPeopleCriterion;
+  settingCriterion?: MediaGenerationSettingCriterion;
+  focusCriterion?: MediaGenerationFocusCriterion;
+  /** Canvas autoritaire de l'image source, utilisé uniquement par Modifier. */
+  modificationSourceWidth?: number;
+  modificationSourceHeight?: number;
   kind: MediaGenerationKind;
   subjectSource: MediaGenerationSubjectSource;
   idea: string;
   aiInstruction?: string;
+  textMode?: MediaGenerationTextMode;
+  exactText?: string;
   withText?: boolean;
   textKeywords: string[];
   withMusic?: boolean;
@@ -174,6 +235,7 @@ export type MediaGenerationRequest = {
   identityConsent?: boolean;
   identityReferenceSetId?: string;
   durationSeconds?: MediaGenerationVideoDuration;
+  sceneMode?: MediaGenerationVideoSceneMode;
   connectScenes?: boolean;
   inspirationImages?: MediaGenerationInspirationImage[];
   source: MediaGenerationSource;
@@ -297,6 +359,7 @@ export class MediaGenerationCancelledError extends Error {
 }
 
 const EMPTY_COUNTER: MediaGenerationQuotaCounter = {
+  unit: "item",
   limit: null,
   used: 0,
   reserved: 0,
@@ -311,9 +374,20 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-function normalizeCounter(value: unknown): MediaGenerationQuotaCounter {
-  if (!value || typeof value !== "object") return { ...EMPTY_COUNTER };
+function normalizeCounter(
+  value: unknown,
+  fallbackUnit: MediaGenerationQuotaCounter["unit"]
+): MediaGenerationQuotaCounter {
+  if (!value || typeof value !== "object") {
+    return { ...EMPTY_COUNTER, unit: fallbackUnit };
+  }
   const source = value as Record<string, unknown>;
+  const unit =
+    source.unit === "second" || source.quotaUnit === "second"
+      ? "second"
+      : source.unit === "item" || source.quotaUnit === "item"
+      ? "item"
+      : fallbackUnit;
   const limit = finiteNumber(
     source.limit ?? source.monthlyLimit ?? source.monthly_limit
   );
@@ -324,7 +398,7 @@ function normalizeCounter(value: unknown): MediaGenerationQuotaCounter {
   const remaining =
     reportedRemaining ??
     (limit === null ? null : Math.max(0, limit - used - reserved));
-  return { limit, used, reserved, remaining };
+  return { unit, limit, used, reserved, remaining };
 }
 
 function normalizeQuota(value: unknown): MediaGenerationQuota {
@@ -361,8 +435,8 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
     videoLongFormPremiumRequired,
     videoMaxDurationSeconds,
     videoAllowedDurationsSeconds,
-    image: normalizeCounter(source.image ?? source.images),
-    video: normalizeCounter(source.video ?? source.videos),
+    image: normalizeCounter(source.image ?? source.images, "item"),
+    video: normalizeCounter(source.video ?? source.videos, "second"),
   };
 }
 
@@ -399,14 +473,30 @@ function buildGenerationAttemptKey(
   request: MediaGenerationRequest,
   idea: string
 ) {
+  const textMode = resolveMediaGenerationTextMode(request);
   return JSON.stringify({
+    operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
+    generationMode:
+      request.operation === "modify"
+        ? null
+        : request.generationMode ||
+          (request.inspirationImages?.length ? "inspiration" : "ai_free"),
+    peopleCriterion: request.peopleCriterion || "auto",
+    settingCriterion: request.settingCriterion || "auto",
+    focusCriterion: request.focusCriterion || "auto",
+    modificationSourceWidth:
+      request.operation === "modify" ? request.modificationSourceWidth : null,
+    modificationSourceHeight:
+      request.operation === "modify" ? request.modificationSourceHeight : null,
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea,
     aiInstruction: String(request.aiInstruction || "").trim(),
-    withText: Boolean(request.withText),
-    textKeywords: request.withText ? request.textKeywords : [],
+    textMode: request.textMode,
+    exactText: request.exactText,
+    withText: textMode !== "none",
+    textKeywords: textMode === "ai" ? request.textKeywords : [],
     withMusic: request.kind === "video" && Boolean(request.withMusic),
     withNarration: request.kind === "video" && Boolean(request.withNarration),
     narrationVoice:
@@ -418,14 +508,10 @@ function buildGenerationAttemptKey(
         ? request.narrationVoiceVariant || null
         : null,
     format: request.format,
-    ...((request.inputMode || "legacy") === "legacy"
-      ? {
-          typology: request.typology || "service",
-          visualStyle: request.visualStyle || "brand",
-          shotType: request.shotType || "auto",
-          creativity: request.creativity || "faithful",
-        }
-      : {}),
+    typology: request.typology || "service",
+    visualStyle: request.visualStyle || "brand",
+    shotType: request.shotType || "auto",
+    creativity: request.creativity || "faithful",
     imageStyle: request.imageStyle,
     peopleMode: request.peopleMode,
     useBrandColors: request.useBrandColors,
@@ -468,11 +554,13 @@ function buildGenerationAttemptKey(
       : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
-    connectScenes: shouldConnectAiMediaVideoScenes(request),
+    sceneMode: request.sceneMode,
+    connectScenes: resolveMediaGenerationConnectScenes(request),
     inspirationImages: (request.inspirationImages || []).map((image) => ({
       mimeType: image.mimeType,
       length: image.data.length,
       role: image.role || null,
+      usage: image.usage || null,
       characterIndex: image.characterIndex || null,
     })),
     source: request.source,
@@ -708,6 +796,7 @@ export default function useMediaGeneration() {
   const generate = useCallback(
     async (request: MediaGenerationRequest) => {
       const idea = String(request.idea || "").trim();
+      const textMode = resolveMediaGenerationTextMode(request);
       if (request.subjectSource !== "profile" && !idea) {
         throw new Error(
           "Ajoutez une idée ou un contenu avant de générer le média."
@@ -753,14 +842,44 @@ export default function useMediaGeneration() {
           signal: controller.signal,
           body: JSON.stringify({
             contractVersion: 4,
+            operation: request.operation || "generate",
             inputMode: request.inputMode || "legacy",
+            generationMode:
+              request.operation === "modify"
+                ? undefined
+                : request.generationMode ||
+                  (request.inspirationImages?.length
+                    ? "inspiration"
+                    : "ai_free"),
+            peopleCriterion:
+              request.operation === "modify"
+                ? undefined
+                : request.peopleCriterion || "auto",
+            settingCriterion:
+              request.operation === "modify"
+                ? undefined
+                : request.settingCriterion || "auto",
+            focusCriterion:
+              request.operation === "modify"
+                ? undefined
+                : request.focusCriterion || "auto",
+            modificationSourceWidth:
+              request.operation === "modify"
+                ? request.modificationSourceWidth
+                : undefined,
+            modificationSourceHeight:
+              request.operation === "modify"
+                ? request.modificationSourceHeight
+                : undefined,
             requestId,
             kind: request.kind,
             subjectSource: request.subjectSource,
             idea,
             aiInstruction: String(request.aiInstruction || "").trim(),
-            withText: Boolean(request.withText),
-            textKeywords: request.withText ? request.textKeywords : [],
+            textMode: request.textMode,
+            exactText: request.exactText,
+            withText: textMode !== "none",
+            textKeywords: textMode === "ai" ? request.textKeywords : [],
             withMusic:
               request.kind === "video" ? Boolean(request.withMusic) : undefined,
             withNarration:
@@ -776,18 +895,14 @@ export default function useMediaGeneration() {
                 ? request.narrationVoiceVariant
                 : undefined,
             format: request.format,
-            ...((request.inputMode || "legacy") === "legacy"
-              ? {
-                  typology: request.typology || "service",
-                  visualStyle: request.visualStyle || "brand",
-                  shotType: request.shotType || "auto",
-                  creativity: request.creativity || "faithful",
-                  videoEngine:
-                    request.kind === "video"
-                      ? request.videoEngine || "omni"
-                      : undefined,
-                }
-              : {}),
+            typology: request.typology || "service",
+            visualStyle: request.visualStyle || "brand",
+            shotType: request.shotType || "auto",
+            creativity: request.creativity || "faithful",
+            videoEngine:
+              request.kind === "video"
+                ? request.videoEngine || "omni"
+                : undefined,
             imageStyle: request.imageStyle,
             peopleMode: request.peopleMode,
             useBrandColors: request.useBrandColors,
@@ -838,12 +953,14 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.durationSeconds || 16
                 : undefined,
-            connectScenes: shouldConnectAiMediaVideoScenes(request),
+            sceneMode: request.sceneMode,
+            connectScenes: resolveMediaGenerationConnectScenes(request),
             inspirationImages: request.inspirationImages?.length
               ? request.inspirationImages.map((image) => ({
                   mimeType: image.mimeType,
                   data: image.data,
                   role: image.role,
+                  usage: image.usage,
                   characterIndex: image.characterIndex,
                 }))
               : undefined,

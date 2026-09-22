@@ -13,7 +13,10 @@ import {
   BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
   BOOSTER_ASYNC_JOB_EVENT_TYPE,
 } from "@/lib/boosterAsyncPublication";
-import { buildBoosterPublicationTargets } from "@/lib/metaPublicationTargets";
+import {
+  buildBoosterPublicationTargets,
+  stripMetaStoryOnlyPostContent,
+} from "@/lib/metaPublicationTargets";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type JsonRecord = Record<string, unknown>;
@@ -76,6 +79,28 @@ export function normalizeClientPreflightFailuresByChannel(
 }
 
 function buildDurablePreparationInput(body: JsonRecord) {
+  const rawPostsByChannel = asRecord(body.postByChannel);
+  const facebookPost = asRecord(rawPostsByChannel.facebook);
+  const instagramPost = asRecord(rawPostsByChannel.instagram);
+  const postByChannel = {
+    ...rawPostsByChannel,
+    ...(Object.keys(facebookPost).length
+      ? {
+          facebook: stripMetaStoryOnlyPostContent(
+            facebookPost,
+            body.facebookPublicationSettings,
+          ),
+        }
+      : {}),
+    ...(Object.keys(instagramPost).length
+      ? {
+          instagram: stripMetaStoryOnlyPostContent(
+            instagramPost,
+            body.instagramPublicationSettings,
+          ),
+        }
+      : {}),
+  };
   return {
     workflowTool: body.workflowTool,
     workflowAction: body.workflowAction,
@@ -86,7 +111,7 @@ function buildDurablePreparationInput(body: JsonRecord) {
     inrAgentActionId: body.inrAgentActionId,
     idea: body.idea,
     post: body.post,
-    postByChannel: body.postByChannel,
+    postByChannel,
     mediaWorkspaceId: body.mediaWorkspaceId,
     mediaPipelineCutoverV1: body.mediaPipelineCutoverV1,
     mediaType: body.mediaType,
@@ -345,7 +370,7 @@ export async function enqueueBoosterPublication(params: {
     finalPayloadBase: {
       idea: String(params.body.idea || ""),
       post: asRecord(params.body.post),
-      postByChannel: asRecord(params.body.postByChannel),
+      postByChannel: asRecord(durableBody.postByChannel),
       attemptedChannels: params.channels,
       idempotencyKey: params.idempotencyKey || null,
     },

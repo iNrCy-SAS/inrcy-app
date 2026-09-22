@@ -4,11 +4,9 @@ import {
   getBoosterImageRenderDimensions,
   getBoosterImageSequenceTargetRatio,
 } from "@/lib/boosterImageDecision";
-import type { BoosterVideoTransformedVariant } from "@/lib/boosterVideoTransforms";
 import { ChannelImageAdapterCardsPanel } from "@/app/dashboard/_components/ChannelImageAdapterTool";
-import PublishVideoAdapterPanel, {
-  type PublishVideoVariantPreparationState,
-} from "./PublishVideoAdapterPanel";
+import PublishVideoAdapterPanel from "./PublishVideoAdapterPanel";
+import type { VideoVariantPreparationState } from "../usePublishVideoController";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
   BOOSTER_IMAGE_ACCEPT,
@@ -32,9 +30,7 @@ import {
   type ChannelKey,
   type ImageMeta,
   type ChannelMediaMode,
-  type VideoAdaptationMode,
   type BoosterVideoSourceMetadata,
-  type VideoFormat,
 } from "../publishModal.shared";
 import { pillBtn, pillBtnActive } from "../publishModal.styles";
 import { getImageChannelAction } from "../imageChannelAssignment";
@@ -91,21 +87,15 @@ type PublishImagesPanelProps = {
   channelMediaModes: Partial<Record<ChannelKey, ChannelMediaMode>>;
   setChannelMediaMode: (channel: ChannelKey, mode: ChannelMediaMode) => void;
   onRemoveMediaFromChannel: (channel: ChannelKey) => void;
-  videoFormatByChannel: Partial<Record<ChannelKey, VideoFormat>>;
-  setVideoFormatForChannel: (channel: ChannelKey, format: VideoFormat) => void;
-  videoAdaptationModeByChannel: Partial<Record<ChannelKey, VideoAdaptationMode>>;
-  setVideoAdaptationModeForChannel: (channel: ChannelKey, mode: VideoAdaptationMode) => void;
   images: File[];
   videoFile: File | null;
   videoPreviewUrl: string;
   videoDurationSeconds: number | null;
   videoSourceMetadata: BoosterVideoSourceMetadata | null;
-  videoVariantPreparationByChannel?: Partial<Record<ChannelKey, PublishVideoVariantPreparationState>>;
-  videoTransformedVariants?: BoosterVideoTransformedVariant[];
-  videoPreviewVariantsPreparing?: boolean;
-  deferTechnicalPreparationUntilPublish?: boolean;
-  onApplyVideoFormatForChannel?: (channel: ChannelKey) => void;
-  onApplyVideoFormatToAllChannels?: (channel: ChannelKey) => void;
+  videoVariantPreparationByChannel?: Partial<
+    Record<ChannelKey, VideoVariantPreparationState>
+  >;
+  openVideoRetoucher: (channel: ChannelKey) => void;
   removeVideo: () => void;
   imgError: string;
   showMediaOptimizerAction?: boolean;
@@ -129,7 +119,8 @@ type PublishImagesPanelProps = {
   onPickVideoForChannel: (channel: ChannelKey) => void;
   onTakePhotoClick: (preferredChannel?: ChannelKey) => void;
   toggleChannelImage: (channel: ChannelKey, imageKey: string) => void;
-  openImageEditor: (channel: ChannelKey, imageKey: string) => void;
+  openImageRetoucher: (channel: ChannelKey, imageKey: string) => void;
+  openImageModifier: (channel: ChannelKey, imageKey: string) => void;
   resetChannelImage: (channel: ChannelKey, imageKey: string) => void;
   removeImage: (index: number) => void;
   moveChannelImage: (
@@ -152,21 +143,13 @@ export default function PublishImagesPanel({
   channelMediaModes,
   setChannelMediaMode,
   onRemoveMediaFromChannel,
-  videoFormatByChannel,
-  setVideoFormatForChannel,
-  videoAdaptationModeByChannel,
-  setVideoAdaptationModeForChannel,
   images,
   videoFile,
   videoPreviewUrl,
   videoDurationSeconds,
   videoSourceMetadata,
   videoVariantPreparationByChannel = {},
-  videoTransformedVariants = [],
-  videoPreviewVariantsPreparing = false,
-  deferTechnicalPreparationUntilPublish = false,
-  onApplyVideoFormatForChannel,
-  onApplyVideoFormatToAllChannels,
+  openVideoRetoucher,
   removeVideo,
   imgError,
   showMediaOptimizerAction = false,
@@ -190,7 +173,8 @@ export default function PublishImagesPanel({
   onPickVideoForChannel,
   onTakePhotoClick,
   toggleChannelImage,
-  openImageEditor,
+  openImageRetoucher,
+  openImageModifier,
   resetChannelImage,
   removeImage,
   moveChannelImage,
@@ -330,7 +314,7 @@ export default function PublishImagesPanel({
         ? CHANNEL_PRESETS.instagram.width / CHANNEL_PRESETS.instagram.height
         : null,
   });
-  const getPreparationTone = (state?: PublishVideoVariantPreparationState) => {
+  const getPreparationTone = (state?: VideoVariantPreparationState) => {
     if (state?.status === "ready") return { icon: "✅", color: "#bbf7d0", border: "rgba(34,197,94,0.28)", background: "rgba(34,197,94,0.10)" };
     if (state?.status === "preparing") return { icon: "⏳", color: "#bfdbfe", border: "rgba(96,165,250,0.30)", background: "rgba(59,130,246,0.12)" };
     if (state?.status === "error") return { icon: "⚠️", color: "#fecaca", border: "rgba(248,113,113,0.28)", background: "rgba(248,113,113,0.10)" };
@@ -890,18 +874,7 @@ export default function PublishImagesPanel({
               videoPreviewUrl={videoPreviewUrl}
               videoDurationSeconds={videoDurationSeconds}
               videoSourceMetadata={videoSourceMetadata}
-              videoFormatByChannel={videoFormatByChannel}
-              setVideoFormatForChannel={setVideoFormatForChannel}
-              videoAdaptationModeByChannel={videoAdaptationModeByChannel}
-              setVideoAdaptationModeForChannel={setVideoAdaptationModeForChannel}
-              videoVariantPreparationByChannel={videoVariantPreparationByChannel}
-              videoTransformedVariants={videoTransformedVariants}
-              videoPreviewVariantsPreparing={videoPreviewVariantsPreparing}
-              deferTechnicalPreparationUntilPublish={
-                deferTechnicalPreparationUntilPublish
-              }
-              onApplyVideoFormatForChannel={onApplyVideoFormatForChannel}
-              onApplyVideoFormatToAllChannels={onApplyVideoFormatToAllChannels}
+              onRetouchVideo={openVideoRetoucher}
               onRemoveMediaFromChannel={onRemoveMediaFromChannel}
               onDeleteVideo={removeVideo}
             />
@@ -1056,7 +1029,8 @@ export default function PublishImagesPanel({
                     preset: previewPreset,
                     imageMeta: sourceMeta,
                     onToggle: () => toggleChannelImage(activeImageChannel, key),
-                    onAdapt: () => openImageEditor(activeImageChannel, key),
+                    onAdapt: () => openImageRetoucher(activeImageChannel, key),
+                    onModify: () => openImageModifier(activeImageChannel, key),
                     onReset: () => resetChannelImage(activeImageChannel, key),
                     onRemove: included
                       ? () => toggleChannelImage(activeImageChannel, key)

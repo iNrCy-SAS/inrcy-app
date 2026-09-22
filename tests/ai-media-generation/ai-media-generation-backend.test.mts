@@ -21,6 +21,18 @@ import {
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
+const readPromptArchitecture = () =>
+  [
+    "lib/aiMediaGenerationPrompt.ts",
+    "lib/aiMediaPromptShared.ts",
+    "lib/aiMediaImageGenerationPrompt.ts",
+    "lib/aiMediaVideoGenerationPrompt.ts",
+    "lib/aiMediaVideoPromptModules.ts",
+    "lib/aiMediaModificationPrompt.ts",
+    "lib/aiMediaPromptOutputSpec.ts",
+  ]
+    .map(read)
+    .join("\n");
 
 test("le contrat réduit les options au média demandé", () => {
   const inspirationData = Buffer.alloc(96, 7).toString("base64");
@@ -279,7 +291,7 @@ test("le contrat réduit les options au média demandé", () => {
         ],
         source: "studio",
       }),
-    /une seule photo distincte par personnage/
+    /Chaque média Personnage doit occuper un emplacement distinct/
   );
   assert.throws(
     () =>
@@ -303,7 +315,7 @@ test("le contrat réduit les options au média demandé", () => {
     source: "studio",
   });
   assert.equal(profile.subjectSource, "profile");
-  assert.equal(profile.idea, "");
+  assert.equal(profile.idea, "Ce texte doit être ignoré au profit du profil");
   assert.deepEqual(profile.textKeywords, []);
   assert.throws(
     () =>
@@ -495,7 +507,8 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   });
   assert.equal(normalizedInstruction.aiInstruction.includes("\u0001"), false);
   assert.equal(normalizedInstruction.aiInstruction.includes("  "), false);
-  assert.equal(normalizedInstruction.aiInstruction.length, 600);
+  assert.equal(normalizedInstruction.aiInstruction.length, 726);
+  assert.ok(normalizedInstruction.aiInstruction.length <= 2_400);
 
   assert.throws(
     () =>
@@ -532,7 +545,7 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
         inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
         source: "studio",
       }),
-    /autorisation/
+    /autoris/
   );
 
   const professional = normalizeAiMediaGenerationRequest({
@@ -560,9 +573,13 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
     inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
     source: "studio",
   });
-  assert.equal(noPeople.videoCharacterMode, "auto");
-  assert.equal(noPeople.identityMode, "auto");
-  assert.equal(noPeople.identityConsent, false);
+  // Une référence personnage impérative est un contrat d'identité, même si un
+  // ancien appelant envoie encore peopleMode="none". Elle ne doit jamais être
+  // neutralisée ni remplacée par un personnage générique.
+  assert.equal(noPeople.peopleMode, "auto");
+  assert.equal(noPeople.videoCharacterMode, "professional");
+  assert.equal(noPeople.identityMode, "professional");
+  assert.equal(noPeople.identityConsent, true);
   assert.equal(noPeople.inspirationImages.length, 1);
   assert.equal(
     noPeople.identityReferenceSetId,
@@ -580,7 +597,7 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
         inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
         source: "studio",
       }),
-    /autorisation/
+    /autoris/
   );
   const professionalImage = normalizeAiMediaGenerationRequest({
     requestId: "image-professional-consent",
@@ -645,13 +662,13 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
 });
 
 test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée et le logo officiel", () => {
-  const source = read("lib/aiMediaGenerationPrompt.ts");
+  const source = readPromptArchitecture();
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v20-essential-role-aware"/
+    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v23-dedicated-contracts"/
   );
-  assert.match(source, /CONTRAT CRÉATIF PRIORITAIRE/);
+  assert.match(source, /CONTRAT GÉNÉRER IMAGE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
   assert.match(source, /CONSIGNE DE RÉALISATION PRIORITAIRE/);
   assert.match(source, /getAiMediaImageQualityBar/);
@@ -664,7 +681,10 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
     source,
     /Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor/
   );
-  assert.match(source, /référence(?:s)? de personnage/);
+  assert.match(
+    source,
+    /référence(?:s)? obligatoires? de personnages|RÉFÉRENCE OBLIGATOIRE — PERSONNAGE/,
+  );
   assert.match(source, /environmentReferences/);
   assert.match(source, /productReferences/);
   assert.match(source, /logo officiel/);
@@ -677,7 +697,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
     source,
     /Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe/
   );
-  assert.match(source, /Accroche originale sélectionnée par iNrCy/);
+  assert.match(source, /TEXTE IA CONTEXTUALISÉ/);
   assert.match(source, /Interdiction de recopier cette phrase/);
   assert.match(source, /request\.textKeywords/);
   assert.match(source, /HISTORIQUE RÉCENT À NE PAS COPIER/);
@@ -689,8 +709,8 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   assert.match(dna, /humorLevel/);
   assert.doesNotMatch(dna, /business\.phone|business\.email/);
   assert.match(source, /Ne jamais inventer de prix, promotion, certification/);
-  assert.match(source, /DIRECTION ARTISTIQUE DÉTAILLÉE/);
-  assert.match(source, /CADRAGE ET ZONES SÛRES/);
+  assert.match(source, /DIRECTION ARTISTIQUE IMAGE|MODULE STYLE ET RÉALISATION/);
+  assert.match(source, /FORMAT ET ZONES SÛRES/);
   assert.match(source, /Palette créative libre/);
   assert.match(
     source,
@@ -701,7 +721,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
 });
 
 test("une demande de téléphone utilise le profil local sans exposer ses coordonnées au moteur", () => {
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const prompt = readPromptArchitecture();
   const server = read("lib/aiMediaGenerationServer.ts");
   const detector = read("lib/aiMediaVisibleContact.ts");
   const composer = read("lib/aiMediaImageContactComposer.ts");
@@ -725,7 +745,7 @@ test("une demande de téléphone utilise le profil local sans exposer ses coordo
 
 test("les textes d’image sont composés localement et jamais dessinés par le fournisseur", () => {
   const server = read("lib/aiMediaGenerationServer.ts");
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const prompt = readPromptArchitecture();
   const renderer = read("lib/aiMediaBrandRenderer.ts");
 
   assert.match(
@@ -791,20 +811,24 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
     "加入我们的团队"
   );
 
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const prompt = readPromptArchitecture();
   const copywriter = read("lib/aiMediaCopywriter.ts");
   const creativePlan = read("lib/aiMediaCreativePlan.ts");
   const narration = read("lib/aiMediaNarration.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
   assert.match(prompt, /LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE/);
-  assert.match(prompt, /getAiLanguageLabel\(profile\)/);
+  assert.match(prompt, /getAiLanguageLabel\((?:args\.)?profile\)/);
   assert.match(copywriter, /buildAiLanguageInstruction\(args\.profile\)/);
   assert.match(copywriter, /hasAiLanguageMismatch\(language, visibleCopy\)/);
   assert.match(copywriter, /langue_cible: getAiLanguageLabel\(args\.profile\)/);
+  assert.doesNotMatch(
+    copywriter,
+    /!args\.request\.idea[\s\S]*?args\.request\.subjectSource !== "profile"[\s\S]*?return args\.plan/
+  );
   assert.match(
     copywriter,
-    /!args\.request\.idea[\s\S]*?args\.request\.subjectSource !== "profile"/
+    /Tout texte visible ou prononcé passe par ce contrat éditorial central/
   );
   assert.match(copywriter, /timeoutMs: args\.request\.idea \? 5_000 : 18_000/);
   assert.match(
@@ -817,7 +841,9 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   );
   assert.match(creativePlan, /if \(language !== "fr"\)/);
   assert.match(creativePlan, /getAiMediaLanguageCopy\(language\)/);
-  assert.match(narration, /buildAiMediaNarrationFallback/);
+  assert.doesNotMatch(narration, /buildAiMediaNarrationFallback/);
+  assert.match(narration, /update\(args\.request\.requestId\)/);
+  assert.match(narration, /business\.services/);
   assert.match(narration, /speechUnitCount/);
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
   assert.match(
@@ -827,7 +853,7 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
 });
 
 test("chaque critère créatif participe réellement au brief envoyé au moteur", () => {
-  const source = read("lib/aiMediaGenerationPrompt.ts");
+  const source = readPromptArchitecture();
   for (const expression of [
     "VISUAL_DIRECTIONS[request.visualStyle]",
     "IMAGE_DIRECTIONS[request.imageStyle]",
@@ -842,7 +868,7 @@ test("chaque critère créatif participe réellement au brief envoyé au moteur"
   }
   assert.match(source, /request\.useBrandColors && palette\.length/);
   assert.match(source, /request\.logoMode === "visible"/);
-  assert.match(source, /safeCompositionGuide\(request\)/);
+  assert.match(source, /getAiMediaImageSafeCompositionGuide\(request\)/);
   const creativePlan = read("lib/aiMediaCreativePlan.ts");
   assert.match(
     creativePlan,
@@ -888,7 +914,8 @@ test("la route applique scope, abonnement et quota à l'établissement actif", (
     route,
     /\(normalizedRequest\.durationSeconds \|\| 16\) > videoMaxDurationSeconds/
   );
-  assert.match(route, /AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED/);
+  assert.match(route, /AI_MEDIA_VIDEO_DURATION_NOT_ALLOWED/);
+  assert.doesNotMatch(route, /AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED/);
   assert.match(route, /getAiMediaVideoEntitlement/);
   assert.match(route, /videoMaxDurationSeconds/);
   assert.match(route, /presentAiMediaQuota\([\s\S]*?videoMaxDurationSeconds/);
@@ -953,7 +980,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(gateway, /bufferFromUint8ArrayView\(image\.uint8Array\)/);
   assert.doesNotMatch(gateway, /Buffer\.from\(image\.uint8Array\)/);
   assert.match(normalizer, /durationSeconds: 8 \| 16 \| 24/);
-  assert.match(normalizer, /options: \{ width\?: number; height\?: number \}/);
+  assert.match(
+    normalizer,
+    /options:\s*\{[\s\S]*?width\?: number;[\s\S]*?height\?: number;[\s\S]*?canvasMode\?: AiImageNormalizationCanvasMode;/
+  );
   assert.match(normalizer, /position: "centre"/);
   assert.equal(
     existsSync(path.join(ROOT, "lib/aiMediaStoryboardVideo.ts")),
@@ -1262,6 +1292,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.equal((JSON.parse(vercelConfig) as { fluid?: boolean }).fluid, true);
   assert.match(quotaPresentation, /AI_MEDIA_ADMIN_LIMIT_OVERRIDE = 10_000/);
   assert.match(quotaPresentation, /videoLongFormPremiumRequired/);
-  assert.match(quotaPresentation, /quota\.edition === "standard"/);
+  assert.match(quotaPresentation, /videoLongFormPremiumRequired: false/);
+  assert.match(quotaPresentation, /getAiMediaVideoMaxDuration\(quota\.edition\)/);
+  assert.doesNotMatch(quotaPresentation, /quota\.edition === "standard"/);
   assert.match(quotaPresentation, /limit: null, remaining: null/);
 });

@@ -24,7 +24,7 @@ function assertOrdered(source: string, tokens: string[]) {
   }
 }
 
-test("Booster utilise le générateur partagé et réinsère le média validé", () => {
+test("Booster délègue les actions média à iNrStudio et réinsère le résultat", () => {
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const intentPanel = read(
@@ -68,20 +68,30 @@ test("Booster utilise le générateur partagé et réinsère le média validé",
     );
   }
   assert.doesNotMatch(hook, /\binstruction\b/);
-  assert.match(hook, /withText: Boolean\(request\.withText\)/);
-  assert.match(
-    hook,
-    /textKeywords: request\.withText \? request\.textKeywords : \[\]/
-  );
+  assert.match(hook, /const textMode = resolveMediaGenerationTextMode\(request\)/);
+  assert.match(hook, /withText: textMode !== "none"/);
+  assert.match(hook, /textKeywords: textMode === "ai" \? request\.textKeywords : \[\]/);
   assert.doesNotMatch(hook, /withText: request\.kind === "image"/);
 
-  assert.match(publishModal, /import MediaGeneratorModal/);
-  assert.match(publishModal, /source="booster"/);
-  assert.match(publishModal, /origin="booster"/);
-  assert.match(publishModal, /acceptMode="insert"/);
+  assert.match(publishModal, /from "@\/lib\/inrStudioNavigation"/);
+  assert.match(publishModal, /createInrStudioHandoff\(\{/);
+  assert.match(publishModal, /tab: "generate"[\s\S]*?origin: "booster-publish"/);
+  assert.match(publishModal, /openInrStudioImageTool = async \([\s\S]*?tab: "modify" \| "retouch"/);
+  assert.match(publishModal, /source: \{[\s\S]*?file: sourceFile \|\| null,[\s\S]*?url: sourceUrl/);
+  assert.match(publishModal, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
+  assert.match(
+    publishModal,
+    /pendingStudioReturn\.action === "retouch"[\s\S]*?pendingStudioReturn\.action === "modify"/,
+  );
+  assert.match(
+    publishModal,
+    /loadedPublicationDraftId !== expectedDraftId[\s\S]*?return;/,
+  );
+  assert.match(publishModal, /replaceImageFile\(imageKey, file\)/);
   assert.match(publishModal, /addMediaLibrarySelection\(/);
-  assert.match(publishModal, /\[result\.item\]/);
+  assert.match(publishModal, /\[returnedItem\]/);
   assert.match(publishModal, /\{ kind: "publication" \}/);
+  assert.doesNotMatch(publishModal, /<MediaGeneratorModal/);
   assert.match(intentPanel, /onGenerateMedia/);
   assert.match(mediaPanel, /onGenerateMedia/);
   assert.doesNotMatch(intentPanel, /onGenerateImage|onGenerateVideo/);
@@ -144,18 +154,17 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
     "app/dashboard/_components/MediaGenerator.module.css"
   );
 
-  assert.equal(
-    (
-      generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) ||
-      []
-    ).length,
-    4
+  assert.deepEqual(
+    [...generator.matchAll(/data-generator-block="([^"]+)"/g)].map(
+      (match) => match[1]
+    ),
+    ["subject", "selection", "direction", "finish"]
   );
   assert.match(generator, /className=\{styles\.essentialGrid\}/);
   assert.doesNotMatch(generator, /expandedStep|footerEnginePicker/);
   assert.equal(
     (generator.match(/<RememberPreferenceControl/g) || []).length,
-    4
+    3
   );
   assert.match(generator, /handleRememberPreferenceGroup/);
   assert.match(generator, /savePreferenceBlock\(1, checked, block1\)/);
@@ -164,43 +173,26 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(generator, /savePreferenceBlock\(4, checked, block4\)/);
   assert.match(generator, /savePreferenceBlock\(5, checked, block5\)/);
   assert.match(generator, /savePreferenceBlock\(6, checked, block6\)/);
-  assert.match(generator, /ai_generator_essential_creation_title/);
-  assert.match(generator, /ai_generator_essential_media_title/);
-  assert.match(generator, /ai_generator_essential_message_title/);
-  assert.match(generator, /ai_generator_essential_sound_title/);
-
-  const creationCard = sourceSection(
+  assert.match(generator, /id: "publication"/);
+  assert.match(generator, /id: "custom"/);
+  assert.match(generator, /id: "profile"/);
+  assert.match(generator, /<MediaSubjectVoiceButton/);
+  assert.match(
     generator,
-    "className={`${styles.essentialCard} ${styles.creationCard}`}",
-    "className={`${styles.essentialCard} ${styles.mediaCard}`}"
+    /\(\["ai", "criteria", "real"\] as const\)\.map/
   );
-  assertOrdered(creationCard, [
-    "ai_generator_essential_media_type",
-    "ai_generator_duration_title",
-    "ai_generator_format_title",
-    "ai_generator_video_render_label",
-    "ai_generator_essential_subject_source",
-    "ai_generator_essential_instruction_label",
-  ]);
-  assert.match(creationCard, /ai_generator_video_render_\$\{option\}/);
-  assert.match(creationCard, /className=\{styles\.studioSelect\}/);
-
-  const mediaCard = sourceSection(
-    generator,
-    "className={`${styles.essentialCard} ${styles.mediaCard}`}",
-    "className={`${styles.essentialCard} ${styles.messageCard}`}"
-  );
-  assert.match(mediaCard, /\(\["ai", "real"\] as const\)\.map/);
-  assert.match(mediaCard, /\(\[0, 1, 2, 3\] as const\)\.map/);
-  assert.match(mediaCard, /role: "character"/);
-  assert.match(mediaCard, /role: "environment"/);
-  assert.match(mediaCard, /role: "product"/);
-  assert.match(mediaCard, /ai_generator_essential_new_scene_video/);
-
-  assert.match(generator, /ai_generator_text_on_media/);
+  assert.match(generator, /data-testid="ai-media-criteria-panel"/);
+  assert.match(generator, /AI_PEOPLE_CRITERIA\.map/);
+  assert.match(generator, /AI_SETTING_CRITERIA\.map/);
+  assert.match(generator, /AI_FOCUS_CRITERIA\.map/);
+  assert.match(generator, /kind === "image" && imagePurpose !== "auto"/);
+  assert.match(generator, /kind === "video" && durationSeconds > 8/);
+  assert.match(generator, /\(\["single", "multi"\] as const\)\.map/);
+  assert.match(generator, /\["none", "ai_generator_redesign_text_none"\]/);
+  assert.match(generator, /\["ai", "ai_generator_redesign_text_ai"\]/);
+  assert.match(generator, /\["exact", "ai_generator_redesign_text_exact"\]/);
   assert.match(generator, /ai_generator_brand_colors/);
   assert.match(generator, /ai_generator_logo_label/);
-  assert.match(generator, /kind === "image" \? \(/);
   assert.match(generator, /\(\["voiceover", "characters"\] as const\)\.map/);
   assert.match(generator, /teamVideoSpeechMode === "voiceover" \? \(/);
 
@@ -214,10 +206,14 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
     generation,
     /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/
   );
-  assert.doesNotMatch(
-    generation,
-    /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:|connectScenes\s*:/
-  );
+  assert.match(generation, /generationMode:/);
+  assert.match(generation, /peopleCriterion:/);
+  assert.match(generation, /settingCriterion:/);
+  assert.match(generation, /focusCriterion:/);
+  assert.match(generation, /textMode: textMode/);
+  assert.match(generation, /exactText: exactText/);
+  assert.match(generation, /sceneMode: kind === "video" \? videoSceneMode/);
+  assert.match(generation, /connectScenes:/);
   assert.match(hook, /request\.inputMode === "essential"/);
 
   assert.match(
@@ -272,6 +268,25 @@ test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () =>
   assert.match(compactModal, /\.body\s*\{[\s\S]*?overflow-y:\s*auto;/);
 });
 
+test("le header mobile sépare l'action et le type de média sur deux lignes", () => {
+  const modalStyles = read(
+    "app/dashboard/_components/MediaGeneratorModal.module.css"
+  );
+
+  assert.match(
+    modalStyles,
+    /@media \(max-width: 620px\)[\s\S]*?\.heading\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);[\s\S]*?grid-template-rows:\s*auto auto;/
+  );
+  assert.match(
+    modalStyles,
+    /@media \(max-width: 620px\)[\s\S]*?\.heading \.studioTabs\s*\{[\s\S]*?grid-row:\s*1;/
+  );
+  assert.match(
+    modalStyles,
+    /@media \(max-width: 620px\)[\s\S]*?\.mediaTypeTabs\s*\{[\s\S]*?grid-row:\s*2;/
+  );
+});
+
 test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const generatorStyles = read(
@@ -309,7 +324,7 @@ test("fermer toute revue exige une confirmation, y compris depuis le Menu", () =
     "const cancelClose"
   );
 
-  assert.match(requestClose, /if \(hasResult\)/);
+  assert.match(requestClose, /if \(hasExternalHandoff \|\| hasResult\)/);
   assert.doesNotMatch(requestClose, /acceptMode/);
   assert.doesNotMatch(requestClose, /onAccepted/);
   assert.match(modal, /role="alertdialog"/);
@@ -328,7 +343,7 @@ test("fermer toute revue exige une confirmation, y compris depuis le Menu", () =
   }
 });
 
-test("le Menu ouvre directement la même modale sans ancien grand studio", () => {
+test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () => {
   const studio = read(
     "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"
   );
@@ -342,8 +357,16 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
 
   assert.match(studio, /<MediaGeneratorModal/);
   assert.match(studio, /source="studio"/);
-  assert.match(studio, /origin="menu"/);
-  assert.match(studio, /acceptMode="library"/);
+  assert.match(studio, /readInrStudioHandoff/);
+  assert.match(studio, /loadInrStudioHandoffSourceFile/);
+  assert.match(studio, /initialTab=\{initialTab\}/);
+  assert.match(studio, /initialSource=\{initialSource\}/);
+  assert.match(studio, /acceptMode=\{handoff \? "insert" : "library"\}/);
+  assert.match(studio, /context: handoff\.context/);
+  assert.match(studio, /buildInrStudioReturnHref\(handoff\)/);
+  assert.match(studio, /buildInrStudioAbandonHref\(handoff\)/);
+  assert.match(studio, /handoffOriginLabel=\{getInrStudioOriginLabel\(handoff\?\.origin\)\}/);
+  assert.match(studio, /onAbandonHandoff=\{abandonStudio\}/);
   assert.match(studio, /router\.replace\("\/dashboard\/mediatheque"\)/);
   assert.doesNotMatch(studio, /heroTop|heroBottom|ai_studio_quota_badge/);
   assert.doesNotMatch(studioStyles, /\.heroTop|\.heroBottom|\.sideCard/);
@@ -357,9 +380,31 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
   assert.match(mobileMenu, /mediaGenerator/);
   assert.equal(
     dashboardFr.userMenu.mediaGenerator,
-    "Générer un média",
-    "la marque iNr’Studio ne doit jamais renommer l’entrée du menu global"
+    "Studio Médias",
+    "l’entrée du menu global doit utiliser le nom du studio"
   );
+});
+
+test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", () => {
+  const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
+  const imageRetoucher = read(
+    "app/dashboard/_components/MediaRetoucher.tsx"
+  );
+  const videoRetoucher = read(
+    "app/dashboard/_components/MediaVideoRetoucher.tsx"
+  );
+  const navigation = read("lib/inrStudioNavigation.ts");
+
+  assert.match(modal, /hasExternalHandoff \|\| hasResult/);
+  assert.match(modal, /requestStudioTab/);
+  assert.match(modal, /requestMediaType/);
+  assert.match(modal, /ai_studio_origin_return/);
+  assert.match(modal, /ai_studio_origin_abandon/);
+  assert.match(modal, /onAbandonHandoff/);
+  assert.match(imageRetoucher, /\? "Utiliser ce média"/);
+  assert.match(videoRetoucher, /\? "Utiliser ce média"/);
+  assert.match(navigation, /buildInrStudioAbandonHref/);
+  assert.match(navigation, /getInrStudioOriginLabel/);
 });
 
 test("Booster garde le même ordre d'actions en haut et dans Médias", () => {
@@ -398,22 +443,33 @@ test("Booster garde le même ordre d'actions en haut et dans Médias", () => {
   );
 });
 
-test("iNrSend réutilise la modale partagée en édition", () => {
+test("iNrSend délègue génération, modification et retouche à iNrStudio", () => {
   const details = read(
     "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
   );
+  const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
 
-  assert.match(details, /<MediaGeneratorModal/);
-  assert.match(details, /source="booster"/);
-  assert.match(details, /origin="inrsend"/);
-  assert.match(details, /acceptMode="insert"/);
+  assert.match(details, /createInrStudioHandoff\(\{/);
+  assert.match(details, /tab: "generate"[\s\S]*?origin: "inrsend-publish"/);
+  assert.match(mailbox, /openPublicationImageInStudio\([\s\S]*?tab: "modify" \| "retouch"/);
+  assert.match(mailbox, /origin: "inrsend-publish"/);
+  assert.match(mailbox, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
+  assert.match(mailbox, /openPublicationVideoRetoucher/);
+  assert.match(mailbox, /mediaType: "video"/);
+  assert.match(mailbox, /videoTransformedVariants: video\.transformedVariants/);
+  assert.match(details, /openPublicationVideoRetoucher\(activePublicationEntry\.key\)/);
+  assert.doesNotMatch(details, /<BoosterVideoFormatManager/);
+  assert.match(details, /studioReturn\.action === "retouch" \|\| studioReturn\.action === "modify"/);
+  assert.match(details, /imageKey: String\(studioReturn\.context\.imageKey/);
+  assert.doesNotMatch(details, /<MediaGeneratorModal/);
+  assert.doesNotMatch(mailbox, /MailboxPublicationImageAdapterModal/);
   assert.match(details, /ai_generator_replace_title/);
   assert.match(details, /markPublicationEditDirty/);
   assert.match(
     details,
     /publicationMediaGeneratorBrief[\s\S]*?publicationEditForm\.title[\s\S]*?publicationEditForm\.content/
   );
-  assert.match(details, /publicationBrief=\{publicationMediaGeneratorBrief\}/);
+  assert.match(details, /publicationBrief: publicationMediaGeneratorBrief/);
 });
 
 test("toutes les langues contiennent la copie complète de la modale", () => {
@@ -527,6 +583,11 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_close_library_title",
     "ai_generator_close_library_description",
     "ai_generator_close_library_leave",
+    "ai_studio_origin_exit_title",
+    "ai_studio_origin_exit_description",
+    "ai_studio_origin_stay",
+    "ai_studio_origin_return",
+    "ai_studio_origin_abandon",
     "ai_generator_replace_title",
     "ai_generator_replace_description",
   ];
@@ -570,4 +631,31 @@ test("les temps indicatifs français restent courts et explicites", () => {
     media.ai_generator_custom_placeholder,
     "Expliquez ici votre idée et détaillez-la le plus possible pour obtenir un contenu de qualité…"
   );
+});
+
+test("les neuf langues distinguent Modifier et Retoucher dans les cartes image", () => {
+  for (const locale of [
+    "fr-FR",
+    "en-GB",
+    "es-ES",
+    "it-IT",
+    "de-DE",
+    "nl-NL",
+    "pt-PT",
+    "th-TH",
+    "zh-CN",
+  ]) {
+    const shell = JSON.parse(read(`messages/${locale}/shell.json`)) as Record<
+      string,
+      unknown
+    >;
+    const agent = JSON.parse(read(`messages/${locale}/agent.json`)) as Record<
+      string,
+      unknown
+    >;
+    assert.equal(typeof shell.modifier_image_3f1a7c90, "string", `${locale}: Modifier`);
+    assert.equal(typeof shell.adapter_e6b4616c, "string", `${locale}: Retoucher`);
+    assert.equal(typeof agent.modifier_f260e757, "string", `${locale}: Modifier Agent`);
+    assert.equal(typeof agent.adapt_image, "string", `${locale}: Retoucher Agent`);
+  }
 });

@@ -39,6 +39,7 @@ import { useTiktokChannel } from "./_hooks/channels/useTiktokChannel";
 
 // ✅ IMPORTANT : même client que ta page login
 import { createClient } from "@/lib/supabaseClient";
+import { beginBrowserSignOut, cancelBrowserSignOut } from "@/lib/browserSignOutState";
 import {
   getActiveBrowserUserId,
   purgeAllBrowserAccountCaches,
@@ -190,14 +191,15 @@ export default function DashboardClient({
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
+  const initialBrowserCacheAccountId = initialOfficialChannelStatesUserId ?? getActiveBrowserUserId();
   const [initialServerOfficialDashboardState] = useState(() => (
     buildOfficialDashboardChannelState(initialOfficialChannelStates)
   ));
   const [initialDashboardChannelState] = useState<Record<string, any> | null>(() => {
-    const browserAccountId = getActiveBrowserUserId();
-    const cached = !initialOfficialChannelStatesUserId || browserAccountId === initialOfficialChannelStatesUserId
-      ? readCachedDashboardChannelState()
-      : null;
+    // The server scope is authoritative on a hard refresh/OAuth return. Reading
+    // that exact account cache avoids a first 0% paint while the browser cookie
+    // and the active-account event are still catching up.
+    const cached = readCachedDashboardChannelState(initialBrowserCacheAccountId);
     return mergeDashboardHydrationState(cached, initialServerOfficialDashboardState);
   });
   const [helpGeneratorOpen, setHelpGeneratorOpen] = useState(false);
@@ -289,15 +291,21 @@ export default function DashboardClient({
   ));
   const [inrBadgeProfile, setInrBadgeProfile] = useState<InrBadgeProfileSummary>(() => readCachedInrBadgeProfile());
   const [lastKnownInrBadgeProfileReady, setLastKnownInrBadgeProfileReady] = useState<boolean | null>(
-    () => readCachedDashboardOptionalBoolean("inrBadgeProfileReady"),
+    () => typeof initialDashboardChannelState?.inrBadgeProfileReady === "boolean"
+      ? initialDashboardChannelState.inrBadgeProfileReady
+      : readCachedDashboardOptionalBoolean("inrBadgeProfileReady"),
   );
   const [inrBadgeModalOpen, setInrBadgeModalOpen] = useState(false);
   const [displayedGeneratorPower, setDisplayedGeneratorPower] = useState<number | null>(
-    () => readCachedGeneratorPowerPercent() ?? readCachedGeneratorPowerSnapshot()?.power ?? null,
+    () => readCachedGeneratorPowerPercent(initialBrowserCacheAccountId)
+      ?? readCachedGeneratorPowerSnapshot(initialBrowserCacheAccountId)?.power
+      ?? null,
   );
   const [displayedGeneratorPowerSnapshot, setDisplayedGeneratorPowerSnapshot] = useState<GeneratorPowerSnapshot | null>(
-    () => readCachedGeneratorPowerSnapshot(),
+    () => readCachedGeneratorPowerSnapshot(initialBrowserCacheAccountId),
   );
+  const displayedGeneratorPowerAccountIdRef = useRef<string | null>(initialBrowserCacheAccountId);
+  const [generatorPowerRevalidating, setGeneratorPowerRevalidating] = useState(false);
   const [displayedGeneratorIsActive, setDisplayedGeneratorIsActive] = useState<boolean | null>(() => readCachedGeneratorIsActive());
   const [displayedSiteBubbleProgress, setDisplayedSiteBubbleProgress] = useState<SiteBubbleProgressCache>(() => readCachedSiteBubbleProgress());
   const router = useRouter();
@@ -318,7 +326,7 @@ export default function DashboardClient({
     completionCheckReady,
   } = useDashboardCompletionChecks();
   const { dnaScore, aiScore } = useDashboardPreparationScores({
-    accountId: completionAccountId,
+    accountId: completionAccountId ?? initialOfficialChannelStatesUserId,
     edition: dashboardEdition,
   });
   useDashboardSetupAlert({
@@ -450,9 +458,11 @@ export default function DashboardClient({
   // ✅ Déconnexion Supabase + retour /login
   const handleLogout = async () => {
     const supabase = createClient();
+    beginBrowserSignOut();
     setActiveBrowserUserId(null);
     const { error } = await (supabase.auth.signOut as any)({ scope: "local" }).catch(() => ({ error: null as { message?: string } | null }));
     if (error) {
+      cancelBrowserSignOut();
       console.error("Erreur déconnexion:", error.message);
       return;
     }
@@ -1195,6 +1205,16 @@ const applyOfficialChannelStates = useCallback((payload: unknown) => {
 const refreshOfficialChannelStates = useCallback(async () => {
   const requestSeq = ++officialChannelStatesRequestSeqRef.current;
   const accountScope = getActiveBrowserUserId();
+  setGeneratorPowerRevalidating(true);
+
+  const finishPowerRevalidation = () => {
+    if (
+      requestSeq === officialChannelStatesRequestSeqRef.current &&
+      accountScope === getActiveBrowserUserId()
+    ) {
+      setGeneratorPowerRevalidating(false);
+    }
+  };
 
   try {
     const response = await fetch("/api/integrations/channel-states", {
@@ -1208,10 +1228,13 @@ const refreshOfficialChannelStates = useCallback(async () => {
       !response.ok ||
       !applyOfficialChannelStates(payload)
     ) {
+      finishPowerRevalidation();
       return null;
     }
+    finishPowerRevalidation();
     return payload as Record<string, any>;
   } catch {
+    finishPowerRevalidation();
     return null;
   }
 }, [applyOfficialChannelStates]);
@@ -1640,13 +1663,25 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
         // A legacy/stale cache can enrich it, but can never override it.
         writeCachedDashboardChannelState(hydrationState);
       }
+      const accountChanged = displayedGeneratorPowerAccountIdRef.current !== activeAccountId;
       const cachedPower = readCachedGeneratorPowerPercent();
-      if (cachedPower !== null) setDisplayedGeneratorPower(cachedPower);
+      if (cachedPower !== null) {
+        setDisplayedGeneratorPower(cachedPower);
+      } else if (accountChanged) {
+        // Never leak the previous establishment's gauge into a genuinely new
+        // account. Same-account revalidations keep their last confirmed value.
+        setDisplayedGeneratorPower(null);
+      }
       const cachedPowerSnapshot = readCachedGeneratorPowerSnapshot();
-      setDisplayedGeneratorPowerSnapshot(cachedPowerSnapshot);
+      if (cachedPowerSnapshot) {
+        setDisplayedGeneratorPowerSnapshot(cachedPowerSnapshot);
+      } else if (accountChanged) {
+        setDisplayedGeneratorPowerSnapshot(null);
+      }
       if (cachedPower === null && cachedPowerSnapshot) {
         setDisplayedGeneratorPower(cachedPowerSnapshot.power);
       }
+      displayedGeneratorPowerAccountIdRef.current = activeAccountId;
       const cachedGeneratorActive = readCachedGeneratorIsActive();
       if (cachedGeneratorActive !== null) setDisplayedGeneratorIsActive(cachedGeneratorActive);
       setDisplayedSiteBubbleProgress(readCachedSiteBubbleProgress());
@@ -2074,7 +2109,11 @@ const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP.map((channel) => ({
 }));
 
 const computedGeneratorPower = generatorPowerSteps.reduce((sum, step) => sum + (step.completed ? step.weight : 0), 0);
-const generatorPowerReady = siteConnectionsReady && profileCheckReady && officialChannelStatesReady && inrSearchConnected !== null;
+const generatorPowerReady = siteConnectionsReady
+  && profileCheckReady
+  && officialChannelStatesReady
+  && inrSearchConnected !== null
+  && !generatorPowerRevalidating;
 
 // La valeur visible est toujours la dernière puissance confirmée.
 // Pendant un retour OAuth, une connexion ou une déconnexion, les états des

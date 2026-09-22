@@ -139,6 +139,7 @@ export async function prepareAiMediaIdentityReferences(
         mimeType: "image/webp" as const,
         data: data.toString("base64"),
         ...(image.role ? { role: image.role } : {}),
+        ...(image.usage ? { usage: image.usage } : {}),
         ...(image.characterIndex
           ? { characterIndex: image.characterIndex }
           : {}),

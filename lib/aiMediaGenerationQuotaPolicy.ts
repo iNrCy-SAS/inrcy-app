@@ -3,21 +3,38 @@ import { createHash } from "node:crypto";
 export const AI_MEDIA_EDITIONS = ["standard", "premium", "founder"] as const;
 export const AI_MEDIA_KINDS = ["image", "video"] as const;
 export const AI_MEDIA_SURFACES = ["booster", "studio"] as const;
+export const AI_MEDIA_VIDEO_DURATION_OPTIONS = [8, 16, 24] as const;
 
 /**
  * Solde maximal pouvant etre conserve d'un mois sur l'autre. Le quota mensuel
  * du forfait continue d'etre la recharge; ces valeurs bornent uniquement la
  * cagnotte cumulable.
  */
-export const AI_MEDIA_ROLLOVER_CAPS = Object.freeze({
-  image: 70,
-  video: 20,
-} as const);
-
 export type AiMediaEdition = (typeof AI_MEDIA_EDITIONS)[number];
 export type AiMediaKind = (typeof AI_MEDIA_KINDS)[number];
 export type AiMediaSurface = (typeof AI_MEDIA_SURFACES)[number];
-export type AiMediaVideoDurationLimit = 8 | 16 | 24;
+export type AiMediaVideoDurationLimit = (typeof AI_MEDIA_VIDEO_DURATION_OPTIONS)[number];
+export type AiMediaQuotaUnit = "item" | "second";
+
+export const AI_MEDIA_QUOTA_UNITS: Readonly<Record<AiMediaKind, AiMediaQuotaUnit>> =
+  Object.freeze({
+    image: "item",
+    video: "second",
+  });
+
+/**
+ * Le report reste exprime dans l'unite du media : nombre d'images pour image,
+ * secondes de sortie pour video. Les plafonds video sont volontairement
+ * propres au forfait afin de ne pas transformer la cagnotte Standard en quota
+ * Premium tout en preservant plusieurs mois de credits inutilises.
+ */
+export const AI_MEDIA_ROLLOVER_CAPS: Readonly<
+  Record<AiMediaEdition, Readonly<Record<AiMediaKind, number>>>
+> = Object.freeze({
+  standard: Object.freeze({ image: 70, video: 168 }),
+  premium: Object.freeze({ image: 70, video: 480 }),
+  founder: Object.freeze({ image: 70, video: 480 }),
+});
 
 export type AiMediaPlanLimits = Readonly<{
   image: number;
@@ -30,19 +47,19 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
   Object.freeze({
     standard: Object.freeze({
       image: 20,
-      video: 5,
+      video: 48,
       studioEnabled: true,
-      videoMaxDurationSeconds: 8,
+      videoMaxDurationSeconds: 24,
     }),
     premium: Object.freeze({
       image: 30,
-      video: 6,
+      video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     }),
     founder: Object.freeze({
       image: 30,
-      video: 6,
+      video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     }),
@@ -60,8 +77,15 @@ export function getAiMediaMonthlyLimit(edition: AiMediaEdition, kind: AiMediaKin
   return AI_MEDIA_MONTHLY_LIMITS[edition][kind];
 }
 
-export function getAiMediaRolloverCap(kind: AiMediaKind): number {
-  return AI_MEDIA_ROLLOVER_CAPS[kind];
+export function getAiMediaRolloverCap(
+  edition: AiMediaEdition,
+  kind: AiMediaKind,
+): number {
+  return AI_MEDIA_ROLLOVER_CAPS[edition][kind];
+}
+
+export function getAiMediaQuotaUnit(kind: AiMediaKind): AiMediaQuotaUnit {
+  return AI_MEDIA_QUOTA_UNITS[kind];
 }
 
 export function hasAiMediaStudioAccess(edition: AiMediaEdition): boolean {

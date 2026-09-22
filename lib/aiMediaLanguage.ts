@@ -18,7 +18,7 @@ const AI_MEDIA_LANGUAGE_COPY: Record<AiLanguageCode, AiMediaLanguageCopy> = {
     sublineFallback: "Une expertise professionnelle au service de votre projet",
     headlines: {
       company: "Découvrez notre savoir-faire",
-      service: "Une expertise pensée pour vous",
+      service: "Notre savoir-faire en action",
       advice: "Le conseil de votre expert",
       showcase: "Notre savoir-faire en action",
       offer: "Une offre pensée pour vous",
@@ -36,8 +36,8 @@ const AI_MEDIA_LANGUAGE_COPY: Record<AiLanguageCode, AiMediaLanguageCopy> = {
       custom: "Parlons de votre projet",
     },
     supportingEyebrow: "Notre expertise",
-    supportingTitle: "Une réponse sur mesure",
-    supportingBody: "Qualité, écoute et proximité",
+    supportingTitle: "Découvrez notre méthode",
+    supportingBody: "Un geste concret, expliqué clairement",
     narration:
       "{company} donne vie à vos projets avec une approche professionnelle et attentive. Chaque besoin devient une solution claire, fiable et personnalisée. {locationSentence} Notre équipe reste à votre écoute. Parlons ensemble de votre projet.",
   },

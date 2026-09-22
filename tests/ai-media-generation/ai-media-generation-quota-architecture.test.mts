@@ -508,10 +508,11 @@ test("RLS autorise la lecture du compte mais toutes les mutations passent par se
 
 test("le helper serveur transmet toujours accountId et actorAuthUserId aux RPC de lecture/reservation", () => {
   assert.match(helper, /import "server-only"/);
-  assert.match(helper, /"get_ai_media_generation_quota", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
-  assert.match(helper, /"reserve_ai_media_generation", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
-  assert.match(helper, /"complete_ai_media_generation", \{\s+p_account_id: assertUuid\(params\.accountId/);
-  assert.match(helper, /"fail_ai_media_generation", \{\s+p_account_id: assertUuid\(params\.accountId/);
+  assert.match(helper, /"get_ai_media_generation_quota_v2", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
+  assert.match(helper, /"reserve_ai_media_generation_v2", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
+  assert.match(helper, /p_quota_amount: quotaAmount/);
+  assert.match(helper, /"complete_ai_media_generation_v2", \{\s+p_account_id: assertUuid\(params\.accountId/);
+  assert.match(helper, /"fail_ai_media_generation_v2", \{\s+p_account_id: assertUuid\(params\.accountId/);
   assert.match(helper, /export const commitAiMediaGeneration = completeAiMediaGeneration/);
   assert.match(helper, /export const releaseAiMediaGeneration = failAiMediaGeneration/);
 });

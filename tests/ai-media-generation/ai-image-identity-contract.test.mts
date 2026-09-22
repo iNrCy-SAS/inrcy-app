@@ -12,11 +12,17 @@ test("les médias source restent distincts des références d'identité strictes
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
-  assert.match(contracts, /const inspirationImages = normalizeInspirationImages/);
-  assert.match(contracts, /const characterReferences = inspirationImages\.filter/);
+  assert.match(contracts, /let inspirationImages = normalizeInspirationImages/);
+  assert.match(contracts, /const requiredCharacterReferences = inspirationImages\.filter/);
+  assert.match(
+    contracts,
+    /image\.role === "character" && image\.usage === "required"/
+  );
   assert.match(contracts, /const strictIdentityReferenceRequested =/);
-  assert.match(contracts, /identityMode !== "auto" && characterReferences\.length > 0/);
-  assert.match(contracts, /image\.role === "character"/);
+  assert.match(
+    contracts,
+    /identityMode !== "auto" &&[\s\S]{0,40}characterReferences\.length > 0/
+  );
   assert.doesNotMatch(contracts, /kind !== "video"[\s\S]{0,180}inspiration/);
   assert.match(generator, /const strictIdentityReferenceMode =/);
   assert.match(generator, /role: MediaGenerationReferenceRole/);
@@ -53,9 +59,23 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   assert.match(gateway, /response_format: \{[\s\S]*?type: "image"/);
   assert.match(gateway, /mime_type: "image\/jpeg"/);
   assert.doesNotMatch(gateway, /inputFidelity/);
-  assert.match(gateway, /Ne jamais recopier sa photo/);
+  assert.match(gateway, /Ne pas préserver ni recopier son identité/);
   assert.match(gateway, /décor de référence/);
   assert.match(gateway, /produit à intégrer/);
+  assert.match(server, /\(\{ role, usage, characterIndex \}\)/);
+  assert.match(gateway, /"role" \| "usage" \| "characterIndex"/);
+  assert.match(
+    gateway,
+    /reference\.role === "character" && reference\.usage === "required"/,
+  );
+  assert.match(gateway, /usage === "inspiration"/);
+  assert.match(gateway, /Ne pas préserver ni recopier son identité/);
+  assert.match(gateway, /Détecter toutes les personnes distinctes visibles/);
+  assert.match(gateway, /les mettre naturellement en action/);
+  assert.match(
+    server,
+    /role === "character" &&[\s\S]{0,120}usage === "required"/,
+  );
   assert.doesNotMatch(gateway, /catch[\s\S]{0,400}generateImage\([\s\S]{0,250}args\.prompt/);
   assert.match(server, /prepareAiMediaIdentityReferences\(args\.request\.inspirationImages\)/);
   assert.match(server, /identityReferences: preparedIdentityReferences\.buffers/);

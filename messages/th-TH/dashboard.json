@@ -40,7 +40,7 @@
     "preferences": "การตั้งค่าทั่วไป",
     "ai": "การตั้งค่าเอไอ",
     "aiMemory": "DNA ของธุรกิจ",
-    "mediaGenerator": "สร้างสื่อ",
+    "mediaGenerator": "สตูดิโอสื่อ",
     "premiumBadge": "Premium",
     "media": "ห้องสมุดสื่อ",
     "notifications": "การแจ้งเตือน",
@@ -716,6 +716,10 @@
     "agentLine1": "กำหนดเวลาเผยแพร่ของคุณ",
     "agentLine2": "ด้วยเอเจนต์ AI ของคุณ",
     "agentPlanning": "แผนงาน",
-    "agentCta": "ควบคุม"
+    "agentCta": "ควบคุม",
+    "studioEyebrow": "การสร้างสื่อด้วย AI",
+    "studioLine1": "สร้าง แก้ไข และตกแต่ง",
+    "studioLine2": "รูปภาพและวิดีโอของคุณ",
+    "studioCta": "สตูดิโอสื่อ"
   }
 }

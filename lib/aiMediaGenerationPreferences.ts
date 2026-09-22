@@ -45,6 +45,10 @@ export type AiMediaGeneratorBlockDefaults = {
   };
   5: {
     peopleMode: "auto" | "none" | "solo" | "team";
+    sourceMode?: "ai" | "criteria" | "real";
+    aiPeopleCriterion?: "auto" | "none" | "one" | "two" | "three" | "group";
+    aiSettingCriterion?: "auto" | "interior" | "exterior" | "studio" | "neutral";
+    aiFocusCriterion?: "auto" | "people" | "product" | "environment";
     identityMode:
       | "auto"
       | "professional"
@@ -327,6 +331,36 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
       return {
         peopleMode:
           normalizedIdentityMode === "reference_team" ? "team" : peopleMode,
+        sourceMode: enumValue(
+          input.sourceMode,
+          ["ai", "criteria", "real"] as const,
+          normalizedIdentityMode === "auto" && peopleMode !== "auto"
+            ? "criteria"
+            : normalizedIdentityMode === "auto"
+              ? "ai"
+              : "real",
+        ),
+        aiPeopleCriterion: enumValue(
+          input.aiPeopleCriterion,
+          ["auto", "none", "one", "two", "three", "group"] as const,
+          peopleMode === "none"
+            ? "none"
+            : peopleMode === "solo"
+              ? "one"
+              : peopleMode === "team"
+                ? "group"
+                : "auto",
+        ),
+        aiSettingCriterion: enumValue(
+          input.aiSettingCriterion,
+          ["auto", "interior", "exterior", "studio", "neutral"] as const,
+          "auto",
+        ),
+        aiFocusCriterion: enumValue(
+          input.aiFocusCriterion,
+          ["auto", "people", "product", "environment"] as const,
+          "auto",
+        ),
         identityMode: normalizedIdentityMode,
         teamVideoMode,
         teamVideoSpeechMode,
@@ -492,6 +526,36 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
       return {
         peopleMode:
           normalizedIdentityMode === "reference_team" ? "team" : peopleMode,
+        sourceMode: enumValue(
+          input.sourceMode,
+          ["ai", "criteria", "real"] as const,
+          normalizedIdentityMode === "auto" && peopleMode !== "auto"
+            ? "criteria"
+            : normalizedIdentityMode === "auto"
+              ? "ai"
+              : "real",
+        ),
+        aiPeopleCriterion: enumValue(
+          input.aiPeopleCriterion,
+          ["auto", "none", "one", "two", "three", "group"] as const,
+          peopleMode === "none"
+            ? "none"
+            : peopleMode === "solo"
+              ? "one"
+              : peopleMode === "team"
+                ? "group"
+                : "auto",
+        ),
+        aiSettingCriterion: enumValue(
+          input.aiSettingCriterion,
+          ["auto", "interior", "exterior", "studio", "neutral"] as const,
+          "auto",
+        ),
+        aiFocusCriterion: enumValue(
+          input.aiFocusCriterion,
+          ["auto", "people", "product", "environment"] as const,
+          "auto",
+        ),
         identityMode: normalizedIdentityMode,
         teamVideoMode: enumValue(
           input.teamVideoMode,

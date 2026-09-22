@@ -13639,7 +13639,9 @@
     0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.36),
     0 0 28px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.2),
     0 0 36px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.12);
-  transition: width 320ms ease;
+  /* A connection revalidation must not visually drain then refill the gauge.
+     The confirmed value is swapped atomically by DashboardClient. */
+  transition: none;
 }
 
 .cockpitStageBar > span::before {

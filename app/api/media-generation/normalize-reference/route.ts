@@ -8,7 +8,10 @@ import {
   AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
 } from "@/lib/aiMediaGenerationContracts";
 import { normalizeImageAiPreviewBuffer } from "@/lib/mediaImageNormalizer";
-import { isInrMediaImageFile } from "@/lib/mediaRules";
+import {
+  INR_MEDIA_IMAGE_MAX_MB_LABEL,
+  isInrMediaImageFile,
+} from "@/lib/mediaRules";
 import { sanitizeUniversalMediaSegment } from "@/lib/mediaUploadPolicy";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -166,7 +169,7 @@ export async function POST(request: Request) {
       source.byteLength > AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES
     ) {
       return jsonError(
-        "L’image de référence est vide ou dépasse 12 Mo.",
+        `L’image de référence est vide ou dépasse ${INR_MEDIA_IMAGE_MAX_MB_LABEL}.`,
         413,
         "identity_reference_size_invalid",
       );

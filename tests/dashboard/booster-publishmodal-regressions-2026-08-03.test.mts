@@ -16,9 +16,6 @@ const imagesPanel = read(
 const videoAdapter = read(
   "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx",
 );
-const videoManager = read(
-  "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx",
-);
 
 test("channel titles keep raw spaces while the user is typing", () => {
   assert.ok(
@@ -33,13 +30,14 @@ test("block 4 exposes scoped media removal and global video removal", () => {
   assert.match(publishModal, /removeVideo=\{removeVideo\}/);
   assert.match(imagesPanel, /removeVideo: \(\) => void/);
   assert.match(imagesPanel, /onDeleteVideo=\{removeVideo\}/);
-  assert.match(videoAdapter, /onDeleteVideo=\{onDeleteVideo\}/);
+  assert.match(videoAdapter, /onClick=\{onDeleteVideo\}/);
   assert.match(publishModal, /removeMediaFromChannel/);
   assert.match(imagesPanel, /onRemoveMediaFromChannel/);
   assert.match(videoAdapter, /onRemoveMediaFromChannel/);
-  assert.match(videoManager, /i18nT\("retirer_de_ce_canal_76fbf864"\)/);
-  assert.match(videoManager, /i18nT\("supprimer_partout_dfb790c4"\)/);
-  assert.doesNotMatch(videoManager, /\) : onDeleteVideo \? \(/);
+  assert.match(videoAdapter, /i18nT\("retirer_de_ce_canal_76fbf864"\)/);
+  assert.match(videoAdapter, /i18nT\("supprimer_partout_dfb790c4"\)/);
+  assert.match(videoAdapter, /onRetouchVideo\(activeChannel\)/);
+  assert.doesNotMatch(videoAdapter, /BoosterVideoFormatManager/);
 });
 
 test("a scoped removal keeps an explicit empty media mode", () => {

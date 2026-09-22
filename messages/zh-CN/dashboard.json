@@ -40,7 +40,7 @@
     "preferences": "一般偏好",
     "ai": "人工智能设置",
     "aiMemory": "企业 DNA",
-    "mediaGenerator": "生成媒体",
+    "mediaGenerator": "媒体工作室",
     "premiumBadge": "Premium",
     "media": "媒体库",
     "notifications": "通知",
@@ -716,6 +716,10 @@
     "agentLine1": "安排您的发布内容",
     "agentLine2": "由您的 AI 智能体协助。",
     "agentPlanning": "计划",
-    "agentCta": "管理"
+    "agentCta": "管理",
+    "studioEyebrow": "AI 媒体创作",
+    "studioLine1": "创建、编辑和润饰",
+    "studioLine2": "您的图像与视频。",
+    "studioCta": "媒体工作室"
   }
 }

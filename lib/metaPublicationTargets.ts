@@ -1,10 +1,9 @@
 import type { BoosterPublicationChannelKey } from "@/lib/boosterPublicationPolicy";
 
 export type MetaPublicationPlacement = "classic" | "reel" | "story";
-export type MetaPrimaryPublicationPlacement = Exclude<
-  MetaPublicationPlacement,
-  "story"
->;
+// The primary placement may now be Story on its own.  `includeStory` remains
+// available for the existing "Classique/Reel + Story" combinations.
+export type MetaPrimaryPublicationPlacement = MetaPublicationPlacement;
 
 export type MetaPublicationSelection = {
   version: 2;
@@ -73,30 +72,41 @@ export function normalizeMetaPublicationSelection(
   if (!hasV2Shape && legacyPlacement === "story") {
     return {
       version: 2,
-      primaryPlacement: "classic",
-      includeStory: true,
+      primaryPlacement: "story",
+      includeStory: false,
       placements: ["story"],
     };
   }
 
-  const primaryFromList = explicitPlacements.find(
-    (placement): placement is MetaPrimaryPublicationPlacement =>
-      placement === "classic" || placement === "reel",
-  );
+  const primaryFromList =
+    explicitPlacements.find(
+      (placement) => placement === "classic" || placement === "reel",
+    ) ?? (explicitPlacements.includes("story") ? "story" : undefined);
   const primaryPlacement: MetaPrimaryPublicationPlacement =
-    explicitPrimary === "reel" || explicitPrimary === "classic"
+    explicitPrimary === "reel" ||
+    explicitPrimary === "classic" ||
+    explicitPrimary === "story"
       ? explicitPrimary
-      : primaryFromList ?? (legacyPlacement === "reel" ? "reel" : "classic");
+      : primaryFromList ??
+        (legacyPlacement === "reel"
+          ? "reel"
+          : legacyPlacement === "story"
+            ? "story"
+            : "classic");
   const includeStory =
-    explicitPlacements.includes("story") ||
-    raw.includeStory === true ||
-    raw.storyEnabled === true;
+    primaryPlacement !== "story" &&
+    (explicitPlacements.includes("story") ||
+      raw.includeStory === true ||
+      raw.storyEnabled === true);
 
   return {
     version: 2,
     primaryPlacement,
     includeStory,
-    placements: [primaryPlacement, ...(includeStory ? (["story"] as const) : [])],
+    placements:
+      primaryPlacement === "story"
+        ? ["story"]
+        : [primaryPlacement, ...(includeStory ? (["story"] as const) : [])],
   };
 }
 
@@ -109,6 +119,46 @@ export function buildMetaPublicationSelection(
     primaryPlacement,
     includeStory,
   });
+}
+
+export function isMetaStoryOnlySelection(value: unknown): boolean {
+  const selection = normalizeMetaPublicationSelection(value);
+  return (
+    selection.primaryPlacement === "story" &&
+    selection.placements.length === 1 &&
+    selection.placements[0] === "story"
+  );
+}
+
+type MetaPublicationTextContent = {
+  title?: unknown;
+  content?: unknown;
+  cta?: unknown;
+  ctaMode?: unknown;
+  ctaUrl?: unknown;
+  ctaPhone?: unknown;
+  hashtags?: unknown;
+};
+
+/**
+ * A Story-only Meta publication carries media and nothing else.  Keeping this
+ * rule next to the placement normalizer prevents a disabled editor from being
+ * bypassed by a draft restore, a scheduled send or a direct payload.
+ */
+export function stripMetaStoryOnlyPostContent<
+  T extends MetaPublicationTextContent,
+>(post: T, selection: unknown): T {
+  if (!isMetaStoryOnlySelection(selection)) return post;
+  return {
+    ...post,
+    title: "",
+    content: "",
+    cta: "",
+    ctaMode: "none",
+    ctaUrl: "",
+    ctaPhone: "",
+    hashtags: [],
+  } as T;
 }
 
 export function buildBoosterPublicationTargets(params: {

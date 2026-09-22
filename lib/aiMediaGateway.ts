@@ -16,6 +16,7 @@ import { bufferFromUint8ArrayView } from "@/lib/aiMediaBuffer";
 import type {
   AiMediaIdentityMode,
   AiMediaInspirationImage,
+  AiMediaOperation,
 } from "@/lib/aiMediaGenerationContracts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
@@ -42,7 +43,7 @@ export type AiMediaGatewayResult = {
 type AiMediaImageProviderInput = {
   providedReferences: Buffer[];
   providedReferenceRoles: Array<
-    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+    Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
   >;
   characterReferenceCount: number;
   strictIdentityReferences: boolean;
@@ -122,7 +123,7 @@ function prepareImageProviderInput(args: {
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
-    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+    Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
   >;
   officialLogo?: Buffer | null;
 }): AiMediaImageProviderInput {
@@ -135,13 +136,27 @@ function prepareImageProviderInput(args: {
     args.identityMode === "reference_team";
   const providedReferenceRoles = providedReferences.map((_, index) => {
     const explicit = args.referenceRoles?.[index];
-    if (explicit?.role) return explicit;
+    if (explicit?.role) {
+      return {
+        ...explicit,
+        usage:
+          explicit.usage ||
+          (legacyStrictIdentity && explicit.role === "character"
+            ? ("required" as const)
+            : ("inspiration" as const)),
+      };
+    }
     return legacyStrictIdentity
-      ? { role: "character" as const, characterIndex: (index + 1) as 1 | 2 | 3 }
-      : {};
+      ? {
+          role: "character" as const,
+          usage: "required" as const,
+          characterIndex: (index + 1) as 1 | 2 | 3,
+        }
+      : { usage: "inspiration" as const };
   });
   const characterReferenceCount = providedReferenceRoles.filter(
-    (reference) => reference.role === "character"
+    (reference) =>
+      reference.role === "character" && reference.usage === "required"
   ).length;
   const strictIdentityReferences =
     characterReferenceCount > 0 && legacyStrictIdentity;
@@ -167,6 +182,7 @@ function prepareImageProviderInput(args: {
 
 function buildImageReferenceRoleRules(args: {
   identityMode: AiMediaIdentityMode;
+  operation?: AiMediaOperation;
   input: AiMediaImageProviderInput;
 }) {
   const {
@@ -177,21 +193,33 @@ function buildImageReferenceRoleRules(args: {
     referenceImagesCount,
   } = args.input;
   if (!referenceImagesCount) return "";
+  if (args.operation === "modify") {
+    return [
+      "CONTRAT DES IMAGES FOURNIES — MODE MODIFICATION :",
+      "- Image 1 est l’image source exacte à modifier. Elle n’est ni une inspiration, ni un simple guide, ni un élément à intégrer dans une nouvelle scène.",
+      "- Partir de cette image comme canvas. Appliquer strictement la consigne utilisateur aux seules zones nécessaires et conserver tous les pixels, sujets, identités, objets, cadrages et détails non concernés aussi fidèlement que possible.",
+      "- Ne jamais produire une nouvelle scène libre, un collage, une planche avant/après, un cadre ou une variante seulement inspirée de la source.",
+    ].join("\n");
+  }
   return [
     "ORDRE DES IMAGES DE RÉFÉRENCE FOURNIES AU MODÈLE :",
     ...providedReferences.map((_, index) => {
       const reference = providedReferenceRoles[index];
       const imageNumber = index + 1;
+      if (reference?.usage === "inspiration") {
+        return `- Image ${imageNumber} = inspiration uniquement : en extraire librement une ambiance, une palette, un rythme ou une idée de composition. Ne pas préserver ni recopier son identité, son visage, sa silhouette, son produit, son décor, sa pose ou son cadrage exact.`;
+      }
       if (reference?.role === "character") {
-        return `- Image ${imageNumber} = personnage ${
-          reference.characterIndex || imageNumber
-        }, adulte autorisé. Préserver séparément son visage et ses signes distinctifs, le faire apparaître exactement une fois dans la nouvelle scène, sans fusion, permutation, duplication ni substitution générique. Ne jamais recopier sa photo, sa posture, son cadrage ou son arrière-plan.`;
+        return `- Image ${imageNumber} = média Personnage obligatoire, adulte(s) autorisé(s). Détecter toutes les personnes distinctes visibles dans cette image, qu'il y en ait une ou plusieurs. Préserver séparément le visage, les traits, la silhouette et les signes distinctifs de chacune ; les faire toutes apparaître exactement une fois et les mettre naturellement en action selon le brief, sans fusion, permutation, duplication, omission ni substitution générique. La pose, le cadrage et l'arrière-plan peuvent évoluer seulement si le brief le demande.`;
       }
       if (reference?.role === "environment") {
         return `- Image ${imageNumber} = décor de référence. Recréer son lieu, son ambiance et ses éléments reconnaissables comme environnement plein cadre de la nouvelle scène ; ne jamais l’utiliser comme une photo fixe ou un fond simplement déplacé.`;
       }
       if (reference?.role === "product") {
         return `- Image ${imageNumber} = produit à intégrer. Préserver son apparence, sa forme et ses détails distinctifs, puis l’intégrer naturellement une seule fois dans la nouvelle scène ; ne jamais le confondre avec un personnage ou un décor.`;
+      }
+      if (reference?.role === "inspiration") {
+        return `- Image ${imageNumber} = média obligatoire non catégorisé : utiliser réellement tout contenu identifiable utile au brief. Conserver fidèlement les personnes, produits, objets, marques et lieux visibles ; ne transformer que leur mise en scène, leur action ou leur cadrage lorsque la consigne l'exige.`;
       }
       return strictIdentityReferences
         ? `- Image ${imageNumber} = référence d’identité autorisée. Préserver l’identité dans une scène entièrement nouvelle.`
@@ -200,7 +228,7 @@ function buildImageReferenceRoleRules(args: {
     officialLogoIncluded
       ? `- L'image ${referenceImagesCount} est exclusivement le logo officiel ; ne jamais la confondre avec une personne ni un décor.`
       : "- Aucun fichier de logo n'est fourni.",
-    "- Hors logo officiel, chaque image fournie est uniquement un guide de génération : ne jamais la remettre en page comme résultat, la coller dans le visuel, l’entourer d’un cadre ou livrer une variante quasi identique. Produire une nouvelle scène plein cadre qui matérialise réellement le sujet demandé.",
+    "- Une référence obligatoire est une source autoritaire : ses éléments liés au rôle choisi doivent réellement apparaître et rester reconnaissables. Une référence marquée inspiration ne fournit qu'une direction créative libre. Dans tous les cas, produire une scène plein cadre sans collage, cadre, planche comparative ni simple remise en page de la photo source.",
   ].join("\n");
 }
 
@@ -267,6 +295,7 @@ async function withEconomicGuard<T>(args: {
 export async function generateAiMediaImage(args: {
   accountId: string;
   prompt: string;
+  operation?: AiMediaOperation;
   identityMode: AiMediaIdentityMode;
   /**
    * Références ponctuelles explicitement autorisées par le professionnel.
@@ -275,7 +304,7 @@ export async function generateAiMediaImage(args: {
    */
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
-    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+    Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
   >;
   /** Logo officiel chargé depuis le stockage de l'établissement actif. */
   officialLogo?: Buffer | null;
@@ -313,6 +342,7 @@ export async function generateAiMediaImage(args: {
     operation: async (): Promise<AiMediaGatewayResult> => {
       const referenceRoleRules = buildImageReferenceRoleRules({
         identityMode: args.identityMode,
+        operation: args.operation,
         input,
       });
       const result = await generateImage({
@@ -385,10 +415,11 @@ export async function generateAiMediaImage(args: {
 export async function generateAiMediaImageWithGoogle(args: {
   accountId: string;
   prompt: string;
+  operation?: AiMediaOperation;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
-    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+    Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
   >;
   officialLogo?: Buffer | null;
   size?: "1024x1024" | "1024x1536" | "1536x1024";
@@ -413,6 +444,7 @@ export async function generateAiMediaImageWithGoogle(args: {
     operation: async (): Promise<AiMediaGatewayResult> => {
       const referenceRoleRules = buildImageReferenceRoleRules({
         identityMode: args.identityMode,
+        operation: args.operation,
         input,
       });
       const ai = new GoogleGenAI({ apiKey: key });

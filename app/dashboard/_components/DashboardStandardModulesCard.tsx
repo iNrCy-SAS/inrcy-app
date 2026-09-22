@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -112,6 +113,7 @@ export default function DashboardStandardModulesCard({
   const publicationsPath = "/dashboard/mails?folder=publications&boxView=sent";
   const reputationPath = "/dashboard/e-reputation";
   const agentPath = "/dashboard/agent";
+  const studioPath = "/dashboard/generer-media";
 
   return (
     <div className={styles.lowerRow} data-dashboard-standard-lower-blocks="true">
@@ -126,7 +128,7 @@ export default function DashboardStandardModulesCard({
 
           <article className={`${standardStyles.toolRow} ${standardStyles.statsRow}`}>
             <span className={standardStyles.toolLogo} aria-hidden="true">
-              <img src="/inrstats-logo-seul.png" alt="" />
+              <Image src="/inrstats-logo-seul.png" alt="" width={52} height={52} />
             </span>
             <div className={standardStyles.toolCopy}>
               <h4>{i18nT("inr_apos_stats_e43f5622")}</h4>
@@ -146,7 +148,7 @@ export default function DashboardStandardModulesCard({
 
           <article className={`${standardStyles.toolRow} ${standardStyles.sendRow}`}>
             <span className={standardStyles.toolLogo} aria-hidden="true">
-              <img src="/inrsend-logo-seul.png" alt="" />
+              <Image src="/inrsend-logo-seul.png" alt="" width={52} height={52} />
             </span>
             <div className={standardStyles.toolCopy}>
               <h4>{i18nT("inr_apos_send_aaa1fcec")}</h4>
@@ -227,42 +229,69 @@ export default function DashboardStandardModulesCard({
         </button>
       </section>
 
-      <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>
-        <span className={standardStyles.agentGlow} aria-hidden="true" />
-        <span className={standardStyles.agentMesh} aria-hidden="true" />
-        <span className={standardStyles.agentOrbit} aria-hidden="true" />
-        <span className={standardStyles.agentNodeOne} aria-hidden="true" />
-        <span className={standardStyles.agentNodeTwo} aria-hidden="true" />
-        <span className={standardStyles.agentLogo} aria-hidden="true">
-          <img src="/icons/inr-agent-header.png" alt="" />
-        </span>
-        <div className={standardStyles.agentCopy}>
-          <span>{t("agentEyebrow")}</span>
-              <h3>{i18nT("inr_agent_e5261e85")}</h3>
-          <p>{t("agentLine1")} <strong>{t("agentLine2")}</strong></p>
-        </div>
-        <span className={standardStyles.agentActions}>
+      <div className={standardStyles.secondaryToolsRow} data-dashboard-standard-secondary-tools="true">
+        <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>
+          <span className={standardStyles.agentGlow} aria-hidden="true" />
+          <span className={standardStyles.agentMesh} aria-hidden="true" />
+          <span className={standardStyles.agentOrbit} aria-hidden="true" />
+          <span className={standardStyles.agentNodeOne} aria-hidden="true" />
+          <span className={standardStyles.agentNodeTwo} aria-hidden="true" />
+          <span className={standardStyles.agentLogo} aria-hidden="true">
+            <Image src="/icons/inr-agent-header.png" alt="" width={52} height={52} />
+          </span>
+          <div className={standardStyles.agentCopy}>
+            <span>{t("agentEyebrow")}</span>
+            <h3>{i18nT("inr_agent_e5261e85")}</h3>
+            <p>{t("agentLine1")} <strong>{t("agentLine2")}</strong></p>
+          </div>
+          <span className={standardStyles.agentActions}>
+            <button
+              className={standardStyles.agentPlanningButton}
+              type="button"
+              data-testid="standard-agent-planning"
+              onClick={() => setAgentPlanningOpen(true)}
+            >
+              <PlanningIcon /> {t("agentPlanning")}
+            </button>
+            <button
+              className={standardStyles.agentPilotButton}
+              type="button"
+              data-testid="standard-agent-pilotage"
+              data-dashboard-prefetch={agentPath}
+              onClick={() => startModuleNavigation(agentPath)}
+              disabled={isVisible(`route:${agentPath}`)}
+              aria-busy={isVisible(`route:${agentPath}`) || undefined}
+            >
+              {isVisible(`route:${agentPath}`) ? t("loading") : t("agentCta")} <ArrowIcon />
+            </button>
+          </span>
+        </section>
+
+        <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.studioPanel}`}>
+          <span className={standardStyles.studioGlow} aria-hidden="true" />
+          <span className={standardStyles.studioGrid} aria-hidden="true" />
+          <span className={standardStyles.studioOrbit} aria-hidden="true" />
+          <span className={standardStyles.studioNodeOne} aria-hidden="true" />
+          <span className={standardStyles.studioNodeTwo} aria-hidden="true" />
+          <span className={standardStyles.studioLogo} aria-hidden="true">✦</span>
+          <div className={standardStyles.studioCopy}>
+            <span>{t("studioEyebrow")}</span>
+            <h3 aria-label="iNr’Studio"><b>iNr’</b>Studio</h3>
+            <p>{t("studioLine1")} <strong>{t("studioLine2")}</strong></p>
+          </div>
           <button
-            className={standardStyles.agentPlanningButton}
+            className={standardStyles.studioButton}
             type="button"
-            data-testid="standard-agent-planning"
-            onClick={() => setAgentPlanningOpen(true)}
+            data-testid="standard-studio-open"
+            data-dashboard-prefetch={studioPath}
+            onClick={() => startModuleNavigation(studioPath)}
+            disabled={isVisible(`route:${studioPath}`)}
+            aria-busy={isVisible(`route:${studioPath}`) || undefined}
           >
-            <PlanningIcon /> {t("agentPlanning")}
+            {isVisible(`route:${studioPath}`) ? t("loading") : t("studioCta")} <ArrowIcon />
           </button>
-          <button
-            className={standardStyles.agentPilotButton}
-            type="button"
-            data-testid="standard-agent-pilotage"
-            data-dashboard-prefetch={agentPath}
-            onClick={() => startModuleNavigation(agentPath)}
-            disabled={isVisible(`route:${agentPath}`)}
-            aria-busy={isVisible(`route:${agentPath}`) || undefined}
-          >
-            {isVisible(`route:${agentPath}`) ? t("loading") : t("agentCta")} <ArrowIcon />
-          </button>
-        </span>
-      </section>
+        </section>
+      </div>
 
       {agentPlanningOpen ? (
         <DashboardAgentPlanningModal

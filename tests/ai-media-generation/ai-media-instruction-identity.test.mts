@@ -3,18 +3,30 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
+const readPromptArchitecture = () =>
+  [
+    "lib/aiMediaGenerationPrompt.ts",
+    "lib/aiMediaPromptShared.ts",
+    "lib/aiMediaImageGenerationPrompt.ts",
+    "lib/aiMediaVideoGenerationPrompt.ts",
+    "lib/aiMediaVideoPromptModules.ts",
+    "lib/aiMediaModificationPrompt.ts",
+  ]
+    .map(read)
+    .join("\n");
 
 test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sans être stockée en clair", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const prompt = readPromptArchitecture();
   const copywriter = read("lib/aiMediaCopywriter.ts");
   const narration = read("lib/aiMediaNarration.ts");
   const route = read("app/api/media-generation/generate/route.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
-  assert.match(generator, /aiInstruction: aiInstruction\.trim\(\)/);
-  assert.match(generator, /maxLength=\{600\}/);
+  assert.match(generator, /aiInstruction: generationAiInstruction/);
+  assert.match(generator, /const creativeBriefMaximum = 1_600/);
+  assert.match(generator, /maxLength=\{creativeBriefMaximum\}/);
   assert.match(hook, /aiInstruction: String\(request\.aiInstruction \|\| ""\)\.trim\(\)/);
   assert.match(prompt, /CONSIGNE DE RÉALISATION PRIORITAIRE DU PROFESSIONNEL/);
   assert.match(prompt, /Appliquer tous ses éléments visuels et narratifs/);
@@ -29,23 +41,30 @@ test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sa
 
 test("l'identité vidéo est consentie, auditée et indépendante du rendu", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const prompt = readPromptArchitecture();
   const route = read("app/api/media-generation/generate/route.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
   assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
   assert.match(generator, /characterReferenceMissing/);
   assert.match(generator, /renderReferenceSlot/);
-  assert.match(generator, /role: "character"/);
-  assert.match(generator, /role: "environment"/);
-  assert.match(generator, /role: "product"/);
+  assert.match(
+    generator,
+    /id: "character",[\s\S]{0,120}label: "Personnage\(s\) · nombre détecté automatiquement"/
+  );
+  assert.match(generator, /\{ id: "environment", label: "Décor \/ lieu" \}/);
+  assert.match(generator, /\{ id: "product", label: "Produit \/ objet" \}/);
+  assert.match(generator, /role: proposedRole/);
+  assert.match(generator, /setReferenceRole/);
   assert.match(generator, /setIdentityConsent\(false\)/);
   assert.match(generator, /const strictIdentityReferenceMode =/);
   assert.match(generator, /identityConsent: identityConsentRequired \? identityConsent : false/);
   assert.match(generator, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
   assert.match(prompt, /getAiMediaIdentityDirection/);
-  assert.doesNotMatch(prompt, /getAiMediaVideoIdentityDirection/);
-  assert.match(prompt, /sans le remplacer par un visage générique/);
+  assert.match(prompt, /getAiMediaImageIdentityDirection/);
+  assert.match(prompt, /getAiMediaVideoIdentityDirection/);
+  assert.match(prompt, /aucun personnage générique de fallback/);
+  assert.match(prompt, /Toutes les personnes distinctes détectées sont obligatoires/);
   assert.match(prompt, /dans le rendu choisi/);
   assert.match(route, /inrcy-media-identity-consent-v1/);
   assert.match(server, /inrcy-media-identity-consent-v1/);

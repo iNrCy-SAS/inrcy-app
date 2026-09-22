@@ -28,13 +28,13 @@ test("les photos sont présentées comme personnages, décor et produit distinct
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.match(generator, /role: "character"/);
-  assert.match(generator, /role: "environment"/);
-  assert.match(generator, /role: "product"/);
-  assert.match(generator, /characterIndex: \(index \+ 1\) as 1 \| 2 \| 3/);
+  assert.match(generator, /id: "character"/);
+  assert.match(generator, /id: "environment"/);
+  assert.match(generator, /id: "product"/);
+  assert.match(generator, /characterIndex: characterIndex as 1 \| 2 \| 3/);
   assert.match(generator, /image\.role === args\.role/);
-  assert.match(styles, /\.referenceSlots\s*\{/);
-  assert.match(styles, /\.referenceSlot\s*\{/);
+  assert.match(styles, /\.referenceCollection\s*\{/);
+  assert.match(styles, /\.referenceCard\s*\{/);
 });
 
 test("le bloc 1 distingue la voix off des personnages parlants sans mélanger les deux", () => {
@@ -190,9 +190,9 @@ test("la page ouverte affiche le wordmark iNr’Studio jusque sur mobile sans re
     /@media \(max-width: 620px\)[\s\S]*?\.moduleIdentity > div\s*\{[^}]*display:\s*grid/,
   );
   assert.equal(fr.ai_generator_made_inrcy, "iNr’Studio");
-  assert.equal(fr.ai_generator_made_inrcy_hint, "Votre générateur de médias made in iNrCy");
+  assert.equal(fr.ai_generator_made_inrcy_hint, "Vos médias Made in iNrCy");
   assert.equal(fr.ai_generator_modal_title, "Générer un média");
-  assert.equal(dashboardFr.userMenu.mediaGenerator, "Générer un média");
+  assert.equal(dashboardFr.userMenu.mediaGenerator, "Studio Médias");
 });
 
 test("le dialogue de consentement reste exploitable sur mobile", () => {

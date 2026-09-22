@@ -35,70 +35,36 @@ test("les champs courts restent proportionnés dans les cadres", () => {
   assert.match(generator, /data-media-kind=\{kind\}/);
   assert.match(generator, /data-subject-source=\{subjectSource\}/);
   assert.match(generator, /data-source-mode=\{mediaSourceMode\}/);
-  assert.match(generator, /data-character-count=\{realCharacterCount\}/);
-  assert.match(generator, /data-with-text=\{withText \? "true" : "false"\}/);
+  assert.match(generator, /data-character-count=\{effectiveCharacterCount\}/);
+  assert.deepEqual(
+    Array.from(generator.matchAll(/data-generator-block="([^"]+)"/g), (match) => match[1]),
+    ["subject", "selection", "direction", "finish"]
+  );
   assert.match(
     styles,
     /\.essentialSegmented\s*\{[\s\S]*?width:\s*fit-content;/
   );
   assert.match(styles, /\.studioSelect\s*\{[\s\S]*?width:\s*auto;/);
-  assert.match(
-    styles,
-    /\.essentialSplitFields\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(150px, 220px\)\)/
-  );
-  assert.match(
-    styles,
-    /\.creationCard\[data-media-kind="video"\]\s*\{[\s\S]*?"format subject"[\s\S]*?"instruction instruction"/
-  );
-  assert.match(
-    styles,
-    /\.creationCard\[data-media-kind="video"\]\[data-subject-source="custom"\]\s*\{[\s\S]*?"format subject"[\s\S]*?"custom instruction"/
-  );
-  assert.match(
-    styles,
-    /\.referenceSlots\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(150px, 220px\)\)/
-  );
+  assert.match(styles, /\.aiCriteriaGrid\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.referenceCollection\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.directionSettings\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(generator, /className=\{styles\.generatorAlerts\}/);
   assert.match(styles, /\.generatorAlerts\s*\{[\s\S]*?position:\s*absolute/);
 });
 
-test("le desktop confortable aère les informations et hiérarchise Image et Vidéo", () => {
+test("le desktop confortable aère les quatre blocs Image et Vidéo", () => {
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
   const frenchMedia = read("messages/fr-FR/media.json");
 
-  assert.match(
-    styles,
-    /@media \(min-width: 1101px\) and \(min-height: 840px\)[\s\S]*?\.essentialCard\s*\{[\s\S]*?padding:\s*clamp\(13px, 1\.6dvh, 18px\)/
-  );
-  assert.match(
-    styles,
-    /@media \(min-width: 1101px\) and \(min-height: 840px\)[\s\S]*?grid-template-rows:\s*minmax\(0, 1\.1fr\) minmax\(0, 0\.9fr\)/,
-    "la rangée haute doit afficher ses aides et ses médias sans les couper",
-  );
-  assert.match(
-    styles,
-    /\.creationTypeField \.essentialSegmented\s*\{[\s\S]*?width:\s*min\(100%, 390px\);[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(120px, 1fr\)\)/
-  );
-  assert.match(
-    styles,
-    /\.creationTypeField \.essentialSegmented button\s*\{[\s\S]*?min-height:\s*54px;[\s\S]*?font-size:\s*13px/
-  );
-  assert.match(
-    styles,
-    /\.mediaModeField\s*\{[\s\S]*?width:\s*min\(100%, 460px\);[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
-  );
+  assert.match(styles, /\.subjectSourceChoices\s*\{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.creativeBriefField textarea\s*\{[\s\S]*?height:\s*clamp\(94px, 12dvh, 142px\)/);
+  assert.match(styles, /\.mediaModeField\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(
     styles,
     /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a;[\s\S]*?background-image:\s*url\([\s\S]*?background-position:\s*right 13px center;/,
   );
-  assert.match(
-    styles,
-    /\.soundCard\[data-media-kind="image"\] > \.noAudioNotice\s*\{[\s\S]*?align-self:\s*center;[\s\S]*?justify-self:\s*center/
-  );
-  assert.match(
-    styles,
-    /@media \(min-width: 1101px\) and \(min-height: 840px\)[\s\S]*?\.messageCard\s*\{[\s\S]*?align-content:\s*space-between/,
-  );
+  assert.match(styles, /\.finishCard\[data-media-kind="image"\]\s*\{[\s\S]*?minmax\(0, 1fr\)/);
+  assert.match(styles, /\.finishCard\[data-media-kind="video"\]\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(
     frenchMedia,
     /"ai_generator_instruction_hint":\s*"Pour cette création uniquement — non enregistrée\."/,
@@ -119,8 +85,11 @@ test("Autre sujet explique immédiatement pourquoi la génération est bloquée"
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
   const frenchMedia = read("messages/fr-FR/media.json");
 
-  assert.match(generator, /aria-invalid=\{customIdea\.trim\(\)\.length < 3\}/);
-  assert.match(generator, /customIdea\.trim\(\)\.length < 3 \? \(/);
+  assert.match(
+    generator,
+    /aria-invalid=\{[\s\S]*?subjectSource === "custom" && creativeBrief\.trim\(\)\.length < 3/
+  );
+  assert.match(generator, /subjectSource === "custom" && creativeBrief\.trim\(\)\.length < 3 \? \(/);
   assert.match(generator, /className=\{styles\.fieldAlert\}[\s\S]*?role="alert"/);
   assert.match(styles, /\.essentialTextareaField > \.fieldAlert\s*\{/);
   assert.match(

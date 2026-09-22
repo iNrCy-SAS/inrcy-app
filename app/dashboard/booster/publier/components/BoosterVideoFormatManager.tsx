@@ -147,6 +147,7 @@ export default function BoosterVideoFormatManager({
   showApplyAll = true,
   buttonClassName,
   compact = false,
+  fillAvailableSpace = false,
 }: {
   isMobile: boolean;
   channel: ChannelKey;
@@ -174,6 +175,7 @@ export default function BoosterVideoFormatManager({
   showApplyAll?: boolean;
   buttonClassName?: string;
   compact?: boolean;
+  fillAvailableSpace?: boolean;
 }) {
   const locale = useLocale();
   const i18nT = useTranslations("booster") as unknown as BoosterTranslator;
@@ -247,6 +249,8 @@ export default function BoosterVideoFormatManager({
         width: "100%",
         maxWidth: "100%",
         minWidth: 0,
+        minHeight: fillAvailableSpace ? 0 : undefined,
+        height: fillAvailableSpace ? "100%" : undefined,
         boxSizing: "border-box",
         overflow: "hidden",
       }}
@@ -254,10 +258,14 @@ export default function BoosterVideoFormatManager({
       <div
         style={{
           display: "grid",
-          gridTemplateRows: "auto auto minmax(0, auto) auto",
-          alignContent: "start",
+          gridTemplateRows: fillAvailableSpace
+            ? "auto auto minmax(0, 1fr) auto"
+            : "auto auto minmax(0, auto) auto",
+          alignContent: fillAvailableSpace ? "stretch" : "start",
           gap: isMobile ? 9 : 10,
           minWidth: 0,
+          minHeight: fillAvailableSpace ? 0 : undefined,
+          height: fillAvailableSpace ? "100%" : undefined,
           borderRadius: 14,
           padding: isMobile ? 0 : 2,
         }}
@@ -306,8 +314,11 @@ export default function BoosterVideoFormatManager({
         {displayUrl ? (
           <div
             style={{
-              width: frameWidth,
+              width: fillAvailableSpace ? "100%" : frameWidth,
+              height: fillAvailableSpace ? "100%" : undefined,
+              minHeight: fillAvailableSpace ? 0 : undefined,
               maxWidth: "100%",
+              maxHeight: fillAvailableSpace ? "100%" : undefined,
               marginInline: "auto",
               aspectRatio,
               borderRadius: 14,
@@ -349,8 +360,20 @@ export default function BoosterVideoFormatManager({
               style={{
                 position: "relative",
                 zIndex: 1,
-                width: usesSafeFramePreview ? (sourceIsWiderThanFrame ? "100%" : "auto") : "100%",
-                height: usesSafeFramePreview ? (sourceIsWiderThanFrame ? "auto" : "100%") : "100%",
+                width: fillAvailableSpace
+                  ? "100%"
+                  : usesSafeFramePreview
+                    ? sourceIsWiderThanFrame
+                      ? "100%"
+                      : "auto"
+                    : "100%",
+                height: fillAvailableSpace
+                  ? "100%"
+                  : usesSafeFramePreview
+                    ? sourceIsWiderThanFrame
+                      ? "auto"
+                      : "100%"
+                    : "100%",
                 maxWidth: "100%",
                 maxHeight: "100%",
                 objectFit: isApplied ? "contain" : adaptationMode === "cover_crop" ? "cover" : "contain",
@@ -399,10 +422,15 @@ export default function BoosterVideoFormatManager({
 
       <div
         style={{
-          display: "grid",
-          alignContent: "start",
+          display: fillAvailableSpace ? "flex" : "grid",
+          flexDirection: fillAvailableSpace ? "column" : undefined,
+          justifyContent: fillAvailableSpace ? "space-between" : undefined,
+          alignContent: fillAvailableSpace ? undefined : "start",
           gap: isMobile ? 10 : 12,
           minWidth: 0,
+          minHeight: fillAvailableSpace ? 0 : undefined,
+          height: fillAvailableSpace ? "100%" : undefined,
+          boxSizing: "border-box",
           borderRadius: 14,
           padding: isMobile ? 10 : 12,
           border: "1px solid rgba(255,255,255,0.09)",
@@ -457,7 +485,26 @@ export default function BoosterVideoFormatManager({
           ) : null}
         </div>
 
-        <div style={{ display: "grid", gap: 7, width: "100%", minWidth: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            alignContent: fillAvailableSpace ? "center" : undefined,
+            flex: fillAvailableSpace ? "1 1 0" : undefined,
+            gap: fillAvailableSpace ? 12 : 7,
+            width: "100%",
+            minWidth: 0,
+            minHeight: fillAvailableSpace ? 0 : undefined,
+            boxSizing: "border-box",
+            padding: fillAvailableSpace ? "12px 14px" : undefined,
+            border: fillAvailableSpace
+              ? "1px solid rgba(255,174,73,0.14)"
+              : undefined,
+            borderRadius: fillAvailableSpace ? 13 : undefined,
+            background: fillAvailableSpace
+              ? "rgba(255,174,73,0.045)"
+              : undefined,
+          }}
+        >
           <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>{i18nT("format_actuel_07def762")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
             {videoFormatOptions.map((format) => {
@@ -512,7 +559,26 @@ export default function BoosterVideoFormatManager({
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 7, width: "100%", minWidth: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            alignContent: fillAvailableSpace ? "center" : undefined,
+            flex: fillAvailableSpace ? "1 1 0" : undefined,
+            gap: fillAvailableSpace ? 12 : 7,
+            width: "100%",
+            minWidth: 0,
+            minHeight: fillAvailableSpace ? 0 : undefined,
+            boxSizing: "border-box",
+            padding: fillAvailableSpace ? "12px 14px" : undefined,
+            border: fillAvailableSpace
+              ? "1px solid rgba(255,174,73,0.14)"
+              : undefined,
+            borderRadius: fillAvailableSpace ? 13 : undefined,
+            background: fillAvailableSpace
+              ? "rgba(255,174,73,0.045)"
+              : undefined,
+          }}
+        >
           <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>{i18nT("adaptation_1cda1dc6")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
             {(["safe_frame", "cover_crop"] as const).map((mode) => {

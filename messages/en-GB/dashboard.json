@@ -40,7 +40,7 @@
     "preferences": "General settings",
     "ai": "AI settings",
     "aiMemory": "Business DNA",
-    "mediaGenerator": "Generate media",
+    "mediaGenerator": "Media Studio",
     "premiumBadge": "Premium",
     "media": "Media library",
     "notifications": "Alerts",
@@ -716,6 +716,10 @@
     "agentLine1": "Schedule your publications",
     "agentLine2": "with your AI agent.",
     "agentPlanning": "Planning",
-    "agentCta": "Manage"
+    "agentCta": "Manage",
+    "studioEyebrow": "AI media creation",
+    "studioLine1": "Create, edit and retouch",
+    "studioLine2": "your images and videos.",
+    "studioCta": "Media Studio"
   }
 }

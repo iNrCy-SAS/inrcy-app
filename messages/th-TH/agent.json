@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "การดำเนินการตามกำหนดการ",
   "actions_programmees_a_venir_c1f610d0": "การดำเนินการตามแผนที่กำลังจะเกิดขึ้น",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "เปิดใช้งานตามค่าเริ่มต้นเพื่อเพิ่มลายเซ็นที่กำหนดค่าไว้เมื่อส่ง",
-  "adapt_image": "พอดีภาพ",
+  "adapt_image": "รีทัชภาพ",
   "adapt_media": "ปรับสื่อให้เหมาะสม",
   "adapt_video": "ปรับวิดีโอ",
   "adaptation_du_canal_1af8dcef": "การปรับช่อง",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "ดัดแปลงวีดีโอ iNr’Agent",
   "adapter_le_media_value_34c6f353": "ปรับสื่อ {value0}",
   "adapter_video_2d90a304": "ปรับวิดีโอ",
-  "add_image_first": "ขั้นแรกให้เพิ่มรูปภาพเพื่อปรับแต่ง",
+  "add_image_first": "เพิ่มรูปภาพก่อน",
   "add_image_to_publication": "เพิ่มรูปภาพในโพสต์",
   "add_media": "เพิ่มสื่อ",
   "add_media_first": "ขั้นแรกให้เพิ่มรูปภาพหรือวิดีโอเพื่อปรับแต่ง",
@@ -301,10 +301,10 @@
   "heure_5073129f": "เวลา",
   "horaire_db0addb3": "กำหนดการ",
   "ia_d41daf59": "เอไอ",
-  "image_adaptation_failed": "ไม่สามารถปรับภาพได้",
+  "image_adaptation_failed": "ไม่สามารถเปิดรูปภาพนี้ใน iNrStudio ได้",
   "image_adapted_save_failed": "ไม่สามารถบันทึกภาพที่ปรับแต่งแล้วได้",
   "image_adapted_saved": "ภาพที่ดัดแปลงและบันทึกไว้สำหรับ iNr’Agent",
-  "image_adapter_isolation_note": "การปรับเปลี่ยนนี้ใช้เครื่องมือ Adapt Image ของ Booster และจะแทนที่สื่อ iNr’Agent ด้วยเวอร์ชันที่ดัดแปลง",
+  "image_adapter_isolation_note": "การดำเนินการนี้ใช้เครื่องมือรีทัชของ iNrStudio และจะแทนที่สื่อ iNr’Agent ด้วยเวอร์ชันที่รีทัชแล้ว",
   "image_et_2d6d27c0": "รูปภาพและ",
   "image_number_alt": "รูปภาพ {number}",
   "immediate_other_channels_failed": "ไม่สามารถเผยแพร่ไปยังช่องอื่นได้ทันที",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "การยืนยันการใช้เพลงของ TikTok",
   "tiktok_session_change": "แก้ไข",
   "tiktok_session_save": "บันทึกการตั้งค่า",
-  "tiktok_session_checking": "กำลังตรวจสอบ TikTok…"
+  "tiktok_session_checking": "กำลังตรวจสอบ TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "โพสต์ถัดไปในอีกไม่กี่นาที"
 }

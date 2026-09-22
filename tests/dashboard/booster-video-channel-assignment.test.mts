@@ -22,8 +22,8 @@ const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
 const imagesPanel = read(
   "app/dashboard/booster/publier/components/PublishImagesPanel.tsx",
 );
-const videoManager = read(
-  "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx",
+const videoPanel = read(
+  "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx",
 );
 
 test("the channel action distinguishes picking, reusing and an assigned source", () => {
@@ -130,13 +130,13 @@ test("channel removal and global deletion are explicit and remain separate", () 
   assert.match(globalRemoval, /syncPersistentWorkspaceVideo\(null\)/);
 
   assert.match(
-    videoManager,
-    /removeFromChannelLabel \|\| i18nT\("retirer_de_ce_canal_76fbf864"\)/,
+    videoPanel,
+    /aria-label=\{i18nT\("retirer_de_ce_canal_76fbf864"\)\}/,
   );
   assert.match(
-    videoManager,
-    /deleteVideoLabel \|\| i18nT\("supprimer_partout_dfb790c4"\)/,
+    videoPanel,
+    /aria-label=\{i18nT\("supprimer_partout_dfb790c4"\)\}/,
   );
-  assert.match(videoManager, /aria-label=\{resolvedRemoveFromChannelLabel\}/);
-  assert.match(videoManager, /aria-label=\{resolvedDeleteVideoLabel\}/);
+  assert.match(videoPanel, /onRetouchVideo\(activeChannel\)/);
+  assert.doesNotMatch(videoPanel, /BoosterVideoFormatManager/);
 });

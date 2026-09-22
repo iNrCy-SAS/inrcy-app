@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Scheduled actions",
   "actions_programmees_a_venir_c1f610d0": "Upcoming planned actions",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Enabled by default to add the configured signature when sending.",
-  "adapt_image": "Adjust image",
+  "adapt_image": "Retouch image",
   "adapt_media": "Adjust media",
   "adapt_video": "Adjust video",
   "adaptation_du_canal_1af8dcef": "Channel adaptation",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "Adapt iNr’Agent video",
   "adapter_le_media_value_34c6f353": "Adapt media {value0}",
   "adapter_video_2d90a304": "Adapt video",
-  "add_image_first": "Add an image to adapt first.",
+  "add_image_first": "Add an image first.",
   "add_image_to_publication": "Add an image to the post",
   "add_media": "Add media",
   "add_media_first": "Add an image or video to adapt first.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "Time",
   "horaire_db0addb3": "Schedule",
   "ia_d41daf59": "AI",
-  "image_adaptation_failed": "Unable to adapt the image.",
+  "image_adaptation_failed": "Unable to open this image in iNrStudio.",
   "image_adapted_save_failed": "Unable to save the adapted image.",
   "image_adapted_saved": "Image adapted and saved for iNr’Agent.",
-  "image_adapter_isolation_note": "This setting uses Booster’s Adapt image tool and will replace the iNr’Agent media with the adapted version.",
+  "image_adapter_isolation_note": "This action uses iNrStudio’s Retouch tool and replaces the iNr’Agent media with the retouched version.",
   "image_et_2d6d27c0": "image and",
   "image_number_alt": "Image {number}",
   "immediate_other_channels_failed": "Unable to publish immediately to the other channels.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "TikTok Music Usage Confirmation",
   "tiktok_session_change": "Change",
   "tiktok_session_save": "Save settings",
-  "tiktok_session_checking": "Checking TikTok…"
+  "tiktok_session_checking": "Checking TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "Next publication in a few minutes"
 }

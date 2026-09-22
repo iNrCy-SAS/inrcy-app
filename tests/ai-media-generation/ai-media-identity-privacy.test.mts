@@ -14,6 +14,16 @@ import { redactAiMediaSensitiveText } from "../../lib/aiMediaSensitiveText.ts";
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
+const readPromptArchitecture = () =>
+  [
+    "lib/aiMediaGenerationPrompt.ts",
+    "lib/aiMediaPromptShared.ts",
+    "lib/aiMediaImageGenerationPrompt.ts",
+    "lib/aiMediaVideoGenerationPrompt.ts",
+    "lib/aiMediaVideoPromptModules.ts",
+  ]
+    .map(read)
+    .join("\n");
 
 test("les références sont validées, bornées et réencodées sans EXIF avant les fournisseurs", async () => {
   const source = await sharp({
@@ -29,12 +39,21 @@ test("les références sont validées, bornées et réencodées sans EXIF avant 
     .toBuffer();
 
   const prepared = await prepareAiMediaIdentityReferences([
-    { mimeType: "image/jpeg", data: source.toString("base64") },
+    {
+      mimeType: "image/jpeg",
+      data: source.toString("base64"),
+      role: "character",
+      usage: "required",
+      characterIndex: 1,
+    },
   ]);
 
   assert.equal(prepared.buffers.length, 1);
   assert.equal(prepared.providerImages[0]?.mimeType, "image/webp");
   assert.ok(prepared.providerImages[0]?.data.length);
+  assert.equal(prepared.providerImages[0]?.role, "character");
+  assert.equal(prepared.providerImages[0]?.usage, "required");
+  assert.equal(prepared.providerImages[0]?.characterIndex, 1);
   assert.equal(prepared.buffers[0]?.toString("ascii", 0, 4), "RIFF");
   assert.equal(prepared.buffers[0]?.toString("ascii", 8, 12), "WEBP");
   const metadata = await sharp(prepared.buffers[0]).metadata();
@@ -120,7 +139,7 @@ test("les identités strictes restent sur le moteur image par défaut, les réf�
     "Le contrat Gateway reste indépendant d'une option input_fidelity propriétaire",
   );
   assert.match(gateway, /inspiration visuelle/);
-  assert.match(gateway, /Produire une nouvelle scène plein cadre/);
+  assert.match(gateway, /produire une scène plein cadre/i);
   assert.match(
     gateway,
     /strictIdentityReferences[\s\S]*?"ai_image_identity_not_generated"[\s\S]*?"ai_image_not_generated"/,
@@ -149,16 +168,19 @@ test("le contrat v3 neutralise toujours les références et v4 exige un identifi
   assert.match(hook, /identityReferenceSetId:/);
 });
 
-test("le prompt cumule cardinalité et identité sans promettre une ressemblance absolue", () => {
-  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+test("le prompt préserve toutes les personnes détectées sans confondre photo et cardinalité", () => {
+  const prompt = readPromptArchitecture();
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
   assert.match(prompt, /PEOPLE_DIRECTIONS\[request\.peopleMode\]/);
-  assert.match(prompt, /const castRule =/);
+  assert.match(prompt, /const castRule = getRequiredCharacterCastRule/);
   assert.match(prompt, /const hasStrictIdentityReferences =/);
-  assert.match(prompt, /inspirations visuelles obligatoires/);
-  assert.match(prompt, /sans reproduire ni revendiquer l’identité d’une personne réelle/);
-  assert.match(prompt, /contrôler la ressemblance avant validation/);
+  assert.match(prompt, /RÉFÉRENCE OBLIGATOIRE/);
+  assert.match(prompt, /INSPIRATION UNIQUEMENT/);
+  assert.match(prompt, /sans imposer l’identité biométrique/i);
+  assert.match(prompt, /une photo peut contenir UNE OU PLUSIEURS personnes/i);
+  assert.match(prompt, /Toutes les personnes distinctes détectées sont obligatoires/i);
+  assert.match(prompt, /contrôler.*ressemblance/i);
   assert.doesNotMatch(prompt, /préserver fidèlement l’identité/);
   assert.match(
     omni,

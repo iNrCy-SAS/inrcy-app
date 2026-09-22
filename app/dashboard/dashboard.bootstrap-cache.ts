@@ -173,9 +173,9 @@ export function readCachedSiteBubbleProgress(): SiteBubbleProgressCache {
   }
 }
 
-export function readCachedGeneratorPowerPercent(): number | null {
+export function readCachedGeneratorPowerPercent(accountId?: string | null): number | null {
   try {
-    const raw = readUiCacheValue(GENERATOR_POWER_CACHE_KEY);
+    const raw = readUiCacheValue(GENERATOR_POWER_CACHE_KEY, accountId);
     if (!raw) return null;
     const value = Number(raw);
     if (!Number.isFinite(value)) return null;
@@ -205,9 +205,9 @@ export function sanitizeGeneratorPowerSnapshot(value: unknown): GeneratorPowerSn
   };
 }
 
-export function readCachedGeneratorPowerSnapshot(): GeneratorPowerSnapshot | null {
+export function readCachedGeneratorPowerSnapshot(accountId?: string | null): GeneratorPowerSnapshot | null {
   try {
-    const raw = readUiCacheValue(GENERATOR_POWER_SNAPSHOT_CACHE_KEY);
+    const raw = readUiCacheValue(GENERATOR_POWER_SNAPSHOT_CACHE_KEY, accountId);
     if (!raw) return null;
     return sanitizeGeneratorPowerSnapshot(JSON.parse(raw));
   } catch {
@@ -234,9 +234,9 @@ export function readCachedGeneratorIsActive(): boolean | null {
   }
 }
 
-export function readCachedDashboardChannelState(): Record<string, any> | null {
+export function readCachedDashboardChannelState(accountId?: string | null): Record<string, any> | null {
   try {
-    const raw = readUiCacheValue(DASHBOARD_CHANNEL_STATE_CACHE_KEY);
+    const raw = readUiCacheValue(DASHBOARD_CHANNEL_STATE_CACHE_KEY, accountId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as any;
     const state = parsed?.state && typeof parsed.state === "object" ? parsed.state : parsed;

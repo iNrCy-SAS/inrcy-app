@@ -151,25 +151,41 @@ function MetaPublicationFormatControls({
         </button>
       ) : null}
       {storiesEnabled ? (
-        <label
-          style={{
-            ...optionStyle(storyEnabled),
-            cursor: disabled ? "not-allowed" : "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 7,
-            fontWeight: 800,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={storyEnabled}
-            onChange={(event) => onStoryEnabledChange(event.target.checked)}
+        <>
+          <button
+            type="button"
+            aria-pressed={primaryPlacement === "story"}
+            onClick={() => {
+              onPrimaryPlacementChange("story");
+              onStoryEnabledChange(false);
+            }}
             disabled={disabled}
-            style={{ accentColor: "#38bdf8" }}
-          />
-          + {storyLabel}
-        </label>
+            style={optionStyle(primaryPlacement === "story")}
+          >
+            {storyLabel}
+          </button>
+          {primaryPlacement !== "story" ? (
+            <label
+              style={{
+                ...optionStyle(storyEnabled),
+                cursor: disabled ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                fontWeight: 800,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={storyEnabled}
+                onChange={(event) => onStoryEnabledChange(event.target.checked)}
+                disabled={disabled}
+                style={{ accentColor: "#38bdf8" }}
+              />
+              + {storyLabel}
+            </label>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -415,13 +431,23 @@ export default function PublishContentEditorPanel({
   );
   const instagramVerticalFormat =
     activeCard === "instagram" &&
-    (instagramPublicationPlacement === "reel" || instagramStoryEnabled);
+    (instagramPublicationPlacement === "reel" ||
+      instagramPublicationPlacement === "story" ||
+      instagramStoryEnabled);
   const facebookVerticalFormat =
     activeCard === "facebook" &&
-    (facebookPublicationPlacement === "reel" || facebookStoryEnabled);
+    (facebookPublicationPlacement === "reel" ||
+      facebookPublicationPlacement === "story" ||
+      facebookStoryEnabled);
   const activeStoryEnabled =
     (activeCard === "instagram" && instagramStoryEnabled) ||
-    (activeCard === "facebook" && facebookStoryEnabled);
+    (activeCard === "instagram" && instagramPublicationPlacement === "story") ||
+    (activeCard === "facebook" && facebookStoryEnabled) ||
+    (activeCard === "facebook" && facebookPublicationPlacement === "story");
+  const activeStoryOnly =
+    (activeCard === "instagram" &&
+      instagramPublicationPlacement === "story") ||
+    (activeCard === "facebook" && facebookPublicationPlacement === "story");
   const activeMediaMode =
     activeCard === "instagram"
       ? instagramMediaMode
@@ -757,6 +783,9 @@ export default function PublishContentEditorPanel({
               </div>
             ) : null}
             <fieldset
+              disabled={activeStoryOnly}
+              aria-disabled={activeStoryOnly}
+              data-meta-story-only-content={activeStoryOnly ? "disabled" : "enabled"}
               style={{
                 display: "grid",
                 gap: 10,
@@ -764,7 +793,8 @@ export default function PublishContentEditorPanel({
                 margin: 0,
                 padding: 0,
                 border: 0,
-                opacity: 1,
+                opacity: activeStoryOnly ? 0.42 : 1,
+                pointerEvents: activeStoryOnly ? "none" : "auto",
                 transition: "opacity 160ms ease",
               }}
             >

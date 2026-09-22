@@ -154,7 +154,7 @@ export function ChannelImageAdapterCardsPanel({
 
         {items.length ? (
           <div role="list" style={{ display: "grid", gridTemplateColumns: cardGridTemplate, gap: 12, alignItems: "stretch", justifyContent: "start", minWidth: 0 }}>
-            {items.map((item) => {
+            {items.map((item, index) => {
               const isDisabled = !!item.disabled && !item.included;
               const canDrag = Boolean(item.onMoveTo) && !isDisabled;
               const isDragTarget = dragTargetImageKey === item.key;
@@ -227,7 +227,7 @@ export function ChannelImageAdapterCardsPanel({
                       ? "rgba(255,255,255,0.05)"
                       : "rgba(255,255,255,0.025)",
                   display: "grid",
-                  gridTemplateRows: "auto auto auto 1fr",
+                  gridTemplateRows: "auto auto auto minmax(28px, auto) 1fr",
                   gap: 8,
                   opacity: isDisabled ? 0.48 : 1,
                   cursor: canDrag ? "grab" : undefined,
@@ -236,6 +236,100 @@ export function ChannelImageAdapterCardsPanel({
                     "border-color 140ms ease, background 140ms ease, transform 140ms ease",
                 }}
               >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "34px minmax(0, 1fr) 34px",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={buttonClassName}
+                    onClick={item.onMovePrevious}
+                    disabled={!item.onMovePrevious}
+                    title={i18nT("image_precedente_635f9e95")}
+                    style={{
+                      justifyContent: "center",
+                      opacity: item.onMovePrevious ? 1 : 0.45,
+                      padding: "0 8px",
+                    }}
+                  >
+                    ←
+                  </button>
+                  <div
+                    style={{
+                      minWidth: 0,
+                      minHeight: 34,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      padding: "0 8px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.045)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.included}
+                      disabled={isDisabled}
+                      onChange={isDisabled ? undefined : item.onToggle}
+                      aria-label={item.title}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        accentColor: "#4cc3ff",
+                        flex: "0 0 auto",
+                        cursor: isDisabled ? "not-allowed" : "pointer",
+                      }}
+                    />
+                    <span
+                      style={{
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontSize: viewportWidth > 920 ? 11 : 13,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {item.title || `Image ${index + 1}`}
+                    </span>
+                    {canDrag ? (
+                      <span
+                        aria-hidden="true"
+                        title={item.dragLabel}
+                        style={{
+                          flex: "0 0 auto",
+                          fontSize: 16,
+                          lineHeight: 1,
+                          opacity: 0.68,
+                          cursor: "grab",
+                        }}
+                      >
+                        ⠿
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className={buttonClassName}
+                    onClick={item.onMoveNext}
+                    disabled={!item.onMoveNext}
+                    title={i18nT("image_suivante_656228da")}
+                    style={{
+                      justifyContent: "center",
+                      opacity: item.onMoveNext ? 1 : 0.45,
+                      padding: "0 8px",
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+
                 <div style={{ position: "relative", borderRadius: 14, overflow: "hidden" }}>
                   <FinalImageFrame
                     image={{ previewUrl: item.previewUrl, transform: item.transform, preset: item.preset, imageMeta: item.imageMeta }}
@@ -244,34 +338,7 @@ export function ChannelImageAdapterCardsPanel({
                   />
                 </div>
 
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, cursor: isDisabled ? "not-allowed" : "pointer", minWidth: 0 }}>
-                  <input type="checkbox" checked={item.included} disabled={isDisabled} onChange={isDisabled ? undefined : item.onToggle} style={{ width: 16, height: 16, accentColor: "#4cc3ff", flex: "0 0 auto" }} />
-                  <span
-                    style={{
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      fontSize: viewportWidth > 920 ? 11 : 13,
-                      flexShrink: viewportWidth > 920 ? 0 : 1,
-                    }}
-                  >
-                    {item.title}
-                  </span>
-                  {canDrag ? (
-                    <span
-                      aria-hidden="true"
-                      title={item.dragLabel}
-                      style={{
-                        flex: "0 0 auto",
-                        fontSize: 16,
-                        lineHeight: 1,
-                        opacity: 0.68,
-                      }}
-                    >
-                      ⠿
-                    </span>
-                  ) : null}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minWidth: 0, flexWrap: "wrap", textAlign: "center" }}>
                   <span
                     style={{
                       flex: "0 0 auto",
@@ -308,27 +375,54 @@ export function ChannelImageAdapterCardsPanel({
                   >
                     {item.fitLabel}
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 900, padding: "4px 7px", borderRadius: 999, background: item.included ? "rgba(34,197,94,0.13)" : "rgba(255,255,255,0.06)", color: item.included ? "#bbf7d0" : "rgba(255,255,255,0.62)", border: item.included ? "1px solid rgba(34,197,94,0.22)" : "1px solid rgba(255,255,255,0.08)" }}>
+                  <span style={{ fontSize: 10, fontWeight: 900, padding: "4px 7px", borderRadius: 999, background: item.included ? "rgba(34,197,94,0.13)" : "rgba(255,255,255,0.06)", color: item.included ? "#bbf7d0" : "rgba(255,255,255,0.62)", border: item.included ? "1px solid rgba(34,197,94,0.22)" : "1px solid rgba(255,255,255,0.08)" }}>
                     {item.included ? i18nT("incluse_8c79d3a2") : i18nT("ignoree_2b9acddb")}
                   </span>
-                </label>
+                </div>
 
                 <div style={{ fontSize: 11, opacity: 0.68, minHeight: 28, lineHeight: 1.35 }}>{item.subtitle}</div>
 
                 <div style={{ display: "grid", gap: 7, alignSelf: "end" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "34px 1fr 34px 34px", gap: 6 }}>
-                    <button type="button" className={buttonClassName} onClick={item.onMovePrevious} disabled={!item.onMovePrevious} title={i18nT("image_precedente_635f9e95")} style={{ justifyContent: "center", opacity: item.onMovePrevious ? 1 : 0.45, padding: "0 8px" }}>←</button>
-                    <button type="button" className={buttonClassName} onClick={item.onAdapt} style={{ justifyContent: "center", padding: "0 10px" }}>{i18nT("adapter_e6b4616c")}</button>
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 34px", gap: 6 }}>
+                    <button
+                      type="button"
+                      className={buttonClassName}
+                      onClick={item.onModify}
+                      style={{
+                        justifyContent: "center",
+                        minWidth: 0,
+                        padding: "0 8px",
+                        color: "#fff0ff",
+                        borderColor: "rgba(232, 121, 249, 0.5)",
+                        background: "linear-gradient(135deg, rgba(124,58,237,.78), rgba(219,39,119,.72))",
+                      }}
+                    >
+                      {i18nT("modifier_image_3f1a7c90")}
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonClassName}
+                      onClick={item.onAdapt}
+                      style={{
+                        justifyContent: "center",
+                        minWidth: 0,
+                        padding: "0 8px",
+                        color: "#d9fff3",
+                        borderColor: "rgba(52, 211, 153, 0.48)",
+                        background: "linear-gradient(135deg, rgba(5,150,105,.72), rgba(13,148,136,.72))",
+                      }}
+                    >
+                      {i18nT("adapter_e6b4616c")}
+                    </button>
                     {item.onReset ? <button type="button" className={buttonClassName} onClick={item.onReset} aria-label={i18nT("reinitialiser_value_cecceaa0", { value0: item.title })} style={{ justifyContent: "center", padding: "0 8px" }}>↺</button> : <span />}
-                    <button type="button" className={buttonClassName} onClick={item.onMoveNext} disabled={!item.onMoveNext} title={i18nT("image_suivante_656228da")} style={{ justifyContent: "center", opacity: item.onMoveNext ? 1 : 0.45, padding: "0 8px" }}>→</button>
                   </div>
                   {(item.onRemove || item.onRemoveEverywhere) ? (
                     <div style={{ display: "grid", gridTemplateColumns: item.onRemove && item.onRemoveEverywhere ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 6, minWidth: 0 }}>
                       {item.onRemove ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || i18nT("retirer_54ec24a1")} aria-label={`${item.removeLabel || i18nT("retirer_54ec24a1")} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 11, padding: "0 7px" }}>{item.removeLabel || i18nT("retirer_54ec24a1")}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || i18nT("retirer_54ec24a1")} aria-label={`${item.removeLabel || i18nT("retirer_54ec24a1")} : ${item.title}`} style={{ minWidth: 0, minHeight: 40, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 11, lineHeight: 1.15, padding: "5px 7px", whiteSpace: "normal" }}>{item.removeLabel || i18nT("retirer_54ec24a1")}</button>
                       ) : null}
                       {item.onRemoveEverywhere ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} aria-label={`${item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 10.5, padding: "0 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} aria-label={`${item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} : ${item.title}`} style={{ minWidth: 0, minHeight: 40, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 10.5, lineHeight: 1.15, padding: "5px 7px", whiteSpace: "normal", overflow: "visible", textOverflow: "clip", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")}</button>
                       ) : null}
                     </div>
                   ) : null}

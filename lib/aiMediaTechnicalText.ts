@@ -26,7 +26,7 @@ export function isAiMediaTechnicalCopyAllowed(
 }
 
 /** Keep the scene role and its anti-recitation guard inside the hard budget. */
-export function fitAiMediaSceneDirection(value: string, maximum = 700): string {
+export function fitAiMediaSceneDirection(value: string, maximum = 2_400): string {
   const guard = "Directives visuelles uniquement : appliquer sans les afficher ni les réciter.";
   const normalized = value.replace(/\s+/g, " ").trim();
   const budget = Math.max(0, maximum - guard.length - 1);

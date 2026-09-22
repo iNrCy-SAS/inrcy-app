@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { normalizeImageOverlay } from "@/lib/imageOverlay";
 
 import type { BackgroundMode, PreviewImage, PreviewVideo } from "./types";
 
@@ -30,6 +31,7 @@ export function FinalImageFrame({
   const backgroundColor = transform.backgroundColor;
   const fit = transform.fit || "cover";
   const zoom = safePreviewZoom(fit, transform.zoom);
+  const overlay = normalizeImageOverlay(transform.overlay);
 
   const imageWidth = meta?.width || 0;
   const imageHeight = meta?.height || 0;
@@ -65,6 +67,41 @@ export function FinalImageFrame({
       ) : (
         <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{i18nT("aucune_image_768c8a5c")}</div>
       )}
+      {overlay?.text ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "8%",
+            right: "8%",
+            top:
+              overlay.position === "top"
+                ? "8%"
+                : overlay.position === "bottom"
+                  ? undefined
+                  : "50%",
+            bottom: overlay.position === "bottom" ? "8%" : undefined,
+            transform: overlay.position === "center" ? "translateY(-50%)" : undefined,
+            padding: "clamp(8px, 2.2%, 18px) clamp(12px, 3.5%, 28px)",
+            borderRadius: 16,
+            background:
+              overlay.style === "glass"
+                ? "rgba(255,255,255,0.2)"
+                : "rgba(6,10,20,0.78)",
+            border: "1px solid rgba(255,255,255,0.28)",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: "clamp(12px, 3.8%, 32px)",
+            lineHeight: 1.2,
+            textAlign: "center",
+            whiteSpace: "pre-wrap",
+            overflowWrap: "anywhere",
+            pointerEvents: "none",
+            zIndex: 2,
+          }}
+        >
+          {overlay.text}
+        </div>
+      ) : null}
       {fitLabel ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>
           {fitLabel}

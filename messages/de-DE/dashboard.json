@@ -40,7 +40,7 @@
     "preferences": "Einstellungen",
     "ai": "KI-Einstellungen",
     "aiMemory": "Unternehmens-DNA",
-    "mediaGenerator": "Medium generieren",
+    "mediaGenerator": "Medienstudio",
     "premiumBadge": "Premium",
     "media": "Mediathek",
     "notifications": "Infos",
@@ -716,6 +716,10 @@
     "agentLine1": "Planen Sie Ihre Veröffentlichungen",
     "agentLine2": "mit Ihrem KI-Agenten.",
     "agentPlanning": "Planung",
-    "agentCta": "Steuerung"
+    "agentCta": "Steuerung",
+    "studioEyebrow": "KI-Medienerstellung",
+    "studioLine1": "Erstellen, bearbeiten und retuschieren Sie",
+    "studioLine2": "Ihre Bilder und Videos.",
+    "studioCta": "Medienstudio"
   }
 }

@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Geplande acties",
   "actions_programmees_a_venir_c1f610d0": "Geplande acties die nog moeten komen",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Standaard ingeschakeld om de geconfigureerde handtekening toe te voegen tijdens het verzenden.",
-  "adapt_image": "Aanpassen afbeelding",
+  "adapt_image": "Afbeelding retoucheren",
   "adapt_media": "Media aanpassen",
   "adapt_video": "Video aanpassen",
   "adaptation_du_canal_1af8dcef": "Kanaalaanpassing",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "iNr’Agent-video aanpassen",
   "adapter_le_media_value_34c6f353": "Media aanpassen {value0}",
   "adapter_video_2d90a304": "Video aanpassen",
-  "add_image_first": "Voeg eerst een afbeelding toe om aan te passen.",
+  "add_image_first": "Voeg eerst een afbeelding toe.",
   "add_image_to_publication": "Voeg een afbeelding toe aan het bericht",
   "add_media": "Voeg media toe",
   "add_media_first": "Voeg eerst een afbeelding of video toe om aan te passen.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "Tijd",
   "horaire_db0addb3": "Uurlijks",
   "ia_d41daf59": "AI",
-  "image_adaptation_failed": "Afbeelding aanpassen niet mogelijk.",
+  "image_adaptation_failed": "Deze afbeelding kan niet worden geopend in iNrStudio.",
   "image_adapted_save_failed": "Het is niet mogelijk de aangepaste afbeelding op te slaan.",
   "image_adapted_saved": "Afbeelding aangepast en opgeslagen voor iNr’Agent.",
-  "image_adapter_isolation_note": "Deze instelling gebruikt de Adapt Image-tool van Booster en vervangt de iNr’Agent-media door de aangepaste versie.",
+  "image_adapter_isolation_note": "Deze actie gebruikt de Retoucheren-tool van iNrStudio en vervangt de iNr’Agent-media door de geretoucheerde versie.",
   "image_et_2d6d27c0": "afbeeldings- en",
   "image_number_alt": "Afbeelding {number}",
   "immediate_other_channels_failed": "Kan niet direct publiceren naar andere kanalen.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "TikTok-bevestiging voor muziekgebruik",
   "tiktok_session_change": "Wijzigen",
   "tiktok_session_save": "Instellingen opslaan",
-  "tiktok_session_checking": "TikTok controleren…"
+  "tiktok_session_checking": "TikTok controleren…",
+  "next_editorial_publication_in_a_few_minutes": "Volgende publicatie over enkele minuten"
 }

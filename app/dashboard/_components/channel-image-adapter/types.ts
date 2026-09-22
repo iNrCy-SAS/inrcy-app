@@ -1,4 +1,5 @@
 import type React from "react";
+import type { ImageOverlay } from "@/lib/imageOverlay";
 
 
 export type BackgroundMode = "transparent" | "color" | "white" | "black" | "gray" | "sand" | "brand";
@@ -13,6 +14,7 @@ export type RenderTransform = {
   blurBackground?: boolean;
   backgroundMode?: BackgroundMode;
   backgroundColor?: string;
+  overlay?: ImageOverlay;
 };
 
 export type RenderPreset = { width: number; height: number };
@@ -68,6 +70,7 @@ export type CardItem = {
   imageMeta?: ImageMeta;
   onToggle: () => void;
   onAdapt: () => void;
+  onModify: () => void;
   onRemove?: () => void;
   removeLabel?: string;
   onRemoveEverywhere?: () => void;
@@ -117,6 +120,7 @@ export type ModalProps = {
   previewSrc: string;
   previewImageStyle?: React.CSSProperties;
   previewLayout?: { drawW: number; drawH: number; dx: number; dy: number };
+  overlay?: ImageOverlay;
   isDragging?: boolean;
   onClose: () => void;
   onWheel?: React.WheelEventHandler<HTMLDivElement>;
@@ -142,6 +146,7 @@ export type ModalProps = {
   isolationNote?: string;
   onBackgroundModeChange: (mode: BackgroundMode) => void;
   onBackgroundColorChange?: (color: string) => void;
+  onOverlayChange?: (overlay: ImageOverlay | undefined) => void;
   pillButtonStyle: React.CSSProperties;
   pillButtonActiveStyle: React.CSSProperties;
   sidebarItems?: SidebarItem[];

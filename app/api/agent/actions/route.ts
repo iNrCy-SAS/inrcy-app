@@ -1361,6 +1361,7 @@ export async function PATCH(request: Request) {
     attachments?: unknown;
     channel?: unknown;
     placement?: unknown;
+    includeStory?: unknown;
     boardId?: unknown;
     boardName?: unknown;
     title?: unknown;
@@ -1795,6 +1796,12 @@ export async function PATCH(request: Request) {
     const placement = normalizeInrAgentPublicationPlacement(
       requestBody?.placement,
     );
+    const includeStory =
+      placement !== "story" && requestBody?.includeStory === true;
+    const requestedPlacements: Array<"classic" | "reel" | "story"> = [
+      placement,
+      ...(includeStory ? (["story"] as const) : []),
+    ];
 
     const { data: currentRow, error: readError } = await supabaseAdmin
       .from("inr_agent_actions")
@@ -1851,7 +1858,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (placement !== "classic") {
+    if (requestedPlacements.some((value) => value !== "classic")) {
       const { data: configRow, error: configError } = await supabaseAdmin
         .from("pro_tools_configs")
         .select("settings")
@@ -1868,24 +1875,33 @@ export async function PATCH(request: Request) {
       }
       const rootSettings = asRecord(configRow?.settings) || {};
       const platformSettings = asRecord(rootSettings[channel]) || {};
-      const enabled =
+      const instagramPreferences =
         channel === "instagram"
-          ? isInstagramPublicationPlacementEnabled(
-              placement,
-              normalizeInstagramPublicationPreferences(
-                platformSettings.publicationPreferences,
-              ),
+          ? normalizeInstagramPublicationPreferences(
+              platformSettings.publicationPreferences,
             )
-          : isFacebookPublicationPlacementEnabled(
-              placement,
-              normalizeFacebookPublicationPreferences(
-                platformSettings.publicationPreferences,
-              ),
-            );
-      if (!enabled) {
+          : null;
+      const facebookPreferences =
+        channel === "facebook"
+          ? normalizeFacebookPublicationPreferences(
+              platformSettings.publicationPreferences,
+            )
+          : null;
+      const disabledPlacement = requestedPlacements.find((value) =>
+        channel === "instagram"
+          ? !isInstagramPublicationPlacementEnabled(
+              value,
+              instagramPreferences!,
+            )
+          : !isFacebookPublicationPlacementEnabled(
+              value,
+              facebookPreferences!,
+            ),
+      );
+      if (disabledPlacement) {
         return NextResponse.json(
           {
-            error: `Le format ${placement === "reel" ? "Reel" : "Story"} est désactivé dans la configuration ${channel === "instagram" ? "Instagram" : "Facebook"}.`,
+            error: `Le format ${disabledPlacement === "reel" ? "Reel" : "Story"} est désactivé dans la configuration ${channel === "instagram" ? "Instagram" : "Facebook"}.`,
             code: "INR_AGENT_PUBLICATION_PLACEMENT_DISABLED",
           },
           { status: 409 },
@@ -1936,10 +1952,12 @@ export async function PATCH(request: Request) {
       currentPayload,
       channel,
       placement,
+      includeStory,
     );
     nextPayload.lastManualEdit = {
       channel,
       placement,
+      includeStory,
       editedAt,
       editType: "publish_channel_placement",
     };

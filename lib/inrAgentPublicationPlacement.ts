@@ -1,10 +1,17 @@
 import type { FacebookPublicationPlacement } from "@/lib/facebookPublicationPreferences";
 import type { InstagramPublicationPlacement } from "@/lib/instagramPublicationPreferences";
+import {
+  buildMetaPublicationSelection,
+  normalizeMetaPublicationSelection,
+  type MetaPublicationSelection,
+  type MetaPrimaryPublicationPlacement,
+} from "./metaPublicationTargets.ts";
 
 export type InrAgentMetaChannel = "facebook" | "instagram";
 export type InrAgentPublicationPlacement =
   | FacebookPublicationPlacement
   | InstagramPublicationPlacement;
+export type InrAgentPublicationSelection = MetaPublicationSelection;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -56,43 +63,74 @@ export function readInrAgentPublicationPlacement(
   payload: unknown,
   channel: InrAgentMetaChannel,
 ): InrAgentPublicationPlacement {
+  return readInrAgentPublicationSelection(payload, channel).primaryPlacement;
+}
+
+/**
+ * Reads the current v2 selection (primary format + optional Story) while
+ * keeping every historical single-placement action fully compatible.
+ */
+export function readInrAgentPublicationSelection(
+  payload: unknown,
+  channel: InrAgentMetaChannel,
+): InrAgentPublicationSelection {
   const root = asRecord(payload);
   const publishPayload = asRecord(root.publishPayload);
   const settingsKey = inrAgentPublicationSettingsKey(channel);
   const placementKey = inrAgentPublicationPlacementKey(channel);
   const directSettings = asRecord(root[settingsKey]);
   const nestedSettings = asRecord(publishPayload[settingsKey]);
-  return normalizeInrAgentPublicationPlacement(
-    directSettings.placement ??
-      nestedSettings.placement ??
-      root[placementKey] ??
-      publishPayload[placementKey],
-  );
+  const settings = Object.keys(directSettings).length
+    ? directSettings
+    : Object.keys(nestedSettings).length
+      ? nestedSettings
+      : {
+          placement: root[placementKey] ?? publishPayload[placementKey],
+        };
+  return normalizeMetaPublicationSelection(settings);
 }
 
 /**
- * Stores the choice at both action and publishPayload boundaries. Classic is
- * represented by the absence of special settings, which keeps old actions and
- * the Booster publish-now normalizers backward compatible.
+ * Stores the choice at both action and publishPayload boundaries. Classic
+ * without Story is represented by the absence of special settings; every
+ * combined selection uses the shared Meta v2 contract consumed by Booster.
  */
 export function applyInrAgentPublicationPlacement(
   payload: JsonRecord,
   channel: InrAgentMetaChannel,
   placementValue: unknown,
+  includeStoryValue: unknown = false,
 ): JsonRecord {
-  const placement = normalizeInrAgentPublicationPlacement(placementValue);
+  const requestedSelection =
+    placementValue &&
+    typeof placementValue === "object" &&
+    !Array.isArray(placementValue)
+      ? normalizeMetaPublicationSelection(placementValue)
+      : buildMetaPublicationSelection(
+          normalizeInrAgentPublicationPlacement(
+            placementValue,
+          ) as MetaPrimaryPublicationPlacement,
+          includeStoryValue === true,
+        );
+  const placement = requestedSelection.primaryPlacement;
+  const includeStory = requestedSelection.includeStory;
   const settingsKey = inrAgentPublicationSettingsKey(channel);
   const placementKey = inrAgentPublicationPlacementKey(channel);
   const nextPayload = { ...payload };
   const nextPublishPayload = { ...asRecord(payload.publishPayload) };
 
-  if (placement === "classic") {
+  if (placement === "classic" && !includeStory) {
     delete nextPayload[settingsKey];
     delete nextPayload[placementKey];
     delete nextPublishPayload[settingsKey];
     delete nextPublishPayload[placementKey];
   } else {
-    const settings = { placement, mediaOnly: placement === "story" };
+    const settings = {
+      ...requestedSelection,
+      // Kept for old workers that still read the former one-placement alias.
+      placement,
+      mediaOnly: placement === "story",
+    };
     nextPayload[settingsKey] = settings;
     nextPayload[placementKey] = placement;
     nextPublishPayload[settingsKey] = settings;
@@ -106,7 +144,20 @@ export function applyInrAgentPublicationPlacement(
 export function publicationSettingsForInrAgentChannel(
   payload: unknown,
   channel: InrAgentMetaChannel,
-): { placement: "reel" | "story" } | null {
-  const placement = readInrAgentPublicationPlacement(payload, channel);
-  return placement === "classic" ? null : { placement };
+): (InrAgentPublicationSelection & {
+  placement: InrAgentPublicationPlacement;
+  mediaOnly: boolean;
+}) | null {
+  const selection = readInrAgentPublicationSelection(payload, channel);
+  if (
+    selection.primaryPlacement === "classic" &&
+    !selection.includeStory
+  ) {
+    return null;
+  }
+  return {
+    ...selection,
+    placement: selection.primaryPlacement,
+    mediaOnly: selection.primaryPlacement === "story",
+  };
 }

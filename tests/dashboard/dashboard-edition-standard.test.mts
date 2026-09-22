@@ -36,6 +36,10 @@ const standardModulesSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardStandardModulesCard.tsx", import.meta.url),
   "utf8",
 );
+const standardModulesCssSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardStandardModulesCard.module.css", import.meta.url),
+  "utf8",
+);
 const dashboardAgentPlanningSource = readFileSync(
   new URL(
     "../../app/dashboard/agent/_components/DashboardAgentPlanningModal.tsx",
@@ -348,14 +352,19 @@ test("un canal desactive reste gris tandis qu'un canal a connecter garde son eta
   );
 });
 
-test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster et iNrAgent", () => {
+test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster, iNrAgent et iNrStudio", () => {
   assert.match(standardModulesSource, /\/dashboard\/stats/);
   assert.match(standardModulesSource, /folder=publications&boxView=sent/);
   assert.match(standardModulesSource, /\/dashboard\/e-reputation/);
   assert.match(standardModulesSource, /t\("boosterCta"\)/);
   assert.match(standardModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
   assert.match(standardModulesSource, /standardStyles\.agentPanel/);
+  assert.match(standardModulesSource, /const studioPath = "\/dashboard\/generer-media"/);
+  assert.match(standardModulesSource, /data-testid="standard-studio-open"/);
+  assert.match(standardModulesSource, /data-dashboard-prefetch=\{studioPath\}/);
+  assert.match(standardModulesSource, /standardStyles\.studioPanel/);
   assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
+  assert.match(dashboardI18nSource, /"studioCta": "Studio Médias"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/agenda/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/propulser/);
@@ -363,6 +372,15 @@ test("les blocs inférieurs Standard conservent Stats, Publications, Réputation
   assert.match(standardModulesSource, /standardStyles\.boosterPanel/);
   assert.doesNotMatch(standardModulesSource, /gearboxTitle|gearboxSub|boosterStage|boosterCard/);
   assert.match(standardModulesSource, /standardStyles\.toolAction/);
+});
+
+test("Standard partage la rangée sous Booster à parts égales entre iNrAgent et iNrStudio", () => {
+  assert.match(standardModulesSource, /data-dashboard-standard-secondary-tools="true"/);
+  assert.match(standardModulesCssSource, /\.secondaryToolsRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(standardModulesCssSource, /@media \(max-width: 760px\)[\s\S]*?\.secondaryToolsRow\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  for (const key of ["studioEyebrow", "studioLine1", "studioLine2", "studioCta"]) {
+    assert.match(dashboardI18nSource, new RegExp(`"${key}":\\s*"[^"]+"`));
+  }
 });
 
 test("le raccourci Planning du bloc iNrAgent réutilise la modale et les données existantes sans copie", () => {
@@ -576,7 +594,7 @@ test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
 
   assert.match(agentClientSource, /visibleAutomations/);
   assert.match(agentClientSource, /isStandardAgentAutomationKey/);
-  assert.match(agentClientSource, /standardMode && settingsAutomation\.key === "stats" && theme === "Mails"/);
+  assert.match(agentClientSource, /standardMode\s*&&[\s\S]{0,80}?settingsAutomation\.key === "stats"\s*&&[\s\S]{0,80}?theme === "Mails"/);
   assert.match(agentClientSource, /standardMode && theme === "Mails"/);
   assert.match(agentSettingsApiSource, /standardAgentAutomationKeysForPersistence/);
   assert.match(agentCronSource, /reason: "premium_required"/);

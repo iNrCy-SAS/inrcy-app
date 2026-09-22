@@ -110,7 +110,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
 
   assert.match(narration, /count <= target\.max/);
   assert.match(narration, /hasCompleteAiMediaSpeechEnding\(value, language\)/);
-  assert.match(narration, /fitAiMediaSpeechToCompleteSentences/);
+  assert.match(narration, /completeAiMediaSpeechSentence\(fact, language\)/);
   assert.match(narration, /8: \{ min: 8, target: 10, max: 12 \}/);
   assert.match(narration, /16: \{ min: 20, target: 23, max: 26 \}/);
   assert.match(narration, /24: \{ min: 31, target: 35, max: 39 \}/);

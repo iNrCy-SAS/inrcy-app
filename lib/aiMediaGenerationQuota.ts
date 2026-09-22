@@ -48,6 +48,7 @@ export type AiMediaGenerationReservationOutcome =
   | "premium_required";
 
 export type AiMediaQuotaCounter = {
+  unit: "item" | "second";
   limit: number;
   used: number;
   reserved: number;
@@ -70,6 +71,7 @@ export type AiMediaGenerationReservation = {
   status: AiMediaGenerationJobStatus | null;
   replayed: boolean;
   expiresAt: string | null;
+  quotaAmount: number;
   quota: AiMediaQuotaCounter & { periodStart: string; resetAt: string };
 };
 
@@ -78,6 +80,7 @@ export type AiMediaGenerationTransition = {
   status: AiMediaGenerationJobStatus;
   mediaKind: AiMediaKind;
   mediaId: string | null;
+  quotaAmount: number;
   quota: AiMediaQuotaCounter & { periodStart: string; resetAt: string };
 };
 
@@ -89,6 +92,8 @@ type QuotaRpcRow = {
   edition?: unknown;
   studio_enabled?: unknown;
   media_kind?: unknown;
+  quota_unit?: unknown;
+  quota_amount?: unknown;
   limit_count?: unknown;
   used_count?: unknown;
   reserved_count?: unknown;
@@ -252,7 +257,17 @@ async function callRpc<T>(
 }
 
 function quotaFromRow(row: QuotaRpcRow): AiMediaQuotaCounter & { periodStart: string; resetAt: string } {
+  const inferredUnit = row.media_kind === "video" ? "second" : "item";
+  const unit = row.quota_unit ?? inferredUnit;
+  if (unit !== "item" && unit !== "second") {
+    throw new AiMediaGenerationQuotaError(
+      "ai_media_invalid_rpc_response",
+      "Unité de quota média IA invalide.",
+      503,
+    );
+  }
   return {
+    unit,
     limit: numberValue(row.limit_count, "limit_count"),
     used: numberValue(row.used_count, "used_count"),
     reserved: numberValue(row.reserved_count, "reserved_count"),
@@ -285,7 +300,7 @@ export async function getAiMediaQuotaSnapshot(params: {
   const accountId = assertUuid(params.accountId, "accountId");
   const actorAuthUserId = assertUuid(params.actorAuthUserId, "actorAuthUserId");
   const edition = normalizeAiMediaEdition(params.edition);
-  const rows = await callRpc<QuotaRpcRow>(params.supabase ?? supabaseAdmin, "get_ai_media_generation_quota", {
+  const rows = await callRpc<QuotaRpcRow>(params.supabase ?? supabaseAdmin, "get_ai_media_generation_quota_v2", {
     p_account_id: accountId,
     p_actor_auth_user_id: actorAuthUserId,
     p_edition: edition,
@@ -318,12 +333,14 @@ export async function getAiMediaQuotaSnapshot(params: {
     resetAt: image.resetAt,
     studioEnabled: imageRow.studio_enabled === true && videoRow.studio_enabled === true,
     image: {
+      unit: image.unit,
       limit: image.limit,
       used: image.used,
       reserved: image.reserved,
       remaining: image.remaining,
     },
     video: {
+      unit: video.unit,
       limit: video.limit,
       used: video.used,
       reserved: video.reserved,
@@ -343,6 +360,8 @@ export async function reserveAiMediaGeneration(params: {
   edition: AiMediaEdition;
   reservationTtlSeconds?: number;
   limitOverride?: number;
+  /** Une image réserve 1 item ; une vidéo réserve exactement 8, 16 ou 24 secondes. */
+  quotaAmount?: number;
   metadata?: AiMediaQuotaMetadata;
 }): Promise<AiMediaGenerationReservation> {
   const accountId = assertUuid(params.accountId, "accountId");
@@ -353,6 +372,7 @@ export async function reserveAiMediaGeneration(params: {
   const surface = normalizeSurface(params.surface);
   const edition = normalizeAiMediaEdition(params.edition);
   const reservationTtlSeconds = params.reservationTtlSeconds ?? (mediaKind === "video" ? 3600 : 900);
+  const quotaAmount = params.quotaAmount ?? (mediaKind === "video" ? 8 : 1);
 
   if (requestKey.length < 8 || requestKey.length > 180) {
     inputError("ai_media_invalid_request_key", "La cle de requete doit contenir entre 8 et 180 caracteres.");
@@ -369,8 +389,19 @@ export async function reserveAiMediaGeneration(params: {
   ) {
     inputError("ai_media_invalid_limit", "Le plafond media IA est invalide.");
   }
+  if (
+    (mediaKind === "image" && quotaAmount !== 1) ||
+    (mediaKind === "video" && !([8, 16, 24] as const).includes(quotaAmount as 8 | 16 | 24))
+  ) {
+    inputError(
+      "ai_media_invalid_quota_amount",
+      mediaKind === "video"
+        ? "Une vidéo doit réserver 8, 16 ou 24 secondes."
+        : "Une image doit réserver exactement une unité.",
+    );
+  }
 
-  const [row] = await callRpc<ReservationRpcRow>(params.supabase ?? supabaseAdmin, "reserve_ai_media_generation", {
+  const [row] = await callRpc<ReservationRpcRow>(params.supabase ?? supabaseAdmin, "reserve_ai_media_generation_v2", {
     p_account_id: accountId,
     p_actor_auth_user_id: actorAuthUserId,
     p_request_key: requestKey,
@@ -378,6 +409,7 @@ export async function reserveAiMediaGeneration(params: {
     p_media_kind: mediaKind,
     p_surface: surface,
     p_edition: edition,
+    p_quota_amount: quotaAmount,
     p_reservation_ttl_seconds: reservationTtlSeconds,
     p_limit_override: params.limitOverride ?? null,
     p_metadata: normalizeMetadata(params.metadata),
@@ -407,6 +439,7 @@ export async function reserveAiMediaGeneration(params: {
     status: jobStatus(row.job_status, true),
     replayed: row.is_replay === true,
     expiresAt: nullableString(row.reservation_expires_at),
+    quotaAmount: numberValue(row.quota_amount ?? quotaAmount, "quota_amount"),
     quota: quotaFromRow(row),
   };
 }
@@ -425,6 +458,7 @@ function transitionFromRow(row: TransitionRpcRow): AiMediaGenerationTransition {
     status: jobStatus(row.job_status),
     mediaKind: kind,
     mediaId: nullableString(row.media_id),
+    quotaAmount: numberValue(row.quota_amount ?? (kind === "video" ? 8 : 1), "quota_amount"),
     quota: quotaFromRow(row),
   };
 }
@@ -436,7 +470,7 @@ export async function completeAiMediaGeneration(params: {
   mediaId: string;
   metadata?: AiMediaQuotaMetadata;
 }): Promise<AiMediaGenerationTransition> {
-  const [row] = await callRpc<TransitionRpcRow>(params.supabase ?? supabaseAdmin, "complete_ai_media_generation", {
+  const [row] = await callRpc<TransitionRpcRow>(params.supabase ?? supabaseAdmin, "complete_ai_media_generation_v2", {
     p_account_id: assertUuid(params.accountId, "accountId"),
     p_job_id: assertUuid(params.jobId, "jobId"),
     p_media_id: assertUuid(params.mediaId, "mediaId"),
@@ -453,7 +487,7 @@ export async function failAiMediaGeneration(params: {
   errorMessage?: string;
   metadata?: AiMediaQuotaMetadata;
 }): Promise<AiMediaGenerationTransition> {
-  const [row] = await callRpc<TransitionRpcRow>(params.supabase ?? supabaseAdmin, "fail_ai_media_generation", {
+  const [row] = await callRpc<TransitionRpcRow>(params.supabase ?? supabaseAdmin, "fail_ai_media_generation_v2", {
     p_account_id: assertUuid(params.accountId, "accountId"),
     p_job_id: assertUuid(params.jobId, "jobId"),
     p_error_code: params.errorCode?.trim().slice(0, 120) || null,

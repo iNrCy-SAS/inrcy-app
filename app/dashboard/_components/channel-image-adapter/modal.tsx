@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import React, { useEffect, useState } from "react";
 
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
+import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
 
 import type { BackgroundMode, ModalProps } from "./types";
 
@@ -20,6 +21,7 @@ export function ChannelImageAdapterModal({
   previewSrc,
   previewImageStyle,
   previewLayout,
+  overlay,
   isDragging,
   onClose,
   onWheel,
@@ -45,6 +47,7 @@ export function ChannelImageAdapterModal({
   isolationNote,
   onBackgroundModeChange,
   onBackgroundColorChange,
+  onOverlayChange,
   pillButtonStyle,
   pillButtonActiveStyle,
   sidebarItems,
@@ -53,7 +56,7 @@ export function ChannelImageAdapterModal({
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window === "undefined" ? 1440 : window.innerWidth);
   const [showBefore, setShowBefore] = useState(false);
   const [adapterBaseline, setAdapterBaseline] = useState("");
-  const adapterSnapshot = JSON.stringify({ backgroundMode, backgroundColor, fitLabel, zoomLabel });
+  const adapterSnapshot = JSON.stringify({ backgroundMode, backgroundColor, fitLabel, zoomLabel, overlay });
 
   useEffect(() => {
     setAdapterBaseline(open ? adapterSnapshot : "");
@@ -87,6 +90,11 @@ export function ChannelImageAdapterModal({
   const bgMode = normalizedBgMode;
   const bgFill = legacyColorFromMode(backgroundMode, backgroundColor);
   const previewBg = previewBackgroundStyle(backgroundMode, backgroundColor);
+  const normalizedOverlay = normalizeImageOverlay(overlay);
+  const updateOverlay = (patch: Partial<ImageOverlay>) => {
+    const next = normalizeImageOverlay({ ...(normalizedOverlay || {}), ...patch });
+    onOverlayChange?.(next);
+  };
 
   const isMobile = viewportWidth <= 768;
   const isTinyMobile = viewportWidth <= 390;
@@ -157,6 +165,33 @@ export function ChannelImageAdapterModal({
                 ) : (
                   <img src={previewSrc} alt="preview" draggable={false} style={previewImageStyle} onMouseDown={onImageMouseDown} />
                 )}
+                {normalizedOverlay?.text ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "8%",
+                      right: "8%",
+                      top: normalizedOverlay.position === "top" ? "8%" : normalizedOverlay.position === "bottom" ? undefined : "50%",
+                      bottom: normalizedOverlay.position === "bottom" ? "8%" : undefined,
+                      transform: normalizedOverlay.position === "center" ? "translateY(-50%)" : undefined,
+                      padding: "clamp(8px, 2.2%, 18px) clamp(12px, 3.5%, 28px)",
+                      borderRadius: 16,
+                      background: normalizedOverlay.style === "glass" ? "rgba(255,255,255,0.2)" : "rgba(6,10,20,0.78)",
+                      border: "1px solid rgba(255,255,255,0.28)",
+                      color: "#fff",
+                      fontWeight: 800,
+                      fontSize: "clamp(12px, 3.8%, 32px)",
+                      lineHeight: 1.2,
+                      textAlign: "center",
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                      pointerEvents: "none",
+                      zIndex: 2,
+                    }}
+                  >
+                    {normalizedOverlay.text}
+                  </div>
+                ) : null}
                 <div style={{ position: "absolute", inset: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.14)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", pointerEvents: "none", flexWrap: "wrap" }}>
                   <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${fitLabel} • ${zoomLabel}`}</div>
@@ -200,6 +235,51 @@ export function ChannelImageAdapterModal({
                 </label>
               ) : null}
             </div>
+
+            {onOverlayChange ? (
+              <div style={{ display: "grid", gap: 10, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(192,132,252,0.22)", background: "rgba(192,132,252,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontSize: 12, opacity: 0.86, fontWeight: 800 }}>{i18nT("retoucher_texte_sur_media")}</div>
+                  {normalizedOverlay ? <button type="button" className={buttonClassName} onClick={() => onOverlayChange(undefined)} style={{ minHeight: 32, padding: "0 9px", fontSize: 11 }}>{i18nT("retoucher_effacer")}</button> : null}
+                </div>
+                <textarea
+                  value={normalizedOverlay?.text || ""}
+                  maxLength={180}
+                  rows={3}
+                  onChange={(event) => updateOverlay({ text: event.target.value })}
+                  placeholder={i18nT("retoucher_texte_placeholder")}
+                  style={{ width: "100%", minHeight: 76, resize: "vertical", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(2,6,23,0.72)", color: "#fff", padding: "10px 12px", boxSizing: "border-box", font: "inherit" }}
+                />
+                <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
+                  <span>{i18nT("retoucher_lien_destination")}</span>
+                  <input
+                    type="url"
+                    value={normalizedOverlay?.linkUrl || ""}
+                    onChange={(event) => updateOverlay({ linkUrl: event.target.value })}
+                    placeholder={i18nT("retoucher_lien_placeholder")}
+                    style={{ width: "100%", minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(2,6,23,0.72)", color: "#fff", padding: "0 12px", boxSizing: "border-box", font: "inherit" }}
+                  />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
+                    <span>{i18nT("retoucher_position")}</span>
+                    <select value={normalizedOverlay?.position || "center"} onChange={(event) => updateOverlay({ position: event.target.value as ImageOverlay["position"] })} style={{ minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#fff", color: "#111827", padding: "0 10px" }}>
+                      <option value="top">{i18nT("retoucher_position_top")}</option>
+                      <option value="center">{i18nT("retoucher_position_center")}</option>
+                      <option value="bottom">{i18nT("retoucher_position_bottom")}</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
+                    <span>{i18nT("retoucher_style")}</span>
+                    <select value={normalizedOverlay?.style || "solid"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay["style"] })} style={{ minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#fff", color: "#111827", padding: "0 10px" }}>
+                      <option value="solid">{i18nT("retoucher_style_solid")}</option>
+                      <option value="glass">{i18nT("retoucher_style_glass")}</option>
+                    </select>
+                  </label>
+                </div>
+                <small style={{ opacity: 0.68, lineHeight: 1.4 }}>{i18nT("retoucher_link_note")}</small>
+              </div>
+            ) : null}
           </div>
 
           <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr)", gap: 12, order: isMobile ? 3 : 2, flex: isMobile ? "0 0 auto" : undefined }}>

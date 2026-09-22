@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Azioni pianificate",
   "actions_programmees_a_venir_c1f610d0": "Azioni pianificate future",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Abilitato per impostazione predefinita per aggiungere la firma configurata al momento dell'invio.",
-  "adapt_image": "Adattamento immagine",
+  "adapt_image": "Ritocca immagine",
   "adapt_media": "Adatta i media",
   "adapt_video": "Adatta il video",
   "adaptation_du_canal_1af8dcef": "Adattamento canale",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "Adatta video iNr’Agent",
   "adapter_le_media_value_34c6f353": "Adatta il supporto {value0}",
   "adapter_video_2d90a304": "Adatta video",
-  "add_image_first": "Innanzitutto, aggiungi un'immagine da adattare.",
+  "add_image_first": "Aggiungi prima un'immagine.",
   "add_image_to_publication": "Aggiungi un'immagine al post",
   "add_media": "Aggiungi un contenuto multimediale",
   "add_media_first": "Innanzitutto, aggiungi un'immagine o un video da adattare.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "Tempo",
   "horaire_db0addb3": "Programmazione",
   "ia_d41daf59": "AI",
-  "image_adaptation_failed": "Impossibile adattare l'immagine.",
+  "image_adaptation_failed": "Impossibile aprire questa immagine in iNrStudio.",
   "image_adapted_save_failed": "Impossibile salvare l'immagine adattata.",
   "image_adapted_saved": "Immagine adattata e salvata per iNr’Agent.",
-  "image_adapter_isolation_note": "Questa impostazione utilizza lo strumento Adatta immagine di Booster e sostituirà il contenuto multimediale di iNr’Agent con la versione adattata.",
+  "image_adapter_isolation_note": "Questa azione utilizza lo strumento Ritocca di iNrStudio e sostituisce il contenuto multimediale di iNr’Agent con la versione ritoccata.",
   "image_et_2d6d27c0": "immagine e",
   "image_number_alt": "Immagine {number}",
   "immediate_other_channels_failed": "Impossibile pubblicare immediatamente su altri canali.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "Conferma dell’uso della musica di TikTok",
   "tiktok_session_change": "Modifica",
   "tiktok_session_save": "Salva impostazioni",
-  "tiktok_session_checking": "Verifica TikTok…"
+  "tiktok_session_checking": "Verifica TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "Prossima pubblicazione tra pochi minuti"
 }

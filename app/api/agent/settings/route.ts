@@ -661,7 +661,7 @@ async function saveAgentSettingsHandler(request: Request) {
   }
 
   let availableImages: number | null = null;
-  let availableVideos: number | null = null;
+  let availableVideoSeconds: number | null = null;
   let quotaAvailable =
     editorialImpact.requiredImages === 0 &&
     editorialImpact.requiredVideos === 0;
@@ -680,12 +680,12 @@ async function saveAgentSettingsHandler(request: Request) {
         isAdminUserForAi(supabaseAdmin, authUserId),
       ]);
       availableImages = unlimited ? null : quota.image.remaining;
-      availableVideos = unlimited ? null : quota.video.remaining;
+      availableVideoSeconds = unlimited ? null : quota.video.remaining;
       quotaAvailable = true;
       quotaSufficient =
         unlimited ||
         (editorialImpact.requiredImages <= quota.image.remaining &&
-          editorialImpact.requiredVideos <= quota.video.remaining);
+          editorialImpact.requiredVideoSeconds <= quota.video.remaining);
     } catch (error) {
       console.warn("[inr-agent-settings] editorial quota preview failed", error);
       quotaAvailable = false;
@@ -695,7 +695,7 @@ async function saveAgentSettingsHandler(request: Request) {
   const impact = {
     ...editorialImpact,
     availableImages,
-    availableVideos,
+    availableVideoSeconds,
     quotaAvailable,
     quotaSufficient,
   };

@@ -7,24 +7,28 @@ import ts from "typescript";
 const source = readFileSync("app/dashboard/_components/MediaGenerator.tsx", "utf8");
 const styles = readFileSync("app/dashboard/_components/MediaGenerator.module.css", "utf8");
 
-test("le type et la durée vidéo sont réunis dans la première carte", () => {
+test("le type reste dans le header et la durée vidéo dans le bloc réalisation", () => {
+  const modal = readFileSync("app/dashboard/_components/MediaGeneratorModal.tsx", "utf8");
   const parsed = ts.createSourceFile("MediaGenerator.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const diagnostics = (parsed as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
   assert.equal(diagnostics.length, 0, "le composant TSX est syntaxiquement valide");
-  const firstCard = source.indexOf('className={`${styles.essentialCard} ${styles.creationCard}`}');
-  const mediaType = source.indexOf('ai_generator_essential_media_type', firstCard);
-  const durations = source.indexOf('ai_generator_duration_title', mediaType);
+  const directionCard = source.indexOf('data-generator-block="direction"');
+  const durations = source.indexOf('<span>Durée</span>', directionCard);
   const format = source.indexOf('ai_generator_format_title', durations);
-  assert.ok(firstCard > 0 && mediaType > firstCard && durations > mediaType && format > durations);
+  assert.ok(directionCard > 0 && durations > directionCard && format > durations);
+  assert.match(modal, /\(\["image", "video"\] as const\)\.map/);
+  assert.match(modal, /studioTab === "modify" && mediaType === "video"/);
   assert.match(source, /\[8, 16, 24\] as const/);
-  assert.match(source, /disabled=\{operationLocked \|\| premiumLocked\}/);
+  assert.match(source, /creditInsufficient/);
+  assert.match(source, /duration > videoRemainingSeconds/);
   assert.doesNotMatch(source, /expandedStep|sceneConnectionChoice/);
 });
 
-test("le Studio essentiel ne transmet plus le raccord ni les anciens réglages décoratifs", () => {
+test("le Studio transmet le scénario produit sans réintroduire les anciens réglages décoratifs", () => {
   const generation = source.slice(source.indexOf("const performGeneration"), source.indexOf("const handleGenerate"));
   assert.match(generation, /inputMode: "essential"/);
-  assert.doesNotMatch(generation, /connectScenes\s*:/);
+  assert.match(generation, /sceneMode: kind === "video" \? videoSceneMode : undefined/);
+  assert.match(generation, /connectScenes:[\s\S]*?durationSeconds > 8[\s\S]*?videoSceneMode === "single"/);
   assert.doesNotMatch(generation, /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:/);
   assert.doesNotMatch(source, /setConnectScenes|SceneConnectionNotice/);
 });

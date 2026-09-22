@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
 import type { BoosterVideoTransformedVariant } from "@/lib/boosterVideoTransforms";
 import {
   getBoosterImageDisplayPlan,
@@ -396,6 +397,8 @@ export type ImageTransform = {
   blurBackground: boolean;
   backgroundMode?: BackgroundMode;
   backgroundColor?: string;
+  /** Optional baked text plus a web-only destination link. */
+  overlay?: ImageOverlay;
 };
 
 export type ImageMeta = {
@@ -2820,6 +2823,74 @@ export async function renderChannelImage(params: {
     }
 
     ctx.drawImage(img, dx, dy, drawW, drawH);
+
+    const overlay = normalizeImageOverlay(transform.overlay);
+    if (overlay?.text) {
+      const fontSize = Math.max(24, Math.min(64, Math.round(cw * 0.046)));
+      const maxTextWidth = cw * 0.82;
+      const words = overlay.text.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      ctx.font = `800 ${fontSize}px Inter, Arial, sans-serif`;
+      let line = "";
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(candidate).width > maxTextWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = candidate;
+        }
+      }
+      if (line) lines.push(line);
+      const lineHeight = Math.round(fontSize * 1.2);
+      const paddingX = Math.round(fontSize * 0.72);
+      const paddingY = Math.round(fontSize * 0.5);
+      const blockWidth = Math.min(
+        cw * 0.9,
+        Math.max(
+          fontSize * 4,
+          Math.max(...lines.map((value) => ctx.measureText(value).width), 0) +
+            paddingX * 2,
+        ),
+      );
+      const blockHeight = lines.length * lineHeight + paddingY * 2;
+      const blockX = (cw - blockWidth) / 2;
+      const edge = Math.round(fontSize * 0.8);
+      const blockY =
+        overlay.position === "top"
+          ? edge
+          : overlay.position === "bottom"
+            ? ch - blockHeight - edge
+            : (ch - blockHeight) / 2;
+      ctx.save();
+      ctx.fillStyle =
+        overlay.style === "glass"
+          ? "rgba(255,255,255,0.2)"
+          : "rgba(6,10,20,0.78)";
+      ctx.strokeStyle = "rgba(255,255,255,0.28)";
+      ctx.lineWidth = Math.max(1, Math.round(fontSize / 18));
+      const radius = Math.round(fontSize * 0.45);
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(blockX, blockY, blockWidth, blockHeight, radius);
+      } else {
+        ctx.rect(blockX, blockY, blockWidth, blockHeight);
+      }
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      lines.forEach((value, index) => {
+        ctx.fillText(
+          value,
+          cw / 2,
+          blockY + paddingY + lineHeight * index + lineHeight / 2,
+          maxTextWidth,
+        );
+      });
+      ctx.restore();
+    }
 
     const exportAsPng = backgroundMode === "transparent";
     const outputType = exportAsPng ? "image/png" : "image/jpeg";

@@ -528,16 +528,19 @@ export function updateScheduledEditPublishPlacement(
   action: AgentPreparedAction,
   channel: InrAgentMetaChannel,
   placement: InrAgentPublicationPlacement,
+  includeStory = false,
 ): AgentPreparedAction {
   const payload = jsonClone(action.payload || {});
   const nextPayload = applyInrAgentPublicationPlacement(
     payload,
     channel,
     placement,
+    includeStory,
   );
   nextPayload.lastManualEdit = {
     channel,
     placement,
+    includeStory,
     editedAt: new Date().toISOString(),
     editType: "publish_channel_placement",
   };

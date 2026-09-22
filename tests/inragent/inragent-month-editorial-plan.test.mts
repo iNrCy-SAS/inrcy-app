@@ -60,7 +60,7 @@ test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias"
   const settings = read("lib/inrAgentSettings.ts");
   const config = read("app/dashboard/agent/_lib/agent.config.ts");
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
-  const media = read("lib/inrAgentMediaGeneration.ts");
+  const mediaRequest = read("lib/inrAgentMediaRequest.ts");
 
   for (const theme of [
     "coulisses",
@@ -85,8 +85,14 @@ test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias"
   }
   assert.match(prepare, /Ne jamais inventer de client, de citation, de note/);
   assert.match(prepare, /Ne jamais annoncer un poste, un contrat, un salaire/);
-  assert.match(media, /theme === "coulisses"\) return "behind_scenes"/);
-  assert.match(media, /theme === "recrutement"\) return "recruitment"/);
+  assert.match(
+    mediaRequest,
+    /theme === "coulisses"\) return "behind_scenes"/
+  );
+  assert.match(
+    mediaRequest,
+    /theme === "recrutement"\) return "recruitment"/
+  );
 });
 
 test("le plan est durable, dédupliqué et protège les quotas lors d'un changement", () => {
@@ -123,7 +129,8 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(settingsRoute, /EDITORIAL_PLAN_CHANGE_CONFIRMATION_REQUIRED/);
   assert.match(settingsRoute, /EDITORIAL_PLAN_QUOTA_INSUFFICIENT/);
   assert.match(settingsRoute, /availableImages/);
-  assert.match(settingsRoute, /availableVideos/);
+  assert.match(settingsRoute, /availableVideoSeconds/);
+  assert.match(settingsRoute, /editorialImpact\.requiredVideoSeconds <= quota\.video\.remaining/);
   assert.match(settingsRoute, /editorialSettingsActiveTone/);
   assert.match(settingsRoute, /editorialSettingsActiveTimezone/);
   assert.match(cron, /activeMetadata\.editorialSettingsActiveTone/);
@@ -255,11 +262,35 @@ test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
   assert.match(normalizer, /fit: "contain"/);
   assert.match(schedule, /automaticFit: "contain"/);
   assert.match(execute, /automaticFit: "contain"/);
-  assert.match(client, /buttonClassName=\{dashboardStyles\.secondaryBtn\}/);
-  assert.match(
-    client,
-    /primaryButtonClassName=\{dashboardStyles\.primaryBtn\}/
+  assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/);
+  assert.match(client, /createInrStudioHandoff\(\{[\s\S]*?tab,[\s\S]*?source: \{/);
+  assert.match(client, /source:[\s\S]*?url: publishMediaPreview\.url/);
+  assert.doesNotMatch(client, /ChannelImageAdapterModal/);
+
+  const inlineStageStart = client.indexOf(
+    "className={styles.publishInlineMediaStage}"
   );
+  const inlineCaptionStart = client.indexOf(
+    "className={styles.publishInlineMediaCaption}",
+    inlineStageStart
+  );
+  assert.ok(inlineStageStart > 0 && inlineCaptionStart > inlineStageStart);
+  const inlineStage = client.slice(inlineStageStart, inlineCaptionStart);
+  assert.match(inlineStage, /setPublishMediaPreviewOpen\(true\)/);
+  assert.doesNotMatch(
+    inlineStage,
+    /openPublish(?:Image|Video)InStudio|Modifier|Retoucher/
+  );
+  assert.doesNotMatch(client, /publishInlineVideoRetouch/);
+
+  const mediaModalStart = client.indexOf(
+    "{publishMediaPreviewOpen && isPublishView && ("
+  );
+  assert.ok(mediaModalStart > inlineCaptionStart);
+  const mediaModal = client.slice(mediaModalStart);
+  assert.match(mediaModal, /openPublishImageInStudio\("modify"\)/);
+  assert.match(mediaModal, /openPublishImageInStudio\("retouch"\)/);
+  assert.match(mediaModal, /onClick=\{openPublishMediaRetouchPreview\}/);
 });
 
 test("le carrousel de publications conserve les actions éditoriales futures", () => {

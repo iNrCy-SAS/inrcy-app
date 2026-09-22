@@ -10,10 +10,8 @@ import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { getAiEngineOption } from "@/lib/aiEnginePreference";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
-import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
 import {
   completeAiMediaSpeechSentence,
-  fitAiMediaSpeechToCompleteSentences,
   hasCompleteAiMediaSpeechEnding,
 } from "@/lib/aiMediaDialogue";
 
@@ -38,18 +36,6 @@ const WORD_TARGETS = {
   24: { min: 31, target: 35, max: 39 },
 } as const;
 
-const LAST_RESORT_SENTENCES: Readonly<Record<string, string>> = {
-  fr: "Découvrez notre expertise dès aujourd’hui.",
-  en: "Discover our expertise today.",
-  es: "Descubra hoy nuestra experiencia.",
-  it: "Scopri oggi la nostra esperienza.",
-  de: "Entdecken Sie heute unsere Expertise.",
-  nl: "Ontdek vandaag onze expertise.",
-  pt: "Descubra hoje a nossa experiência.",
-  zh: "立即了解我们的专业服务。",
-  th: "ค้นพบบริการระดับมืออาชีพของเราวันนี้。",
-};
-
 const LANGUAGE_NAMES: Record<string, string> = {
   fr: "français naturel de France",
   en: "natural British English",
@@ -69,6 +55,49 @@ export type AiMediaNarration = {
   source: "ai" | "safe_fallback";
   sha256: string;
 };
+
+type RecentNarrationContext = {
+  title?: string | null;
+  content?: string | null;
+  idea?: string | null;
+};
+
+function comparisonText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isGenericNarration(value: unknown) {
+  const normalized = comparisonText(value);
+  return [
+    /votre projet (?:entre de bonnes mains|prend vie)/,
+    /donne vie a vos projets/,
+    /notre expertise (?:a votre service|des aujourd hui)/,
+    /une solution (?:claire fiable|adaptee a vos besoins)/,
+    /parlons ensemble de votre projet/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function repeatsRecentNarration(
+  value: unknown,
+  recentPublications: readonly RecentNarrationContext[]
+) {
+  const candidate = comparisonText(value);
+  if (candidate.length < 20) return false;
+  return recentPublications.slice(0, 20).some((publication) => {
+    const recent = comparisonText(
+      `${publication.title || ""} ${publication.idea || ""} ${
+        publication.content || ""
+      }`
+    );
+    return recent.includes(candidate);
+  });
+}
 
 function clean(value: unknown, max = 620) {
   return String(value ?? "")
@@ -99,36 +128,63 @@ function safeFallback(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
   plan: AiMediaCreativePlan;
+  recentPublications: readonly RecentNarrationContext[];
 }) {
   const business = args.profile.business;
   const duration = args.request.durationSeconds || 8;
   const language = args.profile.preferences.language || "fr";
-  const company = clean(business.companyName || args.plan.companyName, 80);
-  const location = clean(business.city || business.interventionZones[0], 80);
-  const localized = buildAiMediaNarrationFallback({
-    language,
-    company,
-    location,
-  });
-  const fitted = fitAiMediaSpeechToCompleteSentences({
-    value: localized,
-    language,
-    maximumUnits: WORD_TARGETS[duration].max,
-  });
-  if (fitted) return fitted;
+  const target = WORD_TARGETS[duration];
+  const rawFacts = [
+    args.plan.headline,
+    ...args.plan.scenes.flatMap((scene) => [
+      scene.spokenLine,
+      scene.title,
+      scene.body,
+    ]),
+    args.request.idea,
+    business.companyName || args.plan.companyName,
+    ...business.services,
+    ...business.strengths,
+    business.professionLabel,
+    business.city || business.interventionZones[0],
+  ];
+  const facts = Array.from(
+    new Set(
+      rawFacts
+        .map((value) => clean(value, 180))
+        .filter(Boolean)
+        .filter((value) => isAiMediaTechnicalCopyAllowed(value, args.request))
+    )
+  );
+  if (!facts.length) return "";
 
-  // Un nom d'entreprise exceptionnellement long ne doit jamais forcer une
-  // coupe en plein milieu. La conclusion validée du plan reste une phrase de
-  // secours courte et contextualisée.
-  for (const candidate of [args.plan.cta, args.plan.headline]) {
-    const safeCandidate = fitAiMediaSpeechToCompleteSentences({
-      value: clean(candidate, 120),
-      language,
-      maximumUnits: WORD_TARGETS[duration].max,
-    });
-    if (safeCandidate) return safeCandidate;
+  // L'ordre varie avec la requête, tout en restant stable lors d'un retry.
+  const seed = createHash("sha256")
+    .update(args.request.requestId)
+    .digest()
+    .readUInt32BE(0);
+  const initialOffset = seed % facts.length;
+  for (let attempt = 0; attempt < facts.length; attempt += 1) {
+    const offset = (initialOffset + attempt) % facts.length;
+    const orderedFacts = [...facts.slice(offset), ...facts.slice(0, offset)];
+    let script = "";
+    for (const fact of orderedFacts) {
+      const sentence = completeAiMediaSpeechSentence(fact, language);
+      if (!sentence) continue;
+      const candidate = [script, sentence].filter(Boolean).join(" ");
+      if (speechUnitCount(candidate, language) > target.max) continue;
+      script = candidate;
+      if (speechUnitCount(script, language) >= target.min) break;
+    }
+    if (
+      speechUnitCount(script, language) >= target.min &&
+      !isGenericNarration(script) &&
+      !repeatsRecentNarration(script, args.recentPublications)
+    ) {
+      return script;
+    }
   }
-  return LAST_RESORT_SENTENCES[language] || LAST_RESORT_SENTENCES.fr;
+  return "";
 }
 
 function validGeneratedScript(
@@ -159,6 +215,7 @@ export async function writeAiMediaNarration(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
   plan: AiMediaCreativePlan;
+  recentPublications?: readonly RecentNarrationContext[];
 }): Promise<AiMediaNarration | null> {
   if (args.request.kind !== "video" || !args.request.withNarration) return null;
 
@@ -182,6 +239,8 @@ export async function writeAiMediaNarration(args: {
         `Vise exactement ${target.target} mots et reste impérativement entre ${target.min} et ${target.max} mots.`,
         "Ce budget est volontairement court : privilégie une seule idée mémorable et des respirations naturelles plutôt qu'une accumulation d'informations.",
         "Construis un mini-récit fluide : une idée d'ouverture, un bénéfice concret lié au vrai métier, puis une conclusion naturelle.",
+        "Produis une formulation singulière pour cette requête : ne recycle ni accroche, ni structure, ni vocabulaire d'une publication récente. L'identifiant de variation est un sel créatif opaque et ne doit jamais être prononcé.",
+        "Interdiction des phrases passe-partout sur un vague projet, une expertise non précisée ou une solution générique. Chaque phrase doit nommer un fait, un geste, un produit, un lieu, un service ou un résultat réellement fourni.",
         "Le sujet du professionnel est le SUJET CENTRAL OBLIGATOIRE : conserve précisément ses personnes, objets, lieux, actions, relations et résultat attendu. Reformule-le oralement sans le réciter ni le remplacer par un autre service de l'ADN.",
         "La consigne ponctuelle est PRIORITAIRE : respecte tous ses éléments narratifs utiles, même absents de l'ADN, sans jamais la réciter, la citer ou la présenter comme une instruction. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié.",
         "Utilise uniquement les faits fournis. N'invente aucun prix, résultat, certification, promotion, délai, adresse ou témoignage.",
@@ -204,6 +263,16 @@ export async function writeAiMediaNarration(args: {
           titre: scene.title,
           intention: scene.visualBrief,
         })),
+        publications_recentes_a_ne_pas_reprendre: (
+          args.recentPublications || []
+        )
+          .slice(0, 12)
+          .map((publication) => ({
+            titre: clean(publication.title, 120),
+            idee: clean(publication.idea, 180),
+            contenu: clean(publication.content, 240),
+          })),
+        identifiant_de_variation: args.request.requestId,
       }),
       responseSchema: NARRATION_SCHEMA,
       maxOutputTokens: 128,
@@ -214,7 +283,9 @@ export async function writeAiMediaNarration(args: {
     const candidate = clean(generated.script);
     if (
       isAiMediaTechnicalCopyAllowed(generated.script, args.request) &&
-      validGeneratedScript(candidate, duration, languageCode)
+      validGeneratedScript(candidate, duration, languageCode) &&
+      !isGenericNarration(candidate) &&
+      !repeatsRecentNarration(candidate, args.recentPublications || [])
     ) {
       script = completeAiMediaSpeechSentence(candidate, languageCode);
       source = "ai";
@@ -224,7 +295,13 @@ export async function writeAiMediaNarration(args: {
     // de lancer une coûteuse génération vidéo sans narration exploitable.
   }
 
-  if (!script) script = safeFallback(args);
+  if (!script) {
+    script = safeFallback({
+      ...args,
+      recentPublications: args.recentPublications || [],
+    });
+  }
+  if (!script) return null;
   return {
     script,
     language: languageCode,

@@ -80,7 +80,7 @@ test("le contrat impose le consentement aux identités strictes sans bloquer les
     inspirationImages: [reference, reference, reference],
   });
   assert.equal(three.inspirationImages.length, 3);
-  assert.equal(three.videoCharacterMode, "brand_avatar");
+  assert.equal(three.videoCharacterMode, "reference_team");
 
   assert.throws(
     () =>
@@ -137,10 +137,16 @@ test("le contrat impose le consentement aux identités strictes sans bloquer les
   const withoutPeople = normalizeAiMediaGenerationRequest({
     ...BASE_REQUEST,
     peopleMode: "none",
-    identityMode: "professional",
-    identityConsent: true,
+    identityMode: "auto",
+    identityConsent: false,
     identityReferenceSetId: referenceSetId,
-    inspirationImages: [reference],
+    inspirationImages: [
+      {
+        ...reference,
+        role: "inspiration",
+        usage: "inspiration",
+      },
+    ],
   });
   assert.equal(withoutPeople.identityMode, "auto");
   assert.equal(withoutPeople.identityConsent, false);
@@ -271,6 +277,10 @@ test("les préférences ne sérialisent jamais photo, consentement ou identifian
   );
   assert.deepEqual(normalized.blocks[5].defaults, {
     peopleMode: "solo",
+    sourceMode: "real",
+    aiPeopleCriterion: "one",
+    aiSettingCriterion: "auto",
+    aiFocusCriterion: "auto",
     identityMode: "professional",
     teamVideoMode: "montage",
     teamVideoSpeechMode: "voiceover",

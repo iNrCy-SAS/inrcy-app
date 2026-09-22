@@ -48,7 +48,17 @@ import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
 import MailboxDetailsModal from "./_components/MailboxDetailsModal";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
-import MailboxPublicationImageAdapterModal from "./_components/MailboxPublicationImageAdapterModal";
+import {
+  consumeInrStudioReturn,
+  createInrStudioHandoff,
+  type InrStudioReturnedMedia,
+} from "@/lib/inrStudioNavigation";
+import {
+  clearInrSendPublicationEditorSnapshot,
+  consumeInrSendPublicationEditorSnapshot,
+  saveInrSendPublicationEditorSnapshot,
+  type InrSendPublicationEditorSnapshot,
+} from "./_lib/mailboxStudioSnapshot";
 import MailboxComposeModal from "./_components/MailboxComposeModal";
 import {
   ALL_FOLDERS,
@@ -185,6 +195,8 @@ import {
   getLocalizedVideoAdaptationModeLabel,
   getLocalizedVideoFormatLabel,
   getLocalizedVideoOrientationLabel,
+  normalizeVideoAdaptationMode,
+  normalizeVideoFormat,
   isUnsupportedBrowserImageFile,
   type BoosterVideoSourceMetadata,
   type ChannelKey as BoosterChannelKey,
@@ -337,6 +349,18 @@ export default function MailboxClient({
     string | null
   >(null);
   const [detailsNavigationBusy, setDetailsNavigationBusy] = useState(false);
+  const [pendingStudioReturn, setPendingStudioReturn] =
+    useState<InrStudioReturnedMedia | null>(null);
+  const [pendingStudioReturnStage, setPendingStudioReturnStage] = useState<
+    "restore" | "wait" | "apply"
+  >("restore");
+  const [pendingStudioEditorSnapshot, setPendingStudioEditorSnapshot] =
+    useState<InrSendPublicationEditorSnapshot | null>(null);
+  const [resolvedStudioEditorSnapshotKey, setResolvedStudioEditorSnapshotKey] =
+    useState<string | null>(null);
+  const [failedStudioEditorSnapshotKey, setFailedStudioEditorSnapshotKey] =
+    useState<string | null>(null);
+  const studioEditorSnapshotLoadRef = useRef("");
   const [detailsSourceDocPayload, setDetailsSourceDocPayload] = useState<
     any | null
   >(null);
@@ -374,103 +398,9 @@ export default function MailboxClient({
     useState<Record<string, PublicationChannelImagesState>>({});
   const [publicationEditVideoByChannel, setPublicationEditVideoByChannel] =
     useState<Record<string, PublicationEditVideoState>>({});
-  const [
-    publicationImageAdapterChannelKey,
-    setPublicationImageAdapterChannelKey,
-  ] = useState<string | null>(null);
-  const [publicationImageAdapterImageKey, setPublicationImageAdapterImageKey] =
-    useState<string | null>(null);
-  const publicationImageAdapterDragRef = useRef<{
-    channel: string;
-    imageKey: string;
-    startX: number;
-    startY: number;
-    startOffsetX: number;
-    startOffsetY: number;
-  } | null>(null);
-  const publicationImageAdapterReturnScrollTopRef = useRef<number | null>(null);
-  const publicationImageAdapterStageRef = useRef<HTMLDivElement | null>(null);
-  const [
-    publicationImageAdapterStageSize,
-    setPublicationImageAdapterStageSize,
-  ] = useState({ width: 0, height: 0 });
-  const [
-    publicationImageAdapterImageMeta,
-    setPublicationImageAdapterImageMeta,
-  ] = useState<Record<string, { width: number; height: number }>>({});
-  const [
-    isPublicationImageAdapterDragging,
-    setIsPublicationImageAdapterDragging,
-  ] = useState(false);
-
-  const publicationImageAdapterChannelState = publicationImageAdapterChannelKey
-    ? publicationEditImagesByChannel[publicationImageAdapterChannelKey] || {
-        assets: [],
-      }
-    : null;
-  const publicationImageAdapterAsset =
-    publicationImageAdapterChannelState?.assets.find(
-      (asset) => asset.key === publicationImageAdapterImageKey,
-    ) || null;
-
   useEffect(() => {
     historyPageRef.current = historyPage;
   }, [historyPage]);
-
-  useEffect(() => {
-    if (!detailsOpen || !detailsEditMode || !publicationImageAdapterAsset)
-      return;
-    const key = publicationImageAdapterAsset.key;
-    if (publicationImageAdapterImageMeta[key]) return;
-    let cancelled = false;
-    const image = new window.Image();
-    image.onload = () => {
-      if (cancelled) return;
-      setPublicationImageAdapterImageMeta((prev) => ({
-        ...prev,
-        [key]: {
-          width: image.naturalWidth || image.width || 0,
-          height: image.naturalHeight || image.height || 0,
-        },
-      }));
-    };
-    image.src = publicationImageAdapterAsset.previewUrl;
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    detailsOpen,
-    detailsEditMode,
-    publicationImageAdapterAsset?.key,
-    publicationImageAdapterAsset?.previewUrl,
-    publicationImageAdapterImageMeta,
-  ]);
-
-  useEffect(() => {
-    if (
-      !detailsOpen ||
-      !detailsEditMode ||
-      !publicationImageAdapterAsset ||
-      !publicationImageAdapterStageRef.current
-    )
-      return;
-    const node = publicationImageAdapterStageRef.current;
-    const updateSize = () => {
-      const rect = node.getBoundingClientRect();
-      setPublicationImageAdapterStageSize({
-        width: rect.width,
-        height: rect.height,
-      });
-    };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(node);
-    window.addEventListener("resize", updateSize);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", updateSize);
-    };
-  }, [detailsOpen, detailsEditMode, publicationImageAdapterAsset?.key]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -2190,8 +2120,6 @@ export default function MailboxClient({
       nextState[channel] = { assets };
     }
     setPublicationEditImagesByChannel(nextState);
-    setPublicationImageAdapterChannelKey(null);
-    setPublicationImageAdapterImageKey(null);
   }, [
     detailsOpen,
     detailsItem?.id,
@@ -3951,38 +3879,149 @@ export default function MailboxClient({
     });
   }
 
-  function openPublicationImageAdapter(channel: string, imageKey: string) {
-    if (typeof document !== "undefined") {
-      const detailsBody = document.querySelector<HTMLElement>(
-        "[data-inrsend-details-body='true']",
-      );
-      publicationImageAdapterReturnScrollTopRef.current =
-        detailsBody?.scrollTop ?? null;
-      (document.activeElement as HTMLElement | null)?.blur?.();
+  async function openPublicationImageInStudio(
+    tab: "modify" | "retouch",
+    channel: string,
+    imageKey: string,
+  ) {
+    const normalizedChannel = normalizeChannelKey(channel);
+    const asset = publicationEditImagesByChannel[
+      normalizedChannel
+    ]?.assets.find((candidate) => candidate.key === imageKey);
+    if (!asset?.previewUrl && !asset?.file) {
+      setDetailsActionError("Cette image n’est plus disponible pour cette action.");
+      return;
     }
-    setPublicationImageAdapterChannelKey(normalizeChannelKey(channel));
-    setPublicationImageAdapterImageKey(imageKey);
     setDetailsActionError(null);
+    let editorSnapshotKey = "";
+    try {
+      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
+        itemId: detailsItem?.id || "",
+        channel: normalizedChannel,
+        form: publicationEditForm,
+        imagesByChannel: publicationEditImagesByChannel,
+        videoByChannel: publicationEditVideoByChannel,
+      });
+      const returnParams = new URLSearchParams(searchParams?.toString() || "");
+      returnParams.delete("studio_return");
+      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
+      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
+      const { href } = await createInrStudioHandoff({
+        tab,
+        origin: "inrsend-publish",
+        returnHref,
+        source: {
+          file: asset.file instanceof File ? asset.file : null,
+          url: asset.previewUrl || null,
+          name: asset.name || "image-publication",
+          mimeType:
+            asset.file instanceof File ? asset.file.type : "image/jpeg",
+        },
+        context: {
+          itemId: detailsItem?.id || null,
+          channel: normalizedChannel,
+          imageKey,
+          editorSnapshotKey,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      if (editorSnapshotKey) {
+        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
+      }
+      setDetailsActionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.",
+      );
+    }
   }
 
-  function closePublicationImageAdapter() {
-    const scrollTopToRestore =
-      publicationImageAdapterReturnScrollTopRef.current;
-    setPublicationImageAdapterChannelKey(null);
-    setPublicationImageAdapterImageKey(null);
-    publicationImageAdapterDragRef.current = null;
-    setIsPublicationImageAdapterDragging(false);
+  const openPublicationImageRetoucher = (channel: string, imageKey: string) =>
+    openPublicationImageInStudio("retouch", channel, imageKey);
+  const openPublicationImageModifier = (channel: string, imageKey: string) =>
+    openPublicationImageInStudio("modify", channel, imageKey);
 
-    if (typeof window !== "undefined" && scrollTopToRestore !== null) {
-      window.requestAnimationFrame(() => {
-        const detailsBody = document.querySelector<HTMLElement>(
-          "[data-inrsend-details-body='true']",
-        );
-        if (detailsBody) detailsBody.scrollTop = scrollTopToRestore;
-        publicationImageAdapterReturnScrollTopRef.current = null;
+  async function openPublicationVideoRetoucher(channelValue: string) {
+    const channel = normalizeChannelKey(channelValue);
+    const videoChannel = normalizeBoosterChannelKeyForVideo(channelValue);
+    const video = publicationEditVideoByChannel[videoChannel];
+    const sourceRecord = (video?.sourceVideo || {}) as Record<string, any>;
+    const sourceUrl = String(
+      video?.previewUrl ||
+        sourceRecord.publicUrl ||
+        sourceRecord.public_url ||
+        sourceRecord.url ||
+        "",
+    ).trim();
+
+    if (!channel || !video || video.removed || (!video.file && !sourceUrl)) {
+      setDetailsActionError("Cette vidéo n’est plus disponible pour cette action.");
+      return;
+    }
+
+    setDetailsActionError(null);
+    let editorSnapshotKey = "";
+    try {
+      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
+        itemId: detailsItem?.id || "",
+        channel,
+        form: publicationEditForm,
+        imagesByChannel: publicationEditImagesByChannel,
+        videoByChannel: publicationEditVideoByChannel,
       });
-    } else {
-      publicationImageAdapterReturnScrollTopRef.current = null;
+      const returnParams = new URLSearchParams(searchParams?.toString() || "");
+      returnParams.delete("studio_return");
+      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
+      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
+      const storagePath = String(
+        sourceRecord.storagePath || sourceRecord.storage_path || "",
+      ).trim();
+      const publicUrl = String(
+        sourceRecord.publicUrl || sourceRecord.public_url || sourceRecord.url || "",
+      ).trim();
+      const { href } = await createInrStudioHandoff({
+        tab: "retouch",
+        origin: "inrsend-publish",
+        returnHref,
+        source: {
+          mediaType: "video",
+          file: video.file instanceof File ? video.file : null,
+          url: sourceUrl || null,
+          name: video.name || sourceRecord.name || "video-inrsend.mp4",
+          mimeType:
+            video.type || sourceRecord.type || sourceRecord.mimeType || "video/mp4",
+        },
+        context: {
+          itemId: detailsItem?.id || null,
+          channel,
+          mediaType: "video",
+          editorSnapshotKey,
+        },
+        payload: {
+          videoChannel,
+          videoFormat: video.format || "original",
+          videoAdaptationMode: video.adaptationMode || "safe_frame",
+          videoStoragePath: storagePath || null,
+          videoPublicUrl: publicUrl || sourceUrl || null,
+          videoDurationSeconds: video.duration || null,
+          videoSize: video.size || null,
+          videoSourceMetadata: video.sourceMetadata || null,
+          videoTransformedVariants: video.transformedVariants || [],
+          videoMediaRecord: sourceRecord,
+          deferVideoPreparation: false,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      if (editorSnapshotKey) {
+        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
+      }
+      setDetailsActionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.",
+      );
     }
   }
 
@@ -4346,8 +4385,11 @@ export default function MailboxClient({
 
   async function replacePublicationMediaLibraryItem(
     item: MediaLibraryPickerItem,
+    target: { channel?: string; imageKey?: string } = {},
   ): Promise<void> {
-    const channel = normalizeChannelKey(activeDetailsChannelEntry?.key || "");
+    const channel = normalizeChannelKey(
+      target.channel || activeDetailsChannelEntry?.key || "",
+    );
     if (!channel) {
       throw new Error(i18nT("publication_update_failed"));
     }
@@ -4365,11 +4407,38 @@ export default function MailboxClient({
         throw new Error(message);
       }
 
-      const previewUrl = URL.createObjectURL(file);
+      const returnedItem = item as MediaLibraryPickerItem & Record<string, any>;
+      const returnedSettings =
+        returnedItem.video_settings && typeof returnedItem.video_settings === "object"
+          ? returnedItem.video_settings
+          : {};
+      const returnedFormat = normalizeVideoFormat(
+        videoChannel,
+        returnedItem.video_format || returnedSettings.format || "original",
+      );
+      const returnedAdaptationMode = normalizeVideoAdaptationMode(
+        returnedItem.video_adaptation_mode ||
+          returnedSettings.adaptationMode ||
+          "safe_frame",
+      );
+      const returnedVariants = Array.isArray(returnedItem.transformed_variants)
+        ? returnedItem.transformed_variants
+        : [];
+      const returnedSignature = buildVideoTransformSignature(
+        returnedFormat,
+        returnedAdaptationMode,
+        getVideoPublicationProfileForChannel(videoChannel),
+      );
+      const returnedVariant = returnedVariants.find(
+        (variant: any) => variant?.signature === returnedSignature,
+      );
+      const previewUrl = String(
+        returnedVariant?.publicUrl || returnedVariant?.url || "",
+      ).trim() || URL.createObjectURL(file);
       const fallbackMeta = buildMediaLibraryVideoMetadata(item, file);
       const sourceMetadata =
-        fallbackMeta.width || fallbackMeta.height
-          ? fallbackMeta
+        returnedItem.source_metadata || fallbackMeta.width || fallbackMeta.height
+          ? returnedItem.source_metadata || fallbackMeta
           : await readPublicationVideoMetadata(file, previewUrl);
 
       setPublicationEditImagesByChannel((prev) => ({
@@ -4389,14 +4458,34 @@ export default function MailboxClient({
             Number(item.duration_seconds || 0) ||
             null,
           sourceMetadata,
-          sourceVideo: null,
-          transformedVariants: [],
-          format: "original",
-          adaptationMode: prev[videoChannel]?.adaptationMode || "safe_frame",
+          sourceVideo:
+            returnedItem.source_media_record &&
+            typeof returnedItem.source_media_record === "object"
+              ? returnedItem.source_media_record
+              : {
+                  name: file.name || getMediaLibraryDisplayName(item),
+                  type: file.type || item.mime_type || "video/mp4",
+                  size: file.size || Number(item.size_bytes || 0) || 0,
+                  duration:
+                    sourceMetadata.duration ||
+                    Number(item.duration_seconds || 0) ||
+                    null,
+                  storagePath: item.storage_path || null,
+                  publicUrl: item.signed_url || null,
+                  url: item.signed_url || null,
+                  sourceMetadata,
+                },
+          transformedVariants: returnedVariants,
+          format: returnedFormat,
+          adaptationMode: returnedAdaptationMode,
           preparation: {
-            status: "idle",
-            label: i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
-            detail: i18nT("apply_format_before_saving"),
+            status: returnedVariant ? "ready" : "idle",
+            label: returnedVariant
+              ? i18nT("format_applique_43fe4a7e")
+              : i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
+            detail: returnedVariant
+              ? `${getLocalizedVideoFormatLabel(videoChannel, returnedFormat, sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(returnedAdaptationMode, i18nT)}`
+              : i18nT("apply_format_before_saving"),
           },
           preparing: false,
           removed: false,
@@ -4433,6 +4522,52 @@ export default function MailboxClient({
             ratio: item.width / item.height,
           }
         : null;
+
+    const targetImageKey = String(target.imageKey || "").trim();
+    if (targetImageKey) {
+      const currentAsset = publicationEditImagesByChannel[channel]?.assets.find(
+        (asset) => asset.key === targetImageKey,
+      );
+      if (!currentAsset) {
+        const message = "L’image source de cette action n’est plus disponible.";
+        setDetailsActionError(message);
+        throw new Error(message);
+      }
+      if (currentAsset.previewUrl?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(currentAsset.previewUrl);
+        } catch {}
+      }
+      const transform = buildPublicationDefaultTransform(channel);
+      const replacementPreviewUrl = URL.createObjectURL(file);
+      setPublicationEditImagesByChannel((previous) => ({
+        ...previous,
+        [channel]: {
+          assets: (previous[channel]?.assets || []).map((asset) =>
+            asset.key === targetImageKey
+              ? {
+                  ...asset,
+                  name: file.name || getMediaLibraryDisplayName(item),
+                  type: file.type || item.mime_type || "image/jpeg",
+                  previewUrl: replacementPreviewUrl,
+                  sourceUrl: null,
+                  originalUrl: item.signed_url || null,
+                  renderedUrl: null,
+                  originalStoragePath: item.storage_path || null,
+                  originalName: getMediaLibraryDisplayName(item),
+                  originalType: item.mime_type || file.type || "image/jpeg",
+                  file,
+                  transform,
+                  savedTransform: { ...transform },
+                  imageMeta,
+                }
+              : asset,
+          ),
+        },
+      }));
+      setDetailsActionError(null);
+      return;
+    }
 
     setPublicationEditVideoByChannel((prev) => {
       const previousVideoState = prev[videoChannel];
@@ -4488,6 +4623,185 @@ export default function MailboxClient({
     }));
     setDetailsActionError(null);
   }
+
+  useEffect(() => {
+    const snapshotKey = String(
+      searchParams?.get("studio_editor_snapshot") || "",
+    ).trim();
+    if (!snapshotKey || studioEditorSnapshotLoadRef.current === snapshotKey) {
+      return;
+    }
+    studioEditorSnapshotLoadRef.current = snapshotKey;
+
+    void consumeInrSendPublicationEditorSnapshot(snapshotKey)
+      .then((snapshot) => {
+        if (snapshot) {
+          setPendingStudioEditorSnapshot(snapshot);
+          setResolvedStudioEditorSnapshotKey(snapshotKey);
+          setFailedStudioEditorSnapshotKey(null);
+        } else {
+          setFailedStudioEditorSnapshotKey(snapshotKey);
+          setDetailsActionError(
+            "Le brouillon local iNrSend n’a pas pu être restauré.",
+          );
+        }
+      })
+      .catch((error) => {
+        setFailedStudioEditorSnapshotKey(snapshotKey);
+        setDetailsActionError(
+          error instanceof Error
+            ? error.message
+            : "Le brouillon local iNrSend n’a pas pu être restauré.",
+        );
+      })
+      .finally(() => {
+        const nextParams = new URLSearchParams(window.location.search);
+        nextParams.delete("studio_editor_snapshot");
+        nextParams.delete("studio_return");
+        router.replace(
+          `${window.location.pathname}${nextParams.size ? `?${nextParams.toString()}` : ""}${window.location.hash}`,
+          { scroll: false },
+        );
+      });
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!pendingStudioEditorSnapshot) return;
+    const targetItem = items.find(
+      (item) => item.id === pendingStudioEditorSnapshot.itemId,
+    );
+    if (!targetItem) return;
+
+    resetDetailsStateForItem(targetItem);
+    setDetailsChannelKey(pendingStudioEditorSnapshot.channel);
+    setPublicationEditForm(pendingStudioEditorSnapshot.form);
+    setPublicationEditImagesByChannel(
+      pendingStudioEditorSnapshot.imagesByChannel,
+    );
+    setPublicationEditVideoByChannel(
+      pendingStudioEditorSnapshot.videoByChannel,
+    );
+    setDetailsOpen(true);
+    setDetailsEditMode(true);
+    setPendingStudioEditorSnapshot(null);
+  }, [items, pendingStudioEditorSnapshot]);
+
+  useEffect(() => {
+    const returnKey = String(searchParams?.get("studio_return") || "").trim();
+    if (!returnKey || pendingStudioReturn) return;
+    const returned = consumeInrStudioReturn(returnKey);
+    if (!returned?.item) return;
+
+    setPendingStudioReturn(returned);
+    setPendingStudioReturnStage("restore");
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.delete("studio_return");
+    router.replace(
+      `${window.location.pathname}${nextParams.size ? `?${nextParams.toString()}` : ""}${window.location.hash}`,
+      { scroll: false },
+    );
+  }, [pendingStudioReturn, router, searchParams]);
+
+  useEffect(() => {
+    if (!pendingStudioReturn) return;
+    const itemId = String(pendingStudioReturn.context.itemId || "").trim();
+    const channel = normalizeChannelKey(
+      String(pendingStudioReturn.context.channel || ""),
+    );
+    if (!itemId || !channel) {
+      setDetailsActionError("Le retour iNrStudio ne contient plus sa publication d’origine.");
+      setPendingStudioReturn(null);
+      setPendingStudioReturnStage("restore");
+      return;
+    }
+
+    if (pendingStudioReturnStage === "restore") {
+      const editorSnapshotKey = String(
+        pendingStudioReturn.context.editorSnapshotKey || "",
+      ).trim();
+      if (
+        editorSnapshotKey &&
+        resolvedStudioEditorSnapshotKey !== editorSnapshotKey &&
+        failedStudioEditorSnapshotKey !== editorSnapshotKey
+      ) {
+        return;
+      }
+      const targetItem = items.find((item) => item.id === itemId);
+      if (!targetItem) return;
+      if (editorSnapshotKey && resolvedStudioEditorSnapshotKey === editorSnapshotKey) {
+        if (
+          !detailsOpen ||
+          detailsItem?.id !== itemId ||
+          activePublicationEditChannelKey !== channel
+        ) {
+          return;
+        }
+        setPendingStudioReturnStage("apply");
+        return;
+      }
+      resetDetailsStateForItem(targetItem);
+      setDetailsChannelKey(channel);
+      setDetailsOpen(true);
+      setPendingStudioReturnStage("wait");
+      return;
+    }
+
+    if (
+      !detailsOpen ||
+      detailsItem?.id !== itemId ||
+      activePublicationEditChannelKey !== channel
+    ) {
+      return;
+    }
+    if (pendingStudioReturnStage === "wait") {
+      setPendingStudioReturnStage("apply");
+      return;
+    }
+
+    const imagesInitialized = Object.prototype.hasOwnProperty.call(
+      publicationEditImagesByChannel,
+      channel,
+    );
+    if (!imagesInitialized) return;
+    const isSourceEdit =
+      pendingStudioReturn.action === "retouch" ||
+      pendingStudioReturn.action === "modify";
+    const isVideoSourceEdit =
+      pendingStudioReturn.item?.media_type === "video" ||
+      pendingStudioReturn.context.mediaType === "video";
+    const imageKey = String(pendingStudioReturn.context.imageKey || "").trim();
+    if (
+      isSourceEdit &&
+      !isVideoSourceEdit &&
+      (!imageKey ||
+        !publicationEditImagesByChannel[channel]?.assets.some(
+          (asset) => asset.key === imageKey,
+        ))
+    ) {
+      setDetailsActionError("L’image source de cette action n’est plus disponible.");
+      setPendingStudioReturn(null);
+      setPendingStudioReturnStage("restore");
+      return;
+    }
+    setDetailsEditMode(true);
+  }, [
+    activePublicationEditChannelKey,
+    detailsItem?.id,
+    detailsOpen,
+    items,
+    pendingStudioReturn,
+    pendingStudioReturnStage,
+    publicationEditImagesByChannel,
+    resolvedStudioEditorSnapshotKey,
+    failedStudioEditorSnapshotKey,
+  ]);
+
+  const handleStudioReturnHandled = useCallback(() => {
+    setPendingStudioReturn(null);
+    setPendingStudioReturnStage("restore");
+    setResolvedStudioEditorSnapshotKey(null);
+    setFailedStudioEditorSnapshotKey(null);
+  }, []);
 
   async function addPublicationVideo(fileList: FileList | File[] | null) {
     const channel = normalizeBoosterChannelKeyForVideo(
@@ -4957,10 +5271,7 @@ export default function MailboxClient({
             originalName: asset.originalName || asset.name,
             originalType: asset.originalType || asset.type,
             transform: asset.transform,
-            imageMeta:
-              publicationImageAdapterImageMeta[asset.key] ||
-              asset.imageMeta ||
-              null,
+            imageMeta: asset.imageMeta || null,
           } as any);
           continue;
         }
@@ -4978,10 +5289,7 @@ export default function MailboxClient({
           originalName: asset.originalName || asset.name,
           originalType: asset.originalType || asset.type,
           transform: asset.transform,
-          imageMeta:
-            publicationImageAdapterImageMeta[asset.key] ||
-            asset.imageMeta ||
-            null,
+          imageMeta: asset.imageMeta || null,
         } as any);
       }
 
@@ -5515,23 +5823,18 @@ export default function MailboxClient({
           activePublicationEditVideo={activePublicationEditVideo}
           addPublicationVideo={addPublicationVideo}
           removePublicationVideo={removePublicationVideo}
-          setPublicationVideoFormatForChannel={
-            setPublicationVideoFormatForChannel
-          }
-          setPublicationVideoAdaptationModeForChannel={
-            setPublicationVideoAdaptationModeForChannel
-          }
-          applyPublicationVideoFormatForChannel={
-            applyPublicationVideoFormatForChannel
-          }
           togglePublicationImage={togglePublicationImage}
-          openPublicationImageAdapter={openPublicationImageAdapter}
+          openPublicationImageRetoucher={openPublicationImageRetoucher}
+          openPublicationImageModifier={openPublicationImageModifier}
+          openPublicationVideoRetoucher={openPublicationVideoRetoucher}
           resetPublicationImage={resetPublicationImage}
           movePublicationImage={movePublicationImage}
           addPublicationFiles={addPublicationFiles}
           addPublicationPhoto={addPublicationPhoto}
           addPublicationMediaLibraryItems={addPublicationMediaLibraryItems}
           replacePublicationMediaLibraryItem={replacePublicationMediaLibraryItem}
+          studioReturn={pendingStudioReturn}
+          onStudioReturnHandled={handleStudioReturnHandled}
           saveChannelPublication={saveChannelPublication}
           deleteChannelPublication={deleteChannelPublication}
           retryCampaignFailedRecipients={retryCampaignFailedRecipients}
@@ -5541,27 +5844,6 @@ export default function MailboxClient({
           loadCampaignHealth={loadCampaignHealth}
           refreshHistory={loadHistory}
           resumeDraft={resumeDraftFromDetails}
-        />
-
-        <MailboxPublicationImageAdapterModal
-          open={detailsOpen}
-          detailsEditMode={detailsEditMode}
-          publicationImageAdapterAsset={publicationImageAdapterAsset}
-          publicationImageAdapterChannelKey={publicationImageAdapterChannelKey}
-          publicationImageAdapterStageRef={publicationImageAdapterStageRef}
-          publicationImageAdapterStageSize={publicationImageAdapterStageSize}
-          publicationImageAdapterImageMeta={publicationImageAdapterImageMeta}
-          isPublicationImageAdapterDragging={isPublicationImageAdapterDragging}
-          publicationEditImagesByChannel={publicationEditImagesByChannel}
-          setPublicationImageAdapterImageKey={
-            setPublicationImageAdapterImageKey
-          }
-          publicationImageAdapterDragRef={publicationImageAdapterDragRef}
-          setIsPublicationImageAdapterDragging={
-            setIsPublicationImageAdapterDragging
-          }
-          updatePublicationChannelAssets={updatePublicationChannelAssets}
-          closePublicationImageAdapter={closePublicationImageAdapter}
         />
 
         {!standardMode ? (

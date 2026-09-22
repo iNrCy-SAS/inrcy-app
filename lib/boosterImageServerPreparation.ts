@@ -17,6 +17,7 @@ import {
   type BoosterImageMetaLike,
   type ComparableImageTransform,
 } from "@/lib/boosterImageDecision";
+import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -28,6 +29,7 @@ type ServerImageTransform = {
   blurBackground: boolean;
   backgroundMode?: string;
   backgroundColor?: string;
+  overlay?: ImageOverlay;
 };
 
 type ChannelSettings = {
@@ -81,8 +83,8 @@ const CHANNEL_RENDER_BASE: Record<BoosterImageChannel, { width: number; height: 
 
 // Bump both signatures whenever the encoded bytes contract changes. This
 // invalidates the old progressive derivatives instead of serving them again.
-const CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8;
-const TIKTOK_CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 10;
+const CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9;
+const TIKTOK_CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 11;
 const CHANNEL_IMAGE_VARIANT_BUCKET = "booster";
 const TIKTOK_PHOTO_MAX_BYTES = 20_000_000;
 const TIKTOK_LANDSCAPE_MAX_WIDTH = 1920;
@@ -668,7 +670,83 @@ function normalizeTransform(value: unknown, fallback: ServerImageTransform): Ser
     blurBackground: false,
     backgroundMode,
     backgroundColor: String(raw.backgroundColor || fallback.backgroundColor || "").trim() || undefined,
+    overlay: normalizeImageOverlay(raw.overlay ?? fallback.overlay),
   };
+}
+
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * Render the optional Adapter text into the server-side publication canvas.
+ *
+ * The browser preview uses the same broad visual treatment, but the image
+ * sent to channels is rendered here as well so queued/async publications do
+ * not silently lose the retouch when they are prepared after the browser has
+ * gone away. The destination URL remains metadata (a raster image cannot
+ * carry a clickable link).
+ */
+function buildImageOverlaySvg(
+  value: unknown,
+  width: number,
+  height: number,
+) {
+  const overlay = normalizeImageOverlay(value);
+  if (!overlay?.text || width <= 0 || height <= 0) return null;
+
+  const fontSize = clamp(Math.round(width * 0.046), 24, 64, 42);
+  const lineHeight = Math.round(fontSize * 1.2);
+  const maxChars = Math.max(18, Math.min(64, Math.floor((width * 0.78) / (fontSize * 0.54))));
+  const lines: string[] = [];
+  for (const paragraph of overlay.text.split(/\r?\n/)) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      lines.push("");
+      continue;
+    }
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && candidate.length > maxChars) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  const visibleLines = lines.slice(0, 8);
+  if (!visibleLines.length) return null;
+
+  const paddingY = Math.round(fontSize * 0.5);
+  const panelX = Math.round(width * 0.05);
+  const panelWidth = Math.max(1, Math.round(width * 0.9));
+  const panelHeight = visibleLines.length * lineHeight + paddingY * 2;
+  const edge = Math.round(fontSize * 0.8);
+  const panelY =
+    overlay.position === "top"
+      ? edge
+      : overlay.position === "bottom"
+        ? Math.max(edge, height - panelHeight - edge)
+        : Math.max(edge, Math.round((height - panelHeight) / 2));
+  const radius = Math.round(fontSize * 0.45);
+  const fill = overlay.style === "glass" ? "rgba(255,255,255,0.20)" : "rgba(6,10,20,0.78)";
+  const tspans = visibleLines
+    .map((line, index) => {
+      const y = panelY + paddingY + lineHeight * index + lineHeight / 2;
+      return `<tspan x="${width / 2}" y="${y}">${escapeXml(line)}</tspan>`;
+    })
+    .join("");
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${radius}" fill="${fill}" stroke="rgba(255,255,255,0.28)" stroke-width="${Math.max(1, Math.round(fontSize / 18))}"/><text x="${width / 2}" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="${fontSize}px" font-weight="800" text-anchor="middle" dominant-baseline="middle">${tspans}</text></svg>`,
+  );
 }
 
 function normalizeChannelSettings(value: unknown): ChannelSettings {
@@ -841,6 +919,13 @@ async function renderImageTransform(params: {
   };
   const background = backgroundRgba(normalizedTransform, params.channel === "gmb");
   const foreground = { input: overlay, left: destinationLeft, top: destinationTop };
+  const composites: Array<{ input: Buffer; left?: number; top?: number }> = [foreground];
+  const overlaySvg = buildImageOverlaySvg(
+    normalizedTransform.overlay,
+    dimensions.width,
+    dimensions.height,
+  );
+  if (overlaySvg) composites.push({ input: overlaySvg, left: 0, top: 0 });
 
   const canvas = sharp({
     create: {
@@ -849,7 +934,7 @@ async function renderImageTransform(params: {
       channels: 4,
       background,
     },
-  }).composite([foreground]);
+  }).composite(composites);
 
   if (transparent) {
     return {
@@ -1042,7 +1127,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
         const explicitlyCustomized = isBoosterImageExplicitlyCustomized(
           requestedSettings.customizedImageKeys,
           entry.imageKey,
-        );
+        ) || Boolean(normalizeImageOverlay(currentTransform.overlay));
         const displayPlan = getBoosterImageDisplayPlan({
           channel,
           meta: entry.meta,

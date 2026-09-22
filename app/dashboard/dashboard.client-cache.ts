@@ -18,8 +18,8 @@ export function statsSummarySessionKey(period: StatsWarmPeriod) {
   return `inrcy_stats_summary_snapshot_v2:${period}`;
 }
 
-export function readUiCacheValue(key: string): string | null {
-  return readAccountCacheValue(key);
+export function readUiCacheValue(key: string, accountId?: string | null): string | null {
+  return readAccountCacheValue(key, accountId === undefined ? undefined : accountId);
 }
 
 export function writeUiCacheValue(key: string, value: string) {

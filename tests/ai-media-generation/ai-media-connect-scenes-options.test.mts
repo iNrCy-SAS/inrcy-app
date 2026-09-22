@@ -111,10 +111,13 @@ test("le contrat refuse les valeurs non booléennes au lieu de les rendre vraies
   }
 });
 
-test("les animations locales d'identité ne demandent pas de raccord au moteur", () => {
+test("les références obligatoires et les inspirations respectent le contrat de raccord", () => {
   const inspirationImages = [0, 1].map((value) => ({
     mimeType: "image/jpeg",
     data: Buffer.alloc(96, value + 1).toString("base64"),
+    role: "character" as const,
+    usage: "required" as const,
+    characterIndex: (value + 1) as 1 | 2,
   }));
   const identitySource = {
     identityConsent: true,
@@ -132,8 +135,18 @@ test("les animations locales d'identité ne demandent pas de raccord au moteur",
       teamVideoVeoConsent: true,
     }).connectScenes, true);
   }
-  assert.equal(normalize({ ...identitySource, identityMode: "auto", teamVideoMode: "montage" }).connectScenes, true);
-  assert.equal(normalize({ ...identitySource, identityMode: "professional", peopleMode: "none" }).connectScenes, true);
+  const visualInspirations = inspirationImages.map((image) => ({
+    ...image,
+    role: "inspiration" as const,
+    usage: "inspiration" as const,
+  }));
+  assert.equal(normalize({
+    ...identitySource,
+    inspirationImages: visualInspirations,
+    identityMode: "auto",
+    teamVideoMode: "montage",
+  }).connectScenes, true);
+  assert.equal(normalize({ ...identitySource, identityMode: "professional", peopleMode: "none" }).connectScenes, false);
   assert.equal(normalize({ ...identitySource, identityMode: "reference_team", peopleMode: "none" }).connectScenes, false);
 });
 

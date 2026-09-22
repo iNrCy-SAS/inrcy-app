@@ -3,9 +3,12 @@ import test from "node:test";
 
 import {
   AI_MEDIA_MONTHLY_LIMITS,
+  AI_MEDIA_QUOTA_UNITS,
   AI_MEDIA_ROLLOVER_CAPS,
+  AI_MEDIA_VIDEO_DURATION_OPTIONS,
   createAiMediaRequestFingerprint,
   getAiMediaMonthlyLimit,
+  getAiMediaQuotaUnit,
   getAiMediaRolloverCap,
   getAiMediaVideoMaxDuration,
   hasAiMediaStudioAccess,
@@ -17,42 +20,52 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {
     standard: {
       image: 20,
-      video: 5,
+      video: 48,
       studioEnabled: true,
-      videoMaxDurationSeconds: 8,
+      videoMaxDurationSeconds: 24,
     },
     premium: {
       image: 30,
-      video: 6,
+      video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
     founder: {
       image: 30,
-      video: 6,
+      video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
   });
 
   assert.equal(getAiMediaMonthlyLimit("standard", "image"), 20);
-  assert.equal(getAiMediaMonthlyLimit("standard", "video"), 5);
+  assert.equal(getAiMediaMonthlyLimit("standard", "video"), 48);
   assert.equal(getAiMediaMonthlyLimit("premium", "image"), 30);
-  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 6);
+  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 144);
   assert.equal(getAiMediaMonthlyLimit("founder", "image"), 30);
-  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 6);
-  assert.equal(getAiMediaVideoMaxDuration("standard"), 8);
+  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 144);
+  assert.equal(getAiMediaVideoMaxDuration("standard"), 24);
   assert.equal(getAiMediaVideoMaxDuration("premium"), 24);
   assert.equal(getAiMediaVideoMaxDuration("founder"), 24);
 });
 
 test("la cagnotte reportable est plafonnee sans modifier les recharges mensuelles", () => {
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
-    image: 70,
-    video: 20,
+    standard: { image: 70, video: 168 },
+    premium: { image: 70, video: 480 },
+    founder: { image: 70, video: 480 },
   });
-  assert.equal(getAiMediaRolloverCap("image"), 70);
-  assert.equal(getAiMediaRolloverCap("video"), 20);
+  assert.equal(getAiMediaRolloverCap("standard", "image"), 70);
+  assert.equal(getAiMediaRolloverCap("standard", "video"), 168);
+  assert.equal(getAiMediaRolloverCap("premium", "video"), 480);
+  assert.equal(getAiMediaRolloverCap("founder", "video"), 480);
+});
+
+test("les videos consomment leurs secondes de sortie et toutes les editions acceptent 8, 16 ou 24 s", () => {
+  assert.deepEqual(AI_MEDIA_VIDEO_DURATION_OPTIONS, [8, 16, 24]);
+  assert.deepEqual(AI_MEDIA_QUOTA_UNITS, { image: "item", video: "second" });
+  assert.equal(getAiMediaQuotaUnit("image"), "item");
+  assert.equal(getAiMediaQuotaUnit("video"), "second");
 });
 
 test("le studio avance est accessible a toutes les editions", () => {

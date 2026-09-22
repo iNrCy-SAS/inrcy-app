@@ -2,8 +2,10 @@ import {
   isAiMediaNarrationVoiceVariantForGender,
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
+import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
 
 export type AiMediaKind = "image" | "video";
+export type AiMediaOperation = "generate" | "modify";
 export type AiMediaSurface = "booster" | "studio";
 export type AiMediaSubjectSource = "publication" | "profile" | "custom";
 export type AiMediaOutputFormat = "square" | "portrait" | "story" | "landscape";
@@ -35,12 +37,42 @@ export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
 export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 8 | 16 | 24;
+export type AiMediaVideoSceneMode = "single" | "multi";
 export type AiMediaVideoEngine = "omni" | "veo";
 export type AiMediaTeamVideoMode = "cinematic" | "montage";
 export type AiMediaTeamVideoSpeechMode = "voiceover" | "characters";
 export type AiMediaNarrationVoice = "female" | "male";
 export type AiMediaInputMode = "legacy" | "essential";
-export type AiMediaReferenceRole = "character" | "environment" | "product";
+export type AiMediaTextMode = "none" | "ai" | "exact";
+/** Parcours créatif explicite de Générer ; Modifier n'en consomme aucun. */
+export type AiMediaGenerationMode =
+  | "ai_free"
+  | "ai_criteria"
+  | "inspiration";
+export type AiMediaPeopleCriterion =
+  | "auto"
+  | "none"
+  | "one"
+  | "two"
+  | "three"
+  | "group";
+export type AiMediaSettingCriterion =
+  | "auto"
+  | "interior"
+  | "exterior"
+  | "studio"
+  | "neutral";
+export type AiMediaFocusCriterion =
+  | "auto"
+  | "people"
+  | "product"
+  | "environment";
+export type AiMediaReferenceRole =
+  | "character"
+  | "environment"
+  | "product"
+  | "inspiration";
+export type AiMediaReferenceUsage = "required" | "inspiration";
 export type { AiMediaNarrationVoiceVariant } from "./aiMediaNarrationVoices.ts";
 export type AiMediaIdentityMode =
   | "auto"
@@ -55,12 +87,14 @@ export type AiMediaInspirationImage = {
   data: string;
   /** Rôle explicite de la référence dans la nouvelle scène à composer. */
   role?: AiMediaReferenceRole;
-  /** Index stable du personnage : une photo distincte par personne. */
+  /** Contrainte obligatoire ou simple source d'inspiration non fidèle. */
+  usage?: AiMediaReferenceUsage;
+  /** Index stable du média Personnage ; un média peut contenir une ou plusieurs personnes. */
   characterIndex?: 1 | 2 | 3;
 };
 
 export const AI_MEDIA_INSPIRATION_MAX_COUNT = 5;
-export const AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
+export const AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES = INR_MEDIA_IMAGE_MAX_BYTES;
 export const AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES = 560_000;
 export const AI_MEDIA_INSPIRATION_MAX_DIMENSION = 1_280;
 export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
@@ -148,13 +182,28 @@ export function resolveAiMediaPreviewFormat(args: {
 
 export type AiMediaGenerationRequest = {
   requestId: string;
+  /** `modify` conserve une image source et applique uniquement la consigne. */
+  operation?: AiMediaOperation;
   /** Le Studio essentiel omet les anciens réglages décoratifs du payload. */
   inputMode?: AiMediaInputMode;
+  /** Contrat de composition de Générer, distinct des références de Modifier. */
+  generationMode: AiMediaGenerationMode;
+  /** Critères structurés, actifs uniquement avec `generationMode=ai_criteria`. */
+  peopleCriterion: AiMediaPeopleCriterion;
+  settingCriterion: AiMediaSettingCriterion;
+  focusCriterion: AiMediaFocusCriterion;
+  /** Dimensions orientées du canvas autoritaire, exclusivement pour `modify`. */
+  modificationSourceWidth?: number | null;
+  modificationSourceHeight?: number | null;
   kind: AiMediaKind;
   subjectSource: AiMediaSubjectSource;
   idea: string;
   /** Consigne ponctuelle facultative, appliquée à cette génération uniquement. */
   aiInstruction: string;
+  /** Politique du texte visible. Toujours normalisée sur les nouvelles requêtes. */
+  textMode?: AiMediaTextMode;
+  /** Texte utilisateur à composer sans reformulation lorsque `textMode=exact`. */
+  exactText?: string;
   withText: boolean;
   textKeywords: string[];
   withMusic: boolean;
@@ -191,6 +240,8 @@ export type AiMediaGenerationRequest = {
   /** Identifiant aléatoire du jeu de références, jamais dérivé de leur contenu. */
   identityReferenceSetId: string;
   durationSeconds: AiMediaVideoDuration | null;
+  /** Contrat produit explicite ; `connectScenes` reste l'alias moteur historique. */
+  sceneMode?: AiMediaVideoSceneMode;
   /** Opt-in: chain generated scenes from the preceding frame; otherwise render in parallel. */
   connectScenes: boolean;
   inspirationImages: AiMediaInspirationImage[];
@@ -243,7 +294,7 @@ function normalizeAiInstruction(value: unknown) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
-    .slice(0, 600);
+    .slice(0, 2_400);
 }
 
 function readRequestId(value: unknown) {
@@ -254,6 +305,23 @@ function readRequestId(value: unknown) {
     );
   }
   return id;
+}
+
+function readModificationSourceDimension(
+  value: unknown,
+  label: "largeur" | "hauteur"
+) {
+  const dimension = Number(value);
+  if (
+    !Number.isInteger(dimension) ||
+    dimension < 1 ||
+    dimension > 32_768
+  ) {
+    throw new AiMediaRequestValidationError(
+      `La ${label} de l’image source est invalide.`
+    );
+  }
+  return dimension;
 }
 
 function normalizeTextKeywords(value: unknown) {
@@ -327,28 +395,44 @@ function normalizeInspirationImages(
     const rawRole = cleanText(source?.role, 24);
     if (
       rawRole &&
-      !(["character", "environment", "product"] as string[]).includes(rawRole)
+      !(["character", "environment", "product", "inspiration"] as string[]).includes(rawRole)
     ) {
       throw new AiMediaRequestValidationError("Rôle de référence invalide.");
     }
     if (inputMode === "essential" && !rawRole) {
       throw new AiMediaRequestValidationError(
-        "Chaque média doit être identifié comme personnage, décor ou produit."
+        "Chaque média doit être identifié comme personnage, décor, produit ou inspiration."
       );
     }
+    const rawUsage = cleanText(source?.usage, 24);
+    if (
+      rawUsage &&
+      !(["required", "inspiration"] as string[]).includes(rawUsage)
+    ) {
+      throw new AiMediaRequestValidationError(
+        "Usage de référence invalide."
+      );
+    }
+    // Compatibilité : les rôles structurés historiques étaient déjà choisis
+    // comme des contraintes. Le rôle `inspiration` reste, lui, non fidèle.
+    const usage = (rawUsage ||
+      (rawRole && rawRole !== "inspiration"
+        ? "required"
+        : "inspiration")) as AiMediaReferenceUsage;
     const characterIndex = Number(source?.characterIndex);
     if (
       rawRole === "character" &&
       !([1, 2, 3] as number[]).includes(characterIndex)
     ) {
       throw new AiMediaRequestValidationError(
-        "Chaque personnage doit avoir sa propre photo numérotée."
+        "Chaque média Personnage doit avoir un emplacement numéroté."
       );
     }
     return {
       mimeType: mimeType as AiMediaInspirationImage["mimeType"],
       data,
       ...(rawRole ? { role: rawRole as AiMediaReferenceRole } : {}),
+      usage,
       ...(rawRole === "character"
         ? { characterIndex: characterIndex as 1 | 2 | 3 }
         : {}),
@@ -361,7 +445,7 @@ function normalizeInspirationImages(
       .map((image) => image.characterIndex);
     if (new Set(characterIndexes).size !== characterIndexes.length) {
       throw new AiMediaRequestValidationError(
-        "Ajoutez une seule photo distincte par personnage."
+        "Chaque média Personnage doit occuper un emplacement distinct."
       );
     }
     for (const singletonRole of ["environment", "product"] as const) {
@@ -393,6 +477,8 @@ export function normalizeAiMediaGenerationRequest(
   const requestId = readRequestId(body.requestId);
   const inputMode: AiMediaInputMode =
     body.inputMode === "essential" ? "essential" : "legacy";
+  const operation: AiMediaOperation =
+    body.operation === "modify" ? "modify" : "generate";
 
   const kind =
     body.kind === "image" || body.kind === "video" ? body.kind : null;
@@ -416,13 +502,45 @@ export function normalizeAiMediaGenerationRequest(
   }
   const subjectSource = (rawSubjectSource ||
     (rawIdea ? "custom" : "profile")) as AiMediaSubjectSource;
-  const idea = subjectSource === "profile" ? "" : rawIdea;
-  if (subjectSource !== "profile" && idea.length < 3) {
+  // En génération, le brief écrit par le professionnel reste prioritaire
+  // quelle que soit sa source. L'ADN n'est qu'un contexte : il ne doit jamais
+  // effacer une demande explicite envoyée avec `subjectSource: profile`.
+  // Le mode `modify`, lui, conserve son contrat minimal source + consigne.
+  const idea = operation === "modify" ? "" : rawIdea;
+  if (
+    operation !== "modify" &&
+    subjectSource !== "profile" &&
+    idea.length < 3
+  ) {
     throw new AiMediaRequestValidationError(
       "Décrivez votre idée en quelques mots avant de générer le média."
     );
   }
   const aiInstruction = normalizeAiInstruction(body.aiInstruction);
+  if (operation === "modify" && kind !== "image") {
+    throw new AiMediaRequestValidationError(
+      "La modification IA accepte uniquement une image pour le moment."
+    );
+  }
+  if (operation === "modify" && aiInstruction.length < 3) {
+    throw new AiMediaRequestValidationError(
+      "Décrivez la modification à appliquer à l’image."
+    );
+  }
+  const modificationSourceWidth =
+    operation === "modify"
+      ? readModificationSourceDimension(
+          body.modificationSourceWidth,
+          "largeur"
+        )
+      : null;
+  const modificationSourceHeight =
+    operation === "modify"
+      ? readModificationSourceDimension(
+          body.modificationSourceHeight,
+          "hauteur"
+        )
+      : null;
 
   const format = cleanText(body.format, 30) || "square";
   if (!(format in AI_MEDIA_FORMAT_SPECS)) {
@@ -471,7 +589,7 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Cadrage invalide.");
   }
 
-  const peopleMode = cleanText(body.peopleMode, 40) || "auto";
+  let peopleMode = cleanText(body.peopleMode, 40) || "auto";
   if (!["auto", "none", "solo", "team"].includes(peopleMode)) {
     throw new AiMediaRequestValidationError("Présence humaine invalide.");
   }
@@ -500,8 +618,47 @@ export function normalizeAiMediaGenerationRequest(
       "Durée vidéo invalide : choisissez 8, 16 ou 24 secondes."
     );
   }
+  const rawSceneMode = cleanText(body.sceneMode, 24);
+  if (rawSceneMode && !["single", "multi"].includes(rawSceneMode)) {
+    throw new AiMediaRequestValidationError("Mode de scènes invalide.");
+  }
+  // Produit : `single` désigne une séquence continue raccordée sur plusieurs
+  // segments de 8 s ; `multi` assemble des plans indépendants. Le booléen
+  // historique est conservé comme alias moteur pour les anciens clients.
+  const normalizedRequestedSceneMode: AiMediaVideoSceneMode =
+    kind !== "video" || requestedDuration <= 8
+      ? "single"
+      : rawSceneMode
+      ? (rawSceneMode as AiMediaVideoSceneMode)
+      : body.connectScenes === true
+      ? "single"
+      : "multi";
+  const requestedSceneConnection =
+    kind === "video" &&
+    requestedDuration > 8 &&
+    normalizedRequestedSceneMode === "single";
 
-  const withText = body.withText === true;
+  const rawTextMode = cleanText(body.textMode, 24);
+  if (rawTextMode && !["none", "ai", "exact"].includes(rawTextMode)) {
+    throw new AiMediaRequestValidationError("Mode de texte invalide.");
+  }
+  const normalizedTextKeywords = normalizeTextKeywords(body.textKeywords);
+  const exactText = cleanText(body.exactText, 600);
+  // Les anciens clients n'envoient que `withText`. Une demande vraiment
+  // guidée reste compatible ; un simple booléen sur un brief ADN vide ne doit
+  // plus forcer une accroche générique et répétitive.
+  const inferredTextMode: AiMediaTextMode =
+    body.withText === true &&
+    Boolean(rawIdea || aiInstruction || normalizedTextKeywords.length)
+      ? "ai"
+      : "none";
+  const textMode = (rawTextMode || inferredTextMode) as AiMediaTextMode;
+  if (textMode === "exact" && exactText.length < 1) {
+    throw new AiMediaRequestValidationError(
+      "Saisissez le texte exact à afficher."
+    );
+  }
+  const withText = textMode !== "none";
   const requestedWithNarration =
     kind === "video" && body.withNarration === true;
   const rawNarrationVoice = cleanText(body.narrationVoice, 24) || "female";
@@ -534,6 +691,113 @@ export function normalizeAiMediaGenerationRequest(
   if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
     throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
   }
+  // Le rôle et l'usage sont normalisés avant l'identité : une référence de
+  // personnage marquée obligatoire doit activer la fidélité même si un ancien
+  // client simplifié envoie encore `identityMode: auto`.
+  let inspirationImages = normalizeInspirationImages(
+    body.inspirationImages,
+    inputMode
+  );
+  if (
+    operation === "modify" &&
+    (inspirationImages.length !== 1 ||
+      inspirationImages[0]?.role !== "inspiration")
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez une seule image source avant de lancer la modification."
+    );
+  }
+  const rawGenerationMode = cleanText(body.generationMode, 32);
+  if (
+    rawGenerationMode &&
+    !["ai_free", "ai_criteria", "inspiration"].includes(rawGenerationMode)
+  ) {
+    throw new AiMediaRequestValidationError("Mode de génération invalide.");
+  }
+  const rawPeopleCriterion = cleanText(body.peopleCriterion, 24) || "auto";
+  if (
+    !["auto", "none", "one", "two", "three", "group"].includes(
+      rawPeopleCriterion
+    )
+  ) {
+    throw new AiMediaRequestValidationError("Critère de personnages invalide.");
+  }
+  const rawSettingCriterion = cleanText(body.settingCriterion, 24) || "auto";
+  if (
+    !["auto", "interior", "exterior", "studio", "neutral"].includes(
+      rawSettingCriterion
+    )
+  ) {
+    throw new AiMediaRequestValidationError("Critère de décor invalide.");
+  }
+  const rawFocusCriterion = cleanText(body.focusCriterion, 24) || "auto";
+  if (
+    !["auto", "people", "product", "environment"].includes(
+      rawFocusCriterion
+    )
+  ) {
+    throw new AiMediaRequestValidationError("Critère de priorité invalide.");
+  }
+  const hasExplicitGenerationMode = Boolean(rawGenerationMode);
+  const inferredGenerationMode: AiMediaGenerationMode = inspirationImages.length
+    ? "inspiration"
+    : rawPeopleCriterion !== "auto" ||
+      rawSettingCriterion !== "auto" ||
+      rawFocusCriterion !== "auto"
+    ? "ai_criteria"
+    : "ai_free";
+  const generationMode: AiMediaGenerationMode =
+    operation === "modify"
+      ? "ai_free"
+      : ((rawGenerationMode || inferredGenerationMode) as AiMediaGenerationMode);
+  if (
+    operation === "generate" &&
+    hasExplicitGenerationMode &&
+    generationMode === "inspiration" &&
+    inspirationImages.length === 0
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez au moins une référence pour utiliser le mode Inspiration."
+    );
+  }
+  if (
+    operation === "generate" &&
+    hasExplicitGenerationMode &&
+    generationMode !== "inspiration" &&
+    inspirationImages.length > 0
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Sélectionnez le mode Inspiration pour utiliser des références."
+    );
+  }
+  const peopleCriterion =
+    generationMode === "ai_criteria"
+      ? (rawPeopleCriterion as AiMediaPeopleCriterion)
+      : "auto";
+  const settingCriterion =
+    generationMode === "ai_criteria"
+      ? (rawSettingCriterion as AiMediaSettingCriterion)
+      : "auto";
+  const focusCriterion =
+    generationMode === "ai_criteria" &&
+    !(peopleCriterion === "none" && rawFocusCriterion === "people")
+      ? (rawFocusCriterion as AiMediaFocusCriterion)
+      : "auto";
+  if (generationMode === "ai_criteria") {
+    peopleMode =
+      peopleCriterion === "none"
+        ? "none"
+        : peopleCriterion === "one"
+        ? "solo"
+        : peopleCriterion === "two" ||
+          peopleCriterion === "three" ||
+          peopleCriterion === "group"
+        ? "team"
+        : peopleMode;
+  } else if (hasExplicitGenerationMode && generationMode === "ai_free") {
+    // Le mode IA libre ne reçoit jamais une contrainte de casting résiduelle.
+    peopleMode = "auto";
+  }
   const rawIdentityMode =
     cleanText(body.identityMode ?? body.videoCharacterMode, 32) || "auto";
   if (
@@ -543,28 +807,54 @@ export function normalizeAiMediaGenerationRequest(
   ) {
     throw new AiMediaRequestValidationError("Mode d’identité invalide.");
   }
-  const requestedIdentityMode = rawIdentityMode as AiMediaIdentityMode;
-  const identityMode =
-    requestedIdentityMode === "reference_team"
+  // Une modification part de son image source ; elle ne déclare jamais cette
+  // image comme référence d'identité pour une nouvelle composition.
+  const requestedIdentityMode: AiMediaIdentityMode =
+    operation === "modify" ? "auto" : (rawIdentityMode as AiMediaIdentityMode);
+  // Migration des anciens payloads : le mode biométrique explicite donnait
+  // autrefois son sens à des références sans rôle. On les transforme ici en
+  // vrai couple rôle+usage ; en aval, aucune référence non structurée ou
+  // marquée `inspiration` ne peut activer silencieusement la fidélité.
+  if (inputMode === "legacy" && requestedIdentityMode !== "auto") {
+    let legacyCharacterIndex = 0;
+    inspirationImages = inspirationImages.map((image) => {
+      if (image.role) return image;
+      legacyCharacterIndex += 1;
+      return {
+        ...image,
+        role: "character" as const,
+        usage: "required" as const,
+        characterIndex: Math.min(legacyCharacterIndex, 3) as 1 | 2 | 3,
+      };
+    });
+  }
+  const requiredCharacterReferences = inspirationImages.filter(
+    (image) => image.role === "character" && image.usage === "required"
+  );
+  const requiredIdentityMode: AiMediaIdentityMode | null =
+    requiredCharacterReferences.length >= 2
       ? "reference_team"
-      : peopleMode !== "none"
-      ? requestedIdentityMode
-      : "auto";
+      : requiredCharacterReferences.length === 1
+      ? "professional"
+      : null;
+  const identityMode = requiredIdentityMode
+    ? requiredIdentityMode
+    : requestedIdentityMode === "reference_team"
+    ? "reference_team"
+    : peopleMode !== "none"
+    ? requestedIdentityMode
+    : "auto";
   // Une équipe de référence décrit plusieurs adultes distincts : ce mode est
   // toujours ramené à une scène d'équipe, même si un ancien client envoie
   // encore `auto` ou `solo` pour la présence humaine.
   const normalizedPeopleMode =
-    identityMode === "reference_team" ? "team" : peopleMode;
-  // Les médias ajoutés peuvent servir de source ou d'inspiration sans être
-  // des références biométriques. Ils restent donc valides même lorsque la
-  // création ne comporte aucune personne.
-  const inspirationImages = normalizeInspirationImages(
-    body.inspirationImages,
-    inputMode
-  );
+    identityMode === "reference_team"
+      ? "team"
+      : requiredIdentityMode === "professional"
+      ? "auto"
+      : peopleMode;
   const characterReferences = inspirationImages.filter(
-    (image) =>
-      image.role === "character" || (!image.role && identityMode !== "auto")
+    (image) => image.role === "character" && image.usage === "required"
   );
   if (
     identityMode === "professional" &&
@@ -595,7 +885,7 @@ export function normalizeAiMediaGenerationRequest(
     identityMode !== "auto" && characterReferences.length > 0;
   if (strictIdentityReferenceRequested && body.identityConsent !== true) {
     throw new AiMediaRequestValidationError(
-      "Confirmez que vous êtes cette personne ou que vous avez son autorisation."
+      "Confirmez que chaque personne identifiable est majeure et vous a autorisé à utiliser son image."
     );
   }
   const rawTeamVideoMode =
@@ -647,16 +937,34 @@ export function normalizeAiMediaGenerationRequest(
       "Confirmez l’animation de la scène composée avec ces personnages."
     );
   }
+  const connectScenes = shouldConnectAiMediaVideoScenes({
+    kind,
+    durationSeconds: requestedDuration,
+    connectScenes: requestedSceneConnection,
+    identityMode,
+    peopleMode: normalizedPeopleMode,
+    teamVideoMode,
+  });
+  const sceneMode = normalizedRequestedSceneMode;
 
   return {
     requestId,
+    operation,
     inputMode,
+    generationMode,
+    peopleCriterion,
+    settingCriterion,
+    focusCriterion,
+    modificationSourceWidth,
+    modificationSourceHeight,
     kind,
     subjectSource,
     idea,
     aiInstruction,
+    textMode,
+    exactText: textMode === "exact" ? exactText : "",
     withText,
-    textKeywords: withText ? normalizeTextKeywords(body.textKeywords) : [],
+    textKeywords: textMode === "ai" ? normalizedTextKeywords : [],
     withMusic: kind === "video" && body.withMusic === true,
     withNarration,
     narrationVoice:
@@ -685,19 +993,15 @@ export function normalizeAiMediaGenerationRequest(
     teamVideoMode,
     teamVideoSpeechMode,
     teamVideoVeoConsent,
-    identityReferenceSetId: inspirationImages.length
+    identityReferenceSetId: operation === "modify"
+      ? ""
+      : inspirationImages.length
       ? cleanText(body.identityReferenceSetId, 120) || `legacy:${requestId}`
       : "",
     durationSeconds:
       kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
-    connectScenes: shouldConnectAiMediaVideoScenes({
-      kind,
-      durationSeconds: requestedDuration,
-      connectScenes: body.connectScenes === true,
-      identityMode,
-      peopleMode: normalizedPeopleMode,
-      teamVideoMode,
-    }),
+    sceneMode,
+    connectScenes,
     inspirationImages,
     source,
   };

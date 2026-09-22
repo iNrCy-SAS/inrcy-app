@@ -56,10 +56,9 @@ export function presentAiMediaQuota(
   return {
     ...quota,
     unlimited,
-    videoLongFormPremiumRequired:
-      !unlimited &&
-      quota.edition === "standard" &&
-      videoMaxDurationSeconds === 8,
+    // Les trois offres utilisent le même catalogue 8/16/24 s. La différence
+    // commerciale porte désormais sur le nombre de secondes mensuelles.
+    videoLongFormPremiumRequired: false,
     videoMaxDurationSeconds,
     videoAllowedDurationsSeconds: ([8, 16, 24] as const).filter(
       (duration) => duration <= videoMaxDurationSeconds,

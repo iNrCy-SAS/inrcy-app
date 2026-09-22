@@ -12,22 +12,25 @@ const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 const photo = (seed: number) => ({
   mimeType: "image/jpeg" as const,
   data: Buffer.alloc(96, seed).toString("base64"),
+  role: "character" as const,
+  usage: "required" as const,
+  characterIndex: (((seed - 1) % 3) + 1) as 1 | 2 | 3,
 });
 
-test("l'équipe de référence exige 2 à 3 adultes autorisés et force le mode équipe", () => {
-  assert.throws(
-    () => normalizeAiMediaGenerationRequest({
-      requestId: "reference-team-one-photo",
-      kind: "image",
-      subjectSource: "profile",
-      peopleMode: "solo",
-      identityMode: "reference_team",
-      identityConsent: true,
-      inspirationImages: [photo(1)],
-      source: "studio",
-    }),
-    /deux ou trois photos/i,
-  );
+test("une référence obligatoire devient professionnel et deux ou trois deviennent équipe", () => {
+  const single = normalizeAiMediaGenerationRequest({
+    requestId: "reference-team-one-photo",
+    kind: "image",
+    subjectSource: "profile",
+    peopleMode: "solo",
+    identityMode: "reference_team",
+    identityConsent: true,
+    inspirationImages: [photo(1)],
+    source: "studio",
+  });
+  assert.equal(single.identityMode, "professional");
+  assert.equal(single.videoCharacterMode, "professional");
+  assert.equal(single.inspirationImages.length, 1);
 
   for (const kind of ["image", "video"] as const) {
     const normalized = normalizeAiMediaGenerationRequest({
@@ -60,7 +63,7 @@ test("le mode équipe reste compatible avec l'alias vidéo historique mais jamai
       inspirationImages: [photo(5), photo(6)],
       source: "studio",
     }),
-    /autorisation/i,
+    /autoris/i,
   );
 
   const legacy = normalizeAiMediaGenerationRequest({
@@ -95,6 +98,10 @@ test("la préférence mémorise l'équipe, la normalise et exclut photos et cons
     saved: true,
     defaults: {
       peopleMode: "team",
+      sourceMode: "real",
+      aiPeopleCriterion: "one",
+      aiSettingCriterion: "auto",
+      aiFocusCriterion: "auto",
       identityMode: "reference_team",
       teamVideoMode: "cinematic",
       teamVideoSpeechMode: "voiceover",
@@ -113,14 +120,14 @@ test("le studio propose l'équipe en image et vidéo avec un flux responsive exp
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
   assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
-  assert.match(generator, /realCharacterCount === 1[\s\S]*?"professional"[\s\S]*?: "reference_team"/);
-  assert.match(generator, /characterReferences\.length !== realCharacterCount/);
-  assert.match(generator, /Array\.from\(\{ length: realCharacterCount \}/);
-  assert.match(generator, /role: "character"/);
-  assert.match(generator, /role: "environment"/);
-  assert.match(generator, /role: "product"/);
+  assert.match(generator, /effectiveCharacterCount === 1[\s\S]*?"professional"[\s\S]*?: "reference_team"/);
+  assert.match(generator, /characterReferences\.length !== effectiveCharacterCount/);
+  assert.match(generator, /id: "character"/);
+  assert.match(generator, /id: "environment"/);
+  assert.match(generator, /id: "product"/);
+  assert.match(generator, /usage: "required" \| "inspiration"/);
   assert.match(generator, /teamCinematicConsentRequired =/);
-  assert.match(generator, /styles\.referenceSlots/);
+  assert.match(generator, /styles\.referenceCollection/);
   assert.match(hook, /\| "reference_team"/);
   assert.match(
     styles,

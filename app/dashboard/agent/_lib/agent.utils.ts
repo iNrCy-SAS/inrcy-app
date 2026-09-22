@@ -42,6 +42,30 @@ export function isInrAgentEditorialPreparationRunning(
   );
 }
 
+export function isInrAgentEditorialPreparationWaitingForCron(
+  action:
+    | {
+        automationKey?: unknown;
+        actionType?: unknown;
+        status?: unknown;
+        payload?: Record<string, unknown> | null;
+      }
+    | null
+    | undefined,
+) {
+  if (
+    action?.automationKey !== "publish" ||
+    action.actionType !== "publication" ||
+    action.status !== "draft"
+  ) {
+    return false;
+  }
+
+  const editorialPlan = asRecord(action.payload?.editorialPlan);
+  const editorialState = safeString(editorialPlan?.state).toLowerCase();
+  return ["draft", "queued", "retry"].includes(editorialState);
+}
+
 export function jsonClone<T>(value: T): T {
   try {
     return JSON.parse(JSON.stringify(value)) as T;

@@ -33,7 +33,18 @@ test("iNrAgent appends scheduled images without replacing the selected image", (
 });
 
 test("image adaptation replaces only the active image and video replaces the gallery", () => {
-  assert.match(scheduledMediaSource, /uploadPublishMedia\(renderedFile, "replace"\)/);
+  assert.match(
+    scheduledMediaSource,
+    /result\.action === "retouch" \|\| result\.action === "modify"/,
+  );
+  assert.match(
+    scheduledMediaSource,
+    /returnedMediaIndex = Number\(result\.context\.mediaIndex\)/,
+  );
+  assert.match(
+    scheduledMediaSource,
+    /savePublishMediaPatch\([\s\S]*?"replace",[\s\S]*?mediaIndex: returnedMediaIndex/,
+  );
   assert.match(
     scheduledMediaSource,
     /transformedVariants,[\s\S]*?},[\s\S]*?"replace",[\s\S]*?\);/,

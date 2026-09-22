@@ -289,6 +289,8 @@ export type InrAgentEditorialPlanImpact = {
   lostVideos: number;
   requiredImages: number;
   requiredVideos: number;
+  /** Réservation maximale nécessaire : le réglage Studio peut demander 24 s. */
+  requiredVideoSeconds: number;
   protectedUntil: string | null;
   horizonDays: 7 | 15 | 30;
 };
@@ -304,6 +306,7 @@ function emptyEditorialPlanImpact(
     lostVideos: 0,
     requiredImages: 0,
     requiredVideos: 0,
+    requiredVideoSeconds: 0,
     protectedUntil: null,
     horizonDays,
   };
@@ -412,8 +415,14 @@ export async function analyzeInrAgentEditorialPlanChange(args: {
 
   let requiredImages = 0;
   let requiredVideos = 0;
+  let requiredVideoSeconds = 0;
   for (const slot of slotsToGenerate) {
-    if (slot.mediaKind === "video") requiredVideos += 1;
+    if (slot.mediaKind === "video") {
+      requiredVideos += 1;
+      // Le plan éditorial ne fige pas encore la durée : réserver le maximum
+      // évite de promettre une régénération que les préférences 24 s bloqueraient.
+      requiredVideoSeconds += 24;
+    }
     if (slot.mediaKind === "image") requiredImages += slot.imageCount;
   }
 
@@ -431,6 +440,7 @@ export async function analyzeInrAgentEditorialPlanChange(args: {
     lostVideos,
     requiredImages,
     requiredVideos,
+    requiredVideoSeconds,
     protectedUntil: lastScheduledAt
       ? new Date(lastScheduledAt + 1_000).toISOString()
       : null,

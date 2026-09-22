@@ -125,6 +125,8 @@ export function useDashboardPreparationScores({
   accountId: string | null;
   edition: DashboardEdition;
 }) {
+  // The live browser scope wins after an establishment switch; the server or
+  // completion scope remains the stable fallback on a hard refresh/OAuth return.
   const currentAccountId = getActiveBrowserUserId() ?? accountId;
   const [scoreState, setScoreState] = useState<PreparationScoreState>(() => (
     createPreparationScoreState(currentAccountId)

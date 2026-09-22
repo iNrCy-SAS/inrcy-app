@@ -69,6 +69,77 @@ type GeneratedMediaCopy = {
   }>;
 };
 
+const GENERIC_MEDIA_COPY_PATTERNS = [
+  /^votre projet (?:entre de bonnes mains|prend vie)$/,
+  /^une (?:expertise pensee pour vous|reponse sur mesure|solution a decouvrir)$/,
+  /^qualite ecoute proximite$/,
+  /^(?:donnez|donner) vie a vos idees$/,
+  /^ensemble (?:donnons vie|construisons) (?:a )?votre projet$/,
+  /^votre reussite notre priorite$/,
+  /^a vos cotes (?:au quotidien|pour reussir)$/,
+  /^une solution adaptee a vos besoins$/,
+  /^cap sur /,
+  / prend vie$/,
+  / autrement$/,
+  / en lumiere$/,
+  /^decouvrez /,
+  /^notre (?:expertise|difference|savoir faire)/,
+  / au service de votre projet$/,
+  /^une nouvelle facon de /,
+  /^pense pour vous$/,
+  /^proche de vous$/,
+  /^une solution complete$/,
+  /^une etape concrete$/,
+] as const;
+
+function isGenericMediaCopy(value: unknown) {
+  const normalized = normalizedWords(value);
+  return GENERIC_MEDIA_COPY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function removeAiMediaFallbackCopy(
+  plan: AiMediaCreativePlan,
+  options: { keepSpokenCopy?: boolean } = {}
+): AiMediaCreativePlan {
+  return {
+    ...plan,
+    headline: "",
+    subline: "",
+    cta: "",
+    scenes: plan.scenes.map((scene) => ({
+      ...scene,
+      eyebrow: "",
+      title: "",
+      body: "",
+      spokenLine: options.keepSpokenCopy ? scene.spokenLine : "",
+      spokenReply: options.keepSpokenCopy ? scene.spokenReply : "",
+    })),
+  };
+}
+
+function keepFreshLocalCopyOrRemove(
+  plan: AiMediaCreativePlan,
+  recentPublications: readonly RecentMediaCopy[]
+) {
+  const visibleValues = [
+    plan.headline,
+    plan.cta,
+    ...plan.scenes.flatMap((scene) => [
+      scene.title,
+      scene.body,
+      scene.spokenLine,
+      scene.spokenReply,
+    ]),
+  ];
+  if (
+    visibleValues.some(isGenericMediaCopy) ||
+    repeatsRecentVisibleCopy(visibleValues, recentPublications)
+  ) {
+    return removeAiMediaFallbackCopy(plan);
+  }
+  return plan;
+}
+
 function compactCopy(value: unknown, maximum: number) {
   return acceptCompleteAiMediaVisibleCopy(value, maximum);
 }
@@ -91,6 +162,99 @@ function normalizedWords(value: unknown) {
     .toLocaleLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+type RecentMediaCopy = {
+  title?: string | null;
+  content?: string | null;
+  idea?: string | null;
+};
+
+const RECENT_COPY_STOP_WORDS = new Set([
+  "avec",
+  "dans",
+  "des",
+  "elle",
+  "elles",
+  "est",
+  "les",
+  "notre",
+  "nous",
+  "pour",
+  "plus",
+  "que",
+  "qui",
+  "sur",
+  "une",
+  "votre",
+  "vous",
+  "and",
+  "for",
+  "from",
+  "the",
+  "this",
+  "with",
+  "your",
+]);
+
+function meaningfulCopyTokens(value: unknown) {
+  return Array.from(
+    new Set(
+      normalizedWords(value)
+        .split(" ")
+        .filter(
+          (token) => token.length >= 4 && !RECENT_COPY_STOP_WORDS.has(token)
+        )
+    )
+  );
+}
+
+function recentCopyFragments(publications: readonly RecentMediaCopy[]) {
+  return publications.slice(0, 20).flatMap((publication) => [
+    publication.title || "",
+    publication.idea || "",
+    ...String(publication.content || "")
+      .split(/[.!?\n|•]+/)
+      .map((fragment) => fragment.trim())
+      .filter(Boolean),
+  ]);
+}
+
+/**
+ * Contrôle local après génération. L'historique reste sur le serveur iNrCy et
+ * n'est jamais ajouté à la requête envoyée au fournisseur de copywriting.
+ */
+function repeatsRecentVisibleCopy(
+  values: readonly unknown[],
+  publications: readonly RecentMediaCopy[]
+) {
+  const fragments = recentCopyFragments(publications).map((fragment) => ({
+    normalized: normalizedWords(fragment),
+    tokens: meaningfulCopyTokens(fragment),
+  }));
+  if (!fragments.length) return false;
+  return values.some((value) => {
+    const candidate = normalizedWords(value);
+    if (candidate.length < 12) return false;
+    const candidateTokens = meaningfulCopyTokens(candidate);
+    return fragments.some((fragment) => {
+      if (
+        fragment.normalized.includes(candidate) ||
+        (fragment.normalized.length >= 12 &&
+          candidate.includes(fragment.normalized))
+      ) {
+        return true;
+      }
+      if (candidateTokens.length < 3 || fragment.tokens.length < 3) {
+        return false;
+      }
+      const fragmentTokenSet = new Set(fragment.tokens);
+      const shared = candidateTokens.filter((token) =>
+        fragmentTokenSet.has(token)
+      ).length;
+      return shared / candidateTokens.length >= 0.8;
+    });
+  });
 }
 
 const IDEA_STOP_WORDS = new Set([
@@ -172,21 +336,22 @@ function applyLocalizedCopy(
   language: NormalizedAiGenerationProfile["preferences"]["language"],
   protectedTerms: readonly string[],
   requireSpokenTerms: boolean
-) {
+): AiMediaCreativePlan | null {
   const headline = compactHeadline(generated.headline);
   const cta = compactCopy(generated.cta, 58);
-  if (!headline || !cta) return plan;
-  if (!preservesAiMediaProtectedTerms(headline, protectedTerms)) return plan;
+  if (!headline || !cta || isGenericMediaCopy(headline)) return null;
+  if (!preservesAiMediaProtectedTerms(headline, protectedTerms)) return null;
 
   const generatedScenes = Array.isArray(generated.scenes)
     ? generated.scenes
     : [];
+  if (generatedScenes.length !== plan.scenes.length) return null;
   if (
     requireSpokenTerms &&
     protectedTerms.length > 0 &&
     !preservesAiMediaProtectedTerms(generatedScenes[0]?.spokenLine, protectedTerms)
   ) {
-    return plan;
+    return null;
   }
   const usedDialogue = new Set<string>();
   const usedTitles = new Set<string>();
@@ -195,13 +360,12 @@ function applyLocalizedCopy(
     const generatedTitle =
       index === 0
         ? headline
-        : compactCopy(candidate?.title, AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS) ||
-          compactCopy(scene.title, AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS);
+        : compactCopy(candidate?.title, AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS);
     const titleSignature = aiMediaDialogueSignature(generatedTitle);
     const title =
       titleSignature && !usedTitles.has(titleSignature)
         ? generatedTitle
-        : compactCopy(scene.title, AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS);
+        : "";
     usedTitles.add(aiMediaDialogueSignature(title));
     if (!candidate) {
       const spokenLine = selectAiMediaDialogueLine({
@@ -251,11 +415,9 @@ function applyLocalizedCopy(
     return {
       ...scene,
       eyebrow:
-        compactCopy(candidate.eyebrow, AI_MEDIA_VISIBLE_EYEBROW_MAX_CHARACTERS) ||
-        scene.eyebrow,
+        compactCopy(candidate.eyebrow, AI_MEDIA_VISIBLE_EYEBROW_MAX_CHARACTERS),
       title,
-      body:
-        compactCompleteBody(candidate.body) || compactCompleteBody(scene.body),
+      body: compactCompleteBody(candidate.body),
       spokenLine,
       spokenReply,
     };
@@ -271,7 +433,12 @@ function applyLocalizedCopy(
       scene.spokenReply,
     ]),
   ].join(" ");
-  if (hasAiLanguageMismatch(language, visibleCopy)) return plan;
+  if (
+    hasAiLanguageMismatch(language, visibleCopy) ||
+    [headline, ...scenes.map((scene) => scene.title)].some(isGenericMediaCopy)
+  ) {
+    return null;
+  }
 
   return {
     ...plan,
@@ -291,26 +458,25 @@ export async function writeAiMediaHeadline(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
   plan: AiMediaCreativePlan;
+  recentPublications?: readonly RecentMediaCopy[];
 }): Promise<AiMediaCreativePlan> {
+  const textMode =
+    args.request.textMode || (args.request.withText ? "ai" : "none");
   const characterDialogueRequested =
     args.request.kind === "video" &&
     args.request.teamVideoSpeechMode === "characters";
-  if (!args.request.withText && !characterDialogueRequested) return args.plan;
+  const voiceoverNarrationRequested =
+    args.request.kind === "video" &&
+    args.request.withNarration &&
+    args.request.teamVideoSpeechMode !== "characters";
+  const spokenCopyRequested =
+    characterDialogueRequested || voiceoverNarrationRequested;
+  if (textMode === "exact") return args.plan;
+  if (textMode === "none" && !spokenCopyRequested) return args.plan;
 
   const languageCode = args.profile.preferences.language;
-  // Le plan français est déjà publiable sans appel supplémentaire. Une saisie
-  // de mots-clés, toute langue étrangère ou le mode ADN passe par le copywriter
-  // afin que le texte visible exploite réellement le contexte professionnel.
-  if (
-    languageCode === "fr" &&
-    !args.request.textKeywords.length &&
-    !args.request.aiInstruction &&
-    !args.request.idea &&
-    args.request.subjectSource !== "profile" &&
-    !characterDialogueRequested
-  ) {
-    return args.plan;
-  }
+  // Tout texte visible ou prononcé passe par ce contrat éditorial central.
+  // Un échec donne un média sans texte plutôt qu'un ancien slogan générique.
   const protectedTerms = collectAiMediaProtectedTerms({
     request: args.request,
     profile: args.profile,
@@ -332,6 +498,8 @@ export async function writeAiMediaHeadline(args: {
         "Adapte ou traduis les informations utiles de l’ADN de l’entreprise dans cette langue sans traduire les noms propres, marques ou villes.",
         "Retourne exactement le même nombre de scènes et conserve leur ordre.",
         "Rédige une accroche publicitaire courte, naturelle, idiomatique et crédible.",
+        "Interdiction absolue des slogans passe-partout centrés sur un vague projet, une expertise non précisée, une solution sans objet concret ou une simple liste de qualités. Chaque accroche doit nommer un fait, un geste, un produit, un lieu, un service ou un résultat réellement présent dans le brief. Si les faits disponibles ne permettent pas une accroche spécifique, n'invente aucun cliché.",
+        "Produis une formulation réellement singulière pour cette génération : varie l'angle, la construction, le vocabulaire, le CTA et la progression narrative au lieu de recycler une formule publicitaire familière. L'identifiant de variation fourni est un sel créatif opaque : utilise-le seulement pour faire varier tes choix, ne le cite jamais.",
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
         "L'idée du professionnel est le SUJET CENTRAL OBLIGATOIRE : conserve ses personnes, objets, lieux, actions, relations et résultat attendu dans toutes les scènes. Reformule-la naturellement sans la réciter ni la remplacer par un autre service de l'ADN.",
         "La consigne ponctuelle est une CONSIGNE DE RÉALISATION PRIORITAIRE : applique intégralement chacun de ses éléments visuels et narratifs, même s'ils ne figurent pas dans l'ADN. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié ; ne la cite jamais.",
@@ -358,10 +526,10 @@ export async function writeAiMediaHeadline(args: {
         termes_obligatoires_exacts: protectedTerms,
         adn_de_l_entreprise: buildAiMediaBusinessDnaPayload(args.profile),
         type_de_contenu: args.request.typology,
-        copie_visible_de_secours: {
-          headline: args.plan.headline,
-          cta: args.plan.cta,
-          scenes: args.plan.scenes.map((scene, index) => ({
+        mode_texte: textMode,
+        structure_narrative: {
+          nombre_de_scenes: args.plan.scenes.length,
+          scenes: args.plan.scenes.map((_scene, index) => ({
             role_narratif:
               args.plan.scenes.length === 1
                 ? "histoire_complete"
@@ -370,17 +538,13 @@ export async function writeAiMediaHeadline(args: {
                 : index === args.plan.scenes.length - 1
                 ? "conclusion"
                 : "preuve",
-            eyebrow: scene.eyebrow,
-            title: scene.title,
-            body: scene.body,
-            spokenLine: scene.spokenLine,
-            spokenReply: scene.spokenReply,
           })),
         },
+        identifiant_de_variation: args.request.requestId,
       }),
       responseSchema: MEDIA_COPY_SCHEMA,
       maxOutputTokens: 512,
-      temperature: args.request.creativity === "bold" ? 0.85 : 0.45,
+      temperature: args.request.creativity === "bold" ? 0.88 : 0.65,
       retries: 0,
       // Une idée libre doit être reformulée, mais cette touche éditoriale
       // ne doit pas ralentir sensiblement le lancement du moteur vidéo. Le
@@ -409,11 +573,33 @@ export async function writeAiMediaHeadline(args: {
         (value) => !isAiMediaTechnicalCopyAllowed(value, args.request)
       )
     ) {
-      return args.plan;
+      return removeAiMediaFallbackCopy(args.plan);
+    }
+    if (
+      repeatsRecentVisibleCopy(
+        [
+          generated.headline,
+          generated.cta,
+          ...(Array.isArray(generated.scenes)
+            ? generated.scenes.flatMap((scene) => [
+                scene.title,
+                scene.body,
+                scene.spokenLine,
+                scene.spokenReply,
+              ])
+            : []),
+        ],
+        args.recentPublications || []
+      )
+    ) {
+      return keepFreshLocalCopyOrRemove(
+        args.plan,
+        args.recentPublications || []
+      );
     }
     const headline = compactHeadline(generated.headline);
     if (
-      args.request.withText &&
+      textMode === "ai" &&
       !isNaturalHeadline(
         headline,
         args.request.textKeywords,
@@ -421,16 +607,20 @@ export async function writeAiMediaHeadline(args: {
         languageCode
       )
     ) {
-      return args.plan;
+      return removeAiMediaFallbackCopy(args.plan);
     }
-    return applyLocalizedCopy(
+    const localized = applyLocalizedCopy(
       args.plan,
       generated,
       languageCode,
       protectedTerms,
-      characterDialogueRequested
+      spokenCopyRequested
     );
+    if (!localized) return removeAiMediaFallbackCopy(args.plan);
+    return textMode === "none"
+      ? removeAiMediaFallbackCopy(localized, { keepSpokenCopy: true })
+      : localized;
   } catch {
-    return args.plan;
+    return removeAiMediaFallbackCopy(args.plan);
   }
 }

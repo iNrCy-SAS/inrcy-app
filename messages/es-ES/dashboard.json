@@ -40,7 +40,7 @@
     "preferences": "Ajustes generales",
     "ai": "Ajustes IA",
     "aiMemory": "ADN de la empresa",
-    "mediaGenerator": "Generar un medio",
+    "mediaGenerator": "Estudio multimedia",
     "premiumBadge": "Premium",
     "media": "Mediateca",
     "notifications": "Avisos",
@@ -716,6 +716,10 @@
     "agentLine1": "Programa tus publicaciones",
     "agentLine2": "con tu agente de IA.",
     "agentPlanning": "Planificación",
-    "agentCta": "Pilotaje"
+    "agentCta": "Pilotaje",
+    "studioEyebrow": "Creación de medios con IA",
+    "studioLine1": "Crea, edita y retoca",
+    "studioLine2": "tus imágenes y vídeos.",
+    "studioCta": "Estudio de medios"
   }
 }

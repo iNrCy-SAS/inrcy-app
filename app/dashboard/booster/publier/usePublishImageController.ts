@@ -65,6 +65,7 @@ import {
   setImageKeysForChannel,
 } from "./imageChannelAssignment";
 import { extendBoosterChannelImageSelectionForGlobalAdd } from "@/lib/boosterChannelImageSelection";
+import { hasImageOverlay, normalizeImageOverlay } from "@/lib/imageOverlay";
 
 function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
   const safeName = String(file.name || "Image")
@@ -124,8 +125,6 @@ type UsePublishImageControllerParams = {
   setActiveImageKeyByChannel: Dispatch<
     SetStateAction<Partial<Record<ChannelKey, string>>>
   >;
-  isImageEditorOpen: boolean;
-  setIsImageEditorOpen: Dispatch<SetStateAction<boolean>>;
   isDraggingImage: boolean;
   setIsDraggingImage: Dispatch<SetStateAction<boolean>>;
   hasVideoMedia: boolean;
@@ -166,8 +165,6 @@ export default function usePublishImageController({
   setActiveImageChannel,
   activeImageKeyByChannel,
   setActiveImageKeyByChannel,
-  isImageEditorOpen,
-  setIsImageEditorOpen,
   isDraggingImage,
   setIsDraggingImage,
   hasVideoMedia,
@@ -315,7 +312,6 @@ export default function usePublishImageController({
   }, [
     activeImageChannel,
     activeImageKeyByChannel[activeImageChannel],
-    isImageEditorOpen,
     images.length,
     previewStageRef,
   ]);
@@ -635,6 +631,111 @@ export default function usePublishImageController({
     return true;
   };
 
+  const replaceImageFile = async (imageKey: string, replacement: File) => {
+    const imageIndex = images.findIndex(
+      (candidate) => makeImageKey(candidate) === imageKey,
+    );
+    if (imageIndex < 0 || !isBoosterImageFile(replacement)) {
+      setImgError(i18nT("image_files_invalid"));
+      return false;
+    }
+    if (replacement.size > BOOSTER_MAX_IMAGE_BYTES) {
+      setImgError(
+        i18nT("image_file_too_large", {
+          name: replacement.name,
+          limit: BOOSTER_MAX_IMAGE_MB_LABEL,
+        }),
+      );
+      return false;
+    }
+
+    const nextFiles = images.slice();
+    nextFiles[imageIndex] = replacement;
+    const totalImageBytes = nextFiles.reduce(
+      (sum, file) => sum + (file?.size || 0),
+      0,
+    );
+    if (totalImageBytes > BOOSTER_MAX_MEDIA_BYTES) {
+      setImgError(
+        i18nT("images_total_too_large", { limit: BOOSTER_MAX_MEDIA_MB_LABEL }),
+      );
+      return false;
+    }
+
+    const presentation = await buildLocalImagePresentation(
+      replacement,
+      i18nT("image_preview_prepared_server"),
+    );
+    const replacementKey = makeImageKey(replacement);
+    const nextPreviews = imagePreviews.slice();
+    const previousPreview = nextPreviews[imageIndex];
+    nextPreviews[imageIndex] = presentation.preview;
+    if (previousPreview) {
+      try {
+        URL.revokeObjectURL(previousPreview);
+      } catch {}
+    }
+
+    const nextMetaByKey = { ...imageMetaByKey };
+    delete nextMetaByKey[imageKey];
+    nextMetaByKey[replacementKey] = presentation.meta;
+    const nextPoolKeys = nextFiles.map((file) => makeImageKey(file));
+
+    setImages(nextFiles);
+    setImagePreviews(nextPreviews);
+    setImageMetaByKey(nextMetaByKey);
+    setChannelImageEditors((previous) => {
+      const next = { ...previous };
+      for (const channel of Object.keys(previous) as ChannelKey[]) {
+        const editor = previous[channel];
+        if (!editor) continue;
+        const usesImage = editor.imageKeys.includes(imageKey);
+        const wasSynchronized = editor.synchronizedImageKeys?.includes(imageKey);
+        if (!usesImage && !wasSynchronized && !editor.transforms[imageKey]) {
+          continue;
+        }
+        const transforms = { ...editor.transforms };
+        delete transforms[imageKey];
+        if (usesImage) {
+          transforms[replacementKey] = getOptimizedTransform(
+            channel,
+            presentation.meta,
+          );
+        }
+        next[channel] = {
+          ...editor,
+          imageKeys: editor.imageKeys.map((key) =>
+            key === imageKey ? replacementKey : key,
+          ),
+          synchronizedImageKeys: (editor.synchronizedImageKeys || nextPoolKeys).map(
+            (key) => (key === imageKey ? replacementKey : key),
+          ),
+          transforms,
+          customizedImageKeys: (editor.customizedImageKeys || []).filter(
+            (key) => key !== imageKey && key !== replacementKey,
+          ),
+        };
+      }
+      return next;
+    });
+    setActiveImageKeyByChannel((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).map(([channel, key]) => [
+          channel,
+          key === imageKey ? replacementKey : key,
+        ]),
+      ) as Partial<Record<ChannelKey, string>>,
+    );
+    void syncPersistentWorkspaceImages?.(
+      nextFiles,
+      nextFiles.map((file) => ({
+        source_metadata: nextMetaByKey[makeImageKey(file)] || null,
+      })),
+    );
+    setImgError("");
+    return true;
+  };
+
   const onImagesChange = async (
     files: FileList | null,
     targetChannel?: ChannelKey,
@@ -876,13 +977,14 @@ export default function usePublishImageController({
         const nextTransform = {
           ...(current.transforms[imageKey] || automaticTransform),
           ...patch,
+          ...(Object.prototype.hasOwnProperty.call(patch, "overlay")
+            ? { overlay: normalizeImageOverlay(patch.overlay) }
+            : {}),
         };
         const customizedImageKeys = new Set(current.customizedImageKeys || []);
         if (
-          areBoosterImageTransformsEquivalent(
-            nextTransform,
-            automaticTransform,
-          )
+          !hasImageOverlay(nextTransform) &&
+          areBoosterImageTransformsEquivalent(nextTransform, automaticTransform)
         ) {
           customizedImageKeys.delete(imageKey);
         } else {
@@ -1157,7 +1259,12 @@ export default function usePublishImageController({
       };
       const transforms = { ...current.transforms };
       for (const imageKey of imageKeysForChannel) {
-        transforms[imageKey] = { ...activeEditorTransform };
+        // “Appliquer partout” is a cadrage action. Keep each image's own
+        // text/link retouch so a per-media annotation is never overwritten.
+        transforms[imageKey] = {
+          ...activeEditorTransform,
+          overlay: current.transforms[imageKey]?.overlay,
+        };
       }
       const customizedImageKeys = new Set(current.customizedImageKeys || []);
       for (const imageKey of imageKeysForChannel) {
@@ -1166,10 +1273,8 @@ export default function usePublishImageController({
           imageMetaByKey[imageKey],
         );
         if (
-          areBoosterImageTransformsEquivalent(
-            transforms[imageKey],
-            automaticTransform,
-          )
+          !hasImageOverlay(transforms[imageKey]) &&
+          areBoosterImageTransformsEquivalent(transforms[imageKey], automaticTransform)
         ) {
           customizedImageKeys.delete(imageKey);
         } else {
@@ -1284,10 +1389,8 @@ export default function usePublishImageController({
         );
         const customizedImageKeys = new Set(current.customizedImageKeys || []);
         if (
-          areBoosterImageTransformsEquivalent(
-            activeEditorTransform,
-            automaticTransform,
-          )
+          !hasImageOverlay(activeEditorTransform) &&
+          areBoosterImageTransformsEquivalent(activeEditorTransform, automaticTransform)
         ) {
           customizedImageKeys.delete(activeEditorImageKey);
         } else {
@@ -1310,20 +1413,6 @@ export default function usePublishImageController({
       }
       return next;
     });
-  };
-
-  const openImageEditor = (channel: ChannelKey, imageKey: string) => {
-    preservePublishScroll();
-    setSynchronizedActiveChannel(channel);
-    setActiveImageKeyByChannel((prev) => ({ ...prev, [channel]: imageKey }));
-    setIsImageEditorOpen(true);
-  };
-
-  const closeImageEditor = () => {
-    dragStateRef.current = null;
-    setIsDraggingImage(false);
-    setIsImageEditorOpen(false);
-    restorePublishScroll();
   };
 
   const buildAutomaticRenderPreset = (
@@ -1634,6 +1723,7 @@ export default function usePublishImageController({
     onPickImagesClick,
     onPickImagesForChannel,
     addImageFiles,
+    replaceImageFile,
     onImagesChange,
     assignExistingImagesToChannel,
     removeImagesFromChannel,
@@ -1657,8 +1747,6 @@ export default function usePublishImageController({
     moveChannelImageTo,
     applyChannelImageOrderToSelectedChannels,
     applyCurrentImageToSelectedChannels,
-    openImageEditor,
-    closeImageEditor,
     uploadOriginalImagesForPublication,
     buildChannelImagesPayload,
     buildChannelImageSettingsPayload,

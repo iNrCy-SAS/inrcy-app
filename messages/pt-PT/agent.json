@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Ações programadas",
   "actions_programmees_a_venir_c1f610d0": "Ações programadas para breve",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Ativado por padrão para adicionar a assinatura configurada no momento do envio.",
-  "adapt_image": "Adaptar a imagem",
+  "adapt_image": "Retocar a imagem",
   "adapt_media": "Adaptar o conteúdo multimédia",
   "adapt_video": "Adaptar o vídeo",
   "adaptation_du_canal_1af8dcef": "Adaptação de Canal",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "Adaptar Vídeo do iNr’Agent",
   "adapter_le_media_value_34c6f353": "Adaptar o conteúdo multimédia {value0}",
   "adapter_video_2d90a304": "Adaptar Vídeo",
-  "add_image_first": "Adicione primeiro uma imagem para adaptar.",
+  "add_image_first": "Adicione primeiro uma imagem.",
   "add_image_to_publication": "Adicionar uma imagem à publicação",
   "add_media": "Adicionar conteúdo multimédia",
   "add_media_first": "Adicione primeiro uma imagem ou um vídeo para adaptar.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "Hora",
   "horaire_db0addb3": "Por hora",
   "ia_d41daf59": "IA",
-  "image_adaptation_failed": "Não foi possível adaptar a imagem.",
+  "image_adaptation_failed": "Não foi possível abrir esta imagem no iNrStudio.",
   "image_adapted_save_failed": "Não foi possível guardar a imagem adaptada.",
   "image_adapted_saved": "Imagem adaptada e guardada para o iNr’Agent.",
-  "image_adapter_isolation_note": "Esta definição utiliza a ferramenta Adaptar imagem do Booster e substitui o conteúdo multimédia do iNr’Agent pela versão adaptada.",
+  "image_adapter_isolation_note": "Esta ação utiliza a ferramenta Retocar do iNrStudio e substitui o conteúdo multimédia do iNr’Agent pela versão retocada.",
   "image_et_2d6d27c0": "imagem e",
   "image_number_alt": "Imagem {number}",
   "immediate_other_channels_failed": "Não foi possível publicar de imediato nos outros canais.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "Confirmação de utilização de música do TikTok",
   "tiktok_session_change": "Alterar",
   "tiktok_session_save": "Guardar definições",
-  "tiktok_session_checking": "A verificar o TikTok…"
+  "tiktok_session_checking": "A verificar o TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "Próxima publicação dentro de alguns minutos"
 }

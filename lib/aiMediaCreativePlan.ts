@@ -45,11 +45,53 @@ export type AiMediaCreativePlan = {
   scenes: AiMediaCreativeScene[];
 };
 
+function resolveAiMediaTextMode(request: AiMediaGenerationRequest) {
+  return request.textMode || (request.withText ? "ai" : "none");
+}
+
+function applyAiMediaTextPolicy(
+  request: AiMediaGenerationRequest,
+  plan: AiMediaCreativePlan
+): AiMediaCreativePlan {
+  const textMode = resolveAiMediaTextMode(request);
+  if (textMode === "ai") return plan;
+
+  if (textMode === "exact") {
+    const exactText = cleanStructuredText(request.exactText, 600);
+    return {
+      ...plan,
+      headline: exactText,
+      subline: "",
+      cta: "",
+      scenes: plan.scenes.map((scene, index) => ({
+        ...scene,
+        eyebrow: "",
+        title: index === 0 ? exactText : "",
+        body: "",
+      })),
+    };
+  }
+
+  // Le plan narratif reste utile au moteur (action, continuité, narration),
+  // mais `withText:false` empêche son rendu à l'écran dans les compositeurs.
+  return plan;
+}
+
 function clean(value: unknown, max = 160) {
   return String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/[#*_`<>]/g, "")
     .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function cleanStructuredText(value: unknown, max = 600) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, max);
 }
@@ -91,9 +133,8 @@ function normalizeFrenchIdeaTopic(value: string) {
 
 /**
  * Une idée libre est souvent une petite scène ("un artisan reçoit...") et non
- * un groupe nominal. Lui préfixer "Cap sur" produit une phrase cassée. Cette
- * reformulation locale couvre les verbes les plus fréquents sans inventer de
- * fait et reste disponible lorsque le copywriter distant expire.
+ * un groupe nominal. Le secours local reste strictement factuel : il reformule
+ * une action détectable ou conserve le sujet nettoyé, sans ajouter de slogan.
  */
 function narrativeIdeaHeadline(value: string, variant: number) {
   const clause = value.match(
@@ -116,10 +157,12 @@ function narrativeIdeaHeadline(value: string, variant: number) {
   if (!actionClause) return "";
   const actor = lowerFirst(actionClause[1]);
   const object = lowerFirst(actionClause[2]);
+  const factualCandidates = [
+    capitalize(value),
+    `${capitalize(object)} — ${actor}`,
+  ];
   return compactHeadline(
-    variant % 2 === 0
-      ? `${capitalize(object)} prend forme`
-      : `${capitalize(actor)}, au cœur de l’action`
+    factualCandidates[variant % factualCandidates.length]
   );
 }
 
@@ -154,21 +197,11 @@ function ideaHeadline(value: string, variant: number) {
       : "";
   const topic =
     subject ||
-    compactAtWordBoundary(normalizeFrenchIdeaTopic(firstBeat), 80) ||
-    "votre projet";
+    compactAtWordBoundary(normalizeFrenchIdeaTopic(firstBeat), 80);
+  if (!topic) return "";
   const narrativeHeadline = narrativeIdeaHeadline(topic, variant);
   if (narrativeHeadline) return narrativeHeadline;
-  const lowerTopic = `${topic.charAt(0).toLocaleLowerCase()}${topic.slice(1)}`;
-  const candidates = [
-    `${capitalize(topic)} prend vie`,
-    `Cap sur ${lowerTopic}`,
-    `${capitalize(topic)}, autrement`,
-  ];
-  return (
-    compactHeadline(candidates[variant % candidates.length]) ||
-    compactHeadline(topic) ||
-    "Votre projet prend vie"
-  );
+  return compactHeadline(capitalize(topic));
 }
 
 function capitalize(value: string) {
@@ -181,31 +214,19 @@ function capitalize(value: string) {
     : "";
 }
 
-function keywordHeadline(values: readonly string[], variant: number) {
+function keywordHeadline(values: readonly string[]) {
   const keywords = values
     .map((value) => capitalize(value))
     .filter(Boolean)
     .slice(0, 3);
   if (!keywords.length) return "";
   if (keywords.length === 1) {
-    const [keyword] = keywords;
-    const candidates = [
-      `${keyword} en lumière`,
-      `Cap sur ${keyword}`,
-      `${keyword}, autrement`,
-    ];
-    return compactHeadline(candidates[variant % candidates.length]);
+    return compactHeadline(keywords[0]);
   }
-  // Les tags sont des intentions sémantiques, jamais une ligne à afficher
-  // telle quelle. Ce secours reste une vraie accroche même si le mini
-  // copywriter IA est momentanément indisponible.
-  const [keyword] = keywords;
-  const candidates = [
-    `${keyword}, une idée qui prend vie`,
-    `${keyword} au service de votre projet`,
-    `Une nouvelle façon de vivre ${keyword}`,
-  ];
-  return compactHeadline(candidates[variant % candidates.length]);
+  // Plusieurs tags restent des intentions sémantiques. Le plan technique ne
+  // fabrique jamais une accroche à partir d'une liste : le copywriter central
+  // doit produire la formulation finale ou le média reste sans texte.
+  return "";
 }
 
 function historyText(publications: readonly RecentPublication[]) {
@@ -222,8 +243,9 @@ function chooseFresh(values: readonly string[], history: string, offset = 0) {
   const fresh = cleaned.filter(
     (value) => !history.includes(value.toLocaleLowerCase())
   );
-  const candidates = fresh.length ? fresh : cleaned;
-  return candidates.length ? candidates[offset % candidates.length] : "";
+  // Ne recycle jamais silencieusement un service déjà présent dans
+  // l'historique. Les autres faits vérifiés du profil prendront le relais.
+  return fresh.length ? fresh[offset % fresh.length] : "";
 }
 
 function variationIndex(value: string, modulo: number) {
@@ -251,62 +273,16 @@ function typologyHeadline(args: {
   company: string;
   variant: number;
 }) {
-  const guided = keywordHeadline(args.textKeywords, args.variant);
+  const guided = keywordHeadline(args.textKeywords);
   if (guided) return guided;
   const subject =
-    args.service || args.profession || args.company || "Votre projet";
-  const templates: Record<AiMediaTypology, string[]> = {
-    company: args.company
-      ? [
-          `Découvrez ${args.company}`,
-          `${args.company}, à vos côtés`,
-          `L’univers ${args.company}`,
-        ]
-      : [
-          "Un savoir-faire à découvrir",
-          "Une expertise à votre service",
-          "Votre projet, notre métier",
-        ],
-    service: [
-      subject,
-      "Une expertise pensée pour vous",
-      "Votre projet entre de bonnes mains",
-    ],
-    advice: [
-      "Le conseil de votre expert",
-      "Le bon réflexe de votre expert",
-      "Un conseil qui fait la différence",
-    ],
-    showcase: [
-      "Notre savoir-faire en images",
-      "Le geste qui fait la différence",
-      "La qualité dans chaque détail",
-    ],
-    offer: [
-      subject,
-      "Une solution à découvrir",
-      "Le bon moment pour votre projet",
-    ],
-    event: [
-      subject,
-      "Un rendez-vous à ne pas manquer",
-      "Retrouvons-nous prochainement",
-    ],
-    behind_scenes: [
-      "Dans les coulisses de notre métier",
-      "Les gestes derrière notre savoir-faire",
-      "Au cœur de notre quotidien",
-    ],
-    recruitment: [
-      "Rejoignez notre aventure",
-      "Construisons la suite ensemble",
-      "Votre talent a sa place ici",
-    ],
-  };
-  const candidates = templates[args.typology];
-  return (
-    compactHeadline(candidates[args.variant % candidates.length]) ||
-    "Votre projet prend vie"
+    args.service || args.profession || args.company;
+  if (!subject) return "";
+  // Le plan local ne produit plus de slogan par typologie. Il transmet un fait
+  // vérifié (entreprise, service ou métier) au composeur et laisse le
+  // copywriter v23 créer une accroche contextualisée lorsqu'un texte est voulu.
+  return compactHeadline(
+    args.typology === "company" && args.company ? args.company : subject
   );
 }
 
@@ -458,14 +434,14 @@ export function buildAiMediaCreativePlan(args: {
     request.kind === "video"
       ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
       : 1;
-  const oneShotInstruction = clean(request.aiInstruction, 190);
+  const oneShotInstruction = cleanStructuredText(request.aiInstruction, 2_400);
   const instructionDirection = oneShotInstruction
     ? ` CONSIGNE PRIORITAIRE : ${oneShotInstruction}. L'appliquer entièrement sans l'afficher ni la réciter.`
     : "";
 
   const exactIdeaDirection = (idea: string) =>
     [
-      `SUJET IMMUTABLE : ${clean(idea, 280)}.`,
+      `SUJET IMMUTABLE : ${cleanStructuredText(idea, 2_000)}.`,
       "Conserver ce même sujet, ses personnages ou objets, son action et son objectif dans chaque acte ; ne jamais le remplacer par une prestation générique de l'ADN.",
       instructionDirection,
     ]
@@ -513,13 +489,17 @@ export function buildAiMediaCreativePlan(args: {
   // copywriter média le personnalise ensuite à partir du profil ; s'il tombe,
   // aucun fragment français du profil ne fuit dans le visuel final.
   if (language !== "fr") {
-    const headline = localized.headlines[typology];
-    const subline = localized.sublineFallback;
+    const headline = compactHeadline(
+      service || profession || business.companyName || companyName
+    );
+    const subline = clean(
+      strength || business.description || zone || business.city,
+      145
+    );
     const cta = ctaLabel(profile);
-    const idea =
-      request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+    const idea = cleanStructuredText(request.idea, 2_000);
     if (idea) {
-      return {
+      return applyAiMediaTextPolicy(request, {
         headline,
         subline,
         companyName,
@@ -530,14 +510,15 @@ export function buildAiMediaCreativePlan(args: {
             headline,
             subline,
             cta,
-            supportingEyebrow: localized.supportingEyebrow,
-            supportingTitle: localized.supportingTitle,
-            supportingBody: localized.supportingBody,
+            supportingEyebrow: companyName,
+            supportingTitle:
+              strength || business.services[1] || service || profession,
+            supportingBody: zone || business.city || subline,
           }),
           targetCount,
           language,
         }),
-      };
+      });
     }
     const ideaDirection =
       `Représenter concrètement l'activité ${profession || companyName}.` +
@@ -545,9 +526,9 @@ export function buildAiMediaCreativePlan(args: {
     const localizedScenes = [
       scene(companyName, headline, subline, "hero", ideaDirection),
       scene(
-        localized.supportingEyebrow,
-        localized.supportingTitle,
-        localized.supportingBody,
+        companyName,
+        strength || business.services[1] || service || profession || headline,
+        zone || business.city || subline,
         "editorial",
         `${ideaDirection} Montrer une action professionnelle crédible, sans texte généré dans le décor.`
       ),
@@ -560,7 +541,7 @@ export function buildAiMediaCreativePlan(args: {
       ),
     ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
-    return {
+    return applyAiMediaTextPolicy(request, {
       headline,
       subline,
       companyName,
@@ -570,11 +551,10 @@ export function buildAiMediaCreativePlan(args: {
         targetCount,
         language,
       }),
-    };
+    });
   }
 
-  const idea =
-    request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+  const idea = cleanStructuredText(request.idea, 2_000);
   // Le copywriter reformule normalement cette base. Si son appel très court
   // expire, le secours local reste lié au vrai sujet sans jamais recopier la
   // consigne brute ou simplement la tronquer à l'écran.
@@ -590,13 +570,12 @@ export function buildAiMediaCreativePlan(args: {
       });
   const subline = clean(
     business.description ||
-      [profession, business.city].filter(Boolean).join(" à ") ||
-      "Une expertise au service de votre projet",
+      [profession, business.city].filter(Boolean).join(" à "),
     145
   );
   const cta = ctaLabel(profile);
   if (idea) {
-    return {
+    return applyAiMediaTextPolicy(request, {
       headline,
       subline,
       companyName,
@@ -607,14 +586,15 @@ export function buildAiMediaCreativePlan(args: {
           headline,
           subline,
           cta,
-          supportingEyebrow: "En action",
-          supportingTitle: "Une étape concrète",
+          supportingEyebrow: companyName,
+          supportingTitle:
+            strength || business.services[1] || service || profession || headline,
           supportingBody: subline,
         }),
         targetCount,
         language,
       }),
-    };
+    });
   }
   const ideaDirection =
     `Representer concretement l'activite ${profession || companyName}.` +
@@ -624,7 +604,7 @@ export function buildAiMediaCreativePlan(args: {
     scene(companyName, headline, subline, "hero", ideaDirection),
     service
       ? scene(
-          "Notre expertise",
+          companyName,
           service,
           profession,
           "editorial",
@@ -633,7 +613,7 @@ export function buildAiMediaCreativePlan(args: {
       : null,
     business.services[1]
       ? scene(
-          "À vos côtés",
+          companyName,
           business.services[1],
           companyName,
           "editorial",
@@ -642,7 +622,7 @@ export function buildAiMediaCreativePlan(args: {
       : null,
     strength
       ? scene(
-          "Notre différence",
+          companyName,
           strength,
           subline,
           "statement",
@@ -651,7 +631,7 @@ export function buildAiMediaCreativePlan(args: {
       : null,
     audience
       ? scene(
-          "Pensé pour vous",
+          companyName,
           audience,
           service || profession,
           "editorial",
@@ -660,7 +640,7 @@ export function buildAiMediaCreativePlan(args: {
       : null,
     zone || business.city
       ? scene(
-          "Proche de vous",
+          companyName,
           zone || business.city,
           [profession, business.city].filter(Boolean).join(" · "),
           "statement",
@@ -671,15 +651,15 @@ export function buildAiMediaCreativePlan(args: {
       : null,
     business.openingHours
       ? scene(
-          "Disponible",
-          "À votre rythme",
+          companyName,
+          business.openingHours,
           business.openingHours,
           "editorial"
         )
       : null,
     business.services[2]
       ? scene(
-          "Une solution complète",
+          companyName,
           business.services[2],
           strength,
           "editorial"
@@ -696,15 +676,15 @@ export function buildAiMediaCreativePlan(args: {
 
   const fallbackScenes = [
     scene(
-      "Votre projet",
-      "Une réponse sur mesure",
-      service || profession,
+      companyName,
+      service || profession || companyName,
+      strength || business.description,
       "statement"
     ),
     scene(
-      "L’essentiel",
-      "Qualité, écoute, proximité",
-      strength || subline,
+      companyName,
+      strength || service || profession || companyName,
+      zone || business.city,
       "editorial"
     ),
     scene(
@@ -715,7 +695,7 @@ export function buildAiMediaCreativePlan(args: {
       `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`
     ),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
-  return {
+  return applyAiMediaTextPolicy(request, {
     headline,
     subline,
     companyName,
@@ -726,5 +706,5 @@ export function buildAiMediaCreativePlan(args: {
       targetCount,
       language,
     }),
-  };
+  });
 }

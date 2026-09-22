@@ -412,8 +412,11 @@ async function readRequestBody(request: Request) {
 
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
-    contract: "inrcy-ai-media-generation-v11-shared-identity",
+    contract: "inrcy-ai-media-generation-v12-modification-canvas",
     promptVersion: AI_MEDIA_PROMPT_VERSION,
+    operation: request.operation || "generate",
+    modificationSourceWidth: request.modificationSourceWidth,
+    modificationSourceHeight: request.modificationSourceHeight,
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea: request.idea,
@@ -474,6 +477,21 @@ function assertDraftContractVersion(value: unknown): Record<string, unknown> {
       teamVideoMode: "montage",
       teamVideoSpeechMode: "voiceover",
       teamVideoVeoConsent: false,
+      identityReferenceSetId: "",
+    };
+  }
+  const operation = body.operation === "modify" ? "modify" : "generate";
+  // En mode Modifier, l'unique image fournie est le canvas source, pas une
+  // référence biométrique destinée à composer une nouvelle scène. Elle ne
+  // possède donc volontairement aucun `identityReferenceSetId`. Neutraliser
+  // ici les champs d'identité empêche aussi un payload détourné de transformer
+  // silencieusement cette source en référence de personne.
+  if (operation === "modify") {
+    return {
+      ...body,
+      identityMode: "auto",
+      videoCharacterMode: "auto",
+      identityConsent: false,
       identityReferenceSetId: "",
     };
   }
@@ -575,14 +593,8 @@ export async function POST(request: Request) {
       }).catch(() => null);
       return jsonError({
         status: 403,
-        code:
-          edition === "standard" && videoMaxDurationSeconds === 8
-            ? "AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED"
-            : "AI_MEDIA_VIDEO_DURATION_NOT_ALLOWED",
-        message:
-          edition === "standard" && videoMaxDurationSeconds === 8
-            ? "Les vidéos de 16 et 24 secondes sont réservées aux offres Premium. Votre offre Standard inclut 5 vidéos de 8 secondes par mois."
-            : `Cet établissement autorise actuellement les vidéos jusqu’à ${videoMaxDurationSeconds} secondes.`,
+        code: "AI_MEDIA_VIDEO_DURATION_NOT_ALLOWED",
+        message: `Cet établissement autorise actuellement les vidéos jusqu’à ${videoMaxDurationSeconds} secondes.`,
         quota: quota
           ? presentAiMediaQuota(quota, false, videoMaxDurationSeconds)
           : undefined,
@@ -600,6 +612,10 @@ export async function POST(request: Request) {
       surface: normalizedRequest.source,
       edition,
       reservationTtlSeconds: normalizedRequest.kind === "video" ? 3_600 : 900,
+      quotaAmount:
+        normalizedRequest.kind === "video"
+          ? normalizedRequest.durationSeconds || 16
+          : 1,
       limitOverride: adminUnlimited
         ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
         : undefined,
@@ -658,7 +674,10 @@ export async function POST(request: Request) {
       return jsonError({
         status: 429,
         code: "AI_MEDIA_QUOTA_REACHED",
-        message: "Le plafond mensuel de cet établissement est atteint.",
+        message:
+          normalizedRequest.kind === "video"
+            ? `Le crédit vidéo restant (${reservation.quota.remaining} s) est insuffisant pour générer ${normalizedRequest.durationSeconds || 16} s.`
+            : "Le plafond mensuel d’images de cet établissement est atteint.",
         quota: presentAiMediaQuotaCounter(
           reservation.quota,
           adminUnlimited,

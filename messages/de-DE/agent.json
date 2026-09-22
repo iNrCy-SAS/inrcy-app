@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Geplante Aktionen",
   "actions_programmees_a_venir_c1f610d0": "Geplante Aktionen",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Standardmäßig aktiviert, um die konfigurierte Signatur beim Senden hinzuzufügen.",
-  "adapt_image": "Anpassen Bild",
+  "adapt_image": "Bild retuschieren",
   "adapt_media": "Medien anpassen",
   "adapt_video": "Video anpassen",
   "adaptation_du_canal_1af8dcef": "Kanalanpassung",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "Video anpassen (iNr’Agent)",
   "adapter_le_media_value_34c6f353": "Medien anpassen {value0}",
   "adapter_video_2d90a304": "Video anpassen",
-  "add_image_first": "Fügen Sie zuerst ein Bild zum Anpassen hinzu.",
+  "add_image_first": "Fügen Sie zuerst ein Bild hinzu.",
   "add_image_to_publication": "Bild zum Beitrag hinzufügen",
   "add_media": "Medien hinzufügen",
   "add_media_first": "Fügen Sie zuerst ein Bild oder Video zur Anpassung hinzu.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "Zeit",
   "horaire_db0addb3": "Zeitplan",
   "ia_d41daf59": "KI",
-  "image_adaptation_failed": "Das Bild konnte nicht angepasst werden.",
+  "image_adaptation_failed": "Dieses Bild konnte nicht in iNrStudio geöffnet werden.",
   "image_adapted_save_failed": "Das angepasste Bild konnte nicht gespeichert werden.",
   "image_adapted_saved": "Bild für iNr’Agent angepasst und gespeichert.",
-  "image_adapter_isolation_note": "Diese Einstellung verwendet das Tool „Bild anpassen“ von Booster und ersetzt das Medium in iNr’Agent durch die angepasste Version.",
+  "image_adapter_isolation_note": "Diese Aktion verwendet das Retuschieren-Werkzeug von iNrStudio und ersetzt das Medium in iNr’Agent durch die retuschierte Version.",
   "image_et_2d6d27c0": "Bild- und",
   "image_number_alt": "Bild {number}",
   "immediate_other_channels_failed": "Veröffentlichung auf anderen Kanälen nicht möglich.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "TikTok-Bestätigung zur Musiknutzung",
   "tiktok_session_change": "Ändern",
   "tiktok_session_save": "Einstellungen speichern",
-  "tiktok_session_checking": "TikTok wird geprüft…"
+  "tiktok_session_checking": "TikTok wird geprüft…",
+  "next_editorial_publication_in_a_few_minutes": "Nächste Veröffentlichung in wenigen Minuten"
 }

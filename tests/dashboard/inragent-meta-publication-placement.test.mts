@@ -6,7 +6,9 @@ import {
   applyInrAgentPublicationPlacement,
   publicationSettingsForInrAgentChannel,
   readInrAgentPublicationPlacement,
+  readInrAgentPublicationSelection,
 } from "../../lib/inrAgentPublicationPlacement.ts";
+import { buildBoosterPublicationTargets } from "../../lib/metaPublicationTargets.ts";
 
 function read(relativePath: string) {
   return readFileSync(new URL(`../../${relativePath}`, import.meta.url), "utf8");
@@ -42,21 +44,50 @@ test("Facebook and Instagram placements are independent and use the publish-now 
     "story",
   );
 
-  assert.deepEqual(withInstagramStory.facebookPublicationSettings, {
-    placement: "reel",
-    mediaOnly: false,
-  });
-  assert.deepEqual(withInstagramStory.instagramPublicationSettings, {
-    placement: "story",
-    mediaOnly: true,
-  });
-  assert.deepEqual(
-    publicationSettingsForInrAgentChannel(withInstagramStory, "facebook"),
-    { placement: "reel" },
+  assert.equal(
+    readInrAgentPublicationSelection(withInstagramStory, "facebook")
+      .primaryPlacement,
+    "reel",
   );
   assert.deepEqual(
-    publicationSettingsForInrAgentChannel(withInstagramStory, "instagram"),
-    { placement: "story" },
+    readInrAgentPublicationSelection(withInstagramStory, "instagram")
+      .placements,
+    ["story"],
+  );
+  assert.equal(
+    publicationSettingsForInrAgentChannel(withInstagramStory, "facebook")
+      ?.placement,
+    "reel",
+  );
+  assert.equal(
+    publicationSettingsForInrAgentChannel(withInstagramStory, "instagram")
+      ?.mediaOnly,
+    true,
+  );
+});
+
+test("Classique or Reel can also publish the same media as a Story", () => {
+  const combined = applyInrAgentPublicationPlacement(
+    { postByChannel: { facebook: { content: "Texte Facebook" } } },
+    "facebook",
+    "classic",
+    true,
+  );
+  const selection = readInrAgentPublicationSelection(combined, "facebook");
+
+  assert.equal(selection.primaryPlacement, "classic");
+  assert.equal(selection.includeStory, true);
+  assert.deepEqual(selection.placements, ["classic", "story"]);
+  assert.deepEqual(
+    buildBoosterPublicationTargets({
+      channels: ["facebook"],
+      facebookPublicationSettings:
+        publicationSettingsForInrAgentChannel(combined, "facebook"),
+    }),
+    [
+      { key: "facebook:classic", channel: "facebook", placement: "classic" },
+      { key: "facebook:story", channel: "facebook", placement: "story" },
+    ],
   );
 });
 
@@ -88,6 +119,9 @@ test("the Channel card exposes the selector and media-only mode never erases con
   assert.match(client, /className=\{styles\.publishChannelCardMain\}/);
   assert.match(client, /className=\{styles\.publishPlacementSelect\}/);
   assert.match(client, /savePublishPlacement/);
+  assert.match(client, /publishIncludeStory/);
+  assert.match(client, /className=\{styles\.publishStoryOption\}/);
+  assert.match(client, /includeStory:\s*normalizedIncludeStory/);
   assert.match(client, /publication_mode_media_only_help/);
   assert.match(
     client,
@@ -107,6 +141,8 @@ test("the edit API gates optional formats by account preferences and requires me
   assert.match(actionApi, /INR_AGENT_PUBLICATION_PLACEMENT_DISABLED/);
   assert.match(actionApi, /INR_AGENT_PUBLICATION_MEDIA_REQUIRED/);
   assert.match(actionApi, /applyInrAgentPublicationPlacement/);
+  assert.match(actionApi, /requestBody\?\.includeStory === true/);
+  assert.match(actionApi, /requestedPlacements/);
 });
 
 test("immediate and scheduled execution carry the selected placement and all images", () => {

@@ -10,6 +10,10 @@ const dashboardBootstrapSource = readFileSync(
   new URL("../../app/dashboard/dashboard.bootstrap-cache.ts", import.meta.url),
   "utf8",
 );
+const dashboardStylesSource = readFileSync(
+  new URL("../../app/dashboard/dashboard.module.css", import.meta.url),
+  "utf8",
+);
 
 test("generator power keeps the last confirmed value while channel states settle", () => {
   assert.match(
@@ -49,5 +53,46 @@ test("OAuth returns rehydrate the account-scoped confirmed power", () => {
   assert.match(
     dashboardClientSource,
     /setActiveBrowserUserId\(activeUserId\);[\s\S]*hydrateActiveAccountCaches\(activeUserId\);/,
+  );
+});
+
+test("hard refresh reads the authoritative server account cache before first paint", () => {
+  assert.match(
+    dashboardClientSource,
+    /const initialBrowserCacheAccountId = initialOfficialChannelStatesUserId \?\? getActiveBrowserUserId\(\);/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /readCachedDashboardChannelState\(initialBrowserCacheAccountId\)/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /readCachedGeneratorPowerPercent\(initialBrowserCacheAccountId\)[\s\S]*readCachedGeneratorPowerSnapshot\(initialBrowserCacheAccountId\)/,
+  );
+});
+
+test("connection revalidation never commits an intermediate gauge value", () => {
+  assert.match(
+    dashboardClientSource,
+    /const \[generatorPowerRevalidating, setGeneratorPowerRevalidating\] = useState\(false\);/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /const refreshOfficialChannelStates = useCallback\(async \(\) => \{[\s\S]*setGeneratorPowerRevalidating\(true\)[\s\S]*finishPowerRevalidation/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /const generatorPowerReady =[\s\S]*&& !generatorPowerRevalidating;/,
+  );
+});
+
+test("cockpit bars swap confirmed values without replaying a width animation", () => {
+  assert.match(
+    dashboardStylesSource,
+    /\.cockpitStageBar > span \{[\s\S]*transition: none;/,
+  );
+  assert.doesNotMatch(
+    dashboardStylesSource,
+    /\.cockpitStageBar > span \{[\s\S]*transition: width 320ms ease;/,
   );
 });

@@ -24,18 +24,51 @@ export type NormalizedAiVideo = {
 
 export type NormalizedAiMedia = NormalizedAiImage | NormalizedAiVideo;
 
+export type AiImageNormalizationCanvasMode = "preset" | "source";
+
+function resolveImageCanvasDimensions(options: {
+  width?: number;
+  height?: number;
+  canvasMode?: AiImageNormalizationCanvasMode;
+}) {
+  const requestedWidth = Math.max(1, Math.trunc(options.width || 1080));
+  const requestedHeight = Math.max(1, Math.trunc(options.height || 1080));
+  if (options.canvasMode !== "source") {
+    return {
+      width: Math.max(320, Math.min(2_048, requestedWidth)),
+      height: Math.max(320, Math.min(2_048, requestedHeight)),
+    };
+  }
+
+  // Modifier garde le ratio source même lorsqu'un très grand fichier doit être
+  // borné pour le stockage. Les deux axes sont réduits avec le même facteur :
+  // aucun clamp indépendant ne peut transformer son cadrage.
+  const scale = Math.min(1, 2_048 / Math.max(requestedWidth, requestedHeight));
+  return {
+    width: Math.max(1, Math.round(requestedWidth * scale)),
+    height: Math.max(1, Math.round(requestedHeight * scale)),
+  };
+}
+
 /**
- * Contrat de sortie unique pour toutes les images IA. Cette étape applique le
- * canevas universel avant l'éventuelle composition locale des éléments exacts
- * (logo, accroche et coordonnées). Le rendu fournisseur est conservé en entier
- * : aucun bord ne peut être coupé lorsque son format diffère du format demandé.
+ * Contrat de sortie unique pour toutes les images IA. La génération standard
+ * conserve le rendu fournisseur en entier dans son preset. Une modification
+ * remplit au contraire le canvas autoritaire de la source : le padding imposé
+ * par les tailles fournisseur est recadré au lieu de devenir une bordure.
  */
 export async function normalizeGeneratedAiImage(
   input: Buffer,
-  options: { width?: number; height?: number } = {},
+  options: {
+    width?: number;
+    height?: number;
+    canvasMode?: AiImageNormalizationCanvasMode;
+  } = {},
 ): Promise<NormalizedAiImage> {
-  const width = Math.max(320, Math.min(2_048, Math.trunc(options.width || 1080)));
-  const height = Math.max(320, Math.min(2_048, Math.trunc(options.height || 1080)));
+  const { width, height } = resolveImageCanvasDimensions(options);
+  const preservesSourceCanvas = options.canvasMode === "source";
+  const framing = preservesSourceCanvas
+    ? ({ fit: "cover", position: "attention" } as const)
+    : ({ fit: "contain", position: "centre" } as const);
   const rendered = await sharp(input, {
     failOn: "error",
     limitInputPixels: 50_000_000,
@@ -45,8 +78,10 @@ export async function normalizeGeneratedAiImage(
     .resize({
       width,
       height,
-      fit: "contain",
-      position: "centre",
+      // Les presets de génération conservent historiquement tout le rendu.
+      // Modifier, lui, doit supprimer le letterbox éventuel du fournisseur et
+      // remplir exactement le canvas source, sans fabriquer de bandes.
+      ...framing,
       background: { r: 255, g: 255, b: 255, alpha: 1 },
       withoutEnlargement: false,
     })

@@ -6,8 +6,16 @@
   background: var(
     --inrcy-theme-page-background,
     radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.22), transparent 34%),
-    radial-gradient(circle at 86% 16%, rgba(168, 85, 247, 0.2), transparent 32%),
-    radial-gradient(circle at 36% 100%, rgba(14, 165, 233, 0.12), transparent 38%),
+    radial-gradient(
+      circle at 86% 16%,
+      rgba(168, 85, 247, 0.2),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 36% 100%,
+      rgba(14, 165, 233, 0.12),
+      transparent 38%
+    ),
     linear-gradient(135deg, #050a1e 0%, #06132e 48%, #041126 100%)
   );
   overflow: hidden;
@@ -550,8 +558,11 @@
   border-radius: inherit;
   color: #f8fbff;
   text-align: center;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(56, 189, 248, 0.2), transparent 35%),
+  background: radial-gradient(
+      circle at 50% 42%,
+      rgba(56, 189, 248, 0.2),
+      transparent 35%
+    ),
     radial-gradient(circle at 50% 68%, rgba(217, 70, 239, 0.2), transparent 46%),
     linear-gradient(155deg, rgba(5, 22, 55, 0.98), rgba(28, 16, 73, 0.98));
   box-shadow: inset 0 0 38px rgba(96, 165, 250, 0.1);
@@ -637,6 +648,87 @@
   letter-spacing: -0.05em;
   line-height: 1;
   text-shadow: 0 0 12px rgba(103, 232, 249, 0.72);
+}
+
+.robotCronWaitBadge {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: 9px;
+  width: max-content;
+  max-width: calc(100% - 18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 11px;
+  color: #eefcff;
+  border: 1px solid rgba(103, 232, 249, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(
+    135deg,
+    rgba(8, 47, 87, 0.94),
+    rgba(66, 32, 126, 0.94)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    0 7px 20px rgba(2, 6, 23, 0.42), 0 0 17px rgba(56, 189, 248, 0.18);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-align: center;
+  text-wrap: balance;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.robotCronWaitPulse {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 999px;
+  background: #67e8f9;
+  box-shadow: 0 0 0 0 rgba(103, 232, 249, 0.52);
+  animation: agentCronWaitPulse 1.8s ease-out infinite;
+}
+
+.robotCronWaitBadge > span:last-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.robotCronWaitRail {
+  position: static;
+  width: min(100%, 214px);
+  max-width: 100%;
+  min-height: 30px;
+  transform: none;
+}
+
+.agentCommandRailIdentity .robotCronWaitRail,
+.agentCommandRailIdentity .robotCronWaitRail > span {
+  display: flex;
+}
+
+.agentCommandRailIdentity .robotCronWaitRail > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+@keyframes agentCronWaitPulse {
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px rgba(103, 232, 249, 0);
+  }
+}
+
+@media (max-width: 760px) {
+  .robotCronWaitBadge {
+    bottom: 6px;
+    max-width: calc(100% - 12px);
+    padding: 6px 9px;
+    font-size: 10px;
+  }
 }
 
 @keyframes agentWorkingSpin {
@@ -3427,8 +3519,8 @@
   box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.025),
     0 8px 24px rgba(0, 0, 0, 0.16);
   cursor: pointer;
-  transition: color 0.16s ease, border-color 0.16s ease,
-    background 0.16s ease, box-shadow 0.16s ease;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .settingsHeaderSwitch > span {
@@ -3553,11 +3645,13 @@
   padding: 5px;
   border: 1px solid rgba(125, 211, 252, 0.3);
   border-radius: 999px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(103, 232, 249, 0.1), transparent 54%),
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(103, 232, 249, 0.1),
+      transparent 54%
+    ),
     rgba(2, 8, 23, 0.72);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035),
     0 9px 24px rgba(2, 6, 23, 0.24);
 }
 
@@ -3572,8 +3666,8 @@
   font-size: 13px;
   font-weight: 900;
   cursor: pointer;
-  transition: color 160ms ease, border-color 160ms ease,
-    background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease,
+    box-shadow 160ms ease, transform 160ms ease;
 }
 
 .settingsPublishTabs button:hover:not([data-active="true"]):not(:disabled) {
@@ -3592,10 +3686,8 @@
   color: #fff;
   border-color: rgba(165, 243, 252, 0.58);
   background: linear-gradient(135deg, #0284c7, #6d28d9 58%, #be185d);
-  box-shadow:
-    inset 0 0 15px rgba(255, 255, 255, 0.1),
-    0 7px 22px rgba(59, 130, 246, 0.24),
-    0 0 18px rgba(192, 38, 211, 0.15);
+  box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.1),
+    0 7px 22px rgba(59, 130, 246, 0.24), 0 0 18px rgba(192, 38, 211, 0.15);
   transform: translateY(-1px);
 }
 
@@ -3659,7 +3751,12 @@
   padding: 11px;
   border: 1px solid rgba(148, 163, 255, 0.2);
   border-radius: 15px;
-  background: radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.12), transparent 38%), rgba(255, 255, 255, 0.045);
+  background: radial-gradient(
+      circle at 100% 0%,
+      rgba(168, 85, 247, 0.12),
+      transparent 38%
+    ),
+    rgba(255, 255, 255, 0.045);
 }
 
 .publicationIdeaCard > label {
@@ -3713,18 +3810,18 @@
   border: 1px dashed rgba(103, 232, 249, 0.48);
   border-radius: 15px;
   color: #dff9ff;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.16), transparent 58%),
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(34, 211, 238, 0.16),
+      transparent 58%
+    ),
     rgba(8, 145, 178, 0.08);
   font: inherit;
   font-size: 13px;
   font-weight: 850;
   cursor: pointer;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease;
+  transition: transform 160ms ease, border-color 160ms ease,
+    background 160ms ease, box-shadow 160ms ease;
 }
 
 .publicationIdeasAddButton > span {
@@ -3746,8 +3843,11 @@
 .publicationIdeasAddButton:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(165, 243, 252, 0.78);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.24), transparent 62%),
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(34, 211, 238, 0.24),
+      transparent 62%
+    ),
     rgba(59, 130, 246, 0.12);
   box-shadow: 0 10px 28px rgba(14, 165, 233, 0.1);
 }
@@ -3937,9 +4037,7 @@
   opacity: 0.58;
 }
 
-.settingsModal:not(.helpModal)
-  .choiceGrid
-  .channelChoiceDisconnected:hover {
+.settingsModal:not(.helpModal) .choiceGrid .channelChoiceDisconnected:hover {
   transform: none;
   border-color: rgba(148, 163, 184, 0.22);
   background: rgba(15, 23, 42, 0.38);
@@ -3968,8 +4066,11 @@
   padding: 12px;
   border: 1px solid rgba(103, 232, 249, 0.24);
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.12), transparent 42%),
+  background: radial-gradient(
+      circle at 0% 0%,
+      rgba(34, 211, 238, 0.12),
+      transparent 42%
+    ),
     rgba(5, 14, 34, 0.5);
 }
 
@@ -4012,7 +4113,11 @@
   height: 6px;
   border: 1px solid rgba(148, 163, 184, 0.48);
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(103, 232, 249, 0.96), rgba(244, 114, 182, 0.28));
+  background: linear-gradient(
+    90deg,
+    rgba(103, 232, 249, 0.96),
+    rgba(244, 114, 182, 0.28)
+  );
   box-shadow: inset 0 0 8px rgba(2, 6, 23, 0.42);
 }
 
@@ -4032,7 +4137,11 @@
   height: 6px;
   border: 1px solid rgba(148, 163, 184, 0.48);
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(103, 232, 249, 0.96), rgba(244, 114, 182, 0.28));
+  background: linear-gradient(
+    90deg,
+    rgba(103, 232, 249, 0.96),
+    rgba(244, 114, 182, 0.28)
+  );
   box-shadow: inset 0 0 8px rgba(2, 6, 23, 0.42);
 }
 
@@ -4240,7 +4349,6 @@
     width: 38px;
     height: 38px;
   }
-
 }
 
 /* Les petites modales restent scrollables. La grande grille desktop ne l'est pas. */
@@ -6238,8 +6346,7 @@ button.campaignInfoCard:hover {
   color: #ffffff;
   background: linear-gradient(135deg, #168ed0, #7c3aed 58%, #d946ef);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 7px 18px rgba(76, 29, 149, 0.32),
-    0 0 17px rgba(56, 189, 248, 0.2);
+    0 7px 18px rgba(76, 29, 149, 0.32), 0 0 17px rgba(56, 189, 248, 0.2);
   transform: translateY(-50%);
   cursor: pointer;
   transition: transform 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
@@ -8175,8 +8282,11 @@ button.campaignInfoCard:disabled:hover {
 .settingsImpactModal {
   width: min(820px, calc(100vw - 32px)) !important;
   border-color: rgba(125, 211, 252, 0.42);
-  background:
-    radial-gradient(circle at 8% 0%, rgba(14, 165, 233, 0.28), transparent 34%),
+  background: radial-gradient(
+      circle at 8% 0%,
+      rgba(14, 165, 233, 0.28),
+      transparent 34%
+    ),
     radial-gradient(circle at 94% 8%, rgba(217, 70, 239, 0.2), transparent 36%),
     linear-gradient(145deg, rgba(8, 25, 59, 0.99), rgba(15, 12, 47, 0.99)) !important;
   box-shadow: 0 34px 110px rgba(0, 0, 0, 0.58),
@@ -8205,7 +8315,11 @@ button.campaignInfoCard:disabled:hover {
   padding: 14px;
   border: 1px solid rgba(125, 211, 252, 0.18);
   border-radius: 16px;
-  background: linear-gradient(145deg, rgba(30, 64, 175, 0.16), rgba(88, 28, 135, 0.13));
+  background: linear-gradient(
+    145deg,
+    rgba(30, 64, 175, 0.16),
+    rgba(88, 28, 135, 0.13)
+  );
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
@@ -9942,12 +10056,67 @@ button.campaignInfoRecipients:hover {
 
 .publishPlacementSelect:focus-visible {
   border-color: rgba(125, 211, 252, 0.85);
-  box-shadow:
-    0 0 0 2px rgba(56, 189, 248, 0.16),
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.16),
     inset 0 0 14px rgba(56, 189, 248, 0.1);
 }
 
 .publishPlacementSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.publishPlacementControls {
+  min-width: 0;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.publishPlacementControls .publishPlacementSelect {
+  width: min(100%, 124px);
+  margin-top: 0;
+  flex: 1 1 104px;
+}
+
+.publishStoryOption {
+  min-width: max-content;
+  height: 27px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: rgba(226, 232, 240, 0.78);
+  background: rgba(7, 23, 56, 0.82);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease,
+    color 0.16s ease;
+}
+
+.publishStoryOption[data-active="true"] {
+  border-color: rgba(76, 195, 255, 0.68);
+  color: #f8fbff;
+  background: linear-gradient(
+    135deg,
+    rgba(32, 151, 217, 0.34),
+    rgba(151, 71, 255, 0.28)
+  );
+}
+
+.publishStoryOption input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #38bdf8;
+}
+
+.publishStoryOption:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.62;
 }
@@ -10066,8 +10235,11 @@ button.campaignInfoRecipients:hover {
   border-radius: 18px;
   color: rgba(226, 242, 255, 0.78);
   text-align: center;
-  background:
-    radial-gradient(circle at 50% 25%, rgba(56, 189, 248, 0.13), transparent 42%),
+  background: radial-gradient(
+      circle at 50% 25%,
+      rgba(56, 189, 248, 0.13),
+      transparent 42%
+    ),
     rgba(7, 20, 48, 0.28);
 }
 
@@ -10246,7 +10418,12 @@ button.campaignInfoRecipients:hover {
   position: absolute;
   inset: 4px;
   border-radius: inherit;
-  background: radial-gradient(circle, #f8fbff 0 22%, #67e8f9 24% 48%, transparent 52%);
+  background: radial-gradient(
+    circle,
+    #f8fbff 0 22%,
+    #67e8f9 24% 48%,
+    transparent 52%
+  );
   box-shadow: 0 0 8px rgba(244, 114, 182, 0.8);
   animation: publishTitlePulse 0.9s ease-in-out infinite alternate;
 }
@@ -10378,10 +10555,7 @@ button.campaignInfoRecipients:hover {
     rgba(255, 255, 255, 0.052);
 }
 
-.settingsModal:not(.helpModal)
-  .settingsScheduleGrid
-  .scheduleSlotPair
-  > label {
+.settingsModal:not(.helpModal) .settingsScheduleGrid .scheduleSlotPair > label {
   min-width: 0;
   padding: 0;
   border: 0;
@@ -11893,15 +12067,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-/* Étape 1 — iNrAgent média : modale de gestion plus lisible + bouton d'adaptation préparé */
+/* iNrAgent média : modale de gestion et accès directs à iNrStudio */
 .publishMediaModal {
   max-width: min(94vw, 820px) !important;
   max-height: min(86dvh, 780px);
   overflow: auto;
 }
 
-.publishMediaModal .modalClose,
-.publishVideoAdapterModal .modalClose {
+.publishMediaModal .modalClose {
   z-index: 5;
 }
 
@@ -12011,38 +12184,94 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border: 1px solid rgba(125, 211, 252, 0.28);
 }
 
-.publishMediaRetouchButton {
+.publishMediaImageActions {
+  justify-self: stretch;
+  width: min(100%, 360px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.publishMediaRetouchButton,
+.publishMediaModifyButton {
   justify-self: flex-start;
   min-height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 4px;
   padding: 0 16px;
-  border: 1px solid rgba(250, 204, 21, 0.42);
   border-radius: 999px;
-  color: #fffbe8;
   font: inherit;
   font-weight: 950;
   cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
+}
+
+.publishMediaRetouchButton {
+  margin-top: 4px;
+  border: 1px solid rgba(52, 211, 153, 0.48);
+  color: #d9fff3;
   background: linear-gradient(
     135deg,
-    rgba(234, 179, 8, 0.92),
-    rgba(249, 115, 22, 0.9)
+    rgba(5, 150, 105, 0.92),
+    rgba(13, 148, 136, 0.9)
   );
-  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.18);
-  transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: 0 12px 28px rgba(13, 148, 136, 0.18);
+}
+
+.publishMediaImageActions .publishMediaRetouchButton,
+.publishMediaImageActions .publishMediaModifyButton {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  padding-inline: 12px;
+}
+
+.publishMediaModifyButton {
+  border: 1px solid rgba(232, 121, 249, 0.5);
+  color: #fff0ff;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 58, 237, 0.92),
+    rgba(219, 39, 119, 0.9)
+  );
+  box-shadow: 0 12px 28px rgba(192, 38, 211, 0.18);
+}
+
+.publishMediaVideoRetouchButton {
+  border-color: rgba(251, 146, 60, 0.58);
+  color: #fff7ed;
+  background: linear-gradient(
+    135deg,
+    rgba(244, 63, 94, 0.94),
+    rgba(249, 115, 22, 0.94)
+  );
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.22);
 }
 
 .publishMediaRetouchButton:hover:not(:disabled),
 .publishMediaRetouchButton:focus-visible:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.04);
-  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.24);
+  box-shadow: 0 16px 32px rgba(13, 148, 136, 0.25);
 }
 
-.publishMediaRetouchButton:disabled {
+.publishMediaModifyButton:hover:not(:disabled),
+.publishMediaModifyButton:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 16px 32px rgba(192, 38, 211, 0.26);
+}
+
+.publishMediaVideoRetouchButton:hover:not(:disabled),
+.publishMediaVideoRetouchButton:focus-visible:not(:disabled) {
+  box-shadow: 0 16px 32px rgba(249, 115, 22, 0.3);
+}
+
+.publishMediaRetouchButton:disabled,
+.publishMediaModifyButton:disabled {
   opacity: 0.55;
   cursor: wait;
 }
@@ -12194,42 +12423,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .publishMediaSourcePanel .publishMediaActionButtons label,
   .publishMediaSourcePanel .publishMediaActionButtons button {
     min-height: 86px;
-  }
-}
-
-/* Étape 2 — iNrAgent média : branchement outil Adapter vidéo Booster */
-.publishVideoAdapterModal {
-  width: min(94vw, 980px) !important;
-  max-width: min(94vw, 980px) !important;
-  max-height: min(88dvh, 860px);
-  overflow: auto;
-}
-
-.publishVideoAdapterModal .modalActions {
-  margin-top: 14px;
-}
-
-@media (max-width: 760px) {
-  .publishVideoAdapterModal {
-    width: calc(100vw - 18px) !important;
-    max-width: calc(100vw - 18px) !important;
-    max-height: calc(100dvh - 24px);
-    padding-inline: 14px;
-    overflow-x: hidden;
-  }
-
-  .publishVideoAdapterModal .publishMediaModalHeader {
-    padding-right: 48px;
-  }
-
-  .publishVideoAdapterModal > div,
-  .publishVideoAdapterModal video {
-    max-width: 100% !important;
-  }
-
-  .publishVideoAdapterModal video {
-    height: auto !important;
-    object-fit: contain;
   }
 }
 
@@ -14319,6 +14512,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .robotWorkingSpinner::before,
   .robotWorkingSpinner::after,
   .robotWorkingBadge,
+  .robotCronWaitPulse,
   .publishRegenerateButton[data-busy="true"] span,
   .publishTitleLoading,
   .publishTitleLoading::after {
@@ -15600,15 +15794,27 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .publishInfoStatus[data-validation-state="pending"] .campaignInfoIcon {
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.82), rgba(168, 85, 247, 0.5));
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.82),
+    rgba(168, 85, 247, 0.5)
+  );
 }
 
 .publishInfoStatus[data-validation-state="validated"] .campaignInfoIcon {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.76), rgba(37, 99, 235, 0.52));
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.76),
+    rgba(37, 99, 235, 0.52)
+  );
 }
 
 .publishInfoStatus[data-validation-state="refused"] .campaignInfoIcon {
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.82), rgba(126, 34, 206, 0.54));
+  background: linear-gradient(
+    135deg,
+    rgba(225, 29, 72, 0.82),
+    rgba(126, 34, 206, 0.54)
+  );
 }
 
 .publishPostCarousel {
@@ -15645,11 +15851,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border-radius: 18px;
   border: 1px solid rgba(125, 211, 252, 0.35);
   color: #f8fbff;
-  background: radial-gradient(circle at 50% 18%, rgba(56, 189, 248, 0.26), transparent 48%),
+  background: radial-gradient(
+      circle at 50% 18%,
+      rgba(56, 189, 248, 0.26),
+      transparent 48%
+    ),
     linear-gradient(155deg, rgba(37, 99, 235, 0.72), rgba(147, 51, 234, 0.66));
   box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.07),
-    0 12px 28px rgba(2, 6, 23, 0.3),
-    0 0 20px rgba(96, 165, 250, 0.2);
+    0 12px 28px rgba(2, 6, 23, 0.3), 0 0 20px rgba(96, 165, 250, 0.2);
   font: inherit;
   font-size: 31px;
   font-weight: 800;
@@ -15674,8 +15883,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   transform: translateY(-2px) scale(1.035);
   border-color: rgba(216, 180, 254, 0.72);
   box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.1),
-    0 14px 34px rgba(2, 6, 23, 0.36),
-    0 0 28px rgba(168, 85, 247, 0.32);
+    0 14px 34px rgba(2, 6, 23, 0.36), 0 0 28px rgba(168, 85, 247, 0.32);
   outline: none;
 }
 
@@ -15699,7 +15907,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border-radius: 999px;
   color: rgba(248, 250, 252, 0.92);
   border: 1px solid rgba(167, 139, 250, 0.34);
-  background: linear-gradient(135deg, rgba(30, 64, 175, 0.94), rgba(126, 34, 206, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(30, 64, 175, 0.94),
+    rgba(126, 34, 206, 0.94)
+  );
   box-shadow: 0 7px 17px rgba(2, 6, 23, 0.32);
   font-size: 10px;
   font-weight: 900;
@@ -15714,7 +15926,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .scheduleCalendarCard[data-approval="refused"] {
   border-color: rgba(251, 113, 133, 0.58);
-  background: linear-gradient(135deg, rgba(190, 24, 93, 0.38), rgba(88, 28, 135, 0.28));
+  background: linear-gradient(
+    135deg,
+    rgba(190, 24, 93, 0.38),
+    rgba(88, 28, 135, 0.28)
+  );
   box-shadow: 0 9px 20px rgba(2, 6, 23, 0.2),
     inset 0 0 18px rgba(251, 113, 133, 0.05);
 }
@@ -15732,7 +15948,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border-radius: 14px;
     transform: translateY(-50%);
     font-size: 24px;
-    background: linear-gradient(155deg, rgba(37, 99, 235, 0.86), rgba(147, 51, 234, 0.82));
+    background: linear-gradient(
+      155deg,
+      rgba(37, 99, 235, 0.86),
+      rgba(147, 51, 234, 0.82)
+    );
   }
 
   .publishPostNavButton:first-of-type {
@@ -15780,12 +16000,18 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border-radius: 18px;
   color: rgba(248, 250, 252, 0.96);
   border: 1px solid rgba(167, 139, 250, 0.28);
-  background:
-    radial-gradient(circle at 4% 50%, rgba(56, 189, 248, 0.14), transparent 30%),
-    radial-gradient(circle at 96% 50%, rgba(217, 70, 239, 0.13), transparent 30%),
+  background: radial-gradient(
+      circle at 4% 50%,
+      rgba(56, 189, 248, 0.14),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 96% 50%,
+      rgba(217, 70, 239, 0.13),
+      transparent 30%
+    ),
     linear-gradient(135deg, rgba(8, 27, 63, 0.94), rgba(19, 20, 58, 0.9));
-  box-shadow:
-    inset 0 0 26px rgba(255, 255, 255, 0.025),
+  box-shadow: inset 0 0 26px rgba(255, 255, 255, 0.025),
     0 12px 28px rgba(2, 6, 23, 0.2);
 }
 
@@ -15802,8 +16028,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .publishCtaDisabled {
   border-color: rgba(250, 204, 21, 0.22);
-  background:
-    radial-gradient(circle at 4% 50%, rgba(250, 204, 21, 0.08), transparent 30%),
+  background: radial-gradient(
+      circle at 4% 50%,
+      rgba(250, 204, 21, 0.08),
+      transparent 30%
+    ),
     linear-gradient(135deg, rgba(19, 28, 52, 0.88), rgba(31, 24, 52, 0.86));
   opacity: 0.82;
 }
@@ -15928,14 +16157,19 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow: visible !important;
     border: 1px solid rgba(125, 211, 252, 0.22) !important;
     border-radius: 24px !important;
-    background:
-      radial-gradient(circle at 0% 50%, rgba(14, 165, 233, 0.15), transparent 30%),
-      radial-gradient(circle at 100% 50%, rgba(217, 70, 239, 0.16), transparent 32%),
+    background: radial-gradient(
+        circle at 0% 50%,
+        rgba(14, 165, 233, 0.15),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at 100% 50%,
+        rgba(217, 70, 239, 0.16),
+        transparent 32%
+      ),
       linear-gradient(135deg, rgba(7, 25, 58, 0.96), rgba(20, 19, 57, 0.94)) !important;
-    box-shadow:
-      inset 0 0 32px rgba(255, 255, 255, 0.025),
-      0 16px 42px rgba(2, 6, 23, 0.28),
-      0 0 26px rgba(59, 130, 246, 0.1) !important;
+    box-shadow: inset 0 0 32px rgba(255, 255, 255, 0.025),
+      0 16px 42px rgba(2, 6, 23, 0.28), 0 0 26px rgba(59, 130, 246, 0.1) !important;
   }
 
   .previewMetaPublish .metaItem,
@@ -16082,8 +16316,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     width: 46px;
     height: 46px;
     border-radius: 15px;
-    background:
-      radial-gradient(circle at 30% 20%, rgba(125, 211, 252, 0.22), transparent 42%),
+    background: radial-gradient(
+        circle at 30% 20%,
+        rgba(125, 211, 252, 0.22),
+        transparent 42%
+      ),
       linear-gradient(145deg, rgba(37, 99, 235, 0.34), rgba(124, 58, 237, 0.27));
     box-shadow: inset 0 0 17px rgba(255, 255, 255, 0.045),
       0 0 18px rgba(59, 130, 246, 0.14);
@@ -16102,7 +16339,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     height: 40px !important;
     transform: translateY(-50%) !important;
     border: 1px solid rgba(196, 181, 253, 0.2);
-    background: linear-gradient(145deg, rgba(59, 130, 246, 0.2), rgba(168, 85, 247, 0.2));
+    background: linear-gradient(
+      145deg,
+      rgba(59, 130, 246, 0.2),
+      rgba(168, 85, 247, 0.2)
+    );
     box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.035),
       0 8px 18px rgba(2, 6, 23, 0.22);
   }
@@ -16249,9 +16490,16 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-height: 218px;
     flex-basis: 218px;
     border-radius: 18px;
-    background:
-      radial-gradient(circle at 50% 54%, rgba(56, 189, 248, 0.2), transparent 36%),
-      radial-gradient(circle at 50% 66%, rgba(168, 85, 247, 0.16), transparent 52%);
+    background: radial-gradient(
+        circle at 50% 54%,
+        rgba(56, 189, 248, 0.2),
+        transparent 36%
+      ),
+      radial-gradient(
+        circle at 50% 66%,
+        rgba(168, 85, 247, 0.16),
+        transparent 52%
+      );
   }
 
   .agentCommandRailRobot > img {
@@ -16415,8 +16663,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 9px;
   border-radius: 19px;
   border: 1px solid rgba(125, 211, 252, 0.24);
-  background:
-    radial-gradient(circle at 50% 15%, rgba(56, 189, 248, 0.14), transparent 42%),
+  background: radial-gradient(
+      circle at 50% 15%,
+      rgba(56, 189, 248, 0.14),
+      transparent 42%
+    ),
     linear-gradient(155deg, rgba(3, 14, 36, 0.92), rgba(17, 15, 52, 0.9));
   box-shadow: inset 0 0 26px rgba(255, 255, 255, 0.025),
     0 14px 30px rgba(2, 6, 23, 0.22);
@@ -16431,8 +16682,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   place-items: center;
   overflow: hidden;
   border-radius: 14px;
-  background:
-    radial-gradient(circle at 50% 46%, rgba(37, 99, 235, 0.16), transparent 60%),
+  background: radial-gradient(
+      circle at 50% 46%,
+      rgba(37, 99, 235, 0.16),
+      transparent 60%
+    ),
     rgba(2, 6, 23, 0.72);
 }
 
@@ -16461,8 +16715,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border: 1px solid rgba(191, 219, 254, 0.32);
   color: #fff;
   background: rgba(7, 18, 47, 0.86);
-  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.3),
-    0 0 16px rgba(56, 189, 248, 0.14);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.3), 0 0 16px rgba(56, 189, 248, 0.14);
   cursor: pointer;
 }
 
@@ -16480,7 +16733,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   place-items: center;
   border-radius: 22px;
   color: rgba(224, 242, 254, 0.9);
-  background: linear-gradient(145deg, rgba(37, 99, 235, 0.48), rgba(147, 51, 234, 0.4));
+  background: linear-gradient(
+    145deg,
+    rgba(37, 99, 235, 0.48),
+    rgba(147, 51, 234, 0.4)
+  );
 }
 
 .publishInlineMediaCaption {
@@ -16630,13 +16887,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border: 1px solid rgba(125, 211, 252, 0.4) !important;
     border-radius: 13px !important;
     color: #f8fbff !important;
-    background:
-      radial-gradient(circle at 35% 18%, rgba(125, 211, 252, 0.3), transparent 44%),
+    background: radial-gradient(
+        circle at 35% 18%,
+        rgba(125, 211, 252, 0.3),
+        transparent 44%
+      ),
       linear-gradient(155deg, rgba(37, 99, 235, 0.78), rgba(147, 51, 234, 0.72)) !important;
-    box-shadow:
-      inset 0 0 14px rgba(255, 255, 255, 0.08),
-      0 7px 18px rgba(2, 6, 23, 0.32),
-      0 0 16px rgba(96, 165, 250, 0.2) !important;
+    box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.08),
+      0 7px 18px rgba(2, 6, 23, 0.32), 0 0 16px rgba(96, 165, 250, 0.2) !important;
     font-size: 23px !important;
     font-weight: 900 !important;
     line-height: 1 !important;
@@ -16649,10 +16907,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .previewMetaPublish .channelNavArrow:focus-visible {
     transform: translateY(-1px) scale(1.04) !important;
     border-color: rgba(216, 180, 254, 0.76) !important;
-    box-shadow:
-      inset 0 0 16px rgba(255, 255, 255, 0.11),
-      0 9px 22px rgba(2, 6, 23, 0.38),
-      0 0 22px rgba(168, 85, 247, 0.3) !important;
+    box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.11),
+      0 9px 22px rgba(2, 6, 23, 0.38), 0 0 22px rgba(168, 85, 247, 0.3) !important;
     outline: none !important;
   }
 
@@ -16701,14 +16957,19 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow: visible !important;
     border: 1px solid rgba(125, 211, 252, 0.26) !important;
     border-radius: 24px !important;
-    background:
-      radial-gradient(circle at 8% 50%, rgba(14, 165, 233, 0.18), transparent 31%),
-      radial-gradient(circle at 92% 50%, rgba(217, 70, 239, 0.15), transparent 34%),
+    background: radial-gradient(
+        circle at 8% 50%,
+        rgba(14, 165, 233, 0.18),
+        transparent 31%
+      ),
+      radial-gradient(
+        circle at 92% 50%,
+        rgba(217, 70, 239, 0.15),
+        transparent 34%
+      ),
       linear-gradient(135deg, rgba(5, 24, 56, 0.97), rgba(20, 19, 57, 0.96)) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      inset 0 0 34px rgba(255, 255, 255, 0.018),
-      0 16px 40px rgba(2, 6, 23, 0.3),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 34px rgba(255, 255, 255, 0.018), 0 16px 40px rgba(2, 6, 23, 0.3),
       0 0 26px rgba(59, 130, 246, 0.1) !important;
   }
 
@@ -16719,7 +16980,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.035) 48%, rgba(216, 180, 254, 0.04), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(125, 211, 252, 0.035) 48%,
+      rgba(216, 180, 254, 0.04),
+      transparent
+    );
   }
 
   .previewMetaPublish .metaItem {
@@ -16756,7 +17023,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
   .previewMetaPublish .channelScroller .channelPillActive {
     border-color: rgba(125, 211, 252, 0.72) !important;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.2), rgba(124, 58, 237, 0.1)) !important;
+    background: radial-gradient(
+      circle,
+      rgba(56, 189, 248, 0.2),
+      rgba(124, 58, 237, 0.1)
+    ) !important;
     box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.08),
       0 0 19px rgba(56, 189, 248, 0.18) !important;
   }
@@ -16767,8 +17038,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-width: 32px !important;
     border-color: rgba(125, 211, 252, 0.32) !important;
     border-radius: 999px !important;
-    background:
-      radial-gradient(circle at 34% 22%, rgba(255, 255, 255, 0.13), transparent 38%),
+    background: radial-gradient(
+        circle at 34% 22%,
+        rgba(255, 255, 255, 0.13),
+        transparent 38%
+      ),
       linear-gradient(150deg, rgba(37, 99, 235, 0.56), rgba(147, 51, 234, 0.52)) !important;
     box-shadow: inset 0 0 13px rgba(255, 255, 255, 0.04),
       0 0 15px rgba(96, 165, 250, 0.14) !important;
@@ -16790,7 +17064,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border-radius: 12px !important;
     color: #d8b4fe !important;
     border: 1px solid rgba(167, 139, 250, 0.24) !important;
-    background: linear-gradient(145deg, rgba(37, 99, 235, 0.18), rgba(147, 51, 234, 0.2)) !important;
+    background: linear-gradient(
+      145deg,
+      rgba(37, 99, 235, 0.18),
+      rgba(147, 51, 234, 0.2)
+    ) !important;
     box-shadow: inset 0 0 13px rgba(255, 255, 255, 0.025),
       0 0 13px rgba(168, 85, 247, 0.1) !important;
   }
@@ -16821,7 +17099,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     transform: translateY(-1px) !important;
     color: #fff !important;
     border-color: rgba(125, 211, 252, 0.58) !important;
-    background: linear-gradient(145deg, rgba(37, 99, 235, 0.32), rgba(147, 51, 234, 0.28)) !important;
+    background: linear-gradient(
+      145deg,
+      rgba(37, 99, 235, 0.32),
+      rgba(147, 51, 234, 0.28)
+    ) !important;
     box-shadow: 0 8px 18px rgba(2, 6, 23, 0.24),
       0 0 17px rgba(96, 165, 250, 0.18) !important;
   }
@@ -16870,14 +17152,23 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
   .previewMetaPublish .previewActions .validateButton {
     border: 1px solid rgba(125, 211, 252, 0.36) !important;
-    background: linear-gradient(135deg, rgba(20, 91, 255, 0.94), rgba(109, 40, 217, 0.92) 58%, rgba(217, 38, 189, 0.9)) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(20, 91, 255, 0.94),
+      rgba(109, 40, 217, 0.92) 58%,
+      rgba(217, 38, 189, 0.9)
+    ) !important;
     box-shadow: 0 9px 22px rgba(59, 130, 246, 0.2),
       0 0 19px rgba(217, 70, 239, 0.13) !important;
   }
 
   .previewMetaPublish .previewActions .refuseButton {
     border: 1px solid rgba(251, 113, 133, 0.38) !important;
-    background: linear-gradient(145deg, rgba(76, 5, 25, 0.42), rgba(45, 12, 44, 0.34)) !important;
+    background: linear-gradient(
+      145deg,
+      rgba(76, 5, 25, 0.42),
+      rgba(45, 12, 44, 0.34)
+    ) !important;
     box-shadow: inset 0 0 18px rgba(251, 113, 133, 0.025),
       0 0 16px rgba(244, 63, 94, 0.06) !important;
   }
@@ -17079,15 +17370,15 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     margin: 0 !important;
     border: 1px solid rgba(186, 230, 253, 0.78) !important;
     color: #fff !important;
-    background:
-      radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.42), transparent 36%),
+    background: radial-gradient(
+        circle at 30% 18%,
+        rgba(255, 255, 255, 0.42),
+        transparent 36%
+      ),
       linear-gradient(145deg, #168fe8 0%, #5654ed 48%, #c02dda 100%) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.34),
-      inset 0 -8px 16px rgba(30, 27, 75, 0.2),
-      0 7px 18px rgba(2, 6, 23, 0.34),
-      0 0 22px rgba(56, 189, 248, 0.34),
-      0 0 12px rgba(217, 70, 239, 0.2) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      inset 0 -8px 16px rgba(30, 27, 75, 0.2), 0 7px 18px rgba(2, 6, 23, 0.34),
+      0 0 22px rgba(56, 189, 248, 0.34), 0 0 12px rgba(217, 70, 239, 0.2) !important;
     font-size: 29px !important;
     font-weight: 950 !important;
     line-height: 0.8 !important;
@@ -17116,22 +17407,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     transform: translateY(-1px) scale(1.07) !important;
     border-color: #fff !important;
     filter: saturate(1.14) brightness(1.08) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.42),
-      0 10px 22px rgba(2, 6, 23, 0.36),
-      0 0 28px rgba(56, 189, 248, 0.5),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      0 10px 22px rgba(2, 6, 23, 0.36), 0 0 28px rgba(56, 189, 248, 0.5),
       0 0 18px rgba(217, 70, 239, 0.34) !important;
   }
 
   .publishPostNavButton {
     border-color: rgba(186, 230, 253, 0.7) !important;
-    background:
-      radial-gradient(circle at 30% 16%, rgba(255, 255, 255, 0.3), transparent 38%),
+    background: radial-gradient(
+        circle at 30% 16%,
+        rgba(255, 255, 255, 0.3),
+        transparent 38%
+      ),
       linear-gradient(150deg, #0f8fe8, #5b4ce8 50%, #b832d2) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.26),
-      0 12px 28px rgba(2, 6, 23, 0.34),
-      0 0 24px rgba(56, 189, 248, 0.3),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26),
+      0 12px 28px rgba(2, 6, 23, 0.34), 0 0 24px rgba(56, 189, 248, 0.3),
       0 0 13px rgba(217, 70, 239, 0.17) !important;
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.7) !important;
   }
@@ -17158,13 +17448,15 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-height: 38px !important;
     border: 1px solid transparent !important;
     border-radius: 50% !important;
-    background:
-      linear-gradient(145deg, rgba(9, 28, 61, 0.96), rgba(33, 22, 74, 0.95)) padding-box,
+    background: linear-gradient(
+          145deg,
+          rgba(9, 28, 61, 0.96),
+          rgba(33, 22, 74, 0.95)
+        )
+        padding-box,
       linear-gradient(135deg, #67e8f9, #7067ff 52%, #f04bce) border-box !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      0 5px 15px rgba(2, 6, 23, 0.28),
-      0 0 14px rgba(56, 189, 248, 0.24) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 5px 15px rgba(2, 6, 23, 0.28), 0 0 14px rgba(56, 189, 248, 0.24) !important;
     filter: none !important;
   }
 
@@ -17173,13 +17465,15 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     z-index: 6 !important;
     transform: scale(1.08) !important;
     border-color: transparent !important;
-    background:
-      linear-gradient(145deg, rgba(15, 45, 88, 0.98), rgba(54, 28, 103, 0.98)) padding-box,
+    background: linear-gradient(
+          145deg,
+          rgba(15, 45, 88, 0.98),
+          rgba(54, 28, 103, 0.98)
+        )
+        padding-box,
       linear-gradient(135deg, #a5f3fc, #8b7cff 48%, #ff75df) border-box !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 8px 19px rgba(2, 6, 23, 0.32),
-      0 0 22px rgba(56, 189, 248, 0.42),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 8px 19px rgba(2, 6, 23, 0.32), 0 0 22px rgba(56, 189, 248, 0.42),
       0 0 14px rgba(217, 70, 239, 0.28) !important;
   }
 }
@@ -17211,16 +17505,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border: 1px solid rgba(125, 211, 252, 0.54) !important;
     outline: 1px solid rgba(216, 180, 254, 0.26);
     outline-offset: -7px;
-    background:
-      radial-gradient(circle at 50% 44%, rgba(56, 189, 248, 0.24), transparent 42%),
-      radial-gradient(circle at 50% 78%, rgba(217, 70, 239, 0.2), transparent 48%),
+    background: radial-gradient(
+        circle at 50% 44%,
+        rgba(56, 189, 248, 0.24),
+        transparent 42%
+      ),
+      radial-gradient(
+        circle at 50% 78%,
+        rgba(217, 70, 239, 0.2),
+        transparent 48%
+      ),
       linear-gradient(155deg, rgba(7, 27, 64, 0.92), rgba(25, 17, 68, 0.96)) !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
       inset 0 0 0 5px rgba(4, 13, 39, 0.36),
       inset 0 -24px 42px rgba(99, 39, 168, 0.16),
-      0 12px 28px rgba(2, 6, 23, 0.34),
-      0 0 20px rgba(56, 189, 248, 0.16) !important;
+      0 12px 28px rgba(2, 6, 23, 0.34), 0 0 20px rgba(56, 189, 248, 0.16) !important;
     overflow: hidden !important;
   }
 
@@ -17475,7 +17774,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow: visible !important;
     border: 1px solid rgba(125, 211, 252, 0.25) !important;
     border-radius: 20px !important;
-    background: linear-gradient(135deg, rgba(5, 29, 62, 0.97), rgba(27, 20, 65, 0.96)) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(5, 29, 62, 0.97),
+      rgba(27, 20, 65, 0.96)
+    ) !important;
   }
 
   .previewMetaPublish .channelsItem {
@@ -17556,8 +17859,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border: 1px solid transparent !important;
     border-radius: 50% !important;
     color: #fff !important;
-    background:
-      linear-gradient(145deg, rgba(10, 33, 73, 0.98), rgba(46, 27, 93, 0.98)) padding-box,
+    background: linear-gradient(
+          145deg,
+          rgba(10, 33, 73, 0.98),
+          rgba(46, 27, 93, 0.98)
+        )
+        padding-box,
       linear-gradient(135deg, #67e8f9, #756cff 52%, #f04bce) border-box !important;
     box-shadow: 0 5px 16px rgba(2, 6, 23, 0.3),
       0 0 16px rgba(56, 189, 248, 0.25) !important;
@@ -17614,7 +17921,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     color: #eef8ff !important;
     border: 1px solid rgba(148, 163, 255, 0.3) !important;
     border-radius: 14px !important;
-    background: linear-gradient(145deg, rgba(30, 64, 175, 0.34), rgba(91, 33, 182, 0.3)) !important;
+    background: linear-gradient(
+      145deg,
+      rgba(30, 64, 175, 0.34),
+      rgba(91, 33, 182, 0.3)
+    ) !important;
     opacity: 1 !important;
   }
 
@@ -17664,7 +17975,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     padding: 4px !important;
     border: 1px solid rgba(125, 211, 252, 0.26) !important;
     border-radius: 14px !important;
-    background: linear-gradient(145deg, rgba(8, 31, 69, 0.96), rgba(38, 23, 83, 0.95)) !important;
+    background: linear-gradient(
+      145deg,
+      rgba(8, 31, 69, 0.96),
+      rgba(38, 23, 83, 0.95)
+    ) !important;
     box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035) !important;
     justify-self: center !important;
   }
@@ -17681,8 +17996,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border: 1px solid transparent !important;
     border-radius: 10px !important;
     color: #fff !important;
-    background:
-      linear-gradient(145deg, rgba(15, 49, 102, 0.98), rgba(57, 35, 116, 0.98)) padding-box,
+    background: linear-gradient(
+          145deg,
+          rgba(15, 49, 102, 0.98),
+          rgba(57, 35, 116, 0.98)
+        )
+        padding-box,
       linear-gradient(135deg, #67e8f9, #756cff 52%, #f04bce) border-box !important;
     box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3) !important;
   }
@@ -17795,7 +18114,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     padding: 0 !important;
     overflow: hidden !important;
     border-radius: 18px !important;
-    background: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.12), transparent 34%),
+    background: radial-gradient(
+        circle at 10% 20%,
+        rgba(56, 189, 248, 0.12),
+        transparent 34%
+      ),
       linear-gradient(145deg, rgba(11, 35, 78, 0.96), rgba(31, 24, 76, 0.94)) !important;
   }
 
@@ -17874,7 +18197,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     color: #f8fbff !important;
     border: 1px solid transparent !important;
     border-radius: 11px !important;
-    background: linear-gradient(145deg, rgba(21, 58, 118, 0.98), rgba(61, 35, 121, 0.98)) padding-box,
+    background: linear-gradient(
+          145deg,
+          rgba(21, 58, 118, 0.98),
+          rgba(61, 35, 121, 0.98)
+        )
+        padding-box,
       linear-gradient(135deg, #67e8f9, #756cff 52%, #f04bce) border-box !important;
     box-shadow: 0 5px 14px rgba(2, 6, 23, 0.3),
       0 0 13px rgba(96, 165, 250, 0.16) !important;
@@ -18017,8 +18345,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
         var(
           --inrcy-mobile-bottom-nav-total-height,
           calc(50px + var(--inrcy-safe-area-bottom))
-        ) -
-        28px
+        ) - 28px
     ) !important;
     padding-bottom: 24px !important;
     scroll-padding-bottom: 24px;
@@ -18353,13 +18680,19 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   color: #fff7cf;
   border: 1px solid rgba(253, 224, 71, 0.42);
   border-radius: 11px;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.25), transparent 38%),
-    linear-gradient(145deg, rgba(14, 116, 144, 0.94), rgba(109, 40, 217, 0.96) 58%, rgba(190, 24, 93, 0.9));
-  box-shadow:
-    inset 0 0 16px rgba(255, 255, 255, 0.08),
-    0 7px 18px rgba(2, 6, 23, 0.32),
-    0 0 16px rgba(250, 204, 21, 0.16);
+  background: radial-gradient(
+      circle at 30% 20%,
+      rgba(255, 255, 255, 0.25),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(14, 116, 144, 0.94),
+      rgba(109, 40, 217, 0.96) 58%,
+      rgba(190, 24, 93, 0.9)
+    );
+  box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.08),
+    0 7px 18px rgba(2, 6, 23, 0.32), 0 0 16px rgba(250, 204, 21, 0.16);
   cursor: pointer;
   transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
 }
@@ -18373,10 +18706,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .instantActionButton:hover:not(:disabled) {
   transform: translateY(-1px) scale(1.05);
   filter: brightness(1.12);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.12),
-    0 9px 22px rgba(2, 6, 23, 0.36),
-    0 0 20px rgba(250, 204, 21, 0.24);
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.12),
+    0 9px 22px rgba(2, 6, 23, 0.36), 0 0 20px rgba(250, 204, 21, 0.24);
 }
 
 .instantActionButton:focus-visible,
@@ -18434,25 +18765,25 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border-radius: 16px !important;
   border-color: rgba(125, 211, 252, 0.48) !important;
   color: #fff;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(103, 232, 249, 0.24), transparent 36%),
+  background: radial-gradient(
+      circle at 18% 0%,
+      rgba(103, 232, 249, 0.24),
+      transparent 36%
+    ),
     linear-gradient(135deg, #2563eb, #7041e8 56%, #c026d3) !important;
-  box-shadow:
-    inset 0 0 20px rgba(255, 255, 255, 0.08),
-    0 10px 26px rgba(37, 99, 235, 0.22),
-    0 0 22px rgba(192, 38, 211, 0.14);
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.08),
+    0 10px 26px rgba(37, 99, 235, 0.22), 0 0 22px rgba(192, 38, 211, 0.14);
   font-size: 16px !important;
   font-weight: 900;
   letter-spacing: -0.015em;
 }
 
-.settingsModalFooter[data-save-only="true"] .settingsSaveAction:hover:not(:disabled) {
+.settingsModalFooter[data-save-only="true"]
+  .settingsSaveAction:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.08);
-  box-shadow:
-    inset 0 0 22px rgba(255, 255, 255, 0.12),
-    0 13px 30px rgba(37, 99, 235, 0.28),
-    0 0 26px rgba(192, 38, 211, 0.2);
+  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.12),
+    0 13px 30px rgba(37, 99, 235, 0.28), 0 0 26px rgba(192, 38, 211, 0.2);
 }
 
 .settingsModalFooter[data-save-only="true"] .settingsSaveAction:focus-visible {
@@ -18518,15 +18849,27 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     padding-right: 82px !important;
   }
 
-  .automationGrid .automationCard[data-has-instant-action="true"] .cardPendingCount,
-  .automationGridStandard .automationCard[data-has-instant-action="true"] .cardPendingCount {
+  .automationGrid
+    .automationCard[data-has-instant-action="true"]
+    .cardPendingCount,
+  .automationGridStandard
+    .automationCard[data-has-instant-action="true"]
+    .cardPendingCount {
     right: 72px !important;
   }
 
   .automationGrid .automationCard[data-has-instant-action="true"] .cardStatus,
-  .automationGridStandard .automationCard[data-has-instant-action="true"] .cardStatus,
-  .automationGrid .automationCard[data-has-instant-action="true"] .cardPendingCount + .cardStatus,
-  .automationGridStandard .automationCard[data-has-instant-action="true"] .cardPendingCount + .cardStatus {
+  .automationGridStandard
+    .automationCard[data-has-instant-action="true"]
+    .cardStatus,
+  .automationGrid
+    .automationCard[data-has-instant-action="true"]
+    .cardPendingCount
+    + .cardStatus,
+  .automationGridStandard
+    .automationCard[data-has-instant-action="true"]
+    .cardPendingCount
+    + .cardStatus {
     right: 74px !important;
   }
 }
@@ -18551,11 +18894,15 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-height: 30px !important;
   }
 
-  .automationGrid .automationCard[data-has-instant-action="true"] .automationSelect {
+  .automationGrid
+    .automationCard[data-has-instant-action="true"]
+    .automationSelect {
     padding-right: 5px !important;
   }
 
-  .automationGrid .automationCard[data-has-instant-action="true"] .cardPendingCount {
+  .automationGrid
+    .automationCard[data-has-instant-action="true"]
+    .cardPendingCount {
     right: 66px !important;
   }
 
@@ -18606,8 +18953,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border: 1px solid rgba(103, 232, 249, 0.24);
   border-radius: 14px;
   color: rgba(239, 246, 255, 0.92);
-  background:
-    radial-gradient(circle at 0 50%, rgba(34, 211, 238, 0.16), transparent 34%),
+  background: radial-gradient(
+      circle at 0 50%,
+      rgba(34, 211, 238, 0.16),
+      transparent 34%
+    ),
     linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(76, 29, 149, 0.34));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.05);
 }
@@ -19091,13 +19441,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   border: 1px solid rgba(173, 216, 255, 0.52) !important;
   border-radius: 50% !important;
   outline: none !important;
-  background:
-    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.18), transparent 38%),
+  background: radial-gradient(
+      circle at 32% 22%,
+      rgba(255, 255, 255, 0.18),
+      transparent 38%
+    ),
     linear-gradient(155deg, rgba(22, 48, 96, 0.98), rgba(13, 23, 58, 0.98)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -5px 10px rgba(2, 6, 23, 0.2),
-    0 3px 8px rgba(2, 6, 23, 0.24) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -5px 10px rgba(2, 6, 23, 0.2), 0 3px 8px rgba(2, 6, 23, 0.24) !important;
   transform: none !important;
 }
 
@@ -19136,21 +19487,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .previewMetaPublish .channelScroller button:hover:not(:disabled),
 .previewMetaPublish .channelScroller button.channelPillActive {
   border-color: rgba(125, 225, 255, 0.92) !important;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.24), transparent 38%),
+  background: radial-gradient(
+      circle at 30% 20%,
+      rgba(255, 255, 255, 0.24),
+      transparent 38%
+    ),
     linear-gradient(145deg, rgba(33, 92, 172, 0.98), rgba(94, 52, 173, 0.96)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset 0 0 0 1px rgba(125, 211, 252, 0.18),
-    0 0 0 1px rgba(56, 189, 248, 0.18),
-    0 4px 9px rgba(2, 6, 23, 0.26) !important;
+    0 0 0 1px rgba(56, 189, 248, 0.18), 0 4px 9px rgba(2, 6, 23, 0.26) !important;
   transform: none !important;
 }
 
 .previewMetaPublish .channelScroller button:focus-visible {
   border-color: #f8fbff !important;
-  box-shadow:
-    inset 0 0 0 2px rgba(125, 211, 252, 0.9),
+  box-shadow: inset 0 0 0 2px rgba(125, 211, 252, 0.9),
     0 3px 8px rgba(2, 6, 23, 0.24) !important;
 }
 
@@ -19500,8 +19851,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
   .automationGrid .automationCard .automationCardActions .instantActionButton,
   .automationGrid .automationCard .automationCardActions .settingsButton,
-  .automationGridStandard .automationCard .automationCardActions .instantActionButton,
-  .automationGridStandard .automationCard .automationCardActions .settingsButton {
+  .automationGridStandard
+    .automationCard
+    .automationCardActions
+    .instantActionButton,
+  .automationGridStandard
+    .automationCard
+    .automationCardActions
+    .settingsButton {
     position: static !important;
     width: 29px !important;
     min-width: 29px !important;
@@ -19513,7 +19870,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .automationGrid .automationCard .automationCardActions .settingsButton svg,
-  .automationGridStandard .automationCard .automationCardActions .settingsButton svg {
+  .automationGridStandard
+    .automationCard
+    .automationCardActions
+    .settingsButton
+    svg {
     width: 17px !important;
     height: 17px !important;
   }
@@ -19528,11 +19889,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .modalBackdrop:has(.publishTextModal) {
     place-items: start center !important;
     overflow-y: auto !important;
-    padding: 12px 10px calc(
+    padding: 12px 10px
+      calc(
         var(
-          --inrcy-mobile-bottom-nav-total-height,
-          calc(50px + var(--inrcy-safe-area-bottom))
-        ) + 24px
+            --inrcy-mobile-bottom-nav-total-height,
+            calc(50px + var(--inrcy-safe-area-bottom))
+          ) + 24px
       ) !important;
   }
 
@@ -19560,7 +19922,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 /* Publier : indicateurs plus visibles, ancrés sur le libellé mobile. */
 @media (max-width: 760px) {
   .automationGrid .automationCard[data-automation="publish"] .cardPendingCount,
-  .automationGridStandard .automationCard[data-automation="publish"] .cardPendingCount {
+  .automationGridStandard
+    .automationCard[data-automation="publish"]
+    .cardPendingCount {
     left: auto !important;
     right: 72px !important;
     width: 24px !important;
@@ -19570,25 +19934,43 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     border-width: 1px !important;
   }
 
-  .automationGrid .automationCard[data-automation="publish"]:has(.cardPendingCount) .cardTitle,
-  .automationGridStandard .automationCard[data-automation="publish"]:has(.cardPendingCount) .cardTitle {
+  .automationGrid
+    .automationCard[data-automation="publish"]:has(.cardPendingCount)
+    .cardTitle,
+  .automationGridStandard
+    .automationCard[data-automation="publish"]:has(.cardPendingCount)
+    .cardTitle {
     padding-left: 0 !important;
   }
 
   .automationGrid .automationCard[data-automation="publish"] .cardStatus,
-  .automationGridStandard .automationCard[data-automation="publish"] .cardStatus {
+  .automationGridStandard
+    .automationCard[data-automation="publish"]
+    .cardStatus {
     display: none !important;
   }
 
   /* The active dot is rendered on top of the gear, not in the text flow. */
-  .automationGrid .automationCard:has(.cardStatus) .automationCardActions .settingsButton,
-  .automationGridStandard .automationCard:has(.cardStatus) .automationCardActions .settingsButton {
+  .automationGrid
+    .automationCard:has(.cardStatus)
+    .automationCardActions
+    .settingsButton,
+  .automationGridStandard
+    .automationCard:has(.cardStatus)
+    .automationCardActions
+    .settingsButton {
     position: relative !important;
     overflow: visible !important;
   }
 
-  .automationGrid .automationCard:has(.cardStatus) .automationCardActions .settingsButton::after,
-  .automationGridStandard .automationCard:has(.cardStatus) .automationCardActions .settingsButton::after {
+  .automationGrid
+    .automationCard:has(.cardStatus)
+    .automationCardActions
+    .settingsButton::after,
+  .automationGridStandard
+    .automationCard:has(.cardStatus)
+    .automationCardActions
+    .settingsButton::after {
     content: "";
     position: absolute;
     z-index: 4;

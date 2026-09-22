@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "Acciones programadas",
   "actions_programmees_a_venir_c1f610d0": "Próximas acciones previstas",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "Habilitado por defecto para agregar la firma configurada al enviar.",
-  "adapt_image": "Ajustar imagen",
+  "adapt_image": "Retocar imagen",
   "adapt_media": "Adaptar el contenido multimedia",
   "adapt_video": "Adaptar el vídeo",
   "adaptation_du_canal_1af8dcef": "Adaptación del canal",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "Adaptar el vídeo de iNr’Agent",
   "adapter_le_media_value_34c6f353": "Adaptar medios {value0}",
   "adapter_video_2d90a304": "Adaptar vídeo",
-  "add_image_first": "Primero, añade una imagen para adaptarla.",
+  "add_image_first": "Añade primero una imagen.",
   "add_image_to_publication": "Añadir una imagen a la publicación",
   "add_media": "Agregar contenido multimedia",
   "add_media_first": "Primero, añade una imagen o un vídeo para adaptarlo.",
@@ -301,10 +301,10 @@
   "heure_5073129f": "tiempo",
   "horaire_db0addb3": "Horario",
   "ia_d41daf59": "IA",
-  "image_adaptation_failed": "No se pudo adaptar la imagen.",
+  "image_adaptation_failed": "No se pudo abrir esta imagen en iNrStudio.",
   "image_adapted_save_failed": "No se pudo guardar la imagen adaptada.",
   "image_adapted_saved": "Imagen adaptada y guardada para iNr’Agent.",
-  "image_adapter_isolation_note": "Esta configuración utiliza la herramienta Adapt Image de Booster y reemplazará el medio iNr’Agent con la versión adaptada.",
+  "image_adapter_isolation_note": "Esta acción utiliza la herramienta Retocar de iNrStudio y reemplaza el medio iNr’Agent por la versión retocada.",
   "image_et_2d6d27c0": "imagen y",
   "image_number_alt": "Imagen {number}",
   "immediate_other_channels_failed": "No se pudo publicar inmediatamente en otros canales.",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "Confirmación de uso de música de TikTok",
   "tiktok_session_change": "Modificar",
   "tiktok_session_save": "Guardar ajustes",
-  "tiktok_session_checking": "Comprobando TikTok…"
+  "tiktok_session_checking": "Comprobando TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "Próxima publicación en unos minutos"
 }

@@ -54,6 +54,7 @@ type Props = {
   previewMediaCount?: number;
   allowSessionReuse?: boolean;
   validateLabel?: string;
+  onRetouchVideo?: () => void;
   onCancel: () => void;
   onValidate: (
     settings: TiktokPublicationSettings,
@@ -195,11 +196,13 @@ export default function TiktokPublicationSettingsModal({
   previewMediaCount,
   allowSessionReuse = false,
   validateLabel,
+  onRetouchVideo,
   onCancel,
   onValidate,
   onExcludeAndContinue,
 }: Props) {
   const i18nT = useTranslations("booster");
+  const mediaT = useTranslations("media");
   const [creatorInfo, setCreatorInfo] = useState<CreatorInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -532,6 +535,27 @@ export default function TiktokPublicationSettingsModal({
                     <strong style={{ color: "#fff", fontSize: 14 }}>{previewMediaName || (mediaType === "video" ? i18nT("video_tiktok_7b95fbc5") : i18nT("photos_tiktok_d2533f42"))}</strong>
                     <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>{mediaSummary}</span>
                   </div>
+                  {mediaType === "video" && onRetouchVideo ? (
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={onRetouchVideo}
+                      style={{
+                        width: isMobile ? "100%" : "max-content",
+                        minHeight: 34,
+                        padding: "6px 13px",
+                        borderColor: "rgba(251,146,60,0.62)",
+                        background:
+                          "linear-gradient(135deg, rgba(249,115,22,0.94), rgba(244,63,94,0.9))",
+                        color: "#fff7ed",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      <span aria-hidden="true">🎞️</span>{" "}
+                      {mediaT("ai_generator_studio_tab_retouch")}
+                    </button>
+                  ) : null}
                   <div
                     style={{
                       borderRadius: 12,

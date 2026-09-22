@@ -318,6 +318,7 @@ test("les fréquences mensuelles stockent des dates numériques et non des jours
 test("iNrAgent construit seul une publication contextualisée et utilise les quotas du Studio", () => {
   const publishRoute = read("app/api/agent/actions/prepare-publish/route.ts");
   const mediaGeneration = read("lib/inrAgentMediaGeneration.ts");
+  const mediaRequest = read("lib/inrAgentMediaRequest.ts");
   const chooseThemeSource = publishRoute.slice(
     publishRoute.indexOf("function chooseTheme"),
     publishRoute.indexOf("function normalizeCatalogText")
@@ -340,9 +341,13 @@ test("iNrAgent construit seul une publication contextualisée et utilise les quo
   assert.match(mediaGeneration, /reserveAiMediaGeneration/);
   assert.match(mediaGeneration, /completeAiMediaGeneration/);
   assert.match(mediaGeneration, /failAiMediaGeneration/);
-  assert.match(mediaGeneration, /subjectSource: "custom"/);
+  assert.match(mediaGeneration, /buildInrAgentMediaGenerationRequest/);
+  assert.match(mediaRequest, /normalizeAiMediaGenerationRequest/);
+  assert.match(mediaRequest, /inputMode: "essential"/);
+  assert.match(mediaRequest, /subjectSource: "custom"/);
   assert.match(mediaGeneration, /idea: args\.idea/);
-  assert.match(mediaGeneration, /withText: false/);
+  assert.match(mediaRequest, /textMode: "none"/);
+  assert.match(mediaRequest, /withText: false/);
   assert.match(mediaGeneration, /source: "inr_agent"/);
 });
 

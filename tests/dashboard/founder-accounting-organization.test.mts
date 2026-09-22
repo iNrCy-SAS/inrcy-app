@@ -59,29 +59,35 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
   );
 });
 
-test("la boîte de vitesse Premium expose exactement Booster, iNrAgent, Campagnes et Réputation", () => {
+test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, iNrAgent et iNrStudio à droite", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
-  const styles = read("app/dashboard/dashboard.module.css");
-  const booster = source.indexOf("t.modules.publishTitle");
-  const agent = source.indexOf("t.modules.agentTitle");
-  const campaigns = source.indexOf("t.modules.campaignsTitle");
-  const reputation = source.indexOf("t.modules.reputationTitle");
+  const styles = read("app/dashboard/_components/DashboardStandardModulesCard.module.css");
+  const stats = source.indexOf('data-dashboard-prefetch="/dashboard/stats"');
+  const send = source.indexOf('data-dashboard-prefetch="/dashboard/mails"');
+  const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
+  const agenda = source.indexOf('data-dashboard-prefetch="/dashboard/agenda"');
+  const crm = source.indexOf('data-dashboard-prefetch="/dashboard/crm"');
+  const booster = source.indexOf('data-testid="premium-booster-publish"');
+  const campaigns = source.indexOf('data-testid="premium-campaign-open"');
+  const agent = source.indexOf('data-testid="premium-agent-planning"');
+  const studio = source.indexOf('data-testid="premium-studio-open"');
 
-  assert.ok(booster >= 0 && booster < agent);
-  assert.ok(agent < campaigns);
-  assert.ok(campaigns < reputation);
+  assert.ok(send >= 0 && send < stats);
+  assert.ok(stats < reputation && reputation < agenda && agenda < crm);
+  assert.ok(crm < booster && booster < campaigns && campaigns < agent && agent < studio);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
   assert.match(source, /data-testid="premium-agent-planning"/);
+  assert.match(source, /data-testid="premium-studio-open"/);
+  assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
+  assert.match(source, /data-dashboard-premium-secondary-tools="true"/);
   assert.match(source, /<DashboardAgentPlanningModal/);
   assert.match(source, /standardMode=\{false\}/);
-  assert.match(styles, /\.gearBlockCard \.gearGrid\s*\{\s*grid-template-rows:\s*repeat\(4, minmax\(74px, 1fr\)\)/);
-  assert.match(
-    styles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.gearBlockCard \.gearCapsule\s*\{\s*width:\s*min\(330px, calc\(100% - 8px\)\);\s*height:\s*112px;/,
-  );
-  assert.doesNotMatch(styles, /\.gearBlockCard \.gearGrid\s*>\s*\.gearCapsule\s*\{\s*grid-column:\s*auto/);
+  assert.match(styles, /\.premiumDashboardList\s*\{[\s\S]*?grid-template-rows:\s*repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.premiumActionStack\s*\{[\s\S]*?grid-template-rows:\s*minmax\(310px, 1\.22fr\)/);
+  assert.match(styles, /\.secondaryToolsRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.secondaryToolsRow\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 
 test("les onglets iNrSend occupent toute la largeur selon l'édition", () => {

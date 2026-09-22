@@ -83,7 +83,6 @@ import {
   stripSiteTextFormattingPreserveLayout,
 } from "@/lib/boosterFormatting";
 import stylesDash from "../../dashboard.module.css";
-import { ChannelImageAdapterModal } from "@/app/dashboard/_components/ChannelImageAdapterTool";
 import {
   BOOSTER_IMAGE_ACCEPT,
   BOOSTER_MAX_IMAGE_COUNT,
@@ -108,9 +107,6 @@ import {
   getDefaultCtaModeForChannel,
   normalizeBoosterPreferredCta,
   getWebsiteUrlForChannel,
-  getLocalizedImageDecisionLabel,
-  getLocalizedImageFitLabel,
-  getChannelSafetyBackgroundMode,
   getOptimizedTransform,
   getLocalizedVideoAdaptationModeLabel,
   getLocalizedVideoFormatLabel,
@@ -179,7 +175,6 @@ import {
   scrollIntoViewWhenAvailable,
   settleOptionalMediaEnrichment,
 } from "./publishModal.clientResilience";
-import { pillBtn, pillBtnActive } from "./publishModal.styles";
 
 import PublishAiConfigurationDrawer from "./components/PublishAiConfigurationDrawer";
 import PublishChannelSelector from "./components/PublishChannelSelector";
@@ -198,8 +193,11 @@ import PublishImagesPanel from "./components/PublishImagesPanel";
 import PublishPreviewPanel from "./components/PublishPreviewPanel";
 import PublishHelpModal from "./components/PublishHelpModal";
 import PublishWarningModals from "./components/PublishWarningModals";
-import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
-import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGeneration";
+import {
+  consumeInrStudioReturn,
+  createInrStudioHandoff,
+  type InrStudioReturnedMedia,
+} from "@/lib/inrStudioNavigation";
 import usePublishImageController from "./usePublishImageController";
 import usePersistentMediaWorkspace, {
   type PersistentWorkspaceMediaState,
@@ -242,6 +240,7 @@ import {
 import {
   buildMetaPublicationSelection,
   normalizeMetaPublicationSelection,
+  stripMetaStoryOnlyPostContent,
   type MetaPrimaryPublicationPlacement,
 } from "@/lib/metaPublicationTargets";
 import {
@@ -462,6 +461,10 @@ export default function PublishModal({
   const [loadedPublicationDraftId, setLoadedPublicationDraftId] = useState<
     string | null
   >(null);
+  const [pendingStudioReturn, setPendingStudioReturn] =
+    useState<InrStudioReturnedMedia | null>(null);
+  const studioReturnApplyingKeyRef = useRef("");
+  const lastSavedStudioVideoDraftRef = useRef<VideoPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
   const [publicationInstruction, setPublicationInstruction] = useState("");
@@ -544,7 +547,6 @@ export default function PublishModal({
     message: string;
   } | null>(null);
   const [publishHelpOpen, setPublishHelpOpen] = useState(false);
-  const [mediaGeneratorOpen, setMediaGeneratorOpen] = useState(false);
 
   useEffect(() => {
     if (!openHelpActionRef) return;
@@ -643,16 +645,23 @@ export default function PublishModal({
             selection.primaryPlacement === "reel" &&
               preferences.reelsEnabled
               ? "reel"
+              : selection.primaryPlacement === "story" &&
+                  preferences.storiesEnabled
+                ? "story"
               : "classic",
           );
           setInstagramStoryEnabled(
-            selection.includeStory && preferences.storiesEnabled,
+            selection.primaryPlacement !== "story" &&
+              selection.includeStory &&
+              preferences.storiesEnabled,
           );
         } else {
           setInstagramPublicationPlacement((current) =>
             current === "reel" && preferences.reelsEnabled
               ? "reel"
-              : "classic",
+              : current === "story" && preferences.storiesEnabled
+                ? "story"
+                : "classic",
           );
           setInstagramStoryEnabled((current) =>
             current && preferences.storiesEnabled,
@@ -693,16 +702,23 @@ export default function PublishModal({
             selection.primaryPlacement === "reel" &&
               preferences.reelsEnabled
               ? "reel"
+              : selection.primaryPlacement === "story" &&
+                  preferences.storiesEnabled
+                ? "story"
               : "classic",
           );
           setFacebookStoryEnabled(
-            selection.includeStory && preferences.storiesEnabled,
+            selection.primaryPlacement !== "story" &&
+              selection.includeStory &&
+              preferences.storiesEnabled,
           );
         } else {
           setFacebookPublicationPlacement((current) =>
             current === "reel" && preferences.reelsEnabled
               ? "reel"
-              : "classic",
+              : current === "story" && preferences.storiesEnabled
+                ? "story"
+                : "classic",
           );
           setFacebookStoryEnabled((current) =>
             current && preferences.storiesEnabled,
@@ -958,7 +974,6 @@ export default function PublishModal({
   const contentWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const contentWorkspaceScrollCleanupRef = useRef<(() => void) | null>(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
-  const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
   const publishRootRef = useRef<HTMLDivElement | null>(null);
   const publishScrollSnapshotRef = useRef<{
     element: HTMLElement | null;
@@ -1275,16 +1290,12 @@ export default function PublishModal({
   }, [postsByChannel.instagram?.hashtags?.join("|") ?? ""]);
 
   useEffect(() => {
-    onOverlayOpenChange?.(
-      isImageEditorOpen || aiConfigurationOpen || mediaGeneratorOpen,
-    );
+    onOverlayOpenChange?.(aiConfigurationOpen);
     return () => {
       onOverlayOpenChange?.(false);
     };
   }, [
-    isImageEditorOpen,
     aiConfigurationOpen,
-    mediaGeneratorOpen,
     onOverlayOpenChange,
   ]);
 
@@ -2030,17 +2041,13 @@ export default function PublishModal({
     setVideoVariantPreparationByChannel,
     videoTransformedVariants,
     setVideoTransformedVariants,
-    videoPreviewVariantsPreparing,
     videoSettingsByChannel,
     clearVideoVariantPreparationForChannel,
     clearPreparedVideoVariantsForChannel,
-    setVideoFormatForChannel,
-    setVideoAdaptationModeForChannel,
     uploadPublicationVideoForPublish,
     buildPublicationDraftVideoPayload,
     buildVideoPreparationStateFromVariants,
     preparePublicationVideoVariants,
-    applyVideoFormatsForChannels,
     clearVideoMediaState,
   } = usePublishVideoController({
     allChannels: CHANNEL_KEYS,
@@ -2464,93 +2471,6 @@ export default function PublishModal({
     return result;
   }
 
-  async function applyVideoFormatForChannel(channel: ChannelKey) {
-    if (mediaPipelineCutoverEnabled) {
-      // Le format est déjà enregistré par setVideoFormatForChannel. Le
-      // pipeline serveur réalisera l'éventuelle dérivée après Publier.
-      clearVideoVariantPreparationForChannel(channel);
-      setImgError("");
-      return;
-    }
-    const mediaModeByChannel = {
-      [channel]: resolveChannelMediaMode(channel),
-    } as Partial<Record<ChannelKey, ChannelMediaMode>>;
-
-    await applyVideoFormatsForChannels({
-      channels: [channel],
-      mediaModeByChannel,
-    });
-  }
-
-  async function applyVideoFormatToAllChannels(sourceChannel: ChannelKey) {
-    const publishMediaModeByChannel = Object.fromEntries(
-      selectedChannels.map((channel) => [
-        channel,
-        resolveChannelMediaMode(channel),
-      ]),
-    ) as Partial<Record<ChannelKey, ChannelMediaMode>>;
-    const videoChannels = selectedChannels.filter(
-      (channel) => publishMediaModeByChannel[channel] === "video",
-    );
-    if (!videoChannels.length) {
-      setImgError(i18nT("selectionnez_au_moins_un_canal_en_39050ae9"));
-      return;
-    }
-
-    const sourceSettings = videoSettingsByChannel[sourceChannel];
-    if (!sourceSettings) {
-      setImgError(i18nT("choisissez_d_abord_le_format_video_170a3d1e"));
-      return;
-    }
-
-    const sharedSettingsByChannel = videoChannels.reduce(
-      (acc, channel) => {
-        acc[channel] = {
-          format: normalizeVideoFormat(channel, sourceSettings.format),
-          adaptationMode: normalizeVideoAdaptationMode(
-            sourceSettings.adaptationMode,
-          ),
-        };
-        return acc;
-      },
-      {} as Partial<
-        Record<
-          ChannelKey,
-          { format: VideoFormat; adaptationMode: VideoAdaptationMode }
-        >
-      >,
-    );
-
-    setVideoFormatByChannel((prev) => {
-      const next = { ...prev };
-      videoChannels.forEach((channel) => {
-        const settings = sharedSettingsByChannel[channel];
-        if (settings) next[channel] = settings.format;
-      });
-      return next;
-    });
-    setVideoAdaptationModeByChannel((prev) => {
-      const next = { ...prev };
-      videoChannels.forEach((channel) => {
-        const settings = sharedSettingsByChannel[channel];
-        if (settings) next[channel] = settings.adaptationMode;
-      });
-      return next;
-    });
-
-    if (mediaPipelineCutoverEnabled) {
-      videoChannels.forEach(clearVideoVariantPreparationForChannel);
-      setImgError("");
-      return;
-    }
-
-    await applyVideoFormatsForChannels({
-      channels: videoChannels,
-      mediaModeByChannel: publishMediaModeByChannel,
-      settingsByChannel: sharedSettingsByChannel,
-    });
-  }
-
   const syncActiveImagesToPersistentWorkspace = useCallback(
     async (
       nextImages: readonly File[],
@@ -2570,19 +2490,12 @@ export default function PublishModal({
     getImageAdapterLabel,
     imageKeys,
     previewByKey,
-    activeEditorImageKey,
-    activeEditorTransform,
-    activeEditorDecisionMode,
-    activeEditorMeta,
-    activeEffectiveZoom,
-    activeBackgroundMode,
-    activeBackgroundColor,
     previewAspectRatio,
-    previewLayout,
     clearImagesMedia,
     onPickImagesClick,
     onPickImagesForChannel,
     addImageFiles,
+    replaceImageFile,
     onImagesChange,
     assignExistingImagesToChannel,
     removeImagesFromChannel,
@@ -2590,24 +2503,11 @@ export default function PublishModal({
     getDraftImageSettingsByChannel,
     uploadPublicationDraftImages,
     restorePublicationDraftImages,
-    updateChannelTransform,
-    setContainMode,
-    setCoverMode,
-    nudgeZoom,
-    handlePreviewWheel,
-    handlePreviewPointerDown,
-    handlePreviewPointerMove,
-    endPreviewDrag,
     toggleChannelImage,
     resetChannelImage,
-    resetActiveChannelImages,
-    applyCurrentCadrageToActiveChannelImages,
     moveChannelImage,
     moveChannelImageTo,
     applyChannelImageOrderToSelectedChannels,
-    applyCurrentImageToSelectedChannels,
-    openImageEditor,
-    closeImageEditor,
     uploadOriginalImagesForPublication,
     buildChannelImagesPayload,
     buildChannelImageSettingsPayload,
@@ -2630,8 +2530,6 @@ export default function PublishModal({
     setActiveImageChannel,
     activeImageKeyByChannel,
     setActiveImageKeyByChannel,
-    isImageEditorOpen,
-    setIsImageEditorOpen,
     isDraggingImage,
     setIsDraggingImage,
     hasVideoMedia: Boolean(videoFile || videoPreviewUrl),
@@ -2644,17 +2542,6 @@ export default function PublishModal({
     restorePublishScroll,
     syncPersistentWorkspaceImages: syncActiveImagesToPersistentWorkspace,
   });
-
-  const activeChannelDisplayImageKeys = useMemo(() => {
-    const selectedKeys = (
-      channelImageEditors[activeImageChannel]?.imageKeys || []
-    ).filter((key) => imageKeys.includes(key));
-    const selectedKeySet = new Set(selectedKeys);
-    return [
-      ...selectedKeys,
-      ...imageKeys.filter((key) => !selectedKeySet.has(key)),
-    ];
-  }, [activeImageChannel, channelImageEditors, imageKeys]);
 
   const selectedForGeneration = useMemo(() => {
     return CHANNEL_KEYS.filter((channel) => channels[channel] && connected[channel]);
@@ -3226,8 +3113,12 @@ export default function PublishModal({
           restoredInstagramSelection.primaryPlacement === "reel" &&
           instagramPublicationPreferencesRef.current.reelsEnabled
             ? "reel"
-            : "classic";
+            : restoredInstagramSelection.primaryPlacement === "story" &&
+                instagramPublicationPreferencesRef.current.storiesEnabled
+              ? "story"
+              : "classic";
         const nextInstagramStoryEnabled =
+          restoredInstagramSelection.primaryPlacement !== "story" &&
           restoredInstagramSelection.includeStory &&
           instagramPublicationPreferencesRef.current.storiesEnabled;
         const restoredFacebookSelection = normalizeMetaPublicationSelection(
@@ -3240,8 +3131,12 @@ export default function PublishModal({
           restoredFacebookSelection.primaryPlacement === "reel" &&
           facebookPublicationPreferencesRef.current.reelsEnabled
             ? "reel"
-            : "classic";
+            : restoredFacebookSelection.primaryPlacement === "story" &&
+                facebookPublicationPreferencesRef.current.storiesEnabled
+              ? "story"
+              : "classic";
         const nextFacebookStoryEnabled =
+          restoredFacebookSelection.primaryPlacement !== "story" &&
           restoredFacebookSelection.includeStory &&
           facebookPublicationPreferencesRef.current.storiesEnabled;
         const nextPinterestBoardId = String(
@@ -3540,10 +3435,14 @@ export default function PublishModal({
       instagramDefaultSelection.primaryPlacement === "reel" &&
         instagramPublicationPreferencesRef.current.reelsEnabled
         ? "reel"
-        : "classic",
+        : instagramDefaultSelection.primaryPlacement === "story" &&
+            instagramPublicationPreferencesRef.current.storiesEnabled
+          ? "story"
+          : "classic",
     );
     setInstagramStoryEnabled(
-      instagramDefaultSelection.includeStory &&
+      instagramDefaultSelection.primaryPlacement !== "story" &&
+        instagramDefaultSelection.includeStory &&
         instagramPublicationPreferencesRef.current.storiesEnabled,
     );
     facebookPlacementTouchedRef.current = false;
@@ -3554,10 +3453,14 @@ export default function PublishModal({
       facebookDefaultSelection.primaryPlacement === "reel" &&
         facebookPublicationPreferencesRef.current.reelsEnabled
         ? "reel"
-        : "classic",
+        : facebookDefaultSelection.primaryPlacement === "story" &&
+            facebookPublicationPreferencesRef.current.storiesEnabled
+          ? "story"
+          : "classic",
     );
     setFacebookStoryEnabled(
-      facebookDefaultSelection.includeStory &&
+      facebookDefaultSelection.primaryPlacement !== "story" &&
+        facebookDefaultSelection.includeStory &&
         facebookPublicationPreferencesRef.current.storiesEnabled,
     );
     closeEmptyContentWarnings();
@@ -3589,7 +3492,6 @@ export default function PublishModal({
     setDraftMessage("");
     setLastPublicationDraftSnapshot(null);
     setContentWorkspaceOpen(false);
-    setIsImageEditorOpen(false);
     clearImagesMedia();
     clearVideoMedia({ cleanupStorage: true, reason: "reset-publication" });
     void clearPersistentWorkspaceMedia();
@@ -4654,18 +4556,252 @@ export default function PublishModal({
     return true;
   };
 
-  const addGeneratedMediaToPublication = async (
-    result: MediaGenerationResult,
-  ) => {
-    const inserted = await addMediaLibrarySelection(
-      [result.item],
-      { kind: "publication" },
+  const studioReturnKey = String(searchParams?.get("studio_return") || "").trim();
+
+  useEffect(() => {
+    if (!studioReturnKey) return;
+    const result = consumeInrStudioReturn(studioReturnKey);
+    if (!result?.item) return;
+
+    const nextParams = new URLSearchParams(searchParams?.toString() || "");
+    nextParams.delete("studio_return");
+    router.replace(
+      `${window.location.pathname}${nextParams.size ? `?${nextParams.toString()}` : ""}`,
+      { scroll: false },
     );
-    if (!inserted) {
-      throw new Error(mediaT("ai_generator_insert_error"));
+
+    setPendingStudioReturn(result);
+  }, [router, searchParams, studioReturnKey]);
+
+  useEffect(() => {
+    if (!pendingStudioReturn?.item) return;
+    const expectedDraftId = String(
+      pendingStudioReturn.context.draftId || "",
+    ).trim();
+    if (
+      expectedDraftId &&
+      loadedPublicationDraftId !== expectedDraftId
+    ) {
+      return;
     }
-    setMediaGeneratorOpen(false);
-  };
+    if (
+      studioReturnApplyingKeyRef.current === pendingStudioReturn.returnKey
+    ) {
+      return;
+    }
+    studioReturnApplyingKeyRef.current = pendingStudioReturn.returnKey;
+
+    const returnedRecord = pendingStudioReturn.item;
+    const returnedItem = returnedRecord as unknown as MediaLibraryPickerItem;
+    const returnedMediaType = String(returnedRecord.media_type || "").trim();
+    const isReturnedVideo =
+      pendingStudioReturn.action === "retouch" &&
+      (pendingStudioReturn.context.mediaType === "video" ||
+        returnedMediaType === "video" ||
+        returnedRecord.studio_video_retouch === true);
+
+    if (isReturnedVideo) {
+      const rawChannel = String(
+        pendingStudioReturn.context.channel || "",
+      ).trim();
+      if (!isChannelKey(rawChannel)) {
+        setImgError(mediaT("ai_generator_insert_error"));
+        setPendingStudioReturn(null);
+        studioReturnApplyingKeyRef.current = "";
+        return;
+      }
+
+      const channel = rawChannel;
+      const format = normalizeVideoFormat(
+        channel,
+        returnedRecord.video_format,
+      );
+      const adaptationMode = normalizeVideoAdaptationMode(
+        returnedRecord.video_adaptation_mode,
+      );
+      const returnedVariants = normalizeRestoredVideoVariants(
+        returnedRecord.transformed_variants,
+      );
+      // La variante fraîche d'iNrStudio gagne si une ancienne variante avait
+      // déjà la même signature. Les variantes des autres canaux sont gardées.
+      const mergedVariants = normalizeRestoredVideoVariants([
+        ...returnedVariants,
+        ...videoTransformedVariants,
+      ]);
+      const storagePath = String(
+        returnedRecord.storage_path || "",
+      ).trim();
+      const publicUrl = String(
+        returnedRecord.signed_url ||
+          returnedRecord.public_url ||
+          returnedRecord.publicUrl ||
+          "",
+      ).trim();
+      const rawSourceMetadata = returnedRecord.source_metadata;
+      const returnedSourceMetadata =
+        rawSourceMetadata &&
+        typeof rawSourceMetadata === "object" &&
+        !Array.isArray(rawSourceMetadata)
+          ? (rawSourceMetadata as BoosterVideoSourceMetadata)
+          : null;
+      const returnedDuration = Number(
+        returnedRecord.duration_seconds || returnedSourceMetadata?.duration || 0,
+      );
+
+      const applyReturnedVideoSettings = () => {
+        setVideoFormatByChannel((current) => ({
+          ...current,
+          [channel]: format,
+        }));
+        setVideoAdaptationModeByChannel((current) => ({
+          ...current,
+          [channel]: adaptationMode,
+        }));
+        setVideoTransformedVariants(mergedVariants);
+        // Ne remplace pas le stockage durable du brouillon Booster par une URL
+        // signée temporaire de la Médiathèque. Une nouvelle source reste un
+        // File local et repassera par l'upload Booster au prochain save/publish.
+        if (
+          !sourceWasReplaced &&
+          !videoStorageContext &&
+          !mediaPipelineCutoverEnabled &&
+          (storagePath || publicUrl)
+        ) {
+          setVideoStorageContext({
+            storagePath,
+            publicUrl,
+            url: publicUrl,
+          });
+        }
+        if (returnedSourceMetadata) {
+          setVideoSourceMetadata(returnedSourceMetadata);
+        }
+        if (Number.isFinite(returnedDuration) && returnedDuration > 0) {
+          setVideoDurationSeconds(returnedDuration);
+        }
+        setVideoVariantPreparationByChannel((current) => {
+          const next = { ...current };
+          delete next[channel];
+          if (mediaPipelineCutoverEnabled) return next;
+          return {
+            ...next,
+            ...buildVideoPreparationStateFromVariants({
+              channels: [channel],
+              mediaModeByChannel: { [channel]: "video" },
+              variants: mergedVariants,
+              settingsByChannel: {
+                [channel]: { format, adaptationMode },
+              },
+            }),
+          };
+        });
+        setImgError("");
+      };
+
+      const sourceNameBeforeStudio = String(
+        pendingStudioReturn.context.videoSourceName || "",
+      ).trim();
+      const sourceSizeBeforeStudio = Number(
+        pendingStudioReturn.context.videoSourceSize || 0,
+      );
+      const sourceStorageBeforeStudio = String(
+        pendingStudioReturn.context.videoSourceStoragePath || "",
+      ).trim();
+      const returnedSourceName = String(
+        returnedRecord.original_file_name || "",
+      ).trim();
+      const returnedSourceSize = Number(returnedRecord.size_bytes || 0);
+      const sourceWasReplaced =
+        !videoFile ||
+        Boolean(
+          sourceNameBeforeStudio &&
+            returnedSourceName &&
+            sourceNameBeforeStudio !== returnedSourceName,
+        ) ||
+        Boolean(
+          sourceSizeBeforeStudio > 0 &&
+            returnedSourceSize > 0 &&
+            sourceSizeBeforeStudio !== returnedSourceSize,
+        ) ||
+        Boolean(
+          sourceStorageBeforeStudio &&
+            storagePath &&
+            sourceStorageBeforeStudio !== storagePath,
+        );
+
+      const replacement =
+        sourceWasReplaced && returnedItem.signed_url
+          ? mediaLibraryItemToFile(returnedItem).then((file) =>
+              addVideoFile(file, {
+                hasImages: images.length > 0,
+                targetChannel: channel,
+                transferredMetadata: returnedItem,
+              }),
+            )
+          : Promise.resolve(true);
+
+      void replacement
+        .then((replaced) => {
+          if (!replaced) {
+            throw new Error(mediaT("ai_generator_insert_error"));
+          }
+          applyReturnedVideoSettings();
+        })
+        .catch((error) =>
+          setImgError(
+            error instanceof Error
+              ? error.message
+              : mediaT("ai_generator_insert_error"),
+          ),
+        )
+        .finally(() => {
+          setPendingStudioReturn(null);
+          studioReturnApplyingKeyRef.current = "";
+        });
+      return;
+    }
+
+    if (
+      pendingStudioReturn.action === "retouch" ||
+      pendingStudioReturn.action === "modify"
+    ) {
+      const imageKey = String(
+        pendingStudioReturn.context.imageKey || "",
+      ).trim();
+      if (!imageKey || returnedItem.media_type !== "image") {
+        setImgError(mediaT("ai_generator_insert_error"));
+        setPendingStudioReturn(null);
+        studioReturnApplyingKeyRef.current = "";
+        return;
+      }
+      void mediaLibraryItemToFile(returnedItem)
+        .then((file) => replaceImageFile(imageKey, file))
+        .then((replaced) => {
+          if (!replaced) setImgError(mediaT("ai_generator_insert_error"));
+        })
+        .catch((error) =>
+          setImgError(
+            error instanceof Error
+              ? error.message
+              : mediaT("ai_generator_insert_error"),
+          ),
+        )
+        .finally(() => {
+          setPendingStudioReturn(null);
+          studioReturnApplyingKeyRef.current = "";
+        });
+      return;
+    }
+
+    void addMediaLibrarySelection([returnedItem], { kind: "publication" }).then(
+      (inserted) => {
+        if (!inserted) setImgError(mediaT("ai_generator_insert_error"));
+      },
+    ).finally(() => {
+      setPendingStudioReturn(null);
+      studioReturnApplyingKeyRef.current = "";
+    });
+  }, [loadedPublicationDraftId, pendingStudioReturn]);
 
   const applyOptimizedMediaToBooster = async (item: MediaOptimizerItem) => {
     setImgError("");
@@ -4828,7 +4964,22 @@ export default function PublishModal({
     return channelsToKeep.reduce(
       (acc, channel) => {
         const post = preparedPosts[channel];
-        if (post) acc[channel] = post;
+        if (!post) return acc;
+        const metaSelection =
+          channel === "instagram"
+            ? buildMetaPublicationSelection(
+                instagramPublicationPlacement,
+                instagramStoryEnabled,
+              )
+            : channel === "facebook"
+              ? buildMetaPublicationSelection(
+                  facebookPublicationPlacement,
+                  facebookStoryEnabled,
+                )
+              : null;
+        acc[channel] = metaSelection
+          ? stripMetaStoryOnlyPostContent(post, metaSelection)
+          : post;
         return acc;
       },
       {} as Partial<Record<ChannelKey, ChannelPost>>,
@@ -5290,7 +5441,8 @@ export default function PublishModal({
 
     if (
       publishableChannels.includes("facebook") &&
-      (facebookPublicationPlacement === "reel" || facebookStoryEnabled)
+      ((facebookPublicationPlacement === "reel" || facebookStoryEnabled) ||
+        facebookPublicationPlacement === "story")
     ) {
       const facebookMode = publishMediaModeByChannel.facebook || "none";
       const facebookImages = channelImageEditors.facebook?.imageKeys || [];
@@ -5980,8 +6132,10 @@ export default function PublishModal({
     }
   };
 
-  const onSavePublicationDraft = async () => {
-    if (saving || draftSaving || voiceInputBusy) return;
+  const onSavePublicationDraft = async (options?: {
+    updateRoute?: boolean;
+  }): Promise<string | null> => {
+    if (saving || draftSaving || voiceInputBusy) return null;
 
     setPublishError("");
     setDraftMessage("");
@@ -5991,7 +6145,7 @@ export default function PublishModal({
         i18nT("ajoutez_un_contenu_ou_un_media_b14123ad"),
       );
       scrollToPublishArea("smooth");
-      return;
+      return null;
     }
 
     if (!selectedChannels.length) {
@@ -5999,7 +6153,7 @@ export default function PublishModal({
         i18nT("selectionnez_au_moins_1_canal_avant_ce44da85"),
       );
       scrollToPublishArea("smooth");
-      return;
+      return null;
     }
 
     const preparedPostsByChannel = filterPostsForSelectedChannels(
@@ -6043,6 +6197,7 @@ export default function PublishModal({
       const rawVideoDraft = mediaPipelineCutoverEnabled && mediaWorkspaceId
         ? null
         : await buildPublicationDraftVideoPayload();
+      lastSavedStudioVideoDraftRef.current = rawVideoDraft;
       const videoDraft = rawVideoDraft
         ? {
             ...rawVideoDraft,
@@ -6140,18 +6295,22 @@ export default function PublishModal({
           console.warn("[media-pipeline] workspace draft link skipped", error);
         });
         setLoadedPublicationDraftId(savedDraftId);
-        router.replace(
-          `/dashboard?action=publish&draftId=${encodeURIComponent(savedDraftId)}`,
-          { scroll: false },
-        );
+        if (options?.updateRoute !== false) {
+          router.replace(
+            `/dashboard?action=publish&draftId=${encodeURIComponent(savedDraftId)}`,
+            { scroll: false },
+          );
+        }
       }
       setLastPublicationDraftSnapshot(currentPublicationDraftSnapshot);
       onUnsavedChange?.(false);
       setDraftMessage(i18nT("brouillon_enregistre_5b3c3ae3"));
+      return savedDraftId || null;
     } catch (e) {
       setPublishError(
         getSimpleFrenchErrorMessage(e, i18nT("publication_draft_save_failed")),
       );
+      return null;
     } finally {
       setDraftSaving(false);
     }
@@ -6826,11 +6985,20 @@ export default function PublishModal({
       const hasContent = !!String(post?.content || "").trim();
       const instagramStoryAlsoPublished =
         channel === "instagram" && instagramStoryEnabled;
+      const instagramStoryOnlyPublished =
+        channel === "instagram" && instagramPublicationPlacement === "story";
+      const instagramStoryPublished =
+        instagramStoryAlsoPublished || instagramStoryOnlyPublished;
       const facebookVerticalFormat =
         channel === "facebook" &&
-        (facebookPublicationPlacement === "reel" || facebookStoryEnabled);
+        ((facebookPublicationPlacement === "reel" || facebookStoryEnabled) ||
+          facebookPublicationPlacement === "story");
       const facebookStoryAlsoPublished =
         channel === "facebook" && facebookStoryEnabled;
+      const facebookStoryOnlyPublished =
+        channel === "facebook" && facebookPublicationPlacement === "story";
+      const facebookStoryPublished =
+        facebookStoryAlsoPublished || facebookStoryOnlyPublished;
       const hasText = hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
@@ -6864,7 +7032,8 @@ export default function PublishModal({
       const effectiveVideoDuration = Number(
         videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
       );
-      const facebookMaximumDuration = facebookStoryEnabled ? 60 : 90;
+      const facebookMaximumDuration =
+        facebookStoryPublished ? 60 : 90;
       const facebookVerticalDurationInvalid =
         facebookVerticalFormat &&
         hasVideo &&
@@ -6941,7 +7110,7 @@ export default function PublishModal({
           : code === "facebook_vertical_media_required"
           ? "Facebook Reel/Story nécessite une image ou une vidéo."
           : code === "facebook_vertical_duration_invalid"
-            ? facebookStoryEnabled
+            ? facebookStoryPublished
               ? "Une Story Facebook doit durer entre 3 et 60 secondes."
               : "Un Reel Facebook doit durer entre 3 et 90 secondes."
           : getLocalizedChannelPublicationRequirement(
@@ -6965,14 +7134,14 @@ export default function PublishModal({
         imageCount: imageKeysToPublish.length,
         warnings: [
           ...requirements.warningCodes.map(localizeRequirement),
-          ...(instagramStoryAlsoPublished
+          ...(instagramStoryPublished
             ? [
                 i18nT("instagram_review_media_only_warning", {
                   mode: i18nT("instagram_stories"),
                 }),
               ]
             : []),
-          ...(facebookStoryAlsoPublished
+          ...(facebookStoryPublished
             ? [
                 i18nT("instagram_review_media_only_warning", {
                   mode: i18nT("instagram_stories"),
@@ -7262,6 +7431,207 @@ export default function PublishModal({
     .join("\n\n")
     .slice(0, 1_600);
 
+  const preparePublicationDraftForStudio = async (): Promise<{
+    draftId: string | null;
+    returnHref: string | null;
+    videoDraft: VideoPayload | null;
+  } | null> => {
+    const existingDraftId = String(
+      loadedPublicationDraftId || publicationDraftIdParam || "",
+    ).trim();
+    if (!hasDraftablePublicationContent) {
+      return {
+        draftId: existingDraftId || null,
+        returnHref: null,
+        videoDraft: null,
+      };
+    }
+    if (!hasUnsavedChanges && existingDraftId) {
+      return {
+        draftId: existingDraftId,
+        returnHref: `/dashboard?action=publish&draftId=${encodeURIComponent(existingDraftId)}`,
+        videoDraft: null,
+      };
+    }
+    lastSavedStudioVideoDraftRef.current = null;
+    const savedDraftId = await onSavePublicationDraft({ updateRoute: false });
+    if (!savedDraftId) return null;
+    return {
+      draftId: savedDraftId,
+      returnHref: `/dashboard?action=publish&draftId=${encodeURIComponent(savedDraftId)}`,
+      videoDraft: lastSavedStudioVideoDraftRef.current,
+    };
+  };
+
+  const openInrStudioGenerator = async () => {
+    try {
+      const draftState = await preparePublicationDraftForStudio();
+      if (!draftState) return;
+      const { href } = await createInrStudioHandoff({
+        tab: "generate",
+        origin: "booster-publish",
+        returnHref: draftState.returnHref,
+        publicationBrief: mediaGenerationBrief,
+        context: {
+          draftId: draftState.draftId,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      setImgError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.",
+      );
+    }
+  };
+
+  const openInrStudioImageTool = async (
+    tab: "modify" | "retouch",
+    channel: ChannelKey,
+    imageKey: string,
+  ) => {
+    const sourceFile = images.find((file) => makeImageKey(file) === imageKey);
+    const sourceUrl = previewByKey[imageKey] || null;
+    if (!sourceFile && !sourceUrl) {
+      setImgError("Cette image n’est plus disponible pour cette action.");
+      return;
+    }
+    try {
+      const draftState = await preparePublicationDraftForStudio();
+      if (!draftState) return;
+      const { href } = await createInrStudioHandoff({
+        tab,
+        origin: "booster-publish",
+        returnHref: draftState.returnHref,
+        source: {
+          file: sourceFile || null,
+          url: sourceUrl,
+          name: sourceFile?.name || "image-booster",
+          mimeType: sourceFile?.type || "image/jpeg",
+        },
+        context: {
+          channel,
+          imageKey,
+          draftId: draftState.draftId,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      setImgError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.",
+      );
+    }
+  };
+
+  const openInrStudioRetoucher = (channel: ChannelKey, imageKey: string) =>
+    openInrStudioImageTool("retouch", channel, imageKey);
+  const openInrStudioModifier = (channel: ChannelKey, imageKey: string) =>
+    openInrStudioImageTool("modify", channel, imageKey);
+
+  const openInrStudioVideoRetoucher = async (channel: ChannelKey) => {
+    const currentDurableSourceUrl = String(
+      videoStorageContext?.publicUrl || videoStorageContext?.url || "",
+    ).trim();
+    if (!videoFile && !currentDurableSourceUrl && !videoPreviewUrl) {
+      setImgError("Cette vidéo n’est plus disponible pour cette action.");
+      return;
+    }
+
+    const format = normalizeVideoFormat(
+      channel,
+      videoSettingsByChannel[channel]?.format ||
+        videoFormatByChannel[channel] ||
+        "original",
+    );
+    const adaptationMode = normalizeVideoAdaptationMode(
+      videoSettingsByChannel[channel]?.adaptationMode ||
+        videoAdaptationModeByChannel[channel],
+    );
+    const sourceName = videoFile?.name || "video-booster.mp4";
+    const sourceMimeType =
+      videoFile?.type || videoSourceMetadata?.type || "video/mp4";
+    const sourceSize = Number(
+      videoFile?.size || videoSourceMetadata?.size || 0,
+    );
+
+    try {
+      const draftState = await preparePublicationDraftForStudio();
+      if (!draftState) return;
+      const savedVideoDraft = draftState.videoDraft;
+      const durableSourceUrl = String(
+        savedVideoDraft?.publicUrl ||
+          savedVideoDraft?.url ||
+          currentDurableSourceUrl ||
+          "",
+      ).trim();
+      const durableStoragePath = String(
+        savedVideoDraft?.storagePath ||
+          videoStorageContext?.storagePath ||
+          "",
+      ).trim();
+      const sourceUrl =
+        durableSourceUrl || (!videoFile ? String(videoPreviewUrl || "") : "");
+      const videoMediaRecord: VideoPayload = savedVideoDraft || {
+        name: sourceName,
+        type: sourceMimeType,
+        size: sourceSize,
+        lastModified: videoFile?.lastModified || Date.now(),
+        duration: videoDurationSeconds,
+        sourceMetadata: videoSourceMetadata,
+        storagePath: durableStoragePath,
+        publicUrl: durableSourceUrl,
+        url: durableSourceUrl,
+        transformedVariants: videoTransformedVariants,
+      };
+      const { href } = await createInrStudioHandoff({
+        tab: "retouch",
+        origin: "booster-publish",
+        returnHref: draftState.returnHref,
+        source: {
+          mediaType: "video",
+          file: videoFile,
+          // Quand la source n’existe que sous forme de File, le handoff crée
+          // sa propre URL blob. Elle ne sera pas révoquée au démontage de
+          // Booster pendant la navigation vers iNrStudio.
+          url: sourceUrl || null,
+          name: sourceName,
+          mimeType: sourceMimeType,
+        },
+        context: {
+          channel,
+          mediaType: "video",
+          draftId: draftState.draftId,
+          videoSourceName: sourceName,
+          videoSourceSize: sourceSize,
+          videoSourceStoragePath: durableStoragePath || null,
+        },
+        payload: {
+          videoChannel: channel,
+          videoFormat: format,
+          videoAdaptationMode: adaptationMode,
+          videoStoragePath: durableStoragePath || null,
+          videoPublicUrl: durableSourceUrl || null,
+          videoDurationSeconds,
+          videoSize: sourceSize,
+          videoSourceMetadata,
+          videoTransformedVariants,
+          videoMediaRecord,
+          deferVideoPreparation: mediaPipelineCutoverEnabled,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      setImgError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.",
+      );
+    }
+  };
+
   return (
     <div ref={publishRootRef} style={{ display: "grid", gap: 12, minWidth: 0 }}>
       <PublishHelpModal
@@ -7274,16 +7644,6 @@ export default function PublishModal({
         isMobile={isMobile}
         drawerHeight={aiDrawerHeight}
         onClose={() => setAiConfigurationOpen(false)}
-      />
-
-      <MediaGeneratorModal
-        open={mediaGeneratorOpen}
-        source="booster"
-        origin="booster"
-        publicationBrief={mediaGenerationBrief}
-        acceptMode="insert"
-        onClose={() => setMediaGeneratorOpen(false)}
-        onAccepted={addGeneratedMediaToPublication}
       />
 
       <TiktokPublicationSettingsModal
@@ -7300,6 +7660,9 @@ export default function PublishModal({
         previewMediaUrl={tiktokSettingsPreviewMediaUrl}
         previewMediaName={tiktokSettingsPreviewMediaName}
         previewMediaCount={tiktokSettingsPreviewMediaCount}
+        onRetouchVideo={() =>
+          void openInrStudioVideoRetoucher("tiktok")
+        }
         onCancel={closeTiktokSettingsModal}
         onValidate={validateTiktokSettingsModal}
         onExcludeAndContinue={excludeTiktokAndContinue}
@@ -7539,7 +7902,7 @@ export default function PublishModal({
               onPickImagesClick();
             }}
             onPickVideoClick={() => onPickVideoClick({ kind: "generation" })}
-            onGenerateMedia={() => setMediaGeneratorOpen(true)}
+            onGenerateMedia={() => void openInrStudioGenerator()}
             onTakePhotoClick={() => onTakePhotoClick(undefined, "generation")}
             onOpenMediaLibrary={() => {
               setMediaLibraryPickerScope("generation");
@@ -7550,6 +7913,9 @@ export default function PublishModal({
             videoFile={videoFile}
             videoPreviewUrl={videoPreviewUrl}
             videoDurationSeconds={videoDurationSeconds}
+            onRetouchVideo={() =>
+              void openInrStudioVideoRetoucher(activeImageChannel)
+            }
             removeVideo={removeVideo}
             removeImage={removeImage}
             useImagesForAI={useImagesForAI}
@@ -7623,8 +7989,12 @@ export default function PublishModal({
                   placement === "reel" &&
                     instagramPublicationPreferencesRef.current.reelsEnabled
                     ? "reel"
+                    : placement === "story" &&
+                        instagramPublicationPreferencesRef.current.storiesEnabled
+                      ? "story"
                     : "classic",
                 );
+                if (placement === "story") setInstagramStoryEnabled(false);
               }}
               onInstagramStoryEnabledChange={(enabled) => {
                 instagramPlacementTouchedRef.current = true;
@@ -7643,8 +8013,12 @@ export default function PublishModal({
                   placement === "reel" &&
                     facebookPublicationPreferencesRef.current.reelsEnabled
                     ? "reel"
+                    : placement === "story" &&
+                        facebookPublicationPreferencesRef.current.storiesEnabled
+                      ? "story"
                     : "classic",
                 );
+                if (placement === "story") setFacebookStoryEnabled(false);
               }}
               onFacebookStoryEnabledChange={(enabled) => {
                 facebookPlacementTouchedRef.current = true;
@@ -7663,10 +8037,6 @@ export default function PublishModal({
               channelMediaModes={channelMediaModes}
               setChannelMediaMode={setChannelMediaMode}
               onRemoveMediaFromChannel={removeMediaFromChannel}
-              videoFormatByChannel={videoFormatByChannel}
-              setVideoFormatForChannel={setVideoFormatForChannel}
-              videoAdaptationModeByChannel={videoAdaptationModeByChannel}
-              setVideoAdaptationModeForChannel={setVideoAdaptationModeForChannel}
               images={images}
               videoFile={videoFile}
               videoPreviewUrl={videoPreviewUrl}
@@ -7677,24 +8047,8 @@ export default function PublishModal({
                   ? {}
                   : videoVariantPreparationByChannel
               }
-              videoTransformedVariants={videoTransformedVariants}
-              videoPreviewVariantsPreparing={
-                mediaPipelineCutoverEnabled
-                  ? false
-                  : videoPreviewVariantsPreparing
-              }
-              deferTechnicalPreparationUntilPublish={
-                mediaPipelineCutoverEnabled
-              }
-              onApplyVideoFormatForChannel={
-                mediaPipelineCutoverEnabled
-                  ? undefined
-                  : applyVideoFormatForChannel
-              }
-              onApplyVideoFormatToAllChannels={
-                mediaPipelineCutoverEnabled
-                  ? undefined
-                  : applyVideoFormatToAllChannels
+              openVideoRetoucher={(channel) =>
+                void openInrStudioVideoRetoucher(channel)
               }
               removeVideo={removeVideo}
               imgError={imgError}
@@ -7725,7 +8079,7 @@ export default function PublishModal({
               }
               onRemoveImagesFromChannel={removeImagesFromChannel}
               onPickVideoClick={() => onPickVideoClick({ kind: "publication" })}
-              onGenerateMedia={() => setMediaGeneratorOpen(true)}
+              onGenerateMedia={() => void openInrStudioGenerator()}
               onOpenMediaLibrary={() => {
                 setMediaLibraryPickerScope("publication");
                 setMediaLibraryPickerOpen(true);
@@ -7735,7 +8089,12 @@ export default function PublishModal({
                 onTakePhotoClick(channel, "publication")
               }
               toggleChannelImage={toggleChannelImage}
-              openImageEditor={openImageEditor}
+              openImageRetoucher={(channel, imageKey) =>
+                void openInrStudioRetoucher(channel, imageKey)
+              }
+              openImageModifier={(channel, imageKey) =>
+                void openInrStudioModifier(channel, imageKey)
+              }
               resetChannelImage={resetChannelImage}
               removeImage={removeImage}
               moveChannelImage={moveChannelImage}
@@ -7757,156 +8116,6 @@ export default function PublishModal({
               setSynchronizedActiveChannel={setSynchronizedActiveChannel}
             />
           </div>
-
-          <ChannelImageAdapterModal
-        open={!!(isImageEditorOpen && activeEditorImageKey)}
-        title={i18nT("adapter_image_value_c159004c", {
-          value0:
-            Math.max(
-              0,
-              activeChannelDisplayImageKeys.indexOf(activeEditorImageKey || ""),
-            ) + 1,
-        })}
-        subtitle={`${getLocalizedChannelLabel(activeImageChannel, runtimeT)} • ${getLocalizedImageDecisionLabel(activeEditorDecisionMode, runtimeT)}`}
-        aspectRatio={previewAspectRatio}
-        backgroundMode={activeBackgroundMode}
-        backgroundColor={activeBackgroundColor}
-        fitLabel={getLocalizedImageFitLabel(activeEditorTransform, runtimeT)}
-        zoomLabel={i18nT("zoom_value_1d90c01c", { value0: activeEffectiveZoom.toFixed(2) })}
-        previewSrc={
-          activeEditorImageKey ? previewByKey[activeEditorImageKey] : ""
-        }
-        previewLayout={previewLayout}
-        isDragging={isDraggingImage}
-        onClose={closeImageEditor}
-        onWheel={handlePreviewWheel}
-        onPointerDown={handlePreviewPointerDown}
-        onPointerMove={handlePreviewPointerMove}
-        onPointerUp={endPreviewDrag}
-        onPointerCancel={endPreviewDrag}
-        previewRef={previewStageRef}
-        buttonClassName={styles.secondaryBtn}
-        primaryButtonClassName={styles.primaryBtn}
-        onZoomOut={() => nudgeZoom(-0.08)}
-        onZoomIn={() => nudgeZoom(0.08)}
-        onContain={() =>
-          activeEditorImageKey &&
-          setContainMode(activeImageChannel, activeEditorImageKey)
-        }
-        onCover={() =>
-          activeEditorImageKey &&
-          setCoverMode(activeImageChannel, activeEditorImageKey)
-        }
-        onReset={() =>
-          activeEditorImageKey &&
-          resetChannelImage(activeImageChannel, activeEditorImageKey)
-        }
-        onDoubleClick={() =>
-          activeEditorImageKey &&
-          updateChannelTransform(activeImageChannel, activeEditorImageKey, {
-            offsetX: 0,
-            offsetY: 0,
-          })
-        }
-        onSave={closeImageEditor}
-        onApplyToChannelImages={
-          (channelImageEditors[activeImageChannel]?.imageKeys || []).length > 1
-            ? applyCurrentCadrageToActiveChannelImages
-            : undefined
-        }
-        onResetChannel={
-          (channelImageEditors[activeImageChannel]?.imageKeys || []).length
-            ? resetActiveChannelImages
-            : undefined
-        }
-        isolationNote={i18nT(
-          activeImageChannel === "gmb"
-            ? "image_setting_channel_only_gmb"
-            : "image_setting_channel_only",
-          {
-            channel: getLocalizedChannelLabel(activeImageChannel, runtimeT),
-          },
-        )}
-        onApplyToSelectedChannels={
-          activeImageChannel === "inrcy_site" ||
-          activeImageChannel === "site_web"
-            ? undefined
-            : applyCurrentImageToSelectedChannels
-        }
-        onBackgroundModeChange={(mode) =>
-          activeEditorImageKey &&
-          updateChannelTransform(
-            activeImageChannel,
-            activeEditorImageKey,
-            mode === "transparent"
-              ? {
-                  backgroundMode: "transparent",
-                  backgroundColor: undefined,
-                  blurBackground: false,
-                  fit: "contain",
-                  zoom: 1,
-                  offsetX: 0,
-                  offsetY: 0,
-                }
-              : {
-                  backgroundMode: mode,
-                  backgroundColor:
-                    mode === "black"
-                      ? "#0d1320"
-                      : mode === "white"
-                        ? "#ffffff"
-                        : activeEditorTransform.backgroundColor ||
-                          (getChannelSafetyBackgroundMode(activeImageChannel) === "black"
-                            ? "#0d1320"
-                            : "#ffffff"),
-                  blurBackground: false,
-                  fit: "contain",
-                  zoom: 1,
-                  offsetX: 0,
-                  offsetY: 0,
-                },
-          )
-        }
-        onBackgroundColorChange={(color) =>
-          activeEditorImageKey &&
-          updateChannelTransform(activeImageChannel, activeEditorImageKey, {
-            backgroundMode: "color",
-            backgroundColor: color,
-            blurBackground: false,
-            fit: "contain",
-            zoom: 1,
-            offsetX: 0,
-            offsetY: 0,
-          })
-        }
-        pillButtonStyle={pillBtn}
-        pillButtonActiveStyle={pillBtnActive}
-        sidebarItems={activeChannelDisplayImageKeys.map((key, index) => {
-          const included = (
-            channelImageEditors[activeImageChannel]?.imageKeys || []
-          ).includes(key);
-          const transform =
-            channelImageEditors[activeImageChannel]?.transforms?.[key] ||
-            getOptimizedTransform(activeImageChannel, imageMetaByKey[key]);
-          return {
-            key,
-            previewUrl: previewByKey[key],
-            title: i18nT("image_value_5907a7ef", { value0: index + 1 }),
-            subtitle: i18nT(
-              included
-                ? "image_published_on_channel"
-                : "image_not_sent_on_channel",
-            ),
-            fitLabel: getLocalizedImageFitLabel(transform, runtimeT),
-            active: key === activeEditorImageKey,
-            onClick: () =>
-              setActiveImageKeyByChannel((prev) => ({
-                ...prev,
-                [activeImageChannel]: key,
-              })),
-          };
-        })}
-          />
 
           <PublishFooterActions
             styles={styles}

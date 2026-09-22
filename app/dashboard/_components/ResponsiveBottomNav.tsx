@@ -12,6 +12,7 @@ import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { useDashboardLanguage } from "../_hooks/useDashboardLanguage";
 import { useDashboardNotifications } from "../_hooks/useDashboardNotifications";
 import { createClient } from "@/lib/supabaseClient";
+import { beginBrowserSignOut, cancelBrowserSignOut } from "@/lib/browserSignOutState";
 import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import NotificationMenu from "./NotificationMenu";
@@ -468,10 +469,12 @@ function ResponsiveBottomNavMobile() {
   const handleLogout = useCallback(async () => {
     await requestNavigation(async () => {
       const supabase = createClient();
+      beginBrowserSignOut();
       setActiveBrowserUserId(null);
       const { error } = await (supabase.auth.signOut as any)({ scope: "local" })
         .catch(() => ({ error: null as { message?: string } | null }));
       if (error) {
+        cancelBrowserSignOut();
         console.error("Erreur déconnexion:", error.message);
         return;
       }

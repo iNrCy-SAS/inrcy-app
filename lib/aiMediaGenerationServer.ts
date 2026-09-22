@@ -288,11 +288,12 @@ export async function generateAndSaveAiMedia(args: {
     inspirationImages: preparedIdentityReferences.providerImages,
   };
   const preparedReferenceRoles = providerRequest.inspirationImages.map(
-    ({ role, characterIndex }) => ({ role, characterIndex })
+    ({ role, usage, characterIndex }) => ({ role, usage, characterIndex })
   );
   const preparedCharacterBuffers = preparedIdentityReferences.buffers.filter(
     (_, index) =>
-      providerRequest.inspirationImages[index]?.role === "character" ||
+      (providerRequest.inspirationImages[index]?.role === "character" &&
+        providerRequest.inspirationImages[index]?.usage === "required") ||
       (!providerRequest.inspirationImages[index]?.role &&
         providerRequest.identityMode !== "auto")
   );
@@ -339,13 +340,15 @@ export async function generateAndSaveAiMedia(args: {
   const creativePlanTask =
     providerRequest.withText ||
     (providerRequest.kind === "video" &&
-      providerRequest.teamVideoSpeechMode === "characters")
+      (providerRequest.teamVideoSpeechMode === "characters" ||
+        providerRequest.withNarration))
       ? measure("headline", () =>
           writeAiMediaHeadline({
             accountId: args.accountId,
             request: providerRequest,
             profile,
             plan: initialCreativePlan,
+            recentPublications: generationContext.recentPublications,
           })
         )
       : Promise.resolve(initialCreativePlan);
@@ -370,6 +373,16 @@ export async function generateAndSaveAiMedia(args: {
   });
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
+  // Le fournisseur image n'accepte que quelques presets. En mode Modifier,
+  // ce preset reste un détail de transport : la sortie est toujours ramenée
+  // au canvas exact et autoritaire de l'image source.
+  const modificationCanvas =
+    providerRequest.operation === "modify"
+      ? {
+          width: providerRequest.modificationSourceWidth || format.width,
+          height: providerRequest.modificationSourceHeight || format.height,
+        }
+      : null;
   const localFallbackFrameTasks = new Map<string, Promise<Buffer>>();
   const getLocalFallbackFrame = (
     includeLogo = providerRequest.kind === "image"
@@ -439,11 +452,9 @@ export async function generateAndSaveAiMedia(args: {
           recentPublications: generationContext.recentPublications,
           brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
           hasLogo: false,
-        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir dans une seule scène continue, plein cadre et cinématographique toutes les personnes distinctes détectées dans les ${
           preparedCharacterBuffers.length
-        } adultes autorisés dans une seule scène continue, plein cadre et cinématographique — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Image 1 = personne 1, image 2 = personne 2${
-          preparedCharacterBuffers.length === 3 ? ", image 3 = personne 3" : ""
-        }. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${
+        } médias Personnage obligatoires — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Un même média peut contenir une ou plusieurs personnes : ne jamais déduire le nombre de personnes du nombre de fichiers. Détecter chaque personne présente, dédupliquer une même identité si elle apparaît dans plusieurs fichiers, puis conserver toutes les personnes distinctes dans la scène. Chacune apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${
           providerRequest.teamVideoSpeechMode === "characters"
             ? " Les disposer dans une interaction conversationnelle crédible, avec les bouches bien visibles pour permettre une future synchronisation labiale naturelle."
             : " Préserver des expressions naturelles sans posture de parole imposée."
@@ -473,7 +484,7 @@ export async function generateAndSaveAiMedia(args: {
           recentPublications: generationContext.recentPublications,
           brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
           hasLogo: false,
-        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR UNE NOUVELLE SCÈNE VIDÉO : composer une image plein cadre entièrement nouvelle qui réunisse exactement les personnages demandés et intègre le décor et le produit selon leur rôle explicite. Les fichiers fournis ne sont jamais la première image à déplacer, un collage, un écran partagé, une carte portrait ou un diaporama. Prévoir une action, des postures, de l’espace autour des corps et une profondeur de scène permettant de vrais mouvements, gestes et déplacements de caméra.${
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR UNE NOUVELLE SCÈNE VIDÉO : composer une image plein cadre entièrement nouvelle qui réunisse toutes les personnes distinctes détectées dans chaque média Personnage obligatoire et intègre le décor et le produit selon leur rôle explicite. Un même média peut contenir une ou plusieurs personnes : détecter chacune d’elles, dédupliquer les identités présentes dans plusieurs fichiers et ne jamais assimiler un fichier à une seule personne. Toutes les personnes distinctes doivent rester reconnaissables, être intégrées à l’action et ne jamais être omises, fusionnées, dupliquées ni remplacées. Les fichiers fournis ne sont jamais la première image à déplacer, un collage, un écran partagé, une carte portrait ou un diaporama. Prévoir une action, des postures, de l’espace autour des corps et une profondeur de scène permettant de vrais mouvements, gestes et déplacements de caméra.${
           providerRequest.teamVideoSpeechMode === "characters"
             ? " Les personnages doivent former une interaction crédible et avoir la bouche clairement visible pour permettre une synchronisation labiale naturelle."
             : " Les personnages restent naturellement expressifs sans posture de parole imposée."
@@ -504,6 +515,7 @@ export async function generateAndSaveAiMedia(args: {
         generateAiMediaImage({
           accountId: args.accountId,
           prompt,
+          operation: providerRequest.operation,
           identityMode: providerRequest.identityMode,
           identityReferences: preparedIdentityReferences.buffers,
           referenceRoles: preparedReferenceRoles,
@@ -531,6 +543,7 @@ export async function generateAndSaveAiMedia(args: {
           generateAiMediaImageWithGoogle({
             accountId: args.accountId,
             prompt,
+            operation: providerRequest.operation,
             identityMode: providerRequest.identityMode,
             identityReferences: preparedIdentityReferences.buffers,
             referenceRoles: preparedReferenceRoles,
@@ -565,8 +578,9 @@ export async function generateAndSaveAiMedia(args: {
     try {
       normalized = await measure("image_normalization", () =>
         normalizeGeneratedAiImage(imageBuffer, {
-          width: format.width,
-          height: format.height,
+          width: modificationCanvas?.width || format.width,
+          height: modificationCanvas?.height || format.height,
+          canvasMode: modificationCanvas ? "source" : "preset",
         })
       );
     } catch (error) {
@@ -1023,6 +1037,7 @@ export async function generateAndSaveAiMedia(args: {
             request: narrationRequest,
             profile,
             plan: creativePlan,
+            recentPublications: generationContext.recentPublications,
           })
         );
         args.signal?.throwIfAborted();

@@ -77,6 +77,7 @@ type PublishIntentPanelProps = {
   videoFile: File | null;
   videoPreviewUrl: string;
   videoDurationSeconds: number | null;
+  onRetouchVideo: () => void;
   removeVideo: () => void;
   removeImage: (index: number) => void;
   useImagesForAI: boolean;
@@ -125,6 +126,7 @@ export default function PublishIntentPanel({
   videoFile,
   videoPreviewUrl,
   videoDurationSeconds,
+  onRetouchVideo,
   removeVideo,
   removeImage,
   useImagesForAI,
@@ -673,29 +675,57 @@ export default function PublishIntentPanel({
                 >
                   {videoFile.name}
                 </strong>
-                <button
-                  type="button"
-                  aria-label={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
-                  title={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
-                  onClick={removeVideo}
+                <div
                   style={{
                     flex: "0 0 auto",
-                    width: isMobile ? 30 : 32,
-                    height: isMobile ? 30 : 32,
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.22)",
-                    background: "rgba(255,255,255,0.10)",
-                    color: "#fff",
-                    display: "inline-flex",
+                    display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    fontSize: isMobile ? 13 : 14,
-                    boxShadow: "0 8px 18px rgba(0,0,0,0.22)",
+                    justifyContent: isMobile ? "center" : "flex-end",
+                    gap: 7,
                   }}
                 >
-                  🗑️
-                </button>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={onRetouchVideo}
+                    style={{
+                      minHeight: isMobile ? 30 : 32,
+                      padding: "5px 11px",
+                      borderColor: "rgba(251,146,60,0.62)",
+                      background:
+                        "linear-gradient(135deg, rgba(249,115,22,0.92), rgba(244,63,94,0.88))",
+                      color: "#fff7ed",
+                      fontSize: isMobile ? 10.5 : 11,
+                      fontWeight: 900,
+                    }}
+                  >
+                    <span aria-hidden="true">🎞️</span>{" "}
+                    {mediaT("ai_generator_studio_tab_retouch")}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
+                    title={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
+                    onClick={removeVideo}
+                    style={{
+                      flex: "0 0 auto",
+                      width: isMobile ? 30 : 32,
+                      height: isMobile ? 30 : 32,
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.22)",
+                      background: "rgba(255,255,255,0.10)",
+                      color: "#fff",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: isMobile ? 13 : 14,
+                      boxShadow: "0 8px 18px rgba(0,0,0,0.22)",
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}

@@ -23,7 +23,7 @@ test("generator power keeps the confirmed snapshot visible until live checks set
   assert.match(accountCache, /"inrcy_generator_power_snapshot_v2"/);
   assert.match(
     dashboardClient,
-    /readCachedGeneratorPowerPercent\(\) \?\? readCachedGeneratorPowerSnapshot\(\)\?\.power \?\? null/,
+    /readCachedGeneratorPowerPercent\(initialBrowserCacheAccountId\)[\s\S]*\?\? readCachedGeneratorPowerSnapshot\(initialBrowserCacheAccountId\)\?\.power[\s\S]*\?\? null/,
   );
   assert.match(dashboardClient, /const generatorPower = displayedGeneratorPower \?\? 0;/);
   assert.match(

@@ -154,6 +154,7 @@ import {
 import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { stripSiteTextFormattingPreserveLayout } from "@/lib/boosterFormatting";
+import { normalizeImageOverlay } from "@/lib/imageOverlay";
 import {
   MediaWorkspaceConsumptionError,
   resolveWorkspacePublicationConsumption,
@@ -3868,6 +3869,43 @@ async function publishNowHandler(req: Request) {
             publishedCount: siteImageUrls.length,
           });
 
+          // Keep the optional Adapter link beside the exact image order used
+          // by the site article. The image itself is already baked server-side
+          // when text was requested; the URL remains metadata so the embed can
+          // expose a real clickable anchor without leaking it into social
+          // captions or raster pixels.
+          const siteRawImages = Array.isArray(imagesByChannel?.[ch])
+            ? (imagesByChannel[ch] as ImagePayload[])
+            : images;
+          const siteImageSet = channelImageSets[ch] || baseImageSet;
+          const siteImageOverlays = siteImageUrls
+            .map((_, index) => {
+              const imageKey = String(
+                siteImageSet.imageKeys?.[index] ||
+                  siteRawImages[index]?.imageKey ||
+                  "",
+              ).trim();
+              const rawImage = imageKey
+                ? siteRawImages.find(
+                    (candidate) => String(candidate?.imageKey || "").trim() === imageKey,
+                  )
+                : siteRawImages[index];
+              const overlay = normalizeImageOverlay(
+                asRecord(rawImage?.transform).overlay,
+              );
+              return overlay
+                ? { imageKey: imageKey || null, overlay }
+                : null;
+            })
+            .filter(Boolean);
+          const siteMediaMetadata: JsonRecord = {};
+          if (siteImageOverlays.length) {
+            siteMediaMetadata.imageOverlays = siteImageOverlays;
+          }
+          if (mediaModeByChannel[ch] === "video" && channelVideo) {
+            siteMediaMetadata.video = channelVideo;
+          }
+
           // A restarted channel worker reuses the same local resource instead
           // of creating a duplicate article after a lost response.
           const articleId = buildDeterministicPublicationChildId({
@@ -3908,9 +3946,14 @@ async function publishNowHandler(req: Request) {
                     video_size: channelVideo.size,
                     video_duration_seconds: channelVideo.duration,
                     video_thumbnail_url: channelVideo.thumbnailUrl,
-                    media_metadata: { video: channelVideo },
                   }
                 : {}),
+              // Always write this field so a re-publish of the same
+              // deterministic article clears a link that was removed in the
+              // Adapter instead of retaining stale click metadata.
+              media_metadata: Object.keys(siteMediaMetadata).length
+                ? siteMediaMetadata
+                : null,
               external_url: externalUrl, // ✅ si tu veux (optionnel)
               site_url: targetUrl || null, // ✅ si tu veux (optionnel)
             }, { onConflict: "id" });

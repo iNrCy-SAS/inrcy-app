@@ -23,9 +23,9 @@ test("seul un texte littéral demandé autorise un code visible ou prononcé", (
   assert.equal(isAiMediaTechnicalCopyAllowed(value, { textKeywords: [], aiInstruction: `Décor inspiré de «${value}»` }), false);
 });
 
-test("les intentions longues gardent la règle anti-récitation complète dans les 700 caractères", () => {
+test("les intentions longues gardent la règle anti-récitation complète dans le budget étendu", () => {
   const output = fitAiMediaSceneDirection(`ACTE 1 : animer le robot. ${"Consigne de couleur et mouvement. ".repeat(100)}`);
-  assert.ok(output.length <= 700);
+  assert.ok(output.length <= 2_400);
   assert.match(output, /^ACTE 1 : animer le robot/);
   assert.match(output, /appliquer sans les afficher ni les réciter\.$/);
 });
@@ -62,12 +62,19 @@ function runtime(generated: unknown) {
   return { load, args: { accountId: "test-account", request, profile, plan }, calls: () => calls };
 }
 
-test("une réponse éditoriale contaminée revient au plan local sans nouvel appel", async () => {
+test("une réponse éditoriale contaminée est supprimée sans nouvel appel", async () => {
   const env = runtime({ headline: "Le robot embellit votre jardin", cta: "Découvrez notre savoir-faire", scenes: [{
     title: "Le robot embellit votre jardin", eyebrow: "Atelier Horizon", body: "Couleurs techniques : #21b8ef, #8b5cf6 et #e94aa5.", spokenLine: "Notre palette interne utilise les codes #21b8ef.", spokenReply: "Le robot plante un rosier avec soin.",
   }] });
   const result = await env.load<typeof import("../../lib/aiMediaCopywriter.ts")>("lib/aiMediaCopywriter.ts").writeAiMediaHeadline(env.args);
-  assert.deepEqual(result, env.args.plan);
+  assert.equal(result.headline, "");
+  assert.equal(result.cta, "");
+  assert.ok(
+    result.scenes.every((scene: { title: string; body: string; spokenLine: string }) =>
+      !scene.title && !scene.body && !scene.spokenLine
+    )
+  );
+  assert.equal(result.scenes[0]?.visualBrief, env.args.plan.scenes[0]?.visualBrief);
   assert.equal(env.calls(), 1);
   assert.doesNotMatch(result.scenes.map((scene: { body: string }) => scene.body).join(" "), /21b8ef/i);
 });

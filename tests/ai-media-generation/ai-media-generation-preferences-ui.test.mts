@@ -12,20 +12,17 @@ function sourceSection(source: string, startToken: string, endToken: string) {
   return source.slice(start, end);
 }
 
-test("les quatre cartes essentielles retrouvent leur contrôle de mémorisation", () => {
+test("les trois groupes de réglages réutilisables gardent leur contrôle de mémorisation", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.equal(
-    (
-      generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) ||
-      []
-    ).length,
-    4
+  assert.deepEqual(
+    Array.from(generator.matchAll(/data-generator-block="([^"]+)"/g), (match) => match[1]),
+    ["subject", "selection", "direction", "finish"]
   );
   assert.equal(
     (generator.match(/<RememberPreferenceControl/g) || []).length,
-    4
+    3
   );
   assert.match(generator, /handleRememberPreferenceGroup/);
   assert.match(generator, /ai_generator_remember_settings/);
@@ -92,7 +89,6 @@ test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien cr
     "shotType",
     "creativity",
     "videoEngine",
-    "connectScenes",
   ]) {
     assert.doesNotMatch(
       generation,
@@ -101,7 +97,10 @@ test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien cr
     );
   }
   assert.match(generation, /inputMode: "essential"/);
-  assert.match(generation, /aiInstruction: aiInstruction\.trim\(\)/);
+  assert.match(generation, /aiInstruction: generationAiInstruction/);
+  assert.match(generation, /generationMode:/);
+  assert.match(generation, /sceneMode: kind === "video" \? videoSceneMode : undefined/);
+  assert.match(generation, /connectScenes:[\s\S]*?videoSceneMode === "single"/);
   assert.match(
     generation,
     /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/

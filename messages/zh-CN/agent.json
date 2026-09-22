@@ -42,7 +42,7 @@
   "actions_programmees_77ae2684": "预定的行动",
   "actions_programmees_a_venir_c1f610d0": "即将采取的计划行动",
   "activee_par_defaut_pour_ajouter_la_85a5ac4b": "默认启用发送时添加配置的签名。",
-  "adapt_image": "适合图像",
+  "adapt_image": "润饰图像",
   "adapt_media": "适应媒体",
   "adapt_video": "调整视频",
   "adaptation_du_canal_1af8dcef": "渠道适配",
@@ -51,7 +51,7 @@
   "adapter_la_video_inragent_8eaacc97": "改编视频 iNr’Agent",
   "adapter_le_media_value_34c6f353": "适应媒体 {value0}",
   "adapter_video_2d90a304": "改编视频",
-  "add_image_first": "首先添加一张图片进行适配。",
+  "add_image_first": "请先添加一张图片。",
   "add_image_to_publication": "在帖子中添加图片",
   "add_media": "添加媒体",
   "add_media_first": "首先添加图像或视频进行适配。",
@@ -301,10 +301,10 @@
   "heure_5073129f": "时间",
   "horaire_db0addb3": "时间表",
   "ia_d41daf59": "人工智能",
-  "image_adaptation_failed": "无法调整图像。",
+  "image_adaptation_failed": "无法在 iNrStudio 中打开此图片。",
   "image_adapted_save_failed": "无法保存调整后的图像。",
   "image_adapted_saved": "图像已调整并保存为 iNr’Agent。",
-  "image_adapter_isolation_note": "本次调整使用Booster的Adapt Image工具，并将媒体iNr’Agent替换为适应版本。",
+  "image_adapter_isolation_note": "此操作使用 iNrStudio 的润饰工具，并将 iNr’Agent 媒体替换为润饰后的版本。",
   "image_et_2d6d27c0": "图片和",
   "image_number_alt": "图片{number}",
   "immediate_other_channels_failed": "无法立即发布到其他渠道。",
@@ -750,5 +750,6 @@
   "tiktok_music_usage_confirmation": "TikTok 音乐使用确认",
   "tiktok_session_change": "修改",
   "tiktok_session_save": "保存设置",
-  "tiktok_session_checking": "正在检查 TikTok…"
+  "tiktok_session_checking": "正在检查 TikTok…",
+  "next_editorial_publication_in_a_few_minutes": "下一篇发布内容将在几分钟后生成"
 }

@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -19,7 +13,17 @@ import {
 import MediaGenerator, {
   type MediaGeneratorAcceptMode,
   type MediaGeneratorOrigin,
+  type MediaGeneratorStudioMode,
 } from "./MediaGenerator";
+import MediaModifier from "./MediaModifier";
+import MediaRetoucher, {
+  type MediaStudioInitialPreview,
+  type MediaRetoucherSavedValue,
+} from "./MediaRetoucher";
+import MediaVideoRetoucher, {
+  type MediaVideoRetoucherInitialContext,
+  type MediaVideoRetoucherSavedValue,
+} from "./MediaVideoRetoucher";
 
 import styles from "./MediaGeneratorModal.module.css";
 
@@ -27,18 +31,32 @@ type MediaGeneratorModalProps = {
   open: boolean;
   source: MediaGenerationSource;
   origin: MediaGeneratorOrigin;
+  initialTab?: MediaGeneratorStudioMode;
+  initialSource?: File | null;
+  initialPreview?: MediaStudioInitialPreview | null;
+  initialSourceLoading?: boolean;
+  initialMediaType?: "image" | "video";
+  initialVideoContext?: MediaVideoRetoucherInitialContext | null;
   publicationBrief?: string;
   acceptMode: MediaGeneratorAcceptMode;
+  handoffOriginLabel?: string | null;
   onClose: () => void;
+  onAbandonHandoff?: () => void | Promise<void>;
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
+  onRetouched?: (value: MediaRetoucherSavedValue) => void | Promise<void>;
+  onVideoRetouched?: (
+    value: MediaVideoRetoucherSavedValue
+  ) => void | Promise<void>;
 };
+
+type StudioMediaType = "image" | "video";
 
 function getFocusableElements(container: HTMLElement | null) {
   if (!container) return [];
   return Array.from(
     container.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-    ),
+      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+    )
   ).filter((element) => !element.hasAttribute("aria-hidden"));
 }
 
@@ -46,13 +64,22 @@ export default function MediaGeneratorModal({
   open,
   source,
   origin,
+  initialTab = "generate",
+  initialSource = null,
+  initialPreview = null,
+  initialSourceLoading = false,
+  initialMediaType = "image",
+  initialVideoContext = null,
   publicationBrief = "",
   acceptMode,
+  handoffOriginLabel = null,
   onClose,
+  onAbandonHandoff,
   onAccepted,
+  onRetouched,
+  onVideoRetouched,
 }: MediaGeneratorModalProps) {
   const t = useTranslations("media");
-  const titleId = useId();
   const closeTitleId = useId();
   const closeDescriptionId = useId();
   const [mounted, setMounted] = useState(false);
@@ -60,6 +87,15 @@ export default function MediaGeneratorModal({
   const [currentResult, setCurrentResult] =
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [studioTab, setStudioTab] =
+    useState<MediaGeneratorStudioMode>(initialTab);
+  const [mediaTypeByTab, setMediaTypeByTab] = useState<
+    Record<MediaGeneratorStudioMode, StudioMediaType>
+  >(() => ({
+    generate: initialTab === "generate" ? initialMediaType : "image",
+    modify: "image",
+    retouch: initialTab === "retouch" ? initialMediaType : "image",
+  }));
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeConfirmCancelRef = useRef<HTMLButtonElement | null>(null);
@@ -67,9 +103,23 @@ export default function MediaGeneratorModal({
   const currentResultRef = useRef<MediaGenerationResult | null>(null);
   const closeInFlightRef = useRef(false);
   const hasResult = Boolean(currentResult);
+  const hasExternalHandoff = Boolean(
+    handoffOriginLabel && onAbandonHandoff
+  );
   const studioWordmark = t("ai_generator_made_inrcy");
+  const activeMediaType = mediaTypeByTab[studioTab];
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    setStudioTab(initialTab);
+    setMediaTypeByTab({
+      generate: initialTab === "generate" ? initialMediaType : "image",
+      modify: "image",
+      retouch: initialTab === "retouch" ? initialMediaType : "image",
+    });
+  }, [initialMediaType, initialTab, open]);
 
   const handleResultChange = useCallback(
     (result: MediaGenerationResult | null) => {
@@ -77,17 +127,44 @@ export default function MediaGeneratorModal({
       setCurrentResult(result);
       if (!result) setCloseConfirmOpen(false);
     },
-    [],
+    []
   );
 
   const requestClose = useCallback(() => {
     if (locked) return;
-    if (hasResult) {
+    if (hasExternalHandoff || hasResult) {
       setCloseConfirmOpen(true);
       return;
     }
     onClose();
-  }, [hasResult, locked, onClose]);
+  }, [hasExternalHandoff, hasResult, locked, onClose]);
+
+  const requestStudioTab = useCallback(
+    (tab: MediaGeneratorStudioMode) => {
+      if (tab === studioTab || locked || hasResult) return;
+      if (hasExternalHandoff) {
+        setCloseConfirmOpen(true);
+        return;
+      }
+      setStudioTab(tab);
+    },
+    [hasExternalHandoff, hasResult, locked, studioTab]
+  );
+
+  const requestMediaType = useCallback(
+    (mediaType: StudioMediaType) => {
+      if (mediaType === activeMediaType || locked || hasResult) return;
+      if (hasExternalHandoff) {
+        setCloseConfirmOpen(true);
+        return;
+      }
+      setMediaTypeByTab((current) => ({
+        ...current,
+        [studioTab]: mediaType,
+      }));
+    },
+    [activeMediaType, hasExternalHandoff, hasResult, locked, studioTab]
+  );
 
   const cancelClose = useCallback(() => {
     setCloseConfirmOpen(false);
@@ -116,6 +193,33 @@ export default function MediaGeneratorModal({
     }
   }, [locked, onClose]);
 
+  const confirmAbandonHandoff = useCallback(async () => {
+    if (
+      !onAbandonHandoff ||
+      locked ||
+      closeInFlightRef.current
+    ) {
+      return;
+    }
+    closeInFlightRef.current = true;
+    setCloseConfirmOpen(false);
+    setLocked(true);
+    const resultToDiscard = currentResultRef.current;
+    try {
+      if (resultToDiscard?.draft) {
+        await discardMediaGenerationDraft(resultToDiscard.item.id);
+      }
+    } catch {
+      // La fermeture du parcours reste prioritaire. Le nettoyage serveur des
+      // brouillons temporaires supprimera un éventuel reliquat sous 24 h.
+    } finally {
+      currentResultRef.current = null;
+      setCurrentResult(null);
+      closeInFlightRef.current = false;
+      await onAbandonHandoff();
+    }
+  }, [locked, onAbandonHandoff]);
+
   useEffect(() => {
     if (!open || !mounted) return;
     previousFocusRef.current =
@@ -135,7 +239,7 @@ export default function MediaGeneratorModal({
   }, [mounted, open]);
 
   useEffect(() => {
-    if (!open || (!locked && !currentResult)) return;
+    if (!open || (!locked && !currentResult && !hasExternalHandoff)) return;
     const preventAccidentalUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -144,14 +248,16 @@ export default function MediaGeneratorModal({
     return () => {
       window.removeEventListener("beforeunload", preventAccidentalUnload);
     };
-  }, [currentResult, locked, open]);
+  }, [currentResult, hasExternalHandoff, locked, open]);
 
   useEffect(() => {
     if (!open) return;
     const discardOnCommittedNavigation = () => {
       const pending = currentResultRef.current;
       if (pending?.draft) {
-        void discardMediaGenerationDraft(pending.item.id).catch(() => undefined);
+        void discardMediaGenerationDraft(pending.item.id).catch(
+          () => undefined
+        );
       }
     };
     window.addEventListener("pagehide", discardOnCommittedNavigation);
@@ -220,14 +326,17 @@ export default function MediaGeneratorModal({
       <section
         ref={dialogRef}
         className={styles.dialog}
+        data-studio-tab={studioTab}
         role="dialog"
         aria-modal="true"
         aria-hidden={closeConfirmOpen ? true : undefined}
-        aria-labelledby={titleId}
+        aria-label={t("ai_generator_modal_title")}
       >
         <header className={styles.header}>
           <div className={styles.moduleIdentity}>
-            <span className={styles.icon} aria-hidden="true">✦</span>
+            <span className={styles.icon} aria-hidden="true">
+              ✦
+            </span>
             <div>
               <strong
                 className={styles.studioWordmark}
@@ -240,8 +349,62 @@ export default function MediaGeneratorModal({
             </div>
           </div>
           <div className={styles.heading}>
-            <h2 id={titleId}>{t("ai_generator_modal_title")}</h2>
-            <p>{t("ai_generator_modal_subtitle")}</p>
+            <nav
+              className={styles.studioTabs}
+              aria-label={t("ai_generator_studio_tabs_label")}
+            >
+              {(
+                [
+                  ["generate", "ai_generator_studio_tab_generate"],
+                  ["modify", "ai_generator_studio_tab_modify"],
+                  ["retouch", "ai_generator_studio_tab_retouch"],
+                ] as const
+              ).map(([tab, labelKey]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={styles.studioTab}
+                  data-studio-tab={tab}
+                  data-active={studioTab === tab ? "true" : "false"}
+                  disabled={locked || hasResult}
+                  onClick={() => requestStudioTab(tab)}
+                >
+                  {t(labelKey)}
+                </button>
+              ))}
+            </nav>
+            <div
+              className={styles.mediaTypeTabs}
+              role="radiogroup"
+              aria-label={t("ai_generator_essential_media_type")}
+            >
+              {(["image", "video"] as const).map((mediaType) => {
+                const unavailable =
+                  studioTab === "modify" && mediaType === "video";
+                return (
+                  <button
+                    key={mediaType}
+                    type="button"
+                    role="radio"
+                    aria-checked={activeMediaType === mediaType}
+                    data-active={
+                      activeMediaType === mediaType ? "true" : "false"
+                    }
+                    disabled={locked || hasResult || unavailable}
+                    onClick={() => requestMediaType(mediaType)}
+                  >
+                    <span aria-hidden="true">
+                      {mediaType === "image" ? "▣" : "▶"}
+                    </span>
+                    {t(
+                      mediaType === "image"
+                        ? "image_50e19fda"
+                        : "video_304f6ca4"
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className={styles.headerActions}>
             <Link
@@ -252,7 +415,10 @@ export default function MediaGeneratorModal({
               aria-disabled={locked || undefined}
               tabIndex={locked ? -1 : undefined}
               onClick={(event) => {
-                if (locked) event.preventDefault();
+                if (locked || hasExternalHandoff) {
+                  event.preventDefault();
+                }
+                if (!locked && hasExternalHandoff) requestClose();
               }}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -276,15 +442,73 @@ export default function MediaGeneratorModal({
           </div>
         </header>
         <div className={styles.body}>
-          <MediaGenerator
-            source={source}
-            origin={origin}
-            publicationBrief={publicationBrief}
-            acceptMode={acceptMode}
-            onAccepted={onAccepted}
-            onResultChange={handleResultChange}
-            onBusyChange={setLocked}
-          />
+          {studioTab === "retouch" ? (
+            <div className={styles.retouchWorkspace}>
+              {activeMediaType === "video" ? (
+                <MediaVideoRetoucher
+                  initialSource={
+                    initialMediaType === "video" ? initialSource : null
+                  }
+                  initialPreview={
+                    initialMediaType === "video" ? initialPreview : null
+                  }
+                  initialSourceLoading={
+                    initialMediaType === "video" && initialSourceLoading
+                  }
+                  initialContext={initialVideoContext}
+                  onEditingChange={setLocked}
+                  onSaved={onVideoRetouched}
+                  acceptMode={acceptMode}
+                />
+              ) : (
+                <MediaRetoucher
+                  initialSource={
+                    initialMediaType === "image" ? initialSource : null
+                  }
+                  initialPreview={
+                    initialMediaType === "image" ? initialPreview : null
+                  }
+                  initialSourceLoading={
+                    initialMediaType === "image" && initialSourceLoading
+                  }
+                  onEditingChange={setLocked}
+                  onSaved={onRetouched}
+                  acceptMode={acceptMode}
+                />
+              )}
+            </div>
+          ) : studioTab === "modify" ? (
+            <MediaModifier
+              key="modify"
+              source={source}
+              initialSource={
+                initialMediaType === "image" ? initialSource : null
+              }
+              initialPreview={
+                initialMediaType === "image" ? initialPreview : null
+              }
+              initialSourceLoading={
+                initialMediaType === "image" && initialSourceLoading
+              }
+              acceptMode={acceptMode}
+              onAccepted={onAccepted}
+              onResultChange={handleResultChange}
+              onBusyChange={setLocked}
+            />
+          ) : (
+            <MediaGenerator
+              key="generate"
+              source={source}
+              origin={origin}
+              publicationBrief={publicationBrief}
+              acceptMode={acceptMode}
+              studioMode="generate"
+              mediaType={activeMediaType}
+              onAccepted={onAccepted}
+              onResultChange={handleResultChange}
+              onBusyChange={setLocked}
+            />
+          )}
         </div>
       </section>
 
@@ -304,18 +528,26 @@ export default function MediaGeneratorModal({
             aria-describedby={closeDescriptionId}
           >
             <h3 id={closeTitleId}>
-              {t(
-                acceptMode === "insert"
-                  ? "ai_generator_close_confirm_title"
-                  : "ai_generator_close_library_title",
-              )}
+              {hasExternalHandoff
+                ? t("ai_studio_origin_exit_title", {
+                    origin: handoffOriginLabel || "iNrCy",
+                  })
+                : t(
+                    acceptMode === "insert"
+                      ? "ai_generator_close_confirm_title"
+                      : "ai_generator_close_library_title"
+                  )}
             </h3>
             <p id={closeDescriptionId}>
-              {t(
-                acceptMode === "insert"
-                  ? "ai_generator_close_confirm_description"
-                  : "ai_generator_close_library_description",
-              )}
+              {hasExternalHandoff
+                ? t("ai_studio_origin_exit_description", {
+                    origin: handoffOriginLabel || "iNrCy",
+                  })
+                : t(
+                    acceptMode === "insert"
+                      ? "ai_generator_close_confirm_description"
+                      : "ai_generator_close_library_description"
+                  )}
             </p>
             <div className={styles.closeConfirmActions}>
               <button
@@ -324,24 +556,41 @@ export default function MediaGeneratorModal({
                 className={styles.closeConfirmCancel}
                 onClick={cancelClose}
               >
-                {t("ai_generator_close_confirm_cancel")}
+                {t(
+                  hasExternalHandoff
+                    ? "ai_studio_origin_stay"
+                    : "ai_generator_close_confirm_cancel"
+                )}
               </button>
+              {hasExternalHandoff ? (
+                <button
+                  type="button"
+                  className={styles.closeConfirmAbandon}
+                  onClick={() => void confirmAbandonHandoff()}
+                >
+                  {t("ai_studio_origin_abandon")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={styles.closeConfirmLeave}
                 onClick={() => void confirmClose()}
               >
-                {t(
-                  acceptMode === "insert"
-                    ? "ai_generator_close_confirm_leave"
-                    : "ai_generator_close_library_leave",
-                )}
+                {hasExternalHandoff
+                  ? t("ai_studio_origin_return", {
+                      origin: handoffOriginLabel || "iNrCy",
+                    })
+                  : t(
+                      acceptMode === "insert"
+                        ? "ai_generator_close_confirm_leave"
+                        : "ai_generator_close_library_leave"
+                    )}
               </button>
             </div>
           </section>
         </div>
       ) : null}
     </div>,
-    document.body,
+    document.body
   );
 }

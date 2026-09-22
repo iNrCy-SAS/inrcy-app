@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
+import type { InrStudioReturnedMedia } from "@/lib/inrStudioNavigation";
 import type { BoosterVideoPreparationState } from "@/app/dashboard/booster/publier/components/BoosterVideoFormatManager";
 import type { VideoAdaptationMode, VideoFormat } from "@/app/dashboard/booster/publier/publishModal.shared";
 import { getUserFacingMailError } from "@/lib/mailDeliveryErrors";
@@ -116,20 +117,24 @@ export type MailboxDetailsModalProps = {
   activePublicationEditPreset: any;
   activePublicationEditAssets: any[];
   togglePublicationImage: (channel: string, imageKey: string) => void;
-  openPublicationImageAdapter: (channel: string, imageKey: string) => void;
+  openPublicationImageRetoucher: (channel: string, imageKey: string) => void;
+  openPublicationImageModifier: (channel: string, imageKey: string) => void;
+  openPublicationVideoRetoucher: (channel: string) => void;
   resetPublicationImage?: (channel: string, imageKey: string) => void;
   movePublicationImage?: (channel: string, imageKey: string, direction: -1 | 1) => void;
   addPublicationFiles: (fileList: FileList | File[] | null) => void;
   addPublicationPhoto: (file: File) => void;
   addPublicationMediaLibraryItems: (items: MediaLibraryPickerItem[]) => void | Promise<void>;
-  replacePublicationMediaLibraryItem: (item: MediaLibraryPickerItem) => Promise<void>;
+  replacePublicationMediaLibraryItem: (
+    item: MediaLibraryPickerItem,
+    target?: { channel?: string; imageKey?: string },
+  ) => Promise<void>;
+  studioReturn: InrStudioReturnedMedia | null;
+  onStudioReturnHandled: () => void;
   publicationVideoInputId: string;
   activePublicationEditVideo: PublicationEditVideoState | null;
   addPublicationVideo: (fileList: FileList | File[] | null) => void;
   removePublicationVideo: (channel?: string) => void;
-  setPublicationVideoFormatForChannel: (channel: string, format: VideoFormat) => void;
-  setPublicationVideoAdaptationModeForChannel: (channel: string, mode: VideoAdaptationMode) => void;
-  applyPublicationVideoFormatForChannel: (channel: string) => Promise<void>;
   saveChannelPublication: () => Promise<void>;
   deleteChannelPublication: () => Promise<{ payload: any; channel: string } | null>;
   retryCampaignFailedRecipients: (campaignId: string) => Promise<void>;

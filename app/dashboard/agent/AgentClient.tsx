@@ -2,35 +2,17 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
-
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
-import {
-  useRouter,
-} from "next/navigation";
-import {
-  createClient,
-} from "@/lib/supabaseClient";
-import {
-  resolveActiveBrowserUserId,
-} from "@/lib/browserAccountCache";
-import {
-  ChannelImageAdapterModal,
-} from "@/app/dashboard/_components/ChannelImageAdapterTool";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabaseClient";
+import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import EmojiPickerButton from "../_components/EmojiPickerButton";
-import {
-  requestBoosterVideoTransforms,
-} from "@/lib/boosterVideoTransformClient";
-import type {
-  BoosterVideoTransformedVariant,
-} from "@/lib/boosterVideoTransforms";
 import {
   INR_MEDIA_IMAGE_FORMATS_LABEL,
   INR_MEDIA_IMAGE_MAX_MB_LABEL,
@@ -38,27 +20,22 @@ import {
   INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL,
   isInrMediaImageFile,
 } from "@/lib/mediaRules";
+import { makeAttachmentPath } from "@/app/dashboard/mails/_lib/mailboxPhase25";
 import {
-  makeAttachmentPath,
-} from "@/app/dashboard/mails/_lib/mailboxPhase25";
+  consumeInrStudioReturn,
+  createInrStudioHandoff,
+} from "@/lib/inrStudioNavigation";
 import HelpButton from "../_components/HelpButton";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
 import BusinessDnaIcon from "../_components/BusinessDnaIcon";
-import {
-  useUnsavedExitGuard,
-} from "../_hooks/useUnsavedExitGuard";
-import {
-  confirmInrcy,
-} from "@/lib/inrcyDialog";
+import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
+import { confirmInrcy } from "@/lib/inrcyDialog";
 import CampaignScheduleModal from "../_components/CampaignScheduleModal";
 import PublishScheduleModal, {
   type PublishScheduleItem,
   type PublishScheduleSelection,
 } from "../_components/PublishScheduleModal";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
-import BoosterVideoFormatManager, {
-  type BoosterVideoPreparationState,
-} from "../booster/publier/components/BoosterVideoFormatManager";
 import TiktokPublicationSettingsModal, {
   type TiktokPublicationSettings,
   type TiktokPublicationValidationMeta,
@@ -92,7 +69,7 @@ import {
 } from "@/lib/facebookPublicationPreferences";
 import {
   isInrAgentMetaChannel,
-  readInrAgentPublicationPlacement,
+  readInrAgentPublicationSelection,
   type InrAgentPublicationPlacement,
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
@@ -109,27 +86,15 @@ import {
   UNIVERSAL_MEDIA_VIDEO_EXTENSIONS,
   UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
   detectUniversalUploadMediaType,
+  getUniversalMediaContentType,
 } from "@/lib/mediaUploadPolicy";
+import { containsForbiddenXUrl, X_FORBIDDEN_URL_ERROR } from "@/lib/xChannel";
 import {
-  containsForbiddenXUrl,
-  X_FORBIDDEN_URL_ERROR,
-} from "@/lib/xChannel";
-import {
-  CHANNEL_PRESETS,
   buildPreferredCtaPatch,
-  computePreviewLayout,
-  getBackgroundFill,
-  getBackgroundMode,
   getLocalizedCtaModeHelp,
   getLocalizedPreferredCtaLabel,
-  getLocalizedVideoAdaptationModeLabel,
-  getLocalizedVideoFormatLabel,
   getLocalizedWebsiteSourceLabelForChannel,
   getBoosterMaxImageCountForChannel,
-  getDefaultTransform,
-  getEffectiveTransformZoom,
-  getChannelSafetyBackgroundMode,
-  getOptimizedTransform,
   getPreferredCtaChoiceFromPost,
   getCtaModeForPreferredChoice,
   getPreferredCtaOptionsForChannel,
@@ -138,18 +103,11 @@ import {
   normalizeBoosterPreferredCta,
   normalizeVideoAdaptationMode,
   normalizeVideoFormat,
-  readImageMeta,
-  renderChannelImage,
   type BoosterCtaDefaults,
   type BoosterCtaMode,
   type BoosterPreferredCta,
-  type BoosterVideoSourceMetadata,
   type ChannelKey as BoosterChannelKey,
   type ChannelPost as BoosterChannelPost,
-  type ImageMeta,
-  type ImageTransform,
-  type VideoAdaptationMode,
-  type VideoFormat,
 } from "../booster/publier/publishModal.shared";
 import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
@@ -275,12 +233,8 @@ import {
   firstSafeString,
   asRecord,
   isInrAgentEditorialPreparationRunning,
+  isInrAgentEditorialPreparationWaitingForCron,
 } from "./_lib/agent.utils";
-import {
-  dataUrlToFile,
-  offsetFromDrawPosition,
-  urlToFile,
-} from "./_lib/agent.media-adapter";
 import {
   mediaPatchFromLibraryItem,
   readAgentApiJson,
@@ -390,7 +344,7 @@ function agentXPostContainsForbiddenUrl(post: {
     ? post.hashtags.join(" ")
     : post.hashtags;
   return [post.title, post.body, post.cta, post.ctaUrl, hashtags].some(
-    containsForbiddenXUrl,
+    containsForbiddenXUrl
   );
 }
 
@@ -419,7 +373,7 @@ const STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS: Record<
 function studioMediaPreferenceStep(value: number): StudioMediaPreferenceStep {
   return normalizeInrAgentStudioMediaPreferencePercent(
     value,
-    INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
+    INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT
   ) as StudioMediaPreferenceStep;
 }
 
@@ -439,7 +393,7 @@ function isAgentActionAwaitingValidation(action: AgentPreparedAction | null) {
 }
 
 function isRobotPlannedPublication(
-  action: AgentPreparedAction | null | undefined,
+  action: AgentPreparedAction | null | undefined
 ) {
   return Boolean(
     action &&
@@ -449,12 +403,12 @@ function isRobotPlannedPublication(
       action.validationRequired === true &&
       action.executionPolicy === "manual_validation" &&
       action.scheduledFor &&
-      asRecord(action.payload?.editorialPlan),
+      asRecord(action.payload?.editorialPlan)
   );
 }
 
 function publicationValidationState(
-  action: AgentPreparedAction | null,
+  action: AgentPreparedAction | null
 ): PublicationValidationState {
   if (action?.status === "refused") return "refused";
   if (
@@ -470,20 +424,25 @@ function publicationValidationState(
 
 function isPublicationCarouselAction(
   action: AgentPreparedAction,
-  nowTimestamp: number,
+  nowTimestamp: number
 ) {
-  if (action.automationKey !== "publish" || action.actionType !== "publication") {
+  if (
+    action.automationKey !== "publish" ||
+    action.actionType !== "publication"
+  ) {
     return false;
   }
   if (hasPublicationSchedulePassed(action, nowTimestamp)) return false;
   const editorialPlan = asRecord(action.payload?.editorialPlan);
   if (editorialPlan && action.status !== "cancelled") return true;
   if (isAgentActionAwaitingValidation(action)) return true;
-  if (["validated", "scheduled", "completed", "refused"].includes(action.status)) {
+  if (
+    ["validated", "scheduled", "completed", "refused"].includes(action.status)
+  ) {
     return true;
   }
   return Boolean(
-    action.validatedAt && ["executing", "failed"].includes(action.status),
+    action.validatedAt && ["executing", "failed"].includes(action.status)
   );
 }
 
@@ -493,7 +452,7 @@ function publicationActionTime(action: AgentPreparedAction) {
       action.preparedAt ||
       action.updatedAt ||
       action.createdAt ||
-      0,
+      0
   ).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
@@ -502,9 +461,7 @@ function publicationActionSortGroup(action: AgentPreparedAction) {
   if (isAgentActionAwaitingValidation(action)) return 0;
   if (
     asRecord(action.payload?.editorialPlan) &&
-    !["validated", "scheduled", "completed", "refused"].includes(
-      action.status,
-    )
+    !["validated", "scheduled", "completed", "refused"].includes(action.status)
   ) {
     return 1;
   }
@@ -534,9 +491,7 @@ function AgentWorkingIndicator({
     >
       <span className={styles.robotWorkingSpinner} aria-hidden>
         {normalizedProgress !== null ? (
-          <b className={styles.robotWorkingProgress}>
-            {normalizedProgress}%
-          </b>
+          <b className={styles.robotWorkingProgress}>{normalizedProgress}%</b>
         ) : null}
       </span>
       <span>
@@ -547,13 +502,36 @@ function AgentWorkingIndicator({
   );
 }
 
+function AgentEditorialCronWaitIndicator({
+  label,
+  placement = "overlay",
+}: {
+  label: string;
+  placement?: "overlay" | "rail";
+}) {
+  return (
+    <div
+      className={`${styles.robotCronWaitBadge} ${
+        placement === "rail" ? styles.robotCronWaitRail : ""
+      }`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className={styles.robotCronWaitPulse} aria-hidden />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export default function AgentClient() {
   const i18nT = useTranslations("agent");
+  const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
   const dashboardT = useTranslations("dashboard");
   const boosterRuntimeT = boosterT as unknown as (
     key: string,
-    values?: Record<string, string | number>,
+    values?: Record<string, string | number>
   ) => string;
   const locale = useLocale();
   const runtimeT = i18nT as unknown as AgentTranslator;
@@ -563,10 +541,10 @@ export default function AgentClient() {
     () =>
       standardMode
         ? automations.filter((automation) =>
-            isStandardAgentAutomationKey(automation.key),
+            isStandardAgentAutomationKey(automation.key)
           )
         : automations,
-    [standardMode],
+    [standardMode]
   );
   const {
     agentSettings,
@@ -619,7 +597,9 @@ export default function AgentClient() {
     useState<ScheduledActionEditSession | null>(null);
   const [scheduleOnlyEdit, setScheduleOnlyEdit] =
     useState<ScheduleOnlyEditState | null>(null);
-  const [scheduleOnlyEditError, setScheduleOnlyEditError] = useState<string | null>(null);
+  const [scheduleOnlyEditError, setScheduleOnlyEditError] = useState<
+    string | null
+  >(null);
   const [automationScheduleEdit, setAutomationScheduleEdit] =
     useState<AutomationScheduleEditState | null>(null);
   const [automationScheduleEditError, setAutomationScheduleEditError] =
@@ -641,13 +621,15 @@ export default function AgentClient() {
     "idle" | "checking"
   >("idle");
   const tiktokSessionCheckInFlightRef = useRef(false);
-  const [pendingImmediateAgentPublishAfterSchedule, setPendingImmediateAgentPublishAfterSchedule] =
-    useState<{
-      action: AgentPreparedAction;
-      actionId: string;
-      channels: BoosterChannelKey[];
-      tiktokPublicationSettings?: TiktokPublicationSettings | null;
-    } | null>(null);
+  const [
+    pendingImmediateAgentPublishAfterSchedule,
+    setPendingImmediateAgentPublishAfterSchedule,
+  ] = useState<{
+    action: AgentPreparedAction;
+    actionId: string;
+    channels: BoosterChannelKey[];
+    tiktokPublicationSettings?: TiktokPublicationSettings | null;
+  } | null>(null);
   const [selectedChannelByAction, setSelectedChannelByAction] = useState<
     Record<string, ChannelKey>
   >({});
@@ -664,7 +646,7 @@ export default function AgentClient() {
     body: "",
   });
   const [campaignSaveState, setCampaignSaveState] = useState<"idle" | "saving">(
-    "idle",
+    "idle"
   );
   const [campaignDraftSaveState, setCampaignDraftSaveState] = useState<
     "idle" | "saving"
@@ -691,7 +673,7 @@ export default function AgentClient() {
     phone: "",
   });
   const [newRecipientState, setNewRecipientState] = useState<"idle" | "saving">(
-    "idle",
+    "idle"
   );
   const [mailAccountEditOpen, setMailAccountEditOpen] = useState(false);
   const [mailAccounts, setMailAccounts] = useState<AgentMailAccount[]>([]);
@@ -715,38 +697,6 @@ export default function AgentClient() {
     AgentMediaOptimizerRequest[]
   >([]);
   const [mediaOptimizerCompleted, setMediaOptimizerCompleted] = useState(false);
-  const [publishImageAdapterOpen, setPublishImageAdapterOpen] = useState(false);
-  const [publishImageAdapterFile, setPublishImageAdapterFile] =
-    useState<File | null>(null);
-  const [publishImageAdapterPreviewUrl, setPublishImageAdapterPreviewUrl] =
-    useState("");
-  const [publishImageAdapterMeta, setPublishImageAdapterMeta] =
-    useState<ImageMeta | null>(null);
-  const [publishImageAdapterTransform, setPublishImageAdapterTransform] =
-    useState<ImageTransform | null>(null);
-  const [publishImageAdapterSaving, setPublishImageAdapterSaving] =
-    useState(false);
-  const [publishImageAdapterDragging, setPublishImageAdapterDragging] =
-    useState(false);
-  const publishImageAdapterStageRef = useRef<HTMLDivElement | null>(null);
-  const [publishImageAdapterStageSize, setPublishImageAdapterStageSize] =
-    useState({ width: 0, height: 0 });
-  const publishImageAdapterDragRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    startOffsetX: number;
-    startOffsetY: number;
-  } | null>(null);
-  const [publishVideoAdapterOpen, setPublishVideoAdapterOpen] = useState(false);
-  const [publishVideoFormat, setPublishVideoFormat] =
-    useState<VideoFormat>("original");
-  const [publishVideoAdaptationMode, setPublishVideoAdaptationMode] =
-    useState<VideoAdaptationMode>("safe_frame");
-  const [publishVideoPreparationState, setPublishVideoPreparationState] =
-    useState<BoosterVideoPreparationState | null>(null);
-  const [publishVideoAdapterSaving, setPublishVideoAdapterSaving] =
-    useState(false);
   const [publishEditOpen, setPublishEditOpen] = useState(false);
   const [publishTextDraft, setPublishTextDraft] = useState({
     channel: "" as ChannelKey | "",
@@ -765,24 +715,24 @@ export default function AgentClient() {
     useState<BoosterCtaDefaults | null>(null);
   const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
     useState<InstagramPublicationPreferences>(
-      CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+      CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES
     );
   const [facebookPublicationPreferences, setFacebookPublicationPreferences] =
     useState<FacebookPublicationPreferences>(
-      CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+      CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES
     );
   const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
     "idle" | "saving"
   >("idle");
   const initialPinterestBoardCache = useMemo(
     () => readPinterestBoardUiCache(),
-    [],
+    []
   );
   const [pinterestBoards, setPinterestBoards] = useState<PinterestUiBoard[]>(
-    () => initialPinterestBoardCache?.boards || [],
+    () => initialPinterestBoardCache?.boards || []
   );
   const [pinterestDefaultBoardId, setPinterestDefaultBoardId] = useState(
-    () => initialPinterestBoardCache?.defaultBoardId || "",
+    () => initialPinterestBoardCache?.defaultBoardId || ""
   );
   const [pinterestBoardsLoading, setPinterestBoardsLoading] = useState(false);
   const [pinterestBoardsError, setPinterestBoardsError] = useState("");
@@ -790,7 +740,7 @@ export default function AgentClient() {
     "idle" | "saving"
   >("idle");
   const [publishSaveState, setPublishSaveState] = useState<"idle" | "saving">(
-    "idle",
+    "idle"
   );
   const [publishChannelRemoveState, setPublishChannelRemoveState] = useState<
     "idle" | "removing"
@@ -826,9 +776,9 @@ export default function AgentClient() {
         actions.filter(
           (action) =>
             action.automationKey === "publish" &&
-            action.actionType === "publication",
+            action.actionType === "publication"
         ),
-        nowTimestamp,
+        nowTimestamp
       );
       if (nextDelay !== null) {
         timeoutId = window.setTimeout(refreshPublicationVisibility, nextDelay);
@@ -840,31 +790,6 @@ export default function AgentClient() {
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
   }, [actions]);
-
-  useEffect(() => {
-    if (!publishImageAdapterOpen || !publishImageAdapterStageRef.current)
-      return;
-    const node = publishImageAdapterStageRef.current;
-    const update = () => {
-      const rect = node.getBoundingClientRect();
-      setPublishImageAdapterStageSize({
-        width: Math.max(1, rect.width),
-        height: Math.max(1, rect.height),
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [publishImageAdapterOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (publishImageAdapterPreviewUrl) {
-        URL.revokeObjectURL(publishImageAdapterPreviewUrl);
-      }
-    };
-  }, [publishImageAdapterPreviewUrl]);
 
   useEffect(() => {
     let alive = true;
@@ -879,10 +804,10 @@ export default function AgentClient() {
         if (!alive) return;
         setPublishCtaDefaults({
           preferredWebsiteUrl: String(
-            payload?.preferredWebsiteUrl || "",
+            payload?.preferredWebsiteUrl || ""
           ).trim(),
           preferredWebsiteLabel: String(
-            payload?.preferredWebsiteLabel || "",
+            payload?.preferredWebsiteLabel || ""
           ).trim(),
           siteWebUrl: String(payload?.siteWebUrl || "").trim(),
           inrcySiteUrl: String(payload?.inrcySiteUrl || "").trim(),
@@ -899,13 +824,13 @@ export default function AgentClient() {
     const handleAiConfigurationUpdated = () => loadPublishCtaDefaults();
     window.addEventListener(
       "inrcy:ai-configuration-updated",
-      handleAiConfigurationUpdated,
+      handleAiConfigurationUpdated
     );
     return () => {
       alive = false;
       window.removeEventListener(
         "inrcy:ai-configuration-updated",
-        handleAiConfigurationUpdated,
+        handleAiConfigurationUpdated
       );
     };
   }, []);
@@ -924,14 +849,11 @@ export default function AgentClient() {
       ]);
       if (!alive) return;
 
-      if (
-        instagramResult.status === "fulfilled" &&
-        instagramResult.value.ok
-      ) {
+      if (instagramResult.status === "fulfilled" && instagramResult.value.ok) {
         const payload = await instagramResult.value.json().catch(() => ({}));
         if (alive) {
           setInstagramPublicationPreferences(
-            normalizeInstagramPublicationPreferences(payload?.preferences),
+            normalizeInstagramPublicationPreferences(payload?.preferences)
           );
         }
       }
@@ -939,7 +861,7 @@ export default function AgentClient() {
         const payload = await facebookResult.value.json().catch(() => ({}));
         if (alive) {
           setFacebookPublicationPreferences(
-            normalizeFacebookPublicationPreferences(payload?.preferences),
+            normalizeFacebookPublicationPreferences(payload?.preferences)
           );
         }
       }
@@ -966,7 +888,7 @@ export default function AgentClient() {
         }
         return acc;
       },
-      { publish: 0, grow: 0, loyalty: 0, stats: 0 },
+      { publish: 0, grow: 0, loyalty: 0, stats: 0 }
     );
   }, [actions, publicationVisibilityNow]);
 
@@ -1009,23 +931,24 @@ export default function AgentClient() {
     () =>
       actions
         .filter((action) =>
-          isPublicationCarouselAction(action, publicationVisibilityNow),
+          isPublicationCarouselAction(action, publicationVisibilityNow)
         )
         .sort((left, right) => {
           const leftGroup = publicationActionSortGroup(left);
           const rightGroup = publicationActionSortGroup(right);
           if (leftGroup !== rightGroup) return leftGroup - rightGroup;
-          const delta = publicationActionTime(left) - publicationActionTime(right);
+          const delta =
+            publicationActionTime(left) - publicationActionTime(right);
           return leftGroup < 2 ? delta : -delta;
         }),
-    [actions, publicationVisibilityNow],
+    [actions, publicationVisibilityNow]
   );
 
   const selectedPreparedActionFromActions = useMemo(() => {
     if (selectedKey === "publish") {
       return (
         publicationCarouselActions.find(
-          (action) => action.id === selectedPreparedActionId,
+          (action) => action.id === selectedPreparedActionId
         ) ??
         publicationCarouselActions.find(isAgentActionAwaitingValidation) ??
         publicationCarouselActions[0] ??
@@ -1040,20 +963,24 @@ export default function AgentClient() {
         (action) =>
           action.id === selectedPreparedActionId &&
           action.automationKey === selectedKey &&
-          isSelectable(action),
+          isSelectable(action)
       ) ??
       actions.find(
-        (action) =>
-          action.automationKey === selectedKey &&
-          isSelectable(action),
-      ) ?? null
+        (action) => action.automationKey === selectedKey && isSelectable(action)
+      ) ??
+      null
     );
-  }, [actions, publicationCarouselActions, selectedKey, selectedPreparedActionId]);
+  }, [
+    actions,
+    publicationCarouselActions,
+    selectedKey,
+    selectedPreparedActionId,
+  ]);
 
   const selectedPreparedAction =
     scheduledEditSession?.action ?? selectedPreparedActionFromActions;
   const selectedEditorialPlan = asRecord(
-    selectedPreparedAction?.payload?.editorialPlan,
+    selectedPreparedAction?.payload?.editorialPlan
   );
   const scheduledEditDirty = Boolean(scheduledEditSession?.dirty);
 
@@ -1061,18 +988,18 @@ export default function AgentClient() {
     () =>
       visibleAutomations.find((automation) => automation.key === selectedKey) ??
       visibleAutomations[0],
-    [selectedKey, visibleAutomations],
+    [selectedKey, visibleAutomations]
   );
 
   const selectedPublicationValidationState = publicationValidationState(
-    selectedPreparedAction,
+    selectedPreparedAction
   );
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
-    selectedPreparedAction,
+    selectedPreparedAction
   );
   const selectedPublicationIndex = selectedPreparedAction
     ? publicationCarouselActions.findIndex(
-        (action) => action.id === selectedPreparedAction.id,
+        (action) => action.id === selectedPreparedAction.id
       )
     : -1;
   const canNavigatePublications =
@@ -1082,8 +1009,10 @@ export default function AgentClient() {
     publicationCarouselActions.length > 1;
 
   function movePublication(offset: number) {
-    if (!canNavigatePublications || tiktokSessionCheckInFlightRef.current) return;
-    const currentIndex = selectedPublicationIndex >= 0 ? selectedPublicationIndex : 0;
+    if (!canNavigatePublications || tiktokSessionCheckInFlightRef.current)
+      return;
+    const currentIndex =
+      selectedPublicationIndex >= 0 ? selectedPublicationIndex : 0;
     const nextIndex =
       (currentIndex + offset + publicationCarouselActions.length) %
       publicationCarouselActions.length;
@@ -1114,21 +1043,26 @@ export default function AgentClient() {
 
   const settingsAutomation = useMemo(
     () =>
-      visibleAutomations.find((automation) => automation.key === settingsKey) ?? null,
-    [settingsKey, visibleAutomations],
+      visibleAutomations.find((automation) => automation.key === settingsKey) ??
+      null,
+    [settingsKey, visibleAutomations]
   );
   const settingsAvailableThemes = useMemo(
     () =>
       settingsAutomation?.availableThemes.filter(
         (theme) =>
-          !(standardMode && settingsAutomation.key === "stats" && theme === "Mails"),
+          !(
+            standardMode &&
+            settingsAutomation.key === "stats" &&
+            theme === "Mails"
+          )
       ) ?? [],
-    [settingsAutomation, standardMode],
+    [settingsAutomation, standardMode]
   );
 
   const selectedHeaderTool = useMemo(
     () => headerToolLinkForAutomation(selected.key),
-    [selected.key],
+    [selected.key]
   );
 
   const upcomingScheduleItems = useMemo<ScheduleListItem[]>(() => {
@@ -1141,30 +1075,36 @@ export default function AgentClient() {
       locale,
       translate: runtimeT,
     });
-  }, [actions, agentConnectedChannels, configs, i18nT, locale, runtimeT, scheduledActions, visibleAutomations]);
+  }, [
+    actions,
+    agentConnectedChannels,
+    configs,
+    i18nT,
+    locale,
+    runtimeT,
+    scheduledActions,
+    visibleAutomations,
+  ]);
 
   const selectedConfig = configs[selected.key];
   const selectedAvailableChannels = useMemo(
     () => connectedChannelsForAutomation(selected, agentConnectedChannels),
-    [agentConnectedChannels, selected],
+    [agentConnectedChannels, selected]
   );
   const settingsConfig = settingsKey ? configs[settingsKey] : null;
   const settingsPublicationIdeaFieldCount = settingsConfig
     ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
     : 0;
   const settingsPublicationIdeaVoiceBusy = publicationIdeaVoiceIndex !== null;
-  const updateSettingsPublicationIdea = (
-    index: number,
-    nextValue: string,
-  ) => {
+  const updateSettingsPublicationIdea = (index: number, nextValue: string) => {
     if (!settingsConfig || settingsAutomation?.key !== "publish") return;
     const publicationIdeas = Array.from(
       { length: settingsPublicationIdeaFieldCount },
-      (_, ideaIndex) => settingsConfig.publicationIdeas[ideaIndex] || "",
+      (_, ideaIndex) => settingsConfig.publicationIdeas[ideaIndex] || ""
     );
     publicationIdeas[index] = nextValue.slice(
       0,
-      INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
+      INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH
     );
     updateConfig("publish", { publicationIdeas });
   };
@@ -1177,7 +1117,7 @@ export default function AgentClient() {
   const settingsMonthDays = settingsConfig
     ? normalizeInrAgentMonthDays(
         settingsConfig.monthDays,
-        settingsConfig.frequency,
+        settingsConfig.frequency
       )
     : [];
   const settingsAvailableChannels = useMemo(
@@ -1185,10 +1125,10 @@ export default function AgentClient() {
       settingsAutomation
         ? connectedChannelsForAutomation(
             settingsAutomation,
-            agentConnectedChannels,
+            agentConnectedChannels
           )
         : [],
-    [agentConnectedChannels, settingsAutomation],
+    [agentConnectedChannels, settingsAutomation]
   );
 
   useEffect(() => {
@@ -1200,16 +1140,16 @@ export default function AgentClient() {
       (settingsAutomation?.availableChannels ?? []).filter(
         (channel) =>
           channel !== "pinterest" ||
-          settingsAvailableChannels.includes("pinterest"),
+          settingsAvailableChannels.includes("pinterest")
       ),
-    [settingsAutomation, settingsAvailableChannels],
+    [settingsAutomation, settingsAvailableChannels]
   );
   const settingsNoConnectedChannelBlock = Boolean(
     settingsAutomation &&
-    settingsAutomation.key !== "stats" &&
-    settingsAutomation.availableChannels.length > 0 &&
-    connectedChannelsLoadState === "ready" &&
-    settingsAvailableChannels.length === 0,
+      settingsAutomation.key !== "stats" &&
+      settingsAutomation.availableChannels.length > 0 &&
+      connectedChannelsLoadState === "ready" &&
+      settingsAvailableChannels.length === 0
   );
   const settingsConnectedChannelMessage = settingsNoConnectedChannelBlock
     ? settingsAutomation
@@ -1223,7 +1163,7 @@ export default function AgentClient() {
   const preparedImageUrl = imageAssetUrl(preparedImage);
   const selectedConfigChannels = useMemo(
     () => orderChannels(selectedConfig.channels, selectedAvailableChannels),
-    [selectedAvailableChannels, selectedConfig.channels],
+    [selectedAvailableChannels, selectedConfig.channels]
   );
   const isPublishView = selected.key === "publish";
   const preparedChannels = useMemo(
@@ -1231,10 +1171,10 @@ export default function AgentClient() {
       selectedPreparedAction
         ? orderChannels(
             channelsForAction(selectedPreparedAction, selectedConfigChannels),
-            selectedAvailableChannels,
+            selectedAvailableChannels
           )
         : [],
-    [selectedAvailableChannels, selectedPreparedAction, selectedConfigChannels],
+    [selectedAvailableChannels, selectedPreparedAction, selectedConfigChannels]
   );
   const preparedChannelsKey = preparedChannels.join("|");
   const selectablePreviewChannels = hasPreparedAction
@@ -1245,21 +1185,21 @@ export default function AgentClient() {
       ? []
       : selectedAvailableChannels
     : hasPreparedAction
-      ? preparedChannels
-      : loadState === "loading"
-        ? []
-        : selectedConfigChannels;
+    ? preparedChannels
+    : loadState === "loading"
+    ? []
+    : selectedConfigChannels;
   const previewNavigationChannels = isPublishView
     ? selectablePreviewChannels
     : displayChannels.length > 0
-      ? displayChannels
-      : selectedConfigChannels;
+    ? displayChannels
+    : selectedConfigChannels;
   const selectedStatsRubriques =
     selected.key === "stats" && loadState !== "loading"
       ? selectedConfig.themes.filter(
           (theme) =>
             Boolean(statsRubriqueOptions[theme]) &&
-            !(standardMode && theme === "Mails"),
+            !(standardMode && theme === "Mails")
         )
       : [];
   const placeholderPreviewChannels = !selectedPreparedAction
@@ -1268,15 +1208,15 @@ export default function AgentClient() {
   const selectedAutomationChannel = selectedChannelByAutomation[selected.key];
   const activePreviewChannel = selectedPreparedAction
     ? preparedChannels.includes(
-        selectedChannelByAction[selectedPreparedAction.id] as ChannelKey,
+        selectedChannelByAction[selectedPreparedAction.id] as ChannelKey
       )
       ? selectedChannelByAction[selectedPreparedAction.id]
-      : (preparedChannels[0] ?? null)
+      : preparedChannels[0] ?? null
     : placeholderPreviewChannels.includes(
-          selectedAutomationChannel as ChannelKey,
-        )
-      ? (selectedAutomationChannel as ChannelKey)
-      : (placeholderPreviewChannels[0] ?? null);
+        selectedAutomationChannel as ChannelKey
+      )
+    ? (selectedAutomationChannel as ChannelKey)
+    : placeholderPreviewChannels[0] ?? null;
   const activePreviewChannelLabel = activePreviewChannel
     ? agentChannelLabel(activePreviewChannel, runtimeT)
     : i18nT("preview_label");
@@ -1284,17 +1224,17 @@ export default function AgentClient() {
     ? extractChannelPreview(selectedPreparedAction, activePreviewChannel)
     : null;
   const preparedParagraphs = previewParagraphs(
-    preparedChannelPreview?.body || selectedPreparedAction?.summary || "",
+    preparedChannelPreview?.body || selectedPreparedAction?.summary || ""
   );
   const publishMediaPreview = isPublishView
     ? extractPublishMediaPreview(
         selectedPreparedAction,
         activePreviewChannel,
-        publishMediaActiveIndex,
+        publishMediaActiveIndex
       )
     : null;
   const selectedPublicationUsesTiktok = Boolean(
-    isPublishView && preparedChannels.includes("tiktok"),
+    isPublishView && preparedChannels.includes("tiktok")
   );
   const tiktokPublishPreview = selectedPublicationUsesTiktok
     ? extractChannelPreview(selectedPreparedAction!, "tiktok")
@@ -1311,48 +1251,59 @@ export default function AgentClient() {
     Number(
       tiktokPublishMediaRecord?.duration ||
         tiktokPublishMediaRecord?.duration_seconds ||
-        0,
+        0
     ) || null;
   const hasActiveTiktokValidationSession = Boolean(
-    tiktokValidationSession &&
-      tiktokValidationSession.expiresAt > Date.now(),
+    tiktokValidationSession && tiktokValidationSession.expiresAt > Date.now()
   );
   const activeMetaPublicationChannel = isInrAgentMetaChannel(
-    activePreviewChannel,
+    activePreviewChannel
   )
     ? activePreviewChannel
     : null;
-  const publishPlacement: InrAgentPublicationPlacement =
+  const publishPlacementSelection =
     selectedPreparedAction && activeMetaPublicationChannel
-      ? readInrAgentPublicationPlacement(
+      ? readInrAgentPublicationSelection(
           selectedPreparedAction.payload,
-          activeMetaPublicationChannel,
+          activeMetaPublicationChannel
         )
-      : "classic";
+      : {
+          version: 2 as const,
+          primaryPlacement: "classic" as const,
+          includeStory: false,
+          placements: ["classic" as const],
+        };
+  const publishPlacement: InrAgentPublicationPlacement =
+    publishPlacementSelection.primaryPlacement;
+  const publishIncludeStory = publishPlacementSelection.includeStory;
   const publishPlacementOptions: InrAgentPublicationPlacement[] =
     activeMetaPublicationChannel === "instagram"
       ? getEnabledInstagramPublicationPlacements(
-          instagramPublicationPreferences,
+          instagramPublicationPreferences
         )
       : activeMetaPublicationChannel === "facebook"
-        ? getEnabledFacebookPublicationPlacements(
-            facebookPublicationPreferences,
-          )
-        : ["classic"];
+      ? getEnabledFacebookPublicationPlacements(facebookPublicationPreferences)
+      : ["classic"];
   const publishPlacementEnabled =
     activeMetaPublicationChannel === "instagram"
       ? isInstagramPublicationPlacementEnabled(
           publishPlacement as InstagramPublicationPlacement,
-          instagramPublicationPreferences,
+          instagramPublicationPreferences
         )
       : activeMetaPublicationChannel === "facebook"
-        ? isFacebookPublicationPlacementEnabled(
-            publishPlacement as FacebookPublicationPlacement,
-            facebookPublicationPreferences,
-          )
-        : publishPlacement === "classic";
+      ? isFacebookPublicationPlacementEnabled(
+          publishPlacement as FacebookPublicationPlacement,
+          facebookPublicationPreferences
+        )
+      : publishPlacement === "classic";
+  const publishStoryOptionEnabled =
+    activeMetaPublicationChannel === "instagram"
+      ? instagramPublicationPreferences.storiesEnabled
+      : activeMetaPublicationChannel === "facebook"
+        ? facebookPublicationPreferences.storiesEnabled
+        : false;
   const publishMediaOnly = Boolean(
-    activeMetaPublicationChannel && publishPlacement === "story",
+    activeMetaPublicationChannel && publishPlacement === "story"
   );
   const savedPinterestBoard = selectedPreparedAction
     ? readInrAgentPinterestBoardSelection(selectedPreparedAction.payload)
@@ -1371,9 +1322,8 @@ export default function AgentClient() {
         if (!response.ok || !payload?.ok) {
           throw new Error(
             String(
-              payload?.error ||
-                boosterRuntimeT("pinterest_boards_load_failed"),
-            ),
+              payload?.error || boosterRuntimeT("pinterest_boards_load_failed")
+            )
           );
         }
         const boards = (Array.isArray(payload.boards) ? payload.boards : [])
@@ -1388,9 +1338,8 @@ export default function AgentClient() {
                 "Tableau Pinterest",
             };
           })
-          .filter(
-            (value: PinterestUiBoard | null): value is PinterestUiBoard =>
-              Boolean(value),
+          .filter((value: PinterestUiBoard | null): value is PinterestUiBoard =>
+            Boolean(value)
           );
         if (cancelled) return;
         const defaultBoardId = String(payload.defaultBoardId || "").trim();
@@ -1403,7 +1352,7 @@ export default function AgentClient() {
           setPinterestBoardsError(
             error instanceof Error
               ? error.message
-              : boosterRuntimeT("pinterest_boards_load_failed"),
+              : boosterRuntimeT("pinterest_boards_load_failed")
           );
         }
       })
@@ -1416,7 +1365,7 @@ export default function AgentClient() {
   }, [activePreviewChannel, boosterRuntimeT, isPublishView]);
   const publishHasUsableMedia = Boolean(
     publishMediaPreview?.kind === "image" ||
-      publishMediaPreview?.kind === "video",
+      publishMediaPreview?.kind === "video"
   );
   const publishBoosterChannel =
     boosterChannelKeyFromAgentChannel(activePreviewChannel);
@@ -1424,102 +1373,76 @@ export default function AgentClient() {
     getBoosterMaxImageCountForChannel(publishBoosterChannel);
   const publishImageCount =
     publishMediaPreview?.kind === "image" ? publishMediaPreview.count : 0;
-  const publishImageLimitReached =
-    publishImageCount >= publishImageMaxCount;
+  const publishImageLimitReached = publishImageCount >= publishImageMaxCount;
   const publishMediaAdaptationPreview = isPublishView
     ? extractPublishMediaAdaptationPreview(
         selectedPreparedAction,
-        activePreviewChannel,
+        activePreviewChannel
       )
     : null;
-  const publishMediaRetouchLabel = i18nT(
+  const publishMediaRetouchLabel =
     publishMediaPreview?.kind === "video"
-      ? "adapt_video"
-      : publishMediaPreview?.kind === "image"
-        ? "adapt_image"
-        : "adapt_media",
-  );
+      ? mediaT("ai_generator_studio_tab_retouch")
+      : i18nT(
+          publishMediaPreview?.kind === "image" ? "adapt_image" : "adapt_media"
+        );
   const publishMediaRetouchIcon =
     publishMediaPreview?.kind === "video"
       ? "🎞️"
       : publishMediaPreview?.kind === "image"
-        ? "🪄"
-        : "✨";
-  const publishImageAdapterPreset = CHANNEL_PRESETS[publishBoosterChannel];
-  const publishImageAdapterTransformSafe =
-    publishImageAdapterTransform || getDefaultTransform(publishBoosterChannel);
-  const publishImageAdapterEffectiveZoom = getEffectiveTransformZoom(
-    publishImageAdapterTransformSafe,
-  );
-  const publishImageAdapterBackgroundMode = getBackgroundMode(
-    publishImageAdapterTransformSafe,
-  );
-  const publishImageAdapterBackgroundColor = getBackgroundFill(
-    publishImageAdapterTransformSafe.backgroundMode ||
-      publishImageAdapterBackgroundMode,
-    publishImageAdapterTransformSafe.backgroundColor,
-  );
-  const publishImageAdapterAspectRatio = `${publishImageAdapterPreset.width} / ${publishImageAdapterPreset.height}`;
-  const publishImageAdapterPreviewLayout = computePreviewLayout({
-    containerWidth:
-      publishImageAdapterStageSize.width || publishImageAdapterPreset.width,
-    containerHeight:
-      publishImageAdapterStageSize.height || publishImageAdapterPreset.height,
-    imageWidth: publishImageAdapterMeta?.width || 0,
-    imageHeight: publishImageAdapterMeta?.height || 0,
-    transform: publishImageAdapterTransformSafe,
-  });
+      ? "🪄"
+      : "✨";
   const currentPublishMediaRecord = getPublishMediaRecord(
     selectedPreparedAction,
     activePreviewChannel,
-    publishMediaActiveIndex,
+    publishMediaActiveIndex
   );
-
 
   const publishParagraphs = isPublishView
     ? publishPostParagraphs(
-        preparedChannelPreview?.body || selectedPreparedAction?.summary || "",
+        preparedChannelPreview?.body || selectedPreparedAction?.summary || ""
       )
     : [];
   const publishHasText = Boolean(
     isPublishView &&
-    (preparedChannelPreview?.title || preparedChannelPreview?.body),
+      (preparedChannelPreview?.title || preparedChannelPreview?.body)
   );
   const publishPreparationInProgress = Boolean(
     isPublishView &&
       (testNowKey === "publish" ||
         prepareProgress?.key === "publish" ||
         (prepareActionState === "saving" && selectedKey === "publish") ||
-        isInrAgentEditorialPreparationRunning(selectedPreparedAction)),
+        isInrAgentEditorialPreparationRunning(selectedPreparedAction))
   );
   const publishContentKind = isPublishView
     ? publishMediaOnly
       ? i18nT("publication_mode_media_only")
       : publishHasText
-        ? i18nT("titre_et_texte_7f7b4e2a")
-        : i18nT("texte_seul_24210789")
+      ? i18nT("titre_et_texte_7f7b4e2a")
+      : i18nT("texte_seul_24210789")
     : "—";
   const selectedPublicationIsAutomatic =
     selectedPreparedAction?.executionPolicy === "automatic_after_settings";
-  const publishValidationLabel = !isPublishView || !selectedPreparedAction
-    ? "—"
-    : selectedPreparedAction.status === "failed"
+  const publishValidationLabel =
+    !isPublishView || !selectedPreparedAction
+      ? "—"
+      : selectedPreparedAction.status === "failed"
       ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
       : selectedPublicationIsAutomatic
       ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
       : selectedPublicationValidationState === "refused"
       ? i18nT("action_status_refused")
       : selectedPublicationValidationState === "validated"
-        ? i18nT("action_status_validated")
-        : i18nT("publication_validation_pending");
+      ? i18nT("action_status_validated")
+      : i18nT("publication_validation_pending");
   const publishStatusClass =
     selectedPreparedAction?.status === "failed" ||
     selectedPublicationValidationState === "refused"
       ? styles.publishStatusBlocked
       : selectedPublicationIsAutomatic ||
-          selectedPublicationValidationState === "validated"
-          ? styles.publishStatusReady
-          : styles.publishStatusWarning;
+        selectedPublicationValidationState === "validated"
+      ? styles.publishStatusReady
+      : styles.publishStatusWarning;
   const agentPublishScheduleItems = useMemo<PublishScheduleItem[]>(() => {
     if (!selectedPreparedAction || !isPublishView) return [];
     const seen = new Set<BoosterChannelKey>();
@@ -1531,35 +1454,47 @@ export default function AgentClient() {
         const preview = extractChannelPreview(selectedPreparedAction, channel);
         const media = extractPublishMediaPreview(
           selectedPreparedAction,
-          channel,
+          channel
         );
         const metaChannel = isInrAgentMetaChannel(channel) ? channel : null;
-        const placement = metaChannel
-          ? readInrAgentPublicationPlacement(
+        const placementSelection = metaChannel
+          ? readInrAgentPublicationSelection(
               selectedPreparedAction.payload,
-              metaChannel,
+              metaChannel
             )
-          : "classic";
+          : {
+              version: 2 as const,
+              primaryPlacement: "classic" as const,
+              includeStory: false,
+              placements: ["classic" as const],
+            };
+        const placement = placementSelection.primaryPlacement;
         const mediaOnly = Boolean(metaChannel && placement === "story");
-        const placementAllowed =
-          metaChannel === "instagram"
-            ? isInstagramPublicationPlacementEnabled(
-                placement as InstagramPublicationPlacement,
-                instagramPublicationPreferences,
-              )
-            : metaChannel === "facebook"
-              ? isFacebookPublicationPlacementEnabled(
-                  placement as FacebookPublicationPlacement,
-                  facebookPublicationPreferences,
+        const placementAllowed = placementSelection.placements.every(
+          (selectedPlacement) =>
+            metaChannel === "instagram"
+              ? isInstagramPublicationPlacementEnabled(
+                  selectedPlacement as InstagramPublicationPlacement,
+                  instagramPublicationPreferences
                 )
-              : true;
+              : metaChannel === "facebook"
+              ? isFacebookPublicationPlacementEnabled(
+                  selectedPlacement as FacebookPublicationPlacement,
+                  facebookPublicationPreferences
+                )
+              : true
+        );
+        const requiresMetaMedia = Boolean(
+          metaChannel &&
+            (placement !== "classic" || placementSelection.includeStory)
+        );
         const hasText = Boolean(
           !mediaOnly &&
             (preview?.title ||
               preview?.body ||
               preview?.cta ||
               preview?.hashtags.length ||
-              selectedPreparedAction.summary),
+              selectedPreparedAction.summary)
         );
         const blockers: string[] = [];
         if (media.statusTone === "blocked" && media.statusLabel) {
@@ -1568,14 +1503,14 @@ export default function AgentClient() {
         if (!mediaOnly && !hasText && media.kind === "none") {
           blockers.push(i18nT("publish_requires_content"));
         }
-        if (mediaOnly && media.kind === "none") {
+        if (requiresMetaMedia && media.kind === "none") {
           blockers.push(i18nT("publication_mode_requires_media"));
         }
-        if (mediaOnly && !placementAllowed) {
+        if (requiresMetaMedia && !placementAllowed) {
           blockers.push(
-            placement === "story"
+            placement === "story" || placementSelection.includeStory
               ? i18nT("publication_mode_story_disabled")
-              : i18nT("publication_mode_reel_disabled"),
+              : i18nT("publication_mode_reel_disabled")
           );
         }
         if (channel === "youtube" && media.kind !== "video") {
@@ -1611,8 +1546,16 @@ export default function AgentClient() {
           channel: boosterChannel,
           label: agentChannelLabel(channel, runtimeT),
           mediaLabel: mediaOnly
-            ? `${placement === "story" ? i18nT("publication_mode_story") : i18nT("publication_mode_reel")} · ${i18nT("publication_mode_media_only")}`
-            : agentContentKindLabel(media.kind, hasText, runtimeT),
+            ? `${
+                placement === "story"
+                  ? i18nT("publication_mode_story")
+                  : i18nT("publication_mode_reel")
+              } · ${i18nT("publication_mode_media_only")}`
+            : `${agentContentKindLabel(media.kind, hasText, runtimeT)}${
+                placementSelection.includeStory
+                  ? ` + ${i18nT("publication_mode_story")}`
+                  : ""
+              }`,
           blockers: Array.from(new Set(blockers)),
         } satisfies PublishScheduleItem;
       })
@@ -1633,7 +1576,7 @@ export default function AgentClient() {
             preview.cta &&
             !preview.ctaUrl &&
             !preview.ctaPhone &&
-            ["custom", "website", "call"].includes(preview.ctaMode),
+            ["custom", "website", "call"].includes(preview.ctaMode)
         );
         if (
           !missingRequiredDestination ||
@@ -1644,7 +1587,7 @@ export default function AgentClient() {
           return extractPublishCtaLine(
             selectedPreparedAction,
             activePreviewChannel,
-            preview,
+            preview
           );
         }
 
@@ -1662,25 +1605,23 @@ export default function AgentClient() {
           normalizeBoosterPreferredCta(publishCtaDefaults.preferredCta),
           basePost,
           publishCtaDefaults,
-          publishCtaDefaults.aiLanguage,
+          publishCtaDefaults.aiLanguage
         );
         const label = String(patch.cta || "").trim();
-        const destination = String(
-          patch.ctaUrl || patch.ctaPhone || "",
-        ).trim();
+        const destination = String(patch.ctaUrl || patch.ctaPhone || "").trim();
         if (label && destination) return `${label} — ${destination}`;
         return label || destination || "—";
       })()
     : "—";
   const preparedRecipientsCount = recipientsCountForAction(
-    selectedPreparedAction,
+    selectedPreparedAction
   );
   const isCampaignView = isCampaignAutomationKey(selected.key);
   const campaignMailPreview = isCampaignView
     ? extractCampaignMailPreview(selectedPreparedAction)
     : null;
   const hasCampaignPreview = Boolean(
-    isCampaignView && selectedPreparedAction && campaignMailPreview,
+    isCampaignView && selectedPreparedAction && campaignMailPreview
   );
   const campaignPlaceholderPreview: CampaignMailPreview | null = isCampaignView
     ? {
@@ -1699,7 +1640,7 @@ export default function AgentClient() {
   const campaignRecipients = recipientsForAction(selectedPreparedAction);
   const campaignAttachments = normalizeCampaignAttachmentRefs(
     selectedPreparedAction?.payload?.attachments ||
-      asRecord(selectedPreparedAction?.payload?.campaign)?.attachments,
+      asRecord(selectedPreparedAction?.payload?.campaign)?.attachments
   );
   const filteredCrmContacts = useMemo(() => {
     const q = crmRecipientSearch.trim().toLowerCase();
@@ -1749,26 +1690,26 @@ export default function AgentClient() {
       crmContacts
         .map((contact) => contactToCampaignRecipient(contact))
         .filter((recipient): recipient is CampaignRecipientPreview =>
-          Boolean(recipient),
+          Boolean(recipient)
         )
-        .map((recipient) => [recipient.email.toLowerCase(), recipient]),
+        .map((recipient) => [recipient.email.toLowerCase(), recipient])
     );
   }, [crmContacts]);
   const manualSelectedRecipientEmails = useMemo(() => {
     return selectedRecipientEmails.filter(
-      (email) => !crmRecipientsByEmail.has(email.toLowerCase()),
+      (email) => !crmRecipientsByEmail.has(email.toLowerCase())
     );
   }, [crmRecipientsByEmail, selectedRecipientEmails]);
   const filteredCrmRecipientEmails = useMemo(() => {
     return filteredCrmContacts
       .map((contact) =>
-        contactToCampaignRecipient(contact)?.email.toLowerCase(),
+        contactToCampaignRecipient(contact)?.email.toLowerCase()
       )
       .filter((email): email is string => Boolean(email));
   }, [filteredCrmContacts]);
   const filteredCrmSelectedCount = useMemo(() => {
     const selected = new Set(
-      selectedRecipientEmails.map((email) => email.toLowerCase()),
+      selectedRecipientEmails.map((email) => email.toLowerCase())
     );
     return filteredCrmRecipientEmails.filter((email) => selected.has(email))
       .length;
@@ -1784,11 +1725,11 @@ export default function AgentClient() {
   const selectedAutomationSettings = agentSettings.automations[selected.key];
   const statsReports = useMemo(
     () => statsReportsFromActions(actions, { automaticOnly: true, limit: 5 }),
-    [actions],
+    [actions]
   );
   const latestStatsReport = useMemo(
     () => statsReportsFromActions(actions, { limit: 1 })[0] ?? null,
-    [actions],
+    [actions]
   );
   const latestAutomaticStatsReport = statsReports[0] ?? null;
   const latestStatsRecommendations =
@@ -1799,26 +1740,33 @@ export default function AgentClient() {
           latestStatsReport.completedAt ||
           latestStatsReport.createdAt,
         "—",
-        locale,
+        locale
       )
     : i18nT("aucun_b2ed82f1");
   const statsNextRunLabel = formatDateTimeLabel(
     selectedAutomationSettings?.nextRunAt ||
       (selected.key === "stats" ? computeNextOccurrence(selectedConfig) : null),
     i18nT("schedule_inactive"),
-    locale,
+    locale
   );
   const statsAutomationLabel = selectedConfig.enabled
     ? i18nT("automation_enabled")
     : i18nT("automation_disabled");
-  const statsFrequencyLabel = agentFrequencyLabel(selectedConfig.frequency || "Chaque semaine", runtimeT);
+  const statsFrequencyLabel = agentFrequencyLabel(
+    selectedConfig.frequency || "Chaque semaine",
+    runtimeT
+  );
   const statsStoredCountLabel = `${statsReports.length}/5`;
   const footerDateLabel =
     selected.key === "stats"
       ? statsNextRunLabel
       : hasPreparedAction && selectedPreparedAction
-        ? formatActionDate(selectedPreparedAction.scheduledFor, selectedConfig, locale)
-        : "—";
+      ? formatActionDate(
+          selectedPreparedAction.scheduledFor,
+          selectedConfig,
+          locale
+        )
+      : "—";
 
   useEffect(() => {
     if (!selectedPreparedAction || preparedChannels.length === 0) return;
@@ -1892,13 +1840,13 @@ export default function AgentClient() {
           subject,
           bodyText: body,
         },
-        i18nT("modification_du_mail_impossible_79c8df8a"),
+        i18nT("modification_du_mail_impossible_79c8df8a")
       );
       setMailTextEditOpen(false);
       showNotice(
         scheduledEditSession
           ? i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5")
-          : i18nT("texte_de_la_campagne_mis_a_2147ff62"),
+          : i18nT("texte_de_la_campagne_mis_a_2147ff62")
       );
     } catch (error) {
       showNotice(i18nT("modification_du_mail_impossible_79c8df8a"));
@@ -1918,11 +1866,11 @@ export default function AgentClient() {
     }
     const preview = extractChannelPreview(
       selectedPreparedAction,
-      activePreviewChannel,
+      activePreviewChannel
     );
     const displayKey = boosterDisplayKeyFromAgentChannel(activePreviewChannel);
     const fallbackChoice = normalizeBoosterPreferredCta(
-      publishCtaDefaults?.preferredCta,
+      publishCtaDefaults?.preferredCta
     );
     const inferredChoice =
       preview.ctaMode === "none" && preview.cta
@@ -1948,17 +1896,17 @@ export default function AgentClient() {
           fallbackChoice,
           basePost,
           publishCtaDefaults,
-          publishCtaDefaults?.aiLanguage,
+          publishCtaDefaults?.aiLanguage
         )
       : preview.ctaMode === "none" && preview.cta
-        ? buildPreferredCtaPatch(
-            displayKey,
-            inferredChoice,
-            basePost,
-            publishCtaDefaults,
-            publishCtaDefaults?.aiLanguage,
-          )
-        : {};
+      ? buildPreferredCtaPatch(
+          displayKey,
+          inferredChoice,
+          basePost,
+          publishCtaDefaults,
+          publishCtaDefaults?.aiLanguage
+        )
+      : {};
     const hydratedPost = { ...basePost, ...ctaPatch };
     setPublishTextDraft({
       channel: activePreviewChannel,
@@ -1992,7 +1940,7 @@ export default function AgentClient() {
 
   function openMediaOptimizerForFiles(
     files: File[],
-    destination: AgentMediaOptimizerRequest["destination"],
+    destination: AgentMediaOptimizerRequest["destination"]
   ) {
     const requests = files
       .filter((file) => {
@@ -2016,7 +1964,7 @@ export default function AgentClient() {
 
   function openMediaOptimizerForLibraryItem(
     item: MediaLibraryPickerItem,
-    destination: AgentMediaOptimizerRequest["destination"],
+    destination: AgentMediaOptimizerRequest["destination"]
   ) {
     setMediaOptimizerRequest({
       source: { kind: "library", item: item as MediaOptimizerItem },
@@ -2040,7 +1988,7 @@ export default function AgentClient() {
   }
 
   async function selectPublishMediaFromLibrary(
-    item: AgentMediaLibraryItem | MediaLibraryPickerItem,
+    item: AgentMediaLibraryItem | MediaLibraryPickerItem
   ) {
     if (!item) return false;
     if (activePreviewChannel === "youtube" && item.media_type !== "video") {
@@ -2048,9 +1996,7 @@ export default function AgentClient() {
       return false;
     }
     if (item.media_type === "image" && publishImageLimitReached) {
-      showNotice(
-        i18nT("max_images_channel", { count: publishImageMaxCount }),
-      );
+      showNotice(i18nT("max_images_channel", { count: publishImageMaxCount }));
       return false;
     }
     setPublishMediaUploadState("saving");
@@ -2060,10 +2006,7 @@ export default function AgentClient() {
       await savePublishMediaPatch(mediaPatchFromLibraryItem(item), mutation);
       if (item.media_type === "image") {
         setPublishMediaActiveIndex(
-          Math.min(
-            publishImageCount,
-            publishImageMaxCount - 1,
-          ),
+          Math.min(publishImageCount, publishImageMaxCount - 1)
         );
         showNotice(i18nT("publish_image_added"));
       } else {
@@ -2079,6 +2022,207 @@ export default function AgentClient() {
     }
   }
 
+  useEffect(() => {
+    if (!selectedPreparedAction || !activePreviewChannel) return;
+    const params = new URLSearchParams(window.location.search);
+    const returnKey = String(params.get("studio_return") || "").trim();
+    if (!returnKey) return;
+    const result = consumeInrStudioReturn(returnKey);
+    if (!result?.item) return;
+
+    params.delete("studio_return");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${
+        params.size ? `?${params.toString()}` : ""
+      }${window.location.hash}`
+    );
+    const returnedRecord = result.item;
+    if (result.action === "retouch" || result.action === "modify") {
+      const returnedMediaIndex = Number(result.context.mediaIndex);
+      const returnedChannel = String(result.context.channel || "").trim();
+      const returnedActionId = String(result.context.actionId || "").trim();
+      const returnedMediaType = firstSafeString(
+        returnedRecord.media_type,
+        returnedRecord.mediaType,
+        result.context.mediaType
+      ).toLowerCase();
+      const isReturnedVideo =
+        returnedMediaType === "video" ||
+        returnedRecord.studio_video_retouch === true;
+
+      if (isReturnedVideo) {
+        if (
+          !Number.isInteger(returnedMediaIndex) ||
+          returnedMediaIndex < 0 ||
+          !returnedChannel ||
+          !returnedActionId
+        ) {
+          showNotice(i18nT("publish_media_update_failed"));
+          return;
+        }
+
+        const returnedVideoChannel = firstSafeString(
+          result.context.videoChannel,
+          boosterChannelKeyFromAgentChannel(returnedChannel as ChannelKey)
+        ) as BoosterChannelKey;
+        const sourceMediaRecord =
+          asRecord(returnedRecord.source_media_record) ||
+          asRecord(currentPublishMediaRecord?.originalVideo) ||
+          currentPublishMediaRecord;
+        if (!sourceMediaRecord) {
+          showNotice(i18nT("publish_media_update_failed"));
+          return;
+        }
+
+        const videoFormat = normalizeVideoFormat(
+          returnedVideoChannel,
+          firstSafeString(
+            returnedRecord.video_format,
+            sourceMediaRecord.videoFormat
+          )
+        );
+        const videoAdaptationMode = normalizeVideoAdaptationMode(
+          firstSafeString(
+            returnedRecord.video_adaptation_mode,
+            sourceMediaRecord.videoAdaptationMode
+          )
+        );
+        const videoSettings = {
+          format: videoFormat,
+          adaptationMode: videoAdaptationMode,
+        };
+        const transformedVariants = Array.isArray(
+          returnedRecord.transformed_variants
+        )
+          ? returnedRecord.transformed_variants
+          : Array.isArray(sourceMediaRecord.transformedVariants)
+          ? sourceMediaRecord.transformedVariants
+          : [];
+        const videoSettingsByChannel = {
+          ...(asRecord(sourceMediaRecord.videoSettingsByChannel) || {}),
+          [returnedVideoChannel]: videoSettings,
+        };
+        const storagePath = firstSafeString(
+          returnedRecord.storage_path,
+          sourceMediaRecord.storagePath,
+          sourceMediaRecord.storage_path,
+          sourceMediaRecord.path
+        );
+        const publicUrl = firstSafeString(
+          returnedRecord.signed_url,
+          returnedRecord.public_url,
+          sourceMediaRecord.publicUrl,
+          sourceMediaRecord.signed_url,
+          sourceMediaRecord.url
+        );
+        const mimeType = firstSafeString(
+          returnedRecord.mime_type,
+          sourceMediaRecord.mimeType,
+          sourceMediaRecord.mime_type,
+          sourceMediaRecord.type,
+          "video/mp4"
+        );
+        const videoMediaPatch = {
+          ...sourceMediaRecord,
+          ...(returnedRecord.id ? { id: returnedRecord.id } : {}),
+          storagePath,
+          storage_path: storagePath,
+          path: storagePath,
+          publicUrl,
+          signed_url: publicUrl,
+          url: publicUrl,
+          name: firstSafeString(
+            returnedRecord.original_file_name,
+            sourceMediaRecord.name,
+            publishMediaPreview?.name,
+            "video-inragent.mp4"
+          ),
+          type: mimeType,
+          mimeType,
+          mime_type: mimeType,
+          size:
+            Number(returnedRecord.size_bytes || sourceMediaRecord.size || 0) ||
+            0,
+          duration:
+            Number(
+              returnedRecord.duration_seconds ||
+                sourceMediaRecord.duration ||
+                sourceMediaRecord.duration_seconds ||
+                0
+            ) || null,
+          duration_seconds:
+            Number(
+              returnedRecord.duration_seconds ||
+                sourceMediaRecord.duration_seconds ||
+                sourceMediaRecord.duration ||
+                0
+            ) || null,
+          kind: "video",
+          mediaType: "video",
+          sourceMetadata:
+            asRecord(returnedRecord.source_metadata) ||
+            asRecord(sourceMediaRecord.sourceMetadata) ||
+            asRecord(sourceMediaRecord.source_metadata) ||
+            null,
+          videoSettings,
+          videoSettingsByChannel,
+          videoFormat,
+          videoAdaptationMode,
+          transformedVariants,
+        };
+
+        setPublishMediaUploadState("saving");
+        void savePublishMediaPatch(videoMediaPatch, "replace", {
+          actionId: returnedActionId,
+          channel: returnedChannel as ChannelKey,
+          mediaIndex: returnedMediaIndex,
+        })
+          .then(() => {
+            setPublishMediaActiveIndex(returnedMediaIndex);
+            showNotice(i18nT("publish_video_updated"));
+          })
+          .catch(() => showNotice(i18nT("publish_media_update_failed")))
+          .finally(() => setPublishMediaUploadState("idle"));
+        return;
+      }
+
+      const returnedItem = returnedRecord as unknown as MediaLibraryPickerItem;
+      if (
+        returnedItem.media_type !== "image" ||
+        !Number.isInteger(returnedMediaIndex) ||
+        returnedMediaIndex < 0 ||
+        !returnedChannel ||
+        !returnedActionId
+      ) {
+        showNotice(i18nT("publish_media_update_failed"));
+        return;
+      }
+      setPublishMediaUploadState("saving");
+      void savePublishMediaPatch(
+        mediaPatchFromLibraryItem(returnedItem),
+        "replace",
+        {
+          actionId: returnedActionId,
+          channel: returnedChannel as ChannelKey,
+          mediaIndex: returnedMediaIndex,
+        }
+      )
+        .then(() => {
+          setPublishMediaActiveIndex(returnedMediaIndex);
+          showNotice(i18nT("publish_image_updated"));
+        })
+        .catch(() => showNotice(i18nT("publish_media_update_failed")))
+        .finally(() => setPublishMediaUploadState("idle"));
+      return;
+    }
+
+    void selectPublishMediaFromLibrary(
+      returnedRecord as unknown as MediaLibraryPickerItem
+    );
+  }, [activePreviewChannel, selectedPreparedAction?.id]);
+
   function openPublishMediaEditor() {
     if (
       !selectedPreparedAction ||
@@ -2093,385 +2237,208 @@ export default function AgentClient() {
     setPublishMediaPreviewOpen(true);
   }
 
-  function updatePublishImageAdapterTransform(patch: Partial<ImageTransform>) {
-    setPublishImageAdapterTransform((current) => ({
-      ...(current || getDefaultTransform(publishBoosterChannel)),
-      ...patch,
-    }));
-  }
-
-  function closePublishImageAdapter() {
-    setPublishImageAdapterOpen(false);
-    setPublishImageAdapterFile(null);
-    setPublishImageAdapterMeta(null);
-    setPublishImageAdapterTransform(null);
-    setPublishImageAdapterStageSize({ width: 0, height: 0 });
-    setPublishImageAdapterDragging(false);
-    publishImageAdapterDragRef.current = null;
-    if (publishImageAdapterPreviewUrl) {
-      URL.revokeObjectURL(publishImageAdapterPreviewUrl);
-      setPublishImageAdapterPreviewUrl("");
-    }
-  }
-
-  async function openPublishImageAdapterTool() {
+  async function openPublishImageInStudio(tab: "modify" | "retouch") {
     if (!publishMediaPreview?.url) {
       showNotice(i18nT("add_image_first"));
       return;
     }
     try {
-      setPublishImageAdapterSaving(true);
-      const fileName =
-        publishMediaPreview.name?.replace(/\.[^.]+$/, "") || "image-inragent";
-      const sourceFile = await urlToFile(
-        publishMediaPreview.url,
-        `${fileName}.jpg`,
-        "image/jpeg",
-      );
-      const meta = await readImageMeta(sourceFile);
-      const optimizedTransform = getOptimizedTransform(
-        publishBoosterChannel,
-        meta,
-      );
-      const transform: ImageTransform = {
-        ...optimizedTransform,
-        fit: "contain",
-        zoom: 1,
-        offsetX: 0,
-        offsetY: 0,
-        backgroundMode: getChannelSafetyBackgroundMode(
-          publishBoosterChannel,
+      const sourceName = publishMediaPreview.name || "image-inragent.jpg";
+      const sourceMimeType = getUniversalMediaContentType({
+        mediaType: "image",
+        name: sourceName || publishMediaPreview.url,
+        mimeType: firstSafeString(
+          currentPublishMediaRecord?.mimeType,
+          currentPublishMediaRecord?.mime_type,
+          currentPublishMediaRecord?.type
         ),
-        backgroundColor: undefined,
-        blurBackground: false,
-      };
-      const previewUrl = URL.createObjectURL(sourceFile);
-      if (publishImageAdapterPreviewUrl) {
-        URL.revokeObjectURL(publishImageAdapterPreviewUrl);
-      }
-      setPublishImageAdapterFile(sourceFile);
-      setPublishImageAdapterMeta(meta);
-      setPublishImageAdapterTransform(transform);
-      setPublishImageAdapterPreviewUrl(previewUrl);
-      setPublishImageAdapterOpen(true);
+      });
+      const { href } = await createInrStudioHandoff({
+        tab,
+        origin: "inr-agent",
+        source: {
+          url: publishMediaPreview.url,
+          name: sourceName,
+          mimeType: sourceMimeType,
+        },
+        context: {
+          actionId: selectedPreparedAction?.id || null,
+          // Keep the iNrAgent channel key for the return path. Booster channel
+          // aliases (for example site_web or youtube_shorts) are only useful
+          // while preparing the media and must not be cast back to ChannelKey.
+          channel: activePreviewChannel,
+          mediaIndex: publishMediaActiveIndex,
+          mediaType: "image",
+        },
+      });
+      router.push(href);
     } catch (error) {
       showNotice(i18nT("image_adaptation_failed"));
-    } finally {
-      setPublishImageAdapterSaving(false);
     }
   }
 
   function getCurrentVideoSettings() {
     const rawSettings = getMediaVideoSettingsRecord(
       currentPublishMediaRecord,
-      publishBoosterChannel,
+      publishBoosterChannel
     );
     return {
       format: normalizeVideoFormat(
         publishBoosterChannel,
-        rawSettings?.format || currentPublishMediaRecord?.videoFormat,
+        rawSettings?.format || currentPublishMediaRecord?.videoFormat
       ),
       adaptationMode: normalizeVideoAdaptationMode(
         rawSettings?.adaptationMode ||
-          currentPublishMediaRecord?.videoAdaptationMode,
+          currentPublishMediaRecord?.videoAdaptationMode
       ),
     };
   }
 
-  function openPublishVideoAdapterTool() {
+  async function openPublishVideoInStudio() {
     if (!publishMediaPreview?.url) {
       showNotice(i18nT("add_video_first"));
       return;
     }
-    const settings = getCurrentVideoSettings();
-    setPublishVideoFormat(settings.format);
-    setPublishVideoAdaptationMode(settings.adaptationMode);
-    setPublishVideoPreparationState(null);
-    setPublishVideoAdapterOpen(true);
+    if (!currentPublishMediaRecord) {
+      showNotice(i18nT("publish_media_update_failed"));
+      return;
+    }
+
+    try {
+      const settings = getCurrentVideoSettings();
+      const originalVideo = asRecord(currentPublishMediaRecord.originalVideo);
+      const sourceMediaRecord = originalVideo || currentPublishMediaRecord;
+      const transformedVariants = Array.isArray(
+        currentPublishMediaRecord.transformedVariants
+      )
+        ? currentPublishMediaRecord.transformedVariants
+        : Array.isArray(sourceMediaRecord.transformedVariants)
+        ? sourceMediaRecord.transformedVariants
+        : [];
+      const videoSettingsByChannel =
+        asRecord(currentPublishMediaRecord.videoSettingsByChannel) ||
+        asRecord(sourceMediaRecord.videoSettingsByChannel) ||
+        {};
+      const sourceName =
+        publishMediaPreview.name ||
+        firstSafeString(sourceMediaRecord.name, "video-inragent.mp4");
+      const sourceMimeType = getUniversalMediaContentType({
+        mediaType: "video",
+        name: sourceName || publishMediaPreview.url,
+        mimeType: firstSafeString(
+          sourceMediaRecord.mimeType,
+          sourceMediaRecord.mime_type,
+          sourceMediaRecord.type
+        ),
+      });
+      const sourceMetadata =
+        asRecord(currentPublishMediaRecord.sourceMetadata) ||
+        asRecord(currentPublishMediaRecord.source_metadata) ||
+        asRecord(sourceMediaRecord.sourceMetadata) ||
+        asRecord(sourceMediaRecord.source_metadata) ||
+        null;
+      const videoMediaRecord = {
+        ...sourceMediaRecord,
+        transformedVariants,
+        videoSettingsByChannel,
+      };
+      const { href } = await createInrStudioHandoff({
+        tab: "retouch",
+        origin: "inr-agent",
+        source: {
+          mediaType: "video",
+          url: publishMediaPreview.url,
+          name: sourceName,
+          mimeType: sourceMimeType,
+        },
+        context: {
+          actionId: selectedPreparedAction?.id || null,
+          channel: activePreviewChannel || null,
+          videoChannel: publishBoosterChannel,
+          mediaIndex: publishMediaActiveIndex,
+          mediaType: "video",
+        },
+        payload: {
+          videoChannel: publishBoosterChannel,
+          videoFormat: settings.format,
+          videoAdaptationMode: settings.adaptationMode,
+          videoStoragePath:
+            firstSafeString(
+              sourceMediaRecord.storagePath,
+              sourceMediaRecord.storage_path,
+              sourceMediaRecord.path
+            ) || null,
+          videoPublicUrl: publishMediaPreview.url,
+          videoDurationSeconds:
+            Number(
+              currentPublishMediaRecord.duration ||
+                currentPublishMediaRecord.duration_seconds ||
+                sourceMediaRecord.duration ||
+                sourceMediaRecord.duration_seconds ||
+                0
+            ) || null,
+          videoSize:
+            Number(
+              currentPublishMediaRecord.size || sourceMediaRecord.size || 0
+            ) || null,
+          videoSourceMetadata: sourceMetadata,
+          videoTransformedVariants: transformedVariants,
+          videoMediaRecord,
+          deferVideoPreparation: false,
+        },
+      });
+      router.push(href);
+    } catch {
+      showNotice(i18nT("publish_media_update_failed"));
+    }
   }
 
-  function openPublishMediaAdapterPreview() {
+  function openPublishMediaRetouchPreview() {
     if (!publishMediaPreview?.url) {
       showNotice(i18nT("add_media_first"));
       return;
     }
     if (publishMediaPreview.kind === "video") {
-      openPublishVideoAdapterTool();
+      void openPublishVideoInStudio();
       return;
     }
     if (publishMediaPreview.kind === "image") {
-      void openPublishImageAdapterTool();
+      void openPublishImageInStudio("retouch");
       return;
     }
     showNotice(i18nT("media_not_adaptable"));
   }
 
-  function handlePublishImageAdapterWheel(
-    event: ReactWheelEvent<HTMLDivElement>,
-  ) {
-    if (event.cancelable) event.preventDefault();
-    const meta = publishImageAdapterMeta;
-    const node = publishImageAdapterStageRef.current;
-    if (!meta?.width || !meta?.height || !node) return;
-    const rect = node.getBoundingClientRect();
-    const pointerX = event.clientX - rect.left;
-    const pointerY = event.clientY - rect.top;
-    const maxZoom = publishImageAdapterTransformSafe.fit === "cover" ? 3 : 1;
-    const currentZoom = getEffectiveTransformZoom(
-      publishImageAdapterTransformSafe,
-    );
-    const nextZoom = clampNumber(
-      currentZoom + (event.deltaY < 0 ? 0.08 : -0.08),
-      0.4,
-      maxZoom,
-    );
-    const nextLayout = computePreviewLayout({
-      containerWidth: rect.width,
-      containerHeight: rect.height,
-      imageWidth: meta.width,
-      imageHeight: meta.height,
-      transform: { ...publishImageAdapterTransformSafe, zoom: nextZoom },
-    });
-    const currentDrawW =
-      publishImageAdapterPreviewLayout.drawW || nextLayout.drawW;
-    const currentDrawH =
-      publishImageAdapterPreviewLayout.drawH || nextLayout.drawH;
-    const ux = currentDrawW
-      ? (pointerX - publishImageAdapterPreviewLayout.dx) / currentDrawW
-      : 0.5;
-    const uy = currentDrawH
-      ? (pointerY - publishImageAdapterPreviewLayout.dy) / currentDrawH
-      : 0.5;
-    const nextDx = pointerX - ux * nextLayout.drawW;
-    const nextDy = pointerY - uy * nextLayout.drawH;
-    updatePublishImageAdapterTransform({
-      zoom: nextZoom,
-      ...offsetFromDrawPosition({
-        containerWidth: rect.width,
-        containerHeight: rect.height,
-        drawW: nextLayout.drawW,
-        drawH: nextLayout.drawH,
-        dx: nextDx,
-        dy: nextDy,
-      }),
-    });
-  }
-
-  function handlePublishImageAdapterPointerDown(
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) {
-    publishImageAdapterDragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      startOffsetX: publishImageAdapterTransformSafe.offsetX || 0,
-      startOffsetY: publishImageAdapterTransformSafe.offsetY || 0,
-    };
-    setPublishImageAdapterDragging(true);
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }
-
-  function handlePublishImageAdapterPointerMove(
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) {
-    const drag = publishImageAdapterDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const nextOffsetX = publishImageAdapterPreviewLayout.maxX
-      ? clampNumber(
-          drag.startOffsetX -
-            ((event.clientX - drag.startX) /
-              publishImageAdapterPreviewLayout.maxX) *
-              100,
-          -100,
-          100,
-        )
-      : 0;
-    const nextOffsetY = publishImageAdapterPreviewLayout.maxY
-      ? clampNumber(
-          drag.startOffsetY -
-            ((event.clientY - drag.startY) /
-              publishImageAdapterPreviewLayout.maxY) *
-              100,
-          -100,
-          100,
-        )
-      : 0;
-    updatePublishImageAdapterTransform({
-      offsetX: nextOffsetX,
-      offsetY: nextOffsetY,
-    });
-  }
-
-  function endPublishImageAdapterDrag(
-    event?: ReactPointerEvent<HTMLDivElement>,
-  ) {
-    if (
-      event &&
-      publishImageAdapterDragRef.current?.pointerId === event.pointerId
-    ) {
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
-    }
-    publishImageAdapterDragRef.current = null;
-    setPublishImageAdapterDragging(false);
-  }
-
-  async function savePublishImageAdapter() {
-    if (!publishImageAdapterFile || !publishImageAdapterTransform) return;
-    setPublishImageAdapterSaving(true);
-    try {
-      const rendered = await renderChannelImage({
-        file: publishImageAdapterFile,
-        transform: publishImageAdapterTransform,
-        preset: publishImageAdapterPreset,
-        channel: publishBoosterChannel,
-      });
-      const safeName =
-        rendered.name ||
-        `${publishMediaPreview?.name?.replace(/\.[^.]+$/, "") || "image-inragent"}-adaptee.jpg`;
-      if (!rendered.dataUrl) {
-        throw new Error(i18nT("image_adaptation_failed"));
-      }
-      const renderedFile = dataUrlToFile(rendered.dataUrl, safeName);
-      await uploadPublishMedia(renderedFile, "replace");
-      closePublishImageAdapter();
-      showNotice(i18nT("image_adapted_saved"));
-    } catch (error) {
-      showNotice(i18nT("image_adapted_save_failed"));
-    } finally {
-      setPublishImageAdapterSaving(false);
-    }
-  }
-
-  async function savePublishVideoAdapter() {
-    if (!publishMediaPreview?.url || !currentPublishMediaRecord) return;
-    setPublishVideoAdapterSaving(true);
-    setPublishVideoPreparationState({
-      status: "preparing",
-      label: i18nT("preparation_video_en_cours_4903333d"),
-    });
-    try {
-      const nextSettings = {
-        format: publishVideoFormat,
-        adaptationMode: publishVideoAdaptationMode,
-      };
-      const existingVariants = Array.isArray(
-        currentPublishMediaRecord.transformedVariants,
-      )
-        ? (currentPublishMediaRecord.transformedVariants as BoosterVideoTransformedVariant[])
-        : [];
-      const response = await requestBoosterVideoTransforms({
-        source: {
-          storagePath: String(
-            currentPublishMediaRecord.storagePath ||
-              currentPublishMediaRecord.storage_path ||
-              currentPublishMediaRecord.path ||
-              "",
-          ),
-          publicUrl: publishMediaPreview.url,
-          url: publishMediaPreview.url,
-          name: publishMediaPreview.name,
-          type: String(
-            currentPublishMediaRecord.mimeType ||
-              currentPublishMediaRecord.mime_type ||
-              currentPublishMediaRecord.type ||
-              "video/mp4",
-          ),
-          size: Number(currentPublishMediaRecord.size || 0) || null,
-          duration:
-            Number(
-              currentPublishMediaRecord.duration ||
-                currentPublishMediaRecord.duration_seconds ||
-                0,
-            ) || null,
-        },
-        variants: [
-          {
-            channel: publishBoosterChannel,
-            format: publishVideoFormat,
-            adaptationMode: publishVideoAdaptationMode,
-          },
-        ],
-      });
-
-      const generatedVariants = Array.isArray(response.variants)
-        ? response.variants
-        : [];
-      const transformedVariants = [
-        ...existingVariants.filter(
-          (variant) =>
-            !generatedVariants.some(
-              (generated) => generated.signature === variant.signature,
-            ),
-        ),
-        ...generatedVariants,
-      ];
-      const videoSettingsByChannel = {
-        ...(asRecord(currentPublishMediaRecord.videoSettingsByChannel) || {}),
-        [publishBoosterChannel]: nextSettings,
-      };
-
-      await savePublishMediaPatch(
-        {
-          ...currentPublishMediaRecord,
-          videoSettings: nextSettings,
-          videoSettingsByChannel,
-          videoFormat: publishVideoFormat,
-          videoAdaptationMode: publishVideoAdaptationMode,
-          transformedVariants,
-        },
-        "replace",
-      );
-
-      setPublishVideoPreparationState({
-        status: generatedVariants.length ? "ready" : "ready",
-        label: generatedVariants.length
-          ? i18nT("video_format_applied")
-          : i18nT("video_original_kept"),
-        detail: `${getLocalizedVideoFormatLabel(
-          publishBoosterChannel,
-          publishVideoFormat,
-          (asRecord(currentPublishMediaRecord?.sourceMetadata) ||
-            null) as BoosterVideoSourceMetadata | null,
-          boosterRuntimeT,
-        )} · ${getLocalizedVideoAdaptationModeLabel(
-          publishVideoAdaptationMode,
-          boosterRuntimeT,
-        )}`,
-      });
-      if (response.errors?.length && !generatedVariants.length) {
-        showNotice(i18nT("video_auto_adaptation_unavailable"));
-      } else {
-        showNotice(i18nT("video_setting_saved"));
-      }
-    } catch {
-      setPublishVideoPreparationState({
-        status: "error",
-        label: i18nT("adaptation_video_impossible_79ebe884"),
-        detail: i18nT("video_adaptation_retry"),
-      });
-      showNotice(i18nT("video_adaptation_failed"));
-    } finally {
-      setPublishVideoAdapterSaving(false);
-    }
-  }
-
   async function savePublishMediaPatch(
     media: Record<string, unknown> | null,
     mutation: PublishMediaMutation = media ? "replace" : "remove",
-    options: { applyToAllChannels?: boolean } = {},
+    options: {
+      applyToAllChannels?: boolean;
+      actionId?: string;
+      channel?: ChannelKey;
+      mediaIndex?: number;
+    } = {}
   ) {
     if (!selectedPreparedAction || !activePreviewChannel) return;
+    const targetActionId = options.actionId || selectedPreparedAction.id;
+    const targetChannel = options.channel || activePreviewChannel;
+    const targetMediaIndex = Number.isInteger(options.mediaIndex)
+      ? Number(options.mediaIndex)
+      : publishMediaActiveIndex;
 
     if (scheduledEditSession) {
+      if (targetActionId !== selectedPreparedAction.id) {
+        throw new Error(i18nT("publish_media_update_failed"));
+      }
       updateScheduledEditAction((action) =>
         updateScheduledEditPublishMedia(
           action,
-          activePreviewChannel,
+          targetChannel,
           media,
-          publishMediaActiveIndex,
+          targetMediaIndex,
           mutation,
-          options.applyToAllChannels ? preparedChannels : [],
-        ),
+          options.applyToAllChannels ? preparedChannels : []
+        )
       );
       return;
     }
@@ -2480,19 +2447,19 @@ export default function AgentClient() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        actionId: selectedPreparedAction.id,
+        actionId: targetActionId,
         editType: "publish_channel_media",
-        channel: activePreviewChannel,
+        channel: targetChannel,
         media,
         removeMedia: media === null,
         mediaOperation: mutation,
-        mediaIndex: publishMediaActiveIndex,
+        mediaIndex: targetMediaIndex,
         applyToAllChannels: options.applyToAllChannels === true,
       }),
     });
     const payload = (await readAgentApiJson(
       response,
-      i18nT("publish_media_update_failed"),
+      i18nT("publish_media_update_failed")
     )) as {
       action?: AgentPreparedAction;
       error?: string;
@@ -2505,13 +2472,14 @@ export default function AgentClient() {
     const updatedAction = payload.action;
     setActions((current) =>
       current.map((action) =>
-        action.id === updatedAction.id ? updatedAction : action,
-      ),
+        action.id === updatedAction.id ? updatedAction : action
+      )
     );
   }
 
   async function savePublishPlacement(
     nextPlacement: InrAgentPublicationPlacement,
+    nextIncludeStory = false
   ) {
     if (
       !selectedPreparedAction ||
@@ -2520,7 +2488,12 @@ export default function AgentClient() {
     ) {
       return;
     }
-    if (nextPlacement !== "classic" && !publishHasUsableMedia) {
+    const normalizedIncludeStory =
+      nextPlacement !== "story" && nextIncludeStory;
+    if (
+      (nextPlacement !== "classic" || normalizedIncludeStory) &&
+      !publishHasUsableMedia
+    ) {
       showNotice(i18nT("publication_mode_requires_media"));
       return;
     }
@@ -2534,7 +2507,8 @@ export default function AgentClient() {
             action,
             activeMetaPublicationChannel,
             nextPlacement,
-          ),
+            normalizedIncludeStory
+          )
         );
       } else {
         const response = await fetch("/api/agent/actions", {
@@ -2545,6 +2519,7 @@ export default function AgentClient() {
             editType: "publish_channel_placement",
             channel: activeMetaPublicationChannel,
             placement: nextPlacement,
+            includeStory: normalizedIncludeStory,
           }),
         });
         const payload = (await response.json().catch(() => null)) as {
@@ -2553,26 +2528,34 @@ export default function AgentClient() {
         } | null;
         if (!response.ok || !payload?.action) {
           throw new Error(
-            payload?.error || i18nT("publication_mode_update_failed"),
+            payload?.error || i18nT("publication_mode_update_failed")
           );
         }
         const updatedAction = payload.action;
         setActions((current) =>
           current.map((action) =>
-            action.id === updatedAction.id ? updatedAction : action,
-          ),
+            action.id === updatedAction.id ? updatedAction : action
+          )
         );
       }
       showNotice(
-        nextPlacement === "classic"
-          ? i18nT("publication_mode_classic_saved")
-          : i18nT("publication_mode_media_only_saved"),
+        `${i18nT("publication_mode_label")} · ${
+          nextPlacement === "reel"
+            ? i18nT("publication_mode_reel")
+            : nextPlacement === "story"
+              ? i18nT("publication_mode_story")
+              : i18nT("publication_mode_classic")
+        }${
+          normalizedIncludeStory
+            ? ` + ${i18nT("publication_mode_story")}`
+            : ""
+        }`
       );
     } catch (error) {
       showNotice(
         error instanceof Error
           ? error.message
-          : i18nT("publication_mode_update_failed"),
+          : i18nT("publication_mode_update_failed")
       );
     } finally {
       setPublishPlacementSaveState("idle");
@@ -2587,7 +2570,9 @@ export default function AgentClient() {
     ) {
       return;
     }
-    const board = pinterestBoards.find((candidate) => candidate.id === nextBoardId);
+    const board = pinterestBoards.find(
+      (candidate) => candidate.id === nextBoardId
+    );
     if (!board) return;
 
     setPinterestBoardSaveState("saving");
@@ -2598,7 +2583,7 @@ export default function AgentClient() {
           updateScheduledEditPinterestBoard(action, {
             boardId: board.id,
             boardName: board.name,
-          }),
+          })
         );
       } else {
         const response = await fetch("/api/agent/actions", {
@@ -2618,14 +2603,14 @@ export default function AgentClient() {
         } | null;
         if (!response.ok || !payload?.action) {
           throw new Error(
-            payload?.error || "Modification du tableau Pinterest impossible.",
+            payload?.error || "Modification du tableau Pinterest impossible."
           );
         }
         const updatedAction = payload.action;
         setActions((current) =>
           current.map((action) =>
-            action.id === updatedAction.id ? updatedAction : action,
-          ),
+            action.id === updatedAction.id ? updatedAction : action
+          )
         );
       }
     } catch (error) {
@@ -2642,7 +2627,7 @@ export default function AgentClient() {
 
   async function uploadPublishMedia(
     file: File | null | undefined,
-    mutation: Extract<PublishMediaMutation, "append" | "replace"> = "append",
+    mutation: Extract<PublishMediaMutation, "append" | "replace"> = "append"
   ) {
     if (
       !file ||
@@ -2680,9 +2665,7 @@ export default function AgentClient() {
       mutation === "append" &&
       publishImageLimitReached
     ) {
-      showNotice(
-        i18nT("max_images_channel", { count: publishImageMaxCount }),
-      );
+      showNotice(i18nT("max_images_channel", { count: publishImageMaxCount }));
       return;
     }
 
@@ -2709,11 +2692,11 @@ export default function AgentClient() {
       });
       const preparePayload = await readAgentApiJson(
         prepareResponse,
-        i18nT("publish_media_update_failed"),
+        i18nT("publish_media_update_failed")
       );
       if (!prepareResponse.ok)
         throw new Error(
-          preparePayload?.error || i18nT("publish_media_update_failed"),
+          preparePayload?.error || i18nT("publish_media_update_failed")
         );
       const prepared = Array.isArray(preparePayload?.items)
         ? preparePayload.items[0]
@@ -2757,11 +2740,11 @@ export default function AgentClient() {
       });
       const finalizePayload = await readAgentApiJson(
         finalizeResponse,
-        i18nT("publish_media_update_failed"),
+        i18nT("publish_media_update_failed")
       );
       if (!finalizeResponse.ok || !finalizePayload?.ok) {
         throw new Error(
-          finalizePayload?.error || i18nT("publish_media_update_failed"),
+          finalizePayload?.error || i18nT("publish_media_update_failed")
         );
       }
       const result = Array.isArray(finalizePayload?.results)
@@ -2809,14 +2792,11 @@ export default function AgentClient() {
           mediaType: result.media_type || mediaKind,
           source: "pro_media_library",
         },
-        mediaKind === "video" ? "replace" : mutation,
+        mediaKind === "video" ? "replace" : mutation
       );
       if (mediaKind === "image" && mutation === "append") {
         setPublishMediaActiveIndex(
-          Math.min(
-            publishImageCount,
-            publishImageMaxCount - 1,
-          ),
+          Math.min(publishImageCount, publishImageMaxCount - 1)
         );
       } else if (mediaKind === "video") {
         setPublishMediaActiveIndex(0);
@@ -2825,8 +2805,8 @@ export default function AgentClient() {
         mediaKind === "video"
           ? i18nT("publish_video_updated")
           : mutation === "append"
-            ? i18nT("publish_image_added")
-            : i18nT("publish_image_updated"),
+          ? i18nT("publish_image_added")
+          : i18nT("publish_image_updated")
       );
     } catch (error) {
       showNotice(i18nT("publish_media_update_failed"));
@@ -2836,7 +2816,7 @@ export default function AgentClient() {
   }
 
   const selectPublishMediaFromPicker = async (
-    items: MediaLibraryPickerItem[],
+    items: MediaLibraryPickerItem[]
   ) => {
     const item = items[0];
     if (!item) return;
@@ -2852,10 +2832,7 @@ export default function AgentClient() {
       await savePublishMediaPatch(null, "remove");
       if (publishMediaPreview?.kind === "image") {
         setPublishMediaActiveIndex((current) =>
-          Math.max(
-            0,
-            Math.min(current, Math.max(0, publishImageCount - 2)),
-          ),
+          Math.max(0, Math.min(current, Math.max(0, publishImageCount - 2)))
         );
       } else {
         setPublishMediaActiveIndex(0);
@@ -2896,7 +2873,7 @@ export default function AgentClient() {
       showNotice(
         error instanceof Error
           ? error.message
-          : i18nT("publish_media_update_failed"),
+          : i18nT("publish_media_update_failed")
       );
     } finally {
       setPublishMediaUploadState("idle");
@@ -2909,7 +2886,7 @@ export default function AgentClient() {
 
   function applyPublishPreferredCta(choice: BoosterPreferredCta) {
     const displayKey = boosterDisplayKeyFromAgentChannel(
-      publishTextDraft.channel,
+      publishTextDraft.channel
     );
     const currentPost: BoosterChannelPost = {
       title: publishTextDraft.title,
@@ -2925,7 +2902,7 @@ export default function AgentClient() {
       choice,
       currentPost,
       publishCtaDefaults,
-      publishCtaDefaults?.aiLanguage,
+      publishCtaDefaults?.aiLanguage
     );
     setPublishTextDraft((current) => ({
       ...current,
@@ -2937,7 +2914,7 @@ export default function AgentClient() {
   }
 
   async function savePublishText(
-    options: { applyToAllChannels?: boolean } = {},
+    options: { applyToAllChannels?: boolean } = {}
   ) {
     if (!selectedPreparedAction || publishSaveState === "saving") return;
     const channel = publishTextDraft.channel;
@@ -2969,14 +2946,14 @@ export default function AgentClient() {
             ctaPhone: publishTextDraft.ctaPhone.trim(),
             hashtags: publishTextDraft.hashtags,
           },
-          options.applyToAllChannels ? preparedChannels : [],
-        ),
+          options.applyToAllChannels ? preparedChannels : []
+        )
       );
       setPublishEditOpen(false);
       showNotice(
         options.applyToAllChannels
           ? i18nT("publish_content_applied_everywhere")
-          : i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5"),
+          : i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5")
       );
       return;
     }
@@ -3004,7 +2981,7 @@ export default function AgentClient() {
       });
       const payload = (await readAgentApiJson(
         response,
-        i18nT("modification_de_la_publication_impossible_e4568d66"),
+        i18nT("modification_de_la_publication_impossible_e4568d66")
       )) as {
         action?: AgentPreparedAction;
         error?: string;
@@ -3012,27 +2989,28 @@ export default function AgentClient() {
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || i18nT("modification_de_la_publication_impossible_e4568d66"),
+          payload?.error ||
+            i18nT("modification_de_la_publication_impossible_e4568d66")
         );
       }
 
       const updatedAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action,
-        ),
+          action.id === updatedAction.id ? updatedAction : action
+        )
       );
       setPublishEditOpen(false);
       showNotice(
         options.applyToAllChannels
           ? i18nT("publish_content_applied_everywhere")
-          : i18nT("publication_mise_a_jour_de5f8c83"),
+          : i18nT("publication_mise_a_jour_de5f8c83")
       );
     } catch (error) {
       showNotice(
         error instanceof Error && error.message
           ? error.message
-          : i18nT("modification_de_la_publication_impossible_e4568d66"),
+          : i18nT("modification_de_la_publication_impossible_e4568d66")
       );
     } finally {
       setPublishSaveState("idle");
@@ -3041,7 +3019,7 @@ export default function AgentClient() {
 
   async function patchCampaignAction(
     body: Record<string, unknown>,
-    fallbackError: string,
+    fallbackError: string
   ) {
     if (!selectedPreparedAction)
       throw new Error(i18nT("scheduled_action_not_found"));
@@ -3049,7 +3027,7 @@ export default function AgentClient() {
     if (scheduledEditSession) {
       const nextAction = updateScheduledEditCampaign(
         scheduledEditSession.action,
-        body,
+        body
       );
       updateScheduledEditAction(() => nextAction);
       return nextAction;
@@ -3076,8 +3054,8 @@ export default function AgentClient() {
     const updatedAction = payload.action;
     setActions((current) =>
       current.map((action) =>
-        action.id === updatedAction.id ? updatedAction : action,
-      ),
+        action.id === updatedAction.id ? updatedAction : action
+      )
     );
     return updatedAction;
   }
@@ -3105,7 +3083,7 @@ export default function AgentClient() {
   async function openRecipientsEditor() {
     const currentRecipients = recipientsForAction(selectedPreparedAction);
     setSelectedRecipientEmails(
-      currentRecipients.map((recipient) => recipient.email.toLowerCase()),
+      currentRecipients.map((recipient) => recipient.email.toLowerCase())
     );
     setRecipientsPreviewOpen(false);
     setCampaignEditOpen(false);
@@ -3122,7 +3100,7 @@ export default function AgentClient() {
     setSelectedRecipientEmails((current) =>
       current.includes(email)
         ? current.filter((item) => item !== email)
-        : [...current, email],
+        : [...current, email]
     );
   }
 
@@ -3144,7 +3122,7 @@ export default function AgentClient() {
   function selectAllFilteredCrmRecipients() {
     const emails = filteredCrmContacts
       .map((contact) =>
-        contactToCampaignRecipient(contact)?.email.toLowerCase(),
+        contactToCampaignRecipient(contact)?.email.toLowerCase()
       )
       .filter((email): email is string => Boolean(email));
     setSelectedRecipientEmails((current) => {
@@ -3158,12 +3136,12 @@ export default function AgentClient() {
     const emailsToRemove = new Set(
       filteredCrmContacts
         .map((contact) =>
-          contactToCampaignRecipient(contact)?.email.toLowerCase(),
+          contactToCampaignRecipient(contact)?.email.toLowerCase()
         )
-        .filter((email): email is string => Boolean(email)),
+        .filter((email): email is string => Boolean(email))
     );
     setSelectedRecipientEmails((current) =>
-      current.filter((email) => !emailsToRemove.has(email.toLowerCase())),
+      current.filter((email) => !emailsToRemove.has(email.toLowerCase()))
     );
   }
 
@@ -3178,7 +3156,7 @@ export default function AgentClient() {
   function removeSelectedRecipient(emailValue: string) {
     const email = emailValue.trim().toLowerCase();
     setSelectedRecipientEmails((current) =>
-      current.filter((item) => item.toLowerCase() !== email),
+      current.filter((item) => item.toLowerCase() !== email)
     );
   }
 
@@ -3188,24 +3166,24 @@ export default function AgentClient() {
       campaignRecipients.map((recipient) => [
         recipient.email.toLowerCase(),
         recipient,
-      ]),
+      ])
     );
     const pendingManualEmails = parseRecipientEmails(manualRecipientsInput);
     const emails = Array.from(
       new Set([
         ...selectedRecipientEmails.map((email) => email.toLowerCase()),
         ...pendingManualEmails,
-      ]),
+      ])
     );
     const recipients = emails
       .map(
         (email) =>
           crmRecipientsByEmail.get(email) ||
           previousByEmail.get(email) ||
-          manualRecipientFromEmail(email),
+          manualRecipientFromEmail(email)
       )
       .filter((recipient): recipient is CampaignRecipientPreview =>
-        Boolean(recipient),
+        Boolean(recipient)
       );
 
     if (!recipients.length) {
@@ -3217,7 +3195,7 @@ export default function AgentClient() {
     try {
       await patchCampaignAction(
         { editType: "campaign_recipients", recipients },
-        i18nT("campaign_recipients_update_failed"),
+        i18nT("campaign_recipients_update_failed")
       );
       setRecipientsEditOpen(false);
       setManualRecipientsInput("");
@@ -3259,7 +3237,7 @@ export default function AgentClient() {
         throw new Error(payload?.error || i18nT("crm_contact_add_failed"));
       await loadCrmContactsForAgent();
       setSelectedRecipientEmails((current) =>
-        current.includes(email) ? current : [...current, email],
+        current.includes(email) ? current : [...current, email]
       );
       setNewRecipientDraft({ name: "", email: "", phone: "" });
       setNewRecipientOpen(false);
@@ -3287,10 +3265,10 @@ export default function AgentClient() {
       const accounts = Array.isArray(payload?.mailAccounts)
         ? payload.mailAccounts
         : Array.isArray(payload?.accounts)
-          ? payload.accounts.filter(
-              (account) => (account as any)?.category === "mail",
-            )
-          : [];
+        ? payload.accounts.filter(
+            (account) => (account as any)?.category === "mail"
+          )
+        : [];
       setMailAccounts(accounts);
     } catch (error) {
       showNotice(i18nT("mailboxes_unavailable"));
@@ -3302,7 +3280,7 @@ export default function AgentClient() {
   async function openMailAccountEditor() {
     const current = asRecord(selectedPreparedAction?.payload?.mailAccount);
     setSelectedMailAccountId(
-      firstSafeString(selectedPreparedAction?.payload?.accountId, current?.id),
+      firstSafeString(selectedPreparedAction?.payload?.accountId, current?.id)
     );
     setCampaignEditOpen(false);
     setMailAccountEditOpen(true);
@@ -3320,7 +3298,7 @@ export default function AgentClient() {
     try {
       await patchCampaignAction(
         { editType: "campaign_mail_account", accountId: selectedMailAccountId },
-        i18nT("mailbox_update_failed"),
+        i18nT("mailbox_update_failed")
       );
       setMailAccountEditOpen(false);
       showNotice(i18nT("mailbox_updated"));
@@ -3334,7 +3312,7 @@ export default function AgentClient() {
   async function saveCampaignAttachments(attachments: CampaignAttachmentRef[]) {
     await patchCampaignAction(
       { editType: "campaign_attachments", attachments },
-      i18nT("attachment_add_failed"),
+      i18nT("attachment_add_failed")
     );
   }
 
@@ -3371,7 +3349,9 @@ export default function AgentClient() {
     if (!directFiles.length) {
       if (oversizedUnsupported.length > 0) {
         showNotice(
-          i18nT("attachment_too_large_unoptimizable", { file: oversizedUnsupported[0].name }),
+          i18nT("attachment_too_large_unoptimizable", {
+            file: oversizedUnsupported[0].name,
+          })
         );
       }
       if (oversizedMedia.length > 0) {
@@ -3384,7 +3364,9 @@ export default function AgentClient() {
     try {
       const supabase = createClient();
       const { data: auth } = await supabase.auth.getUser();
-      const userId = auth?.user?.id ? resolveActiveBrowserUserId(auth.user.id) : null;
+      const userId = auth?.user?.id
+        ? resolveActiveBrowserUserId(auth.user.id)
+        : null;
       const uploaded: CampaignAttachmentRef[] = [];
 
       for (const file of directFiles) {
@@ -3407,13 +3389,16 @@ export default function AgentClient() {
       }
 
       const current = normalizeCampaignAttachmentRefs(
-        selectedPreparedAction.payload?.attachments,
+        selectedPreparedAction.payload?.attachments
       );
       await saveCampaignAttachments([...current, ...uploaded].slice(0, 10));
       showNotice(
         oversizedUnsupported.length > 0
-          ? i18nT("attachments_added_with_warning", { count: uploaded.length, file: oversizedUnsupported[0].name })
-          : i18nT("attachments_added", { count: uploaded.length }),
+          ? i18nT("attachments_added_with_warning", {
+              count: uploaded.length,
+              file: oversizedUnsupported[0].name,
+            })
+          : i18nT("attachments_added", { count: uploaded.length })
       );
     } catch (error) {
       showNotice(i18nT("attachment_add_failed"));
@@ -3427,9 +3412,10 @@ export default function AgentClient() {
   }
 
   async function addCampaignAttachmentsFromMediaLibrary(
-    items: MediaLibraryPickerItem[],
+    items: MediaLibraryPickerItem[]
   ) {
-    if (!selectedPreparedAction || attachmentUploadState === "saving") return false;
+    if (!selectedPreparedAction || attachmentUploadState === "saving")
+      return false;
     const picked = items.slice(0, 10).map((item) => ({
       bucket: item.bucket_name || "inrcy-pro-media",
       path: item.storage_path,
@@ -3449,12 +3435,10 @@ export default function AgentClient() {
     setAttachmentUploadState("saving");
     try {
       const current = normalizeCampaignAttachmentRefs(
-        selectedPreparedAction.payload?.attachments,
+        selectedPreparedAction.payload?.attachments
       );
       await saveCampaignAttachments([...current, ...picked].slice(0, 10));
-      showNotice(
-        i18nT("attachments_library_added", { count: picked.length }),
-      );
+      showNotice(i18nT("attachments_library_added", { count: picked.length }));
       return true;
     } catch (error) {
       showNotice(i18nT("attachment_add_failed"));
@@ -3492,10 +3476,10 @@ export default function AgentClient() {
     setAttachmentUploadState("saving");
     try {
       const current = normalizeCampaignAttachmentRefs(
-        selectedPreparedAction.payload?.attachments,
+        selectedPreparedAction.payload?.attachments
       );
       await saveCampaignAttachments(
-        current.filter((attachment) => attachment.path !== path),
+        current.filter((attachment) => attachment.path !== path)
       );
       showNotice(i18nT("attachment_removed"));
     } catch (error) {
@@ -3532,16 +3516,14 @@ export default function AgentClient() {
       } | null;
 
       if (!response.ok || !payload?.action) {
-        throw new Error(
-          payload?.error || i18nT("draft_save_failed"),
-        );
+        throw new Error(payload?.error || i18nT("draft_save_failed"));
       }
 
       const updatedAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action,
-        ),
+          action.id === updatedAction.id ? updatedAction : action
+        )
       );
       setCampaignDraftConfirmOpen(false);
       showNotice(i18nT("campaign_draft_saved"));
@@ -3579,16 +3561,14 @@ export default function AgentClient() {
       } | null;
 
       if (!response.ok || !payload?.action) {
-        throw new Error(
-          payload?.error || i18nT("draft_save_failed"),
-        );
+        throw new Error(payload?.error || i18nT("draft_save_failed"));
       }
 
       const updatedAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action,
-        ),
+          action.id === updatedAction.id ? updatedAction : action
+        )
       );
       setCampaignDraftConfirmOpen(false);
       showNotice(i18nT("publication_draft_saved"));
@@ -3600,10 +3580,7 @@ export default function AgentClient() {
   }
 
   async function performRemovePublishChannel(channel: ChannelKey) {
-    if (
-      !selectedPreparedAction ||
-      publishChannelRemoveState === "removing"
-    ) {
+    if (!selectedPreparedAction || publishChannelRemoveState === "removing") {
       return;
     }
     if (preparedChannels.length <= 1) {
@@ -3621,7 +3598,7 @@ export default function AgentClient() {
       if (scheduledEditSession) {
         updatedAction = removeScheduledEditPublishChannel(
           scheduledEditSession.action,
-          channel,
+          channel
         );
         updateScheduledEditAction(() => updatedAction);
       } else {
@@ -3640,20 +3617,20 @@ export default function AgentClient() {
         } | null;
         if (!response.ok || !payload?.action) {
           throw new Error(
-            payload?.error || i18nT("remove_publication_channel_failed"),
+            payload?.error || i18nT("remove_publication_channel_failed")
           );
         }
         updatedAction = payload.action;
         setActions((current) =>
           current.map((action) =>
-            action.id === updatedAction.id ? updatedAction : action,
-          ),
+            action.id === updatedAction.id ? updatedAction : action
+          )
         );
       }
 
       const nextChannels = orderChannels(
         channelsForAction(updatedAction, selectedConfigChannels),
-        selectedAvailableChannels,
+        selectedAvailableChannels
       );
       const nextChannel = nextChannels[0] || null;
       setSelectedChannelByAction((current) => {
@@ -3666,7 +3643,7 @@ export default function AgentClient() {
       showNotice(
         i18nT("remove_publication_channel_success", {
           channel: channelLabel,
-        }),
+        })
       );
     } catch (error) {
       showNotice(i18nT("remove_publication_channel_failed"));
@@ -3709,7 +3686,7 @@ export default function AgentClient() {
   }
 
   function updateScheduledEditAction(
-    updater: (action: AgentPreparedAction) => AgentPreparedAction,
+    updater: (action: AgentPreparedAction) => AgentPreparedAction
   ) {
     setScheduledEditSession((current) => {
       if (!current) return current;
@@ -3724,7 +3701,9 @@ export default function AgentClient() {
     });
   }
 
-  function openAgentConfirmDialog(config: NonNullable<AgentConfirmDialogState>) {
+  function openAgentConfirmDialog(
+    config: NonNullable<AgentConfirmDialogState>
+  ) {
     setAgentConfirmDialog(config);
   }
 
@@ -3743,7 +3722,11 @@ export default function AgentClient() {
   }
 
   function exitScheduledEditSession(
-    options: { silent?: boolean; force?: boolean; onAfterExit?: () => void } = {},
+    options: {
+      silent?: boolean;
+      force?: boolean;
+      onAfterExit?: () => void;
+    } = {}
   ) {
     const session = scheduledEditSession;
     if (!session) {
@@ -3821,7 +3804,9 @@ export default function AgentClient() {
         return;
       }
     }
-    const scheduledAction = scheduledActions.find((item) => item.id === actionId);
+    const scheduledAction = scheduledActions.find(
+      (item) => item.id === actionId
+    );
     if (!scheduledAction) {
       showNotice(i18nT("scheduled_action_not_found"));
       return;
@@ -3848,7 +3833,8 @@ export default function AgentClient() {
       showNotice(i18nT("scheduled_action_not_openable"));
       return;
     }
-    const nextKey = (action.automationKey || scheduledAutomationKey(scheduledAction)) as AutomationKey;
+    const nextKey = (action.automationKey ||
+      scheduledAutomationKey(scheduledAction)) as AutomationKey;
     setScheduleOpen(false);
     setValidationChoiceOpen(false);
     setValidationScheduleOpen(false);
@@ -3865,7 +3851,7 @@ export default function AgentClient() {
 
   async function patchScheduledAction(
     actionId: string,
-    body: Record<string, unknown>,
+    body: Record<string, unknown>
   ) {
     const response = await fetch(`/api/agent/scheduled-actions/${actionId}`, {
       method: "PATCH",
@@ -3874,7 +3860,7 @@ export default function AgentClient() {
     });
     const payload = (await readAgentApiJson(
       response,
-      i18nT("schedule_update_failed"),
+      i18nT("schedule_update_failed")
     )) as {
       scheduledAction?: AgentScheduledAction;
       error?: string;
@@ -3882,9 +3868,7 @@ export default function AgentClient() {
     };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(
-        payload?.error || i18nT("schedule_update_failed"),
-      );
+      throw new Error(payload?.error || i18nT("schedule_update_failed"));
     }
     return payload.scheduledAction;
   }
@@ -3901,7 +3885,7 @@ export default function AgentClient() {
     });
     const payload = (await readAgentApiJson(
       response,
-      i18nT("schedule_update_failed"),
+      i18nT("schedule_update_failed")
     )) as {
       scheduledAction?: AgentScheduledAction;
       error?: string;
@@ -3909,16 +3893,14 @@ export default function AgentClient() {
     };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(
-        payload?.error || i18nT("schedule_update_failed"),
-      );
+      throw new Error(payload?.error || i18nT("schedule_update_failed"));
     }
     return payload.scheduledAction;
   }
 
   function applySavedScheduledEdit(
     savedActions: AgentScheduledAction[],
-    options: { closeEdit?: boolean } = {},
+    options: { closeEdit?: boolean } = {}
   ) {
     if (savedActions.length) {
       const savedIds = new Set(savedActions.map((action) => action.id));
@@ -3938,13 +3920,13 @@ export default function AgentClient() {
               baselineSignature: preparedActionDirtySignature(current.action),
               dirty: false,
             }
-          : current,
+          : current
       );
     }
   }
 
   async function saveScheduledEditPublication(
-    selections: PublishScheduleSelection[],
+    selections: PublishScheduleSelection[]
   ) {
     const session = scheduledEditSession;
     if (!session) return;
@@ -3953,34 +3935,44 @@ export default function AgentClient() {
     }
 
     const grouped = Array.from(
-      selections.reduce<Map<string, BoosterChannelKey[]>>((groups, selection) => {
-        const channels = groups.get(selection.scheduledAt) || [];
-        if (!channels.includes(selection.channel)) channels.push(selection.channel);
-        groups.set(selection.scheduledAt, channels);
-        return groups;
-      }, new Map<string, BoosterChannelKey[]>()),
+      selections.reduce<Map<string, BoosterChannelKey[]>>(
+        (groups, selection) => {
+          const channels = groups.get(selection.scheduledAt) || [];
+          if (!channels.includes(selection.channel))
+            channels.push(selection.channel);
+          groups.set(selection.scheduledAt, channels);
+          return groups;
+        },
+        new Map<string, BoosterChannelKey[]>()
+      )
     );
     if (!grouped.length) {
       throw new Error(i18nT("schedule_channels_required"));
     }
 
     const savedActions: AgentScheduledAction[] = [];
-    const [firstScheduledAt, firstChannels] = grouped[0] as [string, BoosterChannelKey[]];
+    const [firstScheduledAt, firstChannels] = grouped[0] as [
+      string,
+      BoosterChannelKey[]
+    ];
     savedActions.push(
       await patchScheduledAction(
         session.scheduledAction.id,
         scheduledEditUpdateFromAction(session.action, {
           scheduledAt: firstScheduledAt,
           channels: firstChannels,
-        }),
-      ),
+        })
+      )
     );
 
     for (const [scheduledAt, channels] of grouped.slice(1)) {
       savedActions.push(
         await createExtraScheduledAction(
-          scheduledEditUpdateFromAction(session.action, { scheduledAt, channels }),
-        ),
+          scheduledEditUpdateFromAction(session.action, {
+            scheduledAt,
+            channels,
+          })
+        )
       );
     }
 
@@ -3993,26 +3985,28 @@ export default function AgentClient() {
     if (!session) return;
     const saved = await patchScheduledAction(
       session.scheduledAction.id,
-      scheduledEditUpdateFromAction(session.action, { scheduledAt }),
+      scheduledEditUpdateFromAction(session.action, { scheduledAt })
     );
     applySavedScheduledEdit([saved], { closeEdit: false });
     await refreshScheduledActions(true);
   }
 
-  async function performDeleteScheduledEditAction(session: ScheduledActionEditSession) {
+  async function performDeleteScheduledEditAction(
+    session: ScheduledActionEditSession
+  ) {
     setScheduleMutationState("saving");
     setNotice(null);
     try {
       const response = await fetch(
         `/api/agent/scheduled-actions/${session.scheduledAction.id}`,
-        { method: "DELETE" },
+        { method: "DELETE" }
       );
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
       } | null;
       if (!response.ok) {
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed"),
+          payload?.error || i18nT("scheduled_action_delete_failed")
         );
       }
       exitScheduledEditSession({ silent: true, force: true });
@@ -4030,7 +4024,9 @@ export default function AgentClient() {
     if (!session || scheduleMutationState === "saving") return;
     openAgentConfirmDialog({
       title: i18nT("supprimer_ce_contenu_programme_69dec33b"),
-      message: i18nT("ce_contenu_programme_sera_supprime_definitivemen_c71f5bb9"),
+      message: i18nT(
+        "ce_contenu_programme_sera_supprime_definitivemen_c71f5bb9"
+      ),
       confirmLabel: i18nT("supprimer_1acfc1c7"),
       cancelLabel: i18nT("annuler_49ba3292"),
       tone: "danger",
@@ -4040,7 +4036,7 @@ export default function AgentClient() {
 
   function configPatchFromScheduledAt(
     config: AutomationConfig,
-    scheduledAt: string,
+    scheduledAt: string
   ): Pick<AutomationConfig, "day" | "time" | "scheduleSlots"> {
     const date = new Date(scheduledAt);
     if (Number.isNaN(date.getTime())) {
@@ -4049,7 +4045,7 @@ export default function AgentClient() {
 
     const day = apiToDay[date.getDay()] || config.day || "Lundi";
     const time = `${String(date.getHours()).padStart(2, "0")}:${String(
-      date.getMinutes(),
+      date.getMinutes()
     ).padStart(2, "0")}`;
     const normalizedSlots = normalizeConfigScheduleSlots(config);
     const scheduleSlots = [
@@ -4075,7 +4071,10 @@ export default function AgentClient() {
         },
       };
       const safeConfigs = agentConnectedChannels
-        ? normalizeConfigsForConnectedChannels(nextConfigs, agentConnectedChannels)
+        ? normalizeConfigsForConnectedChannels(
+            nextConfigs,
+            agentConnectedChannels
+          )
         : nextConfigs;
       const nextSettings = configsToSettings(agentSettings, safeConfigs);
 
@@ -4091,13 +4090,11 @@ export default function AgentClient() {
       } | null;
 
       if (!response.ok) {
-        throw new Error(
-          payload?.error || i18nT("schedule_update_failed"),
-        );
+        throw new Error(payload?.error || i18nT("schedule_update_failed"));
       }
 
       const savedSettings = sanitizeInrAgentSettings(
-        payload?.settings ?? nextSettings,
+        payload?.settings ?? nextSettings
       );
       setAgentSettings(savedSettings);
       setConfigs(settingsToConfigs(savedSettings));
@@ -4140,8 +4137,8 @@ export default function AgentClient() {
         const savedAction = payload.action;
         setActions((current) =>
           current.map((action) =>
-            action.id === savedAction.id ? savedAction : action,
-          ),
+            action.id === savedAction.id ? savedAction : action
+          )
         );
         await refreshActions(true);
       } else {
@@ -4149,7 +4146,7 @@ export default function AgentClient() {
           scheduledAt,
         });
         setScheduledActions((current) =>
-          current.map((action) => (action.id === saved.id ? saved : action)),
+          current.map((action) => (action.id === saved.id ? saved : action))
         );
         await refreshScheduledActions(true);
       }
@@ -4173,7 +4170,7 @@ export default function AgentClient() {
       } | null;
       if (!response.ok)
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed"),
+          payload?.error || i18nT("scheduled_action_delete_failed")
         );
       showNotice(i18nT("scheduled_action_deleted"));
       await refreshScheduledActions(true);
@@ -4210,14 +4207,14 @@ export default function AgentClient() {
       } | null;
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed"),
+          payload?.error || i18nT("scheduled_action_delete_failed")
         );
       }
       const cancelledAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === cancelledAction.id ? cancelledAction : action,
-        ),
+          action.id === cancelledAction.id ? cancelledAction : action
+        )
       );
       showNotice(i18nT("scheduled_action_deleted"));
       await refreshActions(true);
@@ -4260,7 +4257,7 @@ export default function AgentClient() {
       if (!response.ok)
         throw new Error(payload?.error || i18nT("automation_disable_failed"));
       const savedSettings = sanitizeInrAgentSettings(
-        payload?.settings ?? nextSettings,
+        payload?.settings ?? nextSettings
       );
       setAgentSettings(savedSettings);
       setConfigs(settingsToConfigs(savedSettings));
@@ -4274,12 +4271,14 @@ export default function AgentClient() {
   }
 
   async function disableAutomationFromSchedule(
-    key: AutomationKey | null | undefined,
+    key: AutomationKey | null | undefined
   ) {
     if (!key || scheduleMutationState === "saving") return;
     const automation = visibleAutomations.find((item) => item.key === key);
     openAgentConfirmDialog({
-      title: i18nT("desactiver_l_automatisation_value_16e4507f", { value0: automation?.title || "iNr’Agent" }),
+      title: i18nT("desactiver_l_automatisation_value_16e4507f", {
+        value0: automation?.title || "iNr’Agent",
+      }),
       message: i18nT("les_prochaines_actions_automatiques_de_cette_10b200ec"),
       confirmLabel: i18nT("desactiver_d2839748"),
       cancelLabel: i18nT("annuler_49ba3292"),
@@ -4362,7 +4361,7 @@ export default function AgentClient() {
     }
     if (item.source === "manual") {
       const scheduledAction = scheduledActions.find(
-        (action) => action.id === item.scheduledActionId,
+        (action) => action.id === item.scheduledActionId
       );
       if (!scheduledAction) {
         showNotice(i18nT("scheduled_action_not_found"));
@@ -4396,7 +4395,13 @@ export default function AgentClient() {
           scheduledAtIso: item.scheduledAtIso || null,
         });
       };
-      if (!exitScheduledEditSession({ silent: true, onAfterExit: openScheduleEdit })) return;
+      if (
+        !exitScheduledEditSession({
+          silent: true,
+          onAfterExit: openScheduleEdit,
+        })
+      )
+        return;
       openScheduleEdit();
     }
   }
@@ -4414,7 +4419,7 @@ export default function AgentClient() {
   }
 
   function canSchedulePreparedAction(
-    action: AgentPreparedAction | null | undefined,
+    action: AgentPreparedAction | null | undefined
   ) {
     if (!action) return false;
     if (
@@ -4439,7 +4444,7 @@ export default function AgentClient() {
   async function persistScheduledPreparedAction(
     body: Record<string, unknown>,
     successMessage = i18nT("scheduled_action_success"),
-    options: { closeSchedule?: boolean; showSuccessNotice?: boolean } = {},
+    options: { closeSchedule?: boolean; showSuccessNotice?: boolean } = {}
   ) {
     const response = await fetch("/api/agent/actions/schedule", {
       method: "POST",
@@ -4448,7 +4453,7 @@ export default function AgentClient() {
     });
     const payload = (await readAgentApiJson(
       response,
-      i18nT("schedule_update_failed"),
+      i18nT("schedule_update_failed")
     )) as {
       action?: AgentPreparedAction;
       scheduledAction?: AgentScheduledAction | null;
@@ -4459,24 +4464,22 @@ export default function AgentClient() {
 
     if (!response.ok) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(
-        payload?.error || i18nT("schedule_update_failed"),
-      );
+      throw new Error(payload?.error || i18nT("schedule_update_failed"));
     }
 
     if (payload?.action) {
       const updatedAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action,
-        ),
+          action.id === updatedAction.id ? updatedAction : action
+        )
       );
     }
     const newScheduledActions = Array.isArray(payload?.scheduledActions)
       ? payload.scheduledActions
       : payload?.scheduledAction
-        ? [payload.scheduledAction]
-        : [];
+      ? [payload.scheduledAction]
+      : [];
     if (newScheduledActions.length) {
       const newIds = new Set(newScheduledActions.map((item) => item.id));
       setScheduledActions((current) => [
@@ -4508,9 +4511,7 @@ export default function AgentClient() {
 
     const creatorInfo = asRecord(payload.creatorInfo);
     if (!creatorInfo) return null;
-    const privacyLevelOptions = Array.isArray(
-      creatorInfo.privacyLevelOptions,
-    )
+    const privacyLevelOptions = Array.isArray(creatorInfo.privacyLevelOptions)
       ? creatorInfo.privacyLevelOptions
           .map((option) => String(option || "").trim())
           .filter(Boolean)
@@ -4521,7 +4522,7 @@ export default function AgentClient() {
       accountKey: firstSafeString(
         creatorInfo.accountKey,
         creatorInfo.username,
-        creatorInfo.displayName,
+        creatorInfo.displayName
       ),
       username: firstSafeString(creatorInfo.username),
       displayName: firstSafeString(creatorInfo.displayName),
@@ -4563,9 +4564,7 @@ export default function AgentClient() {
     }
   }
 
-  function openAgentTiktokSettings(
-    pending: PendingAgentTiktokValidation,
-  ) {
+  function openAgentTiktokSettings(pending: PendingAgentTiktokValidation) {
     setPendingTiktokValidation(pending);
     setTiktokSettingsOpen(true);
   }
@@ -4575,7 +4574,7 @@ export default function AgentClient() {
   }
 
   async function confirmRobotPlannedPublication(
-    tiktokPublicationSettings?: TiktokPublicationSettings | null,
+    tiktokPublicationSettings?: TiktokPublicationSettings | null
   ) {
     const action = selectedPreparedAction;
     if (
@@ -4607,7 +4606,7 @@ export default function AgentClient() {
           timezone: agentSettings.timezone || "Europe/Paris",
           ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
         },
-        i18nT("scheduled_action_success"),
+        i18nT("scheduled_action_success")
       );
       setValidationChoiceOpen(false);
     } catch (error) {
@@ -4615,7 +4614,7 @@ export default function AgentClient() {
       showNotice(
         error instanceof Error
           ? error.message
-          : i18nT("publication_schedule_failed"),
+          : i18nT("publication_schedule_failed")
       );
     } finally {
       setValidationScheduleState("idle");
@@ -4659,15 +4658,15 @@ export default function AgentClient() {
       showNotice(
         isPublication
           ? i18nT("scheduled_action_updated")
-          : i18nT("scheduled_campaign_updated"),
+          : i18nT("scheduled_campaign_updated")
       );
     } catch (error) {
       showNotice(
         error instanceof Error
           ? error.message
           : isPublication
-            ? i18nT("scheduled_publication_update_failed")
-            : i18nT("scheduled_campaign_update_failed"),
+          ? i18nT("scheduled_publication_update_failed")
+          : i18nT("scheduled_campaign_update_failed")
       );
     } finally {
       setValidationScheduleState("idle");
@@ -4709,7 +4708,7 @@ export default function AgentClient() {
           timezone: agentSettings.timezone || "Europe/Paris",
         },
         i18nT("scheduled_campaign_success"),
-        { closeSchedule: false, showSuccessNotice: false },
+        { closeSchedule: false, showSuccessNotice: false }
       );
     } catch (error) {
       const message = i18nT("campaign_schedule_failed");
@@ -4723,7 +4722,7 @@ export default function AgentClient() {
   async function scheduleValidatedPublication(
     selections: PublishScheduleSelection[],
     immediateChannels: BoosterChannelKey[] = [],
-    tiktokPublicationSettings?: TiktokPublicationSettings | null,
+    tiktokPublicationSettings?: TiktokPublicationSettings | null
   ) {
     if (!selectedPreparedAction || validationScheduleState === "saving") return;
     if (!selections.length) {
@@ -4778,14 +4777,14 @@ export default function AgentClient() {
             : {}),
         },
         i18nT("scheduled_publication_success", { count: selections.length }),
-        { closeSchedule: false, showSuccessNotice: false },
+        { closeSchedule: false, showSuccessNotice: false }
       );
 
       const immediateChannelsToPublish = Array.from(new Set(immediateChannels))
         .filter((channel): channel is BoosterChannelKey => Boolean(channel))
         .filter(
           (channel) =>
-            !selections.some((selection) => selection.channel === channel),
+            !selections.some((selection) => selection.channel === channel)
         );
 
       setPendingImmediateAgentPublishAfterSchedule(
@@ -4796,9 +4795,8 @@ export default function AgentClient() {
               channels: immediateChannelsToPublish,
               tiktokPublicationSettings: effectiveTiktokSettings,
             }
-          : null,
+          : null
       );
-
     } catch (error) {
       const message =
         error instanceof Error && error.message.trim()
@@ -4868,7 +4866,7 @@ export default function AgentClient() {
 
   async function validateAgentTiktokSettings(
     settings: TiktokPublicationSettings,
-    meta: TiktokPublicationValidationMeta,
+    meta: TiktokPublicationValidationMeta
   ) {
     const pending = pendingTiktokValidation;
     if (!pending) return;
@@ -4879,7 +4877,7 @@ export default function AgentClient() {
             settings,
             creatorInfo: meta.creatorInfo,
           })
-        : null,
+        : null
     );
     setTiktokSettingsOpen(false);
     setPendingTiktokValidation(null);
@@ -4902,33 +4900,31 @@ export default function AgentClient() {
     await scheduleValidatedPublication(
       pending.selections,
       pending.immediateChannels,
-      settings,
+      settings
     );
     setValidationScheduleOpen(false);
     setValidationChoiceOpen(false);
     setPendingImmediateAgentPublishAfterSchedule(null);
     const scheduledChannels = new Set(
-      pending.selections.map((selection) => selection.channel),
+      pending.selections.map((selection) => selection.channel)
     );
-    const immediateChannels = Array.from(new Set(pending.immediateChannels)).filter(
-      (channel) => !scheduledChannels.has(channel),
-    );
+    const immediateChannels = Array.from(
+      new Set(pending.immediateChannels)
+    ).filter((channel) => !scheduledChannels.has(channel));
     if (action && immediateChannels.length) {
-      await executeImmediateAgentPublicationAfterSchedule(
-        {
-          action,
-          actionId: action.id,
-          channels: immediateChannels,
-          tiktokPublicationSettings: settings,
-        },
-      );
+      await executeImmediateAgentPublicationAfterSchedule({
+        action,
+        actionId: action.id,
+        channels: immediateChannels,
+        tiktokPublicationSettings: settings,
+      });
     }
   }
 
   async function performPublishChannelRegeneration(
     kind: "content" | "media",
     channel: ChannelKey,
-    scope: "channel" | "publication" = "channel",
+    scope: "channel" | "publication" = "channel"
   ) {
     if (
       !selectedPreparedAction ||
@@ -4963,8 +4959,8 @@ export default function AgentClient() {
       const updatedAction = payload.action;
       setActions((current) =>
         current.map((action) =>
-          action.id === updatedAction.id ? updatedAction : action,
-        ),
+          action.id === updatedAction.id ? updatedAction : action
+        )
       );
       if (kind === "media") setPublishMediaActiveIndex(0);
       showNotice(
@@ -4974,13 +4970,13 @@ export default function AgentClient() {
             : i18nT("regenerate_content_success", {
                 channel: agentChannelLabel(channel, runtimeT),
               })
-          : i18nT("regenerate_media_success"),
+          : i18nT("regenerate_media_success")
       );
     } catch (error) {
       showNotice(
         error instanceof Error && error.message
           ? error.message
-          : i18nT("regenerate_failed"),
+          : i18nT("regenerate_failed")
       );
     } finally {
       setPublishRegeneration(null);
@@ -5029,7 +5025,7 @@ export default function AgentClient() {
           ? i18nT("regenerate_content_confirm", { channel: channelLabel })
           : i18nT("regenerate_media_confirm"),
       confirmLabel: i18nT(
-        kind === "content" ? "regenerate_content" : "regenerate_media",
+        kind === "content" ? "regenerate_content" : "regenerate_media"
       ),
       cancelLabel: i18nT("annuler_49ba3292"),
       tone: "warning",
@@ -5037,7 +5033,7 @@ export default function AgentClient() {
         performPublishChannelRegeneration(
           kind,
           channel,
-          kind === "media" ? "publication" : "channel",
+          kind === "media" ? "publication" : "channel"
         ),
     });
   }
@@ -5050,6 +5046,16 @@ export default function AgentClient() {
     actionMutationState === "saving" ||
     Boolean(publishRegeneration) ||
     publishPreparationInProgress;
+  const editorialGenerationActive = actions.some(
+    isInrAgentEditorialPreparationRunning
+  );
+  const editorialQueueWaitingForCron = actions.some(
+    isInrAgentEditorialPreparationWaitingForCron
+  );
+  const showEditorialCronWait =
+    !agentWorking &&
+    !editorialGenerationActive &&
+    editorialQueueWaitingForCron;
   const agentWorkingLabel = publishRegeneration
     ? publishRegeneration.kind === "content"
       ? publishRegeneration.scope === "publication"
@@ -5059,12 +5065,12 @@ export default function AgentClient() {
           })
       : i18nT("agent_working_regenerating_media")
     : prepareActionState === "saving" ||
-        Boolean(testNowKey) ||
-        publishPreparationInProgress
-      ? i18nT("agent_working_preparing")
-      : actionMutationState === "saving"
-        ? i18nT("agent_working_updating")
-        : i18nT("agent_working_saving");
+      Boolean(testNowKey) ||
+      publishPreparationInProgress
+    ? i18nT("agent_working_preparing")
+    : actionMutationState === "saving"
+    ? i18nT("agent_working_updating")
+    : i18nT("agent_working_saving");
 
   return (
     <main className={styles.agentPage}>
@@ -5112,25 +5118,38 @@ export default function AgentClient() {
             <div className={styles.moduleTitleText}>
               <h1>{i18nT("inr_agent_88080b90")}</h1>
               <p className={styles.moduleSubtitleDesktop}>
-                {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}</p>
+                {i18nT(
+                  "programmateur_d_automatisations_connecte_a_vos_ee58d0a3"
+                )}{" "}
+              </p>
             </div>
           </div>
 
           <p className={styles.moduleSubtitleMobile}>
-            {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}</p>
+            {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}
+          </p>
 
           <div className={styles.moduleHeaderActions}>
             {loadState === "loading" && (
-              <span className={styles.headerSyncPill}>{i18nT("synchronisation_60a2d2da")}</span>
+              <span className={styles.headerSyncPill}>
+                {i18nT("synchronisation_60a2d2da")}
+              </span>
             )}
             {tableMissing && (
               <span className={styles.headerWarningPill}>
-                {i18nT("tables_supabase_a_creer_61f5bd7b")}{" "}</span>
+                {i18nT("tables_supabase_a_creer_61f5bd7b")}{" "}
+              </span>
             )}
             <HelpButton
               onClick={() => {
                 const openHelp = () => setHelpOpen(true);
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openHelp })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openHelp,
+                  })
+                )
+                  return;
                 openHelp();
               }}
               title={i18nT("aide_inr_agent_ec5c0488")}
@@ -5141,7 +5160,13 @@ export default function AgentClient() {
               className={styles.headerAiButton}
               onClick={() => {
                 const openAiConfiguration = () => setAiConfigurationOpen(true);
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openAiConfiguration })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openAiConfiguration,
+                  })
+                )
+                  return;
                 openAiConfiguration();
               }}
               aria-label={i18nT("configuration_ia_f620c8d8")}
@@ -5153,8 +5178,15 @@ export default function AgentClient() {
               type="button"
               className={`${styles.headerAiButton} ${styles.headerDnaButton}`}
               onClick={() => {
-                const openBusinessDna = () => router.push("/dashboard/adn-entreprise");
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openBusinessDna })) return;
+                const openBusinessDna = () =>
+                  router.push("/dashboard/adn-entreprise");
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openBusinessDna,
+                  })
+                )
+                  return;
                 openBusinessDna();
               }}
               aria-label={dashboardT("aiMemory.openTitle")}
@@ -5170,7 +5202,13 @@ export default function AgentClient() {
                   setScheduleOpen(true);
                   void refreshScheduledActions(true);
                 };
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openPlanning })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openPlanning,
+                  })
+                )
+                  return;
                 openPlanning();
               }}
               aria-label={i18nT("voir_les_actions_programmees_b3d2dc94")}
@@ -5179,7 +5217,9 @@ export default function AgentClient() {
               <span className={styles.headerScheduleIcon} aria-hidden>
                 <CalendarMetaIcon />
               </span>
-              <span className={styles.headerScheduleLabel}>{i18nT("planning_0005027d")}</span>
+              <span className={styles.headerScheduleLabel}>
+                {i18nT("planning_0005027d")}
+              </span>
             </button>
             <button
               type="button"
@@ -5187,11 +5227,21 @@ export default function AgentClient() {
               data-automation={selected.key}
               onClick={() => {
                 const openTool = () => router.push(selectedHeaderTool.href);
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openTool })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openTool,
+                  })
+                )
+                  return;
                 openTool();
               }}
-              aria-label={i18nT("ouvrir_value_b62c18f4", { value0: selectedHeaderTool.label })}
-              title={i18nT("ouvrir_value_b62c18f4", { value0: selectedHeaderTool.label })}
+              aria-label={i18nT("ouvrir_value_b62c18f4", {
+                value0: selectedHeaderTool.label,
+              })}
+              title={i18nT("ouvrir_value_b62c18f4", {
+                value0: selectedHeaderTool.label,
+              })}
             >
               {selectedHeaderTool.logoSrc ? (
                 <img
@@ -5226,15 +5276,23 @@ export default function AgentClient() {
                       standardMode
                         ? "publications"
                         : inrSendFolderForAutomation(selected.key)
-                    }`,
+                    }`
                   );
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: openInrSend })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: openInrSend,
+                  })
+                )
+                  return;
                 openInrSend();
               }}
               aria-label={i18nT("ouvrir_inr_send_d4b453c9")}
               title={i18nT("voir_l_historique_des_actions_realisees_98b66273")}
             >
-              <span className={styles.headerInrSendLabel}>{i18nT("inr_send_5c2a3e92")}</span>
+              <span className={styles.headerInrSendLabel}>
+                {i18nT("inr_send_5c2a3e92")}
+              </span>
               <img
                 className={styles.headerInrSendLogo}
                 src="/inrsend-logo-seul.png"
@@ -5251,17 +5309,24 @@ export default function AgentClient() {
               className={styles.headerCloseButton}
               onClick={() => {
                 const closeAgent = () => router.push("/dashboard");
-                if (!exitScheduledEditSession({ silent: true, onAfterExit: closeAgent })) return;
+                if (
+                  !exitScheduledEditSession({
+                    silent: true,
+                    onAfterExit: closeAgent,
+                  })
+                )
+                  return;
                 closeAgent();
               }}
               aria-label={i18nT("retour_au_tableau_de_bord_72006dd2")}
               title={i18nT("retour_au_tableau_de_bord_72006dd2")}
             >
-              <span className={styles.headerCloseLabel}>{i18nT("fermer_5ab4ec64")}</span>
+              <span className={styles.headerCloseLabel}>
+                {i18nT("fermer_5ab4ec64")}
+              </span>
             </button>
           </div>
         </header>
-
 
         <nav
           className={`${styles.automationGrid} ${
@@ -5271,7 +5336,9 @@ export default function AgentClient() {
         >
           <div className={styles.agentCommandRailIdentity}>
             <div
-              className={`${styles.robotHalo} ${styles.agentCommandRailRobot} ${agentWorking ? styles.robotHaloWorking : ""}`}
+              className={`${styles.robotHalo} ${styles.agentCommandRailRobot} ${
+                agentWorking ? styles.robotHaloWorking : ""
+              }`}
             >
               <span className={styles.starOne} />
               <span className={styles.starTwo} />
@@ -5298,10 +5365,17 @@ export default function AgentClient() {
                 />
               ) : null}
             </div>
-            <span aria-hidden>
-              <strong>{i18nT("inr_agent_88080b90")}</strong>
-              <small>{i18nT("missions_323ea30c")}</small>
-            </span>
+            {showEditorialCronWait ? (
+              <AgentEditorialCronWaitIndicator
+                placement="rail"
+                label={i18nT("next_editorial_publication_in_a_few_minutes")}
+              />
+            ) : (
+              <span aria-hidden>
+                <strong>{i18nT("inr_agent_88080b90")}</strong>
+                <small>{i18nT("missions_323ea30c")}</small>
+              </span>
+            )}
           </div>
           {visibleAutomations.map((automation) => {
             const selectedCard = automation.key === selectedKey;
@@ -5321,8 +5395,8 @@ export default function AgentClient() {
                 automation.availableChannels.length > 0 &&
                 connectedChannelsForAutomation(
                   automation,
-                  agentConnectedChannels,
-                ).length === 0,
+                  agentConnectedChannels
+                ).length === 0
             );
 
             return (
@@ -5330,14 +5404,23 @@ export default function AgentClient() {
                 key={automation.key}
                 data-automation={automation.key}
                 data-has-instant-action={hasInstantAction ? "true" : undefined}
-                className={`${styles.automationCard} ${selectedCard ? styles.automationCardActive : ""}`}
+                className={`${styles.automationCard} ${
+                  selectedCard ? styles.automationCardActive : ""
+                }`}
               >
                 <button
                   type="button"
                   className={styles.automationSelect}
                   onClick={() => {
-                    const selectAutomation = () => setSelectedKey(automation.key);
-                    if (!exitScheduledEditSession({ silent: true, onAfterExit: selectAutomation })) return;
+                    const selectAutomation = () =>
+                      setSelectedKey(automation.key);
+                    if (
+                      !exitScheduledEditSession({
+                        silent: true,
+                        onAfterExit: selectAutomation,
+                      })
+                    )
+                      return;
                     selectAutomation();
                   }}
                   aria-pressed={selectedCard}
@@ -5357,9 +5440,14 @@ export default function AgentClient() {
                     <span
                       className={styles.cardPendingCount}
                       data-count={pendingActionsByAutomation[automation.key]}
-                      aria-label={i18nT("value_action_a_valider_c1bfb13c", { value0: pendingActionsByAutomation[automation.key] })}
+                      aria-label={i18nT("value_action_a_valider_c1bfb13c", {
+                        value0: pendingActionsByAutomation[automation.key],
+                      })}
                     >
-                      {i18nT("value_a_valider_24b7d9fb", { value0: pendingActionsByAutomation[automation.key] })}</span>
+                      {i18nT("value_a_valider_24b7d9fb", {
+                        value0: pendingActionsByAutomation[automation.key],
+                      })}
+                    </span>
                   )}
                   {active && (
                     <span
@@ -5393,16 +5481,22 @@ export default function AgentClient() {
                     className={styles.settingsButton}
                     onClick={() => {
                       const openSettings = () => setSettingsKey(automation.key);
-                      if (!exitScheduledEditSession({ silent: true, onAfterExit: openSettings })) return;
+                      if (
+                        !exitScheduledEditSession({
+                          silent: true,
+                          onAfterExit: openSettings,
+                        })
+                      )
+                        return;
                       openSettings();
                     }}
                     aria-label={agentAutomationSettingsTitle(
                       automation.key,
-                      runtimeT,
+                      runtimeT
                     )}
                     title={agentAutomationSettingsTitle(
                       automation.key,
-                      runtimeT,
+                      runtimeT
                     )}
                   >
                     <AutomationSettingsIcon />
@@ -5424,8 +5518,16 @@ export default function AgentClient() {
           )}
           <aside
             id="inr-agent-robot-panel"
-            className={`${styles.robotCard} ${robotPanelOpen ? styles.robotCardCompactOpen : styles.robotCardCompactClosed} ${scheduledEditSession ? styles.scheduledEditCard : ""}`}
-            aria-label={i18nT(scheduledEditSession ? "scheduled_edit_aria" : "agent_operation_aria")}
+            className={`${styles.robotCard} ${
+              robotPanelOpen
+                ? styles.robotCardCompactOpen
+                : styles.robotCardCompactClosed
+            } ${scheduledEditSession ? styles.scheduledEditCard : ""}`}
+            aria-label={i18nT(
+              scheduledEditSession
+                ? "scheduled_edit_aria"
+                : "agent_operation_aria"
+            )}
           >
             <button
               type="button"
@@ -5433,7 +5535,9 @@ export default function AgentClient() {
               onClick={() => setRobotPanelOpen((open) => !open)}
               aria-expanded={robotPanelOpen}
               aria-controls="inr-agent-robot-panel"
-              title={i18nT(robotPanelOpen ? "collapse_missions" : "show_missions")}
+              title={i18nT(
+                robotPanelOpen ? "collapse_missions" : "show_missions"
+              )}
             >
               <img
                 src="/icons/inr-agent-header.png"
@@ -5442,7 +5546,11 @@ export default function AgentClient() {
                 width={30}
                 height={30}
               />
-              <span>{robotPanelOpen ? i18nT("missions_inr_agent_f8a40199") : i18nT("missions_323ea30c")}</span>
+              <span>
+                {robotPanelOpen
+                  ? i18nT("missions_inr_agent_f8a40199")
+                  : i18nT("missions_323ea30c")}
+              </span>
               <b aria-hidden>{robotPanelOpen ? "×" : "›"}</b>
             </button>
             {scheduledEditSession ? (
@@ -5450,12 +5558,17 @@ export default function AgentClient() {
                 <div className={styles.scheduledEditPanelIcon} aria-hidden>
                   <PencilActionIcon />
                 </div>
-                <span className={styles.scheduledEditEyebrow}>{i18nT("edition_temporaire_11a384a6")}</span>
+                <span className={styles.scheduledEditEyebrow}>
+                  {i18nT("edition_temporaire_11a384a6")}
+                </span>
                 <h3>{i18nT("action_programmee_ea2709b8")}</h3>
                 <p>
-                  {i18nT("vous_modifiez_une_action_deja_confiee_810807e2")}{" "}</p>
+                  {i18nT("vous_modifiez_une_action_deja_confiee_810807e2")}{" "}
+                </p>
                 <div
-                  className={`${styles.scheduledEditState} ${scheduledEditDirty ? styles.scheduledEditStateDirty : ""}`}
+                  className={`${styles.scheduledEditState} ${
+                    scheduledEditDirty ? styles.scheduledEditStateDirty : ""
+                  }`}
                 >
                   {scheduledEditDirty
                     ? i18nT("modifications_non_sauvegardees_ffc636a4")
@@ -5470,12 +5583,15 @@ export default function AgentClient() {
                   className={styles.scheduledEditQuitButton}
                   onClick={() => exitScheduledEditSession()}
                 >
-                  {i18nT("quitter_l_edition_08b3f0cb")}{" "}</button>
+                  {i18nT("quitter_l_edition_08b3f0cb")}{" "}
+                </button>
               </div>
             ) : (
               <>
                 <div
-                  className={`${styles.robotHalo} ${agentWorking ? styles.robotHaloWorking : ""}`}
+                  className={`${styles.robotHalo} ${
+                    agentWorking ? styles.robotHaloWorking : ""
+                  }`}
                 >
                   <span className={styles.starOne} />
                   <span className={styles.starTwo} />
@@ -5502,15 +5618,25 @@ export default function AgentClient() {
                       progress={prepareProgress?.percent}
                     />
                   ) : null}
+                  {showEditorialCronWait ? (
+                    <AgentEditorialCronWaitIndicator
+                      label={i18nT(
+                        "next_editorial_publication_in_a_few_minutes"
+                      )}
+                    />
+                  ) : null}
                 </div>
-
               </>
             )}
           </aside>
 
           <div className={styles.workColumn}>
             <section
-              className={`${styles.previewCard} ${selected.key === "stats" || isCampaignView || isPublishView ? styles.previewCardNoFrame : ""}`}
+              className={`${styles.previewCard} ${
+                selected.key === "stats" || isCampaignView || isPublishView
+                  ? styles.previewCardNoFrame
+                  : ""
+              }`}
               aria-label={i18nT("apercu_de_l_action_preparee_460ac719")}
             >
               <div className={styles.previewBody}>
@@ -5523,7 +5649,8 @@ export default function AgentClient() {
                       <div className={styles.statsHeadCopy}>
                         <h3>{i18nT("votre_bilan_inr_stats_54abf82e")}</h3>
                         <p className={styles.statsLead}>
-                          {i18nT("inr_agent_analyse_vos_donnees_et_9f6ccde7")}{" "}</p>
+                          {i18nT("inr_agent_analyse_vos_donnees_et_9f6ccde7")}{" "}
+                        </p>
                       </div>
                     </div>
 
@@ -5587,14 +5714,20 @@ export default function AgentClient() {
 
                     <section
                       className={styles.statsInsightCard}
-                      aria-label={i18nT("dernieres_recommandations_inragent_b873f1c0")}
+                      aria-label={i18nT(
+                        "dernieres_recommandations_inragent_b873f1c0"
+                      )}
                     >
                       <div className={styles.statsInsightHeader}>
                         <span className={styles.statsInsightIcon} aria-hidden>
                           <SparkSettingsIcon />
                         </span>
                         <div className={styles.statsInsightCopy}>
-                          <strong>{i18nT("dernieres_recommandations_inr_agent_2b60c8f9")}</strong>
+                          <strong>
+                            {i18nT(
+                              "dernieres_recommandations_inr_agent_2b60c8f9"
+                            )}
+                          </strong>
                         </div>
                       </div>
                       {latestStatsRecommendations.length > 0 ? (
@@ -5605,12 +5738,15 @@ export default function AgentClient() {
                                 <span>{index + 1}</span>
                                 <p>{recommendation}</p>
                               </li>
-                            ),
+                            )
                           )}
                         </ol>
                       ) : (
                         <p className={styles.statsRecommendationEmpty}>
-                          {i18nT("le_prochain_bilan_automatique_affichera_ici_ccda89e0")}{" "}</p>
+                          {i18nT(
+                            "le_prochain_bilan_automatique_affichera_ici_ccda89e0"
+                          )}{" "}
+                        </p>
                       )}
                     </section>
 
@@ -5628,7 +5764,17 @@ export default function AgentClient() {
                               target="_blank"
                               rel="noreferrer"
                               className={styles.statsHistoryItem}
-                              aria-label={i18nT("telecharger_le_bilan_du_value_954ac90e", { value0: formatMiniDateLabel(report.document.createdAt || report.completedAt || report.createdAt, locale) })}
+                              aria-label={i18nT(
+                                "telecharger_le_bilan_du_value_954ac90e",
+                                {
+                                  value0: formatMiniDateLabel(
+                                    report.document.createdAt ||
+                                      report.completedAt ||
+                                      report.createdAt,
+                                    locale
+                                  ),
+                                }
+                              )}
                             >
                               <span
                                 className={styles.statsHistoryIcon}
@@ -5643,7 +5789,7 @@ export default function AgentClient() {
                                       report.document.createdAt ||
                                         report.completedAt ||
                                         report.createdAt,
-                                      locale,
+                                      locale
                                     ).date
                                   }
                                 </strong>
@@ -5653,7 +5799,7 @@ export default function AgentClient() {
                                       report.document.createdAt ||
                                         report.completedAt ||
                                         report.createdAt,
-                                      locale,
+                                      locale
                                     ).time
                                   }
                                 </small>
@@ -5679,8 +5825,12 @@ export default function AgentClient() {
                   </div>
                 ) : isCampaignView && campaignDisplayPreview ? (
                   <div
-                    key={`${selectedPreparedAction?.id || selected.key}-campaign`}
-                    className={`${styles.campaignPreview} ${!hasCampaignPreview ? styles.campaignPreviewEmpty : ""}`}
+                    key={`${
+                      selectedPreparedAction?.id || selected.key
+                    }-campaign`}
+                    className={`${styles.campaignPreview} ${
+                      !hasCampaignPreview ? styles.campaignPreviewEmpty : ""
+                    }`}
                   >
                     <div className={styles.campaignInfoGrid}>
                       <article
@@ -5715,7 +5865,14 @@ export default function AgentClient() {
                           <small>{i18nT("destinataires_51610ad7")}</small>
                           <strong>
                             {hasCampaignPreview
-                              ? i18nT("value_contact_value_638ef1ed", { value0: campaignDisplayPreview.recipientsCount, value1: campaignDisplayPreview.recipientsCount > 1 ? "s" : "" })
+                              ? i18nT("value_contact_value_638ef1ed", {
+                                  value0:
+                                    campaignDisplayPreview.recipientsCount,
+                                  value1:
+                                    campaignDisplayPreview.recipientsCount > 1
+                                      ? "s"
+                                      : "",
+                                })
                               : "—"}
                           </strong>
                         </span>
@@ -5768,7 +5925,9 @@ export default function AgentClient() {
                               ? campaignAttachments.length > 0
                                 ? campaignAttachments.length === 1
                                   ? campaignAttachments[0].name
-                                  : i18nT("value_fichiers_0af8254f", { value0: campaignAttachments.length })
+                                  : i18nT("value_fichiers_0af8254f", {
+                                      value0: campaignAttachments.length,
+                                    })
                                 : i18nT("aucune_e8f88273")
                               : "—"}
                           </strong>
@@ -5788,21 +5947,29 @@ export default function AgentClient() {
                         {campaignDisplayPreview.paragraphs.map(
                           (paragraph, index) => (
                             <p
-                              key={`${selectedPreparedAction?.id || selected.key}-mail-paragraph-${index}`}
+                              key={`${
+                                selectedPreparedAction?.id || selected.key
+                              }-mail-paragraph-${index}`}
                             >
                               {renderRichInlineText(
                                 paragraph,
-                                `${selectedPreparedAction?.id || selected.key}-mail-paragraph-${index}`,
+                                `${
+                                  selectedPreparedAction?.id || selected.key
+                                }-mail-paragraph-${index}`
                               )}
                             </p>
-                          ),
+                          )
                         )}
                         {!hasCampaignPreview && (
                           <div className={styles.campaignEmptyHint}>
                             <span>
                               {actionsLoadState === "loading"
-                                ? i18nT("recherche_des_actions_preparees_eb05a9af")
-                                : i18nT("aucune_campagne_automatique_preparee_pour_le_27977b8d")}
+                                ? i18nT(
+                                    "recherche_des_actions_preparees_eb05a9af"
+                                  )
+                                : i18nT(
+                                    "aucune_campagne_automatique_preparee_pour_le_27977b8d"
+                                  )}
                             </span>
                           </div>
                         )}
@@ -5811,8 +5978,12 @@ export default function AgentClient() {
                   </div>
                 ) : isPublishView ? (
                   <div
-                    key={`${selectedPreparedAction?.id || selected.key}-${activePreviewChannel || "global"}-publish`}
-                    className={`${styles.publishPreview} ${!selectedPreparedAction ? styles.publishPreviewEmpty : ""}`}
+                    key={`${selectedPreparedAction?.id || selected.key}-${
+                      activePreviewChannel || "global"
+                    }-publish`}
+                    className={`${styles.publishPreview} ${
+                      !selectedPreparedAction ? styles.publishPreviewEmpty : ""
+                    }`}
                   >
                     <div className={styles.publishInfoGrid}>
                       <article
@@ -5825,47 +5996,99 @@ export default function AgentClient() {
                           <small>{i18nT("canal_61f21e6f")}</small>
                           <strong>{activePreviewChannelLabel}</strong>
                           {activeMetaPublicationChannel ? (
-                            <select
-                              className={styles.publishPlacementSelect}
-                              value={publishPlacement}
-                              onChange={(event) => {
-                                void savePublishPlacement(
-                                  event.target.value as InrAgentPublicationPlacement,
-                                );
-                              }}
-                              disabled={
-                                !selectedPreparedAction ||
-                                !canReviewSelectedAction ||
-                                actionMutationState === "saving" ||
-                                publishPlacementSaveState === "saving"
-                              }
-                              aria-label={i18nT("publication_mode_label")}
-                              title={i18nT("publication_mode_help")}
-                            >
-                              {!publishPlacementEnabled &&
-                              publishPlacement !== "classic" ? (
-                                <option value={publishPlacement} disabled>
-                                  {publishPlacement === "reel"
-                                    ? i18nT("publication_mode_reel_disabled")
-                                    : i18nT("publication_mode_story_disabled")}
-                                </option>
-                              ) : null}
-                              {publishPlacementOptions.map((placement) => (
-                                <option key={placement} value={placement}>
-                                  {placement === "reel"
-                                    ? i18nT("publication_mode_reel")
-                                    : placement === "story"
+                            <span className={styles.publishPlacementControls}>
+                              <select
+                                className={styles.publishPlacementSelect}
+                                value={publishPlacement}
+                                onChange={(event) => {
+                                  const nextPlacement = event.target
+                                    .value as InrAgentPublicationPlacement;
+                                  void savePublishPlacement(
+                                    nextPlacement,
+                                    nextPlacement === "story" ||
+                                      publishPlacement === "story"
+                                      ? false
+                                      : publishIncludeStory
+                                  );
+                                }}
+                                disabled={
+                                  !selectedPreparedAction ||
+                                  !canReviewSelectedAction ||
+                                  actionMutationState === "saving" ||
+                                  publishPlacementSaveState === "saving"
+                                }
+                                aria-label={i18nT("publication_mode_label")}
+                                title={i18nT("publication_mode_help")}
+                              >
+                                {!publishPlacementEnabled &&
+                                publishPlacement !== "classic" ? (
+                                  <option value={publishPlacement} disabled>
+                                    {publishPlacement === "reel"
+                                      ? i18nT("publication_mode_reel_disabled")
+                                      : i18nT(
+                                          "publication_mode_story_disabled"
+                                        )}
+                                  </option>
+                                ) : null}
+                                {publishPlacementOptions.map((placement) => (
+                                  <option key={placement} value={placement}>
+                                    {placement === "reel"
+                                      ? i18nT("publication_mode_reel")
+                                      : placement === "story"
                                       ? i18nT("publication_mode_story")
                                       : i18nT("publication_mode_classic")}
-                                </option>
-                              ))}
-                            </select>
+                                  </option>
+                                ))}
+                              </select>
+                              {publishPlacement !== "story" &&
+                              (publishStoryOptionEnabled ||
+                                publishIncludeStory) ? (
+                                <label
+                                  className={styles.publishStoryOption}
+                                  data-active={publishIncludeStory}
+                                  title={
+                                    publishStoryOptionEnabled
+                                      ? `+ ${i18nT(
+                                          "publication_mode_story"
+                                        )}`
+                                      : i18nT(
+                                          "publication_mode_story_disabled"
+                                        )
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={publishIncludeStory}
+                                    onChange={(event) => {
+                                      void savePublishPlacement(
+                                        publishPlacement,
+                                        event.target.checked
+                                      );
+                                    }}
+                                    disabled={
+                                      !selectedPreparedAction ||
+                                      !canReviewSelectedAction ||
+                                      actionMutationState === "saving" ||
+                                      publishPlacementSaveState === "saving"
+                                    }
+                                    aria-label={`+ ${i18nT(
+                                      "publication_mode_story"
+                                    )}`}
+                                  />
+                                  <span>
+                                    + {i18nT("publication_mode_story")}
+                                  </span>
+                                </label>
+                              ) : null}
+                            </span>
                           ) : activePreviewChannel === "pinterest" ? (
                             <select
                               className={styles.publishPlacementSelect}
                               value={activePinterestBoardId}
                               onChange={(event) => {
-                                void savePublishPinterestBoard(event.target.value);
+                                void savePublishPinterestBoard(
+                                  event.target.value
+                                );
                               }}
                               disabled={
                                 !selectedPreparedAction ||
@@ -5876,10 +6099,10 @@ export default function AgentClient() {
                                 pinterestBoards.length === 0
                               }
                               aria-label={boosterRuntimeT(
-                                "tableau_pinterest_1af82867",
+                                "tableau_pinterest_1af82867"
                               )}
                               title={boosterRuntimeT(
-                                "tableau_pinterest_1af82867",
+                                "tableau_pinterest_1af82867"
                               )}
                             >
                               {pinterestBoards.length === 0 ? (
@@ -5890,7 +6113,9 @@ export default function AgentClient() {
                                 </option>
                               ) : !activePinterestBoardId ? (
                                 <option value="">
-                                  {boosterRuntimeT("choisir_un_tableau_77f9de39")}
+                                  {boosterRuntimeT(
+                                    "choisir_un_tableau_77f9de39"
+                                  )}
                                 </option>
                               ) : null}
                               {pinterestBoards.map((board) => (
@@ -5923,7 +6148,9 @@ export default function AgentClient() {
                             selectedPreparedAction
                               ? publishMediaOnly
                                 ? i18nT("publication_mode_media_only_help")
-                                : i18nT("modifier_le_titre_le_texte_le_325c7a96")
+                                : i18nT(
+                                    "modifier_le_titre_le_texte_le_325c7a96"
+                                  )
                               : i18nT("no_publication_prepared")
                           }
                         >
@@ -5942,7 +6169,9 @@ export default function AgentClient() {
                         <button
                           type="button"
                           className={styles.publishRegenerateButton}
-                          onClick={() => requestPublishChannelRegeneration("content")}
+                          onClick={() =>
+                            requestPublishChannelRegeneration("content")
+                          }
                           disabled={
                             !selectedPreparedAction ||
                             publishMediaOnly ||
@@ -6005,7 +6234,10 @@ export default function AgentClient() {
                               ) : null}
                             </span>
                           ) : (
-                            <span className={styles.campaignInfoIcon} aria-hidden>
+                            <span
+                              className={styles.campaignInfoIcon}
+                              aria-hidden
+                            >
                               <ImageMetaIcon />
                             </span>
                           )}
@@ -6021,7 +6253,9 @@ export default function AgentClient() {
                         <button
                           type="button"
                           className={styles.publishRegenerateButton}
-                          onClick={() => requestPublishChannelRegeneration("media")}
+                          onClick={() =>
+                            requestPublishChannelRegeneration("media")
+                          }
                           disabled={
                             !selectedPreparedAction ||
                             !canReviewSelectedAction ||
@@ -6039,7 +6273,9 @@ export default function AgentClient() {
                       </div>
                       <article
                         className={`${styles.campaignInfoCard} ${styles.publishInfoStatus}`}
-                        data-validation-state={selectedPublicationValidationState}
+                        data-validation-state={
+                          selectedPublicationValidationState
+                        }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <ShieldLineIcon />
@@ -6119,14 +6355,18 @@ export default function AgentClient() {
                                     decoding="sync"
                                   />
                                 ) : (
-                                  <span className={styles.publishInlineFileIcon}>
+                                  <span
+                                    className={styles.publishInlineFileIcon}
+                                  >
                                     <ImageMetaIcon />
                                   </span>
                                 )}
                                 <button
                                   type="button"
                                   className={styles.publishInlineMediaOpen}
-                                  onClick={() => setPublishMediaPreviewOpen(true)}
+                                  onClick={() =>
+                                    setPublishMediaPreviewOpen(true)
+                                  }
                                   aria-label={i18nT("manage_media")}
                                   title={i18nT("manage_media")}
                                 >
@@ -6143,26 +6383,43 @@ export default function AgentClient() {
                                 <div
                                   className={styles.publishInlineMediaStrip}
                                   role="group"
-                                  aria-label={i18nT("media_de_la_publication_82477994")}
+                                  aria-label={i18nT(
+                                    "media_de_la_publication_82477994"
+                                  )}
                                 >
-                                  {publishMediaPreview.items.map((item, index) => (
-                                    <button
-                                      type="button"
-                                      key={`${item.url}-${index}`}
-                                      data-active={index === publishMediaPreview.activeIndex}
-                                      onClick={() => setPublishMediaActiveIndex(index)}
-                                      aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", {
-                                        value0: index + 1,
-                                        value1: publishMediaPreview.items.length,
-                                      })}
-                                    >
-                                      {item.kind === "image" ? (
-                                        <img src={item.url} alt="" aria-hidden />
-                                      ) : (
-                                        <span aria-hidden>🎞️</span>
-                                      )}
-                                    </button>
-                                  ))}
+                                  {publishMediaPreview.items.map(
+                                    (item, index) => (
+                                      <button
+                                        type="button"
+                                        key={`${item.url}-${index}`}
+                                        data-active={
+                                          index ===
+                                          publishMediaPreview.activeIndex
+                                        }
+                                        onClick={() =>
+                                          setPublishMediaActiveIndex(index)
+                                        }
+                                        aria-label={i18nT(
+                                          "afficher_l_image_value_sur_value_516cb86d",
+                                          {
+                                            value0: index + 1,
+                                            value1:
+                                              publishMediaPreview.items.length,
+                                          }
+                                        )}
+                                      >
+                                        {item.kind === "image" ? (
+                                          <img
+                                            src={item.url}
+                                            alt=""
+                                            aria-hidden
+                                          />
+                                        ) : (
+                                          <span aria-hidden>🎞️</span>
+                                        )}
+                                      </button>
+                                    )
+                                  )}
                                 </div>
                               ) : null}
                             </section>
@@ -6178,67 +6435,82 @@ export default function AgentClient() {
                               <p>{i18nT("publication_mode_media_only_help")}</p>
                             </div>
                           ) : (
-                          <div className={styles.publishPostText}>
-                            <div className={styles.publishTitleLine}>
-                              <span>{i18nT("titre_d03e0c7c")}</span>
-                              {publishPreparationInProgress ? (
-                                <span
-                                  className={styles.publishTitleLoading}
-                                  role="status"
-                                  aria-label={i18nT(
-                                    "preparation_de_la_publication_inr_agent_56ab605b",
-                                  )}
-                                  title={i18nT(
-                                    "preparation_de_la_publication_inr_agent_56ab605b",
-                                  )}
-                                />
-                              ) : null}
-                              <strong>
-                                {preparedChannelPreview?.title ||
-                                  selectedPreparedAction?.title ||
-                                  "—"}
-                              </strong>
-                            </div>
-                            <div className={styles.publishPostContent}>
-                              {publishParagraphs.length > 0 ? (
-                                publishParagraphs.map((paragraph, index) => (
-                                  <p
-                                    key={`${selectedPreparedAction?.id || selected.key}-${activePreviewChannel || "global"}-publish-paragraph-${index}`}
-                                  >
+                            <div className={styles.publishPostText}>
+                              <div className={styles.publishTitleLine}>
+                                <span>{i18nT("titre_d03e0c7c")}</span>
+                                {publishPreparationInProgress ? (
+                                  <span
+                                    className={styles.publishTitleLoading}
+                                    role="status"
+                                    aria-label={i18nT(
+                                      "preparation_de_la_publication_inr_agent_56ab605b"
+                                    )}
+                                    title={i18nT(
+                                      "preparation_de_la_publication_inr_agent_56ab605b"
+                                    )}
+                                  />
+                                ) : null}
+                                <strong>
+                                  {preparedChannelPreview?.title ||
+                                    selectedPreparedAction?.title ||
+                                    "—"}
+                                </strong>
+                              </div>
+                              <div className={styles.publishPostContent}>
+                                {publishParagraphs.length > 0 ? (
+                                  publishParagraphs.map((paragraph, index) => (
+                                    <p
+                                      key={`${
+                                        selectedPreparedAction?.id ||
+                                        selected.key
+                                      }-${
+                                        activePreviewChannel || "global"
+                                      }-publish-paragraph-${index}`}
+                                    >
+                                      {renderRichInlineText(
+                                        paragraph,
+                                        `${
+                                          selectedPreparedAction?.id ||
+                                          selected.key
+                                        }-${
+                                          activePreviewChannel || "global"
+                                        }-publish-paragraph-${index}`
+                                      )}
+                                    </p>
+                                  ))
+                                ) : selectedPreparedAction ? (
+                                  <p>
                                     {renderRichInlineText(
-                                      paragraph,
-                                      `${selectedPreparedAction?.id || selected.key}-${activePreviewChannel || "global"}-publish-paragraph-${index}`,
+                                      selectedPreparedAction.summary,
+                                      `${selectedPreparedAction.id}-publish-summary`
                                     )}
                                   </p>
-                                ))
-                              ) : selectedPreparedAction ? (
-                                <p>
-                                  {renderRichInlineText(
-                                    selectedPreparedAction.summary,
-                                    `${selectedPreparedAction.id}-publish-summary`,
-                                  )}
-                                </p>
-                              ) : (
-                                <div className={styles.publishEmptyHint}>
-                                  <strong>
-                                    {i18nT("aucune_publication_automatique_preparee_pour_le_a48148f5")}{" "}
-                                  </strong>
-                                  <span>
-                                    {i18nT("le_futur_contenu_du_canal_selectionne_1b1512d5")}{" "}
-                                  </span>
-                                </div>
-                              )}
-                              {preparedChannelPreview?.hashtags.length ? (
-                                <small className={styles.previewHashtags}>
-                                  {preparedChannelPreview.hashtags
-                                    .map(
-                                      (hashtag) => `#${hashtag.replace(/^#+/, "")}`,
-                                    )
-                                    .join(" ")}
-                                </small>
-                              ) : null}
+                                ) : (
+                                  <div className={styles.publishEmptyHint}>
+                                    <strong>
+                                      {i18nT(
+                                        "aucune_publication_automatique_preparee_pour_le_a48148f5"
+                                      )}{" "}
+                                    </strong>
+                                    <span>
+                                      {i18nT(
+                                        "le_futur_contenu_du_canal_selectionne_1b1512d5"
+                                      )}{" "}
+                                    </span>
+                                  </div>
+                                )}
+                                {preparedChannelPreview?.hashtags.length ? (
+                                  <small className={styles.previewHashtags}>
+                                    {preparedChannelPreview.hashtags
+                                      .map(
+                                        (hashtag) =>
+                                          `#${hashtag.replace(/^#+/, "")}`
+                                      )
+                                      .join(" ")}
+                                  </small>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
                           )}
                         </article>
                         {publishMediaOnly ? (
@@ -6275,7 +6547,9 @@ export default function AgentClient() {
                   </div>
                 ) : hasPreparedAction && selectedPreparedAction ? (
                   <div
-                    key={`${selectedPreparedAction.id}-${activePreviewChannel || "global"}`}
+                    key={`${selectedPreparedAction.id}-${
+                      activePreviewChannel || "global"
+                    }`}
                     className={styles.preparedPreview}
                   >
                     {preparedImageUrl ? (
@@ -6290,26 +6564,37 @@ export default function AgentClient() {
                     ) : (
                       <div className={styles.previewImageFallback}>
                         <ImageMetaIcon />
-                        <span>{i18nT("aucune_image_obligatoire_pour_cette_action_775a4d75")}</span>
+                        <span>
+                          {i18nT(
+                            "aucune_image_obligatoire_pour_cette_action_775a4d75"
+                          )}
+                        </span>
                       </div>
                     )}
                     <div className={styles.previewText}>
                       <div className={styles.previewBadgeRow}>
-                        <span>{i18nT("apercu_value_a6963b7d", { value0: activePreviewChannelLabel })}</span>
                         <span>
-                          {
-                            agentActionTypeLabel(selectedPreparedAction.actionType, runtimeT)
-                          }
+                          {i18nT("apercu_value_a6963b7d", {
+                            value0: activePreviewChannelLabel,
+                          })}
                         </span>
                         <span>
-                          {
-                            agentToolLabel(selectedPreparedAction.targetTool, runtimeT)
-                          }
+                          {agentActionTypeLabel(
+                            selectedPreparedAction.actionType,
+                            runtimeT
+                          )}
                         </span>
                         <span>
-                          {
-                            agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
-                          }
+                          {agentToolLabel(
+                            selectedPreparedAction.targetTool,
+                            runtimeT
+                          )}
+                        </span>
+                        <span>
+                          {agentActionStatusLabel(
+                            selectedPreparedAction.status,
+                            runtimeT
+                          )}
                         </span>
                       </div>
                       <h3>
@@ -6319,11 +6604,15 @@ export default function AgentClient() {
                       {preparedParagraphs.length > 0 ? (
                         preparedParagraphs.map((paragraph, index) => (
                           <p
-                            key={`${selectedPreparedAction.id}-${activePreviewChannel || "global"}-paragraph-${index}`}
+                            key={`${selectedPreparedAction.id}-${
+                              activePreviewChannel || "global"
+                            }-paragraph-${index}`}
                           >
                             {renderRichInlineText(
                               paragraph,
-                              `${selectedPreparedAction.id}-${activePreviewChannel || "global"}-paragraph-${index}`,
+                              `${selectedPreparedAction.id}-${
+                                activePreviewChannel || "global"
+                              }-paragraph-${index}`
                             )}
                           </p>
                         ))
@@ -6331,13 +6620,16 @@ export default function AgentClient() {
                         <p>
                           {renderRichInlineText(
                             selectedPreparedAction.summary,
-                            `${selectedPreparedAction.id}-summary`,
+                            `${selectedPreparedAction.id}-summary`
                           )}
                         </p>
                       )}
                       {preparedChannelPreview?.cta && (
                         <small className={styles.previewCta}>
-                          {i18nT("appel_a_l_action_value_fae849c7", { value0: preparedChannelPreview.cta })}</small>
+                          {i18nT("appel_a_l_action_value_fae849c7", {
+                            value0: preparedChannelPreview.cta,
+                          })}
+                        </small>
                       )}
                       {preparedChannelPreview?.hashtags.length ? (
                         <small className={styles.previewHashtags}>
@@ -6348,12 +6640,24 @@ export default function AgentClient() {
                       ) : null}
                       {targetThemesLabel(selectedPreparedAction) && (
                         <small className={styles.previewTheme}>
-                          {i18nT("theme_value_d32c52da", { value0: agentThemeListLabel(targetThemesLabel(selectedPreparedAction).split(/\s*·\s*/), runtimeT, locale) })}</small>
+                          {i18nT("theme_value_d32c52da", {
+                            value0: agentThemeListLabel(
+                              targetThemesLabel(selectedPreparedAction).split(
+                                /\s*·\s*/
+                              ),
+                              runtimeT,
+                              locale
+                            ),
+                          })}
+                        </small>
                       )}
                       {preparedRecipientsCount > 0 && (
                         <small className={styles.previewRecipients}>
-                          {i18nT("destinataires_proposes_234d5404")}{" "}{preparedRecipientsCount}{" "}
-                          {i18nT("contact_1a73af9e")}{preparedRecipientsCount > 1 ? "s" : ""} {" "}{i18nT("crm_2a13d05e")}{" "}</small>
+                          {i18nT("destinataires_proposes_234d5404")}{" "}
+                          {preparedRecipientsCount} {i18nT("contact_1a73af9e")}
+                          {preparedRecipientsCount > 1 ? "s" : ""}{" "}
+                          {i18nT("crm_2a13d05e")}{" "}
+                        </small>
                       )}
                     </div>
                   </div>
@@ -6363,12 +6667,13 @@ export default function AgentClient() {
                       <AutomationIcon type={selected.key} />
                     </span>
                     <h3>{i18nT("aucune_action_preparee_a9b0fde0")}</h3>
-                    <p>
-                      {i18nT("quand_inr_agent_aura_prepare_la_3fc7b740")}{" "}</p>
+                    <p>{i18nT("quand_inr_agent_aura_prepare_la_3fc7b740")} </p>
                     <small>
                       {actionsLoadState === "loading"
                         ? i18nT("recherche_des_actions_preparees_eb05a9af")
-                        : i18nT("automatisation_selectionnee_value_f18fd4cc", { value0: selected.title })}
+                        : i18nT("automatisation_selectionnee_value_f18fd4cc", {
+                            value0: selected.title,
+                          })}
                     </small>
                   </div>
                 )}
@@ -6409,7 +6714,11 @@ export default function AgentClient() {
               ) : null}
 
               <div
-                className={`${styles.previewMeta} ${selected.key === "stats" ? styles.previewMetaStats : ""} ${isCampaignView ? styles.previewMetaCampaign : ""} ${isPublishView ? styles.previewMetaPublish : ""}`}
+                className={`${styles.previewMeta} ${
+                  selected.key === "stats" ? styles.previewMetaStats : ""
+                } ${isCampaignView ? styles.previewMetaCampaign : ""} ${
+                  isPublishView ? styles.previewMetaPublish : ""
+                }`}
               >
                 <div className={`${styles.metaItem} ${styles.channelsItem}`}>
                   {!isPublishView && (
@@ -6417,12 +6726,14 @@ export default function AgentClient() {
                       {selected.key === "stats"
                         ? i18nT("sources_57811207")
                         : isCampaignView
-                          ? i18nT("canal_61f21e6f")
-                          : i18nT("canaux_b38e5b69")}
+                        ? i18nT("canal_61f21e6f")
+                        : i18nT("canaux_b38e5b69")}
                     </small>
                   )}
                   <div
-                    className={`${styles.channelScrollerWrap} ${isPublishView ? styles.channelScrollerWrapPublish : ""}`}
+                    className={`${styles.channelScrollerWrap} ${
+                      isPublishView ? styles.channelScrollerWrapPublish : ""
+                    }`}
                   >
                     {isPublishView && displayChannels.length > 1 && (
                       <button
@@ -6430,7 +6741,9 @@ export default function AgentClient() {
                         className={styles.channelNavArrow}
                         onClick={() => movePreviewChannel(-1)}
                         disabled={previewNavigationChannels.length < 2}
-                        aria-label={i18nT("afficher_le_canal_precedent_777ef8f0")}
+                        aria-label={i18nT(
+                          "afficher_le_canal_precedent_777ef8f0"
+                        )}
                         title={i18nT("canal_precedent_e644dfdf")}
                       >
                         <NavigationChevronIcon direction="left" />
@@ -6450,12 +6763,26 @@ export default function AgentClient() {
                                 (theme === "Vue globale"
                                   ? "stats-global"
                                   : theme === "iNrBadge"
-                                    ? "inrbadge"
-                                    : "stats")
+                                  ? "inrbadge"
+                                  : "stats")
                               }
                               disabled
-                              aria-label={rubrique.channelKey ? agentChannelLabel(rubrique.channelKey, runtimeT) : agentThemeLabel(theme, runtimeT)}
-                              title={rubrique.channelKey ? agentChannelLabel(rubrique.channelKey, runtimeT) : agentThemeLabel(theme, runtimeT)}
+                              aria-label={
+                                rubrique.channelKey
+                                  ? agentChannelLabel(
+                                      rubrique.channelKey,
+                                      runtimeT
+                                    )
+                                  : agentThemeLabel(theme, runtimeT)
+                              }
+                              title={
+                                rubrique.channelKey
+                                  ? agentChannelLabel(
+                                      rubrique.channelKey,
+                                      runtimeT
+                                    )
+                                  : agentThemeLabel(theme, runtimeT)
+                              }
                             >
                               <img
                                 src={rubrique.src}
@@ -6509,8 +6836,27 @@ export default function AgentClient() {
                                 if (selectableChannel)
                                   selectPreviewChannel(channelKey);
                               }}
-                              aria-label={i18nT(selectableChannel ? "show_channel_preview" : "channel_deselected", { channel: agentChannelLabel(channelKey, runtimeT) })}
-                              title={selectableChannel ? agentChannelLabel(channelKey, runtimeT) : i18nT("channel_deselected", { channel: agentChannelLabel(channelKey, runtimeT) })}
+                              aria-label={i18nT(
+                                selectableChannel
+                                  ? "show_channel_preview"
+                                  : "channel_deselected",
+                                {
+                                  channel: agentChannelLabel(
+                                    channelKey,
+                                    runtimeT
+                                  ),
+                                }
+                              )}
+                              title={
+                                selectableChannel
+                                  ? agentChannelLabel(channelKey, runtimeT)
+                                  : i18nT("channel_deselected", {
+                                      channel: agentChannelLabel(
+                                        channelKey,
+                                        runtimeT
+                                      ),
+                                    })
+                              }
                             >
                               <img
                                 src={channel.src}
@@ -6546,9 +6892,7 @@ export default function AgentClient() {
                   </div>
                 </div>
                 {isPublishView && publicationCarouselActions.length > 0 ? (
-                  <div
-                    className={styles.publishMobilePager}
-                  >
+                  <div className={styles.publishMobilePager}>
                     <button
                       type="button"
                       className={styles.publishMobilePagerButton}
@@ -6563,7 +6907,11 @@ export default function AgentClient() {
                       className={styles.publishMobilePagerCounter}
                       data-validation-state={selectedPublicationValidationState}
                       aria-live="polite"
-                      aria-label={`${Math.max(0, selectedPublicationIndex) + 1} / ${publicationCarouselActions.length} — ${publishValidationLabel}`}
+                      aria-label={`${
+                        Math.max(0, selectedPublicationIndex) + 1
+                      } / ${
+                        publicationCarouselActions.length
+                      } — ${publishValidationLabel}`}
                       title={publishValidationLabel}
                     >
                       {Math.max(0, selectedPublicationIndex) + 1} /{" "}
@@ -6583,7 +6931,11 @@ export default function AgentClient() {
                 ) : null}
                 <div
                   className={`${styles.metaItem} ${styles.dateItem}`}
-                  title={i18nT(selected.key === "stats" ? "next_automatic_report" : "scheduled_date")}
+                  title={i18nT(
+                    selected.key === "stats"
+                      ? "next_automatic_report"
+                      : "scheduled_date"
+                  )}
                 >
                   <span className={styles.metaIcon} aria-hidden>
                     <CalendarMetaIcon />
@@ -6596,7 +6948,9 @@ export default function AgentClient() {
                   <div
                     className={styles.publishMobileStatus}
                     data-validation-state={selectedPublicationValidationState}
-                    aria-label={`${i18nT("statut_659499f3")} : ${publishValidationLabel}`}
+                    aria-label={`${i18nT(
+                      "statut_659499f3"
+                    )} : ${publishValidationLabel}`}
                   >
                     <span>{i18nT("statut_659499f3")} :</span>
                     <strong>{publishValidationLabel}</strong>
@@ -6617,24 +6971,24 @@ export default function AgentClient() {
                           campaignDraftSaveState === "saving"
                             ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? i18nT("draft_save_publication_aria")
-                              : i18nT("draft_save_campaign_aria")
+                            ? i18nT("draft_save_publication_aria")
+                            : i18nT("draft_save_campaign_aria")
                         }
                         title={
                           actionMutationState === "saving" ||
                           campaignDraftSaveState === "saving"
                             ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? i18nT("enregistrer_f7c8bcd8")
-                              : i18nT("save_campaign")
+                            ? i18nT("enregistrer_f7c8bcd8")
+                            : i18nT("save_campaign")
                         }
                         data-tooltip={
                           actionMutationState === "saving" ||
                           campaignDraftSaveState === "saving"
                             ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? i18nT("enregistrer_f7c8bcd8")
-                              : i18nT("save_campaign")
+                            ? i18nT("enregistrer_f7c8bcd8")
+                            : i18nT("save_campaign")
                         }
                         aria-busy={
                           actionMutationState === "saving" ||
@@ -6652,9 +7006,11 @@ export default function AgentClient() {
                       >
                         <span aria-hidden>
                           {actionMutationState === "saving" ||
-                          campaignDraftSaveState === "saving"
-                            ? "…"
-                            : <SaveActionIcon />}
+                          campaignDraftSaveState === "saving" ? (
+                            "…"
+                          ) : (
+                            <SaveActionIcon />
+                          )}
                         </span>
                         {actionMutationState === "saving" ||
                         campaignDraftSaveState === "saving"
@@ -6694,8 +7050,11 @@ export default function AgentClient() {
                           setPublishEditChoiceOpen(true);
                         }}
                       >
-                        <span aria-hidden><PencilActionIcon /></span>
-                        {i18nT("modifier_f260e757")}{" "}</button>
+                        <span aria-hidden>
+                          <PencilActionIcon />
+                        </span>
+                        {i18nT("modifier_f260e757")}{" "}
+                      </button>
                     )}
                     {isPublishView && (
                       <button
@@ -6747,10 +7106,10 @@ export default function AgentClient() {
                           {scheduledEditSession
                             ? i18nT("enregistrement_e7d5f232")
                             : tiktokSessionCheckState === "checking"
-                              ? i18nT("tiktok_session_checking")
-                              : actionMutationIntent === "refused"
-                              ? i18nT("refus_en_cours_6be9a897")
-                              : i18nT("validation_en_cours_25be85c2")}
+                            ? i18nT("tiktok_session_checking")
+                            : actionMutationIntent === "refused"
+                            ? i18nT("refus_en_cours_6be9a897")
+                            : i18nT("validation_en_cours_25be85c2")}
                         </button>
                       ) : (
                         <>
@@ -6758,8 +7117,7 @@ export default function AgentClient() {
                             type="button"
                             className={styles.validateButton}
                             disabled={
-                              !hasPreparedAction ||
-                              !canReviewSelectedAction
+                              !hasPreparedAction || !canReviewSelectedAction
                             }
                             onClick={() => {
                               if (scheduledEditSession) {
@@ -6768,7 +7126,7 @@ export default function AgentClient() {
                               }
                               if (
                                 isRobotPlannedPublication(
-                                  selectedPreparedAction,
+                                  selectedPreparedAction
                                 )
                               ) {
                                 void confirmRobotPlannedPublication();
@@ -6790,21 +7148,22 @@ export default function AgentClient() {
                             </span>
                             {scheduledEditSession
                               ? i18nT("enregistrer_f7c8bcd8")
-                              : i18nT("valider_be4220f7")}{" "}</button>
+                              : i18nT("valider_be4220f7")}{" "}
+                          </button>
                           {!scheduledEditSession && (
                             <button
                               type="button"
                               className={styles.refuseButton}
                               disabled={
-                                !hasPreparedAction ||
-                                !canReviewSelectedAction
+                                !hasPreparedAction || !canReviewSelectedAction
                               }
                               onClick={() => updateActionStatus("refused")}
                             >
                               <span aria-hidden>
                                 <RefuseActionIcon />
                               </span>
-                              {i18nT("refuser_62897154")}{" "}</button>
+                              {i18nT("refuser_62897154")}{" "}
+                            </button>
                           )}
                         </>
                       )}
@@ -6853,7 +7212,9 @@ export default function AgentClient() {
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>{i18nT("publication_inr_agent_62b957d7")}</p>
+            <p className={styles.modalEyebrow}>
+              {i18nT("publication_inr_agent_62b957d7")}
+            </p>
             <h2>
               {i18nT("modifier_f260e757")}{" "}
               {publishTextDraft.channel
@@ -6908,7 +7269,7 @@ export default function AgentClient() {
                   onBeforeOpen={() =>
                     saveRichEditorSelection(
                       publishBodyEditorRef.current,
-                      publishEmojiSelectionRef,
+                      publishEmojiSelectionRef
                     )
                   }
                   onSelect={insertPublishEmoji}
@@ -6934,7 +7295,7 @@ export default function AgentClient() {
               <span>{i18nT("cta_11441d32")}</span>
               {(() => {
                 const displayKey = boosterDisplayKeyFromAgentChannel(
-                  publishTextDraft.channel,
+                  publishTextDraft.channel
                 );
                 const currentPost: BoosterChannelPost = {
                   title: publishTextDraft.title,
@@ -6949,17 +7310,17 @@ export default function AgentClient() {
                 };
                 const ctaChoice = getPreferredCtaChoiceFromPost(
                   displayKey,
-                  currentPost,
+                  currentPost
                 );
                 const activeWebsiteUrl = getWebsiteUrlForChannel(
                   displayKey,
-                  publishCtaDefaults,
+                  publishCtaDefaults
                 );
                 const activeWebsiteSourceLabel =
                   getLocalizedWebsiteSourceLabelForChannel(
                     displayKey,
                     publishCtaDefaults,
-                    boosterRuntimeT,
+                    boosterRuntimeT
                   );
                 const websiteChoices = [
                   publishCtaDefaults?.inrcySiteUrl
@@ -6969,7 +7330,10 @@ export default function AgentClient() {
                       }
                     : null,
                   publishCtaDefaults?.siteWebUrl
-                    ? { label: i18nT("site_web_7e78af33"), url: publishCtaDefaults.siteWebUrl }
+                    ? {
+                        label: i18nT("site_web_7e78af33"),
+                        url: publishCtaDefaults.siteWebUrl,
+                      }
                     : null,
                 ].filter(Boolean) as Array<{ label: string; url: string }>;
                 const ctaMode = getCtaModeForPreferredChoice(ctaChoice);
@@ -6982,18 +7346,20 @@ export default function AgentClient() {
                           value={ctaChoice}
                           onChange={(event) =>
                             applyPublishPreferredCta(
-                              event.target.value as BoosterPreferredCta,
+                              event.target.value as BoosterPreferredCta
                             )
                           }
                         >
-                          {getPreferredCtaOptionsForChannel(displayKey).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {getLocalizedPreferredCtaLabel(
-                                option.value,
-                                boosterRuntimeT,
-                              )}
-                            </option>
-                          ))}
+                          {getPreferredCtaOptionsForChannel(displayKey).map(
+                            (option) => (
+                              <option key={option.value} value={option.value}>
+                                {getLocalizedPreferredCtaLabel(
+                                  option.value,
+                                  boosterRuntimeT
+                                )}
+                              </option>
+                            )
+                          )}
                         </select>
                       </label>
 
@@ -7015,8 +7381,8 @@ export default function AgentClient() {
                                     source: activeWebsiteSourceLabel,
                                   })
                                 : websiteChoices.length > 1
-                                  ? i18nT("website_choice_placeholder")
-                                  : i18nT("website_optional_placeholder")
+                                ? i18nT("website_choice_placeholder")
+                                : i18nT("website_optional_placeholder")
                             }
                           />
                           {ctaMode === "website" &&
@@ -7053,14 +7419,14 @@ export default function AgentClient() {
                             value={
                               publishTextDraft.ctaPhone ||
                               getBoosterWhatsAppPhoneFromUrl(
-                                publishTextDraft.ctaUrl,
+                                publishTextDraft.ctaUrl
                               )
                             }
                             onChange={(event) =>
                               updatePublishCtaDraft({
                                 ctaPhone: event.target.value,
                                 ctaUrl: buildBoosterWhatsAppUrl(
-                                  event.target.value,
+                                  event.target.value
                                 ),
                               })
                             }
@@ -7117,7 +7483,7 @@ export default function AgentClient() {
                         displayKey,
                         ctaMode,
                         boosterRuntimeT,
-                        ctaChoice,
+                        ctaChoice
                       )}
                     </small>
                     {ctaMode === "website" && activeWebsiteUrl && (
@@ -7129,11 +7495,13 @@ export default function AgentClient() {
                     )}
                     {(ctaMode === "call" || ctaChoice === "whatsapp") &&
                       publishCtaDefaults?.phone && (
-                      <small className={styles.publishCtaHelp}>
-                        {i18nT("valeur_par_defaut_disponible_depuis_mon_841d60a8")}{" "}
-                        {publishCtaDefaults.phone}
-                      </small>
-                    )}
+                        <small className={styles.publishCtaHelp}>
+                          {i18nT(
+                            "valeur_par_defaut_disponible_depuis_mon_841d60a8"
+                          )}{" "}
+                          {publishCtaDefaults.phone}
+                        </small>
+                      )}
                   </>
                 );
               })()}
@@ -7160,14 +7528,16 @@ export default function AgentClient() {
               </p>
             )}
             <p className={styles.campaignEditHint}>
-              {i18nT("la_modification_s_applique_uniquement_au_ad6a3c95")}{" "}</p>
+              {i18nT("la_modification_s_applique_uniquement_au_ad6a3c95")}{" "}
+            </p>
             <div className={styles.modalActions}>
               <button
                 type="button"
                 onClick={() => setPublishEditOpen(false)}
                 disabled={publishSaveState === "saving"}
               >
-                {i18nT("annuler_49ba3292")}{" "}</button>
+                {i18nT("annuler_49ba3292")}{" "}
+              </button>
               <button
                 type="button"
                 onClick={() => void savePublishText()}
@@ -7247,7 +7617,7 @@ export default function AgentClient() {
         onBeforeEmojiOpen={() =>
           saveRichEditorSelection(
             campaignBodyEditorRef.current,
-            campaignEmojiSelectionRef,
+            campaignEmojiSelectionRef
           )
         }
         onEmojiSelect={insertCampaignEmoji}
@@ -7291,9 +7661,7 @@ export default function AgentClient() {
           setCrmRecipientFiltersOpen((current) => !current)
         }
         onToggleFiltered={toggleFilteredCrmRecipients}
-        onToggleNewRecipient={() =>
-          setNewRecipientOpen((current) => !current)
-        }
+        onToggleNewRecipient={() => setNewRecipientOpen((current) => !current)}
         onCategoryChange={setCrmRecipientCategory}
         onContactTypeChange={setCrmRecipientType}
         onDepartmentChange={(value) =>
@@ -7396,20 +7764,29 @@ export default function AgentClient() {
             </button>
             <div className={styles.publishMediaModalHeader}>
               <div>
-                <p className={styles.modalEyebrow}>{i18nT("media_inr_agent_75389c98")}</p>
-                <h2>{i18nT("gerer_le_media_value_be737c89", { value0: activePreviewChannelLabel })}</h2>
+                <p className={styles.modalEyebrow}>
+                  {i18nT("media_inr_agent_75389c98")}
+                </p>
+                <h2>
+                  {i18nT("gerer_le_media_value_be737c89", {
+                    value0: activePreviewChannelLabel,
+                  })}
+                </h2>
                 <span>
-                  {i18nT("choisissez_ajoutez_remplacez_ou_preparez_le_ff06dd03")}{" "}</span>
+                  {i18nT(
+                    "choisissez_ajoutez_remplacez_ou_preparez_le_ff06dd03"
+                  )}{" "}
+                </span>
               </div>
               <div
                 className={`${styles.publishMediaStatusPill} ${
                   publishMediaPreview?.statusTone === "blocked"
                     ? styles.publishMediaStatusBlocked
                     : publishMediaPreview?.statusTone === "warning"
-                      ? styles.publishMediaStatusWarning
-                      : publishMediaPreview?.statusTone === "ready"
-                        ? styles.publishMediaStatusReady
-                        : ""
+                    ? styles.publishMediaStatusWarning
+                    : publishMediaPreview?.statusTone === "ready"
+                    ? styles.publishMediaStatusReady
+                    : ""
                 }`}
               >
                 {publishMediaPreview?.statusLabel || "—"}
@@ -7448,26 +7825,52 @@ export default function AgentClient() {
                 <span className={styles.publishMediaTypeChip}>
                   {publishMediaPreview?.typeLabel || i18nT("media_d8a313d3")}
                 </span>
-                <strong>{publishMediaPreview?.name || i18nT("aucun_media_c1858e25")}</strong>
+                <strong>
+                  {publishMediaPreview?.name || i18nT("aucun_media_c1858e25")}
+                </strong>
                 <small>
                   {publishMediaPreview?.note ||
                     i18nT("ajoutez_une_image_ou_une_video_d7497a12")}
                 </small>
                 {publishMediaAdaptationPreview?.userEditable &&
                 publishMediaPreview?.url ? (
-                  <button
-                    type="button"
-                    className={styles.publishMediaRetouchButton}
-                    onClick={openPublishMediaAdapterPreview}
-                    disabled={publishMediaUploadState === "saving"}
-                  >
-                    <span aria-hidden>{publishMediaRetouchIcon}</span>
-                    {publishMediaRetouchLabel}
-                  </button>
+                  publishMediaPreview.kind === "image" ? (
+                    <div className={styles.publishMediaImageActions}>
+                      <button
+                        type="button"
+                        className={styles.publishMediaModifyButton}
+                        onClick={() => void openPublishImageInStudio("modify")}
+                        disabled={publishMediaUploadState === "saving"}
+                      >
+                        <span aria-hidden>✦</span>
+                        {i18nT("modifier_f260e757")}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.publishMediaRetouchButton}
+                        onClick={() => void openPublishImageInStudio("retouch")}
+                        disabled={publishMediaUploadState === "saving"}
+                      >
+                        <span aria-hidden>{publishMediaRetouchIcon}</span>
+                        {publishMediaRetouchLabel}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`${styles.publishMediaRetouchButton} ${styles.publishMediaVideoRetouchButton}`}
+                      onClick={openPublishMediaRetouchPreview}
+                      disabled={publishMediaUploadState === "saving"}
+                    >
+                      <span aria-hidden>{publishMediaRetouchIcon}</span>
+                      {publishMediaRetouchLabel}
+                    </button>
+                  )
                 ) : (
                   <div className={styles.publishMediaRetouchHint}>
                     <span aria-hidden>✨</span>
-                    {i18nT("ajoutez_un_media_pour_pouvoir_l_f137cd89")}{" "}</div>
+                    {i18nT("ajoutez_un_media_pour_pouvoir_l_f137cd89")}{" "}
+                  </div>
                 )}
               </div>
             </div>
@@ -7476,7 +7879,9 @@ export default function AgentClient() {
               <div
                 className={styles.publishMediaGallery}
                 role="list"
-                aria-label={i18nT("medias_value_508589dd", { value0: activePreviewChannelLabel })}
+                aria-label={i18nT("medias_value_508589dd", {
+                  value0: activePreviewChannelLabel,
+                })}
               >
                 {publishMediaPreview.items.map((item, index) => (
                   <button
@@ -7490,7 +7895,13 @@ export default function AgentClient() {
                     }`}
                     onClick={() => setPublishMediaActiveIndex(index)}
                     disabled={publishMediaUploadState === "saving"}
-                    aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", { value0: index + 1, value1: publishMediaPreview.items.length })}
+                    aria-label={i18nT(
+                      "afficher_l_image_value_sur_value_516cb86d",
+                      {
+                        value0: index + 1,
+                        value1: publishMediaPreview.items.length,
+                      }
+                    )}
                   >
                     {item.kind === "video" ? (
                       <video
@@ -7517,14 +7928,13 @@ export default function AgentClient() {
 
             <div className={styles.publishMediaAdaptationBox}>
               <div>
-                <strong>{i18nT("adaptation_du_canal_1af8dcef")}</strong>
+                <strong>iNrStudio</strong>
                 <span>
                   {publishMediaAdaptationPreview?.note ||
                     i18nT("inragent_preparera_le_media_selon_les_c6452f9f")}
                 </span>
               </div>
-              <small>
-                {i18nT("utilisez_l_outil_d_adaptation_inrcy_e92f2a66")}{" "}</small>
+              <small>{mediaT("ai_generator_studio_tab_retouch")}</small>
             </div>
 
             <div className={styles.publishMediaSourcePanel}>
@@ -7538,17 +7948,17 @@ export default function AgentClient() {
                           max: publishImageMaxCount,
                         })
                       : publishImageCount === 1
-                        ? i18nT("media_image_saved_channel", {
-                            count: publishImageCount,
-                            max: publishImageMaxCount,
-                          })
-                        : i18nT("media_images_saved_channel", {
-                            count: publishImageCount,
-                            max: publishImageMaxCount,
-                          })
+                      ? i18nT("media_image_saved_channel", {
+                          count: publishImageCount,
+                          max: publishImageMaxCount,
+                        })
+                      : i18nT("media_images_saved_channel", {
+                          count: publishImageCount,
+                          max: publishImageMaxCount,
+                        })
                     : publishMediaPreview?.kind === "video"
-                      ? i18nT("video_preparee_pour_ce_canal_4350728f")
-                      : i18nT("media_enregistre_pour_ce_canal_a6dcb15c")}
+                    ? i18nT("video_preparee_pour_ce_canal_4350728f")
+                    : i18nT("media_enregistre_pour_ce_canal_a6dcb15c")}
                 </span>
               </div>
               <input
@@ -7615,7 +8025,9 @@ export default function AgentClient() {
                   <strong>{i18nT("ajouter_une_image_762947a7")}</strong>
                   <small>
                     {publishImageLimitReached
-                      ? i18nT("maximum_de_value_images_atteint_af483c3f", { value0: publishImageMaxCount })
+                      ? i18nT("maximum_de_value_images_atteint_af483c3f", {
+                          value0: publishImageMaxCount,
+                        })
                       : INR_MEDIA_IMAGE_FORMATS_LABEL}
                   </small>
                 </label>
@@ -7660,14 +8072,19 @@ export default function AgentClient() {
                   <span aria-hidden>📷</span>
                   <strong>{i18nT("prendre_une_photo_49b3ea58")}</strong>
                   <small>
-                    {isMobileHeader ? i18nT("depuis_mobile_f39b9223") : i18nT("disponible_sur_mobile_386aeb66")}
+                    {isMobileHeader
+                      ? i18nT("depuis_mobile_f39b9223")
+                      : i18nT("disponible_sur_mobile_386aeb66")}
                   </small>
                 </label>
               </div>
               <small className={styles.publishMediaSourceNote}>
                 {i18nT("media_source_jusqu_a_300_mo_04468d50")}{" "}
-                {INR_MEDIA_IMAGE_MAX_MB_LABEL} {" "}{i18nT("pour_une_image_ou_5647eac3")}{" "}
-                {INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL} {" "}{i18nT("pour_une_video_021e8484")}{" "}</small>
+                {INR_MEDIA_IMAGE_MAX_MB_LABEL}{" "}
+                {i18nT("pour_une_image_ou_5647eac3")}{" "}
+                {INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL}{" "}
+                {i18nT("pour_une_video_021e8484")}{" "}
+              </small>
             </div>
 
             <MediaLibraryPickerModal
@@ -7721,219 +8138,6 @@ export default function AgentClient() {
                 title={i18nT("apply_media_everywhere_help")}
               >
                 {i18nT("apply_media_everywhere")}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {publishImageAdapterOpen && (
-        <ChannelImageAdapterModal
-          open={publishImageAdapterOpen}
-          title={i18nT("adapter_le_media_value_34c6f353", { value0: activePreviewChannelLabel })}
-          subtitle={`${activePreviewChannelLabel} • ${publishImageAdapterPreset.width}×${publishImageAdapterPreset.height}`}
-          aspectRatio={publishImageAdapterAspectRatio}
-          backgroundMode={publishImageAdapterBackgroundMode}
-          backgroundColor={publishImageAdapterBackgroundColor}
-          fitLabel={
-            publishImageAdapterTransformSafe.fit === "cover"
-              ? "Remplir"
-              : "Adapter"
-          }
-          zoomLabel={i18nT("zoom_value_1d90c01c", { value0: publishImageAdapterEffectiveZoom.toFixed(2) })}
-          previewSrc={publishImageAdapterPreviewUrl}
-          previewLayout={publishImageAdapterPreviewLayout}
-          isDragging={publishImageAdapterDragging}
-          onClose={closePublishImageAdapter}
-          onWheel={handlePublishImageAdapterWheel}
-          onPointerDown={handlePublishImageAdapterPointerDown}
-          onPointerMove={handlePublishImageAdapterPointerMove}
-          onPointerUp={endPublishImageAdapterDrag}
-          onPointerCancel={endPublishImageAdapterDrag}
-          onDoubleClick={() =>
-            updatePublishImageAdapterTransform({ offsetX: 0, offsetY: 0 })
-          }
-          previewRef={publishImageAdapterStageRef}
-          buttonClassName={dashboardStyles.secondaryBtn}
-          primaryButtonClassName={dashboardStyles.primaryBtn}
-          onZoomOut={() =>
-            updatePublishImageAdapterTransform({
-              zoom: clampNumber(
-                publishImageAdapterEffectiveZoom - 0.08,
-                0.4,
-                publishImageAdapterTransformSafe.fit === "cover" ? 3 : 1,
-              ),
-            })
-          }
-          onZoomIn={() =>
-            updatePublishImageAdapterTransform({
-              zoom: clampNumber(
-                publishImageAdapterEffectiveZoom + 0.08,
-                0.4,
-                publishImageAdapterTransformSafe.fit === "cover" ? 3 : 1,
-              ),
-            })
-          }
-          onContain={() =>
-            updatePublishImageAdapterTransform({
-              fit: "contain",
-              zoom: 1,
-              offsetX: 0,
-              offsetY: 0,
-              backgroundMode: getChannelSafetyBackgroundMode(publishBoosterChannel),
-              backgroundColor: undefined,
-              blurBackground: false,
-            })
-          }
-          onCover={() =>
-            updatePublishImageAdapterTransform({
-              fit: "cover",
-              backgroundMode: "black",
-              blurBackground: false,
-            })
-          }
-          onReset={() => {
-            const nextTransform = getOptimizedTransform(
-              publishBoosterChannel,
-              publishImageAdapterMeta || undefined,
-            );
-            setPublishImageAdapterTransform(nextTransform);
-          }}
-          onSave={savePublishImageAdapter}
-          saving={publishImageAdapterSaving}
-          isolationNote={i18nT("image_adapter_isolation_note")}
-          onBackgroundModeChange={(mode) =>
-            updatePublishImageAdapterTransform(
-              mode === "transparent"
-                ? {
-                    backgroundMode: "transparent",
-                    backgroundColor: undefined,
-                    blurBackground: false,
-                    fit: "contain",
-                    zoom: 1,
-                    offsetX: 0,
-                    offsetY: 0,
-                  }
-                : {
-                    backgroundMode: mode,
-                    backgroundColor:
-                      mode === "black"
-                        ? "#0d1320"
-                        : mode === "white"
-                          ? "#ffffff"
-                          : publishImageAdapterTransformSafe.backgroundColor ||
-                            (getChannelSafetyBackgroundMode(publishBoosterChannel) === "black"
-                              ? "#0d1320"
-                              : "#ffffff"),
-                    blurBackground: false,
-                    fit: "contain",
-                    zoom: 1,
-                    offsetX: 0,
-                    offsetY: 0,
-                  },
-            )
-          }
-          onBackgroundColorChange={(color) =>
-            updatePublishImageAdapterTransform({
-              backgroundMode: "color",
-              backgroundColor: color,
-              blurBackground: false,
-              fit: "contain",
-              zoom: 1,
-              offsetX: 0,
-              offsetY: 0,
-            })
-          }
-          pillButtonStyle={{}}
-          pillButtonActiveStyle={{}}
-        />
-      )}
-
-      {publishVideoAdapterOpen && (
-        <div
-          className={styles.modalBackdrop}
-          role="presentation"
-          onClick={() => {
-            if (!publishVideoAdapterSaving) setPublishVideoAdapterOpen(false);
-          }}
-        >
-          <section
-            className={`${styles.settingsModal} ${styles.publishVideoAdapterModal}`}
-            role="dialog"
-            aria-modal="true"
-            aria-label={i18nT("adapter_la_video_inragent_8eaacc97")}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              className={styles.modalClose}
-              onClick={() => setPublishVideoAdapterOpen(false)}
-              aria-label={i18nT("fermer_5ab4ec64")}
-              disabled={publishVideoAdapterSaving}
-            >
-              ×
-            </button>
-            <div className={styles.publishMediaModalHeader}>
-              <div>
-                <p className={styles.modalEyebrow}>{i18nT("adapter_video_2d90a304")}</p>
-                <h2>{activePreviewChannelLabel}</h2>
-                <span>
-                  {i18nT("outil_booster_existant_choisissez_le_format_20c55e2f")}{" "}</span>
-              </div>
-            </div>
-            <BoosterVideoFormatManager
-              isMobile={isMobileHeader}
-              channel={publishBoosterChannel}
-              videoName={publishMediaPreview?.name || i18nT("video_inr_agent")}
-              videoDisplayUrl={publishMediaPreview?.url || ""}
-              videoSize={Number(currentPublishMediaRecord?.size || 0) || null}
-              videoDurationSeconds={
-                Number(
-                  currentPublishMediaRecord?.duration ||
-                    currentPublishMediaRecord?.duration_seconds ||
-                    0,
-                ) || null
-              }
-              videoSourceMetadata={
-                (asRecord(currentPublishMediaRecord?.sourceMetadata) ||
-                  null) as BoosterVideoSourceMetadata | null
-              }
-              currentFormat={publishVideoFormat}
-              adaptationMode={publishVideoAdaptationMode}
-              videoTransformedVariants={
-                Array.isArray(currentPublishMediaRecord?.transformedVariants)
-                  ? (currentPublishMediaRecord?.transformedVariants as BoosterVideoTransformedVariant[])
-                  : []
-              }
-              preparationState={publishVideoPreparationState}
-              preparing={publishVideoAdapterSaving}
-              onFormatChange={(format) => setPublishVideoFormat(format)}
-              onAdaptationModeChange={(mode) =>
-                setPublishVideoAdaptationMode(mode)
-              }
-              onApplyFormat={savePublishVideoAdapter}
-              showApplyAll={false}
-              buttonClassName={styles.agentToolbarButton}
-              compact
-            />
-            <div className={styles.modalActions}>
-              <button
-                type="button"
-                onClick={() => setPublishVideoAdapterOpen(false)}
-                disabled={publishVideoAdapterSaving}
-              >
-                {i18nT("fermer_5ab4ec64")}{" "}</button>
-              <button
-                type="button"
-                onClick={savePublishVideoAdapter}
-                disabled={
-                  publishVideoAdapterSaving || !publishMediaPreview?.url
-                }
-                aria-busy={publishVideoAdapterSaving}
-              >
-                {publishVideoAdapterSaving
-                  ? i18nT("enregistrement_e7d5f232")
-                  : i18nT("enregistrer_l_adaptation_83a36e4d")}
               </button>
             </div>
           </section>
@@ -8018,7 +8222,7 @@ export default function AgentClient() {
               setPendingImmediateAgentPublishAfterSchedule(null);
               if (immediatePublishRequest?.channels.length) {
                 void executeImmediateAgentPublicationAfterSchedule(
-                  immediatePublishRequest,
+                  immediatePublishRequest
                 );
               }
             }}
@@ -8036,13 +8240,11 @@ export default function AgentClient() {
                 selectedPreparedAction.automationKey === "loyalty"
                   ? "loyalty"
                   : "grow",
-                runtimeT,
+                runtimeT
               ),
             })}
             recipientCount={preparedRecipientsCount}
-            subject={
-              campaignDisplayPreview?.subject || i18nT("no_subject")
-            }
+            subject={campaignDisplayPreview?.subject || i18nT("no_subject")}
             saving={validationScheduleState === "saving"}
             error={null}
             successMessage={i18nT("programmation_reussie_1307249b")}
@@ -8068,7 +8270,9 @@ export default function AgentClient() {
           description={i18nT("automation_schedule_edit_description")}
           recipientCount={0}
           subject={automationScheduleEdit.label}
-          showSummary={!["publish", "stats"].includes(automationScheduleEdit.key)}
+          showSummary={
+            !["publish", "stats"].includes(automationScheduleEdit.key)
+          }
           saving={scheduleMutationState === "saving"}
           error={automationScheduleEditError}
           confirmLabel={i18nT("enregistrer_f7c8bcd8")}
@@ -8154,24 +8358,36 @@ export default function AgentClient() {
             <p className={styles.modalEyebrow}>{i18nT("helper_1e7eebdb")}</p>
             <h2>{i18nT("qu_est_ce_qu_inr_agent_0290f6c1")}</h2>
             <div className={styles.helpContent}>
-              <p>
-                {i18nT("inr_agent_est_votre_programmateur_d_d3776182")}{" "}</p>
+              <p>{i18nT("inr_agent_est_votre_programmateur_d_d3776182")} </p>
               <ul>
                 <li>
-                  <strong>{i18nT("publier_34e6b19e")}</strong> {" "}{i18nT("prepare_des_publications_avec_booster_publier_fed8f201")}{" "}</li>
+                  <strong>{i18nT("publier_34e6b19e")}</strong>{" "}
+                  {i18nT(
+                    "prepare_des_publications_avec_booster_publier_fed8f201"
+                  )}{" "}
+                </li>
                 {!standardMode ? (
                   <>
                     <li>
-                      <strong>{i18nT("propulser_2de43942")}</strong> {" "}{i18nT("prepare_des_campagnes_propulser_par_mail_4904e994")}{" "}</li>
+                      <strong>{i18nT("propulser_2de43942")}</strong>{" "}
+                      {i18nT(
+                        "prepare_des_campagnes_propulser_par_mail_4904e994"
+                      )}{" "}
+                    </li>
                     <li>
-                      <strong>{i18nT("fideliser_8fa9e4f1")}</strong> {" "}{i18nT("prepare_des_campagnes_fideliser_par_mail_e7a28bd4")}{" "}</li>
+                      <strong>{i18nT("fideliser_8fa9e4f1")}</strong>{" "}
+                      {i18nT(
+                        "prepare_des_campagnes_fideliser_par_mail_e7a28bd4"
+                      )}{" "}
+                    </li>
                   </>
                 ) : null}
                 <li>
-                  <strong>{i18nT("statistiques_fdce305a")}</strong> {" "}{i18nT("genere_un_bilan_inr_stats_pdf_0ed72e8c")}{" "}</li>
+                  <strong>{i18nT("statistiques_fdce305a")}</strong>{" "}
+                  {i18nT("genere_un_bilan_inr_stats_pdf_0ed72e8c")}{" "}
+                </li>
               </ul>
-              <p>
-                {i18nT("les_roues_de_reglages_permettent_de_c517f1c9")}{" "}</p>
+              <p>{i18nT("les_roues_de_reglages_permettent_de_c517f1c9")} </p>
             </div>
           </section>
         </div>
@@ -8190,7 +8406,10 @@ export default function AgentClient() {
             data-automation={settingsAutomation.key}
             role="dialog"
             aria-modal="true"
-            aria-label={agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
+            aria-label={agentAutomationSettingsTitle(
+              settingsAutomation.key,
+              runtimeT
+            )}
             onClick={(event) => event.stopPropagation()}
           >
             <header
@@ -8206,7 +8425,7 @@ export default function AgentClient() {
                 <h2>
                   {agentAutomationSettingsTitle(
                     settingsAutomation.key,
-                    runtimeT,
+                    runtimeT
                   )}
                 </h2>
                 {settingsConnectedChannelMessage ? (
@@ -8309,551 +8528,596 @@ export default function AgentClient() {
               <div
                 className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}
               >
-              <label>
-                <span>{i18nT("frequence_bafbfba7")}</span>
-                <select
-                  value={settingsConfig.frequency}
-                  onChange={(event) =>
-                    updateConfigFrequency(
-                      settingsAutomation.key,
-                      event.target.value,
-                    )
-                  }
-                >
-                  {settingsOptions[settingsAutomation.key].frequency.map(
-                    (frequency) => (
-                      <option key={frequency.value} value={frequency.label}>
-                        {agentFrequencyLabel(frequency.label, runtimeT)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              {settingsAutomation.key === "publish" ? (
                 <label>
-                  <span>{i18nT("contenus_prepares_a_l_avance_aa0119d0")}</span>
+                  <span>{i18nT("frequence_bafbfba7")}</span>
                   <select
-                    value={settingsConfig.planningHorizonDays}
+                    value={settingsConfig.frequency}
                     onChange={(event) =>
-                      updateConfig(settingsAutomation.key, {
-                        planningHorizonDays:
-                          Number(event.target.value) === 30
-                            ? 30
-                            : Number(event.target.value) === 7
+                      updateConfigFrequency(
+                        settingsAutomation.key,
+                        event.target.value
+                      )
+                    }
+                  >
+                    {settingsOptions[settingsAutomation.key].frequency.map(
+                      (frequency) => (
+                        <option key={frequency.value} value={frequency.label}>
+                          {agentFrequencyLabel(frequency.label, runtimeT)}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+                {settingsAutomation.key === "publish" ? (
+                  <label>
+                    <span>
+                      {i18nT("contenus_prepares_a_l_avance_aa0119d0")}
+                    </span>
+                    <select
+                      value={settingsConfig.planningHorizonDays}
+                      onChange={(event) =>
+                        updateConfig(settingsAutomation.key, {
+                          planningHorizonDays:
+                            Number(event.target.value) === 30
+                              ? 30
+                              : Number(event.target.value) === 7
                               ? 7
                               : 15,
+                        })
+                      }
+                    >
+                      <option value={7}>{i18nT("7_jours_a0f70b5c")}</option>
+                      <option value={15}>{i18nT("15_jours_recommande_9f4bc5ad")}</option>
+                      <option value={30}>{i18nT("1_mois_e5493c85")}</option>
+                    </select>
+                  </label>
+                ) : null}
+                {settingsMonthlyDateCount > 0 ? (
+                  <>
+                    <div
+                      className={styles.scheduleMonthDayGrid}
+                      data-count={settingsMonthlyDateCount}
+                    >
+                      {settingsMonthDays.map((day, index) => (
+                        <label
+                          key={`${settingsAutomation.key}-month-day-${index}`}
+                        >
+                          <span>
+                            {i18nT("date_eb9a4bc1")}
+                            {settingsMonthlyDateCount > 1
+                              ? ` ${index + 1}`
+                              : ""}
+                          </span>
+                          <select
+                            value={day}
+                            onChange={(event) =>
+                              updateConfigMonthDay(
+                                settingsAutomation.key,
+                                index,
+                                Number(event.target.value)
+                              )
+                            }
+                          >
+                            {Array.from({ length: 31 }, (_, optionIndex) => {
+                              const optionDay = optionIndex + 1;
+                              const alreadySelected = settingsMonthDays.some(
+                                (selectedDay, selectedIndex) =>
+                                  selectedIndex !== index &&
+                                  selectedDay === optionDay
+                              );
+                              return (
+                                <option
+                                  key={optionDay}
+                                  value={optionDay}
+                                  disabled={alreadySelected}
+                                >
+                                  {optionDay}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                    <label>
+                      <span>{i18nT("horaire_db0addb3")}</span>
+                      <select
+                        value={settingsConfig.time}
+                        onChange={(event) =>
+                          updateConfig(settingsAutomation.key, {
+                            time: event.target.value,
+                          })
+                        }
+                      >
+                        {hourOptions.map((hour) => (
+                          <option key={hour}>{hour}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                ) : settingsConfig.frequency === "2 fois par semaine" ||
+                  settingsConfig.frequency === "3 fois par semaine" ? (
+                  normalizeConfigScheduleSlots(settingsConfig)
+                    .slice(
+                      0,
+                      settingsConfig.frequency === "3 fois par semaine" ? 3 : 2
+                    )
+                    .map((slot, index) => (
+                      <div
+                        className={styles.scheduleSlotPair}
+                        key={`${settingsAutomation.key}-slot-${index}`}
+                      >
+                        <label>
+                          <span>
+                            {i18nT("jour_240ce85d")} {index + 1}
+                          </span>
+                          <select
+                            value={slot.day}
+                            onChange={(event) =>
+                              updateConfigScheduleSlot(
+                                settingsAutomation.key,
+                                index,
+                                {
+                                  day: event.target.value,
+                                }
+                              )
+                            }
+                          >
+                            {weekDays.map((day) => (
+                              <option key={day} value={day}>
+                                {agentWeekdayLabel(day, runtimeT)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>
+                            {i18nT("horaire_db0addb3")} {index + 1}
+                          </span>
+                          <select
+                            value={slot.time}
+                            onChange={(event) =>
+                              updateConfigScheduleSlot(
+                                settingsAutomation.key,
+                                index,
+                                {
+                                  time: event.target.value,
+                                }
+                              )
+                            }
+                          >
+                            {hourOptions.map((hour) => (
+                              <option key={hour}>{hour}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ))
+                ) : (
+                  <div className={styles.scheduleSlotPair}>
+                    <label>
+                      <span>{i18nT("jour_240ce85d")}</span>
+                      <select
+                        value={settingsConfig.day}
+                        onChange={(event) =>
+                          updateConfig(settingsAutomation.key, {
+                            day: event.target.value,
+                            scheduleSlots: [
+                              {
+                                day: event.target.value,
+                                time: settingsConfig.time,
+                              },
+                              {
+                                day: dayOffsetLabel(event.target.value, 3),
+                                time: settingsConfig.time,
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        {weekDays.map((day) => (
+                          <option key={day} value={day}>
+                            {agentWeekdayLabel(day, runtimeT)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>{i18nT("horaire_db0addb3")}</span>
+                      <select
+                        value={settingsConfig.time}
+                        onChange={(event) =>
+                          updateConfig(settingsAutomation.key, {
+                            time: event.target.value,
+                            scheduleSlots: [
+                              {
+                                day: settingsConfig.day,
+                                time: event.target.value,
+                              },
+                              {
+                                day: dayOffsetLabel(settingsConfig.day, 3),
+                                time: event.target.value,
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        {hourOptions.map((hour) => (
+                          <option key={hour}>{hour}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                <label>
+                  <span>{i18nT("validation_dd74d182")}</span>
+                  <select
+                    value={settingsConfig.validation}
+                    onChange={(event) =>
+                      updateConfig(settingsAutomation.key, {
+                        validation: event.target.value,
                       })
                     }
                   >
-                    <option value={7}>{i18nT("7_jours_a0f70b5c")}</option>
-                    <option value={15}>{i18nT("15_jours_recommande_9f4bc5ad")}</option>
-                    <option value={30}>{i18nT("1_mois_e5493c85")}</option>
+                    {settingsOptions[settingsAutomation.key].validation.map(
+                      (validation) => (
+                        <option key={validation.value} value={validation.label}>
+                          {agentValidationLabel(validation.label, runtimeT)}
+                        </option>
+                      )
+                    )}
                   </select>
                 </label>
-              ) : null}
-              {settingsMonthlyDateCount > 0 ? (
-                <>
-                  <div
-                    className={styles.scheduleMonthDayGrid}
-                    data-count={settingsMonthlyDateCount}
-                  >
-                    {settingsMonthDays.map((day, index) => (
-                      <label
-                        key={`${settingsAutomation.key}-month-day-${index}`}
-                      >
-                        <span>
-                          {i18nT("date_eb9a4bc1")}
-                          {settingsMonthlyDateCount > 1 ? ` ${index + 1}` : ""}
-                        </span>
-                        <select
-                          value={day}
-                          onChange={(event) =>
-                            updateConfigMonthDay(
-                              settingsAutomation.key,
-                              index,
-                              Number(event.target.value),
-                            )
-                          }
-                        >
-                          {Array.from({ length: 31 }, (_, optionIndex) => {
-                            const optionDay = optionIndex + 1;
-                            const alreadySelected = settingsMonthDays.some(
-                              (selectedDay, selectedIndex) =>
-                                selectedIndex !== index &&
-                                selectedDay === optionDay,
-                            );
-                            return (
-                              <option
-                                key={optionDay}
-                                value={optionDay}
-                                disabled={alreadySelected}
-                              >
-                                {optionDay}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                  <label>
-                    <span>{i18nT("horaire_db0addb3")}</span>
-                    <select
-                      value={settingsConfig.time}
-                      onChange={(event) =>
-                        updateConfig(settingsAutomation.key, {
-                          time: event.target.value,
-                        })
-                      }
-                    >
-                      {hourOptions.map((hour) => (
-                        <option key={hour}>{hour}</option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              ) : settingsConfig.frequency === "2 fois par semaine" ||
-              settingsConfig.frequency === "3 fois par semaine" ? (
-                normalizeConfigScheduleSlots(settingsConfig)
-                  .slice(
-                    0,
-                    settingsConfig.frequency === "3 fois par semaine" ? 3 : 2,
-                  )
-                  .map((slot, index) => (
-                    <div
-                      className={styles.scheduleSlotPair}
-                      key={`${settingsAutomation.key}-slot-${index}`}
-                    >
-                      <label>
-                        <span>{i18nT("jour_240ce85d")}{" "}{index + 1}</span>
-                        <select
-                          value={slot.day}
-                          onChange={(event) =>
-                            updateConfigScheduleSlot(
-                              settingsAutomation.key,
-                              index,
-                              {
-                                day: event.target.value,
-                              },
-                            )
-                          }
-                        >
-                          {weekDays.map((day) => (
-                            <option key={day} value={day}>{agentWeekdayLabel(day, runtimeT)}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{i18nT("horaire_db0addb3")}{" "}{index + 1}</span>
-                        <select
-                          value={slot.time}
-                          onChange={(event) =>
-                            updateConfigScheduleSlot(
-                              settingsAutomation.key,
-                              index,
-                              {
-                                time: event.target.value,
-                              },
-                            )
-                          }
-                        >
-                          {hourOptions.map((hour) => (
-                            <option key={hour}>{hour}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                  ))
-              ) : (
-                <div className={styles.scheduleSlotPair}>
-                  <label>
-                    <span>{i18nT("jour_240ce85d")}</span>
-                    <select
-                      value={settingsConfig.day}
-                      onChange={(event) =>
-                        updateConfig(settingsAutomation.key, {
-                          day: event.target.value,
-                          scheduleSlots: [
-                            {
-                              day: event.target.value,
-                              time: settingsConfig.time,
-                            },
-                            {
-                              day: dayOffsetLabel(event.target.value, 3),
-                              time: settingsConfig.time,
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      {weekDays.map((day) => (
-                        <option key={day} value={day}>{agentWeekdayLabel(day, runtimeT)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>{i18nT("horaire_db0addb3")}</span>
-                    <select
-                      value={settingsConfig.time}
-                      onChange={(event) =>
-                        updateConfig(settingsAutomation.key, {
-                          time: event.target.value,
-                          scheduleSlots: [
-                            {
-                              day: settingsConfig.day,
-                              time: event.target.value,
-                            },
-                            {
-                              day: dayOffsetLabel(settingsConfig.day, 3),
-                              time: event.target.value,
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      {hourOptions.map((hour) => (
-                        <option key={hour}>{hour}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-              <label>
-                <span>{i18nT("validation_dd74d182")}</span>
-                <select
-                  value={settingsConfig.validation}
-                  onChange={(event) =>
-                    updateConfig(settingsAutomation.key, {
-                      validation: event.target.value,
-                    })
-                  }
-                >
-                  {settingsOptions[settingsAutomation.key].validation.map(
-                    (validation) => (
-                      <option key={validation.value} value={validation.label}>
-                        {agentValidationLabel(validation.label, runtimeT)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
               </div>
 
               <div className={styles.settingsContentColumn}>
                 {isCampaignAutomationKey(settingsAutomation.key) ? (
-              <>
-                <div className={styles.campaignSettingsPair}>
-                  <div className={styles.modalSection}>
-                    <span>{i18nT("canal_61f21e6f")}</span>
-                    {settingsDisplayedChannels.length > 0 ? (
-                      <div className={styles.choiceGrid}>
-                        {settingsDisplayedChannels.map((channelKey) => {
-                          const channel = channelOptions[channelKey];
-                          const connected =
-                            connectedChannelsLoadState !== "ready" ||
-                            settingsAvailableChannels.includes(channelKey);
-                          const checked =
-                            connected &&
-                            settingsConfig.channels.includes(channelKey);
-                          const channelLabel = agentChannelLabel(
-                            channelKey,
-                            runtimeT,
-                          );
-                          return (
-                            <button
-                              type="button"
-                              key={channelKey}
-                              data-channel={channelKey}
-                              data-connected={connected}
-                              className={`${checked ? styles.choiceActive : ""} ${
-                                !connected ? styles.channelChoiceDisconnected : ""
-                              }`}
-                              disabled={!connected}
-                              aria-label={
-                                connected
-                                  ? channelLabel
-                                  : i18nT("channel_disconnected_aria", {
-                                      channel: channelLabel,
+                  <>
+                    <div className={styles.campaignSettingsPair}>
+                      <div className={styles.modalSection}>
+                        <span>{i18nT("canal_61f21e6f")}</span>
+                        {settingsDisplayedChannels.length > 0 ? (
+                          <div className={styles.choiceGrid}>
+                            {settingsDisplayedChannels.map((channelKey) => {
+                              const channel = channelOptions[channelKey];
+                              const connected =
+                                connectedChannelsLoadState !== "ready" ||
+                                settingsAvailableChannels.includes(channelKey);
+                              const checked =
+                                connected &&
+                                settingsConfig.channels.includes(channelKey);
+                              const channelLabel = agentChannelLabel(
+                                channelKey,
+                                runtimeT
+                              );
+                              return (
+                                <button
+                                  type="button"
+                                  key={channelKey}
+                                  data-channel={channelKey}
+                                  data-connected={connected}
+                                  className={`${
+                                    checked ? styles.choiceActive : ""
+                                  } ${
+                                    !connected
+                                      ? styles.channelChoiceDisconnected
+                                      : ""
+                                  }`}
+                                  disabled={!connected}
+                                  aria-label={
+                                    connected
+                                      ? channelLabel
+                                      : i18nT("channel_disconnected_aria", {
+                                          channel: channelLabel,
+                                        })
+                                  }
+                                  title={
+                                    connected
+                                      ? channelLabel
+                                      : i18nT("channel_disconnected_aria", {
+                                          channel: channelLabel,
+                                        })
+                                  }
+                                  onClick={() =>
+                                    updateConfig(settingsAutomation.key, {
+                                      channels: toggleChannelItem(
+                                        settingsConfig.channels,
+                                        channelKey,
+                                        settingsAvailableChannels
+                                      ),
                                     })
-                              }
-                              title={
-                                connected
-                                  ? channelLabel
-                                  : i18nT("channel_disconnected_aria", {
-                                      channel: channelLabel,
-                                    })
-                              }
-                              onClick={() =>
-                                updateConfig(settingsAutomation.key, {
-                                  channels: toggleChannelItem(
-                                    settingsConfig.channels,
-                                    channelKey,
-                                    settingsAvailableChannels,
-                                  ),
-                                })
-                              }
-                            >
-                              <img
-                                src={channel.src}
-                                alt=""
-                                loading="eager"
-                                decoding="async"
-                              />
-                              {channelLabel}
-                              {!connected ? (
-                                <span
-                                  className={styles.channelDisconnectedMark}
-                                  aria-hidden="true"
+                                  }
                                 >
-                                  ×
-                                </span>
-                              ) : null}
-                            </button>
-                          );
-                        })}
+                                  <img
+                                    src={channel.src}
+                                    alt=""
+                                    loading="eager"
+                                    decoding="async"
+                                  />
+                                  {channelLabel}
+                                  {!connected ? (
+                                    <span
+                                      className={styles.channelDisconnectedMark}
+                                      aria-hidden="true"
+                                    >
+                                      ×
+                                    </span>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className={styles.campaignEditHint}>
+                            {connectedChannelsLoadState === "loading"
+                              ? i18nT(
+                                  "chargement_des_canaux_connectes_3a145d06"
+                                )
+                              : agentConnectedChannelMessage(
+                                  settingsAutomation.key,
+                                  runtimeT
+                                )}
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <p className={styles.campaignEditHint}>
-                        {connectedChannelsLoadState === "loading"
-                          ? i18nT("chargement_des_canaux_connectes_3a145d06")
-                          : agentConnectedChannelMessage(settingsAutomation.key, runtimeT)}
-                      </p>
-                    )}
-                  </div>
 
-                  <div className={styles.modalSection}>
-                    <span>
-                      {settingsAutomation.key === "grow"
-                        ? i18nT("rubriques_propulser_1c6a7e39")
-                        : i18nT("rubriques_fideliser_2ddba9ba")}
-                    </span>
-                    <div className={styles.choiceGrid}>
-                      {settingsAutomation.availableThemes.map((theme) => {
-                        const checked = settingsConfig.themes.includes(theme);
-                        return (
-                          <button
-                            type="button"
-                            key={theme}
-                            className={checked ? styles.choiceActive : ""}
-                            onClick={() =>
-                              updateConfig(settingsAutomation.key, {
-                                themes: toggleItem(
-                                  settingsConfig.themes,
-                                  theme,
-                                ),
-                              })
-                            }
-                          >
-                            {agentThemeLabel(theme, runtimeT)}
-                          </button>
-                        );
-                      })}
+                      <div className={styles.modalSection}>
+                        <span>
+                          {settingsAutomation.key === "grow"
+                            ? i18nT("rubriques_propulser_1c6a7e39")
+                            : i18nT("rubriques_fideliser_2ddba9ba")}
+                        </span>
+                        <div className={styles.choiceGrid}>
+                          {settingsAutomation.availableThemes.map((theme) => {
+                            const checked =
+                              settingsConfig.themes.includes(theme);
+                            return (
+                              <button
+                                type="button"
+                                key={theme}
+                                className={checked ? styles.choiceActive : ""}
+                                onClick={() =>
+                                  updateConfig(settingsAutomation.key, {
+                                    themes: toggleItem(
+                                      settingsConfig.themes,
+                                      theme
+                                    ),
+                                  })
+                                }
+                              >
+                                {agentThemeLabel(theme, runtimeT)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <label className={styles.signatureSwitchLine}>
-                  <span>
-                    <strong>{i18nT("signature_automatique_77745712")}</strong>
-                    <small>
-                      {i18nT("activee_par_defaut_pour_ajouter_la_85a5ac4b")}{" "}</small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={settingsConfig.signatureAutomatic}
-                    onChange={(event) =>
-                      updateConfig(settingsAutomation.key, {
-                        signatureAutomatic: event.target.checked,
-                      })
-                    }
-                  />
-                </label>
-              </>
-            ) : (
-              <>
-                {settingsAutomation.availableChannels.length > 0 && (
-                  <div className={styles.modalSection}>
-                    <span>
-                      {settingsAutomation.key === "publish"
-                        ? i18nT("canaux_booster_publier_1ac0f46f")
-                        : i18nT("canal_61f21e6f")}
-                    </span>
-                    {settingsDisplayedChannels.length > 0 ? (
+                    <label className={styles.signatureSwitchLine}>
+                      <span>
+                        <strong>
+                          {i18nT("signature_automatique_77745712")}
+                        </strong>
+                        <small>
+                          {i18nT("activee_par_defaut_pour_ajouter_la_85a5ac4b")}{" "}
+                        </small>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settingsConfig.signatureAutomatic}
+                        onChange={(event) =>
+                          updateConfig(settingsAutomation.key, {
+                            signatureAutomatic: event.target.checked,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    {settingsAutomation.availableChannels.length > 0 && (
+                      <div className={styles.modalSection}>
+                        <span>
+                          {settingsAutomation.key === "publish"
+                            ? i18nT("canaux_booster_publier_1ac0f46f")
+                            : i18nT("canal_61f21e6f")}
+                        </span>
+                        {settingsDisplayedChannels.length > 0 ? (
+                          <div className={styles.choiceGrid}>
+                            {settingsDisplayedChannels.map((channelKey) => {
+                              const channel = channelOptions[channelKey];
+                              const connected =
+                                connectedChannelsLoadState !== "ready" ||
+                                settingsAvailableChannels.includes(channelKey);
+                              const checked =
+                                connected &&
+                                settingsConfig.channels.includes(channelKey);
+                              const channelLabel = agentChannelLabel(
+                                channelKey,
+                                runtimeT
+                              );
+                              return (
+                                <button
+                                  type="button"
+                                  key={channelKey}
+                                  data-channel={channelKey}
+                                  data-connected={connected}
+                                  className={`${
+                                    checked ? styles.choiceActive : ""
+                                  } ${
+                                    !connected
+                                      ? styles.channelChoiceDisconnected
+                                      : ""
+                                  }`}
+                                  disabled={!connected}
+                                  aria-label={
+                                    connected
+                                      ? channelLabel
+                                      : i18nT("channel_disconnected_aria", {
+                                          channel: channelLabel,
+                                        })
+                                  }
+                                  title={
+                                    connected
+                                      ? channelLabel
+                                      : i18nT("channel_disconnected_aria", {
+                                          channel: channelLabel,
+                                        })
+                                  }
+                                  onClick={() =>
+                                    updateConfig(settingsAutomation.key, {
+                                      channels: toggleChannelItem(
+                                        settingsConfig.channels,
+                                        channelKey,
+                                        settingsAvailableChannels
+                                      ),
+                                    })
+                                  }
+                                >
+                                  <img
+                                    src={channel.src}
+                                    alt=""
+                                    loading="eager"
+                                    decoding="async"
+                                  />
+                                  {channelLabel}
+                                  {!connected ? (
+                                    <span
+                                      className={styles.channelDisconnectedMark}
+                                      aria-hidden="true"
+                                    >
+                                      ×
+                                    </span>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className={styles.campaignEditHint}>
+                            {connectedChannelsLoadState === "loading"
+                              ? i18nT(
+                                  "chargement_des_canaux_connectes_3a145d06"
+                                )
+                              : agentConnectedChannelMessage(
+                                  settingsAutomation.key,
+                                  runtimeT
+                                )}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className={styles.modalSection}>
+                      <span>
+                        {settingsAutomation.key === "stats"
+                          ? i18nT("rubriques_inr_stats_130152a9")
+                          : i18nT("themes_5dfcd420")}
+                      </span>
                       <div className={styles.choiceGrid}>
-                        {settingsDisplayedChannels.map((channelKey) => {
-                          const channel = channelOptions[channelKey];
-                          const connected =
-                            connectedChannelsLoadState !== "ready" ||
-                            settingsAvailableChannels.includes(channelKey);
-                          const checked =
-                            connected &&
-                            settingsConfig.channels.includes(channelKey);
-                          const channelLabel = agentChannelLabel(
-                            channelKey,
-                            runtimeT,
-                          );
+                        {settingsAvailableThemes.map((theme) => {
+                          const checked = settingsConfig.themes.includes(theme);
                           return (
                             <button
                               type="button"
-                              key={channelKey}
-                              data-channel={channelKey}
-                              data-connected={connected}
-                              className={`${checked ? styles.choiceActive : ""} ${
-                                !connected ? styles.channelChoiceDisconnected : ""
-                              }`}
-                              disabled={!connected}
-                              aria-label={
-                                connected
-                                  ? channelLabel
-                                  : i18nT("channel_disconnected_aria", {
-                                      channel: channelLabel,
-                                    })
-                              }
-                              title={
-                                connected
-                                  ? channelLabel
-                                  : i18nT("channel_disconnected_aria", {
-                                      channel: channelLabel,
-                                    })
-                              }
+                              key={theme}
+                              className={checked ? styles.choiceActive : ""}
                               onClick={() =>
                                 updateConfig(settingsAutomation.key, {
-                                  channels: toggleChannelItem(
-                                    settingsConfig.channels,
-                                    channelKey,
-                                    settingsAvailableChannels,
+                                  themes: toggleItem(
+                                    settingsConfig.themes,
+                                    theme
                                   ),
                                 })
                               }
                             >
-                              <img
-                                src={channel.src}
-                                alt=""
-                                loading="eager"
-                                decoding="async"
-                              />
-                              {channelLabel}
-                              {!connected ? (
-                                <span
-                                  className={styles.channelDisconnectedMark}
-                                  aria-hidden="true"
-                                >
-                                  ×
-                                </span>
-                              ) : null}
+                              {agentThemeLabel(theme, runtimeT)}
                             </button>
                           );
                         })}
                       </div>
-                    ) : (
-                      <p className={styles.campaignEditHint}>
-                        {connectedChannelsLoadState === "loading"
-                          ? i18nT("chargement_des_canaux_connectes_3a145d06")
-                          : agentConnectedChannelMessage(settingsAutomation.key, runtimeT)}
-                      </p>
-                    )}
-                  </div>
+                    </div>
+                  </>
                 )}
-
-                <div className={styles.modalSection}>
-                  <span>
-                    {settingsAutomation.key === "stats"
-                      ? i18nT("rubriques_inr_stats_130152a9")
-                      : i18nT("themes_5dfcd420")}
-                  </span>
-                  <div className={styles.choiceGrid}>
-                    {settingsAvailableThemes.map((theme) => {
-                      const checked = settingsConfig.themes.includes(theme);
-                      return (
-                        <button
-                          type="button"
-                          key={theme}
-                          className={checked ? styles.choiceActive : ""}
-                          onClick={() =>
-                            updateConfig(settingsAutomation.key, {
-                              themes: toggleItem(settingsConfig.themes, theme),
-                            })
-                          }
-                        >
-                          {agentThemeLabel(theme, runtimeT)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
               </div>
 
               {settingsAutomation.key === "publish" && (
                 <div
                   className={`${styles.modalSection} ${styles.settingsPreferredMediaFullWidth}`}
                 >
-                    <span>{i18nT("preferred_media_title")}</span>
-                    <p className={styles.modalHint}>
-                      {i18nT("preferred_media_hint")}
-                    </p>
-                    <div className={styles.choiceGrid}>
-                      {([
+                  <span>{i18nT("preferred_media_title")}</span>
+                  <p className={styles.modalHint}>
+                    {i18nT("preferred_media_hint")}
+                  </p>
+                  <div className={styles.choiceGrid}>
+                    {(
+                      [
                         ["media_library", "preferred_media_library"],
                         ["image_bank", "preferred_media_bank"],
                         ["ai_generation", "preferred_media_ai"],
-                      ] as const).map(([value, label]) => (
-                        <button
-                          type="button"
-                          key={value}
-                          className={
-                            settingsConfig.preferredMediaSource === value
-                              ? styles.choiceActive
-                              : ""
-                          }
-                          onClick={() =>
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        type="button"
+                        key={value}
+                        className={
+                          settingsConfig.preferredMediaSource === value
+                            ? styles.choiceActive
+                            : ""
+                        }
+                        onClick={() =>
+                          updateConfig(settingsAutomation.key, {
+                            preferredMediaSource: value,
+                          })
+                        }
+                      >
+                        {i18nT(label)}
+                      </button>
+                    ))}
+                  </div>
+                  {settingsConfig.preferredMediaSource === "ai_generation" ? (
+                    <div className={styles.studioMediaMixControl}>
+                      <div className={styles.studioMediaMixHeader}>
+                        <span>{i18nT("studio_media_preference_title")}</span>
+                        <strong>{settingsStudioMediaPreferenceStep}%</strong>
+                      </div>
+                      <div className={styles.studioMediaMixRangeWrap}>
+                        <input
+                          className={styles.studioMediaMixRange}
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={20}
+                          list={`studio-media-preference-steps-${settingsAutomation.key}`}
+                          value={settingsStudioMediaPreferenceStep}
+                          aria-label={i18nT("studio_media_preference_title")}
+                          onChange={(event) =>
                             updateConfig(settingsAutomation.key, {
-                              preferredMediaSource: value,
+                              studioMediaPreferencePercent: Number(
+                                event.target.value
+                              ),
                             })
                           }
+                        />
+                        <datalist
+                          id={`studio-media-preference-steps-${settingsAutomation.key}`}
                         >
-                          {i18nT(label)}
-                        </button>
-                      ))}
-                    </div>
-                    {settingsConfig.preferredMediaSource === "ai_generation" ? (
-                      <div className={styles.studioMediaMixControl}>
-                        <div className={styles.studioMediaMixHeader}>
-                          <span>{i18nT("studio_media_preference_title")}</span>
-                          <strong>
-                            {settingsStudioMediaPreferenceStep}%
-                          </strong>
-                        </div>
-                        <div className={styles.studioMediaMixRangeWrap}>
-                          <input
-                            className={styles.studioMediaMixRange}
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={20}
-                            list={`studio-media-preference-steps-${settingsAutomation.key}`}
-                            value={settingsStudioMediaPreferenceStep}
-                            aria-label={i18nT("studio_media_preference_title")}
-                            onChange={(event) =>
-                              updateConfig(settingsAutomation.key, {
-                                studioMediaPreferencePercent: Number(
-                                  event.target.value,
-                                ),
-                              })
-                            }
-                          />
-                          <datalist
-                            id={`studio-media-preference-steps-${settingsAutomation.key}`}
-                          >
-                            {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
-                              (step) => (
-                                <option key={step} value={step} label={`${step}%`} />
-                              ),
-                            )}
-                          </datalist>
-                          <div className={styles.studioMediaMixTicks} aria-hidden="true">
-                            {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map((step) => (
+                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
+                            (step) => (
+                              <option
+                                key={step}
+                                value={step}
+                                label={`${step}%`}
+                              />
+                            )
+                          )}
+                        </datalist>
+                        <div
+                          className={styles.studioMediaMixTicks}
+                          aria-hidden="true"
+                        >
+                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
+                            (step) => (
                               <span
                                 key={step}
                                 style={{ left: `${step}%` }}
@@ -8865,21 +9129,22 @@ export default function AgentClient() {
                               >
                                 {step}%
                               </span>
-                            ))}
-                          </div>
-                        </div>
-                        <p className={styles.studioMediaMixDescription}>
-                          {i18nT(
-                            STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS[
-                              settingsStudioMediaPreferenceStep
-                            ],
+                            )
                           )}
-                        </p>
-                        <p className={styles.modalHint}>
-                          {i18nT("studio_media_preference_hint")}
-                        </p>
+                        </div>
                       </div>
-                    ) : null}
+                      <p className={styles.studioMediaMixDescription}>
+                        {i18nT(
+                          STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS[
+                            settingsStudioMediaPreferenceStep
+                          ]
+                        )}
+                      </p>
+                      <p className={styles.modalHint}>
+                        {i18nT("studio_media_preference_hint")}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -8895,7 +9160,7 @@ export default function AgentClient() {
                   <span>
                     {
                       settingsConfig.publicationIdeas.filter((idea) =>
-                        idea.trim(),
+                        idea.trim()
                       ).length
                     }
                     /{INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS}
@@ -8905,7 +9170,8 @@ export default function AgentClient() {
                   {Array.from(
                     { length: settingsPublicationIdeaFieldCount },
                     (_, index) => {
-                      const value = settingsConfig.publicationIdeas[index] || "";
+                      const value =
+                        settingsConfig.publicationIdeas[index] || "";
                       const inputId = `publication-idea-${index}`;
                       return (
                         <div
@@ -8919,7 +9185,8 @@ export default function AgentClient() {
                               })}
                             </strong>
                             <small>
-                              {value.length}/{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
+                              {value.length}/
+                              {INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
                             </small>
                           </label>
                           <div className={styles.publicationIdeaTextareaWrap}>
@@ -8930,11 +9197,13 @@ export default function AgentClient() {
                               rows={4}
                               readOnly={settingsPublicationIdeaVoiceBusy}
                               aria-busy={publicationIdeaVoiceIndex === index}
-                              placeholder={i18nT("publication_idea_placeholder")}
+                              placeholder={i18nT(
+                                "publication_idea_placeholder"
+                              )}
                               onChange={(event) =>
                                 updateSettingsPublicationIdea(
                                   index,
-                                  event.target.value,
+                                  event.target.value
                                 )
                               }
                             />
@@ -8958,8 +9227,8 @@ export default function AgentClient() {
                                   busy
                                     ? index
                                     : current === index
-                                      ? null
-                                      : current,
+                                    ? null
+                                    : current
                                 )
                               }
                               onChange={(nextValue) =>
@@ -8969,7 +9238,7 @@ export default function AgentClient() {
                           </div>
                         </div>
                       );
-                    },
+                    }
                   )}
                 </div>
                 <button
@@ -8983,7 +9252,7 @@ export default function AgentClient() {
                   onClick={() =>
                     updateConfig("publish", {
                       publicationIdeas: appendInrAgentPublicationIdeaSlot(
-                        settingsConfig.publicationIdeas,
+                        settingsConfig.publicationIdeas
                       ),
                     })
                   }
@@ -9063,7 +9332,9 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.settingsImpactModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label={i18nT("choisir_quand_appliquer_les_nouveaux_reglages_7448000b")}
+            aria-label={i18nT(
+              "choisir_quand_appliquer_les_nouveaux_reglages_7448000b"
+            )}
             onClick={(event) => event.stopPropagation()}
           >
             <button
@@ -9075,16 +9346,27 @@ export default function AgentClient() {
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>{i18nT("protection_des_quotas_377dbbf1")}</p>
-            <h2>{i18nT("quand_appliquer_ces_nouveaux_reglages_nbsp_e2c80d8c")}</h2>
+            <p className={styles.modalEyebrow}>
+              {i18nT("protection_des_quotas_377dbbf1")}
+            </p>
+            <h2>
+              {i18nT("quand_appliquer_ces_nouveaux_reglages_nbsp_e2c80d8c")}
+            </h2>
             <p className={styles.settingsImpactLead}>
               {settingsPlanImpact.affectedPublications > 0 ? (
                 <>
                   {settingsPlanImpact.affectedPublications} publication
-                  {settingsPlanImpact.affectedPublications > 1 ? "s" : ""} {" "}{i18nT("du_planning_actuel_6acc08e6")}{" "}{settingsPlanImpact.affectedPublications > 1 ? "sont" : "est"} {" "}{i18nT("concernee_584be571")}{" "}{settingsPlanImpact.affectedPublications > 1 ? "s" : ""}{i18nT("vous_gardez_toujours_le_dernier_mot_78c8ad8c")}{" "}</>
+                  {settingsPlanImpact.affectedPublications > 1 ? "s" : ""}{" "}
+                  {i18nT("du_planning_actuel_6acc08e6")}{" "}
+                  {settingsPlanImpact.affectedPublications > 1 ? "sont" : "est"}{" "}
+                  {i18nT("concernee_584be571")}{" "}
+                  {settingsPlanImpact.affectedPublications > 1 ? "s" : ""}
+                  {i18nT("vous_gardez_toujours_le_dernier_mot_78c8ad8c")}{" "}
+                </>
               ) : (
                 <>
-                  {i18nT("le_nouvel_horizon_ajoute_des_publications_037c1053")}{" "}</>
+                  {i18nT("le_nouvel_horizon_ajoute_des_publications_037c1053")}{" "}
+                </>
               )}
             </p>
 
@@ -9092,16 +9374,23 @@ export default function AgentClient() {
               <article>
                 <span>{i18nT("deja_preparees_478c2ec6")}</span>
                 <strong>{settingsPlanImpact.generatedPublications}</strong>
-                <small>publication{settingsPlanImpact.generatedPublications > 1 ? "s" : ""}</small>
+                <small>
+                  publication
+                  {settingsPlanImpact.generatedPublications > 1 ? "s" : ""}
+                </small>
               </article>
               <article>
                 <span>{i18nT("a_regenerer_maintenant_257ca76b")}</span>
                 <strong>
                   {settingsPlanImpact.requiredImages} image
-                  {settingsPlanImpact.requiredImages > 1 ? "s" : ""} · {settingsPlanImpact.requiredVideos} {" "}{i18nT("video_c4277d8b")}{" "}{settingsPlanImpact.requiredVideos > 1 ? "s" : ""}
+                  {settingsPlanImpact.requiredImages > 1 ? "s" : ""} ·{" "}
+                  {settingsPlanImpact.requiredVideos} {i18nT("video_c4277d8b")}{" "}
+                  {settingsPlanImpact.requiredVideos > 1 ? "s" : ""}{" "}
+                  ({settingsPlanImpact.requiredVideoSeconds} s)
                 </strong>
                 <small>
-                  sur {settingsPlanImpact.horizonDays === 30
+                  sur{" "}
+                  {settingsPlanImpact.horizonDays === 30
                     ? i18nT("1_mois_e5493c85")
                     : `${settingsPlanImpact.horizonDays} jours`}
                 </small>
@@ -9111,8 +9400,12 @@ export default function AgentClient() {
                 <strong>
                   {settingsPlanImpact.quotaAvailable
                     ? i18nT("value_image_value_value_video_value_ad45ea3e", {
-                        value0: settingsPlanImpact.availableImages ?? "Illimité",
-                        value2: settingsPlanImpact.availableVideos ?? "Illimité",
+                        value0:
+                          settingsPlanImpact.availableImages ?? "Illimité",
+                        value2:
+                          settingsPlanImpact.availableVideoSeconds === null
+                            ? "Illimité"
+                            : `${settingsPlanImpact.availableVideoSeconds} s`,
                       })
                     : i18nT("verification_indisponible_83dd6d8c")}
                 </strong>
@@ -9123,29 +9416,42 @@ export default function AgentClient() {
             {settingsPlanImpact.lostImages > 0 ||
             settingsPlanImpact.lostVideos > 0 ? (
               <p className={styles.settingsImpactWarning}>
-                {i18nT("en_appliquant_maintenant_58293c56")}{" "}{settingsPlanImpact.lostImages} quota
-                {settingsPlanImpact.lostImages > 1 ? "s" : ""} {" "}{i18nT("image_et_2d6d27c0")}{" "}{settingsPlanImpact.lostVideos} quota
-                {settingsPlanImpact.lostVideos > 1 ? "s" : ""} {" "}{i18nT("video_deja_consomme_b57d39ac")}{" "}{settingsPlanImpact.lostImages + settingsPlanImpact.lostVideos > 1 ? "s" : ""} {" "}{i18nT("seraient_perdus_c2df5aef")}{" "}</p>
+                {i18nT("en_appliquant_maintenant_58293c56")}{" "}
+                {settingsPlanImpact.lostImages} quota
+                {settingsPlanImpact.lostImages > 1 ? "s" : ""}{" "}
+                {i18nT("image_et_2d6d27c0")} {settingsPlanImpact.lostVideos}{" "}
+                quota
+                {settingsPlanImpact.lostVideos > 1 ? "s" : ""}{" "}
+                {i18nT("video_deja_consomme_b57d39ac")}{" "}
+                {settingsPlanImpact.lostImages + settingsPlanImpact.lostVideos >
+                1
+                  ? "s"
+                  : ""}{" "}
+                {i18nT("seraient_perdus_c2df5aef")}{" "}
+              </p>
             ) : (
               <p className={styles.settingsImpactSafe}>
-                {i18nT("aucun_quota_media_deja_consomme_ne_e48d900c")}{" "}</p>
+                {i18nT("aucun_quota_media_deja_consomme_ne_e48d900c")}{" "}
+              </p>
             )}
 
             {!settingsPlanImpact.quotaSufficient ? (
               <p className={styles.settingsImpactBlocked}>
-                {i18nT("la_regeneration_immediate_est_bloquee_les_65192e49")}{" "}</p>
+                {i18nT("la_regeneration_immediate_est_bloquee_les_65192e49")}{" "}
+              </p>
             ) : null}
 
             <div className={styles.settingsImpactActions}>
               <button
                 type="button"
                 className={styles.modalAction}
-                onClick={() =>
-                  void confirmEditorialPlanSettings("next_cycle")
-                }
+                onClick={() => void confirmEditorialPlanSettings("next_cycle")}
                 disabled={saveState === "saving"}
               >
-                {i18nT("appliquer_au_prochain_cycle_4bf28644")}{" "}<small>{i18nT("recommande_aucun_contenu_perdu_0d96742f")}</small>
+                {i18nT("appliquer_au_prochain_cycle_4bf28644")}{" "}
+                <small>
+                  {i18nT("recommande_aucun_contenu_perdu_0d96742f")}
+                </small>
               </button>
               <button
                 type="button"
@@ -9157,7 +9463,8 @@ export default function AgentClient() {
                   !settingsPlanImpact.quotaSufficient
                 }
               >
-                {i18nT("appliquer_maintenant_e43ceda4")}{" "}<small>{i18nT("recalculer_le_planning_cd02c68a")}</small>
+                {i18nT("appliquer_maintenant_e43ceda4")}{" "}
+                <small>{i18nT("recalculer_le_planning_cd02c68a")}</small>
               </button>
               <button
                 type="button"
@@ -9165,7 +9472,8 @@ export default function AgentClient() {
                 onClick={() => setSettingsPlanImpact(null)}
                 disabled={saveState === "saving"}
               >
-                {i18nT("annuler_49ba3292")}{" "}</button>
+                {i18nT("annuler_49ba3292")}{" "}
+              </button>
             </div>
           </section>
         </div>
@@ -9196,15 +9504,21 @@ export default function AgentClient() {
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>{i18nT("campagne_inr_agent_fa7db334")}</p>
+            <p className={styles.modalEyebrow}>
+              {i18nT("campagne_inr_agent_fa7db334")}
+            </p>
             <h2>{i18nT("preparer_une_nouvelle_campagne_170bfb63")}</h2>
             <div className={styles.campaignDraftNotice}>
               <span aria-hidden>⚠️</span>
               <div>
                 <strong>
-                  {i18nT("une_campagne_value_est_deja_en_22243601", { value0: prepareNowConfirm.label })}</strong>
+                  {i18nT("une_campagne_value_est_deja_en_22243601", {
+                    value0: prepareNowConfirm.label,
+                  })}
+                </strong>
                 <p>
-                  {i18nT("si_vous_continuez_la_campagne_actuelle_b57b70a9")}{" "}</p>
+                  {i18nT("si_vous_continuez_la_campagne_actuelle_b57b70a9")}{" "}
+                </p>
               </div>
             </div>
             <div className={styles.campaignDraftSummary}>
@@ -9212,7 +9526,10 @@ export default function AgentClient() {
               <strong>{prepareNowConfirm.label}</strong>
               <small>{i18nT("campagne_en_cours_e6239411")}</small>
               <strong>
-                {prepareNowConfirm.pendingCount} {" "}{i18nT("campagne_21daf4ed")}{" "}{prepareNowConfirm.pendingCount > 1 ? "s" : ""} {" "}{i18nT("a_enregistrer_en_brouillon_90f6d43b")}{" "}</strong>
+                {prepareNowConfirm.pendingCount} {i18nT("campagne_21daf4ed")}{" "}
+                {prepareNowConfirm.pendingCount > 1 ? "s" : ""}{" "}
+                {i18nT("a_enregistrer_en_brouillon_90f6d43b")}{" "}
+              </strong>
             </div>
             <div className={styles.modalActions}>
               <button
@@ -9222,7 +9539,8 @@ export default function AgentClient() {
                   Boolean(testNowKey) || prepareActionState === "saving"
                 }
               >
-                {i18nT("annuler_49ba3292")}{" "}</button>
+                {i18nT("annuler_49ba3292")}{" "}
+              </button>
               <button
                 type="button"
                 onClick={confirmPrepareNowReplacement}

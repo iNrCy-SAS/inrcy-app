@@ -39,6 +39,7 @@ type FinalizeUpload = {
   height?: unknown;
   duration_seconds?: unknown;
   upload_protocol?: unknown;
+  media_metadata?: unknown;
 };
 
 function jsonError(message: string, status = 500, detail?: unknown) {
@@ -88,6 +89,17 @@ function cleanTags(raw: unknown) {
     .map((tag) => tag.trim().toLowerCase())
     .filter(Boolean)
     .slice(0, 30);
+}
+
+function cleanMediaMetadata(raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  try {
+    const serialized = JSON.stringify(raw);
+    if (serialized.length > 12_000) return {};
+    return JSON.parse(serialized) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
 function mediaTypeFromFile(name: string, mime: string): "image" | "video" | null {
@@ -270,6 +282,7 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
       cleanText(upload.upload_protocol, "signed", 20) === "tus"
         ? "tus"
         : "signed";
+    const mediaMetadata = cleanMediaMetadata(upload.media_metadata);
 
     try {
       assertAllowedFile(originalName, mimeType, sizeBytes);
@@ -307,6 +320,7 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
           upload_progress: 100,
           uploaded_at: new Date().toISOString(),
           pipeline_version: 1,
+          media_metadata: mediaMetadata,
         })
         .select("id,storage_path")
         .single();

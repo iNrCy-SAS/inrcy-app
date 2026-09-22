@@ -13,12 +13,11 @@ import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCapt
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "@/app/dashboard/_components/MediaLibraryPickerModal";
-import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
+import { createInrStudioHandoff } from "@/lib/inrStudioNavigation";
 import MediaOptimizerModal, {
   type MediaOptimizerItem,
 } from "@/app/dashboard/_components/MediaOptimizerModal";
 import RichSiteContentEditor from "@/app/dashboard/booster/publier/components/RichSiteContentEditor";
-import BoosterVideoFormatManager from "@/app/dashboard/booster/publier/components/BoosterVideoFormatManager";
 import {
   buildPreferredCtaPatch,
   BOOSTER_IMAGE_ACCEPT,
@@ -43,11 +42,8 @@ import {
   type BoosterCtaDefaults,
   type BoosterCtaMode,
   type BoosterPreferredCta,
-  type ChannelKey,
   type ChannelPost,
   type DisplayKey,
-  type VideoAdaptationMode,
-  type VideoFormat,
 } from "@/app/dashboard/booster/publier/publishModal.shared";
 import { darkOptionStyle, darkSelectStyle, lightFieldStyle, textAreaStyle } from "@/app/dashboard/booster/publier/publishModal.styles";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -510,20 +506,21 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     activePublicationEditPreset,
     activePublicationEditAssets,
     togglePublicationImage,
-    openPublicationImageAdapter,
+    openPublicationImageRetoucher,
+    openPublicationImageModifier,
+    openPublicationVideoRetoucher,
     resetPublicationImage,
     movePublicationImage,
     addPublicationFiles,
     addPublicationPhoto,
     addPublicationMediaLibraryItems,
     replacePublicationMediaLibraryItem,
+    studioReturn,
+    onStudioReturnHandled,
     publicationVideoInputId,
     activePublicationEditVideo,
     addPublicationVideo,
     removePublicationVideo,
-    setPublicationVideoFormatForChannel,
-    setPublicationVideoAdaptationModeForChannel,
-    applyPublicationVideoFormatForChannel,
     saveChannelPublication,
     deleteChannelPublication,
     retryCampaignFailedRecipients,
@@ -541,8 +538,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const [publicationPreviewOpen, setPublicationPreviewOpen] = React.useState(false);
   const [publicationCameraOpen, setPublicationCameraOpen] = React.useState(false);
   const [publicationMediaLibraryOpen, setPublicationMediaLibraryOpen] = React.useState(false);
-  const [publicationMediaGeneratorOpen, setPublicationMediaGeneratorOpen] =
-    React.useState(false);
   const [publicationOptimizerRequest, setPublicationOptimizerRequest] =
     React.useState<PublicationMediaOptimizerRequest | null>(null);
   const [publicationOptimizerQueue, setPublicationOptimizerQueue] =
@@ -1051,16 +1046,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     restoreDetailsModalScroll();
   }, [restoreDetailsModalScroll]);
 
-  const openPublicationMediaGenerator = React.useCallback(() => {
-    preserveDetailsModalScroll();
-    setPublicationMediaGeneratorOpen(true);
-  }, [preserveDetailsModalScroll]);
-
-  const closePublicationMediaGenerator = React.useCallback(() => {
-    setPublicationMediaGeneratorOpen(false);
-    restoreDetailsModalScroll();
-  }, [restoreDetailsModalScroll]);
-
   const closePublicationCamera = React.useCallback(() => {
     setPublicationCameraOpen(false);
     restoreDetailsModalScroll();
@@ -1104,8 +1089,37 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     [publicationEditForm.content, publicationEditForm.title],
   );
 
+  const openPublicationMediaGenerator = React.useCallback(async () => {
+    preserveDetailsModalScroll();
+    try {
+      const { href } = await createInrStudioHandoff({
+        tab: "generate",
+        origin: "inrsend-publish",
+        publicationBrief: publicationMediaGeneratorBrief,
+        context: {
+          itemId: detailsItem?.id || null,
+          channel: activePublicationEditChannelKey || null,
+        },
+      });
+      router.push(href);
+    } catch {
+      restoreDetailsModalScroll();
+    }
+  }, [
+    activePublicationEditChannelKey,
+    detailsItem?.id,
+    preserveDetailsModalScroll,
+    publicationMediaGeneratorBrief,
+    restoreDetailsModalScroll,
+    router,
+  ]);
+
   const acceptGeneratedPublicationMedia = React.useCallback(
-    async (result: { item: MediaLibraryPickerItem }) => {
+    async (
+      result: { item: MediaLibraryPickerItem },
+      target?: { channel?: string; imageKey?: string },
+      confirmReplacement = true,
+    ) => {
       const hasSelectedImage = activePublicationEditAssets.some(
         (asset) => asset.selected,
       );
@@ -1115,7 +1129,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
           activePublicationEditVideo.previewUrl,
       );
 
-      if (hasSelectedImage || hasVideo) {
+      if (confirmReplacement && (hasSelectedImage || hasVideo)) {
         const confirmed = await confirmInrcy({
           title: mediaT("ai_generator_replace_title"),
           message: mediaT("ai_generator_replace_description"),
@@ -1126,9 +1140,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
         if (!confirmed) return;
       }
 
-      await replacePublicationMediaLibraryItem(result.item);
+      await replacePublicationMediaLibraryItem(result.item, target);
       markPublicationEditDirty();
-      setPublicationMediaGeneratorOpen(false);
       restoreDetailsModalScroll();
     },
     [
@@ -1140,6 +1153,38 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       restoreDetailsModalScroll,
     ],
   );
+
+  const handledStudioReturnKeyRef = React.useRef("");
+  React.useEffect(() => {
+    if (!open || !detailsEditMode || !studioReturn?.item) return;
+    if (handledStudioReturnKeyRef.current === studioReturn.returnKey) return;
+    handledStudioReturnKeyRef.current = studioReturn.returnKey;
+
+    const isSourceEdit =
+      studioReturn.action === "retouch" || studioReturn.action === "modify";
+    const isVideoReturn =
+      studioReturn.item.media_type === "video" ||
+      studioReturn.context.mediaType === "video";
+    const target = {
+      channel: String(studioReturn.context.channel || ""),
+      ...(isSourceEdit && !isVideoReturn
+        ? { imageKey: String(studioReturn.context.imageKey || "") }
+        : {}),
+    };
+    void acceptGeneratedPublicationMedia(
+      { item: studioReturn.item as unknown as MediaLibraryPickerItem },
+      target,
+      !isSourceEdit,
+    )
+      .catch(() => undefined)
+      .finally(onStudioReturnHandled);
+  }, [
+    acceptGeneratedPublicationMedia,
+    detailsEditMode,
+    onStudioReturnHandled,
+    open,
+    studioReturn,
+  ]);
 
   const updatePublicationEdit = React.useCallback((patch: Partial<PublicationEditForm>) => {
     markPublicationEditDirty();
@@ -1227,7 +1272,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   React.useEffect(() => {
     if (!open || !detailsEditMode) {
       setPublicationEditDirty(false);
-      setPublicationMediaGeneratorOpen(false);
     }
   }, [open, detailsItem?.id, activePublicationEditChannelKey, detailsEditMode]);
 
@@ -2790,15 +2834,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     restoreDetailsModalScroll();
                                   }}
                                 />
-                                <MediaGeneratorModal
-                                  open={publicationMediaGeneratorOpen}
-                                  source="booster"
-                                  origin="inrsend"
-                                  publicationBrief={publicationMediaGeneratorBrief}
-                                  acceptMode="insert"
-                                  onClose={closePublicationMediaGenerator}
-                                  onAccepted={acceptGeneratedPublicationMedia}
-                                />
                               </>
                             ) : null}
 
@@ -2845,29 +2880,117 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     </div>
                                   ) : null}
 
-                                  <BoosterVideoFormatManager
-                                    isMobile={isMobileViewport}
-                                    channel={(activePublicationEntry.key as ChannelKey)}
-                                    videoName={detailsEditMode ? (activePublicationEditVideo?.name || activeVideoDisplayAttachment?.name) : activeVideoDisplayAttachment?.name}
-                                    videoDisplayUrl={detailsEditMode ? (activePublicationEditVideo?.previewUrl || "") : (activeVideoDisplayAttachment?.url || "")}
-                                    videoSize={detailsEditMode ? (activePublicationEditVideo?.size || activeVideoDisplayAttachment?.size || 0) : (activeVideoDisplayAttachment?.size || 0)}
-                                    videoDurationSeconds={detailsEditMode ? (activePublicationEditVideo?.duration || activeVideoDisplayAttachment?.duration || null) : (activeVideoDisplayAttachment?.duration || null)}
-                                    videoSourceMetadata={detailsEditMode ? (activePublicationEditVideo?.sourceMetadata || null) : null}
-                                    currentFormat={(detailsEditMode ? (activePublicationEditVideo?.format || activeVideoSettings?.format || "original") : (activeVideoSettings?.format || "original")) as VideoFormat}
-                                    adaptationMode={(detailsEditMode ? (activePublicationEditVideo?.adaptationMode || activeVideoSettings?.adaptationMode || "safe_frame") : (activeVideoSettings?.adaptationMode || "safe_frame")) as VideoAdaptationMode}
-                                    videoTransformedVariants={[]}
-                                    preparationState={detailsEditMode ? (activePublicationEditVideo?.preparation || null) : null}
-                                    preparing={detailsEditMode ? Boolean(activePublicationEditVideo?.preparing) : false}
-                                    onFormatChange={detailsEditMode ? (format) => { markPublicationEditDirty(); setPublicationVideoFormatForChannel(activePublicationEntry.key, format); } : undefined}
-                                    onAdaptationModeChange={detailsEditMode ? (mode) => { markPublicationEditDirty(); setPublicationVideoAdaptationModeForChannel(activePublicationEntry.key, mode); } : undefined}
-                                    onApplyFormat={detailsEditMode ? async () => { markPublicationEditDirty(); await applyPublicationVideoFormatForChannel(activePublicationEntry.key); } : undefined}
-                                    onDeleteVideo={detailsEditMode ? () => { markPublicationEditDirty(); removePublicationVideo(activePublicationEntry.key); } : undefined}
-                                    deleteVideoLabel={i18nT("retirer_la_video_de_ce_canal_bd7a54fa")}
-                                    onPickVideoClick={detailsEditMode ? () => document.getElementById(publicationVideoInputId)?.click() : undefined}
-                                    showApplyAll={false}
-                                    buttonClassName={styles.btnGhost}
-                                    compact={detailsEditMode}
-                                  />
+                                  <div
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: isMobileViewport
+                                        ? "minmax(0, 1fr)"
+                                        : "minmax(260px, 0.9fr) minmax(300px, 1.1fr)",
+                                      gap: 14,
+                                      alignItems: "stretch",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        minHeight: isMobileViewport ? 240 : 340,
+                                        borderRadius: 18,
+                                        border: "1px solid rgba(96,165,250,0.2)",
+                                        background: "rgba(2,6,23,0.72)",
+                                        padding: 14,
+                                        display: "grid",
+                                        placeItems: "center",
+                                      }}
+                                    >
+                                      {(detailsEditMode
+                                        ? activePublicationEditVideo?.previewUrl
+                                        : activeVideoDisplayAttachment?.url) ? (
+                                        <video
+                                          controls
+                                          playsInline
+                                          preload="metadata"
+                                          src={
+                                            detailsEditMode
+                                              ? activePublicationEditVideo?.previewUrl
+                                              : activeVideoDisplayAttachment?.url
+                                          }
+                                          style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            maxHeight: isMobileViewport ? 360 : 480,
+                                            objectFit: "contain",
+                                            borderRadius: 14,
+                                            background: "#020617",
+                                          }}
+                                        />
+                                      ) : (
+                                        <span style={{ color: "rgba(255,255,255,0.62)", fontWeight: 750 }}>
+                                          Ajoutez une vidéo pour la préparer.
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        minHeight: isMobileViewport ? undefined : 340,
+                                        borderRadius: 18,
+                                        border: "1px solid rgba(251,146,60,0.28)",
+                                        background: "linear-gradient(145deg, rgba(30,41,59,0.92), rgba(67,20,7,0.22))",
+                                        padding: 18,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "space-between",
+                                        gap: 18,
+                                      }}
+                                    >
+                                      <div style={{ display: "grid", gap: 8 }}>
+                                        <strong style={{ color: "#fff", fontSize: 18 }}>
+                                          Retoucher dans iNrStudio
+                                        </strong>
+                                        <span style={{ color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
+                                          Le format, le cadrage et l’adaptation de la vidéo sont maintenant centralisés dans iNrStudio.
+                                        </span>
+                                        <span style={{ color: "rgba(255,255,255,0.58)", fontSize: 12 }}>
+                                          {detailsEditMode
+                                            ? activePublicationEditVideo?.name || activeVideoDisplayAttachment?.name || "Vidéo iNrCy"
+                                            : activeVideoDisplayAttachment?.name || "Vidéo iNrCy"}
+                                        </span>
+                                      </div>
+                                      {detailsEditMode ? (
+                                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                          <button
+                                            type="button"
+                                            className={styles.btnAttach}
+                                            onClick={() =>
+                                              openPublicationVideoRetoucher(activePublicationEntry.key)
+                                            }
+                                            disabled={
+                                              !activePublicationEditVideo ||
+                                              activePublicationEditVideo.removed ||
+                                              !activePublicationEditVideo.previewUrl
+                                            }
+                                            style={{
+                                              flex: "1 1 190px",
+                                              borderColor: "rgba(251,146,60,0.62)",
+                                              background: "linear-gradient(135deg, rgba(249,115,22,0.92), rgba(236,72,153,0.82))",
+                                              color: "white",
+                                            }}
+                                          >
+                                            🎞️ Retoucher
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={styles.btnGhost}
+                                            onClick={() => {
+                                              markPublicationEditDirty();
+                                              removePublicationVideo(activePublicationEntry.key);
+                                            }}
+                                          >
+                                            {i18nT("retirer_la_video_de_ce_canal_bd7a54fa")}
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
 
                                   {activeVideoDisplayAttachment?.url && !detailsEditMode ? (
                                     <a className={styles.attachmentDownloadHint} href={activeVideoDisplayAttachment.url} target="_blank" rel="noreferrer" style={{ justifySelf: "start" }}>
@@ -2973,7 +3096,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       transform: asset.transform,
                                       preset: activePublicationEditPreset,
                                       onToggle: () => { markPublicationEditDirty(); togglePublicationImage(activePublicationEditChannelKey, asset.key); },
-                                      onAdapt: () => openPublicationImageAdapter(activePublicationEditChannelKey, asset.key),
+                                      onAdapt: () => openPublicationImageRetoucher(activePublicationEditChannelKey, asset.key),
+                                      onModify: () => openPublicationImageModifier(activePublicationEditChannelKey, asset.key),
                                       onReset: resetPublicationImage ? () => { markPublicationEditDirty(); resetPublicationImage(activePublicationEditChannelKey, asset.key); } : undefined,
                                       onRemove: asset.selected ? () => { markPublicationEditDirty(); togglePublicationImage(activePublicationEditChannelKey, asset.key); } : undefined,
                                       removeLabel: i18nT("retirer_de_ce_canal_76fbf864"),

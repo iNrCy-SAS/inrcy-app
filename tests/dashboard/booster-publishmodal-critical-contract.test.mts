@@ -27,6 +27,15 @@ const statusRoute = read(
 const videoFormatManager = read(
   "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx",
 );
+const videoPanel = read(
+  "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx",
+);
+const intentPanel = read(
+  "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
+);
+const tiktokSettingsModal = read(
+  "app/dashboard/booster/publier/components/TiktokPublicationSettingsModal.tsx",
+);
 
 test("PublishModal keeps the three dedicated media controllers", () => {
   assert.match(publishModal, /usePersistentMediaWorkspace\(/);
@@ -87,7 +96,7 @@ test("legacy uploads stay disabled unless a mixed publication needs the media ty
   assert.match(publishModal, /uploadOriginalImagesForPublication\(/);
 });
 
-test("cutover records the format choice and requires the workspace master for scheduling", () => {
+test("cutover delegates video retouching to iNrStudio and keeps server preparation strict", () => {
   assert.doesNotMatch(publishModal, /directOriginalAvailable/);
   assert.match(persistentWorkspace, /preparePublicationMedia/);
   assert.doesNotMatch(publishModal, /prepareCutoverVideoVariants/);
@@ -96,18 +105,19 @@ test("cutover records the format choice and requires the workspace master for sc
     publishModal,
     /mediaPipelineCutoverV1:\s*true,[\s\S]{0,100}allowOriginalVideoFallback:\s*false/,
   );
+  assert.match(publishModal, /const openInrStudioVideoRetoucher = async/);
   assert.match(
     publishModal,
-    /deferTechnicalPreparationUntilPublish=\{[\s\S]*mediaPipelineCutoverEnabled/,
+    /tab: "retouch",[\s\S]{0,220}origin: "booster-publish"/,
   );
+  assert.match(publishModal, /mediaType: "video"/);
   assert.match(
     publishModal,
-    /onApplyVideoFormatForChannel=\{[\s\S]*mediaPipelineCutoverEnabled[\s\S]*\? undefined/,
+    /deferVideoPreparation: mediaPipelineCutoverEnabled/,
   );
-  assert.match(
-    publishModal,
-    /onApplyVideoFormatToAllChannels=\{[\s\S]*mediaPipelineCutoverEnabled[\s\S]*\? undefined/,
-  );
+  assert.match(publishModal, /openVideoRetoucher=\{/);
+  assert.match(videoPanel, /onRetouchVideo\(activeChannel\)/);
+  assert.doesNotMatch(videoPanel, /BoosterVideoFormatManager/);
   assert.match(
     publishModal,
     /const hasVideoPreparationBlocker =[\s\S]*!mediaPipelineCutoverEnabled/,
@@ -128,6 +138,22 @@ test("cutover records the format choice and requires the workspace master for sc
     videoFormatManager,
     /!deferTechnicalPreparationUntilPublish &&[\s\S]{0,100}\(onApplyFormat \|\|/,
   );
+});
+
+test("Booster consumes the video settings and variants returned by iNrStudio", () => {
+  assert.match(publishModal, /returnedRecord\.studio_video_retouch === true/);
+  assert.match(publishModal, /returnedRecord\.video_format/);
+  assert.match(publishModal, /returnedRecord\.video_adaptation_mode/);
+  assert.match(publishModal, /returnedRecord\.transformed_variants/);
+  assert.match(publishModal, /setVideoFormatByChannel/);
+  assert.match(publishModal, /setVideoAdaptationModeByChannel/);
+  assert.match(publishModal, /setVideoTransformedVariants\(mergedVariants\)/);
+  assert.match(publishModal, /setVideoStorageContext/);
+  assert.match(intentPanel, /onRetouchVideo/);
+  assert.match(intentPanel, /ai_generator_studio_tab_retouch/);
+  assert.match(publishModal, /onRetouchVideo=\{\(\) =>[\s\S]{0,100}openInrStudioVideoRetoucher\("tiktok"\)/);
+  assert.match(tiktokSettingsModal, /onRetouchVideo\?: \(\) => void/);
+  assert.match(tiktokSettingsModal, /mediaType === "video" && onRetouchVideo/);
 });
 
 test("workspace uploads are serialized, abortable and bounded", () => {

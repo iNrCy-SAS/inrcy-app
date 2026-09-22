@@ -256,7 +256,7 @@ test("the first channel picker assigns only its target after one pool sync", () 
   const add = between(
     imageController,
     "const addImageFiles",
-    "const onImagesChange",
+    "const replaceImageFile",
   );
   assert.equal(
     [...add.matchAll(/syncPersistentWorkspaceImages\?\.\(/g)].length,
@@ -304,11 +304,13 @@ test("visible media order is the publish order and supports drag-and-drop", () =
   assert.match(imagesPanel, /const orderedImageKeys = \[/);
   assert.match(imagesPanel, /items=\{orderedImageKeys\.map\(/);
   assert.doesNotMatch(imagesPanel, /items=\{imageKeys\.map\(/);
-  assert.match(publishModal, /const activeChannelDisplayImageKeys = useMemo/);
-  assert.match(
-    publishModal,
-    /sidebarItems=\{activeChannelDisplayImageKeys\.map\(/,
-  );
+  assert.match(imagesPanel, /onAdapt: \(\) => openImageRetoucher\(activeImageChannel, key\)/);
+  assert.match(imagesPanel, /onModify: \(\) => openImageModifier\(activeImageChannel, key\)/);
+  assert.match(publishModal, /openInrStudioImageTool = async \(/);
+  assert.match(publishModal, /tab: "modify" \| "retouch"/);
+  assert.match(publishModal, /source: \{[\s\S]*?file: sourceFile \|\| null,[\s\S]*?url: sourceUrl/);
+  assert.match(publishModal, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
+  assert.doesNotMatch(publishModal, /sidebarItems=\{/);
   assert.match(imagesPanel, /removeImage\(imageKeys\.indexOf\(key\)\)/);
   assert.match(imagesPanel, /onMoveTo: included/);
   assert.match(imagesPanel, /moveChannelImageTo\(/);
@@ -320,6 +322,37 @@ test("visible media order is the publish order and supports drag-and-drop", () =
   assert.match(cardPanel, /sourceItem\.onMoveTo\(item\.key\)/);
   assert.match(cardPanel, /item\.onMovePrevious/);
   assert.match(cardPanel, /item\.onMoveNext/);
+  assert.match(cardPanel, /onClick=\{item\.onModify\}/);
+  assert.match(cardPanel, /onClick=\{item\.onAdapt\}/);
+  assert.match(cardPanel, /modifier_image_3f1a7c90/);
+  const previousControl = cardPanel.indexOf("onClick={item.onMovePrevious}");
+  const selectionControl = cardPanel.indexOf('type="checkbox"', previousControl);
+  const imageTitle = cardPanel.indexOf("{item.title ||", selectionControl);
+  const dragHandle = cardPanel.indexOf("⠿", imageTitle);
+  const nextControl = cardPanel.indexOf("onClick={item.onMoveNext}", dragHandle);
+  const imageFrame = cardPanel.indexOf("<FinalImageFrame", nextControl);
+  const modifyAction = cardPanel.indexOf("onClick={item.onModify}", imageFrame);
+  const retouchAction = cardPanel.indexOf("onClick={item.onAdapt}", modifyAction);
+  const resetAction = cardPanel.indexOf("onClick={item.onReset}", retouchAction);
+  const removeAction = cardPanel.indexOf("onClick={item.onRemove}", resetAction);
+  assert.deepEqual(
+    [
+      previousControl,
+      selectionControl,
+      imageTitle,
+      dragHandle,
+      nextControl,
+      imageFrame,
+      modifyAction,
+      retouchAction,
+      resetAction,
+      removeAction,
+    ].every((position, index, positions) =>
+      position >= 0 && (index === 0 || position > positions[index - 1]),
+    ),
+    true,
+  );
+  assert.match(cardPanel, /removeEverywhereLabel[\s\S]*?whiteSpace: "normal"[\s\S]*?textOverflow: "clip"/);
   assert.doesNotMatch(cardPanel, /fitLabel=\{item\.fitLabel\}/);
 });
 

@@ -4,10 +4,8 @@ import { randomUUID } from "node:crypto";
 
 import { acceptGeneratedAiMediaDraft } from "@/lib/aiGeneratedMediaRegistry";
 import {
-  type AiMediaGenerationRequest,
   type AiMediaKind,
   type AiMediaLibraryPickerItem,
-  type AiMediaTypology,
 } from "@/lib/aiMediaGenerationContracts";
 import {
   completeAiMediaGeneration,
@@ -22,6 +20,7 @@ import { getAiMediaVideoEntitlement } from "@/lib/aiMediaVideoEntitlementServer"
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
 import type { AiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
+import { buildInrAgentMediaGenerationRequest } from "@/lib/inrAgentMediaRequest";
 
 type SupabaseLike = Parameters<typeof generateAndSaveAiMedia>[0]["supabase"];
 
@@ -38,16 +37,6 @@ export type InrAgentGeneratedMediaResult = {
   kind: AiMediaKind;
   errorCode?: string;
 };
-
-function typologyForTheme(theme: InrAgentTheme): AiMediaTypology {
-  if (["realisations", "temoignages"].includes(theme)) return "showcase";
-  if (theme === "offres") return "offer";
-  if (theme === "services") return "service";
-  if (theme === "coulisses") return "behind_scenes";
-  if (theme === "recrutement") return "recruitment";
-  if (theme === "actualites") return "event";
-  return "advice";
-}
 
 function errorCode(error: unknown) {
   const value = error instanceof Error ? error.message : String(error || "");
@@ -94,45 +83,13 @@ export async function generateInrAgentMedia(args: {
       args.variantSeed ||
       `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
   });
-  const request: AiMediaGenerationRequest = {
-    inputMode: "legacy",
+  const request = buildInrAgentMediaGenerationRequest({
     requestId: `inr-agent:${randomUUID()}`,
-    kind: args.kind,
-    subjectSource: "custom",
     idea: args.idea,
-    aiInstruction: "",
-    // Le texte social sera ecrit par Booster. Le laisser dans l'image ou dans
-    // les plans Veo augmenterait le risque de faux caracteres.
-    withText: false,
-    textKeywords: [],
-    withMusic: mediaMix.withMusic,
-    withNarration: mediaMix.withNarration,
-    narrationVoice: mediaMix.narrationVoice,
-    // Les générations historiques iNrAgent ne choisissent pas de variante :
-    // le moteur conserve donc le preset Femme/Homme configuré jusque-là.
-    narrationVoiceVariant: null,
-    format: mediaMix.format,
-    typology: typologyForTheme(args.theme),
-    visualStyle: mediaMix.visualStyle,
-    imageStyle: mediaMix.imageStyle,
-    shotType: mediaMix.shotType,
-    peopleMode: mediaMix.peopleMode,
-    creativity: mediaMix.creativity,
-    useBrandColors: mediaMix.useBrandColors,
-    logoMode: mediaMix.logoMode,
-    videoEngine: args.kind === "video" ? "omni" : null,
-    identityMode: "auto",
-    videoCharacterMode: "auto",
-    identityConsent: false,
-    teamVideoMode: mediaMix.teamVideoMode,
-    teamVideoSpeechMode: mediaMix.teamVideoSpeechMode,
-    teamVideoVeoConsent: false,
-    identityReferenceSetId: "",
-    connectScenes: mediaMix.connectScenes,
-    durationSeconds: mediaMix.durationSeconds,
-    inspirationImages: [],
-    source: "booster",
-  };
+    theme: args.theme,
+    kind: args.kind,
+    mediaMix,
+  });
   const fingerprint = createAiMediaRequestFingerprint({
     contract: "inrcy-agent-ai-media-v1",
     request,
@@ -147,6 +104,8 @@ export async function generateInrAgentMedia(args: {
     surface: "booster",
     edition,
     reservationTtlSeconds: args.kind === "video" ? 3_600 : 900,
+    quotaAmount:
+      args.kind === "video" ? request.durationSeconds || 8 : 1,
     limitOverride: args.adminUnlimited
       ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
       : undefined,
