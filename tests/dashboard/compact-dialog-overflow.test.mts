@@ -50,8 +50,10 @@ test("compact iNrAgent dialogs override the generic scrolling modal", () => {
   assert.ok(compactOverride);
   assert.match(compactOverride[0], /max-height: none/);
   assert.match(compactOverride[0], /overflow: hidden !important/);
+  const compactOffset = agentStyles.indexOf(compactOverride[0]);
+  const genericScrollOffset = agentStyles.lastIndexOf("overflow-y: auto !important", compactOffset);
   assert.ok(
-    agentStyles.indexOf(compactOverride[0]) > agentStyles.lastIndexOf("overflow-y: auto !important"),
+    compactOffset > genericScrollOffset,
     "L'override compact doit rester après les règles génériques de défilement",
   );
 });

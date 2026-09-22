@@ -22,7 +22,10 @@ test("the opt-in responsive header keeps title and controls on row one and shows
   assert.match(header, /@media \(max-width: 820px\)[\s\S]*?grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto/);
   assert.match(header, /\[data-dashboard-workspace-subtitle\][\s\S]*?grid-column:\s*1 \/ -1[\s\S]*?grid-row:\s*2[\s\S]*?text-overflow:\s*clip !important[\s\S]*?white-space:\s*normal !important/);
   assert.match(header, /nav button\[data-has-mobile-icon="true"\][\s\S]*?display:\s*inline-flex[\s\S]*?width:\s*38px[\s\S]*?height:\s*38px/);
-  assert.match(header, /nav button\[data-mobile-bare="true"\][\s\S]*?border-color:\s*transparent !important[\s\S]*?background:\s*transparent !important[\s\S]*?box-shadow:\s*none !important/);
+  assert.match(
+    header,
+    /nav button\[data-mobile-bare="true"\][\s\S]*?border:\s*1px solid rgba\(148, 163, 255, 0\.3\) !important[\s\S]*?border-radius:\s*999px !important[\s\S]*?background:\s*radial-gradient[\s\S]*?box-shadow:/,
+  );
   assert.match(header, /aria-label=\{action\.label\}/);
 });
 
