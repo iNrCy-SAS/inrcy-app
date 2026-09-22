@@ -143,22 +143,218 @@
 }
 
 .premiumPilotPanel {
-  min-height: 760px;
+  display: flex;
+  min-height: 520px;
+  flex-direction: column;
 }
 
 .premiumDashboardList {
-  min-height: 688px;
-  grid-template-rows: repeat(5, minmax(0, 1fr));
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-rows: repeat(5, minmax(74px, 1fr));
+  gap: 8px;
 }
 
 .premiumDashboardList .toolRow {
   min-height: 0;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(112px, auto);
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 14px;
+}
+
+.premiumDashboardList .toolLogo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.premiumDashboardList .toolLogo img {
+  width: 84%;
+  height: 84%;
+}
+
+.premiumDashboardList .toolCopy h4 {
+  font-size: 16px;
+}
+
+.premiumDashboardList .toolCopy p {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.premiumDashboardList .toolAction {
+  min-width: 112px;
+  min-height: 30px;
+  padding-inline: 12px;
+  font-size: 10px;
+}
+
+.premiumDashboardList .toolActionGroup .toolAction {
+  min-width: 100px;
+}
+
+.premiumDashboardList .toolSettings {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
 }
 
 .premiumActionStack {
-  min-height: 760px;
-  grid-template-rows: minmax(310px, 1.22fr) minmax(126px, 0.48fr) minmax(220px, 0.84fr);
+  min-height: 520px;
+  grid-template-rows: minmax(190px, 1.05fr) minmax(78px, 0.4fr) minmax(168px, 0.85fr);
+  gap: 10px;
 }
+
+.premiumActionStack .boosterContent {
+  column-gap: 16px;
+  padding: 14px 22px;
+}
+
+.premiumActionStack .boosterLogo {
+  width: 64px;
+  height: 64px;
+  border-radius: 19px;
+}
+
+.premiumActionStack .boosterCopy h3 {
+  font-size: clamp(30px, 2.5vw, 38px);
+}
+
+.premiumActionStack .boosterCopy p {
+  margin: 3px 0 9px;
+  font-size: 12px;
+}
+
+.premiumActionStack .boosterCopy p strong {
+  font-size: 14px;
+}
+
+.premiumActionStack .boosterCopy button {
+  min-height: 36px;
+}
+
+.premiumActionStack .campaignPanel {
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 11px;
+  padding: 10px 14px;
+}
+
+.premiumActionStack .campaignIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 22px;
+}
+
+.premiumActionStack .campaignCopy h3 {
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.premiumActionStack .campaignButton {
+  min-height: 34px;
+  padding-inline: 15px;
+}
+
+.premiumActionStack .agentPanel,
+.premiumActionStack .studioPanel {
+  grid-template-columns: 50px minmax(0, 1fr);
+  gap: 7px 11px;
+  padding: 11px 13px;
+}
+
+.premiumActionStack .agentLogo,
+.premiumActionStack .studioLogo {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+}
+
+.premiumActionStack .agentCopy h3,
+.premiumActionStack .studioCopy h3 {
+  font-size: 20px;
+}
+
+.premiumActionStack .agentCopy p,
+.premiumActionStack .studioCopy p {
+  font-size: 11px;
+}
+
+.premiumActionStack .agentActions > button,
+.premiumActionStack .studioButton {
+  min-height: 34px;
+}
+
+.agentPlanningIconButton {
+  position: absolute;
+  z-index: 4;
+  top: 11px;
+  right: 12px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(114, 221, 255, 0.48);
+  border-radius: 50%;
+  color: #bceeff;
+  background: linear-gradient(145deg, rgba(11, 64, 126, 0.9), rgba(55, 43, 122, 0.88));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.16), 0 8px 20px rgba(27, 108, 213, 0.22);
+  cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease;
+}
+
+.agentPlanningIconButton:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+
+.agentPlanningIconButton svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.premiumActionStack .agentCopy {
+  padding-right: 42px;
+}
+
+.premiumActionStack .agentActions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.premiumActionStack .agentPilotButton {
+  width: 100%;
+}
+
+.premiumActionStack .boosterStats {
+  min-height: 42px;
+  gap: 9px;
+  padding-inline: 14px;
+}
+
+.premiumActionStack .boosterStats > span {
+  height: 18px;
+  gap: 4px;
+}
+
+.premiumActionStack .boosterStats b {
+  font-size: 11px;
+}
+
+.premiumActionStack .boosterStats i {
+  width: 4px;
+}
+
+.premiumActionStack .boosterStats i:nth-child(1) { height: 9px; }
+.premiumActionStack .boosterStats i:nth-child(2) { height: 17px; }
+.premiumActionStack .boosterStats i:nth-child(3) { height: 12px; }
 
 .standardActionStack .panel,
 .standardActionStack .boosterPanel,
@@ -587,10 +783,10 @@
 @media (max-width: 1100px) {
   .standardActionStack { min-height: 0; grid-template-rows: minmax(300px, auto) minmax(150px, auto); }
   .premiumPilotPanel { min-height: 0; }
-  .premiumDashboardList { min-height: 610px; }
+  .premiumDashboardList { min-height: 430px; }
   .premiumActionStack {
     min-height: 0;
-    grid-template-rows: minmax(310px, auto) minmax(126px, auto) minmax(210px, auto);
+    grid-template-rows: minmax(220px, auto) minmax(86px, auto) minmax(180px, auto);
   }
 }
 

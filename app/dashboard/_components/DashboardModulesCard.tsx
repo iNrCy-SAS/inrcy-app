@@ -211,6 +211,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const isPanelLoadingVisible = (panel: DashboardPanelName) => isVisible(`panel:${panel}`);
   const agentPath = "/dashboard/agent";
   const studioPath = "/dashboard/generer-media";
+  const calendarLabel = i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "");
+  const crmLabel = i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "");
   return (
     <>
         <div className={styles.lowerRow} data-dashboard-premium-lower-blocks="true">
@@ -298,10 +300,10 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
 
               <article className={`${standardStyles.toolRow} ${standardStyles.agendaRow}`}>
                 <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/inrcalendar-logo.png" alt="" width={52} height={52} />
+                  <Image src="/mobile-shortcuts/inrcalendar-bubble.png" alt="" width={52} height={52} />
                 </span>
                 <div className={standardStyles.toolCopy}>
-                  <h4>{i18nT("inr_calendar_a9473176")}</h4>
+                  <h4>{calendarLabel}</h4>
                   <p>{t.modules.agendaSub}</p>
                 </div>
                 <span className={standardStyles.toolActionGroup}>
@@ -324,17 +326,17 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                     disabled={isModuleLoadingVisible("/dashboard/agenda")}
                     aria-busy={isModuleLoadingVisible("/dashboard/agenda") || undefined}
                   >
-                    {isModuleLoadingVisible("/dashboard/agenda") ? i18nT("chargement_01cba1df") : i18nT("inr_calendar_a9473176")} <ArrowIcon />
+                    {isModuleLoadingVisible("/dashboard/agenda") ? i18nT("chargement_01cba1df") : calendarLabel} <ArrowIcon />
                   </button>
                 </span>
               </article>
 
               <article className={`${standardStyles.toolRow} ${standardStyles.crmRow}`}>
                 <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/inrcrm-logo.png" alt="" width={52} height={52} />
+                  <Image src="/mobile-shortcuts/inrcrm-bubble.png" alt="" width={52} height={52} />
                 </span>
                 <div className={standardStyles.toolCopy}>
-                  <h4>{i18nT("inr_crm_aa43648a")}</h4>
+                  <h4>{crmLabel}</h4>
                   <p>{t.modules.crmSub}</p>
                 </div>
                 <button
@@ -345,7 +347,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   disabled={isModuleLoadingVisible("/dashboard/crm")}
                   aria-busy={isModuleLoadingVisible("/dashboard/crm") || undefined}
                 >
-                  {isModuleLoadingVisible("/dashboard/crm") ? i18nT("chargement_01cba1df") : i18nT("inr_crm_aa43648a")} <ArrowIcon />
+                  {isModuleLoadingVisible("/dashboard/crm") ? i18nT("chargement_01cba1df") : crmLabel} <ArrowIcon />
                 </button>
               </article>
             </div>
@@ -429,15 +431,17 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   <h3>{t.modules.agentTitle}</h3>
                   <p>{t.modules.agentSub}</p>
                 </div>
+                <button
+                  className={standardStyles.agentPlanningIconButton}
+                  type="button"
+                  data-testid="premium-agent-planning"
+                  onClick={openAgentPlanning}
+                  aria-label={standardT("agentPlanning")}
+                  title={standardT("agentPlanning")}
+                >
+                  <PlanningIcon />
+                </button>
                 <span className={standardStyles.agentActions}>
-                  <button
-                    className={standardStyles.agentPlanningButton}
-                    type="button"
-                    data-testid="premium-agent-planning"
-                    onClick={openAgentPlanning}
-                  >
-                    <PlanningIcon /> {standardT("agentPlanning")}
-                  </button>
                   <button
                     className={standardStyles.agentPilotButton}
                     type="button"
