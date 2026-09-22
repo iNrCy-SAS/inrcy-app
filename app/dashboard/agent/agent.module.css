@@ -19375,3 +19375,267 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-height: 28px !important;
   }
 }
+
+/*
+ * Responsive polish (mobile only).
+ * The four mission cards keep their two-column layout, but the icon column
+ * is removed so the complete mission label remains readable from the first
+ * character.  Instant/settings actions stay attached to the same card title.
+ */
+@media (max-width: 760px) {
+  .automationGrid .automationCard,
+  .automationGridStandard .automationCard {
+    display: block !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    overflow: hidden !important;
+  }
+
+  .automationGrid .automationCard .automationSelect,
+  .automationGridStandard .automationCard .automationSelect {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    gap: 0 !important;
+    padding: 8px 70px 8px 10px !important;
+    overflow: hidden !important;
+  }
+
+  .automationGrid .automationCard .cardIcon,
+  .automationGridStandard .automationCard .cardIcon {
+    display: none !important;
+  }
+
+  .automationGrid .automationCard .cardTitle,
+  .automationGridStandard .automationCard .cardTitle {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    color: #fff !important;
+    font-size: clamp(11.5px, 3.35vw, 14px) !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.025em !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  .automationGrid .automationCard .cardTitleFull,
+  .automationGridStandard .automationCard .cardTitleFull {
+    display: inline !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  .automationGrid .automationCard .cardTitleShort,
+  .automationGridStandard .automationCard .cardTitleShort {
+    display: none !important;
+  }
+
+  /* Base mobile count geometry; the final mobile rule positions it before the lightning action. */
+  .automationGrid .automationCard:has(.cardPendingCount) .cardTitle,
+  .automationGridStandard .automationCard:has(.cardPendingCount) .cardTitle {
+    padding-left: 25px !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount,
+  .automationGridStandard .automationCard .cardPendingCount {
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 9px !important;
+    width: 19px !important;
+    min-width: 19px !important;
+    height: 19px !important;
+    min-height: 19px !important;
+    padding: 0 !important;
+    transform: translateY(-50%) !important;
+    border-radius: 999px !important;
+    font-size: 0 !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount::before,
+  .automationGridStandard .automationCard .cardPendingCount::before {
+    content: attr(data-count) !important;
+    display: grid !important;
+    place-items: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    color: #fff !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+  }
+
+  .automationGrid .automationCard .cardStatus,
+  .automationGrid .automationCard .cardPendingCount + .cardStatus,
+  .automationGridStandard .automationCard .cardStatus,
+  .automationGridStandard .automationCard .cardPendingCount + .cardStatus {
+    top: 50% !important;
+    right: 68px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 8px !important;
+    height: 8px !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .automationGrid .automationCard .automationCardActions,
+  .automationGridStandard .automationCard .automationCardActions {
+    top: 50% !important;
+    right: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .automationGrid .automationCard .automationCardActions .instantActionButton,
+  .automationGrid .automationCard .automationCardActions .settingsButton,
+  .automationGridStandard .automationCard .automationCardActions .instantActionButton,
+  .automationGridStandard .automationCard .automationCardActions .settingsButton {
+    position: static !important;
+    width: 29px !important;
+    min-width: 29px !important;
+    height: 29px !important;
+    min-height: 29px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+
+  .automationGrid .automationCard .automationCardActions .settingsButton svg,
+  .automationGridStandard .automationCard .automationCardActions .settingsButton svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+}
+
+/*
+ * The fixed responsive navigation must never cover the last action of the
+ * publication editor.  Keep the editor itself scrollable and add a real
+ * bottom scroll target, rather than relying on an opaque overlay margin.
+ */
+@media (max-width: 760px) {
+  .modalBackdrop:has(.publishTextModal) {
+    place-items: start center !important;
+    overflow-y: auto !important;
+    padding: 12px 10px calc(
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        ) + 24px
+      ) !important;
+  }
+
+  .publishTextModal {
+    width: min(100%, 430px) !important;
+    max-height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        ) - 24px
+    ) !important;
+    margin: 0 !important;
+    padding-bottom: 30px !important;
+    scroll-padding-bottom: 30px !important;
+  }
+
+  .publishTextModal .modalActions {
+    position: static !important;
+    margin-bottom: 4px !important;
+    padding-bottom: 8px !important;
+  }
+}
+
+/* Publier : indicateurs plus visibles, ancrés sur le libellé mobile. */
+@media (max-width: 760px) {
+  .automationGrid .automationCard[data-automation="publish"] .cardPendingCount,
+  .automationGridStandard .automationCard[data-automation="publish"] .cardPendingCount {
+    left: auto !important;
+    right: 72px !important;
+    width: 24px !important;
+    min-width: 24px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    border-width: 1px !important;
+  }
+
+  .automationGrid .automationCard[data-automation="publish"]:has(.cardPendingCount) .cardTitle,
+  .automationGridStandard .automationCard[data-automation="publish"]:has(.cardPendingCount) .cardTitle {
+    padding-left: 0 !important;
+  }
+
+  .automationGrid .automationCard[data-automation="publish"] .cardStatus,
+  .automationGridStandard .automationCard[data-automation="publish"] .cardStatus {
+    display: none !important;
+  }
+
+  /* The active dot is rendered on top of the gear, not in the text flow. */
+  .automationGrid .automationCard:has(.cardStatus) .automationCardActions .settingsButton,
+  .automationGridStandard .automationCard:has(.cardStatus) .automationCardActions .settingsButton {
+    position: relative !important;
+    overflow: visible !important;
+  }
+
+  .automationGrid .automationCard:has(.cardStatus) .automationCardActions .settingsButton::after,
+  .automationGridStandard .automationCard:has(.cardStatus) .automationCardActions .settingsButton::after {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    top: -5px;
+    right: -4px;
+    width: 11px;
+    height: 11px;
+    border: 2px solid #10234f;
+    border-radius: 999px;
+    background: #34d399;
+    box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.16),
+      0 0 14px rgba(52, 211, 153, 0.95);
+    pointer-events: none;
+  }
+}
+
+/* Le compteur reste avant l’éclair pour tous les automatismes qui en ont un. */
+@media (max-width: 760px) {
+  /* Keep the live state indicator on the settings gear only. */
+  .automationGrid .automationCard:has(.cardStatus) .cardStatus,
+  .automationGridStandard .automationCard:has(.cardStatus) .cardStatus {
+    display: none !important;
+  }
+
+  .automationGrid .automationCard:has(.cardPendingCount) .cardTitle,
+  .automationGridStandard .automationCard:has(.cardPendingCount) .cardTitle {
+    padding-left: 0 !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount,
+  .automationGridStandard .automationCard .cardPendingCount {
+    left: auto !important;
+    right: 72px !important;
+    box-sizing: border-box !important;
+    display: grid !important;
+    place-items: center !important;
+    text-align: center !important;
+    line-height: 1 !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount::before,
+  .automationGridStandard .automationCard .cardPendingCount::before {
+    display: grid !important;
+    place-items: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    text-align: center !important;
+    line-height: 1 !important;
+  }
+}

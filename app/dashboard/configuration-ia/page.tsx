@@ -16,6 +16,7 @@ import { useDashboardPreparationScores } from "../_hooks/useDashboardPreparation
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import AiConfigurationContent from "../settings/_components/AiConfigurationContent";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
+import BusinessDnaIcon from "../_components/BusinessDnaIcon";
 import styles from "../dashboard.module.css";
 
 export default function AiConfigurationPage() {
@@ -28,6 +29,7 @@ export default function AiConfigurationPage() {
   const { aiScore } = useDashboardPreparationScores({ accountId, edition });
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const aiSignatureTitle = settingsT("votre_signature_ia_329379e6");
 
   useUnsavedExitGuard({
     active: true,
@@ -48,6 +50,7 @@ export default function AiConfigurationPage() {
   return (
     <main data-ai-configuration-page style={dashboardWorkspacePageStyle}>
       <DashboardWorkspaceHeader
+        responsiveTwoRow
         logo={(
           <AiConfigurationIcon
             size={42}
@@ -60,10 +63,12 @@ export default function AiConfigurationPage() {
             }}
           />
         )}
-        title={settingsT("votre_signature_ia_329379e6")}
+        title={aiSignatureTitle}
+        mobileTitle="Configuration"
         subtitle={settingsT("reglez_une_fois_votre_facon_de_4a141f29")}
         status={(
           <span
+            data-dashboard-workspace-status
             className={styles.cockpitGlobalPower}
             aria-label={`${copy.userMenu.ai} : ${aiScore}%`}
             title={`${copy.userMenu.ai} : ${aiScore}%`}
@@ -76,8 +81,20 @@ export default function AiConfigurationPage() {
           </span>
         )}
         actions={[
-          { label: copy.userMenu.aiMemory, onClick: () => navigate("/dashboard/adn-entreprise"), tone: "violet" },
-          { label: copy.drawer.close, onClick: () => navigate("/dashboard"), tone: "neutral" },
+          {
+            label: copy.userMenu.aiMemory,
+            onClick: () => navigate("/dashboard/adn-entreprise"),
+            tone: "violet",
+            mobileBare: true,
+            mobileIcon: <BusinessDnaIcon size={28} />,
+          },
+          {
+            label: copy.drawer.close,
+            onClick: () => navigate("/dashboard"),
+            tone: "neutral",
+            mobileBare: true,
+            mobileIcon: "×",
+          },
         ]}
       />
 

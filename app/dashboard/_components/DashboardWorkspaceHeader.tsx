@@ -15,6 +15,7 @@ type Props = {
   logoSrc?: string;
   logo?: ReactNode;
   title: string;
+  mobileTitle?: ReactNode;
   subtitle: string;
   status?: ReactNode;
   actions: WorkspaceHeaderAction[];
@@ -25,6 +26,7 @@ export default function DashboardWorkspaceHeader({
   logoSrc,
   logo,
   title,
+  mobileTitle,
   subtitle,
   status,
   actions,
@@ -42,7 +44,12 @@ export default function DashboardWorkspaceHeader({
         </span>
         <span data-dashboard-workspace-divider aria-hidden style={dividerStyle} />
         <span data-dashboard-workspace-title-group style={titleGroupStyle}>
-          <h1 style={titleStyle}>{title}</h1>
+          <h1 style={titleStyle}>
+            <span data-dashboard-workspace-title-desktop>{title}</span>
+            {mobileTitle !== undefined ? (
+              <span data-dashboard-workspace-title-mobile>{mobileTitle}</span>
+            ) : null}
+          </h1>
           <span data-dashboard-workspace-subtitle style={subtitleStyle}>{subtitle}</span>
         </span>
       </div>
@@ -80,6 +87,9 @@ export default function DashboardWorkspaceHeader({
         header[data-dashboard-workspace-header] [data-dashboard-workspace-action-icon] {
           display: none;
         }
+        header[data-dashboard-workspace-header] [data-dashboard-workspace-title-mobile] {
+          display: none;
+        }
         @media (max-width: 820px) {
           header[data-dashboard-workspace-header] {
             align-items: stretch !important;
@@ -114,6 +124,12 @@ export default function DashboardWorkspaceHeader({
             grid-row: 1;
             min-width: 0;
           }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] h1 [data-dashboard-workspace-title-mobile] {
+            display: inline;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] h1 [data-dashboard-workspace-title-desktop] {
+            display: none;
+          }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] [data-dashboard-workspace-subtitle] {
             grid-column: 1 / -1;
             grid-row: 2;
@@ -140,6 +156,14 @@ export default function DashboardWorkspaceHeader({
             align-items: center;
             justify-content: center;
           }
+          :global(header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav > [data-dashboard-workspace-status]) {
+            flex: 0 0 36px;
+            width: 36px !important;
+            min-width: 36px !important;
+            height: 36px !important;
+            min-height: 36px !important;
+            font-size: 12px !important;
+          }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] [data-dashboard-workspace-action-label] {
             display: none;
           }
@@ -151,9 +175,21 @@ export default function DashboardWorkspaceHeader({
             line-height: 1;
           }
           header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-mobile-bare="true"] {
-            border-color: transparent !important;
-            background: transparent !important;
-            box-shadow: none !important;
+            border: 1px solid rgba(148, 163, 255, 0.3) !important;
+            border-radius: 999px !important;
+            background: radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.2), transparent 36%), linear-gradient(135deg, rgba(37, 99, 235, 0.24), rgba(168, 85, 247, 0.26)) !important;
+            box-shadow: 0 0 14px rgba(99, 102, 241, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] [data-dashboard-workspace-action-icon] {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          header[data-dashboard-workspace-header][data-responsive-two-row="true"] nav button[data-has-mobile-icon="true"] [data-dashboard-workspace-action-icon] img {
+            width: 24px !important;
+            height: 24px !important;
           }
         }
         header[data-dashboard-workspace-header] nav button:focus-visible {
