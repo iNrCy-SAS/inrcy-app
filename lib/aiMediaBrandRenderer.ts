@@ -30,6 +30,12 @@ type RenderBaseArgs = {
   imagePurpose?: AiMediaImagePurpose;
 };
 
+export type AiMediaImageCompositionCopy = {
+  headline: string;
+  subline: string;
+  cta: string;
+};
+
 // Sharp/Pango cannot rely on the fonts installed by a serverless host. Vercel
 // was therefore replacing every caption character with the missing-glyph box.
 // Next ships Geist with the application; the route trace below explicitly
@@ -474,6 +480,259 @@ async function renderSceneCopyOverlay(
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
 }
+
+function splitFlyerOffers(value: string) {
+  const normalized = safeOverlayText(value);
+  if (!normalized) return [];
+  const sections = normalized
+    .split(/\s+(?:·|•|\|)\s+/u)
+    .map((section) => section.trim())
+    .filter(Boolean);
+  if (sections.length <= 2) return sections;
+  return [sections[0], sections.slice(1).join(" · ")].filter(
+    (section): section is string => Boolean(section)
+  );
+}
+
+type FlyerLayout = ReturnType<typeof resolveFlyerLayout>;
+
+function resolveFlyerLayout(args: {
+  width: number;
+  height: number;
+  titleLineCount: number;
+  offerCount: number;
+}) {
+  const minimumSide = Math.min(args.width, args.height);
+  const portrait = args.height > args.width * 1.12;
+  const margin = Math.max(18, Math.round(minimumSide * 0.055));
+  const panelLeft = margin;
+  const panelTop = Math.max(margin, Math.round(args.height * 0.13));
+  const panelWidth = args.width - margin * 2;
+  const panelHeight = args.height - panelTop - margin;
+  const padding = Math.max(18, Math.round(minimumSide * 0.045));
+  const innerLeft = panelLeft + padding;
+  const innerWidth = panelWidth - padding * 2;
+  const eyebrowSize = Math.max(13, Math.round(minimumSide * 0.022));
+  const titleSize = Math.max(26, Math.round(minimumSide * 0.06));
+  const titleLineHeight = Math.round(titleSize * 1.1);
+  const eyebrowTop = panelTop + padding;
+  const titleFirstTop = eyebrowTop + Math.round(eyebrowSize * 1.75);
+  const gap = Math.max(12, Math.round(minimumSide * 0.022));
+  const cardsTop =
+    titleFirstTop +
+    Math.max(1, args.titleLineCount) * titleLineHeight +
+    gap;
+  const ctaHeight = Math.max(38, Math.round(minimumSide * 0.075));
+  const ctaTop = panelTop + panelHeight - padding - ctaHeight;
+  const cardsBottom = ctaTop - gap;
+  const cardsHeight = Math.max(
+    Math.round(minimumSide * 0.14),
+    cardsBottom - cardsTop
+  );
+  const stacked = portrait && args.offerCount > 1;
+  const cardGap = gap;
+  const cardCount = Math.max(1, Math.min(2, args.offerCount || 1));
+  const cardWidth = stacked
+    ? innerWidth
+    : Math.floor((innerWidth - cardGap * (cardCount - 1)) / cardCount);
+  const cardHeight = stacked
+    ? Math.floor((cardsHeight - cardGap * (cardCount - 1)) / cardCount)
+    : cardsHeight;
+  const cards = Array.from({ length: cardCount }, (_, index) => ({
+    left: stacked ? innerLeft : innerLeft + index * (cardWidth + cardGap),
+    top: stacked ? cardsTop + index * (cardHeight + cardGap) : cardsTop,
+    width: cardWidth,
+    height: cardHeight,
+  }));
+  const ctaWidth = Math.min(
+    innerWidth,
+    Math.max(Math.round(innerWidth * 0.38), Math.round(minimumSide * 0.32))
+  );
+  return {
+    margin,
+    panelLeft,
+    panelTop,
+    panelWidth,
+    panelHeight,
+    padding,
+    innerLeft,
+    innerWidth,
+    eyebrowSize,
+    eyebrowTop,
+    titleSize,
+    titleLineHeight,
+    titleFirstTop,
+    gap,
+    cards,
+    ctaHeight,
+    ctaTop,
+    ctaWidth,
+    ctaLeft: innerLeft,
+    offerFontSize: Math.max(20, Math.round(minimumSide * (portrait ? 0.038 : 0.044))),
+    ctaFontSize: Math.max(16, Math.round(minimumSide * 0.027)),
+  };
+}
+
+function flyerBackdropSvg(
+  args: RenderBaseArgs,
+  layout: FlyerLayout
+) {
+  const cardShapes = layout.cards
+    .map(
+      (card, index) => `
+        <rect x="${card.left}" y="${card.top}" width="${card.width}" height="${card.height}"
+          rx="${Math.round(layout.gap * 0.9)}" fill="#0b1426" fill-opacity="0.9"
+          stroke="${args.colors[index % args.colors.length]}" stroke-width="${Math.max(
+            2,
+            Math.round(layout.margin * 0.07)
+          )}"/>
+        <rect x="${card.left}" y="${card.top}" width="${Math.max(
+          6,
+          Math.round(layout.margin * 0.18)
+        )}" height="${card.height}" rx="${Math.max(
+          3,
+          Math.round(layout.margin * 0.09)
+        )}" fill="${args.colors[index % args.colors.length]}"/>
+      `
+    )
+    .join("");
+  return Buffer.from(`
+    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="pageShade" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#020617" stop-opacity="0.64"/>
+          <stop offset="1" stop-color="#020617" stop-opacity="0.82"/>
+        </linearGradient>
+        <linearGradient id="brandLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="${args.colors[0]}"/>
+          <stop offset="0.5" stop-color="${args.colors[1]}"/>
+          <stop offset="1" stop-color="${args.colors[2]}"/>
+        </linearGradient>
+      </defs>
+      <rect width="${args.width}" height="${args.height}" fill="url(#pageShade)"/>
+      <rect x="${layout.panelLeft}" y="${layout.panelTop}" width="${layout.panelWidth}"
+        height="${layout.panelHeight}" rx="${Math.round(layout.margin * 0.75)}"
+        fill="#071225" fill-opacity="0.88" stroke="#ffffff" stroke-opacity="0.16"/>
+      <rect x="${layout.innerLeft}" y="${layout.panelTop + layout.padding * 0.55}"
+        width="${Math.max(50, Math.round(layout.innerWidth * 0.15))}" height="${Math.max(
+          5,
+          Math.round(layout.margin * 0.12)
+        )}" rx="4" fill="url(#brandLine)"/>
+      ${cardShapes}
+      <rect x="${layout.ctaLeft}" y="${layout.ctaTop}" width="${layout.ctaWidth}"
+        height="${layout.ctaHeight}" rx="${Math.round(layout.ctaHeight / 2)}"
+        fill="url(#brandLine)"/>
+    </svg>
+  `);
+}
+
+/**
+ * Un flyer ne peut pas être une photographie avec une légende générique.
+ * Cette composition déterministe construit la hiérarchie commerciale après
+ * le fournisseur : titre, offres, CTA, couleurs et logo restent ainsi exacts.
+ */
+export async function renderAiMediaFlyerOverlay(
+  args: RenderBaseArgs & {
+    scene: AiMediaCreativeScene;
+    withText: boolean;
+    copy?: AiMediaImageCompositionCopy;
+  }
+) {
+  const transparent = await sharp({
+    create: {
+      width: args.width,
+      height: args.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toBuffer();
+  if (!args.withText) {
+    const overlays = await buildBrandOverlays({
+      ...args,
+      copyOverlay: transparent,
+    });
+    return await sharp(transparent).composite(overlays).png().toBuffer();
+  }
+
+  const headline = args.copy?.headline || args.scene.title;
+  const subline = args.copy?.subline || args.scene.body;
+  const cta = args.copy?.cta || "";
+  const offers = splitFlyerOffers(subline);
+  const titleLines = wrapAiMediaOverlayText(
+    headline,
+    args.height > args.width * 1.12 ? 24 : 38,
+    2
+  );
+  const layout = resolveFlyerLayout({
+    width: args.width,
+    height: args.height,
+    titleLineCount: titleLines.length,
+    offerCount: offers.length,
+  });
+  const flyerLayers = await Promise.all([
+    rasterTextLayer({
+      text: (args.scene.eyebrow || args.companyName).toLocaleUpperCase(),
+      fontSize: layout.eyebrowSize,
+      fontWeight: 700,
+      color: "#dbeafe",
+      left: layout.innerLeft,
+      top: layout.eyebrowTop,
+      maxWidth: layout.innerWidth,
+    }),
+    ...titleLines.map((line, index) =>
+      rasterTextLayer({
+        text: line,
+        fontSize: layout.titleSize,
+        fontWeight: 800,
+        color: "#ffffff",
+        left: layout.innerLeft,
+        top: layout.titleFirstTop + index * layout.titleLineHeight,
+        maxWidth: layout.innerWidth,
+      })
+    ),
+    ...layout.cards.map((card, index) =>
+      rasterTextLayer({
+        text: offers[index] || subline,
+        fontSize: layout.offerFontSize,
+        fontWeight: 700,
+        color: "#ffffff",
+        left: card.left + layout.gap * 1.35,
+        top:
+          card.top +
+          Math.max(layout.gap, Math.round((card.height - layout.offerFontSize) / 2)),
+        maxWidth: card.width - layout.gap * 2.1,
+      })
+    ),
+    rasterTextLayer({
+      text: cta,
+      fontSize: layout.ctaFontSize,
+      fontWeight: 800,
+      color: "#ffffff",
+      left: layout.ctaLeft + layout.gap,
+      top:
+        layout.ctaTop +
+        Math.max(4, Math.round((layout.ctaHeight - layout.ctaFontSize) / 2)),
+      maxWidth: layout.ctaWidth - layout.gap * 2,
+    }),
+  ]);
+  const copyOverlay = await sharp(transparent)
+    .composite([
+      { input: flyerBackdropSvg(args, layout), left: 0, top: 0 },
+      ...flyerLayers.filter((layer): layer is NonNullable<typeof layer> =>
+        Boolean(layer)
+      ),
+    ])
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+  const overlays = await buildBrandOverlays({ ...args, copyOverlay });
+  return await sharp(transparent)
+    .composite(overlays)
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+}
+
 async function buildBrandOverlays(
   args: RenderBaseArgs & {
     copyOverlay: Buffer;
@@ -548,9 +807,13 @@ export async function composeAiMediaBrandedImage(
     input: Buffer;
     scene: AiMediaCreativeScene;
     withText: boolean;
+    copy?: AiMediaImageCompositionCopy;
   }
 ) {
-  const overlay = await renderAiMediaVideoOverlay(args);
+  const overlay =
+    args.imagePurpose === "flyer"
+      ? await renderAiMediaFlyerOverlay(args)
+      : await renderAiMediaVideoOverlay(args);
   return await sharp(args.input, {
     failOn: "error",
     limitInputPixels: 50_000_000,

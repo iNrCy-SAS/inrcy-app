@@ -242,10 +242,10 @@ test("Générer possède quatre blocs stables, dédiés à Image et à Vidéo", 
   for (const title of [
     "Sujet & consigne",
     "Sélection",
-    "Type, format & direction visuelle",
-    "Texte & identité",
-    "Durée, scénario, format & réalisation",
-    "Voix, son, texte & identité",
+    "Création, format & identité visuelle",
+    "Texte du visuel",
+    "Durée, scénario & identité visuelle",
+    "Texte, voix & son",
   ]) {
     assertGeneratorUsesLabel(title);
   }
@@ -272,7 +272,7 @@ test("Générer possède quatre blocs stables, dédiés à Image et à Vidéo", 
   );
   assert.match(
     generatorStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.generator \.directionCard\s*\{[\s\S]*?grid-template-rows:\s*max-content minmax\(0, 1fr\) max-content;[\s\S]*?align-content:\s*stretch;/,
+    /@media \(min-width: 1101px\)[\s\S]*?\.generator \.directionCard\s*\{[\s\S]*?grid-template-rows:\s*max-content minmax\(0, 1fr\) max-content max-content;[\s\S]*?align-content:\s*stretch;/,
     "le bloc 3 desktop doit répartir ses réglages dans toute la hauteur utile",
   );
   assert.match(
@@ -843,10 +843,11 @@ test("Flyer comparatif reste un contrat graphique structuré jusqu’au moteur",
   for (const expected of [
     /TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL/,
     /simple photo stock plein cadre/,
-    /deux cartes ou deux colonnes d’offres/,
-    /noms, prix, bénéfices et CTA/,
+    /arrière-plan équilibré pour deux offres/,
+    /sans dessiner de cartes, de colonnes, de tarifs/,
     /RENDU AFFICHE GRAPHIQUE AUTORITAIRE/,
-    /fond graphique complet avec ses panneaux/,
+    /uniquement un arrière-plan commercial propre/,
+    /iNrCy construit ensuite la grille complète du flyer/,
     /16:9/,
     /DIRECTION VISUELLE STRUCTURÉE — BOLD/,
   ]) {

@@ -36,6 +36,10 @@ const GENERATION_SERVER_SOURCE = readFileSync(
   path.join(LIB_ROOT, "aiMediaGenerationServer.ts"),
   "utf8",
 );
+const BRAND_RENDERER_SOURCE = readFileSync(
+  path.join(LIB_ROOT, "aiMediaBrandRenderer.ts"),
+  "utf8",
+);
 
 const REFERENCE_DATA = Buffer.alloc(96, 31).toString("base64");
 
@@ -798,6 +802,15 @@ test("la composition locale garde les valeurs de texte hors du prompt fournisseu
     /useDeterministicImageComposition\s*=\s*[\s\S]*providerRequest\.withText/,
   );
   assert.match(GENERATION_SERVER_SOURCE, /composeAiMediaBrandedImage\(\{/);
+  assert.match(
+    GENERATION_SERVER_SOURCE,
+    /copy:\s*\{[\s\S]*?headline:\s*creativePlan\.headline[\s\S]*?subline:\s*creativePlan\.subline[\s\S]*?cta:\s*creativePlan\.cta/,
+  );
+  assert.match(BRAND_RENDERER_SOURCE, /renderAiMediaFlyerOverlay/);
+  assert.match(
+    BRAND_RENDERER_SOURCE,
+    /args\.imagePurpose === "flyer"[\s\S]*?renderAiMediaFlyerOverlay\(args\)/,
+  );
 });
 
 test("la compaction ne supprime aucune option Image autoritaire du prompt fournisseur", () => {

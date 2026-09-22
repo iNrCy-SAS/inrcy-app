@@ -5328,6 +5328,7 @@
   );
   font-size: 20px;
   font-weight: 900;
+  cursor: pointer;
 }
 
 .referenceDropzone > span:nth-child(2) {
@@ -5643,9 +5644,10 @@
 }
 
 .exactTextField textarea {
-  height: clamp(92px, 11dvh, 132px);
-  min-height: 92px;
+  height: 98px;
+  min-height: 98px;
   padding-right: 12px;
+  resize: none;
   white-space: pre-wrap;
 }
 
@@ -5657,7 +5659,14 @@
 }
 
 .finishCard[data-media-kind="video"] {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.videoAudioSettings {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
 }
 
 /*
@@ -5671,20 +5680,76 @@
 }
 
 .finishCard[data-media-kind="image"] {
-  grid-template-rows: max-content minmax(0, 1fr) max-content;
+  grid-template-rows: max-content minmax(0, 1fr);
 }
 
 .finishCard[data-media-kind="image"] > .textModePanel {
   min-height: 0;
   align-content: start;
-  overflow-y: auto;
-  padding-right: 2px;
 }
 
 .finishCard[data-media-kind="video"] > .essentialCardHeader,
-.finishCard[data-media-kind="video"] > .textModePanel,
-.finishCard[data-media-kind="video"] > .identitySettings {
+.finishCard[data-media-kind="video"] > .textModePanel {
   grid-column: 1 / -1;
+}
+
+@media (min-width: 1500px) and (min-height: 800px) {
+  .generator .finishCard[data-media-kind="video"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: max-content minmax(0, 1fr);
+    overflow-y: hidden;
+  }
+
+  .finishCard[data-media-kind="video"] > .essentialCardHeader {
+    grid-column: 1 / -1;
+  }
+
+  .finishCard[data-media-kind="video"] > .textModePanel {
+    grid-column: 1;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .finishCard[data-media-kind="video"] > .videoAudioSettings {
+    grid-column: 2;
+    min-height: 0;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .soundChoices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .soundChoices strong {
+    font-size: 8.6px;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .soundChoices small {
+    font-size: 7px;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .voiceSettings {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 8px;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .voiceSettings > *,
+  .finishCard[data-media-kind="video"] .videoAudioSettings .studioSelect,
+  .finishCard[data-media-kind="video"] .videoAudioSettings .essentialSwitchRow {
+    min-width: 0;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .essentialSegmented {
+    width: 100%;
+    max-width: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: column;
+    gap: 6px;
+  }
+
+  .finishCard[data-media-kind="video"] .videoAudioSettings .essentialSegmented button {
+    min-width: 0;
+  }
 }
 
 @media (min-width: 1101px) {
@@ -5746,7 +5811,7 @@
   .generator .directionCard {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: max-content minmax(0, 1fr) max-content;
+    grid-template-rows: max-content minmax(0, 1fr) max-content max-content;
     grid-template-areas: none;
     align-content: stretch;
   }
@@ -5761,6 +5826,10 @@
   }
 
   .generator .directionCard > .sceneModeField {
+    align-self: end;
+  }
+
+  .generator .directionCard > .identitySettings {
     align-self: end;
   }
 
@@ -5779,7 +5848,7 @@
   }
 
   .generator .directionCard[data-media-kind="image"] {
-    grid-template-rows: max-content minmax(0, 1fr);
+    grid-template-rows: max-content minmax(0, 1fr) max-content;
     align-content: stretch;
   }
 

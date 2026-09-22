@@ -79,6 +79,12 @@ type BrandRendererModule = {
       layout: "editorial";
     };
     withText: boolean;
+    imagePurpose?: "flyer";
+    copy?: {
+      headline: string;
+      subline: string;
+      cta: string;
+    };
   }) => Promise<Buffer>;
 };
 
@@ -444,6 +450,58 @@ test("les images reçoivent elles aussi leur texte exact après la génération"
   assert.ok(
     stats.channels.some((channel) => channel.stdev > 8),
     "le calque éditorial modifie réellement le fond généré"
+  );
+});
+
+test("un flyer reçoit une vraie grille commerciale avec offres et CTA", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
+  );
+  const base = await sharp({
+    create: {
+      width: 568,
+      height: 320,
+      channels: 3,
+      background: "#f8fafc",
+    },
+  })
+    .jpeg()
+    .toBuffer();
+  const composed = await runtime.composeAiMediaBrandedImage({
+    input: base,
+    width: 568,
+    height: 320,
+    logo: null,
+    colors: ["#f97316", "#8b5cf6", "#0ea5e9"],
+    companyName: "iNrCy",
+    visualStyle: "clean",
+    logoMode: "none",
+    imagePurpose: "flyer",
+    withText: true,
+    copy: {
+      headline: "Standard ou Premium",
+      subline: "standard 58 € / mois · premium 108 € / mois",
+      cta: "Comparer les offres",
+    },
+    scene: {
+      eyebrow: "iNrCy",
+      title: "Standard ou Premium",
+      body: "standard 58 € / mois · premium 108 € / mois",
+      layout: "editorial",
+    },
+  });
+  const metadata = await sharp(composed).metadata();
+  const stats = await sharp(composed).stats();
+  assert.equal(metadata.format, "jpeg");
+  assert.equal(metadata.width, 568);
+  assert.equal(metadata.height, 320);
+  assert.ok(
+    stats.channels.every((channel) => channel.mean < 210),
+    "la grille du flyer transforme bien le fond clair en composition éditoriale",
+  );
+  assert.ok(
+    stats.channels.some((channel) => channel.stdev > 35),
+    "les cartes, accents et CTA produisent une hiérarchie graphique visible",
   );
 });
 

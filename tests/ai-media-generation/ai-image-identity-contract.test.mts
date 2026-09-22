@@ -119,7 +119,15 @@ test("iNrStudio accepte le catalogue image Booster et convertit les formats navi
 
   assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES/);
   assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS/);
-  assert.match(generator, /accept=\{INSPIRATION_IMAGE_ACCEPT\}/);
+  assert.match(generator, /INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES/);
+  assert.match(generator, /INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS/);
+  assert.match(generator, /const INSPIRATION_MEDIA_ACCEPT/);
+  assert.match(
+    generator,
+    /kind === "video"\s*\? INSPIRATION_MEDIA_ACCEPT\s*:\s*INSPIRATION_IMAGE_ACCEPT/,
+  );
+  assert.match(generator, /prepareVideoReferenceFrame/);
+  assert.match(generator, /htmlFor="ai-media-reference-multiple"/);
   assert.match(generator, /target: "ai_identity_reference"/);
   assert.match(generator, /prepareInspirationImageInBrowser/);
   assert.match(generator, /prepareInspirationImageOnServer/);

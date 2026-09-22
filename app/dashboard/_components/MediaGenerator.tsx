@@ -48,6 +48,8 @@ import {
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
+  INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS,
+  INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
   INR_MEDIA_IMAGE_FORMATS_LABEL,
   INR_MEDIA_IMAGE_MAX_MB_LABEL,
   INR_MEDIA_VIDEO_SOURCE_MAX_BYTES,
@@ -184,6 +186,12 @@ const REQUIRED_REFERENCE_ROLES: Array<{
 const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
+].join(",");
+const INSPIRATION_MEDIA_ACCEPT = [
+  ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
+  ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
+  ...INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
+  ...INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
 function normalizeCharacterReferenceIndexes(images: StudioReferenceImage[]) {
@@ -1143,10 +1151,7 @@ export default function MediaGenerator({
     setActionError("");
     try {
       const prepared =
-        transformMode &&
-        studioMode === "modify" &&
-        role === "inspiration" &&
-        isInrMediaVideoFile(file)
+        role === "inspiration" && isInrMediaVideoFile(file)
           ? await prepareVideoReferenceFrame(file)
           : await prepareMediaGenerationImageReference(file);
       const proposedRole =
@@ -1680,7 +1685,11 @@ export default function MediaGenerator({
           <input
             id={inputId}
             type="file"
-            accept={INSPIRATION_IMAGE_ACCEPT}
+            accept={
+              kind === "video"
+                ? INSPIRATION_MEDIA_ACCEPT
+                : INSPIRATION_IMAGE_ACCEPT
+            }
             disabled={operationLocked}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
@@ -2344,12 +2353,13 @@ export default function MediaGenerator({
                   }
                 }}
               >
-                <span
+                <label
                   className={styles.referenceDropzoneIcon}
-                  aria-hidden="true"
+                  htmlFor="ai-media-reference-multiple"
+                  aria-label="Ajouter une référence"
                 >
                   +
-                </span>
+                </label>
                 <span>
                   <strong>Déposez vos références ici</strong>
                   <small>
@@ -2364,7 +2374,11 @@ export default function MediaGenerator({
                   <input
                     id="ai-media-reference-multiple"
                     type="file"
-                    accept={INSPIRATION_IMAGE_ACCEPT}
+                    accept={
+                      kind === "video"
+                        ? INSPIRATION_MEDIA_ACCEPT
+                        : INSPIRATION_IMAGE_ACCEPT
+                    }
                     multiple
                     disabled={
                       operationLocked ||
@@ -2543,8 +2557,8 @@ export default function MediaGenerator({
               </h3>
               <p>
                 {kind === "image"
-                  ? "Donnez le cadre de production ; l’IA complète ce que votre consigne ne précise pas."
-                  : "Cadrez le film, son rythme et la continuité de son histoire."}
+                  ? "Cadrez la création, son format et l’identité visuelle de l’entreprise."
+                  : "Cadrez le film, son rythme et l’identité visuelle de l’entreprise."}
               </p>
             </div>
             <RememberPreferenceControl
@@ -2685,6 +2699,41 @@ export default function MediaGenerator({
             </label>
           </div>
 
+          <div className={styles.identitySettings}>
+            <label className={styles.essentialSwitchRow}>
+              <span>
+                <strong>{t("ai_generator_brand_colors")}</strong>
+                <small>{t("ai_generator_brand_colors_hint")}</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={useBrandColors}
+                disabled={operationLocked}
+                onChange={(event) => setUseBrandColors(event.target.checked)}
+              />
+              <i aria-hidden="true" />
+            </label>
+
+            <div className={styles.essentialField}>
+              <span>{t("ai_generator_logo_label")}</span>
+              <div className={styles.essentialSegmented} role="radiogroup">
+                {LOGO_MODES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={logoMode === option}
+                    data-active={logoMode === option ? "true" : "false"}
+                    disabled={operationLocked}
+                    onClick={() => setLogoMode(option)}
+                  >
+                    {t(`ai_generator_logo_${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {kind === "video" && durationSeconds > 8 ? (
             <div className={styles.sceneModeField}>
               <span>Organisation du scénario</span>
@@ -2731,8 +2780,8 @@ export default function MediaGenerator({
               </h3>
               <p>
                 {kind === "image"
-                  ? "Décidez exactement ce qui doit être écrit et signé."
-                  : "Pilotez ce qui sera entendu, lu et identifié dans la vidéo."}
+                  ? "Décidez exactement ce qui doit être écrit sur le visuel."
+                  : "Pilotez le texte, les voix et l’univers sonore de la vidéo."}
               </p>
             </div>
             <RememberPreferenceControl
@@ -2897,7 +2946,7 @@ export default function MediaGenerator({
           </div>
 
           {kind === "video" ? (
-            <>
+            <div className={styles.videoAudioSettings}>
               <div className={styles.soundChoices} role="radiogroup">
                 {(["voiceover", "characters"] as const).map((mode) => (
                   <button
@@ -3011,43 +3060,9 @@ export default function MediaGenerator({
                 />
                 <i aria-hidden="true" />
               </label>
-            </>
+            </div>
           ) : null}
 
-          <div className={styles.identitySettings}>
-            <label className={styles.essentialSwitchRow}>
-              <span>
-                <strong>{t("ai_generator_brand_colors")}</strong>
-                <small>{t("ai_generator_brand_colors_hint")}</small>
-              </span>
-              <input
-                type="checkbox"
-                checked={useBrandColors}
-                disabled={operationLocked}
-                onChange={(event) => setUseBrandColors(event.target.checked)}
-              />
-              <i aria-hidden="true" />
-            </label>
-
-            <div className={styles.essentialField}>
-              <span>{t("ai_generator_logo_label")}</span>
-              <div className={styles.essentialSegmented} role="radiogroup">
-                {LOGO_MODES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={logoMode === option}
-                    data-active={logoMode === option ? "true" : "false"}
-                    disabled={operationLocked}
-                    onClick={() => setLogoMode(option)}
-                  >
-                    {t(`ai_generator_logo_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </section>
       </div>
 
@@ -3197,7 +3212,7 @@ export default function MediaGenerator({
         open={libraryPickerOpen}
         title={t("ai_generator_inspiration_library_title")}
         subtitle={t("ai_generator_inspiration_library_subtitle")}
-        accept="image"
+        accept={kind === "video" ? "all" : "image"}
         multiple={!transformMode}
         maxSelection={
           transformMode

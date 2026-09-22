@@ -84,14 +84,18 @@ function buildImagePurposeContract(args: AiMediaPromptBuilderArgs) {
       common,
       "INTERDICTION : ne jamais produire une simple photo stock plein cadre, un portrait générique ou une photographie avec une petite barre décorative.",
       "Imposer une vraie composition graphique professionnelle : grille éditoriale, hiérarchie titre/offre, zones de texte volontairement dessinées, contrastes lisibles, marges sûres, point focal commercial et zone d’appel à l’action.",
-      comparisonRequested
-        ? "COMPARAISON OBLIGATOIRE : prévoir deux cartes ou deux colonnes d’offres équilibrées et immédiatement comparables, avec emplacements distincts pour les noms, prix, bénéfices et CTA. Les deux offres ont la même importance visuelle."
-        : "Prévoir au moins une carte d’offre structurée avec emplacements distincts pour titre, bénéfices, prix éventuel et CTA.",
+      args.deferVisibleElementsToComposer
+        ? comparisonRequested
+          ? "COMPARAISON OBLIGATOIRE GÉRÉE PAR INR'CY : conserver un arrière-plan équilibré pour deux offres de même importance, sans dessiner de cartes, de colonnes, de tarifs ni de faux éléments d’interface."
+          : "MISE EN PAGE COMMERCIALE GÉRÉE PAR INR'CY : conserver un arrière-plan lisible sans dessiner de carte d’offre ni de faux élément d’interface."
+        : comparisonRequested
+          ? "COMPARAISON OBLIGATOIRE : prévoir deux cartes ou deux colonnes d’offres équilibrées et immédiatement comparables, avec emplacements distincts pour les noms, prix, bénéfices et CTA. Les deux offres ont la même importance visuelle."
+          : "Prévoir au moins une carte d’offre structurée avec emplacements distincts pour titre, bénéfices, prix éventuel et CTA.",
       request.imageStyle === "graphic"
         ? "RENDU AFFICHE GRAPHIQUE AUTORITAIRE : formes, aplats, cartes, séparateurs et typographie structurent le visuel ; la photographie éventuelle reste secondaire."
         : "Le rendu choisi complète cette architecture commerciale sans la remplacer.",
       args.deferVisibleElementsToComposer
-        ? "Le fournisseur livre le fond graphique complet avec ses panneaux et zones de composition vides ; iNrCy posera ensuite les mots et chiffres exacts dans ces zones."
+        ? "Le fournisseur livre uniquement un arrière-plan commercial propre, sans texte, sans lettre, sans chiffre, sans carte tarifaire, sans tableau, sans bouton et sans panneau vide. iNrCy construit ensuite la grille complète du flyer avec les mots et chiffres exacts."
         : "Composer chaque information lisible dans la zone graphique qui lui est réservée.",
     ].join("\n");
   }

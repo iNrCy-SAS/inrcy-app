@@ -636,6 +636,11 @@ export async function generateAndSaveAiMedia(args: {
               logoMode: providerRequest.logoMode,
               imagePurpose: providerRequest.imagePurpose,
               withText: true,
+              copy: {
+                headline: creativePlan.headline,
+                subline: creativePlan.subline,
+                cta: creativePlan.cta,
+              },
             })
         );
         normalized = { ...normalized, buffer: composedBuffer };
