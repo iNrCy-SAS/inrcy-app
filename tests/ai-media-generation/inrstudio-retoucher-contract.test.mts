@@ -113,6 +113,29 @@ test("Retoucher vidéo réutilise le moteur d'adaptation existant dans iNrStudio
   assert.match(studio, /onVideoRetouched=\{saveRetouchedVideo\}/);
 });
 
+test("Retoucher garde les informations sous l'image et rend toute la zone vidéo cliquable", () => {
+  assert.match(
+    retoucherStyles,
+    /\.sourcePreview\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\) auto;/
+  );
+  assert.match(
+    retoucherStyles,
+    /\.sourceMeta\s*\{[^}]*position:\s*static;/
+  );
+  assert.doesNotMatch(
+    retoucherStyles,
+    /\.sourceMeta\s*\{[^}]*position:\s*absolute;/
+  );
+  assert.match(
+    videoRetoucher,
+    /<button\s+[\s\S]*?className=\{styles\.dropzone\}[\s\S]*?onClick=\{\(\) => fileInputRef\.current\?\.click\(\)\}/
+  );
+  assert.match(
+    videoRetoucher,
+    /className=\{styles\.dropIcon\}>＋<\/span>/
+  );
+});
+
 test("le header iNrStudio centralise Action et Image ou Vidéo", () => {
   assert.match(modal, /className=\{styles\.studioTabs\}/);
   assert.match(modal, /className=\{styles\.mediaTypeTabs\}/);

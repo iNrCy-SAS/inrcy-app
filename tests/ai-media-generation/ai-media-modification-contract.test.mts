@@ -8,6 +8,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 import {
+  AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
   AiMediaRequestValidationError,
   normalizeAiMediaGenerationRequest,
   type AiMediaGenerationRequest,
@@ -62,6 +63,136 @@ function loadLocalRuntime<T>(filename: string): T {
     path.dirname(resolved)
   );
   return record.exports as T;
+}
+
+function loadImageGatewayBoundaryRuntime() {
+  const filename = path.join(LIB_ROOT, "aiMediaGateway.ts");
+  const captures: {
+    nominal?: {
+      text: string;
+      images: readonly Buffer[];
+      size: string;
+    };
+    google?: {
+      text: string;
+      imageData: string;
+      imageMimeType: string;
+      aspectRatio: string;
+    };
+  } = {};
+  const output = ts.transpileModule(readFileSync(filename, "utf8"), {
+    fileName: filename,
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const stubs = new Map<string, unknown>([
+    ["server-only", {}],
+    [
+      "ai",
+      {
+        experimental_generateImage: async (args: {
+          prompt: string | { text: string; images: readonly Buffer[] };
+          size: string;
+        }) => {
+          const prompt =
+            typeof args.prompt === "string"
+              ? { text: args.prompt, images: [] as readonly Buffer[] }
+              : args.prompt;
+          captures.nominal = {
+            text: prompt.text,
+            images: prompt.images,
+            size: args.size,
+          };
+          return {
+            image: {
+              uint8Array: new Uint8Array([1, 2, 3]),
+              mediaType: "image/jpeg",
+            },
+            images: [],
+            warnings: [],
+            usage: {},
+          };
+        },
+        NoImageGeneratedError: { isInstance: () => false },
+      },
+    ],
+    [
+      "@google/genai",
+      {
+        GoogleGenAI: class {
+          interactions = {
+            create: async (args: {
+              input: Array<{
+                type: string;
+                text?: string;
+                data?: string;
+                mime_type?: string;
+              }>;
+              response_format: { aspect_ratio: string };
+            }) => {
+              const image = args.input.find((item) => item.type === "image");
+              captures.google = {
+                text: String(args.input[0]?.text || ""),
+                imageData: String(image?.data || ""),
+                imageMimeType: String(image?.mime_type || ""),
+                aspectRatio: args.response_format.aspect_ratio,
+              };
+              return {
+                output_image: {
+                  data: Buffer.from([1, 2, 3]).toString("base64"),
+                  mime_type: "image/jpeg",
+                },
+                usage: {},
+              };
+            },
+          };
+        },
+      },
+    ],
+    [
+      "@/lib/aiGatewayAccountGuard",
+      {
+        reserveAiGatewayAccountAttempt: async () => ({}),
+        commitAiGatewayAccountAttempt: async () => undefined,
+        rollbackAiGatewayAccountAttempt: async () => undefined,
+        recordAiGatewayAccountFailure: async () => undefined,
+      },
+    ],
+    [
+      "@/lib/aiMediaBuffer",
+      { bufferFromUint8ArrayView: (value: Uint8Array) => Buffer.from(value) },
+    ],
+    ["@/lib/aiMediaGenerationContracts", {}],
+    [
+      "@/lib/aiMediaSensitiveText",
+      { redactAiMediaSensitiveText: (value: unknown) => String(value || "") },
+    ],
+  ]);
+  const record = { exports: {} as Record<string, unknown> };
+  const factory = vm.runInThisContext(
+    `(function(exports,require,module,__filename,__dirname){${output}\n})`,
+    { filename: `${filename}.modification-boundary.cjs` }
+  );
+  factory(
+    record.exports,
+    (specifier: string) => {
+      if (stubs.has(specifier)) return stubs.get(specifier);
+      throw new Error(`unexpected_test_dependency:${specifier}`);
+    },
+    record,
+    filename,
+    path.dirname(filename)
+  );
+  return {
+    runtime: record.exports as {
+      generateAiMediaImage: typeof import("../../lib/aiMediaGateway.ts").generateAiMediaImage;
+      generateAiMediaImageWithGoogle: typeof import("../../lib/aiMediaGateway.ts").generateAiMediaImageWithGoogle;
+    },
+    captures,
+  };
 }
 
 const { buildAiMediaPrompt, getAiMediaPromptOutputSpec } = loadLocalRuntime<
@@ -189,6 +320,176 @@ test("Modifier exige une vraie consigne", () => {
   assertInvalid(
     modificationRequest({ aiInstruction: "ok" }),
     /décrivez la modification/i
+  );
+});
+
+test("la consigne Modifier Image conserve jusqu'à 1 200 caractères de bout en bout", () => {
+  const endMarker = "FIN-1200";
+  const acceptedInstruction = `${"A".repeat(
+    AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS - endMarker.length
+  )}${endMarker}`;
+  const overflowInstruction = `${acceptedInstruction}HORS-LIMITE`;
+  const request = normalizeAiMediaGenerationRequest(
+    modificationRequest({ aiInstruction: acceptedInstruction })
+  );
+
+  assert.equal(AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS, 1_200);
+  assert.equal(request.aiInstruction.length, 1_200);
+  assert.equal(request.aiInstruction, acceptedInstruction);
+  assertInvalid(
+    modificationRequest({ aiInstruction: overflowInstruction }),
+    /1.?200 caractères/i
+  );
+
+  const prompt = buildAiMediaPrompt({ request, profile: {} as never });
+  assert.match(prompt, /FIN-1200/);
+  assert.doesNotMatch(prompt, /HORS-LIMITE/);
+  assert.throws(
+    () =>
+      buildAiMediaPrompt({
+        request: { ...request, aiInstruction: overflowInstruction },
+        profile: {} as never,
+      }),
+    /ai_media_modification_instruction_too_long/
+  );
+
+  const modifier = readFileSync(
+    path.resolve("app/dashboard/_components/MediaModifier.tsx"),
+    "utf8"
+  );
+  const hook = readFileSync(
+    path.resolve("app/dashboard/_hooks/useMediaGeneration.ts"),
+    "utf8"
+  );
+  const promptSource = readFileSync(
+    path.resolve("lib/aiMediaModificationPrompt.ts"),
+    "utf8"
+  );
+  assert.ok(
+    (modifier.match(/maxLength=\{AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS\}/g) || [])
+      .length >= 2,
+    "le textarea et la dictée partagent la même borne"
+  );
+  assert.match(
+    modifier,
+    /instruction\.length\}\/\{AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS\}/
+  );
+  assert.ok(
+    (hook.match(/normalizeMediaGenerationAiInstruction\(request\)/g) || [])
+      .length >= 2,
+    "la clé d'idempotence et le payload valident la même consigne Modifier"
+  );
+  assert.match(hook, /value\.length > AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS/);
+  assert.match(
+    promptSource,
+    /AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS \+ 1[\s\S]*?instruction\.length > AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS/
+  );
+});
+
+test("le moteur nominal et le fallback reçoivent la consigne 1 200, la source et le contrat Modifier intacts", async () => {
+  const endMarker = "FIN-PROVIDER-1200";
+  const acceptedInstruction = `${"B".repeat(
+    AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS - endMarker.length
+  )}${endMarker}`;
+  const request = normalizeAiMediaGenerationRequest(
+    modificationRequest({
+      aiInstruction: acceptedInstruction,
+      identityMode: "professional",
+      identityConsent: true,
+      identityReferenceSetId: "identity-detour-interdit",
+    })
+  );
+  const compiledPrompt = buildAiMediaPrompt({
+    request,
+    profile: {} as never,
+  });
+  const sourceBytes = Buffer.from("source-webp-assainie-modifier-image");
+  const { runtime, captures } = loadImageGatewayBoundaryRuntime();
+  const previousGatewayKey = process.env.AI_GATEWAY_API_KEY;
+  const previousGoogleKey = process.env.GEMINI_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  process.env.GEMINI_API_KEY = "test-key";
+  try {
+    await runtime.generateAiMediaImage({
+      accountId: "modify-provider-boundary",
+      prompt: compiledPrompt,
+      operation: request.operation,
+      identityMode: request.identityMode,
+      identityReferences: [sourceBytes],
+      referenceRoles: request.inspirationImages.map(
+        ({ role, usage, characterIndex }) => ({ role, usage, characterIndex })
+      ),
+      size: "1536x1024",
+    });
+    await runtime.generateAiMediaImageWithGoogle({
+      accountId: "modify-provider-boundary",
+      prompt: compiledPrompt,
+      operation: request.operation,
+      identityMode: request.identityMode,
+      identityReferences: [sourceBytes],
+      referenceRoles: request.inspirationImages.map(
+        ({ role, usage, characterIndex }) => ({ role, usage, characterIndex })
+      ),
+      size: "1536x1024",
+    });
+  } finally {
+    if (previousGatewayKey === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previousGatewayKey;
+    if (previousGoogleKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGoogleKey;
+  }
+
+  assert.equal(request.aiInstruction.length, 1_200);
+  assert.equal(request.identityMode, "auto");
+  assert.equal(request.identityConsent, false);
+  assert.match(compiledPrompt, /1795 × 876 px/);
+  assert.match(compiledPrompt, /ratio exact 1795:876/);
+  assert.match(compiledPrompt, /FIN-PROVIDER-1200/);
+
+  assert.ok(captures.nominal);
+  assert.ok(captures.google);
+  assert.equal(
+    captures.nominal.text.slice(0, compiledPrompt.length),
+    compiledPrompt,
+    "le moteur nominal reçoit le prompt compilé sans réécriture"
+  );
+  assert.equal(
+    captures.google.text.slice(0, compiledPrompt.length),
+    compiledPrompt,
+    "le fallback reçoit le même prompt compilé sans réécriture"
+  );
+  assert.equal(captures.nominal.text, captures.google.text);
+  assert.equal(
+    captures.nominal.text.match(/FIN-PROVIDER-1200/g)?.length,
+    1
+  );
+  assert.match(captures.nominal.text, /Image 1 est l’image source exacte à modifier/);
+  assert.match(captures.nominal.text, /conserver tous les pixels, sujets, identités/);
+  assert.equal(captures.nominal.images.length, 1);
+  assert.ok(captures.nominal.images[0]?.equals(sourceBytes));
+  assert.equal(captures.google.imageData, sourceBytes.toString("base64"));
+  assert.equal(captures.google.imageMimeType, "image/webp");
+  assert.equal(captures.nominal.size, "1536x1024");
+  assert.equal(captures.google.aspectRatio, "3:2");
+
+  const server = readFileSync(
+    path.resolve("lib/aiMediaGenerationServer.ts"),
+    "utf8"
+  );
+  const imageBranch = server.slice(
+    server.indexOf('if (providerRequest.kind === "image")'),
+    server.indexOf("const imageBuffer = gateway.buffer")
+  );
+  assert.match(imageBranch, /operation: providerRequest\.operation/);
+  assert.match(
+    imageBranch,
+    /identityReferences: preparedIdentityReferences\.buffers/
+  );
+  assert.match(imageBranch, /referenceRoles: preparedReferenceRoles/);
+  assert.match(imageBranch, /generateAiMediaImage\(imageProviderRequest\)/);
+  assert.match(
+    imageBranch,
+    /generateAiMediaImageWithGoogle\(imageProviderRequest\)/
   );
 });
 

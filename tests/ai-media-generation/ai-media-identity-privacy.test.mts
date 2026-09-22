@@ -108,7 +108,7 @@ test("le serveur assainit une seule fois puis transmet les mêmes références a
   const normalization = server.indexOf(
     "prepareAiMediaIdentityReferences(args.request.inspirationImages)",
   );
-  const imageProvider = server.indexOf("generateAiMediaImage({");
+  const imageProvider = server.indexOf("buildAiMediaImageProviderRequest({");
   const videoProvider = server.indexOf("generateOriginalAiVideoClips({");
 
   assert.ok(normalization > 0);

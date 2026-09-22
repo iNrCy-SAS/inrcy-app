@@ -52,7 +52,7 @@ test("les canaux sociaux opaques restent en JPEG léger", () => {
 
 test("le chemin original ne rend ni ne persiste de variante par canal", () => {
   const source = read("lib/boosterImageServerPreparation.ts");
-  assert.match(source, /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8/);
+  assert.match(source, /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9/);
   assert.match(source, /"Originale" is reference-only/);
   assert.match(source, /let cachedVariantsPromise/);
   assert.doesNotMatch(source, /renderPublicationOriginal/);

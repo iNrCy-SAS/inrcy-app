@@ -35,6 +35,7 @@ import {
   generateAiMediaImageWithGoogle,
   type AiMediaGatewayResult,
 } from "@/lib/aiMediaGateway";
+import { buildAiMediaImageProviderRequest } from "@/lib/aiMediaImageProviderRequest";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
 import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
 import {
@@ -509,20 +510,21 @@ export async function generateAndSaveAiMedia(args: {
 
   if (providerRequest.kind === "image") {
     args.signal?.throwIfAborted();
+    const imageProviderRequest = buildAiMediaImageProviderRequest({
+      accountId: args.accountId,
+      prompt,
+      operation: providerRequest.operation,
+      identityMode: providerRequest.identityMode,
+      identityReferences: preparedIdentityReferences.buffers,
+      referenceRoles: preparedReferenceRoles,
+      officialLogo: useDeterministicImageComposition ? null : officialLogo,
+      size: format.generationSize,
+      signal: args.signal,
+    });
     let gateway: AiMediaGatewayResult;
     try {
       gateway = await measure("image_provider", () =>
-        generateAiMediaImage({
-          accountId: args.accountId,
-          prompt,
-          operation: providerRequest.operation,
-          identityMode: providerRequest.identityMode,
-          identityReferences: preparedIdentityReferences.buffers,
-          referenceRoles: preparedReferenceRoles,
-          officialLogo: useDeterministicImageComposition ? null : officialLogo,
-          size: format.generationSize,
-          signal: args.signal,
-        })
+        generateAiMediaImage(imageProviderRequest)
       );
     } catch (primaryError) {
       args.signal?.throwIfAborted();
@@ -540,19 +542,7 @@ export async function generateAndSaveAiMedia(args: {
       });
       try {
         gateway = await measure("image_provider_google_fallback", () =>
-          generateAiMediaImageWithGoogle({
-            accountId: args.accountId,
-            prompt,
-            operation: providerRequest.operation,
-            identityMode: providerRequest.identityMode,
-            identityReferences: preparedIdentityReferences.buffers,
-            referenceRoles: preparedReferenceRoles,
-            officialLogo: useDeterministicImageComposition
-              ? null
-              : officialLogo,
-            size: format.generationSize,
-            signal: args.signal,
-          })
+          generateAiMediaImageWithGoogle(imageProviderRequest)
         );
       } catch (fallbackError) {
         args.signal?.throwIfAborted();
@@ -614,6 +604,22 @@ export async function generateAndSaveAiMedia(args: {
     } else if (providerRequest.withText) {
       const imageScene = creativePlan.scenes[0];
       if (!imageScene) throw new Error("ai_image_visible_copy_missing");
+      const composedImageBody = [
+        imageScene.body || creativePlan.subline,
+        creativePlan.cta,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" · ");
+      const composedImageScene = {
+        ...imageScene,
+        eyebrow: imageScene.eyebrow || creativePlan.companyName,
+        title: imageScene.title || creativePlan.headline,
+        body: composedImageBody,
+      };
+      if (!composedImageScene.title.trim()) {
+        throw new Error("ai_image_visible_copy_missing");
+      }
       try {
         const composedBuffer = await measure(
           "image_exact_copy_composition",
@@ -622,17 +628,13 @@ export async function generateAndSaveAiMedia(args: {
               input: normalized.buffer,
               width: format.width,
               height: format.height,
-              scene: {
-                ...imageScene,
-                eyebrow: "",
-                title: creativePlan.headline,
-                body: "",
-              },
+              scene: composedImageScene,
               logo: officialLogo,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
               visualStyle: providerRequest.visualStyle,
               logoMode: providerRequest.logoMode,
+              imagePurpose: providerRequest.imagePurpose,
               withText: true,
             })
         );

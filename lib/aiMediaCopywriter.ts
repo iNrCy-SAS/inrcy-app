@@ -140,6 +140,30 @@ function keepFreshLocalCopyOrRemove(
   return plan;
 }
 
+function recoverCopywriterFailure(args: {
+  textMode: "none" | "ai" | "exact";
+  plan: AiMediaCreativePlan;
+  recentPublications: readonly RecentMediaCopy[];
+  keepSpokenCopy: boolean;
+}) {
+  if (args.textMode !== "ai") {
+    return removeAiMediaFallbackCopy(args.plan, {
+      keepSpokenCopy: args.keepSpokenCopy,
+    });
+  }
+  const fallback = keepFreshLocalCopyOrRemove(
+    args.plan,
+    args.recentPublications
+  );
+  if (!normalizeAiMediaCopy(fallback.headline)) {
+    // Un média qui promet du texte visible ne doit jamais atteindre le moteur
+    // avec un calque vide. L'appel est arrêté proprement plutôt que de facturer
+    // une image décorative impossible à utiliser.
+    throw new Error("ai_media_visible_copy_unavailable");
+  }
+  return fallback;
+}
+
 function compactCopy(value: unknown, maximum: number) {
   return acceptCompleteAiMediaVisibleCopy(value, maximum);
 }
@@ -340,12 +364,23 @@ function applyLocalizedCopy(
   const headline = compactHeadline(generated.headline);
   const cta = compactCopy(generated.cta, 58);
   if (!headline || !cta || isGenericMediaCopy(headline)) return null;
-  if (!preservesAiMediaProtectedTerms(headline, protectedTerms)) return null;
 
   const generatedScenes = Array.isArray(generated.scenes)
     ? generated.scenes
     : [];
   if (generatedScenes.length !== plan.scenes.length) return null;
+  const visibleCopyDeck = [
+    headline,
+    cta,
+    ...generatedScenes.flatMap((scene) => [
+      scene?.eyebrow,
+      scene?.title,
+      scene?.body,
+    ]),
+  ].join(" ");
+  if (!preservesAiMediaProtectedTerms(visibleCopyDeck, protectedTerms)) {
+    return null;
+  }
   if (
     requireSpokenTerms &&
     protectedTerms.length > 0 &&
@@ -515,7 +550,7 @@ export async function writeAiMediaHeadline(args: {
         protectedTerms.length
           ? `TERMES LITTÉRAUX OBLIGATOIRES : ${protectedTerms.join(" ; ")}. Chaque expression est atomique : recopie-la exactement, sans la traduire, la raccourcir, la séparer ni en supprimer le dernier mot. Réécris les mots autour si nécessaire.`
           : "Ne coupe jamais un nom propre, une marque ou un lieu.",
-        "Utilise uniquement les faits fournis et n'ajoute ni prix, promotion, certification, adresse, délai ni résultat garanti.",
+        "Utilise uniquement les faits fournis : n’invente jamais de prix, promotion, certification, adresse, délai ni résultat garanti. Si le professionnel a fourni un prix, un nom d’offre, une périodicité ou une promotion, conserve-les exactement dans le deck visible.",
         "Les couleurs, cadrages et paramètres sont des directives visuelles, jamais du texte visible ou prononcé. Aucun code couleur ni préfixe technique, sauf texte littéral explicitement demandé.",
       ].join(" "),
       input: JSON.stringify({
@@ -573,7 +608,12 @@ export async function writeAiMediaHeadline(args: {
         (value) => !isAiMediaTechnicalCopyAllowed(value, args.request)
       )
     ) {
-      return removeAiMediaFallbackCopy(args.plan);
+      return recoverCopywriterFailure({
+        textMode,
+        plan: args.plan,
+        recentPublications: args.recentPublications || [],
+        keepSpokenCopy: spokenCopyRequested,
+      });
     }
     if (
       repeatsRecentVisibleCopy(
@@ -592,10 +632,12 @@ export async function writeAiMediaHeadline(args: {
         args.recentPublications || []
       )
     ) {
-      return keepFreshLocalCopyOrRemove(
-        args.plan,
-        args.recentPublications || []
-      );
+      return recoverCopywriterFailure({
+        textMode,
+        plan: args.plan,
+        recentPublications: args.recentPublications || [],
+        keepSpokenCopy: spokenCopyRequested,
+      });
     }
     const headline = compactHeadline(generated.headline);
     if (
@@ -603,11 +645,16 @@ export async function writeAiMediaHeadline(args: {
       !isNaturalHeadline(
         headline,
         args.request.textKeywords,
-        args.request.idea,
+        args.request.idea || args.request.aiInstruction,
         languageCode
       )
     ) {
-      return removeAiMediaFallbackCopy(args.plan);
+      return recoverCopywriterFailure({
+        textMode,
+        plan: args.plan,
+        recentPublications: args.recentPublications || [],
+        keepSpokenCopy: spokenCopyRequested,
+      });
     }
     const localized = applyLocalizedCopy(
       args.plan,
@@ -616,11 +663,29 @@ export async function writeAiMediaHeadline(args: {
       protectedTerms,
       spokenCopyRequested
     );
-    if (!localized) return removeAiMediaFallbackCopy(args.plan);
+    if (!localized) {
+      return recoverCopywriterFailure({
+        textMode,
+        plan: args.plan,
+        recentPublications: args.recentPublications || [],
+        keepSpokenCopy: spokenCopyRequested,
+      });
+    }
     return textMode === "none"
       ? removeAiMediaFallbackCopy(localized, { keepSpokenCopy: true })
       : localized;
-  } catch {
-    return removeAiMediaFallbackCopy(args.plan);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "ai_media_visible_copy_unavailable"
+    ) {
+      throw error;
+    }
+    return recoverCopywriterFailure({
+      textMode,
+      plan: args.plan,
+      recentPublications: args.recentPublications || [],
+      keepSpokenCopy: spokenCopyRequested,
+    });
   }
 }

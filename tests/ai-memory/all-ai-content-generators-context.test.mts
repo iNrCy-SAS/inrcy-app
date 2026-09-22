@@ -138,7 +138,15 @@ test("image and video provider calls only receive prompts compiled upstream from
 
   assert.match(mediaServer, /const profile = buildNormalizedAiGenerationProfile\(/);
   assert.match(mediaServer, /buildAiMediaPrompt\(\{[\s\S]*?profile,/);
-  assert.match(mediaServer, /generateAiMediaImage\(\{[\s\S]*?prompt,/);
+  assert.match(
+    mediaServer,
+    /const imageProviderRequest = buildAiMediaImageProviderRequest\(\{[\s\S]*?prompt,/
+  );
+  assert.match(mediaServer, /generateAiMediaImage\(imageProviderRequest\)/);
+  assert.match(
+    mediaServer,
+    /generateAiMediaImageWithGoogle\(imageProviderRequest\)/
+  );
   assert.match(mediaServer, /buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(imageTransport, /await generateImage\(\{/);
   assert.match(videoVeoTransport, /args\.ai\.models\.generateVideos\(\{/);

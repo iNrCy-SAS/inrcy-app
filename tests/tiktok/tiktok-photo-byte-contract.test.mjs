@@ -107,7 +107,7 @@ test("all TikTok image exits use the new immutable byte contract", async () => {
   assert.match(route, /meta\.format !== "jpeg"/);
   assert.match(route, /meta\.isProgressive === true/);
   assert.match(route, /meta\.chromaSubsampling/);
-  assert.match(booster, /TIKTOK_CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 10/);
+  assert.match(booster, /TIKTOK_CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 11/);
   assert.match(booster, /tiktok:\s*new Set\(\)/);
   assert.match(booster, /await ensureTikTokPhotoContract\(variant\.output\)/);
   assert.match(publish, /media_type:\s*"PHOTO"/);

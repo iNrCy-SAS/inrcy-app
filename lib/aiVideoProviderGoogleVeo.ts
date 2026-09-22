@@ -56,10 +56,10 @@ const DEFAULT_TIMEOUT_MS = 420_000;
 const DEFAULT_POLL_MS = 2_500;
 const DEFAULT_SUBMIT_ATTEMPTS = 4;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
-// Le modèle exposé à cette clé annonce une limite d'entrée de 480 tokens.
-// 1 400 caractères laisse une marge pour la tokenisation des accents et évite
-// qu'un profil très rempli invalide toute la génération.
-const MAX_VEO_PROMPT_CHARS = 1_400;
+// Veo 3.1 accepte 1 024 tokens d'entrée. 3 200 caractères gardent une marge
+// prudente pour la tokenisation multilingue tout en laissant passer la consigne
+// Studio (1 600 caractères) et le contrat structuré complet dans chaque scène.
+export const MAX_VEO_PROMPT_CHARS = 3_200;
 // Keep the established two-act parallelism within typical Google RPM quotas.
 const DEFAULT_CONCURRENCY = 2;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
@@ -122,7 +122,14 @@ function promptSnippet(value: unknown, max: number) {
  * supprimait précisément cette partie avant l'appel vidéo.
  */
 export function priorityPromptSnippet(value: unknown, max: number) {
-  const normalized = compact(value, Math.max(max * 5, max + 64));
+  // Normalize without a preliminary head-only slice. The caller already
+  // supplies bounded Studio fields (2,000/2,400 chars), and taking only
+  // `max * 5` here made the "tail" come from that prefix instead of from the
+  // professional's real final instruction.
+  const normalized = String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (normalized.length <= max) return promptSnippet(normalized, max);
   const separator = " | ";
   const available = Math.max(8, max - separator.length);
@@ -137,6 +144,39 @@ export function priorityPromptSnippet(value: unknown, max: number) {
     [head, tail].filter(Boolean).join(separator).slice(0, max),
     max,
   );
+}
+
+/**
+ * Contrat de consigne envoyé tel quel à chaque scène Google.
+ *
+ * Une consigne n'est pas un simple contexte décoratif : couper son milieu peut
+ * supprimer une interdiction, un objet obligatoire ou l'étape principale du
+ * film. Nous ne faisons donc plus de résumé « début + fin ». Les répétitions
+ * strictement identiques sont dédupliquées (utile pour les copier-coller), mais
+ * chaque exigence distincte reste entière. Si ce contrat ne tient finalement
+ * pas dans la limite du fournisseur, l'appel est refusé avant toute génération
+ * payante au lieu de produire une vidéo qui ignore silencieusement le brief.
+ */
+export function buildGoogleVideoInstructionContract(value: unknown) {
+  const normalized = adultSafePromptText(value, 2_400);
+  if (!normalized) return "";
+
+  const clauses = normalized
+    .split(/(?:\r?\n|(?<=[.!?;])\s+)/u)
+    .map((clause) => clause.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const distinct = clauses.filter((clause) => {
+    const signature = clause
+      .normalize("NFKC")
+      .toLocaleLowerCase("fr-FR")
+      .replace(/[\s.!?;,]+$/u, "")
+      .trim();
+    if (!signature || seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+  return distinct.join(" ");
 }
 
 function joinCompletePromptSections(
@@ -482,30 +522,6 @@ function subjectSafetyDirection(value: string) {
   return "";
 }
 
-const VEO_VISUAL_STYLE_CUES: Record<
-  AiVideoProviderGenerationArgs["request"]["visualStyle"],
-  string
-> = {
-  brand: "brand-led",
-  clean: "minimal",
-  premium: "luxury",
-  warm: "human-warm",
-  dynamic: "energetic",
-  expert: "precise",
-  local: "authentic-local",
-  colorful: "vivid",
-};
-
-const VEO_RENDER_CUES: Record<
-  AiVideoProviderGenerationArgs["request"]["imageStyle"],
-  string
-> = {
-  photo: "cinematic",
-  illustration: "animated",
-  three_d: "polished-3d",
-  graphic: "motion-graphics",
-};
-
 /** Every UI choice is encoded once, without depending on optional prose. */
 export function buildGoogleVideoParameterContract(
   request: AiVideoProviderGenerationArgs["request"],
@@ -518,19 +534,43 @@ export function buildGoogleVideoParameterContract(
     ? describeAiMediaBrandColors(colors.split(","))
     : [];
   const palette = colorNames.length ? colorNames.join("/") : "subject-led";
+  const sceneMode =
+    request.sceneMode || (request.connectScenes ? "single" : "multi");
+  const textMode = request.textMode || (request.withText ? "ai" : "none");
+  const audioMode =
+    request.teamVideoSpeechMode === "characters"
+      ? "characters"
+      : request.withNarration
+        ? `voiceover-${request.narrationVoice || "female"}-${
+            request.narrationVoiceVariant || "default"
+          }`
+        : "silent";
+
+  // This compact contract is the authoritative Studio contract delivered to
+  // the actual Veo/Omni request for every act. The long compiled prompt built
+  // by the server is useful for planning, but provider scene prompts have a
+  // strict 1,400-character budget; encoding every structured choice here
+  // prevents a UI option from disappearing between the plan and the provider.
   return compact(
     [
-      `${durationSeconds}s`,
-      request.format,
-      request.typology,
-      `visual=${request.visualStyle}/${VEO_VISUAL_STYLE_CUES[request.visualStyle]}`,
-      `render=${request.imageStyle}/${VEO_RENDER_CUES[request.imageStyle]}`,
-      `shot=${request.shotType}`,
-      `people=${request.peopleMode}`,
-      `creative=${request.creativity}`,
-      `light/material-accents=${palette}`,
+      `film=${request.durationSeconds || durationSeconds}s`,
+      `fmt=${request.format}`,
+      `type=${request.typology}`,
+      `mode=${request.generationMode || "ai_free"}`,
+      `crit=${request.peopleCriterion || "auto"}/${
+        request.settingCriterion || "auto"
+      }/${request.focusCriterion || "auto"}`,
+      `dir=${request.visualDirection || "auto"}`,
+      `look=${request.visualStyle}/${request.imageStyle}/${request.shotType}/${
+        request.peopleMode
+      }/${request.creativity}`,
+      `story=${sceneMode}/${request.connectScenes ? "linked" : "unlinked"}`,
+      `text=${textMode}`,
+      `audio=${audioMode}/${request.withMusic ? "music" : "no-music"}`,
+      `logo=${request.logoMode}`,
+      `pal=${palette}`,
     ].join(";"),
-    220,
+    280,
   );
 }
 
@@ -582,10 +622,7 @@ export function buildGoogleVideoTeamSpeechDirection(
   args: AiVideoProviderGenerationArgs,
   index: number,
 ) {
-  if (
-    args.request.teamVideoMode !== "cinematic" ||
-    args.request.inspirationImages.length === 0
-  ) {
+  if (args.request.teamVideoMode !== "cinematic") {
     return "AUDIO: natural ambience only; no speech, voice-over, lyrics or music. iNrCy adds final audio.";
   }
 
@@ -600,11 +637,11 @@ export function buildGoogleVideoTeamSpeechDirection(
     language,
   })[index];
   if (args.request.identityMode !== "reference_team") {
-    return `DIALOGUE: recurring character lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. No repeat/old line/narrator/music/cloning; stable adult synthetic voice.`;
+    return `DIALOGUE: recurring character lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice swap; stable adult synthetic voice.`;
   }
   const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
   const firstSpeaker = (index % teamSize) + 1;
-  return `DIALOGUE: Person ${firstSpeaker} left-to-right lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. No repeat/old line/narrator/music/cloning/voice-face swap; stable adult synthetic voice.`;
+  return `DIALOGUE: Person ${firstSpeaker} left-to-right lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice-face swap; stable adult synthetic voice.`;
 }
 
 export function buildGoogleVideoSequenceDirection(
@@ -628,7 +665,7 @@ function buildGoogleVideoContinuityCast(
     return `same ${identityTeamMemberCount === 3 ? 3 : 2} approved adults, each once`;
   }
   if (request.videoCharacterMode === "professional") {
-    return "same approved adult, face/hair/build";
+    return "all distinct approved adults from character refs, each once";
   }
   if (request.videoCharacterMode === "brand_avatar") {
     return "same approved avatar/design";
@@ -667,8 +704,8 @@ export function buildGoogleVideoContinuityContract(
         args.identityTeamMemberCount,
       )}`,
       "LOCK faces/hair/clothes/voices/place/light/palette/lens/camera",
-      `PATH ${startState || "task begins"}->${endState || "task completed"}`,
       selectedVideoFraming(args.request.shotType).contract,
+      `PATH ${startState || "task begins"}->${endState || "task completed"}`,
     ].join("; "),
     180,
   );
@@ -680,19 +717,41 @@ export function buildGoogleVideoReferenceContract(
 ) {
   const count = request.inspirationImages.length;
   if (!count) return "none; create an original scene";
+  const inventory = request.inspirationImages
+    .map((reference, index) => {
+      const role = reference.role || "inspiration";
+      const usage = reference.usage || "inspiration";
+      const character = reference.characterIndex
+        ? `/character-${reference.characterIndex}`
+        : "";
+      return `#${index + 1}:${role}/${usage}${character}`;
+    })
+    .join(",");
+  const withInventory = (direction: string) =>
+    `files=${inventory}; ${direction}`;
   if (request.identityMode === "reference_team") {
-    return `group=${identityTeamMemberCount === 3 ? 3 : 2} adults, each once; identities locked; all move 0.0s; no merge/omit/duplicate/swap`;
+    return withInventory(
+      `group=${identityTeamMemberCount === 3 ? 3 : 2} adults, each once; identities locked; all move 0.0s; no merge/omit/duplicate/swap`,
+    );
   }
   if (request.identityMode === "professional") {
-    return `${count} adult identity view${count === 1 ? "" : "s"}; same face/hair/build each act; real motion at 0.0s`;
+    return withInventory(
+      "all distinct approved adults visible in required character refs; each once; same face/hair/build each act; motion 0.0s",
+    );
   }
   if (request.identityMode === "brand_avatar") {
-    return `${count} avatar reference${count === 1 ? "" : "s"}; same design/features each act; real motion at 0.0s`;
+    return withInventory(
+      `${count} avatar reference${count === 1 ? "" : "s"}; same design/features each act; real motion at 0.0s`,
+    );
   }
   if (request.teamVideoMode === "cinematic") {
-    return "source to animate, not mood board; keep main subject/design each act; real motion at 0.0s";
+    return withInventory(
+      "source to animate, not mood board; keep every required role faithful in each act; inspiration-only files guide mood/style; real motion at 0.0s",
+    );
   }
-  return `${count} inspiration image${count === 1 ? "" : "s"}; use subject/mood/composition/style, not real identity`;
+  return withInventory(
+    `${count} reference image${count === 1 ? "" : "s"}; required roles stay faithful; inspiration-only roles use subject/mood/composition/style, not real identity`,
+  );
 }
 
 function preservesIdentityReferences(
@@ -742,7 +801,11 @@ export function buildGoogleVideoScenePrompt(
     .filter(Boolean)
     .join(" ");
   const servesMinorAudience = mentionsMinorAudience(rawContext);
-  const exactIdea = adultSafePromptText(args.request.idea, 700);
+  // Keep the whole normalized user input available until the final bounded
+  // extraction below. Truncating to the first 700 characters here used to
+  // make `priorityPromptSnippet()` preserve the end of an already truncated
+  // prefix instead of the actual end written by the professional.
+  const exactIdea = adultSafePromptText(args.request.idea, 2_000);
   const professionalActivity = adultSafePromptText(
     args.profession || args.plan.companyName,
     140,
@@ -751,10 +814,9 @@ export function buildGoogleVideoScenePrompt(
   const digitalDirection = subjectDigitalDirection(rawContext);
   const safetyDirection = subjectSafetyDirection(rawContext);
   const businessContext = adultSafePromptText(args.creativeBrief, 180);
-  const sceneDirection = adultSafePromptText(scene?.visualBrief, 700);
-  const punctualInstruction = adultSafePromptText(
+  const sceneDirection = adultSafePromptText(scene?.visualBrief, 2_400);
+  const punctualInstruction = buildGoogleVideoInstructionContract(
     args.request.aiInstruction,
-    700,
   );
   const speechDirection = buildGoogleVideoTeamSpeechDirection(args, index);
   const framingDirection = buildGoogleVideoFramingDirection(args.request);
@@ -776,8 +838,7 @@ export function buildGoogleVideoScenePrompt(
     .join(" -> ");
   const nativeDialogueRequested =
     args.request.teamVideoMode === "cinematic" &&
-    args.request.teamVideoSpeechMode === "characters" &&
-    args.request.inspirationImages.length > 0;
+    args.request.teamVideoSpeechMode === "characters";
   // Le budget Veo est strict. Ces limites privilégient la saisie du
   // professionnel, mais conservent aussi le rôle du fichier joint, l'action de
   // l'acte et les paramètres visuels dans CHAQUE segment indépendant.
@@ -786,19 +847,18 @@ export function buildGoogleVideoScenePrompt(
       : `${professionalActivity}; ${businessContext}`;
   const actionSource = [sceneDirection, scene?.title, scene?.body].filter(Boolean).join(" — ");
   let subjectBudget = nativeDialogueRequested ? 105 : 190;
-  let instructionBudget = nativeDialogueRequested ? 54 : 125;
   let actionBudget = nativeDialogueRequested ? 70 : 118;
   let primarySubject = priorityPromptSnippet(subjectSource, subjectBudget);
-  let userDirection = priorityPromptSnippet(punctualInstruction, instructionBudget);
-  const referenceContract = promptSnippet(
-    options.continuationFrame
-      ? "prior generated frame; preserve its visible cast/design/place/framing; continue action"
-      : buildGoogleVideoReferenceContract(
-      args.request,
-      args.identityTeamMemberCount,
-    ),
-    nativeDialogueRequested ? 98 : 175,
-  );
+  // La consigne distincte complète est un invariant. Contrairement au sujet et
+  // au brief de scène, elle ne peut jamais être tronquée : soit elle tient dans
+  // chaque prompt fournisseur, soit nous arrêtons avant l'appel payant.
+  const userDirection = punctualInstruction;
+  const referenceContract = options.continuationFrame
+    ? "prior generated frame; preserve its visible cast/design/place/framing; continue action"
+    : buildGoogleVideoReferenceContract(
+        args.request,
+        args.identityTeamMemberCount,
+      );
   // Depuis le plan v18, visualBrief commence par le rôle propre de l'acte. Le
   // garder avant son titre évite que les actes 1–8, 9–16 et 17–24 rejouent la
   // même pose ou que seule la seconde tranche anime la référence.
@@ -844,19 +904,22 @@ export function buildGoogleVideoScenePrompt(
   // never drop dialogue, references, selected settings or complete guardrails.
   while (
     requiredPrompt.length > MAX_VEO_PROMPT_CHARS &&
-    (subjectBudget > 80 || instructionBudget > 42 || actionBudget > 50)
+    (subjectBudget > 70 || actionBudget > 36)
   ) {
-    const reduction = Math.max(4, Math.ceil((requiredPrompt.length - MAX_VEO_PROMPT_CHARS) / 3));
-    subjectBudget = Math.max(80, subjectBudget - reduction);
-    instructionBudget = Math.max(42, instructionBudget - reduction);
-    actionBudget = Math.max(50, actionBudget - reduction);
+    const reduction = Math.max(4, Math.ceil((requiredPrompt.length - MAX_VEO_PROMPT_CHARS) / 2));
+    subjectBudget = Math.max(70, subjectBudget - reduction);
+    actionBudget = Math.max(36, actionBudget - reduction);
     primarySubject = priorityPromptSnippet(subjectSource, subjectBudget);
-    userDirection = priorityPromptSnippet(punctualInstruction, instructionBudget);
     actAction = priorityPromptSnippet(actionSource, actionBudget);
     sections = requiredSections();
     requiredPrompt = sections.join(" ");
   }
   if (requiredPrompt.length > MAX_VEO_PROMPT_CHARS) {
+    if (userDirection) {
+      throw new Error(
+        `ai_video_instruction_contract_too_long:${userDirection.length}:${requiredPrompt.length}`,
+      );
+    }
     throw new Error(
       `ai_video_veo_required_prompt_budget_exceeded:${requiredPrompt.length}:${sections
         .map((section) => section.length)

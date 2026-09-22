@@ -9,7 +9,7 @@ test("original images bypass channel variant generation entirely", async () => {
     read("lib/boosterImageServerPreparation.ts"),
     read("lib/boosterVideoVariantServer.ts"),
   ]);
-  assert.match(images, /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8/);
+  assert.match(images, /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9/);
   assert.match(images, /initialDecision\.mode === "original"[\s\S]{0,160}originalReferenceTransform/);
   assert.match(images, /"Originale" is reference-only/);
   assert.match(images, /let cachedVariantsPromise/);
@@ -54,7 +54,7 @@ test("the site iframe stays visible when reduced motion disables animations", as
 
 test("the site iframe eagerly loads every image in a media carousel", async () => {
   const source = await read("app/embed/actus/_lib/render.ts");
-  assert.match(source, /images\.map\(\(img\) =>/);
+  assert.match(source, /const slides = images\.map\(\(img, imageIndex\) =>/);
   assert.match(source, /loading="eager" fetchpriority="high" decoding="async"/);
   assert.doesNotMatch(source, /loading="lazy"/);
   assert.doesNotMatch(source, /fetchpriority="auto"/);
@@ -91,7 +91,12 @@ test("Booster, iNrAgent and iNrSend keep Original as the untouched default", asy
   assert.match(publishImagesPanel, /getChannelSafetyBackgroundMode/);
   assert.doesNotMatch(publishImagesPanel, /backgroundMode:\s*["']blur["']/);
   assert.doesNotMatch(publishImagesPanel, /blurBackground:\s*true/);
-  assert.match(agent, /getLocalizedVideoAdaptationModeLabel\([\s\S]*?boosterRuntimeT/);
+  assert.match(
+    agent,
+    /function getCurrentVideoSettings\(\)[\s\S]*format: normalizeVideoFormat\([\s\S]*rawSettings\?\.format \|\| currentPublishMediaRecord\?\.videoFormat/,
+  );
+  assert.match(agent, /tab: "retouch"[\s\S]*origin: "inr-agent"/);
+  assert.doesNotMatch(agent, /getRecommendedVideoFormatForSource/);
   assert.doesNotMatch(agent, /Fond flouté/);
   assert.doesNotMatch(
     mailbox,

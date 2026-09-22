@@ -1,12 +1,41 @@
 import { useTranslations } from "next-intl";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
-import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
+import {
+  normalizeImageOverlay,
+  resolveImageOverlayCoordinates,
+  type ImageOverlay,
+} from "@/lib/imageOverlay";
 
 import type { BackgroundMode, ModalProps } from "./types";
 
 import { legacyColorFromMode, MOBILE_DOCK_HEIGHT, normalizedMode, previewBackgroundStyle } from "./utils";
+
+type OverlayGesture = {
+  pointerId: number;
+  mode: "move" | "resize";
+  captureTarget: HTMLElement;
+  stageWidth: number;
+  stageHeight: number;
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  startLeft: number;
+  startTop: number;
+};
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function clampOverlayCenter(value: number, size: number) {
+  const half = size / 2;
+  return clamp(value, half, 100 - half);
+}
 
 
 export function ChannelImageAdapterModal({
@@ -56,6 +85,7 @@ export function ChannelImageAdapterModal({
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window === "undefined" ? 1440 : window.innerWidth);
   const [showBefore, setShowBefore] = useState(false);
   const [adapterBaseline, setAdapterBaseline] = useState("");
+  const overlayGestureRef = useRef<OverlayGesture | null>(null);
   const adapterSnapshot = JSON.stringify({ backgroundMode, backgroundColor, fitLabel, zoomLabel, overlay });
 
   useEffect(() => {
@@ -95,6 +125,106 @@ export function ChannelImageAdapterModal({
     const next = normalizeImageOverlay({ ...(normalizedOverlay || {}), ...patch });
     onOverlayChange?.(next);
   };
+  const beginOverlayGesture = (
+    event: React.PointerEvent<HTMLElement>,
+    mode: OverlayGesture["mode"],
+  ) => {
+    if (!normalizedOverlay?.text) return;
+    const stage = event.currentTarget.closest<HTMLElement>(
+      '[data-adapter-preview-stage="true"]',
+    );
+    const overlayElement = event.currentTarget.closest<HTMLElement>(
+      '[data-image-overlay="true"]',
+    );
+    if (!stage || !overlayElement) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const stageRect = stage.getBoundingClientRect();
+    const overlayRect = overlayElement.getBoundingClientRect();
+    if (!stageRect.width || !stageRect.height) return;
+    const coordinates = resolveImageOverlayCoordinates(normalizedOverlay);
+    const width = clamp(
+      normalizedOverlay.width ?? (overlayRect.width / stageRect.width) * 100,
+      16,
+      96,
+    );
+    const height = clamp(
+      normalizedOverlay.height ?? (overlayRect.height / stageRect.height) * 100,
+      8,
+      92,
+    );
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    overlayGestureRef.current = {
+      pointerId: event.pointerId,
+      mode,
+      captureTarget: event.currentTarget,
+      stageWidth: stageRect.width,
+      stageHeight: stageRect.height,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: coordinates.x,
+      startY: coordinates.y,
+      startWidth: width,
+      startHeight: height,
+      startLeft: coordinates.x - width / 2,
+      startTop: coordinates.y - height / 2,
+    };
+  };
+  const moveOverlayGesture = (event: React.PointerEvent<HTMLElement>) => {
+    const gesture = overlayGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const deltaX =
+      ((event.clientX - gesture.startClientX) / gesture.stageWidth) * 100;
+    const deltaY =
+      ((event.clientY - gesture.startClientY) / gesture.stageHeight) * 100;
+    if (gesture.mode === "move") {
+      updateOverlay({
+        x: clampOverlayCenter(
+          gesture.startX + deltaX,
+          gesture.startWidth,
+        ),
+        y: clampOverlayCenter(
+          gesture.startY + deltaY,
+          gesture.startHeight,
+        ),
+      });
+      return;
+    }
+    const width = clamp(
+      gesture.startWidth + deltaX,
+      16,
+      Math.max(
+        16,
+        Math.min(96, 100 - Math.max(0, gesture.startLeft)),
+      ),
+    );
+    const height = clamp(
+      gesture.startHeight + deltaY,
+      8,
+      Math.max(
+        8,
+        Math.min(92, 100 - Math.max(0, gesture.startTop)),
+      ),
+    );
+    updateOverlay({
+      width,
+      height,
+      x: clampOverlayCenter(gesture.startLeft + width / 2, width),
+      y: clampOverlayCenter(gesture.startTop + height / 2, height),
+    });
+  };
+  const finishOverlayGesture = (event: React.PointerEvent<HTMLElement>) => {
+    const gesture = overlayGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (gesture.captureTarget.hasPointerCapture?.(event.pointerId)) {
+      gesture.captureTarget.releasePointerCapture?.(event.pointerId);
+    }
+    overlayGestureRef.current = null;
+  };
 
   const isMobile = viewportWidth <= 768;
   const isTinyMobile = viewportWidth <= 390;
@@ -108,8 +238,25 @@ export function ChannelImageAdapterModal({
   const previewMinHeight = isMobile ? (isTinyMobile ? 150 : 180) : isCompact ? 320 : 0;
   const previewHeight = isMobile ? "clamp(150px, 42dvh, 260px)" : undefined;
   const controlsGridColumns = isMobile ? "repeat(2, minmax(0, 1fr))" : "48px 48px 1fr 1fr";
-  const contentGridTemplateColumns = isMobile ? undefined : isCompact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 300px 320px";
-  const contentGridTemplateRows = isMobile ? undefined : isCompact ? "auto auto auto" : undefined;
+  const hasSidebar = Boolean(sidebarItems?.length);
+  const contentGridTemplateColumns = isMobile
+    ? undefined
+    : isCompact
+      ? "minmax(0, 1fr)"
+      : hasSidebar
+        ? "minmax(0, 1fr) 300px 320px"
+        : "minmax(0, 0.92fr) minmax(520px, 1.08fr)";
+  const contentGridTemplateRows = isMobile
+    ? undefined
+    : isCompact
+      ? hasSidebar
+        ? "auto auto auto"
+        : "auto auto"
+      : undefined;
+  const settingsGridColumns =
+    !isMobile && !isCompact && !hasSidebar
+      ? "repeat(2, minmax(0, 1fr))"
+      : undefined;
   const isFullFrame = fitLabel === "Plein cadre";
   const fitModeButtonStyle = (active: boolean): React.CSSProperties => ({
     justifyContent: "center",
@@ -150,6 +297,7 @@ export function ChannelImageAdapterModal({
             <div style={{ minWidth: 0, width: "100%", minHeight: previewMinHeight, height: previewHeight, maxHeight: isMobile ? "42dvh" : undefined, display: "grid", placeItems: "center", borderRadius: isMobile ? 18 : 24, border: "1px solid rgba(255,255,255,0.10)", background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.02))", padding: isMobile ? 6 : 14, overflow: "hidden", flex: isMobile ? "0 0 auto" : undefined, boxSizing: "border-box" }}>
               <div
                 ref={previewRef}
+                data-adapter-preview-stage="true"
                 onWheel={onWheel}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -167,13 +315,30 @@ export function ChannelImageAdapterModal({
                 )}
                 {normalizedOverlay?.text ? (
                   <div
+                    data-image-overlay="true"
+                    onPointerDown={(event) =>
+                      beginOverlayGesture(event, "move")
+                    }
+                    onPointerMove={moveOverlayGesture}
+                    onPointerUp={finishOverlayGesture}
+                    onPointerCancel={finishOverlayGesture}
+                    onLostPointerCapture={() => {
+                      overlayGestureRef.current = null;
+                    }}
+                    onDoubleClick={(event) => event.stopPropagation()}
                     style={{
                       position: "absolute",
-                      left: "8%",
-                      right: "8%",
-                      top: normalizedOverlay.position === "top" ? "8%" : normalizedOverlay.position === "bottom" ? undefined : "50%",
-                      bottom: normalizedOverlay.position === "bottom" ? "8%" : undefined,
-                      transform: normalizedOverlay.position === "center" ? "translateY(-50%)" : undefined,
+                      left: `${resolveImageOverlayCoordinates(normalizedOverlay).x}%`,
+                      top: `${resolveImageOverlayCoordinates(normalizedOverlay).y}%`,
+                      width: `${normalizedOverlay.width ?? 84}%`,
+                      height: normalizedOverlay.height
+                        ? `${normalizedOverlay.height}%`
+                        : undefined,
+                      minHeight: normalizedOverlay.height ? undefined : "12%",
+                      transform: "translate(-50%, -50%)",
+                      boxSizing: "border-box",
+                      display: "grid",
+                      placeItems: "center",
                       padding: "clamp(8px, 2.2%, 18px) clamp(12px, 3.5%, 28px)",
                       borderRadius: 16,
                       background: normalizedOverlay.style === "glass" ? "rgba(255,255,255,0.2)" : "rgba(6,10,20,0.78)",
@@ -185,11 +350,45 @@ export function ChannelImageAdapterModal({
                       textAlign: "center",
                       whiteSpace: "pre-wrap",
                       overflowWrap: "anywhere",
-                      pointerEvents: "none",
+                      overflow: "hidden",
+                      userSelect: "none",
+                      touchAction: "none",
+                cursor: "move",
                       zIndex: 2,
                     }}
                   >
-                    {normalizedOverlay.text}
+                    <span>{normalizedOverlay.text}</span>
+                    <button
+                      type="button"
+                      aria-label="Redimensionner le bandeau"
+                      title="Redimensionner le bandeau"
+                      onClick={(event) => event.stopPropagation()}
+                      onPointerDown={(event) =>
+                        beginOverlayGesture(event, "resize")
+                      }
+                      style={{
+                        position: "absolute",
+                        right: 4,
+                        bottom: 4,
+                        width: 28,
+                        height: 28,
+                        display: "grid",
+                        placeItems: "center",
+                        padding: 0,
+                        border: "1px solid rgba(255,255,255,0.72)",
+                        borderRadius: 8,
+                        color: "#fff",
+                        background: "rgba(6,10,20,0.78)",
+                        boxShadow: "0 4px 14px rgba(0,0,0,0.34)",
+                        font: "inherit",
+                        fontSize: 15,
+                        lineHeight: 1,
+                        cursor: "nwse-resize",
+                        touchAction: "none",
+                      }}
+                    >
+                      ↘
+                    </button>
                   </div>
                 ) : null}
                 <div style={{ position: "absolute", inset: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.14)", pointerEvents: "none" }} />
@@ -202,7 +401,7 @@ export function ChannelImageAdapterModal({
             <div style={{ fontSize: 12, opacity: 0.72, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{" "}{isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}</div>
           </div>
 
-          <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, alignContent: "start", gap: 12, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
+          <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", gridTemplateColumns: settingsGridColumns, gridAutoRows: settingsGridColumns ? "max-content" : undefined, flexDirection: isMobile ? "column" : undefined, alignContent: "start", gap: 12, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
             <div style={{ display: "grid", gap: 8, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("cadrage_4e72389f")}</div><div style={{ fontSize: 11, opacity: 0.55 }}>{fitLabel} • {zoomLabel}</div></div>
               <div style={{ display: "grid", gridTemplateColumns: controlsGridColumns, gap: 8 }}>
@@ -260,30 +459,20 @@ export function ChannelImageAdapterModal({
                     style={{ width: "100%", minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(2,6,23,0.72)", color: "#fff", padding: "0 12px", boxSizing: "border-box", font: "inherit" }}
                   />
                 </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
-                    <span>{i18nT("retoucher_position")}</span>
-                    <select value={normalizedOverlay?.position || "center"} onChange={(event) => updateOverlay({ position: event.target.value as ImageOverlay["position"] })} style={{ minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#fff", color: "#111827", padding: "0 10px" }}>
-                      <option value="top">{i18nT("retoucher_position_top")}</option>
-                      <option value="center">{i18nT("retoucher_position_center")}</option>
-                      <option value="bottom">{i18nT("retoucher_position_bottom")}</option>
-                    </select>
-                  </label>
-                  <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
-                    <span>{i18nT("retoucher_style")}</span>
-                    <select value={normalizedOverlay?.style || "solid"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay["style"] })} style={{ minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#fff", color: "#111827", padding: "0 10px" }}>
-                      <option value="solid">{i18nT("retoucher_style_solid")}</option>
-                      <option value="glass">{i18nT("retoucher_style_glass")}</option>
-                    </select>
-                  </label>
-                </div>
+                <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.86 }}>
+                  <span>{i18nT("retoucher_style")}</span>
+                  <select value={normalizedOverlay?.style || "solid"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay["style"] })} style={{ minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "#fff", color: "#111827", padding: "0 10px" }}>
+                    <option value="solid">{i18nT("retoucher_style_solid")}</option>
+                    <option value="glass">{i18nT("retoucher_style_glass")}</option>
+                  </select>
+                </label>
                 <small style={{ opacity: 0.68, lineHeight: 1.4 }}>{i18nT("retoucher_link_note")}</small>
               </div>
             ) : null}
           </div>
 
-          <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr)", gap: 12, order: isMobile ? 3 : 2, flex: isMobile ? "0 0 auto" : undefined }}>
-            {sidebarItems?.length ? (
+          {sidebarItems?.length ? (
+            <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr)", gap: 12, order: isMobile ? 3 : 2, flex: isMobile ? "0 0 auto" : undefined }}>
               <div style={{ minHeight: 0, height: isMobile ? "auto" : "100%",
                 marginTop: isMobile ? 8 : 0, display: "grid", gridTemplateRows: isMobile ? undefined : isCompact ? "auto auto" : "auto minmax(0, 1fr)", gap: 8, padding: 14, borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
                 <div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("images_du_canal_5ed27490")}</div>
@@ -318,8 +507,8 @@ export function ChannelImageAdapterModal({
                   ))}
                 </div>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

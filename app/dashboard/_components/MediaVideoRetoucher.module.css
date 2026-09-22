@@ -95,8 +95,27 @@
   border: 1px dashed rgba(255, 183, 91, 0.38);
   border-radius: 22px;
   background: rgba(33, 20, 40, 0.62);
+  color: inherit;
+  font: inherit;
   text-align: center;
+  cursor: pointer;
   transition: 160ms ease;
+}
+
+.dropzone:hover:not(:disabled),
+.dropzone:focus-visible {
+  border-color: rgba(255, 199, 119, 0.78);
+  background: rgba(75, 36, 49, 0.72);
+}
+
+.dropzone:focus-visible {
+  outline: 3px solid rgba(255, 183, 91, 0.28);
+  outline-offset: 3px;
+}
+
+.dropzone:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .dropzone[data-dragging="true"] {

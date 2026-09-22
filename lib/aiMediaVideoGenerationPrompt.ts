@@ -49,7 +49,7 @@ export function buildAiMediaVideoGenerationPrompt(
     buildAiMediaVideoTimelineContract(args),
     request.inputMode !== "essential"
       ? `Typologie : ${request.typology}. Direction visuelle : ${request.visualStyle}.`
-      : `MODE STUDIO GUIDÉ VIDÉO : typologie ${request.typology}, style ${request.visualStyle}, rendu ${request.imageStyle}, cadrage ${request.shotType}, créativité ${request.creativity}. Le brief et le contrat de mode restent prioritaires ; l’ADN sert uniquement de contexte.`,
+      : `MODE STUDIO GUIDÉ VIDÉO : typologie ${request.typology}, style ${request.visualStyle}, direction ${request.visualDirection}, rendu ${request.imageStyle}, cadrage ${request.shotType}, créativité ${request.creativity}. Le brief et le contrat de mode restent prioritaires ; l’ADN sert uniquement de contexte.`,
     "MODULE STYLE ET RÉALISATION :",
     buildAiMediaVideoStyleContract(args),
     `SIGNATURE NARRATIVE PROPRE À CETTE REQUÊTE : ${getAiMediaVideoOriginalityDirection(
@@ -62,7 +62,13 @@ export function buildAiMediaVideoGenerationPrompt(
       : "",
     "MODULE TEXTE VISIBLE :",
     buildAiMediaVideoTextContract(args),
-    "Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy selon le choix du professionnel.",
+    `LOGO STRUCTURÉ — ${request.logoMode} : ne produire aucun logo ni pseudo-logo dans les plans ; iNrCy appliquera ensuite le logo officiel ${
+      request.logoMode === "none"
+        ? "— aucun logo ne sera ajouté"
+        : request.logoMode === "visible"
+        ? "de façon visible mais maîtrisée"
+        : "de façon discrète"
+    }.`,
     buildAiMediaVideoPaletteContract(args),
     request.generationMode === "inspiration"
       ? getAiMediaVideoIdentityDirection(request)

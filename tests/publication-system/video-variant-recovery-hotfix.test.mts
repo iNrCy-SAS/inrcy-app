@@ -104,7 +104,10 @@ test("immediate publication defers video work while scheduling keeps one recover
   assert.match(modal, /generateMissingVideoVariants:\s*true/);
   assert.match(modal, /allowPartialChannelFailures:\s*true/);
   assert.match(modal, /canContinueWithIsolatedVideoPreparationFailures/);
-  assert.match(modal, /deferTechnicalPreparationUntilPublish=/);
+  assert.match(
+    immediatePublish,
+    /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
+  );
 });
 
 test("duration-invalid channels turn red before dispatch and are reported as failed", async () => {

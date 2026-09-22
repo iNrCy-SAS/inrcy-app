@@ -60,7 +60,10 @@ test("Apply-to-all records an explicit decision for every media key", () => {
   );
 
   assert.match(controller, /for \(const imageKey of imageKeysForChannel\)/);
-  assert.match(controller, /transforms\[imageKey\] = \{ \.\.\.activeEditorTransform \}/);
+  assert.match(
+    controller,
+    /transforms\[imageKey\] = \{[\s\S]*\.\.\.activeEditorTransform,[\s\S]*overlay: current\.transforms\[imageKey\]\?\.overlay,[\s\S]*\};/,
+  );
   assert.match(controller, /customizedImageKeys\.add\(imageKey\)/);
   assert.match(controller, /customizedImageKeys\.delete\(imageKey\)/);
   assert.match(controller, /isBoosterImageExplicitlyCustomized/);

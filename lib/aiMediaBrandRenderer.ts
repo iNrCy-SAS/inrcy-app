@@ -5,6 +5,7 @@ import sharp from "sharp";
 
 import type { AiMediaCreativeScene } from "@/lib/aiMediaCreativePlan";
 import type {
+  AiMediaImagePurpose,
   AiMediaLogoMode,
   AiMediaVisualStyle,
 } from "@/lib/aiMediaGenerationContracts";
@@ -26,6 +27,7 @@ type RenderBaseArgs = {
   companyName: string;
   visualStyle: AiMediaVisualStyle;
   logoMode: AiMediaLogoMode;
+  imagePurpose?: AiMediaImagePurpose;
 };
 
 // Sharp/Pango cannot rely on the fonts installed by a serverless host. Vercel
@@ -413,6 +415,22 @@ async function renderSceneCopyOverlay(
 ) {
   const resolved = resolveSceneCopyLayout(args);
   const { layout, placement, titleLines, bodyLines } = resolved;
+  const transparent = await sharp({
+    create: {
+      width: args.width,
+      height: args.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const hasVisibleCopy = [
+    args.scene.eyebrow,
+    ...titleLines,
+    ...bodyLines,
+  ].some((value) => String(value || "").trim().length > 0);
+  if (!hasVisibleCopy) return transparent;
   const textLayers = await Promise.all([
     rasterTextLayer({
       text: args.scene.eyebrow.toLocaleUpperCase(),
@@ -446,16 +464,6 @@ async function renderSceneCopyOverlay(
       })
     ),
   ]);
-  const transparent = await sharp({
-    create: {
-      width: args.width,
-      height: args.height,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    },
-  })
-    .png()
-    .toBuffer();
   return await sharp(transparent)
     .composite([
       { input: sceneCopyBackdropSvg(args, resolved), top: 0, left: 0 },

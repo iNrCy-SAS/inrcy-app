@@ -192,7 +192,7 @@ for (const kind of ["image", "video"] as const) {
           prompt,
           /ENTRÉES DE RÉFÉRENCE VIDÉO[\s\S]*?Référence 1 — rôle=character, usage=required/,
         );
-        assert.match(prompt, /Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy/);
+        assert.match(prompt, /ne produire aucun logo ni pseudo-logo/i);
         assert.match(
           prompt,
           /véritable dessin animé 2D/,
@@ -226,7 +226,7 @@ test("sans texte ou avec composition différée, les règles d’absence de text
     });
     assert.match(withoutText, /Aucun texte visible ne doit être créé/);
     assert.doesNotMatch(withoutText, /Accroche originale sélectionnée/);
-    assert.match(withoutText, /aucun logo, monogramme, emblème ou pseudo-logo|Ne produire aucun logo ni pseudo-logo/);
+    assert.match(withoutText, /aucun logo, monogramme, emblème ou pseudo-logo|ne produire aucun logo ni pseudo-logo/i);
     assert.ok(withoutText.includes(ANTI_SWATCH_RULE));
 
     const deferred = buildAiMediaPrompt({
@@ -285,8 +285,11 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
     });
     assert.ok(prompt.length <= 11_800, `${kind}: le budget doit être respecté`);
     if (kind === "image") {
-      assert.equal(prompt.length, 11_800, "le cas image doit réellement déclencher la compaction");
       assert.match(prompt, /contexte ADN compacté automatiquement/);
+      assert.ok(
+        prompt.length < 11_800,
+        "le contrat image condensé doit garder une marge sans remplissage artificiel",
+      );
     }
     assert.ok(prompt.includes(SUBJECT));
     assert.ok(prompt.includes(INSTRUCTION));

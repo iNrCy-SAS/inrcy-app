@@ -44,6 +44,7 @@ function loadPromptRuntime() {
   }, commonJsModule, filename, path.dirname(filename));
   return commonJsModule.exports as {
     buildGoogleVideoScenePrompt: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoScenePrompt;
+    buildGoogleVideoInstructionContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoInstructionContract;
     buildGoogleVideoFramingDirection: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoFramingDirection;
     buildGoogleVideoContinuityContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoContinuityContract;
     buildGoogleVideoParameterContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoParameterContract;
@@ -71,12 +72,15 @@ function longBrief(language: string, identity: typeof identities[number], format
       requestId: "prompt-budget-request", kind: "video", subjectSource: "custom", source: "studio",
       idea: "Réalisons une belle composition florale avec des roses rouges et des orchidées blanches dans notre grand atelier. ".repeat(8),
       aiInstruction: "Gardez toutes les fleurs et les mêmes personnes dans cet atelier, sans couper ni changer le décor. ".repeat(8),
+      generationMode: "ai_free", peopleCriterion: "auto", settingCriterion: "auto", focusCriterion: "auto",
       withText: false, textKeywords: [], withMusic: false, withNarration: false, narrationVoice: null,
+      textMode: "none", exactText: "", visualDirection: "auto", imagePurpose: "auto",
       format, typology: "behind_scenes", visualStyle: "colorful", imageStyle: "illustration",
       shotType: "close", peopleMode: "team", creativity: "faithful", useBrandColors: true,
       logoMode: "discreet", videoEngine: "omni", identityMode: identity, videoCharacterMode: identity,
       identityConsent: identity !== "auto", teamVideoMode: "cinematic", teamVideoSpeechMode: speech,
-      durationSeconds: 24, inspirationImages: [{ data: "AA==", mimeType: "image/jpeg" }],
+      durationSeconds: 24, sceneMode: "multi", connectScenes: false,
+      inspirationImages: [{ data: "AA==", mimeType: "image/jpeg", role: "inspiration", usage: "inspiration" }],
     },
     plan: {
       companyName: "Notre Atelier", headline: "Le travail des fleurs", cta: "Venez nous découvrir",
@@ -94,7 +98,7 @@ function longBrief(language: string, identity: typeof identities[number], format
 }
 
 for (const language of languages) {
-  test(`${language}: 64 combinaisons longues restent sous 1 400 caractères sans perdre les sections obligatoires`, () => {
+  test(`${language}: 64 combinaisons longues restent sous 3 200 caractères sans perdre les sections obligatoires`, () => {
     let combinations = 0;
     for (const identity of identities) for (const format of formats) for (const speech of speechModes) {
       const args = longBrief(language, identity, format, speech);
@@ -104,11 +108,11 @@ for (const language of languages) {
           ? { continuation: true }
           : { continuationFrame: true, firstFrameTag: true });
         combinations += 1;
-        assert.ok(prompt.length <= 1_400, `${label}: ${prompt.length} caractères`);
+        assert.ok(prompt.length <= 3_200, `${label}: ${prompt.length} caractères`);
         for (const section of ["SUBJECT:", "USER:", "REFERENCE:", "ACT:", "NO VISUAL TEXT:", "PARAMS:", "PEOPLE:", "CONTINUITY:"]) {
           assert.ok(prompt.includes(section), `${label}: ${section} conservée`);
         }
-        assert.match(prompt, /shot=close/);
+        assert.match(prompt, /look=colorful\/illustration\/close\/team\/faithful/);
         assert.match(prompt, /FRAME close\/full heads/);
         assert.doesNotMatch(prompt, /medium-wide/);
         assert.doesNotMatch(prompt, /#[0-9a-f]{6}/i, `${label}: aucun code technique transmis`);
@@ -160,14 +164,91 @@ test("les trois noms de couleurs longs restent intégraux avec les paramètres l
   for (const imageStyle of ["illustration", "graphic"] as const) {
     args.request.imageStyle = imageStyle;
     const parameters = runtime.buildGoogleVideoParameterContract(args.request, 8, args.brandColors.join(", "));
-    assert.ok(parameters.length <= 220);
-    assert.ok(parameters.endsWith(`light/material-accents=${names.join("/")}`));
+    assert.ok(parameters.length <= 280);
+    assert.ok(parameters.endsWith(`pal=${names.join("/")}`));
     const prompt = runtime.buildGoogleVideoScenePrompt(args, 1, 8, { continuationFrame: true, firstFrameTag: true });
-    assert.ok(prompt.length <= 1_400);
+    assert.ok(prompt.length <= 3_200);
     for (const name of names) assert.ok(prompt.includes(name));
     assert.match(prompt, /no text\/pseudo-text\/numbers\/UI/);
     assert.doesNotMatch(prompt, /#[0-9a-f]{3,8}\b/i);
   }
+});
+
+test("chaque option Studio vidéo reste structurée dans le contrat fournisseur sans troncature", () => {
+  const args = longBrief("fr", "professional", "landscape", "voiceover");
+  const request = args.request as unknown as Record<string, unknown>;
+  const colors = args.brandColors.join(", ");
+  const assertOption = (
+    field: string,
+    value: unknown,
+    expected: string,
+    companion: Record<string, unknown> = {},
+  ) => {
+    const previous = new Map<string, unknown>();
+    for (const [key, next] of Object.entries({ [field]: value, ...companion })) {
+      previous.set(key, request[key]);
+      request[key] = next;
+    }
+    const contract = runtime.buildGoogleVideoParameterContract(
+      args.request,
+      8,
+      colors,
+    );
+    assert.ok(contract.length <= 280, `${field}=${String(value)}: contrat trop long`);
+    assert.ok(
+      contract.includes(expected),
+      `${field}=${String(value)}: valeur absente de ${contract}`,
+    );
+    assert.match(contract, /;pal=(?:subject-led|[a-z][a-z /-]*)$/i, `${field}=${String(value)}: fin du contrat tronquée`);
+    for (const [key, oldValue] of previous) request[key] = oldValue;
+  };
+
+  for (const value of ["ai_free", "ai_criteria", "inspiration"])
+    assertOption("generationMode", value, `mode=${value}`);
+  for (const value of ["auto", "none", "one", "two", "three", "group"])
+    assertOption("peopleCriterion", value, `crit=${value}/${request.settingCriterion}/${request.focusCriterion}`);
+  for (const value of ["auto", "interior", "exterior", "studio", "neutral"])
+    assertOption("settingCriterion", value, `crit=${request.peopleCriterion}/${value}/${request.focusCriterion}`);
+  for (const value of ["auto", "people", "product", "environment"])
+    assertOption("focusCriterion", value, `crit=${request.peopleCriterion}/${request.settingCriterion}/${value}`);
+  for (const value of ["square", "portrait", "story", "landscape"])
+    assertOption("format", value, `fmt=${value}`);
+  for (const value of ["company", "service", "advice", "showcase", "offer", "event", "behind_scenes", "recruitment"])
+    assertOption("typology", value, `type=${value}`);
+  for (const value of ["auto", "clean", "premium", "warm", "dynamic", "bold"])
+    assertOption("visualDirection", value, `dir=${value}`);
+  for (const value of ["brand", "clean", "premium", "warm", "dynamic", "expert", "local", "colorful"])
+    assertOption("visualStyle", value, `look=${value}/${request.imageStyle}/${request.shotType}/${request.peopleMode}/${request.creativity}`);
+  for (const value of ["photo", "illustration", "three_d", "graphic"])
+    assertOption("imageStyle", value, `look=${request.visualStyle}/${value}/${request.shotType}/${request.peopleMode}/${request.creativity}`);
+  for (const value of ["auto", "close", "medium", "wide"])
+    assertOption("shotType", value, `look=${request.visualStyle}/${request.imageStyle}/${value}/${request.peopleMode}/${request.creativity}`);
+  for (const value of ["auto", "none", "solo", "team"])
+    assertOption("peopleMode", value, `look=${request.visualStyle}/${request.imageStyle}/${request.shotType}/${value}/${request.creativity}`);
+  for (const value of ["faithful", "bold"])
+    assertOption("creativity", value, `look=${request.visualStyle}/${request.imageStyle}/${request.shotType}/${request.peopleMode}/${value}`);
+  for (const [sceneMode, linked] of [["single", true], ["multi", false]] as const)
+    assertOption("sceneMode", sceneMode, `story=${sceneMode}/${linked ? "linked" : "unlinked"}`, { connectScenes: linked });
+  for (const value of ["none", "ai", "exact"])
+    assertOption("textMode", value, `text=${value}`);
+  for (const value of ["discreet", "visible", "none"])
+    assertOption("logoMode", value, `logo=${value}`);
+  for (const value of [8, 16, 24])
+    assertOption("durationSeconds", value, `film=${value}s`);
+
+  assertOption("teamVideoSpeechMode", "characters", "audio=characters/music", { withMusic: true });
+  assertOption("teamVideoSpeechMode", "voiceover", "audio=voiceover-male-Orus/no-music", {
+    withNarration: true,
+    narrationVoice: "male",
+    narrationVoiceVariant: "Orus",
+    withMusic: false,
+  });
+  assertOption("teamVideoSpeechMode", "voiceover", "audio=silent/no-music", {
+    withNarration: false,
+    withMusic: false,
+  });
+  assertOption("useBrandColors", false, "pal=subject-led");
+  assertOption("useBrandColors", true, `pal=${colorDirection.describeAiMediaBrandColors(args.brandColors).join("/")}`);
 });
 
 test("la palette réelle guide les matières et la lumière sans fournir de codes à imprimer", () => {
@@ -178,17 +259,131 @@ test("la palette réelle guide les matières et la lumière sans fournir de code
     const prompt = runtime.buildGoogleVideoScenePrompt(args, index, 8, index > 0
       ? { continuationFrame: true, firstFrameTag: true }
       : {});
-    assert.ok(prompt.includes(`light/material-accents=${expectedColors.join("/")}`));
+    assert.ok(prompt.includes(`pal=${expectedColors.join("/")}`));
     assert.doesNotMatch(prompt, /#[0-9a-f]{3,8}\b/i);
     assert.match(prompt, /swatches\/color charts\/hex codes\/technical annotations, even from refs/);
     assert.match(prompt, /Never draw PARAMS/);
     assert.match(prompt, /same design\/features|preserve its visible cast\/design/);
-    assert.ok(prompt.length <= 1_400);
+    assert.ok(prompt.length <= 3_200);
   }
   args.request.useBrandColors = false;
   const withoutBrandColors = runtime.buildGoogleVideoParameterContract(args.request, 8, args.brandColors.join(", "));
-  assert.match(withoutBrandColors, /light\/material-accents=subject-led/);
+  assert.match(withoutBrandColors, /pal=subject-led/);
   assert.doesNotMatch(withoutBrandColors, /#[0-9a-f]{3,8}\b/i);
+});
+
+test("le prompt réellement envoyé à Veo et Omni conserve tout le contrat Studio structuré", () => {
+  const args = longBrief("fr", "auto", "story", "voiceover");
+  Object.assign(args.request, {
+    generationMode: "ai_criteria",
+    peopleCriterion: "two",
+    settingCriterion: "studio",
+    focusCriterion: "product",
+    visualDirection: "bold",
+    typology: "offer",
+    visualStyle: "premium",
+    imageStyle: "graphic",
+    shotType: "medium",
+    peopleMode: "team",
+    creativity: "bold",
+    sceneMode: "multi",
+    connectScenes: true,
+    textMode: "exact",
+    exactText: "Offre septembre",
+    withText: true,
+    withNarration: true,
+    narrationVoice: "male",
+    narrationVoiceVariant: "Orus",
+    withMusic: true,
+    logoMode: "visible",
+    inspirationImages: [],
+  });
+  const criteriaPrompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+  assert.ok(criteriaPrompt.length <= 3_200);
+  for (const expected of [
+    "film=24s",
+    "fmt=story",
+    "type=offer",
+    "mode=ai_criteria",
+    "crit=two/studio/product",
+    "dir=bold",
+    "look=premium/graphic/medium/team/bold",
+    "story=multi/linked",
+    "text=exact",
+    "audio=voiceover-male-Orus/music",
+    "logo=visible",
+  ]) {
+    assert.ok(criteriaPrompt.includes(expected), `contrat fournisseur manquant: ${expected}`);
+  }
+
+  Object.assign(args.request, {
+    generationMode: "inspiration",
+    identityMode: "auto",
+    teamVideoMode: "montage",
+    inspirationImages: [
+      { data: "AA==", mimeType: "image/jpeg", role: "character", usage: "required", characterIndex: 1 },
+      { data: "AA==", mimeType: "image/jpeg", role: "environment", usage: "required" },
+      { data: "AA==", mimeType: "image/jpeg", role: "product", usage: "inspiration" },
+    ],
+  });
+  const inspirationPrompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+  assert.ok(inspirationPrompt.length <= 3_200);
+  assert.match(inspirationPrompt, /mode=inspiration/);
+  assert.match(inspirationPrompt, /#1:character\/required\/character-1/);
+  assert.match(inspirationPrompt, /#2:environment\/required/);
+  assert.match(inspirationPrompt, /#3:product\/inspiration/);
+
+  const omniSource = readFileSync(path.join(process.cwd(), "lib/aiVideoProviderGoogleOmni.ts"), "utf8");
+  assert.match(omniSource, /buildGoogleVideoScenePrompt\([\s\S]*?args,[\s\S]*?index,[\s\S]*?durationSeconds/);
+});
+
+test("la consigne libre conserve chaque exigence distincte, y compris celles placées au milieu", () => {
+  const args = longBrief("fr", "professional", "landscape", "voiceover");
+  const requirements = [
+    "Commencer par une vue large de l’atelier éclairé par la fenêtre.",
+    "Conserver la veste bleu nuit du personnage principal dans chaque plan.",
+    "Placer le coffret en bois au centre de l’établi avant le geste principal.",
+    "EXIGENCE CENTRALE : la main gauche ouvre le coffret pendant que la main droite tient le ruban rouge.",
+    "Ne jamais remplacer le ruban rouge par un accessoire générique.",
+    "Montrer ensuite le produit fini sous le même angle de caméra.",
+    "Garder le mur en briques et la lampe cuivre identiques entre les scènes.",
+    "Terminer sur le coffret fermé, le ruban noué et les deux mains sorties du cadre.",
+  ];
+  args.request.aiInstruction = requirements.join(" ");
+
+  const prompt = runtime.buildGoogleVideoScenePrompt(args, 1, 8, {
+    continuationFrame: true,
+    firstFrameTag: true,
+  });
+
+  assert.ok(prompt.length <= 3_200, `${prompt.length} caractères`);
+  for (const requirement of requirements) {
+    assert.ok(
+      prompt.includes(requirement),
+      `exigence absente du prompt fournisseur: ${requirement}`,
+    );
+  }
+  assert.equal(
+    runtime.buildGoogleVideoInstructionContract(`${requirements[0]} ${requirements[0]}`),
+    requirements[0],
+  );
+});
+
+test("une consigne irréductible qui dépasse le fournisseur échoue avant une génération partielle", () => {
+  const args = longBrief("fr", "professional", "story", "characters");
+  args.request.aiInstruction = Array.from(
+    { length: 28 },
+    (_, index) =>
+      `Exigence ${index + 1} : conserver l’objet numéroté ${index + 1}, sa matière propre et son emplacement exact pendant toute la scène.`,
+  ).join(" ");
+
+  assert.throws(
+    () => runtime.buildGoogleVideoScenePrompt(args, 1, 8, {
+      continuationFrame: true,
+      firstFrameTag: true,
+    }),
+    /ai_video_instruction_contract_too_long/,
+  );
 });
 
 test("une profession longue ne remplace pas la fin d’un sujet explicitement demandé", () => {
@@ -200,7 +395,7 @@ test("une profession longue ne remplace pas la fin d’un sujet explicitement de
     for (const options of [{}, { continuation: true }, { continuationFrame: true, firstFrameTag: true }]) {
       const prompt = runtime.buildGoogleVideoScenePrompt(args, 1, 8, options);
       assert.ok(prompt.includes(`SUBJECT: ${idea}. Keep entities/actions/relations`));
-      assert.ok(prompt.length <= 1_400);
+      assert.ok(prompt.length <= 3_200);
     }
   }
 });

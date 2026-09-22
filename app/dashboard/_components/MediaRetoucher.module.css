@@ -615,9 +615,9 @@
   height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   align-items: stretch;
-  place-items: center;
+  place-items: stretch;
   gap: 0;
   overflow: hidden;
   background: radial-gradient(
@@ -637,19 +637,20 @@
 }
 
 .sourceMeta {
-  position: absolute;
-  inset: auto 10px 10px 10px;
+  position: static;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 9px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 11px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 0;
   color: #fff;
   background: rgba(2, 12, 25, 0.84);
-  backdrop-filter: blur(12px);
   font-size: 10px;
 }
 

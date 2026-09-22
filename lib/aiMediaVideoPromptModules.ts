@@ -203,7 +203,17 @@ export function buildAiMediaVideoTimelineContract(
 export function buildAiMediaVideoStyleContract(
   args: AiMediaPromptBuilderArgs
 ) {
+  const direction = args.request.visualDirection || "auto";
+  const directionContract = {
+    auto: "déduire une réalisation singulière du brief, sans style passe-partout",
+    clean: "réalisation épurée, caméra stable, lumière nette et plans respirants",
+    premium: "réalisation haut de gamme, lumière raffinée, mouvements précis et finitions sobres",
+    warm: "réalisation chaleureuse, lumière accueillante, gestes humains et matières naturelles",
+    dynamic: "réalisation énergique, caméra intentionnelle, rythme soutenu et progression lisible",
+    bold: "réalisation audacieuse, cadrages forts, contrastes francs et signature mémorable",
+  }[direction];
   return [
+    `DIRECTION VISUELLE STRUCTURÉE — ${direction.toUpperCase()} : ${directionContract}.`,
     `STYLE VIDÉO AUTORISÉ : ${getAiMediaVideoVisualDirection(args.request)}.`,
     "Le style règle le rendu, la caméra, la lumière et le rythme ; il ne peut jamais inventer un personnage, un décor, un produit, un texte ou une référence obligatoire.",
   ].join("\n");
@@ -256,7 +266,13 @@ export function buildAiMediaVideoAudioContract(args: AiMediaPromptBuilderArgs) {
   }
   return [
     request.withNarration
-      ? "NARRATION : garder les personnages silencieux et construire des plans laissant respirer la voix off préparée séparément par iNrCy."
+      ? `NARRATION : garder les personnages silencieux et construire des plans laissant respirer la voix off préparée séparément par iNrCy. Voix choisie : ${
+          request.narrationVoice === "male" ? "homme" : "femme"
+        }${
+          request.narrationVoiceVariant
+            ? `, style de voix ${request.narrationVoiceVariant}`
+            : ""
+        }.`
       : "SANS NARRATION : raconter clairement par l’action et la mise en scène visuelle.",
     request.withMusic
       ? "MUSIQUE : prévoir un rythme de montage compatible avec une bande musicale ajoutée séparément."

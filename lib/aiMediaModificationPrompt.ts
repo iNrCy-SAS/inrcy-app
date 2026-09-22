@@ -1,5 +1,6 @@
 import {
   AI_MEDIA_FORMAT_SPECS,
+  AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
   type AiMediaGenerationRequest,
 } from "@/lib/aiMediaGenerationContracts";
 import {
@@ -22,8 +23,11 @@ export function buildAiMediaModificationPrompt(
     .replace(/\.$/, "");
   const instruction = cleanAiMediaPromptStructuredText(
     request.aiInstruction,
-    2_400
+    AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS + 1
   );
+  if (instruction.length > AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS) {
+    throw new Error("ai_media_modification_instruction_too_long");
+  }
   return fitCompiledAiMediaPrompt(
     [
       `Version : ${AI_MEDIA_PROMPT_VERSION}.`,

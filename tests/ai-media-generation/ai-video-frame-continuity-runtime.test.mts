@@ -17,11 +17,17 @@ type Engine = "veo" | "omni";
 type RecordValue = Record<string, unknown>;
 type VeoSubmission = {
   source: { prompt: string; image?: { imageBytes: string; mimeType: string }; video?: unknown };
-  config: { referenceImages?: Array<{ image: { imageBytes: string; mimeType: string } }>; personGeneration?: string };
+  config: {
+    referenceImages?: Array<{ image: { imageBytes: string; mimeType: string } }>;
+    personGeneration?: string;
+    durationSeconds?: number;
+    aspectRatio?: string;
+  };
 };
 type OmniSubmission = {
   input: Array<{ type: string; data?: string; mime_type?: string; text?: string }>;
   previous_interaction_id?: string;
+  response_format?: { duration?: string; aspect_ratio?: string };
 };
 
 const ROOT = process.cwd();
@@ -212,6 +218,161 @@ function createHarness(engine: Engine, options: {
 }
 
 for (const engine of ["veo", "omni"] as const) {
+  test(`${engine}: chaque scène 24 s envoyée au fournisseur reçoit le contrat Studio complet`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 24);
+    Object.assign(args.request as unknown as Record<string, unknown>, {
+      generationMode: "ai_criteria",
+      peopleCriterion: "two",
+      settingCriterion: "studio",
+      focusCriterion: "product",
+      format: "story",
+      typology: "offer",
+      visualStyle: "premium",
+      visualDirection: "bold",
+      imageStyle: "graphic",
+      shotType: "close",
+      peopleMode: "team",
+      creativity: "bold",
+      useBrandColors: true,
+      sceneMode: "multi",
+      connectScenes: false,
+      textMode: "exact",
+      exactText: "Offre septembre",
+      withText: true,
+      withNarration: true,
+      narrationVoice: "male",
+      narrationVoiceVariant: "Orus",
+      withMusic: true,
+      logoMode: "visible",
+      teamVideoMode: "cinematic",
+      teamVideoSpeechMode: "voiceover",
+      identityMode: "professional",
+      videoCharacterMode: "professional",
+      identityConsent: true,
+      inspirationImages: [
+        {
+          data: "Y2hhcmFjdGVy",
+          mimeType: "image/jpeg",
+          role: "character",
+          usage: "required",
+          characterIndex: 1,
+        },
+        {
+          data: "ZW52aXJvbm1lbnQ=",
+          mimeType: "image/jpeg",
+          role: "environment",
+          usage: "required",
+        },
+        {
+          data: "cHJvZHVjdA==",
+          mimeType: "image/jpeg",
+          role: "product",
+          usage: "inspiration",
+        },
+      ],
+    });
+    Object.assign(args, { brandColors: ["#13b8ff", "#ec3e9d"] });
+    const expectedPalette = colorDirection
+      .describeAiMediaBrandColors(args.brandColors)
+      .join("/");
+
+    await harness.provider.generate(args);
+    assert.equal(harness.submissions.length, 3);
+    for (const [index, rawSubmission] of harness.submissions.entries()) {
+      const prompt =
+        engine === "veo"
+          ? (rawSubmission as unknown as VeoSubmission).source.prompt
+          : (rawSubmission as unknown as OmniSubmission).input
+              .filter((part) => part.type === "text")
+              .map((part) => part.text || "")
+              .join(" ");
+
+      if (engine === "veo") {
+        const submission = rawSubmission as unknown as VeoSubmission;
+        const references = submission.config.referenceImages;
+        assert.equal(submission.config.durationSeconds, 8);
+        assert.equal(submission.config.aspectRatio, "9:16");
+        assert.equal(references?.length, 3, `veo/scène ${index + 1}: trois fichiers transmis`);
+        assert.deepEqual(
+          Array.from(references || [], (reference) => String(reference.image.imageBytes)),
+          ["Y2hhcmFjdGVy", "ZW52aXJvbm1lbnQ=", "cHJvZHVjdA=="],
+        );
+      } else {
+        const submission = rawSubmission as unknown as OmniSubmission;
+        const references = submission.input.filter(
+          (part) => part.type === "image",
+        );
+        assert.equal(submission.response_format?.duration, "8s");
+        assert.equal(submission.response_format?.aspect_ratio, "9:16");
+        assert.equal(references.length, 3, `omni/scène ${index + 1}: trois fichiers transmis`);
+        assert.deepEqual(
+          Array.from(references, (reference) => String(reference.data)),
+          ["Y2hhcmFjdGVy", "ZW52aXJvbm1lbnQ=", "cHJvZHVjdA=="],
+        );
+      }
+
+      assert.ok(prompt.length <= 3_200, `${engine}/scène ${index + 1}: prompt trop long`);
+      assert.match(prompt, new RegExp(`SHOT ${index + 1}/3`));
+      for (const expected of [
+        "film=24s",
+        "fmt=story",
+        "type=offer",
+        "mode=ai_criteria",
+        "crit=two/studio/product",
+        "dir=bold",
+        "look=premium/graphic/close/team/bold",
+        "story=multi/unlinked",
+        "text=exact",
+        "audio=voiceover-male-Orus/music",
+        "logo=visible",
+        `pal=${expectedPalette}`,
+        "#1:character/required/character-1",
+        "#2:environment/required",
+        "#3:product/inspiration",
+        "all distinct approved adults visible in required character refs; each once",
+      ]) {
+        assert.ok(
+          prompt.includes(expected),
+          `${engine}/scène ${index + 1}: contrat perdu « ${expected} »`,
+        );
+      }
+    }
+  });
+}
+
+for (const engine of ["veo", "omni"] as const) {
+  test(`${engine}: la requête fournisseur conserve le début et la vraie fin d'une consigne longue`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 8);
+    const headMarker = "DEBUT_CONSIGNE_X9";
+    const tailMarker = "FIN_CONSIGNE_Z7";
+    args.request.aiInstruction = [
+      headMarker,
+      "contexte secondaire utile à la réalisation".repeat(36),
+      tailMarker,
+    ].join(" ");
+
+    await harness.provider.generate(args);
+    assert.equal(harness.submissions.length, 1);
+    const rawSubmission = harness.submissions[0]!;
+    const prompt =
+      engine === "veo"
+        ? (rawSubmission as unknown as VeoSubmission).source.prompt
+        : (rawSubmission as unknown as OmniSubmission).input
+            .filter((part) => part.type === "text")
+            .map((part) => part.text || "")
+            .join(" ");
+
+    assert.ok(prompt.length <= 3_200);
+    assert.match(prompt, new RegExp(headMarker));
+    assert.match(prompt, new RegExp(tailMarker));
+    assert.match(prompt, /USER:/);
+    assert.match(prompt, /PARAMS:/);
+  });
+}
+
+for (const engine of ["veo", "omni"] as const) {
   for (const duration of [16, 24] as const) {
     test(`${engine}: ${duration}s enchaîne les dernières frames, sans actes indépendants parallèles`, async () => {
       const firstOutput = deferred();
@@ -243,7 +404,7 @@ for (const engine of ["veo", "omni"] as const) {
             assert.equal(submission.source.video, undefined);
             assert.equal(submission.config.referenceImages, undefined);
             assert.equal(submission.config.personGeneration, "allow_adult");
-            assert.ok(submission.source.prompt.length <= 1_400);
+            assert.ok(submission.source.prompt.length <= 3_200);
           } else {
             const submission = harness.submissions[index] as unknown as OmniSubmission;
             const images = submission.input.filter((item) => item.type === "image");

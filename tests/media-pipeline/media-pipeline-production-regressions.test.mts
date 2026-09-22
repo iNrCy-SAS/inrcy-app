@@ -135,12 +135,10 @@ test("le choix vidéo reste instantané et l'original est attesté sans compress
     immediatePublish,
     /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/,
   );
-  const cutoverApply = modal.slice(
-    modal.indexOf("async function applyVideoFormatForChannel"),
-    modal.indexOf("const syncActiveImagesToPersistentWorkspace"),
+  assert.match(
+    immediatePublish,
+    /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
   );
-  assert.doesNotMatch(cutoverApply, /prewarmPersistentMediaWorkspace/);
-  assert.match(modal, /deferTechnicalPreparationUntilPublish=/);
   assert.match(modal, /options\?\.generateMissingVideoVariants === false/);
 });
 

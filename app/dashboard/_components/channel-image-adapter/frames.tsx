@@ -1,6 +1,9 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { normalizeImageOverlay } from "@/lib/imageOverlay";
+import {
+  normalizeImageOverlay,
+  resolveImageOverlayCoordinates,
+} from "@/lib/imageOverlay";
 
 import type { BackgroundMode, PreviewImage, PreviewVideo } from "./types";
 
@@ -32,6 +35,7 @@ export function FinalImageFrame({
   const fit = transform.fit || "cover";
   const zoom = safePreviewZoom(fit, transform.zoom);
   const overlay = normalizeImageOverlay(transform.overlay);
+  const overlayCoordinates = resolveImageOverlayCoordinates(overlay);
 
   const imageWidth = meta?.width || 0;
   const imageHeight = meta?.height || 0;
@@ -71,16 +75,15 @@ export function FinalImageFrame({
         <div
           style={{
             position: "absolute",
-            left: "8%",
-            right: "8%",
-            top:
-              overlay.position === "top"
-                ? "8%"
-                : overlay.position === "bottom"
-                  ? undefined
-                  : "50%",
-            bottom: overlay.position === "bottom" ? "8%" : undefined,
-            transform: overlay.position === "center" ? "translateY(-50%)" : undefined,
+            left: `${overlayCoordinates.x}%`,
+            top: `${overlayCoordinates.y}%`,
+            width: `${overlay.width ?? 84}%`,
+            height: overlay.height ? `${overlay.height}%` : undefined,
+            minHeight: overlay.height ? undefined : "12%",
+            transform: "translate(-50%, -50%)",
+            boxSizing: "border-box",
+            display: "grid",
+            placeItems: "center",
             padding: "clamp(8px, 2.2%, 18px) clamp(12px, 3.5%, 28px)",
             borderRadius: 16,
             background:
@@ -95,6 +98,7 @@ export function FinalImageFrame({
             textAlign: "center",
             whiteSpace: "pre-wrap",
             overflowWrap: "anywhere",
+            overflow: "hidden",
             pointerEvents: "none",
             zIndex: 2,
           }}

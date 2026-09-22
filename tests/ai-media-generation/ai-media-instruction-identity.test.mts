@@ -27,7 +27,19 @@ test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sa
   assert.match(generator, /aiInstruction: generationAiInstruction/);
   assert.match(generator, /const creativeBriefMaximum = 1_600/);
   assert.match(generator, /maxLength=\{creativeBriefMaximum\}/);
-  assert.match(hook, /aiInstruction: String\(request\.aiInstruction \|\| ""\)\.trim\(\)/);
+  assert.match(
+    hook,
+    /function normalizeMediaGenerationAiInstruction\([\s\S]*?return value;/,
+  );
+  assert.ok(
+    (hook.match(/normalizeMediaGenerationAiInstruction\(request\)/g) || [])
+      .length >= 2,
+    "la clé d'idempotence et le payload doivent transporter la même consigne",
+  );
+  assert.match(
+    hook,
+    /request\.operation === "modify"[\s\S]*?value\.length > AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS/,
+  );
   assert.match(prompt, /CONSIGNE DE RÉALISATION PRIORITAIRE DU PROFESSIONNEL/);
   assert.match(prompt, /Appliquer tous ses éléments visuels et narratifs/);
   assert.match(copywriter, /consigne_ponctuelle: args\.request\.aiInstruction \|\| null/);

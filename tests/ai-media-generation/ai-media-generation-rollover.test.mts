@@ -21,7 +21,7 @@ const rolloverMigration = await readFile(
 const secondsMigration = await readFile(
   path.join(
     repositoryRoot,
-    "supabase/migrations/20260922150126_ai_media_video_seconds_quota.sql",
+    "supabase/migrations/20260922164725_ai_media_video_seconds_quota.sql",
   ),
   "utf8",
 );

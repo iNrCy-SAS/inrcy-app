@@ -1,11 +1,12 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -21,7 +22,10 @@ import useMediaGeneration, {
   type MediaGenerationResult,
   type MediaGenerationSource,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
-import { AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES } from "@/lib/aiMediaGenerationContracts";
+import {
+  AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
+  AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
+} from "@/lib/aiMediaGenerationContracts";
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
@@ -160,6 +164,7 @@ export default function MediaModifier({
   onBusyChange,
 }: MediaModifierProps) {
   const t = useTranslations("media");
+  const locale = useLocale();
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRef = useRef("");
@@ -175,11 +180,14 @@ export default function MediaModifier({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const {
+    quota,
     status,
     progress,
     error,
     result,
     busy: generationBusy,
+    quotaLoading,
+    loadQuota,
     generate,
     acceptDraft,
     discardDraft,
@@ -192,6 +200,33 @@ export default function MediaModifier({
     finishing ||
     discarding;
   const operationLocked = baseOperationLocked || voiceBusy;
+  const imageCounter = quota?.image || null;
+  const imageQuotaExhausted = quota?.unlimited
+    ? false
+    : imageCounter?.remaining === 0;
+
+  const resetDate = useMemo(() => {
+    if (!quota?.resetAt) return "";
+    const parsed = new Date(quota.resetAt);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return new Intl.DateTimeFormat(locale, {
+      day: "numeric",
+      month: "long",
+    }).format(parsed);
+  }, [locale, quota?.resetAt]);
+
+  const imageQuotaValue =
+    quotaLoading && !imageCounter
+      ? t("chargement_01cba1df")
+      : quota?.unlimited
+        ? t("ai_generator_unlimited")
+        : imageCounter?.limit === null || !imageCounter
+          ? "—"
+          : `${imageCounter.used + imageCounter.reserved} / ${imageCounter.limit}`;
+
+  useEffect(() => {
+    void loadQuota();
+  }, [loadQuota]);
 
   useEffect(
     () => () => {
@@ -568,7 +603,7 @@ export default function MediaModifier({
           <label className={styles.instructionField}>
             <textarea
               value={instruction}
-              maxLength={600}
+              maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
               disabled={baseOperationLocked}
               readOnly={voiceBusy}
               placeholder={t("ai_modifier_instruction_placeholder")}
@@ -577,13 +612,15 @@ export default function MediaModifier({
                 if (actionError) setActionError("");
               }}
             />
-            <span className={styles.counter}>{instruction.length}/600</span>
+            <span className={styles.counter}>
+              {instruction.length}/{AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
+            </span>
             <div className={styles.voiceControl}>
               <MediaSubjectVoiceButton
                 purpose="instruction"
                 placement="inline"
                 mergeMode="paragraph"
-                maxLength={600}
+                maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
                 disabled={baseOperationLocked}
                 value={instruction}
                 onBusyChange={setVoiceBusy}
@@ -623,15 +660,46 @@ export default function MediaModifier({
       </main>
 
       <footer className={styles.actionBar}>
-        <div>
-          <strong>{t("ai_modifier_action_title")}</strong>
-          <span>{t("ai_modifier_action_hint")}</span>
+        <div
+          className={styles.quotaCard}
+          data-exhausted={imageQuotaExhausted ? "true" : "false"}
+        >
+          <span className={styles.quotaIcon} aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4.6 15.8a8 8 0 1 1 14.8 0" />
+              <path d="M12 12l4.2-3.1" />
+              <circle cx="12" cy="12" r="1.45" />
+            </svg>
+          </span>
+          <div className={styles.quotaCopy}>
+            <div className={styles.quotaHeadline}>
+              <span>{t("ai_generator_image_quota")}</span>
+              <strong>{imageQuotaValue}</strong>
+            </div>
+            <small>
+              {quota?.unlimited
+                ? t("ai_generator_unlimited")
+                : imageCounter?.remaining !== null && imageCounter
+                  ? t("ai_generator_remaining", {
+                      count: imageCounter.remaining,
+                    })
+                  : t("ai_generator_monthly_quota")}
+              {resetDate
+                ? ` · ${t("ai_generator_reset", { date: resetDate })}`
+                : ""}
+            </small>
+          </div>
         </div>
         <button
           type="button"
           className={styles.primaryButton}
           onClick={() => void handleGenerate()}
-          disabled={operationLocked || !sourceImage || instruction.trim().length < 3}
+          disabled={
+            operationLocked ||
+            !sourceImage ||
+            instruction.trim().length < 3 ||
+            imageQuotaExhausted
+          }
         >
           <span aria-hidden="true">✦</span>
           {t("ai_modifier_action")}

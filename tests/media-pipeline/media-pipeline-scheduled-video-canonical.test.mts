@@ -25,7 +25,7 @@ test("strict scheduled video never validates the browser original", () => {
   const ensure = sliceBetween(
     modal,
     "async function ensureCutoverVideoVariantsReady",
-    "async function applyVideoFormatForChannel",
+    "const syncActiveImagesToPersistentWorkspace",
   );
   const schedule = sliceBetween(
     modal,

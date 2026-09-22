@@ -105,7 +105,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
     "une voix off demandée ne peut pas disparaître silencieusement"
   );
   assert.match(veo, /lip-syncs once 0\.2–5\.5s: “\$\{firstLine\}”/);
-  assert.match(veo, /Then mouth closed\/silent/);
+  assert.match(veo, /Then silent\/closed mouth/);
   assert.match(veo, /No repeat\/old line\/narrator\/music/);
 
   assert.match(narration, /count <= target\.max/);

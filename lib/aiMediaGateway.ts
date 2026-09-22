@@ -207,7 +207,16 @@ function buildImageReferenceRoleRules(args: {
       const reference = providedReferenceRoles[index];
       const imageNumber = index + 1;
       if (reference?.usage === "inspiration") {
-        return `- Image ${imageNumber} = inspiration uniquement : en extraire librement une ambiance, une palette, un rythme ou une idée de composition. Ne pas préserver ni recopier son identité, son visage, sa silhouette, son produit, son décor, sa pose ou son cadrage exact.`;
+        if (reference.role === "character") {
+          return `- Image ${imageNumber} = inspiration uniquement, rôle Personnage : s’en servir pour guider librement le casting, la présence humaine, les attitudes ou l’énergie de la scène. Ne préserver ni recopier aucune identité, aucun visage, aucune silhouette ni tenue exacte.`;
+        }
+        if (reference.role === "product") {
+          return `- Image ${imageNumber} = inspiration uniquement, rôle Produit : s’en servir pour guider librement la catégorie, le langage de formes, les matières ou la mise en valeur du produit. Ne reproduire ni imposer sa forme, sa marque, ses détails distinctifs ni son apparence exacte.`;
+        }
+        if (reference.role === "environment") {
+          return `- Image ${imageNumber} = inspiration uniquement, rôle Décor : s’en servir pour guider librement l’ambiance, l’architecture, la lumière ou la palette du lieu. Ne reproduire ni imposer son plan, ses éléments reconnaissables ni son décor exact.`;
+        }
+        return `- Image ${imageNumber} = inspiration uniquement, rôle Inspiration libre : en extraire librement une ambiance, une palette, un rythme ou une idée de composition. Ne préserver ni recopier aucune identité, aucun produit, aucun décor, aucune pose ni aucun cadrage exact.`;
       }
       if (reference?.role === "character") {
         return `- Image ${imageNumber} = média Personnage obligatoire, adulte(s) autorisé(s). Détecter toutes les personnes distinctes visibles dans cette image, qu'il y en ait une ou plusieurs. Préserver séparément le visage, les traits, la silhouette et les signes distinctifs de chacune ; les faire toutes apparaître exactement une fois et les mettre naturellement en action selon le brief, sans fusion, permutation, duplication, omission ni substitution générique. La pose, le cadrage et l'arrière-plan peuvent évoluer seulement si le brief le demande.`;

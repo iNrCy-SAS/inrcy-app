@@ -1,6 +1,7 @@
 import type { BackgroundMode } from "@/app/dashboard/_components/channel-image-adapter/types";
 import {
   normalizeImageOverlay,
+  resolveImageOverlayCoordinates,
   type ImageOverlay,
 } from "@/lib/imageOverlay";
 
@@ -81,7 +82,16 @@ function drawOverlay(
 
   const fontSize = Math.max(24, Math.min(72, Math.round(width * 0.046)));
   const lineHeight = Math.round(fontSize * 1.2);
-  const maxTextWidth = width * 0.82;
+  const paddingX = Math.round(fontSize * 0.72);
+  const paddingY = Math.round(fontSize * 0.5);
+  const edge = Math.round(fontSize * 0.8);
+  const requestedBlockWidth = overlay.width
+    ? (width * overlay.width) / 100
+    : null;
+  const maxTextWidth = Math.max(
+    fontSize * 2,
+    (requestedBlockWidth ?? width * 0.9) - paddingX * 2,
+  );
   const words = overlay.text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   context.font = `800 ${fontSize}px Inter, Arial, sans-serif`;
@@ -98,25 +108,36 @@ function drawOverlay(
   if (line) lines.push(line);
   if (!lines.length) return;
 
-  const paddingX = Math.round(fontSize * 0.72);
-  const paddingY = Math.round(fontSize * 0.5);
   const blockWidth = Math.min(
-    width * 0.9,
-    Math.max(
-      fontSize * 4,
-      Math.max(...lines.map((value) => context.measureText(value).width)) +
-        paddingX * 2,
-    ),
+    Math.max(1, width - edge * 2),
+    requestedBlockWidth ??
+      Math.max(
+        fontSize * 4,
+        Math.max(...lines.map((value) => context.measureText(value).width)) +
+          paddingX * 2,
+      ),
   );
-  const blockHeight = lines.length * lineHeight + paddingY * 2;
-  const edge = Math.round(fontSize * 0.8);
-  const blockX = (width - blockWidth) / 2;
-  const blockY =
-    overlay.position === "top"
-      ? edge
-      : overlay.position === "bottom"
-        ? height - blockHeight - edge
-        : (height - blockHeight) / 2;
+  const naturalBlockHeight = lines.length * lineHeight + paddingY * 2;
+  const blockHeight = Math.min(
+    Math.max(1, height - edge * 2),
+    overlay.height ? (height * overlay.height) / 100 : naturalBlockHeight,
+  );
+  const visibleLineCount = Math.max(
+    1,
+    Math.floor(Math.max(lineHeight, blockHeight - paddingY * 2) / lineHeight),
+  );
+  const visibleLines = lines.slice(0, visibleLineCount);
+  const coordinates = resolveImageOverlayCoordinates(overlay);
+  const blockX = clamp(
+    (width * coordinates.x) / 100 - blockWidth / 2,
+    edge,
+    Math.max(edge, width - blockWidth - edge),
+  );
+  const blockY = clamp(
+    (height * coordinates.y) / 100 - blockHeight / 2,
+    edge,
+    Math.max(edge, height - blockHeight - edge),
+  );
 
   context.save();
   context.fillStyle =
@@ -142,11 +163,13 @@ function drawOverlay(
   context.fillStyle = "#ffffff";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  lines.forEach((value, index) => {
+  const textBlockHeight = visibleLines.length * lineHeight;
+  const firstLineY = blockY + (blockHeight - textBlockHeight) / 2 + lineHeight / 2;
+  visibleLines.forEach((value, index) => {
     context.fillText(
       value,
-      width / 2,
-      blockY + paddingY + lineHeight * index + lineHeight / 2,
+      blockX + blockWidth / 2,
+      firstLineY + lineHeight * index,
       maxTextWidth,
     );
   });

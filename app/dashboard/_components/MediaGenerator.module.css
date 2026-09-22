@@ -5746,11 +5746,22 @@
   .generator .directionCard {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content minmax(0, 1fr) max-content;
     grid-template-areas: none;
+    align-content: stretch;
   }
 
   .generator .directionCard > * {
     grid-area: auto;
+  }
+
+  .generator .directionCard > .directionSettings {
+    width: 100%;
+    align-self: center;
+  }
+
+  .generator .directionCard > .sceneModeField {
+    align-self: end;
   }
 
   .generator .finishCard {

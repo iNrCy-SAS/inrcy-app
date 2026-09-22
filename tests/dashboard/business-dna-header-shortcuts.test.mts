@@ -37,8 +37,11 @@ test("iNrAgent exposes the same ADN component beside IA and preserves its edit g
   const planning = agent.indexOf("className={styles.headerScheduleButton}", dna);
 
   assert.ok(ai >= 0 && dna > ai && planning > dna);
-  assert.match(agent, /const openBusinessDna = \(\) => router\.push\("\/dashboard\/adn-entreprise"\)/);
-  assert.match(agent, /exitScheduledEditSession\(\{ silent: true, onAfterExit: openBusinessDna \}\)/);
+  assert.match(agent, /const openBusinessDna = \(\) =>\s*router\.push\("\/dashboard\/adn-entreprise"\)/);
+  assert.match(
+    agent,
+    /exitScheduledEditSession\(\{\s*silent: true,\s*onAfterExit: openBusinessDna,?\s*\}\)/,
+  );
   assert.match(agent, /aria-label=\{dashboardT\("aiMemory\.openTitle"\)\}/);
   assert.match(agent, /styles\.headerAiButton[\s\S]*styles\.headerDnaButton/);
   assert.match(agent, /<BusinessDnaIcon size=\{26\} className=\{styles\.headerDnaIcon\} \/>/);

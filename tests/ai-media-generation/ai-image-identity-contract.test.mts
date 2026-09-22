@@ -59,7 +59,7 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   assert.match(gateway, /response_format: \{[\s\S]*?type: "image"/);
   assert.match(gateway, /mime_type: "image\/jpeg"/);
   assert.doesNotMatch(gateway, /inputFidelity/);
-  assert.match(gateway, /Ne pas préserver ni recopier son identité/);
+  assert.match(gateway, /Ne (?:pas )?préserver ni recopier (?:son|aucune) identité/);
   assert.match(gateway, /décor de référence/);
   assert.match(gateway, /produit à intégrer/);
   assert.match(server, /\(\{ role, usage, characterIndex \}\)/);
@@ -69,7 +69,7 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
     /reference\.role === "character" && reference\.usage === "required"/,
   );
   assert.match(gateway, /usage === "inspiration"/);
-  assert.match(gateway, /Ne pas préserver ni recopier son identité/);
+  assert.match(gateway, /Ne (?:pas )?préserver ni recopier (?:son|aucune) identité/);
   assert.match(gateway, /Détecter toutes les personnes distinctes visibles/);
   assert.match(gateway, /les mettre naturellement en action/);
   assert.match(

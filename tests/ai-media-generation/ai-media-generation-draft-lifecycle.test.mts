@@ -25,7 +25,7 @@ test("le contrat v4 et la compatibilité sûre v3 sont contrôlés avant toute r
 
   assert.ok(versionCheck >= 0);
   assert.ok(reservation > versionCheck);
-  assert.match(route, /inrcy-ai-media-generation-v12-modification-canvas/);
+  assert.match(route, /inrcy-ai-media-generation-v13-structured-studio/);
   assert.match(route, /body\.contractVersion !== 3 && body\.contractVersion !== 4/);
   assert.match(route, /ancien onglet v3/);
   assert.match(route, /draft:\s*true/);

@@ -35,6 +35,17 @@ test("les trois groupes de réglages réutilisables gardent leur contrôle de m�
     styles,
     /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/
   );
+  const directionBlock = sourceSection(
+    generator,
+    'data-generator-block="direction"',
+    'data-generator-block="finish"'
+  );
+  assert.match(directionBlock, /checked=\{savedPreferences\.blocks\[3\]\.saved\}/);
+  assert.match(
+    directionBlock,
+    /onChange=\{\(checked\) => handleRememberPreferenceGroup\(3, checked\)\}/,
+    "le contrôle du bloc Direction doit enregistrer le groupe 3 qu’il affiche"
+  );
 });
 
 test("le client charge sans cache, recharge au changement de compte et fusionne les PATCH concurrents", () => {
@@ -56,7 +67,7 @@ test("le client charge sans cache, recharge au changement de compte et fusionne 
   assert.doesNotMatch(hook, /localStorage|sessionStorage/);
 });
 
-test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien critère", () => {
+test("le Studio essentiel ne mémorise aucun contenu sensible et transmet ses critères structurés", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const preferenceSave = sourceSection(
     generator,
@@ -83,17 +94,16 @@ test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien cr
       `${sensitive} ne doit jamais être mémorisé`
     );
   }
-  for (const forbidden of [
+  for (const structured of [
     "typology",
     "visualStyle",
-    "shotType",
-    "creativity",
-    "videoEngine",
+    "visualDirection",
+    "imagePurpose",
   ]) {
-    assert.doesNotMatch(
+    assert.match(
       generation,
-      new RegExp(`\\b${forbidden}\\s*:`),
-      `${forbidden} ne doit plus être envoyé par le Studio essentiel`
+      new RegExp(`\\b${structured}(?:\\s*:|\\s*,)`),
+      `${structured} doit être envoyé comme critère structuré par le Studio essentiel`
     );
   }
   assert.match(generation, /inputMode: "essential"/);
@@ -104,6 +114,19 @@ test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien cr
   assert.match(
     generation,
     /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/
+  );
+
+  for (const restored of [
+    /setImagePurpose\(block3\.defaults\.imagePurpose\)/,
+    /setVisualDirection\(block3\.defaults\.visualDirection\)/,
+    /setVideoSceneMode\(block3\.defaults\.sceneMode\)/,
+  ]) {
+    assert.match(generator, restored);
+  }
+  assert.match(
+    preferenceSave,
+    /imagePurpose,[\s\S]*?visualDirection,[\s\S]*?sceneMode:\s*videoSceneMode/,
+    "le bloc 3 doit mémoriser ses trois contrats propres",
   );
 });
 

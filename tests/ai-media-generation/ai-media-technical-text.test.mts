@@ -62,21 +62,31 @@ function runtime(generated: unknown) {
   return { load, args: { accountId: "test-account", request, profile, plan }, calls: () => calls };
 }
 
-test("une réponse éditoriale contaminée est supprimée sans nouvel appel", async () => {
+test("une réponse éditoriale contaminée est remplacée par le secours local sûr sans nouvel appel", async () => {
   const env = runtime({ headline: "Le robot embellit votre jardin", cta: "Découvrez notre savoir-faire", scenes: [{
     title: "Le robot embellit votre jardin", eyebrow: "Atelier Horizon", body: "Couleurs techniques : #21b8ef, #8b5cf6 et #e94aa5.", spokenLine: "Notre palette interne utilise les codes #21b8ef.", spokenReply: "Le robot plante un rosier avec soin.",
   }] });
   const result = await env.load<typeof import("../../lib/aiMediaCopywriter.ts")>("lib/aiMediaCopywriter.ts").writeAiMediaHeadline(env.args);
-  assert.equal(result.headline, "");
-  assert.equal(result.cta, "");
-  assert.ok(
-    result.scenes.every((scene: { title: string; body: string; spokenLine: string }) =>
-      !scene.title && !scene.body && !scene.spokenLine
-    )
-  );
+  assert.ok(result.headline);
+  assert.equal(result.headline, env.args.plan.headline);
+  assert.equal(result.cta, env.args.plan.cta);
   assert.equal(result.scenes[0]?.visualBrief, env.args.plan.scenes[0]?.visualBrief);
   assert.equal(env.calls(), 1);
-  assert.doesNotMatch(result.scenes.map((scene: { body: string }) => scene.body).join(" "), /21b8ef/i);
+  const visibleAndSpokenDeck = [
+    result.headline,
+    result.cta,
+    ...result.scenes.flatMap((scene) => [
+      scene.eyebrow,
+      scene.title,
+      scene.body,
+      scene.spokenLine,
+      scene.spokenReply,
+    ]),
+  ].join(" ");
+  assert.doesNotMatch(
+    visibleAndSpokenDeck,
+    /21b8ef|8b5cf6|e94aa5|Couleurs techniques|palette interne/i
+  );
 });
 
 test("la narration rejette les codes couleur et conserve un secours oral sans second appel", async () => {

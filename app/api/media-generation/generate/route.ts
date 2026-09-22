@@ -299,6 +299,14 @@ function publicGenerationError(error: unknown) {
         "Le moteur vidéo n’a pas pu préserver l’identité à partir des photos fournies. Aucune personne générique n’a été substituée : ajustez les photos de référence puis réessayez.",
     });
   }
+  if (message.includes("ai_video_instruction_contract_too_long")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_VIDEO_INSTRUCTION_TOO_COMPLEX",
+      message:
+        "La consigne vidéo contient trop d’exigences distinctes pour être transmise intégralement au moteur. Raccourcissez-la ou répartissez les détails dans les critères Studio : aucun quota iNrCy n’a été consommé.",
+    });
+  }
   if (
     message.includes("ai_video_omni_safety_filtered") ||
     message.includes("ai_video_veo_safety_filtered")
@@ -412,15 +420,22 @@ async function readRequestBody(request: Request) {
 
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
-    contract: "inrcy-ai-media-generation-v12-modification-canvas",
+    contract: "inrcy-ai-media-generation-v13-structured-studio",
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     operation: request.operation || "generate",
+    inputMode: request.inputMode || "legacy",
+    generationMode: request.generationMode,
+    peopleCriterion: request.peopleCriterion,
+    settingCriterion: request.settingCriterion,
+    focusCriterion: request.focusCriterion,
     modificationSourceWidth: request.modificationSourceWidth,
     modificationSourceHeight: request.modificationSourceHeight,
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea: request.idea,
     aiInstruction: request.aiInstruction,
+    textMode: request.textMode,
+    exactText: request.exactText,
     withText: request.withText,
     textKeywords: request.textKeywords,
     withMusic: request.withMusic,
@@ -430,6 +445,8 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     format: request.format,
     typology: request.typology,
     visualStyle: request.visualStyle,
+    visualDirection: request.visualDirection,
+    imagePurpose: request.imagePurpose,
     imageStyle: request.imageStyle,
     shotType: request.shotType,
     peopleMode: request.peopleMode,
@@ -442,13 +459,19 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     identityConsent: request.identityConsent,
     teamVideoMode: request.teamVideoMode,
     teamVideoSpeechMode: request.teamVideoSpeechMode,
+    teamVideoVeoConsent: request.teamVideoVeoConsent,
     identityReferenceSetId: request.identityReferenceSetId,
     durationSeconds: request.durationSeconds,
+    sceneMode: request.sceneMode,
+    connectScenes: request.connectScenes,
     // Ne jamais persister une empreinte dérivée des photos. Ces descripteurs
     // non biométriques suffisent au contrôle de forme de l'idempotence.
     inspirationImages: request.inspirationImages.map((image) => ({
       mimeType: image.mimeType,
       encodedLength: image.data.length,
+      role: image.role || null,
+      usage: image.usage || null,
+      characterIndex: image.characterIndex || null,
     })),
     source: request.source,
   });

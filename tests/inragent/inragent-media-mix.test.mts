@@ -77,6 +77,9 @@ test("les blocs Studio sauvegardés sont appliqués sans réutiliser l'identité
     defaults: {
       visualStyle: "premium",
       creativity: "bold",
+      imagePurpose: "auto",
+      visualDirection: "auto",
+      sceneMode: "single",
       useBrandColors: false,
       logoMode: "none",
     },

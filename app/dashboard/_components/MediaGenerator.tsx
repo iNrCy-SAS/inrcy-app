@@ -8,6 +8,7 @@ import useMediaGeneration, {
   MediaGenerationCancelledError,
   type MediaGenerationFormat,
   type MediaGenerationImageStyle,
+  type MediaGenerationImagePurpose,
   type MediaGenerationInspirationImage,
   type MediaGenerationKind,
   type MediaGenerationLogoMode,
@@ -18,6 +19,9 @@ import useMediaGeneration, {
   type MediaGenerationResult,
   type MediaGenerationSource,
   type MediaGenerationSubjectSource,
+  type MediaGenerationTypology,
+  type MediaGenerationVisualDirection,
+  type MediaGenerationVisualStyle,
   type MediaGenerationVideoDuration,
   type MediaGenerationVideoCharacterMode,
   type MediaGenerationTeamVideoSpeechMode,
@@ -33,6 +37,7 @@ import {
   AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS,
   AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES,
   AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
+  aiMediaBriefRequestsVisibleText,
   resolveAiMediaPreviewFormat,
 } from "@/lib/aiMediaGenerationContracts";
 import {
@@ -102,22 +107,8 @@ type StudioAiFocusCriterion =
   | "product"
   | "environment";
 type StudioCharacterCount = 0 | 1 | 2 | 3;
-type StudioImagePurpose =
-  | "auto"
-  | "simple"
-  | "social"
-  | "flyer"
-  | "product_sheet"
-  | "poster"
-  | "banner"
-  | "infographic";
-type StudioVisualDirection =
-  | "auto"
-  | "clean"
-  | "premium"
-  | "warm"
-  | "dynamic"
-  | "bold";
+type StudioImagePurpose = MediaGenerationImagePurpose;
+type StudioVisualDirection = MediaGenerationVisualDirection;
 type StudioTextMode = "none" | "ai" | "exact";
 type StudioVideoSceneMode = "single" | "multi";
 type StudioRequiredReferenceRole = Exclude<
@@ -756,6 +747,9 @@ export default function MediaGenerator({
 
     const block3 = savedPreferences.blocks[3];
     if (block3.saved) {
+      setImagePurpose(block3.defaults.imagePurpose);
+      setVisualDirection(block3.defaults.visualDirection);
+      setVideoSceneMode(block3.defaults.sceneMode);
       setUseBrandColors(block3.defaults.useBrandColors);
       setLogoMode(block3.defaults.logoMode);
     }
@@ -807,6 +801,11 @@ export default function MediaGenerator({
 
     if (block6.saved) {
       setDurationSeconds(block6.defaults.durationSeconds);
+      if (!block3.saved) {
+        setVideoSceneMode(
+          block6.defaults.connectScenes ? "single" : "multi"
+        );
+      }
       setWithText(block6.defaults.withText);
       setTextMode(block6.defaults.withText ? "ai" : "none");
       setWithMusic(block6.defaults.withMusic);
@@ -856,26 +855,25 @@ export default function MediaGenerator({
   const creativeBrief = subjectSource === "custom" ? customIdea : aiInstruction;
   const creativeBriefMaximum = 1_600;
   const effectiveWithText = textMode !== "none";
+  const structuredVisualStyle: MediaGenerationVisualStyle =
+    visualDirection === "bold"
+      ? "colorful"
+      : visualDirection === "auto"
+      ? "brand"
+      : visualDirection;
+  const structuredTypology: MediaGenerationTypology =
+    kind === "image" &&
+    ["flyer", "product_sheet"].includes(imagePurpose)
+      ? "offer"
+      : kind === "image" && ["poster", "banner"].includes(imagePurpose)
+      ? "showcase"
+      : kind === "image" && imagePurpose === "infographic"
+      ? "advice"
+      : "service";
   const generationAiInstruction = useMemo(() => {
     if (transformMode) return aiInstruction.trim();
 
     const directives: string[] = [];
-    if (kind === "image" && imagePurpose !== "auto") {
-      directives.push(
-        `Type de création demandé : ${
-          IMAGE_PURPOSES.find((option) => option.id === imagePurpose)?.label ||
-          imagePurpose
-        }.`
-      );
-    }
-    if (visualDirection !== "auto") {
-      directives.push(
-        `Direction visuelle : ${
-          VISUAL_DIRECTIONS.find((option) => option.id === visualDirection)
-            ?.label || visualDirection
-        }.`
-      );
-    }
     if (kind === "video" && durationSeconds > 8) {
       directives.push(
         videoSceneMode === "single"
@@ -889,12 +887,10 @@ export default function MediaGenerator({
   }, [
     creativeBrief,
     durationSeconds,
-    imagePurpose,
     kind,
     mediaSourceMode,
     transformMode,
     videoSceneMode,
-    visualDirection,
   ]);
   const subjectReady =
     subjectSource === "profile" ||
@@ -997,10 +993,19 @@ export default function MediaGenerator({
     strictIdentityReferenceMode && characterReferences.length > 0;
   const identityConsentMissing = identityConsentRequired && !identityConsent;
   const transformReferenceMissing = transformMode && !inspirationReference;
+  const visibleTextModeConflict =
+    textMode === "none" &&
+    aiMediaBriefRequestsVisibleText({
+      kind,
+      imagePurpose,
+      idea: resolvedIdea,
+      aiInstruction: creativeBrief,
+    });
   const disabled =
     operationLocked ||
     !subjectReady ||
     (textMode === "exact" && exactText.trim().length < 2) ||
+    visibleTextModeConflict ||
     Boolean(exhausted) ||
     videoDurationUnavailable ||
     videoCreditInsufficient ||
@@ -1335,6 +1340,15 @@ export default function MediaGenerator({
         typology: savedPreferences.blocks[2].defaults.typology,
         format,
       };
+      const block3: AiMediaGeneratorBlockDefaults[3] = {
+        visualStyle: savedPreferences.blocks[3].defaults.visualStyle,
+        creativity: savedPreferences.blocks[3].defaults.creativity,
+        imagePurpose,
+        visualDirection,
+        sceneMode: videoSceneMode,
+        useBrandColors,
+        logoMode,
+      };
       const block4: AiMediaGeneratorBlockDefaults[4] = {
         imageStyle,
         shotType: savedPreferences.blocks[4].defaults.shotType,
@@ -1342,6 +1356,7 @@ export default function MediaGenerator({
       void Promise.all([
         savePreferenceBlock(1, checked, block1),
         savePreferenceBlock(2, checked, block2),
+        savePreferenceBlock(3, checked, block3),
         savePreferenceBlock(4, checked, block4),
       ]);
       return;
@@ -1366,6 +1381,9 @@ export default function MediaGenerator({
       const block3: AiMediaGeneratorBlockDefaults[3] = {
         visualStyle: savedPreferences.blocks[3].defaults.visualStyle,
         creativity: savedPreferences.blocks[3].defaults.creativity,
+        imagePurpose,
+        visualDirection,
+        sceneMode: videoSceneMode,
         useBrandColors,
         logoMode,
       };
@@ -1450,6 +1468,10 @@ export default function MediaGenerator({
             ? narrationVoiceVariant
             : undefined,
         format,
+        typology: structuredTypology,
+        visualStyle: structuredVisualStyle,
+        visualDirection,
+        imagePurpose: kind === "image" ? imagePurpose : "auto",
         imageStyle,
         peopleMode: effectivePeopleMode,
         identityMode: effectiveIdentityMode,
@@ -2538,7 +2560,7 @@ export default function MediaGenerator({
                   ? "ai_generator_redesign_image_direction_title"
                   : "ai_generator_redesign_video_direction_title"
               )}
-              onChange={(checked) => handleRememberPreferenceGroup(1, checked)}
+              onChange={(checked) => handleRememberPreferenceGroup(3, checked)}
             />
           </header>
 
@@ -2762,6 +2784,13 @@ export default function MediaGenerator({
                 </button>
               ))}
             </div>
+
+            {visibleTextModeConflict ? (
+              <small className={styles.fieldAlert} role="alert">
+                Votre brief demande du texte visible. Choisissez « Texte rédigé
+                par l’IA » ou « Texte exact » avant de générer.
+              </small>
+            ) : null}
 
             {textMode === "exact" ? (
               <label

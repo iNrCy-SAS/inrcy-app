@@ -24,12 +24,16 @@ test("le type reste dans le header et la durée vidéo dans le bloc réalisation
   assert.doesNotMatch(source, /expandedStep|sceneConnectionChoice/);
 });
 
-test("le Studio transmet le scénario produit sans réintroduire les anciens réglages décoratifs", () => {
+test("le Studio transmet le scénario et les choix visuels structurés sans anciens réglages cachés", () => {
   const generation = source.slice(source.indexOf("const performGeneration"), source.indexOf("const handleGenerate"));
   assert.match(generation, /inputMode: "essential"/);
   assert.match(generation, /sceneMode: kind === "video" \? videoSceneMode : undefined/);
   assert.match(generation, /connectScenes:[\s\S]*?durationSeconds > 8[\s\S]*?videoSceneMode === "single"/);
-  assert.doesNotMatch(generation, /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:/);
+  assert.match(generation, /typology: structuredTypology/);
+  assert.match(generation, /visualStyle: structuredVisualStyle/);
+  assert.match(generation, /visualDirection,/);
+  assert.match(generation, /imageStyle,/);
+  assert.doesNotMatch(generation, /shotType\s*:|creativity\s*:|videoEngine\s*:/);
   assert.doesNotMatch(source, /setConnectScenes|SceneConnectionNotice/);
 });
 

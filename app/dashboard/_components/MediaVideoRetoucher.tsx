@@ -385,7 +385,7 @@ export default function MediaVideoRetoucher({
     }
   };
 
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+  const onDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setDragging(false);
     void selectFile(event.dataTransfer.files?.[0]);
@@ -414,9 +414,13 @@ export default function MediaVideoRetoucher({
                 <p>Cette vidéo reste la base de votre retouche.</p>
               </div>
             </header>
-            <div
+            <button
+              type="button"
               className={styles.dropzone}
               data-dragging={dragging ? "true" : "false"}
+              aria-label="Choisir une vidéo à retoucher"
+              disabled={initialSourceLoading}
+              onClick={() => fileInputRef.current?.click()}
               onDragEnter={(event) => {
                 event.preventDefault();
                 setDragging(true);
@@ -434,7 +438,7 @@ export default function MediaVideoRetoucher({
               <small>
                 MP4, MOV, WebM, MPEG, AVI, MKV, 3GP, TS, WMV, FLV ou OGV
               </small>
-            </div>
+            </button>
             <div className={styles.sourceActions}>
               <button
                 type="button"

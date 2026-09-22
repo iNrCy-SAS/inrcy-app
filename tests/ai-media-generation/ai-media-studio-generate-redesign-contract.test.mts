@@ -49,6 +49,22 @@ const modificationPromptSource = readFileSync(
   path.join(LIB_ROOT, "aiMediaModificationPrompt.ts"),
   "utf8",
 );
+const generationServerSource = readFileSync(
+  path.join(LIB_ROOT, "aiMediaGenerationServer.ts"),
+  "utf8",
+);
+const generationRouteSource = readFileSync(
+  path.join(ROOT, "app/api/media-generation/generate/route.ts"),
+  "utf8",
+);
+const brandRendererSource = readFileSync(
+  path.join(LIB_ROOT, "aiMediaBrandRenderer.ts"),
+  "utf8",
+);
+const copywriterSource = readFileSync(
+  path.join(LIB_ROOT, "aiMediaCopywriter.ts"),
+  "utf8",
+);
 const frMedia = JSON.parse(readFileSync(FR_MEDIA_PATH, "utf8")) as Record<
   string,
   string
@@ -253,6 +269,16 @@ test("Générer possède quatre blocs stables, dédiés à Image et à Vidéo", 
   assert.match(
     generatorStyles,
     /@media \(max-width: 900px\)[\s\S]*?\.aiCriteriaGrid,[\s\S]*?grid-template-columns:\s*1fr/,
+  );
+  assert.match(
+    generatorStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.generator \.directionCard\s*\{[\s\S]*?grid-template-rows:\s*max-content minmax\(0, 1fr\) max-content;[\s\S]*?align-content:\s*stretch;/,
+    "le bloc 3 desktop doit répartir ses réglages dans toute la hauteur utile",
+  );
+  assert.match(
+    generatorStyles,
+    /\.generator \.directionCard > \.directionSettings\s*\{[\s\S]*?align-self:\s*center;/,
+    "la grille 2x2 du bloc 3 doit rester centrée dans l’espace utile",
   );
 });
 
@@ -765,6 +791,198 @@ test("Générer Image et Générer Vidéo gardent des contrats moteur distincts"
   assert.equal(continuousVideo.connectScenes, true);
 });
 
+test("Flyer comparatif reste un contrat graphique structuré jusqu’au moteur", () => {
+  const brief =
+    "Créer un flyer comparatif : pack Standard à 58 € / mois et pack Premium à 108 € / mois, avec les deux prix clairement affichés.";
+  const request = normalizeAiMediaGenerationRequest(
+    baseRequest({
+      subjectSource: "profile",
+      idea: "",
+      aiInstruction: brief,
+      imagePurpose: "flyer",
+      visualDirection: "bold",
+      visualStyle: "colorful",
+      typology: "offer",
+      imageStyle: "graphic",
+      format: "landscape",
+      textMode: "ai",
+      withText: true,
+    }),
+  );
+  assert.equal(request.imagePurpose, "flyer");
+  assert.equal(request.visualDirection, "bold");
+  assert.equal(request.visualStyle, "colorful");
+  assert.equal(request.typology, "offer");
+  assert.equal(request.imageStyle, "graphic");
+  assert.equal(request.format, "landscape");
+
+  const plan = buildAiMediaCreativePlan({
+    request,
+    profile: profileFixture(),
+  });
+  const visibleDeck = [
+    plan.headline,
+    plan.subline,
+    plan.cta,
+    ...plan.scenes.flatMap((scene) => [
+      scene.eyebrow,
+      scene.title,
+      scene.body,
+    ]),
+  ].join(" ");
+  for (const required of ["Standard", "Premium", "58 €", "108 €", "mois"]) {
+    assert.match(visibleDeck, new RegExp(required));
+  }
+
+  const prompt = buildAiMediaPrompt({
+    request,
+    profile: profileFixture(),
+    copy: { headline: plan.headline },
+    deferVisibleElementsToComposer: true,
+  });
+  for (const expected of [
+    /TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL/,
+    /simple photo stock plein cadre/,
+    /deux cartes ou deux colonnes d’offres/,
+    /noms, prix, bénéfices et CTA/,
+    /RENDU AFFICHE GRAPHIQUE AUTORITAIRE/,
+    /fond graphique complet avec ses panneaux/,
+    /16:9/,
+    /DIRECTION VISUELLE STRUCTURÉE — BOLD/,
+  ]) {
+    assert.match(prompt, expected);
+  }
+});
+
+test("chaque type Image et direction visuelle possède un contrat prompt explicite", () => {
+  const purposes = [
+    "auto",
+    "simple",
+    "social",
+    "flyer",
+    "product_sheet",
+    "poster",
+    "banner",
+    "infographic",
+  ] as const;
+  for (const imagePurpose of purposes) {
+    const request = normalizeAiMediaGenerationRequest(
+      baseRequest({ imagePurpose, textMode: "none", withText: false }),
+    );
+    const prompt = buildAiMediaPrompt({ request, profile: profileFixture() });
+    assert.match(prompt, /TYPE DE CRÉATION STRUCTURÉ/);
+    assert.ok(
+      prompt.includes(`type ${imagePurpose}`),
+      `le type ${imagePurpose} doit traverser le prompt guidé`,
+    );
+  }
+
+  for (const visualDirection of [
+    "auto",
+    "clean",
+    "premium",
+    "warm",
+    "dynamic",
+    "bold",
+  ] as const) {
+    const request = normalizeAiMediaGenerationRequest(
+      baseRequest({ visualDirection }),
+    );
+    const prompt = buildAiMediaPrompt({ request, profile: profileFixture() });
+    assert.match(
+      prompt,
+      new RegExp(`DIRECTION VISUELLE STRUCTURÉE — ${visualDirection.toUpperCase()}`),
+    );
+  }
+});
+
+test("Vidéo conserve la matrice critères, réalisation, durée, audio, texte et identité", () => {
+  const request = normalizeAiMediaGenerationRequest(
+    baseRequest({
+      kind: "video",
+      generationMode: "ai_criteria",
+      peopleCriterion: "two",
+      settingCriterion: "studio",
+      focusCriterion: "product",
+      format: "story",
+      imageStyle: "three_d",
+      visualDirection: "dynamic",
+      durationSeconds: 24,
+      sceneMode: "multi",
+      textMode: "exact",
+      exactText: "Collection Atelier Horizon",
+      withNarration: true,
+      narrationVoice: "male",
+      narrationVoiceVariant: "Orus",
+      withMusic: true,
+      useBrandColors: true,
+      logoMode: "visible",
+    }),
+  );
+  const prompt = buildAiMediaPrompt({ request, profile: profileFixture() });
+  for (const expected of [
+    /IA AVEC CRITÈRES/,
+    /exactement 2 personnes/,
+    /production en studio/,
+    /priorité visuelle au produit/,
+    /9:16/,
+    /film d’animation 3D premium/,
+    /DIRECTION VISUELLE STRUCTURÉE — DYNAMIC/,
+    /DURÉE EXACTE : 24 secondes/,
+    /MULTISCÈNE : structurer 3 séquences/,
+    /Collection Atelier Horizon/,
+    /Voix choisie : homme, style de voix Orus/,
+    /MUSIQUE :/,
+    /LOGO STRUCTURÉ — visible/,
+  ]) {
+    assert.match(prompt, expected);
+  }
+});
+
+test("un brief commercial ne peut pas être généré silencieusement sans texte", () => {
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest(
+        baseRequest({
+          subjectSource: "profile",
+          idea: "",
+          aiInstruction:
+            "Créer un flyer comparatif avec le pack Standard à 58 € et le pack Premium à 108 €.",
+          imagePurpose: "flyer",
+          textMode: "none",
+          withText: false,
+        }),
+      ),
+    /brief demande du texte visible/i,
+  );
+  assert.doesNotThrow(() =>
+    normalizeAiMediaGenerationRequest(
+      baseRequest({
+        aiInstruction: "Créer un fond de flyer sans texte ni prix.",
+        imagePurpose: "flyer",
+        textMode: "none",
+      }),
+    ),
+  );
+  assert.match(generatorSource, /visibleTextModeConflict/);
+  assert.match(generatorSource, /brief demande du texte visible/);
+});
+
+test("la composition locale garde tout le deck et ne dessine jamais un accent seul", () => {
+  assert.match(generationServerSource, /composedImageBody/);
+  assert.match(generationServerSource, /imageScene\.eyebrow \|\| creativePlan\.companyName/);
+  assert.match(generationServerSource, /imageScene\.title \|\| creativePlan\.headline/);
+  assert.match(generationServerSource, /creativePlan\.cta/);
+  assert.doesNotMatch(
+    generationServerSource,
+    /eyebrow:\s*""[\s\S]{0,120}body:\s*""/,
+  );
+  assert.match(brandRendererSource, /const hasVisibleCopy/);
+  assert.match(brandRendererSource, /if \(!hasVisibleCopy\) return transparent/);
+  assert.match(copywriterSource, /recoverCopywriterFailure/);
+  assert.match(copywriterSource, /ai_media_visible_copy_unavailable/);
+});
+
 test("le prompt public est un routeur mince vers trois contrats propriétaires", () => {
   assert.ok(
     promptRouterSource.length < 2_500,
@@ -1013,7 +1231,13 @@ test("les durées 8/16/24 et les modes single/multi pilotent le raccord réel", 
 });
 
 test("le client sérialise les nouveaux contrats au lieu de les réduire aux anciens booléens", () => {
-  for (const field of ["textMode", "exactText", "sceneMode"]) {
+  for (const field of [
+    "textMode",
+    "exactText",
+    "sceneMode",
+    "visualDirection",
+    "imagePurpose",
+  ]) {
     assert.match(
       hookSource,
       new RegExp(`${field}:\\s*request\\.${field}`),
@@ -1034,6 +1258,11 @@ test("le client sérialise les nouveaux contrats au lieu de les réduire aux anc
   assert.match(generatorSource, /:\s*"inspiration"/);
   assert.match(generatorSource, /textMode:\s*textMode/);
   assert.match(generatorSource, /exactText:\s*exactText/);
+  assert.match(generatorSource, /visualDirection,?/);
+  assert.match(
+    generatorSource,
+    /imagePurpose:\s*kind === "image"\s*\?\s*imagePurpose\s*:\s*"auto"/,
+  );
   assert.match(
     generatorSource,
     /sceneMode:\s*kind === "video"\s*\?\s*videoSceneMode\s*:\s*undefined/,
@@ -1041,6 +1270,35 @@ test("le client sérialise les nouveaux contrats au lieu de les réduire aux anc
   );
   assert.match(hookSource, /inspirationImages:\s*request\.inspirationImages/);
   assert.match(generatorSource, /inspirationImages:\s*mediaSourceMode === "real"/);
+});
+
+test("l’empreinte serveur couvre tous les choix structurés et les rôles des références", () => {
+  for (const field of [
+    "inputMode",
+    "generationMode",
+    "peopleCriterion",
+    "settingCriterion",
+    "focusCriterion",
+    "textMode",
+    "exactText",
+    "visualDirection",
+    "imagePurpose",
+    "sceneMode",
+    "connectScenes",
+  ]) {
+    assert.match(
+      generationRouteSource,
+      new RegExp(`${field}:\\s*request\\.${field}`),
+      `${field} doit participer à l’empreinte idempotente serveur`,
+    );
+  }
+  for (const referenceField of ["role", "usage", "characterIndex"]) {
+    assert.match(
+      generationRouteSource,
+      new RegExp(`${referenceField}:\\s*image\\.${referenceField}`),
+      `${referenceField} doit distinguer deux jeux de références`,
+    );
+  }
 });
 
 function collectProductionSources(directory: string): string[] {

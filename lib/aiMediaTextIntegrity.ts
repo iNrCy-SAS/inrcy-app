@@ -88,6 +88,16 @@ function extractCapitalizedPhrases(source: string, target: string[]) {
   while ((match = properPhrase.exec(source))) addProtectedTerm(target, match[1]);
 }
 
+function extractCommercialTerms(source: string, target: string[]) {
+  const commercialValue =
+    /\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:€|euros?|%|jours?|mois|ans?)(?:\s*(?:\/|par)\s*(?:mois|an|année|jour))?/giu;
+  const offerName =
+    /\b(?:pack|forfait|formule|offre)\s+[\p{L}\p{M}\p{N}'’\-]{2,28}/giu;
+  let match: RegExpExecArray | null;
+  while ((match = commercialValue.exec(source))) addProtectedTerm(target, match[0]);
+  while ((match = offerName.exec(source))) addProtectedTerm(target, match[0]);
+}
+
 export function collectAiMediaProtectedTerms(args: {
   request: Pick<AiMediaGenerationRequest, "idea" | "aiInstruction" | "textKeywords">;
   profile: Pick<NormalizedAiGenerationProfile, "business">;
@@ -101,6 +111,7 @@ export function collectAiMediaProtectedTerms(args: {
   for (const source of sources) {
     extractQuotedTerms(source, terms);
     extractCapitalizedPhrases(source, terms);
+    extractCommercialTerms(source, terms);
   }
 
   for (const term of [

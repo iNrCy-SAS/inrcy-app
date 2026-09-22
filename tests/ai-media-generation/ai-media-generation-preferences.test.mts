@@ -86,6 +86,9 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
     defaults: {
       visualStyle: "premium",
       creativity: "bold",
+      imagePurpose: "flyer",
+      visualDirection: "dynamic",
+      sceneMode: "multi",
       useBrandColors: false,
       logoMode: "visible",
     },
@@ -127,6 +130,32 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
   const storedBlocks = (stored.blocks ?? {}) as Record<string, unknown>;
   assert.equal(Object.hasOwn(storedBlocks, "3"), false);
   assert.equal(Object.hasOwn(storedBlocks, "6"), true);
+});
+
+test("le bloc de réalisation restaure le type image, la direction et le scénario vidéo", () => {
+  const preferences = patchAiMediaGeneratorPreferences({}, {
+    blockId: 3,
+    saved: true,
+    defaults: {
+      visualStyle: "premium",
+      creativity: "bold",
+      imagePurpose: "product_sheet",
+      visualDirection: "clean",
+      sceneMode: "multi",
+      useBrandColors: true,
+      logoMode: "discreet",
+    },
+  });
+
+  assert.deepEqual(preferences.blocks[3].defaults, {
+    visualStyle: "premium",
+    creativity: "bold",
+    imagePurpose: "product_sheet",
+    visualDirection: "clean",
+    sceneMode: "multi",
+    useBrandColors: true,
+    logoMode: "discreet",
+  });
 });
 
 function finishingDefaults(overrides: Record<string, unknown> = {}) {

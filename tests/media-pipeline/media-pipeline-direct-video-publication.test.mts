@@ -113,7 +113,10 @@ test("publier finalise après le clic tandis que la programmation garde sa récu
     immediatePublish,
     /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/,
   );
-  assert.match(modal, /deferTechnicalPreparationUntilPublish=/);
+  assert.match(
+    immediatePublish,
+    /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
+  );
   assert.match(modal, /generateMissingVideoVariants:\s*false/);
   assert.match(
     modal,

@@ -490,26 +490,26 @@ test("iNrADN verrouille la page pendant la dictée et délègue toute capture au
   );
 });
 
-test("iNr Studio propose le même micro corrigé au sujet et à la consigne", () => {
+test("iNr Studio propose le même micro corrigé au brief créatif unifié", () => {
   const voiceButtons = jsxElements(mediaGenerator, "MediaSubjectVoiceButton");
-  assert.equal(voiceButtons.length, 2);
+  assert.equal(voiceButtons.length, 1);
 
-  const subjectButton = elementWithValue(voiceButtons, "customIdea");
-  assert.match(subjectButton, /maxLength=\{1_600\}/);
-  assert.match(subjectButton, /onBusyChange=\{setVoiceBusy\}/);
-
-  const instructionButton = elementWithValue(voiceButtons, "aiInstruction");
-  assert.match(instructionButton, /purpose="instruction"/);
-  assert.match(instructionButton, /maxLength=\{600\}/);
-  assert.match(instructionButton, /onBusyChange=\{setVoiceBusy\}/);
+  const briefButton = elementWithValue(voiceButtons, "creativeBrief");
+  assert.match(briefButton, /purpose="instruction"/);
+  assert.match(briefButton, /maxLength=\{creativeBriefMaximum\}/);
+  assert.match(briefButton, /onBusyChange=\{setVoiceBusy\}/);
+  assert.match(
+    briefButton,
+    /subjectSource === "custom"[\s\S]*setCustomIdea\(nextValue\)[\s\S]*setAiInstruction\(nextValue\)/,
+  );
 
   assert.match(
     mediaGenerator,
     /const operationLocked = busy \|\| finishing \|\| voiceBusy \|\| inspirationBusy/,
   );
   assert.ok(
-    (mediaGenerator.match(/maxLength=\{600\}/g) || []).length >= 2,
-    "la textarea et son micro doivent partager la limite de la consigne",
+    (mediaGenerator.match(/maxLength=\{creativeBriefMaximum\}/g) || []).length >= 2,
+    "la textarea et son micro doivent partager la limite du brief créatif",
   );
 });
 

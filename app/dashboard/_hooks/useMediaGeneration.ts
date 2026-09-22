@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
+  AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
   shouldConnectAiMediaVideoScenes,
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
@@ -36,6 +37,22 @@ export type MediaGenerationVisualStyle =
   | "expert"
   | "local"
   | "colorful";
+export type MediaGenerationVisualDirection =
+  | "auto"
+  | "clean"
+  | "premium"
+  | "warm"
+  | "dynamic"
+  | "bold";
+export type MediaGenerationImagePurpose =
+  | "auto"
+  | "simple"
+  | "social"
+  | "flyer"
+  | "product_sheet"
+  | "poster"
+  | "banner"
+  | "infographic";
 export type MediaGenerationImageStyle =
   | "photo"
   | "illustration"
@@ -153,6 +170,21 @@ function resolveMediaGenerationConnectScenes(request: MediaGenerationRequest) {
   });
 }
 
+function normalizeMediaGenerationAiInstruction(
+  request: MediaGenerationRequest
+) {
+  const value = String(request.aiInstruction || "").trim();
+  if (
+    request.operation === "modify" &&
+    value.length > AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS
+  ) {
+    throw new Error(
+      `La consigne de modification ne peut pas dépasser ${AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS.toLocaleString("fr-FR")} caractères.`
+    );
+  }
+  return value;
+}
+
 export type MediaGenerationQuotaCounter = {
   unit: "item" | "second";
   limit: number | null;
@@ -219,6 +251,8 @@ export type MediaGenerationRequest = {
   format: MediaGenerationFormat;
   typology?: MediaGenerationTypology;
   visualStyle?: MediaGenerationVisualStyle;
+  visualDirection?: MediaGenerationVisualDirection;
+  imagePurpose?: MediaGenerationImagePurpose;
   imageStyle: MediaGenerationImageStyle;
   shotType?: MediaGenerationShotType;
   peopleMode: MediaGenerationPeopleMode;
@@ -474,6 +508,7 @@ function buildGenerationAttemptKey(
   idea: string
 ) {
   const textMode = resolveMediaGenerationTextMode(request);
+  const aiInstruction = normalizeMediaGenerationAiInstruction(request);
   return JSON.stringify({
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
@@ -492,7 +527,7 @@ function buildGenerationAttemptKey(
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea,
-    aiInstruction: String(request.aiInstruction || "").trim(),
+    aiInstruction,
     textMode: request.textMode,
     exactText: request.exactText,
     withText: textMode !== "none",
@@ -510,6 +545,8 @@ function buildGenerationAttemptKey(
     format: request.format,
     typology: request.typology || "service",
     visualStyle: request.visualStyle || "brand",
+    visualDirection: request.visualDirection || "auto",
+    imagePurpose: request.imagePurpose || "auto",
     shotType: request.shotType || "auto",
     creativity: request.creativity || "faithful",
     imageStyle: request.imageStyle,
@@ -875,7 +912,7 @@ export default function useMediaGeneration() {
             kind: request.kind,
             subjectSource: request.subjectSource,
             idea,
-            aiInstruction: String(request.aiInstruction || "").trim(),
+            aiInstruction: normalizeMediaGenerationAiInstruction(request),
             textMode: request.textMode,
             exactText: request.exactText,
             withText: textMode !== "none",
@@ -897,6 +934,8 @@ export default function useMediaGeneration() {
             format: request.format,
             typology: request.typology || "service",
             visualStyle: request.visualStyle || "brand",
+            visualDirection: request.visualDirection || "auto",
+            imagePurpose: request.imagePurpose || "auto",
             shotType: request.shotType || "auto",
             creativity: request.creativity || "faithful",
             videoEngine:

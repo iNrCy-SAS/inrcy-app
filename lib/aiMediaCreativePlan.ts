@@ -166,6 +166,66 @@ function narrativeIdeaHeadline(value: string, variant: number) {
   );
 }
 
+function commercialOfferDetails(value: string) {
+  if (
+    !/\b(?:pack|forfait|formule|offre|abonnement|tarif|prix|compar)\w*/i.test(
+      value
+    )
+  ) {
+    return null;
+  }
+  const pricePattern =
+    "\\d{1,4}(?:[.,]\\d{1,2})?\\s*(?:€|euros?)(?:\\s*(?:/|par)\\s*(?:mois|an|année|jour))?";
+  const normalizePrice = (raw: string) =>
+    raw
+      .replace(/\s*(?:euros?)/i, " €")
+      .replace(/\s*€/u, " €")
+      .replace(/\s*(?:\/|par)\s*/i, " / ")
+      .trim();
+  const namedOffers = Array.from(
+    value.matchAll(
+      new RegExp(
+        `\\b(?:pack|forfait|formule|offre)\\s+([\\p{L}\\p{M}\\p{N}'’\\-]{2,28})\\s*(?:à|:|-)?\\s*(${pricePattern})`,
+        "giu"
+      )
+    ),
+    (match) => ({ name: match[1].trim(), price: normalizePrice(match[2]) })
+  ).slice(0, 2);
+  const amounts = Array.from(
+    value.matchAll(new RegExp(`\\b${pricePattern}`, "giu")),
+    (match) => normalizePrice(match[0])
+  ).filter((amount, index, all) => all.indexOf(amount) === index);
+  if (namedOffers.length >= 2) {
+    return {
+      headline: compactHeadline(
+        `${capitalize(namedOffers[0].name)} ou ${capitalize(
+          namedOffers[1].name
+        )}`
+      ),
+      subline: clean(
+        `${namedOffers[0].name} ${namedOffers[0].price} · ${namedOffers[1].name} ${namedOffers[1].price}`,
+        AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS
+      ),
+    };
+  }
+  if (amounts.length >= 2) {
+    return {
+      headline: compactHeadline(`Packs : ${amounts[0]} et ${amounts[1]}`),
+      subline: clean(
+        `${amounts[0]} · ${amounts[1]}`,
+        AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS
+      ),
+    };
+  }
+  if (amounts.length === 1) {
+    return {
+      headline: compactHeadline(`Une offre à ${amounts[0]}`),
+      subline: amounts[0],
+    };
+  }
+  return null;
+}
+
 /**
  * Build a fast, deterministic fallback from a free-form idea without ever
  * exposing the instruction verbatim. The AI copywriter can improve it, but a
@@ -175,6 +235,8 @@ function ideaHeadline(value: string, variant: number) {
   const original = normalizeAiMediaCopy(value)
     .replace(/[.!?]+$/g, "")
     .trim();
+  const commercialDetails = commercialOfferDetails(original);
+  if (commercialDetails) return commercialDetails.headline;
   const firstBeat =
     original.split(/\s*(?:,|;|→|->|\bpuis\b|\bensuite\b|\bafin de\b)\s*/i)[0] ||
     original;
@@ -435,6 +497,11 @@ export function buildAiMediaCreativePlan(args: {
       ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
       : 1;
   const oneShotInstruction = cleanStructuredText(request.aiInstruction, 2_400);
+  const priorityBrief = cleanStructuredText(
+    request.idea || request.aiInstruction,
+    2_400
+  );
+  const commercialDetails = commercialOfferDetails(priorityBrief);
   const instructionDirection = oneShotInstruction
     ? ` CONSIGNE PRIORITAIRE : ${oneShotInstruction}. L'appliquer entièrement sans l'afficher ni la réciter.`
     : "";
@@ -490,14 +557,22 @@ export function buildAiMediaCreativePlan(args: {
   // aucun fragment français du profil ne fuit dans le visuel final.
   if (language !== "fr") {
     const headline = compactHeadline(
-      service || profession || business.companyName || companyName
+      commercialDetails?.headline ||
+        service ||
+        profession ||
+        business.companyName ||
+        companyName
     );
     const subline = clean(
-      strength || business.description || zone || business.city,
+      commercialDetails?.subline ||
+        strength ||
+        business.description ||
+        zone ||
+        business.city,
       145
     );
     const cta = ctaLabel(profile);
-    const idea = cleanStructuredText(request.idea, 2_000);
+    const idea = priorityBrief;
     if (idea) {
       return applyAiMediaTextPolicy(request, {
         headline,
@@ -554,7 +629,7 @@ export function buildAiMediaCreativePlan(args: {
     });
   }
 
-  const idea = cleanStructuredText(request.idea, 2_000);
+  const idea = priorityBrief;
   // Le copywriter reformule normalement cette base. Si son appel très court
   // expire, le secours local reste lié au vrai sujet sans jamais recopier la
   // consigne brute ou simplement la tronquer à l'écran.
@@ -569,11 +644,12 @@ export function buildAiMediaCreativePlan(args: {
         variant,
       });
   const subline = clean(
-    business.description ||
+    commercialDetails?.subline ||
+      business.description ||
       [profession, business.city].filter(Boolean).join(" à "),
     145
   );
-  const cta = ctaLabel(profile);
+  const cta = commercialDetails ? "Comparer les offres" : ctaLabel(profile);
   if (idea) {
     return applyAiMediaTextPolicy(request, {
       headline,

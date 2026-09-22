@@ -36,6 +36,23 @@ export type AiMediaGeneratorBlockDefaults = {
       | "local"
       | "colorful";
     creativity: "faithful" | "bold";
+    imagePurpose:
+      | "auto"
+      | "simple"
+      | "social"
+      | "flyer"
+      | "product_sheet"
+      | "poster"
+      | "banner"
+      | "infographic";
+    visualDirection:
+      | "auto"
+      | "clean"
+      | "premium"
+      | "warm"
+      | "dynamic"
+      | "bold";
+    sceneMode: "single" | "multi";
     useBrandColors: boolean;
     logoMode: "discreet" | "visible" | "none";
   };
@@ -127,6 +144,9 @@ const DEFAULT_BLOCKS: AiMediaGeneratorPreferences["blocks"] = {
     defaults: {
       visualStyle: "brand",
       creativity: "faithful",
+      imagePurpose: "auto",
+      visualDirection: "auto",
+      sceneMode: "single",
       useBrandColors: true,
       logoMode: "discreet",
     },
@@ -275,6 +295,32 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
           input.creativity,
           ["faithful", "bold"] as const,
           "Le niveau de créativité",
+        ),
+        // Optional for backward compatibility with preferences written before
+        // the dedicated Studio Image/Video controls existed.
+        imagePurpose: enumValue(
+          input.imagePurpose,
+          [
+            "auto",
+            "simple",
+            "social",
+            "flyer",
+            "product_sheet",
+            "poster",
+            "banner",
+            "infographic",
+          ] as const,
+          "auto",
+        ),
+        visualDirection: enumValue(
+          input.visualDirection,
+          ["auto", "clean", "premium", "warm", "dynamic", "bold"] as const,
+          "auto",
+        ),
+        sceneMode: enumValue(
+          input.sceneMode,
+          ["single", "multi"] as const,
+          "single",
         ),
         useBrandColors: requiredBoolean(
           input.useBrandColors,
@@ -489,6 +535,30 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
           input.creativity,
           ["faithful", "bold"] as const,
           "faithful",
+        ),
+        imagePurpose: enumValue(
+          input.imagePurpose,
+          [
+            "auto",
+            "simple",
+            "social",
+            "flyer",
+            "product_sheet",
+            "poster",
+            "banner",
+            "infographic",
+          ] as const,
+          "auto",
+        ),
+        visualDirection: enumValue(
+          input.visualDirection,
+          ["auto", "clean", "premium", "warm", "dynamic", "bold"] as const,
+          "auto",
+        ),
+        sceneMode: enumValue(
+          input.sceneMode,
+          ["single", "multi"] as const,
+          "single",
         ),
         useBrandColors: booleanValue(input.useBrandColors, true),
         logoMode: enumValue(

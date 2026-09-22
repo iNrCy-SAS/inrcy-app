@@ -27,6 +27,24 @@ export type AiMediaVisualStyle =
   | "expert"
   | "local"
   | "colorful";
+/** Intention visuelle choisie explicitement dans iNrStudio. */
+export type AiMediaVisualDirection =
+  | "auto"
+  | "clean"
+  | "premium"
+  | "warm"
+  | "dynamic"
+  | "bold";
+/** Type de composition image demandé explicitement dans iNrStudio. */
+export type AiMediaImagePurpose =
+  | "auto"
+  | "simple"
+  | "social"
+  | "flyer"
+  | "product_sheet"
+  | "poster"
+  | "banner"
+  | "infographic";
 export type AiMediaImageStyle =
   | "photo"
   | "illustration"
@@ -98,6 +116,8 @@ export const AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES = INR_MEDIA_IMAGE_MAX_BYTES;
 export const AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES = 560_000;
 export const AI_MEDIA_INSPIRATION_MAX_DIMENSION = 1_280;
 export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
+/** Limite propre au brief de Modifier Image, de l'interface au fournisseur. */
+export const AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS = 1_200;
 
 export type AiMediaFormatSpec = {
   format: AiMediaOutputFormat;
@@ -213,6 +233,10 @@ export type AiMediaGenerationRequest = {
   format: AiMediaOutputFormat;
   typology: AiMediaTypology;
   visualStyle: AiMediaVisualStyle;
+  /** Contrat Studio structuré, distinct de la consigne libre. */
+  visualDirection: AiMediaVisualDirection;
+  /** Contrat Studio structuré, actif uniquement pour une image. */
+  imagePurpose: AiMediaImagePurpose;
   imageStyle: AiMediaImageStyle;
   shotType: AiMediaShotType;
   peopleMode: AiMediaPeopleMode;
@@ -247,6 +271,42 @@ export type AiMediaGenerationRequest = {
   inspirationImages: AiMediaInspirationImage[];
   source: AiMediaSurface;
 };
+
+const AI_MEDIA_VISIBLE_TEXT_NEGATION =
+  /\b(?:sans|aucun(?:e)?|pas\s+de)\s+(?:texte|titre|prix|tarif|montant|mot|lettre|chiffre|slogan|accroche)\b/i;
+const AI_MEDIA_VISIBLE_TEXT_REQUEST =
+  /\b(?:affich(?:e|er|ez)|[ée]cri(?:re|vez)|inscri(?:re|vez)|mentionn(?:e|er|ez)|texte|titre|sous[- ]?titre|accroche|slogan|cta|appel\s+[àa]\s+l['’]action|prix|tarif|montant|pack|forfait|formule|abonnement|promotion|promo|remise|comparatif|comparer)\b/i;
+const AI_MEDIA_COMMERCIAL_VALUE =
+  /(?:\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:€|euros?|%|jours?|mois|ans?)\b|\b(?:prix|tarif|montant)\s*[:=]?\s*\d)/i;
+
+/**
+ * Détecte un brief qui exige explicitement des informations lisibles. Cette
+ * décision produit est partagée par l'UI et le serveur : aucun prix, pack ou
+ * texte demandé ne peut ainsi disparaître silencieusement en mode sans texte.
+ */
+export function aiMediaBriefRequestsVisibleText(args: {
+  kind: AiMediaKind;
+  imagePurpose?: AiMediaImagePurpose | null;
+  idea?: unknown;
+  aiInstruction?: unknown;
+}) {
+  if (args.kind !== "image") return false;
+  const brief = [args.idea, args.aiInstruction]
+    .map((value) => String(value || "").normalize("NFKC").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (!brief || AI_MEDIA_VISIBLE_TEXT_NEGATION.test(brief)) return false;
+  const asksForVisibleCopy = AI_MEDIA_VISIBLE_TEXT_REQUEST.test(brief);
+  const includesCommercialValue = AI_MEDIA_COMMERCIAL_VALUE.test(brief);
+  const isCommercialGraphic = [
+    "flyer",
+    "product_sheet",
+    "poster",
+    "banner",
+    "infographic",
+  ].includes(args.imagePurpose || "auto");
+  return asksForVisibleCopy && (includesCommercialValue || isCommercialGraphic);
+}
 
 export type AiMediaLibraryPickerItem = {
   id: string;
@@ -287,14 +347,23 @@ function cleanText(value: unknown, max: number) {
     .slice(0, max);
 }
 
-function normalizeAiInstruction(value: unknown) {
-  return String(value ?? "")
+function normalizeAiInstruction(
+  value: unknown,
+  max = 2_400,
+  rejectOverflow = false
+) {
+  const normalized = String(value ?? "")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, 2_400);
+    .trim();
+  if (rejectOverflow && normalized.length > max) {
+    throw new AiMediaRequestValidationError(
+      `La consigne de modification ne peut pas dépasser ${max.toLocaleString("fr-FR")} caractères.`
+    );
+  }
+  return normalized.slice(0, max);
 }
 
 function readRequestId(value: unknown) {
@@ -516,7 +585,13 @@ export function normalizeAiMediaGenerationRequest(
       "Décrivez votre idée en quelques mots avant de générer le média."
     );
   }
-  const aiInstruction = normalizeAiInstruction(body.aiInstruction);
+  const aiInstruction = normalizeAiInstruction(
+    body.aiInstruction,
+    operation === "modify"
+      ? AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS
+      : 2_400,
+    operation === "modify"
+  );
   if (operation === "modify" && kind !== "image") {
     throw new AiMediaRequestValidationError(
       "La modification IA accepte uniquement une image pour le moment."
@@ -578,6 +653,34 @@ export function normalizeAiMediaGenerationRequest(
   ) {
     throw new AiMediaRequestValidationError("Style visuel invalide.");
   }
+
+  const rawVisualDirection = cleanText(body.visualDirection, 40) || "auto";
+  if (
+    !["auto", "clean", "premium", "warm", "dynamic", "bold"].includes(
+      rawVisualDirection
+    )
+  ) {
+    throw new AiMediaRequestValidationError("Direction visuelle invalide.");
+  }
+  const visualDirection = rawVisualDirection as AiMediaVisualDirection;
+
+  const rawImagePurpose = cleanText(body.imagePurpose, 40) || "auto";
+  if (
+    ![
+      "auto",
+      "simple",
+      "social",
+      "flyer",
+      "product_sheet",
+      "poster",
+      "banner",
+      "infographic",
+    ].includes(rawImagePurpose)
+  ) {
+    throw new AiMediaRequestValidationError("Type de création image invalide.");
+  }
+  const imagePurpose =
+    kind === "image" ? (rawImagePurpose as AiMediaImagePurpose) : "auto";
 
   const imageStyle = cleanText(body.imageStyle, 40) || "photo";
   if (!["photo", "illustration", "three_d", "graphic"].includes(imageStyle)) {
@@ -656,6 +759,21 @@ export function normalizeAiMediaGenerationRequest(
   if (textMode === "exact" && exactText.length < 1) {
     throw new AiMediaRequestValidationError(
       "Saisissez le texte exact à afficher."
+    );
+  }
+  if (
+    operation === "generate" &&
+    source === "studio" &&
+    textMode === "none" &&
+    aiMediaBriefRequestsVisibleText({
+      kind,
+      imagePurpose,
+      idea,
+      aiInstruction,
+    })
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Votre brief demande du texte visible. Choisissez « Texte rédigé par l’IA » ou « Texte exact » avant de générer."
     );
   }
   const withText = textMode !== "none";
@@ -978,6 +1096,8 @@ export function normalizeAiMediaGenerationRequest(
     format: format as AiMediaOutputFormat,
     typology: typology as AiMediaTypology,
     visualStyle: visualStyle as AiMediaVisualStyle,
+    visualDirection,
+    imagePurpose,
     imageStyle: imageStyle as AiMediaImageStyle,
     shotType: shotType as AiMediaShotType,
     peopleMode: normalizedPeopleMode as AiMediaPeopleMode,

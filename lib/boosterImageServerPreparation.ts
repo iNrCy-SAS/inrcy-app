@@ -17,7 +17,11 @@ import {
   type BoosterImageMetaLike,
   type ComparableImageTransform,
 } from "@/lib/boosterImageDecision";
-import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
+import {
+  normalizeImageOverlay,
+  resolveImageOverlayCoordinates,
+  type ImageOverlay,
+} from "@/lib/imageOverlay";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -702,7 +706,26 @@ function buildImageOverlaySvg(
 
   const fontSize = clamp(Math.round(width * 0.046), 24, 64, 42);
   const lineHeight = Math.round(fontSize * 1.2);
-  const maxChars = Math.max(18, Math.min(64, Math.floor((width * 0.78) / (fontSize * 0.54))));
+  const paddingY = Math.round(fontSize * 0.5);
+  const paddingX = Math.round(fontSize * 0.72);
+  const edge = Math.round(fontSize * 0.8);
+  const panelWidth = Math.max(
+    1,
+    Math.min(
+      Math.max(1, width - edge * 2),
+      Math.round((width * (overlay.width ?? 90)) / 100),
+    ),
+  );
+  const maxChars = Math.max(
+    8,
+    Math.min(
+      64,
+      Math.floor(
+        Math.max(fontSize * 2, panelWidth - paddingX * 2) /
+          (fontSize * 0.54),
+      ),
+    ),
+  );
   const lines: string[] = [];
   for (const paragraph of overlay.text.split(/\r?\n/)) {
     const words = paragraph.trim().split(/\s+/).filter(Boolean);
@@ -722,30 +745,48 @@ function buildImageOverlaySvg(
     }
     if (line) lines.push(line);
   }
-  const visibleLines = lines.slice(0, 8);
-  if (!visibleLines.length) return null;
-
-  const paddingY = Math.round(fontSize * 0.5);
-  const panelX = Math.round(width * 0.05);
-  const panelWidth = Math.max(1, Math.round(width * 0.9));
-  const panelHeight = visibleLines.length * lineHeight + paddingY * 2;
-  const edge = Math.round(fontSize * 0.8);
-  const panelY =
-    overlay.position === "top"
-      ? edge
-      : overlay.position === "bottom"
-        ? Math.max(edge, height - panelHeight - edge)
-        : Math.max(edge, Math.round((height - panelHeight) / 2));
+  const limitedLines = lines.slice(0, 8);
+  if (!limitedLines.length) return null;
+  const naturalPanelHeight = limitedLines.length * lineHeight + paddingY * 2;
+  const panelHeight = Math.max(
+    1,
+    Math.min(
+      Math.max(1, height - edge * 2),
+      overlay.height
+        ? Math.round((height * overlay.height) / 100)
+        : naturalPanelHeight,
+    ),
+  );
+  const visibleLineCount = Math.max(
+    1,
+    Math.floor(Math.max(lineHeight, panelHeight - paddingY * 2) / lineHeight),
+  );
+  const visibleLines = limitedLines.slice(0, visibleLineCount);
+  const coordinates = resolveImageOverlayCoordinates(overlay);
+  const panelX = clamp(
+    Math.round((width * coordinates.x) / 100 - panelWidth / 2),
+    edge,
+    Math.max(edge, width - panelWidth - edge),
+    edge,
+  );
+  const panelY = clamp(
+    Math.round((height * coordinates.y) / 100 - panelHeight / 2),
+    edge,
+    Math.max(edge, height - panelHeight - edge),
+    edge,
+  );
   const radius = Math.round(fontSize * 0.45);
   const fill = overlay.style === "glass" ? "rgba(255,255,255,0.20)" : "rgba(6,10,20,0.78)";
+  const textBlockHeight = visibleLines.length * lineHeight;
+  const firstLineY = panelY + (panelHeight - textBlockHeight) / 2 + lineHeight / 2;
   const tspans = visibleLines
     .map((line, index) => {
-      const y = panelY + paddingY + lineHeight * index + lineHeight / 2;
-      return `<tspan x="${width / 2}" y="${y}">${escapeXml(line)}</tspan>`;
+      const y = firstLineY + lineHeight * index;
+      return `<tspan x="${panelX + panelWidth / 2}" y="${y}">${escapeXml(line)}</tspan>`;
     })
     .join("");
   return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${radius}" fill="${fill}" stroke="rgba(255,255,255,0.28)" stroke-width="${Math.max(1, Math.round(fontSize / 18))}"/><text x="${width / 2}" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="${fontSize}px" font-weight="800" text-anchor="middle" dominant-baseline="middle">${tspans}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${radius}" fill="${fill}" stroke="rgba(255,255,255,0.28)" stroke-width="${Math.max(1, Math.round(fontSize / 18))}"/><text x="${panelX + panelWidth / 2}" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="${fontSize}px" font-weight="800" text-anchor="middle" dominant-baseline="middle">${tspans}</text></svg>`,
   );
 }
 

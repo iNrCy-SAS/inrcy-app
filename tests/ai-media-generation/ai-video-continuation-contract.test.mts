@@ -426,10 +426,10 @@ test("le prompt de prolongation impose une vraie suite sans coupe, reset ni rép
   assert.match(veo, /FINAL: same task reaches requested result/);
   assert.match(veo, /Animate from 0\.0s throughout/);
   assert.match(veo, /No repeat\/old line\/narrator\/music/);
-  assert.match(veo, /Then mouth closed\/silent/);
+  assert.match(veo, /Then silent\/closed mouth/);
 });
 
-test("le prompt reference_team de 24 secondes conserve ses contraintes critiques sous 1 400 caractères", () => {
+test("le prompt reference_team de 24 secondes conserve ses contraintes critiques sous 3 200 caractères", () => {
   const { buildGoogleVideoScenePrompt, promptForInspirationMode } =
     loadVeoPromptRuntime();
   const dialogues = [0, 1, 2].map((index) =>
@@ -503,9 +503,12 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     { continuation: true },
   );
 
-  assert.ok(prompt.length <= 1_400, `prompt trop long: ${prompt.length}`);
+  assert.ok(prompt.length <= 3_200, `prompt trop long: ${prompt.length}`);
   assert.match(prompt, /\[# Sources <PREVIOUS_VIDEO>@Video1\]/);
-  assert.match(prompt, /REFERENCE: group=3 adults, each once; identities locked/);
+  assert.match(
+    prompt,
+    /REFERENCE: files=#1:inspiration\/inspiration; group=3 adults, each once; identities locked/,
+  );
   assert.match(prompt, /lip-syncs once 0\.2–5\.5s: “[^”]{12,}”/);
   assert.match(prompt, /No repeat\/old line/);
   assert.match(prompt, /Continue prior frame/);
@@ -521,7 +524,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
           ...scene, spokenLine: getAiMediaDialogueFallbackPair(language, index)[0],
         })) },
       }, 1, 8, { continuationFrame: true, firstFrameTag: true });
-      assert.ok(framePrompt.length <= 1_400, `${language}/${identityMode}: prompt trop long`);
+      assert.ok(framePrompt.length <= 3_200, `${language}/${identityMode}: prompt trop long`);
       assert.match(framePrompt, /\[# Sources <FIRST_FRAME>@Image1\]/);
       assert.match(framePrompt, /REFERENCE: prior generated frame/);
       assert.match(framePrompt, /SUBJECT:/);
@@ -549,18 +552,25 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     );
     assert.match(
       actPrompt,
-      /USER: Poursuivre exactement l’action en/,
+      /USER: Poursuivre/,
       `acte ${index + 1}: la consigne ponctuelle doit survivre aux contraintes critiques`,
     );
-    assert.match(actPrompt, /étape du travail/);
+    assert.match(actPrompt, /travail/);
     assert.match(actPrompt, /Animate from 0\.0s throughout/);
     assert.match(actPrompt, /NO VISUAL TEXT: blank surfaces/);
-    assert.match(actPrompt, /PARAMS: 8s;square;service;visual=expert\/precise/);
     assert.match(
       actPrompt,
-      /render=photo\/cinematic;shot=medium;people=team/,
+      /PARAMS: film=24s;fmt=square;type=service;mode=ai_free/,
     );
-    assert.ok(actPrompt.includes(`creative=faithful;light/material-accents=${colorDirection.describeAiMediaBrandColors(["#13b8ff", "#ec3e9d"]).join("/")}`));
+    assert.match(actPrompt, /look=expert\/photo\/medium\/team\/faithful/);
+    assert.match(actPrompt, /story=multi\/unlinked/);
+    assert.ok(
+      actPrompt.includes(
+        `pal=${colorDirection
+          .describeAiMediaBrandColors(["#13b8ff", "#ec3e9d"])
+          .join("/")}`,
+      ),
+    );
     assert.doesNotMatch(actPrompt, /#[0-9a-f]{6}/i);
     assert.match(actPrompt, /FRAME medium\/full heads/);
   }
@@ -603,7 +613,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     genericReferencePrompt,
     "source",
   );
-  assert.ok(sourcePrompt.length <= 1_400);
+  assert.ok(sourcePrompt.length <= 3_200);
   assert.match(
     sourcePrompt,
     /REFERENCE: supplied image is animation source/,

@@ -17,7 +17,10 @@ test("a complete account-scoped snapshot is rendered before the first dashboard 
   const dashboard = read("app/dashboard/DashboardClient.tsx");
 
   assert.match(dashboard, /buildOfficialDashboardChannelState\(initialOfficialChannelStates\)/);
-  assert.match(dashboard, /browserAccountId === initialOfficialChannelStatesUserId[\s\S]*readCachedDashboardChannelState\(\)/);
+  assert.match(
+    dashboard,
+    /const initialBrowserCacheAccountId = initialOfficialChannelStatesUserId \?\? getActiveBrowserUserId\(\);[\s\S]*readCachedDashboardChannelState\(initialBrowserCacheAccountId\)/,
+  );
   assert.match(dashboard, /mergeDashboardHydrationState\(cached, initialServerOfficialDashboardState\)/);
   assert.match(dashboard, /hasCompleteOfficialDashboardChannelState\(initialDashboardChannelState\)/);
   assert.match(dashboard, /useBrowserLayoutEffect\(\(\) => \{[\s\S]*last known colours[\s\S]*applyDashboardChannelState\(initialDashboardChannelState\)/);

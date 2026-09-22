@@ -185,7 +185,8 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(generator, /AI_PEOPLE_CRITERIA\.map/);
   assert.match(generator, /AI_SETTING_CRITERIA\.map/);
   assert.match(generator, /AI_FOCUS_CRITERIA\.map/);
-  assert.match(generator, /kind === "image" && imagePurpose !== "auto"/);
+  assert.match(generator, /kind === "image" \? \([\s\S]*?<span>Type de création<\/span>/);
+  assert.match(generator, /value=\{imagePurpose\}[\s\S]*?IMAGE_PURPOSES\.map/);
   assert.match(generator, /kind === "video" && durationSeconds > 8/);
   assert.match(generator, /\(\["single", "multi"\] as const\)\.map/);
   assert.match(generator, /\["none", "ai_generator_redesign_text_none"\]/);

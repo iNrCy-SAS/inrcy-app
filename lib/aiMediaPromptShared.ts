@@ -3,7 +3,7 @@ import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 
 export const AI_MEDIA_PROMPT_VERSION =
-  "inrcy-media-v23-dedicated-contracts";
+  "inrcy-media-v24-structured-studio-contracts";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 export type AiMediaPromptRecentPublication = {

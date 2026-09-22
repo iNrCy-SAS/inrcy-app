@@ -31,7 +31,10 @@ test("strict scheduling requires the workspace master while rollback keeps compa
     immediatePublish,
     /ensureCutoverVideoVariantsReady|prewarmPersistentMediaWorkspace/,
   );
-  assert.match(modal, /deferTechnicalPreparationUntilPublish=/);
+  assert.match(
+    immediatePublish,
+    /if \(shouldBuildVideoFallbackPayload\)[\s\S]*preparePublicationVideoVariants\(/,
+  );
   assert.match(
     prewarm,
     /allowsOriginalVideoFallback\(request\.channel\)[\s\S]{0,120}sourceValidation\.ok/,
