@@ -24,7 +24,7 @@ import {
 import { resolveVideoNormalizationFfmpegPath } from "@/lib/mediaVideoNormalizer";
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 // Ce contrôle intervient après le rendu Google : il doit rester assez court
 // pour sécuriser la parole sans transformer une vidéo saine en attente longue.
 // Les clips sont transcrits en parallèle, donc ce plafond vaut pour le film
@@ -72,6 +72,18 @@ function statusFromError(error: unknown) {
   if (Number.isFinite(explicit) && explicit >= 100 && explicit <= 599) return explicit;
   const match = String(record?.message || error || "").match(/\b(429|500|502|503|504)\b/);
   return match ? Number(match[1]) : 0;
+}
+
+function reportQaFailure(stage: "extract" | "transcribe" | "setup", error: unknown) {
+  const status = statusFromError(error);
+  const codes: string[] = [];
+  let cause = error;
+  for (let depth = 0; cause && typeof cause === "object" && depth < 5; depth += 1) {
+    const record = cause as { code?: unknown; cause?: unknown };
+    if (typeof record.code === "string" && /^[A-Z_]{3,64}$/u.test(record.code)) codes.push(record.code);
+    cause = record.cause;
+  }
+  console.warn("[ai-media] dialogue QA unavailable", JSON.stringify({ stage, status, codes }));
 }
 
 function parseTranscript(value: unknown) {
@@ -231,6 +243,7 @@ async function transcribeAudioWithGoogle(args: {
     });
     return { text: transcript, model: args.model };
   } catch (error) {
+    reportQaFailure("transcribe", error);
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
     if (args.signal?.aborted) throw error;
     await recordAiGatewayAccountFailure({
@@ -239,7 +252,7 @@ async function transcribeAudioWithGoogle(args: {
       model: args.model,
       status: statusFromError(error),
     }).catch(() => undefined);
-    throw new Error(`ai_media_dialogue_qa_transcription_failed:${compact(error, 300)}`);
+    throw new Error("ai_media_dialogue_qa_transcription_failed", { cause: error });
   }
 }
 
@@ -312,6 +325,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
         });
       } catch (error) {
         if (qaSignal.aborted) throw error;
+        reportQaFailure("extract", error);
         return null;
       }
     }));
@@ -339,6 +353,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
     });
   } catch (error) {
     if (args.signal?.aborted) throw error;
+    reportQaFailure("setup", error);
     // Une panne FFmpeg/Google ne doit jamais être confondue avec une vidéo
     // conforme. L'appelant reçoit explicitement `unavailable` et choisit son
     // repli contrôlé (nouvelle tentative, voix off ou vidéo silencieuse).

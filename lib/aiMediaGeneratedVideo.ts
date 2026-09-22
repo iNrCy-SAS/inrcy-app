@@ -21,8 +21,40 @@ const NARRATION_END_GUARD_SECONDS = 1;
 const NARRATION_TIMING_MARGIN_SECONDS = 0.2;
 const NARRATION_DECODE_TOLERANCE_SECONDS = 0.16;
 const NARRATION_MAX_TEMPO = 1.08;
+const NARRATION_SILENCE_THRESHOLD_DB = -52;
 
 export type AiMediaNativeAudioMode = "ambience" | "dialogue" | "mute";
+
+export type PreparedAiMediaNarrationAudio = {
+  audio: GeneratedAiNarrationAudio;
+  durationSeconds: number;
+  tempo: number;
+  silenceCompacted: boolean;
+};
+
+export class AiMediaNarrationTooLongError extends Error {
+  readonly durationSeconds: number;
+  readonly targetVoiceSeconds: number;
+  readonly requiredTempo: number;
+
+  constructor(args: {
+    durationSeconds: number;
+    targetVoiceSeconds: number;
+    requiredTempo: number;
+  }) {
+    super(
+      `ai_narration_too_long_for_natural_pace:audio=${args.durationSeconds.toFixed(
+        3
+      )}:voice_window=${args.targetVoiceSeconds.toFixed(
+        3
+      )}:required_tempo=${args.requiredTempo.toFixed(3)}`
+    );
+    this.name = "AiMediaNarrationTooLongError";
+    this.durationSeconds = args.durationSeconds;
+    this.targetVoiceSeconds = args.targetVoiceSeconds;
+    this.requiredTempo = args.requiredTempo;
+  }
+}
 
 function compactError(error: unknown) {
   const source = error as { stderr?: unknown; message?: unknown } | null;
@@ -100,6 +132,163 @@ function narrationTempoFilters(args: {
     throw new Error("ai_narration_too_long_for_natural_pace");
   }
   return [`atempo=${tempo.toFixed(6)}`];
+}
+
+function narrationTiming(durationSeconds: number) {
+  const maximumVoiceSeconds = Math.max(
+    0.5,
+    durationSeconds - NARRATION_END_GUARD_SECONDS
+  );
+  return {
+    maximumVoiceSeconds,
+    targetVoiceSeconds: Math.max(
+      0.4,
+      maximumVoiceSeconds - NARRATION_TIMING_MARGIN_SECONDS
+    ),
+  };
+}
+
+function requiredNarrationTempo(args: {
+  narrationDurationSeconds: number;
+  targetVoiceSeconds: number;
+}) {
+  return (
+    (args.narrationDurationSeconds + NARRATION_DECODE_TOLERANCE_SECONDS) /
+    args.targetVoiceSeconds
+  );
+}
+
+/**
+ * Valide la durée réelle du TTS avant tout appel vidéo payant. Lorsque la
+ * diction est correcte mais que le fournisseur a ajouté de longues plages de
+ * silence, celles-ci sont resserrées localement. Aucun mot n'est tronqué et le
+ * débit vocal ne dépasse jamais la correction imperceptible admise au rendu.
+ */
+export async function prepareAiMediaNarrationAudioForVideo(args: {
+  audio: GeneratedAiNarrationAudio;
+  durationSeconds: AiMediaVideoDuration;
+  signal?: AbortSignal;
+}): Promise<PreparedAiMediaNarrationAudio> {
+  args.signal?.throwIfAborted();
+  const temporaryDirectory = await mkdtemp(
+    path.join(tmpdir(), "inrcy-ai-narration-preflight-")
+  );
+  const inputPath = path.join(
+    temporaryDirectory,
+    `narration-source.${args.audio.extension}`
+  );
+  const compactedPath = path.join(temporaryDirectory, "narration-compacted.wav");
+  try {
+    const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+    await writeFile(inputPath, args.audio.buffer);
+    const timing = narrationTiming(args.durationSeconds);
+    const originalDurationSeconds = await probeNarrationDurationSeconds({
+      ffmpegPath,
+      inputPath,
+      signal: args.signal,
+    });
+    const originalTempo = requiredNarrationTempo({
+      narrationDurationSeconds: originalDurationSeconds,
+      targetVoiceSeconds: timing.targetVoiceSeconds,
+    });
+    if (originalTempo <= NARRATION_MAX_TEMPO) {
+      return {
+        audio: args.audio,
+        durationSeconds: originalDurationSeconds,
+        tempo: Math.max(1, originalTempo),
+        silenceCompacted: false,
+      };
+    }
+    let shortestDurationSeconds = originalDurationSeconds;
+    let shortestRequiredTempo = originalTempo;
+
+    // `stop_periods=-1` traite chaque silence interne supérieur à 180 ms et
+    // en conserve 100 ms : les respirations restent audibles, les mots et les
+    // phonèmes ne sont jamais accélérés, découpés ou réordonnés.
+    try {
+      await execFileAsync(
+        ffmpegPath,
+        [
+          "-hide_banner",
+          "-nostdin",
+          "-y",
+          "-i",
+          inputPath,
+          "-map",
+          "0:a:0",
+          "-af",
+          [
+            "silenceremove=start_periods=1",
+            "start_duration=0.08",
+            `start_threshold=${NARRATION_SILENCE_THRESHOLD_DB}dB`,
+            "start_silence=0.04",
+            "stop_periods=-1",
+            "stop_duration=0.18",
+            `stop_threshold=${NARRATION_SILENCE_THRESHOLD_DB}dB`,
+            "stop_silence=0.10",
+          ].join(":"),
+          "-ar",
+          "48000",
+          "-ac",
+          "2",
+          "-c:a",
+          "pcm_s16le",
+          compactedPath,
+        ],
+        {
+          timeout: 45_000,
+          maxBuffer: 4 * 1024 * 1024,
+          windowsHide: true,
+          signal: args.signal,
+        }
+      );
+      const compactedDurationSeconds = await probeNarrationDurationSeconds({
+        ffmpegPath,
+        inputPath: compactedPath,
+        signal: args.signal,
+      });
+      const compactedTempo = requiredNarrationTempo({
+        narrationDurationSeconds: compactedDurationSeconds,
+        targetVoiceSeconds: timing.targetVoiceSeconds,
+      });
+      if (compactedDurationSeconds < shortestDurationSeconds) {
+        shortestDurationSeconds = compactedDurationSeconds;
+        shortestRequiredTempo = compactedTempo;
+      }
+      if (
+        compactedDurationSeconds > 0 &&
+        compactedDurationSeconds < originalDurationSeconds - 0.05 &&
+        compactedTempo <= NARRATION_MAX_TEMPO
+      ) {
+        return {
+          audio: {
+            ...args.audio,
+            buffer: await readFile(compactedPath),
+            mimeType: "audio/wav",
+            extension: "wav",
+          },
+          durationSeconds: compactedDurationSeconds,
+          tempo: Math.max(1, compactedTempo),
+          silenceCompacted: true,
+        };
+      }
+    } catch (error) {
+      args.signal?.throwIfAborted();
+      // Une optimisation locale de silence est facultative. La durée source
+      // reste autoritaire et provoque ci-dessous une réécriture éditoriale.
+      void error;
+    }
+
+    throw new AiMediaNarrationTooLongError({
+      durationSeconds: shortestDurationSeconds,
+      targetVoiceSeconds: timing.targetVoiceSeconds,
+      requiredTempo: shortestRequiredTempo,
+    });
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true }).catch(
+      () => undefined
+    );
+  }
 }
 
 function buildFilter(args: {
@@ -185,14 +374,7 @@ function buildFilter(args: {
     if (args.narrationDurationSeconds === null) {
       throw new Error("ai_narration_duration_unavailable");
     }
-    const maximumVoiceSeconds = Math.max(
-      0.5,
-      args.durationSeconds - NARRATION_END_GUARD_SECONDS
-    );
-    const targetVoiceSeconds = Math.max(
-      0.4,
-      maximumVoiceSeconds - NARRATION_TIMING_MARGIN_SECONDS
-    );
+    const { targetVoiceSeconds } = narrationTiming(args.durationSeconds);
     const tempoFilters = narrationTempoFilters({
       narrationDurationSeconds: args.narrationDurationSeconds,
       targetVoiceSeconds,

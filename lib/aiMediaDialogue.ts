@@ -140,11 +140,15 @@ const DANGLING_SPEECH_ENDINGS: Readonly<Record<string, ReadonlySet<string>>> = {
     "de",
     "des",
     "du",
+    "en",
     "et",
     "la",
     "le",
     "les",
     "mais",
+    "mes",
+    "nos",
+    "notre",
     "ou",
     "par",
     "pour",
@@ -154,9 +158,12 @@ const DANGLING_SPEECH_ENDINGS: Readonly<Record<string, ReadonlySet<string>>> = {
     "si",
     "sous",
     "sur",
+    "tes",
     "un",
     "une",
     "vers",
+    "vos",
+    "votre",
   ]),
   en: new Set([
     "a",
@@ -229,6 +236,72 @@ export function hasCompleteAiMediaSpeechEnding(
   if (!line || /(?:\.{3}|…|[,;:—-])\s*$/u.test(line)) return false;
   const dangling = DANGLING_SPEECH_ENDINGS[normalizedLanguage(language)];
   return !dangling?.has(normalizedLastWord(line));
+}
+
+/**
+ * Refuse les pseudo-phrases qui ne sont en réalité qu'une succession de
+ * mots-clés. Ce contrôle reste volontairement structurel et multilingue : il
+ * ne réécrit rien, mais exige des propositions assez longues pour porter un
+ * discours et limite la ponctuation de type liste.
+ */
+export function hasNaturalAiMediaSpeechFlow(
+  value: unknown,
+  language: string,
+) {
+  const line = String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!line || !hasCompleteAiMediaSpeechEnding(line, language)) return false;
+  if (/[|·+]/u.test(line) || /(?:^|\s)(?:[-•]|\d+[.)])\s+/u.test(line)) {
+    return false;
+  }
+
+  const normalized = normalizedLanguage(language);
+  if (["zh", "th"].includes(normalized)) {
+    return dialogueSpokenUnitCount(line, normalized) >= 8;
+  }
+
+  const sentences = line
+    .split(/[.!?]+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  if (!sentences.length) return false;
+  // Le seuil de liste s'applique à une phrase, pas à toute une narration :
+  // deux phrases liées peuvent naturellement totaliser trois virgules.
+  if (sentences.some((sentence) => (sentence.match(/[,;:]/gu) || []).length >= 3)) return false;
+  const signatures = sentences.map(aiMediaDialogueSignature);
+  if (new Set(signatures).size !== signatures.length) return false;
+  if (sentences.some((sentence) => !hasCompleteAiMediaSpeechEnding(sentence, language))) {
+    return false;
+  }
+  // Un complément de lieu isolé ne devient pas une phrase grâce à « un » ou
+  // « de ». Il provenait du découpage du brief et pouvait être récité tel quel.
+  if (normalized === "fr" && sentences.some((sentence) =>
+    /^(?:dans|au|aux|chez|avec|sans|sous|sur|près de)\s+/iu.test(sentence)
+    && !/[,;:]|\b(?:je|tu|il|elle|on|nous|vous|ils|elles|est|sont|sera|seront|fait|font|prend|prennent|naît|naissent|choisit|choisissent|sort|sortent|se|s['’])\b/iu.test(sentence)
+    && !/\b[\p{L}]{3,}(?:ons|ez)\b/iu.test(sentence)
+  )) return false;
+  // Une succession de mots-clés reste une liste même sans virgules. Ce signal
+  // structurel conserve les phrases reliées par des déterminants, pronoms ou
+  // prépositions ; il ne prétend pas remplacer une analyse grammaticale.
+  if (
+    normalized === "fr" &&
+    sentences.some((sentence) =>
+      !/(?:^|[\s'’])(?:je|tu|il|elle|on|nous|vous|ils|elles|ce|cela|ça|ces|cet|cette|le|la|les|un|une|des|du|de|d|l|mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|leur|leurs|chaque|quel|quelle|quels|quelles|qui|que|qu|à|au|aux|avec|chez|dans|en|par|pour|sans|sous|sur|vers|est|sont|sera|seront|a|ont)(?=[\s'’,;:]|$)/iu.test(sentence)
+    )
+  ) {
+    return false;
+  }
+  const sentenceWordCounts = sentences.map((sentence) =>
+    sentence.split(/\s+/u).filter(Boolean).length
+  );
+  const totalWords = sentenceWordCounts.reduce((sum, count) => sum + count, 0);
+  const maximumSentences = Math.max(1, Math.ceil(totalWords / 9));
+  return (
+    sentences.length <= maximumSentences &&
+    sentenceWordCounts.every((count) => count >= 4)
+  );
 }
 
 export function completeAiMediaSpeechSentence(
@@ -337,6 +410,7 @@ export function isQualityAiMediaDialogueLine(
   if (GENERIC_DIALOGUE_PATTERN.test(line)) return false;
   if (line.length > MAX_NATIVE_DIALOGUE_CHARACTERS) return false;
   if (!hasCompleteAiMediaSpeechEnding(line, language)) return false;
+  if (!hasNaturalAiMediaSpeechFlow(line, language)) return false;
   const count = dialogueSpokenUnitCount(line, language);
   return ["zh", "th"].includes(normalizedLanguage(language))
     ? count >= 8 && count <= 42
@@ -384,6 +458,24 @@ export function getAiMediaDialogueFallbackPair(
   return fallbacks[sceneIndex % fallbacks.length]!;
 }
 
+/** Une citation explicitement donnée à prononcer n'est pas du texte à réécrire. */
+export function extractAiMediaRequestedDialogue(source: string) {
+  // Studio transmet le même brief dans idea et aiInstruction. Dédupliquer
+  // ces sources identiques, pas les répliques : deux citations explicitement
+  // répétées dans un même brief doivent conserver leur ordre et leur nombre.
+  const distinctSources = Array.from(new Set(source.split(/\r?\n/u).map((part) => part.trim()).filter(Boolean))).join("\n");
+  const pattern = /(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent)\b|\b(?:réplique|dialogue|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"\n]{0,90}[«“"]([^»”"]+)[»”"]/giu;
+  return Array.from(distinctSources.matchAll(pattern), (match) => match[1]!.trim());
+}
+
+export function validateAiMediaRequestedDialogue(lines: readonly string[], language: string) {
+  for (const line of lines) {
+    if (!isQualityAiMediaDialogueLine(line, language)) {
+      throw new Error("ai_media_exact_dialogue_unfit");
+    }
+  }
+}
+
 /** Resolve the exact script once, in order, for both generation and audio QA.
  * Tracking selected fallbacks (not rejected source lines) prevents a later
  * scene from accidentally repeating a replacement spoken in an earlier act.
@@ -392,7 +484,14 @@ export function resolveAiMediaDialogueSequence(args: {
   scenes: ReadonlyArray<{ spokenLine?: string; body?: string; title?: string }>;
   headline: string;
   language: string;
+  requestedSpeech?: string;
 }) {
+  const exact = extractAiMediaRequestedDialogue(args.requestedSpeech || "");
+  if (exact.length) {
+    validateAiMediaRequestedDialogue(exact, args.language);
+    if (exact.length > args.scenes.length) throw new Error("ai_media_exact_dialogue_unfit");
+    return args.scenes.map((_scene, index) => exact[index] || "");
+  }
   const used = new Set<string>();
   return args.scenes.map((scene, sceneIndex) => {
     const selected = selectAiMediaDialogueLine({

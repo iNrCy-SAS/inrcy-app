@@ -55,11 +55,17 @@ test("all Gateway feature tags have explicit economic policies", () => {
 });
 
 test("media copywriting reserves enough output for a complete multi-scene JSON", () => {
-  for (const feature of ["media.image", "media.video"] as const) {
-    assert.equal(AI_FEATURE_POLICIES[feature].maxOutputTokens, 512);
+  const expectedBudgets = {
+    "media.image": 1536,
+    "media.video": 2048,
+  } as const;
+  for (const [feature, expectedBudget] of Object.entries(expectedBudgets) as Array<
+    [keyof typeof expectedBudgets, number]
+  >) {
+    assert.equal(AI_FEATURE_POLICIES[feature].maxOutputTokens, expectedBudget);
     assert.equal(
       AI_FEATURE_POLICIES[feature].defaultOperationMaxReservedOutputTokens,
-      512,
+      expectedBudget,
     );
   }
 });

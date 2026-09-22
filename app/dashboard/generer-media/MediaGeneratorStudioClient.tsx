@@ -24,7 +24,10 @@ import {
   type InrStudioHandoff,
   type InrStudioTab,
 } from "@/lib/inrStudioNavigation";
-import { normalizeImageOverlay } from "@/lib/imageOverlay";
+import {
+  getImageOverlayLinkUrl,
+  normalizeImageOverlay,
+} from "@/lib/imageOverlay";
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import { renderMediaRetoucherFile } from "@/lib/mediaRetoucherRenderClient";
 import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
@@ -236,6 +239,7 @@ export default function MediaGeneratorStudioClient() {
         transform: value.transform,
       });
       const overlay = normalizeImageOverlay(value.transform.overlay);
+      const overlayLinkUrl = getImageOverlayLinkUrl(overlay);
       const item = await uploadFileToMediaLibrary(rendered.file, {
         title: rendered.file.name.replace(/\.[^.]+$/, ""),
         source: "studio_retouch",
@@ -246,7 +250,7 @@ export default function MediaGeneratorStudioClient() {
           studio_action: "retouch",
           source_name: value.sourceFile.name,
           transform: value.transform,
-          ...(overlay?.linkUrl ? { link_url: overlay.linkUrl } : {}),
+          ...(overlayLinkUrl ? { link_url: overlayLinkUrl } : {}),
         },
       });
       const returnedItem: Record<string, unknown> = {

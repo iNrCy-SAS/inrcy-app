@@ -27,7 +27,7 @@ import {
 } from "@/lib/aiMediaQuotaPresentation";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
-import { safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
+import { safeAiMediaErrorDetails, safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import {
   getExistingGeneratedAiMedia,
   getPersistedGeneratedAiMediaId,
@@ -305,6 +305,31 @@ function publicGenerationError(error: unknown) {
       code: "AI_MEDIA_VIDEO_INSTRUCTION_TOO_COMPLEX",
       message:
         "La consigne vidéo contient trop d’exigences distinctes pour être transmise intégralement au moteur. Raccourcissez-la ou répartissez les détails dans les critères Studio : aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (message.includes("ai_media_exact_dialogue_unfit")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_EXACT_DIALOGUE_INVALID",
+      message:
+        "La réplique exacte ne peut pas être utilisée telle quelle. Vérifiez qu’il s’agit d’une phrase complète adaptée à la durée choisie. Aucun mot n’a été coupé et aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (message.includes("ai_media_narration_unavailable")) {
+    return jsonError({
+      status: 503,
+      code: "AI_MEDIA_NARRATION_UNAVAILABLE",
+      message:
+        "La voix n’a pas pu être préparée correctement pour cette durée. Aucun quota iNrCy n’a été consommé. Réessayez dans un instant.",
+      retryAfterSeconds: 15,
+    });
+  }
+  if (message.includes("ai_media_essential_video_composition_failed")) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_VIDEO_COMPOSITION_FAILED",
+      message:
+        "Le montage final de la vidéo a échoué. Aucun quota iNrCy n’a été consommé. Vos critères sont conservés pour réessayer.",
     });
   }
   if (
@@ -859,14 +884,14 @@ export async function POST(request: Request) {
       quota_snapshot: Math.round(performance.now() - quotaSnapshotStartedAt),
       request_total: Math.round(performance.now() - routeStartedAt),
     };
-    console.info("[ai-media] request completed", {
+    console.info("[ai-media] request completed", JSON.stringify({
       accountId: context.accountId,
       jobId: context.jobId,
       kind: normalizedRequest.kind,
       durationSeconds: normalizedRequest.durationSeconds || null,
       videoEngineResult: generated.videoEngineResult,
       timingsMs: requestTimings,
-    });
+    }));
     return NextResponse.json(
       {
         ok: true,
@@ -970,12 +995,12 @@ export async function POST(request: Request) {
             { headers: NO_STORE_HEADERS },
           );
         }
-        console.error("[ai-media] persisted media finalization pending", {
+        console.error("[ai-media] persisted media finalization pending", JSON.stringify({
           accountId: context.accountId,
           jobId: context.jobId,
           mediaId: persistedMediaId,
           error: safeAiMediaErrorMessage(finalizationError),
-        });
+        }));
         return jsonError({
           status: 503,
           code: "AI_MEDIA_FINALIZATION_PENDING",
@@ -993,21 +1018,27 @@ export async function POST(request: Request) {
         jobId: context.jobId,
         errorCode: failure.code,
         errorMessage: failure.message,
-        metadata: { request_id: context.requestId },
+        metadata: {
+          request_id: context.requestId,
+          request_aborted: request.signal.aborted,
+          error_details: safeAiMediaErrorDetails(error),
+        },
       }).catch((releaseError) => {
-        console.error("[ai-media] quota release failed", {
+        console.error("[ai-media] quota release failed", JSON.stringify({
           accountId: context.accountId,
           jobId: context.jobId,
           error: safeAiMediaErrorMessage(releaseError),
-        });
+        }));
       });
     }
-    console.error("[ai-media] generation failed", {
+    console.error("[ai-media] generation failed", JSON.stringify({
       accountId: context.accountId || null,
       jobId: context.jobId,
       requestId: context.requestId,
       error: safeAiMediaErrorMessage(error),
-    });
+      errorDetails: safeAiMediaErrorDetails(error),
+      requestAborted: request.signal.aborted,
+    }));
     return publicGenerationError(error);
   }
 }

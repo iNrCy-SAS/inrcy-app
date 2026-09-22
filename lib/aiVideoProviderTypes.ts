@@ -1,5 +1,6 @@
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
+import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 
 export type AiVideoProviderClip = {
   buffer: Buffer;
@@ -88,6 +89,15 @@ export type AiVideoProviderGenerationArgs = {
   accountId: string;
   request: AiMediaGenerationRequest;
   plan: AiMediaCreativePlan;
+  /**
+   * Prompt Studio complet compilé par le serveur. Il reste disponible pour
+   * l'audit et son empreinte empêche tout remplacement silencieux au moment du
+   * routage ou d'un fallback de moteur.
+   */
+  canonicalPrompt: string;
+  canonicalPromptSha256: string;
+  /** Contrat sémantique borné, identique pour Veo et Omni. */
+  providerContract: AiMediaVideoProviderContract;
   creativeBrief: string;
   brandColors: readonly string[];
   profession: string;

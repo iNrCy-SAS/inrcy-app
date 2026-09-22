@@ -8,6 +8,7 @@ import {
   completeAiMediaSpeechSentence,
   fitAiMediaSpeechToCompleteSentences,
   hasCompleteAiMediaSpeechEnding,
+  hasNaturalAiMediaSpeechFlow,
   isQualityAiMediaDialogueLine,
   selectAiMediaDialogueLine,
 } from "../../lib/aiMediaDialogue.ts";
@@ -35,6 +36,30 @@ test("une voix off ne peut jamais être validée ou retaillée sur une phrase in
   assert.equal(hasCompleteAiMediaSpeechEnding(fitted, "fr"), true);
 });
 
+test("une voix off refuse les listes de mots et conserve un vrai discours", () => {
+  assert.equal(
+    hasNaturalAiMediaSpeechFlow(
+      "Booster. Publier. Pinterest. Maintenant. Plus simple. Dès aujourd’hui.",
+      "fr"
+    ),
+    false
+  );
+  assert.equal(
+    hasNaturalAiMediaSpeechFlow(
+      "Booster, publier, Pinterest, maintenant, simplicité.",
+      "fr"
+    ),
+    false
+  );
+  assert.equal(
+    hasNaturalAiMediaSpeechFlow(
+      "Booster Publier évolue et vous permet désormais de programmer aussi vos contenus Pinterest.",
+      "fr"
+    ),
+    true
+  );
+});
+
 test("les répliques natives trop longues ou pendantes basculent vers une phrase courte complète", () => {
   const broken = "Nous pouvons prendre rendez-vous et parler de";
   assert.equal(isQualityAiMediaDialogueLine(broken, "fr"), false);
@@ -55,8 +80,33 @@ test("les répliques natives trop longues ou pendantes basculent vers une phrase
   );
 });
 
-test("une réplique vidéo conserve le nom propre La Celle Dunoise en entier", () => {
-  const line = "Permis de construire pour un bâtiment agricole à La Celle Dunoise";
+test("les dialogues natifs refusent eux aussi les suites de mots sans phrase", () => {
+  assert.equal(
+    isQualityAiMediaDialogueLine(
+      "Booster. Publier. Pinterest. Maintenant. Plus simple.",
+      "fr"
+    ),
+    false
+  );
+  assert.equal(
+    isQualityAiMediaDialogueLine(
+      "Booster, publier, Pinterest, maintenant, simplicité.",
+      "fr"
+    ),
+    false
+  );
+  assert.equal(
+    isQualityAiMediaDialogueLine(
+      "Booster évolue et vous permet désormais de programmer vos contenus Pinterest.",
+      "fr"
+    ),
+    true
+  );
+});
+
+test("une réplique vidéo conserve le nom propre La Celle Dunoise dans une phrase entière", () => {
+  const line =
+    "Nous préparons votre permis de construire pour un bâtiment agricole à La Celle Dunoise.";
   assert.equal(isQualityAiMediaDialogueLine(line, "fr"), true);
   assert.equal(
     selectAiMediaDialogueLine({
@@ -65,7 +115,7 @@ test("une réplique vidéo conserve le nom propre La Celle Dunoise en entier", (
       sceneIndex: 0,
       speaker: "lead",
     }),
-    line,
+    line
   );
 });
 
@@ -74,15 +124,21 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   const server = read("lib/aiMediaGenerationServer.ts");
   const narration = read("lib/aiMediaNarration.ts");
   const narrationAudio = read("lib/aiMediaNarrationAudio.ts");
+  const copywriter = read("lib/aiMediaCopywriter.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
 
   assert.match(
     veo,
-    /const firstLine = resolveAiMediaDialogueSequence\(\{\s*scenes: args\.plan\.scenes,\s*headline: args\.plan\.headline,\s*language,\s*\}\)\[index\]/
+    /const firstLine = resolveAiMediaDialogueSequence\(\{\s*scenes: args\.plan\.scenes,\s*headline: args\.plan\.headline,\s*language,\s*requestedSpeech: \[args\.request\.idea, args\.request\.aiInstruction\][\s\S]*?\}\)\[index\]/
   );
   assert.match(
     server,
-    /const expectedDialogueLines = resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*\}\)/
+    /const expectedDialogueLines = characterDialogueRequested\s*\? resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*requestedSpeech: \[[\s\S]*?providerRequest\.idea,[\s\S]*?providerRequest\.aiInstruction,[\s\S]*?\][\s\S]*?\}\)\s*: \[\]/
+  );
+  assert.ok(
+    server.indexOf("const expectedDialogueLines = characterDialogueRequested") <
+      server.indexOf("const videoGatewayTask = generateVideoGateway();"),
+    "la citation personnage est validée avant l'appel vidéo facturé"
   );
   assert.match(
     server,
@@ -111,11 +167,33 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   assert.match(narration, /count <= target\.max/);
   assert.match(narration, /hasCompleteAiMediaSpeechEnding\(value, language\)/);
   assert.match(narration, /completeAiMediaSpeechSentence\(fact, language\)/);
-  assert.match(narration, /8: \{ min: 8, target: 10, max: 12 \}/);
-  assert.match(narration, /16: \{ min: 20, target: 23, max: 26 \}/);
-  assert.match(narration, /24: \{ min: 31, target: 35, max: 39 \}/);
-  assert.match(narrationAudio, /environ 105 à 125 mots par minute/);
+  assert.match(narration, /8: \{ min: 8, target: 13, max: 14 \}/);
+  assert.match(narration, /16: \{ min: 20, target: 27, max: 30 \}/);
+  assert.match(narration, /24: \{ min: 31, target: 41, max: 44 \}/);
+  assert.match(narration, /hasNaturalAiMediaSpeechFlow\(value, language\)/);
+  assert.match(
+    narration,
+    /const maximumSentences = duration === 8 \? 1 : duration === 16 \? 2 : 3/
+  );
+  assert.match(narration, /isNarrationGrounded\(\{/);
+  assert.match(
+    narration,
+    /qualityAttempt = 0; qualityAttempt < 3 && !script/,
+    "le clic unique doit pouvoir auto-réparer deux brouillons avant la génération vidéo"
+  );
+  assert.match(narration, /brouillon_rejete_a_ne_pas_reprendre/);
+  assert.match(narration, /lexicalSimilarity >= 0\.82/);
+  assert.match(narrationAudio, /environ 120 à 140 mots par minute/);
   assert.match(narrationAudio, /ne compresse jamais les mots/);
+  assert.match(narrationAudio, /sans pause entre chaque mot/);
+  assert.match(
+    copywriter,
+    /for \(\s*let qualityAttempt = 0;[\s\S]*?qualityAttempt < qualityAttempts;[\s\S]*?qualityAttempt \+= 1\s*\)/,
+    "les dialogues personnages sont réécrits dans le même clic avant le rendu"
+  );
+  assert.match(copywriter, /characterDialogueRequested\s*\? 3/);
+  assert.match(copywriter, /hasQualityGeneratedDialogueDeck\(\{/);
+  assert.match(copywriter, /brouillon_rejete_a_ne_pas_reprendre/);
 
   assert.match(composer, /NARRATION_END_GUARD_SECONDS = 1/);
   assert.match(composer, /NARRATION_DECODE_TOLERANCE_SECONDS = 0\.16/);

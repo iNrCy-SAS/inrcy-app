@@ -21,6 +21,7 @@ import type {
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
+const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2.5-sunburst";
 const DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image";
 const DEFAULT_IMAGE_COST_MICRO_USD = 65_000;
 const DEFAULT_IMAGE_REFERENCE_COST_MICRO_USD = 20_000;
@@ -67,6 +68,19 @@ function resolveImageModel() {
   const model = configured || DEFAULT_IMAGE_MODEL;
   if (!/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(model)) {
     throw new Error("ai_media_model_invalid");
+  }
+  return model;
+}
+
+function resolveImageEditModel() {
+  const configured = String(
+    process.env.AI_GATEWAY_IMAGE_EDIT_MODEL ||
+      process.env.AI_MEDIA_IMAGE_EDIT_MODEL ||
+      "",
+  ).trim();
+  const model = configured || DEFAULT_IMAGE_EDIT_MODEL;
+  if (!/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(model)) {
+    throw new Error("ai_media_edit_model_invalid");
   }
   return model;
 }
@@ -219,7 +233,7 @@ function buildImageReferenceRoleRules(args: {
         return `- Image ${imageNumber} = inspiration uniquement, rôle Inspiration libre : en extraire librement une ambiance, une palette, un rythme ou une idée de composition. Ne préserver ni recopier aucune identité, aucun produit, aucun décor, aucune pose ni aucun cadrage exact.`;
       }
       if (reference?.role === "character") {
-        return `- Image ${imageNumber} = média Personnage obligatoire, adulte(s) autorisé(s). Détecter toutes les personnes distinctes visibles dans cette image, qu'il y en ait une ou plusieurs. Préserver séparément le visage, les traits, la silhouette et les signes distinctifs de chacune ; les faire toutes apparaître exactement une fois et les mettre naturellement en action selon le brief, sans fusion, permutation, duplication, omission ni substitution générique. La pose, le cadrage et l'arrière-plan peuvent évoluer seulement si le brief le demande.`;
+        return `- Image ${imageNumber} = média Personnage obligatoire, adulte(s) autorisé(s). Détecter toutes les personnes distinctes visibles dans cette image, qu'il y en ait une ou plusieurs. Préserver séparément le visage, les traits, la silhouette et les signes distinctifs de chacune ; les faire toutes apparaître exactement une fois et les mettre naturellement en action selon le brief, sans fusion, permutation, duplication, omission ni substitution générique. Imaginer librement une nouvelle pose, un nouveau cadrage et un nouvel arrière-plan adaptés au sujet, sauf consigne explicite ou référence obligatoire qui les fixe. Ne jamais recopier ces éléments par défaut ; l'identité reste fidèle.`;
       }
       if (reference?.role === "environment") {
         return `- Image ${imageNumber} = décor de référence. Recréer son lieu, son ambiance et ses éléments reconnaissables comme environnement plein cadre de la nouvelle scène ; ne jamais l’utiliser comme une photo fixe ou un fond simplement déplacé.`;
@@ -242,11 +256,32 @@ function buildImageReferenceRoleRules(args: {
 }
 
 function resolveGoogleImageAspectRatio(
-  size: "1024x1024" | "1024x1536" | "1536x1024" | undefined
+  size: `${number}x${number}` | undefined
 ) {
-  if (size === "1024x1536") return "2:3" as const;
-  if (size === "1536x1024") return "3:2" as const;
-  return "1:1" as const;
+  const [width, height] = String(size || "1024x1024")
+    .split("x")
+    .map((value) => Number.parseInt(value, 10));
+  const ratio = width > 0 && height > 0 ? width / height : 1;
+  const supported = [
+    ["1:4", 1 / 4],
+    ["9:16", 9 / 16],
+    ["2:3", 2 / 3],
+    ["3:4", 3 / 4],
+    ["4:5", 4 / 5],
+    ["1:1", 1],
+    ["5:4", 5 / 4],
+    ["4:3", 4 / 3],
+    ["3:2", 3 / 2],
+    ["16:9", 16 / 9],
+    ["21:9", 21 / 9],
+    ["4:1", 4],
+  ] as const;
+  return supported.reduce((closest, candidate) =>
+    Math.abs(Math.log(ratio / candidate[1])) <
+    Math.abs(Math.log(ratio / closest[1]))
+      ? candidate
+      : closest,
+  )[0];
 }
 
 function compactWarnings(value: readonly unknown[]) {
@@ -317,7 +352,7 @@ export async function generateAiMediaImage(args: {
   >;
   /** Logo officiel chargé depuis le stockage de l'établissement actif. */
   officialLogo?: Buffer | null;
-  size?: "1024x1024" | "1024x1536" | "1536x1024";
+  size?: `${number}x${number}`;
   signal?: AbortSignal;
 }): Promise<AiMediaGatewayResult> {
   args.signal?.throwIfAborted();
@@ -337,6 +372,10 @@ export async function generateAiMediaImage(args: {
   const model = strictIdentityReferences
     ? DEFAULT_IMAGE_MODEL
     : configuredModel;
+  // Les modifications locales privilégient le modèle qualité/édition. Flare
+  // reste le modèle rapide par défaut pour les générations ordinaires.
+  const providerModel =
+    args.operation === "modify" ? resolveImageEditModel() : model;
   const timeoutMs = positiveInt(
     process.env.AI_MEDIA_IMAGE_TIMEOUT_MS,
     210_000,
@@ -345,7 +384,7 @@ export async function generateAiMediaImage(args: {
 
   return await withEconomicGuard({
     accountId: args.accountId,
-    model,
+    model: providerModel,
     referenceImagesCount,
     signal: args.signal,
     operation: async (): Promise<AiMediaGatewayResult> => {
@@ -355,7 +394,7 @@ export async function generateAiMediaImage(args: {
         input,
       });
       const result = await generateImage({
-        model,
+        model: providerModel,
         prompt: referenceImagesCount
           ? {
               text: `${args.prompt}\n\n${referenceRoleRules}`,
@@ -369,10 +408,10 @@ export async function generateAiMediaImage(args: {
         abortSignal: args.signal
           ? AbortSignal.any([args.signal, AbortSignal.timeout(timeoutMs)])
           : AbortSignal.timeout(timeoutMs),
-        providerOptions: model.startsWith("openai/")
+        providerOptions: providerModel.startsWith("openai/")
           ? {
               openai: {
-                quality: "medium",
+                quality: args.operation === "modify" ? "high" : "medium",
                 outputFormat: "jpeg",
               },
             }
@@ -388,7 +427,7 @@ export async function generateAiMediaImage(args: {
       return {
         kind: "image",
         provider: "vercel-ai-gateway",
-        model,
+        model: providerModel,
         buffer: bufferFromUint8ArrayView(image.uint8Array),
         mediaType: image.mediaType || "image/png",
         referenceImagesCount,
@@ -431,7 +470,7 @@ export async function generateAiMediaImageWithGoogle(args: {
     Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
   >;
   officialLogo?: Buffer | null;
-  size?: "1024x1024" | "1024x1536" | "1536x1024";
+  size?: `${number}x${number}`;
   signal?: AbortSignal;
 }): Promise<AiMediaGatewayResult> {
   args.signal?.throwIfAborted();

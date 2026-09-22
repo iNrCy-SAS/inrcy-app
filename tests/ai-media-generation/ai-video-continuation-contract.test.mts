@@ -7,6 +7,8 @@ import vm from "node:vm";
 
 import ts from "typescript";
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
+import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 
 import {
   aiMediaDialogueSignature,
@@ -60,6 +62,8 @@ function loadVeoPromptRuntime() {
     ],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations }],
     ["@/lib/aiMediaColorDirection", colorDirection],
+    ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaPromptShared", promptShared],
     [
       "@/lib/aiVideoReliability",
       {
@@ -507,7 +511,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   assert.match(prompt, /\[# Sources <PREVIOUS_VIDEO>@Video1\]/);
   assert.match(
     prompt,
-    /REFERENCE: files=#1:inspiration\/inspiration; group=3 adults, each once; identities locked/,
+    /REFERENCE: files=#1:character\/required;.*group=3 adults, each once; identities locked/,
   );
   assert.match(prompt, /lip-syncs once 0\.2–5\.5s: “[^”]{12,}”/);
   assert.match(prompt, /No repeat\/old line/);

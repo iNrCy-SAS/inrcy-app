@@ -5,7 +5,6 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import {
   AI_MEDIA_PROMPT_VERSION,
-  buildAiMediaPromptSafetyRules,
   cleanAiMediaPromptStructuredText,
   fitCompiledAiMediaPrompt,
 } from "@/lib/aiMediaPromptShared";
@@ -38,9 +37,10 @@ export function buildAiMediaModificationPrompt(
       "Modifier uniquement les zones et éléments nécessaires pour exécuter cette consigne. Conserver tout le reste : sujet, identité, objets, composition, cadrage, perspective, proportions, lumière, couleurs et détails non visés.",
       "Si la consigne remplace ou supprime un élément, reconstruire proprement la zone concernée tout en préservant la continuité visuelle avec l’image source.",
       "En cas d’ambiguïté, choisir la modification la plus locale et la plus minimale. N’ajouter aucun élément, texte, logo, personne ou décor qui n’est pas explicitement demandé.",
+      "TEXTE EN MODE MODIFICATION : conserver mot pour mot tout texte non visé. Si la consigne demande explicitement d’ajouter, remplacer ou supprimer des mots, nombres ou coordonnées, exécuter cette correction locale avec les valeurs exactes fournies, sans slogan supplémentaire ni reformulation. Ne jamais afficher la consigne technique elle-même.",
       "SORTIE : une seule image finale plein cadre aux proportions exactes de la source, sans bordure, marge blanche ou noire, letterbox, pillarbox, planche comparative, avant/après, cadre, légende ni explication.",
       "CONTRÔLE FINAL SILENCIEUX : la modification demandée est clairement visible et tous les éléments non concernés restent fidèles à la source.",
-      buildAiMediaPromptSafetyRules(),
+      "SÉCURITÉ ET FAITS : ne jamais inventer de prix, promotion, certification, avis client, adresse, téléphone ou résultat garanti absent de la source et de la consigne. Respecter les droits ; ne pas imiter une personnalité publique non autorisée, une œuvre ou un personnage protégé.",
     ].join("\n\n")
   );
 }

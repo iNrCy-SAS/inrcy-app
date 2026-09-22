@@ -225,19 +225,20 @@ export async function generateAiMediaNarrationAudio(args: {
     DEFAULT_TTS_TIMEOUT_MS,
     90_000
   );
+  const ai = new GoogleGenAI({ apiKey: apiKey() });
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
     feature: "media.video",
     estimatedInputTokens: 0,
     reservedOutputTokens: 0,
     estimatedCostMicroUsd: costMicroUsd,
   });
-  const ai = new GoogleGenAI({ apiKey: apiKey() });
   const language = LANGUAGE_CODES[args.narration.language] || LANGUAGE_CODES.fr;
 
   try {
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       args.signal?.throwIfAborted();
+      let normalized: ReturnType<typeof normalizeAudio>;
       try {
         const interaction = await ai.interactions.create(
           {
@@ -246,9 +247,10 @@ export async function generateAiMediaNarrationAudio(args: {
               "INSTRUCTION DE JEU — ne prononce pas cette ligne :",
               `Voix ${
                 args.narrationVoice === "male" ? "masculine" : "féminine"
-              }, professionnelle, chaleureuse et naturelle. Langue ${language}. Débit posé de conversation, environ 105 à 125 mots par minute, avec des respirations naturelles. La vidéo dure ${
+              }, professionnelle, chaleureuse et naturelle. Langue ${language}. Débit posé de conversation, environ 120 à 140 mots par minute, avec des respirations naturelles. La vidéo dure ${
                 args.durationSeconds
               } secondes, mais ne compresse jamais les mots et n'accélère jamais la diction pour remplir la durée. Sans chant ni emphase artificielle.`,
+              "Lis comme un discours continu adressé à une personne : enchaîne naturellement les groupes de mots, sans pause entre chaque mot. Marque seulement les respirations indiquées par la ponctuation.",
               "TRANSCRIPTION À LIRE MOT POUR MOT :",
               args.narration.script,
             ].join("\n"),
@@ -268,20 +270,12 @@ export async function generateAiMediaNarrationAudio(args: {
         );
         const audio = interaction.output_audio;
         if (!audio?.data) throw new Error("ai_media_narration_audio_empty");
-        const normalized = normalizeAudio({
+        normalized = normalizeAudio({
           data: audio.data,
           mimeType: audio.mime_type,
           sampleRate: audio.sample_rate,
           channels: audio.channels,
         });
-        await commitAiGatewayAccountAttempt({
-          reservation,
-          feature: "media.video",
-          model,
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          actualCostMicroUsd: costMicroUsd,
-        });
-        return { ...normalized, model, voice };
       } catch (error) {
         lastError = error;
         if (
@@ -291,7 +285,18 @@ export async function generateAiMediaNarrationAudio(args: {
           throw error;
         }
         await delay(attempt === 0 ? 1_500 : 4_000, args.signal);
+        continue;
       }
+      // Le fournisseur a déjà produit la piste. Un incident comptable doit
+      // remonter sans relancer une synthèse qui serait facturée à nouveau.
+      await commitAiGatewayAccountAttempt({
+        reservation,
+        feature: "media.video",
+        model,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        actualCostMicroUsd: costMicroUsd,
+      });
+      return { ...normalized, model, voice };
     }
     throw lastError;
   } catch (error) {

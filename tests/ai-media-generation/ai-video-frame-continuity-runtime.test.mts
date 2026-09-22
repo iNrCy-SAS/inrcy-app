@@ -9,6 +9,8 @@ import ts from "typescript";
 
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
+import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import * as reliability from "../../lib/aiVideoReliability.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
@@ -41,23 +43,28 @@ function deferred() {
 }
 
 function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
+  const request = {
+    requestId: "frame-continuity-test-request",
+    kind: "video", subjectSource: "profile", source: "studio",
+    idea: "Une équipe réalise une décoration florale.",
+    aiInstruction: "Gardez la même pièce et poursuivez le geste.",
+    generationMode: "inspiration", peopleCriterion: "auto", settingCriterion: "auto", focusCriterion: "auto",
+    textMode: "none", exactText: "", visualDirection: "auto", imagePurpose: "auto",
+    withText: false, textKeywords: [], withMusic: false,
+    withNarration: false, narrationVoice: null, narrationVoiceVariant: null,
+    format: "square", typology: "service", visualStyle: "expert",
+    imageStyle: "photo", shotType: "medium", peopleMode: "team",
+    creativity: "faithful", useBrandColors: false, logoMode: "discreet",
+    videoEngine: engine, identityMode: "auto", videoCharacterMode: "auto",
+    identityConsent: false, teamVideoMode: "cinematic", teamVideoSpeechMode: "voiceover",
+    teamVideoVeoConsent: false, identityReferenceSetId: "frame-test",
+    durationSeconds, sceneMode: "single", connectScenes: true,
+    inspirationImages: [{ data: "b3JpZ2luYWw=", mimeType: "image/jpeg" }],
+  } as unknown as providerTypes.AiVideoProviderGenerationArgs["request"];
+  const canonicalPrompt = "PROMPT CANONIQUE TEST CONTINUITÉ";
   return {
     accountId: "frame-continuity-test-account",
-    request: {
-      requestId: "frame-continuity-test-request",
-      kind: "video", subjectSource: "profile", source: "studio",
-      idea: "Une équipe réalise une décoration florale.",
-      aiInstruction: "Gardez la même pièce et poursuivez le geste.",
-      withText: false, textKeywords: [], withMusic: false,
-      withNarration: false, narrationVoice: null,
-      format: "square", typology: "service", visualStyle: "expert",
-      imageStyle: "photo", shotType: "medium", peopleMode: "team",
-      creativity: "faithful", useBrandColors: false, logoMode: "discreet",
-      videoEngine: engine, identityMode: "auto", videoCharacterMode: "auto",
-      identityConsent: false, teamVideoMode: "cinematic", teamVideoSpeechMode: "voiceover",
-      durationSeconds, connectScenes: true,
-      inspirationImages: [{ data: "b3JpZ2luYWw=", mimeType: "image/jpeg" }],
-    },
+    request,
     plan: {
       companyName: "Atelier floral", headline: "Notre savoir-faire", cta: "Découvrir",
       scenes: getAiMediaVideoSegmentDurations(durationSeconds).map((_, index) => ({
@@ -66,15 +73,45 @@ function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
         spokenLine: "", spokenReply: "", layout: "editorial",
       })),
     },
+    canonicalPrompt,
+    canonicalPromptSha256: providerContract.hashAiMediaCanonicalPrompt(canonicalPrompt),
+    providerContract: providerContract.buildAiMediaVideoProviderContract({
+      request,
+      durationSeconds: 8,
+      brandColors: [],
+    }),
     creativeBrief: "Un atelier de décoration florale.",
     brandColors: [], profession: "Fleuriste", contentLanguage: "fr",
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
+}
+
+function refreshProviderBoundary(
+  args: providerTypes.AiVideoProviderGenerationArgs,
+) {
+  const canonicalPrompt = [
+    "PROMPT CANONIQUE TEST CONTINUITÉ",
+    args.request.idea,
+    args.request.aiInstruction,
+  ].join("\n");
+  args.canonicalPrompt = canonicalPrompt;
+  args.canonicalPromptSha256 =
+    providerContract.hashAiMediaCanonicalPrompt(canonicalPrompt);
+  args.providerContract = providerContract.buildAiMediaVideoProviderContract({
+    request: args.request,
+    durationSeconds: 8,
+    brandColors: args.brandColors,
+    identityTeamPrecomposed: args.identityTeamPrecomposed,
+    identityTeamMemberCount: args.identityTeamMemberCount,
+  });
+  return args;
 }
 
 function createHarness(engine: Engine, options: {
   holdFirstOutput?: Promise<void>;
   holdOutputs?: Partial<Record<number, Promise<void>>>;
   failSubmission?: number;
+  safetySubmissions?: number[];
+  disableOmniFallback?: boolean;
   failExtraction?: boolean;
   rejectFrame?: boolean;
   statefulEnabled?: boolean;
@@ -108,6 +145,11 @@ function createHarness(engine: Engine, options: {
       }
       if (index > 0 && options.rejectFrame) {
         throw Object.assign(new Error("400 INVALID_ARGUMENT: frame rejected"), { status: 400 });
+      }
+      if (options.safetySubmissions?.includes(index)) {
+        return engine === "veo"
+          ? { name: `operations/filtered-${index + 1}`, done: true, response: { raiMediaFilteredCount: 1, raiMediaFilteredReasons: ["safety filter"] } }
+          : { id: `filtered-${index + 1}`, status: "failed", errors: [{ message: "safety filter" }] };
       }
       const buffer = Buffer.from(`0000ftypgenerated-clip-${index + 1}`);
       buffers.push(buffer);
@@ -147,6 +189,8 @@ function createHarness(engine: Engine, options: {
     ["@/lib/aiVideoProviderTypes", providerTypes],
     ["@/lib/aiMediaDialogue", dialogue],
     ["@/lib/aiMediaColorDirection", colorDirection],
+    ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaPromptShared", promptShared],
     ["@/lib/aiMediaSensitiveText", { redactAiMediaSensitiveText: (value: unknown) => String(value ?? "") }],
     ["./aiMediaVideoContinuity.ts", {
       extractAiMediaVideoContinuityFrame: async (args: { buffer: Buffer; durationSeconds: number; sourceStartSeconds?: number }) => {
@@ -183,6 +227,7 @@ function createHarness(engine: Engine, options: {
         process: { env: {
           GEMINI_API_KEY: "test-only",
           AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED: String(options.statefulEnabled ?? false),
+          ...(options.disableOmniFallback ? { AI_MEDIA_OMNI_FALLBACK_TO_VEO: "false" } : {}),
           ...(options.concurrency ? {
             AI_MEDIA_OMNI_CONCURRENCY: String(options.concurrency),
             AI_MEDIA_VEO_CONCURRENCY: String(options.concurrency),
@@ -212,12 +257,219 @@ function createHarness(engine: Engine, options: {
   const provider = (engine === "veo" ? veo.googleVeoVideoProvider : loadModule("aiVideoProviderGoogleOmni.ts").googleOmniVideoProvider) as providerTypes.AiVideoProvider;
   return {
     provider, submissions, extracted, buffers, charged, clipTimeouts,
+    promptRuntime: veo as unknown as typeof import("../../lib/aiVideoProviderGoogleVeo.ts"),
     get maximumInFlight() { return maximumInFlight; },
     get fallbackCalls() { return fallbackCalls; },
   };
 }
 
 for (const engine of ["veo", "omni"] as const) {
+  for (const duration of [8, 16, 24] as const) {
+    for (const useBrandColors of [false, true]) {
+      test(`${engine}: sujet custom ${duration}s isolé de l’ADN, marque ${useBrandColors ? "activée" : "désactivée"}`, async () => {
+        const harness = createHarness(engine);
+        const args = generationArgs(engine, duration);
+        args.request.subjectSource = "custom";
+        args.request.idea = "Un boulanger adulte sort une fournée de croissants du four et pose la plaque sur le comptoir.";
+        args.request.aiInstruction = "Inviter simplement au petit déjeuner avec ces croissants, sans autre offre ni promesse.";
+        args.request.inspirationImages = [];
+        args.request.useBrandColors = useBrandColors;
+        args.request.logoMode = useBrandColors ? "visible" : "none";
+        args.brandColors = ["#13b8ff", "#ec3e9d"];
+        args.creativeBrief = "ADN_TABLETTE : application mobile SaaS de communication et dashboard numérique.";
+        args.profession = "ADN_LOGICIEL";
+        args.plan.companyName = "ADN_MARQUE";
+        args.plan.cta = "ADN_ABONNEMENT";
+        args.plan.scenes = args.plan.scenes.map((scene) => ({
+          ...scene,
+          title: "ADN_TABLETTE",
+          body: "ADN_DASHBOARD",
+          visualBrief: "ADN_LOGICIEL : une femme utilise une tablette devant le boulanger.",
+        }));
+        await harness.provider.generate(refreshProviderBoundary(args));
+        assert.equal(harness.submissions.length, duration / 8);
+        for (const submission of harness.submissions) {
+          const prompt = engine === "veo"
+            ? (submission as unknown as VeoSubmission).source.prompt
+            : (submission as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "";
+          assert.ok(prompt.includes(args.request.idea));
+          assert.ok(prompt.includes(args.request.aiInstruction));
+          const originality = promptShared.buildAiMediaOriginalityContract(args.request);
+          assert.ok(prompt.includes(originality));
+          assert.doesNotMatch(prompt.replace(originality, ""), /ADN_|tablet|smartphone|digital subject|software workflow|femme|VERIFIED CONTEXT/i);
+          assert.match(prompt, new RegExp(`logo=${useBrandColors ? "visible" : "none"}`));
+          for (const color of colorDirection.describeAiMediaBrandColors(args.brandColors)) {
+            assert.equal(prompt.includes(color), useBrandColors, `couleur opt-in ${color}`);
+          }
+        }
+      });
+    }
+  }
+
+  test(`${engine}: le safety lazy déclenche réellement une seconde variante complète`, async () => {
+    const harness = createHarness(engine, { safetySubmissions: [0] });
+    const args = generationArgs(engine, 8);
+    args.request.inspirationImages = [];
+    const result = await harness.provider.generate(refreshProviderBoundary(args));
+    assert.equal(result.clips.length, 1);
+    assert.equal(harness.submissions.length, 2);
+    const prompts = harness.submissions.map((submission) => engine === "veo"
+      ? (submission as unknown as VeoSubmission).source.prompt
+      : (submission as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "");
+    assert.doesNotMatch(prompts[0], /SAFETY RECOVERY/);
+    assert.match(prompts[1], /^SAFETY RECOVERY:/);
+    assert.notEqual(prompts[0], prompts[1]);
+    assert.ok(prompts[1].includes(args.request.idea));
+    assert.ok(prompts[1].includes(args.request.aiInstruction));
+    assert.ok(prompts[1].includes(args.providerContract!.parameters));
+    assert.ok(prompts[1].includes(args.providerContract!.references));
+    assert.ok(prompts[1].includes(promptShared.buildAiMediaOriginalityContract(args.request)));
+    assert.equal(harness.charged.length, 1, "seule la sortie réellement produite est comptabilisée");
+  });
+
+  test(`${engine}: la citation personnage entière atteint le réseau normal et safety malgré un ancien fragment de plan`, async () => {
+    const harness = createHarness(engine, { safetySubmissions: [0] });
+    const args = generationArgs(engine, 8);
+    const quote = "Je façonne chaque pièce à la main, pour embellir votre quotidien.";
+    args.request.subjectSource = "custom";
+    args.request.idea = `Dans un atelier de céramique lumineux, une céramiste adulte imaginaire façonne un vase sur son tour, puis regarde la caméra et dit naturellement en français : « ${quote} » Garder cette phrase entière et synchroniser ses lèvres. Une seule scène continue, aucune voix off, aucun écran, aucune tablette, aucun texte incrusté.`;
+    args.request.aiInstruction = args.request.idea;
+    args.request.teamVideoSpeechMode = "characters";
+    args.request.inspirationImages = [];
+    args.plan.scenes[0]!.spokenLine = "Dans un atelier de céramique lumineux";
+    await harness.provider.generate(refreshProviderBoundary(args));
+    assert.equal(harness.submissions.length, 2);
+    for (const submission of harness.submissions) {
+      const prompt = engine === "veo" ? (submission as unknown as VeoSubmission).source.prompt
+        : (submission as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "";
+      assert.ok(prompt.includes(args.request.idea), "le brief visuel reste intégral");
+      assert.ok(prompt.includes(`lip-syncs once 0.2–5.5s: “${quote}”`), "la citation n'est jamais remplacée ou tronquée");
+      assert.ok(!prompt.includes("lip-syncs once 0.2–5.5s: “Dans un atelier"));
+    }
+  });
+
+  test(`${engine}: un appareil explicitement demandé dans le sujet custom reste pertinent`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 8);
+    args.request.subjectSource = "custom";
+    args.request.idea = "Un adulte utilise une application sur sa tablette.";
+    args.request.aiInstruction = "Montrer son geste sur l’écran sans texte lisible.";
+    args.request.inspirationImages = [];
+    await harness.provider.generate(refreshProviderBoundary(args));
+    const prompt = engine === "veo"
+      ? (harness.submissions[0] as unknown as VeoSubmission).source.prompt
+      : (harness.submissions[0] as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "";
+    assert.ok(prompt.includes(args.request.idea));
+    assert.match(prompt, /Any requested device must match the brief exactly/);
+    assert.doesNotMatch(prompt, /smartphone, tablet or laptop|digital subject/);
+  });
+
+  for (const idea of [
+    "Une vidéo de croissants sortant du four dans une boulangerie.",
+    "Un coiffeur mobile termine une coupe de cheveux à domicile.",
+    "Une campagne de communication montre des croissants sur un comptoir de boulangerie.",
+  ]) {
+    test(`${engine}: le brief « ${idea} » n’impose aucun appareil`, async () => {
+      const harness = createHarness(engine);
+      const args = generationArgs(engine, 8);
+      args.request.subjectSource = "custom";
+      args.request.idea = idea;
+      args.request.aiInstruction = "Une action naturelle en lien direct avec le sujet.";
+      args.request.inspirationImages = [];
+      await harness.provider.generate(refreshProviderBoundary(args));
+      const prompt = engine === "veo"
+        ? (harness.submissions[0] as unknown as VeoSubmission).source.prompt
+        : (harness.submissions[0] as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "";
+      assert.ok(prompt.includes(idea));
+      const originality = promptShared.buildAiMediaOriginalityContract(args.request);
+      assert.ok(prompt.includes(originality));
+      assert.doesNotMatch(prompt.replace(originality, ""), /smartphone|tablet|laptop|software workflow|thumbnails|digital subject|Any requested device|bureau|office/i);
+    });
+  }
+
+  test(`${engine}: une inspiration facultative peut précéder un safety lazy sans perdre le brief`, async () => {
+    const harness = createHarness(engine, { safetySubmissions: [0, 1] });
+    const args = generationArgs(engine, 8);
+    args.request.teamVideoMode = "montage";
+    args.request.inspirationImages = [{ data: "cHJvZHVpdA==", mimeType: "image/jpeg", role: "product", usage: "inspiration" }];
+    const result = await harness.provider.generate(refreshProviderBoundary(args));
+    assert.equal(result.clips.length, 1);
+    assert.equal(harness.submissions.length, 3);
+    const prompt = engine === "veo"
+      ? (harness.submissions[2] as unknown as VeoSubmission).source.prompt
+      : (harness.submissions[2] as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text || "";
+    assert.match(prompt, /^SAFETY RECOVERY:/);
+    assert.match(prompt, /#1:product\/inspiration/);
+    assert.ok(prompt.includes(args.request.idea));
+    assert.ok(prompt.includes(args.request.aiInstruction));
+    assert.equal(harness.charged.length, 1);
+  });
+
+  test(`${engine}: le safety lazy ne retire jamais une référence produit requise`, async () => {
+    const harness = createHarness(engine, { safetySubmissions: [0], disableOmniFallback: true });
+    const args = generationArgs(engine, 8);
+    args.request.inspirationImages = [{ data: "cHJvZHVpdA==", mimeType: "image/jpeg", role: "product", usage: "required" }];
+    await assert.rejects(harness.provider.generate(refreshProviderBoundary(args)), /identity_reference_rejected/);
+    assert.equal(harness.submissions.length, 1);
+    assert.equal(harness.charged.length, 0);
+  });
+
+  test(`${engine}: une référence produit requise reste jointe à tous les actes du mode montage`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 16);
+    args.request.teamVideoMode = "montage";
+    args.request.connectScenes = false;
+    args.request.inspirationImages = [{ data: "cHJvZHVpdA==", mimeType: "image/jpeg", role: "product", usage: "required" }];
+    refreshProviderBoundary(args);
+    await harness.provider.generate(args);
+    assert.equal(harness.submissions.length, 2);
+    for (const submission of harness.submissions) {
+      if (engine === "veo") {
+        const request = submission as unknown as VeoSubmission;
+        assert.equal(request.config.referenceImages?.[0]?.image.imageBytes, "cHJvZHVpdA==");
+        assert.match(request.source.prompt, /#1:product\/required/);
+      } else {
+        const input = (submission as unknown as OmniSubmission).input;
+        assert.equal(input.find((part) => part.type === "image")?.data, "cHJvZHVpdA==");
+        assert.match(input.find((part) => part.type === "text")?.text || "", /#1:product\/required/);
+      }
+    }
+  });
+
+  test(`${engine}: une variante safety impossible ne bloque pas la tentative normale`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 8);
+    args.request.inspirationImages = [];
+    args.request.teamVideoMode = "montage";
+    args.request.aiInstruction = `Conserver exactement le vase ${"b".repeat(500)}.`;
+    let nominalPrompt = "";
+    for (let length = 1_200; length <= 1_950; length += 10) {
+      args.request.idea = `Un vase décrit entièrement ${"a".repeat(length)}.`;
+      refreshProviderBoundary(args);
+      try {
+        const candidate = harness.promptRuntime.buildGoogleVideoScenePrompt(args, 0, 8);
+        try { harness.promptRuntime.buildGoogleVideoSafetyFallbackPrompt(candidate); }
+        catch (error) {
+          if (String(error).includes("ai_video_veo_safety_prompt_budget_exceeded")) { nominalPrompt = candidate; break; }
+          throw error;
+        }
+      } catch (error) {
+        if (!String(error).includes("ai_video_instruction_contract_too_long")) throw error;
+      }
+    }
+    assert.ok(nominalPrompt, "la fixture doit approcher le budget sans le dépasser");
+    assert.ok(nominalPrompt.length <= 3_200);
+    const result = await harness.provider.generate(args);
+    assert.equal(result.clips.length, 1);
+    assert.equal(harness.submissions.length, 1);
+    const submitted = engine === "veo"
+      ? (harness.submissions[0] as unknown as VeoSubmission).source.prompt
+      : (harness.submissions[0] as unknown as OmniSubmission).input.find((part) => part.type === "text")?.text;
+    assert.equal(submitted, nominalPrompt);
+    assert.ok(submitted?.includes(args.request.idea));
+    assert.ok(submitted?.includes(args.request.aiInstruction));
+  });
+
   test(`${engine}: chaque scène 24 s envoyée au fournisseur reçoit le contrat Studio complet`, async () => {
     const harness = createHarness(engine);
     const args = generationArgs(engine, 24);
@@ -277,7 +529,7 @@ for (const engine of ["veo", "omni"] as const) {
       .describeAiMediaBrandColors(args.brandColors)
       .join("/");
 
-    await harness.provider.generate(args);
+    await harness.provider.generate(refreshProviderBoundary(args));
     assert.equal(harness.submissions.length, 3);
     for (const [index, rawSubmission] of harness.submissions.entries()) {
       const prompt =
@@ -353,7 +605,7 @@ for (const engine of ["veo", "omni"] as const) {
       tailMarker,
     ].join(" ");
 
-    await harness.provider.generate(args);
+    await harness.provider.generate(refreshProviderBoundary(args));
     assert.equal(harness.submissions.length, 1);
     const rawSubmission = harness.submissions[0]!;
     const prompt =

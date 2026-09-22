@@ -4,6 +4,7 @@ import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import {
   AI_MEDIA_COMPILED_PROMPT_MAX_CHARS,
   AI_MEDIA_PROMPT_VERSION,
+  buildAiMediaOriginalityContract,
   buildAiMediaPromptBusinessDna,
   buildAiMediaPromptCreativeBrief,
   buildAiMediaPromptHistory,
@@ -168,6 +169,16 @@ function buildImageReferenceContract(args: AiMediaPromptBuilderArgs) {
       } obligatoire${requiredReferences.length > 1 ? "s" : ""} et ${
         inspirationReferences.length
       } inspiration${inspirationReferences.length > 1 ? "s" : ""}`;
+  const referenceInventory = request.inspirationImages
+    .map((reference, index) => {
+      const role = reference.role || "inspiration";
+      const usage = reference.usage || "inspiration";
+      const character = reference.characterIndex
+        ? `, personnage ${reference.characterIndex}`
+        : "";
+      return `Référence ${index + 1} — rôle=${role}, usage=${usage}${character}.`;
+    })
+    .join("\n");
 
   return [
     `ENTRÉES AUTORISÉES POUR CETTE IMAGE : le sujet, la consigne, l’ADN professionnel structuré${
@@ -175,6 +186,7 @@ function buildImageReferenceContract(args: AiMediaPromptBuilderArgs) {
         ? ` et ${referenceInputLabel} avec accord ponctuel`
         : ""
     }${args.hasLogo ? ", puis le logo officiel" : ""}.`,
+    referenceInventory,
     request.inspirationImages.length
       ? [
           hasStrictIdentityReferences
@@ -233,7 +245,87 @@ function buildImageReferenceContract(args: AiMediaPromptBuilderArgs) {
           request.logoMode === "visible" ? "22" : "12"
         } % du visuel.`
       : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildCompactImagePurposeContract(args: AiMediaPromptBuilderArgs) {
+  const { request } = args;
+  if (request.imagePurpose !== "flyer") {
+    return buildImagePurposeContract(args);
+  }
+  const comparisonRequested =
+    /\b(?:compar|pack|forfait|formule|offre|abonnement|tarif|prix)\w*/i.test(
+      `${request.idea} ${request.aiInstruction}`
+    );
+  return [
+    "TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL.",
+    "Contrat autoritaire : vraie grille éditoriale, hiérarchie titre/offre, marges sûres, contraste lisible et CTA ; jamais une simple photo stock plein cadre ni un portrait générique.",
+    comparisonRequested
+      ? args.deferVisibleElementsToComposer
+        ? "COMPARAISON OBLIGATOIRE GÉRÉE PAR INR'CY : fond équilibré pour deux offres de même importance, sans carte, tarif, texte, chiffre ni faux bouton dessiné par le fournisseur."
+        : "COMPARAISON OBLIGATOIRE : deux offres immédiatement comparables, avec zones distinctes pour noms, prix, bénéfices et CTA."
+      : args.deferVisibleElementsToComposer
+        ? "MISE EN PAGE COMMERCIALE GÉRÉE PAR INR'CY : fond lisible sans carte d’offre, tarif, texte ni faux élément d’interface."
+        : "Prévoir une carte d’offre structurée avec zones distinctes pour titre, bénéfices, prix éventuel et CTA.",
+    request.imageStyle === "graphic"
+      ? "RENDU AFFICHE GRAPHIQUE AUTORITAIRE : formes, aplats, séparateurs et typographie structurent le visuel ; toute photographie reste secondaire."
+      : "Le rendu choisi complète cette architecture commerciale sans la remplacer.",
   ].join("\n");
+}
+
+function buildCompactImageReferenceContract(args: AiMediaPromptBuilderArgs) {
+  const { request } = args;
+  const {
+    characterReferences,
+    environmentReferences,
+    productReferences,
+    inspirationReferences,
+  } = getAiMediaReferenceGroups(request);
+  const inventory = request.inspirationImages
+    .map((reference, index) => {
+      const role = reference.role || "inspiration";
+      const usage = reference.usage || "inspiration";
+      const character = reference.characterIndex
+        ? `/personnage-${reference.characterIndex}`
+        : "";
+      return `#${index + 1}:${role}/${usage}${character}`;
+    })
+    .join(" ; ");
+  const inspirationCount = (role: string) =>
+    inspirationReferences.filter((reference) => reference.role === role).length;
+  return [
+    request.inspirationImages.length
+      ? `INVENTAIRE AUTORITAIRE DES RÉFÉRENCES IMAGE — conserver chaque couple rôle/usage : ${inventory}.`
+      : "Aucune référence image : inventer une scène originale guidée par le brief.",
+    characterReferences.length
+      ? "RÉFÉRENCE OBLIGATOIRE — PERSONNAGES : détecter et préserver séparément toutes les personnes distinctes des fichiers requis (visage, traits, silhouette, proportions et signes distinctifs) ; toutes doivent rester reconnaissables et en action, sans omission, fusion, permutation, duplication, substitution ni fallback. La pose et le décor source ne sont pas imposés."
+      : "",
+    environmentReferences.length
+      ? "RÉFÉRENCE OBLIGATOIRE — DÉCOR : conserver le lieu reconnaissable ; aucun décor générique de remplacement ni fallback."
+      : "",
+    productReferences.length
+      ? "RÉFÉRENCE OBLIGATOIRE — PRODUIT : conserver forme, proportions, matières, couleurs et signes distinctifs ; aucune substitution ni fallback."
+      : "",
+    inspirationCount("character")
+      ? "INSPIRATION UNIQUEMENT — rôle Personnage : guider librement présence, attitudes et énergie sans recopier identité, visage, silhouette ni tenue."
+      : "",
+    inspirationCount("product")
+      ? "INSPIRATION UNIQUEMENT — rôle Produit : guider catégorie, formes, matières et mise en valeur sans reproduire marque ni apparence exacte."
+      : "",
+    inspirationCount("environment")
+      ? "INSPIRATION UNIQUEMENT — rôle Décor : guider ambiance, architecture, lumière et palette sans reproduire le lieu exact."
+      : "",
+    inspirationCount("inspiration")
+      ? "INSPIRATION UNIQUEMENT — rôle Inspiration libre : guider ambiance, palette, rythme et composition sans imposer identité, produit, décor, pose ni cadrage exact."
+      : "",
+    args.hasLogo
+      ? `LOGO OFFICIEL FOURNI SÉPARÉMENT : fidélité stricte, une seule occurrence ${request.logoMode}, en zone sûre.`
+      : "AUCUN LOGO FOURNI : ne créer aucun logo, monogramme, emblème ni pseudo-logo.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
@@ -301,6 +393,77 @@ function buildImagePaletteContract(args: AiMediaPromptBuilderArgs) {
     : "Palette créative libre, harmonieuse, professionnelle et cohérente avec le secteur.";
 }
 
+function buildCompactImageTextContract(args: AiMediaPromptBuilderArgs) {
+  if (!args.deferVisibleElementsToComposer) {
+    return buildImageTextContract(args);
+  }
+  const { request } = args;
+  const targetLanguage = getAiLanguageLabel(args.profile);
+  const textMode = request.textMode || (request.withText ? "ai" : "none");
+  const localMode =
+    textMode === "exact"
+      ? "MODE TEXTE EXACT : copie validée conservée hors du prompt fournisseur ; iNrCy la composera localement sans altération."
+      : textMode === "ai"
+        ? "MODE TEXTE IA : accroche validée conservée hors du prompt fournisseur ; iNrCy la composera localement."
+        : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté.";
+  const safeZone =
+    request.imagePurpose === "flyer"
+      ? "Réserver des zones graphiques calmes distinctes pour titre, offres, bénéfices/prix et CTA."
+      : request.format === "portrait" || request.format === "story"
+        ? "Réserver une zone calme en bas et garder le sujet essentiel dans la moitié supérieure."
+        : "Réserver une zone calme à gauche et garder le sujet essentiel à droite.";
+  return [
+    "COMPOSITION LOCALE DU TEXTE ET DU LOGO : iNrCy pose les éléments lisibles après génération.",
+    localMode,
+    `FOND FOURNISSEUR (${targetLanguage}) : aucun mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnée, logo ni pseudo-logo. Ne jamais deviner le contenu demandé.`,
+    safeZone,
+  ].join("\n");
+}
+
+function compactImageOptionalContext(value: string, maxLength: number) {
+  if (maxLength <= 0) return "";
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  if (maxLength < 2) return "";
+  const slice = normalized.slice(0, maxLength - 1);
+  const boundary = slice.lastIndexOf(" ");
+  return `${slice.slice(0, boundary > maxLength * 0.6 ? boundary : undefined).trim()}…`;
+}
+
+function assembleBudgetedImagePrompt(args: {
+  requiredSections: readonly string[];
+  dna: string;
+  history: string;
+}) {
+  const dnaMarker = "[… contexte ADN compacté automatiquement par iNrCy …]";
+  const historyMarker = "[… historique compacté automatiquement par iNrCy …]";
+  const render = (dna: string, history: string) =>
+    [
+      ...args.requiredSections,
+      `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :${
+        dna ? `\n${dna}` : ""
+      }\n${dnaMarker}`,
+      `HISTORIQUE COMPACT À NE PAS COPIER :${
+        history ? `\n${history}` : ""
+      }\n${historyMarker}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  const minimum = render("", "");
+  const targetLength = AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - 256;
+  const available = Math.max(
+    0,
+    targetLength - minimum.length
+  );
+  const dnaBudget = Math.min(420, Math.floor(available * 0.72));
+  const historyBudget = Math.min(180, Math.max(0, available - dnaBudget));
+  const prompt = render(
+    compactImageOptionalContext(args.dna, dnaBudget),
+    compactImageOptionalContext(args.history, historyBudget)
+  );
+  return fitCompiledAiMediaPrompt(prompt);
+}
+
 /** Contrat propriétaire de Générer · Image. */
 export function buildAiMediaImageGenerationPrompt(
   args: AiMediaPromptBuilderArgs
@@ -323,6 +486,7 @@ export function buildAiMediaImageGenerationPrompt(
     "BRIEF UTILISATEUR PRIORITAIRE :",
     buildAiMediaPromptCreativeBrief(request),
     buildAiMediaPromptInstruction(request),
+    buildAiMediaOriginalityContract(request),
     "CONTRAT DU MODE DE COMPOSITION IMAGE :",
     buildImageGenerationModeContract(args),
     "CONTRAT DU TYPE DE CRÉATION IMAGE :",
@@ -350,17 +514,17 @@ export function buildAiMediaImageGenerationPrompt(
     buildImageReferenceContract(args),
     getAiMediaImageIdentityDirection(request),
     "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
-    buildAiMediaPromptBusinessDna(profile),
+    buildAiMediaPromptBusinessDna(profile, request),
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles) :",
     buildAiMediaPromptHistory(args.recentPublications || []),
-    "ANTI-RÉPÉTITION IMAGE — comparer le résultat envisagé à cet historique et changer explicitement l’angle du sujet, la composition, le point focal, le décor, l’action, les accessoires et le vocabulaire visuel. Ne réutiliser aucune accroche, aucun slogan, aucune structure de mise en page ni scène récente. Interdiction des slogans passe-partout ; si aucun texte spécifique n’est validé, ne rien écrire.",
+    "ANTI-RÉPÉTITION IMAGE — comparer les pistes créatives à cet historique et renouveler les seuls aspects laissés libres : composition, point de vue, lumière, mise en scène et vocabulaire visuel. Conserver le sujet, les personnes, objets, lieux, actions, textes exacts et références imposés ; ne jamais les changer au nom de la nouveauté. Ne réutiliser aucune accroche, aucun slogan ni structure récente, sauf élément explicitement imposé ; éviter les mises en page génériques.",
     "RÈGLES IMPÉRATIVES IMAGE :",
     "Les paramètres techniques et couleurs de marque sont des instructions de réalisation, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
     args.deferVisibleElementsToComposer
       ? "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : iNrCy appliquera ensuite les valeurs exactes sans les transmettre au moteur."
       : "",
-    "CONTRÔLE FINAL IMAGE — vérifier silencieusement : sujet reconnaissable ; consigne exécutée ; références obligatoires fidèles ; inspirations non copiées ; format exact ; texte et identité conformes ; composition, décor et vocabulaire différents des productions récentes ; aucun slogan générique ; aucun élément parasite. Produire une seule image finale plein cadre, sans explication.",
+    "CONTRÔLE FINAL IMAGE — vérifier silencieusement : sujet reconnaissable ; consigne exécutée ; références obligatoires fidèles ; inspirations non copiées ; format exact ; texte et identité conformes ; originalité des aspects laissés libres ; aucun slogan générique ; aucun élément parasite. Produire une seule image finale plein cadre, sans explication.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -373,15 +537,7 @@ export function buildAiMediaImageGenerationPrompt(
   // couper aveuglément son milieu : le rôle/usage d'un média obligatoire, la
   // palette ou le mode texte ne doivent jamais disparaître au profit d'un ADN
   // verbeux.
-  const compactDna = cleanAiMediaPromptStructuredText(
-    buildAiMediaPromptBusinessDna(profile),
-    420
-  );
-  const compactHistory = cleanAiMediaPromptStructuredText(
-    buildAiMediaPromptHistory(args.recentPublications || []),
-    180
-  );
-  const compactPrompt = [
+  const compactRequiredSections = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
     "CONTRAT GÉNÉRER IMAGE CONDENSÉ — produire une nouvelle image originale plein cadre ; ne jamais modifier une source ni préparer une animation.",
     `SUJET CENTRAL OBLIGATOIRE (${request.subjectSource}) : ${
@@ -394,22 +550,21 @@ export function buildAiMediaImageGenerationPrompt(
           2_400
         )}\nL’appliquer visuellement sans l’afficher ni la diluer.`
       : "Aucune consigne ponctuelle supplémentaire.",
+    buildAiMediaOriginalityContract(request),
     buildImageGenerationModeContract(args),
-    buildImagePurposeContract(args),
+    buildCompactImagePurposeContract(args),
     buildImageVisualDirectionContract(args),
     `FORMAT AUTORITAIRE : ${format.aspectRatio} (${format.label}). ${getAiMediaImageSafeCompositionGuide(
       request
     )}`,
     `PARAMÈTRES STUDIO : type ${request.imagePurpose}, rendu ${request.imageStyle}, direction ${request.visualDirection}, style ${request.visualStyle}, cadrage ${request.shotType}, présence ${request.peopleMode}, créativité ${request.creativity}.`,
     `DIRECTION ARTISTIQUE : ${getAiMediaImageVisualDirection(request)}.`,
-    buildImageTextContract(args),
+    buildCompactImageTextContract(args),
     buildImagePaletteContract(args),
     "CONTRAT DES RÉFÉRENCES IMAGE — chaque rôle et usage est autoritaire :",
-    buildImageReferenceContract(args),
+    buildCompactImageReferenceContract(args),
     `MODE IDENTITÉ : ${request.identityMode}. Toute référence Personnage obligatoire doit conserver séparément chaque personne distincte détectée ; aucune omission, fusion, duplication ni substitution générique.`,
-    `ADN PROFESSIONNEL COMPACT — contexte seulement, jamais sujet de remplacement :\n${compactDna}\n[… contexte ADN compacté automatiquement par iNrCy …]`,
-    `HISTORIQUE COMPACT À NE PAS COPIER :\n${compactHistory}`,
-    "ANTI-RÉPÉTITION — varier composition, point focal, décor, action, accessoires et vocabulaire visuel ; aucun slogan générique ni reprise d’une production récente.",
+    "ANTI-RÉPÉTITION — renouveler uniquement les aspects laissés libres ; conserver le sujet et toutes les contraintes explicites, y compris les références et textes exacts. Ne réutiliser aucune accroche, aucun slogan ni structure récente, sauf élément explicitement imposé.",
     "RÈGLES TECHNIQUES IMAGE — les paramètres et couleurs sont des instructions, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
     args.deferVisibleElementsToComposer
@@ -418,6 +573,10 @@ export function buildAiMediaImageGenerationPrompt(
     "CONTRÔLE FINAL IMAGE — sujet et consigne respectés ; références obligatoires fidèles ; inspirations non copiées ; format, texte, identité, palette et logo conformes ; une seule image finale sans explication.",
   ]
     .filter(Boolean)
-    .join("\n\n");
-  return fitCompiledAiMediaPrompt(compactPrompt);
+    .map(String);
+  return assembleBudgetedImagePrompt({
+    requiredSections: compactRequiredSections,
+    dna: buildAiMediaPromptBusinessDna(profile, request),
+    history: buildAiMediaPromptHistory(args.recentPublications || []),
+  });
 }

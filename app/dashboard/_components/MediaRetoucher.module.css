@@ -446,6 +446,140 @@
   scrollbar-gutter: stable;
 }
 
+.inlineEditorPanel {
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--retoucher-accent), 0.22);
+  border-radius: 22px;
+  background: linear-gradient(155deg, rgba(32, 24, 42, 0.9), rgba(8, 17, 36, 0.96));
+}
+
+.inlineEditorToolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inlineEditorIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 10px;
+}
+
+.inlineEditorIdentity strong {
+  max-width: min(360px, 34vw);
+  overflow: hidden;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inlineEditorIdentity > span {
+  color: rgba(216, 230, 244, 0.6);
+  white-space: nowrap;
+}
+
+.inlineEditorIdentity em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid rgba(116, 244, 183, 0.2);
+  border-radius: 999px;
+  color: #c9ffe1;
+  background: rgba(30, 118, 76, 0.18);
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.inlineEditorIdentity em i {
+  font-style: normal;
+}
+
+.inlineEditorActions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.inlineEditorActions button {
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 0 11px;
+  border: 1px solid rgba(var(--retoucher-accent), 0.2);
+  border-radius: 10px;
+  color: #fff8ef;
+  background: rgba(71, 39, 55, 0.52);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.inlineEditorActions .removeButton {
+  color: rgba(231, 242, 247, 0.74);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.inlineEditorSurface {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.toolsEmpty {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 28px;
+  border: 1px dashed rgba(var(--retoucher-accent), 0.24);
+  border-radius: 18px;
+  color: rgba(230, 239, 250, 0.72);
+  background: rgba(255, 255, 255, 0.025);
+  text-align: center;
+}
+
+.toolsEmpty > span {
+  color: #ffd2a2;
+  font-size: 30px;
+}
+
+.toolsEmpty strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.toolsEmpty p {
+  max-width: 380px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .panel {
   min-width: 0;
   min-height: 0;
@@ -977,6 +1111,19 @@
 }
 
 @media (max-width: 1120px) and (min-width: 901px) {
+  .inlineEditorToolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .inlineEditorIdentity {
+    flex-wrap: wrap;
+  }
+
+  .inlineEditorIdentity strong {
+    max-width: min(320px, 28vw);
+  }
+
   .toolGrid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: repeat(4, minmax(0, 1fr));
@@ -1004,6 +1151,33 @@
     height: auto;
   }
 
+  .inlineEditorPanel {
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+
+  .inlineEditorToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inlineEditorIdentity,
+  .inlineEditorActions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .inlineEditorActions button {
+    flex: 1 1 180px;
+  }
+
+  .inlineEditorSurface {
+    height: auto;
+    overflow: visible;
+  }
+
   .dropZone {
     min-height: clamp(230px, 42vh, 390px);
   }
@@ -1028,6 +1202,36 @@
     gap: 13px;
     padding: 15px;
     border-radius: 17px;
+  }
+
+  .inlineEditorPanel {
+    padding: 7px;
+    border-radius: 17px;
+  }
+
+  .inlineEditorIdentity {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inlineEditorIdentity strong {
+    max-width: 100%;
+  }
+
+  .inlineEditorActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inlineEditorActions button {
+    min-width: 0;
+    min-height: 42px;
+    padding-inline: 8px;
+    white-space: normal;
+  }
+
+  .inlineEditorActions .removeButton {
+    grid-column: 1 / -1;
   }
 
   .dropZone {

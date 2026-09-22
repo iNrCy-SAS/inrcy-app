@@ -9,6 +9,8 @@ import ts from "typescript";
 
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
+import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as reliability from "../../lib/aiVideoReliability.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
@@ -29,6 +31,8 @@ function loadPromptRuntime() {
     ["@/lib/aiVideoProviderTypes", providerTypes],
     ["@/lib/aiMediaDialogue", dialogue],
     ["@/lib/aiMediaColorDirection", colorDirection],
+    ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaPromptShared", promptShared],
     ["./aiMediaVideoContinuity.ts", {}],
     ["@/lib/aiMediaSensitiveText", {}],
   ]);
@@ -49,6 +53,8 @@ function loadPromptRuntime() {
     buildGoogleVideoContinuityContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoContinuityContract;
     buildGoogleVideoParameterContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoParameterContract;
     resolveGoogleVideoAspectRatio: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").resolveGoogleVideoAspectRatio;
+    promptForInspirationMode: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").promptForInspirationMode;
+    buildGoogleVideoSafetyFallbackPrompt: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoSafetyFallbackPrompt;
   };
 }
 
@@ -109,7 +115,7 @@ for (const language of languages) {
           : { continuationFrame: true, firstFrameTag: true });
         combinations += 1;
         assert.ok(prompt.length <= 3_200, `${label}: ${prompt.length} caractères`);
-        for (const section of ["SUBJECT:", "USER:", "REFERENCE:", "ACT:", "NO VISUAL TEXT:", "PARAMS:", "PEOPLE:", "CONTINUITY:"]) {
+        for (const section of ["SUBJECT:", "USER:", "REFERENCE:", "ACT:", "NO VISUAL TEXT:", "PARAMS:", "ORIGINALITY:", "PEOPLE:", "CONTINUITY:"]) {
           assert.ok(prompt.includes(section), `${label}: ${section} conservée`);
         }
         assert.match(prompt, /look=colorful\/illustration\/close\/team\/faithful/);
@@ -164,7 +170,7 @@ test("les trois noms de couleurs longs restent intégraux avec les paramètres l
   for (const imageStyle of ["illustration", "graphic"] as const) {
     args.request.imageStyle = imageStyle;
     const parameters = runtime.buildGoogleVideoParameterContract(args.request, 8, args.brandColors.join(", "));
-    assert.ok(parameters.length <= 280);
+    assert.ok(parameters.length <= 340);
     assert.ok(parameters.endsWith(`pal=${names.join("/")}`));
     const prompt = runtime.buildGoogleVideoScenePrompt(args, 1, 8, { continuationFrame: true, firstFrameTag: true });
     assert.ok(prompt.length <= 3_200);
@@ -194,7 +200,7 @@ test("chaque option Studio vidéo reste structurée dans le contrat fournisseur 
       8,
       colors,
     );
-    assert.ok(contract.length <= 280, `${field}=${String(value)}: contrat trop long`);
+    assert.ok(contract.length <= 340, `${field}=${String(value)}: contrat trop long`);
     assert.ok(
       contract.includes(expected),
       `${field}=${String(value)}: valeur absente de ${contract}`,
@@ -398,4 +404,66 @@ test("une profession longue ne remplace pas la fin d’un sujet explicitement de
       assert.ok(prompt.length <= 3_200);
     }
   }
+});
+
+test("une longue idée ET une consigne distincte conservent toutes leurs exigences", () => {
+  const args = longBrief("fr", "auto", "landscape", "voiceover");
+  const subjects = [
+    "Une fleuriste prépare un bouquet de roses rouges dans son atelier.",
+    "Un client apporte un vase transparent et le pose sur une table ronde.",
+    "La fleuriste place trois orchidées blanches entre les roses rouges.",
+    "Elle noue un ruban jaune autour du vase, puis le tend au client.",
+    "Le client repart avec ce vase et toutes les fleurs, sans sac ni boîte.",
+  ];
+  const instructions = [
+    "La caméra reste à hauteur de la table pendant toute la scène.",
+    "La fenêtre située à gauche éclaire les mains et le vase.",
+    "Le ruban reste jaune, aucune orchidée ne change de couleur.",
+  ];
+  args.request.idea = subjects.join(" ");
+  args.request.aiInstruction = instructions.join(" ");
+  const prompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+  for (const sentence of [...subjects, ...instructions]) assert.ok(prompt.includes(sentence), sentence);
+  assert.ok(prompt.length <= 3_200);
+  for (const variant of [runtime.promptForInspirationMode(prompt, "source"), runtime.buildGoogleVideoSafetyFallbackPrompt(prompt)]) {
+    for (const sentence of [...subjects, ...instructions]) assert.ok(variant.includes(sentence), sentence);
+    assert.ok(variant.includes("PARAMS:"));
+    assert.ok(variant.length <= 3_200);
+  }
+});
+
+test("source et safety conservent la politique produit/décor et ne perdent aucune référence requise", () => {
+  const args = longBrief("fr", "auto", "landscape", "voiceover");
+  args.request.idea = "La fleuriste dispose un bouquet dans son atelier.";
+  args.request.aiInstruction = "Conserver les couleurs du bouquet.";
+  for (const role of ["product", "environment"] as const) {
+    for (const usage of ["required", "inspiration"] as const) {
+      args.request.inspirationImages = [{ data: "AA==", mimeType: "image/jpeg", role, usage }];
+      const prompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+      const reference = prompt.match(/REFERENCE:([\s\S]*?)(?=\sACT:)/)![1]!.trim();
+      const source = runtime.promptForInspirationMode(prompt, "source");
+      assert.ok(source.includes(reference));
+      assert.ok(source.includes(`#1:${role}/${usage}`));
+      if (usage === "required") {
+        assert.throws(() => runtime.buildGoogleVideoSafetyFallbackPrompt(prompt), /ai_video_required_reference_unavailable/);
+        assert.throws(() => runtime.promptForInspirationMode(prompt, "none"), /ai_video_required_reference_unavailable/);
+      } else {
+        assert.ok(runtime.buildGoogleVideoSafetyFallbackPrompt(prompt).includes(reference));
+      }
+    }
+  }
+  args.request.inspirationImages = [
+    { data: "AA==", mimeType: "image/jpeg", role: "product", usage: "inspiration" },
+    { data: "AA==", mimeType: "image/jpeg", role: "environment", usage: "required" },
+  ];
+  const prompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
+  assert.throws(() => runtime.promptForInspirationMode(prompt, "source"), /ai_video_required_reference_unavailable/);
+});
+
+test("une variante safety hors budget refuse la requête sans tronquer USER ni PARAMS", () => {
+  const prompt = `SUBJECT: ${"a".repeat(2_840)}. USER: conserver le vase jusqu’à la fin. REFERENCE: none ACT: fleuriste. PARAMS: film=24s;pal=red. PEOPLE: mature adults 25+ only.`;
+  assert.ok(prompt.length <= 3_200);
+  const tooTight = prompt.replace("a".repeat(2_840), "a".repeat(3_025));
+  assert.ok(tooTight.length <= 3_200);
+  assert.throws(() => runtime.buildGoogleVideoSafetyFallbackPrompt(tooTight), /ai_video_veo_safety_prompt_budget_exceeded/);
 });

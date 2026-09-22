@@ -7,8 +7,10 @@
  */
 export type ImageOverlayPosition = "top" | "center" | "bottom";
 export type ImageOverlayStyle = "solid" | "glass";
+export type ImageOverlayFontFamily = "inter" | "arial" | "georgia" | "verdana";
 
-export type ImageOverlay = {
+export type ImageOverlayItem = {
+  id?: string;
   text?: string;
   linkUrl?: string;
   /** Position horizontale du centre du bloc, en pourcentage du canevas. */
@@ -22,7 +24,24 @@ export type ImageOverlay = {
   /** Compatibilité avec les anciennes retouches à trois positions. */
   position?: ImageOverlayPosition;
   style?: ImageOverlayStyle;
+  fontFamily?: ImageOverlayFontFamily;
+  /** Taille de police exprimée en pourcentage de la largeur du canevas. */
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  color?: string;
+  /** Épaisseur de la bordure du bloc, en pixels de référence (0 = aucune). */
+  borderWidth?: number;
+  borderColor?: string;
 };
+
+export type ImageOverlay = ImageOverlayItem & {
+  /** Plusieurs blocs indépendants, tout en conservant le premier à la racine. */
+  items?: ImageOverlayItem[];
+};
+
+export const MAX_IMAGE_OVERLAY_ITEMS = 6;
 
 function clampPercentage(value: number) {
   return Math.min(100, Math.max(0, value));
@@ -34,6 +53,14 @@ function clampOverlayWidth(value: number) {
 
 function clampOverlayHeight(value: number) {
   return Math.min(92, Math.max(8, value));
+}
+
+function clampFontSize(value: number) {
+  return Math.min(10, Math.max(1.5, value));
+}
+
+function clampBorderWidth(value: number) {
+  return Math.min(8, Math.max(0, Math.round(value)));
 }
 
 function legacyPositionY(position: ImageOverlayPosition) {
@@ -54,15 +81,54 @@ function safeHttpUrl(value: unknown) {
   }
 }
 
-export function normalizeImageOverlay(value: unknown): ImageOverlay | undefined {
+function httpUrlDraft(value: unknown) {
+  const raw = String(value || "").trim().slice(0, 2048);
+  if (!raw) return undefined;
+  const explicitProtocol = raw.match(/^([a-z][a-z0-9+.-]*):/i)?.[1];
+  if (
+    explicitProtocol &&
+    explicitProtocol.toLowerCase() !== "http" &&
+    explicitProtocol.toLowerCase() !== "https"
+  ) {
+    return undefined;
+  }
+  return raw;
+}
+
+function normalizeImageOverlayItem(value: unknown): ImageOverlayItem | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
-  const text = String(raw.text || "").trim().slice(0, 180);
-  const linkUrl = safeHttpUrl(raw.linkUrl);
+  const rawText = String(raw.text || "").slice(0, 180);
+  const text = rawText.trim() ? rawText : "";
+  const linkUrl = httpUrlDraft(raw.linkUrl);
+  const id = String(raw.id || "").trim().slice(0, 80) || undefined;
   const position: ImageOverlayPosition =
     raw.position === "top" || raw.position === "bottom" ? raw.position : "center";
   const style: ImageOverlayStyle = raw.style === "glass" ? "glass" : "solid";
-  if (!text && !linkUrl) return undefined;
+  // Un bloc identifié peut rester momentanément vide pendant l'édition :
+  // supprimer la sélection au clavier ne doit pas supprimer le bloc avant que
+  // l'utilisateur ait pu saisir son nouveau texte.
+  if (!text && !linkUrl && !id) return undefined;
+  const fontFamily: ImageOverlayFontFamily =
+    raw.fontFamily === "arial" ||
+    raw.fontFamily === "georgia" ||
+    raw.fontFamily === "verdana"
+      ? raw.fontFamily
+      : "inter";
+  const rawFontSize =
+    typeof raw.fontSize === "number" && Number.isFinite(raw.fontSize)
+      ? raw.fontSize
+      : null;
+  const color = /^#[0-9a-f]{6}$/i.test(String(raw.color || ""))
+    ? String(raw.color)
+    : undefined;
+  const borderColor = /^#[0-9a-f]{6}$/i.test(String(raw.borderColor || ""))
+    ? String(raw.borderColor)
+    : undefined;
+  const rawBorderWidth =
+    typeof raw.borderWidth === "number" && Number.isFinite(raw.borderWidth)
+      ? raw.borderWidth
+      : null;
   const rawX = typeof raw.x === "number" && Number.isFinite(raw.x) ? raw.x : null;
   const rawY = typeof raw.y === "number" && Number.isFinite(raw.y) ? raw.y : null;
   const rawWidth =
@@ -75,10 +141,23 @@ export function normalizeImageOverlay(value: unknown): ImageOverlay | undefined 
       : null;
   const hasFreePosition = rawX !== null || rawY !== null;
   return {
+    id,
     text: text || undefined,
     linkUrl,
     position,
     style,
+    fontFamily,
+    ...(rawFontSize !== null ? { fontSize: clampFontSize(rawFontSize) } : {}),
+    ...(typeof raw.bold === "boolean" ? { bold: raw.bold } : {}),
+    ...(typeof raw.italic === "boolean" ? { italic: raw.italic } : {}),
+    ...(typeof raw.underline === "boolean"
+      ? { underline: raw.underline }
+      : {}),
+    ...(color ? { color } : {}),
+    ...(rawBorderWidth !== null
+      ? { borderWidth: clampBorderWidth(rawBorderWidth) }
+      : {}),
+    ...(borderColor ? { borderColor } : {}),
     ...(hasFreePosition
       ? {
           x: clampPercentage(rawX ?? 50),
@@ -88,6 +167,27 @@ export function normalizeImageOverlay(value: unknown): ImageOverlay | undefined 
     ...(rawWidth !== null ? { width: clampOverlayWidth(rawWidth) } : {}),
     ...(rawHeight !== null ? { height: clampOverlayHeight(rawHeight) } : {}),
   };
+}
+
+export function normalizeImageOverlay(value: unknown): ImageOverlay | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const items = Array.isArray(raw.items)
+    ? raw.items
+        .slice(0, MAX_IMAGE_OVERLAY_ITEMS)
+        .map(normalizeImageOverlayItem)
+        .filter((item): item is ImageOverlayItem => Boolean(item))
+    : [];
+  if (items.length) return { ...items[0], items };
+  return normalizeImageOverlayItem(raw);
+}
+
+export function getImageOverlayItems(value: unknown): ImageOverlayItem[] {
+  const normalized = normalizeImageOverlay(value);
+  if (!normalized) return [];
+  if (normalized.items?.length) return normalized.items;
+  const { items: _items, ...single } = normalized;
+  return [single];
 }
 
 /**
@@ -104,14 +204,18 @@ export function resolveImageOverlayCoordinates(value: unknown) {
 }
 
 export function hasImageOverlay(value: unknown): value is ImageOverlay {
-  const normalized = normalizeImageOverlay(value);
-  return Boolean(normalized?.text || normalized?.linkUrl);
+  return getImageOverlayItems(value).some((item) => Boolean(item.text));
 }
 
 export function getImageOverlayText(value: unknown) {
-  return normalizeImageOverlay(value)?.text || "";
+  return getImageOverlayItems(value)[0]?.text || "";
 }
 
 export function getImageOverlayLinkUrl(value: unknown) {
-  return normalizeImageOverlay(value)?.linkUrl || "";
+  for (const item of getImageOverlayItems(value)) {
+    if (!item.text) continue;
+    const safeUrl = safeHttpUrl(item.linkUrl);
+    if (safeUrl) return safeUrl;
+  }
+  return "";
 }

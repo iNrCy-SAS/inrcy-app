@@ -3,7 +3,11 @@ import {
   buildStableEmbedActusMediaUrl,
   extractEmbedActusStorageReference,
 } from "@/lib/embedActusMedia";
-import { normalizeImageOverlay, type ImageOverlay } from "@/lib/imageOverlay";
+import {
+  getImageOverlayLinkUrl,
+  normalizeImageOverlay,
+  type ImageOverlay,
+} from "@/lib/imageOverlay";
 
 export type LayoutMode = "list" | "carousel" | "grid" | "compact";
 export type FontMode = "site" | "inter" | "poppins" | "montserrat" | "lora";
@@ -168,7 +172,7 @@ function getImageOverlay(article: Record<string, unknown>, index: number): Image
 }
 
 function wrapImageLink(content: string, overlay: ImageOverlay | undefined) {
-  const url = normalizeImageOverlay(overlay)?.linkUrl;
+  const url = getImageOverlayLinkUrl(overlay);
   if (!url) return content;
   return `<a class="mediaLink" href="${safeAttr(url)}" target="_blank" rel="noopener noreferrer">${content}</a>`;
 }

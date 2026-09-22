@@ -69,9 +69,11 @@ function loadImageGatewayBoundaryRuntime() {
   const filename = path.join(LIB_ROOT, "aiMediaGateway.ts");
   const captures: {
     nominal?: {
+      model: string;
       text: string;
       images: readonly Buffer[];
       size: string;
+      providerOptions?: Record<string, Record<string, unknown>>;
     };
     google?: {
       text: string;
@@ -94,17 +96,21 @@ function loadImageGatewayBoundaryRuntime() {
       "ai",
       {
         experimental_generateImage: async (args: {
+          model: string;
           prompt: string | { text: string; images: readonly Buffer[] };
           size: string;
+          providerOptions?: Record<string, Record<string, unknown>>;
         }) => {
           const prompt =
             typeof args.prompt === "string"
               ? { text: args.prompt, images: [] as readonly Buffer[] }
               : args.prompt;
           captures.nominal = {
+            model: args.model,
             text: prompt.text,
             images: prompt.images,
             size: args.size,
+            providerOptions: args.providerOptions,
           };
           return {
             image: {
@@ -201,6 +207,9 @@ const { buildAiMediaPrompt, getAiMediaPromptOutputSpec } = loadLocalRuntime<
 const { normalizeGeneratedAiImage } = loadLocalRuntime<
   typeof import("../../lib/aiMediaNormalizer.ts")
 >(path.join(LIB_ROOT, "aiMediaNormalizer.ts"));
+const { resolveAiMediaImageEditSize } = loadLocalRuntime<
+  typeof import("../../lib/aiMediaImageProviderRequest.ts")
+>(path.join(LIB_ROOT, "aiMediaImageProviderRequest.ts"));
 
 const SOURCE_IMAGE = {
   mimeType: "image/png",
@@ -284,6 +293,49 @@ test("Modifier ne traite jamais son image source comme un jeu de références d'
     route,
     /operation === "modify"[\s\S]*?identityMode: "auto"[\s\S]*?identityReferenceSetId: ""[\s\S]*?return body;/
   );
+});
+
+test("Modifier ignore les habillages et options de marque hérités de Générer", () => {
+  const request = normalizeAiMediaGenerationRequest(modificationRequest({
+    withText: true,
+    textMode: "exact",
+    exactText: "SLOGAN_GENERATION_PARASITE",
+    textKeywords: ["mot parasite"],
+    useBrandColors: true,
+    logoMode: "visible",
+    creativity: "bold",
+  }));
+  assert.equal(request.textMode, "none");
+  assert.equal(request.withText, false);
+  assert.equal(request.exactText, "");
+  assert.deepEqual(request.textKeywords, []);
+  assert.equal(request.useBrandColors, false);
+  assert.equal(request.logoMode, "none");
+  assert.equal(request.inspirationImages.length, 1);
+  assert.equal(request.aiInstruction, "Remplacer uniquement le ciel par un ciel bleu clair.");
+
+  const defaults = normalizeAiMediaGenerationRequest(modificationRequest());
+  assert.equal(defaults.logoMode, "none", "aucun logo implicite sur les anciens clients Modifier");
+  assert.equal(defaults.useBrandColors, false);
+});
+
+test("Modifier garde les corrections textuelles explicites sans originalité ni ADN", () => {
+  const aiInstruction = "Remplacer uniquement « Ancien numéro » par « Contact : 01 02 03 04 05 ». Conserver tous les autres mots, le décor et les personnages.";
+  const request = normalizeAiMediaGenerationRequest(modificationRequest({ aiInstruction, creativity: "bold" }));
+  const profile = new Proxy({}, {
+    get() { throw new Error("modification_must_not_read_business_dna"); },
+  });
+  const prompt = buildAiMediaPrompt({ request, profile: profile as never });
+  assert.ok(prompt.includes(aiInstruction));
+  assert.match(prompt, /TEXTE EN MODE MODIFICATION : conserver mot pour mot tout texte non visé/);
+  assert.match(prompt, /valeurs exactes fournies/);
+  assert.doesNotMatch(prompt, /ORIGINALITY:|SIGNATURE CRÉATIVE|ADN PROFESSIONNEL|tablet|laptop|office|nouvelle pose/i);
+  assert.doesNotMatch(prompt, /Le texte du brief décrit une idée et non une accroche|ne jamais le recopier, même partiellement/);
+
+  const server = readFileSync(path.join(LIB_ROOT, "aiMediaGenerationServer.ts"), "utf8");
+  assert.match(server, /const profilePhoneDisplayRequested =\s*providerRequest\.operation !== "modify" &&/);
+  assert.match(server, /const useDeterministicImageComposition =\s*providerRequest\.operation !== "modify" &&/);
+  assert.match(server, /const officialLogo =\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null/);
 });
 
 test("Modifier refuse la vidéo", () => {
@@ -459,6 +511,8 @@ test("le moteur nominal et le fallback reçoivent la consigne 1 200, la source e
     "le fallback reçoit le même prompt compilé sans réécriture"
   );
   assert.equal(captures.nominal.text, captures.google.text);
+  assert.ok(captures.nominal.text.includes(acceptedInstruction));
+  assert.doesNotMatch(captures.nominal.text, /ORIGINALITY:|SIGNATURE CRÉATIVE|ADN PROFESSIONNEL|nouvelle pose|Vary opening|Vary composition/);
   assert.equal(
     captures.nominal.text.match(/FIN-PROVIDER-1200/g)?.length,
     1
@@ -470,6 +524,9 @@ test("le moteur nominal et le fallback reçoivent la consigne 1 200, la source e
   assert.equal(captures.google.imageData, sourceBytes.toString("base64"));
   assert.equal(captures.google.imageMimeType, "image/webp");
   assert.equal(captures.nominal.size, "1536x1024");
+  assert.equal(captures.nominal.model, "openai/gpt-image-2.5-sunburst");
+  assert.equal(captures.nominal.providerOptions?.openai?.quality, "high");
+  assert.equal(captures.nominal.providerOptions?.openai?.outputFormat, "jpeg");
   assert.equal(captures.google.aspectRatio, "3:2");
 
   const server = readFileSync(
@@ -490,6 +547,51 @@ test("le moteur nominal et le fallback reçoivent la consigne 1 200, la source e
   assert.match(
     imageBranch,
     /generateAiMediaImageWithGoogle\(imageProviderRequest\)/
+  );
+});
+
+test("Modifier transmet au fournisseur un canvas multiple de 16 proche du ratio source", () => {
+  assert.equal(
+    resolveAiMediaImageEditSize({ width: 1_920, height: 1_080 }),
+    "1536x864",
+  );
+  assert.equal(
+    resolveAiMediaImageEditSize({ width: 1_795, height: 876 }),
+    "1536x752",
+  );
+  assert.equal(
+    resolveAiMediaImageEditSize({ width: 1_080, height: 1_920 }),
+    "864x1536",
+  );
+  assert.equal(
+    resolveAiMediaImageEditSize({ width: 640, height: 360 }),
+    "1088x608",
+  );
+  const edgeCases = [
+    { width: 1_500, height: 500 },
+    { width: 500, height: 1_500 },
+    { width: 10_000, height: 100 },
+    { width: 100, height: 10_000 },
+  ];
+  for (const source of edgeCases) {
+    const [width, height] = resolveAiMediaImageEditSize(source)
+      .split("x")
+      .map(Number);
+    assert.equal(width % 16, 0, `${source.width}x${source.height}: largeur multiple de 16`);
+    assert.equal(height % 16, 0, `${source.width}x${source.height}: hauteur multiple de 16`);
+    assert.ok(width / height >= 1 / 3, `${source.width}x${source.height}: ratio portrait valide`);
+    assert.ok(width / height <= 3, `${source.width}x${source.height}: ratio paysage valide`);
+    assert.ok(width * height >= 655_360, `${source.width}x${source.height}: surface minimale`);
+    assert.ok(Math.max(width, height) <= 1_536, `${source.width}x${source.height}: grand axe maximal`);
+  }
+
+  const server = readFileSync(
+    path.resolve("lib/aiMediaGenerationServer.ts"),
+    "utf8",
+  );
+  assert.match(
+    server,
+    /size: modificationCanvas\s*\? resolveAiMediaImageEditSize\(modificationCanvas\)\s*: format\.generationSize/,
   );
 });
 
@@ -604,6 +706,11 @@ test("le client et le serveur réservent le canvas source au chemin Modifier", (
 
   assert.match(modifier, /modificationSourceWidth: sourceImage\.width/);
   assert.match(modifier, /modificationSourceHeight: sourceImage\.height/);
+  assert.match(
+    modifier,
+    /useEffect\(\s*\(\) => \(\) => \{[\s\S]*?URL\.revokeObjectURL\(previewUrlRef\.current\)[\s\S]*?\},\s*\[\],\s*\);/,
+    "l’URL locale active ne doit être révoquée qu’au démontage",
+  );
   assert.match(server, /providerRequest\.operation === "modify"/);
   assert.match(server, /canvasMode: modificationCanvas \? "source" : "preset"/);
   assert.match(normalizer, /fit: "cover", position: "attention"/);

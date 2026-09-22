@@ -117,6 +117,7 @@ export type MailboxDetailsModalProps = {
   activePublicationEditPreset: any;
   activePublicationEditAssets: any[];
   togglePublicationImage: (channel: string, imageKey: string) => void;
+  launchPublicationMediaGenerator: (publicationBrief: string) => Promise<void>;
   openPublicationImageRetoucher: (channel: string, imageKey: string) => void;
   openPublicationImageModifier: (channel: string, imageKey: string) => void;
   openPublicationVideoRetoucher: (channel: string) => void;

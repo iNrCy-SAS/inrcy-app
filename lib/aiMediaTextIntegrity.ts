@@ -68,6 +68,87 @@ function comparableCopy(value: unknown) {
     .trim();
 }
 
+const AI_MEDIA_COMMERCIAL_PRICE_PATTERN = String.raw`\d{1,4}(?:[.,]\d{1,2})?\s*(?:€|euros?)(?:\s*(?:HT|TTC|hors\s+taxes?|toutes\s+taxes(?:\s+comprises)?))?(?:\s*(?:\/|par)\s*(?:mois|ans?|années?|jours?|semaines?))?`;
+
+export type AiMediaCommercialOfferTerm = {
+  name: string;
+  price: string;
+};
+
+function extractCommercialOfferName(prefix: string) {
+  const normalized = normalizeAiMediaCopy(prefix);
+  if (!normalized) return "";
+
+  const offerMarker = /\b(?:packs?|forfaits?|formules?|offres?|abonnements?)\b/giu;
+  const markers = Array.from(normalized.matchAll(offerMarker));
+  const hasConnector = /\b(?:et|ou|versus|vs\.?)\b/iu.test(normalized);
+  const hasPriceLead = /(?:\bau\s+prix\s+de|\bà|\bpour|:|=|[-–—])\s*$/iu.test(
+    normalized
+  );
+  if (markers.length === 0 && !hasConnector && !hasPriceLead) return "";
+
+  const lastMarker = markers.at(-1);
+  let candidate = lastMarker?.index !== undefined
+    ? normalized.slice(lastMarker.index + lastMarker[0].length)
+    : normalized;
+  candidate = candidate
+    .replace(/\s*(?:au\s+prix\s+de|à|pour|:|=|[-–—])\s*$/iu, "")
+    .split(/(?:[:,;]|\b(?:et|ou|versus|vs\.?)\b)/giu)
+    .at(-1) || "";
+  candidate = candidate
+    .replace(/^(?:nos?|les?|des?|deux|trois|quatre|cinq)\s+/iu, "")
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}'’\-]+$/gu, "")
+    .trim();
+
+  const words = candidate.split(/\s+/u).filter(Boolean);
+  if (candidate.length < 2 || candidate.length > 40 || words.length > 4) return "";
+  if (
+    /^(?:pack|forfait|formule|offre|abonnement|prix|tarif|comparaison)$/iu.test(
+      candidate
+    )
+  ) {
+    return "";
+  }
+  return candidate;
+}
+
+/**
+ * Extrait les libellés et montants commerciaux tels qu'ils ont été fournis.
+ * Une mention fiscale et sa périodicité restent atomiques : aucune branche ne
+ * complète ni ne tronque une information absente du brief.
+ */
+export function extractAiMediaCommercialOfferTerms(value: unknown) {
+  const source = normalizeAiMediaCopy(value);
+  const prices: string[] = [];
+  const offers: AiMediaCommercialOfferTerm[] = [];
+  const priceRegex = new RegExp(`\\b${AI_MEDIA_COMMERCIAL_PRICE_PATTERN}`, "giu");
+  let previousPriceEnd = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = priceRegex.exec(source))) {
+    const price = normalizeAiMediaCopy(match[0]);
+    const name = extractCommercialOfferName(
+      source.slice(previousPriceEnd, match.index)
+    );
+    if (price && !prices.some((item) => comparableCopy(item) === comparableCopy(price))) {
+      prices.push(price);
+    }
+    if (
+      name &&
+      !offers.some(
+        (item) =>
+          comparableCopy(item.name) === comparableCopy(name) ||
+          comparableCopy(item.price) === comparableCopy(price)
+      )
+    ) {
+      offers.push({ name, price });
+    }
+    previousPriceEnd = match.index + match[0].length;
+  }
+
+  return { offers, prices };
+}
+
 function addProtectedTerm(target: string[], value: unknown) {
   const term = normalizeAiMediaCopy(value).replace(/[.!?。！？]+$/u, "").trim();
   if (term.length < 2 || term.length > AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS) return;
@@ -90,12 +171,15 @@ function extractCapitalizedPhrases(source: string, target: string[]) {
 
 function extractCommercialTerms(source: string, target: string[]) {
   const commercialValue =
-    /\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:€|euros?|%|jours?|mois|ans?)(?:\s*(?:\/|par)\s*(?:mois|an|année|jour))?/giu;
+    /\b\d{1,4}(?:[.,]\d{1,2})?\s*(?:%|jours?|mois|ans?)(?:\s*(?:\/|par)\s*(?:mois|an|année|jour))?/giu;
   const offerName =
     /\b(?:pack|forfait|formule|offre)\s+[\p{L}\p{M}\p{N}'’\-]{2,28}/giu;
   let match: RegExpExecArray | null;
   while ((match = commercialValue.exec(source))) addProtectedTerm(target, match[0]);
   while ((match = offerName.exec(source))) addProtectedTerm(target, match[0]);
+  const extracted = extractAiMediaCommercialOfferTerms(source);
+  for (const price of extracted.prices) addProtectedTerm(target, price);
+  for (const offer of extracted.offers) addProtectedTerm(target, offer.name);
 }
 
 export function collectAiMediaProtectedTerms(args: {

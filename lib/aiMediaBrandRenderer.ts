@@ -28,6 +28,14 @@ type RenderBaseArgs = {
   visualStyle: AiMediaVisualStyle;
   logoMode: AiMediaLogoMode;
   imagePurpose?: AiMediaImagePurpose;
+  /**
+   * Copie saisie par l'utilisateur en mode `exact`. Elle suit un compositeur
+   * dédié : les garde-fous courts des titres générés ne doivent jamais la
+   * rejeter ni la condenser dans trois lignes illisibles.
+   */
+  exactText?: string;
+  /** Numéro vérifié du profil, composé localement avec le texte exact. */
+  contactPhone?: string;
 };
 
 export type AiMediaImageCompositionCopy = {
@@ -150,6 +158,31 @@ export function wrapAiMediaOverlayBodyText(
   );
 }
 
+/**
+ * Répartit un texte exact complet sans appliquer les plafonds éditoriaux des
+ * accroches IA. Le nombre de caractères par ligne peut seulement être élargi
+ * pour faire tenir toutes les lignes : aucun préfixe, suffixe ou mot n'est
+ * supprimé.
+ */
+export function wrapAiMediaExactOverlayText(
+  value: string,
+  maxCharacters: number,
+  maxLines: number
+) {
+  const normalized = safeOverlayText(value);
+  const lineLimit = Math.max(1, Math.round(maxLines));
+  if (!normalized) return [];
+  for (
+    let measure = Math.max(1, Math.round(maxCharacters));
+    measure <= normalized.length;
+    measure += 1
+  ) {
+    const wrapped = wrapNormalizedOverlayText(normalized, measure).lines;
+    if (wrapped.length <= lineLimit) return wrapped;
+  }
+  return [normalized];
+}
+
 async function rasterTextLayer(args: {
   text: string;
   fontSize: number;
@@ -161,6 +194,7 @@ async function rasterTextLayer(args: {
 }) {
   const text = safeOverlayText(args.text);
   if (!text) return null;
+  const maximumWidth = Math.max(1, Math.round(args.maxWidth));
   const rendered = await sharp({
     text: {
       text: `<span foreground="${args.color}" weight="${
@@ -176,10 +210,10 @@ async function rasterTextLayer(args: {
     .png()
     .toBuffer({ resolveWithObject: true });
   const input =
-    rendered.info.width > args.maxWidth
+    rendered.info.width > maximumWidth
       ? await sharp(rendered.data)
           .resize({
-            width: args.maxWidth,
+            width: maximumWidth,
             fit: "inside",
             withoutEnlargement: true,
           })
@@ -481,22 +515,300 @@ async function renderSceneCopyOverlay(
     .toBuffer();
 }
 
-function splitFlyerOffers(value: string) {
+function resolveExactTextLayout(args: RenderBaseArgs) {
+  const normalized = safeOverlayText(args.exactText || "");
+  const contactPhone = safeOverlayText(args.contactPhone || "");
+  const minimumDimension = Math.min(args.width, args.height);
+  const portrait = args.height > args.width * 1.12;
+  const marginX = Math.max(14, Math.round(args.width * (portrait ? 0.065 : 0.075)));
+  const marginY = Math.max(14, Math.round(args.height * 0.065));
+  const panelLeft = marginX;
+  const panelTop = marginY;
+  const panelWidth = Math.max(1, args.width - marginX * 2);
+  const panelHeight = Math.max(1, args.height - marginY * 2);
+  const padding = Math.max(14, Math.round(minimumDimension * 0.035));
+  const contentWidth = Math.max(1, panelWidth - padding * 2);
+  const eyebrowSize = Math.max(9, Math.round(minimumDimension * 0.018));
+  const eyebrowHeight = args.companyName.trim()
+    ? Math.round(eyebrowSize * 1.45)
+    : 0;
+  const contactSize = Math.max(10, Math.round(minimumDimension * 0.022));
+  const contactHeight = contactPhone
+    ? Math.round(contactSize * 2.15) + Math.round(padding * 0.45)
+    : 0;
+  const contentHeight = Math.max(
+    1,
+    panelHeight -
+      padding * 2 -
+      eyebrowHeight -
+      Math.round(padding * 0.45) -
+      contactHeight
+  );
+  const minimumFontSize = Math.max(9, Math.round(minimumDimension * 0.019));
+  let fontSize = Math.max(
+    minimumFontSize,
+    Math.min(48, Math.round(minimumDimension * 0.037))
+  );
+  let lineHeight = Math.round(fontSize * 1.31);
+  let maxCharacters = 24;
+  let lines: string[] = [];
+
+  for (;;) {
+    maxCharacters = Math.max(
+      22,
+      Math.min(
+        portrait ? 48 : 64,
+        Math.floor(contentWidth / Math.max(1, fontSize * 0.55))
+      )
+    );
+    lines = wrapNormalizedOverlayText(normalized, maxCharacters).lines;
+    lineHeight = Math.round(fontSize * 1.31);
+    if (
+      lines.length * lineHeight <= contentHeight ||
+      fontSize <= minimumFontSize
+    ) {
+      break;
+    }
+    fontSize -= 1;
+  }
+
+  const maximumLines = Math.max(1, Math.floor(contentHeight / lineHeight));
+  lines = wrapAiMediaExactOverlayText(
+    normalized,
+    maxCharacters,
+    maximumLines
+  );
+  const copyHeight = Math.min(contentHeight, lines.length * lineHeight);
+  const copyTop =
+    panelTop +
+    padding +
+    eyebrowHeight +
+    Math.round(padding * 0.45) +
+    Math.max(0, Math.round((contentHeight - copyHeight) / 2));
+  return {
+    lines,
+    fontSize,
+    lineHeight,
+    marginX,
+    marginY,
+    panelLeft,
+    panelTop,
+    panelWidth,
+    panelHeight,
+    padding,
+    contentWidth,
+    eyebrowSize,
+    contactPhone,
+    contactSize,
+    contactHeight,
+    copyTop,
+  };
+}
+
+type ExactTextLayout = ReturnType<typeof resolveExactTextLayout>;
+
+function exactTextBackdropSvg(args: RenderBaseArgs, layout: ExactTextLayout) {
+  const radius = Math.max(12, Math.round(Math.min(args.width, args.height) * 0.025));
+  return Buffer.from(`
+    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="pageShade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#020617" stop-opacity="0.18"/>
+          <stop offset="1" stop-color="#020617" stop-opacity="0.52"/>
+        </linearGradient>
+        <linearGradient id="brandLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="${args.colors[0]}"/>
+          <stop offset="0.5" stop-color="${args.colors[1]}"/>
+          <stop offset="1" stop-color="${args.colors[2]}"/>
+        </linearGradient>
+      </defs>
+      <rect width="${args.width}" height="${args.height}" fill="url(#pageShade)"/>
+      <rect x="${layout.panelLeft}" y="${layout.panelTop}" width="${layout.panelWidth}"
+        height="${layout.panelHeight}" rx="${radius}" fill="#061225" fill-opacity="0.86"
+        stroke="#ffffff" stroke-opacity="0.18"/>
+      <rect x="${layout.panelLeft + layout.padding}" y="${
+        layout.panelTop + layout.padding
+      }" width="${Math.max(44, Math.round(layout.panelWidth * 0.16))}"
+        height="${Math.max(4, Math.round(layout.eyebrowSize * 0.24))}" rx="4"
+        fill="url(#brandLine)"/>
+      ${
+        layout.contactPhone
+          ? `<rect x="${layout.panelLeft + layout.padding}" y="${
+              layout.panelTop + layout.panelHeight - layout.padding - layout.contactSize * 1.9
+            }" width="${Math.min(
+              layout.contentWidth,
+              Math.max(
+                layout.contactSize * 7,
+                layout.contactPhone.length * layout.contactSize * 0.62 + layout.contactSize * 4
+              )
+            )}" height="${layout.contactSize * 1.9}" rx="${layout.contactSize}"
+            fill="url(#brandLine)" fill-opacity="0.94"/>`
+          : ""
+      }
+    </svg>
+  `);
+}
+
+/**
+ * Compositeur longue copie utilisé exclusivement pour le texte exact. Une
+ * zone éditoriale large et plusieurs lignes lisibles remplacent la légende
+ * courte : jusqu'à 600 caractères sont réellement rasterisés, sans ellipse.
+ */
+async function renderExactTextOverlay(args: RenderBaseArgs) {
+  const transparent = await sharp({
+    create: {
+      width: args.width,
+      height: args.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const layout = resolveExactTextLayout(args);
+  if (!layout.lines.length) return transparent;
+  const eyebrowTop =
+    layout.panelTop + layout.padding + Math.max(7, Math.round(layout.eyebrowSize * 0.35));
+  const textLayers = await Promise.all([
+    rasterTextLayer({
+      text: args.companyName.toLocaleUpperCase(),
+      fontSize: layout.eyebrowSize,
+      fontWeight: 700,
+      color: "#dbeafe",
+      left: layout.panelLeft + layout.padding,
+      top: eyebrowTop,
+      maxWidth: layout.contentWidth,
+    }),
+    layout.contactPhone
+      ? rasterTextLayer({
+          text: `Tél. ${layout.contactPhone}`,
+          fontSize: layout.contactSize,
+          fontWeight: 700,
+          color: "#ffffff",
+          left: layout.panelLeft + layout.padding + layout.contactSize,
+          top:
+            layout.panelTop +
+            layout.panelHeight -
+            layout.padding -
+            Math.round(layout.contactSize * 1.48),
+          maxWidth: layout.contentWidth - layout.contactSize * 2,
+        })
+      : null,
+    ...layout.lines.map((line, index) =>
+      rasterTextLayer({
+        text: line,
+        fontSize: layout.fontSize,
+        fontWeight: 700,
+        color: "#ffffff",
+        left: layout.panelLeft + layout.padding,
+        top: layout.copyTop + index * layout.lineHeight,
+        maxWidth: layout.contentWidth,
+      })
+    ),
+  ]);
+  return await sharp(transparent)
+    .composite([
+      { input: exactTextBackdropSvg(args, layout), left: 0, top: 0 },
+      ...textLayers.filter((layer): layer is NonNullable<typeof layer> =>
+        Boolean(layer)
+      ),
+    ])
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+}
+
+const STRUCTURED_COMMERCIAL_IMAGE_PURPOSES = new Set<AiMediaImagePurpose>([
+  "flyer",
+  "product_sheet",
+  "poster",
+  "banner",
+  "infographic",
+]);
+
+function isStructuredCommercialImagePurpose(
+  purpose: AiMediaImagePurpose | undefined,
+) {
+  return Boolean(purpose && STRUCTURED_COMMERCIAL_IMAGE_PURPOSES.has(purpose));
+}
+
+function splitStructuredSections(
+  value: string,
+  purpose: AiMediaImagePurpose | undefined,
+) {
   const normalized = safeOverlayText(value);
   if (!normalized) return [];
   const sections = normalized
-    .split(/\s+(?:·|•|\|)\s+/u)
+    .split(/\s+(?:·|•|\|)\s+|(?<=[.!?])\s+/u)
     .map((section) => section.trim())
     .filter(Boolean);
-  if (sections.length <= 2) return sections;
-  return [sections[0], sections.slice(1).join(" · ")].filter(
-    (section): section is string => Boolean(section)
-  );
+  const maximumSections =
+    purpose === "infographic"
+      ? 3
+      : purpose === "poster" || purpose === "banner"
+        ? 1
+        : 2;
+  if (sections.length <= maximumSections) return sections;
+  return [
+    ...sections.slice(0, maximumSections - 1),
+    sections.slice(maximumSections - 1).join(" · "),
+  ].filter((section): section is string => Boolean(section));
 }
 
-type FlyerLayout = ReturnType<typeof resolveFlyerLayout>;
+type StructuredCommercialLayout = ReturnType<
+  typeof resolveStructuredCommercialLayout
+>;
 
-function resolveFlyerLayout(args: {
+/** Keep a price and all its qualifiers separate without rewriting any fact. */
+export function resolveAiMediaCommercialCardCopy(value: string) {
+  const text = safeOverlayText(value);
+  const price = /\d[\d\s.,]*\s*(?:€|euros?|\$|£)/iu.exec(text);
+  if (!price) return { label: "", price: "", detail: text };
+  return {
+    label: text.slice(0, price.index).replace(/\s*(?:à|:|–|—|-)\s*$/u, "").trim(),
+    price: price[0].trim(),
+    detail: text.slice(price.index + price[0].length).trim(),
+  };
+}
+
+/** Word-wrap and fit the whole copy to its actual box; never clip a suffix. */
+async function commercialTextBox(args: {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  fontSize: number;
+  color?: string;
+  weight?: 500 | 700 | 800;
+  center?: boolean;
+}) {
+  const text = safeOverlayText(args.text);
+  if (!text) return null;
+  const width = Math.max(1, Math.floor(args.width));
+  const height = Math.max(1, Math.floor(args.height));
+  const rendered = await sharp({
+    text: {
+      text: `<span foreground="${args.color || "#ffffff"}" weight="${args.weight || 700}">${escapeXml(text)}</span>`,
+      font: `Geist ${Math.round(args.fontSize)}`,
+      fontfile: OVERLAY_FONT_FILE,
+      rgba: true,
+      dpi: 72,
+      width,
+      wrap: "word",
+      align: args.center ? "center" : "left",
+    },
+  }).png().toBuffer();
+  const fitted = await sharp(rendered)
+    .resize({ width, height, fit: "inside", withoutEnlargement: true })
+    .png().toBuffer({ resolveWithObject: true });
+  return {
+    input: fitted.data,
+    left: Math.max(0, Math.round(args.left + (args.center ? (width - fitted.info.width) / 2 : 0))),
+    top: Math.max(0, Math.round(args.top + (height - fitted.info.height) / 2)),
+  };
+}
+
+function resolveStructuredCommercialLayout(args: {
   width: number;
   height: number;
   titleLineCount: number;
@@ -531,7 +843,7 @@ function resolveFlyerLayout(args: {
   );
   const stacked = portrait && args.offerCount > 1;
   const cardGap = gap;
-  const cardCount = Math.max(1, Math.min(2, args.offerCount || 1));
+  const cardCount = Math.max(1, Math.min(3, args.offerCount || 1));
   const cardWidth = stacked
     ? innerWidth
     : Math.floor((innerWidth - cardGap * (cardCount - 1)) / cardCount);
@@ -573,9 +885,9 @@ function resolveFlyerLayout(args: {
   };
 }
 
-function flyerBackdropSvg(
+function structuredCommercialBackdropSvg(
   args: RenderBaseArgs,
-  layout: FlyerLayout
+  layout: StructuredCommercialLayout
 ) {
   const cardShapes = layout.cards
     .map(
@@ -627,11 +939,12 @@ function flyerBackdropSvg(
 }
 
 /**
- * Un flyer ne peut pas être une photographie avec une légende générique.
- * Cette composition déterministe construit la hiérarchie commerciale après
- * le fournisseur : titre, offres, CTA, couleurs et logo restent ainsi exacts.
+ * Un flyer, une fiche produit, une affiche, une bannière ou une infographie
+ * ne peut pas être une photographie avec une simple légende. Cette composition
+ * déterministe construit une vraie hiérarchie éditoriale après le fournisseur :
+ * titre, sections, CTA, couleurs et logo restent exacts et parfaitement lisibles.
  */
-export async function renderAiMediaFlyerOverlay(
+export async function renderAiMediaStructuredCommercialOverlay(
   args: RenderBaseArgs & {
     scene: AiMediaCreativeScene;
     withText: boolean;
@@ -659,17 +972,17 @@ export async function renderAiMediaFlyerOverlay(
   const headline = args.copy?.headline || args.scene.title;
   const subline = args.copy?.subline || args.scene.body;
   const cta = args.copy?.cta || "";
-  const offers = splitFlyerOffers(subline);
+  const sections = splitStructuredSections(subline, args.imagePurpose);
   const titleLines = wrapAiMediaOverlayText(
     headline,
     args.height > args.width * 1.12 ? 24 : 38,
     2
   );
-  const layout = resolveFlyerLayout({
+  const layout = resolveStructuredCommercialLayout({
     width: args.width,
     height: args.height,
     titleLineCount: titleLines.length,
-    offerCount: offers.length,
+    offerCount: sections.length,
   });
   const flyerLayers = await Promise.all([
     rasterTextLayer({
@@ -692,34 +1005,44 @@ export async function renderAiMediaFlyerOverlay(
         maxWidth: layout.innerWidth,
       })
     ),
-    ...layout.cards.map((card, index) =>
-      rasterTextLayer({
-        text: offers[index] || subline,
-        fontSize: layout.offerFontSize,
-        fontWeight: 700,
-        color: "#ffffff",
-        left: card.left + layout.gap * 1.35,
-        top:
-          card.top +
-          Math.max(layout.gap, Math.round((card.height - layout.offerFontSize) / 2)),
-        maxWidth: card.width - layout.gap * 2.1,
-      })
-    ),
-    rasterTextLayer({
+    ...layout.cards.flatMap((card, index) => {
+      const copy = resolveAiMediaCommercialCardCopy(sections[index] || subline);
+      const inset = Math.min(layout.padding, card.height * 0.12);
+      const left = card.left + layout.gap * 1.5;
+      const width = card.width - layout.gap * 3;
+      const top = card.top + inset;
+      const height = card.height - inset * 2;
+      if (!copy.price) {
+        return [commercialTextBox({ text: copy.detail, left, top, width, height,
+          fontSize: layout.offerFontSize, weight: 700 })];
+      }
+      const labelHeight = copy.label ? height * 0.26 : 0;
+      const detailHeight = copy.detail ? height * 0.25 : 0;
+      const priceHeight = height - labelHeight - detailHeight;
+      return [
+        commercialTextBox({ text: copy.label, left, top, width, height: labelHeight,
+          fontSize: layout.offerFontSize * 0.9, color: "#dbeafe" }),
+        commercialTextBox({ text: copy.price, left, top: top + labelHeight, width,
+          height: priceHeight, fontSize: Math.min(card.width * 0.24, priceHeight * 0.84), weight: 800 }),
+        commercialTextBox({ text: copy.detail, left, top: top + labelHeight + priceHeight,
+          width, height: detailHeight, fontSize: layout.offerFontSize * 0.7, color: "#dbeafe", weight: 500 }),
+      ];
+    }),
+    commercialTextBox({
       text: cta,
       fontSize: layout.ctaFontSize,
-      fontWeight: 800,
+      weight: 800,
       color: "#ffffff",
       left: layout.ctaLeft + layout.gap,
-      top:
-        layout.ctaTop +
-        Math.max(4, Math.round((layout.ctaHeight - layout.ctaFontSize) / 2)),
-      maxWidth: layout.ctaWidth - layout.gap * 2,
+      top: layout.ctaTop + 4,
+      width: layout.ctaWidth - layout.gap * 2,
+      height: layout.ctaHeight - 8,
+      center: true,
     }),
   ]);
   const copyOverlay = await sharp(transparent)
     .composite([
-      { input: flyerBackdropSvg(args, layout), left: 0, top: 0 },
+      { input: structuredCommercialBackdropSvg(args, layout), left: 0, top: 0 },
       ...flyerLayers.filter((layer): layer is NonNullable<typeof layer> =>
         Boolean(layer)
       ),
@@ -788,7 +1111,9 @@ export async function renderAiMediaVideoOverlay(
   const overlays = await buildBrandOverlays({
     ...args,
     copyOverlay: args.withText
-      ? await renderSceneCopyOverlay(args)
+      ? args.exactText?.trim()
+        ? await renderExactTextOverlay(args)
+        : await renderSceneCopyOverlay(args)
       : transparent,
   });
   return await sharp(transparent)
@@ -811,8 +1136,10 @@ export async function composeAiMediaBrandedImage(
   }
 ) {
   const overlay =
-    args.imagePurpose === "flyer"
-      ? await renderAiMediaFlyerOverlay(args)
+    args.withText && args.exactText?.trim()
+      ? await renderAiMediaVideoOverlay(args)
+      : isStructuredCommercialImagePurpose(args.imagePurpose)
+      ? await renderAiMediaStructuredCommercialOverlay(args)
       : await renderAiMediaVideoOverlay(args);
   return await sharp(args.input, {
     failOn: "error",

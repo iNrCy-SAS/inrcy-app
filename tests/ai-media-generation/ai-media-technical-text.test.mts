@@ -62,7 +62,7 @@ function runtime(generated: unknown) {
   return { load, args: { accountId: "test-account", request, profile, plan }, calls: () => calls };
 }
 
-test("une réponse éditoriale contaminée est remplacée par le secours local sûr sans nouvel appel", async () => {
+test("une réponse éditoriale contaminée est remplacée par le secours local après les réécritures bornées", async () => {
   const env = runtime({ headline: "Le robot embellit votre jardin", cta: "Découvrez notre savoir-faire", scenes: [{
     title: "Le robot embellit votre jardin", eyebrow: "Atelier Horizon", body: "Couleurs techniques : #21b8ef, #8b5cf6 et #e94aa5.", spokenLine: "Notre palette interne utilise les codes #21b8ef.", spokenReply: "Le robot plante un rosier avec soin.",
   }] });
@@ -71,7 +71,7 @@ test("une réponse éditoriale contaminée est remplacée par le secours local s
   assert.equal(result.headline, env.args.plan.headline);
   assert.equal(result.cta, env.args.plan.cta);
   assert.equal(result.scenes[0]?.visualBrief, env.args.plan.scenes[0]?.visualBrief);
-  assert.equal(env.calls(), 1);
+  assert.equal(env.calls(), 2);
   const visibleAndSpokenDeck = [
     result.headline,
     result.cta,
@@ -89,12 +89,13 @@ test("une réponse éditoriale contaminée est remplacée par le secours local s
   );
 });
 
-test("la narration rejette les codes couleur et conserve un secours oral sans second appel", async () => {
+test("la narration rejette les codes couleur et conserve une phrase entière après trois réécritures", async () => {
   const env = runtime({ script: "Appliquer la palette #21b8ef et #8b5cf6, avec un cadrage large pour notre projet professionnel." });
+  env.args.request.idea = "Un robot plante un rosier dans notre jardin.";
   const result = await env.load<typeof import("../../lib/aiMediaNarration.ts")>("lib/aiMediaNarration.ts").writeAiMediaNarration(env.args);
   assert.ok(result);
   assert.equal(result.source, "safe_fallback");
-  assert.equal(env.calls(), 1);
+  assert.equal(env.calls(), 3);
   assert.ok(result.script.length > 0);
   assert.doesNotMatch(result.script, /21b8ef|8b5cf6/i);
 });

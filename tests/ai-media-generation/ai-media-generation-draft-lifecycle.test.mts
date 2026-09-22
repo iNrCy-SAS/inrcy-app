@@ -127,6 +127,11 @@ test("la fermeture et la regeneration detruisent le brouillon avant de continuer
   assert.ok(regenerate.indexOf("await discardDraft") < regenerate.indexOf("await generate"));
   assert.ok(confirm.indexOf("await acceptDraft") < confirm.indexOf("await onAccepted"));
   assert.match(modal, /role="alertdialog"/);
+  assert.match(modal, /const closeConfirmDialogRef = useRef/);
+  assert.match(modal, /const activeDialog = closeConfirmOpen/);
+  assert.match(modal, /activeDialog\?\.contains\(document\.activeElement\)/);
+  assert.match(modal, /inert=\{closeConfirmOpen \? true : undefined\}/);
+  assert.match(modal, /ref=\{closeConfirmDialogRef\}/);
   assert.match(modal, /await discardMediaGenerationDraft/);
   assert.match(modal, /beforeunload/);
 });

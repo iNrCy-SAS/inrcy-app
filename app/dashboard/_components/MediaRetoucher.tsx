@@ -76,6 +76,7 @@ export type MediaRetoucherProps = {
   initialSourceLoading?: boolean;
   openEditorOnInitialSource?: boolean;
   onEditingChange?: (editing: boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onSourceChange?: (source: MediaRetoucherSourceValue | null) => void;
   onSaved?: (
     value: MediaRetoucherSavedValue,
@@ -107,29 +108,6 @@ const SOURCE_ACCEPT = [
 ].join(",");
 
 const IMAGE_PREVIEW_LOAD_TIMEOUT_MS = 8_000;
-
-const RETOUCH_TOOLS = [
-  {
-    icon: "▣",
-    title: "Recadrer",
-    description: "Ajustez le cadre, le zoom et la position de l’image.",
-  },
-  {
-    icon: "◐",
-    title: "Changer le fond",
-    description: "Choisissez un fond transparent, uni ou personnalisé.",
-  },
-  {
-    icon: "T",
-    title: "Ajouter un texte",
-    description: "Posez un message lisible directement sur votre visuel.",
-  },
-  {
-    icon: "↗",
-    title: "Ajouter un lien",
-    description: "Associez une destination au contenu ajouté sur l’image.",
-  },
-] as const;
 
 function libraryItemName(item: MediaLibraryPickerItem) {
   return (
@@ -195,7 +173,12 @@ function cloneTransform(
 ): MediaRetoucherTransform {
   return {
     ...transform,
-    overlay: transform.overlay ? { ...transform.overlay } : undefined,
+    overlay: transform.overlay
+      ? {
+          ...transform.overlay,
+          items: transform.overlay.items?.map((item) => ({ ...item })),
+        }
+      : undefined,
   };
 }
 
@@ -209,6 +192,7 @@ export default function MediaRetoucher({
   initialSourceLoading = false,
   openEditorOnInitialSource = true,
   onEditingChange,
+  onDirtyChange,
   onSourceChange,
   onSaved,
   acceptMode = "library",
@@ -240,7 +224,6 @@ export default function MediaRetoucher({
   const [transform, setTransform] = useState<MediaRetoucherTransform>(() =>
     cloneTransform(DEFAULT_TRANSFORM),
   );
-  const [editorOpen, setEditorOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -280,9 +263,14 @@ export default function MediaRetoucher({
   }, []);
 
   useEffect(() => {
-    onEditingChange?.(editorOpen);
+    onEditingChange?.(sourcePreparing || saving);
     return () => onEditingChange?.(false);
-  }, [editorOpen, onEditingChange]);
+  }, [onEditingChange, saving, sourcePreparing]);
+
+  useEffect(() => {
+    onDirtyChange?.(Boolean(source) && !saved);
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange, saved, source]);
 
   const updateTransform = (patch: Partial<MediaRetoucherTransform>) => {
     setSaved(false);
@@ -304,7 +292,7 @@ export default function MediaRetoucher({
 
   const selectSource = useCallback((
     file: File | undefined,
-    openAfterLoad = false,
+    _openAfterLoad = false,
     metadata?: Record<string, unknown>,
   ) => {
     if (!file) return;
@@ -377,7 +365,6 @@ export default function MediaRetoucher({
           metadata,
         });
         setLoadingSource(false);
-        setEditorOpen(openAfterLoad);
       } catch (previewError) {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         if (!mountedRef.current || sourceRequestRef.current !== requestId) return;
@@ -514,27 +501,12 @@ export default function MediaRetoucher({
     sourceAbortRef.current?.abort();
     sourceAbortRef.current = null;
     sourceRequestRef.current += 1;
-    setEditorOpen(false);
     setLoadingSource(false);
     setSource(null);
     setTransform(cloneTransform(DEFAULT_TRANSFORM));
     baselineRef.current = cloneTransform(DEFAULT_TRANSFORM);
     setSaved(false);
     setError("");
-  };
-
-  const openEditor = () => {
-    if (!source) return;
-    baselineRef.current = cloneTransform(transform);
-    setError("");
-    setEditorOpen(true);
-  };
-
-  const closeEditorWithoutSaving = () => {
-    setTransform(cloneTransform(baselineRef.current));
-    setEditorOpen(false);
-    setIsDraggingImage(false);
-    dragRef.current = null;
   };
 
   const saveEditor = async () => {
@@ -552,7 +524,6 @@ export default function MediaRetoucher({
       });
       baselineRef.current = cloneTransform(transform);
       setSaved(true);
-      setEditorOpen(false);
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -646,9 +617,147 @@ export default function MediaRetoucher({
     pointerEvents: "none",
   };
 
+  const embeddedEditor = source ? (
+    <ChannelImageAdapterModal
+      open
+      embedded
+      title="Retoucher une image"
+      subtitle={source.file.name}
+      aspectRatio={`${source.width} / ${source.height}`}
+      backgroundMode={transform.backgroundMode}
+      backgroundColor={transform.backgroundColor}
+      overlay={transform.overlay}
+      fitLabel={
+        transform.fit === "cover"
+          ? shellT("plein_cadre_96d0dd78")
+          : shellT("image_entiere_76cd8175")
+      }
+      zoomLabel={`${transform.zoom.toFixed(2)}×`}
+      previewSrc={source.previewUrl}
+      previewImageStyle={previewImageStyle}
+      isDragging={isDraggingImage}
+      onClose={() => undefined}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPointerDrag}
+      onPointerCancel={endPointerDrag}
+      onDoubleClick={() => updateTransform({ offsetX: 0, offsetY: 0 })}
+      previewRef={previewRef}
+      buttonClassName={styles.adapterButton}
+      primaryButtonClassName={styles.adapterPrimaryButton}
+      onZoomOut={() => nudgeZoom(-0.08)}
+      onZoomIn={() => nudgeZoom(0.08)}
+      onContain={() =>
+        updateTransform({
+          fit: "contain",
+          zoom: 1,
+          offsetX: 0,
+          offsetY: 0,
+        })
+      }
+      onCover={() =>
+        updateTransform({
+          fit: "cover",
+          zoom: 1,
+          offsetX: 0,
+          offsetY: 0,
+        })
+      }
+      onReset={resetTransform}
+      onSave={() => void saveEditor()}
+      saving={saving}
+      onBackgroundModeChange={(mode) =>
+        updateTransform({
+          backgroundMode: mode,
+          backgroundColor:
+            mode === "black"
+              ? "#0d1320"
+              : mode === "white"
+                ? "#ffffff"
+                : transform.backgroundColor,
+          fit: "contain",
+          zoom: 1,
+          offsetX: 0,
+          offsetY: 0,
+        })
+      }
+      onBackgroundColorChange={(color) =>
+        updateTransform({
+          backgroundMode: "color",
+          backgroundColor: color,
+        })
+      }
+      onOverlayChange={(overlay) => updateTransform({ overlay })}
+      pillButtonStyle={{}}
+      pillButtonActiveStyle={{}}
+    />
+  ) : null;
+
   return (
     <div className={styles.workspace} data-saved={saved ? "true" : "false"}>
       <main className={styles.formContent}>
+        <input
+          ref={fileInputRef}
+          id={fileInputId}
+          type="file"
+          accept={SOURCE_ACCEPT}
+          hidden
+          disabled={sourcePreparing || saving}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            selectSource(file, false);
+          }}
+        />
+
+        {source && embeddedEditor ? (
+          <section
+            className={styles.inlineEditorPanel}
+            aria-label="Atelier de retouche"
+          >
+            <div className={styles.inlineEditorToolbar}>
+              <div className={styles.inlineEditorIdentity}>
+                <strong>{source.file.name}</strong>
+                <span>
+                  {source.width} × {source.height}px ·{" "}
+                  {Math.max(1, Math.round(source.file.size / 1024))} Ko
+                </span>
+                {saved ? (
+                  <em>
+                    <i aria-hidden="true">✓</i> Retouche enregistrée
+                  </em>
+                ) : null}
+              </div>
+              <div className={styles.inlineEditorActions}>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sourcePreparing || saving}
+                >
+                  Remplacer depuis mon appareil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLibraryOpen(true)}
+                  disabled={sourcePreparing || saving}
+                >
+                  Choisir dans ma médiathèque
+                </button>
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  onClick={removeSource}
+                  disabled={sourcePreparing || saving}
+                >
+                  {t("ai_generator_inspiration_remove")}
+                </button>
+              </div>
+            </div>
+            <div className={styles.inlineEditorSurface}>{embeddedEditor}</div>
+          </section>
+        ) : (
+          <>
         <section
           className={styles.panel}
           aria-labelledby="media-retoucher-source-title"
@@ -660,19 +769,6 @@ export default function MediaRetoucher({
               <p>Cette image reste la base de votre retouche.</p>
             </div>
           </header>
-
-          <input
-            ref={fileInputRef}
-            id={fileInputId}
-            type="file"
-            accept={SOURCE_ACCEPT}
-            hidden
-            disabled={sourcePreparing || saving}
-            onChange={(event) => {
-              selectSource(event.currentTarget.files?.[0], false);
-              event.currentTarget.value = "";
-            }}
-          />
 
           <div
             className={styles.dropZone}
@@ -793,39 +889,24 @@ export default function MediaRetoucher({
             </div>
           </header>
 
-          <div className={styles.toolGrid} aria-label="Outils disponibles">
-            {RETOUCH_TOOLS.map((tool) => (
-              <button
-                key={tool.title}
-                type="button"
-                className={styles.toolCard}
-                onClick={openEditor}
-                disabled={!source || sourcePreparing || saving}
-                aria-label={`${tool.title}. ${tool.description}`}
-              >
-                <span className={styles.toolIcon} aria-hidden="true">
-                  {tool.icon}
-                </span>
-                <span className={styles.toolCopy}>
-                  <strong>{tool.title}</strong>
-                  <small>{tool.description}</small>
-                </span>
-                <span className={styles.toolArrow} aria-hidden="true">
-                  →
-                </span>
-              </button>
-            ))}
+          <div className={styles.toolsEmpty} aria-label="Outils disponibles">
+            <span aria-hidden="true">✦</span>
+            <strong>Un seul atelier, tous les réglages</strong>
+            <p>
+              Ajoutez une image : elle apparaîtra directement à gauche, avec
+              le cadrage, le fond et les textes à droite.
+            </p>
           </div>
 
           <div className={styles.toolsNote}>
             <span aria-hidden="true">◎</span>
             <p>
-              {source
-                ? "Chaque outil ouvre le même atelier complet. Votre image d’origine reste conservée."
-                : "Ajoutez d’abord une image pour activer les outils de retouche."}
+              Ajoutez d’abord une image pour activer l’atelier de retouche.
             </p>
           </div>
         </section>
+          </>
+        )}
 
         {error ? (
           <p className={styles.error} role="alert">
@@ -867,83 +948,6 @@ export default function MediaRetoucher({
               : "Enregistrer dans la Médiathèque"}
         </button>
       </footer>
-
-      {source ? (
-        <ChannelImageAdapterModal
-          open={editorOpen}
-          title="Retoucher une image"
-          subtitle={source.file.name}
-          aspectRatio={`${source.width} / ${source.height}`}
-          backgroundMode={transform.backgroundMode}
-          backgroundColor={transform.backgroundColor}
-          overlay={transform.overlay}
-          fitLabel={
-            transform.fit === "cover"
-              ? shellT("plein_cadre_96d0dd78")
-              : shellT("image_entiere_76cd8175")
-          }
-          zoomLabel={`${transform.zoom.toFixed(2)}×`}
-          previewSrc={source.previewUrl}
-          previewImageStyle={previewImageStyle}
-          isDragging={isDraggingImage}
-          onClose={closeEditorWithoutSaving}
-          onWheel={handleWheel}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endPointerDrag}
-          onPointerCancel={endPointerDrag}
-          onDoubleClick={() => updateTransform({ offsetX: 0, offsetY: 0 })}
-          previewRef={previewRef}
-          buttonClassName={styles.adapterButton}
-          primaryButtonClassName={styles.adapterPrimaryButton}
-          onZoomOut={() => nudgeZoom(-0.08)}
-          onZoomIn={() => nudgeZoom(0.08)}
-          onContain={() =>
-            updateTransform({
-              fit: "contain",
-              zoom: 1,
-              offsetX: 0,
-              offsetY: 0,
-            })
-          }
-          onCover={() =>
-            updateTransform({
-              fit: "cover",
-              zoom: 1,
-              offsetX: 0,
-              offsetY: 0,
-            })
-          }
-          onReset={resetTransform}
-          onSave={() => void saveEditor()}
-          saving={saving}
-          isolationNote="Ces réglages manuels concernent uniquement cette image dans iNrStudio."
-          onBackgroundModeChange={(mode) =>
-            updateTransform({
-              backgroundMode: mode,
-              backgroundColor:
-                mode === "black"
-                  ? "#0d1320"
-                  : mode === "white"
-                    ? "#ffffff"
-                    : transform.backgroundColor,
-              fit: "contain",
-              zoom: 1,
-              offsetX: 0,
-              offsetY: 0,
-            })
-          }
-          onBackgroundColorChange={(color) =>
-            updateTransform({
-              backgroundMode: "color",
-              backgroundColor: color,
-            })
-          }
-          onOverlayChange={(overlay) => updateTransform({ overlay })}
-          pillButtonStyle={{}}
-          pillButtonActiveStyle={{}}
-        />
-      ) : null}
 
       <MediaLibraryPickerModal
         open={libraryOpen}

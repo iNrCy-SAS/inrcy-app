@@ -651,6 +651,7 @@ export default function MediaGenerator({
   const [inspirationImages, setInspirationImages] = useState<
     StudioReferenceImage[]
   >([]);
+  const [activeReferenceIndex, setActiveReferenceIndex] = useState(0);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -959,6 +960,19 @@ export default function MediaGenerator({
   const inspirationReference = inspirationImages.find(
     (image) => image.role === "inspiration"
   );
+  const resolvedActiveReferenceIndex = inspirationImages.length
+    ? Math.min(activeReferenceIndex, inspirationImages.length - 1)
+    : 0;
+  const activeReference =
+    inspirationImages[resolvedActiveReferenceIndex] || null;
+
+  useEffect(() => {
+    setActiveReferenceIndex((current) =>
+      inspirationImages.length
+        ? Math.min(current, inspirationImages.length - 1)
+        : 0
+    );
+  }, [inspirationImages.length]);
   const effectiveCharacterCount = transformMode
     ? realCharacterCount
     : (Math.min(characterReferences.length, 3) as StudioCharacterCount);
@@ -1145,10 +1159,12 @@ export default function MediaGenerator({
     file: File,
     role: MediaGenerationReferenceRole,
     characterIndex?: 1 | 2 | 3,
-    insertion: "replace" | "append" = "replace"
-  ) => {
-    setInspirationBusy(true);
-    setActionError("");
+    insertion: "replace" | "append" = "replace",
+    options: { manageBusy?: boolean; clearError?: boolean } = {}
+  ): Promise<boolean> => {
+    const manageBusy = options.manageBusy !== false;
+    if (manageBusy) setInspirationBusy(true);
+    if (options.clearError !== false) setActionError("");
     try {
       const prepared =
         role === "inspiration" && isInrMediaVideoFile(file)
@@ -1187,18 +1203,21 @@ export default function MediaGenerator({
         setRealCharacterCount(0);
       }
       resetReferenceConsent();
+      return true;
     } catch (caught) {
       setActionError(
         caught instanceof Error ? caught.message : t("ai_generator_error")
       );
+      return false;
     } finally {
-      setInspirationBusy(false);
+      if (manageBusy) setInspirationBusy(false);
     }
   };
 
   const prepareLibraryInspiration = async (
     item: MediaLibraryPickerItem,
-    insertion: "replace" | "append" = "replace"
+    insertion: "replace" | "append" = "replace",
+    options?: { manageBusy?: boolean; clearError?: boolean }
   ) => {
     if (!item.signed_url) {
       throw new Error(t("ai_generator_inspiration_library_unavailable"));
@@ -1225,7 +1244,13 @@ export default function MediaGenerator({
       item.original_file_name || item.title || "inspiration.jpg",
       { type: mimeType }
     );
-    await prepareReferenceFile(file, "inspiration", undefined, insertion);
+    return prepareReferenceFile(
+      file,
+      "inspiration",
+      undefined,
+      insertion,
+      options
+    );
   };
 
   const handleLibraryInspirationConfirm = async (
@@ -1237,10 +1262,33 @@ export default function MediaGenerator({
         ? 1
         : Math.max(0, MAX_INSPIRATION_IMAGES - inspirationImages.length)
     );
-    for (const item of selected) {
-      await prepareLibraryInspiration(
-        item,
-        transformMode ? "replace" : "append"
+    let addedCount = 0;
+    setInspirationBusy(true);
+    setActionError("");
+    try {
+      for (const item of selected) {
+        const added = await prepareLibraryInspiration(
+          item,
+          transformMode ? "replace" : "append",
+          { manageBusy: false, clearError: false }
+        );
+        if (added) addedCount += 1;
+      }
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error")
+      );
+    } finally {
+      setInspirationBusy(false);
+    }
+    if (addedCount) {
+      setActiveReferenceIndex(
+        transformMode
+          ? 0
+          : Math.min(
+              MAX_INSPIRATION_IMAGES - 1,
+              inspirationImages.length + addedCount - 1
+            )
       );
     }
   };
@@ -1250,8 +1298,30 @@ export default function MediaGenerator({
       0,
       Math.max(0, MAX_INSPIRATION_IMAGES - inspirationImages.length)
     );
-    for (const file of selected) {
-      await prepareReferenceFile(file, "inspiration", undefined, "append");
+    let addedCount = 0;
+    setInspirationBusy(true);
+    setActionError("");
+    try {
+      for (const file of selected) {
+        const added = await prepareReferenceFile(
+          file,
+          "inspiration",
+          undefined,
+          "append",
+          { manageBusy: false, clearError: false }
+        );
+        if (added) addedCount += 1;
+      }
+    } finally {
+      setInspirationBusy(false);
+    }
+    if (addedCount) {
+      setActiveReferenceIndex(
+        Math.min(
+          MAX_INSPIRATION_IMAGES - 1,
+          inspirationImages.length + addedCount - 1
+        )
+      );
     }
   };
 
@@ -1260,6 +1330,9 @@ export default function MediaGenerator({
       normalizeCharacterReferenceIndexes(
         current.filter((_, currentIndex) => currentIndex !== index)
       )
+    );
+    setActiveReferenceIndex((current) =>
+      current > index ? current - 1 : current
     );
     resetReferenceConsent();
   };
@@ -2385,9 +2458,11 @@ export default function MediaGenerator({
                       inspirationImages.length >= MAX_INSPIRATION_IMAGES
                     }
                     onChange={(event) => {
-                      const files = event.currentTarget.files;
+                      const files = Array.from(
+                        event.currentTarget.files || []
+                      );
                       event.currentTarget.value = "";
-                      if (files?.length) void handleReferenceFiles(files);
+                      if (files.length) void handleReferenceFiles(files);
                     }}
                   />
                   <button
@@ -2404,77 +2479,162 @@ export default function MediaGenerator({
               </div>
 
               {inspirationImages.length ? (
-                <div className={styles.referenceCollection}>
+                <>
+                <div
+                  className={styles.referenceCollection}
+                  role="tablist"
+                  aria-label="Références ajoutées"
+                >
                   {inspirationImages.map((reference, index) => {
                     const required = reference.usage === "required";
                     return (
-                      <article
+                      <div
                         key={`${reference.name}-${index}`}
-                        className={styles.referenceCard}
+                        className={styles.referenceTile}
+                        data-active={
+                          resolvedActiveReferenceIndex === index
+                            ? "true"
+                            : "false"
+                        }
                         data-required={required ? "true" : "false"}
                         data-reference-role={reference.role || "inspiration"}
                       >
-                        <img
-                          src={`data:${reference.mimeType};base64,${reference.data}`}
-                          alt=""
-                        />
-                        <div className={styles.referenceCardHeading}>
-                          <strong>
-                            {reference.name || `Référence ${index + 1}`}
-                          </strong>
-                          <button
-                            type="button"
-                            aria-label="Retirer cette référence"
-                            disabled={operationLocked}
-                            onClick={() => removeReferenceAt(index)}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div
-                          className={styles.referenceUsageChoices}
-                          role="radiogroup"
-                          aria-label={`Utilisation de ${reference.name}`}
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={
+                            resolvedActiveReferenceIndex === index
+                          }
+                          className={styles.referenceTileMain}
+                          disabled={operationLocked}
+                          onClick={() => setActiveReferenceIndex(index)}
                         >
+                          <img
+                            src={`data:${reference.mimeType};base64,${reference.data}`}
+                            alt=""
+                          />
+                          <span className={styles.referenceTileCopy}>
+                            <strong>Référence {index + 1}</strong>
+                            <small>
+                              {reference.name || `Référence ${index + 1}`}
+                            </small>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.referenceTileRemove}
+                          aria-label={`Retirer la référence ${index + 1}`}
+                          title="Retirer cette référence"
+                          disabled={operationLocked}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeReferenceAt(index);
+                          }}
+                        >
+                          ×
+                        </button>
+                        <span className={styles.referenceTileUsage} aria-hidden="true">
+                          {required ? "✓" : "✦"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {activeReference ? (
+                  <article
+                    className={styles.referenceEditor}
+                    data-required={
+                      activeReference.usage === "required" ? "true" : "false"
+                    }
+                  >
+                    <div className={styles.referenceEditorHeading}>
+                      <span>
+                        <strong>
+                          Référence {resolvedActiveReferenceIndex + 1}
+                        </strong>
+                        <small>
+                          {activeReference.name ||
+                            `Référence ${resolvedActiveReferenceIndex + 1}`}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Retirer cette référence"
+                        disabled={operationLocked}
+                        onClick={() =>
+                          removeReferenceAt(resolvedActiveReferenceIndex)
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div
+                      className={styles.referenceUsageChoices}
+                      role="radiogroup"
+                      aria-label={`Utilisation de ${activeReference.name}`}
+                    >
                           <button
                             type="button"
                             role="radio"
-                            aria-checked={required}
-                            data-active={required ? "true" : "false"}
+                            aria-checked={
+                              activeReference.usage === "required"
+                            }
+                            data-active={
+                              activeReference.usage === "required"
+                                ? "true"
+                                : "false"
+                            }
                             disabled={operationLocked}
-                            onClick={() => setReferenceUsage(index, "required")}
+                            onClick={() =>
+                              setReferenceUsage(
+                                resolvedActiveReferenceIndex,
+                                "required"
+                              )
+                            }
                           >
                             {t("ai_generator_redesign_reference_required")}
                           </button>
                           <button
                             type="button"
                             role="radio"
-                            aria-checked={!required}
-                            data-active={!required ? "true" : "false"}
+                            aria-checked={
+                              activeReference.usage !== "required"
+                            }
+                            data-active={
+                              activeReference.usage !== "required"
+                                ? "true"
+                                : "false"
+                            }
                             disabled={operationLocked}
                             onClick={() =>
-                              setReferenceUsage(index, "inspiration")
+                              setReferenceUsage(
+                                resolvedActiveReferenceIndex,
+                                "inspiration"
+                              )
                             }
                           >
                             {t("ai_generator_redesign_reference_inspiration")}
                           </button>
-                        </div>
-                        <label className={styles.referenceRoleField}>
+                    </div>
+                    <label className={styles.referenceRoleField}>
                           <span>
                             {t("ai_generator_redesign_reference_role_proposed")}
                           </span>
                           <select
                             className={styles.studioSelect}
                             value={
-                              reference.role === "inspiration" ||
-                              !reference.role
-                                ? inferRequiredReferenceRole(reference.name)
-                                : reference.role
+                              activeReference.role === "inspiration" ||
+                              !activeReference.role
+                                ? inferRequiredReferenceRole(
+                                    activeReference.name
+                                  )
+                                : activeReference.role
                             }
                             disabled={operationLocked}
                             onChange={(event) =>
                               setReferenceRole(
-                                index,
+                                resolvedActiveReferenceIndex,
                                 event.target
                                   .value as StudioRequiredReferenceRole
                               )
@@ -2486,18 +2646,17 @@ export default function MediaGenerator({
                               </option>
                             ))}
                           </select>
-                        </label>
-                        {reference.role === "character" ? (
-                          <p className={styles.characterReferenceStatus}>
-                            {required
+                    </label>
+                    {activeReference.role === "character" ? (
+                      <p className={styles.characterReferenceStatus}>
+                            {activeReference.usage === "required"
                               ? "Identité stricte : toutes les personnes présentes doivent être conservées et peuvent être mises en action."
                               : "Les personnes présentes inspirent le rendu sans imposer leur identité."}
-                          </p>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                </div>
+                      </p>
+                    ) : null}
+                  </article>
+                ) : null}
+                </>
               ) : null}
 
               {kind === "video" && characterReferences.length ? (
@@ -2544,6 +2703,9 @@ export default function MediaGenerator({
           className={`${styles.essentialCard} ${styles.messageCard} ${styles.directionCard}`}
           data-generator-block="direction"
           data-media-kind={kind}
+          data-has-scene-mode={
+            kind === "video" && durationSeconds > 8 ? "true" : "false"
+          }
         >
           <header className={styles.essentialCardHeader}>
             <span>3</span>

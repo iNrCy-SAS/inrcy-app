@@ -211,6 +211,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const isPanelLoadingVisible = (panel: DashboardPanelName) => isVisible(`panel:${panel}`);
   const agentPath = "/dashboard/agent";
   const studioPath = "/dashboard/generer-media";
+  const sendLabel = i18nT("inr_send_fd44a9fa").replace(/\s*→\s*$/u, "");
+  const statsLabel = i18nT("inr_stats_881d9239").replace(/\s*→\s*$/u, "");
   const calendarLabel = i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "");
   const crmLabel = i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "");
   return (
@@ -253,7 +255,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                     disabled={isModuleLoadingVisible("/dashboard/mails")}
                     aria-busy={isModuleLoadingVisible("/dashboard/mails") || undefined}
                   >
-                    {isModuleLoadingVisible("/dashboard/mails") ? i18nT("chargement_01cba1df") : i18nT("inr_send_fd44a9fa")} <ArrowIcon />
+                    {isModuleLoadingVisible("/dashboard/mails") ? i18nT("chargement_01cba1df") : sendLabel} <ArrowIcon />
                   </button>
                 </span>
               </article>
@@ -274,7 +276,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   disabled={isModuleLoadingVisible("/dashboard/stats")}
                   aria-busy={isModuleLoadingVisible("/dashboard/stats") || undefined}
                 >
-                  {isModuleLoadingVisible("/dashboard/stats") ? i18nT("chargement_01cba1df") : i18nT("inr_stats_881d9239")} <ArrowIcon />
+                  {isModuleLoadingVisible("/dashboard/stats") ? i18nT("chargement_01cba1df") : statsLabel} <ArrowIcon />
                 </button>
               </article>
 

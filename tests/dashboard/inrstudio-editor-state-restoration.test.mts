@@ -225,8 +225,11 @@ test("Booster persiste le brouillon avant Generate, Modifier ou Retoucher", () =
   );
 });
 
-test("iNrSend restaure le snapshot sur Fermer comme sur retour Modifier ou Retoucher", () => {
+test("iNrSend restaure le snapshot sur Fermer, Générer, Modifier ou Retoucher", () => {
   const source = read("app/dashboard/mails/MailboxClient.tsx");
+  const modalSource = read(
+    "app/dashboard/mails/_components/MailboxDetailsModal.tsx",
+  );
 
   assert.match(source, /await saveInrSendPublicationEditorSnapshot\(/);
   assert.match(source, /returnParams\.set\("studio_editor_snapshot", editorSnapshotKey\)/);
@@ -243,4 +246,20 @@ test("iNrSend restaure le snapshot sur Fermer comme sur retour Modifier ou Retou
     /setPublicationEditVideoByChannel\([\s\S]*?pendingStudioEditorSnapshot\.videoByChannel/,
   );
   assert.match(source, /setDetailsEditMode\(true\)/);
+  const generatorStart = source.indexOf(
+    "async function launchPublicationMediaGenerator",
+  );
+  const imageToolStart = source.indexOf(
+    "async function openPublicationImageInStudio",
+  );
+  assert.ok(generatorStart > 0 && imageToolStart > generatorStart);
+  const generator = source.slice(generatorStart, imageToolStart);
+  assert.match(generator, /await saveInrSendPublicationEditorSnapshot\(/);
+  assert.match(generator, /returnHref,/);
+  assert.match(generator, /tab: "generate"/);
+  assert.match(generator, /editorSnapshotKey,/);
+  assert.match(
+    modalSource,
+    /await launchPublicationMediaGenerator\(publicationMediaGeneratorBrief\)/,
+  );
 });

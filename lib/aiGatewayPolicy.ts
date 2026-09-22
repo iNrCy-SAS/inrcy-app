@@ -226,25 +226,25 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
   "media.image": {
     // Le mini-copywriter retourne une accroche + la copie structurée de chaque
     // scène. 128 tokens tronquait régulièrement le JSON avant sa fermeture.
-    maxOutputTokens: 512,
+    maxOutputTokens: 1536,
     maxRetries: 0,
     maxTimeoutMs: 300_000,
     maxInputChars: 12_000,
     maxImages: 0,
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 512,
+    defaultOperationMaxReservedOutputTokens: 1536,
     defaultOperationMaxDurationMs: 300_000,
   },
   "media.video": {
-    maxOutputTokens: 512,
+    maxOutputTokens: 2048,
     maxRetries: 0,
     maxTimeoutMs: 900_000,
     maxInputChars: 12_000,
     maxImages: 0,
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 512,
+    defaultOperationMaxReservedOutputTokens: 2048,
     defaultOperationMaxDurationMs: 900_000,
   },
 };

@@ -35,9 +35,17 @@ import {
   generateAiMediaImageWithGoogle,
   type AiMediaGatewayResult,
 } from "@/lib/aiMediaGateway";
-import { buildAiMediaImageProviderRequest } from "@/lib/aiMediaImageProviderRequest";
-import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
+import {
+  buildAiMediaImageProviderRequest,
+  resolveAiMediaImageEditSize,
+} from "@/lib/aiMediaImageProviderRequest";
+import {
+  AiMediaNarrationTooLongError,
+  composeOriginalAiVideo,
+  prepareAiMediaNarrationAudioForVideo,
+} from "@/lib/aiMediaGeneratedVideo";
 import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
+import { buildAiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 import {
   AiMediaIdentityReferenceValidationError,
   prepareAiMediaIdentityReferences,
@@ -67,6 +75,7 @@ import {
 } from "@/lib/aiMediaNormalizer";
 import {
   redactAiMediaSensitiveText,
+  safeAiMediaErrorDetails,
   safeAiMediaErrorMessage,
 } from "@/lib/aiMediaSensitiveText";
 import {
@@ -320,6 +329,7 @@ export async function generateAndSaveAiMedia(args: {
     },
   });
   const profilePhoneDisplayRequested =
+    providerRequest.operation !== "modify" &&
     providerRequest.kind === "image" &&
     isAiMediaProfilePhoneDisplayRequested(providerRequest.aiInstruction);
   const profilePhone = profilePhoneDisplayRequested
@@ -331,6 +341,7 @@ export async function generateAndSaveAiMedia(args: {
   // le fournisseur. Le téléphone conserve sa composition dédiée.
   const useExactContactComposition = profilePhoneDisplayRequested;
   const useDeterministicImageComposition =
+    providerRequest.operation !== "modify" &&
     providerRequest.kind === "image" &&
     (providerRequest.withText || useExactContactComposition);
   const initialCreativePlan = buildAiMediaCreativePlan({
@@ -359,7 +370,9 @@ export async function generateAndSaveAiMedia(args: {
   ]);
   args.signal?.throwIfAborted();
   const officialLogo =
-    providerRequest.logoMode === "none" ? null : brandKit.logo;
+    providerRequest.operation === "modify" || providerRequest.logoMode === "none"
+      ? null
+      : brandKit.logo;
   const effectiveColors = providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
@@ -374,9 +387,8 @@ export async function generateAndSaveAiMedia(args: {
   });
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
-  // Le fournisseur image n'accepte que quelques presets. En mode Modifier,
-  // ce preset reste un détail de transport : la sortie est toujours ramenée
-  // au canvas exact et autoritaire de l'image source.
+  // Modifier conserve le ratio de la source jusque dans l'appel fournisseur.
+  // La normalisation finale ramène ensuite le rendu aux dimensions exactes.
   const modificationCanvas =
     providerRequest.operation === "modify"
       ? {
@@ -518,7 +530,9 @@ export async function generateAndSaveAiMedia(args: {
       identityReferences: preparedIdentityReferences.buffers,
       referenceRoles: preparedReferenceRoles,
       officialLogo: useDeterministicImageComposition ? null : officialLogo,
-      size: format.generationSize,
+      size: modificationCanvas
+        ? resolveAiMediaImageEditSize(modificationCanvas)
+        : format.generationSize,
       signal: args.signal,
     });
     let gateway: AiMediaGatewayResult;
@@ -534,24 +548,24 @@ export async function generateAndSaveAiMedia(args: {
       ) {
         throw primaryError;
       }
-      console.warn("[ai-media] primary image provider failed", {
+      console.warn("[ai-media] primary image provider failed", JSON.stringify({
         accountId: args.accountId,
         jobId: args.jobId,
         provider: "vercel-ai-gateway",
         error: safeAiMediaErrorMessage(primaryError, 400),
-      });
+      }));
       try {
         gateway = await measure("image_provider_google_fallback", () =>
           generateAiMediaImageWithGoogle(imageProviderRequest)
         );
       } catch (fallbackError) {
         args.signal?.throwIfAborted();
-        console.warn("[ai-media] secondary image provider failed", {
+        console.warn("[ai-media] secondary image provider failed", JSON.stringify({
           accountId: args.accountId,
           jobId: args.jobId,
           provider: "google-gemini-direct",
           error: safeAiMediaErrorMessage(fallbackError, 400),
-        });
+        }));
         throw new Error(
           preparedIdentityReferences.buffers.length &&
           providerRequest.identityMode !== "auto"
@@ -577,7 +591,10 @@ export async function generateAndSaveAiMedia(args: {
       args.signal?.throwIfAborted();
       throw new Error("ai_image_provider_output_invalid", { cause: error });
     }
-    if (useExactContactComposition) {
+    if (
+      useExactContactComposition &&
+      providerRequest.textMode !== "exact"
+    ) {
       try {
         const composedBuffer = await measure(
           "image_exact_contact_composition",
@@ -635,6 +652,12 @@ export async function generateAndSaveAiMedia(args: {
               visualStyle: providerRequest.visualStyle,
               logoMode: providerRequest.logoMode,
               imagePurpose: providerRequest.imagePurpose,
+              exactText:
+                providerRequest.textMode === "exact"
+                  ? providerRequest.exactText
+                  : "",
+              contactPhone:
+                providerRequest.textMode === "exact" ? profilePhone : "",
               withText: true,
               copy: {
                 headline: creativePlan.headline,
@@ -645,6 +668,9 @@ export async function generateAndSaveAiMedia(args: {
         );
         normalized = { ...normalized, buffer: composedBuffer };
         deterministicImageCompositionApplied = true;
+        if (providerRequest.textMode === "exact" && profilePhone) {
+          exactContactCompositionApplied = true;
+        }
       } catch (error) {
         args.signal?.throwIfAborted();
         throw new Error("ai_image_exact_copy_composition_failed", {
@@ -719,7 +745,7 @@ export async function generateAndSaveAiMedia(args: {
       // Ne jamais journaliser les prompts complets ni les images encodées. Ce
       // diagnostic court permet cependant de distinguer quota, sécurité,
       // configuration et panne réseau lors d'un canari réel.
-      console.warn("[ai-media] video engine attempt failed", {
+      console.warn("[ai-media] video engine attempt failed", JSON.stringify({
         accountId: args.accountId,
         jobId: args.jobId,
         engine: failureArgs.engine,
@@ -729,19 +755,29 @@ export async function generateAndSaveAiMedia(args: {
         failureKind: failure.kind,
         status: failure.status || null,
         details: redactAiMediaSensitiveText(failure.details, 500),
-      });
+      }));
     };
     const generateProviderVideo = async (
       request: AiMediaGenerationRequest,
       overrides: Partial<VideoProviderOverrides> = {}
     ): Promise<AiVideoProviderResult> => {
+      const providerContract = buildAiMediaVideoProviderContract({
+        request,
+        durationSeconds: 8,
+        brandColors: effectiveColors,
+        identityTeamPrecomposed: overrides.identityTeamPrecomposed,
+        identityTeamMemberCount: overrides.identityTeamMemberCount,
+      });
       const providerArgs: AiVideoProviderGenerationArgs = {
         accountId: args.accountId,
         request,
         plan: creativePlan,
-        creativeBrief: buildAiMediaVideoDnaBrief(profile),
+        canonicalPrompt: prompt,
+        canonicalPromptSha256: promptHash,
+        providerContract,
+        creativeBrief: request.subjectSource === "custom" ? "" : buildAiMediaVideoDnaBrief(profile),
         brandColors: effectiveColors,
-        profession:
+        profession: request.subjectSource === "custom" ? "" :
           profile.business.professionLabel ||
           profile.business.sectorLabel ||
           creativePlan.companyName,
@@ -789,10 +825,10 @@ export async function generateAndSaveAiMedia(args: {
       }
     };
 
-    // Le chemin critique commence immédiatement : le moteur vidéo choisi, la voix, la musique et
-    // les calques sont indépendants et sont donc préparés en parallèle. La
-    // qualité nominale reste identique, mais les temps ne s'additionnent plus.
-    const videoGatewayTask = measure("video_generation", async () => {
+    // L'appel vidéo reste paresseux : une voix explicitement demandée est
+    // écrite, synthétisée et validée en durée avant tout rendu fournisseur.
+    // Une fois ce préflight passé, les actifs indépendants restent parallèles.
+    const generateVideoGateway = () => measure("video_generation", async () => {
       if (
         providerRequest.inputMode === "essential" &&
         preparedIdentityReferences.buffers.length > 0
@@ -858,7 +894,19 @@ export async function generateAndSaveAiMedia(args: {
         return await generateProviderVideo(
           {
             ...providerRequest,
-            inspirationImages: [sceneImage],
+            // La composition maître devient l'unique source autoritaire du
+            // moteur vidéo. Conserver un rôle explicite évite qu'elle soit
+            // rétrogradée en simple moodboard après la précomposition.
+            inspirationImages: [
+              {
+                ...sceneImage,
+                role:
+                  providerRequest.identityMode === "auto"
+                    ? "inspiration"
+                    : "character",
+                usage: "required",
+              },
+            ],
           },
           providerRequest.identityMode === "reference_team"
             ? {
@@ -942,7 +990,13 @@ export async function generateAndSaveAiMedia(args: {
                   // moteurs Google. Conserver le choix explicite du pro : le
                   // mode rapide reste Omni et le mode cinématique reste Veo.
                   videoEngine: providerRequest.videoEngine,
-                  inspirationImages: [groupImage],
+                  inspirationImages: [
+                    {
+                      ...groupImage,
+                      role: "character",
+                      usage: "required",
+                    },
+                  ],
                 },
                 {
                   identityTeamPrecomposed: true,
@@ -1038,19 +1092,24 @@ export async function generateAndSaveAiMedia(args: {
       narrationRequest: AiMediaGenerationRequest
     ) => {
       try {
-        const narration = await measure("narration_copy", () =>
-          writeAiMediaNarration({
-            accountId: args.accountId,
-            request: narrationRequest,
-            profile,
-            plan: creativePlan,
-            recentPublications: generationContext.recentPublications,
-          })
-        );
-        args.signal?.throwIfAborted();
-        if (!narration) return emptyNarrationResult();
-        try {
-          const audio = await measure("narration_audio", () =>
+        let maximumSpeechUnits: number | undefined;
+        for (let preflightAttempt = 0; preflightAttempt < 3; preflightAttempt += 1) {
+          const stageSuffix = preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
+          const narration = await measure(`narration_copy${stageSuffix}`, () =>
+            writeAiMediaNarration({
+              accountId: args.accountId,
+              request: narrationRequest,
+              profile,
+              plan: creativePlan,
+              recentPublications: generationContext.recentPublications,
+              maximumSpeechUnits,
+            })
+          );
+          args.signal?.throwIfAborted();
+          if (!narration) {
+            throw new Error("ai_media_narration_copy_unavailable");
+          }
+          const audio = await measure(`narration_audio${stageSuffix}`, () =>
             generateAiMediaNarrationAudio({
               accountId: args.accountId,
               narration,
@@ -1060,30 +1119,66 @@ export async function generateAndSaveAiMedia(args: {
               signal: narrationController.signal,
             })
           );
-          return { narration, audio, warnings: [] as string[] };
-        } catch (error) {
-          args.signal?.throwIfAborted();
-          if (
-            narrationRequest.inputMode === "essential" &&
-            narrationRequest.withNarration
-          ) {
-            throw new Error("ai_media_narration_audio_unavailable", {
-              cause: error,
-            });
+          try {
+            const prepared = await measure(
+              `narration_audio_preflight${stageSuffix}`,
+              () =>
+                prepareAiMediaNarrationAudioForVideo({
+                  audio,
+                  durationSeconds,
+                  signal: narrationController.signal,
+                })
+            );
+            return {
+              narration,
+              audio: prepared.audio,
+              warnings: prepared.silenceCompacted
+                ? ["narration_silence_compacted_before_video"]
+                : ([] as string[]),
+            };
+          } catch (error) {
+            args.signal?.throwIfAborted();
+            if (
+              error instanceof AiMediaNarrationTooLongError &&
+              preflightAttempt < 2
+            ) {
+              // Réécrire une vraie phrase plus concise, puis la resynthétiser,
+              // plutôt que couper des mots, accélérer artificiellement la voix
+              // ou payer une vidéo qui devrait ensuite être livrée muette.
+              const suggestedMaximum = Math.max(
+                1,
+                Math.min(
+                  narration.wordCount - 1,
+                  Math.floor(
+                    (narration.wordCount / error.requiredTempo) * 0.96
+                  )
+                )
+              );
+              maximumSpeechUnits = maximumSpeechUnits
+                ? Math.min(maximumSpeechUnits - 1, suggestedMaximum)
+                : suggestedMaximum;
+              continue;
+            }
+            throw new Error(
+              `ai_media_narration_audio_preflight_failed:${safeAiMediaErrorMessage(
+                error,
+                320
+              )}`,
+              { cause: error }
+            );
           }
-          return {
-            narration,
-            audio: null,
-            warnings: ["narration_unavailable_video_continued"],
-          };
         }
+        throw new Error("ai_media_narration_audio_preflight_exhausted");
       } catch (error) {
         args.signal?.throwIfAborted();
-        if (
-          narrationRequest.inputMode === "essential" &&
-          narrationRequest.withNarration
-        ) {
-          throw new Error("ai_media_narration_unavailable", { cause: error });
+        if (narrationRequest.withNarration) {
+          throw new Error(
+            `ai_media_narration_unavailable:${safeAiMediaErrorMessage(
+              error,
+              400
+            )}`,
+            { cause: error }
+          );
         }
         return {
           narration: null,
@@ -1098,6 +1193,45 @@ export async function generateAndSaveAiMedia(args: {
         : measure("narration_pipeline", () =>
             generateNarrationResult(providerRequest)
           );
+    // Le texte et sa piste complète doivent être disponibles avant de payer
+    // les plans vidéo. Un échec éditorial ne doit pas jeter des clips facturés.
+    const narrationRequired =
+      providerRequest.withNarration &&
+      providerRequest.teamVideoSpeechMode !== "characters";
+    if (narrationRequired) {
+      try {
+        const preparedNarration = await narrationTask;
+        args.signal?.throwIfAborted();
+        if (!preparedNarration.narration || !preparedNarration.audio) {
+          throw new Error("ai_media_narration_unavailable");
+        }
+      } catch (error) {
+        narrationController.abort(error);
+        args.signal?.removeEventListener("abort", abortNarrationFromCaller);
+        throw error;
+      }
+    }
+    const characterDialogueRequested =
+      providerRequest.teamVideoMode === "cinematic" &&
+      providerRequest.teamVideoSpeechMode === "characters";
+    // Une citation destinée à un personnage doit être validée avant tout appel
+    // vidéo facturé. Une consigne de voix off peut naturellement contenir une
+    // citation plus longue : elle relève du rédacteur de narration, jamais du
+    // contrat court imposé aux mouvements de bouche des personnages.
+    const expectedDialogueLines = characterDialogueRequested
+      ? resolveAiMediaDialogueSequence({
+          scenes: creativePlan.scenes,
+          headline: creativePlan.headline,
+          language: profile.preferences.language,
+          requestedSpeech: [
+            providerRequest.idea,
+            providerRequest.aiInstruction,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        })
+      : [];
+    const videoGatewayTask = generateVideoGateway();
     const soundtrackTask = measure("soundtrack", async () => {
       if (!providerRequest.withMusic) {
         return { value: null, warnings: [] as string[] };
@@ -1121,7 +1255,7 @@ export async function generateAndSaveAiMedia(args: {
     const overlaysTask = measure("video_overlays", async () => {
       try {
         const value = await Promise.all(
-          creativePlan.scenes.map((scene) =>
+          creativePlan.scenes.map((scene, index) =>
             renderAiMediaVideoOverlay({
               scene,
               logo: officialLogo,
@@ -1130,6 +1264,10 @@ export async function generateAndSaveAiMedia(args: {
               visualStyle: providerRequest.visualStyle,
               logoMode: providerRequest.logoMode,
               withText: providerRequest.withText,
+              exactText:
+                providerRequest.textMode === "exact" && index === 0
+                  ? providerRequest.exactText
+                  : "",
               width: format.width,
               height: format.height,
             })
@@ -1169,16 +1307,8 @@ export async function generateAndSaveAiMedia(args: {
     }
     args.signal?.throwIfAborted();
 
-    const characterDialogueRequested =
-      providerRequest.teamVideoMode === "cinematic" &&
-      providerRequest.teamVideoSpeechMode === "characters";
     const characterDialogueProviderFallback =
       characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
-    const expectedDialogueLines = resolveAiMediaDialogueSequence({
-      scenes: creativePlan.scenes,
-      headline: creativePlan.headline,
-      language: profile.preferences.language,
-    });
     const nativeDialogueQa =
       characterDialogueRequested && !characterDialogueProviderFallback
         ? await measure("native_character_dialogue_qa", () =>
@@ -1298,9 +1428,17 @@ export async function generateAndSaveAiMedia(args: {
     } catch (compositionError) {
       args.signal?.throwIfAborted();
       if (providerRequest.inputMode === "essential") {
-        throw new Error("ai_media_essential_video_composition_failed", {
-          cause: compositionError,
-        });
+        const compositionDetails = safeAiMediaErrorDetails(compositionError)
+          .map((detail) =>
+            [detail.name, detail.code, detail.message]
+              .filter(Boolean)
+              .join(":")
+          )
+          .join(" <- ");
+        throw new Error(
+          `ai_media_essential_video_composition_failed:${compositionDetails}`,
+          { cause: compositionError }
+        );
       }
       const compositionMessage = String(
         (compositionError as { message?: unknown })?.message || compositionError
@@ -1610,13 +1748,13 @@ export async function generateAndSaveAiMedia(args: {
 
   pipelineTimingsMs.total = roundedDurationMs(pipelineStartedAt);
   const completedPipelineTimings = { ...pipelineTimingsMs };
-  console.info("[ai-media] generation pipeline completed", {
+  console.info("[ai-media] generation pipeline completed", JSON.stringify({
     accountId: args.accountId,
     jobId: args.jobId,
     kind: providerRequest.kind,
     durationSeconds: providerRequest.durationSeconds || null,
     timingsMs: completedPipelineTimings,
-  });
+  }));
 
   return {
     item,

@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveAiMediaEditorialReasoning } from "./aiGatewayReasoning.ts";
 
 import { fetchWithRetry } from "@/lib/observability/fetch";
 import {
@@ -366,6 +367,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
   target: AiJsonExecutionTarget;
 }): Promise<T> {
   const { opts, target, hasImages, temperature } = args;
+  const reasoning = resolveAiMediaEditorialReasoning(opts.feature, target.requestModel);
   const effectiveSystemPrompt = buildEffectiveSystemPrompt(opts, target.jsonMode);
   const structuredFormat = buildStructuredFormat(opts, target.jsonMode);
   const userContent: Array<Record<string, unknown>> = [
@@ -404,6 +406,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
       body: JSON.stringify({
         model: target.requestModel,
         max_output_tokens: args.policyMaxOutputTokens,
+        ...(reasoning ? { reasoning } : {}),
         ...(temperature === undefined ? {} : { temperature }),
         ...(target.transport === "openai_direct" ? { store: false } : {}),
         ...(structuredFormat
@@ -628,7 +631,8 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
 
   if (!contentText) {
     const status = typeof json?.status === "string" ? ` (${json.status})` : "";
-    console.error("[ai-generation] empty output", {
+    console.error("[ai-generation] empty output", JSON.stringify({
+      ...getOutputDiagnostics(json),
       feature: opts.feature,
       model: target.accountingModel,
       engine: target.engine,
@@ -637,7 +641,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
       accountId: opts.accountId || undefined,
       hasImages,
       durationMs: Date.now() - requestStartedAt,
-    });
+    }));
     throw new Error(`Service IA : contenu de sortie manquant${status}`);
   }
 

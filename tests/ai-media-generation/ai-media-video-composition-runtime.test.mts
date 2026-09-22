@@ -37,12 +37,20 @@ type ComposerModule = {
 };
 
 type BrandRendererModule = {
+  resolveAiMediaCommercialCardCopy: (value: string) => {
+    label: string; price: string; detail: string;
+  };
   wrapAiMediaOverlayText: (
     value: string,
     maxCharacters: number,
     maxLines: number
   ) => string[];
   wrapAiMediaOverlayBodyText: (
+    value: string,
+    maxCharacters: number,
+    maxLines: number
+  ) => string[];
+  wrapAiMediaExactOverlayText: (
     value: string,
     maxCharacters: number,
     maxLines: number
@@ -62,6 +70,8 @@ type BrandRendererModule = {
       layout: "editorial";
     };
     withText: boolean;
+    exactText?: string;
+    contactPhone?: string;
   }) => Promise<Buffer>;
   composeAiMediaBrandedImage: (args: {
     input: Buffer;
@@ -79,7 +89,14 @@ type BrandRendererModule = {
       layout: "editorial";
     };
     withText: boolean;
-    imagePurpose?: "flyer";
+    exactText?: string;
+    contactPhone?: string;
+    imagePurpose?:
+      | "flyer"
+      | "product_sheet"
+      | "poster"
+      | "banner"
+      | "infographic";
     copy?: {
       headline: string;
       subline: string;
@@ -453,6 +470,78 @@ test("les images reçoivent elles aussi leur texte exact après la génération"
   );
 });
 
+test("le mode texte exact conserve et rasterise les 600 caractères sur image et vidéo", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
+  );
+  const exactText = `${"mot ".repeat(149)}mots`;
+  assert.equal(exactText.length, 600);
+  const lines = runtime.wrapAiMediaExactOverlayText(exactText, 40, 20);
+  assert.equal(lines.join(" "), exactText);
+  assert.ok(lines.length > 3, "une longue copie utilise une vraie grille de lignes");
+  assert.ok(lines.length <= 20, "la copie reste dans la zone éditoriale");
+
+  const common = {
+    width: 568,
+    height: 320,
+    logo: null,
+    colors: ["#0ea5e9", "#8b5cf6", "#db2777"] as [string, string, string],
+    companyName: "Entreprise test",
+    visualStyle: "clean" as const,
+    logoMode: "none" as const,
+    withText: true,
+    exactText,
+    scene: {
+      eyebrow: "",
+      title: "",
+      body: "",
+      layout: "editorial" as const,
+    },
+  };
+  const overlay = await runtime.renderAiMediaVideoOverlay(common);
+  const overlayAlpha = await sharp(overlay).extractChannel(3).stats();
+  assert.ok(
+    overlayAlpha.channels[0]!.max > 150,
+    "la vidéo reçoit un calque de longue copie non vide"
+  );
+
+  const base = await sharp({
+    create: {
+      width: common.width,
+      height: common.height,
+      channels: 3,
+      background: "#2563eb",
+    },
+  })
+    .jpeg()
+    .toBuffer();
+  const composed = await runtime.composeAiMediaBrandedImage({
+    ...common,
+    input: base,
+    imagePurpose: "flyer",
+  });
+  const imageStats = await sharp(composed).stats();
+  assert.ok(
+    imageStats.channels.every((channel) => channel.stdev > 8),
+    "l'image commerciale reçoit elle aussi le composite exact non vide"
+  );
+});
+
+test("les cartes commerciales conservent noms, montants et mentions tarifaires", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
+  assert.deepEqual(runtime.resolveAiMediaCommercialCardCopy("Standard à 58 € HT par mois"), {
+    label: "Standard", price: "58 €", detail: "HT par mois",
+  });
+  assert.deepEqual(runtime.resolveAiMediaCommercialCardCopy("Premium 108,50 euros TTC / mois"), {
+    label: "Premium", price: "108,50 euros", detail: "TTC / mois",
+  });
+  assert.deepEqual(runtime.resolveAiMediaCommercialCardCopy("Une équipe à votre écoute."), {
+    label: "", price: "", detail: "Une équipe à votre écoute.",
+  });
+});
+
 test("un flyer reçoit une vraie grille commerciale avec offres et CTA", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
     "../../lib/aiMediaBrandRenderer.ts"
@@ -503,6 +592,59 @@ test("un flyer reçoit une vraie grille commerciale avec offres et CTA", async (
     stats.channels.some((channel) => channel.stdev > 35),
     "les cartes, accents et CTA produisent une hiérarchie graphique visible",
   );
+});
+
+test("chaque format commercial reçoit une composition structurée dédiée", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
+  const base = await sharp({
+    create: {
+      width: 420,
+      height: 420,
+      channels: 3,
+      background: "#f8fafc",
+    },
+  })
+    .jpeg()
+    .toBuffer();
+
+  for (const imagePurpose of [
+    "product_sheet",
+    "poster",
+    "banner",
+    "infographic",
+  ] as const) {
+    const composed = await runtime.composeAiMediaBrandedImage({
+      input: base,
+      width: 420,
+      height: 420,
+      logo: null,
+      colors: ["#f97316", "#8b5cf6", "#0ea5e9"],
+      companyName: "iNrCy",
+      visualStyle: "clean",
+      logoMode: "none",
+      imagePurpose,
+      withText: true,
+      copy: {
+        headline: "Une offre claire et mémorable",
+        subline:
+          "Un bénéfice concret. Une preuve lisible. Une action immédiate.",
+        cta: "Découvrir maintenant",
+      },
+      scene: {
+        eyebrow: "iNrCy",
+        title: "Une offre claire et mémorable",
+        body: "Un bénéfice concret. Une preuve lisible. Une action immédiate.",
+        layout: "editorial",
+      },
+    });
+    const stats = await sharp(composed).stats();
+    assert.ok(
+      stats.channels.every((channel) => channel.mean < 220),
+      `${imagePurpose} doit produire une structure éditoriale visible`,
+    );
+  }
 });
 
 test("le mode sans texte ni logo conserve un calque entièrement transparent", async () => {

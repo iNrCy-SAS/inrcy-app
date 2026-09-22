@@ -3879,6 +3879,47 @@ export default function MailboxClient({
     });
   }
 
+  async function launchPublicationMediaGenerator(publicationBrief: string) {
+    const channel = normalizeChannelKey(activePublicationEditChannelKey);
+    setDetailsActionError(null);
+    let editorSnapshotKey = "";
+    try {
+      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
+        itemId: detailsItem?.id || "",
+        channel,
+        form: publicationEditForm,
+        imagesByChannel: publicationEditImagesByChannel,
+        videoByChannel: publicationEditVideoByChannel,
+      });
+      const returnParams = new URLSearchParams(searchParams?.toString() || "");
+      returnParams.delete("studio_return");
+      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
+      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
+      const { href } = await createInrStudioHandoff({
+        tab: "generate",
+        origin: "inrsend-publish",
+        returnHref,
+        publicationBrief,
+        context: {
+          itemId: detailsItem?.id || null,
+          channel,
+          editorSnapshotKey,
+        },
+      });
+      router.push(href);
+    } catch (error) {
+      if (editorSnapshotKey) {
+        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
+      }
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir iNrStudio.";
+      setDetailsActionError(message);
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }
+
   async function openPublicationImageInStudio(
     tab: "modify" | "retouch",
     channel: string,
@@ -5824,6 +5865,7 @@ export default function MailboxClient({
           addPublicationVideo={addPublicationVideo}
           removePublicationVideo={removePublicationVideo}
           togglePublicationImage={togglePublicationImage}
+          launchPublicationMediaGenerator={launchPublicationMediaGenerator}
           openPublicationImageRetoucher={openPublicationImageRetoucher}
           openPublicationImageModifier={openPublicationImageModifier}
           openPublicationVideoRetoucher={openPublicationVideoRetoucher}

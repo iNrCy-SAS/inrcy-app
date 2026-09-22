@@ -268,7 +268,7 @@ test("Générer possède quatre blocs stables, dédiés à Image et à Vidéo", 
   );
   assert.match(
     generatorStyles,
-    /@media \(max-width: 900px\)[\s\S]*?\.aiCriteriaGrid,[\s\S]*?grid-template-columns:\s*1fr/,
+    /@media \(max-width: 900px\)[\s\S]*?\.aiCriteriaGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/,
   );
   assert.match(
     generatorStyles,
@@ -1327,4 +1327,18 @@ test("les accroches passe-partout sont interdites dans les secours de production
     [],
     "aucun cliché ne doit rester un secours ou une valeur par défaut",
   );
+});
+
+test("chaque miniature d'inspiration peut être retirée directement", () => {
+  assert.match(generatorSource, /className=\{styles\.referenceTileRemove\}/);
+  assert.match(
+    generatorSource,
+    /event\.stopPropagation\(\);\s*removeReferenceAt\(index\);/,
+  );
+  assert.match(
+    generatorSource,
+    /setActiveReferenceIndex\(\(current\) =>\s*current > index \? current - 1 : current/,
+  );
+  assert.match(generatorStyles, /\.referenceTileRemove\s*\{/);
+  assert.match(generatorStyles, /\.referenceTileRemove:hover:not\(:disabled\)/);
 });

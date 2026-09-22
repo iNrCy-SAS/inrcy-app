@@ -1,5 +1,5 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
-import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 
 export const AI_MEDIA_PROMPT_VERSION =
@@ -186,9 +186,9 @@ function composeAiMediaVisualDirection(
     SHOT_DIRECTIONS[request.shotType],
     PEOPLE_DIRECTIONS[request.peopleMode],
     CREATIVE_DIRECTIONS[request.creativity],
-    CREATIVE_VARIATIONS[
+    `Piste facultative, uniquement si compatible avec le brief et le cadrage choisi : ${CREATIVE_VARIATIONS[
       stableIndex(request.requestId, CREATIVE_VARIATIONS.length)
-    ],
+    ]}`,
   ].join(" ; ");
 }
 
@@ -220,17 +220,29 @@ export function getAiMediaVisualDirection(request: AiMediaGenerationRequest) {
 export function getAiMediaImageOriginalityDirection(
   request: AiMediaGenerationRequest
 ) {
-  return IMAGE_ORIGINALITY_AXES[
+  return `Piste facultative à réinventer selon le sujet, sans modifier les critères explicites : ${IMAGE_ORIGINALITY_AXES[
     stableIndex(`${request.requestId}:image`, IMAGE_ORIGINALITY_AXES.length)
-  ];
+  ]}`;
 }
 
 export function getAiMediaVideoOriginalityDirection(
   request: AiMediaGenerationRequest
 ) {
-  return VIDEO_ORIGINALITY_AXES[
+  return `Piste facultative à réinventer selon le sujet, sans modifier le scénario demandé : ${VIDEO_ORIGINALITY_AXES[
     stableIndex(`${request.requestId}:video`, VIDEO_ORIGINALITY_AXES.length)
-  ];
+  ]}`;
+}
+
+/** Short enough to remain mandatory at every visual provider boundary. */
+export function buildAiMediaOriginalityContract(request: AiMediaGenerationRequest) {
+  return [
+    "ORIGINALITY: invent a distinctive concept grounded in THIS brief, not stock advertising.",
+    request.kind === "video"
+      ? "Vary opening, action and camera only where unspecified."
+      : "Vary composition, viewpoint and lighting only where unspecified.",
+    "No default tablet, laptop, phone or office; include one only when justified by the requested scene.",
+    "Keep all explicit criteria, facts and required reference identities/objects/places intact.",
+  ].join(" ");
 }
 
 export function getAiMediaImageQualityBar(request: AiMediaGenerationRequest) {
@@ -435,8 +447,12 @@ export function getAiMediaImageSafeCompositionGuide(
 }
 
 export function buildAiMediaPromptBusinessDna(
-  profile: NormalizedAiGenerationProfile
+  profile: NormalizedAiGenerationProfile,
+  request?: AiMediaGenerationRequest
 ) {
+  if (request?.subjectSource === "custom") {
+    return "Sujet personnalisé : ne pas importer le métier, les prestations ou les décors de l’ADN. Seuls le logo et la palette explicitement sélectionnés s’appliquent via leurs contrats dédiés.";
+  }
   const dna = buildAiMediaBusinessDnaPayload(profile);
   return Object.keys(dna).length
     ? JSON.stringify(dna, null, 2)
@@ -513,11 +529,15 @@ export function buildAiMediaPromptSafetyRules() {
 }
 
 export function fitCompiledAiMediaPrompt(value: string) {
-  if (value.length <= AI_MEDIA_COMPILED_PROMPT_MAX_CHARS) return value;
-  const marker =
-    "\n\n[… contexte ADN compacté automatiquement par iNrCy …]\n\n";
-  const available = AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - marker.length;
-  const headLength = Math.ceil(available * 0.72);
-  const tailLength = Math.max(0, available - headLength);
-  return `${value.slice(0, headLength)}${marker}${value.slice(-tailLength)}`;
+  const prompt = value.trim();
+  if (prompt.length <= AI_MEDIA_COMPILED_PROMPT_MAX_CHARS) return prompt;
+
+  // Never make a provider prompt "fit" by cutting its middle. The canonical
+  // builders know which context is optional (ADN, history and explanatory
+  // boilerplate) and must compact those sections before calling this guard.
+  // A hard failure is safer than silently losing a palette, a reference role,
+  // an exact user instruction or a safety constraint at the provider boundary.
+  throw new Error(
+    `ai_media_compiled_prompt_contract_overflow:${prompt.length}/${AI_MEDIA_COMPILED_PROMPT_MAX_CHARS}`
+  );
 }

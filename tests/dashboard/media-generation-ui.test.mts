@@ -263,8 +263,8 @@ test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () =>
     /\.essentialGrid\s*\{[\s\S]*?grid-template-rows:\s*auto auto;[\s\S]*?overflow:\s*visible;/
   );
   assert.match(
-    compactGenerator,
-    /\.essentialCard\s*\{[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/
+    generatorStyles,
+    /\.generator \.creationCard,\s*\.generator \.mediaCard,\s*\.generator \.directionCard,\s*\.generator \.finishCard\s*\{[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/
   );
   assert.match(compactModal, /\.body\s*\{[\s\S]*?overflow-y:\s*auto;/);
 });
@@ -325,7 +325,7 @@ test("fermer toute revue exige une confirmation, y compris depuis le Menu", () =
     "const cancelClose"
   );
 
-  assert.match(requestClose, /if \(hasExternalHandoff \|\| hasResult\)/);
+  assert.match(requestClose, /if \(hasExternalHandoff \|\| hasPendingWork\)/);
   assert.doesNotMatch(requestClose, /acceptMode/);
   assert.doesNotMatch(requestClose, /onAccepted/);
   assert.match(modal, /role="alertdialog"/);
@@ -396,7 +396,7 @@ test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", 
   );
   const navigation = read("lib/inrStudioNavigation.ts");
 
-  assert.match(modal, /hasExternalHandoff \|\| hasResult/);
+  assert.match(modal, /hasExternalHandoff \|\| hasPendingWork/);
   assert.match(modal, /requestStudioTab/);
   assert.match(modal, /requestMediaType/);
   assert.match(modal, /ai_studio_origin_return/);
@@ -450,8 +450,12 @@ test("iNrSend délègue génération, modification et retouche à iNrStudio", ()
   );
   const mailbox = read("app/dashboard/mails/MailboxClient.tsx");
 
-  assert.match(details, /createInrStudioHandoff\(\{/);
-  assert.match(details, /tab: "generate"[\s\S]*?origin: "inrsend-publish"/);
+  assert.match(mailbox, /createInrStudioHandoff\(\{/);
+  assert.match(mailbox, /tab: "generate"[\s\S]*?origin: "inrsend-publish"/);
+  assert.match(
+    details,
+    /launchPublicationMediaGenerator\(publicationMediaGeneratorBrief\)/,
+  );
   assert.match(mailbox, /openPublicationImageInStudio\([\s\S]*?tab: "modify" \| "retouch"/);
   assert.match(mailbox, /origin: "inrsend-publish"/);
   assert.match(mailbox, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
@@ -470,7 +474,7 @@ test("iNrSend délègue génération, modification et retouche à iNrStudio", ()
     details,
     /publicationMediaGeneratorBrief[\s\S]*?publicationEditForm\.title[\s\S]*?publicationEditForm\.content/
   );
-  assert.match(details, /publicationBrief: publicationMediaGeneratorBrief/);
+  assert.match(mailbox, /publicationBrief,/);
 });
 
 test("toutes les langues contiennent la copie complète de la modale", () => {

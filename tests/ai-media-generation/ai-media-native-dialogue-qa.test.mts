@@ -245,6 +245,10 @@ test("l'adaptateur Google découpe réellement les sorties cumulées avant trans
   assert.match(source, /"-t",\s*String\(args\.clip\.durationSeconds\)/);
   assert.match(source, /sourcePathByBuffer = new Map<Buffer, Promise<string>>\(\)/);
   assert.match(source, /store: false/);
+  assert.match(source, /const DEFAULT_MODEL = "gemini-3\.5-flash-lite"/);
+  assert.doesNotMatch(source, /gemini-2\.5-flash-lite/);
+  assert.match(source, /reportQaFailure\("extract", error\)/);
+  assert.match(source, /reportQaFailure\("transcribe", error\)/);
   assert.match(source, /const DEFAULT_TIMEOUT_MS = 8_000/);
   assert.match(source, /const deadlineAt = Date\.now\(\) \+ timeoutMs/);
   assert.match(source, /AbortSignal\.timeout\(timeoutMs\)/);
@@ -253,4 +257,18 @@ test("l'adaptateur Google découpe réellement les sorties cumulées avant trans
   assert.match(source, /maxRetries: 0/);
   assert.match(source, /N'invente, ne corrige, ne complète et ne résume aucun mot/);
   assert.doesNotMatch(source, /console\.(?:log|info|warn|error)\([^)]*transcript/i);
+});
+
+test("régression audio réel : le décor récité à la place de la citation est rejeté", () => {
+  const result = evaluateAiMediaNativeDialogue({
+    sceneIndex: 0,
+    expectedLine: "Je façonne chaque pièce à la main, pour embellir votre quotidien.",
+    transcript: "Dans un atelier de céramique lumineux",
+    language: "fr",
+  });
+  assert.equal(result.status, "rejected");
+  assert.equal(result.metrics.expectedTokenCount, 11);
+  assert.equal(result.metrics.detectedTokenCount, 6);
+  assert.equal(result.metrics.expectedCoverage, 0);
+  assert.deepEqual(result.issues, ["spoken_dialogue_mismatch"]);
 });

@@ -702,7 +702,7 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Niveau de créativité invalide.");
   }
 
-  const logoMode = cleanText(body.logoMode, 40) || "discreet";
+  const logoMode = operation === "modify" ? "none" : cleanText(body.logoMode, 40) || "discreet";
   if (!["discreet", "visible", "none"].includes(logoMode)) {
     throw new AiMediaRequestValidationError("Présence du logo invalide.");
   }
@@ -741,7 +741,9 @@ export function normalizeAiMediaGenerationRequest(
     requestedDuration > 8 &&
     normalizedRequestedSceneMode === "single";
 
-  const rawTextMode = cleanText(body.textMode, 24);
+  // Modifier has only a source canvas and an instruction. Generation controls
+  // must not add a slogan, exact-text overlay or branding after the edit.
+  const rawTextMode = operation === "modify" ? "none" : cleanText(body.textMode, 24);
   if (rawTextMode && !["none", "ai", "exact"].includes(rawTextMode)) {
     throw new AiMediaRequestValidationError("Mode de texte invalide.");
   }
@@ -1102,7 +1104,7 @@ export function normalizeAiMediaGenerationRequest(
     shotType: shotType as AiMediaShotType,
     peopleMode: normalizedPeopleMode as AiMediaPeopleMode,
     creativity: creativity as AiMediaCreativity,
-    useBrandColors: body.useBrandColors !== false,
+    useBrandColors: operation !== "modify" && body.useBrandColors !== false,
     logoMode: logoMode as AiMediaLogoMode,
     videoEngine:
       kind === "video" ? (rawVideoEngine as AiMediaVideoEngine) : null,

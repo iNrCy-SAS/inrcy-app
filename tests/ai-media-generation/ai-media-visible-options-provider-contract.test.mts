@@ -8,6 +8,8 @@ import vm from "node:vm";
 import ts from "typescript";
 
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
+import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import {
   normalizeAiMediaGenerationRequest,
@@ -279,6 +281,8 @@ function loadVideoProviderPromptRuntime() {
     ["@/lib/aiVideoProviderTypes", providerTypes],
     ["@/lib/aiMediaDialogue", dialogue],
     ["@/lib/aiMediaColorDirection", colorDirection],
+    ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaPromptShared", promptShared],
     ["./aiMediaVideoContinuity.ts", {}],
     ["@/lib/aiMediaSensitiveText", {}],
   ]);
@@ -806,11 +810,27 @@ test("la composition locale garde les valeurs de texte hors du prompt fournisseu
     GENERATION_SERVER_SOURCE,
     /copy:\s*\{[\s\S]*?headline:\s*creativePlan\.headline[\s\S]*?subline:\s*creativePlan\.subline[\s\S]*?cta:\s*creativePlan\.cta/,
   );
-  assert.match(BRAND_RENDERER_SOURCE, /renderAiMediaFlyerOverlay/);
   assert.match(
     BRAND_RENDERER_SOURCE,
-    /args\.imagePurpose === "flyer"[\s\S]*?renderAiMediaFlyerOverlay\(args\)/,
+    /renderAiMediaStructuredCommercialOverlay/,
   );
+  assert.match(
+    BRAND_RENDERER_SOURCE,
+    /isStructuredCommercialImagePurpose\(args\.imagePurpose\)[\s\S]*?renderAiMediaStructuredCommercialOverlay\(args\)/,
+  );
+  for (const imagePurpose of [
+    "flyer",
+    "product_sheet",
+    "poster",
+    "banner",
+    "infographic",
+  ]) {
+    assert.match(
+      BRAND_RENDERER_SOURCE,
+      new RegExp(`"${imagePurpose}"`),
+      `${imagePurpose} doit utiliser une composition commerciale structurée`,
+    );
+  }
 });
 
 test("la compaction ne supprime aucune option Image autoritaire du prompt fournisseur", () => {
@@ -902,6 +922,138 @@ test("la compaction ne supprime aucune option Image autoritaire du prompt fourni
     `Contrats Image perdus par la compaction : ${missing.map(String).join(", ")}`,
   );
   assert.doesNotMatch(prompt, /Journée portes ouvertes — 24 septembre/);
+});
+
+test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères et cinq références sans perte", () => {
+  const exactLength = (seed: string, length: number) =>
+    seed.repeat(Math.ceil(length / seed.length)).slice(0, length);
+  const idea = exactLength(
+    "SUJET_LONG_5REFS scène artisanale concrète, produit central et équipe en action. ",
+    2_000,
+  );
+  const instruction = exactLength(
+    "INSTRUCTION_LONGUE_5REFS conserver chaque geste, chaque objet, chaque personne et chaque lieu sans substitution. ",
+    2_400,
+  );
+  const exactText = exactLength("TEXTE EXACT VALIDÉ — ", 600);
+  const references = [
+    {
+      mimeType: "image/jpeg",
+      data: REFERENCE_DATA,
+      role: "character",
+      usage: "required",
+      characterIndex: 1,
+    },
+    {
+      mimeType: "image/jpeg",
+      data: REFERENCE_DATA,
+      role: "character",
+      usage: "inspiration",
+      characterIndex: 2,
+    },
+    {
+      mimeType: "image/jpeg",
+      data: REFERENCE_DATA,
+      role: "product",
+      usage: "required",
+    },
+    {
+      mimeType: "image/jpeg",
+      data: REFERENCE_DATA,
+      role: "environment",
+      usage: "inspiration",
+    },
+    {
+      mimeType: "image/jpeg",
+      data: REFERENCE_DATA,
+      role: "inspiration",
+      usage: "inspiration",
+    },
+  ];
+
+  for (const kind of ["image", "video"] as const) {
+    const profile = imageProfileFixture();
+    const verboseContext = exactLength(
+      "Contexte professionnel documenté avec matières, services, preuves et méthode spécifiques. ",
+      5_500,
+    );
+    profile.business.description = verboseContext;
+    profile.business.services = Array.from(
+      { length: 15 },
+      (_, index) => `Service ${index + 1} ${verboseContext}`,
+    );
+    profile.business.strengths = Array.from(
+      { length: 15 },
+      (_, index) => `Preuve ${index + 1} ${verboseContext}`,
+    );
+    profile.preferences.customInstructions = verboseContext;
+    const request = normalizeAiMediaGenerationRequest(
+      baseRequest({
+        kind,
+        subjectSource: "profile",
+        idea,
+        aiInstruction: instruction,
+        generationMode: "inspiration",
+        identityMode: "professional",
+        identityConsent: true,
+        imagePurpose: kind === "image" ? "flyer" : "auto",
+        visualDirection: "bold",
+        visualStyle: "premium",
+        imageStyle: "graphic",
+        format: "story",
+        useBrandColors: true,
+        logoMode: "visible",
+        textMode: "exact",
+        exactText,
+        withText: true,
+        durationSeconds: kind === "video" ? 24 : 8,
+        sceneMode: kind === "video" ? "multi" : "single",
+        connectScenes: false,
+        withMusic: kind === "video",
+        withNarration: kind === "video",
+        inspirationImages: references,
+      }),
+    );
+    const prompt = buildAiMediaPrompt({
+      request,
+      profile,
+      copy: { headline: exactText },
+      brandColors: ["#0000ff", "#ff0000", "#00ff00", "#ffcc00"],
+      hasLogo: true,
+      deferVisibleElementsToComposer: true,
+      recentPublications: Array.from({ length: 5 }, (_, index) => ({
+        title: `Historique ${index + 1} ${verboseContext}`,
+      })),
+    });
+
+    assert.ok(
+      prompt.length <= AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - 200,
+      `${kind}: ${prompt.length}/${AI_MEDIA_COMPILED_PROMPT_MAX_CHARS}`,
+    );
+    assert.ok(prompt.includes(idea), `${kind}: sujet utilisateur tronqué`);
+    assert.ok(prompt.includes(instruction), `${kind}: consigne utilisateur tronquée`);
+    assert.match(prompt, /contexte ADN compacté automatiquement par iNrCy/);
+    assert.match(prompt, /Couleurs de marque[^\n]*vivid blue, vivid red/);
+    for (const reference of [
+      /#1:character\/required\/personnage-1|Référence 1 — rôle=character, usage=required, personnage 1/,
+      /#2:character\/inspiration\/personnage-2|Référence 2 — rôle=character, usage=inspiration, personnage 2/,
+      /#3:product\/required|Référence 3 — rôle=product, usage=required/,
+      /#4:environment\/inspiration|Référence 4 — rôle=environment, usage=inspiration/,
+      /#5:inspiration\/inspiration|Référence 5 — rôle=inspiration, usage=inspiration/,
+    ]) {
+      assert.match(prompt, reference, `${kind}: rôle/usage perdu`);
+    }
+    assert.match(prompt, /ORIGINALITY:/);
+    assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION/);
+    if (kind === "video") {
+      assert.ok(prompt.includes(exactText), "video: texte exact tronqué");
+      assert.match(prompt, /DURÉE EXACTE : 24 secondes/);
+      assert.match(prompt, /AUDIO ET PAROLE/);
+    } else {
+      assert.doesNotMatch(prompt, /TEXTE EXACT VALIDÉ/);
+      assert.match(prompt, /TYPE DE CRÉATION STRUCTURÉ — FLYER COMMERCIAL/);
+    }
+  }
 });
 
 test("Générer Image conserve le rôle et l'usage de chaque référence jusqu'au prompt", () => {
@@ -1096,6 +1248,39 @@ test("les deux fournisseurs reçoivent les mêmes références, rôles, usages e
     captures.nominal || "",
     /L'image 4 est exclusivement le logo officiel/,
   );
+});
+
+test("les moteurs image conservent l’identité requise sans figer sa mise en scène par défaut", async () => {
+  const { runtime, captures } = loadImageGatewayRuntime();
+  const previousGatewayKey = process.env.AI_GATEWAY_API_KEY;
+  const previousGoogleKey = process.env.GEMINI_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  process.env.GEMINI_API_KEY = "test-key";
+  try {
+    const providerRequest = {
+      accountId: "image-required-character-creativity",
+      prompt: "Créer une scène originale d’un boulanger adulte au travail.",
+      identityMode: "professional" as const,
+      identityReferences: [Buffer.alloc(64, 23)],
+      referenceRoles: [{ role: "character" as const, usage: "required" as const, characterIndex: 1 as const }],
+    };
+    await runtime.generateAiMediaImage(providerRequest);
+    await runtime.generateAiMediaImageWithGoogle(providerRequest);
+  } finally {
+    if (previousGatewayKey === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previousGatewayKey;
+    if (previousGoogleKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGoogleKey;
+  }
+  assert.equal(captures.nominal, captures.google);
+  assert.equal(captures.nominalImages, 1);
+  assert.equal(captures.googleImages, 1);
+  const prompt = captures.nominal || "";
+  assert.match(prompt, /Préserver séparément le visage, les traits, la silhouette/);
+  assert.match(prompt, /sans fusion, permutation, duplication, omission ni substitution/);
+  assert.match(prompt, /Imaginer librement une nouvelle pose, un nouveau cadrage et un nouvel arrière-plan/);
+  assert.match(prompt, /sauf consigne explicite ou référence obligatoire qui les fixe/);
+  assert.doesNotMatch(prompt, /peuvent évoluer seulement si le brief le demande/);
 });
 
 test("le prompt réellement envoyé au provider vidéo encode les critères structurés visibles", () => {

@@ -750,7 +750,7 @@ test("les textes d’image sont composés localement et jamais dessinés par le 
 
   assert.match(
     server,
-    /const useDeterministicImageComposition =\s*providerRequest\.kind === "image" &&\s*\(providerRequest\.withText \|\| useExactContactComposition\)/
+    /const useDeterministicImageComposition =\s*providerRequest\.operation !== "modify" &&\s*providerRequest\.kind === "image" &&\s*\(providerRequest\.withText \|\| useExactContactComposition\)/
   );
   assert.match(
     server,
@@ -830,10 +830,14 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
     copywriter,
     /Tout texte visible ou prononcé passe par ce contrat éditorial central/
   );
-  assert.match(copywriter, /timeoutMs: args\.request\.idea \? 5_000 : 18_000/);
+  assert.match(copywriter, /timeoutMs: 30_000/);
   assert.match(
     copywriter,
-    /deadlineAt: args\.request\.idea \? Date\.now\(\) \+ 5_900/
+    /deadlineAt: Date\.now\(\) \+ 31_000/
+  );
+  assert.match(
+    copywriter,
+    /maxOutputTokens: args\.request\.kind === "video" \? 1_536 : 1_024/
   );
   assert.match(
     copywriter,
@@ -948,6 +952,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   const provider = read("lib/aiVideoProvider.ts");
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const videoProviderContract = read("lib/aiMediaVideoProviderContract.ts");
   const timeline = read("lib/aiMediaVideoTimeline.ts");
   const copywriter = read("lib/aiMediaCopywriter.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
@@ -1119,13 +1124,16 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     "request.creativity",
   ]) {
     assert.ok(
-      veo.includes(criterion),
-      `${criterion} doit guider chaque plan Veo`
+      videoProviderContract.includes(criterion),
+      `${criterion} doit rester dans le contrat universel transmis à chaque plan vidéo`
     );
   }
+  assert.match(veo, /const selectedParameters = providerContract\.parameters/);
+  assert.match(veo, /`PARAMS: \$\{selectedParameters\}\.`/);
   assert.match(veo, /`SUBJECT: \$\{primarySubject\}/);
   assert.match(veo, /Keep entities\/actions\/relations; no swaps/);
-  assert.match(veo, /smartphone, tablet or laptop in the foreground/);
+  assert.doesNotMatch(veo, /smartphone, tablet or laptop in the foreground/);
+  assert.match(veo, /Any requested device must match the brief exactly/);
   assert.match(veo, /masonry or construction site/);
   assert.match(veo, /real horses as central subjects/);
   assert.match(veo, /function subjectDigitalDirection/);
@@ -1148,7 +1156,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
   assert.match(
     copywriter,
-    /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/
+    /adn_de_l_entreprise: args\.request\.subjectSource === "custom"\s*\? null\s*: buildAiMediaBusinessDnaPayload/
   );
   assert.match(copywriter, /applyLocalizedCopy/);
   assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
@@ -1175,9 +1183,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(narration, /idee_du_professionnel/);
   assert.match(
     narration,
-    /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/
+    /adn_de_l_entreprise: args\.request\.subjectSource === "custom"\s*\? null\s*: buildAiMediaBusinessDnaPayload\(args\.profile\)/
   );
-  assert.match(server, /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/);
+  assert.match(server, /creativeBrief: request\.subjectSource === "custom" \? "" : buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(narration, /N'invente aucun prix, résultat, certification/);
   assert.match(narration, /WORD_TARGETS/);
   assert.match(narrationAudio, /gemini-3\.1-flash-tts-preview/);
@@ -1224,7 +1232,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const officialLogo =\s*providerRequest\.logoMode === "none" \? null : brandKit\.logo/
+    /const officialLogo =\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null\s*: brandKit\.logo/
   );
   assert.match(
     server,
@@ -1238,7 +1246,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.doesNotMatch(server, /inspiration_image_sha256/);
   assert.match(server, /normalizeGeneratedAiImage\(imageBuffer/);
   assert.match(server, /generateOriginalAiVideoClips/);
-  assert.match(server, /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/);
+  assert.match(server, /creativeBrief: request\.subjectSource === "custom" \? "" : buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(dnaHelper, /\["Prestation", first\(business\.services, 120\)\]/);
   assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 180\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
@@ -1255,7 +1263,16 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     server,
     /const durationSeconds = providerRequest\.durationSeconds \|\| 8/
   );
-  assert.match(server, /const videoGatewayTask = measure\("video_generation"/);
+  assert.match(server, /const generateVideoGateway = \(\) => measure\("video_generation"/);
+  assert.match(
+    server,
+    /if \(narrationRequired\) \{[\s\S]*?const preparedNarration = await narrationTask;[\s\S]*?if \(!preparedNarration\.narration \|\| !preparedNarration\.audio\)[\s\S]*?throw new Error\("ai_media_narration_unavailable"\)/,
+  );
+  assert.ok(
+    server.indexOf("const preparedNarration = await narrationTask;") <
+      server.indexOf("const videoGatewayTask = generateVideoGateway();"),
+    "Required narration is validated before starting paid video generation",
+  );
   assert.match(
     server,
     /const narrationTask =[\s\S]*?measure\("narration_pipeline"/

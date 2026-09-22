@@ -201,8 +201,9 @@ test('le Générateur, iNrSearch et les prompts IA reçoivent le nouveau context
   assert.match(mediaPrompt, /buildAiMediaImageGenerationPrompt/);
   assert.match(mediaPrompt, /buildAiMediaVideoGenerationPrompt/);
   assert.match(mediaPromptShared, /buildAiMediaBusinessDnaPayload\(profile\)/);
-  assert.match(imagePrompt, /buildAiMediaPromptBusinessDna\(profile\)/);
-  assert.match(videoPrompt, /buildAiMediaPromptBusinessDna\(profile\)/);
+  assert.match(imagePrompt, /buildAiMediaPromptBusinessDna\(profile, request\)/);
+  assert.match(videoPrompt, /buildAiMediaPromptBusinessDna\(profile, request\)/);
+  assert.match(mediaPromptShared, /request\?\.subjectSource === "custom"/);
   assert.match(mediaBusinessDna, /secteur: cleanText\(business\.sectorLabel/);
   assert.match(mediaBusinessDna, /metier: cleanText\(business\.professionLabel/);
   assert.match(mediaBusinessDna, /prestations: cleanList\(business\.services/);

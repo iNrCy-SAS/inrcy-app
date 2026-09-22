@@ -88,7 +88,8 @@ test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, i
   assert.match(source, /standardMode=\{false\}/);
   assert.match(styles, /\.premiumPilotPanel\s*\{[\s\S]*?min-height:\s*520px/);
   assert.match(styles, /\.premiumDashboardList\s*\{[\s\S]*?grid-template-rows:\s*repeat\(5, minmax\(74px, 1fr\)\)/);
-  assert.match(styles, /\.premiumDashboardList \.toolRow\s*\{[\s\S]*?grid-template-columns:\s*52px minmax\(0, 1fr\) minmax\(112px, auto\)/);
+  assert.match(styles, /\.toolRow\s*\{[\s\S]*?--tool-side-width:\s*160px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
+  assert.match(styles, /\.premiumDashboardList \.toolRow\s*\{[\s\S]*?--tool-side-width:\s*140px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
   assert.match(styles, /\.premiumActionStack\s*\{[\s\S]*?min-height:\s*520px[\s\S]*?grid-template-rows:\s*minmax\(190px, 1\.05fr\)/);
   assert.match(styles, /\.agentPlanningIconButton\s*\{[\s\S]*?position:\s*absolute[\s\S]*?width:\s*40px[\s\S]*?border-radius:\s*50%/);
   assert.match(styles, /\.premiumActionStack \.agentActions\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
@@ -97,6 +98,8 @@ test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, i
   assert.match(source, /mobile-shortcuts\/inrcrm-bubble\.png/);
   assert.match(source, /const calendarLabel = i18nT\("inr_calendar_a9473176"\)\.replace/);
   assert.match(source, /const crmLabel = i18nT\("inr_crm_aa43648a"\)\.replace/);
+  assert.match(source, /const sendLabel = i18nT\("inr_send_fd44a9fa"\)\.replace/);
+  assert.match(source, /const statsLabel = i18nT\("inr_stats_881d9239"\)\.replace/);
   assert.match(styles, /\.secondaryToolsRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.secondaryToolsRow\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });

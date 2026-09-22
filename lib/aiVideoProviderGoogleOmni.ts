@@ -25,6 +25,7 @@ import {
   resolveGoogleVideoAspectRatio,
 } from "@/lib/aiVideoProviderGoogleVeo";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
+import { assertAiMediaVideoProviderBoundary } from "@/lib/aiMediaVideoProviderContract";
 import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
@@ -203,7 +204,8 @@ function preservesIdentityReferences(
 ) {
   return (
     request.inspirationImages.length > 0 &&
-    (request.teamVideoMode === "cinematic" ||
+    (request.inspirationImages.some((reference) => reference.usage === "required") ||
+      request.teamVideoMode === "cinematic" ||
       request.videoCharacterMode === "professional" ||
       request.videoCharacterMode === "brand_avatar" ||
       request.videoCharacterMode === "reference_team")
@@ -458,7 +460,8 @@ async function generateClip(args: {
               warning: "omni_inspiration_downgraded",
             },
             {
-              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+              prompt: args.prompt,
+              safetyRecovery: true,
               images: [],
               warning: "omni_safety_prompt_recovery",
             },
@@ -466,7 +469,8 @@ async function generateClip(args: {
         : [
             { prompt: args.prompt, images: [], warning: "" },
             {
-              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+              prompt: args.prompt,
+              safetyRecovery: true,
               images: [],
               warning: "omni_safety_prompt_recovery",
             },
@@ -498,7 +502,12 @@ async function generateClip(args: {
               data: image.data,
               mime_type: image.mimeType,
             })),
-            { type: "text" as const, text: contentAttempt.prompt },
+            {
+              type: "text" as const,
+              text: "safetyRecovery" in contentAttempt && contentAttempt.safetyRecovery
+                ? buildGoogleVideoSafetyFallbackPrompt(contentAttempt.prompt)
+                : contentAttempt.prompt,
+            },
           ];
           const interaction = await args.ai.interactions.create(
             {
@@ -608,7 +617,7 @@ async function generateClip(args: {
         (failure.kind === "invalid_argument" || failure.kind === "safety");
       const canUseSafetyPrompt =
         isSafetyFiltered(lastError) &&
-        nextAttempt?.prompt !== contentAttempt.prompt;
+        nextAttempt && "safetyRecovery" in nextAttempt && nextAttempt.safetyRecovery;
       if (canDropInspiration || canUseSafetyPrompt) continue;
       break;
     }
@@ -630,6 +639,9 @@ export const googleOmniVideoProvider: AiVideoProvider = {
   },
   async generate(args): Promise<AiVideoProviderResult> {
     throwIfAborted(args.signal);
+    // Même frontière signée que Veo : Omni ne reconstruit ni ne réduit les
+    // choix du Studio avant son premier appel réseau.
+    assertAiMediaVideoProviderBoundary(args);
     assertAiVideoReferenceTeamGoogleEgress(args);
     const key = apiKey();
     const ai = new GoogleGenAI({ apiKey: key });
@@ -779,14 +791,14 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 )
               : error;
             const omniFailure = classifyVeoFailure(effectiveError);
-            console.warn("[ai-media] Omni scene failed", {
+            console.warn("[ai-media] Omni scene failed", JSON.stringify({
               scene: index + 1,
               durationSeconds,
               model,
               billableOutputExists: sceneBillable,
               failureKind: omniFailure.kind,
               details: redactAiMediaSensitiveText(omniFailure.details, 500),
-            });
+            }));
             if (
               durations.length === 1 &&
               !continuationMode &&

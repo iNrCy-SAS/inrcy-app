@@ -84,6 +84,7 @@ export default function MediaGeneratorModal({
   const closeDescriptionId = useId();
   const [mounted, setMounted] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [retoucherDirty, setRetoucherDirty] = useState(false);
   const [currentResult, setCurrentResult] =
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -98,11 +99,14 @@ export default function MediaGeneratorModal({
   }));
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeConfirmDialogRef = useRef<HTMLElement | null>(null);
   const closeConfirmCancelRef = useRef<HTMLButtonElement | null>(null);
+  const closeConfirmPreviousFocusRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const currentResultRef = useRef<MediaGenerationResult | null>(null);
   const closeInFlightRef = useRef(false);
   const hasResult = Boolean(currentResult);
+  const hasPendingWork = hasResult || retoucherDirty;
   const hasExternalHandoff = Boolean(
     handoffOriginLabel && onAbandonHandoff
   );
@@ -119,6 +123,7 @@ export default function MediaGeneratorModal({
       modify: "image",
       retouch: initialTab === "retouch" ? initialMediaType : "image",
     });
+    setRetoucherDirty(false);
   }, [initialMediaType, initialTab, open]);
 
   const handleResultChange = useCallback(
@@ -132,28 +137,28 @@ export default function MediaGeneratorModal({
 
   const requestClose = useCallback(() => {
     if (locked) return;
-    if (hasExternalHandoff || hasResult) {
+    if (hasExternalHandoff || hasPendingWork) {
       setCloseConfirmOpen(true);
       return;
     }
     onClose();
-  }, [hasExternalHandoff, hasResult, locked, onClose]);
+  }, [hasExternalHandoff, hasPendingWork, locked, onClose]);
 
   const requestStudioTab = useCallback(
     (tab: MediaGeneratorStudioMode) => {
-      if (tab === studioTab || locked || hasResult) return;
+      if (tab === studioTab || locked || hasPendingWork) return;
       if (hasExternalHandoff) {
         setCloseConfirmOpen(true);
         return;
       }
       setStudioTab(tab);
     },
-    [hasExternalHandoff, hasResult, locked, studioTab]
+    [hasExternalHandoff, hasPendingWork, locked, studioTab]
   );
 
   const requestMediaType = useCallback(
     (mediaType: StudioMediaType) => {
-      if (mediaType === activeMediaType || locked || hasResult) return;
+      if (mediaType === activeMediaType || locked || hasPendingWork) return;
       if (hasExternalHandoff) {
         setCloseConfirmOpen(true);
         return;
@@ -163,7 +168,7 @@ export default function MediaGeneratorModal({
         [studioTab]: mediaType,
       }));
     },
-    [activeMediaType, hasExternalHandoff, hasResult, locked, studioTab]
+    [activeMediaType, hasExternalHandoff, hasPendingWork, locked, studioTab]
   );
 
   const cancelClose = useCallback(() => {
@@ -239,7 +244,7 @@ export default function MediaGeneratorModal({
   }, [mounted, open]);
 
   useEffect(() => {
-    if (!open || (!locked && !currentResult && !hasExternalHandoff)) return;
+    if (!open || (!locked && !hasPendingWork && !hasExternalHandoff)) return;
     const preventAccidentalUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -248,7 +253,7 @@ export default function MediaGeneratorModal({
     return () => {
       window.removeEventListener("beforeunload", preventAccidentalUnload);
     };
-  }, [currentResult, hasExternalHandoff, locked, open]);
+  }, [hasExternalHandoff, hasPendingWork, locked, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -281,12 +286,22 @@ export default function MediaGeneratorModal({
         requestClose();
         return;
       }
-      if (event.key !== "Tab" || closeConfirmOpen) return;
-      const focusable = getFocusableElements(dialogRef.current);
-      if (!focusable.length) return;
+      if (event.key !== "Tab") return;
+      const activeDialog = closeConfirmOpen
+        ? closeConfirmDialogRef.current
+        : dialogRef.current;
+      const focusable = getFocusableElements(activeDialog);
+      if (!focusable.length) {
+        event.preventDefault();
+        activeDialog?.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!activeDialog?.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -300,10 +315,20 @@ export default function MediaGeneratorModal({
 
   useEffect(() => {
     if (!closeConfirmOpen) return;
+    closeConfirmPreviousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const frame = window.requestAnimationFrame(() => {
-      closeConfirmCancelRef.current?.focus();
+      closeConfirmCancelRef.current?.focus({ preventScroll: true });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (dialogRef.current?.isConnected) {
+        closeConfirmPreviousFocusRef.current?.focus?.({ preventScroll: true });
+      }
+      closeConfirmPreviousFocusRef.current = null;
+    };
   }, [closeConfirmOpen]);
 
   if (!mounted || !open) return null;
@@ -320,7 +345,8 @@ export default function MediaGeneratorModal({
         type="button"
         className={styles.backdrop}
         aria-label={t("fermer_5ab4ec64")}
-        disabled={locked}
+        aria-hidden={closeConfirmOpen ? true : undefined}
+        disabled={locked || closeConfirmOpen}
         onClick={requestClose}
       />
       <section
@@ -330,6 +356,7 @@ export default function MediaGeneratorModal({
         role="dialog"
         aria-modal="true"
         aria-hidden={closeConfirmOpen ? true : undefined}
+        inert={closeConfirmOpen ? true : undefined}
         aria-label={t("ai_generator_modal_title")}
       >
         <header className={styles.header}>
@@ -366,7 +393,7 @@ export default function MediaGeneratorModal({
                   className={styles.studioTab}
                   data-studio-tab={tab}
                   data-active={studioTab === tab ? "true" : "false"}
-                  disabled={locked || hasResult}
+                  disabled={locked || hasPendingWork}
                   onClick={() => requestStudioTab(tab)}
                 >
                   {t(labelKey)}
@@ -390,7 +417,7 @@ export default function MediaGeneratorModal({
                     data-active={
                       activeMediaType === mediaType ? "true" : "false"
                     }
-                    disabled={locked || hasResult || unavailable}
+                    disabled={locked || hasPendingWork || unavailable}
                     onClick={() => requestMediaType(mediaType)}
                   >
                     <span aria-hidden="true">
@@ -415,10 +442,12 @@ export default function MediaGeneratorModal({
               aria-disabled={locked || undefined}
               tabIndex={locked ? -1 : undefined}
               onClick={(event) => {
-                if (locked || hasExternalHandoff) {
+                if (locked || hasExternalHandoff || hasPendingWork) {
                   event.preventDefault();
                 }
-                if (!locked && hasExternalHandoff) requestClose();
+                if (!locked && (hasExternalHandoff || hasPendingWork)) {
+                  requestClose();
+                }
               }}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -457,6 +486,7 @@ export default function MediaGeneratorModal({
                   }
                   initialContext={initialVideoContext}
                   onEditingChange={setLocked}
+                  onDirtyChange={setRetoucherDirty}
                   onSaved={onVideoRetouched}
                   acceptMode={acceptMode}
                 />
@@ -472,6 +502,7 @@ export default function MediaGeneratorModal({
                     initialMediaType === "image" && initialSourceLoading
                   }
                   onEditingChange={setLocked}
+                  onDirtyChange={setRetoucherDirty}
                   onSaved={onRetouched}
                   acceptMode={acceptMode}
                 />
@@ -521,9 +552,11 @@ export default function MediaGeneratorModal({
             onClick={cancelClose}
           />
           <section
+            ref={closeConfirmDialogRef}
             className={styles.closeConfirmDialog}
             role="alertdialog"
             aria-modal="true"
+            tabIndex={-1}
             aria-labelledby={closeTitleId}
             aria-describedby={closeDescriptionId}
           >

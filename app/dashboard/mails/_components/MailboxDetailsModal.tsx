@@ -13,7 +13,6 @@ import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCapt
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "@/app/dashboard/_components/MediaLibraryPickerModal";
-import { createInrStudioHandoff } from "@/lib/inrStudioNavigation";
 import MediaOptimizerModal, {
   type MediaOptimizerItem,
 } from "@/app/dashboard/_components/MediaOptimizerModal";
@@ -506,6 +505,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     activePublicationEditPreset,
     activePublicationEditAssets,
     togglePublicationImage,
+    launchPublicationMediaGenerator,
     openPublicationImageRetoucher,
     openPublicationImageModifier,
     openPublicationVideoRetoucher,
@@ -1092,26 +1092,15 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const openPublicationMediaGenerator = React.useCallback(async () => {
     preserveDetailsModalScroll();
     try {
-      const { href } = await createInrStudioHandoff({
-        tab: "generate",
-        origin: "inrsend-publish",
-        publicationBrief: publicationMediaGeneratorBrief,
-        context: {
-          itemId: detailsItem?.id || null,
-          channel: activePublicationEditChannelKey || null,
-        },
-      });
-      router.push(href);
+      await launchPublicationMediaGenerator(publicationMediaGeneratorBrief);
     } catch {
       restoreDetailsModalScroll();
     }
   }, [
-    activePublicationEditChannelKey,
-    detailsItem?.id,
+    launchPublicationMediaGenerator,
     preserveDetailsModalScroll,
     publicationMediaGeneratorBrief,
     restoreDetailsModalScroll,
-    router,
   ]);
 
   const acceptGeneratedPublicationMedia = React.useCallback(

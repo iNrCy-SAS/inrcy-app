@@ -73,6 +73,7 @@ type MediaVideoRetoucherProps = {
   initialSourceLoading?: boolean;
   initialContext?: MediaVideoRetoucherInitialContext | null;
   onEditingChange?: (editing: boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onSaved?: (value: MediaVideoRetoucherSavedValue) => void | Promise<void>;
   acceptMode?: "library" | "insert";
 };
@@ -191,6 +192,7 @@ export default function MediaVideoRetoucher({
   initialSourceLoading = false,
   initialContext = null,
   onEditingChange,
+  onDirtyChange,
   onSaved,
   acceptMode = "library",
 }: MediaVideoRetoucherProps) {
@@ -215,9 +217,20 @@ export default function MediaVideoRetoucher({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const channel: ChannelKey = initialContext?.channel || "site_web";
+
+  useEffect(() => {
+    onEditingChange?.(saving || Boolean(initialSourceLoading && !source));
+    return () => onEditingChange?.(false);
+  }, [initialSourceLoading, onEditingChange, saving, source]);
+
+  useEffect(() => {
+    onDirtyChange?.(Boolean(source) && !saved);
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange, saved, source]);
 
   useEffect(() => {
     const query = window.matchMedia("(max-width: 760px)");
@@ -307,6 +320,7 @@ export default function MediaVideoRetoucher({
   const selectFile = async (file: File | null | undefined) => {
     if (!file) return;
     setError("");
+    setSaved(false);
     if (
       detectUniversalUploadMediaType({
         name: file.name,
@@ -355,6 +369,7 @@ export default function MediaVideoRetoucher({
   const clearSource = () => {
     clearOwnedUrl();
     setSource(null);
+    setSaved(false);
     setError("");
   };
 
@@ -362,7 +377,6 @@ export default function MediaVideoRetoucher({
     if (!source || saving) return;
     setSaving(true);
     setError("");
-    onEditingChange?.(true);
     try {
       await onSaved?.({
         source,
@@ -374,14 +388,15 @@ export default function MediaVideoRetoucher({
           initialContext?.deferTechnicalPreparationUntilPublish === true,
         mediaRecord: initialContext?.mediaRecord || null,
       });
+      setSaved(true);
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
           : "Impossible d’enregistrer cette retouche vidéo."
       );
+    } finally {
       setSaving(false);
-      onEditingChange?.(false);
     }
   };
 
@@ -499,8 +514,14 @@ export default function MediaVideoRetoucher({
               adaptationMode={adaptationMode}
               videoTransformedVariants={initialContext?.transformedVariants || []}
               deferTechnicalPreparationUntilPublish
-              onFormatChange={setFormat}
-              onAdaptationModeChange={setAdaptationMode}
+              onFormatChange={(nextFormat) => {
+                setSaved(false);
+                setFormat(nextFormat);
+              }}
+              onAdaptationModeChange={(nextMode) => {
+                setSaved(false);
+                setAdaptationMode(nextMode);
+              }}
               onPickVideoClick={() => fileInputRef.current?.click()}
               onDeleteVideo={clearSource}
               showApplyAll={false}
@@ -561,6 +582,7 @@ export default function MediaVideoRetoucher({
           }
           clearOwnedUrl();
           setSource(next);
+          setSaved(false);
           setLibraryOpen(false);
           setError("");
         }}

@@ -34,7 +34,42 @@ test("les photos sont présentées comme personnages, décor et produit distinct
   assert.match(generator, /characterIndex: characterIndex as 1 \| 2 \| 3/);
   assert.match(generator, /image\.role === args\.role/);
   assert.match(styles, /\.referenceCollection\s*\{/);
-  assert.match(styles, /\.referenceCard\s*\{/);
+  assert.match(styles, /\.referenceTile\s*\{/);
+  assert.match(styles, /\.referenceTileRemove\s*\{/);
+});
+
+test("le bloc 3 vidéo place le scénario sous la durée et l'identité à droite en 16 ou 24 secondes", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const styles = read("app/dashboard/_components/MediaGenerator.module.css");
+
+  assert.match(
+    generator,
+    /data-has-scene-mode=\{[\s\S]*?kind === "video" && durationSeconds > 8/,
+  );
+  assert.match(
+    styles,
+    /\.directionCard\[data-media-kind="video"\]\[data-has-scene-mode="true"\][\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  );
+  assert.match(
+    styles,
+    /data-has-scene-mode="true"\][\s\S]*?> \.identitySettings[\s\S]*?display:\s*contents/,
+  );
+  assert.match(
+    styles,
+    /data-has-scene-mode="true"\][\s\S]*?> \.sceneModeField[\s\S]*?grid-column:\s*1;[\s\S]*?grid-row:\s*3 \/ 5;[\s\S]*?align-self:\s*start/,
+  );
+  assert.match(
+    styles,
+    /> \.sceneModeField[\s\S]*?\.sceneModeChoices[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+  );
+  assert.match(
+    styles,
+    /data-has-scene-mode="true"\][\s\S]*?> \.directionSettings[\s\S]*?> :nth-child\(1\)[\s\S]*?grid-column:\s*1;[\s\S]*?grid-row:\s*2/,
+  );
+  assert.match(
+    styles,
+    /> \.identitySettings[\s\S]*?> :nth-child\(1\)[\s\S]*?grid-column:\s*2;[\s\S]*?grid-row:\s*4[\s\S]*?> \.identitySettings[\s\S]*?> :nth-child\(2\)[\s\S]*?grid-column:\s*3;[\s\S]*?grid-row:\s*4/,
+  );
 });
 
 test("le bloc 1 distingue la voix off des personnages parlants sans mélanger les deux", () => {

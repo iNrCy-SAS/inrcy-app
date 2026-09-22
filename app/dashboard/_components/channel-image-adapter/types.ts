@@ -110,6 +110,8 @@ export type CardsPanelProps = {
 
 export type ModalProps = {
   open: boolean;
+  /** Affiche l'atelier dans sa page parente, sans modale ni second en-tête. */
+  embedded?: boolean;
   title: string;
   subtitle: string;
   aspectRatio: string;

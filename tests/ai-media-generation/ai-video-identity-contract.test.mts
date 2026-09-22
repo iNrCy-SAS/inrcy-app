@@ -12,16 +12,24 @@ const read = (relativePath: string) =>
 
 test("le prompt vidéo distingue le professionnel, l’avatar et le mode générique", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const providerContract = read("lib/aiMediaVideoProviderContract.ts");
 
   assert.match(veo, /buildGoogleVideoReferenceContract/);
-  assert.match(veo, /request\.identityMode === "professional"/);
-  assert.match(veo, /same face\/hair\/build each act/);
-  assert.match(veo, /request\.identityMode === "brand_avatar"/);
-  assert.match(veo, /same design\/features each act/);
-  assert.match(veo, /request\.identityMode === "reference_team"/);
-  assert.match(veo, /identities locked; all move 0\.0s/);
-  assert.match(veo, /source to animate, not mood board/);
-  assert.match(veo, /use subject\/mood\/composition\/style, not real identity/);
+  assert.match(veo, /providerContract\.references/);
+  assert.match(providerContract, /request\.identityMode === "professional"/);
+  assert.match(providerContract, /same face\/hair\/build each act/);
+  assert.match(providerContract, /request\.identityMode === "brand_avatar"/);
+  assert.match(providerContract, /same design\/features each act/);
+  assert.match(providerContract, /request\.identityMode === "reference_team"/);
+  assert.match(providerContract, /identities locked; all move 0\.0s/);
+  assert.match(
+    providerContract,
+    /required characters: preserve every distinct adult identity exactly once/,
+  );
+  assert.match(
+    providerContract,
+    /inspiration-only \$\{inspirationRoles\.join\("\/"\)\}: guide mood\/style\/composition only; never copy identity, product, place, pose or framing exactly/,
+  );
   assert.match(veo, /USER: \$\{userDirection\}/);
 });
 
@@ -92,7 +100,10 @@ test("l’équipe cinématique conserve le moteur choisi, tente Omni après Veo 
     server,
     /request:\s*\{[\s\S]{0,500}?\.\.\.providerRequest[\s\S]{0,500}?videoEngine: "veo"/,
   );
-  assert.match(server, /inspirationImages: \[groupImage\]/);
+  assert.match(
+    server,
+    /inspirationImages:\s*\[\s*\{\s*\.\.\.groupImage,\s*role: "character",\s*usage: "required",\s*\},\s*\]/,
+  );
   assert.match(server, /identityTeamPrecomposed: true/);
   assert.match(server, /identityTeamGoogleEgressConsent: true/);
   assert.match(server, /if \(request\.videoEngine !== "veo"\) throw primaryError/);
@@ -195,11 +206,15 @@ test("la garde réseau refuse à l’exécution une équipe brute, non consentie
 test("la direction Veo impose une scène animée continue sans diaporama ni altération d’équipe", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
+  const providerContract = read("lib/aiMediaVideoProviderContract.ts");
 
   assert.match(veo, /one continuous take/);
   assert.match(veo, /no still\/freeze\/slideshow\/pan-zoom\/reset\/cut/);
-  assert.match(veo, /group=\$\{identityTeamMemberCount === 3 \? 3 : 2\} adults/);
-  assert.match(veo, /no merge\/omit\/duplicate\/swap/);
+  assert.match(
+    providerContract,
+    /group=\$\{[\s\S]*?args\.identityTeamMemberCount === 3 \? 3 : 2[\s\S]*?\} adults/,
+  );
+  assert.match(providerContract, /no merge\/omit\/duplicate\/swap/);
   assert.match(veo, /FRAME medium-wide\/full heads/);
   assert.match(veo, /OPENING: requested action moves at frame 1/);
   assert.match(veo, /MIDDLE: new proof step; no opening replay/);

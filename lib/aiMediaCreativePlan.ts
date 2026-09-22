@@ -14,6 +14,7 @@ import {
   AI_MEDIA_VISIBLE_EYEBROW_MAX_CHARACTERS,
   AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS,
   acceptCompleteAiMediaVisibleCopy,
+  extractAiMediaCommercialOfferTerms,
   normalizeAiMediaCopy,
 } from "@/lib/aiMediaTextIntegrity";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
@@ -174,47 +175,26 @@ function commercialOfferDetails(value: string) {
   ) {
     return null;
   }
-  const pricePattern =
-    "\\d{1,4}(?:[.,]\\d{1,2})?\\s*(?:€|euros?)(?:\\s*(?:/|par)\\s*(?:mois|an|année|jour))?";
-  const normalizePrice = (raw: string) =>
-    raw
-      .replace(/\s*(?:euros?)/i, " €")
-      .replace(/\s*€/u, " €")
-      .replace(/\s*(?:\/|par)\s*/i, " / ")
-      .trim();
-  const namedOffers = Array.from(
-    value.matchAll(
-      new RegExp(
-        `\\b(?:pack|forfait|formule|offre)\\s+([\\p{L}\\p{M}\\p{N}'’\\-]{2,28})\\s*(?:à|:|-)?\\s*(${pricePattern})`,
-        "giu"
-      )
-    ),
-    (match) => ({ name: match[1].trim(), price: normalizePrice(match[2]) })
-  ).slice(0, 2);
-  const amounts = Array.from(
-    value.matchAll(new RegExp(`\\b${pricePattern}`, "giu")),
-    (match) => normalizePrice(match[0])
-  ).filter((amount, index, all) => all.indexOf(amount) === index);
+  const { offers: namedOffers, prices: amounts } =
+    extractAiMediaCommercialOfferTerms(value);
   if (namedOffers.length >= 2) {
+    const detailedSubline = `${namedOffers[0].name} ${namedOffers[0].price} · ${namedOffers[1].name} ${namedOffers[1].price}`;
+    const subline =
+      compactVisibleBody(detailedSubline) ||
+      compactVisibleBody(`${namedOffers[0].price} · ${namedOffers[1].price}`);
     return {
       headline: compactHeadline(
         `${capitalize(namedOffers[0].name)} ou ${capitalize(
           namedOffers[1].name
         )}`
       ),
-      subline: clean(
-        `${namedOffers[0].name} ${namedOffers[0].price} · ${namedOffers[1].name} ${namedOffers[1].price}`,
-        AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS
-      ),
+      subline,
     };
   }
   if (amounts.length >= 2) {
     return {
       headline: compactHeadline(`Packs : ${amounts[0]} et ${amounts[1]}`),
-      subline: clean(
-        `${amounts[0]} · ${amounts[1]}`,
-        AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS
-      ),
+      subline: compactVisibleBody(`${amounts[0]} · ${amounts[1]}`),
     };
   }
   if (amounts.length === 1) {

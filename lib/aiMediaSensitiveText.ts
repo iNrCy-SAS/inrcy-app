@@ -4,7 +4,7 @@ function stringifySafely(value: unknown) {
   if (typeof value === "string") return value;
   if (value instanceof Error) return value.message;
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(value) ?? "";
   } catch {
     return "provider_error";
   }
@@ -22,7 +22,7 @@ export function redactAiMediaSensitiveText(
   const limit = Math.max(1, Math.min(4_000, Math.floor(maxLength)));
   return stringifySafely(value)
     .replace(
-      /data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+/gi,
+      /data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+/gi,
       REDACTION,
     )
     .replace(
@@ -33,6 +33,8 @@ export function redactAiMediaSensitiveText(
       /(^|[^a-z0-9+/])((?:[a-z0-9+/]{4}){24,}(?:[a-z0-9+/]{2}==|[a-z0-9+/]{3}=)?)(?=$|[^a-z0-9+/=])/gi,
       `$1${REDACTION}`,
     )
+    .replace(/([?&](?:token|key|api_key|access_token|signature|x-amz-signature|x-goog-signature)=)[^\s"'&]+/gi, "$1[redacted]")
+    .replace(/(\bBearer\s+)[a-z0-9._~+/-]+=*/gi, "$1[redacted]")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -40,8 +42,37 @@ export function redactAiMediaSensitiveText(
 }
 
 export function safeAiMediaErrorMessage(error: unknown, maxLength = 1_000) {
-  return redactAiMediaSensitiveText(
+  const message = redactAiMediaSensitiveText(
     error instanceof Error ? error.message : String(error || ""),
     maxLength,
   );
+  if (message) return message;
+  const name = error instanceof Error ? error.name : "";
+  return redactAiMediaSensitiveText(
+    name && name !== "Error" ? name : "ai_media_unknown_error",
+    maxLength,
+  );
+}
+
+/** Log only selected diagnostic fields, never provider payloads or stacks. */
+export function safeAiMediaErrorDetails(error: unknown) {
+  const causes: Array<{ name: string; message: string; code?: string }> = [];
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current != null && !seen.has(current) && causes.length < 4) {
+    seen.add(current);
+    const record = current instanceof Error
+      ? current as Error & { code?: unknown; cause?: unknown }
+      : null;
+    const code = record && (typeof record.code === "string" || typeof record.code === "number")
+      ? redactAiMediaSensitiveText(record.code, 120)
+      : undefined;
+    causes.push({
+      name: redactAiMediaSensitiveText(record?.name || "UnknownError", 80),
+      message: safeAiMediaErrorMessage(current, 600),
+      ...(code ? { code } : {}),
+    });
+    current = record?.cause;
+  }
+  return causes;
 }

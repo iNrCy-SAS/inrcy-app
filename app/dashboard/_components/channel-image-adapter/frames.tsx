@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import {
-  normalizeImageOverlay,
+  getImageOverlayItems,
   resolveImageOverlayCoordinates,
 } from "@/lib/imageOverlay";
 
@@ -34,8 +34,7 @@ export function FinalImageFrame({
   const backgroundColor = transform.backgroundColor;
   const fit = transform.fit || "cover";
   const zoom = safePreviewZoom(fit, transform.zoom);
-  const overlay = normalizeImageOverlay(transform.overlay);
-  const overlayCoordinates = resolveImageOverlayCoordinates(overlay);
+  const overlayItems = getImageOverlayItems(transform.overlay);
 
   const imageWidth = meta?.width || 0;
   const imageHeight = meta?.height || 0;
@@ -71,41 +70,57 @@ export function FinalImageFrame({
       ) : (
         <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{i18nT("aucune_image_768c8a5c")}</div>
       )}
-      {overlay?.text ? (
-        <div
-          style={{
-            position: "absolute",
-            left: `${overlayCoordinates.x}%`,
-            top: `${overlayCoordinates.y}%`,
-            width: `${overlay.width ?? 84}%`,
-            height: overlay.height ? `${overlay.height}%` : undefined,
-            minHeight: overlay.height ? undefined : "12%",
-            transform: "translate(-50%, -50%)",
-            boxSizing: "border-box",
-            display: "grid",
-            placeItems: "center",
-            padding: "clamp(8px, 2.2%, 18px) clamp(12px, 3.5%, 28px)",
-            borderRadius: 16,
-            background:
-              overlay.style === "glass"
-                ? "rgba(255,255,255,0.2)"
-                : "rgba(6,10,20,0.78)",
-            border: "1px solid rgba(255,255,255,0.28)",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: "clamp(12px, 3.8%, 32px)",
-            lineHeight: 1.2,
-            textAlign: "center",
-            whiteSpace: "pre-wrap",
-            overflowWrap: "anywhere",
-            overflow: "hidden",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        >
-          {overlay.text}
-        </div>
-      ) : null}
+      {overlayItems.map((overlay, index) => {
+        if (!overlay.text) return null;
+        const overlayCoordinates = resolveImageOverlayCoordinates(overlay);
+        const fontFamily =
+          overlay.fontFamily === "georgia"
+            ? "Georgia, serif"
+            : overlay.fontFamily === "verdana"
+              ? "Verdana, sans-serif"
+              : overlay.fontFamily === "arial"
+                ? "Arial, sans-serif"
+                : "Inter, ui-sans-serif, system-ui, sans-serif";
+        return (
+          <div
+            key={overlay.id || `overlay-${index}`}
+            style={{
+              position: "absolute",
+              left: `${overlayCoordinates.x}%`,
+              top: `${overlayCoordinates.y}%`,
+              width: `${overlay.width ?? 68}%`,
+              height: overlay.height ? `${overlay.height}%` : undefined,
+              minHeight: overlay.height ? undefined : "12%",
+              transform: "translate(-50%, -50%)",
+              boxSizing: "border-box",
+              display: "grid",
+              placeItems: "center",
+              padding: "clamp(6px, 1.8%, 16px) clamp(10px, 3%, 24px)",
+              borderRadius: 14,
+              background:
+                overlay.style === "glass"
+                  ? "rgba(255,255,255,0.2)"
+                  : "rgba(6,10,20,0.78)",
+              border: `${overlay.borderWidth ?? 0}px solid ${overlay.borderColor || "transparent"}`,
+              color: overlay.color || "#fff",
+              fontFamily,
+              fontWeight: overlay.bold === false ? 400 : 800,
+              fontStyle: overlay.italic ? "italic" : "normal",
+              textDecoration: overlay.underline ? "underline" : "none",
+              fontSize: `clamp(10px, ${overlay.fontSize ?? 4.6}cqw, 64px)`,
+              lineHeight: 1.2,
+              textAlign: "center",
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+              overflow: "hidden",
+              pointerEvents: "none",
+              zIndex: 2 + index,
+            }}
+          >
+            {overlay.text}
+          </div>
+        );
+      })}
       {fitLabel ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>
           {fitLabel}

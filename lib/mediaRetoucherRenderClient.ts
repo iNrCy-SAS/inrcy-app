@@ -1,8 +1,9 @@
 import type { BackgroundMode } from "@/app/dashboard/_components/channel-image-adapter/types";
 import {
-  normalizeImageOverlay,
+  getImageOverlayItems,
   resolveImageOverlayCoordinates,
   type ImageOverlay,
+  type ImageOverlayItem,
 } from "@/lib/imageOverlay";
 
 export type MediaRetoucherRenderTransform = {
@@ -71,16 +72,25 @@ function outputDimensions(width: number, height: number) {
   };
 }
 
-function drawOverlay(
+function overlayCanvasFontFamily(value: ImageOverlayItem["fontFamily"]) {
+  if (value === "arial") return "Arial, sans-serif";
+  if (value === "georgia") return "Georgia, serif";
+  if (value === "verdana") return "Verdana, sans-serif";
+  return "Inter, Arial, sans-serif";
+}
+
+function drawOverlayItem(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
-  overlayValue: ImageOverlay | undefined,
+  overlay: ImageOverlayItem,
 ) {
-  const overlay = normalizeImageOverlay(overlayValue);
   if (!overlay?.text) return;
 
-  const fontSize = Math.max(24, Math.min(72, Math.round(width * 0.046)));
+  const fontSize = Math.max(
+    14,
+    Math.min(160, Math.round(width * ((overlay.fontSize ?? 4.6) / 100))),
+  );
   const lineHeight = Math.round(fontSize * 1.2);
   const paddingX = Math.round(fontSize * 0.72);
   const paddingY = Math.round(fontSize * 0.5);
@@ -92,20 +102,27 @@ function drawOverlay(
     fontSize * 2,
     (requestedBlockWidth ?? width * 0.9) - paddingX * 2,
   );
-  const words = overlay.text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
-  context.font = `800 ${fontSize}px Inter, Arial, sans-serif`;
-  let line = "";
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (line && context.measureText(candidate).width > maxTextWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = candidate;
+  const fontWeight = overlay.bold === false ? 400 : 800;
+  const fontStyle = overlay.italic ? "italic " : "";
+  context.font = `${fontStyle}${fontWeight} ${fontSize}px ${overlayCanvasFontFamily(overlay.fontFamily)}`;
+  for (const paragraph of overlay.text.split(/\r?\n/)) {
+    if (!paragraph) {
+      lines.push("");
+      continue;
     }
+    let line = "";
+    for (const character of paragraph) {
+      const candidate = `${line}${character}`;
+      if (line && context.measureText(candidate).width > maxTextWidth) {
+        lines.push(line);
+        line = character === " " ? "" : character;
+      } else {
+        line = candidate;
+      }
+    }
+    lines.push(line);
   }
-  if (line) lines.push(line);
   if (!lines.length) return;
 
   const blockWidth = Math.min(
@@ -144,8 +161,11 @@ function drawOverlay(
     overlay.style === "glass"
       ? "rgba(255,255,255,0.2)"
       : "rgba(6,10,20,0.78)";
-  context.strokeStyle = "rgba(255,255,255,0.28)";
-  context.lineWidth = Math.max(1, Math.round(fontSize / 18));
+  context.strokeStyle = overlay.borderColor || "transparent";
+  context.lineWidth = Math.max(
+    1,
+    Math.round((overlay.borderWidth ?? 0) * Math.max(1, width / 1000)),
+  );
   context.beginPath();
   if (typeof context.roundRect === "function") {
     context.roundRect(
@@ -159,21 +179,45 @@ function drawOverlay(
     context.rect(blockX, blockY, blockWidth, blockHeight);
   }
   context.fill();
-  context.stroke();
-  context.fillStyle = "#ffffff";
+  if ((overlay.borderWidth ?? 0) > 0) context.stroke();
+  context.fillStyle = overlay.color || "#ffffff";
   context.textAlign = "center";
   context.textBaseline = "middle";
   const textBlockHeight = visibleLines.length * lineHeight;
   const firstLineY = blockY + (blockHeight - textBlockHeight) / 2 + lineHeight / 2;
   visibleLines.forEach((value, index) => {
+    const textY = firstLineY + lineHeight * index;
     context.fillText(
       value,
       blockX + blockWidth / 2,
-      firstLineY + lineHeight * index,
+      textY,
       maxTextWidth,
     );
+    if (overlay.underline && value) {
+      const measuredWidth = Math.min(
+        maxTextWidth,
+        context.measureText(value).width,
+      );
+      context.strokeStyle = overlay.color || "#ffffff";
+      context.lineWidth = Math.max(1, fontSize / 18);
+      context.beginPath();
+      context.moveTo(blockX + (blockWidth - measuredWidth) / 2, textY + fontSize * 0.55);
+      context.lineTo(blockX + (blockWidth + measuredWidth) / 2, textY + fontSize * 0.55);
+      context.stroke();
+    }
   });
   context.restore();
+}
+
+export function drawImageOverlayItems(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  overlayValue: ImageOverlay | undefined,
+) {
+  for (const overlay of getImageOverlayItems(overlayValue)) {
+    drawOverlayItem(context, width, height, overlay);
+  }
 }
 
 export async function renderMediaRetoucherFile(params: {
@@ -219,7 +263,7 @@ export async function renderMediaRetoucherFile(params: {
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
     context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-    drawOverlay(
+    drawImageOverlayItems(
       context,
       canvas.width,
       canvas.height,

@@ -232,6 +232,7 @@ export default function MediaModifier({
     () => () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
+    [],
   );
 
   useLayoutEffect(() => {
@@ -291,10 +292,16 @@ export default function MediaModifier({
   }, [operationLocked, result, t]);
 
   useEffect(() => {
-    if (!initialSource || initializedSourceRef.current === initialSource) return;
+    if (
+      !initialSource ||
+      initialSourceLoading ||
+      initializedSourceRef.current === initialSource
+    ) {
+      return;
+    }
     initializedSourceRef.current = initialSource;
     void selectSourceFile(initialSource);
-  }, [initialSource, selectSourceFile]);
+  }, [initialSource, initialSourceLoading, selectSourceFile]);
 
   const removeSource = () => {
     if (operationLocked || result) return;
