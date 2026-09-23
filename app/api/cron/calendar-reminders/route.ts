@@ -9,6 +9,8 @@ import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { getConnectionDisplayStatus, mailConnectionKind } from "@/lib/connectionVersions";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import {
   CALENDAR_REMINDER_IDEMPOTENCY_SCOPE,
   CALENDAR_REMINDER_LOCK_TTL_MS,
@@ -747,15 +749,39 @@ export async function GET(req: Request) {
 
   if (error) return jsonUserFacingError(error, { status: 500 });
 
+  const reminderAccountIds = Array.from(new Set(
+    (data ?? []).map((row) => String(row.user_id || "").trim()).filter(Boolean),
+  ));
+  const editionByAccount = new Map<string, DashboardEdition>(
+    reminderAccountIds.map((accountId) => [accountId, "standard"]),
+  );
+  try {
+    for (let offset = 0; offset < reminderAccountIds.length; offset += 100) {
+      const batch = await getDashboardEditionsForAccountIds(reminderAccountIds.slice(offset, offset + 100));
+      for (const [accountId, edition] of batch) editionByAccount.set(accountId, edition);
+    }
+  } catch (editionError) {
+    // Keep the initial Standard defaults: an entitlement lookup outage must
+    // never release reminders for a Premium-only Calendar feature.
+    console.error("[calendar-reminders] edition lookup failed; reminders remain blocked", editionError);
+  }
+
   let inAppSent = 0;
   let emailSent = 0;
   let emailDeduplicated = 0;
   let emailBlockedForSafety = 0;
+  let premiumRestrictedSkipped = 0;
   const userSettingsCache = new Map<string, CalendarReminderSettings>();
   const userClientPreferencesCache = new Map<string, ClientExchangePreferences>();
   const usableMailAccountCache = new Map<string, Promise<string>>();
 
   for (const row of data ?? []) {
+    const accountId = String(row.user_id || "").trim();
+    if (!hasPremiumDashboardAccess(editionByAccount.get(accountId) || "standard")) {
+      premiumRestrictedSkipped += 1;
+      continue;
+    }
+
     const meta = safeObj(row.meta);
     if (isInactiveAppointmentRequest(meta)) continue;
     // Fail closed before notifications or e-mails: Google/site appointments
@@ -981,5 +1007,6 @@ export async function GET(req: Request) {
     emailSent,
     emailDeduplicated,
     emailBlockedForSafety,
+    premiumRestrictedSkipped,
   });
 }

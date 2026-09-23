@@ -7,6 +7,8 @@ import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 const MAX_BODY_BYTES = 16_384;
 
@@ -66,7 +68,9 @@ function buildNotificationMail(input: {
   phone: string;
   message: string;
   pageUrl: string;
-  crmUrl: string;
+  actionUrl: string;
+  actionLabel: string;
+  hasCrmAccess: boolean;
 }) {
   const rows = [
     ["Contact", input.displayName],
@@ -85,7 +89,9 @@ function buildNotificationMail(input: {
     "",
     ...rows.map(([label, value]) => `${label} : ${value}`),
     "",
-    `Voir le contact dans iNrCRM : ${input.crmUrl}`,
+    input.hasCrmAccess
+      ? `Voir le contact dans iNrCRM : ${input.actionUrl}`
+      : `Ouvrir vos statistiques iNr’Search : ${input.actionUrl}`,
   ].join("\n");
 
   const htmlRows = rows.map(([label, value]) => `
@@ -109,9 +115,9 @@ function buildNotificationMail(input: {
           <tr><td style="padding:16px 26px 8px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${htmlRows}</table>
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0 12px;"><tr><td style="border-radius:12px;background:#111c3f;">
-              <a href="${escapeHtml(input.crmUrl)}" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Ouvrir iNrCRM</a>
+              <a href="${escapeHtml(input.actionUrl)}" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">${escapeHtml(input.actionLabel)}</a>
             </td></tr></table>
-            <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;line-height:1.5;">Le contact a été ajouté ou actualisé automatiquement dans votre CRM iNrCy.</p>
+            <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;line-height:1.5;">${input.hasCrmAccess ? "Le contact a été ajouté ou actualisé automatiquement dans votre CRM iNrCy." : "Les coordonnées du prospect sont incluses dans cet email."}</p>
           </td></tr>
           <tr><td style="padding:18px 26px 22px;color:#94a3b8;font-size:12px;border-top:1px solid #eef2f7;">Email automatique envoyé par iNrCy.</td></tr>
         </table>
@@ -195,6 +201,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Entreprise indisponible pour le moment." }, { status: 404 });
   }
 
+  const edition = await getDashboardEditionForAccountId(owner.userId);
+  const hasCrmAccess = hasPremiumDashboardAccess(edition);
+  const actionPath = hasCrmAccess ? "/dashboard/crm" : "/dashboard/stats";
+  const actionLabel = hasCrmAccess ? "Ouvrir iNrCRM" : "Ouvrir mes statistiques";
+
   const nameParts = displayName.split(/\s+/).filter(Boolean);
   const firstName = nameParts.length > 1 ? nameParts.shift() || "" : "";
   const lastName = nameParts.join(" ") || displayName;
@@ -247,8 +258,8 @@ export async function POST(request: Request) {
       kind: "inrsearch_lead",
       title: "Nouvelle demande iNr’Search",
       body: `${contactLabel} souhaite être recontacté depuis votre page publique.`,
-      cta_label: "Ouvrir le CRM",
-      cta_url: "/dashboard/crm",
+      cta_label: hasCrmAccess ? "Ouvrir le CRM" : "Ouvrir les statistiques",
+      cta_url: actionPath,
       dedupe_key: notificationKey,
       meta: {
         source: "inr_search",
@@ -271,7 +282,7 @@ export async function POST(request: Request) {
     try {
       const origin = new URL(request.url).origin;
       const pageUrl = new URL(sourcePath, origin).toString();
-      const crmUrl = new URL("/dashboard/crm", origin).toString();
+      const actionUrl = new URL(actionPath, origin).toString();
       const mail = buildNotificationMail({
         company: cleanString((profile as Record<string, unknown>).company_legal_name, 180) || "votre entreprise",
         displayName: contactLabel,
@@ -280,7 +291,9 @@ export async function POST(request: Request) {
         phone,
         message,
         pageUrl,
-        crmUrl,
+        actionUrl,
+        actionLabel,
+        hasCrmAccess,
       });
       await sendTxMail({ to: proEmail, subject: mail.subject, text: mail.text, html: mail.html });
     } catch (error) {

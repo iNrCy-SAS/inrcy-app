@@ -32,6 +32,11 @@ import {
   getSuppressionReasonLabel,
   upsertSuppressionEntry,
 } from "@/lib/mailSuppression";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import {
+  getDashboardEditionForAccountId,
+  getDashboardEditionsForAccountIds,
+} from "@/lib/dashboardEditionServer";
 
 export type MailCampaignStatus = "queued" | "processing" | "paused" | "partial" | "completed" | "failed";
 export type MailCampaignRecipientStatus = "queued" | "processing" | "sent" | "failed";
@@ -658,6 +663,7 @@ type CampaignProcessSummary = {
   paused: number;
   waiting: number;
   locked: number;
+  premiumRestricted: number;
 };
 
 function emptyCampaignProcessSummary(): CampaignProcessSummary {
@@ -670,6 +676,7 @@ function emptyCampaignProcessSummary(): CampaignProcessSummary {
     paused: 0,
     waiting: 0,
     locked: 0,
+    premiumRestricted: 0,
   };
 }
 
@@ -682,6 +689,7 @@ function mergeCampaignProcessSummary(target: CampaignProcessSummary, source: Cam
   target.paused += source.paused;
   target.waiting += source.waiting;
   target.locked += source.locked;
+  target.premiumRestricted += source.premiumRestricted;
 }
 
 async function beginRecipientAttempt(row: RecipientRow) {
@@ -777,6 +785,25 @@ async function pauseCampaignForProviderIssue(args: {
     })
     .eq("id", args.campaignId)
     .neq("status", "completed");
+  if (error) throw error;
+}
+
+async function pauseCampaignForPremiumRestriction(campaignId: string, userId: string) {
+  const now = new Date().toISOString();
+  const { error } = await supabaseAdmin
+    .from("mail_campaigns")
+    .update({
+      status: "paused",
+      finished_at: null,
+      pause_reason: "premium_required",
+      resume_at: null,
+      last_error: "Cette campagne est réservée à iNrCy Premium. Son contenu est conservé.",
+      updated_at: now,
+      last_activity_at: now,
+    })
+    .eq("id", campaignId)
+    .eq("user_id", userId)
+    .in("status", ["queued", "processing", "paused"]);
   if (error) throw error;
 }
 
@@ -1026,6 +1053,23 @@ async function processSingleMailCampaign(args: {
         continue;
       }
 
+      // Recheck entitlement immediately before each delivery as a downgrade
+      // may happen while a campaign batch already holds the mailbox lock.
+      const currentEdition = await getDashboardEditionForAccountId(userId);
+      if (!hasPremiumDashboardAccess(currentEdition)) {
+        const remainingIds = claimedRows.slice(rowIndex).map((pendingRow) => asString(pendingRow.id) || "");
+        await releaseClaimedRecipients({
+          recipientIds: remainingIds,
+          message: "Envoi suspendu : les campagnes sont réservées à iNrCy Premium.",
+          delayMs: 0,
+        });
+        await pauseCampaignForPremiumRestriction(campaignId, userId);
+        summary.paused += 1;
+        summary.premiumRestricted += 1;
+        stopBatch = true;
+        break;
+      }
+
       const row = await beginRecipientAttempt(claimedRow);
       if (!row) continue;
 
@@ -1238,6 +1282,46 @@ export async function processPendingMailCampaigns(opts?: {
   });
   if (error) throw error;
 
+  const candidateRows = campaigns || [];
+  const candidateUserIds = Array.from(new Set(
+    candidateRows
+      .map((rawCampaign) => (asString(asRecord(rawCampaign).user_id) || "").trim())
+      .filter(Boolean),
+  ));
+  const editionByUser = new Map<string, "standard" | "premium" | "founder">(
+    candidateUserIds.map((userId) => [userId, "standard"]),
+  );
+  try {
+    for (let offset = 0; offset < candidateUserIds.length; offset += 100) {
+      const batch = await getDashboardEditionsForAccountIds(candidateUserIds.slice(offset, offset + 100));
+      for (const [userId, edition] of batch) editionByUser.set(userId, edition);
+    }
+  } catch (editionError) {
+    // If entitlement resolution fails, do not send a single Premium campaign.
+    for (const userId of candidateUserIds) editionByUser.set(userId, "standard");
+    console.error("[crmCampaigns] edition lookup failed; Premium campaigns remain blocked", editionError);
+  }
+
+  const premiumCampaigns: Record<string, unknown>[] = [];
+  const restrictedCampaigns: Array<{ id: string; userId: string }> = [];
+  for (const rawCampaign of candidateRows) {
+    const campaign = asRecord(rawCampaign);
+    const campaignId = asString(campaign.id) || "";
+    const userId = (asString(campaign.user_id) || "").trim();
+    if (!campaignId || !userId) continue;
+    if (hasPremiumDashboardAccess(editionByUser.get(userId) || "standard")) {
+      premiumCampaigns.push(campaign);
+    } else {
+      restrictedCampaigns.push({ id: campaignId, userId });
+    }
+  }
+
+  // Stop pending sends on downgraded accounts while preserving campaign
+  // content. They can review and resume them after Premium access is restored.
+  const restrictionResults = await Promise.allSettled(
+    restrictedCampaigns.map(({ id, userId }) => pauseCampaignForPremiumRestriction(id, userId)),
+  );
+
   const config = getMailCampaignDeliveryConfig();
   const budgets: Record<"gmail" | "microsoft" | "imap", number> = {
     gmail: opts?.perProviderBudget?.gmail ?? config.batchSize,
@@ -1246,11 +1330,14 @@ export async function processPendingMailCampaigns(opts?: {
   };
 
   const settled = await Promise.allSettled(
-    (campaigns || []).map((rawCampaign: unknown) => processSingleMailCampaign({ rawCampaign, config, budgets })),
+    premiumCampaigns.map((rawCampaign) => processSingleMailCampaign({ rawCampaign, config, budgets })),
   );
 
   const summary = emptyCampaignProcessSummary();
-  const errors: unknown[] = [];
+  summary.premiumRestricted = restrictedCampaigns.length;
+  const errors: unknown[] = restrictionResults.flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
   for (const result of settled) {
     if (result.status === "fulfilled") mergeCampaignProcessSummary(summary, result.value);
     else errors.push(result.reason);

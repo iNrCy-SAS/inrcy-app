@@ -5,6 +5,8 @@ import { sendTxMail } from "@/lib/txMailer";
 import { getInrcyBrandInlineAttachments, INRCY_EMAIL_LOGO_CID, INRCY_SIGNATURE_CID } from "@/lib/txEmailAssets";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { MailCampaignStatus } from "@/lib/crmCampaigns";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 type CampaignRow = Record<string, unknown>;
 
@@ -447,6 +449,10 @@ export async function sendMailCampaignCompletionSummary(campaignId: string, coun
 
   const userId = cleanText(campaign.user_id, 120);
   if (!userId) return { sent: false, skippedReason: "missing_user_id" };
+  const edition = await getDashboardEditionForAccountId(userId);
+  if (!hasPremiumDashboardAccess(edition)) {
+    return { sent: false, skippedReason: "premium_required" };
+  }
 
   const [profile, authUserResult] = await Promise.all([
     fetchProfile(userId),
@@ -494,6 +500,19 @@ export async function sendTrackedMailCampaignCompletionSummary(
 ) {
   const safeCampaignId = cleanText(campaignId, 120);
   if (!safeCampaignId) return { sent: false, skippedReason: "missing_campaign_id" };
+
+  const { data: campaignOwner, error: campaignOwnerError } = await supabaseAdmin
+    .from("mail_campaigns")
+    .select("user_id")
+    .eq("id", safeCampaignId)
+    .maybeSingle();
+  if (campaignOwnerError) throw campaignOwnerError;
+  const userId = cleanText(campaignOwner?.user_id, 120);
+  if (!userId) return { sent: false, skippedReason: "campaign_not_found" };
+  const edition = await getDashboardEditionForAccountId(userId);
+  if (!hasPremiumDashboardAccess(edition)) {
+    return { sent: false, skippedReason: "premium_required" };
+  }
 
   const claimed = await claimCompletionEmail(safeCampaignId, Boolean(options?.force));
   if (!claimed) return { sent: false, skippedReason: "completion_email_already_handled" };

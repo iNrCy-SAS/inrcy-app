@@ -5,6 +5,8 @@ import { buildNotificationDigestEmail, type NotificationDigestItem } from "@/lib
 import { optionalEnv } from "@/lib/env";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { defaultNotificationPreferences } from "@/lib/notifications";
+import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import {
   insertNotificationOnce,
   type NotificationInsertRow,
@@ -266,9 +268,13 @@ async function buildActionNotification(userId: string, digestHours: number) {
   });
 }
 
-async function buildInformationNotification(userId: string, digestHours: number) {
+async function buildInformationNotification(
+  userId: string,
+  digestHours: number,
+  edition: DashboardEdition,
+) {
   if (await hasRecentCategoryNotification(userId, "information", digestHours)) return null;
-  const [{ data: latest }, { data: integrations }, { data: crmContacts }] = await Promise.all([
+  const [{ data: latest }, { data: integrations }] = await Promise.all([
     supabaseAdmin
       .from("daily_metrics_summary")
       .select("connected_tools_count, demandes_captees_total, opportunites_activables_total, details")
@@ -281,20 +287,29 @@ async function buildInformationNotification(userId: string, digestHours: number)
       .select("provider, category, product, status")
       .eq("user_id", userId)
       .eq("status", "connected"),
-    supabaseAdmin
+  ]);
+
+  const premiumToolsAvailable = hasPremiumDashboardAccess(edition);
+  let latestCrmContactAt: Date | null = null;
+  if (premiumToolsAvailable) {
+    const { data: crmContacts } = await supabaseAdmin
       .from("crm_contacts")
       .select("id, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(1),
-  ]);
+      .limit(1);
+    latestCrmContactAt = Array.isArray(crmContacts) && crmContacts[0]?.created_at
+      ? new Date(String(crmContacts[0].created_at))
+      : null;
+  }
 
   const connectedTools = toInt(latest?.connected_tools_count);
   const demandes = toInt(latest?.demandes_captees_total);
   const opportunities = toInt(latest?.opportunites_activables_total);
   const connectedRows = (integrations ?? []) as IntegrationRow[];
-  const latestCrmContactAt = Array.isArray(crmContacts) && crmContacts[0]?.created_at ? new Date(String(crmContacts[0].created_at)) : null;
-  const crmLooksEmptyOrStale = !latestCrmContactAt || (Date.now() - latestCrmContactAt.getTime()) > 30 * 24 * 3600 * 1000;
+  const crmLooksEmptyOrStale = premiumToolsAvailable && (
+    !latestCrmContactAt || (Date.now() - latestCrmContactAt.getTime()) > 30 * 24 * 3600 * 1000
+  );
 
   const hasMail = connectedRows.some((row) => row.category === "mail");
   const hasSocial = connectedRows.some((row) => row.category === "social");
@@ -310,7 +325,7 @@ async function buildInformationNotification(userId: string, digestHours: number)
   let ctaUrl = connectedTools > 0 ? "/dashboard/gps" : "/dashboard";
   let kind = "cockpit_status";
 
-  if (crmLooksEmptyOrStale) {
+  if (premiumToolsAvailable && crmLooksEmptyOrStale) {
     title = latestCrmContactAt
       ? "Pensez à mettre votre CRM à jour"
       : "Votre CRM attend encore ses premiers contacts";
@@ -320,7 +335,7 @@ async function buildInformationNotification(userId: string, digestHours: number)
     ctaLabel = "Ouvrir le CRM";
     ctaUrl = "/dashboard/crm";
     kind = "crm_refresh";
-  } else if (hasSocial && !hasMail) {
+  } else if (premiumToolsAvailable && hasSocial && !hasMail) {
     title = "Votre visibilité tourne déjà, branchez maintenant la relance mail";
     body = `Vos canaux sociaux sont connectés. Ajouter une boîte mail dans iNr'Send vous permettra de relancer les opportunités entrantes sans quitter iNrCy.`;
     ctaLabel = "Ouvrir iNr'Send";
@@ -430,6 +445,21 @@ export async function GET(req: Request) {
     return defaultNotificationPreferences(userId);
   });
 
+  // Tier lookup failures stay fail-closed: missing entries receive only
+  // Standard-safe notifications rather than links to Premium tools.
+  const editionByUser = new Map<string, DashboardEdition>(
+    Array.from(userIds, (userId) => [userId, "standard"]),
+  );
+  const editionUserIds = Array.from(userIds);
+  try {
+    for (let offset = 0; offset < editionUserIds.length; offset += 100) {
+      const batch = await getDashboardEditionsForAccountIds(editionUserIds.slice(offset, offset + 100));
+      for (const [userId, edition] of batch) editionByUser.set(userId, edition);
+    }
+  } catch (editionError) {
+    console.error("[notifications] edition lookup failed; using Standard-safe content", editionError);
+  }
+
   let generated = 0;
   let emailed = 0;
   const errors: Array<{ user_id: string; message: string }> = [];
@@ -453,7 +483,11 @@ export async function GET(req: Request) {
         }
       }
       if (pref.information_enabled) {
-        const item = await buildInformationNotification(pref.user_id, hours);
+        const item = await buildInformationNotification(
+          pref.user_id,
+          hours,
+          editionByUser.get(pref.user_id) || "standard",
+        );
         if (item) {
           generated += 1;
           createdItems.push(item);
