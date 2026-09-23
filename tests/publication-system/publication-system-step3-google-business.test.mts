@@ -151,6 +151,46 @@ test("Google Business adapts only technical incompatibilities and never trims si
   }
 });
 
+test("Booster auto-prepares a dedicated 720p Google variant when original is technically too small", () => {
+  const decision = getGoogleBusinessVideoPreparationDecision({
+    name: "portrait-360x640.mp4",
+    type: "video/mp4",
+    storagePath: "portrait-360x640.mp4",
+    sizeBytes: 12 * MB,
+    durationSeconds: 18,
+    width: 360,
+    height: 640,
+    videoCodec: "h264",
+    audioCodec: "aac",
+    frameRate: 30,
+    hasAudio: true,
+    containerFormats: ["mov", "mp4"],
+    pixelFormat: "yuv420p",
+  });
+  assert.deepEqual(decision, {
+    action: "prepare",
+    reason: "resolution_requires_normalization",
+  });
+
+  const route = read("app/api/booster/publish-now/route.ts");
+  assert.match(
+    route,
+    /let requiresTechnicalGoogleBusinessVariant = false;/,
+  );
+  assert.match(
+    route,
+    /requiresTechnicalGoogleBusinessVariant\s*=\s*decision\.action === "prepare";/,
+  );
+  assert.match(
+    route,
+    /\(settings\?\.format \|\| "original"\) === "original"\s*&&\s*!requiresTechnicalGoogleBusinessVariant/,
+  );
+  assert.match(
+    route,
+    /publicationProfile: getVideoPublicationProfileForChannel\(channel as any\)/,
+  );
+});
+
 test("the Google transform signature is isolated from every other channel", () => {
   const common = buildVideoTransformSignature("original", "safe_frame");
   const google = buildVideoTransformSignature(

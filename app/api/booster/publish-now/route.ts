@@ -1431,6 +1431,7 @@ async function publishNowHandler(req: Request) {
             !preflightFailuresByChannel[channel],
         )
         .flatMap((channel) => {
+          let requiresTechnicalGoogleBusinessVariant = false;
           if (channel === "gmb") {
             const decision = getGoogleBusinessVideoPreparationDecision({
               name: publicationVideo?.name,
@@ -1456,9 +1457,14 @@ async function publishNowHandler(req: Request) {
               });
               return [];
             }
+            requiresTechnicalGoogleBusinessVariant =
+              decision.action === "prepare";
           }
           const settings = videoSettingsByChannel[channel];
-          if ((settings?.format || "original") === "original") {
+          if (
+            (settings?.format || "original") === "original" &&
+            !requiresTechnicalGoogleBusinessVariant
+          ) {
             const validation = validateVideoPublicationForChannel({
               channel,
               name: publicationVideo?.name || "video.mp4",
@@ -1484,8 +1490,10 @@ async function publishNowHandler(req: Request) {
                 retryable: false,
               });
             }
-            // Original signifie réellement original : aucune recherche de
-            // variante, aucun téléchargement et aucun FFmpeg au clic Publier.
+            // Original signifie réellement original pour tous les canaux dont
+            // la source est déjà publiable. Google Business constitue la seule
+            // exception technique : une source trop petite ou à normaliser est
+            // dérivée dans son profil isolé, sans modifier les autres canaux.
             return [];
           }
           return [{

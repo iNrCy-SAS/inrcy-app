@@ -75,6 +75,7 @@ import { normalizeImageOverlay } from "@/lib/imageOverlay";
 import { buildSiteImageInteractionMetadata } from "@/lib/imageInteractions";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
 import { reconcileInrSendVideoAttachment } from "@/lib/inrsend/publicationVideoAttachmentPolicy";
+import { prepareInrSendGoogleBusinessVideo } from "@/lib/inrsend/googleBusinessVideoPreparation";
 import {
   createPublicationImageUseGuard,
   removeCreatedPublicationImagePathsBestEffort,
@@ -3088,6 +3089,13 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           bucket: refreshedVideo.bucket || video.bucket,
           storagePath: refreshedVideo.storagePath || video.storagePath,
         };
+        if (channel === "gmb") {
+          video = await prepareInrSendGoogleBusinessVideo({
+            accountId: activeUserId,
+            video,
+            videoSettings: requestedVideoSettings,
+          });
+        }
       }
 
       const retainedImages = mediaType === "images"

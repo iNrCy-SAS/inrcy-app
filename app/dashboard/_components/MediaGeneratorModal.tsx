@@ -24,6 +24,10 @@ import MediaVideoRetoucher, {
   type MediaVideoRetoucherInitialContext,
   type MediaVideoRetoucherSavedValue,
 } from "./MediaVideoRetoucher";
+import {
+  canSwitchInrStudioMediaType,
+  isInrStudioTabUnavailable,
+} from "@/lib/inrStudioModalPolicy";
 
 import styles from "./MediaGeneratorModal.module.css";
 
@@ -36,6 +40,7 @@ type MediaGeneratorModalProps = {
   initialSource?: File | null;
   initialPreview?: MediaStudioInitialPreview | null;
   initialSourceLoading?: boolean;
+  initialSourceAvailable?: boolean;
   initialMediaType?: "image" | "video";
   initialVideoContext?: MediaVideoRetoucherInitialContext | null;
   publicationBrief?: string;
@@ -70,6 +75,7 @@ export default function MediaGeneratorModal({
   initialSource = null,
   initialPreview = null,
   initialSourceLoading = false,
+  initialSourceAvailable,
   initialMediaType = "image",
   initialVideoContext = null,
   publicationBrief = "",
@@ -113,6 +119,9 @@ export default function MediaGeneratorModal({
   const hasExternalHandoff = Boolean(
     handoffOriginLabel && onAbandonHandoff
   );
+  const hasSourceMedia =
+    initialSourceAvailable ??
+    Boolean(initialSource || initialPreview || initialSourceLoading);
   const studioWordmark = t("ai_generator_made_inrcy");
   const activeMediaType = mediaTypeByTab[studioTab];
 
@@ -159,19 +168,33 @@ export default function MediaGeneratorModal({
   const requestStudioTab = useCallback(
     (tab: MediaGeneratorStudioMode) => {
       if (tab === studioTab || locked || hasPendingWork) return;
+      if (
+        isInrStudioTabUnavailable(tab, {
+          hasExternalHandoff,
+          hasSourceMedia,
+        })
+      ) {
+        return;
+      }
       if (hasExternalHandoff) {
         setCloseConfirmOpen(true);
         return;
       }
       setStudioTab(tab);
     },
-    [hasExternalHandoff, hasPendingWork, locked, studioTab]
+    [
+      hasExternalHandoff,
+      hasPendingWork,
+      hasSourceMedia,
+      locked,
+      studioTab,
+    ]
   );
 
   const requestMediaType = useCallback(
     (mediaType: StudioMediaType) => {
       if (mediaType === activeMediaType || locked || hasPendingWork) return;
-      if (hasExternalHandoff) {
+      if (!canSwitchInrStudioMediaType(studioTab, hasExternalHandoff)) {
         setCloseConfirmOpen(true);
         return;
       }
@@ -398,19 +421,26 @@ export default function MediaGeneratorModal({
                   ["modify", "ai_generator_studio_tab_modify"],
                   ["retouch", "ai_generator_studio_tab_retouch"],
                 ] as const
-              ).map(([tab, labelKey]) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={styles.studioTab}
-                  data-studio-tab={tab}
-                  data-active={studioTab === tab ? "true" : "false"}
-                  disabled={locked || hasPendingWork}
-                  onClick={() => requestStudioTab(tab)}
-                >
-                  {t(labelKey)}
-                </button>
-              ))}
+              ).map(([tab, labelKey]) => {
+                const unavailable = isInrStudioTabUnavailable(tab, {
+                  hasExternalHandoff,
+                  hasSourceMedia,
+                });
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    className={styles.studioTab}
+                    data-studio-tab={tab}
+                    data-active={studioTab === tab ? "true" : "false"}
+                    data-source-required={unavailable ? "true" : undefined}
+                    disabled={locked || hasPendingWork || unavailable}
+                    onClick={() => requestStudioTab(tab)}
+                  >
+                    {t(labelKey)}
+                  </button>
+                );
+              })}
             </nav>
             <div
               className={styles.mediaTypeTabs}

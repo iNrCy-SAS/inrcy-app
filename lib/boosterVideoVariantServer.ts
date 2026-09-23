@@ -713,10 +713,18 @@ export async function probeStoredBoosterVideoForPublication(params: {
       throw new Error("video_fallback_public_url_unavailable");
     }
   }
+  const attestedSizeBytes =
+    positiveProbeNumber(registryRow?.size_bytes) ??
+    (await readStoredBoosterVideoSize(
+      authorization.bucket,
+      authorization.storagePath,
+    ));
+  if (!attestedSizeBytes) throw new Error("video_fallback_size_unavailable");
   const persisted = readPersistedBoosterVideoProbe(registryRow);
   if (persisted) {
     return {
       ...persisted,
+      sizeBytes: attestedSizeBytes,
       bucket: authorization.bucket,
       storagePath: authorization.storagePath,
       publicUrl,
@@ -725,16 +733,9 @@ export async function probeStoredBoosterVideoForPublication(params: {
     };
   }
 
-  const expectedSizeBytes =
-    positiveProbeNumber(registryRow?.size_bytes) ??
-    (await readStoredBoosterVideoSize(
-      authorization.bucket,
-      authorization.storagePath,
-    ));
-  if (!expectedSizeBytes) throw new Error("video_fallback_size_unavailable");
   await verifyRemoteBoosterVideoProbeTransport({
     publicUrl,
-    expectedSizeBytes,
+    expectedSizeBytes: attestedSizeBytes,
   });
 
   // FFprobe/FFmpeg lit l'URL Storage avec des seeks HTTP. Pour un MP4 de
@@ -755,6 +756,7 @@ export async function probeStoredBoosterVideoForPublication(params: {
 
   return {
     ...probed,
+    sizeBytes: attestedSizeBytes,
     bucket: authorization.bucket,
     storagePath: authorization.storagePath,
     publicUrl,
