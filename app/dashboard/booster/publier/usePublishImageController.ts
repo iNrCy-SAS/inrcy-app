@@ -66,6 +66,7 @@ import {
 } from "./imageChannelAssignment";
 import { extendBoosterChannelImageSelectionForGlobalAdd } from "@/lib/boosterChannelImageSelection";
 import { hasImageOverlay, normalizeImageOverlay } from "@/lib/imageOverlay";
+import { normalizeImageInteractions, withMediaImageInteractions, type ImageInteractions } from "@/lib/imageInteractions";
 
 function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
   const safeName = String(file.name || "Image")
@@ -435,6 +436,7 @@ export default function usePublishImageController({
   const addImageFiles = async (
     pickedFiles: File[],
     targetChannel?: ChannelKey,
+    transferredMetadata: readonly unknown[] = [],
   ) => {
     if (!pickedFiles.length) return false;
     setImgError("");
@@ -517,7 +519,10 @@ export default function usePublishImageController({
     );
     const nextMetaEntries = insertableFiles.map(
       (file, index) =>
-        [makeImageKey(file), presentations[index].meta] as const,
+        [makeImageKey(file), withMediaImageInteractions(
+          presentations[index].meta,
+          transferredMetadata[pickedFiles.indexOf(file)],
+        )] as const,
     );
     const nextPreviews = [
       ...imagePreviews,
@@ -631,7 +636,7 @@ export default function usePublishImageController({
     return true;
   };
 
-  const replaceImageFile = async (imageKey: string, replacement: File) => {
+  const replaceImageFile = async (imageKey: string, replacement: File, transferredMetadata?: unknown) => {
     const imageIndex = images.findIndex(
       (candidate) => makeImageKey(candidate) === imageKey,
     );
@@ -678,7 +683,7 @@ export default function usePublishImageController({
 
     const nextMetaByKey = { ...imageMetaByKey };
     delete nextMetaByKey[imageKey];
-    nextMetaByKey[replacementKey] = presentation.meta;
+    nextMetaByKey[replacementKey] = withMediaImageInteractions(presentation.meta, transferredMetadata);
     const nextPoolKeys = nextFiles.map((file) => makeImageKey(file));
 
     setImages(nextFiles);
@@ -905,6 +910,7 @@ export default function usePublishImageController({
       lastModified?: number;
       storagePath?: string;
       publicUrl?: string;
+      image_interactions?: ImageInteractions;
     }> = [];
     for (let index = 0; index < images.length; index += 1) {
       const file = images[index];
@@ -921,12 +927,13 @@ export default function usePublishImageController({
         lastModified: file.lastModified,
         storagePath: stored.storagePath,
         publicUrl: stored.publicUrl,
+        image_interactions: imageMetaByKey[makeImageKey(file)]?.interactions,
       });
     }
     return uploaded;
   }
 
-  async function restorePublicationDraftImages(imageDrafts: any[]) {
+  async function restorePublicationDraftImages(imageDrafts: any[], interactionsByKey?: Record<string, unknown>) {
     const restoredFiles: File[] = [];
     const restoredPreviews: string[] = [];
     const restoredMeta: Record<string, ImageMeta> = {};
@@ -948,7 +955,11 @@ export default function usePublishImageController({
         const presentation = await buildLocalImagePresentation(file, i18nT("image_preview_prepared_server"));
         restoredFiles.push(file);
         restoredPreviews.push(presentation.preview);
-        restoredMeta[key] = presentation.meta;
+        restoredMeta[key] = withMediaImageInteractions(presentation.meta, {
+          ...image,
+          image_interactions: normalizeImageInteractions(image?.image_interactions)
+            || normalizeImageInteractions(interactionsByKey?.[key]),
+        });
       } catch {
         // Une ancienne image de brouillon peut ne plus être disponible : on recharge le reste du brouillon.
       }
@@ -1655,6 +1666,7 @@ export default function usePublishImageController({
               displayPlan.decision.targetRatio,
             ),
             channel,
+            imageMeta,
           });
         } else {
           outputTransform = currentTransform;
@@ -1667,6 +1679,7 @@ export default function usePublishImageController({
             transform: currentTransform,
             preset: customizedPreset,
             channel,
+            imageMeta,
           });
           actualCustomizedImageKeys.push(imageKey);
         }
@@ -1676,7 +1689,7 @@ export default function usePublishImageController({
           ...payload,
           imageKey,
           transform: { ...outputTransform },
-          imageMeta,
+          imageMeta: payload.imageMeta || imageMeta,
           imageDecisionMode: displayPlan.decision.mode,
           imageDecisionLabel: displayPlan.decision.label,
           isCustomized: displayPlan.decision.mode === "customized",

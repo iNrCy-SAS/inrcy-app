@@ -1,4 +1,5 @@
 import type { BoosterCtaMode } from "../../booster/publier/publishModal.shared";
+import type { ImageInteractions } from "@/lib/imageInteractions";
 import type {
   InrAgentFrequency,
   InrAgentPreferredMediaSource,
@@ -238,6 +239,9 @@ export type AgentMediaLibraryItem = {
   height: number | null;
   duration_seconds: number | null;
   signed_url: string | null;
+  /** Link targets for text already rasterized by iNrStudio. */
+  image_interactions?: ImageInteractions;
+  media_metadata?: Record<string, unknown> | null;
 };
 
 export type CampaignAttachmentPreview = {

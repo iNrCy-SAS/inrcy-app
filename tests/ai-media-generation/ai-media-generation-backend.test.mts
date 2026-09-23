@@ -615,13 +615,14 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   assert.equal(professionalImage.inspirationImages.length, 1);
 });
 
-test("les dix bandes-son originales sont déterministes et durent exactement huit secondes", () => {
+test("les 24 univers musicaux possèdent chacun des versions natives de 8, 16 et 24 secondes", () => {
   const manifest = JSON.parse(
     read("assets/media-generation/soundtracks/manifest.json")
   ) as {
     generatedBy: string;
     tracks: Array<{
       id: string;
+      soundtrackId: string;
       fileName: string;
       durationSeconds: number;
       sha256: string;
@@ -630,14 +631,60 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
     }>;
   };
 
-  assert.equal(AI_MEDIA_SOUNDTRACKS.length, 10);
-  assert.equal(new Set(AI_MEDIA_SOUNDTRACKS.map((item) => item.id)).size, 10);
+  assert.equal(AI_MEDIA_SOUNDTRACKS.length, 24);
+  assert.equal(new Set(AI_MEDIA_SOUNDTRACKS.map((item) => item.id)).size, 24);
   assert.equal(manifest.generatedBy, "inrcy-procedural-synth");
-  assert.equal(manifest.tracks.length, 10);
-  assert.equal(
-    selectAiMediaSoundtrack("atelier artisan savoir-faire").id,
-    selectAiMediaSoundtrack("atelier artisan savoir-faire").id
+  assert.equal(manifest.tracks.length, 72);
+  assert.equal(new Set(manifest.tracks.map((track) => track.id)).size, 72);
+  assert.equal(new Set(manifest.tracks.map((track) => track.sha256)).size, 72);
+  assert.deepEqual(
+    Array.from(
+      manifest.tracks.reduce((counts, track) => {
+        counts.set(
+          track.durationSeconds,
+          (counts.get(track.durationSeconds) || 0) + 1,
+        );
+        return counts;
+      }, new Map<number, number>()),
+    ),
+    [
+      [8, 24],
+      [16, 24],
+      [24, 24],
+    ],
   );
+  for (const soundtrackId of AI_MEDIA_SOUNDTRACKS.map((item) => item.id)) {
+    assert.deepEqual(
+      manifest.tracks
+        .filter((track) => track.soundtrackId === soundtrackId)
+        .map((track) => track.durationSeconds),
+      [8, 16, 24],
+    );
+  }
+  assert.equal(
+    selectAiMediaSoundtrack("atelier artisan savoir-faire", {
+      selectionKey: "generation-stable",
+    }).id,
+    selectAiMediaSoundtrack("atelier artisan savoir-faire", {
+      selectionKey: "generation-stable",
+    }).id,
+  );
+  const variedWorkshopTracks = new Set(
+    Array.from({ length: 16 }, (_, index) =>
+      selectAiMediaSoundtrack("atelier artisan savoir-faire", {
+        selectionKey: `generation-${index}`,
+      }).id,
+    ),
+  );
+  assert.ok(variedWorkshopTracks.size >= 2);
+  const previousTrack = selectAiMediaSoundtrack("innovation digitale moderne", {
+    selectionKey: "account-job",
+  });
+  const rotatedTrack = selectAiMediaSoundtrack("innovation digitale moderne", {
+    selectionKey: "account-job",
+    excludedIds: [previousTrack.id],
+  });
+  assert.notEqual(rotatedTrack.id, previousTrack.id);
 
   for (const track of manifest.tracks) {
     const buffer = readFileSync(
@@ -650,8 +697,7 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
     const bitsPerSample = buffer.readUInt16LE(34);
     const dataBytes = buffer.readUInt32LE(40);
     const duration = dataBytes / (sampleRate * channels * (bitsPerSample / 8));
-    assert.equal(duration, 8);
-    assert.equal(track.durationSeconds, 8);
+    assert.equal(duration, track.durationSeconds);
     assert.equal(track.sizeBytes, buffer.byteLength);
     assert.equal(track.license, "inrcy-original-procedural-v1");
     assert.equal(
@@ -659,6 +705,24 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
       createHash("sha256").update(buffer).digest("hex")
     );
   }
+});
+
+test("la rotation musicale est propre à chaque génération et évite l'historique du compte", () => {
+  const server = read("lib/aiMediaGenerationServer.ts");
+  const motionVideo = read("lib/instagramImageMotionVideo.ts");
+
+  assert.match(server, /from\("ai_media_generation_jobs"\)/);
+  assert.match(server, /eq\("account_id", args\.accountId\)/);
+  assert.match(server, /eq\("media_kind", "video"\)/);
+  assert.match(server, /limit: 8/);
+  assert.match(server, /selectionKey: `\$\{args\.accountId\}:\$\{args\.jobId\}`/);
+  assert.match(server, /excludedIds: recentSoundtrackIds/);
+  assert.match(server, /durationSeconds,/);
+  assert.match(
+    motionVideo,
+    /selectionKey: `\$\{args\.accountId\}:\$\{args\.publicationId\}:\$\{args\.placement\}`/,
+  );
+  assert.match(motionVideo, /durationSeconds: OUTPUT_DURATION_SECONDS/);
 });
 
 test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée et le logo officiel", () => {

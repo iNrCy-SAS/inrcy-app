@@ -41,6 +41,22 @@ export type ImageOverlay = ImageOverlayItem & {
   items?: ImageOverlayItem[];
 };
 
+export type ImageOverlayLinkHotspot = {
+  url: string;
+  label: string;
+  /**
+   * Les anciennes retouches ne stockaient pas toujours les quatre valeurs de
+   * géométrie. Dans ce cas, le rendu web conserve le lien historique sur toute
+   * l'image au lieu d'inventer une zone qui ne correspondrait pas au visuel.
+   */
+  geometry?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
 export const MAX_IMAGE_OVERLAY_ITEMS = 6;
 
 function clampPercentage(value: number) {
@@ -218,4 +234,41 @@ export function getImageOverlayLinkUrl(value: unknown) {
     if (safeUrl) return safeUrl;
   }
   return "";
+}
+
+export function getImageOverlayLinkHotspots(
+  value: unknown,
+): ImageOverlayLinkHotspot[] {
+  return getImageOverlayItems(value).flatMap((item) => {
+    const label = String(item.text || "").trim();
+    const url = label ? safeHttpUrl(item.linkUrl) : undefined;
+    if (!url) return [];
+
+    const hasPreciseGeometry =
+      typeof item.x === "number" &&
+      Number.isFinite(item.x) &&
+      typeof item.y === "number" &&
+      Number.isFinite(item.y) &&
+      typeof item.width === "number" &&
+      Number.isFinite(item.width) &&
+      typeof item.height === "number" &&
+      Number.isFinite(item.height);
+
+    return [
+      {
+        url,
+        label,
+        ...(hasPreciseGeometry
+          ? {
+              geometry: {
+                x: item.x as number,
+                y: item.y as number,
+                width: item.width as number,
+                height: item.height as number,
+              },
+            }
+          : {}),
+      },
+    ];
+  });
 }

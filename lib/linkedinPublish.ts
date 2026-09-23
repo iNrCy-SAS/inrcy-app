@@ -60,6 +60,21 @@ function linkedInHeaders(accessToken: string, extra: Record<string, string> = {}
   };
 }
 
+function linkedInContentDestination(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return {};
+    return {
+      contentLandingPage: parsed.toString(),
+      contentCallToActionLabel: "LEARN_MORE",
+    };
+  } catch {
+    return {};
+  }
+}
+
 async function fetchImageBlob(imageUrl: string): Promise<Blob> {
   if (imageUrl.startsWith("data:")) {
     const m = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
@@ -256,8 +271,9 @@ export async function linkedinPublishImage(params: {
   imageUrl: string;
   visibility?: "PUBLIC" | "CONNECTIONS";
   title?: string;
+  landingPageUrl?: string;
 }): Promise<LinkedInPublishResult> {
-  const { accessToken, authorUrn, text, imageUrl, visibility = "PUBLIC", title } = params;
+  const { accessToken, authorUrn, text, imageUrl, visibility = "PUBLIC", title, landingPageUrl } = params;
 
   try {
     if (!accessToken) return { ok: false, error: "Connexion LinkedIn invalide." };
@@ -283,6 +299,7 @@ export async function linkedinPublishImage(params: {
             id: uploaded.imageUrn,
           },
         },
+        ...linkedInContentDestination(landingPageUrl),
         lifecycleState: "PUBLISHED",
         isReshareDisabledByAuthor: false,
       },
@@ -334,8 +351,9 @@ export async function linkedinPublishMultiImage(params: {
   imageUrls: string[];
   visibility?: "PUBLIC" | "CONNECTIONS";
   title?: string;
+  landingPageUrl?: string;
 }): Promise<LinkedInPublishResult> {
-  const { accessToken, authorUrn, text, visibility = "PUBLIC", title } = params;
+  const { accessToken, authorUrn, text, visibility = "PUBLIC", title, landingPageUrl } = params;
   const imageUrls = (params.imageUrls || []).map((x) => String(x || "").trim()).filter(Boolean).slice(0, 20);
 
   try {
@@ -343,7 +361,7 @@ export async function linkedinPublishMultiImage(params: {
     if (!authorUrn) return { ok: false, error: "Compte LinkedIn invalide." };
     if (!text?.trim()) return { ok: false, error: "Le contenu de la publication est vide." };
     if (imageUrls.length === 0) return linkedinPublishText({ accessToken, authorUrn, text, visibility });
-    if (imageUrls.length === 1) return linkedinPublishImage({ accessToken, authorUrn, text, imageUrl: imageUrls[0], visibility, title });
+    if (imageUrls.length === 1) return linkedinPublishImage({ accessToken, authorUrn, text, imageUrl: imageUrls[0], visibility, title, landingPageUrl });
 
     const uploadedImages = [] as Array<{
       imageUrn: string;
@@ -424,6 +442,7 @@ export async function linkedinPublishMultiImage(params: {
                   })),
                 },
               },
+        ...linkedInContentDestination(landingPageUrl),
         lifecycleState: "PUBLISHED",
         isReshareDisabledByAuthor: false,
       },
@@ -917,8 +936,9 @@ export async function linkedinPublishVideo(params: {
   videoUrl: string;
   visibility?: "PUBLIC" | "CONNECTIONS";
   title?: string;
+  landingPageUrl?: string;
 }): Promise<LinkedInPublishResult> {
-  const { accessToken, authorUrn, text, videoUrl, visibility = "PUBLIC", title } = params;
+  const { accessToken, authorUrn, text, videoUrl, visibility = "PUBLIC", title, landingPageUrl } = params;
 
   try {
     if (!accessToken) return { ok: false, error: "Connexion LinkedIn invalide." };
@@ -944,6 +964,7 @@ export async function linkedinPublishVideo(params: {
             title: title || undefined,
           },
         },
+        ...linkedInContentDestination(landingPageUrl),
         lifecycleState: "PUBLISHED",
         isReshareDisabledByAuthor: false,
       },

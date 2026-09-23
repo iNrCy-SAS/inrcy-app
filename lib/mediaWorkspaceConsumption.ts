@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { getMediaImageInteractions, normalizeImageInteractions, type ImageInteractions } from "@/lib/imageInteractions";
 import sharp from "sharp";
 import { normalizeImageBuffer } from "@/lib/mediaImageNormalizer";
 import {
@@ -124,6 +125,7 @@ export type WorkspacePublicationImage = {
     width: number;
     height: number;
     ratio: number;
+    interactions?: ImageInteractions;
   };
 };
 
@@ -1186,6 +1188,9 @@ export async function resolveWorkspacePublicationConsumption(params: {
       AI_PROVIDER_SAFE_CONCURRENCY,
       async (item) => {
         const sourceMetadata = sourceMetadataForMedia(item);
+        const interactions = normalizeImageInteractions(sourceMetadata.interactions)
+          || normalizeImageInteractions(asObject(sourceMetadata.source_metadata).interactions)
+          || getMediaImageInteractions({ media_metadata: item.mediaMetadata });
         const sourceWidth = positiveMetadataNumber(sourceMetadata.width);
         const sourceHeight = positiveMetadataNumber(sourceMetadata.height);
         if (
@@ -1212,6 +1217,7 @@ export async function resolveWorkspacePublicationConsumption(params: {
               width: sourceWidth,
               height: sourceHeight,
               ratio: sourceWidth / sourceHeight,
+              ...(interactions ? { interactions } : {}),
             },
           };
         }
@@ -1254,6 +1260,7 @@ export async function resolveWorkspacePublicationConsumption(params: {
                   width: canonical.width,
                   height: canonical.height,
                   ratio: canonical.width / canonical.height,
+                  ...(interactions ? { interactions } : {}),
                 },
               }
             : {}),

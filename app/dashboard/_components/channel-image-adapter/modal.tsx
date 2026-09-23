@@ -876,7 +876,9 @@ export function ChannelImageAdapterModal({
                       <button type="button" className={buttonClassName} aria-pressed={Boolean(activeOverlay.italic)} onClick={() => updateOverlay({ italic: !activeOverlay.italic })} style={{ minHeight: 34, justifyContent: "center", fontStyle: "italic", borderColor: activeOverlay.italic ? "rgba(76,195,255,0.55)" : undefined }}>I</button>
                       <button type="button" className={buttonClassName} aria-pressed={Boolean(activeOverlay.underline)} onClick={() => updateOverlay({ underline: !activeOverlay.underline })} style={{ minHeight: 34, justifyContent: "center", textDecoration: "underline", borderColor: activeOverlay.underline ? "rgba(76,195,255,0.55)" : undefined }}>U</button>
                     </div>
-                    <small style={{ opacity: 0.62, lineHeight: 1.35 }}>Le lien appartient uniquement à ce bloc. Déplacez-le et redimensionnez-le directement sur le visuel.</small>
+                    <small style={{ opacity: 0.68, lineHeight: 1.35 }}>
+                      Sur iNrCy et Site web, ce bloc reste cliquable à cet emplacement. Sur les réseaux qui acceptent une destination, le premier lien du média devient le lien de la publication. Instagram, TikTok, X et YouTube Shorts ne rendent pas ce lien cliquable dans ce parcours API.
+                    </small>
                   </div>
                 ) : null}
               </div>

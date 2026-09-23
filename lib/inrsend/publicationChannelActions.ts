@@ -23,7 +23,16 @@ import {
 import { optimizeForGoogleBusiness, optimizeForInstagram, optimizeForSiteCard, optimizeForSocialFeed } from "@/lib/imageOptimizer";
 import { createHash, randomUUID } from "crypto";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
-import { buildBoosterGmbSummary, buildBoosterHashtagLine, buildBoosterInstagramCaption, buildBoosterMessage, buildCtaTextForChannel, getBoosterCtaDestinationUrlForChannel, getBoosterGmbCallToAction } from "@/lib/boosterCta";
+import {
+  buildBoosterGmbSummary,
+  buildBoosterHashtagLine,
+  buildBoosterInstagramCaption,
+  buildBoosterMessage,
+  buildBoosterNativeDestinationMessage,
+  buildCtaTextForChannel,
+  getBoosterCtaDestinationUrlForChannel,
+  getBoosterGmbCallToAction,
+} from "@/lib/boosterCta";
 import {
   getPreferredWebsiteUrlForChannel,
   type BoosterCtaDefaults,
@@ -58,6 +67,12 @@ import { deleteXPost } from "@/lib/xPublish";
 import { validateXUrlFreeText } from "@/lib/xChannel";
 import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
 import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
+import {
+  applyImageInteractionCtaFallback,
+  getPrimaryImageInteractionLink,
+} from "@/lib/boosterImageInteractionCta";
+import { normalizeImageOverlay } from "@/lib/imageOverlay";
+import { buildSiteImageInteractionMetadata } from "@/lib/imageInteractions";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
 import { reconcileInrSendVideoAttachment } from "@/lib/inrsend/publicationVideoAttachmentPolicy";
 import {
@@ -222,6 +237,23 @@ type PersistedVideoAttachment = {
 
 function asRecord(v: unknown): JsonRecord {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as JsonRecord) : {};
+}
+
+function isFacebookStoryOnlyPublication(eventPayload: JsonRecord) {
+  const settings = asRecord(eventPayload.facebookPublicationSettings);
+  const placement = String(settings.placement || settings.mode || "")
+    .trim()
+    .toLowerCase();
+  if (placement === "story" || placement === "stories") return true;
+  const placements = Array.isArray(settings.placements)
+    ? settings.placements
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+  return (
+    placements.length > 0 &&
+    placements.every((value) => value === "story" || value === "stories")
+  );
 }
 
 function normalizeHashtag(input: string): string {
@@ -1539,6 +1571,43 @@ async function replaceChannelDelivery(params: {
       expectedCount: expectedSiteImages,
       publishedCount: siteImages.length,
     });
+    const siteAttachments = (resolvedImageSet.editableAttachments || []).slice(
+      0,
+      siteImages.length,
+    );
+    const siteImageKeys = siteAttachments.map((attachment) => attachment.imageKey);
+    const siteImageInteractions = buildSiteImageInteractionMetadata(
+      siteAttachments,
+      siteImageKeys,
+      siteImages.length,
+    );
+    const siteImageOverlays = Array.from(
+      { length: siteImages.length },
+      (_, index) => {
+        const attachment = siteAttachments[index];
+        const overlay = normalizeImageOverlay(
+          asRecord(attachment?.transform).overlay,
+        );
+        return overlay
+          ? { imageKey: String(attachment?.imageKey || "").trim() || null, overlay }
+          : null;
+      },
+    );
+    const imageMediaMetadata = {
+      ...asRecord(publication.media_metadata),
+    };
+    delete imageMediaMetadata.imageInteractions;
+    delete imageMediaMetadata.image_interactions;
+    delete imageMediaMetadata.imageOverlays;
+    delete imageMediaMetadata.image_overlays;
+    if (siteImageInteractions.some(Boolean)) {
+      imageMediaMetadata.imageInteractions = siteImageInteractions;
+    }
+    if (siteImageOverlays.some(Boolean)) {
+      // Keep index holes so a retained legacy overlay cannot move to a
+      // different image after an iNrSend edit.
+      imageMediaMetadata.imageOverlays = siteImageOverlays;
+    }
     // The database write may commit even if its response is lost. From this
     // exact point, the new image URLs must be treated as referenced.
     markAssetsMayBeInUse();
@@ -1550,16 +1619,18 @@ async function replaceChannelDelivery(params: {
         cta: buildCtaTextForChannel(channel, nextPost, { websiteUrl, phone }),
         hashtags: nextPost.hashtags,
         images: siteImages,
-        ...(isVideoPublication && video ? {
-          media_type: "video",
-          video_url: video.publicUrl,
-          video_path: video.storagePath,
-          video_mime: video.type,
-          video_size: video.size,
-          video_duration_seconds: video.duration,
-          video_thumbnail_url: video.thumbnailUrl,
-          media_metadata: { video },
-        } : {}),
+        ...(isVideoPublication && video
+          ? {
+              media_type: "video",
+              video_url: video.publicUrl,
+              video_path: video.storagePath,
+              video_mime: video.type,
+              video_size: video.size,
+              video_duration_seconds: video.duration,
+              video_thumbnail_url: video.thumbnailUrl,
+              media_metadata: { video },
+            }
+          : { media_metadata: imageMediaMetadata }),
       })
       .eq("id", previousExternalId || "")
       .eq("user_id", userId)
@@ -1876,6 +1947,16 @@ async function replaceChannelDelivery(params: {
       throw new Error(linkedInUserError);
     }
     const linkedInImages = socialFeedImageUrls.filter(Boolean).slice(0, 20);
+    const linkedInLandingPageUrl =
+      getBoosterCtaDestinationUrlForChannel("linkedin", nextPost, {
+        websiteUrl,
+        phone,
+      }) || undefined;
+    const linkedInMediaMessage = buildBoosterNativeDestinationMessage(
+      "linkedin",
+      nextPost,
+      { websiteUrl, phone },
+    );
     const expectedLinkedInImageCount = isVideoPublication
       ? 0
       : getExpectedImageCount(resolvedImageSet, 20);
@@ -1883,13 +1964,34 @@ async function replaceChannelDelivery(params: {
     let resp: Awaited<ReturnType<typeof linkedinPublishText>>;
     if (isVideoPublication && videoUrl) {
       markAssetsMayBeInUse();
-      resp = await linkedinPublishVideo({ accessToken, authorUrn, text: canonMessage, videoUrl, title: nextPost.title || undefined });
+      resp = await linkedinPublishVideo({
+        accessToken,
+        authorUrn,
+        text: linkedInMediaMessage,
+        videoUrl,
+        title: nextPost.title || undefined,
+        landingPageUrl: linkedInLandingPageUrl,
+      });
     } else if (linkedInImages.length > 1) {
       markAssetsMayBeInUse();
-      resp = await linkedinPublishMultiImage({ accessToken, authorUrn, text: canonMessage, imageUrls: linkedInImages, title: nextPost.title || undefined });
+      resp = await linkedinPublishMultiImage({
+        accessToken,
+        authorUrn,
+        text: linkedInMediaMessage,
+        imageUrls: linkedInImages,
+        title: nextPost.title || undefined,
+        landingPageUrl: linkedInLandingPageUrl,
+      });
     } else if (linkedInImages[0]) {
       markAssetsMayBeInUse();
-      resp = await linkedinPublishImage({ accessToken, authorUrn, text: canonMessage, imageUrl: linkedInImages[0], title: nextPost.title || undefined });
+      resp = await linkedinPublishImage({
+        accessToken,
+        authorUrn,
+        text: linkedInMediaMessage,
+        imageUrl: linkedInImages[0],
+        title: nextPost.title || undefined,
+        landingPageUrl: linkedInLandingPageUrl,
+      });
     } else {
       resp = await linkedinPublishText({ accessToken, authorUrn, text: canonMessage });
     }
@@ -2337,8 +2439,20 @@ async function replaceChannelDelivery(params: {
     const boardId = String(channelResult.board_id || "").trim();
     if (!boardId) throw new Error("Tableau Pinterest introuvable. Configurez Pinterest puis réessayez.");
 
-    const tagLine = buildBoosterHashtagLine(nextPost, canonMessage, 8);
-    const description = [canonMessage, tagLine].filter(Boolean).join("\n\n").slice(0, 500);
+    const pinterestNativeMessage = buildBoosterNativeDestinationMessage(
+      "pinterest",
+      nextPost,
+      { websiteUrl, phone },
+    );
+    const tagLine = buildBoosterHashtagLine(
+      nextPost,
+      pinterestNativeMessage,
+      8,
+    );
+    const description = [pinterestNativeMessage, tagLine]
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, 500);
     const link =
       getBoosterCtaDestinationUrlForChannel("pinterest", nextPost, {
         websiteUrl,
@@ -3022,6 +3136,20 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             newImages,
           })
         : null;
+      const imageInteractionLink =
+        mediaType === "images"
+          ? getPrimaryImageInteractionLink(imageSet?.editableAttachments || [])
+          : null;
+      const facebookStoryLinkUnsupported = Boolean(
+        channel === "facebook" &&
+          isFacebookStoryOnlyPublication(ctx.eventPayload) &&
+          imageInteractionLink,
+      );
+      const interactionAwarePost = applyImageInteractionCtaFallback(
+        channel,
+        nextPost,
+        facebookStoryLinkUnsupported ? null : imageInteractionLink,
+      );
       unpersistedCreatedStoragePaths = imageSet?.createdStoragePaths || [];
 
       const previousExternalId = String(body.externalId ?? channelResult.external_id ?? "").trim() || null;
@@ -3032,18 +3160,29 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         previousExternalId,
         publication: ctx.publication,
         eventPayload: ctx.eventPayload,
-        nextPost,
+        nextPost: interactionAwarePost,
         mediaType,
         video,
         imageSet,
         onAssetsMayBeInUse: imageUseGuard.markAssetsMayBeInUse,
       });
 
+      const replaceWarning = String(
+        (replaceResult as JsonRecord).warning || "",
+      ).trim();
+      const replaceWarningMessage = String(
+        (replaceResult as JsonRecord).warningMessage ||
+          replaceResult.error ||
+          "",
+      ).trim();
+      const facebookStoryLinkWarningMessage = facebookStoryLinkUnsupported
+        ? "Le texte du lien reste visible, mais l’API Facebook ne permet pas d’ajouter un sticker Lien cliquable à une Story. Ajoutez ce sticker dans Facebook après publication."
+        : "";
       const nextPayload = buildUpdatedPayload({
         eventPayload: ctx.eventPayload,
         publication: ctx.publication,
         channel,
-        nextPost,
+        nextPost: interactionAwarePost,
         externalId: replaceResult.externalId,
         mediaType,
         video,
@@ -3051,8 +3190,14 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         instagramMeta: asRecord((replaceResult as JsonRecord).instagramMeta),
         tiktokMeta: asRecord((replaceResult as JsonRecord).tiktokMeta),
         pinterestMeta: asRecord((replaceResult as JsonRecord).pinterestMeta),
-        warning: String((replaceResult as JsonRecord).warning || "").trim() || null,
-        warningMessage: String((replaceResult as JsonRecord).warningMessage || replaceResult.error || "").trim() || null,
+        warning:
+          (facebookStoryLinkUnsupported
+            ? "facebook_story_link_sticker_required"
+            : replaceWarning) || null,
+        warningMessage:
+          [replaceWarningMessage, facebookStoryLinkWarningMessage]
+            .filter(Boolean)
+            .join(" ") || null,
         resultMeta: {
           ...((replaceResult as JsonRecord).mediaRepaired
             ? { media_repaired: true }

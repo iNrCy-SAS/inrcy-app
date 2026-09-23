@@ -412,6 +412,7 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
   const uploadedBodies: unknown[] = [];
   let initializedFileSize = 0;
   let finalizedPartIds: unknown = null;
+  let createdPost: UnknownRecord = {};
   const previousFetch = globalThis.fetch;
 
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -467,6 +468,7 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
       return jsonResponse({ status: "AVAILABLE" });
     }
     if (url.includes("/rest/posts") && method === "POST") {
+      createdPost = JSON.parse(String(init?.body)) as UnknownRecord;
       return jsonResponse(
         { id: "urn:li:share:test-75" },
         201,
@@ -483,8 +485,11 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
       text: "Publication LinkedIn",
       videoUrl: sourceUrl,
       fileSizeBytes: 1,
+      landingPageUrl: "https://example.com/video-offer",
     });
     assert.equal(result.ok, true);
+    assert.equal(createdPost.contentLandingPage, "https://example.com/video-offer");
+    assert.equal(createdPost.contentCallToActionLabel, "LEARN_MORE");
     assert.equal(initializedFileSize, size, "client size must never be trusted");
     assert.deepEqual(downloadedRanges, [
       `bytes=0-${split - 1}`,

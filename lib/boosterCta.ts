@@ -335,6 +335,45 @@ export function buildCtaTextForChannel(channel: BoosterChannelKey, post: Partial
   }
 }
 
+function cleanNativeDestinationLabel(value: string) {
+  const label = collapseWhitespace(value)
+    .replace(/[\s:;|\-\u2013\u2014]+$/u, "")
+    .trim();
+  return /^(?:https?:\/\/|www\.)/i.test(label) ? "" : label;
+}
+
+/**
+ * CTA text for providers that already receive the destination as structured
+ * metadata (for example LinkedIn contentLandingPage or a Pinterest Pin link).
+ * The human label remains useful in the copy, but the URL must not be printed
+ * a second time in the caption/description.
+ */
+export function buildCtaTextForNativeDestination(
+  channel: BoosterChannelKey,
+  post: Partial<BoosterPostLike> | null | undefined,
+  context?: BoosterCtaContext,
+) {
+  const destinationUrl = getBoosterCtaDestinationUrlForChannel(
+    channel,
+    post,
+    context,
+  );
+  if (!destinationUrl) return buildCtaTextForChannel(channel, post, context);
+
+  const normalizedPost = normalizeBoosterPostCtaForChannel(
+    channel,
+    post,
+    context,
+  );
+  const mode = getCtaMode(normalizedPost);
+  const sanitizedPost = sanitizeStructuredCtaPost(
+    normalizedPost,
+    mode,
+    context,
+  );
+  return cleanNativeDestinationLabel(getCtaLabel(sanitizedPost, mode));
+}
+
 function buildPrimaryBoosterText(channel: BoosterChannelKey, post: Partial<BoosterPostLike> | null | undefined) {
   const isSiteChannel = channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
   const title = collapseWhitespace(
@@ -358,6 +397,23 @@ export function buildBoosterMessage(channel: BoosterChannelKey, post: Partial<Bo
   const parts = [
     buildPrimaryBoosterText(channel, sanitizedPost),
     buildCtaTextForChannel(channel, sanitizedPost, context),
+  ].filter(Boolean);
+  return parts.join("\n\n").trim();
+}
+
+/**
+ * Provider copy paired with a native destination field. Text-only fallbacks
+ * must keep using buildBoosterMessage so the URL remains reachable there.
+ */
+export function buildBoosterNativeDestinationMessage(
+  channel: BoosterChannelKey,
+  post: Partial<BoosterPostLike> | null | undefined,
+  context?: BoosterCtaContext,
+) {
+  const sanitizedPost = sanitizeBoosterPostForStructuredCta(post, context);
+  const parts = [
+    buildPrimaryBoosterText(channel, sanitizedPost),
+    buildCtaTextForNativeDestination(channel, sanitizedPost, context),
   ].filter(Boolean);
   return parts.join("\n\n").trim();
 }

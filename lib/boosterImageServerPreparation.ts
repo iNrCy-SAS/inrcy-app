@@ -23,6 +23,8 @@ import {
   resolveImageOverlayCoordinates,
   type ImageOverlay,
 } from "@/lib/imageOverlay";
+import { transformImageInteractionsForLayout } from "@/lib/imageInteractions";
+import { computeImageCanvasLayout } from "@/lib/imageTransformGeometry";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -566,6 +568,46 @@ function mergeImageMeta(existing: unknown, meta: BoosterImageMetaLike) {
   return { ...asObject(existing), ...meta };
 }
 
+function imageMetaForRenderedCanvas(params: {
+  existing: unknown;
+  sourceMeta: BoosterImageMetaLike;
+  transform: ServerImageTransform;
+  canvasWidth: number;
+  canvasHeight: number;
+}) {
+  const sourceWidth = Number(params.sourceMeta.width || 0);
+  const sourceHeight = Number(params.sourceMeta.height || 0);
+  const canvasWidth = Number(params.canvasWidth || 0);
+  const canvasHeight = Number(params.canvasHeight || 0);
+  const existing = asObject(params.existing);
+  const output: JsonRecord = {
+    ...existing,
+    width: canvasWidth,
+    height: canvasHeight,
+    ratio: canvasWidth && canvasHeight ? canvasWidth / canvasHeight : 1,
+  };
+  delete output.interactions;
+  delete output.image_interactions;
+
+  if (!sourceWidth || !sourceHeight || !canvasWidth || !canvasHeight) {
+    return output;
+  }
+  const layout = computeImageCanvasLayout({
+    canvasWidth,
+    canvasHeight,
+    imageWidth: sourceWidth,
+    imageHeight: sourceHeight,
+    transform: params.transform,
+    roundPixels: true,
+  });
+  const interactions = transformImageInteractionsForLayout(
+    existing.interactions || existing.image_interactions,
+    layout,
+  );
+  if (interactions) output.interactions = interactions;
+  return output;
+}
+
 function getStableOriginalUrl(image: BoosterServerImagePayload) {
   return String(
     image.originalPublicUrl || image.originalUrl || image.publicUrl || "",
@@ -922,23 +964,18 @@ async function renderImageTransform(params: {
   const imageHeight = Number(meta.height || 0);
   if (!imageWidth || !imageHeight) throw new Error("image_dimensions_missing");
 
-  const baseScale = params.transform.fit === "cover"
-    ? Math.max(dimensions.width / imageWidth, dimensions.height / imageHeight)
-    : Math.min(dimensions.width / imageWidth, dimensions.height / imageHeight);
-  const maxZoom = params.transform.fit === "cover" ? 3 : 1;
-  const zoom = clamp(params.transform.zoom, 0.4, maxZoom, 1);
-  const drawWidth = Math.max(1, Math.round(imageWidth * baseScale * zoom));
-  const drawHeight = Math.max(1, Math.round(imageHeight * baseScale * zoom));
-  const maxX = Math.abs(drawWidth - dimensions.width) / 2;
-  const maxY = Math.abs(drawHeight - dimensions.height) / 2;
-  const dx = Math.round(
-    (dimensions.width - drawWidth) / 2 -
-      (maxX * clamp(params.transform.offsetX, -100, 100, 0)) / 100,
-  );
-  const dy = Math.round(
-    (dimensions.height - drawHeight) / 2 -
-      (maxY * clamp(params.transform.offsetY, -100, 100, 0)) / 100,
-  );
+  const layout = computeImageCanvasLayout({
+    canvasWidth: dimensions.width,
+    canvasHeight: dimensions.height,
+    imageWidth,
+    imageHeight,
+    transform: params.transform,
+    roundPixels: true,
+  });
+  const drawWidth = layout.drawWidth;
+  const drawHeight = layout.drawHeight;
+  const dx = layout.drawX;
+  const dy = layout.drawY;
 
   const resized = await sharp(params.buffer, { failOn: "none" })
     .rotate()
@@ -1219,6 +1256,17 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           imageDecisionLabel: displayPlan.decision.label,
           isCustomized: displayPlan.decision.mode === "customized",
         } as const;
+        const getRenderedImageMeta = (
+          transform: ServerImageTransform,
+          width: number,
+          height: number,
+        ) => imageMetaForRenderedCanvas({
+          existing: common.imageMeta,
+          sourceMeta: entry.meta,
+          transform,
+          canvasWidth: width,
+          canvasHeight: height,
+        });
 
         const getPreparedVariantIdentity = (
           mode: "adapted" | "customized",
@@ -1248,10 +1296,16 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
             cachedVariantKey(mediaId, channel, identity.signature),
           );
           if (!row?.storage_path) return null;
+          const width = Number(row.width || 0);
+          const height = Number(row.height || 0);
           return {
             ...channelImagePayloadFromVariant({ row, name, mediaId }),
             ...common,
             transform,
+            imageMeta:
+              width && height
+                ? getRenderedImageMeta(transform, width, height)
+                : common.imageMeta,
           };
         };
 
@@ -1313,6 +1367,11 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
               }),
               ...common,
               transform: variant.transform,
+              imageMeta: getRenderedImageMeta(
+                variant.transform,
+                publicationVariant.width,
+                publicationVariant.height,
+              ),
             };
           }
           if (params.accountId) {
@@ -1329,6 +1388,11 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
               })),
               ...common,
               transform: variant.transform,
+              imageMeta: getRenderedImageMeta(
+                variant.transform,
+                publicationVariant.width,
+                publicationVariant.height,
+              ),
             };
           }
           return {
@@ -1338,6 +1402,11 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
             dataUrl: `data:${publicationVariant.mime};base64,${publicationVariant.output.toString("base64")}`,
             ...common,
             transform: variant.transform,
+            imageMeta: getRenderedImageMeta(
+              variant.transform,
+              publicationVariant.width,
+              publicationVariant.height,
+            ),
           };
         };
 

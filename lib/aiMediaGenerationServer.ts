@@ -128,6 +128,41 @@ function roundedDurationMs(startedAt: number) {
   return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
+async function getRecentAiMediaSoundtrackIds(args: {
+  supabase: SupabaseLike;
+  accountId: string;
+  limit?: number;
+}) {
+  try {
+    const { data, error } = await args.supabase
+      .from("ai_media_generation_jobs")
+      .select("metadata")
+      .eq("account_id", args.accountId)
+      .eq("media_kind", "video")
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .limit(24);
+    if (error || !Array.isArray(data)) return [];
+
+    const recentIds: string[] = [];
+    for (const row of data) {
+      const metadata =
+        row?.metadata && typeof row.metadata === "object"
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+      const soundtrackId = String(metadata?.soundtrack_id || "").trim();
+      if (!soundtrackId || recentIds.includes(soundtrackId)) continue;
+      recentIds.push(soundtrackId);
+      if (recentIds.length >= (args.limit ?? 8)) break;
+    }
+    return recentIds;
+  } catch {
+    // La rotation enrichit la variété, mais ne doit jamais bloquer une vidéo
+    // si la lecture de l'historique est momentanément indisponible.
+    return [];
+  }
+}
+
 async function waitForOptionalTaskWithinGrace<T>(args: {
   task: Promise<T>;
   graceMs: number;
@@ -275,6 +310,17 @@ export async function generateAndSaveAiMedia(args: {
       pipelineTimingsMs: { ...pipelineTimingsMs },
     };
   }
+
+  const recentSoundtrackIdsTask =
+    args.request.kind === "video" && args.request.withMusic
+      ? measure("soundtrack_history", () =>
+          getRecentAiMediaSoundtrackIds({
+            supabase: args.supabase,
+            accountId: args.accountId,
+            limit: 8,
+          }),
+        )
+      : Promise.resolve([] as string[]);
 
   let preparedIdentityReferences: Awaited<
     ReturnType<typeof prepareAiMediaIdentityReferences>
@@ -1237,9 +1283,25 @@ export async function generateAndSaveAiMedia(args: {
         return { value: null, warnings: [] as string[] };
       }
       try {
+        const recentSoundtrackIds = await recentSoundtrackIdsTask;
         const value = await loadAiMediaSoundtrack(
-          providerRequest.idea ||
-            `${creativePlan.companyName} ${creativePlan.headline}`
+          [
+            providerRequest.idea,
+            providerRequest.aiInstruction,
+            providerRequest.typology,
+            providerRequest.visualStyle,
+            providerRequest.imageStyle,
+            creativePlan.companyName,
+            creativePlan.headline,
+          ]
+            .map((value) => String(value || "").trim())
+            .filter(Boolean)
+            .join(" — "),
+          {
+            selectionKey: `${args.accountId}:${args.jobId}`,
+            excludedIds: recentSoundtrackIds,
+            durationSeconds,
+          },
         );
         return { value, warnings: [] as string[] };
       } catch {

@@ -28,6 +28,10 @@ import {
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
 import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
+import {
+  getMediaImageInteractions,
+  normalizeImageInteractions,
+} from "@/lib/imageInteractions";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -311,6 +315,13 @@ async function buildImagePayloadFromAgentAction(
   if (!media || isVideoMedia(media)) return null;
 
   const imageMeta = asRecord(media.imageMeta) || {};
+  const imageInteractions =
+    normalizeImageInteractions(imageMeta.interactions) ||
+    getMediaImageInteractions(media);
+  const preservedImageMeta = {
+    ...imageMeta,
+    ...(imageInteractions ? { interactions: imageInteractions } : {}),
+  };
   const sourceMetadata = asRecord(media.sourceMetadata) || {};
   const bucket =
     cleanText(
@@ -365,7 +376,7 @@ async function buildImagePayloadFromAgentAction(
       originalType: cleanText(media.originalType, 120) || mime,
       imageKey: cleanText(media.imageKey || media.id || actionId, 120),
       imageMeta: {
-        ...imageMeta,
+        ...preservedImageMeta,
         source: cleanText(media.source, 120) || "inr_agent",
         bucket,
         storagePath,
@@ -390,6 +401,11 @@ async function buildImagePayloadFromAgentAction(
       originalName: cleanText(media.originalName, 180) || title,
       originalType: cleanText(media.originalType, 120) || mime,
       imageKey: cleanText(media.imageKey || media.id || actionId, 120),
+      imageMeta: {
+        ...preservedImageMeta,
+        source: cleanText(media.source, 120) || "inr_agent",
+        title,
+      },
     };
   }
 
@@ -412,7 +428,11 @@ async function buildImagePayloadFromAgentAction(
       cleanText(media.mimeType || media.mime_type || media.type, 120) ||
       "image/jpeg",
     imageKey: cleanText(media.id || actionId, 120),
-    imageMeta: { source: cleanText(media.source, 120) || "inr_agent", title },
+    imageMeta: {
+      ...preservedImageMeta,
+      source: cleanText(media.source, 120) || "inr_agent",
+      title,
+    },
   };
 }
 

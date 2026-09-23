@@ -1,4 +1,8 @@
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
+import {
+  getMediaImageInteractions,
+  withMediaImageInteractions,
+} from "../../../../lib/imageInteractions.ts";
 import type { AgentMediaLibraryItem } from "./agent.types";
 
 export function readAgentImageFileInfo(
@@ -75,6 +79,21 @@ export async function readAgentApiJson(response: Response, fallbackMessage: stri
 export function mediaPatchFromLibraryItem(
   item: AgentMediaLibraryItem | MediaLibraryPickerItem,
 ) {
+  const imageInteractions =
+    item.media_type === "image" ? getMediaImageInteractions(item) : undefined;
+  const imageMeta =
+    item.media_type === "image"
+      ? withMediaImageInteractions(
+          item.width && item.height
+            ? {
+                width: item.width,
+                height: item.height,
+                ratio: item.width / item.height,
+              }
+            : {},
+          item,
+        )
+      : null;
   return {
     id: item.id,
     bucket: item.bucket_name || "inrcy-pro-media",
@@ -102,5 +121,7 @@ export function mediaPatchFromLibraryItem(
     kind: item.media_type,
     mediaType: item.media_type,
     source: "pro_media_library",
+    ...(imageMeta && Object.keys(imageMeta).length ? { imageMeta } : {}),
+    ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
   };
 }

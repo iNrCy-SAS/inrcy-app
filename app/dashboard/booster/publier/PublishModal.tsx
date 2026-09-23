@@ -1984,6 +1984,7 @@ export default function PublishModal({
           const height = Number(item.height || 0);
           if (!file || width <= 0 || height <= 0) continue;
           next[makeImageKey(file)] = {
+            ...next[makeImageKey(file)],
             width,
             height,
             ratio: width / height,
@@ -3069,7 +3070,7 @@ export default function PublishModal({
           ),
         ) as Partial<Record<ChannelKey, VideoAdaptationMode>>;
         const { restoredFiles, restoredPreviews, restoredMeta } =
-          await restorePublicationDraftImages(imageDrafts);
+          await restorePublicationDraftImages(imageDrafts, payload.imageInteractionsByKey);
         const restoredVideo = videoDraft
           ? await restorePublicationDraftVideo(videoDraft)
           : {
@@ -4536,6 +4537,7 @@ export default function PublishModal({
       const inserted = await addImageFiles(
         files,
         destination.kind === "channel" ? destination.channel : undefined,
+        selectedImages,
       );
       if (!inserted) {
         throw new Error(
@@ -4787,7 +4789,7 @@ export default function PublishModal({
         return;
       }
       void mediaLibraryItemToFile(returnedItem)
-        .then((file) => replaceImageFile(imageKey, file))
+        .then((file) => replaceImageFile(imageKey, file, returnedItem))
         .then((replaced) => {
           if (!replaced) setImgError(mediaT("ai_generator_insert_error"));
         })
@@ -5821,7 +5823,9 @@ export default function PublishModal({
                   transform: imageKey
                     ? channelSettings[channel]?.transforms?.[imageKey]
                     : undefined,
-                  imageMeta: imageKey ? imageMetaByKey[imageKey] : undefined,
+                  imageMeta:
+                    image.imageMeta ||
+                    (imageKey ? imageMetaByKey[imageKey] : undefined),
                 };
               },
             );
@@ -6255,6 +6259,11 @@ export default function PublishModal({
             videoName: videoName,
             videoSourceMetadata,
             imageDrafts,
+            imageInteractionsByKey: Object.fromEntries(
+              Object.entries(imageMetaByKey)
+                .filter(([, meta]) => meta.interactions)
+                .map(([key, meta]) => [key, meta.interactions]),
+            ),
             videoDraft,
             ...videoAiContextReferenceAliases(videoAiContextRef),
             useImagesForAI,
@@ -6652,7 +6661,9 @@ export default function PublishModal({
                 transform: imageKey
                   ? channelSettings[channel]?.transforms?.[imageKey]
                   : undefined,
-                imageMeta: imageKey ? imageMetaByKey[imageKey] : undefined,
+                imageMeta:
+                  image.imageMeta ||
+                  (imageKey ? imageMetaByKey[imageKey] : undefined),
               };
             },
           );

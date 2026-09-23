@@ -204,7 +204,12 @@ export async function createInstagramImageMotionVideo(args: {
     throw new Error("instagram_image_motion_source_missing");
   }
 
-  const soundtrack = await loadAiMediaSoundtrack(args.soundtrackPrompt);
+  const soundtrack = await loadAiMediaSoundtrack(args.soundtrackPrompt, {
+    // Une publication garde la même piste lors d'une reprise idempotente,
+    // tandis que deux Reels/Stories au brief identique varient réellement.
+    selectionKey: `${args.accountId}:${args.publicationId}:${args.placement}`,
+    durationSeconds: OUTPUT_DURATION_SECONDS,
+  });
   const signature = createHash("sha256")
     .update(
       JSON.stringify({

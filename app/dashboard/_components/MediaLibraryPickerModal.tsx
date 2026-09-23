@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
 import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
+import type { ImageInteractions } from "@/lib/imageInteractions";
 
 export type MediaLibraryPickerItem = {
   id: string;
@@ -22,6 +23,9 @@ export type MediaLibraryPickerItem = {
   duration_seconds: number | null;
   created_at: string | null;
   signed_url: string | null;
+  /** Links on text already rasterized into the file, never a visual overlay. */
+  image_interactions?: ImageInteractions;
+  media_metadata?: Record<string, unknown> | null;
 };
 
 type MediaLibraryPickerModalProps = {

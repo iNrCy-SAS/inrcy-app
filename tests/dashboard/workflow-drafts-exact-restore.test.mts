@@ -116,7 +116,10 @@ test("Booster reprend tous les réglages de publication et les médias", () => {
   ]) {
     assert.ok(booster.includes(token), `état Booster manquant: ${token}`);
   }
-  assert.match(booster, /restorePublicationDraftImages\(imageDrafts\)/);
+  assert.match(
+    booster,
+    /restorePublicationDraftImages\(imageDrafts, payload\.imageInteractionsByKey\)/,
+  );
   assert.match(booster, /restorePublicationDraftVideo\(videoDraft\)/);
   assert.match(booster, /setSelectedAiPreferredEngine\(nextAiPreferredEngine\)/);
   assert.match(booster, /setTiktokPublicationSettings\(nextTiktokPublicationSettings\)/);

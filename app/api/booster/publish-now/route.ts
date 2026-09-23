@@ -78,11 +78,17 @@ import {
   buildBoosterHashtagLine,
   buildBoosterInstagramCaption,
   buildBoosterMessage,
+  buildBoosterNativeDestinationMessage,
+  buildCtaTextForNativeDestination,
   buildCtaTextForChannel,
   getBoosterCtaDestinationUrlForChannel,
   getBoosterGmbCallToAction,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
+import {
+  applyImageInteractionCtaFallback,
+  getPrimaryImageInteractionLink,
+} from "@/lib/boosterImageInteractionCta";
 import {
   getPreferredWebsiteUrlForChannel,
   type BoosterCtaDefaults,
@@ -155,6 +161,7 @@ import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSea
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { stripSiteTextFormattingPreserveLayout } from "@/lib/boosterFormatting";
 import { normalizeImageOverlay } from "@/lib/imageOverlay";
+import { buildSiteImageInteractionMetadata } from "@/lib/imageInteractions";
 import {
   MediaWorkspaceConsumptionError,
   resolveWorkspacePublicationConsumption,
@@ -2114,10 +2121,51 @@ async function publishNowHandler(req: Request) {
     }
     const publicationVideoByChannel = buildPublicationVideoByChannel();
 
-    const getChannelPost = createPublishNowPostResolver({
+    const resolveChannelPost = createPublishNowPostResolver({
       post,
       postByChannel,
     });
+
+    const getChannelPost = (channel: ChannelKey) => {
+      const channelImages = Array.isArray(imagesByChannel?.[channel])
+        ? (imagesByChannel[channel] as ImagePayload[])
+        : images;
+      // A video's CTA must never come from another channel's image pool.
+      // An explicit empty image selection also stays empty.
+      // Meta's Story endpoint has no link-sticker field: keep the raster link
+      // metadata for the web, but never pretend it became a Facebook CTA.
+      const isFacebookStory =
+        channel === "facebook" &&
+        facebookPublicationSettings?.placement === "story";
+      const interactionLink =
+        mediaModeByChannel[channel] === "images" && !isFacebookStory
+        ? getPrimaryImageInteractionLink(channelImages)
+        : null;
+      return applyImageInteractionCtaFallback(
+        channel,
+        resolveChannelPost(channel),
+        interactionLink,
+      );
+    };
+
+    const getChannelPostForPlacement = (
+      channel: ChannelKey,
+      placement: string | null | undefined,
+    ) => {
+      if (channel !== "facebook") return getChannelPost(channel);
+      const channelImages = Array.isArray(imagesByChannel?.[channel])
+        ? (imagesByChannel[channel] as ImagePayload[])
+        : images;
+      const interactionLink =
+        mediaModeByChannel[channel] === "images" && placement !== "story"
+          ? getPrimaryImageInteractionLink(channelImages)
+          : null;
+      return applyImageInteractionCtaFallback(
+        channel,
+        resolveChannelPost(channel),
+        interactionLink,
+      );
+    };
 
     const firstPost = getChannelPost(selected[0]);
 
@@ -2529,7 +2577,10 @@ async function publishNowHandler(req: Request) {
           const preflightFailure = preflightFailuresByChannel[channel] || null;
           const preparationDeferred =
             deferredPreparationChannels.has(channel);
-          const channelPost = getChannelPost(channel);
+          const channelPost = getChannelPostForPlacement(
+            channel,
+            target.placement,
+          );
           const channelPreparedVideo =
             mediaModeByChannel[channel] === "video"
               ? getPublicationVideoForChannel(channel)
@@ -3878,28 +3929,34 @@ async function publishNowHandler(req: Request) {
             ? (imagesByChannel[ch] as ImagePayload[])
             : images;
           const siteImageSet = channelImageSets[ch] || baseImageSet;
-          const siteImageOverlays = siteImageUrls
-            .map((_, index) => {
-              const imageKey = String(
-                siteImageSet.imageKeys?.[index] ||
-                  siteRawImages[index]?.imageKey ||
-                  "",
-              ).trim();
-              const rawImage = imageKey
-                ? siteRawImages.find(
-                    (candidate) => String(candidate?.imageKey || "").trim() === imageKey,
-                  )
-                : siteRawImages[index];
-              const overlay = normalizeImageOverlay(
-                asRecord(rawImage?.transform).overlay,
-              );
-              return overlay
-                ? { imageKey: imageKey || null, overlay }
-                : null;
-            })
-            .filter(Boolean);
+          const siteImageOverlays = siteImageUrls.map((_, index) => {
+            const imageKey = String(
+              siteImageSet.imageKeys?.[index] ||
+                siteRawImages[index]?.imageKey ||
+                "",
+            ).trim();
+            const rawImage = imageKey
+              ? siteRawImages.find(
+                  (candidate) => String(candidate?.imageKey || "").trim() === imageKey,
+                )
+              : siteRawImages[index];
+            const overlay = normalizeImageOverlay(
+              asRecord(rawImage?.transform).overlay,
+            );
+            return overlay
+              ? { imageKey: imageKey || null, overlay }
+              : null;
+          });
           const siteMediaMetadata: JsonRecord = {};
-          if (siteImageOverlays.length) {
+          const siteImageInteractions = buildSiteImageInteractionMetadata(
+            siteRawImages,
+            siteImageSet.imageKeys || [],
+            siteImageUrls.length,
+          );
+          if (siteImageInteractions.some(Boolean)) {
+            siteMediaMetadata.imageInteractions = siteImageInteractions;
+          }
+          if (siteImageOverlays.some(Boolean)) {
             siteMediaMetadata.imageOverlays = siteImageOverlays;
           }
           if (mediaModeByChannel[ch] === "video" && channelVideo) {
@@ -4386,6 +4443,22 @@ async function publishNowHandler(req: Request) {
             limit: 5,
             allowPartial: true,
           });
+          const facebookStoryInteractionLink =
+            facebookPublicationSettings?.placement === "story" &&
+            mediaModeByChannel[ch] === "images"
+              ? getPrimaryImageInteractionLink(
+                  Array.isArray(imagesByChannel?.[ch])
+                    ? (imagesByChannel[ch] as ImagePayload[])
+                    : images,
+                )
+              : null;
+          const facebookStoryLinkWarning = facebookStoryInteractionLink
+            ? {
+                code: "facebook_story_link_sticker_required",
+                message:
+                  "Le texte du lien reste visible, mais l’API Facebook ne permet pas d’ajouter un sticker Lien cliquable à une Story. Ajoutez ce sticker dans Facebook après publication.",
+              }
+            : null;
           if (
             facebookPublicationSettings &&
             mediaModeByChannel[ch] === "none"
@@ -4421,7 +4494,8 @@ async function publishNowHandler(req: Request) {
               continue;
             }
           }
-          let facebookWarning: { code: string; message: string } | null = null;
+          let facebookWarning: { code: string; message: string } | null =
+            facebookStoryLinkWarning;
           let facebookPublishVideo = channelVideo;
           if (
             facebookPublicationSettings &&
@@ -4552,8 +4626,11 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          if (mediaModeByChannel[ch] === "images") {
-            facebookWarning = getImagePublicationWarning({
+          if (
+            mediaModeByChannel[ch] === "images" &&
+            !facebookPublicationSettings
+          ) {
+            const facebookImageWarning = getImagePublicationWarning({
               channelLabel: "Facebook",
               expectedCount: Math.max(
                 expectedFacebookImageCount,
@@ -4561,6 +4638,14 @@ async function publishNowHandler(req: Request) {
               ),
               publishedCount: Number(resp.uploadedImages || 0),
             });
+            facebookWarning = facebookImageWarning
+              ? facebookStoryLinkWarning
+                ? {
+                    code: facebookImageWarning.code,
+                    message: `${facebookImageWarning.message} ${facebookStoryLinkWarning.message}`,
+                  }
+                : facebookImageWarning
+              : facebookStoryLinkWarning;
           }
 
           await setDelivery(ch, {
@@ -5162,30 +5247,46 @@ async function publishNowHandler(req: Request) {
           const isLinkedInVideo = Boolean(
             mediaModeByChannel[ch] === "video" && channelVideo,
           );
+          const linkedInLandingPageUrl =
+            getBoosterCtaDestinationUrlForChannel("linkedin", channelPost, {
+              websiteUrl: getPublicationWebsiteUrl("linkedin"),
+              phone: businessPhone,
+            }) || undefined;
+          const linkedInMediaMessage = buildBoosterNativeDestinationMessage(
+            "linkedin",
+            channelPost,
+            {
+              websiteUrl: getPublicationWebsiteUrl("linkedin"),
+              phone: businessPhone,
+            },
+          );
           let linkedInWarning: { code: string; message: string } | null = null;
           let resp = isLinkedInVideo
             ? await linkedinPublishVideo({
                 accessToken,
                 authorUrn: useAuthor,
-                text: canonMessage,
+                text: linkedInMediaMessage,
                 videoUrl: channelVideo!.publicUrl || channelVideo!.url || "",
                 title: channelPost.title || undefined,
+                landingPageUrl: linkedInLandingPageUrl,
               })
             : linkedInImages.length > 1
               ? await linkedinPublishMultiImage({
                   accessToken,
                   authorUrn: useAuthor,
-                  text: canonMessage,
+                  text: linkedInMediaMessage,
                   imageUrls: linkedInImages,
                   title: channelPost.title || undefined,
+                  landingPageUrl: linkedInLandingPageUrl,
                 })
               : linkedInImages[0]
                 ? await linkedinPublishImage({
                     accessToken,
                     authorUrn: useAuthor,
-                    text: canonMessage,
+                    text: linkedInMediaMessage,
                     imageUrl: linkedInImages[0],
                     title: channelPost.title || undefined,
+                    landingPageUrl: linkedInLandingPageUrl,
                   })
                 : await linkedinPublishText({
                     accessToken,
@@ -6138,10 +6239,14 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          const pinterestCta = buildCtaTextForChannel("pinterest", pinterestPost, {
-            websiteUrl: getPublicationWebsiteUrl("pinterest"),
-            phone: businessPhone,
-          });
+          const pinterestCta = buildCtaTextForNativeDestination(
+            "pinterest",
+            pinterestPost,
+            {
+              websiteUrl: getPublicationWebsiteUrl("pinterest"),
+              phone: businessPhone,
+            },
+          );
           const pinterestTagLine = buildBoosterHashtagLine(
             pinterestPost,
             [pinterestContent, pinterestCta].filter(Boolean).join("\n\n"),
@@ -7288,6 +7393,9 @@ async function publishNowHandler(req: Request) {
         ...(origin ? { origin, source: origin.source } : {}),
         mediaType,
         mediaModeByChannel,
+        instagramPublicationSettings:
+          canonicalInstagramPublicationSettings,
+        facebookPublicationSettings: canonicalFacebookPublicationSettings,
         videoSettingsByChannel,
         video: persistedVideo,
         videoByChannel,

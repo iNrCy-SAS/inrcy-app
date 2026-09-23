@@ -14,6 +14,7 @@ import {
   getBoosterImageSafetyBackgroundMode,
   type BoosterImageChannel,
 } from "@/lib/boosterImageDecision";
+import type { ImageInteractions } from "@/lib/imageInteractions";
 
 export const MAILBOX_PAGE_SIZE = 20;
 export const MAILBOX_RECIPIENTS_PAGE_SIZE = 20;
@@ -391,7 +392,13 @@ export type PublicationAttachment = {
   thumbnailUrl?: string | null;
   thumbnailStoragePath?: string | null;
   transform?: PublicationImageTransform | null;
-  imageMeta?: { width?: number; height?: number; ratio?: number } | null;
+  imageMeta?: {
+    width?: number;
+    height?: number;
+    ratio?: number;
+    /** Click targets for text already baked into the image pixels. */
+    interactions?: ImageInteractions;
+  } | null;
 };
 
 export type PublicationParts = {
@@ -454,7 +461,13 @@ export type PublicationImageAsset = {
   selected: boolean;
   transform: PublicationImageTransform;
   savedTransform?: PublicationImageTransform | null;
-  imageMeta?: { width?: number; height?: number; ratio?: number } | null;
+  imageMeta?: {
+    width?: number;
+    height?: number;
+    ratio?: number;
+    /** Click targets for text already baked into the image pixels. */
+    interactions?: ImageInteractions;
+  } | null;
 };
 
 export type PublicationChannelImagesState = {

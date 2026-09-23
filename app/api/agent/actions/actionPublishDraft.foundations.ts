@@ -3,6 +3,10 @@ import {
   INR_MEDIA_IMAGE_MAX_BYTES,
   INR_MEDIA_VIDEO_SOURCE_MAX_BYTES,
 } from "@/lib/mediaRules";
+import {
+  getMediaImageInteractions,
+  normalizeImageInteractions,
+} from "@/lib/imageInteractions";
 
 const MAX_AGENT_IMAGE_BYTES = INR_MEDIA_IMAGE_MAX_BYTES;
 const MAX_AGENT_VIDEO_BYTES = INR_MEDIA_VIDEO_SOURCE_MAX_BYTES;
@@ -231,6 +235,19 @@ export function cleanPublishMedia(value: unknown) {
   const transformedVariants = Array.isArray(record.transformedVariants)
     ? record.transformedVariants.filter(Boolean).slice(0, 12)
     : [];
+  const rawImageMeta = asRecord(record.imageMeta || record.image_meta);
+  const imageInteractions =
+    kind === "image"
+      ? normalizeImageInteractions(rawImageMeta?.interactions) ||
+        getMediaImageInteractions(record)
+      : undefined;
+  const imageMeta =
+    kind === "image"
+      ? {
+          ...(rawImageMeta || {}),
+          ...(imageInteractions ? { interactions: imageInteractions } : {}),
+        }
+      : null;
 
   return {
     id: cleanText(record.id, 160) || null,
@@ -266,6 +283,8 @@ export function cleanPublishMedia(value: unknown) {
     kind,
     mediaType: kind,
     source: cleanText(record.source, 120) || null,
+    ...(imageMeta && Object.keys(imageMeta).length ? { imageMeta } : {}),
+    ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
     ...(kind === "video" && videoSettings ? { videoSettings } : {}),
     ...(kind === "video" && videoSettingsByChannel
       ? { videoSettingsByChannel }

@@ -48,6 +48,7 @@ import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
 import MailboxDetailsModal from "./_components/MailboxDetailsModal";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
+import { withMediaImageInteractions } from "@/lib/imageInteractions";
 import { useInrStudioSession } from "@/app/dashboard/_hooks/useInrStudioSession";
 import {
   consumeInrStudioReturn,
@@ -4172,6 +4173,21 @@ export default function MailboxClient({
     });
   }
 
+  function buildMediaLibraryImageMetadata(
+    item: MediaLibraryPickerItem,
+  ): PublicationImageAsset["imageMeta"] {
+    const dimensions =
+      item.width && item.height
+        ? {
+            width: item.width,
+            height: item.height,
+            ratio: item.width / item.height,
+          }
+        : {};
+    const metadata = withMediaImageInteractions(dimensions, item);
+    return Object.keys(metadata).length ? metadata : null;
+  }
+
   function buildMediaLibraryVideoMetadata(
     item: MediaLibraryPickerItem,
     file: File,
@@ -4354,14 +4370,7 @@ export default function MailboxClient({
             );
             return;
           }
-          const imageMeta =
-            item.width && item.height
-              ? {
-                  width: item.width,
-                  height: item.height,
-                  ratio: item.width / item.height,
-                }
-              : null;
+          const imageMeta = buildMediaLibraryImageMetadata(item);
           merged.push({
             key,
             name: file.name || getMediaLibraryDisplayName(item),
@@ -4517,14 +4526,7 @@ export default function MailboxClient({
       file.name,
       item.id || `${item.storage_path}:${file.size}`,
     );
-    const imageMeta =
-      item.width && item.height
-        ? {
-            width: item.width,
-            height: item.height,
-            ratio: item.width / item.height,
-          }
-        : null;
+    const imageMeta = buildMediaLibraryImageMetadata(item);
 
     const targetImageKey = String(target.imageKey || "").trim();
     if (targetImageKey) {

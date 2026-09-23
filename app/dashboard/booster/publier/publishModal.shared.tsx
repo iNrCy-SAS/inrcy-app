@@ -1,5 +1,10 @@
 import type { CSSProperties } from "react";
 import type { ImageOverlay } from "@/lib/imageOverlay";
+import {
+  transformImageInteractionsForLayout,
+  type ImageInteractions,
+} from "@/lib/imageInteractions";
+import { computeImageCanvasLayout } from "@/lib/imageTransformGeometry";
 import { drawImageOverlayItems } from "@/lib/mediaRetoucherRenderClient";
 import type { BoosterVideoTransformedVariant } from "@/lib/boosterVideoTransforms";
 import {
@@ -406,6 +411,8 @@ export type ImageMeta = {
   width: number;
   height: number;
   ratio: number;
+  /** Interaction-only metadata for text already present in the source pixels. */
+  interactions?: ImageInteractions;
 };
 
 export type ChannelImageEditorState = {
@@ -2161,34 +2168,21 @@ export function computePreviewLayout(params: {
   imageHeight: number;
   transform: ImageTransform;
 }): PreviewLayout {
-  const {
-    containerWidth,
-    containerHeight,
-    imageWidth,
-    imageHeight,
-    transform,
-  } = params;
-  if (!containerWidth || !containerHeight || !imageWidth || !imageHeight) {
-    return { drawW: 0, drawH: 0, dx: 0, dy: 0, maxX: 0, maxY: 0 };
-  }
-
-  const baseScale =
-    transform.fit === "cover"
-      ? Math.max(containerWidth / imageWidth, containerHeight / imageHeight)
-      : Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
-  const scale = baseScale * getEffectiveTransformZoom(transform);
-  const drawW = imageWidth * scale;
-  const drawH = imageHeight * scale;
-  const maxX = Math.abs(drawW - containerWidth) / 2;
-  const maxY = Math.abs(drawH - containerHeight) / 2;
-  const dx =
-    (containerWidth - drawW) / 2 -
-    (maxX * clamp(transform.offsetX || 0, -100, 100)) / 100;
-  const dy =
-    (containerHeight - drawH) / 2 -
-    (maxY * clamp(transform.offsetY || 0, -100, 100)) / 100;
-
-  return { drawW, drawH, dx, dy, maxX, maxY };
+  const layout = computeImageCanvasLayout({
+    canvasWidth: params.containerWidth,
+    canvasHeight: params.containerHeight,
+    imageWidth: params.imageWidth,
+    imageHeight: params.imageHeight,
+    transform: params.transform,
+  });
+  return {
+    drawW: layout.drawWidth,
+    drawH: layout.drawHeight,
+    dx: layout.drawX,
+    dy: layout.drawY,
+    maxX: layout.maxX,
+    maxY: layout.maxY,
+  };
 }
 
 export function offsetFromDrawPosition(params: {
@@ -2776,8 +2770,9 @@ export async function renderChannelImage(params: {
   transform: ImageTransform;
   preset: RenderPreset;
   channel?: ChannelKey;
+  imageMeta?: ImageMeta;
 }): Promise<ImagePayload> {
-  const { file, transform, preset, channel } = params;
+  const { file, transform, preset, channel, imageMeta } = params;
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await loadHtmlImage(objectUrl);
@@ -2791,21 +2786,17 @@ export async function renderChannelImage(params: {
     const ch = canvas.height;
     const iw = img.naturalWidth || img.width;
     const ih = img.naturalHeight || img.height;
-    const baseScale =
-      transform.fit === "cover"
-        ? Math.max(cw / iw, ch / ih)
-        : Math.min(cw / iw, ch / ih);
-    const scale = baseScale * getEffectiveTransformZoom(transform);
-    const drawW = iw * scale;
-    const drawH = ih * scale;
-    const maxX = Math.abs(drawW - cw) / 2;
-    const maxY = Math.abs(drawH - ch) / 2;
-    const dx =
-      (cw - drawW) / 2 -
-      (maxX * clamp(transform.offsetX || 0, -100, 100)) / 100;
-    const dy =
-      (ch - drawH) / 2 -
-      (maxY * clamp(transform.offsetY || 0, -100, 100)) / 100;
+    const layout = computeImageCanvasLayout({
+      canvasWidth: cw,
+      canvasHeight: ch,
+      imageWidth: iw,
+      imageHeight: ih,
+      transform,
+    });
+    const drawW = layout.drawWidth;
+    const drawH = layout.drawHeight;
+    const dx = layout.drawX;
+    const dy = layout.drawY;
 
     ctx.clearRect(0, 0, cw, ch);
 
@@ -2836,6 +2827,16 @@ export async function renderChannelImage(params: {
         `-${preset.width}x${preset.height}.${exportAsPng ? "png" : "jpg"}`,
       type: outputType,
       dataUrl,
+      imageMeta: {
+        ...(imageMeta || { width: iw, height: ih, ratio: iw / ih }),
+        width: cw,
+        height: ch,
+        ratio: cw / ch,
+        interactions: transformImageInteractionsForLayout(
+          imageMeta?.interactions,
+          layout,
+        ),
+      },
     };
   } finally {
     URL.revokeObjectURL(objectUrl);

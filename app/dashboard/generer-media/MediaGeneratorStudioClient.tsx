@@ -29,6 +29,7 @@ import {
   getImageOverlayLinkUrl,
   normalizeImageOverlay,
 } from "@/lib/imageOverlay";
+import { imageInteractionsFromOverlay } from "@/lib/imageInteractions";
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import { renderMediaRetoucherFile } from "@/lib/mediaRetoucherRenderClient";
 import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
@@ -267,6 +268,7 @@ export default function MediaGeneratorStudioClient({
       });
       const overlay = normalizeImageOverlay(value.transform.overlay);
       const overlayLinkUrl = getImageOverlayLinkUrl(overlay);
+      const imageInteractions = imageInteractionsFromOverlay(overlay);
       const item = await uploadFileToMediaLibrary(rendered.file, {
         title: rendered.file.name.replace(/\.[^.]+$/, ""),
         source: "studio_retouch",
@@ -278,10 +280,12 @@ export default function MediaGeneratorStudioClient({
           source_name: value.sourceFile.name,
           transform: value.transform,
           ...(overlayLinkUrl ? { link_url: overlayLinkUrl } : {}),
+          ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
         },
       });
       const returnedItem: Record<string, unknown> = {
         ...item,
+        ...(imageInteractions ? { image_interactions: imageInteractions } : {}),
         original_file_name:
           item.original_file_name || item.original_name || rendered.file.name,
         tags: ["inrstudio", "retouche"],

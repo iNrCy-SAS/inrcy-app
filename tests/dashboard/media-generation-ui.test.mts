@@ -87,7 +87,10 @@ test("Booster délègue les actions média à iNrStudio et réinsère le résult
     publishModal,
     /loadedPublicationDraftId !== expectedDraftId[\s\S]*?return;/,
   );
-  assert.match(publishModal, /replaceImageFile\(imageKey, file\)/);
+  assert.match(
+    publishModal,
+    /replaceImageFile\(imageKey, file, returnedItem\)/,
+  );
   assert.match(publishModal, /addMediaLibrarySelection\(/);
   assert.match(publishModal, /\[returnedItem\]/);
   assert.match(publishModal, /\{ kind: "publication" \}/);
