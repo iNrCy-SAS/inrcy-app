@@ -14,6 +14,10 @@ import {
   AI_INSTRUCTION_SECTION_MAX_LENGTH,
   decodeAiInstructionSections,
 } from "./aiInstructionSections.ts";
+import {
+  normalizeAiChannelCtaMap,
+  type AiChannelCtaMap,
+} from "./aiChannelCtaPreferences.ts";
 
 type BoosterPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "whatsapp" | "custom";
 
@@ -29,7 +33,7 @@ const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
 
 function normalizeBoosterPreferredCta(value: unknown): BoosterPreferredCta {
   const raw = String(value ?? "").trim().toLocaleLowerCase() as BoosterPreferredCta;
-  return PREFERRED_CTA_VALUES.has(raw) ? raw : "devis";
+  return PREFERRED_CTA_VALUES.has(raw) ? raw : "none";
 }
 
 export type AiConfigurationFormValues = {
@@ -48,6 +52,7 @@ export type AiConfigurationFormValues = {
   mainGoal: "visibility" | "contacts" | "reassure" | "offer";
   preferredAngle: "local" | "quality" | "price" | "speed" | "trust";
   preferredCta: BoosterPreferredCta;
+  channelCtas: AiChannelCtaMap;
   language: AppLanguageCode;
   likedExample: string;
   likedExample2: string;
@@ -70,7 +75,8 @@ export const DEFAULT_AI_CONFIGURATION_FORM: AiConfigurationFormValues = {
   humorLevel: "none",
   mainGoal: "contacts",
   preferredAngle: "trust",
-  preferredCta: "devis",
+  preferredCta: "none",
+  channelCtas: {},
   language: "fr",
   likedExample: "",
   likedExample2: "",
@@ -282,6 +288,9 @@ export function migrateLegacyAiConfigurationLocal(
   setIfMeaningful(result, "mainGoal", firstMeaningful(source, ["mainGoal"]), normalizeMainGoal);
   setIfMeaningful(result, "preferredAngle", firstMeaningful(source, ["preferredAngle"]), normalizePreferredAngle);
   setIfMeaningful(result, "preferredCta", firstMeaningful(source, ["preferredCta"]), normalizeBoosterPreferredCta);
+  if (source.channelCtas && typeof source.channelCtas === "object") {
+    result.channelCtas = normalizeAiChannelCtaMap(source.channelCtas);
+  }
   setIfMeaningful(result, "language", firstMeaningful(source, ["language"]), normalizeAppLanguage);
 
   const likedExample = firstMeaningful(source, ["likedExample"]);
@@ -352,6 +361,9 @@ export function migrateBusinessProfileAiConfiguration(
   setIfMeaningful(result, "mainGoal", firstMeaningful(source, ["ai_main_goal", "main_goal"]), normalizeMainGoal);
   setIfMeaningful(result, "preferredAngle", firstMeaningful(source, ["ai_preferred_angle", "preferred_angle"]), normalizePreferredAngle);
   setIfMeaningful(result, "preferredCta", firstMeaningful(source, ["preferred_cta", "ai_cta_preference"]), normalizeBoosterPreferredCta);
+  if (source.ai_channel_ctas && typeof source.ai_channel_ctas === "object") {
+    result.channelCtas = normalizeAiChannelCtaMap(source.ai_channel_ctas);
+  }
   if (options.useDbLanguage) {
     setIfMeaningful(result, "language", firstMeaningful(source, ["ai_language", "generation_language"]), normalizeAppLanguage);
   }

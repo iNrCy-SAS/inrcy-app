@@ -240,7 +240,7 @@ test("les références locales gardent leur FileList, se retirent directement et
   );
   assert.match(
     generator,
-    /className=\{styles\.referenceTileRemove\}[\s\S]*?event\.stopPropagation\(\);\s*removeReferenceAt\(index\);/,
+    /className=\{styles\.referenceTileRemove\}[\s\S]*?onClick=\{\(\) => removeReferenceAt\(index\)\}/,
   );
   assert.match(
     generator,

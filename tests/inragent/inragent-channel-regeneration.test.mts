@@ -33,8 +33,8 @@ test("iNrAgent regenerates content for the selected channel or atomically for ev
   assert.match(contentBranch, /content: regeneratedPost\.content/);
   assert.match(contentBranch, /text: regeneratedPost\.text/);
   assert.match(contentBranch, /body: regeneratedPost\.body/);
-  assert.match(contentBranch, /cta: regeneratedPost\.cta/);
-  assert.match(contentBranch, /callToAction: regeneratedPost\.callToAction/);
+  assert.match(contentBranch, /cta: preserveCurrentCta[\s\S]*?targetCurrentPost\.cta[\s\S]*?regeneratedPost\.cta/);
+  assert.match(contentBranch, /callToAction: preserveCurrentCta[\s\S]*?targetCurrentPost\.callToAction[\s\S]*?regeneratedPost\.callToAction/);
   assert.match(contentBranch, /hashtags: regeneratedPost\.hashtags/);
   assert.match(contentBranch, /applySafePreferredCta\(/);
   assert.match(contentBranch, /preserveExplicit: true/);

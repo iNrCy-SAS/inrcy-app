@@ -68,7 +68,7 @@ import {
   UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
 } from "@/lib/mediaUploadPolicy";
 import { MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL } from "@/lib/mediaLibraryOptimizationPolicy";
-import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
+import type { AiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   buildSafePreferredCtaPatch,
   getPreferredWebsiteUrlForChannel,
@@ -166,6 +166,7 @@ export type BoosterCtaDefaults = {
   phone: string;
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
+  channelCtas?: AiChannelCtaMap;
 };
 
 export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
@@ -216,77 +217,6 @@ const BOOSTER_AI_LANGUAGE_VALUES: BoosterAiLanguage[] = [
   "th",
   "zh",
 ];
-
-const CTA_LABELS_BY_LANGUAGE: Record<
-  BoosterAiLanguage,
-  Record<BoosterPreferredCta, string>
-> = {
-  fr: {
-    none: "",
-    site: "Voir le site",
-    devis: "Demander un devis",
-    appeler: "Appeler",
-    message: "Envoyer un message",
-    whatsapp: "Écrire sur WhatsApp",
-    custom: "",
-  },
-  en: {
-    none: "",
-    site: "Visit website",
-    devis: "Request a quote",
-    appeler: "Call",
-    message: "Send a message",
-    whatsapp: "Message us on WhatsApp",
-    custom: "",
-  },
-  es: {
-    none: "",
-    site: "Ver sitio web",
-    devis: "Solicitar presupuesto",
-    appeler: "Llamar",
-    message: "Enviar mensaje",
-    whatsapp: "Escribir por WhatsApp",
-    custom: "",
-  },
-  it: {
-    none: "",
-    site: "Visita il sito",
-    devis: "Richiedi un preventivo",
-    appeler: "Chiama",
-    message: "Invia un messaggio",
-    whatsapp: "Scrivici su WhatsApp",
-    custom: "",
-  },
-  de: {
-    none: "",
-    site: "Website ansehen",
-    devis: "Angebot anfordern",
-    appeler: "Anrufen",
-    message: "Nachricht senden",
-    whatsapp: "Über WhatsApp schreiben",
-    custom: "",
-  },
-  nl: {
-    none: "",
-    site: "Website bekijken",
-    devis: "Offerte aanvragen",
-    appeler: "Bellen",
-    message: "Bericht sturen",
-    whatsapp: "Stuur een WhatsApp-bericht",
-    custom: "",
-  },
-  pt: {
-    none: "",
-    site: "Ver site",
-    devis: "Pedir orçamento",
-    appeler: "Ligar",
-    message: "Enviar mensagem",
-    whatsapp: "Enviar mensagem no WhatsApp",
-    custom: "",
-  },
-  th: BOOSTER_ASIAN_CTA_LABELS.th,
-  zh: BOOSTER_ASIAN_CTA_LABELS.zh,
-};
 
 export function normalizeBoosterAiLanguage(value: unknown): BoosterAiLanguage {
   const raw = String(value || "")
@@ -1517,18 +1447,6 @@ export function getLocalizedChannelDefaultCtaLabel(
   return "";
 }
 
-export function getCtaLabelForPreferredChoice(
-  choice: BoosterPreferredCta,
-  language: unknown = "fr",
-) {
-  const aiLanguage = normalizeBoosterAiLanguage(language);
-  return (
-    CTA_LABELS_BY_LANGUAGE[aiLanguage]?.[choice] ||
-    CTA_LABELS_BY_LANGUAGE.fr[choice] ||
-    ""
-  );
-}
-
 export function isSiteDisplayKey(channel: DisplayKey) {
   return channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
 }
@@ -1586,17 +1504,6 @@ export function getLocalizedChannelTotalLabel(
   return key ? translate(key) : "";
 }
 
-export function getDefaultCtaModeForChannel(
-  channel: DisplayKey,
-  defaults: BoosterCtaDefaults | null,
-): BoosterCtaMode {
-  return buildSafePreferredCtaPatch({
-    channel,
-    choice: defaults?.preferredCta || "devis",
-    defaults,
-  }).ctaMode;
-}
-
 export function buildPreferredCtaPatch(
   channel: DisplayKey,
   choice: BoosterPreferredCta,
@@ -1612,47 +1519,6 @@ export function buildPreferredCtaPatch(
     language,
     allowIncompleteInput: true,
   });
-}
-
-export function buildAutoPrefillPatch(
-  channel: DisplayKey,
-  mode: BoosterCtaMode,
-  post: ChannelPost,
-  defaults: BoosterCtaDefaults | null,
-  language: unknown = defaults?.aiLanguage || "fr",
-): Partial<ChannelPost> {
-  const patch: Partial<ChannelPost> = { ctaMode: mode };
-  const aiLanguage = normalizeBoosterAiLanguage(language);
-  if (!defaults) return patch;
-
-  if (mode === "website") {
-    const preferred = ["site", "devis"].includes(defaults.preferredCta)
-      ? defaults.preferredCta
-      : getPreferredCtaChoiceFromPost(channel, post);
-    const channelWebsiteUrl = getWebsiteUrlForChannel(channel, defaults);
-    if (!String(post.cta || "").trim())
-      patch.cta =
-        getCtaLabelForPreferredChoice(
-          preferred as BoosterPreferredCta,
-          aiLanguage,
-        ) || getChannelDefaultCtaLabel(channel, mode);
-    if (!String(post.ctaUrl || "").trim() && channelWebsiteUrl)
-      patch.ctaUrl = channelWebsiteUrl;
-  }
-
-  if (mode === "call") {
-    if (!String(post.cta || "").trim())
-      patch.cta = getCtaLabelForPreferredChoice("appeler", aiLanguage);
-    if (!String(post.ctaPhone || "").trim() && defaults.phone)
-      patch.ctaPhone = defaults.phone;
-  }
-
-  if (mode === "message") {
-    if (!String(post.cta || "").trim())
-      patch.cta = getCtaLabelForPreferredChoice("message", aiLanguage);
-  }
-
-  return patch;
 }
 
 export function getWebsiteSourceLabel(defaults: BoosterCtaDefaults | null) {

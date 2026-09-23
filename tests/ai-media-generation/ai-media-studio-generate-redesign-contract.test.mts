@@ -366,10 +366,11 @@ test("Sélection distingue IA libre, IA avec critères et inspiration libre", ()
     "100 % IA sans critères",
     "IA avec critères",
     "Inspiration",
-    "Utiliser impérativement",
-    "Inspiration uniquement",
   ]) {
     assertGeneratorUsesLabel(label);
+  }
+  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Idée"]) {
+    assert.match(generatorSource, new RegExp(label));
   }
   assert.match(generatorSource, /usage:\s*"required"\s*\|\s*"inspiration"/);
   assert.match(generatorSource, /usage:\s*"required"/);
@@ -1333,12 +1334,9 @@ test("chaque miniature d'inspiration peut être retirée directement", () => {
   assert.match(generatorSource, /className=\{styles\.referenceTileRemove\}/);
   assert.match(
     generatorSource,
-    /event\.stopPropagation\(\);\s*removeReferenceAt\(index\);/,
+    /onClick=\{\(\) => removeReferenceAt\(index\)\}/,
   );
-  assert.match(
-    generatorSource,
-    /setActiveReferenceIndex\(\(current\) =>\s*current > index \? current - 1 : current/,
-  );
+  assert.doesNotMatch(generatorSource, /setActiveReferenceIndex/);
   assert.match(generatorStyles, /\.referenceTileRemove\s*\{/);
   assert.match(generatorStyles, /\.referenceTileRemove:hover:not\(:disabled\)/);
 });

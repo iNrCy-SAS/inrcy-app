@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   normalizeBoosterAiLanguage,
   normalizeBoosterPreferredCta,
@@ -30,7 +31,7 @@ export async function loadBoosterCtaDefaults(args: {
       .maybeSingle(),
     args.supabase
       .from("business_profiles")
-      .select("preferred_cta,ai_language,updated_at")
+      .select("preferred_cta,ai_language,ai_channel_ctas,updated_at")
       .eq("user_id", args.userId)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -60,5 +61,6 @@ export async function loadBoosterCtaDefaults(args: {
       asString(businessProfile.preferred_cta) || "devis",
     ),
     aiLanguage: normalizeBoosterAiLanguage(businessProfile.ai_language),
+    channelCtas: normalizeAiChannelCtaMap(businessProfile.ai_channel_ctas),
   };
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { migrateBusinessProfileAiConfiguration } from "@/lib/aiConfigurationCompatibility";
+import { countConfiguredAiChannelCtas } from "@/lib/aiChannelCtaPreferences";
 import {
   getActiveBrowserUserId,
   readAccountCacheValue,
@@ -41,7 +42,6 @@ const CORE_AI_FIELDS = [
   "humorLevel",
   "mainGoal",
   "preferredAngle",
-  "preferredCta",
   "language",
 ] as const;
 
@@ -110,12 +110,15 @@ function writeCachedPreparationScores(state: PreparationScoreState) {
 function getAiConfigurationScore(row: unknown, edition: DashboardEdition) {
   const migrated = migrateBusinessProfileAiConfiguration(row, edition, { useDbLanguage: true });
   const coreScore = CORE_AI_FIELDS.reduce((score, field) => (
-    migrated[field] === undefined ? score : score + 5
+    migrated[field] === undefined ? score : score + 4
   ), 0);
   const enrichmentScore = ENRICHMENT_AI_FIELDS.reduce((score, field) => (
-    String(migrated[field] ?? "").trim() ? score + 5 : score
+    String(migrated[field] ?? "").trim() ? score + 4 : score
   ), 0);
-  return clampScore(coreScore + enrichmentScore);
+  // 24 of the 100 points belong to the ten per-channel CTAs. No configured CTA
+  // earns zero points in that category, never a legacy global default.
+  const ctaScore = countConfiguredAiChannelCtas(migrated.channelCtas) * 2.4;
+  return clampScore(coreScore + enrichmentScore + ctaScore);
 }
 
 export function useDashboardPreparationScores({

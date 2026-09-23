@@ -239,6 +239,38 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   );
 });
 
+test("les références s’ajoutent immédiatement avec deux choix manuels par photo", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const styles = read("app/dashboard/_components/MediaGenerator.module.css");
+
+  assert.doesNotMatch(generator, /detect-reference|classifyAppendedReference/);
+  assert.equal(
+    existsSync("app/api/media-generation/detect-reference/route.ts"),
+    false
+  );
+  assert.match(generator, /insertion === "append" \? "character" : role/);
+  assert.match(generator, /usage: insertion === "append"\s*\? "required"/);
+  const indexing = sourceSection(
+    generator,
+    "function normalizeCharacterReferenceIndexes",
+    "type RememberPreferenceControlProps"
+  );
+  assert.doesNotMatch(indexing, /role: "inspiration"/);
+  assert.match(generator, /referenceRoleLimitError/);
+  assertOrdered(generator, [
+    "className={styles.referenceTileHeader}",
+    "className={styles.referenceTileControls}",
+    "Type de la référence",
+    "Utilisation de la référence",
+  ]);
+  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Idée"]) {
+    assert.match(generator, new RegExp(label));
+  }
+  assert.match(generator, /className=\{styles\.referenceInfo\}/);
+  assert.match(styles, /\.referenceInfo p \{[\s\S]*?position: absolute/);
+  assert.doesNotMatch(generator, /className=\{styles\.referenceEditor\}/);
+});
+
 test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () => {
   const generatorStyles = read(
     "app/dashboard/_components/MediaGenerator.module.css"

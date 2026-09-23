@@ -5327,10 +5327,64 @@
   cursor: pointer;
 }
 
-.referenceDropzone > span:nth-child(2) {
+.referenceDropzoneCopy {
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+.referenceDropzoneHeading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.referenceInfo {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.referenceInfo summary {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(134, 213, 255, 0.42);
+  border-radius: 50%;
+  color: #a4e7ff;
+  background: rgba(63, 152, 217, 0.12);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+  list-style: none;
+}
+
+.referenceInfo summary::-webkit-details-marker {
+  display: none;
+}
+
+.referenceInfo summary:focus-visible {
+  outline: 2px solid #87dfff;
+  outline-offset: 2px;
+}
+
+.referenceInfo p {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 8px);
+  left: -30px;
+  width: min(280px, 70vw);
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(134, 213, 255, 0.34);
+  border-radius: 10px;
+  color: #eaf5ff;
+  background: #142447;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 1.45;
 }
 
 .referenceDropzone strong {
@@ -5390,29 +5444,24 @@
 .referenceTile {
   position: relative;
   min-width: 0;
-  min-height: 56px;
+  min-height: 122px;
+  display: grid;
+  grid-template-rows: 48px auto;
+  gap: 4px;
+  padding: 5px;
   border: 1px solid rgba(132, 165, 227, 0.18);
   border-radius: 11px;
   background: rgba(7, 19, 45, 0.7);
-  overflow: hidden;
 }
 
-.referenceTileMain {
+.referenceTileHeader {
   width: 100%;
   min-width: 0;
-  min-height: 54px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
-  padding: 6px 25px 6px 6px;
-  border: 0;
-  border-radius: inherit;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  gap: 6px;
+  padding-right: 20px;
 }
 
 .referenceTile[data-required="true"] {
@@ -5424,21 +5473,14 @@
   );
 }
 
-.referenceTile[data-active="true"] {
-  border-color: rgba(var(--card-accent), 0.82);
-  box-shadow: inset 0 0 0 1px rgba(var(--card-accent), 0.22),
-    0 6px 18px rgba(var(--card-accent), 0.1);
-}
-
-.referenceTileMain:disabled,
 .referenceTileRemove:disabled {
   cursor: wait;
   opacity: 0.68;
 }
 
-.referenceTileMain > img {
-  width: 42px;
-  height: 42px;
+.referenceTileHeader > img {
+  width: 40px;
+  height: 40px;
   display: block;
   border-radius: 8px;
   object-fit: cover;
@@ -5460,28 +5502,39 @@
 
 .referenceTileCopy strong {
   color: #f3f8ff;
-  font-size: 8.2px;
+  font-size: 9.5px;
 }
 
 .referenceTileCopy small {
   color: rgba(194, 213, 243, 0.56);
-  font-size: 6.8px;
+  font-size: 8px;
 }
 
-.referenceTileUsage {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 14px;
-  height: 14px;
+.referenceTileControls {
+  min-width: 0;
   display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: rgba(255,255,255,0.86);
-  background: rgba(var(--card-accent), 0.42);
-  font-size: 6px;
-  font-weight: 950;
-  pointer-events: none;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.referenceTileControls .studioSelect {
+  min-height: 30px;
+  padding: 0 20px 0 7px;
+  border-radius: 7px;
+  background-position: right 6px center;
+  background-size: 10px 7px;
+  font-size: 9.5px;
+}
+
+.referenceLimitError {
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 157, 172, 0.38);
+  border-radius: 8px;
+  color: #ffd8df;
+  background: rgba(120, 31, 54, 0.18);
+  font-size: 8.5px;
+  line-height: 1.35;
 }
 
 .referenceTileRemove {
@@ -5512,133 +5565,6 @@
   border-color: rgba(255, 177, 189, 0.85);
   background: rgba(179, 35, 78, 0.96);
   transform: scale(1.06);
-}
-
-.referenceEditor {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(120px, 0.85fr) minmax(210px, 1.25fr) minmax(
-      165px,
-      1fr
-    );
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border: 1px solid rgba(132, 165, 227, 0.18);
-  border-radius: 12px;
-  background: rgba(7, 19, 45, 0.68);
-}
-
-.referenceEditor[data-required="true"] {
-  border-color: rgba(var(--card-accent), 0.38);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--card-accent), 0.08),
-    rgba(7, 19, 45, 0.72)
-  );
-}
-
-.referenceEditorHeading {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.referenceEditorHeading > span {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: grid;
-  gap: 1px;
-}
-
-.referenceEditorHeading strong,
-.referenceEditorHeading small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.referenceEditorHeading strong {
-  color: #f3f8ff;
-  font-size: 8.6px;
-}
-
-.referenceEditorHeading small {
-  color: rgba(194, 213, 243, 0.58);
-  font-size: 7px;
-}
-
-.referenceEditorHeading button {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid rgba(247, 112, 132, 0.25);
-  border-radius: 7px;
-  color: #ffb6c1;
-  background: rgba(247, 112, 132, 0.08);
-  font: inherit;
-  cursor: pointer;
-}
-
-.referenceUsageChoices {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.referenceUsageChoices button {
-  min-width: 0;
-  min-height: 28px;
-  padding: 4px 6px;
-  border: 1px solid rgba(127, 160, 220, 0.17);
-  border-radius: 7px;
-  color: rgba(211, 225, 249, 0.65);
-  background: rgba(9, 23, 52, 0.78);
-  font: inherit;
-  font-size: 7.2px;
-  font-weight: 760;
-  line-height: 1.15;
-  cursor: pointer;
-}
-
-.referenceUsageChoices button[data-active="true"] {
-  border-color: rgba(var(--card-accent), 0.5);
-  color: #fff;
-  background: rgba(var(--card-accent), 0.16);
-}
-
-.referenceRoleField {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-}
-
-.referenceRoleField > span {
-  color: rgba(194, 213, 243, 0.64);
-  font-size: 7.5px;
-  font-weight: 750;
-}
-
-.referenceRoleField .studioSelect {
-  min-height: 27px;
-  width: 100%;
-  padding-left: 8px;
-  font-size: 7.8px;
-}
-
-.characterReferenceStatus {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: rgba(215, 231, 253, 0.68);
-  font-size: 7.7px;
-  line-height: 1.3;
 }
 
 .identityContinuityNotice {
@@ -6231,14 +6157,6 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .referenceEditor {
-    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  }
-
-  .referenceRoleField {
-    grid-column: 1 / -1;
-  }
-
   .referenceDropzone {
     grid-template-columns: 38px minmax(0, 1fr);
   }
@@ -6288,8 +6206,7 @@
   }
 
   .referenceDropzoneActions,
-  .textModeChoices,
-  .referenceUsageChoices {
+  .textModeChoices {
     grid-template-columns: 1fr;
   }
 
@@ -6303,23 +6220,18 @@
   }
 
   .referenceTile {
-    min-height: 48px;
+    min-height: 122px;
   }
 
-  .referenceTileMain {
-    min-height: 46px;
+  .referenceTileHeader {
     grid-template-columns: 34px minmax(0, 1fr);
     gap: 5px;
-    padding: 5px 36px 5px 5px;
+    padding-right: 30px;
   }
 
-  .referenceTileMain > img {
+  .referenceTileHeader > img {
     width: 34px;
     height: 34px;
-  }
-
-  .referenceTileCopy small {
-    display: none;
   }
 
   .referenceTileRemove {
@@ -6336,14 +6248,6 @@
 
   .finishCard[data-media-kind="video"] .soundChoices {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .referenceEditor {
-    grid-template-columns: 1fr;
-  }
-
-  .referenceRoleField {
-    grid-column: auto;
   }
 
   .textModeHeading {

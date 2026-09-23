@@ -20,8 +20,12 @@ import {
   getAiEngineOption,
 } from "@/lib/aiEnginePreference";
 import {
-  BOOSTER_PREFERRED_CTA_OPTIONS,
-} from "../../booster/publier/publishModal.shared";
+  AI_CTA_CHANNELS,
+  isAiChannelCtaComplete,
+  normalizeAiChannelCtaMap,
+  type AiChannelCtaDestinations,
+} from "@/lib/aiChannelCtaPreferences";
+import AiChannelCtaPanel from "./AiChannelCtaPanel";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import {
@@ -50,7 +54,7 @@ type Props = {
   workspaceMode?: boolean;
 };
 
-type AiConfigurationTab = "parameters" | "instructions";
+type AiConfigurationTab = "parameters" | "ctas" | "instructions";
 type AiConfigurationVoiceTarget =
   | "likedExample"
   | "likedExample2"
@@ -221,7 +225,7 @@ const configurationTabsStyle: React.CSSProperties = {
   top: 55,
   zIndex: 15,
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
   gap: 8,
   padding: 7,
   borderRadius: 17,
@@ -675,10 +679,24 @@ export default function AiConfigurationContent({
     setSaved(false);
     setError("");
     try {
+      const normalizedChannelCtas = normalizeAiChannelCtaMap(form.channelCtas);
+      const ctaDestinations: AiChannelCtaDestinations | null = Object.keys(form.channelCtas).length
+        ? await fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include" })
+          .then(async (response) => response.ok ? response.json() as Promise<AiChannelCtaDestinations> : null)
+          .catch(() => null)
+        : null;
+      const incompleteChannel = AI_CTA_CHANNELS.find(({ key }) =>
+        form.channelCtas[key] && !isAiChannelCtaComplete(key, normalizedChannelCtas[key], ctaDestinations),
+      );
+      if (incompleteChannel) {
+        setActiveTab("ctas");
+        throw new Error(`Complétez le lien ou le numéro du CTA ${incompleteChannel.label} avant d’enregistrer.`);
+      }
       const safeWebLength = enforceAiContentLengthForEdition(form.webLength, edition);
       const safeSocialLength = enforceAiContentLengthForEdition(form.socialLength, edition);
       const safeForm = {
         ...form,
+        channelCtas: normalizedChannelCtas,
         webLength: safeWebLength,
         socialLength: safeSocialLength,
       };
@@ -688,16 +706,11 @@ export default function AiConfigurationContent({
       const user = authData?.user;
       const activeUserId = user ? resolveActiveBrowserUserId(user.id) : activeUserIdRef.current;
       activeUserIdRef.current = activeUserId;
-      if (activeUserId) {
-        writeAccountCacheValue(STORAGE_KEY, JSON.stringify(safeForm), activeUserId);
-        markAiLanguageCustom(activeUserId);
-      }
       if (user) {
         const basePayload = {
           user_id: activeUserId,
           ai_preferred_engine: form.preferredEngine,
           tone: form.tone,
-          preferred_cta: form.preferredCta,
           communication_style: form.textStyle,
           emoji_level: form.emojiLevel,
           // Compatibilité descendante : les anciens clients continuent à
@@ -725,15 +738,26 @@ export default function AiConfigurationContent({
           }),
           updated_at: new Date().toISOString(),
         };
+        const ctaPayload = { ...basePayload, ai_channel_ctas: normalizedChannelCtas };
         let { error: upErr } = await supabase.from(TABLE).upsert(
-          { ...basePayload, ai_liked_example_2: form.likedExample2.trim() },
+          { ...ctaPayload, ai_liked_example_2: form.likedExample2.trim() },
           { onConflict: "user_id" },
         );
-        if (upErr && /ai_liked_example_2|schema cache|column/i.test(upErr.message)) {
+        if (upErr && /ai_liked_example_2|schema cache|column/i.test(upErr.message) && !/ai_channel_ctas/i.test(upErr.message)) {
+          ({ error: upErr } = await supabase.from(TABLE).upsert(ctaPayload, { onConflict: "user_id" }));
+        }
+        if (upErr && /ai_channel_ctas/i.test(upErr.message)) {
+          if (Object.keys(normalizedChannelCtas).length) {
+            throw new Error("La configuration CTA n’est pas encore disponible sur ce compte. Réessayez après sa mise à jour.");
+          }
           ({ error: upErr } = await supabase.from(TABLE).upsert(basePayload, { onConflict: "user_id" }));
         }
         if (upErr) throw new Error(upErr.message);
         await invalidateBoosterGenerationContextClient("professional");
+      }
+      if (activeUserId) {
+        writeAccountCacheValue(STORAGE_KEY, JSON.stringify(safeForm), activeUserId);
+        markAiLanguageCustom(activeUserId);
       }
 
       if (typeof window !== "undefined") {
@@ -741,16 +765,16 @@ export default function AiConfigurationContent({
           detail: {
               aiPreferredEngine: form.preferredEngine,
               aiLanguage: form.language,
-              preferredCta: form.preferredCta,
+              channelCtas: normalizedChannelCtas,
               aiWebLength: safeWebLength,
               aiSocialLength: safeSocialLength,
           },
         }));
       }
 
-      if (safeWebLength !== form.webLength || safeSocialLength !== form.socialLength) {
-        setForm(safeForm);
-      }
+      // Reflect normalized links/phone numbers as well as edition-safe lengths
+      // so the unsaved-change guard matches the persisted configuration.
+      setForm(safeForm);
       savedFormSignatureRef.current = configurationSignature(safeForm);
       // The saved signature changes without changing `form`, so the dirty
       // effect does not necessarily rerun. Clear the parent guard immediately
@@ -871,6 +895,20 @@ export default function AiConfigurationContent({
         >
           <span aria-hidden>⚙️</span>
           <span>{configurationT("tabParameters")}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "ctas"}
+          disabled={voiceBusy}
+          onClick={() => setActiveTab("ctas")}
+          style={{
+            ...configurationTabStyle,
+            ...(activeTab === "ctas" ? activeConfigurationTabStyle : {}),
+          }}
+        >
+          <span aria-hidden>↗</span>
+          <span>CTA</span>
         </button>
         <button
           type="button"
@@ -1167,21 +1205,19 @@ export default function AiConfigurationContent({
                   </select>
                 </label>
 
-                <label style={label}>
-                  <span style={labelTitle}>{i18nT("bouton_prefere_636a62cc")}</span>
-                  <select style={input} value={form.preferredCta} onChange={(e) => set("preferredCta", e.target.value as AiConfigForm["preferredCta"])}>
-                    {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} style={selectOption}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
             </div>
 
             </section>
               </div>
+            ) : null}
+
+            {activeTab === "ctas" ? (
+              <AiChannelCtaPanel
+                value={form.channelCtas}
+                onChange={(next) => set("channelCtas", next)}
+                disabled={saving || voiceBusy}
+              />
             ) : null}
 
             {activeTab === "instructions" ? (

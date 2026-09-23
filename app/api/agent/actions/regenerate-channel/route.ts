@@ -351,6 +351,9 @@ export async function POST(request: Request) {
           postByChannel,
           targetChannel,
         );
+        const preserveCurrentCta = Boolean(
+          String(targetCurrentPost.ctaMode || "").trim(),
+        );
         const editorialPost = {
           ...targetCurrentPost,
           title: regeneratedPost.title,
@@ -358,8 +361,12 @@ export async function POST(request: Request) {
           content: regeneratedPost.content,
           text: regeneratedPost.text,
           body: regeneratedPost.body,
-          cta: regeneratedPost.cta,
-          callToAction: regeneratedPost.callToAction,
+          cta: preserveCurrentCta
+            ? String(targetCurrentPost.cta || "")
+            : regeneratedPost.cta,
+          callToAction: preserveCurrentCta
+            ? String(targetCurrentPost.callToAction || "")
+            : regeneratedPost.callToAction,
           hashtags: regeneratedPost.hashtags,
         };
         nextPostByChannel[targetChannel] = applySafePreferredCta({

@@ -2572,10 +2572,8 @@ export async function POST(request: Request) {
       postByChannel: versions,
       ctaPolicy: {
         version: 1,
-        source: "booster_preferences",
-        preferredCta: ctaDefaults.preferredCta,
-        hasWebsite: Boolean(ctaDefaults.preferredWebsiteUrl),
-        hasPhone: Boolean(ctaDefaults.phone),
+        source: "channel_configuration",
+        configuredChannels: Object.keys(ctaDefaults.channelCtas || {}),
       },
       selectedChannels: channels,
       targetChannels,

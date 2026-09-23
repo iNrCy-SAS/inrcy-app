@@ -1,4 +1,5 @@
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
+import { shouldPrefillConfiguredChannelCta } from "@/lib/channelCtaPrefillPolicy";
 import {
   normalizeBoosterPostCtaForChannel,
   sanitizeBoosterPostForStructuredCta,
@@ -339,6 +340,46 @@ export function sanitizePostsForEditor(
     },
     {} as Partial<Record<ChannelKey, ChannelPost>>,
   );
+}
+
+/** Seed only untouched channels; a saved or manually edited publication wins. */
+export function prefillConfiguredChannelCtas(
+  posts: Partial<Record<ChannelKey, ChannelPost>>,
+  defaults: BoosterCtaDefaults | null,
+  protectedChannels: ReadonlySet<ChannelKey> = new Set(),
+): Partial<Record<ChannelKey, ChannelPost>> {
+  if (!defaults?.channelCtas) return posts;
+  let next = posts;
+  for (const channel of CHANNEL_KEYS) {
+    const current = posts[channel];
+    if (
+      !defaults.channelCtas[channel as keyof typeof defaults.channelCtas] ||
+      !shouldPrefillConfiguredChannelCta(
+        current,
+        protectedChannels.has(channel),
+      )
+    ) {
+      continue;
+    }
+    const base = normalizePost(current);
+    const configured = applySafePreferredCta({
+      channel,
+      post: base,
+      defaults,
+      preserveExplicit: false,
+    });
+    const context = {
+      websiteUrl: getPreferredWebsiteUrlForChannel(channel, defaults),
+      phone: defaults.phone,
+    };
+    const normalized = normalizeBoosterPostCtaForChannel(channel, configured, context);
+    if (next === posts) next = { ...posts };
+    next[channel] = sanitizePostForEditor(
+      channel,
+      sanitizeBoosterPostForStructuredCta({ ...base, ...normalized }, context),
+    );
+  }
+  return next;
 }
 
 export function buildVideoFileName(file: Pick<File, "name" | "type">) {

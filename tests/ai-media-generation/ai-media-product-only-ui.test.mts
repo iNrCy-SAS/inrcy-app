@@ -18,13 +18,14 @@ test("le Studio démarre sans personnage obligatoire", () => {
   );
 });
 
-test("un décor ou un produit seul rebascule la scène sans personnage", () => {
+test("un décor ou un produit seul ne crée pas de personnage implicite", () => {
   assert.match(
     source,
-    /role !== "character" && characterReferences\.length === 0[\s\S]*?setRealCharacterCount\(0\)/,
+    /const characterReferences = inspirationImages\.filter\([\s\S]*?image\.role === "character" && image\.usage !== "inspiration"/,
   );
   assert.match(
     source,
-    /role === "character"[\s\S]*?Boolean\(environmentReference \|\| productReference\)[\s\S]*?setRealCharacterCount\(0\)/,
+    /effectiveCharacterCount === 0\s*\? "auto"/,
   );
+  assert.match(source, /const setReferenceRole = \([\s\S]*?normalizeCharacterReferenceIndexes\(next\)/);
 });

@@ -111,6 +111,7 @@ import {
   type ChannelKey as BoosterChannelKey,
   type ChannelPost as BoosterChannelPost,
 } from "../booster/publier/publishModal.shared";
+import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
@@ -249,7 +250,6 @@ import {
   boosterDisplayKeyFromAgentChannel,
   boosterChannelKeyFromAgentChannel,
   normalizeAgentCtaMode,
-  inferPreferredCtaChoiceFromLabel,
   connectedChannelsForAutomation,
   normalizeConfigsForConnectedChannels,
   dayOffsetLabel,
@@ -817,6 +817,7 @@ export default function AgentClient() {
           phone: String(payload?.phone || "").trim(),
           preferredCta: normalizeBoosterPreferredCta(payload?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(payload?.aiLanguage),
+          channelCtas: normalizeAiChannelCtaMap(payload?.channelCtas),
         });
       } catch {
         // La modale reste utilisable sans valeurs par défaut.
@@ -1572,49 +1573,11 @@ export default function AgentClient() {
     selectedPreparedAction,
   ]);
   const publishCtaLine = isPublishView
-    ? (() => {
-        const preview = preparedChannelPreview;
-        const missingRequiredDestination = Boolean(
-          preview &&
-            preview.cta &&
-            !preview.ctaUrl &&
-            !preview.ctaPhone &&
-            ["custom", "website", "call"].includes(preview.ctaMode)
-        );
-        if (
-          !missingRequiredDestination ||
-          !preview ||
-          !activePreviewChannel ||
-          !publishCtaDefaults
-        ) {
-          return extractPublishCtaLine(
-            selectedPreparedAction,
-            activePreviewChannel,
-            preview
-          );
-        }
-
-        const basePost: BoosterChannelPost = {
-          title: preview.title || "",
-          content: preview.body || "",
-          cta: preview.cta || "",
-          ctaMode: preview.ctaMode,
-          ctaUrl: preview.ctaUrl || "",
-          ctaPhone: preview.ctaPhone || "",
-          hashtags: preview.hashtags,
-        };
-        const patch = buildPreferredCtaPatch(
-          boosterDisplayKeyFromAgentChannel(activePreviewChannel),
-          normalizeBoosterPreferredCta(publishCtaDefaults.preferredCta),
-          basePost,
-          publishCtaDefaults,
-          publishCtaDefaults.aiLanguage
-        );
-        const label = String(patch.cta || "").trim();
-        const destination = String(patch.ctaUrl || patch.ctaPhone || "").trim();
-        if (label && destination) return `${label} — ${destination}`;
-        return label || destination || "—";
-      })()
+    ? extractPublishCtaLine(
+        selectedPreparedAction,
+        activePreviewChannel,
+        preparedChannelPreview,
+      )
     : "—";
   const preparedRecipientsCount = recipientsCountForAction(
     selectedPreparedAction
@@ -1871,54 +1834,14 @@ export default function AgentClient() {
       selectedPreparedAction,
       activePreviewChannel
     );
-    const displayKey = boosterDisplayKeyFromAgentChannel(activePreviewChannel);
-    const fallbackChoice = normalizeBoosterPreferredCta(
-      publishCtaDefaults?.preferredCta
-    );
-    const inferredChoice =
-      preview.ctaMode === "none" && preview.cta
-        ? inferPreferredCtaChoiceFromLabel(preview.cta, fallbackChoice)
-        : fallbackChoice;
-    const shouldPrefillCta =
-      !preview.cta &&
-      !preview.ctaUrl &&
-      !preview.ctaPhone &&
-      publishCtaDefaults;
-    const basePost: BoosterChannelPost = {
-      title: preview.title || "",
-      content: preview.body || "",
-      cta: preview.cta || "",
-      ctaMode: preview.ctaMode,
-      ctaUrl: preview.ctaUrl || "",
-      ctaPhone: preview.ctaPhone || "",
-      hashtags: preview.hashtags,
-    };
-    const ctaPatch = shouldPrefillCta
-      ? buildPreferredCtaPatch(
-          displayKey,
-          fallbackChoice,
-          basePost,
-          publishCtaDefaults,
-          publishCtaDefaults?.aiLanguage
-        )
-      : preview.ctaMode === "none" && preview.cta
-      ? buildPreferredCtaPatch(
-          displayKey,
-          inferredChoice,
-          basePost,
-          publishCtaDefaults,
-          publishCtaDefaults?.aiLanguage
-        )
-      : {};
-    const hydratedPost = { ...basePost, ...ctaPatch };
     setPublishTextDraft({
       channel: activePreviewChannel,
       title: preview.title || "",
       body: preview.body || "",
-      cta: String(hydratedPost.cta || ""),
-      ctaMode: normalizeAgentCtaMode(hydratedPost.ctaMode),
-      ctaUrl: String(hydratedPost.ctaUrl || ""),
-      ctaPhone: String(hydratedPost.ctaPhone || ""),
+      cta: preview.cta || "",
+      ctaMode: normalizeAgentCtaMode(preview.ctaMode),
+      ctaUrl: preview.ctaUrl || "",
+      ctaPhone: preview.ctaPhone || "",
       hashtags: preview.hashtags.join(" "),
     });
     setPublishEditChoiceOpen(false);

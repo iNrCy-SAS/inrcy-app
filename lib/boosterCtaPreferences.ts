@@ -1,4 +1,5 @@
 import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
+import type { AiChannelCtaMap, AiCtaChannel } from "@/lib/aiChannelCtaPreferences";
 import type {
   BoosterChannelKey,
   BoosterCtaMode,
@@ -43,6 +44,7 @@ export type BoosterCtaDefaults = {
   phone: string;
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
+  channelCtas?: AiChannelCtaMap;
 };
 
 export type BoosterStructuredCtaPatch = {
@@ -447,6 +449,17 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
   defaults: BoosterCtaDefaults | null | undefined;
   preserveExplicit?: boolean;
 }): T {
+  const configured = args.defaults?.channelCtas?.[
+    args.channel as AiCtaChannel
+  ];
+  if (!configured) {
+    // A generated publication has no CTA unless this channel was configured.
+    // A saved/manual publication keeps its own CTA, including an explicit none.
+    return args.preserveExplicit === false
+      ? { ...args.post, ...emptyCta() }
+      : args.post;
+  }
+
   const explicitMode = cleanText(args.post.ctaMode);
   if (
     args.preserveExplicit !== false &&
@@ -456,12 +469,33 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
     return args.post;
   }
 
-  const patch = buildSafePreferredCtaPatch({
-    channel: args.channel,
-    choice: args.defaults?.preferredCta,
-    defaults: args.defaults,
-    post: args.post,
-    language: args.defaults?.aiLanguage,
-  });
+  const choice = configured.choice;
+  const label = configured.label || getPreferredCtaLabel(choice, args.defaults?.aiLanguage);
+  const websiteUrl = normalizeCtaWebsiteUrl(
+    configured.url || getPreferredWebsiteUrlForChannel(args.channel, args.defaults),
+  );
+  const phone = normalizeCtaPhone(configured.phone || args.defaults?.phone);
+  let patch: BoosterStructuredCtaPatch = emptyCta();
+  if (choice === "site" || choice === "devis") {
+    if (websiteUrl) {
+      patch = { ctaMode: "website", cta: label, ctaUrl: websiteUrl, ctaPhone: "" };
+    }
+  } else if (choice === "appeler") {
+    if (phone) patch = { ctaMode: "call", cta: label, ctaUrl: "", ctaPhone: phone };
+  } else if (choice === "message") {
+    patch = { ctaMode: "message", cta: label, ctaUrl: "", ctaPhone: "" };
+  } else if (choice === "whatsapp") {
+    const whatsappUrl = isBoosterWhatsAppUrl(configured.url)
+      ? configured.url
+      : buildBoosterWhatsAppUrl(phone);
+    if (whatsappUrl) {
+      patch = { ctaMode: "custom", cta: label, ctaUrl: whatsappUrl, ctaPhone: phone };
+    }
+  } else if (choice === "custom") {
+    const customUrl = normalizeCtaWebsiteUrl(configured.url);
+    if (customUrl) {
+      patch = { ctaMode: "custom", cta: label, ctaUrl: customUrl, ctaPhone: "" };
+    }
+  }
   return { ...args.post, ...patch };
 }

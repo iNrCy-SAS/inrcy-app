@@ -58,10 +58,6 @@ import {
   isInrMediaImageFile,
 } from "@/lib/mediaRules";
 import { uploadUniversalMediaFile } from "@/lib/universalMediaUploadClient";
-import {
-  classifyAppendedReference,
-  inferRequiredReferenceRole,
-} from "@/lib/aiMediaReferenceClassification";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -176,16 +172,13 @@ const AI_FOCUS_CRITERIA: StudioAiFocusCriterion[] = [
   "product",
   "environment",
 ];
-const REQUIRED_REFERENCE_ROLES: Array<{
+const REFERENCE_ROLE_OPTIONS: Array<{
   id: StudioRequiredReferenceRole;
   label: string;
 }> = [
-  {
-    id: "character",
-    label: "Personnage(s) · nombre détecté automatiquement",
-  },
-  { id: "product", label: "Produit / objet" },
-  { id: "environment", label: "Décor / lieu" },
+  { id: "character", label: "Personne" },
+  { id: "environment", label: "Décor" },
+  { id: "product", label: "Produit" },
 ];
 const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
@@ -210,11 +203,7 @@ function normalizeCharacterReferenceIndexes(images: StudioReferenceImage[]) {
     if (characterIndex > 3) {
       const { characterIndex: _characterIndex, ...withoutCharacterIndex } =
         image;
-      return {
-        ...withoutCharacterIndex,
-        role: "inspiration" as const,
-        usage: "inspiration" as const,
-      };
+      return withoutCharacterIndex;
     }
     return {
       ...image,
@@ -635,7 +624,6 @@ export default function MediaGenerator({
   const [inspirationImages, setInspirationImages] = useState<
     StudioReferenceImage[]
   >([]);
-  const [activeReferenceIndex, setActiveReferenceIndex] = useState(0);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -944,19 +932,19 @@ export default function MediaGenerator({
   const inspirationReference = inspirationImages.find(
     (image) => image.role === "inspiration"
   );
-  const resolvedActiveReferenceIndex = inspirationImages.length
-    ? Math.min(activeReferenceIndex, inspirationImages.length - 1)
-    : 0;
-  const activeReference =
-    inspirationImages[resolvedActiveReferenceIndex] || null;
-
-  useEffect(() => {
-    setActiveReferenceIndex((current) =>
-      inspirationImages.length
-        ? Math.min(current, inspirationImages.length - 1)
-        : 0
-    );
-  }, [inspirationImages.length]);
+  const referenceRoleLimitError =
+    mediaSourceMode === "real" && !transformMode
+      ? inspirationImages.filter((image) => image.role === "character")
+            .length > 3
+        ? "Trois références Personne maximum. Classez les autres en Décor ou Produit, ou retirez-les."
+        : inspirationImages.filter((image) => image.role === "environment")
+              .length > 1
+        ? "Un seul Décor est possible. Changez le type des autres références."
+        : inspirationImages.filter((image) => image.role === "product")
+              .length > 1
+        ? "Un seul Produit est possible. Changez le type des autres références."
+        : ""
+      : "";
   const effectiveCharacterCount = transformMode
     ? realCharacterCount
     : (Math.min(characterReferences.length, 3) as StudioCharacterCount);
@@ -1015,6 +1003,7 @@ export default function MediaGenerator({
     Boolean(exhausted) ||
     videoDurationUnavailable ||
     videoCreditInsufficient ||
+    Boolean(referenceRoleLimitError) ||
     characterReferenceMissing ||
     identityConsentMissing ||
     transformReferenceMissing;
@@ -1145,7 +1134,7 @@ export default function MediaGenerator({
     characterIndex?: 1 | 2 | 3,
     insertion: "replace" | "append" = "replace",
     options: { manageBusy?: boolean; clearError?: boolean } = {}
-  ): Promise<boolean> => {
+  ): Promise<void> => {
     const manageBusy = options.manageBusy !== false;
     if (manageBusy) setInspirationBusy(true);
     if (options.clearError !== false) setActionError("");
@@ -1154,38 +1143,16 @@ export default function MediaGenerator({
         role === "inspiration" && isInrMediaVideoFile(file)
           ? await prepareVideoReferenceFrame(file)
           : await prepareMediaGenerationImageReference(file);
-      let detectedPerson: boolean | null = null;
-      if (insertion === "append" && !isInrMediaVideoFile(file)) {
-        try {
-          const response = await fetch("/api/media-generation/detect-reference", {
-            method: "POST",
-            credentials: "include",
-            cache: "no-store",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image: prepared.data }),
-            signal: AbortSignal.timeout(18_000),
-          });
-          if (response.ok) {
-            const result = (await response.json()) as { personReference?: unknown };
-            if (typeof result.personReference === "boolean") {
-              detectedPerson = result.personReference;
-            }
-          }
-        } catch {
-          // L'analyse ne bloque jamais l'ajout : le nom et le choix manuel
-          // restent utilisables si le service est indisponible.
-        }
-      }
-      const appendedClassification = insertion === "append"
-        ? classifyAppendedReference({ fileName: file.name, detectedPerson })
-        : null;
-      const proposedRole = appendedClassification?.role || role;
+      const proposedRole = insertion === "append" ? "character" : role;
       const next: StudioReferenceImage = {
         ...prepared,
         role: proposedRole,
         ...(proposedRole === "character" ? { characterIndex } : {}),
-        usage: appendedClassification?.usage ||
-          (role === "inspiration" ? "inspiration" : "required"),
+        usage: insertion === "append"
+          ? "required"
+          : role === "inspiration"
+          ? "inspiration"
+          : "required",
       };
       setInspirationImages((current) => {
         const retained =
@@ -1209,12 +1176,10 @@ export default function MediaGenerator({
         setRealCharacterCount(0);
       }
       resetReferenceConsent();
-      return true;
     } catch (caught) {
       setActionError(
         caught instanceof Error ? caught.message : t("ai_generator_error")
       );
-      return false;
     } finally {
       if (manageBusy) setInspirationBusy(false);
     }
@@ -1250,7 +1215,7 @@ export default function MediaGenerator({
       item.original_file_name || item.title || "inspiration.jpg",
       { type: mimeType }
     );
-    return prepareReferenceFile(
+    await prepareReferenceFile(
       file,
       "inspiration",
       undefined,
@@ -1268,17 +1233,15 @@ export default function MediaGenerator({
         ? 1
         : Math.max(0, MAX_INSPIRATION_IMAGES - inspirationImages.length)
     );
-    let addedCount = 0;
     setInspirationBusy(true);
     setActionError("");
     try {
       for (const item of selected) {
-        const added = await prepareLibraryInspiration(
+        await prepareLibraryInspiration(
           item,
           transformMode ? "replace" : "append",
           { manageBusy: false, clearError: false }
         );
-        if (added) addedCount += 1;
       }
     } catch (caught) {
       setActionError(
@@ -1287,16 +1250,6 @@ export default function MediaGenerator({
     } finally {
       setInspirationBusy(false);
     }
-    if (addedCount) {
-      setActiveReferenceIndex(
-        transformMode
-          ? 0
-          : Math.min(
-              MAX_INSPIRATION_IMAGES - 1,
-              inspirationImages.length + addedCount - 1
-            )
-      );
-    }
   };
 
   const handleReferenceFiles = async (files: FileList | File[]) => {
@@ -1304,30 +1257,20 @@ export default function MediaGenerator({
       0,
       Math.max(0, MAX_INSPIRATION_IMAGES - inspirationImages.length)
     );
-    let addedCount = 0;
     setInspirationBusy(true);
     setActionError("");
     try {
       for (const file of selected) {
-        const added = await prepareReferenceFile(
+        await prepareReferenceFile(
           file,
           "inspiration",
           undefined,
           "append",
           { manageBusy: false, clearError: false }
         );
-        if (added) addedCount += 1;
       }
     } finally {
       setInspirationBusy(false);
-    }
-    if (addedCount) {
-      setActiveReferenceIndex(
-        Math.min(
-          MAX_INSPIRATION_IMAGES - 1,
-          inspirationImages.length + addedCount - 1
-        )
-      );
     }
   };
 
@@ -1336,9 +1279,6 @@ export default function MediaGenerator({
       normalizeCharacterReferenceIndexes(
         current.filter((_, currentIndex) => currentIndex !== index)
       )
-    );
-    setActiveReferenceIndex((current) =>
-      current > index ? current - 1 : current
     );
     resetReferenceConsent();
   };
@@ -1360,7 +1300,7 @@ export default function MediaGenerator({
           usage: "required" as const,
           role:
             reference.role === "inspiration" || !reference.role
-              ? inferRequiredReferenceRole(reference.name)
+              ? "character" as const
               : reference.role,
         };
       });
@@ -1378,21 +1318,7 @@ export default function MediaGenerator({
         if (currentIndex === index) return {
           ...reference,
           role,
-          usage: role === "character" ? "required" as const : reference.usage,
         };
-        if (
-          role !== "character" &&
-          reference.role === role &&
-          currentIndex !== index
-        ) {
-          const { characterIndex: _characterIndex, ...withoutCharacterIndex } =
-            reference;
-          return {
-            ...withoutCharacterIndex,
-            role: "inspiration" as const,
-            usage: "inspiration" as const,
-          };
-        }
         return reference;
       });
       return normalizeCharacterReferenceIndexes(next);
@@ -2443,14 +2369,25 @@ export default function MediaGenerator({
                 >
                   +
                 </label>
-                <span>
-                  <strong>Déposez vos références ici</strong>
+                <div className={styles.referenceDropzoneCopy}>
+                  <div className={styles.referenceDropzoneHeading}>
+                    <strong>Déposez vos références ici</strong>
+                    <details className={styles.referenceInfo}>
+                      <summary aria-label="Information sur les références">i</summary>
+                      <p>
+                        {t(
+                          kind === "video"
+                            ? "ai_generator_essential_new_scene_video"
+                            : "ai_generator_essential_new_scene_image"
+                        )}
+                      </p>
+                    </details>
+                  </div>
                   <small>
                     Personnages, produits, lieux ou inspirations ·{" "}
                     {inspirationImages.length}/{MAX_INSPIRATION_IMAGES}
                   </small>
-                  <small>Photos analysées par Google à l’ajout pour détecter les personnages.</small>
-                </span>
+                </div>
                 <span className={styles.referenceDropzoneActions}>
                   <label htmlFor="ai-media-reference-multiple">
                     Choisir sur mon appareil
@@ -2490,10 +2427,8 @@ export default function MediaGenerator({
               </div>
 
               {inspirationImages.length ? (
-                <>
                 <div
                   className={styles.referenceCollection}
-                  role="tablist"
                   aria-label="Références ajoutées"
                 >
                   {inspirationImages.map((reference, index) => {
@@ -2502,24 +2437,10 @@ export default function MediaGenerator({
                       <div
                         key={`${reference.name}-${index}`}
                         className={styles.referenceTile}
-                        data-active={
-                          resolvedActiveReferenceIndex === index
-                            ? "true"
-                            : "false"
-                        }
                         data-required={required ? "true" : "false"}
                         data-reference-role={reference.role || "inspiration"}
                       >
-                        <button
-                          type="button"
-                          role="tab"
-                          aria-selected={
-                            resolvedActiveReferenceIndex === index
-                          }
-                          className={styles.referenceTileMain}
-                          disabled={operationLocked}
-                          onClick={() => setActiveReferenceIndex(index)}
-                        >
+                        <div className={styles.referenceTileHeader}>
                           <img
                             src={`data:${reference.mimeType};base64,${reference.data}`}
                             alt=""
@@ -2530,144 +2451,56 @@ export default function MediaGenerator({
                               {reference.name || `Référence ${index + 1}`}
                             </small>
                           </span>
-                        </button>
+                        </div>
                         <button
                           type="button"
                           className={styles.referenceTileRemove}
                           aria-label={`Retirer la référence ${index + 1}`}
                           title="Retirer cette référence"
                           disabled={operationLocked}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removeReferenceAt(index);
-                          }}
+                          onClick={() => removeReferenceAt(index)}
                         >
                           ×
                         </button>
-                        <span className={styles.referenceTileUsage} aria-hidden="true">
-                          {required ? "✓" : "✦"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {activeReference ? (
-                  <article
-                    className={styles.referenceEditor}
-                    data-required={
-                      activeReference.usage === "required" ? "true" : "false"
-                    }
-                  >
-                    <div className={styles.referenceEditorHeading}>
-                      <span>
-                        <strong>
-                          Référence {resolvedActiveReferenceIndex + 1}
-                        </strong>
-                        <small>
-                          {activeReference.name ||
-                            `Référence ${resolvedActiveReferenceIndex + 1}`}
-                        </small>
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Retirer cette référence"
-                        disabled={operationLocked}
-                        onClick={() =>
-                          removeReferenceAt(resolvedActiveReferenceIndex)
-                        }
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div
-                      className={styles.referenceUsageChoices}
-                      role="radiogroup"
-                      aria-label={`Utilisation de ${activeReference.name}`}
-                    >
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={
-                              activeReference.usage === "required"
-                            }
-                            data-active={
-                              activeReference.usage === "required"
-                                ? "true"
-                                : "false"
-                            }
-                            disabled={operationLocked}
-                            onClick={() =>
-                              setReferenceUsage(
-                                resolvedActiveReferenceIndex,
-                                "required"
-                              )
-                            }
-                          >
-                            {t("ai_generator_redesign_reference_required")}
-                          </button>
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={
-                              activeReference.usage !== "required"
-                            }
-                            data-active={
-                              activeReference.usage !== "required"
-                                ? "true"
-                                : "false"
-                            }
-                            disabled={operationLocked}
-                            onClick={() =>
-                              setReferenceUsage(
-                                resolvedActiveReferenceIndex,
-                                "inspiration"
-                              )
-                            }
-                          >
-                            {t("ai_generator_redesign_reference_inspiration")}
-                          </button>
-                    </div>
-                    <label className={styles.referenceRoleField}>
-                          <span>
-                            {t("ai_generator_redesign_reference_role_proposed")}
-                          </span>
+                        <div className={styles.referenceTileControls}>
                           <select
                             className={styles.studioSelect}
-                            value={
-                              activeReference.role === "inspiration" ||
-                              !activeReference.role
-                                ? inferRequiredReferenceRole(
-                                    activeReference.name
-                                  )
-                                : activeReference.role
-                            }
+                            aria-label={`Type de la référence ${index + 1}`}
+                            value={reference.role === "inspiration" || !reference.role ? "character" : reference.role}
                             disabled={operationLocked}
                             onChange={(event) =>
-                              setReferenceRole(
-                                resolvedActiveReferenceIndex,
-                                event.target
-                                  .value as StudioRequiredReferenceRole
-                              )
+                              setReferenceRole(index, event.target.value as StudioRequiredReferenceRole)
                             }
                           >
-                            {REQUIRED_REFERENCE_ROLES.map((role) => (
+                            {REFERENCE_ROLE_OPTIONS.map((role) => (
                               <option key={role.id} value={role.id}>
                                 {role.label}
                               </option>
                             ))}
                           </select>
-                    </label>
-                    {activeReference.role === "character" ? (
-                      <p className={styles.characterReferenceStatus}>
-                            {activeReference.usage === "required"
-                              ? "Identité stricte : toutes les personnes présentes doivent être conservées et peuvent être mises en action."
-                              : "Les personnes présentes inspirent le rendu sans imposer leur identité."}
-                      </p>
-                    ) : null}
-                  </article>
-                ) : null}
-                </>
+                          <select
+                            className={styles.studioSelect}
+                            aria-label={`Utilisation de la référence ${index + 1}`}
+                            value={reference.usage}
+                            disabled={operationLocked}
+                            onChange={(event) =>
+                              setReferenceUsage(index, event.target.value as "required" | "inspiration")
+                            }
+                          >
+                            <option value="required">Obligatoire</option>
+                            <option value="inspiration">Idée</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {referenceRoleLimitError ? (
+                <p className={styles.referenceLimitError} role="alert">
+                  {referenceRoleLimitError}
+                </p>
               ) : null}
 
               {kind === "video" && characterReferences.length ? (
@@ -2682,26 +2515,22 @@ export default function MediaGenerator({
             </>
           )}
 
-          <div className={styles.newSceneNotice} role="note">
-            <span aria-hidden="true">✓</span>
-            <p>
-              {mediaSourceMode === "ai"
-                ? `L’IA crée ${
-                    kind === "video" ? "une vidéo" : "une image"
-                  } entièrement nouvelle à partir de votre brief.`
-                : mediaSourceMode === "criteria"
-                ? t(
-                    kind === "video"
-                      ? "ai_generator_redesign_criteria_result_video"
-                      : "ai_generator_redesign_criteria_result_image"
-                  )
-                : t(
-                    kind === "video"
-                      ? "ai_generator_essential_new_scene_video"
-                      : "ai_generator_essential_new_scene_image"
-                  )}
-            </p>
-          </div>
+          {mediaSourceMode !== "real" ? (
+            <div className={styles.newSceneNotice} role="note">
+              <span aria-hidden="true">✓</span>
+              <p>
+                {mediaSourceMode === "ai"
+                  ? `L’IA crée ${
+                      kind === "video" ? "une vidéo" : "une image"
+                    } entièrement nouvelle à partir de votre brief.`
+                  : t(
+                      kind === "video"
+                        ? "ai_generator_redesign_criteria_result_video"
+                        : "ai_generator_redesign_criteria_result_image"
+                    )}
+              </p>
+            </div>
+          ) : null}
 
           {characterReferenceMissing ? (
             <p className={styles.identityRequirement} role="alert">

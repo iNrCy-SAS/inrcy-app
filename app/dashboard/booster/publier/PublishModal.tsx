@@ -65,10 +65,9 @@ import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
   buildCtaTextForChannel,
   buildBoosterXPostText,
-  normalizeBoosterPostCtaForChannel,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
-import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
+import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   X_POST_WEIGHTED_LENGTH_MAX,
   getXPostTextMetrics,
@@ -92,7 +91,6 @@ import {
   BOOSTER_VIDEO_FORMATS_LABEL,
   CHANNEL_LABELS,
   CHANNEL_PRESETS,
-  buildAutoPrefillPatch,
   buildPreferredCtaPatch,
   buildBoosterVideoGenerationContext,
   buildVideoSettingsByChannel,
@@ -104,7 +102,6 @@ import {
   getLocalizedChannelPublicationRequirement,
   getLocalizedChannelLabel,
   getAutomaticVideoSettingsForPublication,
-  getDefaultCtaModeForChannel,
   normalizeBoosterPreferredCta,
   getWebsiteUrlForChannel,
   getOptimizedTransform,
@@ -156,6 +153,7 @@ import {
   isThemeKey,
   makeVideoTranscriptCacheKey,
   normalizeExternalHref,
+  prefillConfiguredChannelCtas,
   sanitizePatchForEditor,
   sanitizePostForEditor,
   sanitizePostsForEditor,
@@ -1034,7 +1032,7 @@ export default function PublishModal({
   const [ctaDefaults, setCtaDefaults] = useState<BoosterCtaDefaults | null>(
     null,
   );
-  const preferredCtaDefaultsAppliedRef = useRef(false);
+  const manuallyEditedCtaChannelsRef = useRef<Set<ChannelKey>>(new Set());
 
   const applyConnectedChannels = useCallback(
     (nextConnected: Record<ChannelKey, boolean>) => {
@@ -1591,22 +1589,7 @@ export default function PublishModal({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleAiConfigurationUpdated = (event: Event) => {
-      const detail =
-        (event as CustomEvent<{ aiLanguage?: unknown; preferredCta?: unknown }>)
-          .detail || {};
-      setCtaDefaults((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          preferredCta: normalizeBoosterPreferredCta(
-            detail.preferredCta || current.preferredCta,
-          ),
-          aiLanguage: normalizeBoosterAiLanguage(
-            detail.aiLanguage || current.aiLanguage,
-          ),
-        };
-      });
+    const handleAiConfigurationUpdated = () => {
       void prewarmBoosterGenerationContextClient();
     };
     window.addEventListener(
@@ -1622,7 +1605,7 @@ export default function PublishModal({
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const loadDefaults = async () => {
       try {
         const res = await fetch("/api/booster/cta-defaults", {
           cache: "no-store" as any,
@@ -1640,117 +1623,29 @@ export default function PublishModal({
           phone: String(json?.phone || "").trim(),
           preferredCta: normalizeBoosterPreferredCta(json?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(json?.aiLanguage),
+          channelCtas: normalizeAiChannelCtaMap(json?.channelCtas),
         });
       } catch {
         // ignore
       }
-    })();
+    };
+    void loadDefaults();
+    window.addEventListener("inrcy:ai-configuration-updated", loadDefaults);
     return () => {
       alive = false;
+      window.removeEventListener("inrcy:ai-configuration-updated", loadDefaults);
     };
   }, []);
 
   useEffect(() => {
     if (!ctaDefaults) return;
-    const shouldApplyPreferredDefaults =
-      !preferredCtaDefaultsAppliedRef.current;
-    if (shouldApplyPreferredDefaults)
-      preferredCtaDefaultsAppliedRef.current = true;
-
-    setPostsByChannel((prev) => {
-      let changed = false;
-      const next: Partial<Record<ChannelKey, ChannelPost>> = { ...prev };
-      const keys: ChannelKey[] = [
-        "site_web",
-        "inrcy_site",
-        "gmb",
-        "facebook",
-        "instagram",
-        "linkedin",
-        "x",
-        "tiktok",
-        "youtube_shorts",
-        "pinterest",
-      ];
-      for (const key of keys) {
-        const current = sanitizePostForEditor(key, prev[key]);
-        const hasExistingCta = Boolean(
-          String(current.cta || "").trim() ||
-          String(current.ctaUrl || "").trim() ||
-          String(current.ctaPhone || "").trim(),
-        );
-        let mode = current.ctaMode || "none";
-        const shouldSetPreferredMode =
-          shouldApplyPreferredDefaults && mode === "none" && !hasExistingCta;
-        const preferredChoice = normalizeBoosterPreferredCta(
-          ctaDefaults.preferredCta,
-        );
-        if (shouldSetPreferredMode)
-          mode = getDefaultCtaModeForChannel(key, ctaDefaults);
-        if (
-          mode !== "website" &&
-          mode !== "call" &&
-          mode !== "message" &&
-          mode !== "custom" &&
-          mode !== "none"
-        )
-          continue;
-
-        const patch = shouldSetPreferredMode
-          ? buildPreferredCtaPatch(
-              key,
-              preferredChoice,
-              current,
-              ctaDefaults,
-              ctaDefaults.aiLanguage,
-            )
-          : buildAutoPrefillPatch(
-              key,
-              mode,
-              current,
-              ctaDefaults,
-              ctaDefaults.aiLanguage,
-            );
-        const hasMeaningfulPatch = Object.entries(patch).some(
-          ([patchKey, patchValue]) => {
-            if (patchKey === "ctaMode")
-              return shouldSetPreferredMode && patchValue !== current.ctaMode;
-            return String(patchValue || "").trim();
-          },
-        );
-        const context = {
-          websiteUrl: getWebsiteUrlForChannel(key, ctaDefaults),
-          phone: ctaDefaults.phone,
-        };
-        const candidate = hasMeaningfulPatch
-          ? { ...current, ...patch }
-          : current;
-        const preferred = applySafePreferredCta({
-          channel: key,
-          post: candidate,
-          defaults: ctaDefaults,
-          preserveExplicit: !shouldSetPreferredMode,
-        });
-        const normalized = normalizeBoosterPostCtaForChannel(
-          key,
-          preferred,
-          context,
-        );
-        const merged = sanitizePostForEditor(
-          key,
-          sanitizeBoosterPostForStructuredCta(
-            { ...current, ...normalized },
-            context,
-          ),
-        );
-        const before = JSON.stringify(current);
-        const after = JSON.stringify(merged);
-        if (before === after) continue;
-        next[key] = merged;
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
+    setPostsByChannel((prev) =>
+      prefillConfiguredChannelCtas(
+        prev,
+        ctaDefaults,
+        manuallyEditedCtaChannelsRef.current,
+      ),
+    );
   }, [ctaDefaults]);
 
   useEffect(() => {
@@ -2679,14 +2574,12 @@ export default function PublishModal({
       !!publicationInstruction.trim() ||
       !!theme ||
       contentStyle !== "equilibre";
+    // A configured CTA alone is a default, not unfinished editorial work.
     const hasGeneratedContent = Object.values(postsByChannel).some((post) => {
       const normalized = normalizePost(post);
       return !!(
         normalized.title?.trim() ||
         normalized.content?.trim() ||
-        normalized.cta?.trim() ||
-        normalized.ctaUrl?.trim() ||
-        normalized.ctaPhone?.trim() ||
         normalized.hashtags?.length
       );
     });
@@ -3185,6 +3078,11 @@ export default function PublishModal({
         setActiveCard(nextActiveCard);
         draftChannelsRestoredRef.current = true;
         setChannels(nextChannels);
+        for (const key of CHANNEL_KEYS) {
+          if (nextPostsByChannel[key]?.ctaMode === "none") {
+            manuallyEditedCtaChannelsRef.current.add(key);
+          }
+        }
         setPostsByChannel(nextPostsByChannel);
         setInstagramHashtagsInput(nextInstagramHashtags);
         setXHashtagsInput(nextXHashtags);
@@ -3433,7 +3331,8 @@ export default function PublishModal({
   };
 
   const clearChannelCreationWork = () => {
-    setPostsByChannel({});
+    manuallyEditedCtaChannelsRef.current.clear();
+    setPostsByChannel(prefillConfiguredChannelCtas({}, ctaDefaults));
     setInstagramHashtagsInput("");
     setXHashtagsInput("");
     instagramPlacementTouchedRef.current = false;
@@ -4894,6 +4793,14 @@ export default function PublishModal({
     patch: Partial<ChannelPost>,
     options?: { sanitize?: boolean },
   ) => {
+    if (
+      "cta" in patch ||
+      "ctaMode" in patch ||
+      "ctaUrl" in patch ||
+      "ctaPhone" in patch
+    ) {
+      manuallyEditedCtaChannelsRef.current.add(channel);
+    }
     setPostsByChannel((prev) => {
       const current = normalizePost(prev[channel]);
     const nextPatch =

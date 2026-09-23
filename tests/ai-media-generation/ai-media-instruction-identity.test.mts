@@ -62,10 +62,10 @@ test("l'identité vidéo est consentie, auditée et indépendante du rendu", () 
   assert.match(generator, /renderReferenceSlot/);
   assert.match(
     generator,
-    /id: "character",[\s\S]{0,120}label: "Personnage\(s\) · nombre détecté automatiquement"/
+    /\{ id: "character", label: "Personne" \}/
   );
-  assert.match(generator, /\{ id: "environment", label: "Décor \/ lieu" \}/);
-  assert.match(generator, /\{ id: "product", label: "Produit \/ objet" \}/);
+  assert.match(generator, /\{ id: "environment", label: "Décor" \}/);
+  assert.match(generator, /\{ id: "product", label: "Produit" \}/);
   assert.match(generator, /role: proposedRole/);
   assert.match(generator, /setReferenceRole/);
   assert.match(generator, /setIdentityConsent\(false\)/);
