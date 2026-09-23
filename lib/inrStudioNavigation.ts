@@ -10,6 +10,7 @@ export type InrStudioSource = {
   lastModified: number;
   url: string | null;
   cacheKey: string | null;
+  ownsObjectUrl?: boolean;
 };
 
 export type InrStudioHandoff = {
@@ -179,6 +180,7 @@ export async function createInrStudioHandoff(
         lastModified: Number(sourceFile?.lastModified || Date.now()),
         url: sourceUrl,
         cacheKey: cached ? cacheKey : null,
+        ownsObjectUrl: !fallbackUrl && Boolean(sourceFile),
       }
     : null;
 
@@ -201,10 +203,21 @@ export async function createInrStudioHandoff(
     payload: input.payload || null,
   };
 
-  window.sessionStorage.setItem(
-    `${HANDOFF_PREFIX}${key}`,
-    JSON.stringify(handoff)
-  );
+  try {
+    window.sessionStorage.setItem(
+      `${HANDOFF_PREFIX}${key}`,
+      JSON.stringify(handoff)
+    );
+  } catch (error) {
+    if (source?.ownsObjectUrl && source.url) URL.revokeObjectURL(source.url);
+    if (cached && cacheKey) {
+      try {
+        const cache = await window.caches.open(CACHE_NAME);
+        await cache.delete(cacheRequest(cacheKey));
+      } catch {}
+    }
+    throw error;
+  }
 
   const query = new URLSearchParams({
     studio_tab: input.tab,
@@ -276,7 +289,7 @@ export async function clearInrStudioHandoff(key: string | null | undefined) {
   if (!key || typeof window === "undefined") return;
   const handoff = readInrStudioHandoff(key);
   window.sessionStorage.removeItem(`${HANDOFF_PREFIX}${key}`);
-  if (handoff?.source?.url?.startsWith("blob:")) {
+  if (handoff?.source?.ownsObjectUrl && handoff.source.url?.startsWith("blob:")) {
     URL.revokeObjectURL(handoff.source.url);
   }
   if (handoff?.source?.cacheKey && "caches" in window) {

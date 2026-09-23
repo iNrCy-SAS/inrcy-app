@@ -22,6 +22,7 @@ import {
   readInrStudioHandoff,
   saveInrStudioReturn,
   type InrStudioHandoff,
+  type InrStudioReturnedMedia,
   type InrStudioTab,
 } from "@/lib/inrStudioNavigation";
 import {
@@ -130,7 +131,17 @@ function mergeVideoVariants(
   ];
 }
 
-export default function MediaGeneratorStudioClient() {
+type StudioClientProps = {
+  embeddedHandoff?: InrStudioHandoff;
+  onEmbeddedReturn?: (result: InrStudioReturnedMedia) => Promise<void>;
+  onEmbeddedClose?: () => void;
+};
+
+export default function MediaGeneratorStudioClient({
+  embeddedHandoff,
+  onEmbeddedReturn,
+  onEmbeddedClose,
+}: StudioClientProps = {}) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [handoff, setHandoff] = useState<InrStudioHandoff | null>(null);
@@ -152,7 +163,7 @@ export default function MediaGeneratorStudioClient() {
       requestedTab === "modify" || requestedTab === "retouch"
         ? requestedTab
         : "generate";
-    const nextHandoff = readInrStudioHandoff(params.get("studio_handoff"));
+    const nextHandoff = embeddedHandoff || readInrStudioHandoff(params.get("studio_handoff"));
     setInitialTab(nextHandoff?.tab || fallbackTab);
     setHandoff(nextHandoff);
     setInitialPreview(getImmediateSourcePreview(nextHandoff));
@@ -184,7 +195,7 @@ export default function MediaGeneratorStudioClient() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [embeddedHandoff]);
 
   const closeStudio = useCallback(() => {
     if (!handoff) {
@@ -193,11 +204,16 @@ export default function MediaGeneratorStudioClient() {
     }
     const returnHref = handoff.returnHref;
     void clearInrStudioHandoff(handoff.key).finally(() => {
-      router.replace(returnHref);
+      if (onEmbeddedClose) onEmbeddedClose();
+      else router.replace(returnHref);
     });
-  }, [handoff, router]);
+  }, [handoff, onEmbeddedClose, router]);
 
   const abandonStudio = useCallback(() => {
+    if (onEmbeddedClose) {
+      closeStudio();
+      return;
+    }
     if (!handoff) {
       router.replace("/dashboard");
       return;
@@ -206,28 +222,39 @@ export default function MediaGeneratorStudioClient() {
     void clearInrStudioHandoff(handoff.key).finally(() => {
       router.replace(abandonHref);
     });
-  }, [handoff, router]);
+  }, [closeStudio, handoff, onEmbeddedClose, router]);
+
+  const deliverReturnedMedia = useCallback(async (item: Record<string, unknown>, action: InrStudioTab) => {
+    if (!handoff) {
+      router.replace("/dashboard/mediatheque");
+      return;
+    }
+    const result: InrStudioReturnedMedia = {
+      version: 1,
+      returnKey: handoff.returnKey,
+      handoffKey: handoff.key,
+      action,
+      createdAt: Date.now(),
+      context: handoff.context,
+      item,
+    };
+    if (onEmbeddedReturn && onEmbeddedClose) {
+      await onEmbeddedReturn(result);
+      await clearInrStudioHandoff(handoff.key);
+      onEmbeddedClose();
+      return;
+    }
+    saveInrStudioReturn(result);
+    const returnHref = buildInrStudioReturnHref(handoff);
+    await clearInrStudioHandoff(handoff.key);
+    router.replace(returnHref);
+  }, [handoff, onEmbeddedClose, onEmbeddedReturn, router]);
 
   const returnAcceptedMedia = useCallback(
     async (result: MediaGenerationResult) => {
-      if (!handoff) {
-        router.replace("/dashboard/mediatheque");
-        return;
-      }
-      saveInrStudioReturn({
-        version: 1,
-        returnKey: handoff.returnKey,
-        handoffKey: handoff.key,
-        action: handoff.tab,
-        createdAt: Date.now(),
-        context: handoff.context,
-        item: result.item as unknown as Record<string, unknown>,
-      });
-      const returnHref = buildInrStudioReturnHref(handoff);
-      await clearInrStudioHandoff(handoff.key);
-      router.replace(returnHref);
+      await deliverReturnedMedia(result.item as unknown as Record<string, unknown>, handoff?.tab || "generate");
     },
-    [handoff, router]
+    [deliverReturnedMedia, handoff]
   );
 
   const saveRetouchedMedia = useCallback(
@@ -264,24 +291,9 @@ export default function MediaGeneratorStudioClient() {
         created_at: item.created_at || new Date().toISOString(),
       };
 
-      if (!handoff) {
-        router.replace("/dashboard/mediatheque");
-        return;
-      }
-      saveInrStudioReturn({
-        version: 1,
-        returnKey: handoff.returnKey,
-        handoffKey: handoff.key,
-        action: "retouch",
-        createdAt: Date.now(),
-        context: handoff.context,
-        item: returnedItem,
-      });
-      const returnHref = buildInrStudioReturnHref(handoff);
-      await clearInrStudioHandoff(handoff.key);
-      router.replace(returnHref);
+      await deliverReturnedMedia(returnedItem, "retouch");
     },
-    [handoff, router]
+    [deliverReturnedMedia]
   );
 
   const saveRetouchedVideo = useCallback(
@@ -417,28 +429,18 @@ export default function MediaGeneratorStudioClient() {
         return;
       }
 
-      saveInrStudioReturn({
-        version: 1,
-        returnKey: handoff.returnKey,
-        handoffKey: handoff.key,
-        action: "retouch",
-        createdAt: Date.now(),
-        context: handoff.context,
-        item: returnedItem,
-      });
-      const returnHref = buildInrStudioReturnHref(handoff);
-      await clearInrStudioHandoff(handoff.key);
-      router.replace(returnHref);
+      await deliverReturnedMedia(returnedItem, "retouch");
     },
-    [handoff, router]
+    [deliverReturnedMedia, handoff, router]
   );
 
   return (
     <>
-      <main className={styles.page} aria-hidden="true" />
+      {!embeddedHandoff ? <main className={styles.page} aria-hidden="true" /> : null}
       {ready ? (
         <MediaGeneratorModal
           open
+          embedded={Boolean(embeddedHandoff)}
           source="studio"
           origin={
             handoff?.origin === "booster" ||

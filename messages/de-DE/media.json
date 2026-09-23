@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "Diese Vorschau verwerfen?",
   "ai_studio_origin_exit_title": "Zu {origin} zurückkehren?",
   "ai_studio_origin_exit_description": "Dieses Medium wird erst übernommen, nachdem Sie Dieses Medium verwenden gewählt haben. Kehren Sie zu {origin} zurück, um die Veröffentlichung zu behalten, oder verlassen Sie die aktuelle Veröffentlichung. Der gespeicherte Entwurf bleibt verfügbar.",
+  "ai_studio_embedded_exit_description": "Kehren Sie in {origin} genau dorthin zurück, wo Sie aufgehört haben. Ihre Arbeit bleibt erhalten; Änderungen am Medium werden erst mit „Dieses Medium verwenden“ übernommen.",
   "ai_studio_origin_stay": "In iNrStudio bleiben",
   "ai_studio_origin_return": "Zurück zu {origin}",
   "ai_studio_origin_abandon": "Veröffentlichung verlassen",

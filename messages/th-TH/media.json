@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "ลบตัวอย่างนี้หรือไม่",
   "ai_studio_origin_exit_title": "กลับไปที่ {origin} หรือไม่",
   "ai_studio_origin_exit_description": "สื่อนี้จะถูกนำไปใช้หลังจากเลือก ใช้สื่อนี้ เท่านั้น กลับไปที่ {origin} เพื่อเก็บงานเผยแพร่ไว้ หรือออกจากงานเผยแพร่ปัจจุบัน โดยฉบับร่างที่บันทึกไว้จะยังคงอยู่",
+  "ai_studio_embedded_exit_description": "กลับไปที่ {origin} ณ จุดเดิมที่คุณค้างไว้ งานของคุณจะยังคงอยู่ การแก้ไขสื่อจะมีผลต่อเมื่อเลือก “ใช้สื่อนี้” เท่านั้น",
   "ai_studio_origin_stay": "ทำต่อใน iNrStudio",
   "ai_studio_origin_return": "กลับไปที่ {origin}",
   "ai_studio_origin_abandon": "ออกจากงานเผยแพร่",

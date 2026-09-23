@@ -1163,15 +1163,26 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     void acceptGeneratedPublicationMedia(
       { item: studioReturn.item as unknown as MediaLibraryPickerItem },
       target,
-      !isSourceEdit,
+      // Accepting the result inside Studio is already the user's explicit
+      // replacement decision. A second portal confirmation would sit behind
+      // the still-open Studio and could deadlock the embedded handoff.
+      false,
     )
-      .catch(() => undefined)
+      .catch((error) => {
+        setDetailsActionError(
+          error instanceof Error && error.message
+            ? error.message
+            : i18nT("publication_update_failed"),
+        );
+      })
       .finally(onStudioReturnHandled);
   }, [
     acceptGeneratedPublicationMedia,
     detailsEditMode,
+    i18nT,
     onStudioReturnHandled,
     open,
+    setDetailsActionError,
     studioReturn,
   ]);
 

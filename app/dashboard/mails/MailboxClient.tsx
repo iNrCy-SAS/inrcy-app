@@ -48,15 +48,14 @@ import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
 import MailboxDetailsModal from "./_components/MailboxDetailsModal";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
+import { useInrStudioSession } from "@/app/dashboard/_hooks/useInrStudioSession";
 import {
   consumeInrStudioReturn,
   createInrStudioHandoff,
   type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
 import {
-  clearInrSendPublicationEditorSnapshot,
   consumeInrSendPublicationEditorSnapshot,
-  saveInrSendPublicationEditorSnapshot,
   type InrSendPublicationEditorSnapshot,
 } from "./_lib/mailboxStudioSnapshot";
 import MailboxComposeModal from "./_components/MailboxComposeModal";
@@ -361,6 +360,20 @@ export default function MailboxClient({
   const [failedStudioEditorSnapshotKey, setFailedStudioEditorSnapshotKey] =
     useState<string | null>(null);
   const studioEditorSnapshotLoadRef = useRef("");
+  const receiveEmbeddedStudioReturn = useCallback(
+    (returned: InrStudioReturnedMedia) => {
+      // The iNrSend editor is still mounted behind Studio. Apply directly to
+      // that live draft instead of restoring the navigation fallback snapshot.
+      setPendingStudioReturn(returned);
+      setPendingStudioReturnStage("apply");
+    },
+    [],
+  );
+  const {
+    openStudio,
+    studio,
+    completeReturn: completeEmbeddedStudioReturn,
+  } = useInrStudioSession({ onReturned: receiveEmbeddedStudioReturn });
   const [detailsSourceDocPayload, setDetailsSourceDocPayload] = useState<
     any | null
   >(null);
@@ -3882,35 +3895,18 @@ export default function MailboxClient({
   async function launchPublicationMediaGenerator(publicationBrief: string) {
     const channel = normalizeChannelKey(activePublicationEditChannelKey);
     setDetailsActionError(null);
-    let editorSnapshotKey = "";
     try {
-      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
-        itemId: detailsItem?.id || "",
-        channel,
-        form: publicationEditForm,
-        imagesByChannel: publicationEditImagesByChannel,
-        videoByChannel: publicationEditVideoByChannel,
-      });
-      const returnParams = new URLSearchParams(searchParams?.toString() || "");
-      returnParams.delete("studio_return");
-      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
-      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
       const { href } = await createInrStudioHandoff({
         tab: "generate",
         origin: "inrsend-publish",
-        returnHref,
         publicationBrief,
         context: {
           itemId: detailsItem?.id || null,
           channel,
-          editorSnapshotKey,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
-      if (editorSnapshotKey) {
-        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
-      }
       const message =
         error instanceof Error
           ? error.message
@@ -3934,23 +3930,10 @@ export default function MailboxClient({
       return;
     }
     setDetailsActionError(null);
-    let editorSnapshotKey = "";
     try {
-      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
-        itemId: detailsItem?.id || "",
-        channel: normalizedChannel,
-        form: publicationEditForm,
-        imagesByChannel: publicationEditImagesByChannel,
-        videoByChannel: publicationEditVideoByChannel,
-      });
-      const returnParams = new URLSearchParams(searchParams?.toString() || "");
-      returnParams.delete("studio_return");
-      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
-      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
       const { href } = await createInrStudioHandoff({
         tab,
         origin: "inrsend-publish",
-        returnHref,
         source: {
           file: asset.file instanceof File ? asset.file : null,
           url: asset.previewUrl || null,
@@ -3962,14 +3945,10 @@ export default function MailboxClient({
           itemId: detailsItem?.id || null,
           channel: normalizedChannel,
           imageKey,
-          editorSnapshotKey,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
-      if (editorSnapshotKey) {
-        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
-      }
       setDetailsActionError(
         error instanceof Error
           ? error.message
@@ -4002,19 +3981,7 @@ export default function MailboxClient({
     }
 
     setDetailsActionError(null);
-    let editorSnapshotKey = "";
     try {
-      editorSnapshotKey = await saveInrSendPublicationEditorSnapshot({
-        itemId: detailsItem?.id || "",
-        channel,
-        form: publicationEditForm,
-        imagesByChannel: publicationEditImagesByChannel,
-        videoByChannel: publicationEditVideoByChannel,
-      });
-      const returnParams = new URLSearchParams(searchParams?.toString() || "");
-      returnParams.delete("studio_return");
-      returnParams.set("studio_editor_snapshot", editorSnapshotKey);
-      const returnHref = `${window.location.pathname}?${returnParams.toString()}${window.location.hash}`;
       const storagePath = String(
         sourceRecord.storagePath || sourceRecord.storage_path || "",
       ).trim();
@@ -4024,7 +3991,6 @@ export default function MailboxClient({
       const { href } = await createInrStudioHandoff({
         tab: "retouch",
         origin: "inrsend-publish",
-        returnHref,
         source: {
           mediaType: "video",
           file: video.file instanceof File ? video.file : null,
@@ -4037,7 +4003,6 @@ export default function MailboxClient({
           itemId: detailsItem?.id || null,
           channel,
           mediaType: "video",
-          editorSnapshotKey,
         },
         payload: {
           videoChannel,
@@ -4053,11 +4018,8 @@ export default function MailboxClient({
           deferVideoPreparation: false,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
-      if (editorSnapshotKey) {
-        await clearInrSendPublicationEditorSnapshot(editorSnapshotKey);
-      }
       setDetailsActionError(
         error instanceof Error
           ? error.message
@@ -4753,6 +4715,7 @@ export default function MailboxClient({
       setDetailsActionError("Le retour iNrStudio ne contient plus sa publication d’origine.");
       setPendingStudioReturn(null);
       setPendingStudioReturnStage("restore");
+      completeEmbeddedStudioReturn();
       return;
     }
 
@@ -4803,13 +4766,13 @@ export default function MailboxClient({
       publicationEditImagesByChannel,
       channel,
     );
-    if (!imagesInitialized) return;
     const isSourceEdit =
       pendingStudioReturn.action === "retouch" ||
       pendingStudioReturn.action === "modify";
     const isVideoSourceEdit =
       pendingStudioReturn.item?.media_type === "video" ||
       pendingStudioReturn.context.mediaType === "video";
+    if (!isVideoSourceEdit && !imagesInitialized) return;
     const imageKey = String(pendingStudioReturn.context.imageKey || "").trim();
     if (
       isSourceEdit &&
@@ -4822,11 +4785,13 @@ export default function MailboxClient({
       setDetailsActionError("L’image source de cette action n’est plus disponible.");
       setPendingStudioReturn(null);
       setPendingStudioReturnStage("restore");
+      completeEmbeddedStudioReturn();
       return;
     }
     setDetailsEditMode(true);
   }, [
     activePublicationEditChannelKey,
+    completeEmbeddedStudioReturn,
     detailsItem?.id,
     detailsOpen,
     items,
@@ -4842,7 +4807,8 @@ export default function MailboxClient({
     setPendingStudioReturnStage("restore");
     setResolvedStudioEditorSnapshotKey(null);
     setFailedStudioEditorSnapshotKey(null);
-  }, []);
+    completeEmbeddedStudioReturn();
+  }, [completeEmbeddedStudioReturn]);
 
   async function addPublicationVideo(fileList: FileList | File[] | null) {
     const channel = normalizeBoosterChannelKeyForVideo(
@@ -6053,6 +6019,7 @@ export default function MailboxClient({
           </div>
         ) : null}
       </div>
+      {studio}
     </div>
   );
 }

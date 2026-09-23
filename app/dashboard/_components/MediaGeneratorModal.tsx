@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -29,6 +29,7 @@ import styles from "./MediaGeneratorModal.module.css";
 
 type MediaGeneratorModalProps = {
   open: boolean;
+  embedded?: boolean;
   source: MediaGenerationSource;
   origin: MediaGeneratorOrigin;
   initialTab?: MediaGeneratorStudioMode;
@@ -62,6 +63,7 @@ function getFocusableElements(container: HTMLElement | null) {
 
 export default function MediaGeneratorModal({
   open,
+  embedded = false,
   source,
   origin,
   initialTab = "generate",
@@ -98,6 +100,7 @@ export default function MediaGeneratorModal({
     retouch: initialTab === "retouch" ? initialMediaType : "image",
   }));
   const dialogRef = useRef<HTMLElement | null>(null);
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeConfirmDialogRef = useRef<HTMLElement | null>(null);
   const closeConfirmCancelRef = useRef<HTMLButtonElement | null>(null);
@@ -114,6 +117,15 @@ export default function MediaGeneratorModal({
   const activeMediaType = mediaTypeByTab[studioTab];
 
   useEffect(() => setMounted(true), []);
+
+  useLayoutEffect(() => {
+    if (!embedded || !mounted || !open || !layerRef.current) return;
+    const background = Array.from(document.body.children)
+      .filter((node): node is HTMLElement => node instanceof HTMLElement && node !== layerRef.current)
+      .map((node) => ({ node, inert: node.inert }));
+    background.forEach(({ node }) => { node.inert = true; });
+    return () => { background.forEach(({ node, inert }) => { node.inert = inert; }); };
+  }, [embedded, mounted, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -274,44 +286,42 @@ export default function MediaGeneratorModal({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (closeConfirmOpen) {
-          cancelClose();
-          return;
-        }
-        requestClose();
+  const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // Portal events must never reach the still-mounted editor's shortcuts.
+    if (embedded) event.stopPropagation();
+    if (event.defaultPrevented) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (closeConfirmOpen) {
+        cancelClose();
         return;
       }
-      if (event.key !== "Tab") return;
-      const activeDialog = closeConfirmOpen
-        ? closeConfirmDialogRef.current
-        : dialogRef.current;
-      const focusable = getFocusableElements(activeDialog);
-      if (!focusable.length) {
-        event.preventDefault();
-        activeDialog?.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!activeDialog?.contains(document.activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancelClose, closeConfirmOpen, open, requestClose]);
+      requestClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const activeDialog = closeConfirmOpen
+      ? closeConfirmDialogRef.current
+      : dialogRef.current;
+    const focusable = getFocusableElements(activeDialog);
+    if (!focusable.length) {
+      event.preventDefault();
+      activeDialog?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!activeDialog?.contains(document.activeElement)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, [cancelClose, closeConfirmOpen, embedded, requestClose]);
 
   useEffect(() => {
     if (!closeConfirmOpen) return;
@@ -335,7 +345,9 @@ export default function MediaGeneratorModal({
 
   return createPortal(
     <div
+      ref={layerRef}
       className={styles.layer}
+      onKeyDown={handleKeyDown}
       role="presentation"
       data-disable-pull-refresh="true"
       data-media-generator-origin={origin}
@@ -573,7 +585,7 @@ export default function MediaGeneratorModal({
             </h3>
             <p id={closeDescriptionId}>
               {hasExternalHandoff
-                ? t("ai_studio_origin_exit_description", {
+                ? t(embedded ? "ai_studio_embedded_exit_description" : "ai_studio_origin_exit_description", {
                     origin: handoffOriginLabel || "iNrCy",
                   })
                 : t(
@@ -595,7 +607,7 @@ export default function MediaGeneratorModal({
                     : "ai_generator_close_confirm_cancel"
                 )}
               </button>
-              {hasExternalHandoff ? (
+              {hasExternalHandoff && !embedded ? (
                 <button
                   type="button"
                   className={styles.closeConfirmAbandon}

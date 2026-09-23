@@ -681,6 +681,7 @@
   letter-spacing: -0.04em;
 }
 
+.agentCopy h3 b,
 .studioCopy h3 b {
   background: linear-gradient(90deg, #6ee9ff, #aa8cff 58%, #ff7bd6);
   -webkit-background-clip: text;

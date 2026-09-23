@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "Eliminar esta pré-visualização?",
   "ai_studio_origin_exit_title": "Voltar para {origin}?",
   "ai_studio_origin_exit_description": "Este conteúdo só será aplicado depois de escolher Utilizar este conteúdo. Volte para {origin} para manter a publicação ou abandone a publicação atual. O rascunho guardado continuará disponível.",
+  "ai_studio_embedded_exit_description": "Volte a {origin} exatamente ao ponto onde estava. O seu trabalho é preservado; as alterações ao conteúdo só são aplicadas ao escolher «Utilizar este conteúdo».",
   "ai_studio_origin_stay": "Continuar no iNrStudio",
   "ai_studio_origin_return": "Voltar para {origin}",
   "ai_studio_origin_abandon": "Abandonar a publicação",

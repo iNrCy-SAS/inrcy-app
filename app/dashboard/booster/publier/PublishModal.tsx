@@ -199,6 +199,7 @@ import {
   type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
 import usePublishImageController from "./usePublishImageController";
+import { useInrStudioSession } from "@/app/dashboard/_hooks/useInrStudioSession";
 import usePersistentMediaWorkspace, {
   type PersistentWorkspaceMediaState,
 } from "./usePersistentMediaWorkspace";
@@ -464,6 +465,13 @@ export default function PublishModal({
   const [pendingStudioReturn, setPendingStudioReturn] =
     useState<InrStudioReturnedMedia | null>(null);
   const studioReturnApplyingKeyRef = useRef("");
+  const inlineStudioReturnKeyRef = useRef("");
+  const { openStudio, studio, completeReturn } = useInrStudioSession({
+    onReturned: (result) => {
+      inlineStudioReturnKeyRef.current = result.returnKey;
+      setPendingStudioReturn(result);
+    },
+  });
   const lastSavedStudioVideoDraftRef = useRef<VideoPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
@@ -4579,6 +4587,7 @@ export default function PublishModal({
       pendingStudioReturn.context.draftId || "",
     ).trim();
     if (
+      pendingStudioReturn.returnKey !== inlineStudioReturnKeyRef.current &&
       expectedDraftId &&
       loadedPublicationDraftId !== expectedDraftId
     ) {
@@ -4608,6 +4617,7 @@ export default function PublishModal({
         setImgError(mediaT("ai_generator_insert_error"));
         setPendingStudioReturn(null);
         studioReturnApplyingKeyRef.current = "";
+        completeReturn();
         return;
       }
 
@@ -4757,6 +4767,7 @@ export default function PublishModal({
         .finally(() => {
           setPendingStudioReturn(null);
           studioReturnApplyingKeyRef.current = "";
+          completeReturn();
         });
       return;
     }
@@ -4772,6 +4783,7 @@ export default function PublishModal({
         setImgError(mediaT("ai_generator_insert_error"));
         setPendingStudioReturn(null);
         studioReturnApplyingKeyRef.current = "";
+        completeReturn();
         return;
       }
       void mediaLibraryItemToFile(returnedItem)
@@ -4789,6 +4801,7 @@ export default function PublishModal({
         .finally(() => {
           setPendingStudioReturn(null);
           studioReturnApplyingKeyRef.current = "";
+          completeReturn();
         });
       return;
     }
@@ -4797,11 +4810,14 @@ export default function PublishModal({
       (inserted) => {
         if (!inserted) setImgError(mediaT("ai_generator_insert_error"));
       },
-    ).finally(() => {
+    ).catch((error) => {
+      setImgError(error instanceof Error ? error.message : mediaT("ai_generator_insert_error"));
+    }).finally(() => {
       setPendingStudioReturn(null);
       studioReturnApplyingKeyRef.current = "";
+      completeReturn();
     });
-  }, [loadedPublicationDraftId, pendingStudioReturn]);
+  }, [completeReturn, loadedPublicationDraftId, pendingStudioReturn]);
 
   const applyOptimizedMediaToBooster = async (item: MediaOptimizerItem) => {
     setImgError("");
@@ -7476,7 +7492,7 @@ export default function PublishModal({
           draftId: draftState.draftId,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
       setImgError(
         error instanceof Error
@@ -7516,7 +7532,7 @@ export default function PublishModal({
           draftId: draftState.draftId,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
       setImgError(
         error instanceof Error
@@ -7622,7 +7638,7 @@ export default function PublishModal({
           deferVideoPreparation: mediaPipelineCutoverEnabled,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
       setImgError(
         error instanceof Error
@@ -7634,6 +7650,7 @@ export default function PublishModal({
 
   return (
     <div ref={publishRootRef} style={{ display: "grid", gap: 12, minWidth: 0 }}>
+      {studio}
       <PublishHelpModal
         open={publishHelpOpen}
         onClose={() => setPublishHelpOpen(false)}

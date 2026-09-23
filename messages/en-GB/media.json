@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "Discard this preview?",
   "ai_studio_origin_exit_title": "Return to {origin}?",
   "ai_studio_origin_exit_description": "This media is only applied after you choose Use this media. Return to {origin} to keep the publication open, or leave the current publication. Its saved draft will remain available.",
+  "ai_studio_embedded_exit_description": "Return to {origin} exactly where you left off. Your work is preserved; media changes are only applied when you choose “Use this media”.",
   "ai_studio_origin_stay": "Continue in iNrStudio",
   "ai_studio_origin_return": "Return to {origin}",
   "ai_studio_origin_abandon": "Leave the publication",

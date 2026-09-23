@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "Eliminare questa anteprima?",
   "ai_studio_origin_exit_title": "Tornare a {origin}?",
   "ai_studio_origin_exit_description": "Il contenuto viene applicato solo dopo aver scelto Usa questo contenuto. Torna a {origin} per conservare la pubblicazione oppure abbandona la pubblicazione corrente. La bozza salvata resterà disponibile.",
+  "ai_studio_embedded_exit_description": "Torna in {origin} esattamente al punto in cui eri. Il tuo lavoro viene conservato; le modifiche al contenuto vengono applicate solo con «Usa questo contenuto».",
   "ai_studio_origin_stay": "Continua in iNrStudio",
   "ai_studio_origin_return": "Torna a {origin}",
   "ai_studio_origin_abandon": "Abbandona la pubblicazione",

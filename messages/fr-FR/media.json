@@ -24,6 +24,7 @@
   "ai_generator_close_library_title": "Supprimer cet aperçu ?",
   "ai_studio_origin_exit_title": "Revenir dans {origin} ?",
   "ai_studio_origin_exit_description": "Ce média ne sera appliqué qu’après avoir choisi Utiliser ce média. Revenez dans {origin} pour conserver la publication, ou abandonnez la publication en cours. Son brouillon enregistré restera accessible.",
+  "ai_studio_embedded_exit_description": "Revenez dans {origin} exactement là où vous étiez. Votre travail est conservé ; les modifications du média ne sont appliquées qu’avec « Utiliser ce média ».",
   "ai_studio_origin_stay": "Continuer dans iNrStudio",
   "ai_studio_origin_return": "Repartir dans {origin}",
   "ai_studio_origin_abandon": "Abandonner la publication",

@@ -430,7 +430,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 </span>
                 <div className={standardStyles.agentCopy}>
                   <span>{standardT("agentEyebrow")}</span>
-                  <h3>{t.modules.agentTitle}</h3>
+                  <h3 aria-label={t.modules.agentTitle}><b>{t.modules.agentTitle.slice(0, 4)}</b>{t.modules.agentTitle.slice(4)}</h3>
                   <p>{t.modules.agentSub}</p>
                 </div>
                 <button

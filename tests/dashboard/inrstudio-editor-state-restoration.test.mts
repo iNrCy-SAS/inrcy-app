@@ -225,16 +225,21 @@ test("Booster persiste le brouillon avant Generate, Modifier ou Retoucher", () =
   );
 });
 
-test("iNrSend restaure le snapshot sur Fermer, Générer, Modifier ou Retoucher", () => {
+test("iNrSend conserve l’éditeur monté dans Studio et garde la restauration legacy", () => {
   const source = read("app/dashboard/mails/MailboxClient.tsx");
   const modalSource = read(
     "app/dashboard/mails/_components/MailboxDetailsModal.tsx",
   );
 
-  assert.match(source, /await saveInrSendPublicationEditorSnapshot\(/);
-  assert.match(source, /returnParams\.set\("studio_editor_snapshot", editorSnapshotKey\)/);
-  assert.match(source, /returnHref,/);
-  assert.match(source, /editorSnapshotKey,/);
+  assert.match(source, /useInrStudioSession\(\{ onReturned: receiveEmbeddedStudioReturn \}\)/);
+  assert.match(source, /setPendingStudioReturnStage\("apply"\)/);
+  assert.match(source, /openStudio\(href\)/);
+  assert.match(source, /\{studio\}/);
+  assert.match(source, /completeEmbeddedStudioReturn\(\)/);
+
+  // Les anciens retours déjà présents dans un onglet restent récupérables
+  // après une mise à jour, sans que les nouvelles sessions recopient le
+  // brouillon vivant dans Cache API.
   assert.match(source, /consumeInrSendPublicationEditorSnapshot\(snapshotKey\)/);
   assert.match(source, /setPublicationEditForm\(pendingStudioEditorSnapshot\.form\)/);
   assert.match(
@@ -252,14 +257,35 @@ test("iNrSend restaure le snapshot sur Fermer, Générer, Modifier ou Retoucher"
   const imageToolStart = source.indexOf(
     "async function openPublicationImageInStudio",
   );
-  assert.ok(generatorStart > 0 && imageToolStart > generatorStart);
+  const videoToolStart = source.indexOf(
+    "async function openPublicationVideoRetoucher",
+  );
+  const filesStart = source.indexOf(
+    "function addPublicationPickedFiles",
+  );
+  assert.ok(
+    generatorStart > 0 &&
+      imageToolStart > generatorStart &&
+      videoToolStart > imageToolStart &&
+      filesStart > videoToolStart,
+  );
   const generator = source.slice(generatorStart, imageToolStart);
-  assert.match(generator, /await saveInrSendPublicationEditorSnapshot\(/);
-  assert.match(generator, /returnHref,/);
+  const imageTool = source.slice(imageToolStart, videoToolStart);
+  const videoTool = source.slice(videoToolStart, filesStart);
   assert.match(generator, /tab: "generate"/);
-  assert.match(generator, /editorSnapshotKey,/);
+  assert.match(generator, /openStudio\(href\)/);
+  assert.match(imageTool, /openStudio\(href\)/);
+  assert.match(videoTool, /openStudio\(href\)/);
+  assert.doesNotMatch(generator, /saveInrSendPublicationEditorSnapshot|router\.push\(href\)/);
+  assert.doesNotMatch(imageTool, /saveInrSendPublicationEditorSnapshot|router\.push\(href\)/);
+  assert.doesNotMatch(videoTool, /saveInrSendPublicationEditorSnapshot|router\.push\(href\)/);
   assert.match(
     modalSource,
     /await launchPublicationMediaGenerator\(publicationMediaGeneratorBrief\)/,
   );
+  assert.match(
+    modalSource,
+    /acceptGeneratedPublicationMedia\([\s\S]*?target,[\s\S]*?false,[\s\S]*?\.finally\(onStudioReturnHandled\)/,
+  );
+  assert.match(modalSource, /\.finally\(onStudioReturnHandled\)/);
 });

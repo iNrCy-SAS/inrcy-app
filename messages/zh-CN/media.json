@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "删除此预览？",
   "ai_studio_origin_exit_title": "返回 {origin}？",
   "ai_studio_origin_exit_description": "只有选择“使用此媒体”后，媒体才会应用。返回 {origin} 可继续当前发布，或退出当前发布。已保存的草稿仍可使用。",
+  "ai_studio_embedded_exit_description": "返回 {origin} 中您刚才所在的位置。您的工作会完整保留；只有选择“使用此媒体”后，媒体修改才会应用。",
   "ai_studio_origin_stay": "继续留在 iNrStudio",
   "ai_studio_origin_return": "返回 {origin}",
   "ai_studio_origin_abandon": "退出当前发布",

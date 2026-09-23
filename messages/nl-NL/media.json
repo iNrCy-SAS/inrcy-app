@@ -300,6 +300,7 @@
   "ai_generator_close_library_title": "Dit voorbeeld verwijderen?",
   "ai_studio_origin_exit_title": "Terug naar {origin}?",
   "ai_studio_origin_exit_description": "Dit medium wordt pas toegepast nadat je Dit medium gebruiken kiest. Ga terug naar {origin} om de publicatie te behouden of verlaat de huidige publicatie. Het opgeslagen concept blijft beschikbaar.",
+  "ai_studio_embedded_exit_description": "Ga terug naar {origin}, precies waar je was gebleven. Je werk blijft bewaard; wijzigingen aan het medium worden pas toegepast wanneer je ‘Dit medium gebruiken’ kiest.",
   "ai_studio_origin_stay": "Doorgaan in iNrStudio",
   "ai_studio_origin_return": "Terug naar {origin}",
   "ai_studio_origin_abandon": "Publicatie verlaten",

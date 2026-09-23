@@ -24,7 +24,9 @@ import { makeAttachmentPath } from "@/app/dashboard/mails/_lib/mailboxPhase25";
 import {
   consumeInrStudioReturn,
   createInrStudioHandoff,
+  type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
+import { useInrStudioSession } from "../_hooks/useInrStudioSession";
 import HelpButton from "../_components/HelpButton";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
 import BusinessDnaIcon from "../_components/BusinessDnaIcon";
@@ -216,6 +218,7 @@ import {
   AGENT_MEDIA_MAX_IMAGE_BYTES,
   AGENT_MEDIA_MAX_VIDEO_BYTES,
   ROBOT_SRC,
+  channelOrder,
   channelOptions,
   statsRubriqueOptions,
   pendingActionStatuses,
@@ -2022,14 +2025,24 @@ export default function AgentClient() {
     }
   }
 
+  const { openStudio, studio, completeReturn } = useInrStudioSession({
+    onReturned: (result) => {
+      void applyInrStudioReturn(result);
+    },
+  });
+  const historicalStudioReturnHandledRef = useRef(false);
+
   useEffect(() => {
-    if (!selectedPreparedAction || !activePreviewChannel) return;
+    if (historicalStudioReturnHandledRef.current) return;
     const params = new URLSearchParams(window.location.search);
     const returnKey = String(params.get("studio_return") || "").trim();
-    if (!returnKey) return;
-    const result = consumeInrStudioReturn(returnKey);
-    if (!result?.item) return;
+    if (!returnKey) {
+      historicalStudioReturnHandledRef.current = true;
+      return;
+    }
 
+    historicalStudioReturnHandledRef.current = true;
+    const result = consumeInrStudioReturn(returnKey);
     params.delete("studio_return");
     window.history.replaceState(
       window.history.state,
@@ -2038,190 +2051,248 @@ export default function AgentClient() {
         params.size ? `?${params.toString()}` : ""
       }${window.location.hash}`
     );
+    if (!result?.item) {
+      showNotice(i18nT("publish_media_update_failed"));
+      return;
+    }
+    void applyInrStudioReturn(result);
+  }, []);
+
+  async function applyInrStudioReturn(result: InrStudioReturnedMedia) {
+    if (!result.item) {
+      showNotice(i18nT("publish_media_update_failed"));
+      completeReturn();
+      return;
+    }
+
     const returnedRecord = result.item;
-    if (result.action === "retouch" || result.action === "modify") {
+    try {
       const returnedMediaIndex = Number(result.context.mediaIndex);
       const returnedChannel = String(result.context.channel || "").trim();
       const returnedActionId = String(result.context.actionId || "").trim();
-      const returnedMediaType = firstSafeString(
-        returnedRecord.media_type,
-        returnedRecord.mediaType,
-        result.context.mediaType
-      ).toLowerCase();
-      const isReturnedVideo =
-        returnedMediaType === "video" ||
-        returnedRecord.studio_video_retouch === true;
+      if (
+        !Number.isInteger(returnedMediaIndex) ||
+        returnedMediaIndex < 0 ||
+        !returnedActionId ||
+        !channelOrder.includes(returnedChannel as ChannelKey)
+      ) {
+        showNotice(i18nT("publish_media_update_failed"));
+        return;
+      }
+      const returnedTargetAction =
+        scheduledEditSession?.action.id === returnedActionId
+          ? scheduledEditSession.action
+          : actions.find((action) => action.id === returnedActionId) || null;
+      if (
+        result.context.scheduledEdit === true &&
+        scheduledEditSession?.action.id !== returnedActionId
+      ) {
+        // Une ancienne navigation ne peut pas reconstruire sans risque une
+        // session planifiée locale. Le média reste enregistré en Médiathèque.
+        showNotice(i18nT("publish_media_update_failed"));
+        return;
+      }
 
-      if (isReturnedVideo) {
-        if (
-          !Number.isInteger(returnedMediaIndex) ||
-          returnedMediaIndex < 0 ||
-          !returnedChannel ||
-          !returnedActionId
-        ) {
-          showNotice(i18nT("publish_media_update_failed"));
-          return;
-        }
+      if (result.action === "retouch" || result.action === "modify") {
+        const returnedMediaType = firstSafeString(
+          returnedRecord.media_type,
+          returnedRecord.mediaType,
+          result.context.mediaType
+        ).toLowerCase();
+        const isReturnedVideo =
+          returnedMediaType === "video" ||
+          returnedRecord.studio_video_retouch === true;
 
-        const returnedVideoChannel = firstSafeString(
-          result.context.videoChannel,
-          boosterChannelKeyFromAgentChannel(returnedChannel as ChannelKey)
-        ) as BoosterChannelKey;
-        const sourceMediaRecord =
-          asRecord(returnedRecord.source_media_record) ||
-          asRecord(currentPublishMediaRecord?.originalVideo) ||
-          currentPublishMediaRecord;
-        if (!sourceMediaRecord) {
-          showNotice(i18nT("publish_media_update_failed"));
-          return;
-        }
+        if (isReturnedVideo) {
+          const returnedVideoChannel = firstSafeString(
+            result.context.videoChannel,
+            boosterChannelKeyFromAgentChannel(returnedChannel as ChannelKey)
+          ) as BoosterChannelKey;
+          const sourceMediaRecord =
+            asRecord(returnedRecord.source_media_record) ||
+            getPublishMediaRecord(
+              returnedTargetAction,
+              returnedChannel as ChannelKey,
+              returnedMediaIndex
+            ) ||
+            returnedRecord;
 
-        const videoFormat = normalizeVideoFormat(
-          returnedVideoChannel,
-          firstSafeString(
-            returnedRecord.video_format,
-            sourceMediaRecord.videoFormat
+          const videoFormat = normalizeVideoFormat(
+            returnedVideoChannel,
+            firstSafeString(
+              returnedRecord.video_format,
+              sourceMediaRecord.videoFormat
+            )
+          );
+          const videoAdaptationMode = normalizeVideoAdaptationMode(
+            firstSafeString(
+              returnedRecord.video_adaptation_mode,
+              sourceMediaRecord.videoAdaptationMode
+            )
+          );
+          const videoSettings = {
+            format: videoFormat,
+            adaptationMode: videoAdaptationMode,
+          };
+          const transformedVariants = Array.isArray(
+            returnedRecord.transformed_variants
           )
-        );
-        const videoAdaptationMode = normalizeVideoAdaptationMode(
-          firstSafeString(
-            returnedRecord.video_adaptation_mode,
-            sourceMediaRecord.videoAdaptationMode
-          )
-        );
-        const videoSettings = {
-          format: videoFormat,
-          adaptationMode: videoAdaptationMode,
-        };
-        const transformedVariants = Array.isArray(
-          returnedRecord.transformed_variants
-        )
-          ? returnedRecord.transformed_variants
-          : Array.isArray(sourceMediaRecord.transformedVariants)
-          ? sourceMediaRecord.transformedVariants
-          : [];
-        const videoSettingsByChannel = {
-          ...(asRecord(sourceMediaRecord.videoSettingsByChannel) || {}),
-          [returnedVideoChannel]: videoSettings,
-        };
-        const storagePath = firstSafeString(
-          returnedRecord.storage_path,
-          sourceMediaRecord.storagePath,
-          sourceMediaRecord.storage_path,
-          sourceMediaRecord.path
-        );
-        const publicUrl = firstSafeString(
-          returnedRecord.signed_url,
-          returnedRecord.public_url,
-          sourceMediaRecord.publicUrl,
-          sourceMediaRecord.signed_url,
-          sourceMediaRecord.url
-        );
-        const mimeType = firstSafeString(
-          returnedRecord.mime_type,
-          sourceMediaRecord.mimeType,
-          sourceMediaRecord.mime_type,
-          sourceMediaRecord.type,
-          "video/mp4"
-        );
-        const videoMediaPatch = {
-          ...sourceMediaRecord,
-          ...(returnedRecord.id ? { id: returnedRecord.id } : {}),
-          storagePath,
-          storage_path: storagePath,
-          path: storagePath,
-          publicUrl,
-          signed_url: publicUrl,
-          url: publicUrl,
-          name: firstSafeString(
-            returnedRecord.original_file_name,
-            sourceMediaRecord.name,
-            publishMediaPreview?.name,
-            "video-inragent.mp4"
-          ),
-          type: mimeType,
-          mimeType,
-          mime_type: mimeType,
-          size:
-            Number(returnedRecord.size_bytes || sourceMediaRecord.size || 0) ||
-            0,
-          duration:
-            Number(
-              returnedRecord.duration_seconds ||
-                sourceMediaRecord.duration ||
-                sourceMediaRecord.duration_seconds ||
-                0
-            ) || null,
-          duration_seconds:
-            Number(
-              returnedRecord.duration_seconds ||
-                sourceMediaRecord.duration_seconds ||
-                sourceMediaRecord.duration ||
-                0
-            ) || null,
-          kind: "video",
-          mediaType: "video",
-          sourceMetadata:
-            asRecord(returnedRecord.source_metadata) ||
-            asRecord(sourceMediaRecord.sourceMetadata) ||
-            asRecord(sourceMediaRecord.source_metadata) ||
-            null,
-          videoSettings,
-          videoSettingsByChannel,
-          videoFormat,
-          videoAdaptationMode,
-          transformedVariants,
-        };
+            ? returnedRecord.transformed_variants
+            : Array.isArray(sourceMediaRecord.transformedVariants)
+            ? sourceMediaRecord.transformedVariants
+            : [];
+          const videoSettingsByChannel = {
+            ...(asRecord(sourceMediaRecord.videoSettingsByChannel) || {}),
+            [returnedVideoChannel]: videoSettings,
+          };
+          const storagePath = firstSafeString(
+            returnedRecord.storage_path,
+            sourceMediaRecord.storagePath,
+            sourceMediaRecord.storage_path,
+            sourceMediaRecord.path
+          );
+          const publicUrl = firstSafeString(
+            returnedRecord.signed_url,
+            returnedRecord.public_url,
+            sourceMediaRecord.publicUrl,
+            sourceMediaRecord.signed_url,
+            sourceMediaRecord.url
+          );
+          const mimeType = firstSafeString(
+            returnedRecord.mime_type,
+            sourceMediaRecord.mimeType,
+            sourceMediaRecord.mime_type,
+            sourceMediaRecord.type,
+            "video/mp4"
+          );
+          const videoMediaPatch = {
+            ...sourceMediaRecord,
+            ...(returnedRecord.id ? { id: returnedRecord.id } : {}),
+            storagePath,
+            storage_path: storagePath,
+            path: storagePath,
+            publicUrl,
+            signed_url: publicUrl,
+            url: publicUrl,
+            name: firstSafeString(
+              returnedRecord.original_file_name,
+              sourceMediaRecord.name,
+              publishMediaPreview?.name,
+              "video-inragent.mp4"
+            ),
+            type: mimeType,
+            mimeType,
+            mime_type: mimeType,
+            size:
+              Number(returnedRecord.size_bytes || sourceMediaRecord.size || 0) ||
+              0,
+            duration:
+              Number(
+                returnedRecord.duration_seconds ||
+                  sourceMediaRecord.duration ||
+                  sourceMediaRecord.duration_seconds ||
+                  0
+              ) || null,
+            duration_seconds:
+              Number(
+                returnedRecord.duration_seconds ||
+                  sourceMediaRecord.duration_seconds ||
+                  sourceMediaRecord.duration ||
+                  0
+              ) || null,
+            kind: "video",
+            mediaType: "video",
+            sourceMetadata:
+              asRecord(returnedRecord.source_metadata) ||
+              asRecord(sourceMediaRecord.sourceMetadata) ||
+              asRecord(sourceMediaRecord.source_metadata) ||
+              null,
+            videoSettings,
+            videoSettingsByChannel,
+            videoFormat,
+            videoAdaptationMode,
+            transformedVariants,
+          };
 
-        setPublishMediaUploadState("saving");
-        void savePublishMediaPatch(videoMediaPatch, "replace", {
-          actionId: returnedActionId,
-          channel: returnedChannel as ChannelKey,
-          mediaIndex: returnedMediaIndex,
-        })
-          .then(() => {
-            setPublishMediaActiveIndex(returnedMediaIndex);
+          setPublishMediaUploadState("saving");
+          try {
+            await savePublishMediaPatch(videoMediaPatch, "replace", {
+              actionId: returnedActionId,
+              channel: returnedChannel as ChannelKey,
+              mediaIndex: returnedMediaIndex,
+              requireExactTarget: true,
+            });
+            if (selectedPreparedAction?.id === returnedActionId) {
+              setPublishMediaActiveIndex(returnedMediaIndex);
+            }
             showNotice(i18nT("publish_video_updated"));
-          })
-          .catch(() => showNotice(i18nT("publish_media_update_failed")))
-          .finally(() => setPublishMediaUploadState("idle"));
+          } finally {
+            setPublishMediaUploadState("idle");
+          }
+          return;
+        }
+
+        const returnedItem =
+          returnedRecord as unknown as MediaLibraryPickerItem;
+        if (returnedItem.media_type !== "image") {
+          showNotice(i18nT("publish_media_update_failed"));
+          return;
+        }
+        setPublishMediaUploadState("saving");
+        try {
+          await savePublishMediaPatch(
+            mediaPatchFromLibraryItem(returnedItem),
+            "replace",
+            {
+              actionId: returnedActionId,
+              channel: returnedChannel as ChannelKey,
+              mediaIndex: returnedMediaIndex,
+              requireExactTarget: true,
+            }
+          );
+          if (selectedPreparedAction?.id === returnedActionId) {
+            setPublishMediaActiveIndex(returnedMediaIndex);
+          }
+          showNotice(i18nT("publish_image_updated"));
+        } finally {
+          setPublishMediaUploadState("idle");
+        }
         return;
       }
 
       const returnedItem = returnedRecord as unknown as MediaLibraryPickerItem;
       if (
-        returnedItem.media_type !== "image" ||
-        !Number.isInteger(returnedMediaIndex) ||
-        returnedMediaIndex < 0 ||
-        !returnedChannel ||
-        !returnedActionId
+        returnedItem.media_type !== "image" &&
+        returnedItem.media_type !== "video"
       ) {
         showNotice(i18nT("publish_media_update_failed"));
         return;
       }
-      setPublishMediaUploadState("saving");
-      void savePublishMediaPatch(
+      const returnedMutation: PublishMediaMutation =
+        returnedItem.media_type === "image" ? "append" : "replace";
+      await savePublishMediaPatch(
         mediaPatchFromLibraryItem(returnedItem),
-        "replace",
+        returnedMutation,
         {
           actionId: returnedActionId,
           channel: returnedChannel as ChannelKey,
           mediaIndex: returnedMediaIndex,
+          requireExactTarget: true,
         }
-      )
-        .then(() => {
-          setPublishMediaActiveIndex(returnedMediaIndex);
-          showNotice(i18nT("publish_image_updated"));
-        })
-        .catch(() => showNotice(i18nT("publish_media_update_failed")))
-        .finally(() => setPublishMediaUploadState("idle"));
-      return;
+      );
+      showNotice(
+        i18nT(
+          returnedItem.media_type === "image"
+            ? "publish_image_added"
+            : "publish_video_updated"
+        )
+      );
+    } catch {
+      showNotice(i18nT("publish_media_update_failed"));
+    } finally {
+      completeReturn();
     }
-
-    void selectPublishMediaFromLibrary(
-      returnedRecord as unknown as MediaLibraryPickerItem
-    );
-  }, [activePreviewChannel, selectedPreparedAction?.id]);
+  }
 
   function openPublishMediaEditor() {
     if (
@@ -2269,9 +2340,10 @@ export default function AgentClient() {
           channel: activePreviewChannel,
           mediaIndex: publishMediaActiveIndex,
           mediaType: "image",
+          scheduledEdit: Boolean(scheduledEditSession),
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch (error) {
       showNotice(i18nT("image_adaptation_failed"));
     }
@@ -2357,6 +2429,7 @@ export default function AgentClient() {
           videoChannel: publishBoosterChannel,
           mediaIndex: publishMediaActiveIndex,
           mediaType: "video",
+          scheduledEdit: Boolean(scheduledEditSession),
         },
         payload: {
           videoChannel: publishBoosterChannel,
@@ -2387,7 +2460,7 @@ export default function AgentClient() {
           deferVideoPreparation: false,
         },
       });
-      router.push(href);
+      openStudio(href);
     } catch {
       showNotice(i18nT("publish_media_update_failed"));
     }
@@ -2417,17 +2490,25 @@ export default function AgentClient() {
       actionId?: string;
       channel?: ChannelKey;
       mediaIndex?: number;
+      requireExactTarget?: boolean;
     } = {}
   ) {
-    if (!selectedPreparedAction || !activePreviewChannel) return;
-    const targetActionId = options.actionId || selectedPreparedAction.id;
+    const explicitActionId = String(options.actionId || "").trim();
+    const targetActionId = explicitActionId || selectedPreparedAction?.id || "";
     const targetChannel = options.channel || activePreviewChannel;
+    if (
+      !targetActionId ||
+      !targetChannel ||
+      (options.requireExactTarget && (!explicitActionId || !options.channel))
+    ) {
+      throw new Error(i18nT("publish_media_update_failed"));
+    }
     const targetMediaIndex = Number.isInteger(options.mediaIndex)
       ? Number(options.mediaIndex)
       : publishMediaActiveIndex;
 
     if (scheduledEditSession) {
-      if (targetActionId !== selectedPreparedAction.id) {
+      if (targetActionId !== scheduledEditSession.action.id) {
         throw new Error(i18nT("publish_media_update_failed"));
       }
       updateScheduledEditAction((action) =>
@@ -2465,7 +2546,11 @@ export default function AgentClient() {
       error?: string;
     };
 
-    if (!response.ok || !payload?.action) {
+    if (
+      !response.ok ||
+      !payload?.action ||
+      payload.action.id !== targetActionId
+    ) {
       throw new Error(payload?.error || i18nT("publish_media_update_failed"));
     }
 
@@ -5116,7 +5201,9 @@ export default function AgentClient() {
               decoding="sync"
             />
             <div className={styles.moduleTitleText}>
-              <h1>{i18nT("inr_agent_88080b90")}</h1>
+              <h1 aria-label={i18nT("inr_agent_88080b90")}>
+                {i18nT("inr_agent_88080b90").slice(0, 4)}<span className={styles.agentBrandAccent}>{i18nT("inr_agent_88080b90").slice(4)}</span>
+              </h1>
               <p className={styles.moduleSubtitleDesktop}>
                 {i18nT(
                   "programmateur_d_automatisations_connecte_a_vos_ee58d0a3"
@@ -9560,6 +9647,7 @@ export default function AgentClient() {
         </div>
       )}
 
+      {studio}
       {notice && <div className={styles.notice}>{notice}</div>}
     </main>
   );
