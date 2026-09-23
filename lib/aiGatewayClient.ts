@@ -101,6 +101,8 @@ type AiGenerateJsonBaseOptions = {
   system: string;
   input: string;
   images?: Array<{ dataUrl: string; detail?: "low" | "high" | "auto" }>;
+  /** Keep sensitive images on the selected provider; never use cross-provider fallback. */
+  allowProviderFallback?: boolean;
   maxOutputTokens?: number;
   temperature?: number;
   retries?: number;
@@ -759,6 +761,7 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
       });
     } catch (error) {
       lastError = error;
+      if (opts.allowProviderFallback === false) throw error;
       const classification = classifyAiAttemptFallback(error, hasImages);
       if (!classification.eligible) throw error;
       fallbackReason = classification.reason;
@@ -834,7 +837,7 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
     }
   }
 
-  if (directCredential && hasTimeForFallback(hardDeadlineAt)) {
+  if (opts.allowProviderFallback !== false && directCredential && hasTimeForFallback(hardDeadlineAt)) {
     const directModel = getOpenAiDirectFallbackModel();
     const accountingModel = getOpenAiDirectAccountingModel();
     const directTimeoutMs = resolveFallbackStageTimeoutMs({

@@ -16,6 +16,7 @@ export type AiGenerationFeature =
   | "booster.transcript-cleanup"
   | "booster.transcribe"
   | "media.image"
+  | "media.reference-detection"
   | "media.video";
 
 export type AiFeaturePolicy = {
@@ -235,6 +236,17 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxCalls: 1,
     defaultOperationMaxReservedOutputTokens: 1536,
     defaultOperationMaxDurationMs: 300_000,
+  },
+  "media.reference-detection": {
+    maxOutputTokens: 160,
+    maxRetries: 0,
+    maxTimeoutMs: 16_000,
+    maxInputChars: 2_000,
+    maxImages: 1,
+    maxImageDataChars: 850_000,
+    defaultOperationMaxCalls: 1,
+    defaultOperationMaxReservedOutputTokens: 160,
+    defaultOperationMaxDurationMs: 18_000,
   },
   "media.video": {
     maxOutputTokens: 2048,

@@ -58,6 +58,10 @@ import {
   isInrMediaImageFile,
 } from "@/lib/mediaRules";
 import { uploadUniversalMediaFile } from "@/lib/universalMediaUploadClient";
+import {
+  classifyAppendedReference,
+  inferRequiredReferenceRole,
+} from "@/lib/aiMediaReferenceClassification";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -217,26 +221,6 @@ function normalizeCharacterReferenceIndexes(images: StudioReferenceImage[]) {
       characterIndex: characterIndex as 1 | 2 | 3,
     };
   });
-}
-
-function inferRequiredReferenceRole(
-  fileName: string
-): StudioRequiredReferenceRole {
-  const normalized = String(fileName || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase();
-  if (
-    /person|portrait|visage|equipe|team|collaborateur|dirigeant/.test(
-      normalized
-    )
-  ) {
-    return "character";
-  }
-  if (/decor|lieu|local|boutique|atelier|bureau|environment/.test(normalized)) {
-    return "environment";
-  }
-  return "product";
 }
 
 type RememberPreferenceControlProps = {
@@ -1170,16 +1154,38 @@ export default function MediaGenerator({
         role === "inspiration" && isInrMediaVideoFile(file)
           ? await prepareVideoReferenceFrame(file)
           : await prepareMediaGenerationImageReference(file);
-      const proposedRole =
-        insertion === "append" ? inferRequiredReferenceRole(file.name) : role;
+      let detectedPerson: boolean | null = null;
+      if (insertion === "append" && !isInrMediaVideoFile(file)) {
+        try {
+          const response = await fetch("/api/media-generation/detect-reference", {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: prepared.data }),
+            signal: AbortSignal.timeout(18_000),
+          });
+          if (response.ok) {
+            const result = (await response.json()) as { personReference?: unknown };
+            if (typeof result.personReference === "boolean") {
+              detectedPerson = result.personReference;
+            }
+          }
+        } catch {
+          // L'analyse ne bloque jamais l'ajout : le nom et le choix manuel
+          // restent utilisables si le service est indisponible.
+        }
+      }
+      const appendedClassification = insertion === "append"
+        ? classifyAppendedReference({ fileName: file.name, detectedPerson })
+        : null;
+      const proposedRole = appendedClassification?.role || role;
       const next: StudioReferenceImage = {
         ...prepared,
         role: proposedRole,
         ...(proposedRole === "character" ? { characterIndex } : {}),
-        usage:
-          insertion === "append" || role === "inspiration"
-            ? "inspiration"
-            : "required",
+        usage: appendedClassification?.usage ||
+          (role === "inspiration" ? "inspiration" : "required"),
       };
       setInspirationImages((current) => {
         const retained =
@@ -1197,7 +1203,7 @@ export default function MediaGenerator({
           orderReferences([...retained, next]).slice(0, MAX_INSPIRATION_IMAGES)
         );
       });
-      if (role !== "character" && characterReferences.length === 0) {
+      if (proposedRole !== "character" && characterReferences.length === 0) {
         // Une référence de décor/produit suffit : elle bascule explicitement
         // la scène en mode « aucun personnage » et débloque la génération.
         setRealCharacterCount(0);
@@ -1369,7 +1375,11 @@ export default function MediaGenerator({
   ) => {
     setInspirationImages((current) => {
       const next = current.map((reference, currentIndex) => {
-        if (currentIndex === index) return { ...reference, role };
+        if (currentIndex === index) return {
+          ...reference,
+          role,
+          usage: role === "character" ? "required" as const : reference.usage,
+        };
         if (
           role !== "character" &&
           reference.role === role &&
@@ -2439,6 +2449,7 @@ export default function MediaGenerator({
                     Personnages, produits, lieux ou inspirations ·{" "}
                     {inspirationImages.length}/{MAX_INSPIRATION_IMAGES}
                   </small>
+                  <small>Photos analysées par Google à l’ajout pour détecter les personnages.</small>
                 </span>
                 <span className={styles.referenceDropzoneActions}>
                   <label htmlFor="ai-media-reference-multiple">
