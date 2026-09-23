@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useLocale } from "next-intl";
 import {
   AI_CTA_CHANNELS,
@@ -23,7 +23,7 @@ type Props = {
 const COPY = {
   fr: {
     title: "Un CTA adapté à chaque canal",
-    description: "Choisissez l’action proposée aux clients. Les canaux non configurés n’ajoutent aucun CTA ; vous pouvez toujours modifier celui d’une publication.",
+    description: "Choisissez une action par canal. Sans réglage, aucun CTA n’est ajouté.",
     progress: "canaux configurés",
     select: "Action à proposer",
     empty: "Aucun CTA",
@@ -49,10 +49,20 @@ const COPY = {
     settings: "RÉGLAGES DU CTA",
     previewEmpty: "Choisissez une action à gauche pour visualiser ce qui sera proposé sur ce canal.",
     previewDestination: "Destination",
+    settingsEmpty: "Choisissez une action ci-dessus. Les réglages utiles apparaîtront ici, sans étape inutile.",
+    choiceHints: {
+      none: "Ne rien ajouter à ce canal",
+      site: "Vers le site de votre profil",
+      devis: "Pour recevoir une demande de devis",
+      appeler: "Utilise votre numéro de téléphone",
+      message: "Invite le client à vous écrire",
+      whatsapp: "Ouvre une conversation WhatsApp",
+      custom: "Vers l’adresse de votre choix",
+    },
   },
   en: {
     title: "A CTA for each channel",
-    description: "Choose the action shown to customers. Unconfigured channels add no CTA; each post can still be edited.",
+    description: "Choose an action per channel. Without a setting, no CTA is added.",
     progress: "channels configured",
     select: "Action to offer",
     empty: "No CTA",
@@ -78,8 +88,28 @@ const COPY = {
     settings: "CTA SETTINGS",
     previewEmpty: "Choose an action on the left to preview what this channel will offer.",
     previewDestination: "Destination",
+    settingsEmpty: "Choose an action above. The relevant settings will appear here, with no unnecessary steps.",
+    choiceHints: {
+      none: "Add nothing to this channel",
+      site: "To your profile website",
+      devis: "Collect a quote request",
+      appeler: "Uses your phone number",
+      message: "Invite customers to contact you",
+      whatsapp: "Opens a WhatsApp conversation",
+      custom: "To an address of your choice",
+    },
   },
 } as const;
+
+const CHOICE_ICONS: Record<AiCtaChoice | "none", string> = {
+  none: "—",
+  site: "↗",
+  devis: "✦",
+  appeler: "☎",
+  message: "✉",
+  whatsapp: "◉",
+  custom: "⌁",
+};
 
 const CHOICE_MODE: Record<AiCtaChoice, AiChannelCtaConfig["mode"]> = {
   site: "website",
@@ -102,6 +132,9 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const language = useLocale().split("-")[0];
   const copy = language === "fr" ? COPY.fr : COPY.en;
   const [activeChannel, setActiveChannel] = useState<AiCtaChannel>("inrcy_site");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [destinations, setDestinations] = useState<AiChannelCtaDestinations | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -114,6 +147,18 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [menuOpen]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    dropdownRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]')?.focus();
+  }, [menuOpen, activeChannel]);
   const configuredCount = AI_CTA_CHANNELS.filter(({ key }) =>
     isAiChannelCtaComplete(key, value[key], destinations),
   ).length;
@@ -121,11 +166,13 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const activeIndex = AI_CTA_CHANNELS.findIndex(({ key }) => key === activeChannel);
   const navigate = (direction: -1 | 1) => {
     const nextIndex = (activeIndex + direction + AI_CTA_CHANNELS.length) % AI_CTA_CHANNELS.length;
+    setMenuOpen(false);
     setActiveChannel(AI_CTA_CHANNELS[nextIndex].key);
   };
   const selected = value[activeChannel];
   const complete = isAiChannelCtaComplete(activeChannel, selected, destinations);
   const choices = getSupportedPreferredCtasForChannel(activeChannel).filter((choice) => choice !== "none");
+  const selectionOptions: Array<AiCtaChoice | "none"> = ["none", ...choices];
   const needsUrl = selected?.choice === "site" || selected?.choice === "devis" || selected?.choice === "custom";
   const needsPhone = selected?.choice === "appeler" || selected?.choice === "whatsapp";
   const automaticDestination = selected?.choice === "custom" ? "" : needsUrl
@@ -140,6 +187,40 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
       next[channel] = { ...next[channel], ...patch } as AiChannelCtaConfig;
     }
     onChange(next);
+  };
+
+  const selectChoice = (choice: AiCtaChoice | "none") => {
+    setMenuOpen(false);
+    if (choice === "none") {
+      update(activeChannel, null);
+    } else {
+      update(activeChannel, {
+        choice,
+        mode: CHOICE_MODE[choice],
+        label: copy[choice],
+        url: "",
+        phone: "",
+      });
+    }
+    triggerRef.current?.focus();
+  };
+
+  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setMenuOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+    const current = options.findIndex((option) => option === document.activeElement);
+    const next = event.key === "ArrowDown" ? (current + 1) % options.length
+      : event.key === "ArrowUp" ? (current - 1 + options.length) % options.length
+        : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : -1;
+    if (next >= 0) {
+      event.preventDefault();
+      options[next]?.focus();
+    }
   };
 
   return (
@@ -163,7 +244,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
             role="tab"
             aria-selected={activeChannel === key}
             className={`${styles.channelTab} ${activeChannel === key ? styles.channelTabActive : ""} ${isAiChannelCtaComplete(key, value[key], destinations) ? styles.channelTabReady : value[key] ? styles.channelTabPending : ""}`}
-            onClick={() => setActiveChannel(key)}
+            onClick={() => { setMenuOpen(false); setActiveChannel(key); }}
           >
             <span>{label}</span>
             <span className={`${styles.dot} ${isAiChannelCtaComplete(key, value[key], destinations) ? styles.dotReady : value[key] ? styles.dotPending : ""}`} aria-hidden />
@@ -191,34 +272,59 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
             </span>
           </div>
           <div className={styles.controls}>
-              <label className={styles.field}>
-                <span>{copy.select}</span>
-                <select
-                  value={selected?.choice || "none"}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    const choice = event.target.value as AiCtaChoice | "none";
-                    if (choice === "none") {
-                      update(activeChannel, null);
-                      return;
-                    }
-                    update(activeChannel, {
-                      choice,
-                      mode: CHOICE_MODE[choice],
-                      label: copy[choice],
-                      url: "",
-                      phone: "",
-                    });
-                  }}
-                >
-                  <option value="none">{copy.empty}</option>
-                  {choices.map((choice) => (
-                    <option key={choice} value={choice}>
-                      {copy[choice as AiCtaChoice]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className={styles.field}>
+                <span id="cta-action-label">{copy.select}</span>
+                <div className={styles.dropdown} ref={dropdownRef}>
+                  <button
+                    ref={triggerRef}
+                    type="button"
+                    className={`${styles.selectTrigger} ${menuOpen ? styles.selectTriggerOpen : ""}`}
+                    aria-labelledby="cta-action-label"
+                    aria-haspopup="listbox"
+                    aria-expanded={menuOpen}
+                    aria-controls={menuOpen ? `cta-choice-list-${activeChannel}` : undefined}
+                    disabled={disabled}
+                    onClick={() => setMenuOpen((open) => !open)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setMenuOpen(true);
+                      }
+                    }}
+                  >
+                    <span className={styles.selectIcon} aria-hidden>{CHOICE_ICONS[selected?.choice || "none"]}</span>
+                    <span className={styles.selectValue}>{selected ? copy[selected.choice] : copy.empty}</span>
+                    <span className={styles.selectChevron} aria-hidden>⌄</span>
+                  </button>
+                  {menuOpen ? (
+                    <div
+                      id={`cta-choice-list-${activeChannel}`}
+                      className={styles.dropdownMenu}
+                      role="listbox"
+                      aria-labelledby="cta-action-label"
+                      onKeyDown={handleMenuKeyDown}
+                    >
+                      {selectionOptions.map((choice) => (
+                        <button
+                          key={choice}
+                          type="button"
+                          role="option"
+                          aria-selected={(selected?.choice || "none") === choice}
+                          className={styles.dropdownOption}
+                          onClick={() => selectChoice(choice)}
+                        >
+                          <span className={styles.optionIcon} aria-hidden>{CHOICE_ICONS[choice]}</span>
+                          <span className={styles.optionCopy}>
+                            <strong>{choice === "none" ? copy.empty : copy[choice]}</strong>
+                            <small>{copy.choiceHints[choice]}</small>
+                          </span>
+                          <span className={styles.optionCheck} aria-hidden>{(selected?.choice || "none") === choice ? "✓" : ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
               {selected ? (
                 <div className={styles.details}>
                   <label className={styles.field}>
@@ -257,7 +363,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
                     </label>
                   ) : null}
                 </div>
-              ) : null}
+              ) : <p className={styles.settingsEmpty}>{copy.settingsEmpty}</p>}
               {selected && (needsUrl || needsPhone) ? (
                 <p className={styles.destination}>
                   {automaticDestination ? `${copy.automatic} : ${automaticDestination}` : copy.missingDestination}

@@ -61,7 +61,7 @@ import {
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
-import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
+import { applySafePreferredCta, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
 import {
   INR_AGENT_IMAGES_PER_PUBLICATION,
@@ -1181,6 +1181,7 @@ async function generateBoosterPosts(args: {
   idea: string;
   theme: BoosterTheme;
   channels: BoosterChannels[];
+  ctaDefaults: BoosterCtaDefaults;
   profile: JsonRecord | null;
   business: JsonRecord | null;
   recentPublications: BoosterRecentPublication[];
@@ -1205,6 +1206,7 @@ async function generateBoosterPosts(args: {
     theme: args.theme,
     style: "equilibre",
     channels: args.channels,
+    ctaDefaults: args.ctaDefaults,
     profile: args.profile,
     business: args.business,
     recentPublications: args.recentPublications,
@@ -2513,6 +2515,7 @@ export async function POST(request: Request) {
         idea,
         theme: boosterTheme,
         channels,
+        ctaDefaults,
         profile,
         business,
         recentPublications,

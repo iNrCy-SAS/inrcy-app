@@ -327,6 +327,7 @@ export async function POST(request: Request) {
         theme: agentThemeToBoosterTheme[theme],
         style: "equilibre",
         channels: contentTargetChannels as BoosterChannels[],
+        ctaDefaults,
         profile,
         business,
         recentPublications,

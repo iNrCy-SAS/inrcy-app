@@ -1041,6 +1041,7 @@ const handler = async (req: Request) => {
         style,
         preferredEngine: aiPreferredEngine,
         channels,
+        ctaDefaults,
         profile: (profile ?? null) as JsonRecord | null,
         business,
         recentPublications,

@@ -22,6 +22,8 @@ import {
   type BoosterTheme,
 } from "@/lib/boosterPrompt";
 import { normalizeBoosterStructuredResponse } from "@/lib/boosterStructuredResponseNormalization";
+import { buildBoosterCtaGenerationInstructions } from "@/lib/boosterCtaGenerationInstructions";
+import type { BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
 import { sanitizeGmbGeneratedPost } from "@/lib/googleBusinessCompliance";
 import { getAiEngineTemperature, getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { prepareMediaForSelectedWriter } from "@/lib/aiMediaUnderstanding";
@@ -356,6 +358,7 @@ export type GenerateSharedBoosterPostsArgs = {
   style?: BoosterStyle;
   preferredEngine?: AiPreferredEngine;
   channels: BoosterChannels[];
+  ctaDefaults?: BoosterCtaDefaults | null;
   profile: JsonRecord | null;
   business: JsonRecord | null;
   recentPublications?: BoosterRecentPublication[];
@@ -1573,6 +1576,16 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
   if (!channels.length) {
     return { versions: {}, recoveredChannels: [] };
   }
+  const ctaInstructions = args.ctaDefaults
+    ? buildBoosterCtaGenerationInstructions({
+        channels,
+        channelCtas: args.ctaDefaults.channelCtas,
+        destinations: args.ctaDefaults,
+      })
+    : "";
+  const extraInstructions = [args.extraInstructions, ctaInstructions]
+    .filter(Boolean)
+    .join("\n\n");
 
   const primaryBatches = buildOutputSafeChannelBatches(
     channels,
@@ -1709,7 +1722,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
           hiddenAngle: operationHiddenAngle,
           imagesForAI: preparedMedia.imagesForWriter,
           mediaContext: preparedMedia.writerContext,
-          extraInstructions: args.extraInstructions,
+          extraInstructions,
           aiFeature,
           accountId: args.accountId,
           budget,
@@ -1830,7 +1843,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
             hiddenAngle: operationHiddenAngle,
             imagesForAI: preparedMedia.imagesForWriter,
             mediaContext: preparedMedia.writerContext,
-            extraInstructions: args.extraInstructions,
+            extraInstructions,
             languageCode,
             aiFeature,
             accountId: args.accountId,
