@@ -90,3 +90,7 @@ test("production Android shell keeps web updates on the deployed app origin", ()
   assert.match(capacitorConfig, /url: configuredUrl/);
   assert.match(capacitorConfig, /appStartPath: "\/login"/);
 });
+
+test("the remote Capacitor launch route has a bundled local placeholder", () => {
+  assert.equal(existsSync(resolve(root, "mobile-web/login/index.html")), true);
+});
