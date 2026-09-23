@@ -265,6 +265,8 @@ test("architecture : Veo et Omni vérifient le même contrat, les deux moteurs i
   const omni = readFileSync(path.join(ROOT, "lib/aiVideoProviderGoogleOmni.ts"), "utf8");
 
   assert.match(server, /const providerContract = buildAiMediaVideoProviderContract\(\{/);
+  assert.match(server, /request\.subjectSource === "profile"[\s\S]*?creativePlan\.companyName/);
+  assert.match(server, /profileFallback,/);
   assert.match(server, /canonicalPrompt:\s*prompt/);
   assert.match(server, /canonicalPromptSha256:\s*promptHash/);
   assert.match(server, /generateOriginalAiVideoClips\(providerArgs\)/);
@@ -285,4 +287,22 @@ test("architecture : Veo et Omni vérifient le même contrat, les deux moteurs i
   assert.match(veo, /providerContract\.parameters/);
   assert.match(veo, /providerContract\.references/);
   assert.match(veo, /providerContract\.instruction/);
+});
+
+test("le mode ADN fournit un sujet vidéo au contrat même sans consigne utilisateur", () => {
+  const profileFallback =
+    "Créer une vidéo originale pour Atelier Luna. Sujet : La céramique façonnée à la main. Respecter l'activité vérifiée de l'entreprise et les critères choisis.";
+  const contract = buildAiMediaVideoProviderContract({
+    request: requestFixture({
+      subjectSource: "profile",
+      idea: "",
+      aiInstruction: "",
+    }),
+    durationSeconds: 8,
+    brandColors: [],
+    profileFallback,
+  });
+  assert.equal(contract.subject, profileFallback);
+  assert.equal(contract.instruction, profileFallback);
+  assert.doesNotThrow(() => assertAiMediaVideoProviderContract(contract));
 });

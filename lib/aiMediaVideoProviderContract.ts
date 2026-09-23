@@ -50,10 +50,13 @@ function clean(value: unknown, max: number) {
  */
 export function buildAiMediaVideoProviderInstruction(
   request: AiMediaGenerationRequest,
+  profileFallback = "",
 ) {
   const subject = clean(request.idea, 2_000);
   const instruction = clean(request.aiInstruction, 2_400);
-  return instruction || subject;
+  const profileSubject =
+    request.subjectSource === "profile" ? clean(profileFallback, 2_000) : "";
+  return instruction || subject || profileSubject;
 }
 
 function normalizedReference(
@@ -212,11 +215,19 @@ export function buildAiMediaVideoProviderContract(args: {
   brandColors: readonly string[];
   identityTeamPrecomposed?: boolean;
   identityTeamMemberCount?: 2 | 3;
+  profileFallback?: string;
 }): AiMediaVideoProviderContract {
+  const profileFallback =
+    args.request.subjectSource === "profile"
+      ? clean(args.profileFallback, 2_000)
+      : "";
   const base = {
     version: AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION,
-    subject: clean(args.request.idea, 2_000),
-    instruction: buildAiMediaVideoProviderInstruction(args.request),
+    subject: clean(args.request.idea, 2_000) || profileFallback,
+    instruction: buildAiMediaVideoProviderInstruction(
+      args.request,
+      profileFallback,
+    ),
     parameters: buildAiMediaVideoParameterContract(args),
     references: buildAiMediaVideoReferenceContract(args),
   } satisfies Omit<AiMediaVideoProviderContract, "sha256">;

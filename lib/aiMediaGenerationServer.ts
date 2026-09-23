@@ -807,10 +807,25 @@ export async function generateAndSaveAiMedia(args: {
       request: AiMediaGenerationRequest,
       overrides: Partial<VideoProviderOverrides> = {}
     ): Promise<AiVideoProviderResult> => {
+      // Le mode ADN autorise volontairement une consigne vide dans l'UI.
+      // Le contrat fournisseur doit néanmoins recevoir un sujet concret :
+      // réutiliser le plan déjà construit, sans inventer de fait métier.
+      const profileFallback =
+        request.subjectSource === "profile"
+          ? [
+              `Créer une vidéo originale pour ${creativePlan.companyName || "l'entreprise"}.`,
+              creativePlan.headline ? `Sujet : ${creativePlan.headline}.` : "",
+              creativePlan.subline ? `Promesse : ${creativePlan.subline}.` : "",
+              "Respecter l'activité vérifiée de l'entreprise et les critères choisis.",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : "";
       const providerContract = buildAiMediaVideoProviderContract({
         request,
         durationSeconds: 8,
         brandColors: effectiveColors,
+        profileFallback,
         identityTeamPrecomposed: overrides.identityTeamPrecomposed,
         identityTeamMemberCount: overrides.identityTeamMemberCount,
       });
