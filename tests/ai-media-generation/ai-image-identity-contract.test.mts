@@ -111,6 +111,8 @@ test("aucune photo ni empreinte de photo n'est persistée dans les traces", () =
 
 test("iNrStudio accepte le catalogue image Booster et convertit les formats navigateur incompatibles", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const freeGenerator = read("app/dashboard/_components/MediaFreeGenerator.tsx");
+  const referenceClient = read("lib/mediaGenerationReferenceClient.ts");
   const uploadPolicy = read("lib/mediaUploadPolicy.ts");
   const uploadIntent = read("app/api/media-pipeline/upload-intent/route.ts");
   const conversionRoute = read(
@@ -128,9 +130,12 @@ test("iNrStudio accepte le catalogue image Booster et convertit les formats navi
   );
   assert.match(generator, /prepareVideoReferenceFrame/);
   assert.match(generator, /htmlFor="ai-media-reference-multiple"/);
-  assert.match(generator, /target: "ai_identity_reference"/);
-  assert.match(generator, /prepareInspirationImageInBrowser/);
-  assert.match(generator, /prepareInspirationImageOnServer/);
+  assert.match(generator, /export \{ prepareMediaGenerationImageReference \} from "@\/lib\/mediaGenerationReferenceClient"/);
+  assert.match(freeGenerator, /from "@\/lib\/mediaGenerationReferenceClient"/);
+  assert.match(referenceClient, /target: "ai_identity_reference"/);
+  assert.match(referenceClient, /prepareInspirationImageInBrowser/);
+  assert.match(referenceClient, /prepareInspirationImageOnServer/);
+  assert.match(referenceClient, /export async function prepareVideoReferenceFrame/);
   assert.match(uploadPolicy, /"ai_identity_reference"/);
   assert.match(uploadIntent, /folder: "studio-identity-reference"/);
   assert.match(uploadIntent, /registerSource: false/);

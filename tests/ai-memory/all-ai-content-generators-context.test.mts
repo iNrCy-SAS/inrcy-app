@@ -38,6 +38,7 @@ const USER_CONTENT_CALLS = new Map<string, number>([
   ["app/api/e-reputation/google/generate-reply/route.ts", 1],
   ["app/api/mails/generate-ai/route.ts", 1],
   ["lib/aiMediaCopywriter.ts", 1],
+  ["lib/aiMediaFreeGenerationPlan.ts", 2],
   ["lib/aiMediaNarration.ts", 1],
   ["lib/boosterPublishGeneration.ts", 1],
   ["lib/templateAiGeneration.ts", 1],
@@ -82,6 +83,26 @@ test("direct text writers use the shared server context, normalized profile and 
     );
     assert.doesNotMatch(source, /\.from\(["'](?:profiles|business_profiles|business_ai_memories)["']\)/, `${file}: no ad-hoc professional profile query`);
   }
+});
+
+test("free media authors use their explicit brief and opt-in company context, never guided writing memory", () => {
+  const freePlanner = read("lib/aiMediaFreeGenerationPlan.ts");
+  const freePrompts = read("lib/aiMediaFreeGenerationPrompt.ts");
+  for (const functionName of ["prepareAiMediaFreeCreativePlan", "writeAiMediaFreeNarration"]) {
+    assert.match(freePlanner, new RegExp(`export async function ${functionName}\\(`));
+  }
+  assert.equal([...freePlanner.matchAll(/const prompt = args\.request\.freePrompt \|\| ""/g)].length, 2);
+  assert.equal([...freePlanner.matchAll(/brief: prompt/g)].length, 2);
+  assert.equal([...freePlanner.matchAll(/company: policy\.useCompanyContext \? buildAiMediaFreeBusinessContext\(args\) : null/g)].length, 2);
+  assert.doesNotMatch(freePlanner, /buildAiWritingProfilePromptSection|buildAiWritingProfileRules|buildCompactAiWritingDirective|buildAiMediaBusinessDnaPayload/);
+  assert.doesNotMatch(freePlanner, /(?:prepareAiMediaCreativePlan|writeAiMediaNarration)\(/);
+  assert.doesNotMatch(freePlanner, /profile\.(?:strategy|memory|configuration_ia)|preferences\.(?:tone|writingStyle|contentStyle)/);
+  assert.match(freePrompts, /export function buildAiMediaFreeBusinessContext/);
+  assert.doesNotMatch(freePrompts, /buildAiWritingProfilePromptSection|buildAiWritingProfileRules|buildCompactAiWritingDirective/);
+  // Verified business facts are reusable on explicit request, but their guided AI settings are not.
+  const freeBusinessContext = freePrompts.slice(freePrompts.indexOf("export function buildAiMediaFreeBusinessContext"), freePrompts.indexOf("function businessContext"));
+  assert.match(freeBusinessContext, /buildAiMediaBusinessDnaPayload\(args\.profile\)/);
+  assert.match(freeBusinessContext, /\.filter\(\(\[key\]\) => key !== "configuration_ia"\)/);
 });
 
 test("iNrAgent campaign and report entrypoints no longer reload professional tables ad hoc", () => {

@@ -130,6 +130,8 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const route = read("app/api/media-generation/generate/route.ts");
+  const freeGenerator = read("app/dashboard/_components/MediaFreeGenerator.tsx");
+  const creationWorkspace = read("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx");
   const provider = read("lib/aiVideoProviderGoogleVeo.ts");
   const omniProvider = read("lib/aiVideoProviderGoogleOmni.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
@@ -137,9 +139,13 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(hook, /new AbortController\(\)/);
   assert.match(hook, /signal: controller\.signal/);
   assert.match(hook, /const cancelGeneration = useCallback/);
-  assert.match(generator, /role="alertdialog"/);
-  assert.match(generator, /ai_generator_stop_confirm_cost_warning/);
-  assert.match(generator, /cancelGeneration\(\)/);
+  assert.match(creationWorkspace, /role="alertdialog"/);
+  assert.match(creationWorkspace, /ai_generator_stop_confirm_cost_warning/);
+  for (const parent of [generator, freeGenerator]) {
+    assert.match(parent, /<MediaGenerationCreationWorkspace/);
+    assert.match(parent, /handleConfirmGenerationStop=\{handleConfirmGenerationStop\}/);
+    assert.match(parent, /cancelGeneration\(\)/);
+  }
   assert.match(route, /AI_MEDIA_GENERATION_CANCELLED/);
   assert.match(route, /signal: request\.signal/);
   assert.match(provider, /args\.signal\?\.addEventListener\("abort"/);
@@ -324,14 +330,14 @@ test("le header mobile sépare l'action et le type de média sur deux lignes", (
 });
 
 test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {
-  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const creationWorkspace = read("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx");
   const generatorStyles = read(
     "app/dashboard/_components/MediaGenerator.module.css"
   );
 
-  assert.match(generator, /resolveAiMediaPreviewFormat\(\{/);
-  assert.match(generator, /fallback:\s*generationResult\.format/);
-  assert.match(generator, /data-format=\{resultPreviewFormat\}/);
+  assert.match(creationWorkspace, /resolveAiMediaPreviewFormat\(\{/);
+  assert.match(creationWorkspace, /fallback:\s*generationResult\.format/);
+  assert.match(creationWorkspace, /data-format=\{resultPreviewFormat\}/);
   assert.match(
     generatorStyles,
     /\.previewFrame\s*\{[\s\S]*?position:\s*relative;/
@@ -340,15 +346,15 @@ test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", 
     generatorStyles,
     /\.previewFrame video\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;[\s\S]*?object-fit:\s*contain\s*!important;[\s\S]*?object-position:\s*50% 50%;/
   );
-  assert.match(generator, /<video[\s\S]*?objectFit:\s*"contain"/);
-  assert.doesNotMatch(generator, /<video[\s\S]*?objectFit:\s*"cover"/);
+  assert.match(creationWorkspace, /<video[\s\S]*?objectFit:\s*"contain"/);
+  assert.doesNotMatch(creationWorkspace, /<video[\s\S]*?objectFit:\s*"cover"/);
   assert.match(
     generatorStyles,
     /\.previewFrame video:fullscreen,\s*\.previewFrame video:-webkit-full-screen,\s*\.previewFrame:fullscreen video,\s*\.previewFrame:-webkit-full-screen video\s*\{[\s\S]*?width:\s*100vw\s*!important;[\s\S]*?height:\s*100vh\s*!important;[\s\S]*?min-width:\s*0\s*!important;[\s\S]*?min-height:\s*0\s*!important;[\s\S]*?object-fit:\s*contain\s*!important;[\s\S]*?object-position:\s*50% 50%\s*!important;[\s\S]*?background:\s*#000\s*!important;/
   );
   assert.match(
     generatorStyles,
-    /@media \(max-width: 900px\)[\s\S]*?\.previewFrame\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?grid-row:\s*2;/
+    /@media \(max-width: 900px\)[\s\S]*?\.previewViewport\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?grid-row:\s*2;/
   );
 });
 

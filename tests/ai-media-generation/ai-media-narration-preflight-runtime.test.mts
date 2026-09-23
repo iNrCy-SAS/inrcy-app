@@ -188,7 +188,7 @@ test("une citation de voix off 16 ou 24 s ne passe jamais par le contrat court d
   assert.ok(dialogueValidationIndex < paidVideoIndex);
   assert.match(
     server.slice(dialogueValidationIndex, paidVideoIndex),
-    /characterDialogueRequested\s*\?\s*resolveAiMediaDialogueSequence\(\{/,
+    /characterDialogueRequested\s*\? isFreeCreation\s*\? resolveAiMediaFreeDialogueSequence\(\{ request: providerRequest, plan: creativePlan \}\)\s*: resolveAiMediaDialogueSequence\(\{/,
   );
   assert.match(
     server.slice(dialogueValidationIndex, paidVideoIndex),

@@ -12,6 +12,7 @@ import {
   type AiMediaSoundtrackResponse,
 } from "@/lib/aiMediaGenerationContracts";
 import { AI_MEDIA_PROMPT_VERSION } from "@/lib/aiMediaGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION } from "@/lib/aiMediaFreeGenerationPrompt";
 import {
   AiMediaGenerationQuotaError,
   completeAiMediaGeneration,
@@ -446,7 +447,9 @@ async function readRequestBody(request: Request) {
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
     contract: "inrcy-ai-media-generation-v13-structured-studio",
-    promptVersion: AI_MEDIA_PROMPT_VERSION,
+    promptVersion: request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
+    creationMode: request.creationMode || "guided",
+    freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
     generationMode: request.generationMode,

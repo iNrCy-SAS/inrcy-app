@@ -33,12 +33,7 @@ import MediaLibraryPickerModal, {
 import type { AiMediaGeneratorBlockDefaults } from "@/lib/aiMediaGenerationPreferences";
 import {
   AI_MEDIA_INSPIRATION_MAX_COUNT,
-  AI_MEDIA_INSPIRATION_MAX_DIMENSION,
-  AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS,
-  AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES,
-  AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
   aiMediaBriefRequestsVisibleText,
-  resolveAiMediaPreviewFormat,
 } from "@/lib/aiMediaGenerationContracts";
 import {
   AI_MEDIA_NARRATION_VOICE_VARIANTS,
@@ -50,15 +45,15 @@ import {
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS,
   INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
-  INR_MEDIA_IMAGE_FORMATS_LABEL,
-  INR_MEDIA_IMAGE_MAX_MB_LABEL,
-  INR_MEDIA_VIDEO_SOURCE_MAX_BYTES,
-  INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL,
   isInrMediaVideoFile,
-  isInrMediaImageFile,
 } from "@/lib/mediaRules";
-import { uploadUniversalMediaFile } from "@/lib/universalMediaUploadClient";
+import {
+  prepareMediaGenerationImageReference,
+  prepareVideoReferenceFrame,
+} from "@/lib/mediaGenerationReferenceClient";
+export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
+import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -249,263 +244,6 @@ function RememberPreferenceControl({
   );
 }
 
-function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) =>
-        blob
-          ? resolve(blob)
-          : reject(
-              new Error("L’image d’inspiration n’a pas pu être préparée.")
-            ),
-      "image/jpeg",
-      quality
-    );
-  });
-}
-
-function blobBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () =>
-      reject(new Error("L’image d’inspiration n’a pas pu être lue."));
-    reader.onload = () => {
-      const value = typeof reader.result === "string" ? reader.result : "";
-      const separator = value.indexOf(",");
-      if (separator < 0) {
-        reject(new Error("L’image d’inspiration est invalide."));
-        return;
-      }
-      resolve(value.slice(separator + 1));
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function prepareInspirationImageInBrowser(
-  file: File
-): Promise<MediaGenerationInspirationImage> {
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.decoding = "async";
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () =>
-        reject(new Error("L’image d’inspiration est illisible."));
-      image.src = objectUrl;
-    });
-    if (!image.naturalWidth || !image.naturalHeight) {
-      throw new Error("L’image d’inspiration est illisible.");
-    }
-
-    let scale = Math.min(
-      1,
-      AI_MEDIA_INSPIRATION_MAX_DIMENSION /
-        Math.max(image.naturalWidth, image.naturalHeight)
-    );
-    let output: Blob | null = null;
-    for (let resizeAttempt = 0; resizeAttempt < 4; resizeAttempt += 1) {
-      const width = Math.max(1, Math.round(image.naturalWidth * scale));
-      const height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d", { alpha: false });
-      if (!context)
-        throw new Error("L’image d’inspiration n’a pas pu être préparée.");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0, width, height);
-      for (const quality of [0.88, 0.78, 0.68]) {
-        const candidate = await canvasBlob(canvas, quality);
-        if (candidate.size <= AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES) {
-          output = candidate;
-          break;
-        }
-      }
-      if (output) break;
-      scale *= 0.78;
-    }
-    if (!output) {
-      throw new Error("L’image reste trop volumineuse après optimisation.");
-    }
-    return {
-      mimeType: "image/jpeg",
-      data: await blobBase64(output),
-      name: file.name.slice(0, 120) || "inspiration.jpg",
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-async function discardTransientInspirationImage(storagePath: string) {
-  if (!storagePath) return;
-  await fetch("/api/media-generation/normalize-reference", {
-    method: "DELETE",
-    credentials: "include",
-    cache: "no-store",
-    keepalive: true,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ storagePath }),
-  }).catch(() => undefined);
-}
-
-async function prepareInspirationImageOnServer(
-  file: File
-): Promise<MediaGenerationInspirationImage> {
-  const uploaded = await uploadUniversalMediaFile(file, {
-    target: "ai_identity_reference",
-    requestedFolder: "studio-identity-reference",
-    source: "studio",
-  });
-  const storagePath = String(uploaded.storagePath || "");
-  if (!storagePath) {
-    throw new Error("La conversion de cette image n’a pas pu démarrer.");
-  }
-
-  try {
-    const response = await fetch("/api/media-generation/normalize-reference", {
-      method: "POST",
-      credentials: "include",
-      cache: "no-store",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        storagePath,
-        fileName: file.name,
-        mimeType: uploaded.contentType || file.type,
-      }),
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(
-        String(
-          payload?.error ||
-            "Cette image n’a pas pu être convertie automatiquement."
-        )
-      );
-    }
-    const image = payload?.image;
-    const data = typeof image?.data === "string" ? image.data.trim() : "";
-    if (
-      image?.mimeType !== "image/jpeg" ||
-      data.length < 64 ||
-      data.length > AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS ||
-      !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
-    ) {
-      throw new Error("L’image convertie est invalide.");
-    }
-    return {
-      mimeType: "image/jpeg",
-      data,
-      name:
-        typeof image?.name === "string" && image.name.trim()
-          ? image.name.trim().slice(0, 120)
-          : `${
-              file.name.replace(/\.[^.]+$/, "").slice(0, 110) || "reference"
-            }.jpg`,
-    };
-  } catch (error) {
-    await discardTransientInspirationImage(storagePath);
-    throw error;
-  }
-}
-
-export async function prepareMediaGenerationImageReference(
-  file: File
-): Promise<MediaGenerationInspirationImage> {
-  if (!isInrMediaImageFile(file)) {
-    throw new Error(`Formats acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`);
-  }
-  if (!file.size || file.size > AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES) {
-    throw new Error(
-      `L’image d’inspiration doit peser moins de ${INR_MEDIA_IMAGE_MAX_MB_LABEL}.`
-    );
-  }
-
-  try {
-    return await prepareInspirationImageInBrowser(file);
-  } catch {
-    // HEIC/HEIF/TIFF et certains AVIF/BMP ne sont pas décodables par tous les
-    // navigateurs. Le binaire va directement dans Storage, est converti par le
-    // normaliseur commun à Booster, puis supprimé avant le retour au client.
-    return await prepareInspirationImageOnServer(file);
-  }
-}
-
-/**
- * Modifier accepte aussi une vidéo source. L’API de génération utilise un
- * cadre image comme référence ; on extrait donc proprement la première image
- * décodable de la vidéo et on la soumet au même normaliseur que les images.
- */
-async function prepareVideoReferenceFrame(
-  file: File
-): Promise<MediaGenerationInspirationImage> {
-  if (!isInrMediaVideoFile(file)) {
-    throw new Error("Formats vidéo acceptés : MP4, M4V ou MOV.");
-  }
-  if (!file.size || file.size > INR_MEDIA_VIDEO_SOURCE_MAX_BYTES) {
-    throw new Error(
-      `La vidéo source doit peser moins de ${INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL}.`
-    );
-  }
-
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.muted = true;
-    video.playsInline = true;
-    video.src = objectUrl;
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("La vidéo source est illisible."));
-    });
-    if (!video.videoWidth || !video.videoHeight) {
-      throw new Error("La vidéo source est illisible.");
-    }
-    const targetTime = Number.isFinite(video.duration)
-      ? Math.min(Math.max(0, video.duration / 2), 1)
-      : 0;
-    if (targetTime > 0) {
-      video.currentTime = targetTime;
-      await new Promise<void>((resolve, reject) => {
-        video.onseeked = () => resolve();
-        video.onerror = () =>
-          reject(new Error("La vidéo source est illisible."));
-      });
-    }
-    const scale = Math.min(
-      1,
-      AI_MEDIA_INSPIRATION_MAX_DIMENSION /
-        Math.max(video.videoWidth, video.videoHeight)
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) {
-      throw new Error("La vidéo source n’a pas pu être préparée.");
-    }
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const output = await canvasBlob(canvas, 0.86);
-    if (output.size > AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES) {
-      throw new Error("La première image de la vidéo reste trop volumineuse.");
-    }
-    return {
-      mimeType: "image/jpeg",
-      data: await blobBase64(output),
-      name: `${
-        file.name.replace(/\.[^.]+$/, "").slice(0, 110) || "video"
-      }-frame.jpg`,
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
 
 function createIdentityReferenceSetId() {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -887,13 +625,6 @@ export default function MediaGenerator({
     kind === "video" && !quota?.unlimited
       ? quota?.video.remaining ?? null
       : null;
-  const resultPreviewFormat = generationResult
-    ? resolveAiMediaPreviewFormat({
-        width: generationResult.item.width,
-        height: generationResult.item.height,
-        fallback: generationResult.format,
-      })
-    : format;
 
   useEffect(() => {
     if (!quota) return;
@@ -1018,28 +749,6 @@ export default function MediaGenerator({
     }).format(parsed);
   }, [locale, quota?.resetAt]);
 
-  const progressLabel =
-    progress >= 99
-      ? t("ai_generator_stage_patience")
-      : progress < 18
-      ? t("ai_generator_stage_profile")
-      : progress < 42
-      ? t("ai_generator_stage_brand")
-      : progress < 72
-      ? t(
-          kind === "video"
-            ? effectiveIdentityMode === "reference_team"
-              ? "ai_generator_stage_team_composition"
-              : "ai_generator_stage_storyboard"
-            : "ai_generator_stage_image"
-        )
-      : t(
-          kind === "video"
-            ? referenceCinematicRequested
-              ? "ai_generator_stage_team_animation"
-              : "ai_generator_stage_render"
-            : "ai_generator_stage_finish"
-        );
 
   const quotaValue =
     quotaLoading && !counter
@@ -1802,248 +1511,52 @@ export default function MediaGenerator({
 
   if (creationScreen) {
     return (
-      <div
-        className={styles.creationWorkspace}
-        data-origin={origin}
-        data-media-kind={kind}
-      >
-        <div className={styles.creationBackdrop} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-
-        {teamVideoConsentDialog}
-
-        {operationLocked && !generationResult ? (
-          <div
-            className={styles.creationProgress}
-            role="status"
-            aria-live="polite"
-          >
-            <div className={styles.orbit} aria-hidden="true">
-              <span>✦</span>
-            </div>
-            <p className={styles.creationEyebrow}>
-              {t("ai_generator_creation_eyebrow")}
-            </p>
-            <h3>{progressLabel}</h3>
-            <p>
-              {t(
-                kind === "video"
-                  ? effectiveIdentityMode === "reference_team"
-                    ? "ai_generator_video_creation_detail_team_cinematic"
-                    : "ai_generator_video_creation_detail"
-                  : "ai_generator_image_creation_detail",
-                { duration: durationSeconds }
-              )}
-            </p>
-            <div className={styles.largeProgressTrack} aria-hidden="true">
-              <span style={{ width: `${Math.max(4, progress)}%` }} />
-            </div>
-            <strong>{progress} %</strong>
-            <small>{t("ai_generator_keep_open")}</small>
-            <div className={styles.stopGenerationSlot}>
-              {generationCancellable ? (
-                <button
-                  type="button"
-                  className={styles.stopGenerationButton}
-                  onClick={handleRequestGenerationStop}
-                >
-                  {t("ai_generator_stop_generation")}
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {cancelConfirmationOpen && generationCancellable ? (
-          <div className={styles.cancelGenerationBackdrop}>
-            <div
-              className={styles.cancelGenerationDialog}
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="ai-media-cancel-title"
-              aria-describedby="ai-media-cancel-description"
-            >
-              <span aria-hidden="true">!</span>
-              <h3 id="ai-media-cancel-title">
-                {t("ai_generator_stop_confirm_title")}
-              </h3>
-              <p id="ai-media-cancel-description">
-                {t("ai_generator_stop_confirm_description")}
-              </p>
-              <p className={styles.cancelGenerationWarning}>
-                {t("ai_generator_stop_confirm_cost_warning")}
-              </p>
-              <div>
-                <button
-                  type="button"
-                  className={styles.keepGeneratingButton}
-                  onClick={() => setCancelConfirmationOpen(false)}
-                >
-                  {t("ai_generator_stop_confirm_continue")}
-                </button>
-                <button
-                  type="button"
-                  className={styles.confirmStopButton}
-                  onClick={handleConfirmGenerationStop}
-                >
-                  {t("ai_generator_stop_confirm_action")}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {generationResult ? (
-          <div className={styles.reviewWorkspace}>
-            <div className={styles.reviewHeading}>
-              <div>
-                <p>{t("ai_generator_ready")}</p>
-                <h3>
-                  {t(
-                    kind === "video"
-                      ? "ai_generator_video_ready_title"
-                      : "ai_generator_image_ready_title"
-                  )}
-                </h3>
-              </div>
-              <div className={styles.reviewBadges}>
-                <span>
-                  {
-                    FORMATS.find((item) => item.id === resultPreviewFormat)
-                      ?.ratio
-                  }
-                </span>
-                {kind === "video" && generationResult.videoEngineResult ? (
-                  <span
-                    className={styles.engineResultBadge}
-                    data-fallback={generationResult.videoEngineResult.includes(
-                      "fallback"
-                    )}
-                  >
-                    {t(
-                      `ai_generator_video_engine_result_${generationResult.videoEngineResult}`
-                    )}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <div
-              className={styles.previewFrame}
-              data-format={resultPreviewFormat}
-              style={{ position: "relative" }}
-            >
-              {generationResult.item.signed_url ? (
-                generationResult.item.media_type === "video" ? (
-                  <video
-                    src={generationResult.item.signed_url}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      height: "100%",
-                      minWidth: 0,
-                      minHeight: 0,
-                      objectFit: "contain",
-                      objectPosition: "center",
-                      background: "#000",
-                    }}
-                  />
-                ) : (
-                  <img
-                    src={generationResult.item.signed_url}
-                    alt={
-                      generationResult.item.title ||
-                      t("ai_generator_preview_alt")
-                    }
-                  />
-                )
-              ) : (
-                <span>{t("apercu_indisponible_d0ce704a")}</span>
-              )}
-            </div>
-            <div className={styles.savedStatus} role="status">
-              <span aria-hidden="true">✓</span>
-              {t("ai_generator_saved_automatically")}
-            </div>
-            <div className={styles.resultActions}>
-              <button
-                type="button"
-                className={styles.confirmButton}
-                onClick={() => void handleConfirm()}
-                disabled={operationLocked}
-              >
-                {finishing
-                  ? t(
-                      acceptMode === "insert"
-                        ? "ai_generator_inserting"
-                        : "ai_generator_finishing_library"
-                    )
-                  : t(
-                      acceptMode === "insert"
-                        ? "ai_generator_confirm_insert"
-                        : "ai_generator_open_library"
-                    )}
-              </button>
-              <button
-                type="button"
-                className={styles.regenerateButton}
-                onClick={() => void handleGenerate()}
-                disabled={disabled}
-              >
-                ↻ {t("ai_generator_regenerate")}
-              </button>
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={() => void handleEditCriteria()}
-                disabled={operationLocked}
-              >
-                {t("ai_generator_edit_criteria")}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {!operationLocked && !generationResult ? (
-          <div className={styles.creationErrorPanel}>
-            <span aria-hidden="true">!</span>
-            <h3>{t("ai_generator_creation_failed_title")}</h3>
-            <p>{actionError || error || t("ai_generator_error")}</p>
-            <div>
-              <button
-                type="button"
-                onClick={() => void handleGenerate()}
-                disabled={disabled}
-              >
-                {t("ai_generator_retry")}
-              </button>
-              <button type="button" onClick={() => void handleEditCriteria()}>
-                {t("ai_generator_edit_criteria")}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {actionError && generationResult ? (
-          <div className={styles.error} role="alert">
-            {actionError}
-          </div>
-        ) : null}
-        {originChangedNotice ? (
-          <div className={styles.warning} role="status">
-            {t("ai_generator_origin_changed")}
-          </div>
-        ) : null}
-      </div>
+      <MediaGenerationCreationWorkspace
+        kind={kind}
+        format={format}
+        durationSeconds={durationSeconds}
+        origin={origin}
+        progress={progress}
+        operationLocked={operationLocked}
+        finishing={finishing}
+        generationResult={generationResult}
+        generationCancellable={generationCancellable}
+        cancelConfirmationOpen={cancelConfirmationOpen}
+        setCancelConfirmationOpen={setCancelConfirmationOpen}
+        handleRequestGenerationStop={handleRequestGenerationStop}
+        handleConfirmGenerationStop={handleConfirmGenerationStop}
+        handleConfirm={handleConfirm}
+        handleGenerate={handleGenerate}
+        handleEditCriteria={handleEditCriteria}
+        disabled={disabled}
+        acceptMode={acceptMode}
+        actionError={actionError}
+        error={error}
+        originChangedNotice={originChangedNotice}
+        identityTeam={effectiveIdentityMode === "reference_team"}
+        referenceCinematicRequested={referenceCinematicRequested}
+        overlay={teamVideoConsentDialog}
+        regenerationConsents={
+          identityConsentRequired
+            ? [{
+                id: "identity",
+                label: t(
+                  effectiveIdentityMode === "reference_team"
+                    ? "ai_generator_reference_team_consent_label"
+                    : "ai_generator_video_character_consent_label"
+                ),
+                checked: identityConsent,
+                onChange: (checked) => {
+                  setIdentityConsent(checked);
+                  setTeamVideoVeoConsent(false);
+                  setTeamVideoConsentOpen(false);
+                },
+              }]
+            : undefined
+        }
+      />
     );
   }
-
   return (
     <div className={styles.generator} data-origin={origin}>
       {teamVideoConsentDialog}

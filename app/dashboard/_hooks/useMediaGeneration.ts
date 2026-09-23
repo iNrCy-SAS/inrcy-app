@@ -6,6 +6,7 @@ import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLi
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
   AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
+  AI_MEDIA_FREE_PROMPT_MAX_CHARS,
   shouldConnectAiMediaVideoScenes,
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
@@ -227,6 +228,8 @@ export type MediaGenerationResult = {
 };
 
 export type MediaGenerationRequest = {
+  creationMode?: "guided" | "free";
+  freePrompt?: string;
   operation?: MediaGenerationOperation;
   inputMode?: MediaGenerationInputMode;
   generationMode?: MediaGenerationMode;
@@ -510,6 +513,8 @@ function buildGenerationAttemptKey(
   const textMode = resolveMediaGenerationTextMode(request);
   const aiInstruction = normalizeMediaGenerationAiInstruction(request);
   return JSON.stringify({
+    creationMode: request.creationMode || "guided",
+    freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
     generationMode:
@@ -832,6 +837,26 @@ export default function useMediaGeneration() {
 
   const generate = useCallback(
     async (request: MediaGenerationRequest) => {
+      if (request.creationMode === "free") {
+        const freePrompt = String(request.freePrompt || "").trim();
+        if (freePrompt.length < 3 || freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
+          throw new Error(`Décrivez votre média en 3 à ${AI_MEDIA_FREE_PROMPT_MAX_CHARS.toLocaleString("fr-FR")} caractères.`);
+        }
+        request = {
+          ...request,
+          operation: "generate", inputMode: "essential", subjectSource: "custom",
+          freePrompt, idea: freePrompt.slice(0, 2_000), aiInstruction: "",
+          generationMode: request.inspirationImages?.length ? "inspiration" : "ai_free",
+          peopleCriterion: "auto", settingCriterion: "auto", focusCriterion: "auto",
+          textMode: "none", exactText: "", withText: false, textKeywords: [],
+          imagePurpose: "auto", imageStyle: "photo", visualDirection: "auto",
+          typology: "service", visualStyle: "brand", shotType: "auto", creativity: "faithful",
+          peopleMode: "auto", useBrandColors: false, logoMode: "none",
+          videoEngine: "omni", teamVideoMode: "cinematic",
+          teamVideoSpeechMode: request.teamVideoSpeechMode || "voiceover",
+          withNarration: request.teamVideoSpeechMode === "characters" ? false : request.withNarration,
+        };
+      }
       const idea = String(request.idea || "").trim();
       const textMode = resolveMediaGenerationTextMode(request);
       if (request.subjectSource !== "profile" && !idea) {
@@ -879,6 +904,8 @@ export default function useMediaGeneration() {
           signal: controller.signal,
           body: JSON.stringify({
             contractVersion: 4,
+            creationMode: request.creationMode || "guided",
+            freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
             operation: request.operation || "generate",
             inputMode: request.inputMode || "legacy",
             generationMode:

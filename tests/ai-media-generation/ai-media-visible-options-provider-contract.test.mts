@@ -9,6 +9,7 @@ import ts from "typescript";
 
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import {
@@ -282,6 +283,7 @@ function loadVideoProviderPromptRuntime() {
     ["@/lib/aiMediaDialogue", dialogue],
     ["@/lib/aiMediaColorDirection", colorDirection],
     ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaFreeGenerationPrompt", freePrompts],
     ["@/lib/aiMediaPromptShared", promptShared],
     ["./aiMediaVideoContinuity.ts", {}],
     ["@/lib/aiMediaSensitiveText", {}],

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Activity, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -16,6 +16,8 @@ import MediaGenerator, {
   type MediaGeneratorStudioMode,
 } from "./MediaGenerator";
 import MediaModifier from "./MediaModifier";
+import MediaFreeGenerator from "./MediaFreeGenerator";
+import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import MediaRetoucher, {
   type MediaStudioInitialPreview,
   type MediaRetoucherSavedValue,
@@ -56,6 +58,7 @@ type MediaGeneratorModalProps = {
 };
 
 type StudioMediaType = "image" | "video";
+type StudioCreationMode = "guided" | "free";
 
 function getFocusableElements(container: HTMLElement | null) {
   if (!container) return [];
@@ -63,7 +66,7 @@ function getFocusableElements(container: HTMLElement | null) {
     container.querySelectorAll<HTMLElement>(
       'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
     )
-  ).filter((element) => !element.hasAttribute("aria-hidden"));
+  ).filter((element) => !element.hasAttribute("aria-hidden") && element.getClientRects().length > 0 && !element.closest("[inert]"));
 }
 
 export default function MediaGeneratorModal({
@@ -98,6 +101,10 @@ export default function MediaGeneratorModal({
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
+  const [creationMode, setCreationMode] = useState<StudioCreationMode>("guided");
+  const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>("image");
+  const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([]);
+  const [generationSession, setGenerationSession] = useState(0);
   const [mediaTypeByTab, setMediaTypeByTab] = useState<
     Record<MediaGeneratorStudioMode, StudioMediaType>
   >(() => ({
@@ -123,7 +130,9 @@ export default function MediaGeneratorModal({
     initialSourceAvailable ??
     Boolean(initialSource || initialPreview || initialSourceLoading);
   const studioWordmark = t("ai_generator_made_inrcy");
-  const activeMediaType = mediaTypeByTab[studioTab];
+  const activeMediaType = studioTab === "generate" && creationMode === "free"
+    ? freeMediaType
+    : mediaTypeByTab[studioTab];
 
   useEffect(() => setMounted(true), []);
 
@@ -139,6 +148,9 @@ export default function MediaGeneratorModal({
   useEffect(() => {
     if (!open) return;
     setStudioTab(initialTab);
+    setCreationMode("guided");
+    setFreeMediaType("image");
+    setVisitedFreeTypes([]);
     setMediaTypeByTab({
       generate: initialTab === "generate" ? initialMediaType : "image",
       modify: "image",
@@ -146,6 +158,23 @@ export default function MediaGeneratorModal({
     });
     setRetoucherDirty(false);
   }, [initialMediaType, initialTab, open]);
+
+  useEffect(() => {
+    // Hidden Activity forms suspend their listeners: invalidate all of them
+    // here so an establishment change can never restore another account's brief.
+    const resetGenerationSession = () => {
+      setGenerationSession((value) => value + 1);
+      setVisitedFreeTypes([]);
+      setCreationMode("guided");
+      setFreeMediaType("image");
+      currentResultRef.current = null;
+      setCurrentResult(null);
+      setLocked(false);
+      setCloseConfirmOpen(false);
+    };
+    window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
+    return () => window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
+  }, []);
 
   const handleResultChange = useCallback(
     (result: MediaGenerationResult | null) => {
@@ -198,13 +227,26 @@ export default function MediaGeneratorModal({
         setCloseConfirmOpen(true);
         return;
       }
+      if (studioTab === "generate" && creationMode === "free") {
+        setFreeMediaType(mediaType);
+        setVisitedFreeTypes((current) => current.includes(mediaType) ? current : [...current, mediaType]);
+        return;
+      }
       setMediaTypeByTab((current) => ({
         ...current,
         [studioTab]: mediaType,
       }));
     },
-    [activeMediaType, hasExternalHandoff, hasPendingWork, locked, studioTab]
+    [activeMediaType, creationMode, hasExternalHandoff, hasPendingWork, locked, studioTab]
   );
+
+  const requestCreationMode = (mode: StudioCreationMode) => {
+    if (mode === creationMode || locked || hasPendingWork) return;
+    if (mode === "free") {
+      setVisitedFreeTypes((current) => current.includes(freeMediaType) ? current : [...current, freeMediaType]);
+    }
+    setCreationMode(mode);
+  };
 
   const cancelClose = useCallback(() => {
     setCloseConfirmOpen(false);
@@ -267,13 +309,16 @@ export default function MediaGeneratorModal({
         ? document.activeElement
         : null;
     const previousOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     const frame = window.requestAnimationFrame(() => {
       closeButtonRef.current?.focus({ preventScroll: true });
     });
     return () => {
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
       previousFocusRef.current?.focus?.({ preventScroll: true });
     };
   }, [mounted, open]);
@@ -388,6 +433,7 @@ export default function MediaGeneratorModal({
         ref={dialogRef}
         className={styles.dialog}
         data-studio-tab={studioTab}
+        data-creation-mode={studioTab === "generate" ? creationMode : undefined}
         role="dialog"
         aria-modal="true"
         aria-hidden={closeConfirmOpen ? true : undefined}
@@ -410,7 +456,7 @@ export default function MediaGeneratorModal({
               <p>{t("ai_generator_made_inrcy_hint")}</p>
             </div>
           </div>
-          <div className={styles.heading}>
+          <div className={styles.heading} data-generation-controls={studioTab === "generate" ? "true" : undefined}>
             <nav
               className={styles.studioTabs}
               aria-label={t("ai_generator_studio_tabs_label")}
@@ -474,6 +520,23 @@ export default function MediaGeneratorModal({
                 );
               })}
             </div>
+            {studioTab === "generate" ? (
+              <div className={styles.creationModeTabs} role="radiogroup" aria-label={t("ai_generator_free_mode_label")}>
+                {(["free", "guided"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={creationMode === mode}
+                    data-active={creationMode === mode ? "true" : "false"}
+                    disabled={locked || hasPendingWork}
+                    onClick={() => requestCreationMode(mode)}
+                  >
+                    {t(mode === "free" ? "ai_generator_free_mode_free" : "ai_generator_free_mode_guided")}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className={styles.headerActions}>
             <Link
@@ -569,18 +632,34 @@ export default function MediaGeneratorModal({
               onBusyChange={setLocked}
             />
           ) : (
-            <MediaGenerator
-              key="generate"
-              source={source}
-              origin={origin}
-              publicationBrief={publicationBrief}
-              acceptMode={acceptMode}
-              studioMode="generate"
-              mediaType={activeMediaType}
-              onAccepted={onAccepted}
-              onResultChange={handleResultChange}
-              onBusyChange={setLocked}
-            />
+            <div key={generationSession} className={styles.generationWorkspace}>
+              <Activity mode={creationMode === "guided" ? "visible" : "hidden"}>
+                <MediaGenerator
+                  key="generate"
+                  source={source}
+                  origin={origin}
+                  publicationBrief={publicationBrief}
+                  acceptMode={acceptMode}
+                  studioMode="generate"
+                  mediaType={mediaTypeByTab.generate}
+                  onAccepted={onAccepted}
+                  onResultChange={handleResultChange}
+                  onBusyChange={setLocked}
+                />
+              </Activity>
+              {visitedFreeTypes.map((kind) => (
+                <Activity key={kind} mode={creationMode === "free" && freeMediaType === kind ? "visible" : "hidden"}>
+                  <MediaFreeGenerator
+                    source={source}
+                    acceptMode={acceptMode}
+                    mediaType={kind}
+                    onAccepted={onAccepted}
+                    onResultChange={handleResultChange}
+                    onBusyChange={setLocked}
+                  />
+                </Activity>
+              ))}
+            </div>
           )}
         </div>
       </section>

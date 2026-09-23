@@ -305,7 +305,9 @@ test("le header iNrStudio centralise Action et Image ou Vidéo", () => {
     /initialMediaType=\{handoff\?\.source\?\.mediaType \|\| "image"\}/
   );
   assert.match(modal, /activeMediaType === "video"/);
-  assert.match(modal, /mediaType=\{activeMediaType\}/);
+  assert.match(modal, /mediaType=\{mediaTypeByTab\.generate\}/);
+  assert.match(modal, /<MediaFreeGenerator[\s\S]*?mediaType=\{kind\}/);
+  assert.match(modal, /className=\{styles\.creationModeTabs\}/);
   assert.doesNotMatch(modal, /retouchMediaSwitch/);
   assert.match(
     modalStyles,

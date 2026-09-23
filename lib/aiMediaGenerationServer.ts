@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import sharp from "sharp";
 
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaVideoDnaBrief } from "@/lib/aiMediaBusinessDna";
@@ -12,6 +13,8 @@ import {
 import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
+import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
+import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence } from "@/lib/aiMediaFreeGenerationPrompt";
 import {
   AiGatewayAccountLimitError,
   AiGatewayGuardUnavailableError,
@@ -305,7 +308,7 @@ export async function generateAndSaveAiMedia(args: {
       soundtrack: null,
       model: "replayed",
       videoEngineResult: null,
-      promptVersion: AI_MEDIA_PROMPT_VERSION,
+      promptVersion: args.request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
       promptSha256: "",
       pipelineTimingsMs: { ...pipelineTimingsMs },
     };
@@ -343,6 +346,8 @@ export async function generateAndSaveAiMedia(args: {
     ...args.request,
     inspirationImages: preparedIdentityReferences.providerImages,
   };
+  const isFreeCreation = providerRequest.creationMode === "free";
+  const activePromptVersion = isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
   const preparedReferenceRoles = providerRequest.inspirationImages.map(
     ({ role, usage, characterIndex }) => ({ role, usage, characterIndex })
   );
@@ -375,6 +380,7 @@ export async function generateAndSaveAiMedia(args: {
     },
   });
   const profilePhoneDisplayRequested =
+    !isFreeCreation &&
     providerRequest.operation !== "modify" &&
     providerRequest.kind === "image" &&
     isAiMediaProfilePhoneDisplayRequested(providerRequest.aiInstruction);
@@ -387,16 +393,19 @@ export async function generateAndSaveAiMedia(args: {
   // le fournisseur. Le téléphone conserve sa composition dédiée.
   const useExactContactComposition = profilePhoneDisplayRequested;
   const useDeterministicImageComposition =
+    !isFreeCreation &&
     providerRequest.operation !== "modify" &&
     providerRequest.kind === "image" &&
     (providerRequest.withText || useExactContactComposition);
-  const initialCreativePlan = buildAiMediaCreativePlan({
+  const initialCreativePlan = isFreeCreation ? buildAiMediaFreeBasePlan(providerRequest) : buildAiMediaCreativePlan({
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
   });
   const creativePlanTask =
-    providerRequest.withText ||
+    isFreeCreation
+      ? measure("free_creative_plan", () => prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: providerRequest, profile, signal: args.signal }))
+      : providerRequest.withText ||
     (providerRequest.kind === "video" &&
       (providerRequest.teamVideoSpeechMode === "characters" ||
         providerRequest.withNarration))
@@ -415,24 +424,29 @@ export async function generateAndSaveAiMedia(args: {
     creativePlanTask,
   ]);
   args.signal?.throwIfAborted();
+  const freeBrandPolicy = isFreeCreation
+    ? getAiMediaFreeBrandPolicy(providerRequest.freePrompt || "", profile.business.companyName)
+    : null;
   const officialLogo =
+    isFreeCreation ? (freeBrandPolicy?.useLogo ? brandKit.logo : null) :
     providerRequest.operation === "modify" || providerRequest.logoMode === "none"
       ? null
       : brandKit.logo;
-  const effectiveColors = providerRequest.useBrandColors
+  const effectiveColors: [string, string, string] = isFreeCreation ? (freeBrandPolicy?.useBrandColors ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
   const prompt = buildAiMediaPrompt({
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
-    brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
+    brandColors: providerRequest.useBrandColors || freeBrandPolicy?.useBrandColors ? brandKit.colors : [],
     hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition,
     deferVisibleElementsToComposer: useDeterministicImageComposition,
     copy: creativePlan,
   });
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
+  const imageGenerationSize = isFreeCreation ? getAiMediaFreeImageSize(providerRequest.format) : format.generationSize;
   // Modifier conserve le ratio de la source jusque dans l'appel fournisseur.
   // La normalisation finale ramène ensuite le rendu aux dimensions exactes.
   const modificationCanvas =
@@ -492,7 +506,7 @@ export async function generateAndSaveAiMedia(args: {
     return task;
   };
   const referenceTeamPrecompositionPrompt =
-    providerRequest.identityMode === "reference_team"
+    !isFreeCreation && providerRequest.identityMode === "reference_team"
       ? `${buildAiMediaPrompt({
           request: {
             ...providerRequest,
@@ -522,7 +536,9 @@ export async function generateAndSaveAiMedia(args: {
         )}. Aucun texte ni logo.`
       : "";
   const essentialScenePrecompositionPrompt =
-    providerRequest.inputMode === "essential" &&
+    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || officialLogo)
+      ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: effectiveColors, hasLogo: Boolean(officialLogo) })
+      : providerRequest.inputMode === "essential" &&
     providerRequest.kind === "video" &&
     providerRequest.inspirationImages.length
       ? `${buildAiMediaPrompt({
@@ -572,13 +588,14 @@ export async function generateAndSaveAiMedia(args: {
       accountId: args.accountId,
       prompt,
       operation: providerRequest.operation,
+      creationMode: providerRequest.creationMode,
       identityMode: providerRequest.identityMode,
       identityReferences: preparedIdentityReferences.buffers,
       referenceRoles: preparedReferenceRoles,
       officialLogo: useDeterministicImageComposition ? null : officialLogo,
       size: modificationCanvas
         ? resolveAiMediaImageEditSize(modificationCanvas)
-        : format.generationSize,
+        : imageGenerationSize,
       signal: args.signal,
     });
     let gateway: AiMediaGatewayResult;
@@ -664,7 +681,7 @@ export async function generateAndSaveAiMedia(args: {
           cause: error,
         });
       }
-    } else if (providerRequest.withText) {
+    } else if (!isFreeCreation && providerRequest.withText) {
       const imageScene = creativePlan.scenes[0];
       if (!imageScene) throw new Error("ai_image_visible_copy_missing");
       const composedImageBody = [
@@ -755,6 +772,11 @@ export async function generateAndSaveAiMedia(args: {
 
     let minimalOverlaysTask: Promise<Buffer[]> | null = null;
     const renderMinimalOverlays = () => {
+      if (isFreeCreation) {
+        minimalOverlaysTask ||= sharp({ create: { width: format.width, height: format.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+          .png().toBuffer().then((empty) => creativePlan.scenes.map(() => empty));
+        return minimalOverlaysTask;
+      }
       minimalOverlaysTask ||= Promise.all(
         creativePlan.scenes.map((scene) =>
           renderAiMediaVideoOverlay({
@@ -892,7 +914,7 @@ export async function generateAndSaveAiMedia(args: {
     const generateVideoGateway = () => measure("video_generation", async () => {
       if (
         providerRequest.inputMode === "essential" &&
-        preparedIdentityReferences.buffers.length > 0
+        (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo))
       ) {
         if (
           providerRequest.identityMode === "reference_team" &&
@@ -907,11 +929,12 @@ export async function generateAndSaveAiMedia(args: {
               generateAiMediaImage({
                 accountId: args.accountId,
                 prompt: essentialScenePrecompositionPrompt,
+                creationMode: providerRequest.creationMode,
                 identityMode: providerRequest.identityMode,
                 identityReferences: preparedIdentityReferences.buffers,
                 referenceRoles: preparedReferenceRoles,
-                officialLogo: null,
-                size: format.generationSize,
+                officialLogo: isFreeCreation ? officialLogo : null,
+                size: imageGenerationSize,
                 signal: args.signal,
               })
           );
@@ -929,11 +952,12 @@ export async function generateAndSaveAiMedia(args: {
               generateAiMediaImageWithGoogle({
                 accountId: args.accountId,
                 prompt: essentialScenePrecompositionPrompt,
+                creationMode: providerRequest.creationMode,
                 identityMode: providerRequest.identityMode,
                 identityReferences: preparedIdentityReferences.buffers,
                 referenceRoles: preparedReferenceRoles,
-                officialLogo: null,
-                size: format.generationSize,
+                officialLogo: isFreeCreation ? officialLogo : null,
+                size: imageGenerationSize,
                 signal: args.signal,
               })
           );
@@ -1157,7 +1181,7 @@ export async function generateAndSaveAiMedia(args: {
         for (let preflightAttempt = 0; preflightAttempt < 3; preflightAttempt += 1) {
           const stageSuffix = preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
           const narration = await measure(`narration_copy${stageSuffix}`, () =>
-            writeAiMediaNarration({
+            isFreeCreation ? writeAiMediaFreeNarration({ accountId: args.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits }) : writeAiMediaNarration({
               accountId: args.accountId,
               request: narrationRequest,
               profile,
@@ -1280,7 +1304,9 @@ export async function generateAndSaveAiMedia(args: {
     // citation plus longue : elle relève du rédacteur de narration, jamais du
     // contrat court imposé aux mouvements de bouche des personnages.
     const expectedDialogueLines = characterDialogueRequested
-      ? resolveAiMediaDialogueSequence({
+      ? isFreeCreation
+        ? resolveAiMediaFreeDialogueSequence({ request: providerRequest, plan: creativePlan })
+        : resolveAiMediaDialogueSequence({
           scenes: creativePlan.scenes,
           headline: creativePlan.headline,
           language: profile.preferences.language,
@@ -1330,6 +1356,7 @@ export async function generateAndSaveAiMedia(args: {
       }
     });
     const overlaysTask = measure("video_overlays", async () => {
+      if (isFreeCreation) return { value: await renderMinimalOverlays(), warnings: [] as string[], error: null };
       try {
         const value = await Promise.all(
           creativePlan.scenes.map((scene, index) =>
@@ -1751,7 +1778,9 @@ export async function generateAndSaveAiMedia(args: {
             ? "inrcy_original_ai_video_engine"
             : "inrcy_brand_image_engine",
           surface: providerRequest.source,
-          prompt_version: AI_MEDIA_PROMPT_VERSION,
+          prompt_version: activePromptVersion,
+          creation_mode: providerRequest.creationMode || "guided",
+          free_prompt_char_count: providerRequest.freePrompt?.length || 0,
           prompt_sha256: promptHash,
           subject_source: providerRequest.subjectSource,
           ai_instruction_present: Boolean(providerRequest.aiInstruction),
@@ -1840,7 +1869,7 @@ export async function generateAndSaveAiMedia(args: {
       : null,
     model,
     videoEngineResult,
-    promptVersion: AI_MEDIA_PROMPT_VERSION,
+    promptVersion: activePromptVersion,
     promptSha256: promptHash,
     pipelineTimingsMs: completedPipelineTimings,
   };

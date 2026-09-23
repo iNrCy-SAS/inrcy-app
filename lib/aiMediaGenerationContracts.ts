@@ -6,6 +6,7 @@ import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
 
 export type AiMediaKind = "image" | "video";
 export type AiMediaOperation = "generate" | "modify";
+export type AiMediaCreationMode = "guided" | "free";
 export type AiMediaSurface = "booster" | "studio";
 export type AiMediaSubjectSource = "publication" | "profile" | "custom";
 export type AiMediaOutputFormat = "square" | "portrait" | "story" | "landscape";
@@ -118,6 +119,7 @@ export const AI_MEDIA_INSPIRATION_MAX_DIMENSION = 1_280;
 export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
 /** Limite propre au brief de Modifier Image, de l'interface au fournisseur. */
 export const AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS = 1_200;
+export const AI_MEDIA_FREE_PROMPT_MAX_CHARS = 4_000;
 
 export type AiMediaFormatSpec = {
   format: AiMediaOutputFormat;
@@ -202,6 +204,9 @@ export function resolveAiMediaPreviewFormat(args: {
 
 export type AiMediaGenerationRequest = {
   requestId: string;
+  /** Independent free-form creative path; never the legacy `ai_free` casting option. */
+  creationMode?: AiMediaCreationMode;
+  freePrompt?: string;
   /** `modify` conserve une image source et applique uniquement la consigne. */
   operation?: AiMediaOperation;
   /** Le Studio essentiel omet les anciens réglages décoratifs du payload. */
@@ -535,12 +540,49 @@ function normalizeInspirationImages(
 export function normalizeAiMediaGenerationRequest(
   value: unknown
 ): AiMediaGenerationRequest {
-  const body =
+  let body =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : null;
   if (!body) {
     throw new AiMediaRequestValidationError("Demande de média invalide.");
+  }
+
+  if (body.creationMode !== undefined && !["guided", "free"].includes(String(body.creationMode))) {
+    throw new AiMediaRequestValidationError("Parcours de création invalide.");
+  }
+  const creationMode: AiMediaCreationMode = body.creationMode === "free" ? "free" : "guided";
+  let freePrompt = "";
+  if (creationMode === "free") {
+    if (body.operation === "modify" || body.source !== "studio") {
+      throw new AiMediaRequestValidationError("Le mode Libre est disponible dans Générer du Studio.");
+    }
+    if (typeof body.freePrompt !== "string" || body.freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
+      throw new AiMediaRequestValidationError(`Décrivez votre média en ${AI_MEDIA_FREE_PROMPT_MAX_CHARS.toLocaleString("fr-FR")} caractères maximum.`);
+    }
+    freePrompt = normalizeAiInstruction(body.freePrompt, AI_MEDIA_FREE_PROMPT_MAX_CHARS);
+    if (freePrompt.length < 3) {
+      throw new AiMediaRequestValidationError("Décrivez le média souhaité avant de générer.");
+    }
+    // Whitelist free controls. Hidden guided state must not influence a free
+    // creation, including text grids, commercial defaults and stale casting.
+    body = {
+      requestId: body.requestId, operation: "generate", source: "studio",
+      inputMode: "essential", kind: body.kind, format: body.format,
+      subjectSource: "custom", idea: freePrompt.slice(0, 2_000),
+      inspirationImages: body.inspirationImages,
+      identityReferenceSetId: body.identityReferenceSetId,
+      identityConsent: body.identityConsent,
+      teamVideoVeoConsent: body.teamVideoVeoConsent,
+      durationSeconds: body.durationSeconds, sceneMode: body.sceneMode,
+      connectScenes: body.connectScenes,
+      withMusic: body.withMusic,
+      withNarration: body.teamVideoSpeechMode === "characters" ? false : body.withNarration,
+      narrationVoice: body.narrationVoice, narrationVoiceVariant: body.narrationVoiceVariant,
+      videoEngine: "omni", teamVideoMode: "cinematic",
+      teamVideoSpeechMode: body.teamVideoSpeechMode,
+      useBrandColors: false, logoMode: "none", textMode: "none",
+    };
   }
 
   const requestId = readRequestId(body.requestId);
@@ -765,6 +807,7 @@ export function normalizeAiMediaGenerationRequest(
   }
   if (
     operation === "generate" &&
+    creationMode !== "free" &&
     source === "studio" &&
     textMode === "none" &&
     aiMediaBriefRequestsVisibleText({
@@ -1069,6 +1112,8 @@ export function normalizeAiMediaGenerationRequest(
 
   return {
     requestId,
+    creationMode,
+    freePrompt: creationMode === "free" ? freePrompt : undefined,
     operation,
     inputMode,
     generationMode,

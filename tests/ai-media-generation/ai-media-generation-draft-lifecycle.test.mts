@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const read = (path: string) => readFileSync(path, "utf8");
+const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 function section(source: string, start: string, end: string) {
   const startIndex = source.indexOf(start);
@@ -186,5 +186,7 @@ test("le brief libre ne persiste pas dans le registre du media", () => {
 
   assert.doesNotMatch(persistence, /idea:\s*args\.request\.idea/);
   assert.doesNotMatch(persistence, /prompt:\s*prompt/);
+  assert.doesNotMatch(persistence, /(?:freePrompt|free_prompt):/);
+  assert.match(persistence, /free_prompt_char_count:\s*providerRequest\.freePrompt\?\.length \|\| 0/);
   assert.match(persistence, /prompt_sha256:\s*promptHash/);
 });

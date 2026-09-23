@@ -14,6 +14,7 @@ import {
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "@/lib/aiMediaBuffer";
 import type {
+  AiMediaCreationMode,
   AiMediaIdentityMode,
   AiMediaInspirationImage,
   AiMediaOperation,
@@ -197,6 +198,7 @@ function prepareImageProviderInput(args: {
 function buildImageReferenceRoleRules(args: {
   identityMode: AiMediaIdentityMode;
   operation?: AiMediaOperation;
+  creationMode?: AiMediaCreationMode;
   input: AiMediaImageProviderInput;
 }) {
   const {
@@ -214,6 +216,19 @@ function buildImageReferenceRoleRules(args: {
       "- Partir de cette image comme canvas. Appliquer strictement la consigne utilisateur aux seules zones nécessaires et conserver tous les pixels, sujets, identités, objets, cadrages et détails non concernés aussi fidèlement que possible.",
       "- Ne jamais produire une nouvelle scène libre, un collage, une planche avant/après, un cadre ou une variante seulement inspirée de la source.",
     ].join("\n");
+  }
+  if (args.creationMode === "free") {
+    return [
+      "RÉFÉRENCES DU MODE LIBRE : la forme de composition et le style restent ceux de la demande.",
+      ...providedReferences.map((_, index) => {
+        const reference = providedReferenceRoles[index];
+        return `Image ${index + 1} : ${reference?.role || "inspiration"}, ${reference?.usage || "inspiration"}. ${reference?.usage === "required"
+          ? "Conserver fidèlement les éléments pertinents de ce rôle ; pour les personnages autorisés, préserver séparément chaque identité sans omission ni fusion."
+          : "Guider uniquement l'ambiance, le style ou la composition ; ne pas copier une identité ni imposer le sujet de la référence."}`;
+      }),
+      officialLogoIncluded ? `Image ${referenceImagesCount} : logo officiel demandé, à reproduire fidèlement.` : "",
+      "Créer une œuvre complète selon le brief, y compris une affiche, un flyer, une illustration ou un collage si demandé. Aucun cadre, scène photographique ou agencement commercial imposé.",
+    ].filter(Boolean).join("\n");
   }
   return [
     "ORDRE DES IMAGES DE RÉFÉRENCE FOURNIES AU MODÈLE :",
@@ -340,6 +355,7 @@ export async function generateAiMediaImage(args: {
   accountId: string;
   prompt: string;
   operation?: AiMediaOperation;
+  creationMode?: AiMediaCreationMode;
   identityMode: AiMediaIdentityMode;
   /**
    * Références ponctuelles explicitement autorisées par le professionnel.
@@ -391,6 +407,7 @@ export async function generateAiMediaImage(args: {
       const referenceRoleRules = buildImageReferenceRoleRules({
         identityMode: args.identityMode,
         operation: args.operation,
+        creationMode: args.creationMode,
         input,
       });
       const result = await generateImage({
@@ -464,6 +481,7 @@ export async function generateAiMediaImageWithGoogle(args: {
   accountId: string;
   prompt: string;
   operation?: AiMediaOperation;
+  creationMode?: AiMediaCreationMode;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
@@ -493,6 +511,7 @@ export async function generateAiMediaImageWithGoogle(args: {
       const referenceRoleRules = buildImageReferenceRoleRules({
         identityMode: args.identityMode,
         operation: args.operation,
+        creationMode: args.creationMode,
         input,
       });
       const ai = new GoogleGenAI({ apiKey: key });

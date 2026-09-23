@@ -217,6 +217,16 @@ export function buildAiMediaVideoProviderContract(args: {
   identityTeamMemberCount?: 2 | 3;
   profileFallback?: string;
 }): AiMediaVideoProviderContract {
+  if (args.request.creationMode === "free") {
+    const base = {
+      version: AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION,
+      subject: "",
+      instruction: clean(args.request.freePrompt, 4_000),
+      parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${args.request.withNarration ? "separate" : "none"};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
+      references: buildAiMediaVideoReferenceContract(args),
+    } satisfies Omit<AiMediaVideoProviderContract, "sha256">;
+    return Object.freeze({ ...base, sha256: hashAiMediaVideoProviderContract(base) });
+  }
   const profileFallback =
     args.request.subjectSource === "profile"
       ? clean(args.profileFallback, 2_000)

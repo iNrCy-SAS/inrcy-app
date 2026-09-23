@@ -10,6 +10,7 @@ import ts from "typescript";
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import * as reliability from "../../lib/aiVideoReliability.ts";
@@ -190,6 +191,7 @@ function createHarness(engine: Engine, options: {
     ["@/lib/aiMediaDialogue", dialogue],
     ["@/lib/aiMediaColorDirection", colorDirection],
     ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaFreeGenerationPrompt", freePrompts],
     ["@/lib/aiMediaPromptShared", promptShared],
     ["@/lib/aiMediaSensitiveText", { redactAiMediaSensitiveText: (value: unknown) => String(value ?? "") }],
     ["./aiMediaVideoContinuity.ts", {

@@ -2890,8 +2890,14 @@
 /* Écran 2 : génération et revue plein espace. */
 .creationWorkspace {
   position: relative;
-  min-height: min(760px, calc(100dvh - 155px));
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: min-content;
   place-items: center;
   overflow: hidden;
   isolation: isolate;
@@ -3092,6 +3098,10 @@
   position: relative;
   z-index: 1;
   width: min(610px, calc(100% - 32px));
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 28px 0;
+  overflow-y: auto;
   display: grid;
   justify-items: center;
   text-align: center;
@@ -3354,10 +3364,14 @@
   position: relative;
   z-index: 1;
   width: min(1180px, calc(100% - 30px));
-  min-height: min(760px, calc(100dvh - 155px));
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(250px, 360px);
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px 26px;
   padding: 20px 0;
@@ -3407,13 +3421,29 @@
   content: "!";
 }
 
-.previewFrame {
+.previewViewport {
   grid-column: 1;
   grid-row: 1 / 4;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.previewFrame {
+  --preview-ratio: 1;
   position: relative;
-  width: min(100%, 72dvh, 780px);
+  width: min(100cqw, calc(100cqh * var(--preview-ratio)));
   height: auto;
-  aspect-ratio: 1 / 1;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  aspect-ratio: var(--preview-ratio);
   display: grid;
   place-items: center;
   justify-self: center;
@@ -3431,27 +3461,25 @@
 }
 
 .previewFrame[data-format="square"] {
-  width: min(100%, 72dvh, 780px);
-  aspect-ratio: 1 / 1;
+  --preview-ratio: 1;
 }
 
 .previewFrame[data-format="portrait"] {
-  width: min(100%, 57.6dvh, 624px);
-  aspect-ratio: 4 / 5;
+  --preview-ratio: 0.8;
 }
 
 .previewFrame[data-format="story"] {
-  width: min(100%, 40.5dvh, 438px);
-  aspect-ratio: 9 / 16;
+  --preview-ratio: 0.5625;
 }
 
 .previewFrame[data-format="landscape"] {
-  width: min(100%, 780px);
-  aspect-ratio: 16 / 9;
+  --preview-ratio: 1.777777778;
 }
 
 .previewFrame img,
 .previewFrame video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -3509,6 +3537,11 @@
   font-size: 12px;
 }
 
+.creationWorkspace button:focus-visible {
+  outline: 2px solid #91eaff;
+  outline-offset: 3px;
+}
+
 .savedStatus {
   grid-column: 2;
   align-self: start;
@@ -3539,6 +3572,52 @@
   align-self: end;
   display: grid;
   gap: 8px;
+}
+
+.regenerationConsent {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(102, 215, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(9, 27, 49, 0.72);
+  text-align: left;
+}
+
+.regenerationConsent legend {
+  padding: 0 4px;
+  color: #d8f4ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.regenerationConsent > small {
+  display: block;
+  margin-bottom: 6px;
+  color: #b1bfd5;
+  font-size: 10px;
+}
+
+.regenerationConsentOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #d8e9f5;
+  font-size: 10px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.regenerationConsentOption + .regenerationConsentOption {
+  margin-top: 8px;
+}
+
+.regenerationConsentOption input {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #42c5e9;
 }
 
 .confirmButton,
@@ -3572,6 +3651,10 @@
 
 .creationErrorPanel {
   width: min(520px, calc(100% - 32px));
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 16px 0;
+  overflow-y: auto;
   display: grid;
   justify-items: center;
   text-align: center;
@@ -4427,16 +4510,16 @@
   }
   .reviewWorkspace {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
-    min-height: auto;
-    padding: 18px 0 28px;
+    grid-template-rows: auto minmax(120px, 1fr) auto auto;
+    gap: 10px;
+    padding: 12px 0;
   }
   .reviewHeading,
   .savedStatus,
   .resultActions {
     grid-column: 1;
   }
-  .previewFrame {
+  .previewViewport {
     grid-column: 1;
     grid-row: 2;
   }
@@ -5093,7 +5176,7 @@
     font-size: 16px;
   }
   .creationWorkspace {
-    min-height: calc(100dvh - 72px);
+    min-height: 0;
   }
   .creationProgress h3,
   .creationErrorPanel h3 {
@@ -5115,8 +5198,46 @@
   .reviewWorkspace {
     width: calc(100% - 16px);
   }
+  .reviewHeading h3 {
+    font-size: 22px;
+  }
+  .reviewHeading p {
+    margin-bottom: 4px;
+  }
+  .reviewBadges {
+    margin-top: 6px;
+  }
+  .resultActions {
+    gap: 6px;
+  }
+  .confirmButton,
+  .regenerateButton,
+  .editButton {
+    min-height: 38px;
+    padding: 7px 12px;
+  }
   .previewFrame {
     border-radius: 16px;
+  }
+}
+
+@media (max-height: 700px) {
+  .creationProgress .orbit {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 26px;
+  }
+  .creationProgress h3 {
+    height: 2.2em;
+    font-size: 22px;
+  }
+  .creationProgress > p:not(.creationEyebrow) {
+    height: 4.5em;
+    margin: 8px 0 14px;
+    font-size: 11px;
+  }
+  .creationProgress > small {
+    margin-top: 12px;
   }
 }
 

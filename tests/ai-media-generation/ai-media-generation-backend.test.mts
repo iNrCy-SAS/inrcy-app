@@ -807,14 +807,14 @@ test("une demande de téléphone utilise le profil local sans exposer ses coordo
   assert.match(composer, /TEL  \$\{phone\}/);
 });
 
-test("les textes d’image sont composés localement et jamais dessinés par le fournisseur", () => {
+test("les textes d’image guidée sont composés localement et jamais dessinés par le fournisseur", () => {
   const server = read("lib/aiMediaGenerationServer.ts");
   const prompt = readPromptArchitecture();
   const renderer = read("lib/aiMediaBrandRenderer.ts");
 
   assert.match(
     server,
-    /const useDeterministicImageComposition =\s*providerRequest\.operation !== "modify" &&\s*providerRequest\.kind === "image" &&\s*\(providerRequest\.withText \|\| useExactContactComposition\)/
+    /const useDeterministicImageComposition =\s*!isFreeCreation &&\s*providerRequest\.operation !== "modify" &&\s*providerRequest\.kind === "image" &&\s*\(providerRequest\.withText \|\| useExactContactComposition\)/
   );
   assert.match(
     server,
@@ -916,7 +916,7 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
   assert.match(
     server,
-    /const creativePlanTask =\s*providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
+    /const creativePlanTask =\s*isFreeCreation\s*\? measure\("free_creative_plan", \(\) => prepareAiMediaFreeCreativePlan\([\s\S]*?\)\)\s*: providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
   );
 });
 
@@ -1296,7 +1296,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const officialLogo =\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null\s*: brandKit\.logo/
+    /const officialLogo =\s*isFreeCreation \? \(freeBrandPolicy\?\.useLogo \? brandKit\.logo : null\) :\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null\s*: brandKit\.logo/
   );
   assert.match(
     server,
@@ -1304,7 +1304,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const effectiveColors = providerRequest\.useBrandColors/
+    /const effectiveColors: \[string, string, string\] = isFreeCreation \? \(freeBrandPolicy\?\.useBrandColors \? brandKit\.colors : \["#000000", "#FFFFFF", "#808080"\]\) : providerRequest\.useBrandColors/
   );
   assert.match(server, /authorized_identity_and_official_logo/);
   assert.doesNotMatch(server, /inspiration_image_sha256/);

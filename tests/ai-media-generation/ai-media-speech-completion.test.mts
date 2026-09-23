@@ -133,7 +133,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   );
   assert.match(
     server,
-    /const expectedDialogueLines = characterDialogueRequested\s*\? resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*requestedSpeech: \[[\s\S]*?providerRequest\.idea,[\s\S]*?providerRequest\.aiInstruction,[\s\S]*?\][\s\S]*?\}\)\s*: \[\]/
+    /const expectedDialogueLines = characterDialogueRequested\s*\? isFreeCreation\s*\? resolveAiMediaFreeDialogueSequence\(\{ request: providerRequest, plan: creativePlan \}\)\s*: resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*requestedSpeech: \[[\s\S]*?providerRequest\.idea,[\s\S]*?providerRequest\.aiInstruction,[\s\S]*?\][\s\S]*?\}\)\s*: \[\]/
   );
   assert.ok(
     server.indexOf("const expectedDialogueLines = characterDialogueRequested") <

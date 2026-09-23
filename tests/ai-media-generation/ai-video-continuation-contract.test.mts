@@ -8,6 +8,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
+import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 
 import {
@@ -63,6 +64,7 @@ function loadVeoPromptRuntime() {
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations }],
     ["@/lib/aiMediaColorDirection", colorDirection],
     ["@/lib/aiMediaVideoProviderContract", providerContract],
+    ["@/lib/aiMediaFreeGenerationPrompt", freePrompts],
     ["@/lib/aiMediaPromptShared", promptShared],
     [
       "@/lib/aiVideoReliability",

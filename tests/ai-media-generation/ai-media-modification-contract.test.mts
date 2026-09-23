@@ -333,9 +333,9 @@ test("Modifier garde les corrections textuelles explicites sans originalité ni 
   assert.doesNotMatch(prompt, /Le texte du brief décrit une idée et non une accroche|ne jamais le recopier, même partiellement/);
 
   const server = readFileSync(path.join(LIB_ROOT, "aiMediaGenerationServer.ts"), "utf8");
-  assert.match(server, /const profilePhoneDisplayRequested =\s*providerRequest\.operation !== "modify" &&/);
-  assert.match(server, /const useDeterministicImageComposition =\s*providerRequest\.operation !== "modify" &&/);
-  assert.match(server, /const officialLogo =\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null/);
+  assert.match(server, /const profilePhoneDisplayRequested =\s*!isFreeCreation &&\s*providerRequest\.operation !== "modify" &&/);
+  assert.match(server, /const useDeterministicImageComposition =\s*!isFreeCreation &&\s*providerRequest\.operation !== "modify" &&/);
+  assert.match(server, /const officialLogo =\s*isFreeCreation \? \(freeBrandPolicy\?\.useLogo \? brandKit\.logo : null\) :\s*providerRequest\.operation === "modify" \|\| providerRequest\.logoMode === "none"\s*\? null/);
 });
 
 test("Modifier refuse la vidéo", () => {
@@ -591,7 +591,11 @@ test("Modifier transmet au fournisseur un canvas multiple de 16 proche du ratio 
   );
   assert.match(
     server,
-    /size: modificationCanvas\s*\? resolveAiMediaImageEditSize\(modificationCanvas\)\s*: format\.generationSize/,
+    /size: modificationCanvas\s*\? resolveAiMediaImageEditSize\(modificationCanvas\)\s*: imageGenerationSize/,
+  );
+  assert.match(
+    server,
+    /const imageGenerationSize = isFreeCreation \? getAiMediaFreeImageSize\(providerRequest\.format\) : format\.generationSize/,
   );
 });
 

@@ -37,6 +37,7 @@ import {
 } from "@/lib/aiVideoProviderTypes";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import { buildAiMediaOriginalityContract } from "@/lib/aiMediaPromptShared";
+import { buildAiMediaFreeVideoScenePrompt } from "@/lib/aiMediaFreeGenerationPrompt";
 import {
   assertAiMediaVideoProviderBoundary,
   assertAiMediaVideoProviderContract,
@@ -719,6 +720,9 @@ export function buildGoogleVideoScenePrompt(
       identityTeamMemberCount: args.identityTeamMemberCount,
     });
   assertAiMediaVideoProviderContract(providerContract);
+  if (args.request.creationMode === "free") {
+    return buildAiMediaFreeVideoScenePrompt({ ...args, providerContract }, index, durationSeconds, options);
+  }
   const customSubject = args.request.subjectSource === "custom";
   // A custom subject is independent of the company business. Even generated
   // scene copy may still contain profile-derived services; it must not turn a

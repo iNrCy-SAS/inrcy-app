@@ -1,4 +1,5 @@
 import type {
+  AiMediaCreationMode,
   AiMediaIdentityMode,
   AiMediaInspirationImage,
   AiMediaOperation,
@@ -8,6 +9,7 @@ export type AiMediaImageProviderRequest = {
   accountId: string;
   prompt: string;
   operation?: AiMediaOperation;
+  creationMode?: AiMediaCreationMode;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
