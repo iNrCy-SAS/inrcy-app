@@ -189,7 +189,7 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
       setStopConfirmOpen() {}, setIdentityConsent() {}, setTeamConsent() {},
       generate: async (request: Record<string, unknown>) => { requests.push(request); },
       discardDraft: async () => {},
-      prompt: "  Mon scénario libre  ", source: "studio", kind: "video", format: "story", duration: 16,
+      prompt: "  Mon scénario libre  ", source: "studio", kind: "video", format: "story", duration: 16, sceneMode: "single",
       withMusic: false, effectiveWithNarration: sound === "voiceover", voice: "male", voiceVariant: "Charon",
       speechMode: sound === "none" ? "voiceover" : sound,
       references, referencesForRequest: (value: unknown) => value,
@@ -212,4 +212,59 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
     assert.equal(request.inspirationImages, references);
     assert.equal(request.durationSeconds, 16);
   }
+});
+
+test("un échec Libre conserve l'autorisation de la même demande, un succès la renouvelle", async () => {
+  for (const shouldFail of [true, false]) {
+    const context = resultContext();
+    const consentChanges: string[] = [];
+    const run = handler("handleGenerate", {
+      ...context,
+      result: null,
+      canGenerate: true,
+      setStopConfirmOpen() {},
+      setIdentityConsent(value: boolean) { consentChanges.push(`identity:${value}`); },
+      setTeamConsent(value: boolean) { consentChanges.push(`team:${value}`); },
+      generate: async () => {
+        if (shouldFail) throw new Error("Contrôle audio refusé");
+      },
+      discardDraft: async () => {},
+      prompt: "Une scène avec des personnages qui parlent",
+      source: "studio",
+      kind: "video",
+      format: "story",
+      duration: 16,
+      sceneMode: "single",
+      withMusic: false,
+      effectiveWithNarration: false,
+      voice: "female",
+      voiceVariant: "Kore",
+      speechMode: "characters",
+      references: [{ role: "character", usage: "required", data: "test", mimeType: "image/png" }],
+      referencesForRequest: (value: unknown) => value,
+      personReferences: [{ role: "character", usage: "required" }],
+      identityRequired: true,
+      identityConsent: true,
+      teamConsentRequired: false,
+      teamConsent: false,
+      referenceSetId: { current: "same-references" },
+      MediaGenerationCancelledError: class extends Error {},
+    });
+    await run();
+    assert.equal(context.operationInFlight.current, false);
+    assert.deepEqual(consentChanges, shouldFail ? [] : ["identity:false", "team:false"]);
+    if (shouldFail) assert.ok(context.events.includes("error:Contrôle audio refusé"));
+  }
+});
+
+test("les rejets de voix native exposent une cause utile sans transcript", () => {
+  const route = read("app/api/media-generation/generate/route.ts");
+  const server = read("lib/aiMediaGenerationServer.ts");
+  assert.match(route, /AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED/);
+  assert.match(route, /spoken_dialogue_missing/);
+  assert.match(route, /spoken_dialogue_repeated/);
+  assert.match(route, /spoken_dialogue_incomplete/);
+  assert.match(route, /spoken_dialogue_mismatch/);
+  assert.match(server, /nativeDialogueQa\?\.clips\.flatMap\(\(clip\) => clip\.issues\)/);
+  assert.doesNotMatch(server.slice(server.indexOf("const issues = characterDialogueProviderFallback"), server.indexOf("const nativeVoiceoverQa")), /clip\.transcript/);
 });

@@ -325,6 +325,29 @@ function publicGenerationError(error: unknown) {
       retryAfterSeconds: 15,
     });
   }
+  if (message.includes("ai_media_free_native_character_speech_unusable")) {
+    const issue = message
+      .split("ai_media_free_native_character_speech_unusable:", 2)[1]
+      ?.split(",", 1)[0];
+    const details: Record<string, string> = {
+      spoken_dialogue_missing: "aucune parole n’a été détectée",
+      spoken_dialogue_incomplete: "une réplique s’interrompt avant la fin",
+      spoken_dialogue_repeated: "des mots ou une réplique sont répétés",
+      spoken_dialogue_mismatch: "les paroles diffèrent de la réplique prévue",
+      provider_fallback: "le moteur de secours n’a pas fourni de voix native",
+    };
+    const diagnostic = issue && details[issue]
+      ? ` : ${details[issue]}`
+      : "";
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED",
+      message:
+        `La voix native des personnages n’a pas passé le contrôle audio${diagnostic}. ` +
+        "La vidéo n’a pas été retenue et aucun quota iNrCy n’a été consommé. " +
+        "Réessayez ou simplifiez les répliques.",
+    });
+  }
   if (message.includes("ai_media_essential_video_composition_failed")) {
     return jsonError({
       status: 502,

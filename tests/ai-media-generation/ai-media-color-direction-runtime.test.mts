@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -34,6 +35,7 @@ function loadLocalRuntime<T>(filename: string): T {
     { filename: `${resolved}.runtime.cjs` },
   );
   factory(record.exports, (specifier: string) => {
+    if (specifier === "node:crypto") return { createHash };
     const localPath = specifier.startsWith("@/lib/")
       ? path.join(LIB_ROOT, specifier.slice("@/lib/".length))
       : specifier.startsWith(".")

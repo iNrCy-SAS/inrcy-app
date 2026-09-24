@@ -25,6 +25,9 @@ const profile = {
   preferences: { language: "fr", premiumEnabled: false, customInstructions: "INSTRUCTION_GUIDEE_RESIDUELLE" },
 } as unknown as NormalizedAiGenerationProfile;
 
+const freeGeneratorSource = readFileSync(new URL("../../app/dashboard/_components/MediaFreeGenerator.tsx", import.meta.url), "utf8");
+const freeGeneratorStyles = readFileSync(new URL("../../app/dashboard/_components/MediaFreeGenerator.module.css", import.meta.url), "utf8");
+
 function request(overrides: Record<string, unknown> = {}) {
   return contracts.normalizeAiMediaGenerationRequest({
     requestId: "free-prompt-runtime-0001", source: "studio", operation: "generate",
@@ -110,7 +113,42 @@ test("la vidéo libre respecte la durée, les menus de référence et l'absence 
     assert.match(prompt, /une action continue/);
     assert.match(prompt, /rôle product, usage obligatoire/);
     assert.match(prompt, /Aucune musique/);
-    assert.match(prompt, withNarration ? /voix off est ajoutée séparément/ : /Aucune voix off/);
+    assert.match(prompt, withNarration ? /voix off native/ : /Aucune voix off/);
+  }
+});
+
+test("le choix de scènes Libre n'apparaît qu'à 16 ou 24 s, sous la durée, avec 1 scène par défaut", () => {
+  assert.match(freeGeneratorSource, /useState<MediaGenerationVideoSceneMode>\("single"\)/);
+  assert.match(freeGeneratorSource, /<div className=\{styles\.durationOptions\}>[\s\S]*?\{duration > 8 \? \(\s*<div className=\{styles\.sceneOptions\}/);
+  assert.match(freeGeneratorSource, /sceneMode: kind === "video" \? sceneMode : undefined/);
+  assert.match(freeGeneratorStyles, /\.sceneOptions\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(2,/);
+  assert.doesNotMatch(freeGeneratorSource, /ai_generator_free_scene_(?:single|multi)_hint/);
+});
+
+test("Libre utilise une scène continue par défaut ; Multiscène conserve des plans indépendants", () => {
+  for (const durationSeconds of [16, 24] as const) {
+    const single = request({ kind: "video", durationSeconds });
+    assert.equal(single.sceneMode, "single");
+    assert.equal(single.connectScenes, true);
+    assert.match(freePrompts.buildAiMediaFreeVideoPrompt({ request: single, profile, brandColors: [], hasLogo: false }), /une action continue dans un même décor/);
+
+    const multi = request({ kind: "video", durationSeconds, sceneMode: "multi" });
+    assert.equal(multi.sceneMode, "multi");
+    assert.equal(multi.connectScenes, false);
+    assert.match(freePrompts.buildAiMediaFreeVideoPrompt({ request: multi, profile, brandColors: [], hasLogo: false }), /plusieurs plans distincts/);
+  }
+  const short = request({ kind: "video", durationSeconds: 8, sceneMode: "multi" });
+  assert.equal(short.sceneMode, "single");
+  assert.equal(short.connectScenes, false);
+});
+
+test("le réalisateur Libre distingue une scène continue de plusieurs plans", async () => {
+  for (const sceneMode of ["single", "multi"] as const) {
+    const runtime = loadPlan({ direction: "Deux étapes dans un atelier.", scenes: ["Le geste commence.", "Le geste se poursuit."] });
+    const input = request({ kind: "video", durationSeconds: 16, sceneMode });
+    await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+    assert.equal(JSON.parse(runtime.calls[0]!.input).scene_mode, sceneMode);
+    assert.match(runtime.calls[0]!.system, sceneMode === "single" ? /UNE SEULE scène continue/ : /plans de 8 secondes demandé/);
   }
 });
 
@@ -121,7 +159,7 @@ test("le contrat vidéo libre garde les 4 000 caractères sans style guidé ni p
   assert.equal(contract.subject, "");
   assert.match(contract.parameters, /mode=free/);
   assert.match(contract.parameters, /film=16s/);
-  assert.match(contract.parameters, /voiceover=separate/);
+  assert.match(contract.parameters, /voiceover=native/);
   assert.doesNotMatch(contract.parameters, /look=|faithful|photo|#abcdef/);
   assert.doesNotThrow(() => assertAiMediaVideoProviderContract(contract));
 });
@@ -178,10 +216,11 @@ test("sans option voix off, Libre ne lance aucune génération de narration", as
 });
 
 test("le prompt Omni libre exploite ses plans distincts et la continuité sans gabarit guidé", () => {
-  const input = request({ kind: "video", durationSeconds: 16, withNarration: true });
-  const providerContract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: [] });
+  const input = request({ kind: "video", durationSeconds: 16, withNarration: true, narrationVoiceVariant: "Sulafat" });
+  const nativeNarrationLines = ["La baleine découvre les nuages.", "Le soleil lui répond avec douceur."];
+  const providerContract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: [], nativeNarrationLines });
   const provider = {
-    request: input, providerContract,
+    request: input, providerContract, nativeNarrationLines, contentLanguage: "fr",
     plan: { headline: "", companyName: "", cta: "", subline: "DIRECTION_LIBRE_UNIQUE", scenes: [
       { visualBrief: "ETAPE_UNIQUE_UN" }, { visualBrief: "ETAPE_UNIQUE_DEUX" },
     ] },
@@ -191,9 +230,34 @@ test("le prompt Omni libre exploite ses plans distincts et la continuité sans g
   assert.match(prompt, /ETAPE_UNIQUE_DEUX/);
   assert.doesNotMatch(prompt, /ETAPE_UNIQUE_UN/);
   assert.match(prompt, /<FIRST_FRAME>@Image1/);
-  assert.match(prompt, /voiceover is added separately/);
+  assert.match(prompt, /NATIVE VOICEOVER/);
+  assert.match(prompt, /Le soleil lui répond avec douceur/);
+  assert.match(prompt, /warm, gentle and welcoming tone/);
+  assert.doesNotMatch(prompt, /La baleine découvre les nuages/);
   assert.ok(prompt.length <= 3_200);
   assert.throws(() => freePrompts.buildAiMediaFreeVideoScenePrompt({ ...provider, plan: { ...provider.plan, subline: "x".repeat(4_000) } }, 0, 8), /too_long/);
+});
+
+test("le script de voix off Libre est réparti sans perte et lié au contrat fournisseur", () => {
+  const lines = freePrompts.splitAiMediaFreeNarrationByScene("Bonjour à tous. Voici notre atelier. Nous façonnons des pièces avec soin.", 3);
+  assert.equal(lines.length, 3);
+  assert.equal(lines.filter(Boolean).join(" "), "Bonjour à tous. Voici notre atelier. Nous façonnons des pièces avec soin.");
+  assert.equal(lines[1], "");
+  const twoActs = freePrompts.splitAiMediaFreeNarrationByScene(
+    "Dans notre atelier, chaque tasse naît d'un geste patient et précis. Nous choisissons l'argile avec soin avant de la façonner lentement.",
+    2,
+  );
+  assert.equal(twoActs.length, 2);
+  assert.match(twoActs[0]!, /précis\.$/);
+  assert.match(twoActs[1]!, /^Nous choisissons/);
+  const input = request({ kind: "video", durationSeconds: 24, withNarration: true });
+  const providerContract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: [], nativeNarrationLines: lines });
+  const provider = { request: input, providerContract, nativeNarrationLines: lines, plan: {
+    subline: "Un atelier artisanal.", scenes: [{ visualBrief: "Entrée" }, { visualBrief: "L'établi" }, { visualBrief: "Sortie" }],
+  } } as unknown as AiVideoProviderGenerationArgs;
+  assert.match(providerContract.parameters, /voiceover=native;narration_sha256=[a-f0-9]{64}/);
+  assert.match(freePrompts.buildAiMediaFreeVideoScenePrompt(provider, 1, 8), /this shot has no narration/);
+  assert.throws(() => freePrompts.buildAiMediaFreeVideoScenePrompt({ ...provider, nativeNarrationLines: ["Texte modifié", "", ""] }, 0, 8), /contract_incomplete/);
 });
 
 test("le réalisateur Libre prépare des personnages parlants sans rédacteur ou réplique commerciale guidés", async () => {

@@ -1,9 +1,55 @@
+import { createHash } from "node:crypto";
 import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
 import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v1";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v2-native-voice";
+
+/** One short native voice-over cue per eight-second act; empty acts stay silent. */
+export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: number): string[] {
+  if (!Number.isInteger(sceneCount) || sceneCount < 1 || sceneCount > 3) {
+    throw new AiMediaRequestValidationError("La durée du film libre est invalide.");
+  }
+  const words = script.trim().split(/\s+/u).filter(Boolean);
+  if (!words.length) throw new AiMediaRequestValidationError("Le texte de la voix off est vide.");
+  const activeScenes = Math.min(sceneCount, Math.max(1, Math.ceil(words.length / 15)));
+  const lines: string[] = [];
+  let start = 0;
+  for (let index = 0; index < activeScenes; index += 1) {
+    const remaining = words.length - start;
+    const remainingScenes = activeScenes - index;
+    const target = Math.ceil(remaining / remainingScenes);
+    const minimum = Math.max(1, remaining - 15 * (remainingScenes - 1));
+    const maximum = Math.min(15, remaining - (remainingScenes - 1));
+    const sentenceBreaks = Array.from({ length: maximum - minimum + 1 }, (_, offset) => minimum + offset)
+      .filter((count) => /[.!?;][»”"']?$/u.test(words[start + count - 1] || ""));
+    const count = remainingScenes === 1
+      ? remaining
+      : sentenceBreaks.length
+        ? sentenceBreaks.reduce((best, candidate) => Math.abs(candidate - target) < Math.abs(best - target) ? candidate : best)
+        : Math.min(maximum, Math.max(minimum, target));
+    lines.push(words.slice(start, start + count).join(" "));
+    start += count;
+  }
+  return [...lines, ...Array.from({ length: sceneCount - activeScenes }, () => "")];
+}
+
+export function hashAiMediaFreeNarrationLines(lines: readonly string[]) {
+  return createHash("sha256").update(lines.join("\n")).digest("hex");
+}
+
+function nativeNarrationTone(variant: AiMediaGenerationRequest["narrationVoiceVariant"]): string {
+  switch (variant) {
+    case "Kore": return "confident, composed and professional";
+    case "Aoede": return "natural, fluid and spontaneous";
+    case "Sulafat": return "warm, gentle and welcoming";
+    case "Charon": return "calm, clear and informative";
+    case "Orus": return "assertive, direct and professional";
+    case "Puck": return "upbeat, positive and energetic";
+    default: return "natural and professional";
+  }
+}
 
 /** Free dialogue has no commercial fallback and never rewrites quoted speech. */
 export function getAiMediaFreeRequestedDialogue(prompt: string) {
@@ -116,11 +162,11 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
   return [
     "MODE LIBRE — réaliser un film original selon la demande, sans gabarit ni habillage commercial imposé.",
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
-    `Scènes : ${args.request.sceneMode === "single" ? "une action continue" : "plusieurs plans cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
+    `Scènes : ${args.request.sceneMode === "single" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "plusieurs plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
     args.request.teamVideoSpeechMode === "characters"
       ? "Les personnages parlent avec des voix synthétiques naturelles synchronisées à leurs mouvements de bouche. Respecter les répliques demandées, un locuteur à la fois, sans narrateur ajouté ni clonage de voix réelle."
       : args.request.withNarration
-      ? "Une voix off est ajoutée séparément selon le brief : ne pas générer de voix native ni imposer des mouvements de bouche."
+      ? "Le moteur vidéo produit une voix off native, audible et synchronisée avec le film. Une piste séparée n'est utilisée qu'en secours si la voix native échoue au contrôle. Ne pas animer les bouches pour la narration."
       : "Aucune voix off n'a été sélectionnée ; ne pas produire de dialogue ni de parole native.",
     args.request.withMusic ? "Une musique est ajoutée au montage." : "Aucune musique ; conserver seulement une ambiance pertinente si nécessaire.",
     "Textes visibles uniquement si demandés, mots et chiffres exacts, sans ajout automatique d'accroche, CTA ou logo. Le modèle choisit une réalisation adaptée à la demande, y compris animation ou motion design.",
@@ -148,7 +194,16 @@ export function buildAiMediaFreeVideoScenePrompt(
 ) {
   const scene = args.plan.scenes[index];
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
+  const nativeVoiceover = !nativeDialogue && args.request.withNarration;
+  const nativeNarrationLines = args.nativeNarrationLines;
   const spokenLine = nativeDialogue ? resolveAiMediaFreeDialogueSequence(args)[index] : "";
+  if (nativeVoiceover && (
+    !nativeNarrationLines || nativeNarrationLines.length !== args.plan.scenes.length ||
+    !args.providerContract.parameters.includes(`narration_sha256=${hashAiMediaFreeNarrationLines(nativeNarrationLines)}`)
+  )) {
+    throw new Error("ai_video_native_narration_contract_incomplete");
+  }
+  const narrationLine = nativeVoiceover ? nativeNarrationLines?.[index] || "" : "";
   const opening = options.continuation
     ? "[# Sources <PREVIOUS_VIDEO>@Video1] Continue the prior action; same cast/style/place; no restart."
     : options.continuationFrame
@@ -166,7 +221,11 @@ export function buildAiMediaFreeVideoScenePrompt(
       ? spokenLine
         ? `NATIVE DIALOGUE: the speaker identified in THIS SHOT says exactly once: “${spokenLine}” Synchronize the mouth and audible speech; finish before the shot ends, then remain silent. One speaker at a time, stable distinct synthetic voices. Never clone an actual person's voice. No narrator, repeated/previous lines, subtitles or music.`
         : "NATIVE DIALOGUE: no speech in this shot; keep mouths closed. The requested lines belong to other shots; never repeat them. No narrator, lyrics or music."
-      : "No native voices/dialogue: voiceover is added separately when selected.",
+      : nativeVoiceover
+        ? narrationLine
+          ? `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once: “${narrationLine}” The voice is generated together with this shot's action and ambience, naturally paced and fully audible before the shot ends. Keep the narrator's vocal identity consistent across shots. No on-screen character speaks or moves their mouth for this narration. No repeated/previous lines, subtitles or lyrics.`
+          : "NATIVE VOICEOVER: this shot has no narration. Do not repeat a previous line or invent speech; keep all characters silent."
+        : "No native voices or dialogue. Keep all characters silent.",
   ].join("\n");
   // Fail before any media call rather than truncate the professional's requirements.
   if (prompt.length > 3_200) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:3200`);

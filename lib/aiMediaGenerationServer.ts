@@ -14,7 +14,7 @@ import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
-import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import {
   AiGatewayAccountLimitError,
   AiGatewayGuardUnavailableError,
@@ -763,6 +763,25 @@ export async function generateAndSaveAiMedia(args: {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
     const durationSeconds = providerRequest.durationSeconds || 8;
+    const nativeVoiceoverRequested = isFreeCreation &&
+      providerRequest.withNarration &&
+      providerRequest.teamVideoSpeechMode !== "characters";
+    // Libre prépare uniquement les mots avant le coût vidéo. La voix est
+    // d'abord produite par Omni/Veo avec l'image ; aucun TTS n'est lancé ici.
+    const nativeVoiceoverNarration = nativeVoiceoverRequested
+      ? await measure("native_voiceover_copy", () => writeAiMediaFreeNarration({
+          accountId: args.accountId,
+          request: providerRequest,
+          profile,
+          plan: creativePlan,
+        }))
+      : null;
+    if (nativeVoiceoverRequested && !nativeVoiceoverNarration) {
+      throw new Error("ai_media_native_voiceover_copy_unavailable");
+    }
+    const nativeNarrationLines = nativeVoiceoverNarration
+      ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length)
+      : undefined;
     const narrationController = new AbortController();
     const abortNarrationFromCaller = () =>
       narrationController.abort(args.signal?.reason);
@@ -848,6 +867,7 @@ export async function generateAndSaveAiMedia(args: {
         durationSeconds: 8,
         brandColors: effectiveColors,
         profileFallback,
+        nativeNarrationLines,
         identityTeamPrecomposed: overrides.identityTeamPrecomposed,
         identityTeamMemberCount: overrides.identityTeamMemberCount,
       });
@@ -865,6 +885,7 @@ export async function generateAndSaveAiMedia(args: {
           profile.business.sectorLabel ||
           creativePlan.companyName,
         contentLanguage: profile.preferences.language,
+        nativeNarrationLines,
         ...overrides,
         signal: args.signal,
       };
@@ -908,9 +929,9 @@ export async function generateAndSaveAiMedia(args: {
       }
     };
 
-    // L'appel vidéo reste paresseux : une voix explicitement demandée est
-    // écrite, synthétisée et validée en durée avant tout rendu fournisseur.
-    // Une fois ce préflight passé, les actifs indépendants restent parallèles.
+    // En Guidé, le préflight TTS précède toujours l'appel vidéo. En Libre,
+    // seule l'écriture du script natif précède l'appel ; la synthèse TTS est
+    // différée jusqu'à un éventuel échec du contrôle de la voix native.
     const generateVideoGateway = () => measure("video_generation", async () => {
       if (
         providerRequest.inputMode === "essential" &&
@@ -1174,13 +1195,16 @@ export async function generateAndSaveAiMedia(args: {
       warnings: [] as string[],
     });
     const generateNarrationResult = async (
-      narrationRequest: AiMediaGenerationRequest
+      narrationRequest: AiMediaGenerationRequest,
+      preparedNativeNarration = nativeVoiceoverNarration,
     ) => {
       try {
         let maximumSpeechUnits: number | undefined;
         for (let preflightAttempt = 0; preflightAttempt < 3; preflightAttempt += 1) {
           const stageSuffix = preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
-          const narration = await measure(`narration_copy${stageSuffix}`, () =>
+          const narration = preparedNativeNarration && preflightAttempt === 0
+            ? preparedNativeNarration
+            : await measure(`narration_copy${stageSuffix}`, () =>
             isFreeCreation ? writeAiMediaFreeNarration({ accountId: args.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits }) : writeAiMediaNarration({
               accountId: args.accountId,
               request: narrationRequest,
@@ -1273,7 +1297,7 @@ export async function generateAndSaveAiMedia(args: {
       }
     };
     const narrationTask =
-      providerRequest.teamVideoSpeechMode === "characters"
+      providerRequest.teamVideoSpeechMode === "characters" || nativeVoiceoverRequested
         ? Promise.resolve(emptyNarrationResult())
         : measure("narration_pipeline", () =>
             generateNarrationResult(providerRequest)
@@ -1282,7 +1306,8 @@ export async function generateAndSaveAiMedia(args: {
     // les plans vidéo. Un échec éditorial ne doit pas jeter des clips facturés.
     const narrationRequired =
       providerRequest.withNarration &&
-      providerRequest.teamVideoSpeechMode !== "characters";
+      providerRequest.teamVideoSpeechMode !== "characters" &&
+      !nativeVoiceoverRequested;
     if (narrationRequired) {
       try {
         const preparedNarration = await narrationTask;
@@ -1427,20 +1452,76 @@ export async function generateAndSaveAiMedia(args: {
                 durationSeconds: clip.durationSeconds,
                 sourceStartSeconds: clip.sourceStartSeconds,
                 expectedLine: expectedDialogueLines[index] || "",
+                expectSilence: isFreeCreation && !expectedDialogueLines[index],
               })),
             })
           )
         : null;
+    // Une bouche qui bouge sans voix ou une réplique rejetée ne constitue pas
+    // un média Libre valide. Ne jamais coller une voix TTS sur ces lèvres.
+    if (isFreeCreation && characterDialogueRequested && (
+      characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected"
+    )) {
+      // Only QA issue codes leave this boundary, never the spoken transcript
+      // or the professional's prompt. The API can explain a failed retry
+      // without exposing any private audio or image data.
+      const issues = characterDialogueProviderFallback
+        ? ["provider_fallback"]
+        : [...new Set(nativeDialogueQa?.clips.flatMap((clip) => clip.issues) || [])];
+      console.warn("[ai-media] native character speech rejected", JSON.stringify({
+        jobId: args.jobId,
+        provider: videoGateway.provider,
+        clips: nativeDialogueQa?.clips.map((clip) => ({
+          sceneIndex: clip.sceneIndex,
+          status: clip.status,
+          issues: clip.issues,
+          metrics: clip.metrics,
+        })) || [],
+      }));
+      throw new Error(
+        `ai_media_free_native_character_speech_unusable:${issues.join(",") || "quality_rejected"}`
+      );
+    }
+    const nativeVoiceoverQa = nativeVoiceoverRequested &&
+      !videoGateway.provider.startsWith("inrcy-")
+      ? await measure("native_voiceover_qa", () =>
+          auditAiMediaNativeDialogueWithGoogle({
+            accountId: args.accountId,
+            language: nativeVoiceoverNarration?.language || profile.preferences.language,
+            signal: args.signal,
+            clips: videoGateway.clips.map((clip, index) => ({
+              sceneIndex: index,
+              buffer: clip.buffer,
+              mediaType: clip.mediaType,
+              durationSeconds: clip.durationSeconds,
+              sourceStartSeconds: clip.sourceStartSeconds,
+              expectedLine: nativeNarrationLines?.[index] || "",
+              expectSilence: !nativeNarrationLines?.[index],
+            })),
+          }))
+      : null;
+    const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
+      nativeVoiceoverQa?.status === "passed";
     const narrationJoinStartedAt = performance.now();
-    const narrationResult = await waitForOptionalTaskWithinGrace({
-      task: narrationTask,
-      graceMs: positiveInt(
-        process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
-        DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
-        20_000
-      ),
-      signal: args.signal,
-    });
+    const narrationResult = nativeVoiceoverRequested && !nativeVoiceoverPreserved
+      ? await measure("native_voiceover_tts_fallback", () =>
+          generateNarrationResult(providerRequest, nativeVoiceoverNarration))
+      : await waitForOptionalTaskWithinGrace({
+          task: narrationTask,
+          graceMs: positiveInt(
+            process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
+            DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
+            20_000
+          ),
+          signal: args.signal,
+        });
+    if (nativeVoiceoverRequested && !nativeVoiceoverPreserved) {
+      pipelineWarnings.push(
+        nativeVoiceoverQa?.status === "rejected"
+          ? "native_voiceover_qa_rejected_tts_fallback_used"
+          : "native_voiceover_qa_unavailable_tts_fallback_used"
+      );
+    }
     pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
       narrationJoinStartedAt
     );
@@ -1457,15 +1538,13 @@ export async function generateAndSaveAiMedia(args: {
     if (
       providerRequest.inputMode === "essential" &&
       providerRequest.withNarration &&
+      !nativeVoiceoverPreserved &&
       (!narrationResult?.narration || !narrationResult.audio)
     ) {
       throw new Error("ai_media_narration_unavailable");
     }
-    // La piste audio native et les mouvements de bouche sont produits ensemble
-    // par le moteur vidéo. Une transcription explicitement rejetée ne doit
-    // jamais être livrée : on garde alors le mouvement mais on coupe la voix,
-    // sans lui substituer un TTS qui serait désynchronisé. Une indisponibilité
-    // technique du contrôle reste distincte d'un rejet de contenu.
+    // Le dialogue de personnage reste natif ; la voix off Libre utilise un
+    // TTS séparé uniquement après un contrôle natif non concluant.
     if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
         "native_character_dialogue_qa_rejected_native_audio_muted"
@@ -1519,7 +1598,7 @@ export async function generateAndSaveAiMedia(args: {
           durationSeconds,
           soundtrack,
           narration: narrationAudio,
-          nativeAudioMode: nativeCharacterDialoguePreserved
+          nativeAudioMode: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved
             ? "dialogue"
             : characterDialogueRequested
             ? "mute"
@@ -1732,6 +1811,7 @@ export async function generateAndSaveAiMedia(args: {
       team_precomposition: teamPrecompositionMetadata,
       team_video_speech_mode: providerRequest.teamVideoSpeechMode,
       native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
+      native_voiceover_preserved: nativeVoiceoverPreserved,
       quality_assurance: {
         native_dialogue: characterDialogueRequested
           ? nativeDialogueQa || {
@@ -1741,12 +1821,27 @@ export async function generateAndSaveAiMedia(args: {
               clips: [],
             }
           : { version: 1, status: "not_requested" },
+        native_voiceover: nativeVoiceoverRequested
+          ? nativeVoiceoverQa || { version: 1, status: "unavailable", reason: "provider_fallback", clips: [] }
+          : { version: 1, status: "not_requested" },
         final_video: finalVideoQa,
       },
       narration:
-        narration && narrationAudio
+        nativeVoiceoverPreserved && nativeVoiceoverNarration
           ? {
               enabled: true,
+              delivery: "native",
+              model: videoGateway.model,
+              voice: providerRequest.narrationVoice,
+              language: nativeVoiceoverNarration.language,
+              word_count: nativeVoiceoverNarration.wordCount,
+              script_source: nativeVoiceoverNarration.source,
+              script_sha256: nativeVoiceoverNarration.sha256,
+            }
+          : narration && narrationAudio
+          ? {
+              enabled: true,
+              delivery: nativeVoiceoverRequested ? "tts_fallback" : "tts",
               model: narrationAudio.model,
               voice: narrationAudio.voice,
               language: narration.language,

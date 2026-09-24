@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -75,6 +76,7 @@ function loadLocalPromptRuntime<T>(filename: string): T {
   factory(
     moduleRecord.exports,
     (specifier: string) => {
+      if (specifier === "node:crypto") return { createHash };
       const localPath = specifier.startsWith("@/lib/")
         ? path.join(LIB_ROOT, specifier.slice("@/lib/".length))
         : specifier.startsWith(".")

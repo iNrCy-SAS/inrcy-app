@@ -101,6 +101,35 @@ test("la QA refuse une courte fin répétée même sous le seuil de tolérance A
   assert.equal(result.metrics.repeatCount, 2);
 });
 
+test("la QA refuse un seul mot bégayé sans rejeter une répétition voulue dans le script", () => {
+  const unexpected = evaluateAiMediaNativeDialogue({
+    sceneIndex: 0,
+    expectedLine: "Découvrez notre nouvelle solution.",
+    transcript: "Découvrez notre notre nouvelle solution.",
+    language: "fr",
+  });
+  assert.equal(unexpected.status, "rejected");
+  assert.deepEqual(unexpected.issues, ["spoken_dialogue_repeated"]);
+  assert.equal(unexpected.metrics.repeatCount, 2);
+
+  const expectedLine = "C'est très très simple pour vos clients.";
+  const intended = evaluateAiMediaNativeDialogue({
+    sceneIndex: 0,
+    expectedLine,
+    transcript: expectedLine,
+    language: "fr",
+  });
+  assert.equal(intended.status, "passed");
+  const additional = evaluateAiMediaNativeDialogue({
+    sceneIndex: 0,
+    expectedLine,
+    transcript: "C'est très très très simple pour vos clients.",
+    language: "fr",
+  });
+  assert.equal(additional.status, "rejected");
+  assert.ok(additional.issues.includes("spoken_dialogue_repeated"));
+});
+
 test("la QA respecte les répétitions du script mais refuse toute occurrence supplémentaire", () => {
   const expectedLine = "Publiez plus facilement et partagez plus facilement.";
   const exact = evaluateAiMediaNativeDialogue({
@@ -219,6 +248,23 @@ test("l'orchestrateur conserve une expression commune prévue dans plusieurs act
   assert.deepEqual(result.clips.map((clip) => clip.issues), [[], []]);
 });
 
+test("l'orchestrateur refuse un seul mot rejoué à la jonction de deux actes", async () => {
+  const clips = [
+    fakeClip({ sceneIndex: 0, expectedLine: "Nous accueillons tous vos clients." }),
+    fakeClip({ sceneIndex: 1, expectedLine: "Découvrez notre nouvelle solution." }),
+  ];
+  const result = await auditAiMediaNativeDialogueClips({
+    clips,
+    transcribe: async (clip) => ({
+      text: clip.sceneIndex === 0
+        ? clip.expectedLine
+        : "Clients, découvrez notre nouvelle solution.",
+    }),
+  });
+  assert.equal(result.status, "rejected");
+  assert.deepEqual(result.clips[1]?.issues, ["spoken_dialogue_repeated"]);
+});
+
 test("un rejet prime sur une transcription indisponible, sans exposer le transcript", async () => {
   const result = await auditAiMediaNativeDialogueClips({
     clips: [
@@ -271,4 +317,15 @@ test("régression audio réel : le décor récité à la place de la citation es
   assert.equal(result.metrics.detectedTokenCount, 6);
   assert.equal(result.metrics.expectedCoverage, 0);
   assert.deepEqual(result.issues, ["spoken_dialogue_mismatch"]);
+});
+
+test("un acte sans voix off prévue refuse une parole improvisée ou répétée", async () => {
+  const silent = fakeClip({ sceneIndex: 1, expectedLine: "", expectSilence: true });
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 1, expectedLine: "", transcript: "", expectSilence: true }).status, "passed");
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 1, expectedLine: "", transcript: "Bonjour encore.", expectSilence: true }).status, "rejected");
+  const result = await auditAiMediaNativeDialogueClips({
+    clips: [fakeClip(), silent],
+    transcribe: async (clip) => ({ text: clip.sceneIndex === 0 ? clip.expectedLine : "" }),
+  });
+  assert.equal(result.status, "passed");
 });

@@ -15,6 +15,7 @@ import useMediaGeneration, {
   type MediaGenerationSource,
   type MediaGenerationTeamVideoSpeechMode,
   type MediaGenerationVideoDuration,
+  type MediaGenerationVideoSceneMode,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
@@ -121,6 +122,7 @@ export default function MediaFreeGenerator({
     kind === "video" ? "story" : "square"
   );
   const [duration, setDuration] = useState<MediaGenerationVideoDuration>(8);
+  const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
   const [references, setReferences] = useState<Reference[]>([]);
   const [withMusic, setWithMusic] = useState(true);
   const [withNarration, setWithNarration] = useState(true);
@@ -223,12 +225,17 @@ export default function MediaFreeGenerator({
   }, [quota]);
 
   useEffect(() => {
+    if (kind !== "video" || duration <= 8) setSceneMode("single");
+  }, [kind, duration]);
+
+  useEffect(() => {
     const clearAccountState = () => {
       sequence.current += 1;
       setPrompt("");
       setReferences([]);
       setFormat(kind === "video" ? "story" : "square");
       setDuration(8);
+      setSceneMode("single");
       setWithMusic(true);
       setWithNarration(true);
       setSpeechMode("voiceover");
@@ -382,6 +389,7 @@ export default function MediaFreeGenerator({
     if (!canGenerate || operationInFlight.current) return;
     operationInFlight.current = true;
     const currentSequence = sequence.current;
+    let retryableFailure = false;
     setActionError("");
     setFinishing(true);
     setCreationScreen(true);
@@ -400,6 +408,7 @@ export default function MediaFreeGenerator({
         idea: prompt.trim(),
         format,
         durationSeconds: kind === "video" ? duration : undefined,
+        sceneMode: kind === "video" ? sceneMode : undefined,
         withMusic: kind === "video" && withMusic,
         withNarration: effectiveWithNarration,
         narrationVoice: effectiveWithNarration ? voice : undefined,
@@ -432,15 +441,22 @@ export default function MediaFreeGenerator({
       if (
         !(caught instanceof MediaGenerationAccountChangedError) &&
         !(caught instanceof MediaGenerationCancelledError)
-      )
+      ) {
+        retryableFailure = true;
         setActionError(
           caught instanceof Error ? caught.message : t("ai_generator_error")
         );
+      }
     } finally {
       if (sequence.current === currentSequence) {
         setFinishing(false);
-        setIdentityConsent(false);
-        setTeamConsent(false);
+        // A failed attempt keeps the same references and request on screen.
+        // Reuse its explicit authorization for Retry; a successful new
+        // creation (or a cancellation) still requires fresh authorization.
+        if (!retryableFailure) {
+          setIdentityConsent(false);
+          setTeamConsent(false);
+        }
         operationInFlight.current = false;
       }
     }
@@ -567,6 +583,7 @@ export default function MediaFreeGenerator({
       className={styles.workspace}
       data-creation-mode="free"
       data-media-kind={kind}
+      data-scenes-available={kind === "video" && duration > 8}
       data-view="form"
     >
       <div className={styles.creationGrid}>
@@ -613,7 +630,7 @@ export default function MediaFreeGenerator({
             </div>
           </fieldset>
           {kind === "video" ? (
-            <fieldset className={styles.fieldset} disabled={locked}>
+            <fieldset className={`${styles.fieldset} ${styles.durationFieldset}`} disabled={locked}>
               <legend>{t("ai_generator_free_duration_label")}</legend>
               <div className={styles.durationOptions}>
                 {DURATIONS.map((value) => {
@@ -641,6 +658,26 @@ export default function MediaFreeGenerator({
                   );
                 })}
               </div>
+              {duration > 8 ? (
+                <div className={styles.sceneOptions} role="group" aria-label={t("ai_generator_free_scene_label")}>
+                  {(["single", "multi"] as const).map((mode) => (
+                    <label
+                      className={styles.sceneOption}
+                      data-selected={sceneMode === mode}
+                      key={mode}
+                    >
+                      <input
+                        type="radio"
+                        name={`${instanceId}-scene-mode`}
+                        value={mode}
+                        checked={sceneMode === mode}
+                        onChange={() => setSceneMode(mode)}
+                      />
+                      <strong>{t(`ai_generator_free_scene_${mode}`)}</strong>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
             </fieldset>
           ) : null}
           <div className={styles.referencesSection}>

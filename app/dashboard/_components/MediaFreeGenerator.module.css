@@ -123,7 +123,8 @@
   transition: background 150ms, border-color 150ms;
 }
 .formatOption input,
-.durationOption input {
+.durationOption input,
+.sceneOption input {
   position: absolute;
   opacity: 0;
   width: 1px;
@@ -177,6 +178,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.durationFieldset {
+  gap: 4px;
+}
 .durationOption {
   position: relative;
   display: flex;
@@ -200,8 +204,38 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+.sceneOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.sceneOption {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid rgba(123, 151, 205, 0.2);
+  border-radius: 12px;
+  background: rgba(12, 23, 48, 0.8);
+  cursor: pointer;
+}
+.sceneOption strong {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+}
+.sceneOption[data-selected="true"] {
+  border-color: rgba(77, 214, 248, 0.6);
+  background: linear-gradient(140deg, rgba(17, 144, 193, 0.24), rgba(96, 64, 185, 0.25));
+}
+.sceneOption:focus-within {
+  outline: 2px solid var(--free-cyan);
+  outline-offset: 2px;
+}
 .fieldset:disabled .formatOption,
-.fieldset:disabled .durationOption {
+.fieldset:disabled .durationOption,
+.fieldset:disabled .sceneOption {
   cursor: not-allowed;
 }
 .referencesSection,
@@ -690,6 +724,10 @@
     align-content: start;
     align-items: start;
   }
+  .workspace[data-scenes-available="true"] .parameters {
+    padding: 12px;
+    gap: 7px;
+  }
   .parameters > .panelHeading,
   .referencesSection,
   .audioSection {
@@ -734,9 +772,19 @@
     justify-content: center;
     padding: 7px 4px;
   }
+  .workspace[data-scenes-available="true"] .durationOption {
+    min-height: 54px;
+  }
+  .workspace[data-scenes-available="true"] .formatOption {
+    min-height: 95px;
+  }
   .referencesSection,
   .audioSection {
     padding-top: 12px;
+  }
+  .workspace[data-scenes-available="true"] .referencesSection,
+  .workspace[data-scenes-available="true"] .audioSection {
+    padding-top: 8px;
   }
   .referencesSection {
     display: grid;
@@ -882,8 +930,11 @@
     padding: 6px 3px;
     gap: 3px;
   }
+  .workspace[data-scenes-available="true"] .durationOption { min-height: 48px; }
   .durationOption strong { font-size: 14px; line-height: 1.2; }
   .durationOption small { font-size: 9px; line-height: 1.2; }
+  .workspace[data-scenes-available="true"] .formatOption { min-height: 89px; }
+  .sceneOption { min-height: 30px; padding: 5px 8px; }
   .referenceImage { height: 44px; }
   .reference select { min-height: 26px; padding-block: 3px; }
   .referencesSection,

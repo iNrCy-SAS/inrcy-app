@@ -103,6 +103,8 @@ export type AiVideoProviderGenerationArgs = {
   profession: string;
   /** Langue configurée pour les éventuels dialogues natifs du plan. */
   contentLanguage?: string;
+  /** Script de voix off native du mode Libre, découpé par acte de 8 s. */
+  nativeNarrationLines?: readonly string[];
   /**
    * Marqueur interne exclusivement positionné par le serveur après avoir
    * transformé 2–3 portraits distincts en une seule composition de groupe.

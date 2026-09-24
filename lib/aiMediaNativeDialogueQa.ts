@@ -24,6 +24,8 @@ export type AiMediaNativeDialogueQaClip = {
   /** Début logique dans un MP4 cumulatif Omni de 16/24 secondes. */
   sourceStartSeconds?: number;
   expectedLine: string;
+  /** A silent act is valid only when transcription confirms no speech. */
+  expectSilence?: boolean;
 };
 
 export type AiMediaNativeDialogueQaMetrics = {
@@ -162,6 +164,16 @@ function contiguousOccurrences(
   return count;
 }
 
+function adjacentWordRepeats(tokens: readonly string[]) {
+  const repeats = new Map<string, number>();
+  for (let index = 1; index < tokens.length; index += 1) {
+    const word = tokens[index];
+    if (word !== tokens[index - 1]) continue;
+    repeats.set(word, (repeats.get(word) || 0) + 1);
+  }
+  return repeats;
+}
+
 /**
  * Repère les boucles, même sur une fin de deux mots (« plus facilement »).
  * Une répétition écrite dans le script reste autorisée : le premier passage
@@ -173,6 +185,15 @@ function dialogueRepeatCount(
 ) {
   if (!expected.length || !detected.length) return 0;
   let maximum = contiguousOccurrences(detected, expected);
+  // Les boucles de plusieurs mots sont vérifiées ci-dessous. Un bégaiement
+  // d'un seul mot est comparé séparément aux répétitions réellement écrites
+  // dans le script : compter toutes ses occurrences confondrait, par exemple,
+  // deux « notre » éloignés avec « notre notre ».
+  const scriptedAdjacentRepeats = adjacentWordRepeats(expected);
+  for (const [word, count] of adjacentWordRepeats(detected)) {
+    const extra = count - (scriptedAdjacentRepeats.get(word) || 0);
+    if (extra > 0) maximum = Math.max(maximum, 1 + extra);
+  }
   const minimumChunk = expected.length === 1 ? 1 : 2;
   const visited = new Set<string>();
   for (let size = Math.floor(detected.length / 2); size >= minimumChunk; size -= 1) {
@@ -201,6 +222,12 @@ function previousDialogueRepeatCount(
   previousDialogues: readonly (readonly string[])[],
 ) {
   let maximum = 0;
+  const preceding = previousDialogues.at(-1);
+  // Le dernier mot d'un acte peut être rejoué seul au début du suivant.
+  // Ne le refuser que s'il ne figure pas à cette place dans le script courant.
+  if (preceding?.length && detected[0] === preceding.at(-1) && expected[0] !== detected[0]) {
+    maximum = 2;
+  }
   const visited = new Set<string>();
   for (const previous of previousDialogues) {
     for (let size = Math.min(previous.length, detected.length); size >= 2; size -= 1) {
@@ -240,6 +267,7 @@ export function evaluateAiMediaNativeDialogue(args: {
   expectedLine: string;
   transcript: string;
   language?: string;
+  expectSilence?: boolean;
 }): AiMediaNativeDialogueQaClipResult {
   const expected = tokenizeAiMediaNativeDialogue(args.expectedLine);
   const detected = tokenizeAiMediaNativeDialogue(args.transcript);
@@ -255,8 +283,10 @@ export function evaluateAiMediaNativeDialogue(args: {
   if (!expected.length) {
     return {
       sceneIndex: args.sceneIndex,
-      status: "unavailable",
-      issues: ["expected_dialogue_missing"],
+      status: args.expectSilence ? detected.length ? "rejected" : "passed" : "unavailable",
+      issues: args.expectSilence
+        ? detected.length ? ["spoken_dialogue_mismatch"] : []
+        : ["expected_dialogue_missing"],
       metrics: emptyMetrics,
     };
   }
@@ -351,6 +381,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
           expectedLine: clip.expectedLine,
           transcript: transcription.text,
           language,
+          expectSilence: clip.expectSilence,
         }),
         model: transcription.model,
         expectedTokens: tokenizeAiMediaNativeDialogue(clip.expectedLine),

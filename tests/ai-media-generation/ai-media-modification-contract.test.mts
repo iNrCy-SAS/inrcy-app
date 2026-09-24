@@ -46,6 +46,7 @@ function loadLocalRuntime<T>(filename: string): T {
     (specifier: string) => {
       if (specifier === "server-only") return {};
       if (specifier === "sharp") return requireFromTest("sharp");
+      if (specifier === "node:crypto") return requireFromTest(specifier);
       const localPath = specifier.startsWith("@/lib/")
         ? path.join(LIB_ROOT, specifier.slice("@/lib/".length))
         : specifier.startsWith(".")

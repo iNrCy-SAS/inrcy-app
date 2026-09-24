@@ -63,10 +63,12 @@ export async function prepareAiMediaFreeCreativePlan(args: {
       "Tu es réalisateur du mode Libre iNrStudio. Transforme le brief en direction créative et plans exécutables, sans gabarit publicitaire, accroche, CTA ni photo réaliste imposés.",
       "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Ne convertis pas une demande artistique en publicité. L'entreprise n'est utile que si le brief s'y réfère.",
       "direction contient l'ensemble des contraintes nécessaires au film, avec tous les textes/valeurs littérales fournis. Ne récite pas les consignes dans le film. Les paroles ne sont pas du texte visible.",
-      "scenes contient exactement le nombre de plans demandé : chacun décrit une étape différente de la même réalisation, compatible avec 8 secondes. Une scène unique continue doit avancer sans reprendre l'introduction.",
+      args.request.sceneMode === "single"
+        ? "scenes contient exactement le nombre de segments de 8 secondes demandé pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
+        : "scenes contient exactement le nombre de plans de 8 secondes demandé. Chaque plan apporte une étape visuelle distincte de la réalisation ; les changements de cadrage ou de lieu suivent le brief et conservent une cohérence d'ensemble.",
       nativeDialogue
         ? "Pour chaque plan, visualBrief décrit l'action et identifie clairement le personnage qui parle. spokenLine contient une seule réplique naturelle, complète, de 14 mots et 90 caractères maximum. Voix synthétiques, pas de clonage. Respecte la langue demandée, sinon celle du brief. Les répliques exactes fournies sont attribuées dans l'ordre, une par plan ; après la dernière, spokenLine reste vide. Si aucune réplique n'est fournie, écris les paroles pertinentes pour cette création, sans slogan commercial imposé. La direction ne répète pas les paroles : spokenLine est leur seule source autoritaire. Pas de narrateur ajouté."
-        : "Aucun dialogue natif : la voix off éventuelle est ajoutée à part.",
+        : "Aucun dialogue des personnages : si une voix off est demandée, elle sera produite nativement par le moteur vidéo à partir d'un script transmis séparément pour chaque plan. Ne pas animer les bouches pour cette voix off.",
       "Conserve les informations exactes ; n'invente pas de prix, de coordonnées ou de faits d'entreprise. Réponds dans la langue du brief. Les options explicites de format, durée, références et audio sont autoritaires.",
     ].join(" "),
     input: JSON.stringify({
@@ -146,6 +148,11 @@ export async function writeAiMediaFreeNarration(args: {
         "Écris uniquement la voix off souhaitée pour ce film créatif. Respecte le sujet, le ton et la langue explicitement demandés ; sinon utilise la langue du brief.",
         "Ne récite pas les consignes de réalisation ni des descriptions techniques. Aucune publicité, accroche, promesse ni invitation imposée. Aucune information commerciale inventée.",
         `Le texte doit former une ou plusieurs phrases complètes, naturelles et terminées, de ${maxWords} mots maximum. Conserve les nombres et noms exacts pertinents pour la voix off.`,
+        duration > 8
+          ? args.request.sceneMode === "single"
+            ? `La scène continue est produite en ${duration / 8} segments successifs de 8 secondes : écris une narration fluide, avec une phrase complète par segment et sans répéter l'introduction.`
+            : `Le film comporte ${duration / 8} plans de 8 secondes : privilégie une phrase courte et autonome par plan, sans couper une phrase entre deux plans.`
+          : "",
       ].join(" "),
       input: JSON.stringify({ brief: prompt, film: args.plan.subline, max_words: maxWords, company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null }),
       responseSchema: { name: "inrcy_free_narration", strict: true, schema: {

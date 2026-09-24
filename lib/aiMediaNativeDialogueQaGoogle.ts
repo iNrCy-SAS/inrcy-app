@@ -201,7 +201,7 @@ async function transcribeAudioWithGoogle(args: {
           {
             type: "text",
             text: [
-              "Transcris strictement les paroles intelligibles prononcées par un personnage dans cet extrait.",
+              "Transcris strictement toutes les paroles intelligibles dans cet extrait, qu'il s'agisse d'un personnage ou d'une voix off.",
               `Langue attendue : ${compact(args.language, 20) || "fr"}.`,
               "N'invente, ne corrige, ne complète et ne résume aucun mot.",
               "Conserve les répétitions, hésitations et phrases coupées telles qu'elles sont réellement entendues.",

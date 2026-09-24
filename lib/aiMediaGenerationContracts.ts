@@ -777,6 +777,8 @@ export function normalizeAiMediaGenerationRequest(
       ? (rawSceneMode as AiMediaVideoSceneMode)
       : body.connectScenes === true
       ? "single"
+      : creationMode === "free"
+      ? "single"
       : "multi";
   const requestedSceneConnection =
     kind === "video" &&
