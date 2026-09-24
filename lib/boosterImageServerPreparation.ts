@@ -72,6 +72,18 @@ export type BoosterServerImagePreparationResult = {
   imagesByChannel: Partial<Record<BoosterImageChannel, BoosterServerImagePayload[]>>;
   imageSettingsByChannel: Partial<Record<BoosterImageChannel, JsonRecord>>;
   warnings: Array<{ channel: BoosterImageChannel; imageKey: string; reason: string }>;
+  /** A preparation problem is deliberately scoped to one channel. */
+  failuresByChannel: Partial<
+    Record<
+      BoosterImageChannel,
+      {
+        code: "workspace_image_source_unavailable" | "workspace_image_preparation_failed";
+        error: string;
+        imageKeys: string[];
+        retryable: boolean;
+      }
+    >
+  >;
 };
 
 const CHANNEL_RENDER_BASE: Record<BoosterImageChannel, { width: number; height: number }> = {
@@ -1127,6 +1139,14 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
     }),
   );
   const valid = resolved.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const sourceImageKeys = sourceImages.map((image, index) =>
+    String(image.imageKey || `image-${index + 1}`),
+  );
+  const unavailableImageKeys = new Set(
+    sourceImageKeys.filter(
+      (imageKey) => !valid.some((entry) => entry.imageKey === imageKey),
+    ),
+  );
   const technicalCompatibilityBySource = new Map<
     string,
     ReturnType<typeof renderTechnicalImageCompatibility>
@@ -1146,12 +1166,13 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
 
   const imagesByChannel: BoosterServerImagePreparationResult["imagesByChannel"] = {};
   const imageSettingsByChannel: BoosterServerImagePreparationResult["imageSettingsByChannel"] = {};
+  const failuresByChannel: BoosterServerImagePreparationResult["failuresByChannel"] = {};
 
   // Les canaux sont indépendants mais partagent les mêmes promesses de
   // téléchargement et le même chargement de cache. On conserve ainsi un temps
   // proche entre 1 et 11 canaux sans télécharger/décoder la source onze fois.
   await Promise.all(channels.map(async (channel) => {
-    if (channel === "youtube_shorts" || !valid.length) {
+    if (channel === "youtube_shorts") {
       imagesByChannel[channel] = [];
       imageSettingsByChannel[channel] = { imageKeys: [], transforms: {}, customizedImageKeys: [] };
       return;
@@ -1167,7 +1188,9 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
     const byKey = new Map(valid.map((entry) => [entry.imageKey, entry]));
     const requestedSettings =
       normalizeBoosterImageCustomizationScope<ServerImageTransform>({
-        availableImageKeys: valid.map((entry) => entry.imageKey),
+        // Keep unavailable references in the selection. Dropping them here
+        // used to turn one missing source into a generic all-channel failure.
+        availableImageKeys: sourceImageKeys,
         requestedImageKeys: rawRequestedSettings.imageKeys,
         transforms: rawRequestedSettings.transforms,
         customizedImageKeys: rawRequestedSettings.customizedImageKeys,
@@ -1179,6 +1202,9 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
     const channelSources =
       channel === "gmb" ? exactChannelSources.slice(0, 5) : exactChannelSources;
+    const unavailableRequestedImageKeys = requestedSettings.imageKeys.filter(
+      (imageKey) => unavailableImageKeys.has(imageKey),
+    );
     const firstImageKey = channelSources[0]?.imageKey || "";
     const firstCustomized = isBoosterImageExplicitlyCustomized(
       requestedSettings.customizedImageKeys,
@@ -1208,7 +1234,14 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           requiredTargetRatio: sequenceTargetRatio,
           forceRequiredTargetCanvas: forcePinterestSequenceCanvas,
         });
-        if (initialDecision.mode === "unsupported") continue;
+        if (initialDecision.mode === "unsupported") {
+          warnings.push({
+            channel,
+            imageKey: entry.imageKey,
+            reason: "image_not_supported_for_channel",
+          });
+          continue;
+        }
         const sourceRatio = Number(initialDecision.sourceRatio || entry.meta.ratio || 0);
         const targetRatio = Number(initialDecision.targetRatio || sourceRatio || 0);
         const automaticTransform =
@@ -1579,7 +1612,35 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
       }
     }
 
-    if (prepared.length === channelSources.length) {
+    const channelWarnings = warnings.filter((warning) => warning.channel === channel);
+    const failedImageKeys = Array.from(
+      new Set([
+        ...unavailableRequestedImageKeys,
+        ...channelWarnings.map((warning) => warning.imageKey),
+      ]),
+    );
+    if (
+      !channelSources.length ||
+      failedImageKeys.length > 0 ||
+      prepared.length !== channelSources.length
+    ) {
+      failuresByChannel[channel] = {
+        code:
+          unavailableRequestedImageKeys.length > 0
+            ? "workspace_image_source_unavailable"
+            : "workspace_image_preparation_failed",
+        error:
+          unavailableRequestedImageKeys.length > 0
+            ? "Une ou plusieurs images de cette publication sont indisponibles pour ce canal."
+            : "Une ou plusieurs images n’ont pas pu être préparées pour ce canal.",
+        imageKeys: failedImageKeys.length
+          ? failedImageKeys
+          : requestedSettings.imageKeys,
+        retryable: unavailableRequestedImageKeys.length === 0,
+      };
+      return;
+    }
+    if (prepared.length) {
       imagesByChannel[channel] = prepared;
       imageSettingsByChannel[channel] = {
         imageKeys: prepared.map((image) => image.imageKey).filter(Boolean),
@@ -1592,7 +1653,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
     }
   }));
 
-  return { imagesByChannel, imageSettingsByChannel, warnings };
+  return { imagesByChannel, imageSettingsByChannel, warnings, failuresByChannel };
 }
 
 export function inferBoosterImageExtension(mime: string) {

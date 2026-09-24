@@ -60,14 +60,14 @@ test("iNrBadge actions stay disabled only while neither cache nor profile check 
   );
 });
 
-test("the channel overview reuses the authoritative business essentials signal for iNrBadge and iNrSearch", () => {
+test("the channel overview reserves the business essentials signal for iNrBadge", () => {
   assert.match(
     dashboardClientSource,
     /businessEssentialsReady=\{inrBadgeProfileReady\}/,
   );
   assert.match(
     channelConnectionsModalSource,
-    /item\.key === "inrbadge" \|\| item\.key === "inr_search"/,
+    /const usesBusinessEssentials = item\.key === "inrbadge";/,
   );
   assert.match(
     channelConnectionsModalSource,

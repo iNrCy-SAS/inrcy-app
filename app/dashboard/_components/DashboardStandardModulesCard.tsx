@@ -10,6 +10,9 @@ import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import styles from "../dashboard.module.css";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import standardStyles from "./DashboardStandardModulesCard.module.css";
+import DashboardCampaignChoices from "./DashboardCampaignChoices";
+import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
+import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -18,6 +21,7 @@ const DashboardAgentPlanningModal = dynamic(
 
 type Props = {
   goToModule: (path: string) => void;
+  onOpenPremium: () => void;
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
@@ -58,12 +62,14 @@ function PlanningIcon() {
 
 export default function DashboardStandardModulesCard({
   goToModule,
+  onOpenPremium,
   onOpenStats,
   onOpenBoosterPublish,
   onOpenBoosterStats,
 }: Props) {
   const i18nT = useTranslations("shell");
   const t = useTranslations("dashboard.standard");
+  const dashboardCopy = useDashboardI18n();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { pendingKey, beginAction, completeAction, isVisible } = useDelayedPendingAction<string>();
@@ -117,13 +123,13 @@ export default function DashboardStandardModulesCard({
 
   return (
     <div className={styles.lowerRow} data-dashboard-standard-lower-blocks="true">
-      <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.pilotPanel}`}>
+      <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.pilotPanel} ${standardStyles.premiumPilotPanel}`}>
         <div className={`${styles.blockHead} ${standardStyles.pilotHead}`}>
           <h3 className={styles.h3}>{t("pilotTitle")}</h3>
           <span className={styles.smallMuted}>{t("pilotSubtitle")}</span>
         </div>
 
-        <div className={standardStyles.dashboardList}>
+        <div className={`${standardStyles.dashboardList} ${standardStyles.premiumDashboardList}`}>
           <span className={standardStyles.pilotOrbit} aria-hidden="true" />
 
           <article className={`${standardStyles.toolRow} ${standardStyles.statsRow}`}>
@@ -185,10 +191,46 @@ export default function DashboardStandardModulesCard({
               {isVisible(`route:${reputationPath}`) ? t("loading") : t("reputationCta")} <ArrowIcon />
             </button>
           </article>
+
+          <article className={`${standardStyles.toolRow} ${standardStyles.agendaRow}`}>
+            <span className={standardStyles.toolLogo} aria-hidden="true">
+              <Image src="/mobile-shortcuts/inrcalendar-bubble.png" alt="" width={52} height={52} />
+            </span>
+            <div className={standardStyles.toolCopy}>
+              <h4>{i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "")}</h4>
+              <p>{dashboardCopy.modules.agendaSub}</p>
+            </div>
+            <button
+              type="button"
+              className={`${standardStyles.toolAction} ${standardStyles.lockedToolAction}`}
+              onClick={onOpenPremium}
+              aria-label={`${i18nT("inr_calendar_a9473176")} — ${dashboardCopy.modules.campaignsPremiumLabel}`}
+            >
+              <DashboardPremiumLockIcon /> {dashboardCopy.modules.campaignsPremiumLabel}
+            </button>
+          </article>
+
+          <article className={`${standardStyles.toolRow} ${standardStyles.crmRow}`}>
+            <span className={standardStyles.toolLogo} aria-hidden="true">
+              <Image src="/mobile-shortcuts/inrcrm-bubble.png" alt="" width={52} height={52} />
+            </span>
+            <div className={standardStyles.toolCopy}>
+              <h4>{i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "")}</h4>
+              <p>{dashboardCopy.modules.crmSub}</p>
+            </div>
+            <button
+              type="button"
+              className={`${standardStyles.toolAction} ${standardStyles.lockedToolAction}`}
+              onClick={onOpenPremium}
+              aria-label={`${i18nT("inr_crm_aa43648a")} — ${dashboardCopy.modules.campaignsPremiumLabel}`}
+            >
+              <DashboardPremiumLockIcon /> {dashboardCopy.modules.campaignsPremiumLabel}
+            </button>
+          </article>
         </div>
       </section>
 
-      <div className={standardStyles.standardActionStack}>
+      <div className={`${standardStyles.standardActionStack} ${standardStyles.premiumActionStack}`}>
       <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.boosterPanel}`}>
         <span className={standardStyles.boosterGrid} aria-hidden="true" />
         <span className={standardStyles.boosterOrbit} aria-hidden="true" />
@@ -228,6 +270,18 @@ export default function DashboardStandardModulesCard({
           <b>{t("boosterSummary")}</b>
         </button>
       </section>
+
+      <DashboardCampaignChoices
+        mailTitle={dashboardCopy.modules.mailCampaignTitle}
+        mailDescription={dashboardCopy.modules.campaignsSub}
+        adsTitle={dashboardCopy.modules.adsCampaignTitle}
+        adsDescription={dashboardCopy.modules.adsCampaignSub}
+        actionLabel={dashboardCopy.modules.campaignsCta}
+        premiumLabel={dashboardCopy.modules.campaignsPremiumLabel}
+        locked
+        onOpenMails={onOpenPremium}
+        onOpenAds={onOpenPremium}
+      />
 
       <div className={standardStyles.secondaryToolsRow} data-dashboard-standard-secondary-tools="true">
         <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
+import type { AiBusinessKnowledge } from "@/lib/aiMemory";
 
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -48,7 +49,7 @@ type Props = {
   onActivitySaved?: () => unknown | Promise<unknown>;
   onActivityReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
-  onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  onUnsavedChange?: (hasUnsavedChanges: boolean, draftSignature?: string) => void;
   showIntro?: boolean;
   showActions?: boolean;
 };
@@ -57,6 +58,11 @@ export type ActivityContentHandle = {
   isReady: () => boolean;
   save: () => Promise<boolean>;
   reset: (options?: { confirm?: boolean }) => Promise<boolean>;
+  cancelChanges: () => void;
+  getBusinessKnowledgePatch: () => Pick<
+    AiBusinessKnowledge,
+    "description" | "services" | "interventionZones" | "strengths" | "customerTypes"
+  >;
 };
 
 type BusinessActivityForm = {
@@ -344,7 +350,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     if (loading) return;
     const snapshot = activitySnapshot(form);
     if (!activityBaselineRef.current) activityBaselineRef.current = snapshot;
-    onUnsavedChange?.(snapshot !== activityBaselineRef.current);
+    onUnsavedChange?.(snapshot !== activityBaselineRef.current, snapshot);
   }, [form, loading, onUnsavedChange]);
 
   const hasUnsavedChanges =
@@ -619,6 +625,14 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     isReady: () => !loading && !saving,
     save,
     reset: handleReset,
+    cancelChanges: handleCancelChanges,
+    getBusinessKnowledgePatch: () => ({
+      description: form.activityDescription.trim(),
+      services: allSelectedServices,
+      interventionZones: form.interventionZones,
+      strengths: form.strengths,
+      customerTypes: form.customerTypes,
+    }),
   }));
 
   return (

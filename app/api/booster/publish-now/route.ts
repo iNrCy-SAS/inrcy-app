@@ -1253,19 +1253,77 @@ async function publishNowHandler(req: Request) {
           settingsByChannel: imageSettingsByChannel as any,
         });
       } catch (preparationError) {
-        imageChannels.forEach((channel) => {
-          setPreflightFailure(channel, {
-            code: "workspace_image_preparation_failed",
-            error: "Les images du workspace n'ont pas pu être préparées pour ce canal.",
-            preparationError:
-              preparationError instanceof Error
-                ? preparationError.message
-                : String(preparationError || ""),
-          });
+        // A shared cache/download failure must not decide the fate of every
+        // selected network. Retry preparation independently so a problem on
+        // one channel is reported on that channel only.
+        console.warn("[booster-publish] batch image preparation failed; isolating channels", {
+          publicationId: asyncPublicationId,
+          message:
+            preparationError instanceof Error
+              ? preparationError.message
+              : String(preparationError || ""),
         });
+        const isolated = await Promise.all(
+          imageChannels.map(async (channel) => {
+            try {
+              return {
+                channel,
+                result: await prepareBoosterImagesByChannelOnServer({
+                  accountId: userId,
+                  workspaceId: mediaWorkspaceId,
+                  channels: [channel],
+                  images: workspaceConsumption.images,
+                  settingsByChannel: imageSettingsByChannel as any,
+                }),
+              };
+            } catch (error) {
+              return { channel, error };
+            }
+          }),
+        );
+        imagePreparation = {
+          imagesByChannel: {},
+          imageSettingsByChannel: {},
+          warnings: [],
+          failuresByChannel: {},
+        };
+        for (const attempt of isolated) {
+          if ("result" in attempt && attempt.result) {
+            Object.assign(imagePreparation.imagesByChannel, attempt.result.imagesByChannel);
+            Object.assign(
+              imagePreparation.imageSettingsByChannel,
+              attempt.result.imageSettingsByChannel,
+            );
+            Object.assign(
+              imagePreparation.failuresByChannel,
+              attempt.result.failuresByChannel,
+            );
+            imagePreparation.warnings.push(...attempt.result.warnings);
+            continue;
+          }
+          imagePreparation.failuresByChannel[attempt.channel] = {
+            code: "workspace_image_preparation_failed",
+            error: "Les images du workspace n’ont pas pu être préparées pour ce canal.",
+            imageKeys: [],
+            retryable: true,
+          };
+        }
       }
       imageChannels.forEach((channel) => {
         if (!imagePreparation) return;
+        const preparationFailure = imagePreparation.failuresByChannel[channel];
+        if (preparationFailure) {
+          setPreflightFailure(channel, {
+            code: preparationFailure.code,
+            error: preparationFailure.error,
+            imageKeys: preparationFailure.imageKeys,
+            retryable: preparationFailure.retryable,
+            warnings: imagePreparation.warnings.filter(
+              (warning) => warning.channel === channel,
+            ),
+          });
+          return;
+        }
         preparedImagesByChannel[channel] =
           (imagePreparation.imagesByChannel[channel] as unknown as ImagePayload[]) || [];
         preparedImageSettingsByChannel[channel] =

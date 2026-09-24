@@ -1126,7 +1126,12 @@ async function executeAgentActionHandler(request: Request) {
             images: imagePayloads,
             automaticFit: "contain",
           })
-        : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
+        : {
+            imagesByChannel: {},
+            imageSettingsByChannel: {},
+            warnings: [],
+            failuresByChannel: {},
+          };
 
     const publishBody = {
       channels: publishChannels,

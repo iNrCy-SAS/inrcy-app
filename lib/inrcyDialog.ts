@@ -16,6 +16,17 @@ export type InrcyPromptOptions = InrcyConfirmOptions & {
   required?: boolean;
 };
 
+export type InrcyChoice = {
+  value: string;
+  label: string;
+  tone?: "primary" | "secondary" | "danger";
+};
+
+export type InrcyChoiceOptions = Omit<InrcyConfirmOptions, "confirmLabel" | "cancelLabel"> & {
+  choices: InrcyChoice[];
+  defaultValue?: string;
+};
+
 type ConfirmRequest = {
   type: "confirm";
   options: InrcyConfirmOptions;
@@ -34,13 +45,20 @@ type PromptRequest = {
   resolve: (value: string | null) => void;
 };
 
+type ChoiceRequest = {
+  type: "choice";
+  options: InrcyChoiceOptions;
+  resolve: (value: string | null) => void;
+};
+
 type ConfirmRequestInput = Omit<ConfirmRequest, "resolve">;
 type AlertRequestInput = Omit<AlertRequest, "resolve">;
 type PromptRequestInput = Omit<PromptRequest, "resolve">;
+type ChoiceRequestInput = Omit<ChoiceRequest, "resolve">;
 
-type DialogRequestInput = AlertRequestInput | ConfirmRequestInput | PromptRequestInput;
+type DialogRequestInput = AlertRequestInput | ConfirmRequestInput | PromptRequestInput | ChoiceRequestInput;
 
-export type InrcyDialogRequest = AlertRequest | ConfirmRequest | PromptRequest;
+export type InrcyDialogRequest = AlertRequest | ConfirmRequest | PromptRequest | ChoiceRequest;
 
 export const INRCY_DIALOG_EVENT = "inrcy:dialog-request";
 
@@ -85,5 +103,13 @@ export function promptInrcy(options: InrcyPromptOptions | string): Promise<strin
 
   return new Promise<string | null>((resolve) => {
     dispatchDialogRequest<string | null>({ type: "prompt", options: normalized }, resolve);
+  });
+}
+
+export function chooseInrcy(options: InrcyChoiceOptions): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+
+  return new Promise<string | null>((resolve) => {
+    dispatchDialogRequest<string | null>({ type: "choice", options }, resolve);
   });
 }

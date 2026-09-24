@@ -63,15 +63,15 @@ test("strict media cutover consumes the workspace and never silently falls back"
   assert.match(route, /consumptionSource:\s*strictMediaCutover\s*\?\s*"workspace_cutover_v1"/);
 });
 
-test("server image preparation covers 1-11 channels with one shared call", () => {
+test("server image preparation covers 1-11 channels and isolates an exceptional batch retry", () => {
   assert.match(route, /prepareBoosterImagesByChannelOnServer\(/);
-  assert.equal(
-    (route.match(/prepareBoosterImagesByChannelOnServer\(/g) || []).length,
-    1,
-  );
+  assert.ok((route.match(/prepareBoosterImagesByChannelOnServer\(/g) || []).length >= 2);
   assert.match(route, /channels:\s*imageChannels/);
   assert.match(route, /workspaceId:\s*mediaWorkspaceId/);
   assert.match(route, /imageChannels\.forEach\(\(channel\)/);
+  assert.match(route, /batch image preparation failed; isolating channels/);
+  assert.match(route, /channels:\s*\[channel\]/);
+  assert.match(route, /failuresByChannel\[channel\]/);
   assert.match(route, /code:\s*"workspace_image_preparation_failed"/);
   assert.match(
     route,
@@ -88,6 +88,12 @@ test("server image preparation covers 1-11 channels with one shared call", () =>
   assert.match(
     imageServerPreparation,
     /cachedVariantsPromise \|\|= loadCachedChannelImageVariants/,
+  );
+  assert.match(imageServerPreparation, /failuresByChannel/);
+  assert.match(imageServerPreparation, /unavailableRequestedImageKeys/);
+  assert.match(
+    imageServerPreparation,
+    /prepared\.length !== channelSources\.length/,
   );
   assert.match(route, /pickCompleteChannelImageUrls/);
   assert.match(channelContext, /never borrow a fallback from another channel/i);

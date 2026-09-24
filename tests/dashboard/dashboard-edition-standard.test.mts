@@ -40,6 +40,18 @@ const standardModulesCssSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardStandardModulesCard.module.css", import.meta.url),
   "utf8",
 );
+const campaignChoicesSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardCampaignChoices.tsx", import.meta.url),
+  "utf8",
+);
+const fluxBubblesSource = readFileSync(
+  new URL("../../app/dashboard/dashboard.flux-bubbles.ts", import.meta.url),
+  "utf8",
+);
+const fluxBubbleSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardFluxBubble.tsx", import.meta.url),
+  "utf8",
+);
 const dashboardAgentPlanningSource = readFileSync(
   new URL(
     "../../app/dashboard/agent/_components/DashboardAgentPlanningModal.tsx",
@@ -68,6 +80,10 @@ const accountContentSource = readFileSync(
 );
 const settingsDrawerSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardSettingsDrawerContent.tsx", import.meta.url),
+  "utf8",
+);
+const subscriptionContentSource = readFileSync(
+  new URL("../../app/dashboard/settings/_components/StandardSubscriptionContent.tsx", import.meta.url),
   "utf8",
 );
 const trialSubscriptionSource = readFileSync(
@@ -430,6 +446,30 @@ test("le CTA Booster Standard reste accessible quel que soit l'état du profil",
   assert.doesNotMatch(channelsSectionSource, /requiredSetupLockVisible/);
 });
 
+test("le tableau Standard montre tous les outils Premium, mais verrouille ceux qui demandent Premium", () => {
+  assert.match(standardModulesSource, /standardStyles\.agendaRow/);
+  assert.match(standardModulesSource, /standardStyles\.crmRow/);
+  assert.match(standardModulesSource, /<DashboardCampaignChoices/);
+  assert.match(standardModulesSource, /locked/);
+  assert.match(standardModulesSource, /onOpenPremium/);
+  assert.match(standardModulesSource, /standardStyles\.lockedToolAction/);
+  assert.match(standardModulesSource, /<DashboardPremiumLockIcon \/> \{dashboardCopy\.modules\.campaignsPremiumLabel\}/);
+  assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-mails"/);
+  assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-ads"/);
+  assert.match(campaignChoicesSource, /DashboardPremiumLockIcon/);
+  assert.match(campaignChoicesSource, /locked \? <>\<DashboardPremiumLockIcon \/>\{premiumLabel\}<\/>/);
+  assert.doesNotMatch(standardModulesSource, /lockedToolHint/);
+  assert.doesNotMatch(campaignChoicesSource, /campaignPremiumHint/);
+  assert.doesNotMatch(standardModulesCssSource, /\.lockedToolHint|\.campaignPremiumHint/);
+  assert.match(fluxBubblesSource, /const mailPremiumLocked = standardMode && m\.key === "mails";/);
+  assert.match(fluxBubblesSource, /premiumLocked: mailPremiumLocked/);
+  assert.match(fluxBubblesSource, /premiumLabel: copy\.modules\.campaignsPremiumLabel/);
+  assert.match(fluxBubblesSource, /openPanel\("abonnement"\)/);
+  assert.match(fluxBubbleSource, /item\.premiumLocked/);
+  assert.match(fluxBubbleSource, /DashboardPremiumLockIcon/);
+  assert.match(channelsSectionSource, /item\.premiumLocked \? \([\s\S]*?channelPillPremiumLock/);
+});
+
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {
   assert.match(standardModulesSource, /onClick=\{openBoosterSummary\}/);
   assert.match(standardModulesSource, /t\("boosterSummary"\)/);
@@ -519,6 +559,7 @@ test("les écrans Premium sont refusés tandis que les outils Standard et iNrAge
   }
 
   for (const path of [
+    "/dashboard/ads",
     "/dashboard/crm",
     "/dashboard/agenda",
     "/dashboard/propulser",
@@ -649,6 +690,11 @@ test("les fonctions Standard récentes restent accessibles de bout en bout", () 
   }
 
   for (const premiumPath of [
+    "/api/ads/accounts",
+    "/api/ads/campaigns",
+    "/api/ads/campaigns/123/publish",
+    "/api/ads/generate",
+    "/api/ads/oauth/meta/start",
     "/api/agent/actions/prepare-campaign",
     "/api/crm/contacts",
     "/api/propulser/campaigns",
@@ -814,6 +860,10 @@ test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon ab
   assert.match(settingsDrawerSource, /panel === "abonnement"/);
   assert.match(settingsDrawerSource, /<StandardSubscriptionContent/);
   assert.match(settingsDrawerSource, /<AbonnementContent mode="drawer"/);
+  assert.match(
+    subscriptionContentSource,
+    /Campagnes ADS Multiplateformes/,
+  );
 });
 
 test("toute nouvelle inscription officielle reçoit Standard tout en conservant le cycle d'essai", () => {

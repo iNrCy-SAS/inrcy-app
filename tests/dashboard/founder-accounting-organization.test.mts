@@ -61,6 +61,7 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
 
 test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, iNrAgent et iNrStudio à droite", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
+  const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardStandardModulesCard.module.css");
   const stats = source.indexOf('data-dashboard-prefetch="/dashboard/stats"');
   const send = source.indexOf('data-dashboard-prefetch="/dashboard/mails"');
@@ -68,13 +69,14 @@ test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, i
   const agenda = source.indexOf('data-dashboard-prefetch="/dashboard/agenda"');
   const crm = source.indexOf('data-dashboard-prefetch="/dashboard/crm"');
   const booster = source.indexOf('data-testid="premium-booster-publish"');
-  const campaigns = source.indexOf('data-testid="premium-campaign-open"');
+  const campaigns = source.indexOf("<DashboardCampaignChoices");
   const agent = source.indexOf('data-testid="premium-agent-planning"');
   const studio = source.indexOf('data-testid="premium-studio-open"');
 
   assert.ok(send >= 0 && send < stats);
   assert.ok(stats < reputation && reputation < agenda && agenda < crm);
   assert.ok(crm < booster && booster < campaigns && campaigns < agent && agent < studio);
+  assert.match(campaignChoices, /premium-campaign-open/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);

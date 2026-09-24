@@ -206,6 +206,17 @@
   filter: drop-shadow(0 0 7px rgba(251, 146, 60, 0.55));
 }
 
+.actionPremiumLock {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .dot {
   position: relative;
   width: 6px;

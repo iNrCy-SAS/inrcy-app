@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -40,8 +42,8 @@ import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
 import BusinessDnaAnalysisScheduleModal from "./BusinessDnaAnalysisScheduleModal";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
-import ActivityContent from "./ActivityContent";
-import ProfilContent from "./ProfilContent";
+import ActivityContent, { type ActivityContentHandle } from "./ActivityContent";
+import ProfilContent, { type ProfilContentHandle } from "./ProfilContent";
 
 export type AiMemoryWorkspaceTab =
   | "analysis"
@@ -114,6 +116,27 @@ type Props = {
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
+export type AiMemoryContentHandle = {
+  /** Enregistre toutes les modifications encore en attente. */
+  savePendingChanges: () => Promise<boolean>;
+  /** Abandonne explicitement les modifications locales encore en attente. */
+  discardPendingChanges: () => void;
+};
+
+type WorkspaceSaveReason = "manual" | "auto" | "tab-change" | "analysis" | "exit";
+type WorkspaceSaveOptions = {
+  reason?: WorkspaceSaveReason;
+  /**
+   * Une analyse construit son résultat dans le navigateur. Ce brouillon est
+   * passé explicitement afin d'être persisté dans la même opération, sans
+   * attendre le prochain cycle de rendu ou une sauvegarde manuelle.
+   */
+  aiMemoryDraft?: {
+    memory: AiMemory;
+    businessKnowledge: AiBusinessKnowledge;
+  };
+};
+
 function apiErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
   const source = payload as { user_message?: unknown; error?: unknown };
@@ -169,7 +192,7 @@ function parseAnalysisChannels(value: unknown): BusinessDnaDashboardChannelAvail
   }));
 }
 
-export default function AiMemoryContent({
+const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemoryContent({
   initialTab = "analysis",
   profileLabel = "Mon profil",
   onTabChange,
@@ -179,7 +202,7 @@ export default function AiMemoryContent({
   onActivityReset,
   onUnsavedChange,
   onVoiceBusyChange,
-}: Props) {
+}: Props, ref) {
   const t = useTranslations("dashboard.aiMemory");
   const moduleT = useTranslations("dashboard.moduleCards");
   const settingsT = useTranslations("settings");
@@ -201,8 +224,13 @@ export default function AiMemoryContent({
   const [loaded, setLoaded] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [profileDraftSignature, setProfileDraftSignature] = useState("");
+  const [activityDraftSignature, setActivityDraftSignature] = useState("");
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "scheduled" | "saving" | "failed">("idle");
   const [analyzing, setAnalyzing] = useState(false);
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
@@ -226,6 +254,12 @@ export default function AiMemoryContent({
   const documentInputRef = useRef<HTMLInputElement | null>(null);
   const tabSwipeStartRef = useRef<{ x: number; y: number; enabled: boolean } | null>(null);
   const voiceTargetRef = useRef<VoiceTarget | null>(null);
+  const profileContentRef = useRef<ProfilContentHandle | null>(null);
+  const activityContentRef = useRef<ActivityContentHandle | null>(null);
+  const [activityContentRevision, setActivityContentRevision] = useState(0);
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const failedAutoSaveSignatureRef = useRef<string | null>(null);
+  const workspaceSavePromiseRef = useRef<Promise<boolean> | null>(null);
 
   const updateMemory = useCallback((update: SetStateAction<AiMemory>) => {
     const nextMemory = typeof update === "function" ? update(memoryRef.current) : update;
@@ -251,6 +285,16 @@ export default function AiMemoryContent({
   const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
     includePremium: strategyEnabled,
   });
+  const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
+  const hasWorkspaceChanges = memoryDirty || profileDirty || activityDirty;
+  const workspaceDraftSignature = useMemo(
+    () => [
+      signature,
+      profileDirty ? profileDraftSignature : "",
+      activityDirty ? activityDraftSignature : "",
+    ].join("::"),
+    [activityDirty, activityDraftSignature, profileDirty, profileDraftSignature, signature],
+  );
   const voiceBusy = voiceTarget !== null;
   const voiceOperationsLocked = saving || analyzing || loading || !loaded;
   const voiceDisabledFor = (target: VoiceTarget) =>
@@ -263,10 +307,50 @@ export default function AiMemoryContent({
     onVoiceBusyChange?.(next !== null);
   };
 
+  const markWorkspaceDraftUpdated = useCallback(() => {
+    failedAutoSaveSignatureRef.current = null;
+    setWorkspaceError("");
+    setAutoSaveState("idle");
+  }, []);
+
+  const handleProfileUnsavedChange = useCallback(
+    (dirty: boolean, draftSignature = "") => {
+      setProfileDirty(dirty);
+      setProfileDraftSignature(draftSignature);
+      if (dirty) markWorkspaceDraftUpdated();
+    },
+    [markWorkspaceDraftUpdated],
+  );
+
+  const handleActivityUnsavedChange = useCallback(
+    (dirty: boolean, draftSignature = "") => {
+      setActivityDirty(dirty);
+      setActivityDraftSignature(draftSignature);
+      if (dirty) markWorkspaceDraftUpdated();
+    },
+    [markWorkspaceDraftUpdated],
+  );
+
+  const changeTab = useCallback((tab: AiMemoryWorkspaceTab) => {
+    if (tab === "profile" || tab === "activity") {
+      setMountedEmbeddedTabs((current) => {
+        if (current.has(tab)) return current;
+        const next = new Set(current);
+        next.add(tab);
+        return next;
+      });
+    }
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  }, [onTabChange]);
+
   useEffect(() => {
-    const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
-    onUnsavedChange?.(memoryDirty || profileDirty || activityDirty);
-  }, [activityDirty, loaded, loading, onUnsavedChange, profileDirty, signature]);
+    onUnsavedChange?.(hasWorkspaceChanges);
+  }, [hasWorkspaceChanges, onUnsavedChange]);
+
+  useEffect(() => {
+    if (hasWorkspaceChanges) setSaved(false);
+  }, [hasWorkspaceChanges]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -352,6 +436,7 @@ export default function AiMemoryContent({
   const setField = <K extends keyof AiMemory>(key: K, value: AiMemory[K]) => {
     setSaved(false);
     setError("");
+    markWorkspaceDraftUpdated();
     updateMemory((current) => ({ ...current, [key]: value }));
   };
 
@@ -361,6 +446,7 @@ export default function AiMemoryContent({
   ) => {
     setSaved(false);
     setError("");
+    markWorkspaceDraftUpdated();
     updateBusinessKnowledge((current) => ({ ...current, [key]: value }));
     if (key === "description") {
       updateMemory((current) => ({ ...current, detailedDescription: String(value) }));
@@ -557,6 +643,7 @@ export default function AiMemoryContent({
   const setRichDescription = (next: { text: string; html: string }) => {
     setSaved(false);
     setError("");
+    markWorkspaceDraftUpdated();
     updateBusinessKnowledge((current) => ({ ...current, description: next.text }));
     updateMemory((current) => ({
       ...current,
@@ -571,6 +658,7 @@ export default function AiMemoryContent({
   ) => {
     setSaved(false);
     setError("");
+    markWorkspaceDraftUpdated();
     updateMemory((current) => ({
       ...current,
       [key]: next.text,
@@ -586,23 +674,30 @@ export default function AiMemoryContent({
     setBusinessField("customerTypes", next);
   };
 
-  const save = async () => {
-    if (saving || !loaded || voiceTargetRef.current) return;
+  const saveAiMemory = async (
+    draft: {
+      memory?: AiMemory;
+      businessKnowledge?: AiBusinessKnowledge;
+    } = {},
+  ): Promise<{ ok: boolean; message?: string }> => {
+    if (saving || !loaded || voiceTargetRef.current) return { ok: false };
     setSaving(true);
     setSaved(false);
     setError("");
     try {
+      const draftMemory = draft.memory ?? memoryRef.current;
+      const draftBusinessKnowledge = draft.businessKnowledge ?? businessKnowledgeRef.current;
       const synchronizedMemory = normalizeAiMemory({
-        ...memory,
-        detailedDescription: businessKnowledge.description,
-        differentiators: businessKnowledge.strengths,
+        ...draftMemory,
+        detailedDescription: draftBusinessKnowledge.description,
+        differentiators: draftBusinessKnowledge.strengths,
       });
       const response = await fetch("/api/ai-memory", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
-        body: JSON.stringify({ memory: synchronizedMemory, businessKnowledge }),
+        body: JSON.stringify({ memory: synchronizedMemory, businessKnowledge: draftBusinessKnowledge }),
       });
       const payload = await response.json().catch(() => ({}));
       const nextQuota = parseAnalysisQuota(payload.quota);
@@ -611,7 +706,7 @@ export default function AiMemoryContent({
 
       const nextStrategyEnabled = payload.strategyEnabled !== false;
       const nextBusinessKnowledge = normalizeAiBusinessKnowledge(
-        payload.businessKnowledge || businessKnowledge,
+        payload.businessKnowledge || draftBusinessKnowledge,
       );
       const nextMemory = normalizeAiMemory(payload.memory, {
         includePremium: nextStrategyEnabled,
@@ -626,22 +721,17 @@ export default function AiMemoryContent({
         invalidateBoosterGenerationContextClient("professional"),
       ]);
       if (!publicProfileRefreshed) console.warn("[business-dna] public profile refresh deferred");
+      return { ok: true };
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t("saveError"));
+      const message = saveError instanceof Error ? saveError.message : t("saveError");
+      setError(message);
+      return { ok: false, message };
     } finally {
       setSaving(false);
     }
   };
 
-  const cancelChanges = async () => {
-    if (voiceTargetRef.current || signature === savedSignatureRef.current) return;
-    const confirmed = await confirmInrcy({
-      title: t("cancelTitle"),
-      message: t("cancelMessage"),
-      confirmLabel: t("cancelConfirm"),
-      variant: "warning",
-    });
-    if (!confirmed) return;
+  const restoreAiMemoryDraft = () => {
     try {
       const savedWorkspace = JSON.parse(savedSignatureRef.current) as {
         memory?: unknown;
@@ -659,6 +749,234 @@ export default function AiMemoryContent({
       // La signature est toujours créée par JSON.stringify sur des objets validés.
     }
   };
+
+  const saveWorkspace = useCallback(async (options: WorkspaceSaveOptions = {}): Promise<boolean> => {
+    const inFlightSave = workspaceSavePromiseRef.current;
+    if (inFlightSave) return inFlightSave;
+    if (!loaded || voiceTargetRef.current || saving) return false;
+
+    const saveReason = options.reason || "manual";
+    const shouldSaveProfile = profileDirty;
+    const shouldSaveActivity = activityDirty;
+    const shouldSaveAiMemory = Boolean(options.aiMemoryDraft) || memoryDirty || shouldSaveActivity;
+
+    if (!shouldSaveProfile && !shouldSaveActivity && !shouldSaveAiMemory) {
+      setAutoSaveState("idle");
+      return true;
+    }
+
+    const shouldSurfaceFailure = saveReason === "manual" || saveReason === "exit" || saveReason === "analysis";
+    const failedDraftSignature = workspaceDraftSignature;
+    const run = async (): Promise<boolean> => {
+      setWorkspaceSaving(true);
+      setSaved(false);
+      setError("");
+      setWorkspaceError("");
+      if (saveReason === "auto" || saveReason === "tab-change") {
+        setAutoSaveState("saving");
+      }
+
+      try {
+        if (shouldSaveProfile) {
+          const profile = profileContentRef.current;
+          if (!profile?.isReady() || !(await profile.save())) {
+            setWorkspaceError(t("saveError"));
+            if (shouldSurfaceFailure) changeTab("profile");
+            return false;
+          }
+          setProfileDirty(false);
+          setProfileDraftSignature("");
+        }
+
+        let nextMemory = options.aiMemoryDraft?.memory ?? memoryRef.current;
+        let nextBusinessKnowledge = options.aiMemoryDraft?.businessKnowledge ?? businessKnowledgeRef.current;
+        if (shouldSaveActivity) {
+          const activity = activityContentRef.current;
+          if (!activity?.isReady()) {
+            setWorkspaceError(t("saveError"));
+            if (shouldSurfaceFailure) changeTab("activity");
+            return false;
+          }
+
+          const activityDraft = activity.getBusinessKnowledgePatch();
+          if (!(await activity.save())) {
+            setWorkspaceError(t("saveError"));
+            if (shouldSurfaceFailure) changeTab("activity");
+            return false;
+          }
+
+          // Les informations métier de ce formulaire recouvrent une partie de
+          // l'ADN. Elles ont été explicitement modifiées par le professionnel :
+          // elles doivent donc être reprises dans l'écriture globale, sans
+          // écraser l'analyse avec une ancienne copie locale.
+          nextBusinessKnowledge = normalizeAiBusinessKnowledge({
+            ...nextBusinessKnowledge,
+            ...activityDraft,
+          });
+          nextMemory = normalizeAiMemory({
+            ...nextMemory,
+            detailedDescription: nextBusinessKnowledge.description,
+            differentiators: nextBusinessKnowledge.strengths,
+          });
+          setActivityDirty(false);
+          setActivityDraftSignature("");
+        }
+
+        if (shouldSaveAiMemory) {
+          const result = await saveAiMemory({
+            memory: nextMemory,
+            businessKnowledge: nextBusinessKnowledge,
+          });
+          if (!result.ok) {
+            setWorkspaceError(result.message || t("saveError"));
+            return false;
+          }
+
+          // Une analyse enregistrée peut enrichir les champs affichés dans
+          // Activité. Recharge ce sous-formulaire au prochain affichage afin
+          // qu'il ne conserve jamais une copie antérieure de l'ADN.
+          if (mountedEmbeddedTabs.has("activity")) {
+            setActivityContentRevision((current) => current + 1);
+          }
+        }
+
+        failedAutoSaveSignatureRef.current = null;
+        setProfileDirty(false);
+        setActivityDirty(false);
+        setProfileDraftSignature("");
+        setActivityDraftSignature("");
+        setWorkspaceError("");
+        setAutoSaveState("idle");
+        setSaved(true);
+        onUnsavedChange?.(false);
+        return true;
+      } finally {
+        setWorkspaceSaving(false);
+      }
+    };
+
+    const savePromise = run();
+    workspaceSavePromiseRef.current = savePromise;
+    try {
+      const savedWorkspace = await savePromise;
+      if (!savedWorkspace && (saveReason === "auto" || saveReason === "tab-change")) {
+        failedAutoSaveSignatureRef.current = failedDraftSignature;
+        setAutoSaveState("failed");
+      }
+      return savedWorkspace;
+    } catch (workspaceSaveError) {
+      const message = workspaceSaveError instanceof Error
+        ? workspaceSaveError.message
+        : t("saveError");
+      setWorkspaceError(message);
+      if (saveReason === "auto" || saveReason === "tab-change") {
+        failedAutoSaveSignatureRef.current = failedDraftSignature;
+        setAutoSaveState("failed");
+      }
+      return false;
+    } finally {
+      if (workspaceSavePromiseRef.current === savePromise) {
+        workspaceSavePromiseRef.current = null;
+      }
+    }
+  }, [
+    activityDirty,
+    loaded,
+    memoryDirty,
+    mountedEmbeddedTabs,
+    onUnsavedChange,
+    profileDirty,
+    saving,
+    t,
+    workspaceDraftSignature,
+  ]);
+
+  const discardAllWorkspaceChanges = useCallback(() => {
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    profileContentRef.current?.cancelChanges();
+    activityContentRef.current?.cancelChanges();
+    restoreAiMemoryDraft();
+    failedAutoSaveSignatureRef.current = null;
+    setProfileDirty(false);
+    setActivityDirty(false);
+    setProfileDraftSignature("");
+    setActivityDraftSignature("");
+    setWorkspaceError("");
+    setAutoSaveState("idle");
+    onUnsavedChange?.(false);
+  }, [onUnsavedChange]);
+
+  const cancelActiveTabChanges = async () => {
+    if (workspaceSaving || voiceTargetRef.current) return;
+    if (activeTab === "profile") {
+      profileContentRef.current?.cancelChanges();
+      setProfileDirty(false);
+      setProfileDraftSignature("");
+    } else if (activeTab === "activity") {
+      activityContentRef.current?.cancelChanges();
+      setActivityDirty(false);
+      setActivityDraftSignature("");
+    } else {
+      restoreAiMemoryDraft();
+    }
+    failedAutoSaveSignatureRef.current = null;
+    setWorkspaceError("");
+    setAutoSaveState("idle");
+  };
+
+  useEffect(() => {
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    if (
+      !hasWorkspaceChanges ||
+      !loaded ||
+      voiceBusy ||
+      saving ||
+      workspaceSaving ||
+      analyzing
+    ) {
+      if (!hasWorkspaceChanges) setAutoSaveState("idle");
+      return;
+    }
+
+    if (failedAutoSaveSignatureRef.current === workspaceDraftSignature) {
+      setAutoSaveState("failed");
+      return;
+    }
+
+    setAutoSaveState("scheduled");
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      autoSaveTimerRef.current = null;
+      void saveWorkspace({ reason: "auto" });
+    }, 1000);
+
+    return () => {
+      if (autoSaveTimerRef.current !== null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    analyzing,
+    hasWorkspaceChanges,
+    loaded,
+    saveWorkspace,
+    saving,
+    voiceBusy,
+    workspaceDraftSignature,
+    workspaceSaving,
+  ]);
+
+  useImperativeHandle(ref, () => ({
+    savePendingChanges: () => saveWorkspace({ reason: "exit" }),
+    discardPendingChanges: discardAllWorkspaceChanges,
+  }), [discardAllWorkspaceChanges, saveWorkspace]);
 
   const resetWorkspace = async () => {
     if (voiceTargetRef.current) return;
@@ -745,6 +1063,17 @@ export default function AiMemoryContent({
       );
       updateMemory(merged.memory);
       updateBusinessKnowledge(merged.businessKnowledge);
+      markWorkspaceDraftUpdated();
+      const analysisSaved = await saveWorkspace({
+        reason: "analysis",
+        aiMemoryDraft: {
+          memory: merged.memory,
+          businessKnowledge: merged.businessKnowledge,
+        },
+      });
+      if (!analysisSaved) {
+        throw new Error(t("saveError"));
+      }
       setAnalysisSummary({
         analyzedAt: String(payload.analyzedAt || new Date().toISOString()),
         changedFields: merged.changedFields,
@@ -832,17 +1161,11 @@ export default function AiMemoryContent({
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
   const activeTabRequiresAiMemory = activeTab !== "profile" && activeTab !== "activity";
   const selectTab = (tab: AiMemoryWorkspaceTab) => {
-    if (voiceTargetRef.current) return;
-    if (tab === "profile" || tab === "activity") {
-      setMountedEmbeddedTabs((current) => {
-        if (current.has(tab)) return current;
-        const next = new Set(current);
-        next.add(tab);
-        return next;
-      });
-    }
-    setActiveTab(tab);
-    onTabChange?.(tab);
+    if (voiceTargetRef.current || tab === activeTab) return;
+    // Le changement d'onglet reste instantané : les modifications partent en
+    // arrière-plan et ne bloquent jamais la navigation du professionnel.
+    if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
+    changeTab(tab);
   };
   const selectTabAt = (index: number) => {
     const next = tabs[index];
@@ -905,6 +1228,7 @@ export default function AiMemoryContent({
       <div
         role="tabpanel"
         data-ai-memory-active-tab={activeTab}
+        aria-busy={workspaceSaving}
         style={tabPanelStyle}
         onTouchStart={(event) => {
             const touch = event.touches[0];
@@ -935,12 +1259,14 @@ export default function AiMemoryContent({
                 style={activeTab === "profile" ? sectionStackStyle : hiddenWorkspaceTabStyle}
               >
                 <ProfilContent
+                  ref={profileContentRef}
                   mode="page"
                   showIntro={false}
+                  showActions={false}
                   workspaceCompact
                   onProfileSaved={onProfileSaved}
                   onProfileReset={onProfileReset}
-                  onUnsavedChange={setProfileDirty}
+                  onUnsavedChange={handleProfileUnsavedChange}
                 />
               </section>
             ) : null}
@@ -952,12 +1278,15 @@ export default function AiMemoryContent({
                 style={activeTab === "activity" ? sectionStackStyle : hiddenWorkspaceTabStyle}
               >
                 <ActivityContent
+                  key={`activity-${activityContentRevision}`}
+                  ref={activityContentRef}
                   mode="page"
                   contentScope="profile-core"
                   showIntro={false}
+                  showActions={false}
                   onActivitySaved={onActivitySaved}
                   onActivityReset={onActivityReset}
-                  onUnsavedChange={setActivityDirty}
+                  onUnsavedChange={handleActivityUnsavedChange}
                 />
               </section>
             ) : null}
@@ -1668,22 +1997,56 @@ export default function AiMemoryContent({
             ) : null}
       </div>
 
+      {workspaceError ? <div style={errorStyle}>{workspaceError}</div> : null}
       {activeTabRequiresAiMemory && error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
+      {autoSaveState === "saving" ? (
+        <div aria-live="polite" style={autoSaveStatusStyle}>{t("saving")}</div>
+      ) : null}
 
       <BusinessDnaAnalysisScheduleModal
         open={analysisScheduleOpen}
         onClose={() => setAnalysisScheduleOpen(false)}
       />
 
-      {!loading && loaded && (
-        (activeTab !== "analysis" && activeTab !== "profile") ||
-        signature !== savedSignatureRef.current
-      ) ? (
-        <div data-ai-memory-actions style={actionsStyle}>
-          <button type="button" disabled={saving || voiceBusy} onClick={() => void resetWorkspace()} style={dangerButtonStyle}>{t("reset")}</button>
-          <button type="button" disabled={saving || voiceBusy || signature === savedSignatureRef.current} onClick={() => void cancelChanges()} style={secondaryButtonStyle}>{t("cancelChanges")}</button>
-          <button type="button" disabled={saving || voiceBusy} aria-busy={saving} onClick={() => void save()} style={{ ...primaryButtonStyle, opacity: saving || voiceBusy ? 0.7 : 1 }}>{saving ? t("saving") : t("save")}</button>
+      {!loading && loaded && hasWorkspaceChanges ? (
+        <div
+          data-ai-memory-actions
+          style={{
+            ...actionsStyle,
+            gridTemplateColumns:
+              activeTabRequiresAiMemory && !profileDirty && !activityDirty
+                ? actionsStyle.gridTemplateColumns
+                : "minmax(135px, 175px) minmax(220px, 310px)",
+          }}
+        >
+          {activeTabRequiresAiMemory && !profileDirty && !activityDirty ? (
+            <button
+              type="button"
+              disabled={saving || voiceBusy || workspaceSaving}
+              onClick={() => void resetWorkspace()}
+              style={dangerButtonStyle}
+            >
+              {t("reset")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+              disabled={saving || voiceBusy || workspaceSaving}
+            onClick={() => void cancelActiveTabChanges()}
+            style={secondaryButtonStyle}
+          >
+            {t("cancelChanges")}
+          </button>
+          <button
+            type="button"
+              disabled={saving || voiceBusy || workspaceSaving}
+            aria-busy={workspaceSaving}
+            onClick={() => void saveWorkspace()}
+            style={{ ...primaryButtonStyle, opacity: workspaceSaving || saving || voiceBusy ? 0.7 : 1 }}
+          >
+            {workspaceSaving || saving ? t("saving") : t("save")}
+          </button>
         </div>
       ) : null}
 
@@ -1942,7 +2305,9 @@ export default function AiMemoryContent({
       `}</style>
     </div>
   );
-}
+});
+
+export default AiMemoryContent;
 
 function SectionHeader({ icon, title, description, trailing }: { icon: string; title: string; description: string; trailing?: ReactNode }) {
   return (
@@ -2167,3 +2532,4 @@ const dangerButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, bord
 const primaryButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, border: "1px solid rgba(196,181,253,0.38)", background: "linear-gradient(100deg, #0ea5e9, #7c3aed 55%, #ec4899)", color: "white", padding: "8px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 950, boxShadow: "0 10px 24px rgba(124,58,237,0.18)" };
 const errorStyle: CSSProperties = { padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(248,113,113,0.30)", background: "rgba(127,29,29,0.18)", color: "#fecaca", fontSize: 13, fontWeight: 800 };
 const successStyle: CSSProperties = { padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(103,232,249,0.28)", background: "rgba(8,145,178,0.14)", color: "#a5f3fc", fontSize: 13, fontWeight: 850 };
+const autoSaveStatusStyle: CSSProperties = { padding: "8px 11px", borderRadius: 10, border: "1px solid rgba(103,232,249,0.20)", background: "rgba(8,145,178,0.08)", color: "rgba(165,243,252,.88)", fontSize: 11, fontWeight: 800, justifySelf: "end" };

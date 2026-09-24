@@ -21,6 +21,11 @@ import {
 } from "@/lib/standardAgentPolicy";
 import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
+import {
+  applyScheduledPublicationMediaSnapshot,
+  getScheduledPublicationMediaWorkspaceId,
+  snapshotScheduledPublicationWorkspace,
+} from "@/lib/scheduledPublicationMediaSnapshot";
 
 export const runtime = "nodejs";
 
@@ -346,12 +351,86 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Programmation de l’action impossible" }, { status: 500 });
   }
 
+  let storedRow = data;
   if (row.action_type === "publication" && row.target_tool === "booster") {
-    const storedScheduledPayload = asRecord(row.payload) || {};
+    const storedScheduledPayload = asRecord(storedRow.payload) || {};
     const publishPayload = asRecord(storedScheduledPayload.publishPayload) || {};
-    const mediaWorkspaceId = String(
-      publishPayload.mediaWorkspaceId || storedScheduledPayload.mediaWorkspaceId || "",
-    ).trim();
+    const sourceMediaWorkspaceId =
+      typeof publishPayload.mediaWorkspaceId === "string" &&
+      publishPayload.mediaWorkspaceId.trim()
+        ? publishPayload.mediaWorkspaceId.trim()
+        : getScheduledPublicationMediaWorkspaceId(storedScheduledPayload);
+    let mediaWorkspaceId = sourceMediaWorkspaceId;
+
+    let createdSnapshotWorkspaceId = "";
+    if (sourceMediaWorkspaceId) {
+      try {
+        const snapshot = await snapshotScheduledPublicationWorkspace({
+          accountId: activeUserId,
+          scheduledActionId: String(storedRow.id || ""),
+          scheduledAt,
+          sourceWorkspaceId: sourceMediaWorkspaceId,
+          selectedChannels: row.channels,
+        });
+        if (snapshot) {
+          createdSnapshotWorkspaceId = snapshot.created ? snapshot.workspaceId : "";
+          mediaWorkspaceId = snapshot.workspaceId;
+          const nextPayload = applyScheduledPublicationMediaSnapshot(
+            storedScheduledPayload,
+            snapshot.workspaceId,
+            sourceMediaWorkspaceId,
+          );
+          const updated = await supabaseAdmin
+            .from("inr_agent_scheduled_actions")
+            .update({ payload: nextPayload })
+            .eq("id", storedRow.id)
+            .eq("user_id", activeUserId)
+            .select(SCHEDULED_ACTION_SELECT)
+            .single();
+          if (updated.error) throw updated.error;
+          storedRow = updated.data;
+        }
+      } catch (snapshotError) {
+        const message =
+          "Programmation annulée : les médias n’ont pas pu être figés de façon fiable.";
+        console.error("[inr-agent-scheduled-actions] media snapshot failed", {
+          scheduledActionId: storedRow.id,
+          workspaceId: sourceMediaWorkspaceId,
+          message:
+            snapshotError instanceof Error
+              ? snapshotError.message
+              : String(snapshotError || "Erreur inconnue"),
+        });
+        // Do not leave a failed row with this idempotency key behind: the
+        // browser retry must be able to create a fresh, complete schedule.
+        // A snapshot created for this private action has no value without its
+        // action payload, so remove it together with the rejected schedule.
+        if (createdSnapshotWorkspaceId) {
+          await supabaseAdmin
+            .from("publication_workspaces")
+            .delete()
+            .eq("id", createdSnapshotWorkspaceId)
+            .eq("account_id", activeUserId);
+        }
+        const cleanup = await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .delete()
+          .eq("id", storedRow.id)
+          .eq("user_id", activeUserId);
+        if (cleanup.error) {
+          console.error("[inr-agent-scheduled-actions] schedule cleanup failed", {
+            scheduledActionId: storedRow.id,
+            message: cleanup.error.message,
+          });
+          await supabaseAdmin
+            .from("inr_agent_scheduled_actions")
+            .update({ status: "failed", last_error: message })
+            .eq("id", storedRow.id)
+            .eq("user_id", activeUserId);
+        }
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
+    }
 
     if (mediaWorkspaceId) {
       await syncPublicationWorkspaceContext({
@@ -376,9 +455,10 @@ export async function POST(request: Request) {
         scheduledFor: scheduledAt,
         status: "scheduled",
         metadata: {
-          scheduledActionId: String(data?.id || "").trim() || null,
+          scheduledActionId: String(storedRow?.id || "").trim() || null,
           scheduleSource: source,
           scheduleTimezone: row.timezone,
+          sourceMediaWorkspaceId: sourceMediaWorkspaceId || null,
         },
       }).catch((workspaceSyncError) => {
         console.warn("[inr-agent-scheduled-actions] workspace schedule sync skipped", {
@@ -393,7 +473,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    scheduledAction: scheduledActionForResponse(data, request.url),
+    scheduledAction: scheduledActionForResponse(storedRow, request.url),
     tableMissing: false,
     idempotent: false,
     ...(scheduleRequestId ? { scheduleRequestId } : {}),

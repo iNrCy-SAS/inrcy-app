@@ -86,9 +86,13 @@ test("media preparation failures stay isolated per channel", () => {
   );
   assert.match(
     imageServerPreparation,
-    /if \(prepared\.length === channelSources\.length\) \{[\s\S]*imagesByChannel\[channel\]/,
+    /prepared\.length !== channelSources\.length/,
   );
+  assert.match(imageServerPreparation, /failuresByChannel\[channel\] = \{/);
+  assert.match(imageServerPreparation, /unavailableRequestedImageKeys/);
   assert.match(route, /setPreflightFailure\(channel/);
+  assert.match(route, /batch image preparation failed; isolating channels/);
+  assert.match(route, /channels:\s*\[channel\]/);
   assert.match(route, /invalidVideoChannels\.forEach/);
   assert.match(route, /const channelPreflightPlan = buildBoosterPublicationDispatchPlan/);
 });

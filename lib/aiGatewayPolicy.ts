@@ -8,6 +8,7 @@ export type AiGenerationFeature =
   | "templates.generate"
   | "agent.campaign"
   | "mails.generate"
+  | "ads.generate"
   | "mails.attachment-image"
   | "mails.attachment-video"
   | "reviews.google"
@@ -142,6 +143,17 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 1,
     defaultOperationMaxReservedOutputTokens: 2200,
+    defaultOperationMaxDurationMs: 60_000,
+  },
+  "ads.generate": {
+    maxOutputTokens: 1800,
+    maxRetries: 1,
+    maxTimeoutMs: 50_000,
+    maxInputChars: 12_000,
+    maxImages: 0,
+    maxImageDataChars: 0,
+    defaultOperationMaxCalls: 1,
+    defaultOperationMaxReservedOutputTokens: 1800,
     defaultOperationMaxDurationMs: 60_000,
   },
   "mails.attachment-image": {

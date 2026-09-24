@@ -27,6 +27,14 @@ const DEFAULT_SECTIONS = {
   cta: true,
 } as const;
 
+// iNr'Search est disponible dès la création d'un compte. Le profil et l'ADN
+// enrichissent ensuite la page, mais ne doivent jamais empêcher le
+// professionnel de l'activer. Cette identité neutre ne sert que pendant ce
+// court intervalle sans information métier exploitable.
+const PROVISIONAL_PAGE_TITLE = "Votre entreprise";
+const PROVISIONAL_PAGE_DESCRIPTION =
+  "Cette page professionnelle est en cours de personnalisation.";
+
 function clean(value: unknown, max = 500) {
   return String(value ?? "").trim().slice(0, max).trim();
 }
@@ -39,6 +47,14 @@ function normalizeSlug(value: unknown) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 120);
+}
+
+function fallbackSlugSeed(activeUserId: string) {
+  const suffix = activeUserId
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(-8)
+    .toLowerCase();
+  return suffix ? `entreprise-${suffix}` : "entreprise";
 }
 
 async function slugAlreadyUsed(slug: string, currentUserId: string) {
@@ -148,23 +164,38 @@ export async function ensureSystemManagedInrSearch(
   const business = asRecord(businessRes.data);
   const root = asRecord(asRecord(configData).settings);
   const current = asRecord(root.inrSearch);
+  const configuredTitle = current.identityProvisional === true
+    ? ""
+    : clean(current.pageTitle, 180);
   const companyName = resolveProfessionalCompanyNameFromProfile(
-    [profile.company_legal_name, profile.company_name],
-  );
+    [
+      profile.company_legal_name,
+      profile.company_name,
+      business.company_legal_name,
+      business.company_name,
+      business.business_name,
+    ],
+    configuredTitle,
+  ) || PROVISIONAL_PAGE_TITLE;
+  const identityProvisional = companyName === PROVISIONAL_PAGE_TITLE;
   const city = clean(profile.hq_city || profile.city, 120);
   const description = clean(sanitizeProfessionalIdentityText(
     business.business_description || business.activity_description,
     companyName,
-  ), 320);
+  ), 320) || (identityProvisional ? PROVISIONAL_PAGE_DESCRIPTION : "");
 
   const preservedSlug = normalizeSlug(current.publishedSlug || current.slug);
-  let slug = preservedSlug || normalizeSlug([companyName, city].filter(Boolean).join("-"));
+  let slug = preservedSlug || normalizeSlug(
+    identityProvisional
+      ? fallbackSlugSeed(activeUserId)
+      : [companyName, city].filter(Boolean).join("-"),
+  );
   if (!preservedSlug && slug && await slugAlreadyUsed(slug, activeUserId)) {
     const suffix = activeUserId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toLowerCase();
     slug = normalizeSlug(`${slug}-${suffix}`);
   }
 
-  const canPublish = Boolean(companyName && slug);
+  const canPublish = Boolean(slug);
   const now = new Date().toISOString();
   // La synchronisation prépare la page, mais ne doit jamais la connecter à la
   // place du professionnel. Les anciennes pages déjà publiées restent actives.
@@ -188,6 +219,7 @@ export async function ensureSystemManagedInrSearch(
     publishedAt: pageEnabled ? clean(current.publishedAt, 80) || now : null,
     pageTitle: companyName,
     pageDescription: description,
+    identityProvisional,
     sections: { ...DEFAULT_SECTIONS },
     systemManaged: true,
     updatedAt: clean(current.updatedAt, 80) || now,
@@ -201,6 +233,7 @@ export async function ensureSystemManagedInrSearch(
     normalizeSlug(current.slug) !== slug ||
     clean(current.pageTitle, 160) !== companyName ||
     clean(current.pageDescription, 320) !== description ||
+    current.identityProvisional !== identityProvisional ||
     !sameSections(current.sections);
 
   if (changed) {

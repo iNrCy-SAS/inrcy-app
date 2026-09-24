@@ -787,6 +787,98 @@
 .campaignButton:hover { transform: translateY(-1px); filter: brightness(1.09); }
 .campaignButton:disabled { cursor: wait; opacity: 0.7; }
 
+.campaignChoicesRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.campaignChoicesRow .campaignChoice {
+  min-height: 86px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.campaignChoicesRow .campaignIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 23px;
+}
+
+.campaignChoicesRow .campaignCopy h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.campaignChoicesRow .campaignCopy p {
+  margin: 3px 0 0;
+  color: rgba(255, 230, 245, 0.73);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.campaignChoicesRow .campaignButton {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
+.campaignChoicesRow .campaignButton svg,
+.lockedToolAction svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.campaignChoicesRow .campaignAdsChoice {
+  border-color: rgba(218, 108, 178, 0.39);
+  background:
+    radial-gradient(100% 120% at 8% 0%, rgba(211, 92, 164, 0.25), transparent 49%),
+    radial-gradient(85% 120% at 100% 100%, rgba(166, 85, 174, 0.16), transparent 58%),
+    linear-gradient(105deg, rgba(68, 40, 95, 0.97), rgba(97, 40, 89, 0.95) 62%, rgba(85, 34, 78, 0.93));
+  box-shadow: 0 17px 40px rgba(0, 0, 0, 0.25), 0 0 24px rgba(197, 78, 142, 0.08), inset 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.campaignChoicesRow .campaignAdsChoice .campaignGlow {
+  background: linear-gradient(105deg, rgba(212, 93, 162, 0.06), transparent 43%, rgba(165, 86, 171, 0.06));
+}
+
+.campaignChoicesRow .campaignAdsChoice .campaignIcon {
+  border-color: rgba(222, 129, 191, 0.42);
+  color: #ffe0f1;
+  background: linear-gradient(145deg, rgba(143, 48, 112, 0.3), rgba(127, 57, 143, 0.23));
+  box-shadow: 0 0 18px rgba(198, 84, 152, 0.12), inset 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.campaignChoicesRow .campaignAdsChoice .campaignCopy p {
+  color: rgba(248, 221, 236, 0.77);
+}
+
+.campaignChoicesRow .campaignAdsChoice .campaignButton {
+  border-color: rgba(232, 147, 198, 0.46);
+  background: linear-gradient(110deg, #7f3b76, #984581 65%, #914789);
+  box-shadow: 0 8px 19px rgba(86, 30, 79, 0.19), inset 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.lockedToolAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.campaignChoicesRow .campaignButton:focus-visible,
+.lockedToolAction:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
 @media (max-width: 1100px) {
   .standardActionStack { min-height: 0; grid-template-rows: minmax(300px, auto) minmax(150px, auto); }
   .premiumPilotPanel { min-height: 0; }
@@ -799,6 +891,10 @@
 
 @media (max-width: 760px) {
   .secondaryToolsRow { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .campaignChoicesRow { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 620px) {

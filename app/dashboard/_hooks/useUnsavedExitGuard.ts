@@ -8,6 +8,12 @@ type UseUnsavedExitGuardOptions = {
   active: boolean;
   shouldBlock: boolean;
   onConfirmExit: () => void | Promise<void>;
+  /**
+   * Optionally resolves a blocked exit before navigation. This is useful for
+   * workspaces that can save their draft automatically instead of forcing the
+   * person to choose between editing and losing data.
+   */
+  onBlockedExit?: () => boolean | Promise<boolean>;
   title?: string;
   message?: string;
   eyebrow?: string;
@@ -30,6 +36,7 @@ export function useUnsavedExitGuard({
   active,
   shouldBlock,
   onConfirmExit,
+  onBlockedExit,
   title = DEFAULT_TITLE,
   message = DEFAULT_MESSAGE,
   eyebrow,
@@ -39,6 +46,7 @@ export function useUnsavedExitGuard({
 }: UseUnsavedExitGuardOptions) {
   const { registerGuard } = useDashboardUnsavedNavigation();
   const onConfirmExitRef = useRef(onConfirmExit);
+  const onBlockedExitRef = useRef(onBlockedExit);
   const shouldBlockRef = useRef(shouldBlock);
   const confirmingRef = useRef(false);
   const guardIdRef = useRef<string>(makeGuardId());
@@ -47,6 +55,10 @@ export function useUnsavedExitGuard({
   useEffect(() => {
     onConfirmExitRef.current = onConfirmExit;
   }, [onConfirmExit]);
+
+  useEffect(() => {
+    onBlockedExitRef.current = onBlockedExit;
+  }, [onBlockedExit]);
 
   useEffect(() => {
     shouldBlockRef.current = shouldBlock;
@@ -61,6 +73,14 @@ export function useUnsavedExitGuard({
     if (confirmingRef.current) return false;
     confirmingRef.current = true;
     try {
+      const resolveBlockedExit = onBlockedExitRef.current;
+      if (resolveBlockedExit) {
+        const canExit = await resolveBlockedExit();
+        if (!canExit) return false;
+        await onConfirmExitRef.current();
+        return true;
+      }
+
       const ok = await confirmInrcy({
         eyebrow,
         title,

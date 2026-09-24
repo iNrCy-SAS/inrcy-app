@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import AiMemoryContent, {
+  type AiMemoryContentHandle,
   type AiMemoryWorkspaceTab,
 } from "../settings/_components/AiMemoryContent";
 import DashboardWorkspaceHeader, {
@@ -17,6 +18,7 @@ import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNa
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
+import { chooseInrcy } from "@/lib/inrcyDialog";
 
 const BUSINESS_DNA_TABS = new Set<AiMemoryWorkspaceTab>([
   "analysis",
@@ -45,11 +47,38 @@ export default function BusinessDnaPage() {
   } = useDashboardCompletionChecks();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const workspaceRef = useRef<AiMemoryContentHandle | null>(null);
 
   useUnsavedExitGuard({
     active: true,
     shouldBlock: hasUnsavedChanges || voiceBusy,
     onConfirmExit: () => router.push("/dashboard"),
+    onBlockedExit: async () => {
+      if (voiceBusy) return false;
+      if (!hasUnsavedChanges) return true;
+
+      const choice = await chooseInrcy({
+        eyebrow: settingsDrawerT("settings"),
+        title: "Des modifications sont en attente",
+        message: "Vos dernières modifications n’ont pas encore été sauvegardées.",
+        choices: [
+          { value: "save", label: "Enregistrer et fermer", tone: "primary" },
+          { value: "continue", label: "Continuer l’édition", tone: "secondary" },
+          { value: "discard", label: "Fermer sans enregistrer", tone: "danger" },
+        ],
+        defaultValue: "save",
+        variant: "warning",
+      });
+
+      if (choice === "save") {
+        return workspaceRef.current?.savePendingChanges() ?? false;
+      }
+      if (choice === "discard") {
+        workspaceRef.current?.discardPendingChanges();
+        return true;
+      }
+      return false;
+    },
     eyebrow: settingsDrawerT("settings"),
     title: settingsDrawerT("exitWithoutSavingTitle"),
     message: settingsDrawerT("exitWithoutSavingMessage"),
@@ -117,6 +146,7 @@ export default function BusinessDnaPage() {
 
       <section style={dashboardWorkspaceContentStyle}>
         <AiMemoryContent
+          ref={workspaceRef}
           edition={edition}
           initialTab={initialTab}
           profileLabel={copy.userMenu.profile}

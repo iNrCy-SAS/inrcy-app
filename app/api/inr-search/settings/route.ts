@@ -64,7 +64,10 @@ async function applyAction(request: Request) {
     const provisioned = await ensureSystemManagedInrSearch(supabase, activeUserId);
     const current = provisioned.inrSearch as Record<string, unknown>;
     const slug = typeof current.slug === "string" ? current.slug : "";
-    if (!slug) throw new Error("La page iNr'Search ne peut pas encore être connectée : le profil est incomplet.");
+    // Une page provisoire reçoit systématiquement un slug dès l'ouverture du
+    // compte. Ce garde-fou ne concerne donc plus le profil : il ne peut être
+    // atteint qu'en cas de souci technique de provisionnement.
+    if (!slug) throw new Error("La page iNr'Search n'a pas pu être initialisée. Réessayez dans un instant.");
 
     if (action === "connect") {
       const eligibility = await getInrSearchPublicationEligibility(activeUserId);

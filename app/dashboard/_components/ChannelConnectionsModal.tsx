@@ -131,7 +131,10 @@ export default function ChannelConnectionsModal({
           {items.map((item) => {
             const connected = item.bubbleStatus === "connected";
             const force = DASHBOARD_CHANNEL_FORCE_BY_KEY[item.key as keyof typeof DASHBOARD_CHANNEL_FORCE_BY_KEY] ?? 0;
-            const usesBusinessEssentials = item.key === "inrbadge" || item.key === "inr_search";
+            // iNr'Badge needs the business essentials to be generated. iNr'Search
+            // deliberately does not: it can be connected immediately and its
+            // page is enriched progressively by the profile and iNr'ADN.
+            const usesBusinessEssentials = item.key === "inrbadge";
             const isCreated = (usesBusinessEssentials && businessEssentialsReady) || Boolean(
               item.createHref && (connected || item.bubbleStatus === "reconnect"),
             );

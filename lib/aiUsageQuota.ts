@@ -9,7 +9,7 @@ import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 import { ADMIN_USER_IDS } from "@/lib/roles";
 import type { MailAttachmentRef } from "@/lib/mailAttachmentRefs";
 
-type AiQuotaAction = "booster" | "template" | "mail" | "review_reply" | "agent_stats" | "agent_publish" | "transcription";
+type AiQuotaAction = "booster" | "template" | "mail" | "ads" | "review_reply" | "agent_stats" | "agent_publish" | "transcription";
 
 export type InrAgentQuotaHorizonDays = 7 | 15 | 30;
 

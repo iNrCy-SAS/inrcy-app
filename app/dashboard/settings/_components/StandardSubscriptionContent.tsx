@@ -48,6 +48,7 @@ const SUBSCRIPTION_SELECT =
 const premiumFeatures = [
   "iNr’Agent complet avec Propulser et Fidéliser",
   "iNr’Send complet et campagnes mails",
+  "Campagnes ADS Multiplateformes",
   "iNr’CRM et gestion commerciale",
   "Agenda et suivi des rendez-vous",
   "Propulser et Fidéliser",

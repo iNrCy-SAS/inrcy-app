@@ -23,6 +23,12 @@ import {
   publicationSettingsForInrAgentChannel,
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
+import {
+  applyScheduledPublicationMediaSnapshot,
+  getScheduledPublicationMediaWorkspaceId,
+  hasScheduledPublicationMediaSnapshot,
+  snapshotScheduledPublicationWorkspace,
+} from "@/lib/scheduledPublicationMediaSnapshot";
 import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
 
 export const runtime = "nodejs";
@@ -252,6 +258,144 @@ function isMissingEditorialConfirmationRpc(
     error?.code === "42883" ||
     message.includes("inrcy_confirm_editorial_publication_schedule")
   );
+}
+
+type ScheduledPublicationSnapshotRow = {
+  id?: unknown;
+  scheduled_at?: unknown;
+  channels?: unknown;
+  payload?: unknown;
+  [key: string]: unknown;
+};
+
+type ScheduledPublicationSnapshotResult = {
+  rows: ScheduledPublicationSnapshotRow[];
+  createdWorkspaceIds: string[];
+};
+
+async function cleanupScheduledPublicationSnapshotWorkspaces(params: {
+  accountId: string;
+  workspaceIds: string[];
+}) {
+  for (const workspaceId of params.workspaceIds) {
+    try {
+      await supabaseAdmin
+        .from("publication_workspaces")
+        .delete()
+        .eq("id", workspaceId)
+        .eq("account_id", params.accountId);
+    } catch (cleanupError) {
+      console.error("[inr-agent] scheduled media snapshot cleanup failed", {
+        workspaceId,
+        message:
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError || "Erreur inconnue"),
+      });
+    }
+  }
+}
+
+/**
+ * This endpoint has its own multi-row scheduling flow and therefore bypasses
+ * `/api/agent/scheduled-actions`. Freeze each publication row here as well:
+ * one date/channel group must never keep referring to an editable workspace.
+ */
+async function snapshotAgentScheduledPublicationRows(params: {
+  accountId: string;
+  rows: ScheduledPublicationSnapshotRow[];
+}): Promise<ScheduledPublicationSnapshotResult> {
+  const createdWorkspaceIds: string[] = [];
+  const snapshottedRows: ScheduledPublicationSnapshotRow[] = [];
+
+  try {
+    for (const row of params.rows) {
+      const payload = asRecord(row.payload) || {};
+      const sourceWorkspaceId = getScheduledPublicationMediaWorkspaceId(payload);
+      if (!sourceWorkspaceId || hasScheduledPublicationMediaSnapshot(payload)) {
+        snapshottedRows.push(row);
+        continue;
+      }
+
+      const scheduledActionId = cleanText(row.id, 120);
+      const scheduledAt = cleanText(row.scheduled_at, 80);
+      if (!scheduledActionId || !scheduledAt) {
+        throw new Error("scheduled_publication_snapshot_identity_missing");
+      }
+
+      const selectedChannels = Array.isArray(row.channels)
+        ? row.channels.map((channel) => cleanText(channel, 40)).filter(Boolean)
+        : [];
+      const snapshot = await snapshotScheduledPublicationWorkspace({
+        accountId: params.accountId,
+        scheduledActionId,
+        scheduledAt,
+        sourceWorkspaceId,
+        selectedChannels,
+      });
+      if (!snapshot) {
+        throw new Error("scheduled_publication_snapshot_unavailable");
+      }
+      // Register ownership before updating the scheduled payload: if that
+      // update fails, the catch below must still remove this private copy.
+      if (snapshot.created) createdWorkspaceIds.push(snapshot.workspaceId);
+
+      const updated = await supabaseAdmin
+        .from("inr_agent_scheduled_actions")
+        .update({
+          payload: applyScheduledPublicationMediaSnapshot(
+            payload,
+            snapshot.workspaceId,
+            sourceWorkspaceId,
+          ),
+        })
+        .eq("id", scheduledActionId)
+        .eq("user_id", params.accountId)
+        .select(SCHEDULED_ACTION_SELECT)
+        .single();
+      if (updated.error || !updated.data) {
+        throw updated.error || new Error("scheduled_publication_snapshot_update_failed");
+      }
+
+      snapshottedRows.push(updated.data as ScheduledPublicationSnapshotRow);
+    }
+    return { rows: snapshottedRows, createdWorkspaceIds };
+  } catch (error) {
+    // Snapshots created in this attempt belong only to rows that will be
+    // cancelled by the caller. Remove them so a retry starts cleanly.
+    await cleanupScheduledPublicationSnapshotWorkspaces({
+      accountId: params.accountId,
+      workspaceIds: createdWorkspaceIds,
+    });
+    throw error;
+  }
+}
+
+async function cancelScheduledPublicationRowsAfterSnapshotFailure(params: {
+  accountId: string;
+  rows: ScheduledPublicationSnapshotRow[];
+  message: string;
+}) {
+  const ids = params.rows
+    .map((row) => cleanText(row.id, 120))
+    .filter(Boolean);
+  if (!ids.length) return;
+  const { error } = await supabaseAdmin
+    .from("inr_agent_scheduled_actions")
+    .update({
+      status: "cancelled",
+      last_error: params.message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", params.accountId)
+    .in("id", ids)
+    .eq("status", "scheduled");
+  if (error) {
+    console.error("[inr-agent] scheduled media snapshot cancellation failed", {
+      message: error.message,
+      scheduledActionIds: ids,
+    });
+  }
 }
 
 function cleanHashtags(value: unknown) {
@@ -820,6 +964,17 @@ async function buildScheduledPayload(
     action.targetTool === "booster" &&
     action.actionType === "publication"
   ) {
+    // Preserve the workspace identity when the action was prepared from the
+    // unified media pipeline. It is replaced by a private snapshot immediately
+    // after this endpoint creates each scheduled row.
+    const sourceMediaWorkspaceId = getScheduledPublicationMediaWorkspaceId(payload);
+    const sourceMediaWorkspaceClientKey = cleanText(
+      payload.mediaWorkspaceClientKey || nestedPublishPayload.mediaWorkspaceClientKey,
+      180,
+    );
+    const sourceMediaPipelineCutoverV1 =
+      payload.mediaPipelineCutoverV1 === true ||
+      nestedPublishPayload.mediaPipelineCutoverV1 === true;
     const selectedChannels = normalizeBoosterChannels(
       payload.selectedChannels || payload.channels || action.targetChannels,
     );
@@ -950,7 +1105,12 @@ async function buildScheduledPayload(
             images: imagePayloads,
             automaticFit: "contain",
           })
-        : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
+        : {
+            imagesByChannel: {},
+            imageSettingsByChannel: {},
+            warnings: [],
+            failuresByChannel: {},
+          };
     return {
       actionType: "publication" as const,
       targetTool: "booster" as const,
@@ -961,6 +1121,15 @@ async function buildScheduledPayload(
         publishPayload: {
           channels: publishChannels,
           autoDisabledChannels,
+          ...(sourceMediaWorkspaceId
+            ? { mediaWorkspaceId: sourceMediaWorkspaceId }
+            : {}),
+          ...(sourceMediaWorkspaceClientKey
+            ? { mediaWorkspaceClientKey: sourceMediaWorkspaceClientKey }
+            : {}),
+          ...(sourceMediaPipelineCutoverV1
+            ? { mediaPipelineCutoverV1: true }
+            : {}),
           post: firstPost,
           postByChannel: normalizedPostByChannel,
           idea: cleanText(payload.idea || action.summary, 500),
@@ -1472,7 +1641,57 @@ async function scheduleAgentActionHandler(request: Request) {
           atomicActionRow &&
           atomicScheduledRows.length
         ) {
-          const scheduledActions = atomicScheduledRows.map((row) =>
+          let snapshottedRows = atomicScheduledRows;
+          const snapshotFailureMessage =
+            "Programmation annulée : les médias n’ont pas pu être figés de façon fiable.";
+          try {
+            const snapshotResult = await snapshotAgentScheduledPublicationRows({
+              accountId: activeUserId,
+              rows: atomicScheduledRows,
+            });
+            snapshottedRows = snapshotResult.rows as JsonRecord[];
+          } catch (snapshotError) {
+            console.error(
+              "[inr-agent] editorial scheduled publication media snapshot failed",
+              {
+                actionId: action.id,
+                scheduledActionIds: atomicScheduledRows.map((row) => row.id),
+                message:
+                  snapshotError instanceof Error
+                    ? snapshotError.message
+                    : String(snapshotError || "Erreur inconnue"),
+              },
+            );
+            await cancelScheduledPublicationRowsAfterSnapshotFailure({
+              accountId: activeUserId,
+              rows: atomicScheduledRows,
+              message: snapshotFailureMessage,
+            });
+            // The RPC has already moved the editorial action to `scheduled`.
+            // Compensate that transition so the professional can validate it
+            // again after the infrastructure issue is resolved.
+            const { error: releaseError } = await supabaseAdmin
+              .from("inr_agent_actions")
+              .update({
+                status: "pending_validation",
+                validated_at: null,
+                last_error: snapshotFailureMessage,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", action.id)
+              .eq("user_id", activeUserId)
+              .eq("status", "scheduled")
+              .contains("metadata", { editorialPlan: true });
+            if (releaseError) {
+              console.error(
+                "[inr-agent] editorial snapshot failure release failed",
+                releaseError,
+              );
+            }
+            return NextResponse.json({ error: snapshotFailureMessage }, { status: 500 });
+          }
+
+          const scheduledActions = snapshottedRows.map((row) =>
             rowToInrAgentScheduledAction(row as any),
           );
           return NextResponse.json({
@@ -1664,7 +1883,7 @@ async function scheduleAgentActionHandler(request: Request) {
       );
     }
 
-    const createdScheduledRows = Array.isArray(scheduledRows)
+    let createdScheduledRows = Array.isArray(scheduledRows)
       ? scheduledRows
       : [];
     if (!createdScheduledRows.length) {
@@ -1674,6 +1893,37 @@ async function scheduleAgentActionHandler(request: Request) {
         { status: 500 },
       );
     }
+
+    let createdSnapshotWorkspaceIds: string[] = [];
+    if (scheduledPayload.actionType === "publication") {
+      const snapshotFailureMessage =
+        "Programmation annulée : les médias n’ont pas pu être figés de façon fiable.";
+      try {
+        const snapshotResult = await snapshotAgentScheduledPublicationRows({
+          accountId: activeUserId,
+          rows: createdScheduledRows as ScheduledPublicationSnapshotRow[],
+        });
+        createdScheduledRows = snapshotResult.rows as typeof createdScheduledRows;
+        createdSnapshotWorkspaceIds = snapshotResult.createdWorkspaceIds;
+      } catch (snapshotError) {
+        console.error("[inr-agent] scheduled publication media snapshot failed", {
+          actionId: action.id,
+          scheduledActionIds: createdScheduledRows.map((row) => row.id),
+          message:
+            snapshotError instanceof Error
+              ? snapshotError.message
+              : String(snapshotError || "Erreur inconnue"),
+        });
+        await cancelScheduledPublicationRowsAfterSnapshotFailure({
+          accountId: activeUserId,
+          rows: createdScheduledRows as ScheduledPublicationSnapshotRow[],
+          message: snapshotFailureMessage,
+        });
+        await releaseScheduleClaims();
+        return NextResponse.json({ error: snapshotFailureMessage }, { status: 500 });
+      }
+    }
+
     const now = new Date().toISOString();
     const scheduledFor = [...createdScheduledRows]
       .map((row) => String(row.scheduled_at || ""))
@@ -1747,6 +1997,10 @@ async function scheduleAgentActionHandler(request: Request) {
           );
         }
       }
+      await cleanupScheduledPublicationSnapshotWorkspaces({
+        accountId: activeUserId,
+        workspaceIds: createdSnapshotWorkspaceIds,
+      });
       await releaseScheduleClaims();
       return NextResponse.json(
         {

@@ -8,6 +8,7 @@ import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
 import HelpButton from "./HelpButton";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
+import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 import DashboardModulesCard from "./DashboardModulesCard";
 import DashboardStandardModulesCard from "./DashboardStandardModulesCard";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
@@ -482,7 +483,9 @@ export default function DashboardChannelsSection({
                     }}
                     aria-pressed={isActive}
                   >
-                    {tone === "warning" ? (
+                    {item.premiumLocked ? (
+                      <DashboardPremiumLockIcon className={styles.channelPillPremiumLock} />
+                    ) : tone === "warning" ? (
                       <WarningTriangle className={styles.channelPillWarningIcon} />
                     ) : (
                       <span className={styles.channelPillDot} aria-hidden />
@@ -710,6 +713,7 @@ export default function DashboardChannelsSection({
         {standardMode ? (
           <DashboardStandardModulesCard
             goToModule={goToModule}
+            onOpenPremium={() => openPanel("abonnement")}
             onOpenStats={onOpenStats}
             onOpenBoosterPublish={onOpenBoosterPublish}
             onOpenBoosterStats={onOpenBoosterStats}

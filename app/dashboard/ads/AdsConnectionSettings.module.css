@@ -1,0 +1,291 @@
+:global([data-dashboard-settings-modal=true]):has(.content) {
+  background:
+    radial-gradient(ellipse at 4% 0, rgba(24, 119, 242, .16), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(126, 58, 237, .13), transparent 52%),
+    #0b1225 !important;
+}
+
+.content {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(18px, 3vh, 36px) clamp(14px, 2.3vw, 42px);
+  align-content: start;
+  grid-template-rows: none;
+  gap: clamp(12px, 1.5vh, 18px);
+  color: #f8faff;
+}
+
+.meta {
+  --channel-rgb: 24, 119, 242;
+  --channel-secondary-rgb: 168, 85, 247;
+}
+
+.google {
+  --channel-rgb: 66, 133, 244;
+  --channel-secondary-rgb: 251, 188, 5;
+}
+
+.step {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  border-color: rgba(var(--channel-rgb), .52);
+  background:
+    radial-gradient(circle at 100% 0, rgba(var(--channel-secondary-rgb), .22), transparent 42%),
+    linear-gradient(115deg, rgba(19, 46, 88, .98), rgba(31, 40, 82, .98) 54%, rgba(53, 37, 83, .98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 14px 38px rgba(2, 6, 23, .22);
+}
+
+.content .stepHeader {
+  border-bottom-color: rgba(var(--channel-rgb), .34);
+  background: linear-gradient(100deg, rgba(var(--channel-rgb), .25), rgba(var(--channel-secondary-rgb), .14));
+}
+
+.content .stepBody {
+  background: linear-gradient(100deg, rgba(10, 24, 52, .3), rgba(20, 22, 53, .18));
+}
+
+.step[hidden] {
+  display: none;
+}
+
+.stepBody {
+  gap: 9px;
+}
+
+.controlRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.controlRow input {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--channel-rgb), .5) !important;
+  background: rgba(16, 33, 65, .96) !important;
+  color: #fff;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 13px;
+}
+
+.action,
+.done,
+.previous {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 17px;
+  border: 1px solid rgba(var(--channel-rgb), .5);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(115deg, rgba(var(--channel-rgb), .8), rgba(var(--channel-secondary-rgb), .7));
+  box-shadow: 0 7px 20px rgba(var(--channel-rgb), .18), inset 0 1px rgba(255, 255, 255, .18);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.field {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  color: #e3eaff;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.controlRow .field {
+  width: auto;
+  flex: 1 1 360px;
+}
+
+.field select {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(var(--channel-rgb), .54) !important;
+  border-radius: 12px;
+  background: rgba(16, 33, 65, .98) !important;
+  color: #fff;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 14px;
+}
+
+.field select:disabled {
+  opacity: .76;
+  cursor: not-allowed;
+}
+
+.field select option {
+  color: #14213a;
+  background: #fff;
+}
+
+.detail {
+  margin: 0;
+  color: #d3def3;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid rgba(var(--channel-rgb), .4);
+  border-radius: 999px;
+  color: #ddebff;
+  background: rgba(var(--channel-rgb), .13);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.refresh:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 44px;
+  padding: 4px 1px 0;
+}
+
+.previous {
+  color: #dae7ff;
+  background: rgba(var(--channel-rgb), .12);
+  box-shadow: none;
+}
+
+.previous:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.done:disabled {
+  opacity: .45;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.progress {
+  color: #afbdd5;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.action:focus-visible,
+.done:focus-visible,
+.previous:focus-visible,
+.refresh:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid rgb(var(--channel-secondary-rgb));
+  outline-offset: 3px;
+}
+
+.content[data-compact] {
+  gap: 12px;
+  min-height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 5px 0 0;
+}
+
+.content[data-compact] .step {
+  display: block;
+  min-height: 0;
+}
+
+.content[data-compact] .step[hidden] {
+  display: none;
+}
+
+.content[data-compact] .stepHeader,
+.content[data-compact] .stepBody {
+  padding: 13px;
+}
+
+.content[data-compact] .footer {
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 0;
+}
+
+.content[data-compact] .footer :is(.previous, .done) {
+  min-height: 38px;
+  padding: 8px 13px;
+  font-size: 11px;
+}
+
+@media (max-width: 620px) {
+  .content[data-compact] .controlRow input,
+  .content[data-compact] .controlRow .action {
+    width: 100% !important;
+    flex: 1 1 100%;
+  }
+
+  .content[data-compact] .controlRow .field {
+    flex-basis: 100%;
+  }
+
+  .content[data-compact] .refresh {
+    width: 100% !important;
+  }
+}
+
+@media (max-height: 600px) and (max-width: 999px) {
+  .content[data-compact] {
+    gap: 8px;
+    padding: 0;
+  }
+
+  .content[data-compact] .stepHeader,
+  .content[data-compact] .stepBody {
+    padding: 10px 12px;
+  }
+
+  .content[data-compact] .stepCopy > div:nth-child(2) {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .content[data-compact] .field select,
+  .content[data-compact] .controlRow input {
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  .content[data-compact] .detail {
+    font-size: 10px;
+    line-height: 1.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content :is(button, a, input, select) {
+    transition: none !important;
+  }
+}

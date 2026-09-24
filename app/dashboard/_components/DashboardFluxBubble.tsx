@@ -8,6 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
 import DashboardActionButton from "./DashboardActionButton";
+import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 import type { ModuleAction, ModuleStatus } from "../dashboard.types";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 
@@ -43,6 +44,8 @@ export type DashboardFluxBubbleData = {
   configureLabel?: string;
   viewFallbackLabel?: string;
   emphasizeDisabledReason?: boolean;
+  premiumLocked?: boolean;
+  premiumLabel?: string;
 };
 
 type Props = {
@@ -144,6 +147,32 @@ export default function DashboardFluxBubble({ item, itemKey }: Props) {
         <div className={bubbleStyles.tagline} title={item.description}>{item.description}</div>
 
         <div className={bubbleStyles.actions}>
+          {item.premiumLocked ? (
+            <button
+              className={`${bubbleStyles.action} ${bubbleStyles.actionMain}`}
+              type="button"
+              onClick={() => {
+                if (!beginAction(configureActionKey)) return;
+                item.onConfigure();
+              }}
+              disabled={configureLoadingVisible}
+              aria-busy={configureLoadingVisible || undefined}
+              title={item.configureTitle}
+              aria-label={`${item.name} — ${item.premiumLabel || "Premium"}`}
+            >
+              {configureLoadingVisible ? (
+                i18nT("chargement_01cba1df")
+              ) : (
+                <>
+                  <DashboardPremiumLockIcon className={bubbleStyles.actionPremiumLock} />
+                  {item.premiumLabel || "Premium"}
+                </>
+              )}
+            </button>
+          ) : null}
+
+          {!item.premiumLocked ? (
+            <>
           {showCreateAction ? (
             item.createHref ? (
               <a
@@ -215,6 +244,8 @@ export default function DashboardFluxBubble({ item, itemKey }: Props) {
           >
             {configureLoadingVisible ? i18nT("chargement_01cba1df") : item.configureLabel || i18nT("configurer_382efbe9")}
           </button>
+            </>
+          ) : null}
         </div>
       </div>
     </article>

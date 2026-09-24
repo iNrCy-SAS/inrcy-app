@@ -19,13 +19,14 @@ function splitMessage(message: string): string[] {
 function getDialogCopy(dialog: DialogState, i18nT: (_key: string) => string) {
   const isPrompt = dialog.type === "prompt";
   const isAlert = dialog.type === "alert";
+  const isChoice = dialog.type === "choice";
   const variant = dialog.options.variant || "warning";
 
   return {
     eyebrow: dialog.options.eyebrow || (variant === "danger" ? i18nT("action_sensible_d1f29317") : i18nT("confirmation_3424edc2")),
     title: dialog.options.title || (isPrompt ? i18nT("saisir_une_information_41c060f6") : i18nT("confirmer_l_action_d1682c9c")),
-    confirmLabel: dialog.options.confirmLabel || (isPrompt ? i18nT("valider_be4220f7") : isAlert ? i18nT("continuer_129ffff9") : variant === "danger" ? i18nT("confirmer_80a664c8") : i18nT("continuer_129ffff9")),
-    cancelLabel: dialog.options.cancelLabel || i18nT("annuler_49ba3292"),
+    confirmLabel: (!isChoice ? dialog.options.confirmLabel : undefined) || (isPrompt ? i18nT("valider_be4220f7") : isAlert ? i18nT("continuer_129ffff9") : variant === "danger" ? i18nT("confirmer_80a664c8") : i18nT("continuer_129ffff9")),
+    cancelLabel: (!isChoice ? dialog.options.cancelLabel : undefined) || i18nT("annuler_49ba3292"),
     variant,
   };
 }
@@ -86,7 +87,13 @@ export default function InrcyDialogProvider() {
         event.preventDefault();
         finish(null);
       }
-      if (event.key === "Enter" && dialog.type !== "prompt") {
+      if (event.key === "Enter" && dialog.type === "choice") {
+        const defaultValue = dialog.options.defaultValue;
+        if (!defaultValue) return;
+        event.preventDefault();
+        finish(defaultValue);
+      }
+      if (event.key === "Enter" && dialog.type !== "prompt" && dialog.type !== "choice") {
         event.preventDefault();
         finish(true);
       }
@@ -120,6 +127,8 @@ export default function InrcyDialogProvider() {
         current.resolve(Boolean(value));
       } else if (current.type === "alert") {
         current.resolve();
+      } else if (current.type === "choice") {
+        current.resolve(typeof value === "string" ? value : null);
       } else {
         current.resolve(typeof value === "string" ? value : null);
       }
@@ -208,6 +217,28 @@ export default function InrcyDialogProvider() {
         ) : null}
 
         <div style={actionsStyle}>
+          {dialog.type === "choice" ? (
+            dialog.options.choices.map((choice) => {
+              const isDangerChoice = choice.tone === "danger";
+              const isPrimaryChoice = choice.tone === "primary";
+              return (
+                <button
+                  key={choice.value}
+                  type="button"
+                  className={isPrimaryChoice ? styles.primaryBtn : styles.secondaryBtn}
+                  style={{
+                    ...buttonStyle,
+                    ...(isDangerChoice ? dangerButtonStyle : null),
+                    ...(choice.tone === "secondary" || !choice.tone ? choiceButtonStyle : null),
+                  }}
+                  onClick={() => finish(choice.value)}
+                >
+                  {choice.label}
+                </button>
+              );
+            })
+          ) : (
+            <>
           {dialog.type !== "alert" ? (
             <button type="button" className={styles.secondaryBtn} style={buttonStyle} onClick={() => finish(null)}>
               {copy.cancelLabel}
@@ -221,6 +252,8 @@ export default function InrcyDialogProvider() {
           >
             {copy.confirmLabel}
           </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -449,4 +482,9 @@ const buttonStyle: CSSProperties = {
 const dangerButtonStyle: CSSProperties = {
   borderColor: "rgba(248, 113, 113, 0.36)",
   background: "linear-gradient(90deg, rgba(248, 113, 113, 0.20), rgba(244, 114, 182, 0.16))",
+};
+
+const choiceButtonStyle: CSSProperties = {
+  borderColor: "rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.06)",
 };

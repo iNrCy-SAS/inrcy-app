@@ -223,7 +223,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       : {
           status: "coming" as ModuleStatus,
           text: mailPremiumLocked
-            ? copy.status.premiumPlan
+            ? copy.status.disabled
             : m.key === "site_inrcy"
               ? copy.status.notSubscribed
               : copy.status.disabled,
@@ -285,11 +285,17 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
                         ? Boolean(inrSearchConnected && inrSearchUrl)
                         : undefined;
 
-    const configureDestination = m.key === "inr_agent"
+    const configureDestination = mailPremiumLocked
+      ? ({ kind: "panel", value: "abonnement" } as const)
+      : m.key === "inr_agent"
       ? ({ kind: "path", value: "/dashboard/agent" } as const)
       : ({ kind: "panel", value: m.key } as const);
 
     const onConfigure = () => {
+      if (mailPremiumLocked) {
+        openPanel("abonnement");
+        return;
+      }
       if (!accessEnabled) return;
       if (m.key === "site_inrcy") {
         if (!canConfigureSite) return;
@@ -384,6 +390,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         : copy.bubble.configure,
       viewFallbackLabel: copy.bubble.viewFallback,
       emphasizeDisabledReason: !displayAccessEnabled && (mailPremiumLocked || m.key === "site_inrcy"),
+      premiumLocked: mailPremiumLocked,
+      premiumLabel: copy.modules.campaignsPremiumLabel,
     };
   });
 }

@@ -15,6 +15,7 @@ const FOUNDER_PLAN_VALUES = new Set([
 ]);
 
 const STANDARD_BLOCKED_DASHBOARD_PREFIXES = [
+  "/dashboard/ads",
   "/dashboard/agenda",
   "/dashboard/crm",
   "/dashboard/devis",
@@ -43,6 +44,7 @@ const FOUNDER_ONLY_API_PREFIXES = [
 ] as const;
 
 const STANDARD_BLOCKED_API_PREFIXES = [
+  "/api/ads",
   "/api/calendar",
   "/api/crm",
   "/api/documents",

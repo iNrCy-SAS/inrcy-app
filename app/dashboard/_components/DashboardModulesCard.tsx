@@ -16,6 +16,7 @@ import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import standardStyles from "./DashboardStandardModulesCard.module.css";
+import DashboardCampaignChoices from "./DashboardCampaignChoices";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -399,24 +400,18 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               </button>
             </section>
 
-            <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.campaignPanel}`}>
-              <span className={standardStyles.campaignGlow} aria-hidden="true" />
-              <span className={standardStyles.campaignIcon} aria-hidden="true">◎</span>
-              <div className={standardStyles.campaignCopy}>
-                <span>{t.modules.campaignsTitle}</span>
-                <h3>{t.modules.campaignsSub}</h3>
-              </div>
-              <button
-                type="button"
-                className={standardStyles.campaignButton}
-                data-testid="premium-campaign-open"
-                onClick={openCampaignModal}
-                disabled={isVisible("modal:campaigns")}
-                aria-busy={isVisible("modal:campaigns") || undefined}
-              >
-                {isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta} <ArrowIcon />
-              </button>
-            </section>
+            <DashboardCampaignChoices
+              mailTitle={t.modules.mailCampaignTitle}
+              mailDescription={t.modules.campaignsSub}
+              adsTitle={t.modules.adsCampaignTitle}
+              adsDescription={t.modules.adsCampaignSub}
+              actionLabel={t.modules.campaignsCta}
+              premiumLabel={t.modules.campaignsPremiumLabel}
+              mailBusy={isVisible("modal:campaigns")}
+              adsBusy={isModuleLoadingVisible("/dashboard/ads")}
+              onOpenMails={openCampaignModal}
+              onOpenAds={() => startModuleNavigation("/dashboard/ads")}
+            />
 
             <div className={standardStyles.secondaryToolsRow} data-dashboard-premium-secondary-tools="true">
               <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>

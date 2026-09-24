@@ -7013,6 +7013,18 @@
   filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.5));
 }
 
+.channelPillPremiumLock {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: rgba(226, 232, 240, 0.92);
+}
+
 .mobileChannelSummary {
   display: none;
   align-items: center;

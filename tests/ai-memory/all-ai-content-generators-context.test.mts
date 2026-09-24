@@ -34,6 +34,7 @@ function aiGenerateJsonCallsByFile() {
 }
 
 const USER_CONTENT_CALLS = new Map<string, number>([
+  ["app/api/ads/generate/route.ts", 1],
   ["app/api/agent/actions/send-stats-report/route.ts", 1],
   ["app/api/e-reputation/google/generate-reply/route.ts", 1],
   ["app/api/mails/generate-ai/route.ts", 1],

@@ -154,6 +154,7 @@ const optionalButRecommended = [
   // Integrations / OAuth
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_ADS_REDIRECT_URI",
   "GOOGLE_REDIRECT_URI",
   "GOOGLE_GMB_REDIRECT_URI",
   "GOOGLE_STATS_REDIRECT_URI",

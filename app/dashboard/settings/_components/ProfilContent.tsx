@@ -30,7 +30,7 @@ type Props = {
   onProfileSaved?: () => unknown | Promise<unknown>;
   onProfileReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
-  onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  onUnsavedChange?: (hasUnsavedChanges: boolean, draftSignature?: string) => void;
   showIntro?: boolean;
   showActions?: boolean;
   workspaceCompact?: boolean;
@@ -40,6 +40,7 @@ export type ProfilContentHandle = {
   isReady: () => boolean;
   save: () => Promise<boolean>;
   reset: (options?: { confirm?: boolean }) => Promise<boolean>;
+  cancelChanges: () => void;
 };
 
 type ProfileForm = {
@@ -168,7 +169,8 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
 
   useEffect(() => {
     if (loading || !baselineRef.current) return;
-    onUnsavedChange?.(profileSnapshot(form) !== baselineRef.current);
+    const snapshot = profileSnapshot(form);
+    onUnsavedChange?.(snapshot !== baselineRef.current, snapshot);
   }, [form, loading, onUnsavedChange]);
 
   const update = <K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) => {
@@ -414,6 +416,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     isReady: () => !loading && !saving,
     save: handleSave,
     reset: handleReset,
+    cancelChanges: handleCancelChanges,
   }));
 
   const fieldStyle = (key: keyof ProfileForm): React.CSSProperties => ({
