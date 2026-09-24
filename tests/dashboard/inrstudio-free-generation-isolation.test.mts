@@ -73,7 +73,7 @@ test("un changement de compte invalide aussi les formulaires Libre masqués", ()
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
   const accountReset = modal.slice(modal.indexOf("const resetGenerationSession"), modal.indexOf("const handleResultChange"));
   assert.match(accountReset, /setGenerationSession\(\(value\) => value \+ 1\)/);
-  assert.match(accountReset, /setVisitedFreeTypes\(\[\]\)/);
+  assert.match(accountReset, /setVisitedFreeTypes\(\[initialFreeMediaType\]\)/);
   assert.match(accountReset, /ACTIVE_INRCY_ACCOUNT_EVENT/);
   assert.match(modal, /<div key=\{generationSession\}/);
   const localReset = source.slice(source.indexOf("const clearAccountState"), source.indexOf("const resetConsent"));

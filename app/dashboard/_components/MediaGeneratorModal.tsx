@@ -101,9 +101,10 @@ export default function MediaGeneratorModal({
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
-  const [creationMode, setCreationMode] = useState<StudioCreationMode>("guided");
-  const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>("image");
-  const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([]);
+  const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
+  const [creationMode, setCreationMode] = useState<StudioCreationMode>("free");
+  const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>(initialFreeMediaType);
+  const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([initialFreeMediaType]);
   const [generationSession, setGenerationSession] = useState(0);
   const [mediaTypeByTab, setMediaTypeByTab] = useState<
     Record<MediaGeneratorStudioMode, StudioMediaType>
@@ -148,25 +149,25 @@ export default function MediaGeneratorModal({
   useEffect(() => {
     if (!open) return;
     setStudioTab(initialTab);
-    setCreationMode("guided");
-    setFreeMediaType("image");
-    setVisitedFreeTypes([]);
+    setCreationMode("free");
+    setFreeMediaType(initialFreeMediaType);
+    setVisitedFreeTypes([initialFreeMediaType]);
     setMediaTypeByTab({
       generate: initialTab === "generate" ? initialMediaType : "image",
       modify: "image",
       retouch: initialTab === "retouch" ? initialMediaType : "image",
     });
     setRetoucherDirty(false);
-  }, [initialMediaType, initialTab, open]);
+  }, [initialFreeMediaType, initialMediaType, initialTab, open]);
 
   useEffect(() => {
     // Hidden Activity forms suspend their listeners: invalidate all of them
     // here so an establishment change can never restore another account's brief.
     const resetGenerationSession = () => {
       setGenerationSession((value) => value + 1);
-      setVisitedFreeTypes([]);
-      setCreationMode("guided");
-      setFreeMediaType("image");
+      setVisitedFreeTypes([initialFreeMediaType]);
+      setCreationMode("free");
+      setFreeMediaType(initialFreeMediaType);
       currentResultRef.current = null;
       setCurrentResult(null);
       setLocked(false);
@@ -174,7 +175,7 @@ export default function MediaGeneratorModal({
     };
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
     return () => window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
-  }, []);
+  }, [initialFreeMediaType]);
 
   const handleResultChange = useCallback(
     (result: MediaGenerationResult | null) => {
