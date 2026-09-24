@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { adsOAuthProvider } from "@/lib/adsOAuth";
 import AdsClient from "./AdsClient";
 
@@ -11,8 +10,7 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
   const supabase = await createSupabaseServer();
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
-  const edition = await getDashboardEditionForAuthUser(data.user.id);
-  if (!hasPremiumDashboardAccess(edition)) redirect("/dashboard?panel=contact");
+  if (!(await isAdsPilotAdmin(data.user.id))) redirect("/dashboard");
   const params = await searchParams;
   const channel = adsOAuthProvider(params.channel);
   return <AdsClient

@@ -53,6 +53,7 @@ type DashboardModulesCardProps = {
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
+  adsPilotEnabled?: boolean;
 };
 
 function PlanningIcon() {
@@ -94,7 +95,7 @@ function SettingsIcon() {
   );
 }
 
-export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats }: DashboardModulesCardProps) {
+export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
   const t = useDashboardI18n();
@@ -408,9 +409,12 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               actionLabel={t.modules.campaignsCta}
               premiumLabel={t.modules.campaignsPremiumLabel}
               mailBusy={isVisible("modal:campaigns")}
-              adsBusy={isModuleLoadingVisible("/dashboard/ads")}
+              adsBusy={adsPilotEnabled && isModuleLoadingVisible("/dashboard/ads")}
+              adsComingSoon={!adsPilotEnabled}
               onOpenMails={openCampaignModal}
-              onOpenAds={() => startModuleNavigation("/dashboard/ads")}
+              onOpenAds={() => {
+                if (adsPilotEnabled) startModuleNavigation("/dashboard/ads");
+              }}
             />
 
             <div className={standardStyles.secondaryToolsRow} data-dashboard-premium-secondary-tools="true">

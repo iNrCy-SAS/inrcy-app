@@ -5,8 +5,7 @@ import { encryptToken } from "@/lib/oauthCrypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
 import { verifyOAuthState } from "@/lib/security";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
-import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { adsOAuthProvider, adsOAuthRedirectUri, adsReturnUrl } from "@/lib/adsOAuth";
 
 type TokenPayload = {
@@ -65,8 +64,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     const supabase = await createSupabaseServer();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user || auth.user.id !== state.state.authUserId) return finish("error", "Reconnectez-vous à iNrCy avant de continuer.");
-    const edition = await getDashboardEditionForAuthUser(auth.user.id);
-    if (!hasPremiumDashboardAccess(edition)) return finish("error", "iNr’ADS est réservé à Premium.");
+    if (!(await isAdsPilotAdmin(auth.user.id))) return finish("error", "iNr’ADS est actuellement en préparation.");
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, auth.user.id, state.state.accountId);
 
     const redirectUri = adsOAuthRedirectUri(request.url, provider);

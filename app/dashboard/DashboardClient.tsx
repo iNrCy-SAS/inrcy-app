@@ -4242,6 +4242,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onOpenBoosterPublish={openBoosterPublish}
         onOpenBoosterStats={openBoosterStats}
         standardMode={isStandardEdition}
+        isAdmin={isAdmin}
       />
 
       <DashboardBoosterModalLayer

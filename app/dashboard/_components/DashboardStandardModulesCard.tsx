@@ -25,6 +25,7 @@ type Props = {
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
+  adsPilotEnabled?: boolean;
 };
 
 function ArrowIcon() {
@@ -66,6 +67,7 @@ export default function DashboardStandardModulesCard({
   onOpenStats,
   onOpenBoosterPublish,
   onOpenBoosterStats,
+  adsPilotEnabled = false,
 }: Props) {
   const i18nT = useTranslations("shell");
   const t = useTranslations("dashboard.standard");
@@ -279,8 +281,11 @@ export default function DashboardStandardModulesCard({
         actionLabel={dashboardCopy.modules.campaignsCta}
         premiumLabel={dashboardCopy.modules.campaignsPremiumLabel}
         locked
+        adsComingSoon={!adsPilotEnabled}
         onOpenMails={onOpenPremium}
-        onOpenAds={onOpenPremium}
+        onOpenAds={() => {
+          if (adsPilotEnabled) startModuleNavigation("/dashboard/ads");
+        }}
       />
 
       <div className={standardStyles.secondaryToolsRow} data-dashboard-standard-secondary-tools="true">

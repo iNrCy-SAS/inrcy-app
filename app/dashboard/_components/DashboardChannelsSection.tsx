@@ -109,6 +109,7 @@ type DashboardChannelsSectionProps = {
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
   standardMode?: boolean;
+  isAdmin?: boolean;
 };
 
 export default function DashboardChannelsSection({
@@ -120,6 +121,7 @@ export default function DashboardChannelsSection({
   onOpenBoosterPublish,
   onOpenBoosterStats,
   standardMode = false,
+  isAdmin = false,
 }: DashboardChannelsSectionProps) {
   const i18nT = useTranslations("shell");
   const t = useDashboardI18n();
@@ -717,6 +719,7 @@ export default function DashboardChannelsSection({
             onOpenStats={onOpenStats}
             onOpenBoosterPublish={onOpenBoosterPublish}
             onOpenBoosterStats={onOpenBoosterStats}
+            adsPilotEnabled={isAdmin}
           />
         ) : (
           <DashboardModulesCard
@@ -725,6 +728,7 @@ export default function DashboardChannelsSection({
             onOpenStats={onOpenStats}
             onOpenBoosterPublish={onOpenBoosterPublish}
             onOpenBoosterStats={onOpenBoosterStats}
+            adsPilotEnabled={isAdmin}
           />
         )}
 

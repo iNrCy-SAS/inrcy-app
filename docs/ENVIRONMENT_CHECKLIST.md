@@ -148,6 +148,7 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `GOOGLE_CLIENT_ID`
 - [ ] `GOOGLE_CLIENT_SECRET`
 - [ ] `GOOGLE_ADS_REDIRECT_URI` — `https://app.inrcy.com/api/ads/oauth/google/callback` en Production ; en local, l’application utilise l’URL localhost de la requête
+- [ ] `GOOGLE_ADS_DEVELOPER_TOKEN` — jeton API issu d’un compte administrateur Google Ads (MCC), requis pour chaque appel Ads API ; ne jamais l’exposer côté navigateur
 - [ ] `GOOGLE_REDIRECT_URI`
 - [ ] `GOOGLE_GMB_REDIRECT_URI`
 - [ ] `GOOGLE_STATS_REDIRECT_URI`

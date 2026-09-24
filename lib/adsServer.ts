@@ -1,12 +1,11 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { getDashboardEditionForAuthUser, premiumRequiredApiResponse } from "@/lib/dashboardEditionServer";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { ADMIN_USER_IDS, isAdminRole } from "@/lib/roles";
 import type { AdsAccount, AdsProvider } from "@/lib/adsValidation";
 
 export const GOOGLE_ADS_API_VERSION = "v25";
@@ -21,11 +20,34 @@ type IntegrationRow = {
   status: string | null;
 };
 
+/** Temporary launch guard: iNr’ADS stays available only to the Admin test account. */
+export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
+  if (ADMIN_USER_IDS.some((adminUserId) => adminUserId === authUserId)) return true;
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("user_id", authUserId)
+    .maybeSingle();
+
+  return !error && isAdminRole(data?.role);
+}
+
+export function adsPilotOnlyResponse() {
+  return NextResponse.json(
+    {
+      error: "iNr’ADS est actuellement en préparation. L’accès est temporairement réservé au compte Admin.",
+      code: "INRCY_ADS_COMING_SOON",
+    },
+    { status: 403 },
+  );
+}
+
+/** @deprecated Name kept while all Ads routes move through the temporary Admin-only launch guard. */
 export async function requirePremiumAdsUser() {
   const user = await requireUser();
   if (user.errorResponse) return { user: null, errorResponse: user.errorResponse };
-  const edition = await getDashboardEditionForAuthUser(user.authUserId);
-  if (!hasPremiumDashboardAccess(edition)) return { user: null, errorResponse: premiumRequiredApiResponse() };
+  if (!(await isAdsPilotAdmin(user.authUserId))) return { user: null, errorResponse: adsPilotOnlyResponse() };
   return { user, errorResponse: null };
 }
 
@@ -113,14 +135,18 @@ export async function metaAdsJson(userId: string, path: string, body?: URLSearch
 }
 
 export async function googleAdsJson(userId: string, path: string, body?: Record<string, unknown>, loginCustomerId?: string) {
-  // Since Google's developer-token sunset, Ads API access is inherited from
-  // the Google Cloud project that owns the OAuth client used above. A token
-  // header is now optional and ignored, so do not gate calls on an obsolete env var.
+  // OAuth identifies the connected advertiser. Google Ads API also requires the
+  // application developer token issued from a Google Ads manager account.
+  const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim();
+  if (!developerToken) {
+    throw new Error("Configuration Google Ads incomplète : ajoutez le developer token du compte administrateur Google Ads.");
+  }
   const token = await accessTokenForAds(userId, "google");
   return externalJson(`https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/${path}`, {
     method: body ? "POST" : "GET",
     headers: {
       Authorization: `Bearer ${token}`,
+      "developer-token": developerToken,
       ...(body ? { "Content-Type": "application/json" } : {}),
       ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
     },

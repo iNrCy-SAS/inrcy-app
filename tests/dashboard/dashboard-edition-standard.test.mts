@@ -455,9 +455,10 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
   assert.match(standardModulesSource, /standardStyles\.lockedToolAction/);
   assert.match(standardModulesSource, /<DashboardPremiumLockIcon \/> \{dashboardCopy\.modules\.campaignsPremiumLabel\}/);
   assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-mails"/);
-  assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-ads"/);
+  assert.match(campaignChoicesSource, /data-testid=\{adsComingSoon \? "campaign-ads-coming-soon" : locked \? "standard-campaign-ads"/);
   assert.match(campaignChoicesSource, /DashboardPremiumLockIcon/);
   assert.match(campaignChoicesSource, /locked \? <>\<DashboardPremiumLockIcon \/>\{premiumLabel\}<\/>/);
+  assert.match(campaignChoicesSource, /adsComingSoon \? <>À venir<\/>/);
   assert.doesNotMatch(standardModulesSource, /lockedToolHint/);
   assert.doesNotMatch(campaignChoicesSource, /campaignPremiumHint/);
   assert.doesNotMatch(standardModulesCssSource, /\.lockedToolHint|\.campaignPremiumHint/);

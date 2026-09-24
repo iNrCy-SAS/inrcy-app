@@ -12,6 +12,7 @@ type DashboardCampaignChoicesProps = {
   actionLabel: string;
   premiumLabel: string;
   locked?: boolean;
+  adsComingSoon?: boolean;
   mailBusy?: boolean;
   adsBusy?: boolean;
   onOpenMails: () => void;
@@ -26,6 +27,7 @@ export default function DashboardCampaignChoices({
   actionLabel,
   premiumLabel,
   locked = false,
+  adsComingSoon = false,
   mailBusy = false,
   adsBusy = false,
   onOpenMails,
@@ -53,7 +55,7 @@ export default function DashboardCampaignChoices({
         </button>
       </section>
 
-      <section className={`${styles.blockCard} ${cardStyles.panel} ${cardStyles.campaignPanel} ${cardStyles.campaignChoice} ${cardStyles.campaignAdsChoice}`}>
+      <section className={`${styles.blockCard} ${cardStyles.panel} ${cardStyles.campaignPanel} ${cardStyles.campaignChoice} ${cardStyles.campaignAdsChoice} ${adsComingSoon ? cardStyles.campaignComingSoonPanel : ""}`}>
         <span className={cardStyles.campaignGlow} aria-hidden="true" />
         <span className={cardStyles.campaignIcon} aria-hidden="true">◎</span>
         <div className={cardStyles.campaignCopy}>
@@ -62,14 +64,14 @@ export default function DashboardCampaignChoices({
         </div>
         <button
           type="button"
-          className={cardStyles.campaignButton}
-          data-testid={locked ? "standard-campaign-ads" : "premium-campaign-ads"}
-          onClick={onOpenAds}
-          disabled={adsBusy}
+          className={`${cardStyles.campaignButton} ${adsComingSoon ? cardStyles.campaignComingSoon : ""}`}
+          data-testid={adsComingSoon ? "campaign-ads-coming-soon" : locked ? "standard-campaign-ads" : "premium-campaign-ads"}
+          onClick={adsComingSoon ? undefined : onOpenAds}
+          disabled={adsBusy || adsComingSoon}
           aria-busy={adsBusy || undefined}
-          aria-label={locked ? `${adsTitle} — ${premiumLabel}` : adsTitle}
+          aria-label={adsComingSoon ? `${adsTitle} — À venir` : locked ? `${adsTitle} — ${premiumLabel}` : adsTitle}
         >
-          {locked ? <><DashboardPremiumLockIcon />{premiumLabel}</> : <>{actionLabel} <span aria-hidden="true">→</span></>}
+          {adsComingSoon ? <>À venir</> : locked ? <><DashboardPremiumLockIcon />{premiumLabel}</> : <>{actionLabel} <span aria-hidden="true">→</span></>}
         </button>
       </section>
     </div>
