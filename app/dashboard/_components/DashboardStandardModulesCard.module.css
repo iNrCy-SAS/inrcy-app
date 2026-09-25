@@ -739,6 +739,43 @@
   box-shadow: 0 17px 40px rgba(0, 0, 0, 0.27), inset 0 1px rgba(255, 255, 255, 0.13);
 }
 
+.campaignChoice::before,
+.campaignChoice::after {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+}
+
+.campaignChoice::before {
+  inset: 0;
+  background:
+    linear-gradient(110deg, transparent 18%, rgba(255, 255, 255, 0.12) 33%, transparent 47%),
+    repeating-linear-gradient(90deg, transparent 0 18px, rgba(255, 255, 255, 0.035) 19px 20px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+  transform: translateX(-24%);
+}
+
+.campaignChoice::after {
+  right: -38px;
+  bottom: -58px;
+  width: 150px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.05), 0 0 34px rgba(255, 255, 255, 0.05);
+}
+
+.campaignChoice .campaignGlow {
+  z-index: 0;
+}
+
+.campaignChoice > :not(.campaignGlow) {
+  position: relative;
+  z-index: 1;
+}
+
 .campaignGlow {
   position: absolute;
   inset: 0;
@@ -758,6 +795,21 @@
   box-shadow: 0 0 24px rgba(255, 142, 55, 0.2), inset 0 1px rgba(255, 255, 255, 0.16);
   font-size: 26px;
   font-weight: 900;
+}
+
+.campaignArt {
+  width: 69%;
+  height: 69%;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+
+.campaignArtSpark {
+  stroke-width: 2.4;
 }
 
 .campaignCopy { min-width: 0; }
@@ -825,6 +877,48 @@
   padding-inline: 12px;
 }
 
+.campaignChoicesRow .campaignMailChoice {
+  border-color: rgba(255, 174, 86, 0.69);
+  background:
+    radial-gradient(90% 135% at 3% -18%, rgba(255, 193, 76, 0.44), transparent 51%),
+    radial-gradient(92% 145% at 104% 108%, rgba(255, 57, 178, 0.38), transparent 60%),
+    linear-gradient(108deg, rgba(94, 54, 88, 0.98), rgba(142, 52, 93, 0.97) 58%, rgba(111, 39, 107, 0.96));
+  box-shadow:
+    0 17px 40px rgba(0, 0, 0, 0.25),
+    0 0 29px rgba(255, 107, 111, 0.18),
+    inset 0 1px rgba(255, 255, 255, 0.23),
+    inset 0 -30px 44px rgba(116, 18, 91, 0.2);
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignGlow {
+  background:
+    radial-gradient(circle at 13% 28%, rgba(255, 226, 158, 0.25), transparent 18%),
+    linear-gradient(100deg, rgba(255, 183, 71, 0.16), transparent 40%, rgba(255, 94, 194, 0.2));
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignIcon {
+  border-color: rgba(255, 221, 151, 0.75);
+  color: #fff2cb;
+  background:
+    radial-gradient(circle at 28% 19%, rgba(255, 255, 255, 0.34), transparent 38%),
+    linear-gradient(145deg, rgba(255, 173, 47, 0.72), rgba(234, 73, 142, 0.64) 64%, rgba(164, 71, 204, 0.6));
+  box-shadow: 0 0 23px rgba(255, 160, 55, 0.32), inset 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignCopy h3 {
+  text-shadow: 0 2px 15px rgba(255, 178, 114, 0.28);
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignCopy p {
+  color: rgba(255, 236, 219, 0.9);
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignButton {
+  border-color: rgba(255, 223, 160, 0.74);
+  background: linear-gradient(100deg, #ff9d24, #f35b78 49%, #bb55e8);
+  box-shadow: 0 10px 23px rgba(218, 65, 120, 0.35), inset 0 1px rgba(255, 255, 255, 0.35);
+}
+
 .campaignChoicesRow .campaignButton svg,
 .lockedToolAction svg {
   width: 14px;
@@ -837,65 +931,73 @@
 }
 
 .campaignChoicesRow .campaignAdsChoice {
-  border-color: rgba(218, 108, 178, 0.39);
+  border-color: rgba(236, 139, 221, 0.7);
   background:
-    radial-gradient(100% 120% at 8% 0%, rgba(211, 92, 164, 0.25), transparent 49%),
-    radial-gradient(85% 120% at 100% 100%, rgba(166, 85, 174, 0.16), transparent 58%),
-    linear-gradient(105deg, rgba(68, 40, 95, 0.97), rgba(97, 40, 89, 0.95) 62%, rgba(85, 34, 78, 0.93));
-  box-shadow: 0 17px 40px rgba(0, 0, 0, 0.25), 0 0 24px rgba(197, 78, 142, 0.08), inset 0 1px rgba(255, 255, 255, 0.15);
+    radial-gradient(100% 135% at 3% -18%, rgba(105, 149, 255, 0.48), transparent 52%),
+    radial-gradient(92% 145% at 104% 108%, rgba(255, 59, 183, 0.42), transparent 60%),
+    linear-gradient(108deg, rgba(46, 54, 116, 0.98), rgba(105, 47, 120, 0.97) 58%, rgba(128, 39, 115, 0.96));
+  box-shadow:
+    0 17px 40px rgba(0, 0, 0, 0.25),
+    0 0 29px rgba(176, 88, 255, 0.2),
+    inset 0 1px rgba(255, 255, 255, 0.23),
+    inset 0 -30px 44px rgba(64, 27, 130, 0.19);
 }
 
 .campaignChoicesRow .campaignAdsChoice .campaignGlow {
-  background: linear-gradient(105deg, rgba(212, 93, 162, 0.06), transparent 43%, rgba(165, 86, 171, 0.06));
+  background:
+    radial-gradient(circle at 14% 26%, rgba(185, 225, 255, 0.25), transparent 18%),
+    linear-gradient(104deg, rgba(95, 180, 255, 0.19), transparent 41%, rgba(255, 88, 198, 0.21));
 }
 
 .campaignChoicesRow .campaignAdsChoice .campaignIcon {
-  border-color: rgba(222, 129, 191, 0.42);
-  color: #ffe0f1;
-  background: linear-gradient(145deg, rgba(143, 48, 112, 0.3), rgba(127, 57, 143, 0.23));
-  box-shadow: 0 0 18px rgba(198, 84, 152, 0.12), inset 0 1px rgba(255, 255, 255, 0.16);
+  border-color: rgba(195, 223, 255, 0.68);
+  color: #eef6ff;
+  background:
+    radial-gradient(circle at 27% 18%, rgba(255, 255, 255, 0.35), transparent 38%),
+    linear-gradient(145deg, rgba(45, 145, 250, 0.68), rgba(133, 68, 222, 0.66) 59%, rgba(231, 64, 179, 0.65));
+  box-shadow: 0 0 23px rgba(119, 120, 255, 0.35), inset 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .campaignChoicesRow .campaignAdsChoice .campaignCopy p {
-  color: rgba(248, 221, 236, 0.77);
+  color: rgba(230, 238, 255, 0.9);
 }
 
 .campaignChoicesRow .campaignAdsChoice .campaignButton {
-  border-color: rgba(232, 147, 198, 0.46);
-  background: linear-gradient(110deg, #7f3b76, #984581 65%, #914789);
-  box-shadow: 0 8px 19px rgba(86, 30, 79, 0.19), inset 0 1px rgba(255, 255, 255, 0.18);
+  border-color: rgba(205, 222, 255, 0.7);
+  background: linear-gradient(100deg, #2a91f5, #8155e7 49%, #e64cae);
+  box-shadow: 0 10px 23px rgba(90, 74, 232, 0.34), inset 0 1px rgba(255, 255, 255, 0.35);
 }
 
 /* iNr'ADS est visible pendant la préparation, mais n'est ouvert qu'au compte Admin. */
 .campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel {
-  border-color: rgba(178, 184, 199, 0.32);
+  border-color: rgba(176, 163, 255, 0.58);
   background:
-    radial-gradient(100% 120% at 8% 0%, rgba(168, 176, 197, 0.15), transparent 49%),
-    radial-gradient(85% 120% at 100% 100%, rgba(141, 143, 171, 0.12), transparent 58%),
-    linear-gradient(105deg, rgba(52, 47, 72, 0.97), rgba(63, 51, 76, 0.95) 62%, rgba(58, 46, 69, 0.93));
-  box-shadow: 0 17px 40px rgba(0, 0, 0, 0.22), inset 0 1px rgba(255, 255, 255, 0.1);
+    radial-gradient(100% 135% at 3% -18%, rgba(88, 141, 239, 0.35), transparent 53%),
+    radial-gradient(92% 145% at 104% 108%, rgba(239, 90, 188, 0.28), transparent 61%),
+    linear-gradient(108deg, rgba(43, 46, 100, 0.98), rgba(82, 44, 105, 0.97) 58%, rgba(95, 37, 100, 0.96));
+  box-shadow: 0 17px 40px rgba(0, 0, 0, 0.24), 0 0 28px rgba(137, 93, 236, 0.12), inset 0 1px rgba(255, 255, 255, 0.17);
 }
 
 .campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignGlow {
-  background: linear-gradient(105deg, rgba(190, 198, 217, 0.04), transparent 43%, rgba(181, 170, 203, 0.04));
+  background: linear-gradient(104deg, rgba(103, 176, 255, 0.13), transparent 41%, rgba(244, 102, 200, 0.14));
 }
 
 .campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignIcon {
-  border-color: rgba(181, 189, 205, 0.36);
-  color: #d4d9e4;
-  background: linear-gradient(145deg, rgba(121, 130, 151, 0.26), rgba(109, 96, 135, 0.22));
-  box-shadow: none;
+  border-color: rgba(174, 198, 255, 0.56);
+  color: #dae7ff;
+  background: linear-gradient(145deg, rgba(62, 118, 211, 0.52), rgba(118, 59, 173, 0.48));
+  box-shadow: 0 0 19px rgba(109, 105, 249, 0.2), inset 0 1px rgba(255, 255, 255, 0.2);
 }
 
-.campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignCopy h3 { color: #e1e4eb; }
-.campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignCopy p { color: rgba(213, 218, 230, 0.68); }
+.campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignCopy h3 { color: #f4f1ff; }
+.campaignChoicesRow .campaignAdsChoice.campaignComingSoonPanel .campaignCopy p { color: rgba(225, 226, 255, 0.78); }
 
 .campaignChoicesRow .campaignButton.campaignComingSoon,
 .campaignChoicesRow .campaignButton.campaignComingSoon:hover {
-  border-color: rgba(188, 194, 207, 0.38);
-  color: #d6dbe5;
-  background: linear-gradient(110deg, #565e70, #686275 65%, #625a70);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.13);
+  border-color: rgba(176, 191, 255, 0.46);
+  color: #d9e1ff;
+  background: linear-gradient(110deg, #465493, #65527f 65%, #754c84);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.18);
   cursor: not-allowed;
   filter: none;
   transform: none;
