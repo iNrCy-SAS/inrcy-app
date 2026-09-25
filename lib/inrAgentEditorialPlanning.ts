@@ -11,6 +11,7 @@ import {
   normalizeInrAgentMonthDays,
 } from "@/lib/inrAgentMonthSchedule";
 import { inrAgentEditorialVideoCount } from "@/lib/inrAgentEditorialMediaPolicy";
+import type { InrAgentEditorialFocus } from "@/lib/inrAgentEditorialVariation";
 
 export const INR_AGENT_EDITORIAL_HORIZON_DAYS = 15;
 export const INR_AGENT_EDITORIAL_PLAN_VERSION = 1;
@@ -30,6 +31,8 @@ export type InrAgentEditorialSlot = {
   channels: InrAgentChannel[];
   scheduleSignature: string;
   criteriaSignature: string;
+  /** Ajouté côté serveur après lecture de l'iNr'ADN. */
+  focus?: InrAgentEditorialFocus;
 };
 
 type ScheduleSlot = { dayOfWeek: number; time: string };

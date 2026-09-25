@@ -11,11 +11,17 @@ import {
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
 import {
+  buildInrAgentEditorialFocusPlan,
+  normalizeInrAgentEditorialFocus,
+} from "@/lib/inrAgentEditorialVariation";
+import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
+import {
   inrAgentEditorialRetryDecision,
   shouldRecoverInrAgentEditorialFailure,
 } from "@/lib/inrAgentEditorialRetryPolicy";
 import {
   automationSettingsToDbRow,
+  normalizeInrAgentPublicationIdeas,
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
@@ -52,6 +58,8 @@ export type InrAgentEditorialAutomationRow = {
 type EditorialActionRow = {
   id: string;
   status: string;
+  title?: string | null;
+  preview_text?: string | null;
   scheduled_for: string | null;
   validation_required?: boolean | null;
   execution_policy?: string | null;
@@ -63,7 +71,7 @@ type EditorialActionRow = {
 };
 
 const EDITORIAL_ACTION_SELECT =
-  "id,status,scheduled_for,validation_required,execution_policy,target_channels,image_assets,payload,metadata,created_at,updated_at";
+  "id,status,title,preview_text,scheduled_for,validation_required,execution_policy,target_channels,image_assets,payload,metadata,created_at,updated_at";
 const EDITORIAL_MUTABLE_STATUSES = new Set([
   "draft",
   "executing",
@@ -143,12 +151,55 @@ function editorialPlanPayload(
     timezone,
     scheduleSignature: slot.scheduleSignature,
     criteriaSignature: slot.criteriaSignature,
+    ...(slot.focus ? { focus: slot.focus } : {}),
     state,
   };
 }
 
 function rowEditorialPlan(row: EditorialActionRow) {
   return asRecord(asRecord(row.payload).editorialPlan);
+}
+
+function editorialSubjectHistory(rows: EditorialActionRow[]) {
+  const subjects: string[] = [];
+  for (const row of rows) {
+    const payload = asRecord(row.payload);
+    const plan = rowEditorialPlan(row);
+    const focus = normalizeInrAgentEditorialFocus(plan.focus);
+    subjects.push(
+      cleanText(focus?.subject, 600),
+      cleanText(payload.idea, 1_000),
+      cleanText(row.title, 280),
+      cleanText(row.preview_text, 600),
+    );
+  }
+  return Array.from(new Set(subjects.filter(Boolean)));
+}
+
+async function loadPublishedEditorialSubjectHistory(args: {
+  supabase: SupabaseLike;
+  userId: string;
+}) {
+  try {
+    const { data, error } = await args.supabase
+      .from("publications")
+      .select("title,content,idea")
+      .eq("user_id", args.userId)
+      .order("created_at", { ascending: false })
+      .limit(24);
+    if (error || !Array.isArray(data)) return [];
+    return data.flatMap((row) => {
+      const record = asRecord(row);
+      return [
+        cleanText(record.title, 280),
+        cleanText(record.idea, 1_000),
+        cleanText(record.content, 1_000),
+      ].filter(Boolean);
+    });
+  } catch {
+    // L'absence temporaire d'historique ne doit jamais empêcher le planning.
+    return [];
+  }
 }
 
 function validationRequiredForMode(
@@ -498,7 +549,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
   const now = args.now ?? new Date();
   const nowIso = now.toISOString();
   const cutoverAt = futureEditorialCutoverAt(args.automation, now);
-  const plan = buildInrAgentEditorialPlan({
+  const basePlan = buildInrAgentEditorialPlan({
     automation: args.automation,
     timezone: args.timezone,
     tone: args.tone,
@@ -506,7 +557,6 @@ export async function reconcileInrAgentEditorialPlan(args: {
   }).filter(
     (slot) => !cutoverAt || Date.parse(slot.scheduledFor) < cutoverAt,
   );
-  const desiredSlotKeys = new Set(plan.map((slot) => slot.slotKey));
   const lookupSince = new Date(now.getTime() - 2 * 86_400_000).toISOString();
 
   const { data: existingData, error: existingError } = await args.supabase
@@ -530,6 +580,52 @@ export async function reconcileInrAgentEditorialPlan(args: {
       .map((row) => [cleanText(rowEditorialPlan(row).slotKey, 240), row] as const)
       .filter(([slotKey]) => Boolean(slotKey)),
   );
+
+  // Les idées du pro sont traitées avant tout le reste. Les créneaux qui ne
+  // reçoivent pas une idée manuelle obtiennent une combinaison équilibrée
+  // issue de l'iNr'ADN (prestation, zone, clientèle, force, angle). Le focus
+  // est persisté dans le JSONB du créneau : un retry ne change donc jamais de
+  // sujet ni de direction média.
+  const existingFocusBySlotKey = new Map<string, unknown>();
+  for (const [slotKey, row] of existingBySlot) {
+    const focus = normalizeInrAgentEditorialFocus(rowEditorialPlan(row).focus);
+    if (focus) existingFocusBySlotKey.set(slotKey, focus);
+  }
+  const [generationContext, publishedHistory] = await Promise.all([
+    getBoosterGenerationContext({
+      supabase: args.supabase,
+      userId: args.userId,
+    }).catch(() => ({
+      profile: null,
+      business: null,
+      recentPublications: [],
+      cacheSource: { professional: "disabled", publications: "disabled" },
+    })),
+    loadPublishedEditorialSubjectHistory({
+      supabase: args.supabase,
+      userId: args.userId,
+    }),
+  ]);
+  const plan = buildInrAgentEditorialFocusPlan({
+    slots: basePlan,
+    business: generationContext.business,
+    profile: generationContext.profile,
+    publicationIdeas: normalizeInrAgentPublicationIdeas(
+      args.automation.metadata?.publicationIdeas,
+    ),
+    historicalSubjects: [
+      ...publishedHistory,
+      ...generationContext.recentPublications.flatMap((publication) => [
+        publication.title,
+        publication.idea,
+        publication.content,
+      ]),
+      ...editorialSubjectHistory(editorialRows),
+    ],
+    existingFocusBySlotKey,
+    seed: `${args.userId}:inr-agent-editorial`,
+  });
+  const desiredSlotKeys = new Set(plan.map((slot) => slot.slotKey));
 
   const rowsToInsert = plan
     .filter((slot) => !existingBySlot.has(slot.slotKey))
@@ -615,6 +711,37 @@ export async function reconcileInrAgentEditorialPlan(args: {
         slot.scheduleSignature;
     if (!criteriaChanged) {
       const rowMetadata = asRecord(row.metadata);
+      const missingEditorialFocus =
+        !normalizeInrAgentEditorialFocus(currentPlan.focus) &&
+        Boolean(slot.focus) &&
+        row.status !== "executing" &&
+        !isGeneratedEditorialRow(row);
+      if (missingEditorialFocus) {
+        const currentState = cleanText(currentPlan.state, 40);
+        const state =
+          currentState === "generating" || currentState === "failed"
+            ? currentState
+            : "queued";
+        await args.supabase
+          .from("inr_agent_actions")
+          .update({
+            payload: {
+              ...asRecord(row.payload),
+              editorialPlan: editorialPlanPayload(
+                slot,
+                args.timezone,
+                state,
+              ),
+            },
+            metadata: {
+              ...rowMetadata,
+              editorialFocusBackfilledAt: nowIso,
+            },
+            updated_at: nowIso,
+          })
+          .eq("id", row.id)
+          .eq("user_id", args.userId);
+      }
       const reactivating =
         row.status === "cancelled" &&
         cleanText(rowMetadata.editorialCancelReason, 80) ===

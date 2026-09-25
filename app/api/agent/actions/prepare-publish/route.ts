@@ -68,6 +68,11 @@ import {
   type InrAgentEditorialMediaKind,
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
+import {
+  buildInrAgentEditorialFocusPlan,
+  normalizeInrAgentEditorialFocus,
+  type InrAgentEditorialFocus,
+} from "@/lib/inrAgentEditorialVariation";
 import { inrAgentNextInstantMediaKind } from "@/lib/inrAgentEditorialMediaPolicy";
 import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
@@ -409,6 +414,7 @@ function normalizeEditorialPlan(
     20
   ) as InrAgentEditorialMediaKind;
   const theme = cleanText(record.theme, 80) as InrAgentTheme;
+  const focus = normalizeInrAgentEditorialFocus(record.focus);
   if (
     !slotKey ||
     !Number.isFinite(scheduledAt) ||
@@ -433,6 +439,7 @@ function normalizeEditorialPlan(
     channels,
     scheduleSignature: cleanText(record.scheduleSignature, 2_000),
     criteriaSignature: cleanText(record.criteriaSignature, 2_000),
+    ...(focus ? { focus } : {}),
     timezone: cleanText(record.timezone, 100) || undefined,
     state: cleanText(record.state, 40) || undefined,
   };
@@ -878,6 +885,7 @@ function buildAgentIdea(args: {
   profile: JsonRecord | null;
   theme: InrAgentTheme;
   recentPublications: BoosterRecentPublication[];
+  focus?: InrAgentEditorialFocus | null;
 }) {
   const { sector, professionLabel } = getBusinessProfession(args.business);
   const company = cleanText(
@@ -899,11 +907,24 @@ function buildAgentIdea(args: {
     70
   );
   const themeLabel = themeLabels[args.theme] || "Conseil";
-  const servicesText = services.length
+  const focusService = cleanText(args.focus?.service, 90);
+  const focusZone = cleanText(args.focus?.zone, 90);
+  const focusAudience = cleanText(args.focus?.audience, 90);
+  const focusStrength = cleanText(args.focus?.strength, 110);
+  const focusSpecialty = cleanText(args.focus?.specialty, 90);
+  const focusNeed = cleanText(args.focus?.customerNeed, 100);
+  const focusBusinessArgument = cleanText(args.focus?.businessArgument, 180);
+  const focusHook = cleanText(args.focus?.contextualHook, 150);
+  const focusSubject = cleanText(args.focus?.subject, 500);
+  const servicesText = focusService
+    ? ` autour de la prestation ciblée « ${focusService} »`
+    : services.length
     ? ` autour de ${services.join(", ")}`
     : "";
   const cityText = city ? ` à ${city}` : "";
-  const zonesText = zones.length
+  const zonesText = focusZone
+    ? ` dans la zone « ${focusZone} »`
+    : zones.length
     ? ` et ses environs (${zones.join(", ")})`
     : "";
   const companyText = company ? ` pour ${company}` : "";
@@ -918,58 +939,77 @@ function buildAgentIdea(args: {
         " ; "
       )}.`
     : "";
+  const focusFacts = [
+    focusService ? `prestation : ${focusService}` : "",
+    focusSpecialty ? `spécialité : ${focusSpecialty}` : "",
+    focusZone ? `zone : ${focusZone}` : "",
+    focusAudience ? `public : ${focusAudience}` : "",
+    focusStrength ? `force à valoriser : ${focusStrength}` : "",
+    focusNeed ? `besoin client : ${focusNeed}` : "",
+    focusBusinessArgument
+      ? `argument ou preuve vérifiée à développer : ${focusBusinessArgument}`
+      : "",
+    focusHook ? `repère d'actualité à traiter factuellement : ${focusHook}` : "",
+    args.focus?.angle
+      ? `angle éditorial : ${args.focus.angle.replaceAll("_", " ")}`
+      : "",
+  ].filter(Boolean);
+  const editorialFocusInstruction = focusSubject
+    ? `\n\nFOCUS ÉDITORIAL PLANIFIÉ — PRIORITÉ ABSOLUE : traite le sujet « ${focusSubject} » et non une autre prestation par défaut.${focusFacts.length ? ` Appuie-toi sur ces informations vérifiées : ${focusFacts.join(" ; ")}.` : ""}${args.focus?.mediaDirection ? ` La direction du média doit rester cohérente : ${args.focus.mediaDirection}` : ""}`
+    : "";
+  const continuityInstruction = `${editorialFocusInstruction}${freshnessInstruction}`;
 
   if (args.theme === "realisations") {
     return `Préparer une publication de type réalisation${companyText} : mettre en avant le sérieux, la méthode et le soin apporté par un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.${continuityInstruction}`;
   }
 
   if (args.theme === "offres") {
     return `Préparer une publication commerciale douce${companyText} : valoriser une prestation utile d'un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.${continuityInstruction}`;
   }
 
   if (args.theme === "actualites") {
     return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${continuityInstruction}`;
   }
 
   if (args.theme === "coulisses") {
     return `Préparer une publication dans les coulisses${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText} : expliquer une méthode, une étape de travail, un geste métier ou l'organisation quotidienne de façon humaine et concrète, sans inventer d'équipe, de lieu, de matériel ni d'intervention.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText} : expliquer une méthode, une étape de travail, un geste métier ou l'organisation quotidienne de façon humaine et concrète, sans inventer d'équipe, de lieu, de matériel ni d'intervention.${continuityInstruction}`;
   }
 
   if (args.theme === "temoignages") {
     return `Préparer une publication de preuve sociale${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText} : valoriser la confiance et la satisfaction uniquement à partir des éléments vérifiables fournis. Ne jamais inventer de client, de citation, de note, de chiffre ni de témoignage ; si aucun avis précis n'est fourni, parler de l'importance des retours clients ou inviter naturellement à consulter ou partager un avis.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText} : valoriser la confiance et la satisfaction uniquement à partir des éléments vérifiables fournis. Ne jamais inventer de client, de citation, de note, de chiffre ni de témoignage ; si aucun avis précis n'est fourni, parler de l'importance des retours clients ou inviter naturellement à consulter ou partager un avis.${continuityInstruction}`;
   }
 
   if (args.theme === "services") {
     return `Préparer une publication de présentation de service${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText} : expliquer clairement un service réellement renseigné, son utilité et à qui il s'adresse, avec un appel à l'action naturel, sans inventer de prix, de délai, de garantie ni de promesse.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText} : expliquer clairement un service réellement renseigné, son utilité et à qui il s'adresse, avec un appel à l'action naturel, sans inventer de prix, de délai, de garantie ni de promesse.${continuityInstruction}`;
   }
 
   if (args.theme === "faq") {
     return `Préparer une publication de type question fréquente${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText} : répondre simplement à une vraie question générale que les clients peuvent se poser sur ce métier, sans inventer de règle, de tarif, de délai ni de condition propre à l'entreprise.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText} : répondre simplement à une vraie question générale que les clients peuvent se poser sur ce métier, sans inventer de règle, de tarif, de délai ni de condition propre à l'entreprise.${continuityInstruction}`;
   }
 
   if (args.theme === "recrutement") {
     return `Préparer une publication autour du recrutement ou de la marque employeur${companyText} pour un professionnel ${
       professionLabel || sector
-    }${servicesText}${cityText}${zonesText}. Ne jamais annoncer un poste, un contrat, un salaire, un avantage ou une embauche sans information explicite fournie ; à défaut, présenter les valeurs, les savoir-faire ou les métiers de l'entreprise sans faire croire qu'une offre est ouverte.${freshnessInstruction}`;
+    }${servicesText}${cityText}${zonesText}. Ne jamais annoncer un poste, un contrat, un salaire, un avantage ou une embauche sans information explicite fournie ; à défaut, présenter les valeurs, les savoir-faire ou les métiers de l'entreprise sans faire croire qu'une offre est ouverte.${continuityInstruction}`;
   }
 
   return `Préparer une publication de conseil utile${companyText} pour un professionnel ${
     professionLabel || sector
-  }${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${freshnessInstruction}`;
+  }${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${continuityInstruction}`;
 }
 
 function cleanHashtags(channel: BoosterChannels, input: unknown) {
@@ -2097,25 +2137,48 @@ export async function POST(request: Request) {
       ? plannedTheme
       : chooseTheme(automation.allowedThemes, recentPublications);
   const boosterTheme = agentThemeToBoosterTheme[agentTheme] || "conseil";
+  const publicationIdeas = normalizeInrAgentPublicationIdeas(
+    automation.metadata?.publicationIdeas
+  ).filter(Boolean);
+  // Chaque action garde le focus prévu dans son plan. Pour une préparation
+  // manuelle (sans créneau), on applique exactement la même règle : idées du
+  // pro non encore traitées, puis combinaison iNr'ADN équilibrée.
+  const runtimeFocus =
+    editorialTarget?.plan.focus ||
+    buildInrAgentEditorialFocusPlan({
+      slots: [
+        {
+          slotKey:
+            editorialTarget?.plan.slotKey ||
+            `instant:${userId}:${agentTheme}:${recentPublications[0]?.created_at || "first"}`,
+          sequence:
+            editorialTarget?.plan.sequence || recentPublications.length + 1,
+          theme: agentTheme,
+        },
+      ],
+      business,
+      profile,
+      publicationIdeas,
+      historicalSubjects: [
+        ...recentPublications.flatMap((publication) => [
+          publication.title,
+          publication.idea,
+          publication.content,
+        ]),
+        ...earlierEditorialAngles,
+      ],
+      seed: `${userId}:inr-agent-instant`,
+    })[0]?.focus ||
+    null;
   const baseIdea = buildAgentIdea({
     business,
     profile,
     theme: agentTheme,
     recentPublications,
+    focus: runtimeFocus,
   });
-  const publicationIdeas = normalizeInrAgentPublicationIdeas(
-    automation.metadata?.publicationIdeas
-  ).filter(Boolean);
-  const publicationIdea = publicationIdeas.length
-    ? publicationIdeas[
-        Math.max(
-          0,
-          (editorialTarget?.plan.sequence || recentPublications.length + 1) - 1
-        ) % publicationIdeas.length
-      ]
-    : "";
-  const guidedIdea = publicationIdea
-    ? `IDÉE PRIORITAIRE FOURNIE PAR LE PROFESSIONNEL : ${publicationIdea}\n\n${baseIdea}`
+  const guidedIdea = runtimeFocus?.source === "professional_idea"
+    ? `IDÉE PRIORITAIRE FOURNIE PAR LE PROFESSIONNEL : ${runtimeFocus.subject}\n\n${baseIdea}`
     : baseIdea;
   const idea = editorialTarget
     ? `${guidedIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
@@ -2181,6 +2244,7 @@ export async function POST(request: Request) {
     editorialTarget?.id || "on-demand",
     editorialTarget?.plan.scheduledFor || "unscheduled",
     agentTheme,
+    runtimeFocus?.focusKey || "no-editorial-focus",
   ].join(":");
   for (let index = 0; index < requestedGenerationCount; index += 1) {
     generatedMediaResults.push(
@@ -2264,6 +2328,7 @@ export async function POST(request: Request) {
   const mediaSelectionTrace = {
     policyVersion: "media_selection_v8_shared_editorial_instant_mix",
     editorialPlan: editorialTarget?.plan || null,
+    editorialFocus: runtimeFocus,
     instantMediaMix: instantMediaMix
       ? {
           preparedPublications: instantMediaMix.preparedPublications,
@@ -2572,6 +2637,7 @@ export async function POST(request: Request) {
       idea,
       theme: agentTheme,
       boosterTheme,
+      editorialFocus: runtimeFocus,
       postByChannel: versions,
       ctaPolicy: {
         version: 1,

@@ -72,6 +72,19 @@ export type InrAgentPreferredMediaSource =
 export type InrAgentPlanningHorizonDays =
   (typeof INR_AGENT_PLANNING_HORIZON_DAYS)[number];
 
+/** Tous les thèmes pertinents sont activés dès la première configuration Publier. */
+export const INR_AGENT_PUBLISH_THEMES = [
+  "conseils",
+  "realisations",
+  "offres",
+  "actualites",
+  "coulisses",
+  "temoignages",
+  "services",
+  "faq",
+  "recrutement",
+] as const satisfies readonly InrAgentTheme[];
+
 /**
  * Part des médias IA iNrAgent qui reprennent les réglages mémorisés dans
  * iNrStudio. La valeur est exprimée en pourcentage, bornée à 0–100 et
@@ -179,7 +192,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     time: "09:00",
     validationMode: "notify_before_validation",
     allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "x"],
-    allowedThemes: ["conseils", "realisations", "offres", "actualites"],
+    allowedThemes: [...INR_AGENT_PUBLISH_THEMES],
     useImageBank: true,
     imageRequired: true,
     preferredMediaSource: "media_library",
@@ -477,6 +490,23 @@ export function normalizeInrAgentStudioMediaPreferencePercent(
 const INR_SEARCH_PUBLISH_MIGRATION_FLAG = "inrSearchChannelAdded";
 export const INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG = "pinterestChannelAdded";
 export const INR_AGENT_X_PUBLISH_MIGRATION_FLAG = "xChannelAdded";
+const INR_AGENT_PUBLISH_THEMES_MIGRATION_FLAG = "allPublishThemesEnabled";
+const LEGACY_DEFAULT_PUBLISH_THEMES = [
+  "conseils",
+  "realisations",
+  "offres",
+  "actualites",
+] as const satisfies readonly InrAgentTheme[];
+
+function hasExactlyTheseValues(
+  values: readonly string[],
+  expected: readonly string[],
+) {
+  return (
+    values.length === expected.length &&
+    values.every((value) => expected.includes(value))
+  );
+}
 
 export function sanitizeInrAgentAutomationSettings(
   key: InrAgentAutomationKey,
@@ -490,6 +520,11 @@ export function sanitizeInrAgentAutomationSettings(
     defaults.allowedChannels,
   );
   const metadata = sanitizeMetadata(source.metadata);
+  const allowedThemes = sanitizeMaybeEmptyStringArray(
+    INR_AGENT_THEMES,
+    source.allowedThemes,
+    defaults.allowedThemes,
+  );
   const shouldMigratePublishChannels =
     key === "publish" &&
     Array.isArray(source.allowedChannels) &&
@@ -498,6 +533,17 @@ export function sanitizeInrAgentAutomationSettings(
     metadata[INR_SEARCH_PUBLISH_MIGRATION_FLAG] !== true;
   const normalizedAllowedChannels: InrAgentChannel[] = [...allowedChannels];
   if (shouldMigratePublishChannels) normalizedAllowedChannels.push("inr_search");
+  // Les quatre thèmes ci-dessous étaient le réglage initial historique. On
+  // les fait évoluer vers la sélection complète, sans modifier une sélection
+  // personnalisée (y compris une sélection volontairement vide) du pro.
+  const shouldMigratePublishThemes =
+    key === "publish" &&
+    Array.isArray(source.allowedThemes) &&
+    hasExactlyTheseValues(allowedThemes, LEGACY_DEFAULT_PUBLISH_THEMES) &&
+    metadata[INR_AGENT_PUBLISH_THEMES_MIGRATION_FLAG] !== true;
+  const normalizedAllowedThemes: InrAgentTheme[] = shouldMigratePublishThemes
+    ? [...INR_AGENT_PUBLISH_THEMES]
+    : allowedThemes;
   const preferredMediaSourceInput =
     source.preferredMediaSource ?? metadata.preferredMediaSource;
   const preferredMediaSource = includesValue(
@@ -514,9 +560,15 @@ export function sanitizeInrAgentAutomationSettings(
     source.studioMediaPreferencePercent ?? metadata.studioMediaPreferencePercent,
     defaults.studioMediaPreferencePercent,
   );
-  const normalizedMetadataBase = shouldMigratePublishChannels
-    ? { ...metadata, [INR_SEARCH_PUBLISH_MIGRATION_FLAG]: true }
-    : metadata;
+  const normalizedMetadataBase: Record<string, unknown> = {
+    ...metadata,
+    ...(shouldMigratePublishChannels
+      ? { [INR_SEARCH_PUBLISH_MIGRATION_FLAG]: true }
+      : {}),
+    ...(shouldMigratePublishThemes
+      ? { [INR_AGENT_PUBLISH_THEMES_MIGRATION_FLAG]: true }
+      : {}),
+  };
   const normalizedMetadata = {
     ...normalizedMetadataBase,
     preferredMediaSource,
@@ -547,7 +599,7 @@ export function sanitizeInrAgentAutomationSettings(
     // Les anciennes valeurs `automatic_publish` sont normalisées ici dès la lecture.
     validationMode,
     allowedChannels: normalizedAllowedChannels,
-    allowedThemes: sanitizeMaybeEmptyStringArray(INR_AGENT_THEMES, source.allowedThemes, defaults.allowedThemes),
+    allowedThemes: normalizedAllowedThemes,
     useImageBank: sanitizeBoolean(source.useImageBank, defaults.useImageBank),
     imageRequired: sanitizeBoolean(source.imageRequired, defaults.imageRequired),
     preferredMediaSource,
