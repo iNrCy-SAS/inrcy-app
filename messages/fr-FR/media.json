@@ -269,6 +269,7 @@
   "ai_generator_retry": "Réessayer",
   "ai_generator_saved": "Il sera enregistré seulement après votre validation.",
   "ai_generator_saved_automatically": "Aperçu temporaire · enregistré seulement après validation",
+  "ai_generator_saved_to_library": "Enregistré dans la Médiathèque",
   "ai_generator_shot_auto": "Automatique",
   "ai_generator_shot_close": "Plan rapproché",
   "ai_generator_shot_label": "Cadrage",

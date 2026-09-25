@@ -198,6 +198,32 @@ test("les trois actions de résultat conservent leurs callbacks, le retour inser
   }
 });
 
+test("un résultat destiné à être inséré peut aussi être conservé sans quitter la création", () => {
+  const actions: string[] = [];
+  const draft = mediaResult("image");
+  const tree = render({
+    generationResult: draft,
+    acceptMode: "insert",
+    handleConfirm() { actions.push("insert"); },
+    handleSaveToLibrary() { actions.push("save"); },
+  });
+
+  assert.equal(
+    elements(byClass(tree, "resultActions")).filter((node) => node.type === "button").length,
+    4,
+  );
+  click(button(tree, "ai_generator_open_library"));
+  assert.deepEqual(actions, ["save"]);
+
+  const saved = render({
+    generationResult: { ...draft, draft: false },
+    acceptMode: "insert",
+    handleSaveToLibrary() { actions.push("save-again"); },
+  });
+  assert.match(text(byClass(saved, "savedStatus")), /ai_generator_saved_to_library/);
+  assert.equal(button(saved, "ai_generator_saved_to_library").props.disabled, true);
+});
+
 test("un échec ou un aperçu indisponible garde les commandes de récupération sans prétendre afficher un média", () => {
   const actions: string[] = [];
   const failed = render({ error: "Erreur fournisseur", handleGenerate: () => actions.push("retry"), handleEditCriteria: () => actions.push("edit") });

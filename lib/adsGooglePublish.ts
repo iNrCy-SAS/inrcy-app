@@ -24,6 +24,11 @@ export type GoogleAdsPublishProgress = {
 
 export type PersistGoogleAdsProgress = (progress: GoogleAdsPublishProgress) => Promise<void> | void;
 
+export type GoogleAdsPublishOptions = {
+  /** A review demonstration must never activate provider resources. */
+  activate?: boolean;
+};
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -93,6 +98,7 @@ export async function publishGoogleAdsCampaign(
   draft: AdsCampaignInput,
   persistProgress?: PersistGoogleAdsProgress,
   loginCustomerId?: string,
+  options: GoogleAdsPublishOptions = {},
 ): Promise<GoogleAdsPublishProgress> {
   if (!persistProgress) {
     throw new Error("L’enregistrement des identifiants Google Ads est requis avant publication.");
@@ -202,6 +208,10 @@ export async function publishGoogleAdsCampaign(
   } catch {
     throw new Error(`Campagne créée en pause sur Google Ads, mais son enregistrement local a échoué : ${paused.campaignResourceName}. Aucune diffusion n’a été activée.`);
   }
+
+  // Used only by the explicit review/demo mode. The atomic create above sets
+  // the campaign, group, keywords and ad to PAUSED; return before any enable.
+  if (options.activate === false) return paused;
 
   const enableChildren = [
     { adGroupOperation: { update: { resourceName: paused.adGroupResourceName, status: "ENABLED" }, updateMask: "status" } },

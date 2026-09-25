@@ -34,10 +34,12 @@ type Props = {
   handleRequestGenerationStop: () => void;
   handleConfirmGenerationStop: () => void;
   handleConfirm: () => void | Promise<void>;
+  handleSaveToLibrary?: () => void | Promise<void>;
   handleGenerate: () => void | Promise<void>;
   handleEditCriteria: () => void | Promise<void>;
   disabled: boolean;
   acceptMode: "library" | "insert";
+  savingToLibrary?: boolean;
   actionError?: string;
   error?: string;
   originChangedNotice?: boolean;
@@ -99,10 +101,12 @@ export default function MediaGenerationCreationWorkspace({
   handleRequestGenerationStop,
   handleConfirmGenerationStop,
   handleConfirm,
+  handleSaveToLibrary,
   handleGenerate,
   handleEditCriteria,
   disabled,
   acceptMode,
+  savingToLibrary = false,
   actionError,
   error,
   originChangedNotice,
@@ -121,6 +125,7 @@ export default function MediaGenerationCreationWorkspace({
         fallback: generationResult.format,
       })
     : format;
+  const resultSavedToLibrary = Boolean(generationResult && !generationResult.draft);
   const progressLabel =
     progress >= 99
       ? t("ai_generator_stage_patience")
@@ -332,7 +337,9 @@ export default function MediaGenerationCreationWorkspace({
           </div>
           <div className={styles.savedStatus} role="status">
             <span aria-hidden="true">✓</span>
-            {t("ai_generator_saved_automatically")}
+            {resultSavedToLibrary
+              ? t("ai_generator_saved_to_library")
+              : t("ai_generator_saved_automatically")}
           </div>
           <div className={styles.resultActions}>
             <RegenerationAuthorization
@@ -357,6 +364,20 @@ export default function MediaGenerationCreationWorkspace({
                       : "ai_generator_open_library"
                   )}
             </button>
+            {acceptMode === "insert" && handleSaveToLibrary ? (
+              <button
+                type="button"
+                className={styles.saveToLibraryButton}
+                onClick={() => void handleSaveToLibrary()}
+                disabled={operationLocked || resultSavedToLibrary}
+              >
+                {savingToLibrary
+                  ? t("ai_generator_finishing_library")
+                  : resultSavedToLibrary
+                  ? `✓ ${t("ai_generator_saved_to_library")}`
+                  : t("ai_generator_open_library")}
+              </button>
+            ) : null}
             <button
               type="button"
               className={styles.regenerateButton}

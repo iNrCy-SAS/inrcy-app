@@ -144,6 +144,7 @@ export default function MediaFreeGenerator({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [referencesBusy, setReferencesBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
@@ -257,6 +258,7 @@ export default function MediaFreeGenerator({
       setActionError("");
       setReferencesBusy(false);
       setFinishing(false);
+      setSavingToLibrary(false);
       setCreationScreen(false);
       operationInFlight.current = false;
       referenceSetId.current = "";
@@ -524,6 +526,40 @@ export default function MediaFreeGenerator({
     }
   };
 
+  const handleSaveToLibrary = async () => {
+    if (
+      !result ||
+      !result.draft ||
+      operationLocked ||
+      operationInFlight.current
+    ) {
+      return;
+    }
+    operationInFlight.current = true;
+    const currentSequence = sequence.current;
+    setFinishing(true);
+    setSavingToLibrary(true);
+    setActionError("");
+    try {
+      const accepted = await acceptDraft(result);
+      if (sequence.current !== currentSequence) return;
+      onResultChange?.(accepted);
+    } catch (caught) {
+      if (sequence.current !== currentSequence) return;
+      if (!(caught instanceof MediaGenerationAccountChangedError)) {
+        setActionError(
+          caught instanceof Error ? caught.message : t("ai_generator_error")
+        );
+      }
+    } finally {
+      if (sequence.current === currentSequence) {
+        operationInFlight.current = false;
+        setSavingToLibrary(false);
+        setFinishing(false);
+      }
+    }
+  };
+
   const handleConfirmGenerationStop = () => {
     setStopConfirmOpen(false);
     if (cancelGeneration()) {
@@ -550,10 +586,12 @@ export default function MediaFreeGenerator({
         handleRequestGenerationStop={() => setStopConfirmOpen(true)}
         handleConfirmGenerationStop={handleConfirmGenerationStop}
         handleConfirm={handleAccept}
+        handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEdit}
         disabled={!canGenerate}
         acceptMode={acceptMode}
+        savingToLibrary={savingToLibrary}
         actionError={actionError}
         error={error}
         originChangedNotice={originChangedNotice}

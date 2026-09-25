@@ -399,8 +399,15 @@ test("Standard partage la rangée sous Booster à parts égales entre iNrAgent e
   }
 });
 
-test("le raccourci Planning du bloc iNrAgent réutilise la modale et les données existantes sans copie", () => {
-  assert.match(standardModulesSource, /data-testid="standard-agent-planning"/);
+test("le raccourci calendrier du bloc iNrAgent réutilise la modale sans dupliquer le bouton Planning", () => {
+  const planningTriggers =
+    standardModulesSource.match(/data-testid="standard-agent-planning(?:-icon)?"/g) ?? [];
+
+  assert.deepEqual(planningTriggers, ['data-testid="standard-agent-planning-icon"']);
+  assert.doesNotMatch(
+    standardModulesSource,
+    /className=\{standardStyles\.agentPlanningButton\}/,
+  );
   assert.match(standardModulesSource, /data-testid="standard-agent-pilotage"/);
   assert.match(standardModulesSource, /t\("agentPlanning"\)/);
   assert.match(standardModulesSource, /<DashboardAgentPlanningModal/);
@@ -418,13 +425,28 @@ test("le raccourci Planning du bloc iNrAgent réutilise la modale et les donnée
   assert.doesNotMatch(dashboardAgentPlanningSource, /role="dialog"/);
 });
 
-test("le planning responsive masque les jours vides et affiche chaque action sur une ligne lisible", () => {
-  assert.match(agentActionModalsSource, /data-has-actions=\{dayGroups\.length > 0\}/);
-  assert.match(agentActionModalsSource, /styles\.scheduleDayLabel/);
+test("le planning affiche uniquement les dates actives avec un carrousel local lisible", () => {
+  const monthlyAgendaStyles = agentStylesSource.slice(
+    agentStylesSource.lastIndexOf("Planning iNrAgent — agenda mensuel"),
+  );
+
+  assert.match(agentActionModalsSource, /calendarModel\.slots\.map/);
+  assert.match(agentActionModalsSource, /className=\{styles\.scheduleDayEmpty\}/);
+  assert.match(agentActionModalsSource, /data-has-actions="true"/);
+  assert.match(agentActionModalsSource, /role="listitem"/);
+  assert.match(agentActionModalsSource, /styles\.scheduleDayCarouselControls/);
+  assert.match(
+    agentActionModalsSource,
+    /activeDayCarouselIndex \+ 1\}\/{dayGroups\.length\}/,
+  );
+  assert.match(agentActionModalsSource, /styles\.scheduleDayDate/);
   assert.match(agentActionModalsSource, /styles\.scheduleIconButtonLabel/);
-  assert.match(agentStylesSource, /\.scheduleDayCell\[data-has-actions="false"\]\s*\{\s*display:\s*none/);
-  assert.match(agentStylesSource, /grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(agentStylesSource, /\.scheduleCalendarCard \.scheduleIconButton[\s\S]*?min-height:\s*44px/);
+  assert.match(monthlyAgendaStyles, /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(monthlyAgendaStyles, /\.scheduleWeekday,\s*\.scheduleDayEmpty\s*\{\s*display:\s*none/);
+  assert.match(
+    monthlyAgendaStyles,
+    /@media \(max-width: 760px\)[\s\S]*?\.scheduleCalendar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/,
+  );
 });
 
 test("le planning conserve Modifier et Reprogrammer dans la vue de consultation", () => {

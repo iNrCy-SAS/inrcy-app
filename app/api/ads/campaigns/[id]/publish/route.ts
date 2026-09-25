@@ -5,6 +5,7 @@ import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublis
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
+import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode } from "@/lib/adsPublishMode";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -15,18 +16,20 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
   const { user, errorResponse } = await requirePremiumAdsUser();
   if (errorResponse || !user) return errorResponse;
-  if (process.env.INRCY_ADS_LIVE_PUBLISH_ENABLED !== "true") {
-    return NextResponse.json({ error: "La publication réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
+  const body = await request.json().catch(() => null) as { confirmation?: unknown; mode?: unknown } | null;
+  const mode = parseAdsPublishMode(body?.mode);
+  const pausedDemo = mode === "demo_paused";
+  if (!isAdsPublishModeEnabled(mode, process.env)) {
+    return NextResponse.json({ error: pausedDemo ? "Le mode démo en pause est verrouillé. Activez-le uniquement dans un environnement de démonstration contrôlé." : "La publication réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
   }
-  const body = await request.json().catch(() => null) as { confirmation?: unknown } | null;
-  if (body?.confirmation !== "PUBLIER_ET_DEPENSER") {
-    return NextResponse.json({ error: "Confirmez explicitement la publication et la dépense publicitaire." }, { status: 400 });
+  if (!hasAdsPublishConfirmation(mode, body?.confirmation)) {
+    return NextResponse.json({ error: pausedDemo ? "Confirmez explicitement la création d’une démo entièrement en pause." : "Confirmez explicitement la publication et la dépense publicitaire." }, { status: 400 });
   }
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return NextResponse.json({ error: "Identifiant de campagne invalide." }, { status: 400 });
   }
-  const limited = await enforceRateLimit({ name: "ads_publish", identifier: user.authUserId, limit: 8, window: "1 h" });
+  const limited = await enforceRateLimit({ name: pausedDemo ? "ads_demo_paused" : "ads_publish", identifier: user.authUserId, limit: pausedDemo ? 4 : 8, window: "1 h" });
   if (limited) return limited;
 
   const { data: stored, error: readError } = await supabaseAdmin.from("ads_campaigns")
@@ -62,7 +65,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "La connexion publicitaire est indisponible." }, { status: 502 });
   }
 
-  // Atomic state transition prevents duplicate paid campaigns from concurrent clicks.
+  // Atomic state transition prevents duplicate paid campaigns or demo resources.
   const { data: claimed, error: claimError } = await supabaseAdmin.from("ads_campaigns")
     .update({ status: "publishing", last_error: null, updated_at: new Date().toISOString() })
     .eq("id", id).eq("user_id", user.activeUserId).eq("status", "draft")
@@ -83,20 +86,23 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   try {
     const resources = draft.provider === "meta"
-      ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress)
-      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId);
+      ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, { activate: !pausedDemo })
+      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo });
+    const completedResources = pausedDemo
+      ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
+      : resources;
     const { data: completed, error: finalError } = await supabaseAdmin.from("ads_campaigns").update({
-      status: "active",
-      provider_resources: resources,
-      published_at: new Date().toISOString(),
+      status: pausedDemo ? "demo_paused" : "active",
+      provider_resources: completedResources,
+      published_at: pausedDemo ? null : new Date().toISOString(),
       last_error: null,
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing")
       .select("id,status,provider_resources").maybeSingle();
     if (finalError || !completed) {
-      throw new Error("La campagne peut être active, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative.");
+      throw new Error(pausedDemo ? "La démo a pu être créée en pause, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative." : "La campagne peut être active, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative.");
     }
-    return NextResponse.json({ campaign: completed });
+    return NextResponse.json({ campaign: completed, mode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
     const resources = error instanceof MetaAdsPublishError ? error.progress : progress;

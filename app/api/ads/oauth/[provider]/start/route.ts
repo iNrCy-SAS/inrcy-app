@@ -3,6 +3,7 @@ import { buildMetaOAuthUrl } from "@/lib/metaGraphApi";
 import { makeOAuthState } from "@/lib/security";
 import { adsOAuthProvider, adsOAuthRedirectUri, adsReturnUrl } from "@/lib/adsOAuth";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
+import { applyMetaAdsOAuthParameters } from "@/lib/adsMetaScopes";
 
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const provider = adsOAuthProvider((await context.params).provider);
@@ -28,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
   });
   const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", state: stateB64 });
   if (provider === "meta") {
-    params.set("scope", "ads_management,ads_read,pages_show_list,pages_read_engagement,instagram_basic");
+    applyMetaAdsOAuthParameters(params);
   } else {
     params.set("scope", "https://www.googleapis.com/auth/adwords openid email");
     params.set("access_type", "offline");

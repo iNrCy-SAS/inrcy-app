@@ -136,6 +136,38 @@ test("la fermeture et la regeneration detruisent le brouillon avant de continuer
   assert.match(modal, /beforeunload/);
 });
 
+test("l’enregistrement volontaire depuis un flux d’insertion promeut le brouillon sans l’insérer", () => {
+  const components = [
+    "app/dashboard/_components/MediaGenerator.tsx",
+    "app/dashboard/_components/MediaFreeGenerator.tsx",
+    "app/dashboard/_components/MediaModifier.tsx",
+  ];
+
+  for (const componentPath of components) {
+    const component = read(componentPath);
+    const save = section(
+      component,
+      "const handleSaveToLibrary = async () =>",
+      componentPath.endsWith("MediaModifier.tsx")
+        ? "if (result) {"
+        : componentPath.endsWith("MediaGenerator.tsx")
+          ? "const subjectChoices"
+          : "const handleConfirmGenerationStop",
+    );
+    assert.match(save, /!.*\.draft/);
+    assert.match(save, /await acceptDraft\(/);
+    assert.match(save, /onResultChange\?\.\(accepted\)/);
+    assert.doesNotMatch(save, /await onAccepted\(/);
+  }
+
+  for (const componentPath of [
+    "app/dashboard/_components/MediaGenerator.tsx",
+    "app/dashboard/_components/MediaFreeGenerator.tsx",
+  ]) {
+    assert.match(read(componentPath), /handleSaveToLibrary=\{handleSaveToLibrary\}/);
+  }
+});
+
 test("la purge 24 h est branchee au cron horaire", () => {
   const registry = read("lib/aiGeneratedMediaRegistry.ts");
   const cron = read("app/api/cron/media-orphan-cleanup/route.ts");

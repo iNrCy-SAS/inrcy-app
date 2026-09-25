@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "预计用时：生成一张图片大约需要 30 秒到 2 分钟。",
   "ai_generator_video_timing_hint": "预计时间：iNrCy 会分析企业 DNA、构建场景并渲染成片。具体时长取决于所选格式。",
   "ai_generator_saved_automatically": "临时预览 · 仅在您确认后保存",
+  "ai_generator_saved_to_library": "已保存到媒体库",
   "ai_generator_open_library": "保存到媒体库",
   "ai_generator_close_library_title": "删除此预览？",
   "ai_studio_origin_exit_title": "返回 {origin}？",

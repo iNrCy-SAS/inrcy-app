@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "Tempo indicativo: un’immagine può richiedere da circa 30 secondi a 2 minuti.",
   "ai_generator_video_timing_hint": "Tempo stimato: iNrCy analizza il DNA aziendale, costruisce le scene e renderizza il montaggio. I tempi dipendono dal formato selezionato.",
   "ai_generator_saved_automatically": "Anteprima temporanea · salvataggio solo dopo la conferma",
+  "ai_generator_saved_to_library": "Salvato nella Libreria multimediale",
   "ai_generator_open_library": "Salva nella Libreria multimediale",
   "ai_generator_close_library_title": "Eliminare questa anteprima?",
   "ai_studio_origin_exit_title": "Tornare a {origin}?",

@@ -950,7 +950,14 @@ export default function AgentClient() {
 
   const selectedPreparedActionFromActions = useMemo(() => {
     if (selectedKey === "publish") {
+      const explicitlySelectedPublication = actions.find(
+        (action) =>
+          action.id === selectedPreparedActionId &&
+          action.automationKey === "publish" &&
+          action.actionType === "publication"
+      );
       return (
+        explicitlySelectedPublication ??
         publicationCarouselActions.find(
           (action) => action.id === selectedPreparedActionId
         ) ??
@@ -1001,8 +1008,26 @@ export default function AgentClient() {
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
     selectedPreparedAction
   );
-  const selectedPublicationIndex = selectedPreparedAction
+  const selectedPublicationCarouselIndex = selectedPreparedAction
     ? publicationCarouselActions.findIndex(
+        (action) => action.id === selectedPreparedAction.id
+      )
+    : -1;
+  const publicationViewerActions =
+    selectedPreparedAction &&
+    selectedKey === "publish" &&
+    selectedPublicationCarouselIndex < 0 &&
+    selectedPreparedAction.automationKey === "publish" &&
+    selectedPreparedAction.actionType === "publication"
+      ? [
+          selectedPreparedAction,
+          ...publicationCarouselActions.filter(
+            (action) => action.id !== selectedPreparedAction.id
+          ),
+        ]
+      : publicationCarouselActions;
+  const selectedPublicationIndex = selectedPreparedAction
+    ? publicationViewerActions.findIndex(
         (action) => action.id === selectedPreparedAction.id
       )
     : -1;
@@ -1010,7 +1035,7 @@ export default function AgentClient() {
     selected.key === "publish" &&
     !scheduledEditSession &&
     tiktokSessionCheckState !== "checking" &&
-    publicationCarouselActions.length > 1;
+    publicationViewerActions.length > 1;
 
   function movePublication(offset: number) {
     if (!canNavigatePublications || tiktokSessionCheckInFlightRef.current)
@@ -1018,9 +1043,9 @@ export default function AgentClient() {
     const currentIndex =
       selectedPublicationIndex >= 0 ? selectedPublicationIndex : 0;
     const nextIndex =
-      (currentIndex + offset + publicationCarouselActions.length) %
-      publicationCarouselActions.length;
-    const nextAction = publicationCarouselActions[nextIndex];
+      (currentIndex + offset + publicationViewerActions.length) %
+      publicationViewerActions.length;
+    const nextAction = publicationViewerActions[nextIndex];
     if (!nextAction) return;
     setSelectedPreparedActionId(nextAction.id);
     setPublishMediaActiveIndex(0);
@@ -6293,13 +6318,13 @@ export default function AgentClient() {
                         <span>
                           <small className={styles.publishStatusHeading}>
                             <span>{i18nT("statut_659499f3")}</span>
-                            {publicationCarouselActions.length > 0 ? (
+                            {publicationViewerActions.length > 0 ? (
                               <span
                                 className={styles.publishStatusCounter}
                                 aria-live="polite"
                               >
                                 {Math.max(0, selectedPublicationIndex) + 1}/
-                                {publicationCarouselActions.length}
+                                {publicationViewerActions.length}
                               </span>
                             ) : null}
                           </small>
@@ -6901,7 +6926,7 @@ export default function AgentClient() {
                     )}
                   </div>
                 </div>
-                {isPublishView && publicationCarouselActions.length > 0 ? (
+                {isPublishView && publicationViewerActions.length > 0 ? (
                   <div className={styles.publishMobilePager}>
                     <button
                       type="button"
@@ -6920,12 +6945,12 @@ export default function AgentClient() {
                       aria-label={`${
                         Math.max(0, selectedPublicationIndex) + 1
                       } / ${
-                        publicationCarouselActions.length
+                        publicationViewerActions.length
                       } — ${publishValidationLabel}`}
                       title={publishValidationLabel}
                     >
                       {Math.max(0, selectedPublicationIndex) + 1} /{" "}
-                      {publicationCarouselActions.length}
+                      {publicationViewerActions.length}
                     </span>
                     <button
                       type="button"

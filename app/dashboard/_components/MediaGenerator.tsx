@@ -367,6 +367,7 @@ export default function MediaGenerator({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [actionError, setActionError] = useState("");
   const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
@@ -768,6 +769,7 @@ export default function MediaGenerator({
   const clearTransientState = () => {
     reset();
     setActionError("");
+    setSavingToLibrary(false);
   };
 
   const resetReferenceConsent = () => {
@@ -1318,6 +1320,37 @@ export default function MediaGenerator({
     }
   };
 
+  const handleSaveToLibrary = async () => {
+    if (
+      !generationResult ||
+      !generationResult.draft ||
+      operationLocked ||
+      acceptInFlightRef.current
+    ) {
+      return;
+    }
+    acceptInFlightRef.current = true;
+    setActionError("");
+    setFinishing(true);
+    setSavingToLibrary(true);
+    try {
+      const accepted = await acceptDraft(generationResult);
+      onResultChange?.(accepted);
+    } catch (caught) {
+      if (caught instanceof MediaGenerationAccountChangedError) {
+        setActionError("");
+        return;
+      }
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error")
+      );
+    } finally {
+      acceptInFlightRef.current = false;
+      setSavingToLibrary(false);
+      setFinishing(false);
+    }
+  };
+
   const subjectChoices: Array<{
     id: MediaGenerationSubjectSource;
     title: string;
@@ -1526,10 +1559,12 @@ export default function MediaGenerator({
         handleRequestGenerationStop={handleRequestGenerationStop}
         handleConfirmGenerationStop={handleConfirmGenerationStop}
         handleConfirm={handleConfirm}
+        handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEditCriteria}
         disabled={disabled}
         acceptMode={acceptMode}
+        savingToLibrary={savingToLibrary}
         actionError={actionError}
         error={error}
         originChangedNotice={originChangedNotice}

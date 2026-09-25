@@ -18,5 +18,6 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
     initialConnection={params.connection === "connected" ? "connected" : params.connection === "error" ? "error" : null}
     initialReason={typeof params.reason === "string" ? params.reason : ""}
     livePublishingEnabled={process.env.INRCY_ADS_LIVE_PUBLISH_ENABLED === "true"}
+    demoPausedPublishingEnabled={process.env.INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED === "true"}
   />;
 }

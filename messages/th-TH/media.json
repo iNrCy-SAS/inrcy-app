@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "เวลาโดยประมาณ: การสร้างรูปภาพอาจใช้เวลาประมาณ 30 วินาทีถึง 2 นาที",
   "ai_generator_video_timing_hint": "เวลาโดยประมาณ: iNrCy วิเคราะห์ DNA ของธุรกิจ สร้างฉาก และเรนเดอร์งานตัดต่อ ระยะเวลาขึ้นอยู่กับรูปแบบที่เลือก",
   "ai_generator_saved_automatically": "ตัวอย่างชั่วคราว · บันทึกหลังจากคุณยืนยันเท่านั้น",
+  "ai_generator_saved_to_library": "บันทึกลงคลังสื่อแล้ว",
   "ai_generator_open_library": "บันทึกลงคลังสื่อ",
   "ai_generator_close_library_title": "ลบตัวอย่างนี้หรือไม่",
   "ai_studio_origin_exit_title": "กลับไปที่ {origin} หรือไม่",

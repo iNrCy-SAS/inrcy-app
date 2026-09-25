@@ -47,6 +47,7 @@ function resultContext() {
     operationLocked: false,
     setCreationScreen: (value: boolean) => { events.push(`creation:${value}`); },
     setFinishing: (value: boolean) => { events.push(`finishing:${value}`); },
+    setSavingToLibrary: (value: boolean) => { events.push(`saving:${value}`); },
     setActionError: (value: string) => { events.push(`error:${value}`); },
     onResultChange: () => { events.push("result-parent"); },
     onAccepted: async () => { events.push("accepted-parent"); },
@@ -159,6 +160,30 @@ test("le double clic Accepter ne promeut le média et ne rappelle le parent qu�
   await request;
   assert.equal(accepts, 1);
   assert.deepEqual(context.events, ["finishing:true", "error:", "result-parent", "accepted-parent", "finishing:false"]);
+  assert.equal(context.operationInFlight.current, false);
+});
+
+test("Libre peut enregistrer un média sans le renvoyer vers le flux d’insertion", async () => {
+  const context = resultContext();
+  const pending = deferred<typeof context.result>();
+  const run = handler("handleSaveToLibrary", {
+    ...context,
+    acceptDraft: () => pending.promise,
+  });
+
+  const request = run();
+  assert.equal(context.operationInFlight.current, true);
+  pending.resolve(context.result);
+  await request;
+
+  assert.deepEqual(context.events, [
+    "finishing:true",
+    "saving:true",
+    "error:",
+    "result-parent",
+    "saving:false",
+    "finishing:false",
+  ]);
   assert.equal(context.operationInFlight.current, false);
 });
 

@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "Ungefähre Dauer: Ein Bild kann etwa 30 Sekunden bis 2 Minuten benötigen.",
   "ai_generator_video_timing_hint": "Geschätzte Dauer: iNrCy analysiert die Unternehmens-DNA, erstellt die Szenen und rendert den Schnitt. Die Dauer hängt vom gewählten Format ab.",
   "ai_generator_saved_automatically": "Temporäre Vorschau · Speicherung erst nach Ihrer Bestätigung",
+  "ai_generator_saved_to_library": "In der Mediathek gespeichert",
   "ai_generator_open_library": "In der Mediathek speichern",
   "ai_generator_close_library_title": "Diese Vorschau verwerfen?",
   "ai_studio_origin_exit_title": "Zu {origin} zurückkehren?",

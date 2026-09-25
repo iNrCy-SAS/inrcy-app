@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "Estimated time: an image can take around 30 seconds to 2 minutes.",
   "ai_generator_video_timing_hint": "Estimated time: iNrCy reads your Business DNA, builds the scenes and renders the edit. Timing depends on the selected format.",
   "ai_generator_saved_automatically": "Temporary preview · saved only after your confirmation",
+  "ai_generator_saved_to_library": "Saved to Media Library",
   "ai_generator_open_library": "Save to Media Library",
   "ai_generator_close_library_title": "Discard this preview?",
   "ai_studio_origin_exit_title": "Return to {origin}?",

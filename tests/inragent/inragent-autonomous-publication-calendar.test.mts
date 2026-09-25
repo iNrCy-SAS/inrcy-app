@@ -7,7 +7,7 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const read = (relativePath: string) =>
   readFileSync(resolve(ROOT, relativePath), "utf8");
 
-test("le planning iNrAgent est un calendrier par quinzaine avec les actions conservées", () => {
+test("le planning iNrAgent est un agenda mensuel avec un carrousel par date", () => {
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
   const styles = read("app/dashboard/agent/agent.module.css");
   const scheduleModalSource = modal.slice(
@@ -19,14 +19,30 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   );
 
   assert.match(modal, /function groupScheduleItems/);
-  assert.match(modal, /const \[visibleHalf, setVisibleHalf\]/);
+  assert.match(modal, /const visibleMonthItems = useMemo/);
+  assert.match(modal, /const \[activeDayCarouselIndexes, setActiveDayCarouselIndexes\]/);
   assert.match(modal, /const justOpened = open && !wasOpenRef\.current/);
   assert.match(modal, /if \(!justOpened\) return/);
-  assert.match(modal, />\s*1–15\s*<\/button>/);
-  assert.match(modal, />\s*16–\{calendarModel\.lastDay\}\s*<\/button>/);
+  assert.doesNotMatch(scheduleModalSource, />\s*1–15\s*<\/button>/);
+  assert.doesNotMatch(scheduleModalSource, />\s*16–/);
   assert.match(modal, /moveMonth\(-1\)/);
   assert.match(modal, /moveMonth\(1\)/);
-  assert.match(modal, /role="grid"/);
+  assert.match(scheduleModalSource, /calendarModel\.slots\.map/);
+  assert.match(
+    scheduleModalSource,
+    /Array\.from\(\{ length: Math\.max\(0, 16 - days\.length\) \}/
+  );
+  assert.match(scheduleModalSource, /const hasCalendarOverflow = calendarModel\.days\.length > 16/);
+  assert.match(scheduleModalSource, /role="list"/);
+  assert.match(scheduleModalSource, /role="listitem"/);
+  assert.match(scheduleModalSource, /scheduleDayCarouselControls/);
+  assert.match(scheduleModalSource, /disabled=\{!hasDayCarousel\}/);
+  assert.match(scheduleModalSource, /styles\.scheduleDayOrigin/);
+  assert.match(scheduleModalSource, /styles\.scheduleCalendarMediaBadge/);
+  assert.match(
+    scheduleModalSource,
+    /\.slice\(\s*activeDayCarouselIndex,\s*activeDayCarouselIndex \+ 1\s*\)/
+  );
   assert.match(modal, /onOpenContent\(item\)/);
   assert.match(modal, /onReschedule\(item\)/);
   assert.match(modal, /onDelete\(item\)/);
@@ -43,6 +59,8 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   assert.match(modal, /item\.statusKey === "refused"/);
   assert.match(scheduleModalSource, /scheduleHeaderPeriodControls/);
   assert.match(scheduleModalSource, /scheduleCalendarCardControls/);
+  assert.match(scheduleModalSource, /scheduleCalendarCardType/);
+  assert.match(scheduleModalSource, /const cardTypeLabel/);
   assert.match(scheduleModalSource, /scheduleCalendarCardMeta/);
   assert.match(scheduleModalSource, /scheduleCalendarChannels/);
   assert.doesNotMatch(scheduleModalSource, /scheduleCalendarToolbar/);
@@ -63,20 +81,22 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
       scheduleModalSource.indexOf("styles.scheduleApprovalIndicator")
   );
   assert.match(styles, /\.scheduleCalendar\s*\{/);
-  assert.match(styles, /grid-template-columns:\s*repeat\(7,/);
   assert.match(styles, /\.scheduleCalendarCard\s*\{/);
   assert.match(styles, /\.scheduleFilters\s*\{/);
   assert.match(styles, /\.scheduleFilter\[data-filter="campaigns"\]/);
+  assert.match(styles, /\.scheduleCalendarCard\[data-category="publications"\]/);
   assert.match(styles, /\.scheduleCalendarCard\[data-category="stats"\]/);
+  assert.match(styles, /\.scheduleCalendarCard\[data-category="campaigns"\]/);
+  assert.match(styles, /\.scheduleCalendarCardType\s*\{/);
   assert.match(styles, /\.scheduleApprovalIndicator\[data-state="approved"\]/);
   assert.match(styles, /\.scheduleApprovalIndicator\[data-state="pending"\]/);
   assert.match(styles, /\.scheduleApprovalIndicator\[data-state="refused"\]/);
   assert.match(styles, /\.scheduleCalendarCard\[data-approval="refused"\]/);
   assert.match(finalScheduleStyles, /width:\s*min\(1680px,/);
   assert.match(finalScheduleStyles, /height:\s*min\(94dvh, 1040px\)/);
-  assert.match(finalScheduleStyles, /grid-auto-rows:\s*206px/);
-  assert.match(finalScheduleStyles, /height:\s*206px/);
-  assert.match(finalScheduleStyles, /height:\s*140px/);
+  assert.match(finalScheduleStyles, /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(finalScheduleStyles, /grid-auto-rows:\s*160px/);
+  assert.match(finalScheduleStyles, /\.scheduleDayCarouselControls\s*\{/);
   assert.match(
     finalScheduleStyles,
     /\.modalBackdrop:has\(\.scheduleModal\)\s*\{\s*padding:\s*8px 14px;/
@@ -85,33 +105,22 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
     finalScheduleStyles,
     /height:\s*min\(calc\(100dvh - 16px\), 1160px\) !important;/
   );
-  assert.match(
-    finalScheduleStyles,
-    /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/
-  );
-  assert.match(finalScheduleStyles, /grid-auto-rows:\s*164px/);
+  assert.match(finalScheduleStyles, /@media \(min-width: 761px\) and \(max-width: 1100px\)[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(finalScheduleStyles, /@media \(max-width: 760px\)[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(
     finalScheduleStyles,
     /\.scheduleCalendarCardTopline\s*\{\s*display:\s*contents;/
   );
-  assert.match(finalScheduleStyles, /grid-auto-rows:\s*140px/);
   assert.match(
     finalScheduleStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.scheduleDayActions\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow-x:\s*auto;/
-  );
-  assert.match(
-    finalScheduleStyles,
-    /\.scheduleDayActions > \.scheduleCalendarCard\s*\{[\s\S]*?flex:\s*0 0 calc\(\(100% - 6px\) \/ 2\);/
+    /\.scheduleDayActions > \.scheduleCalendarCard\s*\{[\s\S]*?width:\s*100%;[\s\S]*?height:\s*100%;/
   );
   assert.match(
     finalScheduleStyles,
     /@media \(max-width: 760px\)[\s\S]*?\.scheduleCalendarCardTopline > \.scheduleCalendarCardControls\s*\{[\s\S]*?flex-direction:\s*row;/
   );
   assert.match(finalScheduleStyles, /height:\s*56px/);
-  assert.match(
-    finalScheduleStyles,
-    /\.scheduleWeekday,\s*\.scheduleDayEmpty\s*\{\s*display:\s*none;/
-  );
+  assert.match(finalScheduleStyles, /\.scheduleDayEmpty\s*\{\s*display:\s*block;/);
   assert.match(finalScheduleStyles, /overflow-x:\s*hidden/);
   assert.match(
     styles,
@@ -123,7 +132,7 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   );
 });
 
-test("le rafraîchissement du planning conserve la quinzaine choisie et masque les campagnes en Standard", () => {
+test("le rafraîchissement du planning conserve le mois choisi et masque les campagnes en Standard", () => {
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
   const client = read("app/dashboard/agent/AgentClient.tsx");
   const dashboardPlanning = read(
@@ -138,8 +147,8 @@ test("le rafraîchissement du planning conserve la quinzaine choisie et masque l
   assert.match(scheduleModalSource, /if \(!justOpened\) return/);
   assert.ok(
     scheduleModalSource.indexOf("if (!justOpened) return") <
-      scheduleModalSource.indexOf("setVisibleHalf("),
-    "la quinzaine ne doit être réinitialisée qu'à l'ouverture de la modale"
+      scheduleModalSource.indexOf("setVisibleMonth("),
+    "le mois ne doit être réinitialisé qu'à l'ouverture de la modale"
   );
   assert.match(scheduleModalSource, /showCampaigns = true/);
   assert.match(scheduleModalSource, /scheduleFilterKey\(item\) !== "campaigns"/);
@@ -214,6 +223,41 @@ test("une publication éditoriale iNr’Agent peut être reprogrammée sans chan
   assert.doesNotMatch(rescheduleUpdateSource, /\bstatus:/);
 });
 
+test("Modifier depuis le planning ouvre bien la publication exacte, même hors carrousel", () => {
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+
+  assert.match(client, /const explicitlySelectedPublication = actions\.find\(/);
+  assert.match(
+    client,
+    /action\.id === selectedPreparedActionId[\s\S]*?action\.automationKey === "publish"[\s\S]*?action\.actionType === "publication"/
+  );
+  assert.match(client, /const publicationViewerActions =/);
+  assert.match(client, /selectedPublicationCarouselIndex < 0/);
+  assert.match(
+    client,
+    /selectedPreparedAction,[\s\S]*?\.\.\.publicationCarouselActions\.filter\([\s\S]*?action\.id !== selectedPreparedAction\.id/
+  );
+  assert.match(client, /setSelectedPreparedActionId\(item\.preparedActionId \|\| null\)/);
+  assert.match(client, /publicationViewerActions\.length > 1/);
+});
+
+test("les boutons du planning conservent l'identité de chaque publication", () => {
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+  const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
+
+  assert.match(modal, /onClick=\{\(\) => onOpenContent\(item\)\}/);
+  assert.match(modal, /onClick=\{\(\) => onReschedule\(item\)\}/);
+  assert.match(modal, /onClick=\{\(\) => onDelete\(item\)\}/);
+  assert.match(
+    client,
+    /item\.source === "manual"\)[\s\S]*?openScheduledActionEditor\(item\.scheduledActionId\)/
+  );
+  assert.match(
+    client,
+    /item\.source === "editorial"[\s\S]*?setSelectedPreparedActionId\(item\.preparedActionId \|\| null\)[\s\S]*?setSelectedKey\("publish"\)/
+  );
+});
+
 test("les libellés de filtres et de validation du planning existent dans toutes les langues", () => {
   const locales = [
     "de-DE",
@@ -235,6 +279,9 @@ test("les libellés de filtres et de validation du planning existent dans toutes
     "planning_status_approved",
     "planning_status_pending",
     "planning_status_refused",
+    "planning_day_carousel",
+    "planning_previous_action",
+    "planning_next_action",
     "publication_validation_pending",
     "previous_publication",
     "next_publication",
@@ -282,19 +329,19 @@ test("les fréquences 1 à 3 fois par semaine ou par mois traversent tout le con
   assert.match(cron, /scheduleSlots/);
 });
 
-test("le compteur du planning exclut les actions passées et hors quinzaine", () => {
+test("le compteur du planning exclut les actions passées et hors mois", () => {
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
   const scheduleModalSource = modal.slice(
     modal.indexOf("export function AgentScheduleModal"),
     modal.indexOf("type ValidationChoiceModalProps")
   );
 
-  assert.match(scheduleModalSource, /const visiblePeriodItems = useMemo/);
+  assert.match(scheduleModalSource, /const visibleMonthItems = useMemo/);
   assert.match(scheduleModalSource, /date\.getTime\(\) >= nowTimestamp/);
   assert.match(scheduleModalSource, /setNowTimestamp\(Date\.now\(\)\)/);
   assert.match(scheduleModalSource, /date\.getMonth\(\) === month/);
   assert.match(scheduleModalSource, /const filterCounts = useMemo/);
-  assert.match(scheduleModalSource, /\[visiblePeriodItems\]/);
+  assert.match(scheduleModalSource, /\[visibleMonthItems\]/);
 });
 
 test("les fréquences mensuelles stockent des dates numériques et non des jours de semaine", () => {

@@ -318,14 +318,6 @@ export default function DashboardStandardModulesCard({
           </button>
           <span className={standardStyles.agentActions}>
             <button
-              className={standardStyles.agentPlanningButton}
-              type="button"
-              data-testid="standard-agent-planning"
-              onClick={() => setAgentPlanningOpen(true)}
-            >
-              <PlanningIcon /> {t("agentPlanning")}
-            </button>
-            <button
               className={standardStyles.agentPilotButton}
               type="button"
               data-testid="standard-agent-pilotage"

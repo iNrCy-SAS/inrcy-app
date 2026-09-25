@@ -18,7 +18,7 @@
     ),
     linear-gradient(135deg, #050a1e 0%, #06132e 48%, #041126 100%)
   );
-  overflow: hidden;
+  overflow: visible;
 }
 
 .agentCanvas {
@@ -18615,6 +18615,853 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
   .scheduleCalendarChannels[open] {
     width: 100%;
+  }
+}
+
+/* Planning iNrAgent — agenda mensuel : seules les dates programmées sont visibles. */
+.scheduleCalendar {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: minmax(220px, 1fr);
+  align-content: start;
+}
+
+.scheduleWeekday,
+.scheduleDayEmpty {
+  display: none;
+}
+
+.scheduleDayCell {
+  height: auto;
+  min-height: 220px;
+  max-height: none;
+}
+
+.scheduleDayActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  overflow: hidden;
+}
+
+.scheduleDayActions > .scheduleCalendarCard {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.scheduleDayCarouselControls {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
+  background: rgba(5, 14, 40, 0.34);
+}
+
+.scheduleDayCarouselControls button {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 999px;
+  color: #e0f2fe;
+  background: rgba(8, 145, 178, 0.2);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.scheduleDayCarouselControls button:hover {
+  border-color: rgba(103, 232, 249, 0.72);
+  background: rgba(14, 165, 233, 0.36);
+  transform: translateY(-1px);
+}
+
+.scheduleDayCarouselControls button:disabled {
+  cursor: default;
+  opacity: 0.34;
+}
+
+.scheduleDayCarouselControls button:disabled:hover {
+  border-color: rgba(125, 211, 252, 0.2);
+  background: rgba(8, 145, 178, 0.2);
+  transform: none;
+}
+
+.scheduleDayCarouselControls button:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+
+.scheduleDayCarouselControls small {
+  min-width: 28px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: #f8fbff;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+@media (min-width: 1101px) {
+  .scheduleDayActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(0, 1fr);
+    padding-bottom: 0;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+
+  .scheduleDayActions > .scheduleCalendarCard {
+    flex: none;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .scheduleCalendar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .scheduleCalendar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    gap: 12px;
+  }
+
+  .scheduleDayCell[data-has-actions="true"] {
+    min-height: 0;
+  }
+
+  .scheduleDayActions {
+    grid-auto-rows: auto;
+    overflow: visible;
+  }
+
+  .scheduleDayActions > .scheduleCalendarCard {
+    height: auto;
+    min-height: 0;
+  }
+
+  .scheduleDayCarouselControls {
+    gap: 5px;
+    padding: 3px;
+  }
+
+  .scheduleDayCarouselControls button,
+  .scheduleDayCarouselControls small {
+    height: 24px;
+  }
+}
+
+/* Planning iNrAgent — grille mensuelle lisible, quatre cartes par ligne. */
+.scheduleModal {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+
+.scheduleModal .scheduleSection {
+  min-height: 0;
+  height: 100%;
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden !important;
+}
+
+.scheduleCalendarShell {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.scheduleCalendarViewport {
+  box-sizing: border-box;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.scheduleCalendarViewport[data-overflow="true"] {
+  overflow-y: auto;
+}
+
+.scheduleCalendar {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 160px;
+  align-content: start;
+}
+
+.scheduleCalendar[data-overflow="true"] {
+  height: calc(100% + 169px);
+}
+
+.scheduleDayCell,
+.scheduleDayEmpty {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.scheduleDayEmpty {
+  display: block;
+  border: 1px dashed rgba(125, 211, 252, 0.34);
+  border-radius: 17px;
+  opacity: 1;
+  background: linear-gradient(
+    145deg,
+    rgba(30, 88, 140, 0.32),
+    rgba(50, 38, 110, 0.26)
+  );
+  box-shadow: inset 0 0 28px rgba(125, 211, 252, 0.05);
+}
+
+.scheduleDayHeader {
+  min-height: 31px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.14);
+}
+
+.scheduleDayOrigin {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  justify-self: start;
+  border: 1px solid rgba(125, 211, 252, 0.26);
+  border-radius: 9px;
+  color: #dbeafe;
+  background: rgba(16, 47, 93, 0.8);
+  box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.05);
+}
+
+.scheduleDayOrigin[data-origin="agent"] {
+  background-image: url("/icons/inr-agent-header.png"),
+    linear-gradient(145deg, rgba(35, 117, 210, 0.48), rgba(106, 66, 193, 0.52));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 82%, auto;
+}
+
+.scheduleDayOrigin[data-origin="manual"] svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.scheduleDayDate {
+  min-width: 0;
+  min-height: 28px;
+  display: inline-grid;
+  justify-self: center;
+  place-items: center;
+  padding: 0 11px;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 999px;
+  color: #f8fbff;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
+  text-transform: capitalize;
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.28),
+    rgba(79, 70, 229, 0.3)
+  );
+  box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.06);
+}
+
+.scheduleDayCarouselControls {
+  min-width: 0;
+  margin-left: 0;
+  justify-self: end;
+}
+
+.scheduleDayCarouselControls[data-navigable="false"] {
+  padding: 2px;
+}
+
+.scheduleDayCarouselControls[data-navigable="false"] small {
+  min-width: 32px;
+}
+
+.scheduleDayActions {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.scheduleDayActions > .scheduleCalendarCard {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.scheduleCalendarCard {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /*
+   * Cette carte vit dans une cellule compacte de la grille 4 × 4. Les
+   * anciennes règles du planning lui donnaient une rangée extensible avant
+   * les métadonnées : le thème, le titre et les badges pouvaient alors se
+   * chevaucher. Chaque niveau a désormais sa propre rangée stable.
+   */
+  grid-template-rows: 20px 17px minmax(22px, 1fr) 18px 11px;
+  align-items: stretch;
+  align-content: stretch;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: center;
+  overflow: visible;
+}
+
+.scheduleCalendarCard[data-category="publications"] {
+  border-color: rgba(103, 232, 249, 0.62) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(8, 145, 178, 0.56),
+    rgba(37, 99, 235, 0.42)
+  ) !important;
+}
+
+.scheduleCalendarCard[data-category="stats"] {
+  border-color: rgba(216, 180, 254, 0.66) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(126, 34, 206, 0.55),
+    rgba(219, 39, 119, 0.37)
+  ) !important;
+}
+
+.scheduleCalendarCard[data-category="campaigns"] {
+  border-color: rgba(253, 186, 116, 0.66) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.53),
+    rgba(190, 24, 93, 0.35)
+  ) !important;
+}
+
+.scheduleCalendarCardTopline {
+  grid-row: 1;
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: visible;
+}
+
+.scheduleCalendarCardTopline time {
+  flex: 0 0 auto;
+  line-height: 20px;
+}
+
+.scheduleCalendarCardTopline > .scheduleCalendarCardControls {
+  margin-left: auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.scheduleCalendarCardDesktopActions {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.scheduleCalendarCardMobileActions {
+  display: none;
+}
+
+.scheduleCalendarCardTopline > .scheduleCalendarCardControls .scheduleIconButton {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+}
+
+.scheduleCalendarCardTopline > .scheduleCalendarCardControls
+  .scheduleApprovalIndicator {
+  position: static;
+  width: 8px !important;
+  min-width: 8px !important;
+  height: 8px;
+  flex: 0 0 8px;
+}
+
+.scheduleCalendarCardTopline > .scheduleCalendarCardType {
+  position: absolute;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 138px);
+  min-width: 0;
+  align-self: center;
+  color: var(--schedule-card-type-color, rgba(224, 242, 254, 0.92));
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.075em;
+  line-height: 12px;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scheduleCalendarCard > .scheduleCalendarCardTheme {
+  grid-row: 2;
+  align-self: center;
+  min-width: 0;
+  display: block;
+  margin: 0;
+  color: #f8fbff;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.scheduleCalendarCardTitle {
+  grid-row: 3;
+  align-self: center;
+  min-width: 0;
+  display: -webkit-box;
+  margin: 0;
+  color: rgba(224, 242, 254, 0.84);
+  font-size: 10px;
+  font-weight: 780;
+  line-height: 1.24;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scheduleCalendarCardMeta {
+  display: contents;
+}
+
+.scheduleCalendarMetaBadges {
+  grid-row: 4;
+  justify-self: center;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.scheduleCalendarMetaBadges > * {
+  box-sizing: border-box;
+  height: 18px;
+}
+
+.scheduleCalendarCardMeta > small,
+.scheduleCalendarCardMeta > em {
+  grid-row: 5;
+  justify-self: center;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  align-self: center;
+  text-align: center;
+}
+
+.scheduleCalendarCardMeta > em {
+  min-height: 11px;
+  color: rgba(239, 246, 255, 0.74);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleCalendarChannels {
+  width: auto;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+}
+
+.scheduleCalendarChannels summary {
+  justify-content: center;
+}
+
+/* Le détail des canaux passe au-dessus de la grille, sans agrandir la case. */
+.scheduleDayCell:has(.scheduleCalendarChannels[open]) {
+  z-index: 70;
+  overflow: visible !important;
+}
+
+.scheduleDayCell:has(.scheduleCalendarChannels[open]) .scheduleDayActions,
+.scheduleDayCell:has(.scheduleCalendarChannels[open]) .scheduleCalendarCard,
+.scheduleCalendarCard:has(.scheduleCalendarChannels[open]) {
+  z-index: 71;
+  overflow: visible !important;
+}
+
+.scheduleCalendarViewport:has(.scheduleCalendarChannels[open]),
+.scheduleCalendar:has(.scheduleCalendarChannels[open]) {
+  z-index: 72;
+  overflow: visible !important;
+}
+
+.scheduleCalendarMediaBadge {
+  height: 18px;
+  min-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid rgba(196, 181, 253, 0.34);
+  border-radius: 999px;
+  color: #ede9fe;
+  background: rgba(91, 33, 182, 0.2);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.scheduleCalendarMediaBadge[data-media="video"] {
+  border-color: rgba(251, 146, 60, 0.42);
+  color: #ffedd5;
+  background: rgba(154, 52, 18, 0.24);
+}
+
+.scheduleCalendarMediaBadge[data-media="mixed"] {
+  border-color: rgba(244, 114, 182, 0.42);
+  color: #fce7f3;
+  background: rgba(157, 23, 77, 0.24);
+}
+
+/* Le code couleur de la carte suit strictement celui des filtres. */
+.scheduleCalendarCard[data-category="publications"] {
+  --schedule-card-type-color: #a5f3fc;
+}
+
+.scheduleCalendarCard[data-category="stats"] {
+  --schedule-card-type-color: #e9d5ff;
+}
+
+.scheduleCalendarCard[data-category="campaigns"] {
+  --schedule-card-type-color: #fed7aa;
+}
+
+.scheduleFilterPopover {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.scheduleFilterMenuButton {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(165, 180, 252, 0.34);
+  border-radius: 999px;
+  color: #f8fbff;
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.24),
+    rgba(139, 92, 246, 0.26)
+  );
+  box-shadow: 0 10px 24px rgba(30, 64, 175, 0.2),
+    inset 0 0 18px rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.scheduleFilterMenuButton:hover,
+.scheduleFilterMenuButton:focus-visible,
+.scheduleFilterMenuButton[data-open="true"] {
+  border-color: rgba(165, 180, 252, 0.7);
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.38),
+    rgba(139, 92, 246, 0.42)
+  );
+}
+
+.scheduleFilterPopover .scheduleFilters {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 15px;
+  background: rgba(5, 14, 40, 0.98);
+  box-shadow: 0 18px 38px rgba(2, 6, 23, 0.48);
+}
+
+.scheduleFilterPopover .scheduleFilter {
+  width: max-content;
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .scheduleCalendar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+}
+
+@media (max-width: 760px) {
+  /* On mobile, every scheduled day remains reachable; the 4 × 4 desktop
+   * viewport must not crop the rest of the monthly list. */
+  .scheduleCalendarViewport {
+    overflow-y: auto;
+  }
+
+  .scheduleCalendar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+  }
+
+  .scheduleDayEmpty {
+    display: none;
+  }
+
+  .scheduleDayCell {
+    min-height: 0;
+  }
+
+  .scheduleDayHeader > span {
+    display: inline-grid;
+  }
+
+  .scheduleDayLabel {
+    display: block;
+    font-size: 14px;
+  }
+
+  .scheduleDayActions {
+    grid-auto-rows: auto;
+    overflow: visible;
+  }
+
+  .scheduleDayActions > .scheduleCalendarCard {
+    height: auto;
+    min-height: 0;
+  }
+
+  .scheduleCalendarCard {
+    grid-template-rows: auto auto auto auto auto;
+    padding: 12px;
+  }
+
+  .scheduleCalendarCardTheme {
+    align-self: auto;
+    font-size: 14px;
+  }
+
+  .scheduleCalendarCardTitle {
+    align-self: auto;
+    font-size: 12px;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls {
+    flex: 0 0 auto;
+    width: max-content;
+    gap: 3px;
+  }
+
+  .scheduleCalendarCardDesktopActions {
+    display: none;
+  }
+
+  .scheduleCalendarCardMobileActions {
+    position: relative;
+    z-index: 2;
+    display: block;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .scheduleCalendarCardMobileActions summary {
+    min-width: 44px;
+    height: 28px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 9px;
+    border: 1px solid rgba(125, 211, 252, 0.46);
+    border-radius: 999px;
+    color: #f8fbff;
+    background: linear-gradient(
+      135deg,
+      rgba(14, 165, 233, 0.34),
+      rgba(79, 70, 229, 0.36)
+    );
+    box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 950;
+    line-height: 1;
+    list-style: none;
+  }
+
+  .scheduleCalendarCardMobileActions summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .scheduleCalendarCardMobileActions summary::marker {
+    content: "";
+  }
+
+  .scheduleCalendarCardMobileActions[open] summary {
+    border-color: rgba(103, 232, 249, 0.9);
+    background: linear-gradient(
+      135deg,
+      rgba(14, 165, 233, 0.52),
+      rgba(79, 70, 229, 0.54)
+    );
+  }
+
+  .scheduleCalendarCardMobileActions > div {
+    position: absolute;
+    z-index: 90;
+    top: calc(100% + 6px);
+    right: 0;
+    width: max-content;
+    min-width: 184px;
+    display: grid;
+    gap: 5px;
+    padding: 7px;
+    border: 1px solid rgba(125, 211, 252, 0.36);
+    border-radius: 12px;
+    background: rgba(5, 14, 40, 0.98);
+    box-shadow: 0 16px 32px rgba(2, 6, 23, 0.52);
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls .scheduleIconButton {
+    /* Neutralise les anciennes règles mobile (boutons pleine largeur / 44px)
+     * afin que les trois actions restent de vraies pastilles sans déborder. */
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    aspect-ratio: 1;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .scheduleCalendarCardMobileActions > div .scheduleIconButton {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 10px;
+    border-radius: 9px;
+    aspect-ratio: auto;
+    white-space: nowrap;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls
+    .scheduleIconButton svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls
+    .scheduleApprovalIndicator {
+    width: 7px !important;
+    min-width: 7px !important;
+    height: 7px;
+    flex-basis: 7px;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls
+    .scheduleIconButtonLabel {
+    display: none !important;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls
+    .scheduleCalendarCardMobileActions
+    .scheduleIconButtonLabel {
+    display: inline !important;
+  }
+
+  .scheduleFilterMenuButton {
+    min-height: 36px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
+
+  .scheduleFilterPopover .scheduleFilters {
+    min-width: min(260px, calc(100vw - 32px));
   }
 }
 

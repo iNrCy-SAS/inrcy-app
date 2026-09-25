@@ -348,6 +348,7 @@
   "ai_generator_image_timing_hint": "Geschatte tijd: een afbeelding kan ongeveer 30 seconden tot 2 minuten duren.",
   "ai_generator_video_timing_hint": "Geschatte tijd: iNrCy analyseert het bedrijfs-DNA, bouwt de scènes en rendert de montage. De duur hangt af van het gekozen formaat.",
   "ai_generator_saved_automatically": "Tijdelijk voorbeeld · pas opgeslagen na je bevestiging",
+  "ai_generator_saved_to_library": "Opgeslagen in je Mediabibliotheek",
   "ai_generator_open_library": "Opslaan in de Mediabibliotheek",
   "ai_generator_close_library_title": "Dit voorbeeld verwijderen?",
   "ai_studio_origin_exit_title": "Terug naar {origin}?",

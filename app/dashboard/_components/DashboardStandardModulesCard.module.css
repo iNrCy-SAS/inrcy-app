@@ -551,7 +551,7 @@
   grid-column: 1 / -1;
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -574,12 +574,6 @@
 
 .agentActions > button:hover { transform: translateY(-1px); filter: brightness(1.08); }
 .agentActions > button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-.agentPlanningButton {
-  border: 1px solid rgba(114, 221, 255, .42);
-  background: linear-gradient(110deg, rgba(11, 64, 126, .78), rgba(55, 43, 122, .78));
-  box-shadow: inset 0 1px rgba(255,255,255,.12), 0 8px 18px rgba(27, 108, 213, .15);
-}
 
 .agentPilotButton {
   border: 1px solid rgba(132, 220, 255, .48);
@@ -1086,7 +1080,6 @@
   .agentActions { grid-column: 1 / -1; justify-self: stretch; width: 100%; grid-template-columns: minmax(0, 1fr); }
   .agentActions > button { width: 100%; }
   .agentPlanningIconButton { display: grid; }
-  .agentActions > .agentPlanningButton,
   .agentDesktopCopy { display: none; }
   .agentMobileCopy { display: block; white-space: nowrap; }
   .premiumActionStack .boosterStats {

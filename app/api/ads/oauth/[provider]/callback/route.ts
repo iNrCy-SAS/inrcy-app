@@ -7,6 +7,7 @@ import { verifyOAuthState } from "@/lib/security";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
 import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { adsOAuthProvider, adsOAuthRedirectUri, adsReturnUrl } from "@/lib/adsOAuth";
+import { META_ADS_REQUIRED_PERMISSIONS } from "@/lib/adsMetaScopes";
 
 type TokenPayload = {
   access_token?: string;
@@ -16,14 +17,6 @@ type TokenPayload = {
   error?: string | { message?: string };
   error_description?: string;
 };
-
-const META_ADS_REQUIRED_PERMISSIONS = [
-  "ads_management",
-  "ads_read",
-  "pages_show_list",
-  "pages_read_engagement",
-  "instagram_basic",
-] as const;
 
 async function grantedMetaAdsPermissions(accessToken: string): Promise<string[]> {
   const response = await fetch(buildMetaGraphUrl("me/permissions?limit=100"), {

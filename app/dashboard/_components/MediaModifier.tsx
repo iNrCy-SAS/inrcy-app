@@ -175,6 +175,7 @@ export default function MediaModifier({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [sourceBusy, setSourceBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -424,6 +425,34 @@ export default function MediaModifier({
     }
   };
 
+  const handleSaveToLibrary = async () => {
+    if (
+      !result ||
+      !result.draft ||
+      operationLocked ||
+      acceptInFlightRef.current
+    ) {
+      return;
+    }
+    acceptInFlightRef.current = true;
+    setActionError("");
+    setFinishing(true);
+    setSavingToLibrary(true);
+    try {
+      const accepted = await acceptDraft(result);
+      onResultChange?.(accepted);
+    } catch (caught) {
+      if (caught instanceof MediaGenerationAccountChangedError) return;
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error"),
+      );
+    } finally {
+      acceptInFlightRef.current = false;
+      setSavingToLibrary(false);
+      setFinishing(false);
+    }
+  };
+
   if (result) {
     return (
       <div className={styles.workspace} data-state="result">
@@ -446,7 +475,9 @@ export default function MediaModifier({
             )}
           </div>
           <p className={styles.draftNote}>
-            {t("ai_generator_saved_automatically")}
+            {result.draft
+              ? t("ai_generator_saved_automatically")
+              : t("ai_generator_saved_to_library")}
           </p>
           {actionError ? (
             <p className={styles.error} role="alert">{actionError}</p>
@@ -466,6 +497,20 @@ export default function MediaModifier({
             >
               {t("ai_modifier_edit_instruction")}
             </button>
+            {acceptMode === "insert" ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void handleSaveToLibrary()}
+                disabled={operationLocked || !result.draft}
+              >
+                {savingToLibrary
+                  ? t("ai_generator_finishing_library")
+                  : result.draft
+                    ? t("ai_generator_open_library")
+                    : `✓ ${t("ai_generator_saved_to_library")}`}
+              </button>
+            ) : null}
             <button
               type="button"
               className={styles.primaryButton}

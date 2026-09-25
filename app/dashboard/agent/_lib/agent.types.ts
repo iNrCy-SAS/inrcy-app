@@ -387,6 +387,9 @@ export type ScheduledActionsResponse = {
 export type ScheduleListItem = {
   id: string;
   action: string;
+  themeLabel?: string;
+  contentTitle?: string;
+  mediaKind?: "image" | "video" | "mixed";
   date: string;
   time: string;
   typeLabel: string;

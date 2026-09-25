@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import { isAdsProvider, type AdsAccount, type AdsCampaignInput, type AdsChannelId, type AdsProvider } from "@/lib/adsValidation";
+import { ADS_PAUSED_DEMO_CONFIRMATION } from "@/lib/adsPublishMode";
 import AdsConnectionSettings from "./AdsConnectionSettings";
 import styles from "./ads.module.css";
 
@@ -12,7 +13,7 @@ type StoredCampaign = {
   id: string;
   provider: AdsChannelId;
   name: string;
-  status: "draft" | "publishing" | "active" | "needs_review";
+  status: "draft" | "publishing" | "active" | "needs_review" | "demo_paused";
   draft: AdsCampaignInput;
   last_error: string | null;
   created_at: string;
@@ -70,11 +71,12 @@ async function readJson(response: Response) {
 function editableList(items: string[]) { return items.join("\n"); }
 function parseEditableList(text: string[]) { return text.map((value) => value.trim()).filter(Boolean); }
 
-export default function AdsClient({ initialChannel, initialConnection, initialReason, livePublishingEnabled }: {
+export default function AdsClient({ initialChannel, initialConnection, initialReason, livePublishingEnabled, demoPausedPublishingEnabled }: {
   initialChannel: AdsProvider;
   initialConnection: "connected" | "error" | null;
   initialReason: string;
   livePublishingEnabled: boolean;
+  demoPausedPublishingEnabled: boolean;
 }) {
   const [provider, setProvider] = useState<AdsProvider>(initialChannel);
   const [channelId, setChannelId] = useState<AdsChannelId>(initialChannel);
@@ -92,7 +94,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [tracking, setTracking] = useState(false);
   const [brief, setBrief] = useState("");
   const [brand, setBrand] = useState("");
-  const [busy, setBusy] = useState<"save" | "generate" | "publish" | null>(null);
+  const [busy, setBusy] = useState<"save" | "generate" | "publish" | "demo" | null>(null);
   const [confirmedSpend, setConfirmedSpend] = useState(false);
   const [configuring, setConfiguring] = useState(initialConnection !== null);
   const [creating, setCreating] = useState(false);
@@ -288,6 +290,30 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     } finally { setBusy(null); }
   }
 
+  async function createPausedDemo() {
+    if (!isAdsProvider(channelId)) return;
+    if (channelId !== provider || !savedId || dirty || !selectedAccount || !connected) return;
+    if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
+      setNotice("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
+      return;
+    }
+    const accepted = window.confirm(`Créer une démo réelle, entièrement en pause sur ${channelMeta.label} ?\n\nLa plateforme créera les éléments de campagne, mais iNrCy n’enverra aucune demande d’activation. Aucune diffusion ni dépense ne pourra démarrer.`);
+    if (!accepted) return;
+    setBusy("demo"); setNotice("");
+    try {
+      await readJson(await fetch(`/api/ads/campaigns/${savedId}/publish`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "demo_paused", confirmation: ADS_PAUSED_DEMO_CONFIRMATION }),
+      }));
+      setNotice(`Démo créée en pause sur ${channelMeta.label}. Aucune annonce ne diffuse et aucun budget n’est dépensé.`);
+      setConfirmedSpend(false);
+      void loadCampaigns();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être créée. Vérifiez son statut sur la plateforme avant de réessayer.");
+      void loadCampaigns();
+    } finally { setBusy(null); }
+  }
+
   function reopen(campaign: StoredCampaign) {
     if (campaign.status !== "draft") return;
     setTracking(false);
@@ -414,8 +440,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       <section hidden={sectionStep !== 2} className={`${styles.card} ${styles.publishCard}`}>
         <div className={styles.sectionHeading}><div><span>{isAdsProvider(channelId) ? "03 · À VOUS DE JOUER" : "03 · PRÉPARATION TERMINÉE"}</span><h2>{isAdsProvider(channelId) ? "Prêt à rayonner ?" : "Votre brouillon est prêt."}</h2></div><span className={styles.launchIcon} aria-hidden="true">{isAdsProvider(channelId) ? "↗" : "✦"}</span></div>
         <dl className={styles.summary}><div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd></div><div><dt>Canal / compte</dt><dd>{channelMeta.label} · {selectedAccount?.name || (isAdsProvider(channelId) ? "À configurer" : "Pas encore connecté")}</dd></div><div><dt>Budget quotidien</dt><dd>{draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour</dd></div><div><dt>Date de fin</dt><dd>{draft.endDate}</dd></div></dl>
-        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>La connexion à {channelMeta.label} et sa publication ne sont pas encore disponibles dans iNr’ADS. Vous pouvez enregistrer cette préparation ; aucune annonce ne part et aucun budget média n’est engagé.</p> : !livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Préparez dès maintenant vos messages et vos brouillons. La diffusion des annonces n’est pas encore activée.</p>}
+        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>La connexion à {channelMeta.label} et sa publication ne sont pas encore disponibles dans iNr’ADS. Vous pouvez enregistrer cette préparation ; aucune annonce ne part et aucun budget média n’est engagé.</p> : <>
+          {demoPausedPublishingEnabled && <p className={styles.warning}><strong>Mode démo sécurisé</strong>Cette démonstration crée les éléments chez {channelMeta.label}, tous maintenus en pause. Aucune diffusion ni dépense ne peut démarrer.</p>}
+          {!livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Préparez dès maintenant vos messages et vos brouillons. La diffusion des annonces n’est pas encore activée.</p>}
+        </>}
         {isAdsProvider(channelId) ? <>
+          {demoPausedPublishingEnabled && <button type="button" className={styles.secondaryButton} disabled={channelId !== provider || !savedId || dirty || !connected || busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
           <label className={styles.check}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label>
           <button type="button" className={styles.primaryButton} disabled={channelId !== provider || !livePublishingEnabled || !savedId || dirty || !connected || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button>
         </> : <button type="button" className={styles.primaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && !dirty ? "Brouillon enregistré" : "Enregistrer ce brouillon"}<span aria-hidden="true">↗</span></button>}
@@ -432,7 +462,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
             {campaigns.map((item) => <article key={item.id} className={styles.trackingItem}>
               <span className={styles.trackingLogo}><Image src={CHANNEL_CATALOG.find((channel) => channel.id === item.provider)?.logo || "/ads-logos/meta.svg"} width={30} height={30} alt="" /></span>
               <div className={styles.trackingItemCopy}><strong>{item.name}</strong><small>{CHANNEL_CATALOG.find((channel) => channel.id === item.provider)?.label || item.provider}</small>{item.last_error && <p className={styles.error}>{item.last_error}</p>}</div>
-              <span className={styles.trackingStatus} data-status={item.status}>{item.status === "active" ? "Activée côté plateforme" : item.status === "publishing" ? "Publication à vérifier" : item.status === "needs_review" ? "Vérification manuelle requise" : "Brouillon"}</span>
+              <span className={styles.trackingStatus} data-status={item.status}>{item.status === "active" ? "Activée côté plateforme" : item.status === "publishing" ? "Publication à vérifier" : item.status === "demo_paused" ? "Démo en pause" : item.status === "needs_review" ? "Vérification manuelle requise" : "Brouillon"}</span>
               {item.status === "draft" && <button type="button" className={styles.resumeButton} onClick={() => reopen(item)}>Reprendre <span aria-hidden="true">→</span></button>}
             </article>)}
           </div>}

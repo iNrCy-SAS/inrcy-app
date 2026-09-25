@@ -15,6 +15,7 @@ export type MetaAdsPublishStage =
   | "adset_created"
   | "creative_created"
   | "ad_created"
+  | "demo_paused"
   | "ad_activated"
   | "adset_activated"
   | "active"
@@ -32,6 +33,11 @@ export type MetaAdsPublishProgress = {
 };
 
 export type PersistMetaAdsProgress = (resources: Record<string, unknown>) => Promise<void>;
+
+export type MetaAdsPublishOptions = {
+  /** A review demonstration must never activate provider resources. */
+  activate?: boolean;
+};
 
 export class MetaAdsPublishError extends Error {
   readonly progress: MetaAdsPublishProgress;
@@ -92,6 +98,7 @@ export async function publishMetaAdsCampaign(
   userId: string,
   draft: AdsCampaignInput & { noSpecialCategoryConfirmed?: boolean },
   persistProgress: PersistMetaAdsProgress,
+  options: MetaAdsPublishOptions = {},
 ): Promise<Record<string, unknown>> {
   if (draft.provider !== "meta") throw new Error("Ce brouillon n’est pas une campagne Meta Ads.");
   if (typeof persistProgress !== "function") {
@@ -116,6 +123,7 @@ export async function publishMetaAdsCampaign(
   }
   const endTime = parisEndTime(draft.endDate);
   const accountPath = `act_${draft.adAccountId}`;
+  const shouldActivate = options.activate !== false;
 
   // Check the same token used for creation can access the chosen EUR account
   // and Page. Meta still validates the Page's advertising rights at creation.
@@ -206,6 +214,13 @@ export async function publishMetaAdsCampaign(
     }));
     progress = { ...progress, adId: requiredMetaId(ad, "de l’annonce"), stage: "ad_created" };
     await save(progress);
+
+    // Used only by the explicit review/demo mode. All remote objects were
+    // created with PAUSED status above, and no activation request is made.
+    if (!shouldActivate) {
+      await save({ ...progress, stage: "demo_paused" });
+      return { ...progress, stage: "demo_paused" };
+    }
 
     // Child objects may become ACTIVE while their paused parent still prevents
     // any delivery. The campaign is the final, spend-enabling switch.

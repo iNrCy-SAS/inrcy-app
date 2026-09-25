@@ -5,6 +5,7 @@ import {
   agentScheduleChannelLabel,
   agentScheduledStatusLabel,
   agentScheduleTypeLabel,
+  agentThemeListLabel,
   agentWeekdayLabel,
   type AgentTranslator,
 } from "./agent.i18n";
@@ -13,10 +14,15 @@ import {
   scheduleChannelLabelFromAutomation,
   scheduleDateParts,
   scheduleTypeLabelFromAutomation,
+  scheduledActionToPreparedAction,
   scheduledActionChannelLabel,
   scheduledActionChannelLabels,
   scheduledActionTypeLabel,
 } from "./agent.schedule";
+import {
+  extractChannelPreview,
+  extractPublishMediaPreview,
+} from "./agent.publish-preview";
 import {
   connectedChannelsForAutomation,
   normalizeUiChannels,
@@ -43,6 +49,36 @@ type BuildAgentScheduleItemsArgs = {
   locale: string;
   translate: AgentTranslator;
 };
+
+function scheduledContentTitle(
+  action: AgentPreparedAction,
+  channels: ChannelKey[],
+) {
+  const genericActionTitle = action.title.trim();
+  for (const channel of channels) {
+    const title = extractChannelPreview(action, channel).title.trim();
+    if (title && title !== genericActionTitle) return title;
+  }
+  return "";
+}
+
+function scheduledMediaKind(
+  action: AgentPreparedAction,
+  channels: ChannelKey[],
+): "image" | "video" | "mixed" | undefined {
+  const kinds = new Set(
+    channels
+      .map((channel) => extractPublishMediaPreview(action, channel).kind)
+      .filter((kind): kind is "image" | "video" =>
+        kind === "image" || kind === "video",
+      ),
+  );
+
+  if (kinds.size === 2) return "mixed";
+  if (kinds.has("image")) return "image";
+  if (kinds.has("video")) return "video";
+  return undefined;
+}
 
 export function buildAgentScheduleItems({
   actions,
@@ -140,9 +176,19 @@ export function buildAgentScheduleItems({
     const editorialState = String(editorialPlan?.state || "");
     const contentReady =
       editorialState === "ready" || pendingActionStatuses.has(action.status);
+    const themeLabel = agentThemeListLabel(
+      action.targetThemes,
+      translate,
+      locale,
+    );
+    const contentTitle = scheduledContentTitle(action, channels);
+    const mediaKind = scheduledMediaKind(action, channels);
     rows.push({
       id: `editorial-${action.id}`,
       action: action.title || agentAutomationTitle("publish", translate),
+      themeLabel: themeLabel || undefined,
+      contentTitle: contentTitle || undefined,
+      mediaKind,
       date: dateParts.date,
       time: dateParts.time,
       typeLabel: agentScheduleTypeLabel(
@@ -180,9 +226,25 @@ export function buildAgentScheduleItems({
       "—",
       locale,
     );
+    const preparedAction = scheduledActionToPreparedAction(action);
+    const scheduledChannels = preparedAction
+      ? normalizeUiChannels(preparedAction.targetChannels)
+      : [];
+    const themeLabel = preparedAction
+      ? agentThemeListLabel(preparedAction.targetThemes, translate, locale)
+      : "";
+    const contentTitle = preparedAction
+      ? scheduledContentTitle(preparedAction, scheduledChannels)
+      : "";
+    const mediaKind = preparedAction
+      ? scheduledMediaKind(preparedAction, scheduledChannels)
+      : undefined;
     rows.push({
       id: `manual-${action.id}`,
       action: action.title || translate("action_programmee_ea2709b8"),
+      themeLabel: themeLabel || undefined,
+      contentTitle: contentTitle || undefined,
+      mediaKind,
       date: dateParts.date,
       time: dateParts.time,
       typeLabel: agentScheduleTypeLabel(

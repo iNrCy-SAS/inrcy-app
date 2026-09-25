@@ -2797,6 +2797,7 @@
 
 .generateButton,
 .confirmButton,
+.saveToLibraryButton,
 .regenerateButton,
 .editButton {
   border: 0;
@@ -2852,6 +2853,7 @@
 
 .generateButton:disabled,
 .confirmButton:disabled,
+.saveToLibraryButton:disabled,
 .regenerateButton:disabled,
 .editButton:disabled {
   cursor: not-allowed;
@@ -3621,6 +3623,7 @@
 }
 
 .confirmButton,
+.saveToLibraryButton,
 .regenerateButton,
 .editButton {
   min-height: 48px;
@@ -3632,6 +3635,17 @@
 .confirmButton {
   background: linear-gradient(100deg, #20b9e5, #7259e9 56%, #df4e98);
   box-shadow: 0 13px 32px rgba(94, 75, 225, 0.28);
+}
+
+.saveToLibraryButton {
+  border: 1px solid rgba(91, 232, 186, 0.34);
+  color: #c7ffeb;
+  background: linear-gradient(
+    135deg,
+    rgba(28, 183, 148, 0.2),
+    rgba(37, 142, 197, 0.16)
+  );
+  box-shadow: inset 0 1px 0 rgba(212, 255, 239, 0.08);
 }
 
 .regenerateButton {
@@ -5211,6 +5225,7 @@
     gap: 6px;
   }
   .confirmButton,
+  .saveToLibraryButton,
   .regenerateButton,
   .editButton {
     min-height: 38px;
