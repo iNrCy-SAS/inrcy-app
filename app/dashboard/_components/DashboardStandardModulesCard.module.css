@@ -296,7 +296,7 @@
   z-index: 4;
   top: 11px;
   right: 12px;
-  display: grid;
+  display: none;
   width: 40px;
   height: 40px;
   place-items: center;
@@ -534,6 +534,7 @@
 .agentCopy h3 { margin: 3px 0 2px; color: #fff; font-size: 22px; font-weight: 950; letter-spacing: -.035em; }
 .agentCopy p { margin: 0; color: rgba(232, 239, 255, .76); font-size: 12px; line-height: 1.35; }
 .agentCopy strong { color: #f0c6ff; }
+.agentMobileCopy { display: none; }
 
 .agentActions {
   position: relative;
@@ -1040,17 +1041,35 @@
   .standardActionStack .boosterContent {
     grid-template-columns: 1fr;
     justify-items: center;
-    padding: 42px 18px 24px;
+    align-content: end;
+    padding: 26px 18px 10px;
     text-align: center;
   }
   .standardActionStack .boosterPanel,
-  .standardActionStack .boosterContent { min-height: 330px; }
+  .standardActionStack .boosterContent { min-height: 256px; }
   .agentPanel,
   .studioPanel { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; padding: 16px; }
   .agentLogo { width: 54px; height: 54px; border-radius: 17px; }
   .studioLogo { width: 54px; height: 54px; border-radius: 17px; }
   .agentActions { grid-column: 1 / -1; justify-self: stretch; width: 100%; grid-template-columns: minmax(0, 1fr); }
   .agentActions > button { width: 100%; }
+  .agentPlanningIconButton { display: grid; }
+  .agentActions > .agentPlanningButton,
+  .agentDesktopCopy { display: none; }
+  .agentMobileCopy { display: block; white-space: nowrap; }
+  .premiumActionStack .boosterStats {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .premiumActionStack .boosterStats > span { height: 13px; gap: 3px; }
+  .premiumActionStack .boosterStats i { width: 3px; }
+  .premiumActionStack .boosterStats i:nth-child(1) { height: 6px; }
+  .premiumActionStack .boosterStats i:nth-child(2) { height: 13px; }
+  .premiumActionStack .boosterStats i:nth-child(3) { height: 9px; }
   .agentOrbit { right: -28px; }
   .premiumDashboardList { min-height: 0; grid-template-rows: none; }
   .campaignPanel { grid-template-columns: 48px minmax(0, 1fr); }
@@ -1255,8 +1274,8 @@
   .toolCopy { text-align: left; }
   .toolAction { grid-column: 1 / -1; justify-self: stretch; width: 100%; }
   .boosterPanel,
-  .boosterContent { min-height: 390px; }
-  .boosterContent { padding: 52px 18px 30px; }
+  .boosterContent { min-height: 256px; }
+  .boosterContent { padding: 26px 18px 10px; }
   .boosterLogo { width: 90px; height: 90px; border-radius: 24px; }
   .boosterCopy h3 { font-size: 43px; }
   .boosterStats { right: 12px; top: 12px; }

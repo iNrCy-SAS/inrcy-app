@@ -301,8 +301,21 @@ export default function DashboardStandardModulesCard({
           <div className={standardStyles.agentCopy}>
             <span>{t("agentEyebrow")}</span>
             <h3>{i18nT("inr_agent_e5261e85")}</h3>
-            <p>{t("agentLine1")} <strong>{t("agentLine2")}</strong></p>
+            <p className={standardStyles.agentDesktopCopy}>
+              {t("agentLine1")} <strong>{t("agentLine2")}</strong>
+            </p>
+            <p className={standardStyles.agentMobileCopy}>{t("agentMobileLine")}</p>
           </div>
+          <button
+            className={standardStyles.agentPlanningIconButton}
+            type="button"
+            data-testid="standard-agent-planning-icon"
+            onClick={() => setAgentPlanningOpen(true)}
+            aria-label={t("agentPlanning")}
+            title={t("agentPlanning")}
+          >
+            <PlanningIcon />
+          </button>
           <span className={standardStyles.agentActions}>
             <button
               className={standardStyles.agentPlanningButton}
