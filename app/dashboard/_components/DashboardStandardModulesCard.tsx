@@ -304,7 +304,7 @@ export default function DashboardStandardModulesCard({
             <p className={standardStyles.agentDesktopCopy}>
               {t("agentLine1")} <strong>{t("agentLine2")}</strong>
             </p>
-            <p className={standardStyles.agentMobileCopy}>{t("agentMobileLine")}</p>
+            <p className={standardStyles.agentMobileCopy}><strong>{t("agentMobileLine")}</strong></p>
           </div>
           <button
             className={standardStyles.agentPlanningIconButton}

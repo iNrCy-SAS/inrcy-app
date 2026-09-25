@@ -533,7 +533,15 @@
 .agentCopy > span { color: #7ee8ff; font-size: 9px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
 .agentCopy h3 { margin: 3px 0 2px; color: #fff; font-size: 22px; font-weight: 950; letter-spacing: -.035em; }
 .agentCopy p { margin: 0; color: rgba(232, 239, 255, .76); font-size: 12px; line-height: 1.35; }
-.agentCopy strong { color: #f0c6ff; }
+.agentCopy strong {
+  color: #f0c6ff;
+  font-weight: 900;
+  text-shadow: 0 0 14px rgba(135, 201, 255, 0.28), 0 0 17px rgba(255, 111, 206, 0.18);
+  background: linear-gradient(90deg, #72ebff, #a28fff 54%, #ff8bd5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 .agentMobileCopy { display: none; }
 
 .agentActions {
@@ -873,6 +881,13 @@
   line-height: 1.25;
 }
 
+.campaignChoicesRow .campaignCopy p strong {
+  display: inline-block;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-shadow: 0 0 13px rgba(255, 199, 160, 0.24);
+}
+
 .campaignChoicesRow .campaignButton {
   min-height: 34px;
   padding-inline: 12px;
@@ -912,6 +927,14 @@
 
 .campaignChoicesRow .campaignMailChoice .campaignCopy p {
   color: rgba(255, 236, 219, 0.9);
+}
+
+.campaignChoicesRow .campaignMailChoice .campaignCopy p strong {
+  color: #ffe8b8;
+  background: linear-gradient(90deg, #ffe7ab, #ffbd83 44%, #ff8fca);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .campaignChoicesRow .campaignMailChoice .campaignButton {
@@ -961,6 +984,14 @@
 
 .campaignChoicesRow .campaignAdsChoice .campaignCopy p {
   color: rgba(255, 231, 226, 0.91);
+}
+
+.campaignChoicesRow .campaignAdsChoice .campaignCopy p strong {
+  color: #ffd5c9;
+  background: linear-gradient(90deg, #ffd9b9, #ff9cb8 48%, #d8a1ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .campaignChoicesRow .campaignAdsChoice .campaignButton {

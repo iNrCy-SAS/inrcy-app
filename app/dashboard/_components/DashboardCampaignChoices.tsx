@@ -63,7 +63,7 @@ export default function DashboardCampaignChoices({
         <span className={cardStyles.campaignIcon} aria-hidden="true"><MailCampaignIcon /></span>
         <div className={cardStyles.campaignCopy}>
           <h3>{mailTitle}</h3>
-          <p>{mailDescription}</p>
+          <p><strong>{mailDescription}</strong></p>
         </div>
         <button
           type="button"
@@ -83,7 +83,7 @@ export default function DashboardCampaignChoices({
         <span className={cardStyles.campaignIcon} aria-hidden="true"><AdsCampaignIcon /></span>
         <div className={cardStyles.campaignCopy}>
           <h3>{adsTitle}</h3>
-          <p>{adsDescription}</p>
+          <p><strong>{adsDescription}</strong></p>
         </div>
         <button
           type="button"
