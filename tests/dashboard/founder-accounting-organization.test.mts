@@ -93,7 +93,7 @@ test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, i
   assert.match(styles, /\.toolRow\s*\{[\s\S]*?--tool-side-width:\s*160px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
   assert.match(styles, /\.premiumDashboardList \.toolRow\s*\{[\s\S]*?--tool-side-width:\s*140px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
   assert.match(styles, /\.premiumActionStack\s*\{[\s\S]*?min-height:\s*520px[\s\S]*?grid-template-rows:\s*minmax\(190px, 1\.05fr\)/);
-  assert.match(styles, /\.agentPlanningIconButton\s*\{[\s\S]*?position:\s*absolute[\s\S]*?width:\s*40px[\s\S]*?border-radius:\s*50%/);
+  assert.match(styles, /\.agentPlanningIconButton\s*\{[\s\S]*?position:\s*absolute[\s\S]*?display:\s*grid[\s\S]*?width:\s*40px[\s\S]*?border-radius:\s*50%/);
   assert.match(styles, /\.premiumActionStack \.agentActions\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(styles, /\.premiumActionStack \.boosterStats\s*\{[\s\S]*?min-height:\s*42px/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);
