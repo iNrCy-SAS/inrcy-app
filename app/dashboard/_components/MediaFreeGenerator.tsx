@@ -11,6 +11,7 @@ import useMediaGeneration, {
   type MediaGenerationNarrationVoice,
   type MediaGenerationNarrationVoiceVariant,
   type MediaGenerationReferenceRole,
+  type MediaGenerationReferenceUsage,
   type MediaGenerationResult,
   type MediaGenerationSource,
   type MediaGenerationTeamVideoSpeechMode,
@@ -53,10 +54,15 @@ type Props = {
   onBusyChange?: (busy: boolean) => void;
 };
 
-type Reference = MediaGenerationInspirationImage & {
+type Reference = Omit<
+  MediaGenerationInspirationImage,
+  "role" | "usage"
+> & {
   id: string;
-  role: MediaGenerationReferenceRole;
-  usage: "required" | "inspiration";
+  /** Chosen explicitly by the professional before the request is sent. */
+  role?: MediaGenerationReferenceRole;
+  /** A reference can be authoritative or only steer the creative direction. */
+  usage?: MediaGenerationReferenceUsage;
   fromVideo: boolean;
 };
 
@@ -68,7 +74,7 @@ const FORMATS: { id: MediaGenerationFormat; ratio: string }[] = [
   { id: "landscape", ratio: "16:9" },
 ];
 const DURATIONS = [8, 16, 24] as const;
-const ROLES = ["character", "environment", "product"] as const;
+const ROLES = ["character", "environment", "product", "inspiration"] as const;
 const IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
@@ -82,7 +88,9 @@ const VIDEO_ACCEPT = [
 function referencesForRequest(references: Reference[]) {
   let characterIndex = 0;
   return references.map(({ id: _id, fromVideo: _fromVideo, ...reference }) => {
-    if (reference.role !== "character") return reference;
+    if (reference.role !== "character" || reference.usage !== "required") {
+      return reference;
+    }
     characterIndex += 1;
     return { ...reference, characterIndex: characterIndex as 1 | 2 | 3 };
   });
@@ -164,12 +172,12 @@ export default function MediaFreeGenerator({
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
   const effectiveWithNarration =
     kind === "video" && speechMode === "voiceover" && withNarration;
-  const roleLimitExceeded =
-    references.filter((reference) => reference.role === "character").length >
-      3 ||
-    references.filter((reference) => reference.role === "environment").length >
-      1 ||
-    references.filter((reference) => reference.role === "product").length > 1;
+  const referenceCriteriaIncomplete = references.some(
+    (reference) => !reference.role || !reference.usage
+  );
+  // Exact identity preservation is limited to three people. Inspiration-only
+  // images and all other roles can freely share the five available slots.
+  const roleLimitExceeded = personReferences.length > 3;
   const promptReady = prompt.trim().length >= 3 && prompt.length <= MAX_PROMPT;
   const canGenerate =
     !operationLocked &&
@@ -180,6 +188,7 @@ export default function MediaFreeGenerator({
     !exhausted &&
     !durationUnavailable &&
     !creditInsufficient &&
+    !referenceCriteriaIncomplete &&
     !roleLimitExceeded &&
     (!identityRequired || identityConsent) &&
     (!teamConsentRequired || teamConsent);
@@ -285,8 +294,8 @@ export default function MediaFreeGenerator({
         prepared.push({
           ...image,
           id: globalThis.crypto.randomUUID(),
-          role: "character",
-          usage: "required",
+          role: undefined,
+          usage: undefined,
           fromVideo,
         });
       }
@@ -373,13 +382,17 @@ export default function MediaFreeGenerator({
   ) => {
     setReferences((current) =>
       current.map((reference) =>
-        reference.id === id
-          ? {
+        reference.id !== id
+          ? reference
+          : {
               ...reference,
-              role: reference.role === "inspiration" ? "character" : reference.role,
               ...patch,
+              // A usage belongs to a role. Clearing it avoids carrying an
+              // authoritative choice from a product or person onto another role.
+              ...(Object.hasOwn(patch, "role") && patch.role !== reference.role
+                ? { usage: undefined }
+                : {}),
             }
-          : reference
       )
     );
     resetConsent();
@@ -773,15 +786,21 @@ export default function MediaFreeGenerator({
                       aria-label={t("ai_generator_free_reference_role", {
                         index: index + 1,
                       })}
-                      value={reference.role === "inspiration" ? "character" : reference.role}
+                      aria-invalid={!reference.role || undefined}
+                      data-incomplete={!reference.role || undefined}
+                      value={reference.role ?? ""}
                       disabled={locked}
                       onChange={(event) =>
                         updateReference(reference.id, {
-                          role: event.target
-                            .value as MediaGenerationReferenceRole,
+                          role: event.target.value
+                            ? (event.target.value as MediaGenerationReferenceRole)
+                            : undefined,
                         })
                       }
                     >
+                      <option value="" disabled>
+                        {t("ai_generator_free_reference_role_placeholder")}
+                      </option>
                       {ROLES.map((role) => (
                         <option key={role} value={role}>
                           {t(`ai_generator_free_role_${role}`)}
@@ -792,17 +811,26 @@ export default function MediaFreeGenerator({
                       aria-label={t("ai_generator_free_reference_usage", {
                         index: index + 1,
                       })}
-                      value={reference.usage}
+                      aria-invalid={!reference.usage || undefined}
+                      data-incomplete={!reference.usage || undefined}
+                      value={reference.usage ?? ""}
                       disabled={locked}
                       onChange={(event) =>
                         updateReference(reference.id, {
-                          usage: event.target.value as Reference["usage"],
+                          usage: event.target.value
+                            ? (event.target.value as MediaGenerationReferenceUsage)
+                            : undefined,
                         })
                       }
                     >
-                      <option value="required">
-                        {t("ai_generator_free_usage_required")}
+                      <option value="" disabled>
+                        {t("ai_generator_free_reference_usage_placeholder")}
                       </option>
+                      {reference.role !== "inspiration" ? (
+                        <option value="required">
+                          {t("ai_generator_free_usage_required")}
+                        </option>
+                      ) : null}
                       <option value="inspiration">
                         {t("ai_generator_free_usage_inspiration")}
                       </option>
@@ -814,6 +842,11 @@ export default function MediaFreeGenerator({
             {references.some((reference) => reference.fromVideo) ? (
               <p className={styles.muted}>
                 {t("ai_generator_free_references_video_hint")}
+              </p>
+            ) : null}
+            {referenceCriteriaIncomplete ? (
+              <p className={styles.referenceCriteriaHint} role="status">
+                {t("ai_generator_free_reference_criteria_required")}
               </p>
             ) : null}
             {roleLimitExceeded ? (

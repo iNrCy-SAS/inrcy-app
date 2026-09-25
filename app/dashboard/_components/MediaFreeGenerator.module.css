@@ -411,6 +411,17 @@
 .voiceOptions select:disabled {
   opacity: 0.55;
 }
+.reference select[data-incomplete="true"] {
+  border-color: rgba(250, 191, 94, 0.8);
+  background: rgba(82, 56, 26, 0.58);
+  color: #ffe2aa;
+}
+.referenceCriteriaHint {
+  margin: 0;
+  color: #ffd38a;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .audioSection {
   display: flex;
   flex-direction: column;
@@ -821,6 +832,9 @@
     gap: 7px;
   }
   .referencesSection > .error {
+    grid-column: 1 / -1;
+  }
+  .referencesSection > .referenceCriteriaHint {
     grid-column: 1 / -1;
   }
   .reference {

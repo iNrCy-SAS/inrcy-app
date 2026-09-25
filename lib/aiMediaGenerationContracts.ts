@@ -423,7 +423,8 @@ function normalizeTextKeywords(value: unknown) {
 
 function normalizeInspirationImages(
   value: unknown,
-  inputMode: AiMediaInputMode
+  inputMode: AiMediaInputMode,
+  requireExplicitUsage = false
 ): AiMediaInspirationImage[] {
   if (
     value === null ||
@@ -487,6 +488,20 @@ function normalizeInspirationImages(
         "Usage de référence invalide."
       );
     }
+    if (inputMode === "essential" && requireExplicitUsage && !rawUsage) {
+      throw new AiMediaRequestValidationError(
+        "Chaque média doit indiquer son rôle et son utilisation."
+      );
+    }
+    if (
+      requireExplicitUsage &&
+      rawRole === "inspiration" &&
+      rawUsage !== "inspiration"
+    ) {
+      throw new AiMediaRequestValidationError(
+        "Une référence « Inspiration libre » doit rester une inspiration."
+      );
+    }
     // Compatibilité : les rôles structurés historiques étaient déjà choisis
     // comme des contraintes. Le rôle `inspiration` reste, lui, non fidèle.
     const usage = (rawUsage ||
@@ -496,6 +511,7 @@ function normalizeInspirationImages(
     const characterIndex = Number(source?.characterIndex);
     if (
       rawRole === "character" &&
+      usage === "required" &&
       !([1, 2, 3] as number[]).includes(characterIndex)
     ) {
       throw new AiMediaRequestValidationError(
@@ -507,7 +523,7 @@ function normalizeInspirationImages(
       data,
       ...(rawRole ? { role: rawRole as AiMediaReferenceRole } : {}),
       usage,
-      ...(rawRole === "character"
+      ...(rawRole === "character" && usage === "required"
         ? { characterIndex: characterIndex as 1 | 2 | 3 }
         : {}),
     };
@@ -515,23 +531,14 @@ function normalizeInspirationImages(
 
   if (inputMode === "essential") {
     const characterIndexes = normalized
-      .filter((image) => image.role === "character")
+      .filter(
+        (image) => image.role === "character" && image.usage === "required"
+      )
       .map((image) => image.characterIndex);
     if (new Set(characterIndexes).size !== characterIndexes.length) {
       throw new AiMediaRequestValidationError(
         "Chaque média Personnage doit occuper un emplacement distinct."
       );
-    }
-    for (const singletonRole of ["environment", "product"] as const) {
-      if (
-        normalized.filter((image) => image.role === singletonRole).length > 1
-      ) {
-        throw new AiMediaRequestValidationError(
-          singletonRole === "environment"
-            ? "Ajoutez un seul décor de référence."
-            : "Ajoutez un seul produit de référence."
-        );
-      }
     }
   }
   return normalized;
@@ -861,7 +868,8 @@ export function normalizeAiMediaGenerationRequest(
   // client simplifié envoie encore `identityMode: auto`.
   let inspirationImages = normalizeInspirationImages(
     body.inspirationImages,
-    inputMode
+    inputMode,
+    creationMode === "free"
   );
   if (
     operation === "modify" &&

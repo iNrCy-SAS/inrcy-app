@@ -105,7 +105,7 @@ test("les contrôles vidéo explicites restent prioritaires et utilisent Omni", 
 });
 
 test("les menus rôle et usage des références sont préservés en Libre", () => {
-  const images = [reference("product", "required"), reference("environment", "inspiration"), reference("inspiration", "inspiration")];
+  const images = [reference("product", "required"), reference("product", "required"), reference("environment", "inspiration"), reference("inspiration", "inspiration")];
   for (const kind of ["image", "video"]) {
     const request = normalizeAiMediaGenerationRequest(freeInput({
       kind, inspirationImages: images, identityReferenceSetId: "identity-free-runtime-reference",
@@ -114,6 +114,15 @@ test("les menus rôle et usage des références sont préservés en Libre", () =
     assert.equal(request.identityMode, "auto");
     assert.equal(request.generationMode, "inspiration");
   }
+});
+
+test("Libre accepte jusqu’à cinq produits de référence distincts", () => {
+  const images = Array.from({ length: 5 }, () => reference("product", "required"));
+  const request = normalizeAiMediaGenerationRequest(freeInput({
+    inspirationImages: images,
+  }));
+  assert.deepEqual(request.inspirationImages, images);
+  assert.equal(request.identityMode, "auto");
 });
 
 test("les voix des personnages Libre restent sur Omni sans superposer une voix off", () => {
@@ -146,8 +155,10 @@ test("le dialogue Libre conserve les consentements des personnages réels", () =
 test("les validations de référence et de voix s'appliquent aussi au mode Libre", () => {
   for (const overrides of [
     { inspirationImages: [reference("unknown", "inspiration")] },
+    { inspirationImages: [reference("", "required")] },
     { inspirationImages: [reference("product", "unknown")] },
-    { inspirationImages: [reference("product", "required"), reference("product", "required")] },
+    { inspirationImages: [reference("product", "")] },
+    { inspirationImages: [reference("inspiration", "required")] },
     { inspirationImages: [reference("character", "required", { characterIndex: 1 })], identityConsent: false },
     { kind: "video", durationSeconds: 12 },
     { kind: "video", withNarration: true, narrationVoice: "male", narrationVoiceVariant: "Kore" },

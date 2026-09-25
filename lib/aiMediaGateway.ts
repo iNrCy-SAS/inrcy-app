@@ -218,6 +218,10 @@ function buildImageReferenceRoleRules(args: {
     ].join("\n");
   }
   if (args.creationMode === "free") {
+    const requiredProductCount = providedReferenceRoles.filter(
+      (reference) =>
+        reference.role === "product" && reference.usage === "required"
+    ).length;
     return [
       "RÉFÉRENCES DU MODE LIBRE : la forme de composition et le style restent ceux de la demande.",
       ...providedReferences.map((_, index) => {
@@ -226,6 +230,9 @@ function buildImageReferenceRoleRules(args: {
           ? "Conserver fidèlement les éléments pertinents de ce rôle ; pour les personnages autorisés, préserver séparément chaque identité sans omission ni fusion."
           : "Guider uniquement l'ambiance, le style ou la composition ; ne pas copier une identité ni imposer le sujet de la référence."}`;
       }),
+      requiredProductCount > 1
+        ? "Plusieurs produits sont obligatoires : les préserver tous séparément, les rendre reconnaissables et les intégrer chacun une seule fois sans les fusionner ni en inventer un autre."
+        : "",
       officialLogoIncluded ? `Image ${referenceImagesCount} : logo officiel demandé, à reproduire fidèlement.` : "",
       "Créer une œuvre complète selon le brief, y compris une affiche, un flyer, une illustration ou un collage si demandé. Aucun cadre, scène photographique ou agencement commercial imposé.",
     ].filter(Boolean).join("\n");

@@ -162,11 +162,16 @@ test("le double clic Accepter ne promeut le média et ne rappelle le parent qu�
   assert.equal(context.operationInFlight.current, false);
 });
 
-test("Libre reprend les deux menus Guidé indépendants et protège les références réelles", () => {
-  assert.match(source, /const ROLES = \["character", "environment", "product"\] as const/);
-  assert.match(source, /role: "character",\s*usage: "required"/);
+test("Libre exige les deux critères choisis sans imposer un personnage", () => {
+  assert.match(source, /const ROLES = \["character", "environment", "product", "inspiration"\] as const/);
+  assert.match(source, /role: undefined,\s*usage: undefined/);
+  assert.doesNotMatch(source, /role: "character",\s*usage: "required"/);
+  assert.match(source, /const referenceCriteriaIncomplete = references\.some\(/);
+  assert.match(source, /!referenceCriteriaIncomplete/);
   const usageMenu = source.slice(source.indexOf('aria-label={t("ai_generator_free_reference_usage"'), source.indexOf("{roleLimitExceeded"));
-  assert.match(usageMenu, /value=\{reference\.usage\}\s*disabled=\{locked\}/);
+  assert.match(source, /ai_generator_free_reference_role_placeholder/);
+  assert.match(usageMenu, /ai_generator_free_reference_usage_placeholder/);
+  assert.match(usageMenu, /value=\{reference\.usage \?\? ""\}\s*disabled=\{locked\}/);
   assert.match(usageMenu, /<option value="required">/);
   assert.match(usageMenu, /<option value="inspiration">/);
   assert.match(source, /reference\.role === "character" && reference\.usage === "required"/);
