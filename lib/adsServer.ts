@@ -14,6 +14,9 @@ export type AdsIntegration = {
   id: string;
   provider: string;
   source: string;
+  display_name: string | null;
+  email_address: string | null;
+  provider_account_id: string | null;
   access_token_enc: string | null;
   refresh_token_enc: string | null;
   expires_at: string | null;
@@ -79,7 +82,7 @@ export function adsConnectionStatus(integration: AdsIntegration | null): AdsConn
 export async function readAdsIntegration(userId: string, provider: AdsProvider): Promise<AdsIntegration | null> {
   const { data, error } = await supabaseAdmin
     .from("integrations")
-    .select("id,provider,source,access_token_enc,refresh_token_enc,expires_at,status,resource_id,resource_label,meta")
+    .select("id,provider,source,display_name,email_address,provider_account_id,access_token_enc,refresh_token_enc,expires_at,status,resource_id,resource_label,meta")
     .eq("user_id", userId)
     .eq("source", provider === "meta" ? "meta_ads" : "google_ads")
     .eq("product", "ads")

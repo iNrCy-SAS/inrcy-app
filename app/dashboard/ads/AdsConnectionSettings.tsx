@@ -20,6 +20,7 @@ type Props = {
   onClose: () => void;
   connected: boolean;
   connectionStatus: ConnectionDisplayStatus;
+  connectionAccount?: { displayName?: string; email?: string; id?: string };
   loading: boolean;
   configAction: ConfigAction;
   accounts: AdsAccount[];
@@ -48,6 +49,14 @@ function oauthLabel(provider: AdsProvider, action: "connect" | "reconnect") {
   return `${action === "reconnect" ? "Reconnecter" : "Connecter"} Google Ads`;
 }
 
+function connectionAccountLabel(provider: AdsProvider, account?: { displayName?: string; email?: string; id?: string }) {
+  const name = account?.displayName?.trim();
+  const email = account?.email?.trim();
+  const identity = [name, email].filter(Boolean).join(" · ");
+  if (identity) return identity;
+  return provider === "meta" ? "Compte Facebook" : "Compte Google";
+}
+
 export default function AdsConnectionSettings({
   isOpen,
   provider,
@@ -55,6 +64,7 @@ export default function AdsConnectionSettings({
   onClose,
   connected,
   connectionStatus,
+  connectionAccount,
   loading,
   configAction,
   accounts,
@@ -102,7 +112,7 @@ export default function AdsConnectionSettings({
   const accountCandidateReady = connected && selectedAccount?.currency === "EUR";
   const identityReady = identityConfigured && Boolean(savedPage?.instagramUserId);
   const needsReconnect = connectionStatus === "needs_update";
-  const eligibleAccountCount = accounts.filter((account) => account.currency === "EUR").length;
+  const connectedAccountLabel = connectionAccountLabel(provider, connectionAccount);
   const busy = loading || configAction !== null;
 
   return <SettingsDrawer
@@ -129,7 +139,7 @@ export default function AdsConnectionSettings({
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.controlRow}>
-            <input readOnly aria-label="État de la connexion publicitaire" value={loading ? "Vérification de la connexion…" : needsReconnect ? `La connexion ${current.label} doit être actualisée` : connected ? `${current.label} connecté` : "Aucun compte publicitaire connecté"} />
+            <input readOnly aria-label="Compte connecté à iNr’ADS" value={loading ? "Vérification de la connexion…" : needsReconnect ? `${connectedAccountLabel} doit être reconnecté` : connected ? `${provider === "meta" ? "Compte Facebook" : "Compte Google"} connecté : ${connectedAccountLabel}` : "Aucun compte connecté"} />
             {connected ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{configAction === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button> : needsReconnect ? <>
               <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} href={`/api/ads/oauth/${provider}/start`}>{oauthLabel(provider, "reconnect")} <span aria-hidden="true">→</span></a>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>Déconnexion</button>
@@ -155,7 +165,7 @@ export default function AdsConnectionSettings({
             <div className={styles.resourceActions}>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!connected || busy} onClick={onRefreshAccounts}>{loading ? "Actualisation…" : "Charger mes comptes"}</button>
               {accountCandidateReady && !accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSaveAccount}>{configAction === "save-account" ? "Enregistrement…" : savedAccount ? "Changer de compte" : "Utiliser ce compte"}</button> : null}
-              {accountConfigured && eligibleAccountCount > 1 ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearAccount}>{configAction === "clear-account" ? "Dissociation…" : "Dissocier ce compte"}</button> : null}
+              {accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearAccount}>{configAction === "clear-account" ? "Dissociation…" : "Dissocier ce compte"}</button> : null}
             </div>
           </div>
           {selectedAccount ? <p className={styles.detail}>{accountConfigured ? `Compte sélectionné : ${selectedAccount.name}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}

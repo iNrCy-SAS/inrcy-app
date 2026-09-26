@@ -25,7 +25,12 @@ function selectedPageId(meta: unknown): string {
 
 function nextMeta(
   meta: unknown,
-  updates: { pageId?: string | null; pageName?: string | null; instagramUserId?: string | null },
+  updates: {
+    pageId?: string | null;
+    pageName?: string | null;
+    instagramUserId?: string | null;
+    accountSelectionCleared?: boolean;
+  },
 ) {
   const next = { ...asRecord(meta) };
   if (updates.pageId !== undefined) {
@@ -39,6 +44,10 @@ function nextMeta(
   if (updates.instagramUserId !== undefined) {
     if (updates.instagramUserId) next.selected_instagram_user_id = updates.instagramUserId;
     else delete next.selected_instagram_user_id;
+  }
+  if (updates.accountSelectionCleared !== undefined) {
+    if (updates.accountSelectionCleared) next.account_selection_cleared = true;
+    else delete next.account_selection_cleared;
   }
   return next;
 }
@@ -68,6 +77,7 @@ export async function POST(request: Request) {
     }
 
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    let updatedMeta = integration.meta;
     let accountLabel = integration.resource_label || "";
     let savedPageId = selectedPageId(integration.meta);
 
@@ -79,6 +89,8 @@ export async function POST(request: Request) {
       }
       update.resource_id = account.id;
       update.resource_label = account.name;
+      updatedMeta = nextMeta(updatedMeta, { accountSelectionCleared: false });
+      update.meta = updatedMeta;
       accountLabel = account.name;
     }
 
@@ -88,11 +100,12 @@ export async function POST(request: Request) {
       if (!page) {
         return NextResponse.json({ error: "Cette identité Facebook n’est plus accessible avec cette connexion." }, { status: 403 });
       }
-      update.meta = nextMeta(integration.meta, {
+      updatedMeta = nextMeta(updatedMeta, {
         pageId: page.id,
         pageName: page.name,
         instagramUserId: page.instagramUserId || null,
       });
+      update.meta = updatedMeta;
       savedPageId = page.id;
     }
 
@@ -136,7 +149,14 @@ export async function DELETE(request: Request) {
       update.resource_id = null;
       update.resource_label = null;
       if (provider === "meta") {
-        update.meta = nextMeta(integration.meta, { pageId: null, pageName: null, instagramUserId: null });
+        update.meta = nextMeta(integration.meta, {
+          pageId: null,
+          pageName: null,
+          instagramUserId: null,
+          accountSelectionCleared: true,
+        });
+      } else {
+        update.meta = nextMeta(integration.meta, { accountSelectionCleared: true });
       }
     } else {
       update.meta = nextMeta(integration.meta, { pageId: null, pageName: null, instagramUserId: null });

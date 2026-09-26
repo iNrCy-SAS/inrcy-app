@@ -28,6 +28,8 @@ type AccountResponse = {
   connectionStatus?: ConnectionDisplayStatus;
   accounts: AdsAccount[];
   pages: { id: string; name: string; instagramUserId?: string }[];
+  connectionAccount?: { displayName?: string; email?: string; id?: string };
+  accountSelectionCleared?: boolean;
   selectedAccountId?: string;
   selectedPageId?: string;
   error?: string;
@@ -101,6 +103,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [pages, setPages] = useState<{ id: string; name: string; instagramUserId?: string }[]>([]);
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
+  const [connectionAccount, setConnectionAccount] = useState<{ displayName?: string; email?: string; id?: string } | undefined>();
   const [configuredAccountId, setConfiguredAccountId] = useState("");
   const [configuredPageId, setConfiguredPageId] = useState("");
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -158,6 +161,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setDraft(newDraft(next));
     setConnected(false);
     setConnectionStatus("disconnected");
+    setConnectionAccount(undefined);
     setConfiguredAccountId("");
     setConfiguredPageId("");
     setAccounts([]);
@@ -184,6 +188,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setLoadingAccounts(false);
       setConnected(false);
       setConnectionStatus("disconnected");
+      setConnectionAccount(undefined);
       setConfiguredAccountId("");
       setConfiguredPageId("");
       setAccounts([]);
@@ -200,6 +205,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         const nextPages = result.pages || [];
         setConnected(result.connected);
         setConnectionStatus(result.connectionStatus || (result.connected ? "connected" : "disconnected"));
+        setConnectionAccount(result.connectionAccount);
         setAccounts(nextAccounts);
         setPages(nextPages);
         const euroAccounts = nextAccounts.filter((account) => account.currency === "EUR");
@@ -209,8 +215,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         setConfiguredAccountId(persistedAccount?.id || "");
         setConfiguredPageId(persistedPage?.id || "");
         setDraft((current) => {
-          const existingAccount = euroAccounts.find((account) => account.id === current.adAccountId);
-          const account = persistedAccount || existingAccount || (euroAccounts.length === 1 ? euroAccounts[0] : undefined);
+          const existingAccount = result.accountSelectionCleared ? undefined : euroAccounts.find((account) => account.id === current.adAccountId);
+          const account = persistedAccount || existingAccount || (!result.accountSelectionCleared && euroAccounts.length === 1 ? euroAccounts[0] : undefined);
           const existingPage = nextPages.find((page) => page.id === current.pageId);
           const page = persistedPage || existingPage || (channelId === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
           const adAccountId = account?.id || "";
@@ -220,7 +226,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         });
         if (result.connectionStatus === "needs_update") {
           setNotice(`La connexion ${channelId === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
-        } else if (result.connected && euroAccounts.length === 1 && (channelId !== "meta" || linkedInstagramPages.length === 1)) {
+        } else if (result.connected && !result.accountSelectionCleared && euroAccounts.length === 1 && (channelId !== "meta" || linkedInstagramPages.length === 1)) {
           setNotice("Un seul compte éligible détecté : il est sélectionné automatiquement.");
         } else if (result.connected && euroAccounts.length > 1) {
           setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
@@ -241,6 +247,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setDraft(newDraft(next));
     setConnected(false);
     setConnectionStatus("disconnected");
+    setConnectionAccount(undefined);
     setConfiguredAccountId("");
     setConfiguredPageId("");
     setConfigAction(null);
@@ -340,6 +347,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       await readJson(await fetch(`/api/ads/oauth/${provider}/disconnect`, { method: "POST" }));
       setConnected(false);
       setConnectionStatus("disconnected");
+      setConnectionAccount(undefined);
       setConfiguredAccountId("");
       setConfiguredPageId("");
       setAccounts([]);
@@ -599,6 +607,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       onClose={() => setConfiguring(false)}
       connected={connected}
       connectionStatus={connectionStatus}
+      connectionAccount={connectionAccount}
       loading={loadingAccounts}
       configAction={configAction}
       accounts={accounts}

@@ -36,6 +36,8 @@ test("Meta Ads et Google Ads partagent le choix et le changement persistants du 
   assert.match(clientSource, /\/api\/ads\/accounts\/selection/);
   assert.match(selectionRouteSource, /listAdsAccounts\(user\.activeUserId, provider\)/);
   assert.match(selectionRouteSource, /update\.resource_id = account\.id/);
+  assert.match(selectionRouteSource, /account_selection_cleared/);
+  assert.match(settingsSource, /\{accountConfigured \? <button[\s\S]*?Dissocier ce compte/);
 });
 
 test("la configuration Meta conserve aussi la sélection de l’identité Facebook et Instagram", () => {
@@ -51,4 +53,11 @@ test("un compte unique est mémorisé automatiquement et la déconnexion reste l
   assert.match(accountsRouteSource, /selectedAccountId/);
   assert.match(disconnectRouteSource, /\.eq\("product", "ads"\)/);
   assert.match(disconnectRouteSource, /\.eq\("source", source\)/);
+});
+
+test("le panneau affiche l’identité OAuth et respecte une dissociation explicite du compte annonceur", () => {
+  assert.match(settingsSource, /Compte Google.*connecté/);
+  assert.match(settingsSource, /Compte Facebook/);
+  assert.match(accountsRouteSource, /connectionAccount/);
+  assert.match(accountsRouteSource, /wasAccountExplicitlyCleared/);
 });

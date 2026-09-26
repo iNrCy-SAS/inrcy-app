@@ -16,6 +16,19 @@ function selectedPageId(integration: AdsIntegration | null): string {
   return typeof pageId === "string" ? pageId : "";
 }
 
+function wasAccountExplicitlyCleared(integration: AdsIntegration): boolean {
+  return asRecord(integration.meta).account_selection_cleared === true;
+}
+
+function connectionAccount(integration: AdsIntegration | null) {
+  if (!integration) return undefined;
+  return {
+    displayName: integration.display_name || "",
+    email: integration.email_address || "",
+    id: integration.provider_account_id || "",
+  };
+}
+
 async function resolveSelectedAccount(
   userId: string,
   integration: AdsIntegration,
@@ -23,6 +36,10 @@ async function resolveSelectedAccount(
 ) {
   const selected = accounts.find((account) => account.id === integration.resource_id && account.currency === "EUR");
   if (selected) return selected;
+
+  // A deliberate "Dissocier ce compte" must survive a refresh. Without this
+  // marker, a single eligible advertiser would be silently reselected.
+  if (!integration.resource_id && wasAccountExplicitlyCleared(integration)) return null;
 
   const eligibleAccounts = accounts.filter((account) => account.currency === "EUR");
   const defaultAccount = eligibleAccounts.length === 1 ? eligibleAccounts[0] : null;
@@ -56,6 +73,8 @@ export async function GET(request: Request) {
         connectionStatus,
         accounts: [],
         pages: [],
+        connectionAccount: connectionAccount(connection),
+        accountSelectionCleared: false,
         selectedAccountId: "",
         selectedPageId: "",
       });
@@ -75,6 +94,8 @@ export async function GET(request: Request) {
       connectionStatus: "connected",
       accounts,
       pages,
+      connectionAccount: connectionAccount(connection),
+      accountSelectionCleared: wasAccountExplicitlyCleared(connection),
       selectedAccountId: selectedAccount?.id || "",
       selectedPageId: selectedIdentity,
     });
@@ -87,6 +108,8 @@ export async function GET(request: Request) {
       connectionStatus,
       accounts: [],
       pages: [],
+      connectionAccount: connectionAccount(refreshedConnection),
+      accountSelectionCleared: false,
       selectedAccountId: "",
       selectedPageId: "",
       error: error instanceof Error ? error.message : "Impossible de charger les comptes publicitaires.",
