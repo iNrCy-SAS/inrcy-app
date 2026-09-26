@@ -427,7 +427,7 @@ function comparableCalendarDate(value: TeamCalendarDate | undefined) {
   return date ? `date:${date}` : "";
 }
 
-function teamCalendarSchedulesMatch(
+export function teamCalendarSchedulesMatch(
   source: Pick<TeamCalendarEvent, "start" | "end">,
   mirror: Pick<TeamCalendarEvent, "start" | "end">,
 ) {
@@ -516,7 +516,7 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
       ]);
   const details = [
     `Responsable iNrCy : ${member.name}`,
-    "Vue synchronisée : modifiez l’horaire ici ou dans l’agenda du responsable.",
+    "Vue synchronisée : toute modification de date ou d’heure est propagée aux agendas iNrCy.",
     sourceDescription,
     meetUrl ? `Google Meet : ${meetUrl}` : "",
   ].filter(Boolean);

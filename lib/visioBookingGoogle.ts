@@ -84,6 +84,7 @@ import {
   teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarReplicaReconciliationDecision,
   teamCalendarMirrorSourceKey,
+  teamCalendarSchedulesMatch,
   teamCalendarSourceGuestEmails,
   type TeamCalendarEvent,
 } from "@/lib/visioCalendarMirrorPolicy";
@@ -626,6 +627,40 @@ function teamMirrorFingerprint(event: GoogleCalendarEvent, member: VisioTeamMemb
       "utf8",
     )
     .digest("hex");
+}
+
+function sharedMirrorCarriesManualScheduleChange(input: {
+  source: GoogleCalendarEvent;
+  member: VisioTeamMember;
+  mirror: GoogleCalendarEvent | undefined;
+}) {
+  const mirror = input.mirror;
+  if (
+    !mirror ||
+    mirror.status === "cancelled" ||
+    teamCalendarSchedulesMatch(input.source, mirror)
+  ) {
+    return false;
+  }
+  const sourceFingerprint = String(
+    mirror.extendedProperties?.private?.sourceFingerprint || "",
+  ).trim();
+  // The shared copy remembers the exact source version used to create it.
+  // If that source is still current but its time changed, the edit happened
+  // on the shared calendar and must become the common appointment slot.
+  return Boolean(
+    sourceFingerprint &&
+      sourceFingerprint === teamMirrorFingerprint(input.source, input.member),
+  );
+}
+
+function calendarEventUpdatedAtMs(event: GoogleCalendarEvent) {
+  const updatedAt = new Date(String(event.updated || "")).getTime();
+  return Number.isFinite(updatedAt) ? updatedAt : 0;
+}
+
+function bookingNonceForEvent(event: GoogleCalendarEvent) {
+  return String(event.extendedProperties?.private?.bookingNonce || "").trim();
 }
 
 function mirrorSourceKey(event: GoogleCalendarEvent) {
@@ -1405,6 +1440,45 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       }
     }
 
+    // A booking can exist in the organizer calendar, the assigned member's
+    // private calendar and the shared team calendar. Index all snapshots
+    // before mutating Google so a move in any one of them becomes the common
+    // slot instead of being overwritten by this minute synchronizer.
+    const bookingMirrorByNonce = new Map<string, GoogleCalendarEvent>();
+    for (const mirror of mirrors) {
+      if (mirror.status === "cancelled") continue;
+      const bookingNonce = bookingNonceForEvent(mirror);
+      if (!bookingNonce) continue;
+      const current = bookingMirrorByNonce.get(bookingNonce);
+      if (!current || shouldPreferAppointmentMirror(mirror, current)) {
+        bookingMirrorByNonce.set(bookingNonce, mirror);
+      }
+    }
+    const sourceEventByKey = new Map<string, GoogleCalendarEvent>();
+    for (const member of teamMembers) {
+      for (const event of sourceEventsByMemberId.get(member.id) || []) {
+        if (!event.id) continue;
+        sourceEventByKey.set(
+          teamCalendarMirrorSourceKey(member.calendarId, event.id),
+          event,
+        );
+      }
+    }
+    const applyBookingScheduleToSnapshots = (
+      bookingNonce: string,
+      schedule: Pick<TimedEventSchedule, "start" | "end">,
+    ) => {
+      const apply = (event: GoogleCalendarEvent) => {
+        if (bookingNonceForEvent(event) !== bookingNonce) return;
+        event.start = { ...schedule.start };
+        event.end = { ...schedule.end };
+      };
+      sharedEvents.forEach(apply);
+      for (const sourceEvents of sourceEventsByMemberId.values()) {
+        sourceEvents.forEach(apply);
+      }
+    };
+
     // Index every member snapshot before mutating Google. This preserves a
     // tombstone even when another member replica is needed to reveal its
     // canonical, and bounds out-of-window canonical reads to one per id.
@@ -1600,17 +1674,43 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           PRIVATE_BOOKING_COMPANION_VALUE
         ) {
           try {
-            let cleaned = false;
-            if (event.id && event.status !== "cancelled") {
-              await cancelCalendarEventWithoutUpdates(member.calendarId, event.id);
-              result.cancelled += 1;
-              cleaned = true;
+            const bookingNonce = bookingNonceForEvent(event);
+            const bookingMirror = bookingMirrorByNonce.get(bookingNonce);
+            const publicSource = bookingMirror
+              ? sourceEventByKey.get(mirrorSourceKey(bookingMirror))
+              : undefined;
+            const companionIsNewestSchedule = Boolean(
+              bookingMirror &&
+                !teamCalendarSchedulesMatch(event, bookingMirror) &&
+                calendarEventUpdatedAtMs(event) >
+                  Math.max(
+                    calendarEventUpdatedAtMs(bookingMirror),
+                    publicSource ? calendarEventUpdatedAtMs(publicSource) : 0,
+                  ),
+            );
+            const newStart = new Date(String(event.start?.dateTime || ""));
+            const assignedMember = bookingMirror
+              ? memberForMirrorEvent(bookingMirror)
+              : null;
+            if (
+              !bookingMirror ||
+              !assignedMember ||
+              !companionIsNewestSchedule ||
+              !Number.isFinite(newStart.getTime())
+            ) {
+              result.skipped += 1;
+              continue;
             }
-            if (existingMirror && (await cancelSharedCalendarEvent(existingMirror))) {
-              result.cancelled += 1;
-              cleaned = true;
-            }
-            if (!cleaned) result.skipped += 1;
+
+            const scheduled = await rescheduleAutomaticBooking({
+              mirror: bookingMirror,
+              member: assignedMember,
+              newStart,
+            });
+            const updatedMirror = scheduled.mirror || bookingMirror;
+            bookingMirrorByNonce.set(bookingNonce, updatedMirror);
+            applyBookingScheduleToSnapshots(bookingNonce, scheduled);
+            result.updated += 1;
           } catch (error) {
             result.errors.push({
               memberId: member.id,
@@ -1685,30 +1785,71 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             // assigned internally to another team member.
             calendarId: member.calendarId,
           };
-          let reconciledSourceEvent = event;
-          if (existingMirror && event.id) {
-            const sourceFingerprint = teamMirrorFingerprint(event, mirrorMember);
-            const scheduleDecision =
-              teamCalendarMirrorScheduleReconciliationDecision({
-                source: event,
-                mirror: existingMirror,
-                storedSourceFingerprint:
-                  existingMirror.extendedProperties?.private?.sourceFingerprint,
-                currentSourceFingerprint: sourceFingerprint,
-                sourceIsOrganizer: eventOrganizerMatchesMember(event, member),
-              });
-            if (scheduleDecision === "mirror_changed") {
-              reconciledSourceEvent = await patchCalendarEventWithoutUpdates(
-                member.calendarId,
-                event.id,
-                { start: existingMirror.start, end: existingMirror.end },
-              );
-              Object.assign(event, reconciledSourceEvent);
-              result.updated += 1;
+          const schedulesDiffer = Boolean(
+            existingMirror && !teamCalendarSchedulesMatch(event, existingMirror),
+          );
+          const sharedMirrorWasMoved = sharedMirrorCarriesManualScheduleChange({
+            source: event,
+            member: mirrorMember,
+            mirror: existingMirror,
+          });
+          const scheduleDecision =
+            existingMirror && event.id
+              ? teamCalendarMirrorScheduleReconciliationDecision({
+                  source: event,
+                  mirror: existingMirror,
+                  storedSourceFingerprint:
+                    existingMirror.extendedProperties?.private?.sourceFingerprint,
+                  currentSourceFingerprint: teamMirrorFingerprint(
+                    event,
+                    mirrorMember,
+                  ),
+                  sourceIsOrganizer: eventOrganizerMatchesMember(event, member),
+                })
+              : "source_wins";
+
+          if (isBooking && existingMirror && schedulesDiffer) {
+            // The organizer, the assigned member and the shared view are
+            // one appointment. Whichever synchronized view was moved becomes
+            // the common slot; no extra Google invitation is sent.
+            const movedEvent = sharedMirrorWasMoved ? existingMirror : event;
+            const newStart = new Date(String(movedEvent.start?.dateTime || ""));
+            if (!Number.isFinite(newStart.getTime())) {
+              throw new Error("visio_team_reschedule_invalid");
             }
+            const scheduled = await rescheduleAutomaticBooking({
+              mirror: existingMirror,
+              member: responsibleMember,
+              newStart,
+            });
+            const bookingNonce = bookingNonceForEvent(existingMirror);
+            if (bookingNonce) {
+              bookingMirrorByNonce.set(
+                bookingNonce,
+                scheduled.mirror || existingMirror,
+              );
+              applyBookingScheduleToSnapshots(bookingNonce, scheduled);
+            }
+            result.updated += 1;
+            canonicalSourceByIdentity.set(identity, sourceKey);
+            canonicalSourceActive.set(sourceKey, true);
+            continue;
+          }
+
+          let sourceForMirror = event;
+          if (scheduleDecision === "mirror_changed" && existingMirror) {
+            // For regular internal events, the shared copy may be the edited
+            // view too. Persist it to the organizer before rebuilding it.
+            sourceForMirror = await patchCalendarEventWithoutUpdates(
+              member.calendarId,
+              String(event.id),
+              { start: existingMirror.start, end: existingMirror.end },
+            );
+            Object.assign(event, sourceForMirror);
+            result.updated += 1;
           }
           const outcome = await upsertTeamMirrorEvent({
-            event: reconciledSourceEvent,
+            event: sourceForMirror,
             member: mirrorMember,
             existing: existingMirror,
           });
@@ -1719,7 +1860,6 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
         }
       }
-
       for (const mirror of mirrors) {
         const properties = mirror.extendedProperties?.private || {};
         if (
@@ -4582,10 +4722,6 @@ async function rescheduleAutomaticBooking(input: {
   }
 
   const schedule = buildTimedEventSchedule(publicEvent, input.newStart);
-  if (!schedule.changed) {
-    return { mirror: input.mirror, ...schedule, googleUpdatesRequested: false };
-  }
-
   const memberUsesPublicCalendar =
     normalizedCalendarId(input.member.calendarId) ===
     normalizedCalendarId(publicCalendarId);
@@ -4597,10 +4733,30 @@ async function rescheduleAutomaticBooking(input: {
             normalizedCalendarId(input.member.calendarId) &&
           eventOrganizerMatchesMember(match.event, match.member),
       );
+  const scheduledPublicEvent = eventWithSchedule(publicEvent, schedule);
+  const mirrorNeedsSync = !teamCalendarSchedulesMatch(
+    input.mirror,
+    scheduledPublicEvent,
+  );
+  const companionsNeedSync = companions.some(
+    (companion) =>
+      !teamCalendarSchedulesMatch(companion.event, scheduledPublicEvent),
+  );
+  // When the organizer itself was moved, `schedule.changed` is false. The
+  // shared and assigned copies must still be brought to the same slot.
+  if (!schedule.changed && !mirrorNeedsSync && !companionsNeedSync) {
+    return { mirror: input.mirror, ...schedule, googleUpdatesRequested: false };
+  }
+
   let stagedMirror: GoogleCalendarEvent | null = null;
   try {
     for (const companion of companions) {
-      if (!companion.event.id) continue;
+      if (
+        !companion.event.id ||
+        teamCalendarSchedulesMatch(companion.event, scheduledPublicEvent)
+      ) {
+        continue;
+      }
       await patchCalendarEventWithoutUpdates(
         companion.member.calendarId,
         companion.event.id,
@@ -4615,10 +4771,12 @@ async function rescheduleAutomaticBooking(input: {
       schedule,
     });
 
-    await patchCalendarEventWithoutUpdates(publicCalendarId, publicEvent.id, {
-      start: schedule.start,
-      end: schedule.end,
-    });
+    if (schedule.changed) {
+      await patchCalendarEventWithoutUpdates(publicCalendarId, publicEvent.id, {
+        start: schedule.start,
+        end: schedule.end,
+      });
+    }
   } catch (error) {
     for (const companion of companions) {
       await restoreEventSchedule({

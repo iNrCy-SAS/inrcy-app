@@ -4076,7 +4076,7 @@ async function publishNowHandler(req: Request) {
               // Adapter instead of retaining stale click metadata.
               media_metadata: Object.keys(siteMediaMetadata).length
                 ? siteMediaMetadata
-                : null,
+                : {},
               external_url: externalUrl, // ✅ si tu veux (optionnel)
               site_url: targetUrl || null, // ✅ si tu veux (optionnel)
             }, { onConflict: "id" });

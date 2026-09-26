@@ -65,6 +65,13 @@ test("site article creation is replay-safe in the channel worker", () => {
   );
 });
 
+test("site article upserts always provide non-null media metadata", () => {
+  assert.match(
+    publishRoute,
+    /media_metadata: Object\.keys\(siteMediaMetadata\)\.length\s*\?\s*siteMediaMetadata\s*:\s*\{\}/,
+  );
+});
+
 test("Google Business ambiguous POST outcomes never enter a degraded retry", () => {
   assert.match(
     publishRoute,
