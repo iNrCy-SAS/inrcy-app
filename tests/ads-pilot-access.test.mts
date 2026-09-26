@@ -29,8 +29,8 @@ test("iNr’ADS reste visible, mais est verrouillé hors compte Admin pendant la
   assert.match(campaignChoicesSource, /À venir/);
   assert.match(adsServerSource, /isAdsPilotAdmin/);
   assert.match(adsServerSource, /INRCY_ADS_COMING_SOON/);
-  assert.match(adsServerSource, /GOOGLE_ADS_DEVELOPER_TOKEN/);
-  assert.match(adsServerSource, /"developer-token": developerToken/);
+  assert.match(adsServerSource, /GOOGLE_ADS_API_VERSION/);
+  assert.match(adsServerSource, /"login-customer-id"/);
   assert.match(adsPageSource, /isAdsPilotAdmin/);
   assert.match(adsCallbackSource, /isAdsPilotAdmin/);
 });

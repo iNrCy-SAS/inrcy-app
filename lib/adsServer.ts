@@ -135,18 +135,14 @@ export async function metaAdsJson(userId: string, path: string, body?: URLSearch
 }
 
 export async function googleAdsJson(userId: string, path: string, body?: Record<string, unknown>, loginCustomerId?: string) {
-  // OAuth identifies the connected advertiser. Google Ads API also requires the
-  // application developer token issued from a Google Ads manager account.
-  const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim();
-  if (!developerToken) {
-    throw new Error("Configuration Google Ads incomplète : ajoutez le developer token du compte administrateur Google Ads.");
-  }
+  // Since Google sunset developer tokens on 2026-09-09, API access is granted
+  // to the Google Cloud project that owns this OAuth client. The connected
+  // advertiser's OAuth token remains the only credential needed here.
   const token = await accessTokenForAds(userId, "google");
   return externalJson(`https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/${path}`, {
     method: body ? "POST" : "GET",
     headers: {
       Authorization: `Bearer ${token}`,
-      "developer-token": developerToken,
       ...(body ? { "Content-Type": "application/json" } : {}),
       ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
     },
