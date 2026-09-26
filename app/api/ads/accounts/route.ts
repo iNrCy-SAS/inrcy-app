@@ -1,6 +1,43 @@
 import { NextResponse } from "next/server";
 import { adsOAuthProvider } from "@/lib/adsOAuth";
-import { listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
+import {
+  adsConnectionStatus,
+  listAdsAccounts,
+  listMetaPages,
+  readAdsIntegration,
+  requirePremiumAdsUser,
+  type AdsIntegration,
+} from "@/lib/adsServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { asRecord } from "@/lib/tsSafe";
+
+function selectedPageId(integration: AdsIntegration | null): string {
+  const pageId = asRecord(integration?.meta).selected_page_id;
+  return typeof pageId === "string" ? pageId : "";
+}
+
+async function resolveSelectedAccount(
+  userId: string,
+  integration: AdsIntegration,
+  accounts: Awaited<ReturnType<typeof listAdsAccounts>>,
+) {
+  const selected = accounts.find((account) => account.id === integration.resource_id && account.currency === "EUR");
+  if (selected) return selected;
+
+  const eligibleAccounts = accounts.filter((account) => account.currency === "EUR");
+  const defaultAccount = eligibleAccounts.length === 1 ? eligibleAccounts[0] : null;
+  const { error } = await supabaseAdmin
+    .from("integrations")
+    .update({
+      resource_id: defaultAccount?.id || null,
+      resource_label: defaultAccount?.name || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", integration.id)
+    .eq("user_id", userId);
+  if (error) throw new Error("Impossible de mémoriser le compte annonceur sélectionné.");
+  return defaultAccount;
+}
 
 export async function GET(request: Request) {
   const { user, errorResponse } = await requirePremiumAdsUser();
@@ -8,22 +45,51 @@ export async function GET(request: Request) {
   const provider = adsOAuthProvider(new URL(request.url).searchParams.get("provider"));
   if (!provider) return NextResponse.json({ error: "Canal inconnu." }, { status: 400 });
 
+  let connection: AdsIntegration | null = null;
   try {
-    const connection = await readAdsIntegration(user.activeUserId, provider);
-    if (!connection || connection.status !== "connected") {
-      return NextResponse.json({ connected: false, accounts: [], pages: [] });
+    connection = await readAdsIntegration(user.activeUserId, provider);
+    const connectionStatus = adsConnectionStatus(connection);
+    if (!connection || connectionStatus !== "connected") {
+      return NextResponse.json({
+        connected: false,
+        hasConnection: Boolean(connection),
+        connectionStatus,
+        accounts: [],
+        pages: [],
+        selectedAccountId: "",
+        selectedPageId: "",
+      });
     }
+
     const [accounts, pages] = await Promise.all([
       listAdsAccounts(user.activeUserId, provider),
       provider === "meta" ? listMetaPages(user.activeUserId) : Promise.resolve([]),
     ]);
-    return NextResponse.json({ connected: true, accounts, pages });
-  } catch (error) {
+    const selectedAccount = await resolveSelectedAccount(user.activeUserId, connection, accounts);
+    const storedPageId = selectedPageId(connection);
+    const selectedIdentity = pages.some((page) => page.id === storedPageId) ? storedPageId : "";
+
     return NextResponse.json({
       connected: true,
+      hasConnection: true,
+      connectionStatus: "connected",
+      accounts,
+      pages,
+      selectedAccountId: selectedAccount?.id || "",
+      selectedPageId: selectedIdentity,
+    });
+  } catch (error) {
+    const refreshedConnection = await readAdsIntegration(user.activeUserId, provider).catch(() => connection);
+    const connectionStatus = adsConnectionStatus(refreshedConnection);
+    return NextResponse.json({
+      connected: connectionStatus === "connected",
+      hasConnection: Boolean(refreshedConnection),
+      connectionStatus,
       accounts: [],
       pages: [],
+      selectedAccountId: "",
+      selectedPageId: "",
       error: error instanceof Error ? error.message : "Impossible de charger les comptes publicitaires.",
-    }, { status: 502 });
+    });
   }
 }

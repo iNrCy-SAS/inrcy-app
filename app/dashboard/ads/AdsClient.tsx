@@ -6,6 +6,7 @@ import Image from "next/image";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import { isAdsProvider, type AdsAccount, type AdsCampaignInput, type AdsChannelId, type AdsProvider } from "@/lib/adsValidation";
 import { ADS_PAUSED_DEMO_CONFIRMATION } from "@/lib/adsPublishMode";
+import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import AdsConnectionSettings from "./AdsConnectionSettings";
 import styles from "./ads.module.css";
 
@@ -19,7 +20,18 @@ type StoredCampaign = {
   created_at: string;
 };
 
-type AccountResponse = { connected: boolean; accounts: AdsAccount[]; pages: { id: string; name: string; instagramUserId?: string }[]; error?: string };
+type AdsConfigAction = "disconnect" | "save-account" | "clear-account" | "save-page" | "clear-page" | null;
+
+type AccountResponse = {
+  connected: boolean;
+  hasConnection?: boolean;
+  connectionStatus?: ConnectionDisplayStatus;
+  accounts: AdsAccount[];
+  pages: { id: string; name: string; instagramUserId?: string }[];
+  selectedAccountId?: string;
+  selectedPageId?: string;
+  error?: string;
+};
 
 // Every channel can be prepared here. Only Meta and Google currently support account connection/publishing.
 const CHANNEL_CATALOG: { id: AdsChannelId; label: string; format: string; logo: string; provider?: AdsProvider }[] = [
@@ -88,8 +100,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [pages, setPages] = useState<{ id: string; name: string; instagramUserId?: string }[]>([]);
   const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
+  const [configuredAccountId, setConfiguredAccountId] = useState("");
+  const [configuredPageId, setConfiguredPageId] = useState("");
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsRefreshKey, setAccountsRefreshKey] = useState(0);
+  const [configAction, setConfigAction] = useState<AdsConfigAction>(null);
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
   const [tracking, setTracking] = useState(false);
   const [brief, setBrief] = useState("");
@@ -121,7 +137,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
 
   const selectedAccount = isAdsProvider(channelId) ? accounts.find((account) => account.id === draft.adAccountId) : undefined;
   const selectedPage = channelId === "meta" ? pages.find((page) => page.id === draft.pageId) : undefined;
-  const channelAccountReady = Boolean(connected && selectedAccount?.currency === "EUR" && (channelId !== "meta" || selectedPage?.instagramUserId));
+  const channelAccountReady = Boolean(
+    connected
+    && selectedAccount?.currency === "EUR"
+    && selectedAccount.id === configuredAccountId
+    && (channelId !== "meta" || (selectedPage?.instagramUserId && selectedPage.id === configuredPageId)),
+  );
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
 
   function selectChannel(index: number) {
@@ -136,6 +157,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setChannelId(next);
     setDraft(newDraft(next));
     setConnected(false);
+    setConnectionStatus("disconnected");
+    setConfiguredAccountId("");
+    setConfiguredPageId("");
     setAccounts([]);
     setPages([]);
     setSavedId(null);
@@ -159,6 +183,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     if (!isAdsProvider(channelId)) {
       setLoadingAccounts(false);
       setConnected(false);
+      setConnectionStatus("disconnected");
+      setConfiguredAccountId("");
+      setConfiguredPageId("");
       setAccounts([]);
       setPages([]);
       return () => { active = false; };
@@ -172,24 +199,31 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         const nextAccounts = result.accounts || [];
         const nextPages = result.pages || [];
         setConnected(result.connected);
+        setConnectionStatus(result.connectionStatus || (result.connected ? "connected" : "disconnected"));
         setAccounts(nextAccounts);
         setPages(nextPages);
         const euroAccounts = nextAccounts.filter((account) => account.currency === "EUR");
         const linkedInstagramPages = nextPages.filter((page) => Boolean(page.instagramUserId));
+        const persistedAccount = euroAccounts.find((account) => account.id === result.selectedAccountId);
+        const persistedPage = nextPages.find((page) => page.id === result.selectedPageId);
+        setConfiguredAccountId(persistedAccount?.id || "");
+        setConfiguredPageId(persistedPage?.id || "");
         setDraft((current) => {
           const existingAccount = euroAccounts.find((account) => account.id === current.adAccountId);
-          const account = existingAccount || (euroAccounts.length === 1 ? euroAccounts[0] : undefined);
-          const existingPage = linkedInstagramPages.find((page) => page.id === current.pageId);
-          const page = existingPage || (channelId === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
+          const account = persistedAccount || existingAccount || (euroAccounts.length === 1 ? euroAccounts[0] : undefined);
+          const existingPage = nextPages.find((page) => page.id === current.pageId);
+          const page = persistedPage || existingPage || (channelId === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
           const adAccountId = account?.id || "";
           const pageId = channelId === "meta" ? page?.id || "" : current.pageId;
           if (current.adAccountId === adAccountId && current.accountCurrency === "EUR" && current.pageId === pageId) return current;
           return { ...current, adAccountId, accountCurrency: "EUR", pageId };
         });
-        if (result.connected && euroAccounts.length === 1 && (channelId !== "meta" || linkedInstagramPages.length === 1)) {
-          setNotice(`Un seul compte éligible détecté : il est sélectionné automatiquement. Cliquez sur « Connecter » pour confirmer.`);
+        if (result.connectionStatus === "needs_update") {
+          setNotice(`La connexion ${channelId === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
+        } else if (result.connected && euroAccounts.length === 1 && (channelId !== "meta" || linkedInstagramPages.length === 1)) {
+          setNotice("Un seul compte éligible détecté : il est sélectionné automatiquement.");
         } else if (result.connected && euroAccounts.length > 1) {
-          setNotice("Connexion réussie. Choisissez le compte annonceur à utiliser, puis cliquez sur « Connecter ».");
+          setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
         }
         if (result.error) setNotice(result.error);
       })
@@ -206,6 +240,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     if (next !== provider) setProvider(next);
     setDraft(newDraft(next));
     setConnected(false);
+    setConnectionStatus("disconnected");
+    setConfiguredAccountId("");
+    setConfiguredPageId("");
+    setConfigAction(null);
     setAccounts([]);
     setPages([]);
     setSavedId(null);
@@ -219,15 +257,100 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setConfiguring(true);
   }
 
-  function completeConfiguration() {
-    setConfiguring(false);
-    setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} sélectionné pour la préparation en cours. Aucune annonce n’a été publiée.`);
-  }
-
   function updateDraft(next: Partial<AdsCampaignInput>) {
     setDraft((current) => ({ ...current, ...next }));
     setDirty(true);
     setConfirmedSpend(false);
+  }
+
+  async function saveAccountSelection() {
+    if (!draft.adAccountId) {
+      setNotice("Choisissez d’abord un compte annonceur en euros.");
+      return;
+    }
+    setConfigAction("save-account");
+    setNotice("");
+    try {
+      const result = await readJson(await fetch("/api/ads/accounts/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, accountId: draft.adAccountId }),
+      }));
+      setConfiguredAccountId(String(result.selectedAccountId || draft.adAccountId));
+      setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} sélectionné. Aucune annonce n’a été publiée.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de sélectionner ce compte annonceur.");
+    } finally {
+      setConfigAction(null);
+    }
+  }
+
+  async function savePageSelection() {
+    if (!draft.pageId) {
+      setNotice("Choisissez d’abord une identité Facebook ou Instagram.");
+      return;
+    }
+    setConfigAction("save-page");
+    setNotice("");
+    try {
+      const result = await readJson(await fetch("/api/ads/accounts/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "meta", pageId: draft.pageId }),
+      }));
+      setConfiguredPageId(String(result.selectedPageId || draft.pageId));
+      setNotice("Identité Facebook et Instagram sélectionnée pour vos campagnes Meta Ads.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de sélectionner cette identité publicitaire.");
+    } finally {
+      setConfigAction(null);
+    }
+  }
+
+  async function clearSavedSelection(target: "account" | "identity") {
+    setConfigAction(target === "account" ? "clear-account" : "clear-page");
+    setNotice("");
+    try {
+      await readJson(await fetch("/api/ads/accounts/selection", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, target }),
+      }));
+      if (target === "account") {
+        setConfiguredAccountId("");
+        setConfiguredPageId("");
+        updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
+        setNotice("Compte annonceur dissocié. Vous pouvez en choisir un autre.");
+      } else {
+        setConfiguredPageId("");
+        updateDraft({ pageId: "" });
+        setNotice("Identité publicitaire dissociée. Vous pouvez en choisir une autre.");
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de dissocier cette sélection.");
+    } finally {
+      setConfigAction(null);
+    }
+  }
+
+  async function disconnectAdsConnection() {
+    setConfigAction("disconnect");
+    setNotice("");
+    try {
+      await readJson(await fetch(`/api/ads/oauth/${provider}/disconnect`, { method: "POST" }));
+      setConnected(false);
+      setConnectionStatus("disconnected");
+      setConfiguredAccountId("");
+      setConfiguredPageId("");
+      setAccounts([]);
+      setPages([]);
+      updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
+      setNotice(`${provider === "google" ? "Google Ads" : "Meta Ads"} est déconnecté d’iNrCy. Aucune campagne existante n’a été modifiée.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de déconnecter ce canal publicitaire.");
+    } finally {
+      setConfigAction(null);
+    }
   }
 
   async function generateCopy() {
@@ -474,16 +597,24 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       provider={provider}
       onSelectProvider={changeProvider}
       onClose={() => setConfiguring(false)}
-      onConnect={completeConfiguration}
       connected={connected}
+      connectionStatus={connectionStatus}
       loading={loadingAccounts}
+      configAction={configAction}
       accounts={accounts}
       pages={pages}
       selectedAccountId={draft.adAccountId}
       selectedPageId={draft.pageId}
+      configuredAccountId={configuredAccountId}
+      configuredPageId={configuredPageId}
       onSelectAccount={(id) => updateDraft({ adAccountId: id, accountCurrency: "EUR" })}
       onSelectPage={(id) => updateDraft({ pageId: id })}
       onRefreshAccounts={() => setAccountsRefreshKey((key) => key + 1)}
+      onSaveAccount={() => void saveAccountSelection()}
+      onClearAccount={() => void clearSavedSelection("account")}
+      onSavePage={() => void savePageSelection()}
+      onClearPage={() => void clearSavedSelection("identity")}
+      onDisconnect={() => void disconnectAdsConnection()}
     />
   </main>;
 }

@@ -8,6 +8,7 @@ import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
 import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { adsOAuthProvider, adsOAuthRedirectUri, adsReturnUrl } from "@/lib/adsOAuth";
 import { META_ADS_REQUIRED_PERMISSIONS } from "@/lib/adsMetaScopes";
+import { asRecord } from "@/lib/tsSafe";
 
 type TokenPayload = {
   access_token?: string;
@@ -106,7 +107,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     if (!token.access_token) throw new Error("Aucun jeton d’accès n’a été fourni.");
     const source = provider === "meta" ? "meta_ads" : "google_ads";
     const { data: existing, error: existingError } = await supabaseAdmin.from("integrations")
-      .select("id,provider_account_id,refresh_token_enc")
+      .select("id,provider_account_id,refresh_token_enc,resource_id,resource_label,meta")
       .eq("user_id", userId).eq("source", source).eq("product", "ads").maybeSingle();
     if (existingError) throw new Error("Impossible de sauvegarder la connexion Ads.");
     const reusableGoogleRefreshToken = provider === "google" && profileId && existing?.provider_account_id === profileId
@@ -115,6 +116,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     if (provider === "google" && !token.refresh_token && !reusableGoogleRefreshToken) {
       throw new Error("Google n’a pas fourni de jeton de renouvellement Ads. Réessayez la connexion et acceptez l’accès hors ligne.");
     }
+    const keepsSelection = Boolean(existing?.provider_account_id && existing.provider_account_id === profileId);
     const payload = {
       user_id: userId,
       provider: provider === "meta" ? "facebook" : "google",
@@ -129,7 +131,8 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       access_token_enc: encryptToken(token.access_token),
       refresh_token_enc: token.refresh_token ? encryptToken(token.refresh_token) : reusableGoogleRefreshToken,
       expires_at: token.expires_in ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
-      meta: { product: "inr_ads", provider },
+      meta: { ...asRecord(keepsSelection ? existing?.meta : null), product: "inr_ads", provider },
+      ...(keepsSelection ? {} : { resource_id: null, resource_label: null }),
       updated_at: new Date().toISOString(),
     };
     const saved = existing?.id

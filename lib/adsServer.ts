@@ -10,7 +10,7 @@ import type { AdsAccount, AdsProvider } from "@/lib/adsValidation";
 
 export const GOOGLE_ADS_API_VERSION = "v25";
 
-type IntegrationRow = {
+export type AdsIntegration = {
   id: string;
   provider: string;
   source: string;
@@ -18,7 +18,12 @@ type IntegrationRow = {
   refresh_token_enc: string | null;
   expires_at: string | null;
   status: string | null;
+  resource_id: string | null;
+  resource_label: string | null;
+  meta: unknown;
 };
+
+export type AdsConnectionStatus = "connected" | "needs_update" | "disconnected";
 
 /** Temporary launch guard: iNr’ADS stays available only to the Admin test account. */
 export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
@@ -63,25 +68,45 @@ export function adsBadOriginResponse() {
   return NextResponse.json({ error: "Origine de requête non autorisée." }, { status: 403 });
 }
 
-export async function readAdsIntegration(userId: string, provider: AdsProvider): Promise<IntegrationRow | null> {
+export function adsConnectionStatus(integration: AdsIntegration | null): AdsConnectionStatus {
+  if (!integration) return "disconnected";
+  if (integration.status === "needs_update" || integration.status === "expired" || integration.status === "error") {
+    return "needs_update";
+  }
+  return integration.status === "connected" ? "connected" : "disconnected";
+}
+
+export async function readAdsIntegration(userId: string, provider: AdsProvider): Promise<AdsIntegration | null> {
   const { data, error } = await supabaseAdmin
     .from("integrations")
-    .select("id,provider,source,access_token_enc,refresh_token_enc,expires_at,status")
+    .select("id,provider,source,access_token_enc,refresh_token_enc,expires_at,status,resource_id,resource_label,meta")
     .eq("user_id", userId)
     .eq("source", provider === "meta" ? "meta_ads" : "google_ads")
     .eq("product", "ads")
     .maybeSingle();
   if (error) throw new Error("Impossible de charger la connexion publicitaire.");
-  return data as IntegrationRow | null;
+  return data as AdsIntegration | null;
+}
+
+async function markAdsConnectionForReconnect(userId: string, integrationId: string) {
+  await supabaseAdmin
+    .from("integrations")
+    .update({ status: "needs_update", updated_at: new Date().toISOString() })
+    .eq("id", integrationId)
+    .eq("user_id", userId);
 }
 
 export async function accessTokenForAds(userId: string, provider: AdsProvider): Promise<string> {
   const integration = await readAdsIntegration(userId, provider);
   if (!integration?.access_token_enc || integration.status !== "connected") {
+    if (adsConnectionStatus(integration) === "needs_update") {
+      throw new Error(`La connexion ${provider === "meta" ? "Meta Ads" : "Google Ads"} doit être actualisée.`);
+    }
     throw new Error(`Connectez d’abord ${provider === "meta" ? "Meta Ads" : "Google Ads"}.`);
   }
   if (provider === "meta") {
     if (integration.expires_at && Date.parse(integration.expires_at) < Date.now() + 60_000) {
+      await markAdsConnectionForReconnect(userId, integration.id);
       throw new Error("La connexion Meta Ads a expiré. Reconnectez votre compte.");
     }
     return decryptToken(integration.access_token_enc);
@@ -90,8 +115,12 @@ export async function accessTokenForAds(userId: string, provider: AdsProvider): 
   if (!integration.expires_at || Date.parse(integration.expires_at) > Date.now() + 120_000) {
     return decryptToken(integration.access_token_enc);
   }
-  if (!integration.refresh_token_enc || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  if (!integration.refresh_token_enc) {
+    await markAdsConnectionForReconnect(userId, integration.id);
     throw new Error("La connexion Google Ads a expiré. Reconnectez votre compte.");
+  }
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    throw new Error("La configuration Google Ads est incomplète côté serveur.");
   }
   const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -104,8 +133,14 @@ export async function accessTokenForAds(userId: string, provider: AdsProvider): 
     }),
     cache: "no-store",
   });
-  const refreshed = await refreshResponse.json().catch(() => ({})) as { access_token?: string; expires_in?: number };
-  if (!refreshResponse.ok || !refreshed.access_token) throw new Error("La connexion Google Ads a expiré. Reconnectez votre compte.");
+  const refreshed = await refreshResponse.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error?: string };
+  if (!refreshResponse.ok || !refreshed.access_token) {
+    if (refreshResponse.status === 400 || refreshResponse.status === 401 || refreshed.error === "invalid_grant") {
+      await markAdsConnectionForReconnect(userId, integration.id);
+      throw new Error("La connexion Google Ads a expiré. Reconnectez votre compte.");
+    }
+    throw new Error("Le renouvellement de la connexion Google Ads est momentanément indisponible. Réessayez dans un instant.");
+  }
   const { error } = await supabaseAdmin.from("integrations").update({
     access_token_enc: encryptToken(refreshed.access_token),
     expires_at: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString(),
