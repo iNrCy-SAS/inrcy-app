@@ -15,7 +15,9 @@ export type GoogleAdsPublishProgress = {
   customerId: string;
   budgetResourceName: string;
   campaignResourceName: string;
+  /** Kept for compatibility with already stored publication progress. */
   locationCriterionResourceName: string;
+  locationCriterionResourceNames: string[];
   adGroupResourceName: string;
   keywordCriterionResourceNames: string[];
   adGroupAdResourceName: string;
@@ -84,9 +86,84 @@ function checkGoogleDraft(draft: AdsCampaignInput): string {
   return endDateTime;
 }
 
+type GoogleTargetLocation = {
+  resourceName: string;
+  label: string;
+};
+
+function gaqlQuoted(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function uniqueLocationLabels(locations: string[]) {
+  const labels = new Map<string, string>();
+  for (const value of locations) {
+    const label = String(value || "").trim().replace(/\s+/g, " ");
+    if (!label) continue;
+    const key = label.toLocaleLowerCase("fr-FR");
+    if (!labels.has(key)) labels.set(key, label);
+  }
+  return [...labels.values()].slice(0, 20);
+}
+
+async function searchGoogleTargetLocations(
+  userId: string,
+  customerId: string,
+  field: "name" | "canonical_name",
+  value: string,
+  loginCustomerId?: string,
+): Promise<GoogleTargetLocation[]> {
+  const response = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
+    query: `SELECT geo_target_constant.resource_name, geo_target_constant.name, geo_target_constant.canonical_name FROM geo_target_constant WHERE geo_target_constant.${field} = '${gaqlQuoted(value)}' LIMIT 20`,
+  }, loginCustomerId);
+  const byResourceName = new Map<string, GoogleTargetLocation>();
+  for (const row of Array.isArray(response.results) ? response.results : []) {
+    const target = asRecord(asRecord(row).geoTargetConstant);
+    const resourceName = String(target.resourceName || "");
+    const label = String(target.canonicalName || target.name || "").trim();
+    if (!/^geoTargetConstants\/\d+$/.test(resourceName) || !label) continue;
+    byResourceName.set(resourceName, { resourceName, label });
+  }
+  return [...byResourceName.values()];
+}
+
 /**
- * Creates a France-only Search campaign, then enables its children and finally
- * the campaign. `persistProgress` is optional in the signature for integration
+ * Google accepts resource IDs, not the human-readable zones entered in the
+ * studio. Resolve those names before the atomic mutate so an ambiguous city
+ * can never silently be replaced with the legacy France-wide default.
+ */
+async function resolveGoogleTargetLocations(
+  userId: string,
+  customerId: string,
+  locations: string[],
+  loginCustomerId?: string,
+): Promise<GoogleTargetLocation[]> {
+  const labels = uniqueLocationLabels(locations);
+  if (!labels.length) {
+    return [{ resourceName: "geoTargetConstants/2250", label: "France" }];
+  }
+
+  const resolved = await Promise.all(labels.map(async (label) => {
+    // A canonical name (for example “Paris, Ile-de-France, France”) removes
+    // ambiguity first. Plain city/region names remain convenient when Google
+    // exposes exactly one geographic target for the label.
+    const canonical = await searchGoogleTargetLocations(userId, customerId, "canonical_name", label, loginCustomerId);
+    const matches = canonical.length === 1
+      ? canonical
+      : await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId);
+    return { input: label, matches };
+  }));
+
+  const unresolved = resolved.filter((entry) => entry.matches.length !== 1).map((entry) => entry.input);
+  if (unresolved.length) {
+    throw new Error(`Google Ads ne peut pas identifier précisément la zone ${unresolved.map((label) => `« ${label} »`).join(", ")}. Utilisez une ville, une région ou le nom canonique affiché par Google, puis réessayez.`);
+  }
+  return resolved.map((entry) => entry.matches[0]);
+}
+
+/**
+ * Creates a location-verified Search campaign, then enables its children and
+ * finally the campaign. `persistProgress` is optional in the signature for integration
  * convenience, but required at runtime: publishing without a durable record is
  * deliberately refused before the first remote mutation.
  *
@@ -118,6 +195,12 @@ export async function publishGoogleAdsCampaign(
   if (String(account.id || "") !== customerId || account.currencyCode !== "EUR" || account.manager === true || account.status !== "ENABLED") {
     throw new Error("Le compte Google Ads sélectionné doit être un compte annonceur actif et accessible, en EUR.");
   }
+  const targetLocations = await resolveGoogleTargetLocations(
+    userId,
+    customerId,
+    draft.targetLocations,
+    loginCustomerId,
+  );
 
   const budgetTemp = `customers/${customerId}/campaignBudgets/-1`;
   const campaignTemp = `customers/${customerId}/campaigns/-2`;
@@ -126,7 +209,7 @@ export async function publishGoogleAdsCampaign(
   const amountMicros = String(Math.round(draft.dailyBudgetEuros * 1_000_000));
 
   // A single atomic mutate avoids an incomplete remote campaign when an ad,
-  // keyword or targeting criterion fails validation. France criterion ID: 2250.
+  // keyword or targeting criterion fails validation.
   const mutateOperations: Record<string, unknown>[] = [
     { campaignBudgetOperation: { create: {
       resourceName: budgetTemp,
@@ -147,15 +230,15 @@ export async function publishGoogleAdsCampaign(
       networkSettings: {
         targetGoogleSearch: true,
         targetSearchNetwork: false,
-        targetPartnerSearchNetwork: false,
-        targetContentNetwork: false,
+        targetPartnerSearchNetwork: draft.googleSearchPartners,
+        targetContentNetwork: draft.googleDisplayExpansion,
       },
       endDateTime,
     } } },
-    { campaignCriterionOperation: { create: {
+    ...targetLocations.map((location) => ({ campaignCriterionOperation: { create: {
       campaign: campaignTemp,
-      location: { geoTargetConstant: "geoTargetConstants/2250" },
-    } } },
+      location: { geoTargetConstant: location.resourceName },
+    } } })),
     { adGroupOperation: { create: {
       resourceName: adGroupTemp,
       campaign: campaignTemp,
@@ -194,10 +277,12 @@ export async function publishGoogleAdsCampaign(
     budgetResourceName: resourceNameAt(created, 0, "campaignBudgetResult", `customers/${customerId}/campaignBudgets/`),
     campaignResourceName: resourceNameAt(created, 1, "campaignResult", `customers/${customerId}/campaigns/`),
     locationCriterionResourceName: resourceNameAt(created, 2, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`),
-    adGroupResourceName: resourceNameAt(created, 3, "adGroupResult", `customers/${customerId}/adGroups/`),
+    locationCriterionResourceNames: targetLocations.map((_, index) =>
+      resourceNameAt(created, 2 + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
+    adGroupResourceName: resourceNameAt(created, 2 + targetLocations.length, "adGroupResult", `customers/${customerId}/adGroups/`),
     keywordCriterionResourceNames: draft.keywords.map((_, index) =>
-      resourceNameAt(created, 4 + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
-    adGroupAdResourceName: resourceNameAt(created, 4 + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
+      resourceNameAt(created, 3 + targetLocations.length + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
+    adGroupAdResourceName: resourceNameAt(created, 3 + targetLocations.length + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
     status: "PAUSED",
   };
 

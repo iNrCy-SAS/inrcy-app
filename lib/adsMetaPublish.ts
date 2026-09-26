@@ -3,6 +3,9 @@ import "server-only";
 import { listMetaPages, metaAdsJson } from "@/lib/adsServer";
 import { metaFeedTargeting, metaLinkCreativeStory } from "@/lib/adsMetaPlacement";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
+import { verifyMediaLibraryContentToken } from "@/lib/mediaLibraryContentUrl";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * Meta's campaign → ad set → creative → ad hierarchy is created paused.
@@ -70,6 +73,58 @@ function safeHttpsUrl(value: string): boolean {
   }
 }
 
+function mediaLibraryIdFromPrivateUrl(value: string): string | null {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith("/")) return null;
+  try {
+    const url = new URL(raw, "https://inrcy-media.local");
+    if (url.origin !== "https://inrcy-media.local") return null;
+    const match = url.pathname.match(/^\/api\/media-library\/items\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/content$/i);
+    const id = match?.[1] || "";
+    const token = url.searchParams.get("token") || "";
+    return id && verifyMediaLibraryContentToken(id, token) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * iNrCy keeps library objects private. Meta cannot use the app-relative
+ * preview URL because its crawler has no iNrCy session, so resolve it here to
+ * a short-lived Storage URL just before the creative is created.
+ */
+async function resolveMetaImageUrl(userId: string, imageUrl: string): Promise<string> {
+  if (safeHttpsUrl(imageUrl)) return imageUrl;
+
+  const mediaId = mediaLibraryIdFromPrivateUrl(imageUrl);
+  if (!mediaId) {
+    throw new Error("Le visuel Meta doit être une URL HTTPS ou un média valide de votre médiathèque iNrCy.");
+  }
+
+  const { data: media, error } = await supabaseAdmin
+    .from("pro_media_library")
+    .select("bucket_name,storage_path,media_type,is_active")
+    .eq("id", mediaId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !media || media.is_active === false) {
+    throw new Error("Le média sélectionné n’est plus disponible dans votre médiathèque iNrCy.");
+  }
+  if (media.media_type !== "image") {
+    throw new Error("Le connecteur Meta actuellement disponible attend une image. Choisissez une image dans iNr’Studio ou votre médiathèque.");
+  }
+
+  const publicUrl = await createSafeStorageSignedUrl(
+    String(media.bucket_name || "inrcy-pro-media"),
+    String(media.storage_path || ""),
+    60 * 60,
+  );
+  if (!publicUrl || !safeHttpsUrl(publicUrl)) {
+    throw new Error("Le média iNrCy ne peut pas être préparé pour Meta pour le moment. Réessayez dans quelques instants.");
+  }
+  return publicUrl;
+}
+
 /** Meta accepts an ISO-8601 offset; 23:59 Paris time also handles CET/CEST. */
 function parisEndTime(endDate: string): string {
   const reference = new Date(`${endDate}T12:00:00Z`);
@@ -111,9 +166,10 @@ export async function publishMetaAdsCampaign(
     throw new Error("Le compte publicitaire ou la Page Meta est invalide.");
   }
   if (draft.accountCurrency !== "EUR") throw new Error("Seuls les comptes Meta en EUR sont pris en charge.");
-  if (!safeHttpsUrl(draft.destinationUrl) || !safeHttpsUrl(draft.imageUrl)) {
-    throw new Error("Le lien et le visuel Meta doivent être des URL HTTPS publiques.");
+  if (!safeHttpsUrl(draft.destinationUrl)) {
+    throw new Error("Le lien de destination Meta doit être une URL HTTPS publique.");
   }
+  const metaImageUrl = await resolveMetaImageUrl(userId, draft.imageUrl);
   if (draft.name.trim().length < 3 || draft.primaryText.trim().length < 10) {
     throw new Error("Le nom ou le texte de la campagne Meta est trop court.");
   }
@@ -200,7 +256,7 @@ export async function publishMetaAdsCampaign(
         instagramUserId,
         destinationUrl: draft.destinationUrl,
         primaryText: draft.primaryText,
-        imageUrl: draft.imageUrl,
+        imageUrl: metaImageUrl,
       })),
     }));
     progress = { ...progress, creativeId: requiredMetaId(creative, "du visuel"), stage: "creative_created" };

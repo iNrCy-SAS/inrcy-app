@@ -98,6 +98,39 @@ test("les médias préparatoires exigent une URL HTTPS valide", () => {
   assert.equal(parseAdsCampaignInput({ ...draft, creativeUrl: "http://example.com/video.mp4", creativeType: "video" }, { purpose: "draft" }).draft, null);
 });
 
+test("un média privé iNrCy reste utilisable dans un brouillon et à la publication Meta", () => {
+  const mediaUrl = "/api/media-library/items/12345678-1234-1234-1234-1234567890ab/content?token=abcdefghijklmnopqrstuvwxyz1234567890ABCDE";
+  const parsed = parseAdsCampaignInput({ ...metaDraft, imageUrl: mediaUrl });
+  assert.equal(parsed.error, null);
+  assert.equal(parsed.draft?.imageUrl, mediaUrl);
+
+  const invalid = parseAdsCampaignInput({ ...metaDraft, imageUrl: "/api/media-library/items/12345678-1234-1234-1234-1234567890ab/content?token=short" });
+  assert.equal(invalid.draft, null);
+});
+
+test("les réglages avancés de diffusion restent sûrs dans les brouillons", () => {
+  const google = parseAdsCampaignInput({
+    ...googleDraft,
+    languages: ["fr", "en"],
+    googleSearchPartners: true,
+    googleDisplayExpansion: true,
+    trackingParameters: "utm_source=google&utm_campaign=devis",
+  });
+  assert.deepEqual(google.draft?.languages, ["fr", "en"]);
+  assert.equal(google.draft?.googleSearchPartners, true);
+  assert.equal(google.draft?.googleDisplayExpansion, true);
+  assert.equal(google.draft?.conversionLocation, "website");
+
+  const meta = parseAdsCampaignInput({
+    ...metaDraft,
+    metaPlacements: ["facebook_feed", "instagram_feed"],
+    metaAudienceExpansion: false,
+  });
+  assert.deepEqual(meta.draft?.metaPlacements, ["facebook_feed", "instagram_feed"]);
+  assert.equal(meta.draft?.metaAudienceExpansion, false);
+  assert.equal(parseAdsCampaignInput({ ...metaDraft, metaPlacements: ["inconnu"] }).draft, null);
+});
+
 test("Meta Ads prépare les deux fils Facebook et Instagram avec l’identité Instagram liée", () => {
   assert.match(ADS_CHANNELS[0].format, /Facebook.*Instagram/);
   assert.deepEqual(metaFeedTargeting().publisher_platforms, ["facebook", "instagram"]);

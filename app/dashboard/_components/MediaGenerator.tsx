@@ -57,7 +57,7 @@ import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace
 
 import styles from "./MediaGenerator.module.css";
 
-export type MediaGeneratorOrigin = "menu" | "booster" | "inrsend" | "inragent";
+export type MediaGeneratorOrigin = "menu" | "booster" | "inrsend" | "inragent" | "ads";
 export type MediaGeneratorAcceptMode = "library" | "insert";
 export type MediaGeneratorStudioMode = "generate" | "modify" | "retouch";
 
