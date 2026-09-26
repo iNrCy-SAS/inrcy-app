@@ -226,8 +226,6 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         });
         if (result.connectionStatus === "needs_update") {
           setNotice(`La connexion ${channelId === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
-        } else if (result.connected && !result.accountSelectionCleared && euroAccounts.length === 1 && (channelId !== "meta" || linkedInstagramPages.length === 1)) {
-          setNotice("Un seul compte éligible détecté : il est sélectionné automatiquement.");
         } else if (result.connected && euroAccounts.length > 1) {
           setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
         }
