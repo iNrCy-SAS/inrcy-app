@@ -8,7 +8,6 @@ import {
   requirePremiumAdsUser,
   type AdsIntegration,
 } from "@/lib/adsServer";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
 
 function selectedPageId(integration: AdsIntegration | null): string {
@@ -29,31 +28,11 @@ function connectionAccount(integration: AdsIntegration | null) {
   };
 }
 
-async function resolveSelectedAccount(
-  userId: string,
+function resolveSelectedAccount(
   integration: AdsIntegration,
   accounts: Awaited<ReturnType<typeof listAdsAccounts>>,
 ) {
-  const selected = accounts.find((account) => account.id === integration.resource_id && account.currency === "EUR");
-  if (selected) return selected;
-
-  // A deliberate "Dissocier ce compte" must survive a refresh. Without this
-  // marker, a single eligible advertiser would be silently reselected.
-  if (!integration.resource_id && wasAccountExplicitlyCleared(integration)) return null;
-
-  const eligibleAccounts = accounts.filter((account) => account.currency === "EUR");
-  const defaultAccount = eligibleAccounts.length === 1 ? eligibleAccounts[0] : null;
-  const { error } = await supabaseAdmin
-    .from("integrations")
-    .update({
-      resource_id: defaultAccount?.id || null,
-      resource_label: defaultAccount?.name || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", integration.id)
-    .eq("user_id", userId);
-  if (error) throw new Error("Impossible de mémoriser le compte annonceur sélectionné.");
-  return defaultAccount;
+  return accounts.find((account) => account.id === integration.resource_id && account.currency === "EUR") || null;
 }
 
 export async function GET(request: Request) {
@@ -84,7 +63,16 @@ export async function GET(request: Request) {
       listAdsAccounts(user.activeUserId, provider),
       provider === "meta" ? listMetaPages(user.activeUserId) : Promise.resolve([]),
     ]);
-    const selectedAccount = await resolveSelectedAccount(user.activeUserId, connection, accounts);
+    const eligibleAccounts = accounts.filter((account) => account.currency === "EUR");
+    const selectedAccount = resolveSelectedAccount(connection, accounts);
+    // A single eligible account is convenient to preselect, but it is never
+    // persisted automatically: the professional explicitly confirms it with
+    // the “Associer ce compte” action in iNr’ADS.
+    const suggestedAccountId = !connection.resource_id
+      && !wasAccountExplicitlyCleared(connection)
+      && eligibleAccounts.length === 1
+      ? eligibleAccounts[0]?.id || ""
+      : "";
     const storedPageId = selectedPageId(connection);
     const selectedIdentity = pages.some((page) => page.id === storedPageId) ? storedPageId : "";
 
@@ -96,7 +84,12 @@ export async function GET(request: Request) {
       pages,
       connectionAccount: connectionAccount(connection),
       accountSelectionCleared: wasAccountExplicitlyCleared(connection),
-      selectedAccountId: selectedAccount?.id || "",
+      // A selection belongs to the professional until they explicitly
+      // dissociate it. Never silently replace or clear it while refreshing
+      // the provider's available-account list.
+      selectedAccountId: connection.resource_id || "",
+      selectedAccountAvailable: Boolean(selectedAccount),
+      suggestedAccountId,
       selectedPageId: selectedIdentity,
     });
   } catch (error) {

@@ -1,11 +1,17 @@
-/** Short editorial JSON must not spend its entire output budget on reasoning.
- * Scoped to media copy and the explicitly supported GPT-5.6 family, including
- * the direct fallback; other engines and other product workflows stay intact.
- * https://developers.openai.com/api/docs/models/gpt-5.6-luna
+/**
+ * Different iNrCy workflows have intentionally different reasoning budgets.
+ * Short editorial JSON must not spend its whole output allowance reasoning,
+ * whereas a campaign plan benefits from a careful strategic pass before the
+ * professional commits any advertising budget.
  */
 export function resolveAiMediaEditorialReasoning(feature: string, model: string) {
-  if (feature !== "media.image" && feature !== "media.video") return undefined;
   const id = model.trim().replace(/^openai\//, "");
+
+  if (feature === "ads.generate" && /^gpt-6-(?:astra|sol|luna)$/.test(id)) {
+    return { effort: "high" as const };
+  }
+
+  if (feature !== "media.image" && feature !== "media.video") return undefined;
   if (!/^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id)) return undefined;
   return { effort: "none" as const };
 }

@@ -87,7 +87,7 @@ export default function AdsCampaignAutoMediaGenerator({
         settledRef.current = true;
         callbacksRef.current.onSkip(
           plan.mediaStrategy === "search_text"
-            ? "Ce format repose sur des annonces textuelles : iNrCy n’utilise pas de crédit média inutilement."
+            ? "Ce format repose sur des annonces textuelles : la campagne est prête sans visuel supplémentaire."
             : "Ce format attend un flux produits : iNrCy conserve le brief média, sans générer un visuel qui ne serait pas utilisé.",
         );
         return;

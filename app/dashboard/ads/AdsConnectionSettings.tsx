@@ -7,6 +7,7 @@ import ConnectionPill from "@/app/dashboard/_components/ConnectionPill";
 import socialStyles from "@/app/dashboard/_components/SocialSettingsSteps.module.css";
 import dashboardStyles from "@/app/dashboard/dashboard.module.css";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
+import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { ADS_CHANNELS, type AdsAccount, type AdsProvider } from "@/lib/adsValidation";
 import styles from "./AdsConnectionSettings.module.css";
@@ -57,6 +58,17 @@ function connectionAccountLabel(provider: AdsProvider, account?: { displayName?:
   return provider === "meta" ? "Compte Facebook" : "Compte Google";
 }
 
+/** Keep the provider label readable without repeating an ID already used as its name. */
+function advertiserAccountLabel(account: AdsAccount) {
+  const name = account.name.trim();
+  const digitsInName = name.replace(/\D/g, "");
+  const digitsInId = account.id.replace(/\D/g, "");
+  const identity = name || `Compte ${account.id}`;
+  const idIsAlreadyShown = Boolean(digitsInId) && digitsInName.includes(digitsInId);
+
+  return `${identity}${idIsAlreadyShown ? "" : ` · ${account.id}`} · ${account.currency}`;
+}
+
 export default function AdsConnectionSettings({
   isOpen,
   provider,
@@ -105,11 +117,16 @@ export default function AdsConnectionSettings({
   const next = settingsChannels[(index + 1) % settingsChannels.length]!;
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const selectedPage = pages.find((page) => page.id === selectedPageId);
-  const savedAccount = accounts.find((account) => account.id === configuredAccountId && account.currency === "EUR");
+  const savedAccount = accounts.find(
+    (account) => account.id === configuredAccountId && account.currency === "EUR" && account.provider === provider,
+  );
   const savedPage = pages.find((page) => page.id === configuredPageId);
   const accountConfigured = Boolean(savedAccount && savedAccount.id === selectedAccount?.id);
   const identityConfigured = Boolean(savedPage && savedPage.id === selectedPage?.id);
   const accountCandidateReady = connected && selectedAccount?.currency === "EUR";
+  const configuredAccountUrl = savedAccount
+    ? getAdsAdvertiserAccountUrl(provider, savedAccount.id)
+    : null;
   const identityReady = identityConfigured && Boolean(savedPage?.instagramUserId);
   const needsReconnect = connectionStatus === "needs_update";
   const connectedAccountLabel = connectionAccountLabel(provider, connectionAccount);
@@ -135,11 +152,11 @@ export default function AdsConnectionSettings({
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{provider === "meta" ? "Connectez-vous via Facebook avec les autorisations Ads. Cette connexion est indépendante des publications gratuites du dashboard." : "Une seule autorisation Google Ads donne accès à vos comptes publicitaires pour les annonces de recherche."}</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={connected} status={connectionStatus} activity={loading ? "searching" : undefined} label={loading ? "Vérification…" : undefined} /></div>
+          <div className={socialStyles.stepStatus}><ConnectionPill connected={connected} status={connectionStatus} /></div>
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.controlRow}>
-            <input readOnly aria-label="Compte connecté à iNr’ADS" value={loading ? "Vérification de la connexion…" : needsReconnect ? `${connectedAccountLabel} doit être reconnecté` : connected ? `${provider === "meta" ? "Compte Facebook" : "Compte Google"} connecté : ${connectedAccountLabel}` : "Aucun compte connecté"} />
+            <input readOnly aria-label="Compte connecté à iNr’ADS" value={needsReconnect ? `${connectedAccountLabel} doit être reconnecté` : connected ? `${provider === "meta" ? "Compte Facebook" : "Compte Google"} connecté : ${connectedAccountLabel}` : "Aucun compte connecté"} />
             {connected ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{configAction === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button> : needsReconnect ? <>
               <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} href={`/api/ads/oauth/${provider}/start`}>{oauthLabel(provider, "reconnect")} <span aria-hidden="true">→</span></a>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>Déconnexion</button>
@@ -157,18 +174,19 @@ export default function AdsConnectionSettings({
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.resourceControls}>
             <label className={styles.field}>Compte publicitaire en euros
-              <select value={selectedAccountId} disabled={!connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
+              <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={selectedAccountId} disabled={!connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
-                {accounts.map((account) => <option key={account.id} value={account.id} disabled={account.currency !== "EUR"}>{account.name} · {account.id} · {account.currency}{account.currency !== "EUR" ? " (non pris en charge)" : ""}</option>)}
+                {accounts.map((account) => <option key={account.id} value={account.id} disabled={account.currency !== "EUR"}>{advertiserAccountLabel(account)}{account.currency !== "EUR" ? " (non pris en charge)" : ""}</option>)}
               </select>
             </label>
             <div className={styles.resourceActions}>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!connected || busy} onClick={onRefreshAccounts}>{loading ? "Actualisation…" : "Charger mes comptes"}</button>
-              {accountCandidateReady && !accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSaveAccount}>{configAction === "save-account" ? "Enregistrement…" : savedAccount ? "Changer de compte" : "Utiliser ce compte"}</button> : null}
+              {accountCandidateReady && !accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSaveAccount}>{configAction === "save-account" ? "Association…" : "Associer ce compte"}</button> : null}
+              {configuredAccountUrl ? <a className={`${dashboardStyles.actionBtn} ${styles.viewAccount}`} href={configuredAccountUrl} target="_blank" rel="noreferrer" aria-label={`Voir le compte ${savedAccount?.name ?? "publicitaire"} dans ${current.label}`}>Voir le compte</a> : null}
               {accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearAccount}>{configAction === "clear-account" ? "Dissociation…" : "Dissocier ce compte"}</button> : null}
             </div>
           </div>
-          {selectedAccount ? <p className={styles.detail}>{accountConfigured ? `Compte sélectionné : ${selectedAccount.name}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
+          {selectedAccount ? <p className={styles.detail}>{accountConfigured ? `Compte sélectionné : ${advertiserAccountLabel(selectedAccount)}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
         </div>
       </section>
 
@@ -181,14 +199,14 @@ export default function AdsConnectionSettings({
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.resourceControls}>
             <label className={styles.field}>Page Facebook + compte Instagram lié
-              <select value={selectedPageId} disabled={!connected || busy} onChange={(event) => onSelectPage(event.target.value)}>
+              <select aria-label={identityConfigured ? "Changer l’identité" : "Choisir l’identité"} value={selectedPageId} disabled={!connected || busy} onChange={(event) => onSelectPage(event.target.value)}>
                 <option value="">Sélectionnez une Page</option>
                 {pages.map((page) => <option key={page.id} value={page.id}>{page.name} · {page.instagramUserId ? "Instagram lié" : "Instagram à associer"}</option>)}
               </select>
             </label>
             <div className={styles.resourceActions}>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!connected || busy} onClick={onRefreshAccounts}>{loading ? "Actualisation…" : "Charger mes identités"}</button>
-              {selectedPage && !identityConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSavePage}>{configAction === "save-page" ? "Enregistrement…" : savedPage ? "Changer l’identité" : "Utiliser cette identité"}</button> : null}
+              {selectedPage && !identityConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSavePage}>{configAction === "save-page" ? "Association…" : "Associer cette identité"}</button> : null}
               {identityConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearPage}>{configAction === "clear-page" ? "Dissociation…" : "Dissocier l’identité"}</button> : null}
             </div>
           </div>

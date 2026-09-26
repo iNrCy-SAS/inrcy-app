@@ -9988,8 +9988,8 @@
    mouse wheels, trackpads and native touch panning share the same fallback.
    The fixed bottom dock keeps its normal-flow spacer as the final sibling. */
 @media (max-width: 640px) {
-  :global(html:has(.inrcy-dashboard-shell)),
-  :global(body:has(.inrcy-dashboard-shell)) {
+  :global(html):has(.shell),
+  :global(body):has(.shell) {
     height: auto;
     min-height: 100%;
     overflow-x: clip;
