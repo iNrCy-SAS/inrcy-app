@@ -48,8 +48,11 @@ test("la configuration Meta conserve aussi la sélection de l’identité Facebo
   assert.match(selectionRouteSource, /selected_instagram_user_id/);
 });
 
-test("un compte unique est mémorisé automatiquement et la déconnexion reste locale à iNr’ADS", () => {
+test("un compte unique est seulement proposé avant une association explicite et la déconnexion reste locale à iNr’ADS", () => {
   assert.match(accountsRouteSource, /eligibleAccounts\.length === 1/);
+  assert.match(accountsRouteSource, /suggestedAccountId/);
+  assert.match(settingsSource, /Associer ce compte/);
+  assert.doesNotMatch(accountsRouteSource, /supabaseAdmin/);
   assert.match(accountsRouteSource, /selectedAccountId/);
   assert.match(disconnectRouteSource, /\.eq\("product", "ads"\)/);
   assert.match(disconnectRouteSource, /\.eq\("source", source\)/);
