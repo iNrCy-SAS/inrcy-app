@@ -127,8 +127,16 @@ export async function POST(request: Request) {
     strengths: compactList([...profile.business.strengths, ...memory.differentiators], 12, 160),
     offers: clean(memory.offersAndArguments || memory.keyArguments, 1_200),
     restrictions: compactList(memory.forbiddenVocabulary, 12, 120),
-    history: (historyResult.data || []).map((item) => ({ name: clean(item.name, 100), provider: clean(item.provider, 40) })),
-    recentPublications: (publicationHistoryResult.data || []).map((item) => ({
+    history: (historyResult.data || []).map((item: { name?: unknown; provider?: unknown }) => ({
+      name: clean(item.name, 100),
+      provider: clean(item.provider, 40),
+    })),
+    recentPublications: (publicationHistoryResult.data || []).map((item: {
+      title?: unknown;
+      content?: unknown;
+      cta?: unknown;
+      idea?: unknown;
+    }) => ({
       title: clean(item.title, 120),
       content: clean(item.content, 360),
       callToAction: clean(item.cta, 100),
