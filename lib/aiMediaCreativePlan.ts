@@ -425,6 +425,19 @@ function finalizeScenes(args: {
       candidate
     );
   }
+  // A title collision does not make two visual acts identical. For sparse
+  // profiles, the hero, proof and conclusion can share a visible heading while
+  // their visualBriefs describe different steps. Keep the contractual number
+  // of eight-second acts; the copywriter can still vary the rendered titles.
+  for (const candidate of pool) {
+    if (selected.length === args.targetCount) break;
+    if (selected.includes(candidate) || candidate === conclusion) continue;
+    selected.splice(
+      Math.max(0, selected.length - (conclusion ? 1 : 0)),
+      0,
+      candidate
+    );
+  }
 
   const usedDialogue = new Set<string>();
   return selected.map((candidate, sceneIndex) => {

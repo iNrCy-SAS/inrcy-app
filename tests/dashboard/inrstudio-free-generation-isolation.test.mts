@@ -59,7 +59,8 @@ function resultContext() {
 
 test("Libre garde ses brouillons image/vidéo et ne lit aucun réglage Guidé", () => {
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
-  assert.match(source, /const \[prompt, setPrompt\] = useState\(""\)/);
+  assert.match(source, /const \[prompt, setPrompt\] = useState\(initialPrompt\)/);
+  assert.match(source, /const effectivePrompt = \[prompt\.trim\(\), requiredPromptSuffix\.trim\(\)\]/);
   assert.match(source, /const \[references, setReferences\] = useState<Reference\[\]>\(\[\]\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|loadPreferences|savePreferences|publicationBrief|from ["']\.\/MediaGenerator["']/);
   assert.match(source, /useMediaGeneration\(\)/);
@@ -204,7 +205,7 @@ test("Libre exige les deux critères choisis sans imposer un personnage", () => 
   assert.match(source, /\(!teamConsentRequired \|\| teamConsent\)/);
   assert.match(source, /onBusyChange=\{setVoiceBusy\}/);
   assert.match(source, /readOnly=\{voiceBusy\}/);
-  assert.match(source, /maxLength=\{MAX_PROMPT\}/);
+  assert.match(source, /maxLength=\{maxUserPromptLength\}/);
 });
 
 test("les commandes UI Libre transmettent le son choisi sans fuite des paramètres voix off", async () => {
@@ -219,7 +220,7 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
       setStopConfirmOpen() {}, setIdentityConsent() {}, setTeamConsent() {},
       generate: async (request: Record<string, unknown>) => { requests.push(request); },
       discardDraft: async () => {},
-      prompt: "  Mon scénario libre  ", source: "studio", kind: "video", format: "story", duration: 16, sceneMode: "single",
+      prompt: "  Mon scénario libre  ", effectivePrompt: "Mon scénario libre", source: "studio", kind: "video", format: "story", fixedFormat: undefined, duration: 16, sceneMode: "single",
       withMusic: false, effectiveWithNarration: sound === "voiceover", voice: "male", voiceVariant: "Charon",
       speechMode: sound === "none" ? "voiceover" : sound,
       references, referencesForRequest: (value: unknown) => value,
@@ -260,9 +261,11 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
       },
       discardDraft: async () => {},
       prompt: "Une scène avec des personnages qui parlent",
+      effectivePrompt: "Une scène avec des personnages qui parlent",
       source: "studio",
       kind: "video",
       format: "story",
+      fixedFormat: undefined,
       duration: 16,
       sceneMode: "single",
       withMusic: false,

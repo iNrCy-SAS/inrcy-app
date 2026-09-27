@@ -394,6 +394,28 @@ test("une consigne irréductible qui dépasse le fournisseur échoue avant une g
   );
 });
 
+test("le sujet inclus dans la consigne longue n'est transmis qu'une fois sans perdre aucun détail", () => {
+  const args = longBrief("fr", "professional", "story", "characters");
+  const subject = Array.from({ length: 12 }, (_, index) =>
+    `À l'étape ${index + 1}, la fleuriste place la fleur ${index + 1} dans le vase transparent et vérifie son équilibre.`
+  ).join(" ");
+  const instruction = `${subject} La caméra reste à hauteur du vase et suit le geste jusqu'au résultat final.`;
+  args.request.idea = subject;
+  args.request.aiInstruction = instruction;
+  const prompt = runtime.buildGoogleVideoScenePrompt(args, 1, 8, {
+    continuationFrame: true, firstFrameTag: true,
+  });
+  assert.ok(prompt.length <= 3_200);
+  assert.ok(prompt.includes(instruction), "la consigne utilisateur entière reste présente");
+  assert.equal(prompt.split(subject).length - 1, 1, "le sujet n'est pas dupliqué");
+  assert.match(prompt, /NO VISUAL TEXT:.*Never draw PARAMS/u);
+  assert.match(prompt, /PEOPLE: mature adults 25\+ only; no minors/u);
+  assert.match(prompt, /CONTINUITY:/u);
+  const sourceVariant = runtime.promptForInspirationMode(prompt, "source");
+  assert.ok(sourceVariant.length <= 3_200);
+  assert.ok(sourceVariant.includes(instruction));
+});
+
 test("une profession longue ne remplace pas la fin d’un sujet explicitement demandé", () => {
   const args = longBrief("fr", "reference_team", "square", "characters");
   const idea = "Trois collègues construisent une stratégie digitale, puis se saluent";

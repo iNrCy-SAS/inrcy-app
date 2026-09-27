@@ -50,10 +50,9 @@ export default function AdsCampaignAnalysisChoice({
       aria-describedby={descriptionId}
       disabled={disabled}
     >
-      <legend>Comment souhaitez-vous guider iNrCy&nbsp;?</legend>
+      <legend>Mode d’analyse</legend>
       <p id={descriptionId}>
-        Votre iNrADN est toujours pris en compte. Choisissez si iNrCy doit explorer librement la meilleure
-        opportunité ou construire sa recommandation autour d&apos;un résultat précis.
+        Votre iNrADN guide les deux parcours. Laissez iNrCy choisir le cap ou indiquez un objectif précis.
       </p>
 
       <div role="radiogroup" aria-label="Mode d&apos;analyse iNrCy">
@@ -66,12 +65,11 @@ export default function AdsCampaignAnalysisChoice({
             onChange={handleModeChange}
           />
           <span>
-            <strong>Analyse libre de mon iNrADN</strong>
+            <strong>Analyse libre iNrADN</strong>
             <small>
-              iNrCy croise votre activité, vos clients, votre historique et vos ressources pour choisir la
-              stratégie la plus pertinente.
+              iNrCy étudie votre activité, vos clients et votre historique pour choisir la stratégie la plus pertinente.
             </small>
-            <b>iNrCy choisit le meilleur cap</b>
+            <b>iNrCy choisit le cap</b>
           </span>
         </label>
 
@@ -84,32 +82,28 @@ export default function AdsCampaignAnalysisChoice({
             onChange={handleModeChange}
           />
           <span>
-            <strong>Analyse guidée par un objectif précis</strong>
+            <strong>Analyse par objectif précis</strong>
             <small>
-              Vous donnez le résultat attendu&nbsp;; iNrCy bâtit ensuite la stratégie, les messages et le ciblage
-              autour de cette priorité.
+              Vous indiquez le résultat attendu&nbsp;; iNrCy adapte le ciblage et les messages.
             </small>
-            <b>Je donne le cap à iNrCy</b>
+            <b>Je fixe le cap</b>
           </span>
         </label>
       </div>
 
       {value === "guided" ? (
         <div data-analysis-objective>
-          <label htmlFor={objectiveId}>Quel résultat voulez-vous obtenir&nbsp;?</label>
+          <label htmlFor={objectiveId}>Résultat recherché</label>
           <textarea
             id={objectiveId}
             value={objective}
             onChange={(event) => onObjectiveChange(event.currentTarget.value)}
-            placeholder="Ex. Obtenir plus de demandes de devis pour mon service d’installation à Lyon."
+            placeholder="Ex. Plus de demandes de devis à Lyon."
             aria-describedby={objectiveHintId}
             required
             rows={3}
           />
-          <small id={objectiveHintId}>
-            Décrivez le résultat attendu avec vos mots. iNrCy le confrontera à votre iNrADN avant de préparer la
-            campagne.
-          </small>
+          <small id={objectiveHintId}>Décrivez votre objectif avec vos mots. iNrCy le confrontera à votre iNrADN.</small>
         </div>
       ) : null}
     </fieldset>

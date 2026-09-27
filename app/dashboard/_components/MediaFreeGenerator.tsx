@@ -49,6 +49,9 @@ type Props = {
   source: MediaGenerationSource;
   acceptMode: "library" | "insert";
   mediaType?: MediaGenerationKind;
+  initialPrompt?: string;
+  requiredPromptSuffix?: string;
+  fixedFormat?: MediaGenerationFormat;
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
@@ -101,6 +104,9 @@ export default function MediaFreeGenerator({
   source,
   acceptMode,
   mediaType = "image",
+  initialPrompt = "",
+  requiredPromptSuffix = "",
+  fixedFormat,
   onAccepted,
   onResultChange,
   onBusyChange,
@@ -125,9 +131,9 @@ export default function MediaFreeGenerator({
     discardDraft,
     reset,
   } = useMediaGeneration();
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [format, setFormat] = useState<MediaGenerationFormat>(
-    kind === "video" ? "story" : "square"
+    fixedFormat || (kind === "video" ? "story" : "square")
   );
   const [duration, setDuration] = useState<MediaGenerationVideoDuration>(8);
   const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
@@ -179,7 +185,9 @@ export default function MediaFreeGenerator({
   // Exact identity preservation is limited to three people. Inspiration-only
   // images and all other roles can freely share the five available slots.
   const roleLimitExceeded = personReferences.length > 3;
-  const promptReady = prompt.trim().length >= 3 && prompt.length <= MAX_PROMPT;
+  const maxUserPromptLength = Math.max(0, MAX_PROMPT - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
+  const effectivePrompt = [prompt.trim(), requiredPromptSuffix.trim()].filter(Boolean).join(" ");
+  const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
   const canGenerate =
     !operationLocked &&
     promptReady &&
@@ -243,7 +251,7 @@ export default function MediaFreeGenerator({
       sequence.current += 1;
       setPrompt("");
       setReferences([]);
-      setFormat(kind === "video" ? "story" : "square");
+      setFormat(fixedFormat || (kind === "video" ? "story" : "square"));
       setDuration(8);
       setSceneMode("single");
       setWithMusic(true);
@@ -268,7 +276,7 @@ export default function MediaFreeGenerator({
       sequence.current += 1;
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, clearAccountState);
     };
-  }, [kind]);
+  }, [fixedFormat, kind]);
 
   const resetConsent = () => {
     setIdentityConsent(false);
@@ -415,13 +423,13 @@ export default function MediaFreeGenerator({
       await generate({
         operation: "generate",
         creationMode: "free",
-        freePrompt: prompt.trim(),
+        freePrompt: effectivePrompt,
         inputMode: "essential",
         source,
         kind,
         subjectSource: "custom",
-        idea: prompt.trim(),
-        format,
+        idea: effectivePrompt,
+        format: fixedFormat || format,
         durationSeconds: kind === "video" ? duration : undefined,
         sceneMode: kind === "video" ? sceneMode : undefined,
         withMusic: kind === "video" && withMusic,
@@ -656,7 +664,7 @@ export default function MediaFreeGenerator({
           <fieldset className={`${styles.fieldset} ${styles.formatFieldset}`} disabled={locked}>
             <legend>{t("ai_generator_free_format_label")}</legend>
             <div className={styles.formatOptions}>
-              {FORMATS.map((option) => (
+              {FORMATS.filter((option) => !fixedFormat || option.id === fixedFormat).map((option) => (
                 <label
                   className={styles.formatOption}
                   data-selected={format === option.id}
@@ -1031,7 +1039,7 @@ export default function MediaFreeGenerator({
             <textarea
               id={`${instanceId}-prompt`}
               value={prompt}
-              maxLength={MAX_PROMPT}
+              maxLength={maxUserPromptLength}
               disabled={busy || finishing || referencesBusy}
               readOnly={voiceBusy}
               aria-describedby={`${instanceId}-prompt-help`}
@@ -1045,14 +1053,14 @@ export default function MediaFreeGenerator({
             <div className={styles.promptToolbar}>
               <span>
                 {prompt.length.toLocaleString(locale)} /{" "}
-                {MAX_PROMPT.toLocaleString(locale)}
+                {maxUserPromptLength.toLocaleString(locale)}
               </span>
               <MediaSubjectVoiceButton
                 value={prompt}
                 onChange={setPrompt}
                 onBusyChange={setVoiceBusy}
                 disabled={busy || finishing || referencesBusy}
-                maxLength={MAX_PROMPT}
+                maxLength={maxUserPromptLength}
                 purpose="instruction"
                 contextLabel={t("ai_generator_free_prompt_label")}
                 placement="inline"
@@ -1060,7 +1068,7 @@ export default function MediaFreeGenerator({
             </div>
           </div>
           <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
-            {t("ai_generator_free_prompt_help")}
+            {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}
           </p>
           {identityRequired ? (
             <label className={styles.consent}>

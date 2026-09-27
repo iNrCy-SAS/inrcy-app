@@ -29,6 +29,13 @@ test("iNr’ADS conserve le client RLS et ne renvoie 503 que si les deux profils
   assert.match(routeSource, /ADS_PROFILE_CONTEXT_UNAVAILABLE/);
 });
 
+test("l’historique des campagnes reste lu côté serveur et limité au compte actif", () => {
+  assert.match(
+    routeSource,
+    /readContextSource\("campaign_history", \(\) => supabaseAdmin\s*\.from\("ads_campaigns"\)\s*\.select\("name,provider,created_at"\)\s*\.eq\("user_id", user\.activeUserId\)/,
+  );
+});
+
 test("les incidents de sources secondaires produisent un log serveur borné, sans donnée professionnelle", () => {
   assert.match(routeSource, /\[ads\.plan\] optional context source unavailable/);
   assert.match(routeSource, /code: contextErrorCode\(result\.error\)/);

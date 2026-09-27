@@ -782,10 +782,21 @@ export function buildGoogleVideoScenePrompt(
       : `${professionalActivity}; ${businessContext}`;
   const actionSource = [sceneDirection, ...(!customSubject ? [scene?.title, scene?.body] : [])].filter(Boolean).join(" — ");
   let actionBudget = nativeDialogueRequested ? 70 : 118;
-  const primarySubject = subjectSource;
+  // Guided Studio can put the complete subject in both fields (the second
+  // field then adds camera or staging requirements). Keep the entire USER
+  // instruction verbatim and refer to its subject instead of transmitting the
+  // same 1–2 KB a second time in SUBJECT.
+  const subjectRepeatedInInstruction =
+    exactIdea.length >= 80 &&
+    punctualInstruction !== exactIdea &&
+    punctualInstruction.includes(exactIdea);
   // Both complete user fields are invariants. A duplicated subject need only
   // appear once; a distinct instruction must remain complete in every act.
-  const userDirection = punctualInstruction === exactIdea ? "Same complete brief as SUBJECT" : punctualInstruction;
+  const userDirection = subjectRepeatedInInstruction
+    ? punctualInstruction
+    : punctualInstruction === exactIdea
+      ? "Same complete brief as SUBJECT"
+      : punctualInstruction;
   const referenceContract = options.continuationFrame
     ? `prior generated frame; preserve its visible cast/design/place/framing; continue action; original reference policies: ${providerContract.references}`
     : providerContract.references;
@@ -793,6 +804,7 @@ export function buildGoogleVideoScenePrompt(
   // garder avant son titre évite que les actes 1–8, 9–16 et 17–24 rejouent la
   // même pose ou que seule la seconde tranche anime la référence.
   let actAction = priorityPromptSnippet(actionSource, actionBudget);
+  let compactGeneratedDirections = false;
   const sequenceHeader = options.continuation
     ? "[# Sources <PREVIOUS_VIDEO>@Video1] Continue prior frame: same scene/motion; no intro/reset/recap/cut."
     : options.continuationFrame
@@ -808,13 +820,21 @@ export function buildGoogleVideoScenePrompt(
   // garde-fous de texte arrivent avant tout contexte facultatif afin que Veo
   // ne génère plus de faux panneaux (« Agenice », « Agenue », etc.).
   const requiredSections = () => [
-    sequenceHeader,
-    `SUBJECT: ${primarySubject}. Keep entities/actions/relations; no swaps.`,
+    compactGeneratedDirections && options.continuationFrame
+      ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue prior frame's motion; no reset/cut.`
+      : sequenceHeader,
+    subjectRepeatedInInstruction
+      ? "SUBJECT: see USER; keep all entities/actions/relations; no swaps."
+      : `SUBJECT: ${subjectSource}. Keep entities/actions/relations; no swaps.`,
     userDirection
       ? `USER: ${userDirection}. Obey; never show/recite.`
       : "",
-    `REFERENCE: ${referenceContract}`,
-    `ACT: ${promptSnippet(sequenceDirection, 45)}; ${actAction}. Animate from 0.0s throughout; no still/freeze/slideshow/pan-zoom/reset/cut.`,
+    `REFERENCE: ${compactGeneratedDirections && options.continuationFrame
+      ? `prior frame: keep cast/design/place/framing and continue action; refs: ${providerContract.references}`
+      : referenceContract}`,
+    `ACT: ${promptSnippet(sequenceDirection, 45)}; ${actAction}. ${compactGeneratedDirections
+      ? "Motion from 0.0s; no still/freeze/slideshow/pan-zoom/reset/cut."
+      : "Animate from 0.0s throughout; no still/freeze/slideshow/pan-zoom/reset/cut."}`,
     "NO VISUAL TEXT: blank surfaces; no text/pseudo-text/numbers/UI/logos/watermarks/swatches/color charts/hex codes/technical annotations, even from refs. Never draw PARAMS.",
     speechDirection,
     `PARAMS: ${selectedParameters}.`,
@@ -836,6 +856,11 @@ export function buildGoogleVideoScenePrompt(
     const reduction = Math.max(4, Math.ceil((requiredPrompt.length - MAX_VEO_PROMPT_CHARS) / 2));
     actionBudget = Math.max(36, actionBudget - reduction);
     actAction = priorityPromptSnippet(actionSource, actionBudget);
+    sections = requiredSections();
+    requiredPrompt = sections.join(" ");
+  }
+  if (requiredPrompt.length > MAX_VEO_PROMPT_CHARS) {
+    compactGeneratedDirections = true;
     sections = requiredSections();
     requiredPrompt = sections.join(" ");
   }

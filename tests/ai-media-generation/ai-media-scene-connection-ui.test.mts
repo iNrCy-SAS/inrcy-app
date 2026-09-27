@@ -16,7 +16,7 @@ test("le type reste dans le header et la durée vidéo dans le bloc réalisation
   const durations = source.indexOf('<span>Durée</span>', directionCard);
   const format = source.indexOf('ai_generator_format_title', durations);
   assert.ok(directionCard > 0 && durations > directionCard && format > durations);
-  assert.match(modal, /\(\["image", "video"\] as const\)\.map/);
+  assert.match(modal, /\(\["image", "video"\] as const\)\.filter\(\(mediaType\) => !imageOnly \|\| mediaType === "image"\)\.map/);
   assert.match(modal, /studioTab === "modify" && mediaType === "video"/);
   assert.match(source, /\[8, 16, 24\] as const/);
   assert.match(source, /creditInsufficient/);

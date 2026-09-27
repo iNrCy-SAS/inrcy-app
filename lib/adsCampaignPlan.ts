@@ -75,6 +75,32 @@ function clean(value: unknown, max: number) {
   return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, max);
 }
 
+function cleanRationale(value: unknown) {
+  const text = String(value ?? "").replace(/\u0000/g, "").trim();
+  if (text.length <= 4_000) return text;
+  const withinLimit = text.slice(0, 4_000);
+  const sentenceEnd = Math.max(
+    withinLimit.lastIndexOf(". "),
+    withinLimit.lastIndexOf("! "),
+    withinLimit.lastIndexOf("? "),
+  );
+  if (sentenceEnd >= 2_000) return withinLimit.slice(0, sentenceEnd + 1).trim();
+  const wordEnd = withinLimit.lastIndexOf(" ");
+  return `${withinLimit.slice(0, wordEnd > 0 ? wordEnd : 4_000).trimEnd()}…`;
+}
+
+/** Earlier saved plans were clipped at exactly 900 characters. Show their last
+ * complete sentence instead of leaving a dangling word on screen. */
+export function presentAdsCampaignRationale(value: string) {
+  const text = value.trim();
+  if (text.length !== 900 || /[.!?…]$/.test(text)) return text;
+  const sentenceEnds = [...text.matchAll(/[.!?](?=\s|$)/g)];
+  const lastSentenceEnd = sentenceEnds.at(-1)?.index;
+  return lastSentenceEnd !== undefined && lastSentenceEnd >= text.length * 0.65
+    ? text.slice(0, lastSentenceEnd + 1)
+    : `${text}…`;
+}
+
 function list(value: unknown, maxItems: number, maxItemLength: number) {
   const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,;]/) : [];
   const seen = new Set<string>();
@@ -389,7 +415,7 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
       : native.description ? [clean(native.description, copyLimits.description)] : [],
     keywords: list(raw.keywords, 20, 80),
     negativeKeywords: list(raw.negativeKeywords, 40, 80),
-    rationale: clean(raw.rationale, 900),
+    rationale: cleanRationale(raw.rationale),
     ...(channelDraft ? { channelDraft } : {}),
   };
 }

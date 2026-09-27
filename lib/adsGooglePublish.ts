@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
 import { googleAdsJson } from "@/lib/adsServer";
 import { googleSearchBiddingFields } from "@/lib/adsPublishMode";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
@@ -24,6 +25,8 @@ export type GoogleAdsPublishProgress = {
   adGroupResourceName: string;
   keywordCriterionResourceNames: string[];
   adGroupAdResourceName: string;
+  imageAssetResourceName?: string;
+  campaignImageAssetResourceName?: string;
   status: "PAUSED" | "ENABLED";
 };
 
@@ -32,6 +35,8 @@ export type PersistGoogleAdsProgress = (progress: GoogleAdsPublishProgress) => P
 export type GoogleAdsPublishOptions = {
   /** A review demonstration must never activate provider resources. */
   activate?: boolean;
+  /** Prepared before claiming the local draft, so invalid media never strands it. */
+  preparedImageData?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -51,7 +56,7 @@ function resourceNameAt(
   const result = asRecord(operation[resultKey]);
   const resourceName = String(result.resourceName || "");
   const resourceId = resourceName.startsWith(expectedPrefix) ? resourceName.slice(expectedPrefix.length) : "";
-  if (!/^\d+(?:~\d+)?$/.test(resourceId)) {
+  if (!/^\d+(?:~(?:\d+|[A-Z_]+)){0,2}$/.test(resourceId)) {
     throw new Error(`Google Ads n’a pas retourné l’identifiant attendu (${resultKey}). La campagne peut être en pause sur le compte publicitaire.`);
   }
   return resourceName;
@@ -59,6 +64,9 @@ function resourceNameAt(
 
 function checkGoogleDraft(draft: AdsCampaignInput): string {
   if (draft.provider !== "google") throw new Error("Cette campagne n’est pas une campagne Google Ads.");
+  if (draft.creationMode === "inrcy" && draft.campaignType === "search" && !draft.imageUrl) {
+    throw new Error("La campagne Google Search préparée avec iNrCy attend son image complémentaire. Ajoutez-la avant publication.");
+  }
   if (!/^\d{5,25}$/.test(draft.adAccountId)) throw new Error("Compte Google Ads invalide.");
   if (draft.accountCurrency !== "EUR") throw new Error("Seuls les comptes Google Ads en EUR sont pris en charge.");
   if (!draft.notEuPoliticalConfirmed) {
@@ -252,10 +260,14 @@ export async function publishGoogleAdsCampaign(
     draft.languages,
     loginCustomerId,
   );
+  const imageData = draft.imageUrl
+    ? options.preparedImageData || await prepareGoogleSearchImageAsset(userId, draft.imageUrl)
+    : null;
 
   const budgetTemp = `customers/${customerId}/campaignBudgets/-1`;
   const campaignTemp = `customers/${customerId}/campaigns/-2`;
   const adGroupTemp = `customers/${customerId}/adGroups/-3`;
+  const imageAssetTemp = `customers/${customerId}/assets/-4`;
   const budgetName = `${draft.name.slice(0, 70)} · iNr’ADS ${randomUUID().slice(0, 8)}`;
   const amountMicros = String(Math.round(draft.dailyBudgetEuros * 1_000_000));
 
@@ -325,6 +337,24 @@ export async function publishGoogleAdsCampaign(
       },
     } } },
   ];
+  const imageAssetOffset = mutateOperations.length;
+  if (imageData) {
+    // Image assets complement the responsive Search text ad. Both the asset
+    // and its campaign link are part of the same atomic paused creation.
+    mutateOperations.push(
+      { assetOperation: { create: {
+        resourceName: imageAssetTemp,
+        name: `${draft.name.slice(0, 65)} · Image iNr’ADS ${randomUUID().slice(0, 8)}`,
+        type: "IMAGE",
+        imageAsset: { data: imageData },
+      } } },
+      { campaignAssetOperation: { create: {
+        asset: imageAssetTemp,
+        campaign: campaignTemp,
+        fieldType: "AD_IMAGE",
+      } } },
+    );
+  }
 
   const created = await googleAdsJson(userId, `customers/${customerId}/googleAds:mutate`, {
     partialFailure: false,
@@ -350,6 +380,10 @@ export async function publishGoogleAdsCampaign(
     keywordCriterionResourceNames: draft.keywords.map((_, index) =>
       resourceNameAt(created, adGroupOffset + 1 + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
     adGroupAdResourceName: resourceNameAt(created, adGroupOffset + 1 + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
+    ...(imageData ? {
+      imageAssetResourceName: resourceNameAt(created, imageAssetOffset, "assetResult", `customers/${customerId}/assets/`),
+      campaignImageAssetResourceName: resourceNameAt(created, imageAssetOffset + 1, "campaignAssetResult", `customers/${customerId}/campaignAssets/`),
+    } : {}),
     status: "PAUSED",
   };
 

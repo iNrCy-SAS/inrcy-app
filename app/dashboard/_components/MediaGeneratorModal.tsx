@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 
 import {
   discardMediaGenerationDraft,
+  type MediaGenerationFormat,
   type MediaGenerationResult,
   type MediaGenerationSource,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
@@ -44,6 +45,11 @@ type MediaGeneratorModalProps = {
   initialSourceLoading?: boolean;
   initialSourceAvailable?: boolean;
   initialMediaType?: "image" | "video";
+  imageOnly?: boolean;
+  freeOnly?: boolean;
+  initialFreePrompt?: string;
+  requiredFreePromptSuffix?: string;
+  fixedFreeFormat?: MediaGenerationFormat;
   initialVideoContext?: MediaVideoRetoucherInitialContext | null;
   publicationBrief?: string;
   acceptMode: MediaGeneratorAcceptMode;
@@ -80,6 +86,11 @@ export default function MediaGeneratorModal({
   initialSourceLoading = false,
   initialSourceAvailable,
   initialMediaType = "image",
+  imageOnly = false,
+  freeOnly = false,
+  initialFreePrompt = "",
+  requiredFreePromptSuffix = "",
+  fixedFreeFormat,
   initialVideoContext = null,
   publicationBrief = "",
   acceptMode,
@@ -223,6 +234,7 @@ export default function MediaGeneratorModal({
 
   const requestMediaType = useCallback(
     (mediaType: StudioMediaType) => {
+      if (imageOnly && mediaType === "video") return;
       if (mediaType === activeMediaType || locked || hasPendingWork) return;
       if (!canSwitchInrStudioMediaType(studioTab, hasExternalHandoff)) {
         setCloseConfirmOpen(true);
@@ -238,10 +250,11 @@ export default function MediaGeneratorModal({
         [studioTab]: mediaType,
       }));
     },
-    [activeMediaType, creationMode, hasExternalHandoff, hasPendingWork, locked, studioTab]
+    [activeMediaType, creationMode, hasExternalHandoff, hasPendingWork, imageOnly, locked, studioTab]
   );
 
   const requestCreationMode = (mode: StudioCreationMode) => {
+    if (freeOnly && mode !== "free") return;
     if (mode === creationMode || locked || hasPendingWork) return;
     if (mode === "free") {
       setVisitedFreeTypes((current) => current.includes(freeMediaType) ? current : [...current, freeMediaType]);
@@ -494,7 +507,7 @@ export default function MediaGeneratorModal({
               role="radiogroup"
               aria-label={t("ai_generator_essential_media_type")}
             >
-              {(["image", "video"] as const).map((mediaType) => {
+              {(["image", "video"] as const).filter((mediaType) => !imageOnly || mediaType === "image").map((mediaType) => {
                 const unavailable =
                   studioTab === "modify" && mediaType === "video";
                 return (
@@ -523,7 +536,7 @@ export default function MediaGeneratorModal({
             </div>
             {studioTab === "generate" ? (
               <div className={styles.creationModeTabs} role="radiogroup" aria-label={t("ai_generator_free_mode_label")}>
-                {(["free", "guided"] as const).map((mode) => (
+                {(["free", "guided"] as const).filter((mode) => !freeOnly || mode === "free").map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -654,6 +667,9 @@ export default function MediaGeneratorModal({
                     source={source}
                     acceptMode={acceptMode}
                     mediaType={kind}
+                    initialPrompt={initialFreePrompt}
+                    requiredPromptSuffix={requiredFreePromptSuffix}
+                    fixedFormat={fixedFreeFormat}
                     onAccepted={onAccepted}
                     onResultChange={handleResultChange}
                     onBusyChange={setLocked}

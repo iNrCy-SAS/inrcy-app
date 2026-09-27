@@ -140,7 +140,7 @@ test("Libre et Guidé restent sélectionnables avec un handoff et chaque type in
       for (const mode of ["free", "guided"] as const) {
         const changed: string[] = [];
         const context = {
-          hasExternalHandoff, initialMediaType, locked: false, hasPendingWork: false,
+          hasExternalHandoff, initialMediaType, freeOnly: false, locked: false, hasPendingWork: false,
           creationMode: mode === "free" ? "guided" : "free", freeMediaType: initialMediaType,
           setCreationMode: (value: string) => { changed.push(value); },
           setVisitedFreeTypes: (update: (current: string[]) => string[]) => { assert.deepEqual(update([]), [initialMediaType]); },
@@ -166,7 +166,7 @@ test("Générer permet de changer Image/Vidéo dans les deux modes sans abandonn
       const changed: string[] = [];
       handler<(value: string) => void>(modalPath, "requestMediaType", {
         creationMode, initialMediaType, activeMediaType: initialMediaType,
-        studioTab: "generate", hasExternalHandoff: true, locked: false, hasPendingWork: false,
+        studioTab: "generate", hasExternalHandoff: true, imageOnly: false, locked: false, hasPendingWork: false,
         canSwitchInrStudioMediaType,
         setCloseConfirmOpen: () => { assert.fail("Changer le type ne doit pas abandonner le retour Booster"); },
         setFreeMediaType: (value: string) => { changed.push(`free:${value}`); },

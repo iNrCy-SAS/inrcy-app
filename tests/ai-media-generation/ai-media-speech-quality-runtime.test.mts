@@ -209,6 +209,20 @@ test("une réplique hors sujet ou dupliquée par une réponse est réécrite ava
   }
 });
 
+test("le dialogue sans texte visible ne dépend pas de l'accroche ni du CTA générés", async () => {
+  const copy = generatedCopy(16);
+  copy.headline = "Une solution complète";
+  copy.cta = "À découvrir";
+  copy.scenes[0]!.title = "Une solution complète";
+  const env = runtime(16, [copy]);
+  env.args.request.teamVideoSpeechMode = "characters";
+  const result = await env.load<typeof import("../../lib/aiMediaCopywriter.ts")>("lib/aiMediaCopywriter.ts").writeAiMediaHeadline(env.args);
+  assert.equal(env.calls.length, 1, "le brouillon visuel non utilisé ne doit pas relancer le modèle");
+  assert.deepEqual(result.scenes.map((scene) => scene.spokenLine), lines.slice(0, 2));
+  assert.equal(result.headline, "");
+  assert.ok(result.scenes.every((scene) => !scene.title && !scene.body));
+});
+
 test("le secours réutilise une phrase entière du brief si les trois écritures sont rejetées", async () => {
   const env = runtime(8, [{ headline: "Une solution complète", cta: "Contactez-nous", scenes: [] }]);
   env.args.request.teamVideoSpeechMode = "characters";

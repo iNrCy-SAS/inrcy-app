@@ -252,16 +252,18 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.match(veo, /narrator\/music/);
 
   const requiredPosition = veo.indexOf("const requiredSections = () => [");
-  const subjectPosition = veo.indexOf("`SUBJECT: ${primarySubject}", requiredPosition);
+  const subjectPosition = veo.indexOf('"SUBJECT: see USER;', requiredPosition);
+  const inlineSubjectPosition = veo.indexOf("`SUBJECT: ${subjectSource}", requiredPosition);
   const userPosition = veo.indexOf("`USER: ${userDirection}", requiredPosition);
-  const referencePosition = veo.indexOf("`REFERENCE: ${referenceContract}", requiredPosition);
+  const referencePosition = veo.indexOf("`REFERENCE: ${compactGeneratedDirections", requiredPosition);
   const actPosition = veo.indexOf("`ACT: ${promptSnippet(sequenceDirection", requiredPosition);
   const noTextPosition = veo.indexOf('"NO VISUAL TEXT:', requiredPosition);
   const speechPosition = veo.indexOf("speechDirection,", requiredPosition);
   const parametersPosition = veo.indexOf("`PARAMS: ${selectedParameters}", requiredPosition);
   assert.ok(requiredPosition > 0, "contrat critique présent");
   assert.ok(subjectPosition > requiredPosition, "sujet prioritaire présent");
-  assert.ok(userPosition > subjectPosition, "consigne après le sujet");
+  assert.ok(inlineSubjectPosition > subjectPosition, "sujet non dupliqué ou explicitement inclus");
+  assert.ok(userPosition > inlineSubjectPosition, "consigne après le sujet");
   assert.ok(referencePosition > userPosition, "rôle des références après la consigne");
   assert.ok(actPosition > referencePosition, "action de l’acte après la référence");
   assert.ok(noTextPosition > actPosition, "anti-texte avant le dialogue");

@@ -119,13 +119,14 @@ test("le parcours iNrCy génère réellement le média de campagne via iNr’Stu
     "utf8",
   );
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const mediaPolicy = readFileSync(new URL("../lib/adsCampaignMediaPolicy.ts", import.meta.url), "utf8");
 
   assert.match(generator, /useMediaGeneration/);
   assert.match(generator, /source: "studio"/);
   assert.match(generator, /acceptDraft\(generated\)/);
   assert.match(generator, /cancelGeneration\(\)/);
   assert.match(generator, /search_text/);
-  assert.match(generator, /product_feed/);
+  assert.match(mediaPolicy, /product_feed/);
   assert.match(client, /<AdsCampaignAutoMediaGenerator/);
   assert.match(client, /iNr’Studio a généré et associé le média de cette campagne/);
 });

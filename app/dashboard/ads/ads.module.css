@@ -234,6 +234,8 @@
 .cubeStage .channelMini .channelIdentity strong{font-size:17px}
 .comingSoon{font-size:11px;color:#c3aed9;padding:8px 12px;border:1px solid #b999db42;border-radius:99px}
 .headerCta:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.studioProposalReadyCta:not(:disabled){border-color:#dbd0ff;background:linear-gradient(110deg,#28bafd 0%,#6669f7 48%,#d653d6 100%);color:#fff;box-shadow:0 0 0 1px #e2d8ff6b,0 0 24px #7273ffb5,0 10px 33px #a344c386,inset 0 1px #fff9;text-shadow:0 1px 8px #12255aaa}
+.studioProposalReadyCta:not(:disabled):hover{box-shadow:0 0 0 1px #fff9,0 0 32px #88a6ffde,0 14px 38px #a344c3a8}
 .historyCard{flex:.65 1 0;min-height:125px}
 .emptyState{flex-direction:row;text-align:left;gap:20px}
 .emptyState>span{width:55px;height:55px;border-radius:17px;font-size:33px;flex:0 0 55px}
@@ -491,6 +493,7 @@
 .studioStepHeader{position:relative;z-index:1;display:grid;grid-template-columns:minmax(130px,1fr) minmax(260px,1.6fr) minmax(130px,1fr);align-items:center;gap:14px;min-height:43px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #abc5f038}
 .studioStepLabel{color:#9fb9ff;font-size:10px;font-weight:900;letter-spacing:.145em;line-height:1.25;text-transform:uppercase}
 .studioStepHeader h2{min-width:0;margin:0;color:#fff;font-size:clamp(20px,1.55vw,27px);font-weight:880;letter-spacing:-.035em;line-height:1.15;text-align:center}
+.studioTitleShort{display:none}
 .studioStepChannel{justify-self:end;padding:6px 10px;border:1px solid #b092ef65;border-radius:999px;color:#f0e7ff;background:#7e51b72c;font-size:10px;font-weight:800;line-height:1;white-space:nowrap}
 .studioChoiceIntro{max-width:860px!important;margin-inline:auto!important;text-align:center}.studioCampaignPromise{display:flex;max-width:900px;align-items:center;justify-content:center;gap:9px;margin:0 auto;color:#e9e5ff;font-size:clamp(14px,1.2vw,18px);font-weight:750;line-height:1.45;text-align:center;text-wrap:balance}.studioCampaignPromise span{display:grid;width:27px;height:27px;flex:0 0 27px;place-items:center;border:1px solid #bda2ff72;border-radius:50%;color:#ffe9fb;background:#a34ad34a;box-shadow:0 0 20px #b355e846}
 .studioPathGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;max-width:1080px;margin:0 auto}
@@ -517,24 +520,18 @@
 .adsGenerationCanvas{position:relative;display:flex;min-height:clamp(520px,66vh,700px);flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:clamp(26px,5vh,58px) clamp(20px,6vw,78px);background:radial-gradient(circle at 50% 46%,#436dff32 0 3%,#7646d128 18%,transparent 44%),radial-gradient(ellipse at 3% 5%,#1e9fe93c,transparent 39%),radial-gradient(ellipse at 97% 93%,#dc47bd3f,transparent 39%),linear-gradient(134deg,#102a58 0%,#17295d 43%,#421e63 100%);text-align:center}
 .adsGenerationCanvas:before{position:absolute;z-index:0;inset:0;content:"";opacity:.34;background-image:linear-gradient(#ffffff0e 1px,transparent 1px),linear-gradient(90deg,#ffffff0d 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(180deg,#000,transparent 86%);pointer-events:none}
 .adsGenerationCanvas:after{position:absolute;z-index:0;inset:-40%;content:"";background:conic-gradient(from 150deg at 50% 50%,transparent 0 27%,#5ec5ff10 34%,transparent 41% 58%,#e969d715 67%,transparent 77%);animation:ads-aurora-spin 20s linear infinite;pointer-events:none}
-.adsGenerationRadar{position:absolute;z-index:1;top:50%;left:50%;width:min(560px,56vw);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;opacity:.88;background:radial-gradient(circle at center,#aaf3ff33 0 1%,#5ee3ff13 1.1% 3%,transparent 3.2%),repeating-radial-gradient(circle at center,transparent 0 10.5%,#a2e6ff34 10.7% 10.92%,transparent 11.1% 21.2%),linear-gradient(90deg,transparent 49.85%,#b2f2ff25 50%,transparent 50.15%),linear-gradient(0deg,transparent 49.85%,#b2f2ff25 50%,transparent 50.15%);box-shadow:inset 0 0 72px #45baff28,0 0 76px #3a8eff24;pointer-events:none}
-.adsGenerationRadar:before{position:absolute;inset:7%;border:1px solid #aceaff58;border-radius:50%;box-shadow:0 0 0 11.5% #94dfff11,0 0 0 23% #8fcaff0e,0 0 0 36% #bd8dff0b;content:""}
-.adsGenerationRadarSweep{position:absolute;inset:-3%;display:block;border-radius:50%;background:conic-gradient(from -40deg at 50% 50%,#60e9ff00 0deg 282deg,#50dcff08 300deg,#63e6ff42 327deg,#a469ff2e 346deg,#63e6ff08 360deg);filter:blur(.35px);mix-blend-mode:screen;transform-origin:50% 50%;animation:ads-radar-sweep 4.8s linear infinite}
+.adsGenerationRadar{position:absolute;z-index:1;top:50%;left:50%;width:min(560px,56vw);aspect-ratio:1;transform:translate(-50%,-50%);border:1px solid #8be8ff5c;border-radius:50%;opacity:.88;background:radial-gradient(circle at center,#aaf3ff52 0 1%,#5ee3ff18 1.2% 4%,transparent 5%),radial-gradient(circle at center,transparent 0 31.5%,#a2e6ff6b 31.8% 32.2%,transparent 32.6%),linear-gradient(90deg,transparent 49.85%,#b2f2ff25 50%,transparent 50.15%),linear-gradient(0deg,transparent 49.85%,#b2f2ff25 50%,transparent 50.15%);box-shadow:inset 0 0 72px #45baff28,0 0 76px #3a8eff24;pointer-events:none}
+.adsGenerationRadarSweep{position:absolute;inset:0;display:block;border-radius:50%;background:conic-gradient(from -40deg at 50% 50%,transparent 0deg 310deg,#50dcff12 327deg,#63e6ff5c 352deg,#c1edffb3 357deg,transparent 360deg);mix-blend-mode:screen;transform-origin:50% 50%;animation:ads-radar-sweep 6.5s linear infinite}
 .adsGenerationRadarCore{position:absolute;top:50%;left:50%;display:block;width:15px;height:15px;border-radius:999px;background:#d0fbff;box-shadow:0 0 0 9px #62e5ff28,0 0 36px #66e5ff,0 0 74px #4ec7ff9c;transform:translate(-50%,-50%);animation:ads-radar-core 2.1s ease-in-out infinite}
-.adsGenerationRadarPing{position:absolute;display:block;width:11px;height:11px;border-radius:999px;background:#71edff;box-shadow:0 0 18px #67e8ff,0 0 34px #49bfff9c}
-.adsGenerationRadarPing:after{position:absolute;inset:-8px;border:1px solid #8cf2ffc7;border-radius:50%;content:"";animation:ads-radar-ping 2.7s ease-out infinite}
-.adsGenerationRadarPingOne{top:27%;left:22%}.adsGenerationRadarPingTwo{right:20%;bottom:27%;width:13px;height:13px;background:#eb84e5;box-shadow:0 0 20px #eb84e5,0 0 40px #c651d794}.adsGenerationRadarPingTwo:after{border-color:#f3a7ed;animation-delay:-1.3s}.adsGenerationRadarPingThree{top:21%;right:28%;width:8px;height:8px;background:#b69dff;box-shadow:0 0 18px #b69dff,0 0 31px #8c71ff8c}.adsGenerationRadarPingThree:after{border-color:#c7baff;animation-delay:-2.1s}
-.adsGenerationCanvas[data-ready] .adsGenerationRadar{opacity:.45;filter:saturate(.7)}.adsGenerationCanvas[data-ready] .adsGenerationRadarSweep{animation-play-state:paused;opacity:.42}
+.adsGenerationSatellite{display:none}
+.adsGenerationSatellite:before{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from -35deg,transparent 0deg 314deg,color-mix(in srgb,var(--satellite-color) 9%,transparent) 330deg,color-mix(in srgb,var(--satellite-color) 64%,transparent) 357deg,transparent 360deg);content:"";animation:ads-radar-sweep 8.5s linear infinite}
+.adsGenerationSatellite:after{position:absolute;top:50%;left:50%;width:7px;height:7px;border-radius:50%;background:var(--satellite-color);box-shadow:0 0 14px var(--satellite-color);content:"";transform:translate(-50%,-50%)}
+@media(prefers-reduced-motion:reduce){.adsGenerationSatellite:before{animation:none!important}}
+.adsGenerationCanvas[data-ready] .adsGenerationRadar{opacity:.78}.adsGenerationCanvas[data-ready] .adsGenerationRadarSweep{opacity:.75}
 .adsGenerationParticle{position:absolute;z-index:2;display:block;width:10px;height:10px;border-radius:999px;background:#64dfff;box-shadow:0 0 0 7px #5bdfff17,0 0 23px #54ddff;font-size:0;animation:ads-particle-float 4.5s ease-in-out infinite}
 .adsGenerationParticleOne{top:26%;left:18%}
 .adsGenerationParticleTwo{right:18%;bottom:29%;width:12px;height:12px;background:#e367dd;box-shadow:0 0 0 8px #dd56d419,0 0 24px #e367dd;animation-delay:-1.8s}
 .adsGenerationParticleThree{top:17%;right:29%;width:7px;height:7px;background:#a88cff;box-shadow:0 0 0 6px #a88cff19,0 0 20px #a88cff;animation-delay:-3.2s}
-.adsGenerationOrbit{position:absolute;z-index:2;top:50%;left:50%;width:min(470px,50vw);aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none}
-.adsGenerationOrbit:before,.adsGenerationOrbit:after,.adsGenerationOrbit i{position:absolute;inset:0;border:1px solid #a6c9ff3d;border-radius:50%;content:""}
-.adsGenerationOrbit:after{inset:12%;border-color:#cfb7ff3c;animation:ads-orbit 12s linear infinite reverse}
-.adsGenerationOrbit i:nth-child(1){inset:25%;border-style:dashed;border-color:#7de6f84c;animation:ads-orbit 9s linear infinite}
-.adsGenerationOrbit i:nth-child(2){inset:-13%;border-color:#d962dc20;transform:rotateX(68deg);animation:ads-orbit 19s linear infinite}
-.adsGenerationOrbit i:nth-child(3){inset:36%;border-color:#85b1ff3b;transform:rotateY(67deg);animation:ads-orbit 7s linear infinite reverse}
 .adsGenerationEmblem{position:relative;z-index:3;display:grid;place-items:center;width:76px;height:76px;margin-bottom:15px;border:1px solid #d2d5ff9d;border-radius:25px;color:#fff;background:linear-gradient(135deg,#2d9ce7,#754ded 58%,#ca4ad6);box-shadow:inset 0 1px #ffffffa0,0 0 0 8px #b67eff12,0 16px 42px #9546cc7a;font-size:37px;font-weight:900;transform:rotate(-8deg)}
 .adsGenerationEmblem span{transform:rotate(8deg)}
 .adsGenerationEyebrow{position:relative;z-index:3;margin:0;color:#8bdfff;font-size:11px;font-weight:900;letter-spacing:.18em}
@@ -555,6 +552,19 @@
 .adsGenerationStages li[data-state=active] small{color:#cfddfb}.adsGenerationStages li[data-state=done]{border-color:#68dcbb71;color:#dcfff3;background:#14705b2f}.adsGenerationStages li[data-state=done]>span{border-color:#58e3b4;color:#e5fff5;background:#1a856b78}.adsGenerationStages li[data-state=done] small{color:#b6e7d7}
 .studioPlanReady,.studioPlanError{position:relative;z-index:4;width:min(690px,100%);margin-top:17px;padding:14px 17px;border:1px solid #cdb8ff65;border-radius:16px;background:#111d46bd;box-shadow:inset 0 1px #fff2}
 .studioPlanReady p,.studioPlanError span{display:block;margin:0 0 12px;color:#d5e2f9;font-size:12px;line-height:1.45}.studioPlanSources{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:-2px 0 13px;color:#a9c5e7;font-size:10px;font-weight:750}.studioPlanSources>span{opacity:.9}.studioPlanSources ul{display:flex;flex-wrap:wrap;gap:5px;margin:0;padding:0;list-style:none}.studioPlanSources li{padding:4px 8px;border:1px solid #76d8bd58;border-radius:999px;color:#d8fff1;background:#126a5740;font-size:9px;font-weight:850}.studioPlanReady .headerCta{min-height:40px;padding:8px 17px;font-size:12px}.studioPlanError{border-color:#ff9cac83;background:#551e3a8c;text-align:left}.studioPlanError strong{display:block;margin-bottom:5px;color:#fff}.studioPlanError>small{display:block;margin:-5px 0 12px;color:#f5cbd6;font-size:10px;letter-spacing:.02em}.studioPlanError>div{display:flex;flex-wrap:wrap;gap:9px}.studioPlanError button{min-height:34px;padding:6px 11px;font-size:11px}
+.studioPlanHeading{display:block;margin-bottom:8px;color:#fff;font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.studioPlanPending{display:none}
+.studioPlanPendingLines{display:grid;gap:8px;margin-top:12px}
+.studioPlanPendingLines span{height:7px;border-radius:999px;background:linear-gradient(90deg,#a9d0f333,#c7b4ef26)}
+.studioPlanPendingLines span:nth-child(2){width:82%}.studioPlanPendingLines span:nth-child(3){width:61%}
+.studioPlanDetails summary{display:grid;gap:7px;list-style:none;cursor:pointer}
+.studioPlanDetails summary::-webkit-details-marker{display:none}
+.studioPlanPreview{display:-webkit-box;overflow:hidden;color:#d5e2f9;font-size:11px;line-height:1.4;text-align:center;-webkit-box-orient:vertical;-webkit-line-clamp:4}
+.studioPlanExpandClosed,.studioPlanExpandOpen{color:#a9dcff;font-size:10px;font-weight:850;text-align:center}
+.studioPlanExpandOpen,.studioPlanDetails[open] .studioPlanPreview,.studioPlanDetails[open] .studioPlanExpandClosed{display:none}
+.studioPlanDetails[open] .studioPlanExpandOpen{display:block}
+.studioPlanDetails p{margin:10px 0 0!important;text-align:left}
+.studioPlanReady .studioPlanSources{justify-content:center;margin:10px 0 0}
 
 .studioCard{max-width:1260px!important;margin-inline:auto!important;padding:clamp(16px,2.1vh,28px) clamp(18px,3.2vw,42px)!important}.studioCard .intro{max-width:none;margin:0 0 16px}
 .studioGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}.studioGrid .field{margin:0}.studioGrid .field small{color:#aebfdd;font-size:10px;font-weight:600}.studioWide{grid-column:1/-1}
@@ -572,6 +582,84 @@
 @media(max-width:800px){.studioChoiceCard,.studioCard{padding:20px!important}.studioPathGrid,.studioGrid{grid-template-columns:1fr}.studioStepHeader{grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;margin-bottom:12px;padding-bottom:10px}.studioStepHeader h2{grid-column:1/-1;grid-row:2;font-size:23px;text-align:left}.studioStepChannel{grid-column:2;grid-row:1}.studioPath{min-height:0;padding:17px}.studioAnalysisChoice>div[role=radiogroup]{grid-template-columns:1fr}.studioBudgetForecast{grid-template-columns:repeat(2,minmax(0,1fr))}.studioTypeGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.studioTypeGrid button{min-height:89px;padding:11px}.studioBudgetPanel{grid-template-columns:1fr;gap:9px}.studioReviewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.adsGenerationCanvas{min-height:620px;padding:28px 18px}.adsGenerationRadar{width:min(430px,112vw)}.adsGenerationOrbit{width:340px}.adsGenerationStages{grid-template-columns:repeat(2,minmax(0,1fr))}.adsGenerationStages li:last-child{grid-column:1/-1}.adsGenerationLead{font-size:12px}.adsGenerationCanvas h2{font-size:30px}.adsGenerationEmblem{width:63px;height:63px;margin-bottom:12px;border-radius:21px;font-size:30px}.channelConversionRoutes{opacity:.3}.channelConversionRouteThree,.channelPerformanceBoard{display:none}.channelCreativeStack{left:4%;opacity:.28;transform:scale(.75) rotate(-9deg)}.channelCockpitGrid{opacity:.28}}
 @media(max-width:540px){.studioChoiceCard,.studioCard{padding:17px!important}.studioStepHeader h2{font-size:21px}.studioStepLabel{font-size:9px;letter-spacing:.11em}.studioStepChannel{padding:5px 8px;font-size:9px}.studioPath{grid-template-columns:43px minmax(0,1fr);gap:8px 11px;padding:14px;border-radius:17px}.studioPathIcon{width:42px;height:42px;border-radius:14px;font-size:22px}.studioPath strong{font-size:15px}.studioPath small{font-size:10px}.studioPath b{font-size:10px}.studioAnalysisChoice{padding:14px}.studioAnalysisChoice legend{font-size:14px}.studioAnalysisSetupActions{align-items:stretch;flex-direction:column-reverse}.studioAnalysisSetupActions>*{width:100%}.studioBudgetForecast{grid-template-columns:1fr}.studioTypeGrid{grid-template-columns:1fr}.studioTypeGrid button{min-height:74px}.studioGrid textarea{min-height:92px}.studioControlPanel{padding:13px}.studioControlOptions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.studioControlOptions label{min-width:0;justify-content:center;padding:8px 6px;font-size:9px}.studioReviewGrid{grid-template-columns:1fr}.studioReviewGrid>div{min-height:0}.adsGenerationCanvas{min-height:650px;padding:24px 14px}.adsGenerationOrbit{width:360px}.adsGenerationParticleOne{left:9%}.adsGenerationParticleTwo{right:8%}.adsGenerationParticleThree{right:17%}.adsGenerationStages{gap:7px}.adsGenerationStages li{grid-template-columns:19px minmax(0,1fr);gap:6px;padding:8px}.adsGenerationStages li>span{width:18px;height:18px;font-size:8px}.adsGenerationStages li strong{font-size:9px}.adsGenerationStages li small{display:none}.adsGenerationProgress{margin:20px 0 13px}.studioPlanReady,.studioPlanError{padding:12px}.studioPlanReady p,.studioPlanError span{font-size:11px}.studioFinalActions{display:grid;grid-template-columns:1fr}.studioFinalActions button{width:100%}.channelConversionRouteTwo,.channelCreativeStack,.channelCockpitGrid,.channelDeliveryPacket{display:none}.channelRouteNodeCreative,.channelRouteNodeConversion{display:none}}
 @media(prefers-reduced-motion:reduce){.adsGenerationCanvas:after,.adsGenerationParticle,.adsGenerationOrbit:after,.adsGenerationOrbit i,.adsGenerationRadarSweep,.adsGenerationRadarCore,.adsGenerationRadarPing:after,.adsGenerationProgress[data-pending=true]>div>span{animation:none!important}.studioPath,.studioTypeGrid button{transition:none!important}}
+
+@media(max-width:650px){
+  .studioTitleLong{display:none}
+  .studioTitleShort{display:inline}
+  .studioWorkspace .studioStepHeader h2{font-size:clamp(18px,5.4vw,21px);overflow-wrap:anywhere}
+  .studioCard .studioOptionalIntro{display:none}
+  .studioCard .intro{margin-bottom:10px;font-size:12px;line-height:1.4}
+  .studioCard .studioTypeHint{display:none}
+  .studioWorkspace .studioGrid{gap:10px}
+  .studioWorkspace[data-compact] .studioGrid .field{margin:0}
+  .studioTargetingCard .tagField>small:not(.tagFieldNote){display:none}
+  .studioTargetingCard .tagInputShell{min-height:76px;padding:8px}
+  .studioWorkspace[data-compact] .stepper{justify-content:center;gap:clamp(3px,.9vw,5px);overflow-x:hidden}
+  .studioWorkspace[data-compact] .stepper button>span{width:clamp(21px,6.8vw,26px);height:clamp(21px,6.8vw,26px)}
+}
+@media(max-width:540px){
+  .studioChoiceCard .studioStepHeader{margin-bottom:12px}
+  .studioChoiceCard .studioStepHeader h2{font-size:21px;white-space:nowrap}
+  .studioChoiceCard .studioPathGrid{gap:10px}
+  .studioChoiceCard .studioPath{min-height:105px;gap:5px 10px;padding:12px}
+  .studioChoiceCard .studioPathIcon{width:38px;height:38px;font-size:20px}
+  .studioChoiceCard .studioPath strong{font-size:14px}
+  .studioChoiceCard .studioPath small{line-height:1.3}
+  .studioChoiceCard .studioCampaignPromise{max-width:310px;flex-direction:column;gap:8px;margin-top:24px;font-size:12px;line-height:1.4;text-align:center}
+  .studioChoiceCard .studioCampaignPromise span{width:23px;height:23px;flex-basis:23px}
+  .studioWorkspace[data-analysis-setup] .studioChoiceCard{min-height:0}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisSetup{align-content:start;gap:12px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice{gap:10px;padding:12px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice legend{font-size:13px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice>p{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice>div[role=radiogroup]{gap:8px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice>div[role=radiogroup]>label{grid-template-columns:18px minmax(0,1fr);gap:9px;min-height:72px;padding:11px 12px;border-radius:14px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice label>span{gap:3px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice label strong{font-size:13px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice label small{display:none}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice label b{padding-top:0;font-size:10px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice [data-analysis-objective]{gap:6px;padding:11px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice [data-analysis-objective] textarea{min-height:76px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisChoice [data-analysis-objective]>small{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisSetupActions{gap:8px}
+  .studioWorkspace[data-analysis-setup] .studioAnalysisSetupActions .headerCta{min-height:42px}
+}
+@media(max-width:540px) and (max-height:600px){
+  .studioWorkspace .stepper{padding-bottom:4px}
+  .studioChoiceCard{padding:12px!important}
+  .studioChoiceCard .studioStepHeader{margin-bottom:9px;padding-bottom:8px}
+  .studioChoiceCard .studioPathGrid{gap:8px}
+  .studioChoiceCard .studioPath{min-height:90px;padding:10px}
+  .studioChoiceCard .studioCampaignPromise{margin-top:16px}
+}
+
+/* Keep all six analysis phases in a balanced 2 × 3 grid on phones. The
+   wizard header and stepper already consume part of a short viewport. */
+@media(max-width:800px){
+  .studioWorkspace .adsGenerationStages{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr}
+  .studioWorkspace .adsGenerationStages li:last-child{grid-column:auto}
+  .studioWorkspace .adsGenerationStages li[data-state=active]{transform:none}
+}
+@media(max-width:540px){
+  .studioWorkspace .adsGenerationCanvas{min-height:0;height:auto;justify-content:flex-start;padding:16px 12px 20px}
+  .studioWorkspace .adsGenerationEmblem{width:48px;height:48px;flex:0 0 48px;margin-bottom:9px;border-radius:16px;font-size:25px}
+  .studioWorkspace .adsGenerationEyebrow{font-size:9px;letter-spacing:.12em}
+  .studioWorkspace .adsGenerationCanvas h2{margin:8px 0;font-size:clamp(22px,6.3vw,27px);line-height:1.08}
+  .studioWorkspace .adsGenerationLead{font-size:11px;line-height:1.38}
+  .studioWorkspace .adsGenerationProgress{gap:8px;margin:13px 0 11px}
+  .studioWorkspace .adsGenerationProgress[data-pending=true] strong{min-width:105px;font-size:10px}
+  .studioWorkspace .adsGenerationStages{gap:6px}
+  .studioWorkspace .adsGenerationStages li{min-height:36px;padding:6px;gap:5px}
+  .studioWorkspace .adsGenerationStages li strong{font-size:8px}
+  .studioWorkspace .adsGenerationRadar{width:min(310px,82vw)}
+}
+@media(max-width:540px) and (max-height:600px){
+  .studioWorkspace .adsGenerationCanvas{padding-block:11px 14px}
+  .studioWorkspace .adsGenerationEmblem{width:40px;height:40px;flex-basis:40px;margin-bottom:6px;font-size:22px}
+  .studioWorkspace .adsGenerationCanvas h2{font-size:21px}
+  .studioWorkspace .adsGenerationProgress{margin:9px 0 8px}
+  .studioWorkspace .adsGenerationStages li{min-height:32px;padding:5px}
+}
 
 /* Media is a first-class part of a campaign, not a lonely URL field. */
 .studioMediaGenerationNote{position:relative;z-index:4;width:min(690px,100%);margin:15px 0 0;padding:11px 14px;border:1px solid #b8cdf270;border-radius:14px;color:#dcecff;background:#0c1d43c9;box-shadow:inset 0 1px #ffffff18;font-size:12px;font-weight:750;line-height:1.45}
@@ -615,19 +703,27 @@
 .studioKeywordGuidance,.studioCopyGuidance{display:grid;align-content:start;gap:6px;margin:0;padding:14px 16px;border:1px solid #8fb9e063;border-radius:15px;background:linear-gradient(120deg,#13335eaa,#32204e9c);box-shadow:inset 0 1px #ffffff14}
 .studioKeywordGuidance strong,.studioCopyGuidance strong{color:#e9f6ff;font-size:12px}.studioKeywordGuidance p,.studioCopyGuidance p{margin:0;color:#bdcee6;font-size:11px;font-weight:600;line-height:1.5}
 .studioKeywordsCard .studioControlPanel{padding:12px 15px}.studioKeywordsCard .studioControlOptions{margin-top:0}
+.studioKeywordsCard .tagInputShell{min-height:92px;background:linear-gradient(135deg,#0a24499c,#171840a8)}
+.studioWorkspace .studioKeywordsCard .tagField .tagInputShell input{width:auto;min-width:140px;flex:1 1 170px;padding:6px 3px}
+.studioKeywordsCard .tagChip{border-color:#81c3ff93;background:linear-gradient(125deg,#287ab5c4,#6846a8b8);box-shadow:inset 0 1px #ffffff36,0 4px 12px #060f3359}
+.tagFieldError{color:#ffbfd0!important}
+.googleAdCopyField{min-width:0;padding:0;border:0}.googleAdCopyField legend{padding:0;color:#eaf1ff;font-size:13px;font-weight:850}.googleAdCopyField>small{color:#adbfdd;font-size:10px;font-weight:600}.googleAdCopyRows{display:grid;min-width:0;max-height:230px;gap:7px;overflow-y:auto;padding:2px 5px 2px 1px;scrollbar-color:#8b77c480 transparent;scrollbar-width:thin}.googleAdCopyRow{display:grid;min-width:0;grid-template-columns:75px minmax(0,1fr) 42px 24px;align-items:center;gap:8px}.googleAdCopyRow label{color:#cbdafa;font-size:11px}.googleAdCopyRow input{min-height:39px;padding:8px 10px!important}.googleAdCopyRow>span{color:#a8bcda;font-size:10px;text-align:right}.googleAdCopyRow>button{width:24px;height:24px;padding:0;border:1px solid #d59ddc6b;border-radius:50%;color:#fce6ff;background:#763e8159;font:inherit;font-size:17px;line-height:1;cursor:pointer}.googleAdCopyRow>button:hover{background:#9b519399}.googleAdCopyAdd{justify-self:start;min-height:30px;padding:5px 11px;border:1px solid #86baf080;border-radius:999px;color:#d9edff;background:#1b5b9480;font:inherit;font-size:11px;font-weight:800;cursor:pointer}.googleAdCopyAdd:hover{background:#2a77b0aa}
+.studioFinalActions[data-channel="google"]{display:grid;justify-items:center;grid-template-columns:1fr}.studioSaveCampaignButton{min-width:min(100%,270px);min-height:48px;border-color:#b6bfffce;background:linear-gradient(105deg,#279ee9,#6659df 53%,#c54fca);box-shadow:0 0 0 1px #c5c7ff4d,inset 0 1px #ffffff72,0 11px 28px #9157e17a;filter:saturate(1.12)}.studioSaveCampaignButton:hover:not(:disabled){box-shadow:0 0 0 1px #e4d5ffb3,inset 0 1px #ffffff9c,0 15px 34px #ab5fea9c}.studioSaveCampaignButton:disabled{box-shadow:none;filter:none}
+@media(max-width:650px){.studioKeywordsCard .tagInputShell{min-height:75px}.googleAdCopyRows{max-height:none}.googleAdCopyRow{grid-template-columns:minmax(0,1fr) 40px 24px;gap:5px}.googleAdCopyRow label{grid-column:1/-1}.googleAdCopyRow input{min-height:40px}.studioSaveCampaignButton{width:100%;min-width:0}}
 
 /* The campaign drawer is a fixed desktop canvas: every stage occupies the
    same available height, while phones retain their natural scrolling layout. */
 @media(min-width:1000px) and (min-height:660px){
   :global([data-dashboard-settings-drawer-scroll="true"]):has(.studioWorkspace){overflow-y:hidden!important;overscroll-behavior:none}
   .studioWorkspace{display:flex;height:100%;min-height:0;flex-direction:column;overflow:hidden}
+  .studioWorkspace .stepper{justify-content:safe center}
   .studioWorkspace>.stepper,.studioWorkspace>.wizardNavigation{flex:0 0 auto}
   .studioWorkspace>.card:not([hidden]){display:flex;box-sizing:border-box;flex:1 1 auto;min-height:0;height:0;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
   /* All campaign panels deliberately share the exact same desktop canvas.
      The stage heading remains at the top; only the working area below it is
      distributed, so a short first step never looks vertically "floated". */
   .studioWorkspace>.studioChoiceCard,.studioWorkspace>.studioCard,.studioWorkspace>.studioAnalysisCard{width:100%;max-width:none!important;margin-inline:0!important}
-  .studioWorkspace .studioChoiceCard{display:grid!important;grid-template-rows:auto auto minmax(0,1fr) auto;align-content:stretch;justify-content:initial}
+  .studioWorkspace .studioChoiceCard{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto;align-content:stretch;justify-content:initial}
   .studioWorkspace .studioChoiceCard .studioPathGrid{width:100%;max-width:none;align-self:center;margin:0}
   .studioWorkspace .studioChoiceCard .studioCampaignPromise{align-self:end;margin-top:14px}
   .studioWorkspace .studioChoiceCard>.help{flex:0 0 auto}
@@ -635,15 +731,14 @@
   /* The analysis canvas uses the same fixed modal canvas as every other
      stage.  Its heading is anchored near the top, then the progress and
      working phases deliberately consume the available height below. */
-  .studioWorkspace .adsGenerationCanvas{display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto;align-content:stretch;justify-items:center;flex:1 1 auto;min-height:0;height:100%;justify-content:initial;padding:clamp(30px,4.5vh,54px) clamp(26px,6vw,88px)}
+  .studioWorkspace .adsGenerationCanvas{display:flex;flex:0 0 auto;min-height:100%;height:auto;justify-content:center;padding:clamp(30px,4.5vh,54px) clamp(26px,6vw,88px)}
   .studioWorkspace .adsGenerationEmblem{width:clamp(66px,5.5vw,78px);height:clamp(66px,5.5vw,78px);margin-bottom:14px;border-radius:clamp(22px,1.8vw,26px);font-size:clamp(31px,2.5vw,38px)}
   .studioWorkspace .adsGenerationEyebrow{font-size:clamp(10px,.9vw,12px)}
   .studioWorkspace .adsGenerationCanvas h2{max-width:780px;margin:10px 0 12px;font-size:clamp(30px,3.15vw,48px)}
   .studioWorkspace .adsGenerationLead{max-width:720px;font-size:clamp(13px,1.05vw,15px);line-height:1.6}
   .studioWorkspace .adsGenerationProgress{width:min(760px,88%);margin:clamp(27px,3.7vh,44px) 0 clamp(16px,2vh,24px)}
   .studioWorkspace .adsGenerationRadar{top:53%;width:min(460px,46vw,62vh);max-width:72%;max-height:72%}
-  .studioWorkspace .adsGenerationOrbit{top:53%;width:min(390px,39vw,52vh);max-width:63%;max-height:63%}
-  .studioWorkspace .adsGenerationStages{width:min(940px,92%);height:100%;align-self:stretch;grid-template-rows:repeat(2,minmax(0,1fr));gap:clamp(10px,1.15vw,16px)}
+  .studioWorkspace .adsGenerationStages{width:min(940px,92%);height:auto;align-self:center;grid-template-rows:none;gap:clamp(10px,1.15vw,16px)}
   .studioWorkspace .adsGenerationStages li{min-height:clamp(62px,8.2vh,86px);grid-template-columns:27px minmax(0,1fr);gap:10px;padding:clamp(10px,1.1vw,14px);border-radius:15px}
   .studioWorkspace .adsGenerationStages li>span{width:26px;height:26px;font-size:11px}
   .studioWorkspace .adsGenerationStages li strong{font-size:clamp(10px,.85vw,12px)}
@@ -670,6 +765,34 @@
   .studioWorkspace .studioReviewGrid>div{min-height:82px;padding:11px}
   .studioWorkspace .studioReadiness{margin:11px 0;padding:11px 14px}
   .studioWorkspace .studioFinalActions,.studioWorkspace .studioFinalCheck{margin-top:12px!important}
+}
+
+/* On wide screens the six analysis signals frame the narrative instead of
+   pushing the proposal below it. Keep the ordered list intact for readers. */
+@media(min-width:1150px) and (min-height:660px){
+  .studioWorkspace .adsGenerationCanvas{padding:clamp(18px,2.4vh,28px) clamp(25px,3vw,50px)}
+  .studioWorkspace .adsGenerationEmblem{width:60px;height:60px;margin-bottom:9px;border-radius:20px;font-size:30px}
+  .studioWorkspace .adsGenerationCanvas h2{max-width:620px;margin:8px 0;font-size:clamp(30px,2.5vw,39px)}
+  .studioWorkspace .adsGenerationLead{max-width:620px;font-size:12px;line-height:1.45}
+  .studioWorkspace .adsGenerationProgress{width:min(620px,48%);margin:17px 0 0}
+  .studioWorkspace .adsGenerationRadar{top:50%;width:min(700px,58vw,62vh);max-width:90%;max-height:none;border-color:#8be8ff70;background:radial-gradient(circle at center,#bfffff7a 0 1%,#5fe7ff20 1.5% 4%,transparent 5%),radial-gradient(circle at center,transparent 0 31.5%,#8defff78 31.8% 32.2%,transparent 32.6%),linear-gradient(90deg,transparent 49.7%,#a5efff3b 50%,transparent 50.3%),linear-gradient(0deg,transparent 49.7%,#a5efff3b 50%,transparent 50.3%);box-shadow:inset 0 0 80px #45baff32,0 0 85px #3a8eff2e}
+  .studioWorkspace .adsGenerationSatellite{position:absolute;z-index:1;display:block;width:clamp(106px,9.1vw,150px);aspect-ratio:1;border:1px solid color-mix(in srgb,var(--satellite-color) 67%,transparent);border-radius:50%;background:linear-gradient(90deg,transparent 49.4%,color-mix(in srgb,var(--satellite-color) 19%,transparent) 50%,transparent 50.6%),linear-gradient(0deg,transparent 49.4%,color-mix(in srgb,var(--satellite-color) 19%,transparent) 50%,transparent 50.6%);box-shadow:inset 0 0 25px color-mix(in srgb,var(--satellite-color) 18%,transparent),0 0 24px color-mix(in srgb,var(--satellite-color) 18%,transparent);pointer-events:none}
+  .studioWorkspace .adsGenerationSatelliteLeft{--satellite-color:#5ce5f4;top:14%;left:11%;transform:translate(-50%,-50%)}
+  .studioWorkspace .adsGenerationSatelliteRight{--satellite-color:#ec84de;right:9%;bottom:14%;width:clamp(96px,7.9vw,136px);transform:translate(50%,50%)}
+  .studioWorkspace .adsGenerationSatelliteRight:before{animation-duration:10.5s;animation-direction:reverse}
+  .studioWorkspace .adsGenerationCanvas[data-ready] .adsGenerationRadar{opacity:.6;filter:saturate(.95)}
+  .studioWorkspace .adsGenerationCanvas[data-ready] .adsGenerationRadarSweep{opacity:.9}
+  .studioWorkspace .adsGenerationStages{position:absolute;top:50%;right:auto;left:50%;width:min(1260px,calc(100% - 140px));height:clamp(250px,31vh,290px);grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));column-gap:clamp(550px,45vw,700px);row-gap:10px;transform:translate(-50%,-50%);pointer-events:none}
+  .studioWorkspace .adsGenerationStages li{display:flex;min-height:0;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px 10px;text-align:center;transform:none}
+  .studioWorkspace .adsGenerationStages li>div{min-width:0;width:100%}
+  .studioWorkspace .adsGenerationStages li:nth-child(1){grid-column:1;grid-row:1}
+  .studioWorkspace .adsGenerationStages li:nth-child(2){grid-column:1;grid-row:2}
+  .studioWorkspace .adsGenerationStages li:nth-child(3){grid-column:1;grid-row:3}
+  .studioWorkspace .adsGenerationStages li:nth-child(4){grid-column:2;grid-row:1}
+  .studioWorkspace .adsGenerationStages li:nth-child(5){grid-column:2;grid-row:2}
+  .studioWorkspace .adsGenerationStages li:nth-child(6){grid-column:2;grid-row:3}
+  .studioWorkspace .studioMediaGenerationNote,.studioWorkspace .studioPlanReady,.studioWorkspace .studioPlanError{width:min(620px,48%);margin-top:12px;padding:10px 12px}
+  .studioWorkspace .studioPlanPending{display:block;min-height:106px}
 }
 
 /* In the iNrCy setup the two analysis paths should use the same large modal
@@ -751,7 +874,7 @@
   .channelRailLabel,
   .channelRail small{display:none!important}
 
-  .channelCarousel{flex:1 1 auto;min-height:0;gap:8px}
+  .channelCarousel{flex:1 1 auto;min-width:0;min-height:0;gap:8px}
   .channelCarousel>button{
     z-index:2;
     width:34px;
@@ -765,9 +888,12 @@
     box-shadow:inset 0 1px #ffffff59,0 7px 16px #1a174d8f;
   }
   .cubeStage{
-    width:100%;
+    flex:1 1 0;
+    width:auto;
+    min-width:0;
     height:100%;
     min-height:0;
+    container-type:size;
     grid-template-columns:1fr;
     place-items:center;
     gap:0;
@@ -775,10 +901,11 @@
   .cubeStage .channelMini,
   .cubeStage .channel:not(.channelActive){display:none!important}
   .cubeStage .channelActive{
-    width:min(74vw,310px);
-    height:min(74vw,310px);
+    --ads-mobile-cube-size:min(calc(100cqw - 12px),calc(100cqh - 12px),64vw,250px);
+    width:var(--ads-mobile-cube-size);
+    height:var(--ads-mobile-cube-size);
     min-height:0;
-    max-width:100%;
+    max-width:none;
     margin:auto;
     padding:clamp(15px,4vw,21px);
     gap:clamp(7px,2vw,11px);
@@ -847,7 +974,29 @@
   .channelRail{grid-template-columns:repeat(6,36px);width:min(100%,239px);gap:4px}
   .channelRail button,.channelRail button[data-near]{width:36px;min-width:36px;height:36px;min-height:36px;padding:5px}
   .channelRailLogo{width:22px;height:22px}
-  .cubeStage .channelActive{width:min(76vw,282px);height:min(76vw,282px)}
+}
+
+@media(max-width:320px){
+  .channelCarousel{gap:5px}
+  .channelCarousel>button{width:30px;flex-basis:30px;height:40px}
+  .channelRail{grid-template-columns:repeat(6,32px);width:min(100%,207px);gap:3px}
+  .channelRail button,.channelRail button[data-near]{width:32px;min-width:32px;height:32px;min-height:32px;padding:4px}
+  .channelRailLogo{width:20px;height:20px}
+  .cubeStage .channelActive{--ads-mobile-cube-size:min(calc(100cqw - 8px),calc(100cqh - 8px),64vw,250px)}
+  .cubeStage .channelActive .channelActions{gap:3px}
+}
+
+@media(max-width:650px) and (max-height:600px){
+  .shell{gap:7px}
+  .channelCard{padding-block:9px}
+  .channelRail{margin-bottom:4px;padding-block:0}
+  .cubeStage .channelActive{padding:8px;gap:5px}
+  .cubeStage .channelActive .channelLogo{width:34px;height:34px;flex-basis:34px;border-radius:11px}
+  .cubeStage .channelActive .channelLogo img{width:25px;height:25px}
+  .cubeStage .channelActive .channelIdentity strong{font-size:15px}
+  .cubeStage .channelActive .channelIdentity small{font-size:9px}
+  .cubeStage .channelActive .channelConfigure{min-height:29px;padding:5px 11px}
+  .cubeStage .channelActive .channelViewAccount{min-height:25px;padding:4px 10px}
 }
 
 /* Desktop cards use the same illuminated platform-token language as the

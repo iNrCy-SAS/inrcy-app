@@ -21,7 +21,8 @@ import {
   type AdsProvider,
 } from "@/lib/adsValidation";
 import { ADS_PAUSED_DEMO_CONFIRMATION, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
-import type { AdsCampaignPlan } from "@/lib/adsCampaignPlan";
+import { adsMediaStrategyAfterAttachment, GOOGLE_SEARCH_IMAGE_REQUIREMENTS, googleSearchImageSubjectPrompt } from "@/lib/adsCampaignMediaPolicy";
+import { presentAdsCampaignRationale, type AdsCampaignPlan } from "@/lib/adsCampaignPlan";
 import { assessAdsChannelDraft, type AdsChannelDraft } from "@/lib/adsChannelDrafts";
 import {
   adsChannelWizardSettingsFromBrief,
@@ -457,6 +458,18 @@ type TagFieldProps = {
   placeholder: string;
   note?: string;
   wide?: boolean;
+  maxItems?: number;
+  maxItemLength?: number;
+};
+
+type GoogleAdCopyFieldProps = {
+  label: string;
+  singular: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  minItems: number;
+  maxItems: number;
+  maxLength: number;
 };
 
 type VoiceTextareaProps = {
@@ -497,8 +510,9 @@ function VoiceTextarea({ value, onChange, placeholder, purpose, contextLabel, ro
 }
 
 /** A compact, keyboard-friendly editor for campaign choices such as territories. */
-function TagField({ label, helper, values, onChange, placeholder, note, wide = false }: TagFieldProps) {
+function TagField({ label, helper, values, onChange, placeholder, note, wide = false, maxItems, maxItemLength }: TagFieldProps) {
   const [pendingValue, setPendingValue] = useState("");
+  const [tagError, setTagError] = useState("");
 
   const addValues = useCallback((rawValue: string) => {
     const additions = rawValue
@@ -507,6 +521,10 @@ function TagField({ label, helper, values, onChange, placeholder, note, wide = f
       .filter(Boolean);
 
     if (!additions.length) return;
+    if (maxItemLength && additions.some((value) => value.length > maxItemLength)) {
+      setTagError(`Chaque expression doit contenir au plus ${maxItemLength} caractères.`);
+      return;
+    }
 
     const existing = new Set(values.map((value) => value.trim().toLocaleLowerCase("fr-FR")));
     const uniqueAdditions = additions.filter((value) => {
@@ -516,9 +534,11 @@ function TagField({ label, helper, values, onChange, placeholder, note, wide = f
       return true;
     });
 
-    if (uniqueAdditions.length) onChange([...values, ...uniqueAdditions]);
+    const remaining = maxItems === undefined ? uniqueAdditions.length : Math.max(0, maxItems - values.length);
+    if (remaining) onChange([...values, ...uniqueAdditions.slice(0, remaining)]);
+    setTagError(uniqueAdditions.length > remaining ? `Limite de ${maxItems} expressions atteinte.` : "");
     setPendingValue("");
-  }, [onChange, values]);
+  }, [maxItemLength, maxItems, onChange, values]);
 
   return (
     <div className={`${styles.field} ${styles.tagField}${wide ? ` ${styles.studioWide}` : ""}`}>
@@ -539,11 +559,13 @@ function TagField({ label, helper, values, onChange, placeholder, note, wide = f
         ))}
         <input
           value={pendingValue}
-          onChange={(event) => setPendingValue(event.target.value)}
+          onChange={(event) => { setPendingValue(event.target.value); setTagError(""); }}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === ",") {
               event.preventDefault();
               addValues(pendingValue);
+            } else if (event.key === "Backspace" && !pendingValue && values.length) {
+              onChange(values.slice(0, -1));
             }
           }}
           onPaste={(event) => {
@@ -553,6 +575,8 @@ function TagField({ label, helper, values, onChange, placeholder, note, wide = f
               addValues(pasted);
             }
           }}
+          maxLength={maxItemLength}
+          disabled={maxItems !== undefined && values.length >= maxItems}
           placeholder={values.length ? "Ajouter un choix…" : placeholder}
           aria-label={`Ajouter : ${label}`}
         />
@@ -562,14 +586,46 @@ function TagField({ label, helper, values, onChange, placeholder, note, wide = f
           value=""
           mergeMode="replace"
           contextLabel={label}
+          disabled={maxItems !== undefined && values.length >= maxItems}
           onChange={addValues}
         />
-        <button type="button" className={styles.tagAddButton} onClick={() => addValues(pendingValue)} disabled={!pendingValue.trim()}>
+        <button type="button" className={styles.tagAddButton} onClick={() => addValues(pendingValue)} disabled={!pendingValue.trim() || maxItems !== undefined && values.length >= maxItems}>
           Ajouter
         </button>
       </div>
       {note ? <small className={styles.tagFieldNote}>{note}</small> : null}
+      {maxItems !== undefined && <small className={styles.tagFieldNote}>{values.length} / {maxItems} expressions{maxItemLength ? ` · ${maxItemLength} caractères par expression` : ""}</small>}
+      {tagError && <small className={styles.tagFieldError} role="alert">{tagError}</small>}
     </div>
+  );
+}
+
+function GoogleAdCopyField({ label, singular, values, onChange, minItems, maxItems, maxLength }: GoogleAdCopyFieldProps) {
+  const rows = Array.from({ length: Math.max(minItems, values.length) }, (_, index) => values[index] ?? "");
+
+  return (
+    <fieldset className={`${styles.field} ${styles.googleAdCopyField}`}>
+      <legend>{label}</legend>
+      <small>{minItems} minimum · {maxItems} maximum · {maxLength} caractères par {singular.toLowerCase()}</small>
+      <div className={styles.googleAdCopyRows}>
+        {rows.map((value, index) => (
+          <div className={styles.googleAdCopyRow} key={index}>
+            <label htmlFor={`${singular}-${index}`}>{singular} {index + 1}</label>
+            <input
+              id={`${singular}-${index}`}
+              type="text"
+              value={value}
+              maxLength={maxLength}
+              placeholder={`${singular} ${index + 1}`}
+              onChange={(event) => onChange(rows.map((entry, rowIndex) => rowIndex === index ? event.target.value : entry))}
+            />
+            <span aria-label={`${value.length} caractères sur ${maxLength}`}>{value.length}/{maxLength}</span>
+            {rows.length > minItems && <button type="button" aria-label={`Retirer ${singular.toLowerCase()} ${index + 1}`} title={`Retirer ${singular.toLowerCase()} ${index + 1}`} onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}>×</button>}
+          </div>
+        ))}
+      </div>
+      {rows.length < maxItems && <button type="button" className={styles.googleAdCopyAdd} onClick={() => onChange([...rows, ""])}>+ Ajouter {singular === "Titre" ? "un titre" : "une description"}</button>}
+    </fieldset>
   );
 }
 
@@ -577,17 +633,19 @@ function StudioStepHeader({
   number,
   label,
   title,
+  mobileTitle,
   channel,
 }: {
   number: number;
   label: string;
   title: string;
+  mobileTitle: string;
   channel: string;
 }) {
   return (
     <header className={styles.studioStepHeader}>
       <span className={styles.studioStepLabel}>{String(number).padStart(2, "0")} · {label}</span>
-      <h2>{title}</h2>
+      <h2><span className={styles.studioTitleLong}>{title}</span><span className={styles.studioTitleShort}>{mobileTitle}</span></h2>
       <span className={styles.studioStepChannel}>{channel}</span>
     </header>
   );
@@ -676,6 +734,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [compactScreen, setCompactScreen] = useState(false);
   const [shortScreen, setShortScreen] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const studioWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const keywordStepName = channelId === "google" ? "Mots-clés" : "Signaux";
   const manualStepNames = ["Votre projet", "Fondations", "Ciblage", keywordStepName, "Créations", "Médias", "Diffusion", "Budget", "Validation"];
   const inrcyStepNames = ["Votre projet", "Analyse iNrCy", "Fondations", "Ciblage", keywordStepName, "Créations", "Médias", "Diffusion", "Budget", "Validation"];
@@ -705,6 +764,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       planProgressTimer.current = null;
     }
   }, []);
+  useEffect(() => {
+    if (!creating || !compactScreen) return;
+    const scrollArea = studioWorkspaceRef.current?.closest<HTMLElement>('[data-dashboard-settings-drawer-scroll="true"]');
+    if (scrollArea) scrollArea.scrollTop = 0;
+  }, [creating, compactScreen, step, analysisSetupOpen, channelId]);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 999px), (max-height: 659px)");
     const shortMedia = window.matchMedia("(max-height: 600px)");
@@ -1063,14 +1127,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       return;
     }
     const mediaType = item.media_type === "video" ? "video" : "image";
+    if (channelId === "google" && draft.campaignType === "search" && mediaType !== "image") {
+      setCampaignMediaUploadError("Google Search accepte ici une image en complément de l’annonce texte, pas une vidéo. Choisissez une image.");
+      return;
+    }
     setDraft((current) => {
-      const mediaStrategy = mediaType === "video"
-        ? current.mediaStrategy === "image" || current.mediaStrategy === "mixed"
-          ? "mixed"
-          : "video"
-        : current.mediaStrategy === "video" || current.mediaStrategy === "mixed"
-          ? "mixed"
-          : "image";
+      const mediaStrategy = adsMediaStrategyAfterAttachment(current, mediaType);
       return applyDraftEdit(current, {
         creativeUrl: url,
         imageUrl: mediaType === "image" ? url : current.imageUrl,
@@ -1260,8 +1322,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       metaPlacements: plan.metaPlacements,
       trackingParameters: plan.trackingParameters,
       primaryText: plan.primaryText || current.primaryText,
-      imageUrl: plan.imageUrl || current.imageUrl,
-      creativeUrl: plan.creativeUrl || current.creativeUrl,
+      // A fresh analysis must never inherit an unrelated media attachment.
+      // Only Studio acceptance or an explicit later user choice supplies one.
+      imageUrl: plan.imageUrl,
+      creativeUrl: plan.creativeUrl,
       creativeType: plan.creativeType,
       mediaStrategy: plan.mediaStrategy,
       mediaBrief: plan.mediaBrief || current.mediaBrief,
@@ -1459,6 +1523,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setNotice("Ajoutez une image à cette campagne Meta avant de la publier. Le connecteur Trafic Meta actuellement disponible utilise un visuel image.");
       return;
     }
+    if (channelId === "google" && draft.creationMode === "inrcy" && !draft.imageUrl) {
+      setNotice("Ajoutez l’image complémentaire prévue par l’analyse Google Search avant de publier.");
+      return;
+    }
     if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady || !confirmedSpend || !livePublishingEnabled) return;
     if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
       setNotice("Pour diffuser sur Facebook et Instagram, associez un compte Instagram professionnel à la Page sélectionnée dans Meta Business Suite.");
@@ -1506,6 +1574,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     }
     if (channelId === "meta" && !draft.imageUrl) {
       setNotice("Ajoutez une image à cette campagne Meta avant de créer une démo en pause.");
+      return;
+    }
+    if (channelId === "google" && draft.creationMode === "inrcy" && !draft.imageUrl) {
+      setNotice("Ajoutez l’image complémentaire prévue par l’analyse Google Search avant de créer une démo en pause.");
       return;
     }
     if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady) return;
@@ -1583,6 +1655,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     ? draft.channelSettings?.channel === channelId ? draft.channelSettings : defaultAdsChannelWizardSettings(channelId)
     : null;
   const nativeMediaStrategy = nativeSettings ? nativeWizardMediaStrategy(nativeSettings) : null;
+  const googleSearchMedia = channelId === "google" && draft.campaignType === "search";
   const nativeMediaUpload = nativeMediaStrategy === "image" || nativeMediaStrategy === "video";
   const mediaStrategyOptions = channelId === "meta"
     ? MEDIA_STRATEGY_OPTIONS.filter((option) => option.value === "image" || option.value === "video" || option.value === "mixed")
@@ -1607,8 +1680,13 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   );
   const connectorConfigurationIssue = isAdsProvider(channelId) ? unsupportedAdsConnectorReason(draft) : null;
   const livePublisherSetupReady = livePublisherConversionReady && !connectorConfigurationIssue;
-  const livePublisherMediaReady = channelId !== "meta" || Boolean(draft.imageUrl);
+  const googleSearchImageSourceReady = !googleSearchMedia || !draft.imageUrl || draft.imageUrl.startsWith("/api/media-library/items/");
+  const livePublisherMediaReady = (channelId === "meta" || (googleSearchMedia && draft.creationMode === "inrcy")
+    ? Boolean(draft.imageUrl)
+    : true) && googleSearchImageSourceReady;
   const analysisRequestPending = busy === "plan" && autoMediaState !== "generating" && planProgress < 90 && !planError;
+  const analysisProposalReady = creationPath === "inrcy" && step === analysisStep && planProgress === 100 && busy !== "plan";
+  const visiblePlanRationale = presentAdsCampaignRationale(planRationale);
   const pendingAnalysisStage = AI_ANALYSIS_STAGES.findIndex((stage) => planProgress < stage.at);
   const activeAnalysisStage = planError
     ? -1
@@ -1700,13 +1778,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </div>
 
       <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={closeCampaignCreation} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
+      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && name}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
-          <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment voulez-vous créer ?"} channel="Sans diffusion" />
+          <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment créer ?"} mobileTitle={analysisSetupOpen ? "Quel cap choisir ?" : "Comment créer ?"} channel="Sans diffusion" />
           {analysisSetupOpen ? <>
-            <p className={`${styles.intro} ${styles.studioChoiceIntro}`}>Choisissez le rôle que vous donnez à iNrCy avant de lancer son analyse. Votre iNrADN reste la source de vérité dans les deux cas.</p>
             <div className={styles.studioAnalysisSetup}>
               <AdsCampaignAnalysisChoice value={analysisMode} onChange={setAnalysisMode} objective={guidedAnalysisObjective} onObjectiveChange={setGuidedAnalysisObjective} disabled={busy !== null} className={styles.studioAnalysisChoice} />
               <div className={styles.studioAnalysisSetupActions}>
@@ -1715,13 +1792,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
               </div>
             </div>
           </> : <>
-            <p className={`${styles.intro} ${styles.studioChoiceIntro}`}>Votre profil professionnel et votre iNrADN sont déjà pris en compte. Choisissez votre rythme : vous pilotez chaque détail, ou iNrCy prépare une campagne complète à partir de votre activité. Rien ne sera publié sans votre validation finale.</p>
             <div className={styles.studioPathGrid}>
               <button type="button" className={styles.studioPath} onClick={chooseManualCreation} disabled={busy !== null}>
-                <span className={styles.studioPathIcon} aria-hidden="true">✎</span><span><strong>Créer manuellement</strong><small>Un parcours clair, étape par étape. Vous renseignez vos choix et vos contenus.</small></span><b>Commencer →</b>
+                <span className={styles.studioPathIcon} aria-hidden="true">✎</span><span><strong>Créer manuellement</strong><small>Vous gardez la main sur chaque étape.</small></span><b>Commencer →</b>
               </button>
               <button type="button" className={`${styles.studioPath} ${styles.studioPathAi}`} onClick={openAssistedAnalysisSetup} disabled={busy !== null}>
-                <span className={styles.studioPathIcon} aria-hidden="true">✦</span><span><strong>Créer avec iNrCy</strong><small>iNrADN, services, zones, historique et médias disponibles orientent la campagne ; iNr’Studio crée le média utile.</small></span><b>Préparer l’analyse →</b>
+                <span className={styles.studioPathIcon} aria-hidden="true">✦</span><span><strong>Créer avec iNrCy</strong><small>Votre iNrADN guide une campagne préparée pour vous.</small></span><b>Préparer l’analyse →</b>
               </button>
             </div>
             <p className={styles.studioCampaignPromise}><span aria-hidden="true">✦</span>{campaignPromise(channelId)}</p>
@@ -1734,11 +1810,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           <div className={styles.adsGenerationRadar} aria-hidden="true">
             <span className={styles.adsGenerationRadarSweep} />
             <span className={styles.adsGenerationRadarCore} />
-            <i className={`${styles.adsGenerationRadarPing} ${styles.adsGenerationRadarPingOne}`} />
-            <i className={`${styles.adsGenerationRadarPing} ${styles.adsGenerationRadarPingTwo}`} />
-            <i className={`${styles.adsGenerationRadarPing} ${styles.adsGenerationRadarPingThree}`} />
           </div>
-          <div className={styles.adsGenerationOrbit} aria-hidden="true"><i /><i /><i /></div>
+          <span className={`${styles.adsGenerationSatellite} ${styles.adsGenerationSatelliteLeft}`} aria-hidden="true" />
+          <span className={`${styles.adsGenerationSatellite} ${styles.adsGenerationSatelliteRight}`} aria-hidden="true" />
           <div className={styles.adsGenerationEmblem} aria-hidden="true"><span>↗</span></div>
           <p className={styles.adsGenerationEyebrow}>iNrCY · ANALYSE &amp; GÉNÉRATION</p>
           <h2>{planProgress === 100 ? "Votre campagne prend forme." : autoMediaState === "generating" ? "iNr’Studio compose votre média." : "iNrCy construit votre campagne."}</h2>
@@ -1747,13 +1821,14 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           <ol className={styles.adsGenerationStages}>{AI_ANALYSIS_STAGES.map((stage, index) => <li key={stage.label} data-state={planProgress >= stage.at ? "done" : index === activeAnalysisStage ? "active" : "pending"}><span>{planProgress >= stage.at ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{stage.detail}</small></div></li>)}</ol>
           {autoMediaMessage && <p className={styles.studioMediaGenerationNote} data-state={autoMediaState} role={autoMediaState === "error" ? "alert" : "status"}>{autoMediaMessage}</p>}
           {planError && <div className={styles.studioPlanError} role="alert"><strong>La proposition n’a pas pu être finalisée.</strong><span>{planError}</span>{planRequestId && <small>Référence technique : {planRequestId}</small>}<div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>Réessayer l’analyse</button><button type="button" className={styles.back} onClick={chooseManualCreation}>Passer au mode manuel</button></div></div>}
-          {planProgress === 100 && !planError && <div className={styles.studioPlanReady}><p>{planRationale}</p>{planSources.length > 0 && <div className={styles.studioPlanSources}><span>Analyse basée sur</span><ul>{planSources.map((source) => <li key={source}>{source}</li>)}</ul></div>}</div>}
+          {!planError && planProgress < 100 && <div className={`${styles.studioPlanReady} ${styles.studioPlanPending}`} aria-hidden="true"><strong className={styles.studioPlanHeading}>Bilan de l’analyse</strong><div className={styles.studioPlanPendingLines}><span /><span /><span /></div></div>}
+          {planProgress === 100 && !planError && <div className={styles.studioPlanReady}><strong className={styles.studioPlanHeading}>Bilan de l’analyse</strong><details className={styles.studioPlanDetails}><summary><span className={styles.studioPlanPreview}>{visiblePlanRationale}</span><span className={styles.studioPlanExpandClosed}>Lire le bilan complet ↓</span><span className={styles.studioPlanExpandOpen}>Réduire le bilan ↑</span></summary><p>{visiblePlanRationale}</p></details>{planSources.length > 0 && <div className={styles.studioPlanSources}><span>Analyse basée sur</span><ul>{planSources.map((source) => <li key={source}>{source}</li>)}</ul></div>}</div>}
         </div>
       </section>
 
       <section hidden={step !== foundationsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioFoundationsCard}`}>
-        <StudioStepHeader number={foundationsStep + 1} label="FONDATIONS" title="La direction de votre campagne." channel={channelMeta.label} />
-        <p className={styles.intro}>Définissez ce que vous voulez obtenir. iNrCy utilise ces choix pour guider les messages, le ciblage et la diffusion.</p>
+        <StudioStepHeader number={foundationsStep + 1} label="FONDATIONS" title="La direction de votre campagne." mobileTitle="Votre objectif" channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Définissez ce que vous voulez obtenir. iNrCy utilise ces choix pour guider les messages, le ciblage et la diffusion.</p>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Nom de la campagne<input value={draft.name} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} placeholder="Ex. Demandes de devis locales" /></label>
           <label className={`${styles.field} ${styles.studioWide}`}>Offre ou service à mettre en lumière<VoiceTextarea value={draft.offer} onChange={(offer) => updateDraft({ offer })} maxLength={500} purpose="subject" contextLabel="Offre à mettre en lumière" placeholder="Ex. installation de panneaux solaires avec étude personnalisée" /></label>
@@ -1798,8 +1873,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </section>
 
       <section hidden={step !== targetingStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-        <StudioStepHeader number={targetingStep + 1} label="CIBLAGE" title="À qui, où et quand parler." channel={channelMeta.label} />
-        <p className={styles.intro}>Vos zones et vos clients sont des garde-fous : ils évitent une campagne trop large ou des clics peu pertinents.</p>
+        <StudioStepHeader number={targetingStep + 1} label="CIBLAGE" title="À qui, où et quand parler." mobileTitle="Votre ciblage" channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Vos zones et vos clients sont des garde-fous : ils évitent une campagne trop large ou des clics peu pertinents.</p>
         <div className={styles.studioGrid}>
           <TagField label="Zones ciblées" helper="Ajoutez une zone à la fois : Entrée ou le bouton Ajouter" values={draft.targetLocations} onChange={(targetLocations) => updateDraft({ targetLocations })} placeholder="Ex. Lyon, Rhône ou 20 km autour de Villeurbanne" note={channelId === "google" ? "Avant diffusion, iNrCy vérifie chaque zone auprès de Google Ads afin d’éviter tout ciblage imprécis." : undefined} />
           <TagField label="Clients / audiences prioritaires" helper="Ajoutez les profils à privilégier" values={draft.targetAudiences} onChange={(targetAudiences) => updateDraft({ targetAudiences })} placeholder="Ex. Propriétaires de maison" />
@@ -1813,31 +1888,31 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </section>
 
       <section hidden={step !== keywordsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioKeywordsCard}`}>
-        <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? "MOTS-CLÉS" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : "Les signaux qui orientent votre audience."} channel={channelMeta.label} />
-        <p className={styles.intro}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : channelId === "meta" ? "Ajoutez les intérêts, besoins et angles qui aident à orienter votre audience Meta." : `Détaillez les ${nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" ? "mots-clés" : "signaux"} prévus pour ${channelMeta.label}. Les valeurs exactes seront confirmées dans le compte Ads.`}</p>
+        <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? "MOTS-CLÉS" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : "Les signaux qui orientent votre audience."} mobileTitle={channelId === "google" ? "Vos mots-clés" : "Vos signaux"} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : channelId === "meta" ? "Ajoutez les intérêts, besoins et angles qui aident à orienter votre audience Meta." : `Détaillez les ${nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" ? "mots-clés" : "signaux"} prévus pour ${channelMeta.label}. Les valeurs exactes seront confirmées dans le compte Ads.`}</p>
         <div className={styles.studioGrid}>
-          <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "google" && draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : channelId === "google" ? "Mots-clés recherchés" : nativeSettings?.channel === "linkedin" ? `Pistes : ${nativeBriefTerm(nativeSettings.targetingFacet)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><textarea rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder={channelId === "google" ? "Ex. installation panneaux solaires\nDevis photovoltaïque\nPrix panneau solaire" : "Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie"} /></label>
+          {channelId === "google" ? <TagField wide label={draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : "Mots-clés recherchés"} helper="Saisissez une expression, puis Entrée. Le micro ajoute vos mots-clés dictés." values={draft.keywords} onChange={(keywords) => updateDraft({ keywords })} placeholder="Ex. installation panneaux solaires" maxItems={20} maxItemLength={80} /> : <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings?.channel === "linkedin" ? `Pistes : ${nativeBriefTerm(nativeSettings.targetingFacet)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><textarea rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie" /></label>}
           {nativeSettings && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Des pistes, pas des identifiants publicitaires</strong><p>Ces idées restent dans votre brouillon. iNr’ADS ne les convertit pas automatiquement en audiences ou mots-clés de la plateforme ; vérifiez leur disponibilité avant une création réelle.</p></aside>}
-          {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Mots-clés à exclure <small>Pour éviter les recherches non pertinentes</small><textarea rows={4} value={editableList(draft.negativeKeywords)} onChange={(event) => updateDraft({ negativeKeywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. emploi\nformation\noccasion" /></label>}
+          {channelId === "google" && <TagField wide label="Mots-clés à exclure" helper="Écartez les recherches non pertinentes ; ajoutez-les aussi à la voix." values={draft.negativeKeywords} onChange={(negativeKeywords) => updateDraft({ negativeKeywords })} placeholder="Ex. emploi" maxItems={40} maxItemLength={80} />}
           {channelId === "meta" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Un signal, pas une contrainte rigide</strong><p>iNrCy les combine à vos zones, à votre offre et au comportement observé par Meta. Vous gardez le contrôle sur les audiences définies à l’étape précédente.</p></aside>}
         </div>
       </section>
 
       <section hidden={step !== creativeStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioCreativeCard}`}>
-        <StudioStepHeader number={creativeStep + 1} label="CRÉATIONS" title="Des messages qui donnent envie d’agir." channel={channelMeta.label} />
-        <p className={styles.intro}>Vous pouvez écrire vous-même, partir de la proposition iNrCy et ajuster chaque mot. Vérifiez les exigences du canal avant une éventuelle publication.</p>
+        <StudioStepHeader number={creativeStep + 1} label="CRÉATIONS" title="Des messages qui donnent envie d’agir." mobileTitle="Vos messages" channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Vous pouvez écrire vous-même, partir de la proposition iNrCy et ajuster chaque mot. Vérifiez les exigences du canal avant une éventuelle publication.</p>
         <div className={styles.studioGrid}>
           <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "x" ? "Texte du post X" : channelId === "tiktok" ? "Texte de l’annonce TikTok" : channelId === "pinterest" ? "Description de l’épingle" : channelId === "linkedin" ? "Introduction de la publication" : "Message principal"}<VoiceTextarea value={draft.primaryText} onChange={(primaryText) => updateDraft({ primaryText })} rows={4} maxLength={channelId === "linkedin" ? 300 : channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500} purpose="content" contextLabel="Message principal de la campagne" placeholder="Présentez l’offre, son bénéfice concret et la prochaine action à réaliser." /></label>
-          {channelId !== "tiktok" && channelId !== "x" && <label className={styles.field}>{channelId === "google" ? "Titres (3 minimum, un par ligne, 30 caractères max)" : channelId === "pinterest" ? "Titre de l’épingle" : channelId === "linkedin" ? "Titre de la création" : "Titres ou accroches (un par ligne)"}<textarea rows={4} value={editableList(draft.headlines)} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} /></label>}
-          {(channelId === "google" || channelId === "meta") && <label className={styles.field}>{channelId === "google" ? "Descriptions (2 minimum, une par ligne, 90 caractères max)" : "Descriptions (une par ligne)"}<textarea rows={4} value={editableList(draft.descriptions)} onChange={(event) => updateDraft({ descriptions: parseEditableList(event.target.value.split("\n")) })} /></label>}
+          {channelId === "google" ? <GoogleAdCopyField label="Titres" singular="Titre" values={draft.headlines} onChange={(headlines) => updateDraft({ headlines })} minItems={3} maxItems={15} maxLength={30} /> : channelId !== "tiktok" && channelId !== "x" && <label className={styles.field}>{channelId === "pinterest" ? "Titre de l’épingle" : channelId === "linkedin" ? "Titre de la création" : "Titres ou accroches (un par ligne)"}<textarea rows={4} value={editableList(draft.headlines)} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} /></label>}
+          {channelId === "google" ? <GoogleAdCopyField label="Descriptions" singular="Description" values={draft.descriptions} onChange={(descriptions) => updateDraft({ descriptions })} minItems={2} maxItems={4} maxLength={90} /> : channelId === "meta" && <label className={styles.field}>Descriptions (une par ligne)<textarea rows={4} value={editableList(draft.descriptions)} onChange={(event) => updateDraft({ descriptions: parseEditableList(event.target.value.split("\n")) })} /></label>}
           <label className={styles.field}>Appel à l’action<input value={draft.callToAction} maxLength={80} onChange={(event) => updateDraft({ callToAction: event.target.value })} placeholder="Ex. Demander un devis" /></label>
           <aside className={`${styles.studioCopyGuidance} ${styles.field}`}><strong>À vérifier</strong><p>{channelId === "google" ? "iNrCy vérifie les longueurs de titres et descriptions avant la publication." : nativeSettings?.channel === "linkedin" ? "Le texte doit correspondre au format sponsorisé choisi, notamment si vous préparez un formulaire de prospects." : nativeSettings?.channel === "tiktok" ? "Gardez un texte court qui accompagne la vidéo et une action cohérente avec sa destination." : nativeSettings?.channel === "pinterest" ? "Le titre, la description et le visuel doivent présenter la même idée." : nativeSettings?.channel === "x" ? "Votre post doit être clair sans dépasser 280 caractères ; vérifiez le média si vous avez choisi image ou vidéo." : "Relisez la cohérence entre votre message, votre appel à l’action et le média choisi."}</p></aside>
         </div>
       </section>
 
       <section hidden={step !== mediaStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard}`}>
-        <StudioStepHeader number={mediaStep + 1} label="MÉDIAS" title="Le bon visuel, au bon format." channel={channelMeta.label} />
-        <p className={styles.intro}>Choisissez un média de votre médiathèque, importez-le ou laissez iNr’Studio créer le visuel adapté à cette campagne.</p>
+        <StudioStepHeader number={mediaStep + 1} label="MÉDIAS" title="Le bon visuel, au bon format." mobileTitle="Vos médias" channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Choisissez un média de votre médiathèque, importez-le ou laissez iNr’Studio créer le visuel adapté à cette campagne.</p>
         <div className={styles.studioGrid}>
           {nativeSettings?.channel === "linkedin" && <label className={styles.field}>Format sponsorisé<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format)}</option>)}</select></label>}
           {nativeSettings?.channel === "pinterest" && <>
@@ -1849,19 +1924,19 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
             {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
           </>}
           {nativeSettings?.channel === "x" && <label className={styles.field}>Format du post<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
-          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-          {(nativeSettings === null || nativeMediaUpload) && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
+          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format prévu : annonce texte + image complémentaire</span><small>L’image est proposée à Google uniquement si vous l’ajoutez ou si iNr’Studio l’a générée.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
           {nativeMediaStrategy !== "search_text" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
         </div>
         {(nativeSettings === null || nativeMediaUpload) && <div className={styles.campaignMediaWorkspace}>
           <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{draft.creativeUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{draft.creativeUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
           <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
             {nativeMediaStrategy !== "video" && <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>}
-            {nativeMediaStrategy !== "image" && <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>}
+            {nativeMediaStrategy !== "image" && !googleSearchMedia && <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>}
             <button type="button" className={styles.campaignMediaGenerate} onClick={() => setCampaignMediaStudioOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">✦</span> Générer</button>
             <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
           </div>
-          {channelId === "google" && draft.campaignType === "search" && <p className={styles.campaignMediaFormatHint}>La campagne Réseau de recherche est textuelle : conservez ici un visuel pour votre médiathèque ou passez à un format visuel pour l’utiliser dans la diffusion.</p>}
+          {googleSearchMedia && <p className={styles.campaignMediaFormatHint}>Google Search affiche d’abord une annonce textuelle. L’image carrée de votre médiathèque iNrCy sera jointe comme composant de campagne à la publication ; son affichage dépend de l’éligibilité du compte et de la validation par Google. Dans iNr’Studio, choisissez le format image, sans texte ni logo incrusté.</p>}
           {draft.creativeUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>Média associé à la campagne</strong><small>{draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.</small></div><a href={draft.creativeUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
           <input ref={campaignImageInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "image")} />
@@ -1870,8 +1945,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </section>
 
       <section hidden={step !== deliveryStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioDeliveryCard}`}>
-        <StudioStepHeader number={deliveryStep + 1} label="DIFFUSION" title="Où envoyer et comment mesurer." channel={channelMeta.label} />
-        <p className={styles.intro}>Préparez le parcours après le clic : une destination claire, l’action attendue et les paramètres utiles. Rien n’est encore diffusé.</p>
+        <StudioStepHeader number={deliveryStep + 1} label="DIFFUSION" title="Où envoyer et comment mesurer." mobileTitle="Votre diffusion" channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>Préparez le parcours après le clic : une destination claire, l’action attendue et les paramètres utiles. Rien n’est encore diffusé.</span><span className={styles.studioTitleShort}>Aucune diffusion avant votre validation.</span></p>
         <div className={styles.studioGrid}>
           {(nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website") && <label className={`${styles.field} ${styles.studioWide}`}>Lien de redirection<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>}
           {nativeSettings?.channel === "tiktok" && <>
@@ -1893,8 +1968,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </section>
 
       <section hidden={step !== budgetStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioBudgetCard}`}>
-        <StudioStepHeader number={budgetStep + 1} label="BUDGET" title="Votre investissement, en clair." channel={channelMeta.label} />
-        <p className={styles.intro}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</p>
+        <StudioStepHeader number={budgetStep + 1} label="BUDGET" title="Votre investissement, en clair." mobileTitle="Votre budget" channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</span><span className={styles.studioTitleShort}>Estimation indicative, sans promesse de résultat.</span></p>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Budget quotidien moyen (€)<input type="number" min="5" max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} /></label>
           <label className={styles.field}>Date de fin<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
@@ -1910,8 +1985,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </section>
 
       <section hidden={step !== validationStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioValidationCard}`}>
-        <StudioStepHeader number={validationStep + 1} label="VOTRE CONTRÔLE" title="Votre campagne, vos décisions." channel={channelMeta.label} />
-        <p className={styles.intro}>Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme.</p>
+        <StudioStepHeader number={validationStep + 1} label="VOTRE CONTRÔLE" title="Votre campagne, vos décisions." mobileTitle="Validation" channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme.</span><span className={styles.studioTitleShort}>Diffusion après votre accord et celui de la plateforme.</span></p>
         {channelId === "meta" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} />Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</label>}
         {channelId === "google" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} />Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</label>}
         <dl className={styles.studioReviewGrid}>
@@ -1934,18 +2009,18 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           </dl>
           <p>Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici.</p>
         </details>}
-        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans le brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram ensemble. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement une image. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque.</p> : <>
+        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram ensemble. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement une image. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>{googleSearchMedia ? "La campagne assistée Google Search attend l’image complémentaire promise par l’analyse. Générez-la ou choisissez-la dans la médiathèque iNrCy." : "Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}</p>}
           {!connectorConfigurationIssue && demoPausedPublishingEnabled && <p className={styles.warning}><strong>Démo en pause</strong>Cette action crée les éléments chez {channelMeta.label} en pause, sans demander leur activation. Vérifiez leur état dans le compte publicitaire après la création.</p>}
           {!connectorConfigurationIssue && !livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Vous pouvez préparer et enregistrer la campagne. La diffusion réelle n’est pas encore activée.</p>}
         </>}
-        <div className={styles.studioFinalActions}>
-          <button type="button" className={styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon" : savedId ? "Brouillon enregistré" : "Enregistrer la campagne"}</button>
+        <div className={styles.studioFinalActions} data-channel={channelId}>
+          <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioSaveCampaignButton}` : styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon" : savedId ? "Brouillon enregistré" : "Enregistrer la campagne"}</button>
           {isAdsProvider(channelId) && livePublisherSetupReady && demoPausedPublishingEnabled && <button type="button" className={styles.secondaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
         </div>
         {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
       </section>
-      {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={styles.headerCta} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
+      {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
       </div>
       </SettingsDrawer>
 
@@ -2040,10 +2115,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     {creating && autoMediaPlan && (
       <AdsCampaignAutoMediaGenerator
         key={`${autoMediaPlan.campaignType}-${autoMediaPlan.name}-${autoMediaPlan.mediaBrief}`}
+        provider={channelId}
         plan={autoMediaPlan}
         onProgress={(progress) => {
           setAutoMediaState("generating");
-          setAutoMediaMessage(`iNr’Studio crée le média de la campagne · ${Math.min(99, Math.max(4, Math.round(progress)))} %`);
+          setAutoMediaMessage(`iNr’Studio crée ${channelId === "google" && autoMediaPlan.campaignType === "search" ? "l’image complémentaire Google Search" : "le média de la campagne"} · ${Math.min(99, Math.max(4, Math.round(progress)))} %`);
           setPlanProgress((current) => Math.max(current, Math.min(99, 90 + Math.round(progress / 10))));
         }}
         onComplete={(result) => {
@@ -2053,7 +2129,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           } else {
             applyCampaignMedia(result.item);
             setAutoMediaState("ready");
-            setAutoMediaMessage("iNr’Studio a généré et associé le média de cette campagne. Vous pourrez le remplacer, l’éditer ou le retirer à tout moment.");
+            setAutoMediaMessage(channelId === "google" && autoMediaPlan.campaignType === "search"
+              ? "iNr’Studio a créé et associé une image pour Google Search. Elle sera proposée comme composant image lors de la publication, sous réserve d’éligibilité et de validation par Google."
+              : "iNr’Studio a généré et associé le média de cette campagne. Vous pourrez le remplacer, l’éditer ou le retirer à tout moment.");
           }
           setPlanProgress(100);
           setAutoMediaPlan(null);
@@ -2079,7 +2157,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       open={campaignMediaLibraryOpen}
       title="Ajouter un média à la campagne"
       subtitle="Choisissez une image ou une vidéo déjà disponible dans votre médiathèque iNrCy. Elle sera immédiatement associée à cette campagne."
-      accept="all"
+      accept={googleSearchMedia ? "image" : "all"}
       multiple={false}
       maxSelection={1}
       confirmLabel="Ajouter à la campagne"
@@ -2095,7 +2173,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       source="studio"
       origin="ads"
       initialTab="generate"
-      initialMediaType={draft.mediaStrategy === "video" || draft.creativeType === "video" ? "video" : "image"}
+      initialMediaType={googleSearchMedia ? "image" : draft.mediaStrategy === "video" || draft.creativeType === "video" ? "video" : "image"}
+      imageOnly={googleSearchMedia}
+      freeOnly={googleSearchMedia}
+      initialFreePrompt={googleSearchMedia ? googleSearchImageSubjectPrompt(draft) : ""}
+      requiredFreePromptSuffix={googleSearchMedia ? GOOGLE_SEARCH_IMAGE_REQUIREMENTS : ""}
+      fixedFreeFormat={googleSearchMedia ? "square" : undefined}
       publicationBrief={[draft.mediaBrief, draft.offer, draft.primaryText, draft.callToAction].filter(Boolean).join(". ").slice(0, 1_800)}
       acceptMode="insert"
       handoffOriginLabel="iNr’ADS"

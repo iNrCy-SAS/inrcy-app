@@ -175,6 +175,32 @@ test("une collision entre prestation et CTA ne peut jamais supprimer la conclusi
   assert.equal(duplicateTitlePlan.scenes.at(-1)?.layout, "cta");
 });
 
+test("un profil aux titres répétés garde ses trois actes pour un film de 24 secondes", () => {
+  const buildAiMediaCreativePlan = loadCreativePlanBuilder();
+  const profile = {
+    preferences: { language: "fr", preferredCta: "appeler" },
+    business: {
+      companyName: "Contactez-nous", professionLabel: "Contactez-nous",
+      sectorLabel: "Services", description: "Un accompagnement professionnel.",
+      services: ["Contactez-nous"], strengths: [], customerTypologies: [],
+      interventionZones: [], city: "", openingHours: "",
+    },
+  };
+  for (let index = 0; index < 20; index += 1) {
+    const plan = buildAiMediaCreativePlan({
+      request: {
+        requestId: `three-acts-collision-${index}`, kind: "video",
+        durationSeconds: 24, subjectSource: "profile", idea: "",
+        aiInstruction: "", withText: false, textKeywords: [], typology: "service",
+      },
+      profile,
+      recentPublications: [],
+    });
+    assert.equal(plan.scenes.length, 3, `variante ${index}`);
+    assert.equal(plan.scenes.at(-1)?.layout, "cta");
+  }
+});
+
 test("une idée formulée comme une action devient une accroche française naturelle", () => {
   const buildAiMediaCreativePlan = loadCreativePlanBuilder();
   const idea = "un artisan reçoit une demande urgente";

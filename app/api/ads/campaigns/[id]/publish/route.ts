@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
 import { publishGoogleAdsCampaign } from "@/lib/adsGooglePublish";
+import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -54,6 +55,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   let googleLoginCustomerId: string | undefined;
+  let preparedGoogleImageData: string | undefined;
   try {
     const accounts = await listAdsAccounts(user.activeUserId, draft.provider);
     const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
@@ -66,6 +68,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!pages.some((page) => page.id === draft.pageId)) {
         return NextResponse.json({ error: "La Page Facebook sélectionnée n’est plus accessible." }, { status: 403 });
       }
+    } else if (draft.imageUrl) {
+      // Check ownership, file integrity and Google's image size before the
+      // draft is claimed; a bad image must not become a stuck needs_review.
+      preparedGoogleImageData = await prepareGoogleSearchImageAsset(user.activeUserId, draft.imageUrl);
     }
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "La connexion publicitaire est indisponible." }, { status: 502 });
@@ -100,7 +106,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const resources = draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, { activate: !pausedDemo })
-      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo });
+      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedImageData: preparedGoogleImageData });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;

@@ -1194,7 +1194,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   }
   assert.match(veo, /const selectedParameters = providerContract\.parameters/);
   assert.match(veo, /`PARAMS: \$\{selectedParameters\}\.`/);
-  assert.match(veo, /`SUBJECT: \$\{primarySubject\}/);
+  assert.match(veo, /SUBJECT: see USER; keep all entities\/actions\/relations; no swaps/);
+  assert.match(veo, /`SUBJECT: \$\{subjectSource\}/);
   assert.match(veo, /Keep entities\/actions\/relations; no swaps/);
   assert.doesNotMatch(veo, /smartphone, tablet or laptop in the foreground/);
   assert.match(veo, /Any requested device must match the brief exactly/);

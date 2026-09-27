@@ -39,6 +39,12 @@ test("iNr’ADS valide les brouillons Meta et Google sans jamais arrondir le bud
   assert.equal(parseAdsCampaignInput({ ...metaDraft, dailyBudgetEuros: 12.555 }).draft, null);
 });
 
+test("la publication Google assistée exige l’image promise, pas la création manuelle textuelle", () => {
+  assert.match(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy", imageUrl: "" }).error || "", /image complémentaire/);
+  assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "manual", imageUrl: "" }).error, null);
+  assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy" }).error, null);
+});
+
 test("iNr’ADS refuse les déclarations réglementaires manquantes", () => {
   assert.equal(parseAdsCampaignInput({ ...metaDraft, noSpecialCategoryConfirmed: false }).draft, null);
   assert.equal(parseAdsCampaignInput({ ...googleDraft, notEuPoliticalConfirmed: false }).draft, null);

@@ -811,19 +811,14 @@ function validateGeneratedMediaCopy(args: {
   spokenCopyRequested: boolean;
   characterDialogueRequested: boolean;
 }) {
+  const generatedScenes = Array.isArray(args.generated.scenes)
+    ? args.generated.scenes
+    : [];
   const copyFields = [
-    args.generated.headline,
-    args.generated.cta,
-    ...(Array.isArray(args.generated.scenes)
-      ? args.generated.scenes
-      : []
-    ).flatMap((scene) => [
-      scene.eyebrow,
-      scene.title,
-      scene.body,
-      scene.spokenLine,
-      scene.spokenReply,
-    ]),
+    ...(args.textMode === "none" ? [] : [args.generated.headline, args.generated.cta]),
+    ...generatedScenes.flatMap((scene) => args.textMode === "none"
+      ? [scene.spokenLine, scene.spokenReply]
+      : [scene.eyebrow, scene.title, scene.body, scene.spokenLine, scene.spokenReply]),
   ];
   if (
     copyFields.some(
@@ -834,18 +829,12 @@ function validateGeneratedMediaCopy(args: {
   }
   if (
     repeatsRecentVisibleCopy(
-      [
-        args.generated.headline,
-        args.generated.cta,
-        ...(Array.isArray(args.generated.scenes)
-          ? args.generated.scenes.flatMap((scene) => [
-              scene.title,
-              scene.body,
-              scene.spokenLine,
-              scene.spokenReply,
-            ])
-          : []),
-      ],
+      args.textMode === "none"
+        ? generatedScenes.flatMap((scene) => [scene.spokenLine, scene.spokenReply])
+        : [args.generated.headline, args.generated.cta,
+            ...generatedScenes.flatMap((scene) => [
+              scene.title, scene.body, scene.spokenLine, scene.spokenReply,
+            ])],
       args.recentPublications
     )
   ) {
@@ -861,6 +850,28 @@ function validateGeneratedMediaCopy(args: {
     })
   ) {
     return null;
+  }
+  // No visible text is composited in this mode. A generic headline, empty CTA
+  // or unsuitable on-screen body must not invalidate otherwise valid speech.
+  // Keep the visual plan and only transfer the checked dialogue fields.
+  if (args.textMode === "none") {
+    if (generatedScenes.length !== args.plan.scenes.length) return null;
+    const spokenDeck = generatedScenes
+      .flatMap((scene) => [scene.spokenLine, scene.spokenReply])
+      .join(" ");
+    if (
+      hasAiLanguageMismatch(args.language, spokenDeck) ||
+      (args.characterDialogueRequested &&
+        !preservesAiMediaProtectedTerms(spokenDeck, args.protectedTerms))
+    ) return null;
+    return removeAiMediaFallbackCopy({
+      ...args.plan,
+      scenes: args.plan.scenes.map((scene, index) => ({
+        ...scene,
+        spokenLine: String(generatedScenes[index]?.spokenLine || ""),
+        spokenReply: String(generatedScenes[index]?.spokenReply || ""),
+      })),
+    }, { keepSpokenCopy: true });
   }
   const headline = compactHeadline(args.generated.headline);
   if (
@@ -882,7 +893,5 @@ function validateGeneratedMediaCopy(args: {
     args.spokenCopyRequested
   );
   if (!localized) return null;
-  return args.textMode === "none"
-    ? removeAiMediaFallbackCopy(localized, { keepSpokenCopy: true })
-    : localized;
+  return localized;
 }

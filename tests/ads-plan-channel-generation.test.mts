@@ -5,6 +5,7 @@ import {
   normalizeAdsCampaignPlan,
   normalizePlannedAdsChannelDraft,
   plannedAdsChannelPlanPrompt,
+  presentAdsCampaignRationale,
 } from "../lib/adsCampaignPlan.ts";
 import { assessAdsChannelDraft } from "../lib/adsChannelDrafts.ts";
 
@@ -125,6 +126,23 @@ test("native copy keeps channel lengths while Google retains 30/90", () => {
   assert.equal(google.headlines[0].length, 30);
   assert.equal(google.descriptions[0].length, 90);
   assert.equal(google.channelDraft, undefined);
+});
+
+test("the analysis rationale is never cut at an arbitrary 900-character boundary", () => {
+  const rationale = "L’offre répond à un besoin professionnel mesurable. ".repeat(24).trim();
+  assert.ok(rationale.length > 900);
+  const plan = normalizeAdsCampaignPlan({ rationale }, { provider: "meta", ...trusted });
+  assert.equal(plan.rationale, rationale);
+
+  const overlyLongRationale = "Une recommandation contextualisée reste vérifiable. ".repeat(100);
+  const bounded = normalizeAdsCampaignPlan({ rationale: overlyLongRationale }, { provider: "meta", ...trusted });
+  assert.ok(bounded.rationale.length <= 4_000);
+  assert.match(bounded.rationale, /[.!?…]$/);
+
+  const oldCut = `${"Une phrase complète présente le choix stratégique. ".repeat(19)}Le`.slice(0, 900).padEnd(900, "x");
+  const displayed = presentAdsCampaignRationale(oldCut);
+  assert.match(displayed, /\.$/);
+  assert.ok(displayed.length < oldCut.length);
 });
 
 test("missing or incompatible native fields fail closed and require the next model", () => {

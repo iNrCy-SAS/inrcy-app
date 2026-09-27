@@ -24,6 +24,7 @@ import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBus
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { captureApiException } from "@/lib/observability/sentry";
 import { getRequestId } from "@/lib/observability/request";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const maxDuration = 120;
 
@@ -200,6 +201,7 @@ Valeurs autorisées :
 
 L’historique éditorial sert à éviter de répéter un angle déjà beaucoup employé : il ne constitue jamais une preuve commerciale ni une information à inventer.
 Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
+Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" : l’annonce est textuelle, complétée seulement par UN composant image, jamais par une vidéo. Remplis mediaBrief avec une scène photographique carrée 1:1 directement liée à l’offre réelle, aux recherches et à la page de destination, simple et lisible en petite taille, avec le sujet important dans les 80 % centraux. Ne demande aucun texte, prix, appel à l’action, logo, filigrane, collage ou bordure incrustés dans l’image ; n’invente ni produit, ni équipe, ni lieu, ni preuve. Laisse imageUrl et creativeUrl vides : le média n’existe pas encore à ce stade et sa diffusion dépendra de l’éligibilité et de la validation Google.
 Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
 Pour Meta : rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones, objectif, appel à l’action, lieu de conversion, expansion d’audience et placements. Sélectionne seulement des placements cohérents avec le média proposé et décris le visuel à créer dans mediaBrief. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
 Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl et urlExclusions ne doivent contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
@@ -244,7 +246,7 @@ export async function POST(request: Request) {
       .select("company_legal_name")
       .eq("user_id", user.activeUserId)
       .maybeSingle() as PromiseLike<ContextQueryResult<ProfessionalContextRecord>>),
-    readContextSource("campaign_history", () => user.supabase
+    readContextSource("campaign_history", () => supabaseAdmin
       .from("ads_campaigns")
       .select("name,provider,created_at")
       .eq("user_id", user.activeUserId)

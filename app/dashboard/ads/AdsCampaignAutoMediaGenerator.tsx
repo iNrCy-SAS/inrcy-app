@@ -4,12 +4,14 @@ import { useEffect, useRef } from "react";
 
 import useMediaGeneration, {
   type MediaGenerationFormat,
-  type MediaGenerationKind,
   type MediaGenerationResult,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
+import { adsMediaKindForPlan, googleSearchImagePrompt, shouldGenerateAdsMedia } from "@/lib/adsCampaignMediaPolicy";
 import type { AdsCampaignPlan } from "@/lib/adsCampaignPlan";
+import type { AdsChannelId } from "@/lib/adsValidation";
 
 type AdsCampaignAutoMediaGeneratorProps = {
+  provider: AdsChannelId;
   plan: AdsCampaignPlan;
   onProgress: (progress: number) => void;
   onComplete: (result: MediaGenerationResult) => void;
@@ -17,23 +19,17 @@ type AdsCampaignAutoMediaGeneratorProps = {
   onError: (message: string) => void;
 };
 
-function shouldGenerateMedia(plan: AdsCampaignPlan) {
-  return plan.mediaStrategy !== "search_text" && plan.mediaStrategy !== "product_feed";
-}
-
-function mediaKindForPlan(plan: AdsCampaignPlan): MediaGenerationKind {
-  return plan.mediaStrategy === "video" || plan.creativeType === "video"
-    ? "video"
-    : "image";
-}
-
-function mediaFormatForPlan(plan: AdsCampaignPlan, kind: MediaGenerationKind): MediaGenerationFormat {
+function mediaFormatForPlan(plan: AdsCampaignPlan, kind: "image" | "video"): MediaGenerationFormat {
   if (kind === "video") return plan.campaignType === "video" ? "landscape" : "story";
   if (plan.campaignType.startsWith("meta_")) return "portrait";
   return "square";
 }
 
-function mediaPromptForPlan(plan: AdsCampaignPlan) {
+function mediaPromptForPlan(provider: AdsChannelId, plan: AdsCampaignPlan) {
+  const googleSearchImage = provider === "google" && plan.campaignType === "search";
+  if (googleSearchImage) {
+    return googleSearchImagePrompt(plan);
+  }
   return [
     plan.mediaBrief,
     plan.offer && `Offre ou service : ${plan.offer}`,
@@ -51,6 +47,7 @@ function mediaPromptForPlan(plan: AdsCampaignPlan) {
  * acceptance flow instead of inventing a second media pipeline for Ads.
  */
 export default function AdsCampaignAutoMediaGenerator({
+  provider,
   plan,
   onProgress,
   onComplete,
@@ -83,18 +80,19 @@ export default function AdsCampaignAutoMediaGenerator({
       if (disposed || startedRef.current) return;
       startedRef.current = true;
 
-      if (!shouldGenerateMedia(plan)) {
+      if (!shouldGenerateAdsMedia({ provider, campaignType: plan.campaignType, mediaStrategy: plan.mediaStrategy })) {
         settledRef.current = true;
         callbacksRef.current.onSkip(
           plan.mediaStrategy === "search_text"
-            ? "Ce format repose sur des annonces textuelles : la campagne est prête sans visuel supplémentaire."
-            : "Ce format attend un flux produits : iNrCy conserve le brief média, sans générer un visuel qui ne serait pas utilisé.",
+            ? "Ce format est textuel dans iNr’ADS : aucun média n’a été généré."
+            : "Ce format utilise un flux produits : aucun visuel supplémentaire n’a été généré.",
         );
         return;
       }
 
-      const kind = mediaKindForPlan(plan);
-      const prompt = mediaPromptForPlan(plan);
+      const kind = adsMediaKindForPlan({ provider, campaignType: plan.campaignType, mediaStrategy: plan.mediaStrategy, creativeType: plan.creativeType });
+      const googleSearchImage = provider === "google" && plan.campaignType === "search";
+      const prompt = mediaPromptForPlan(provider, plan);
       if (prompt.length < 3) {
         settledRef.current = true;
         callbacksRef.current.onError("La campagne est prête, mais il manque une consigne suffisamment précise pour générer son média.");
@@ -113,8 +111,8 @@ export default function AdsCampaignAutoMediaGenerator({
             format: mediaFormatForPlan(plan, kind),
             imageStyle: "photo",
             peopleMode: "auto",
-            useBrandColors: true,
-            logoMode: "discreet",
+            useBrandColors: !googleSearchImage,
+            logoMode: googleSearchImage ? "none" : "discreet",
             withMusic: kind === "video",
             withNarration: false,
             source: "studio",
@@ -143,7 +141,7 @@ export default function AdsCampaignAutoMediaGenerator({
       // left the assisted path. A completed result is deliberately preserved.
       if (startedRef.current && !settledRef.current) cancelGeneration();
     };
-  }, [acceptDraft, cancelGeneration, generate, plan]);
+  }, [acceptDraft, cancelGeneration, generate, plan, provider]);
 
   useEffect(() => {
     if (startedRef.current) callbacksRef.current.onProgress(progress);
