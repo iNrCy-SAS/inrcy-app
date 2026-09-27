@@ -101,6 +101,7 @@ import {
   localDateKey,
   parseLocalDateTime,
   zonedDateTimeToUtc,
+  visioTeamAgendaWindow,
   type BusyPeriod,
   type VisioTeamMember,
 } from "@/lib/visioBookingPolicy";
@@ -263,10 +264,6 @@ function boundedInteger(name: string, fallback: number, min: number, max: number
 
 export function getVisioBookingHorizonDays() {
   return boundedInteger("INRCY_VISIO_HORIZON_DAYS", 21, 7, 60);
-}
-
-export function getVisioBookingMinimumLeadDays() {
-  return boundedInteger("INRCY_VISIO_MINIMUM_LEAD_DAYS", 1, 1, 7);
 }
 
 export function getVisioTeamMembers(): VisioTeamMember[] {
@@ -2175,7 +2172,6 @@ function formatFrenchTime(start: Date) {
 
 export async function getVisioAvailability(now = new Date()) {
   const horizonDays = getVisioBookingHorizonDays();
-  const minimumLeadDays = getVisioBookingMinimumLeadDays();
   const localNow = getLocalDateTimeParts(now);
   const candidates: Array<{ date: string; start: Date }> = [];
 
@@ -2183,7 +2179,7 @@ export async function getVisioAvailability(now = new Date()) {
     const date = addLocalDays(localNow, offset);
     for (const hour of VISIO_BOOKING_START_HOURS) {
       const start = zonedDateTimeToUtc({ ...date, hour });
-      if (isAllowedVisioStart({ start, now, horizonDays, minimumLeadDays })) {
+      if (isAllowedVisioStart({ start, now, horizonDays })) {
         candidates.push({ date: localDateKey(date), start });
       }
     }
@@ -3053,8 +3049,7 @@ export async function bookVisioSlot(
 ) {
   const start = new Date(String(startValue || ""));
   const horizonDays = getVisioBookingHorizonDays();
-  const minimumLeadDays = getVisioBookingMinimumLeadDays();
-  if (!isAllowedVisioStart({ start, now, horizonDays, minimumLeadDays })) {
+  if (!isAllowedVisioStart({ start, now, horizonDays })) {
     throw new Error("visio_slot_invalid");
   }
 
@@ -3454,18 +3449,18 @@ function shouldPreferAppointmentMirror(
 
 export async function listVisioTeamAppointments(input?: {
   now?: Date;
-  pastDays?: number;
   futureDays?: number;
   refresh?: boolean;
 }) {
   const now = input?.now || new Date();
-  const pastDays = Math.min(30, Math.max(0, input?.pastDays ?? 0));
   const futureDays = Math.min(365, Math.max(7, input?.futureDays ?? 90));
+  const window = visioTeamAgendaWindow(now, futureDays);
   if (input?.refresh === true) {
     await syncVisioTeamCalendarsToShared({
       now,
-      pastDays: Math.max(1, pastDays),
-      futureDays,
+      // The mirror may read earlier events; the team view below never shows past days.
+      pastDays: 1,
+      futureDays: futureDays + 1,
     }).catch((error: unknown) => {
       console.error(
         "[visio-booking][team-appointments-refresh]",
@@ -3475,8 +3470,8 @@ export async function listVisioTeamAppointments(input?: {
   }
 
   const events = await listVisioSharedCalendarEvents(
-    new Date(now.getTime() - pastDays * 24 * 60 * 60_000),
-    new Date(now.getTime() + futureDays * 24 * 60 * 60_000),
+    window.start,
+    window.end,
     false,
   );
   const byIdentity = new Map<string, GoogleCalendarEvent>();
@@ -3497,6 +3492,10 @@ export async function listVisioTeamAppointments(input?: {
   return [...byIdentity.values()]
     .map(teamAppointmentFromMirror)
     .filter((appointment): appointment is VisioTeamAppointment => Boolean(appointment))
+    .filter((appointment) => {
+      const start = new Date(appointment.start).getTime();
+      return start >= window.start.getTime() && start < window.end.getTime();
+    })
     .sort((left, right) => left.start.localeCompare(right.start));
 }
 

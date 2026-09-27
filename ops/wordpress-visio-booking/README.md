@@ -10,7 +10,7 @@ Extension WordPress autonome pour le formulaire Elementor `essai_inrcy_30j` (`40
 4. La réservation crée un rendez-vous bleu de 45 minutes dans l’agenda du membre attribué et dans la vue partagée. Un départ est proposé chaque heure de 9 h à 18 h.
 5. Google Meet et les invitations sont créés automatiquement.
 
-La sélection affiche six jours disponibles à la fois, avec des flèches pour passer aux jours suivants ou précédents. Les rendez-vous sont proposés du lundi au samedi, jamais le dimanche. Le premier jour réservable est toujours le lendemain, sans délai glissant de 24 heures qui repousserait certains horaires à J+2.
+La sélection affiche six jours disponibles à la fois, avec des flèches pour passer aux jours suivants ou précédents. Les rendez-vous sont proposés du lundi au samedi, jamais le dimanche. Un créneau peut être réservé dès quatre heures après l'instant présent, y compris le jour même s'il est disponible (par exemple, à 8 h pour 12 h).
 
 L’attribution privilégie automatiquement une personne libre parmi Océane, Apolline et Jimmy. Si les trois agendas sont déjà occupés, le rendez-vous reste réservable et est attribué à la personne la moins chargée à cette heure ; les chevauchements pourront ensuite être réorganisés manuellement.
 

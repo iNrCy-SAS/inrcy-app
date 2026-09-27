@@ -3,15 +3,29 @@ import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMet
 import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
 
-export async function GET() {
+const CAMPAIGN_PAGE_SIZE = 50;
+
+export async function GET(request: Request) {
   const { user, errorResponse } = await requirePremiumAdsUser();
   if (errorResponse || !user) return errorResponse;
-  const { data, error } = await supabaseAdmin.from("ads_campaigns")
-    .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at")
-    .eq("user_id", user.activeUserId).order("created_at", { ascending: false }).limit(50);
+  const requestedOffset = new URL(request.url).searchParams.get("offset") ?? "0";
+  if (!/^(0|[1-9]\d{0,8})$/.test(requestedOffset)) {
+    return NextResponse.json({ error: "Page de campagnes invalide." }, { status: 400 });
+  }
+  const offset = Number(requestedOffset);
+  const { data, error, count } = await supabaseAdmin.from("ads_campaigns")
+    .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact" })
+    .eq("user_id", user.activeUserId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(offset, offset + CAMPAIGN_PAGE_SIZE - 1);
   if (error) return NextResponse.json({ error: "Le stockage iNr’ADS n’est pas encore prêt. Appliquez la migration ADS." }, { status: 503 });
-  return NextResponse.json({ campaigns: data || [] });
+  const campaigns = data || [];
+  const total = count ?? offset + campaigns.length;
+  const nextOffset = offset + campaigns.length < total && campaigns.length > 0 ? offset + campaigns.length : null;
+  return NextResponse.json({ campaigns, total, nextOffset });
 }
 
 export async function POST(request: Request) {
@@ -38,8 +52,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // The four planned channels can be saved as preparation-only drafts. Their
-    // account identifiers must remain empty until their own OAuth is implemented.
+    // The four additional channels can be saved as preparation-only drafts.
+    // Their account identifiers remain empty until provider-side publishing is approved.
     const adAccountId = isAdsProvider(draft.provider) ? draft.adAccountId : "";
 
     const payload = {
@@ -53,11 +67,36 @@ export async function POST(request: Request) {
       draft,
       updated_at: new Date().toISOString(),
     };
-    const id = typeof body?.id === "string" && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : null;
-    const saved = id
-      ? await supabaseAdmin.from("ads_campaigns").update(payload).eq("id", id).eq("user_id", user.activeUserId).eq("status", "draft").select("id,status").maybeSingle()
-      : await supabaseAdmin.from("ads_campaigns").insert(payload).select("id,status").single();
-    if (saved.error || !saved.data) return NextResponse.json({ error: "Le brouillon n’a pas pu être enregistré ou n’est plus modifiable." }, { status: 409 });
+    const requestedId = body?.id;
+    if (requestedId !== undefined && (typeof requestedId !== "string" || !ADS_CAMPAIGN_ID_PATTERN.test(requestedId))) {
+      return NextResponse.json({ error: "Identifiant de brouillon invalide." }, { status: 400 });
+    }
+    if (typeof requestedId === "string") {
+      const { data: existing, error: readError } = await supabaseAdmin.from("ads_campaigns")
+        .select("id,status,published_at,provider_resources,updated_at")
+        .eq("id", requestedId).eq("user_id", user.activeUserId).maybeSingle();
+      if (readError) return NextResponse.json({ error: "Impossible de vérifier ce brouillon." }, { status: 503 });
+      if (!existing) return NextResponse.json({ error: "Brouillon introuvable." }, { status: 404 });
+      if (!canMutateAdsDraft(existing)) {
+        return NextResponse.json({ error: "Ce brouillon possède déjà une publication ou des ressources sur une plateforme et ne peut plus être modifié ici." }, { status: 409 });
+      }
+      const { data: savedId, error: updateError } = await supabaseAdmin.rpc("inrcy_update_ads_draft", {
+        p_user_id: user.activeUserId,
+        p_campaign_id: requestedId,
+        p_expected_updated_at: existing.updated_at,
+        p_provider: payload.provider,
+        p_ad_account_id: payload.ad_account_id,
+        p_name: payload.name,
+        p_daily_budget_cents: payload.daily_budget_cents,
+        p_end_date: payload.end_date,
+        p_draft: payload.draft,
+      });
+      if (updateError) return NextResponse.json({ error: "La mise à jour du brouillon est indisponible." }, { status: 503 });
+      if (!savedId) return NextResponse.json({ error: "Ce brouillon a changé entre-temps. Actualisez le suivi." }, { status: 409 });
+      return NextResponse.json({ campaign: { id: savedId, status: "draft" } });
+    }
+    const saved = await supabaseAdmin.from("ads_campaigns").insert(payload).select("id,status").single();
+    if (saved.error || !saved.data) return NextResponse.json({ error: "Le brouillon n’a pas pu être enregistré." }, { status: 503 });
     return NextResponse.json({ campaign: saved.data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Connexion publicitaire indisponible." }, { status: 502 });

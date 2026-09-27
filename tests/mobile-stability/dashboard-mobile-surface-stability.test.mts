@@ -36,7 +36,7 @@ test("phone dashboards delegate vertical scrolling to the document", () => {
   assert.match(phoneScrollRules, /@media \(max-width: 640px\)/);
   assert.match(
     phoneScrollRules,
-    /:global\(html:has\(\.inrcy-dashboard-shell\)\),[\s\S]*:global\(body:has\(\.inrcy-dashboard-shell\)\) \{[\s\S]*height: auto;[\s\S]*min-height: 100%;[\s\S]*overflow-x: clip;[\s\S]*overflow-y: visible;/,
+    /:global\(html\):has\(\.shell\),[\s\S]*:global\(body\):has\(\.shell\) \{[\s\S]*height: auto;[\s\S]*min-height: 100%;[\s\S]*overflow-x: clip;[\s\S]*overflow-y: visible;/,
   );
   assert.match(
     phoneScrollRules,

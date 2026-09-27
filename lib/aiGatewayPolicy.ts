@@ -1,5 +1,5 @@
 import { AI_ENGINE_OPTIONS } from "./aiEnginePreference.ts";
-import { DEFAULT_ADS_CAMPAIGN_STRATEGIST_MODEL } from "./adsCampaignIntelligence.ts";
+import { ADS_CAMPAIGN_MODEL_CHAIN } from "./adsCampaignIntelligence.ts";
 
 export type AiGenerationFeature =
   | "booster.publish"
@@ -50,10 +50,8 @@ const MB_AS_DATA_URL_CHARS = 1_450_000;
 // Un changement de modèle ne peut ainsi plus être oublié dans l'allowlist.
 const DEFAULT_ALLOWED_AI_GATEWAY_MODELS = [
   ...AI_ENGINE_OPTIONS.map((option) => option.model),
-  // Campaign strategy is intentionally more demanding than everyday copy.
-  // This model remains a dedicated, reviewed exception rather than changing
-  // the model the professional selected for all of their other tools.
-  DEFAULT_ADS_CAMPAIGN_STRATEGIST_MODEL,
+  // Ads keeps a reviewed chain even if the everyday model catalogue changes.
+  ...ADS_CAMPAIGN_MODEL_CHAIN,
 ];
 
 const DEFAULT_ALLOWED_AI_GATEWAY_TRANSCRIPTION_MODELS = [
@@ -151,15 +149,15 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxDurationMs: 60_000,
   },
   "ads.generate": {
-    maxOutputTokens: 3000,
-    maxRetries: 1,
-    maxTimeoutMs: 55_000,
+    maxOutputTokens: 8_000,
+    maxRetries: 0,
+    maxTimeoutMs: 50_000,
     maxInputChars: 28_000,
     maxImages: 0,
     maxImageDataChars: 0,
-    defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 2600,
-    defaultOperationMaxDurationMs: 60_000,
+    defaultOperationMaxCalls: 3,
+    defaultOperationMaxReservedOutputTokens: 24_000,
+    defaultOperationMaxDurationMs: 115_000,
   },
   "mails.attachment-image": {
     maxOutputTokens: 900,

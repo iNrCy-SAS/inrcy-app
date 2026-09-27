@@ -133,9 +133,7 @@ export async function GET(request: Request) {
   try {
     const refresh = new URL(request.url).searchParams.get("refresh") === "1";
     const appointments = await listVisioTeamAppointments({
-      // The team screen is a focused operational history: one week behind,
-      // then the two coming weeks, whatever the appointment category.
-      pastDays: 7,
+      // Today in Paris, plus the next fourteen full days; no historical week.
       futureDays: 14,
       // The cron keeps the shared calendar synchronized. A full Google refresh
       // is only requested explicitly from the team screen.

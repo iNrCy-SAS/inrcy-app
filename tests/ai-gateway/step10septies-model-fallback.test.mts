@@ -15,9 +15,11 @@ test("generation fallback chain is bounded and ordered: selected model, Gateway 
   assert.ok(primary > 0);
   assert.ok(gatewayFallback > primary);
   assert.ok(directFallback > gatewayFallback);
-  assert.match(client, /retries:\s*Math\.max\(0, Math\.min\(1, opts\.retries \?\? 0\)\)/);
+  assert.match(client, /retries:\s*opts\.feature === "ads\.generate"\s*\? 0\s*:\s*Math\.max\(0, Math\.min\(1, opts\.retries \?\? 0\)\)/);
   assert.equal((client.match(/retries:\s*0/g) || []).length, 2);
   assert.match(client, /resolveNextStagesReserveMs/);
+  assert.match(client, /resolveAdsStageTimeoutMs/);
+  assert.match(client, /getAiGenerationAttemptTrace/);
 });
 
 test("Gateway fallback uses another provider and safe defaults", () => {

@@ -318,6 +318,8 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(plugin, /inrcy_visio_test/);
   assert.match(plugin, /current_user_can\('manage_options'\)/);
   assert.match(script, /Réserver ma mise en route offerte/);
+  assert.match(script, /Dès 4 h/);
+  assert.doesNotMatch(script, /Dès demain/);
   assert.match(script, /Je choisirai plus tard/);
   assert.match(script, /Confirmer ce rendez-vous/);
   assert.match(script, /DAYS_PER_PAGE\s*=\s*6/);
@@ -382,9 +384,13 @@ test("le tunnel de réservation est suivi sans exposer les e-mails au navigateur
   assert.match(migration, /revoke all.*anon, authenticated/);
 });
 
-test("le délai par défaut autorise les réservations dès le lendemain", () => {
+test("le même seuil de quatre heures protège la disponibilité et la confirmation", () => {
   const backend = read("lib/visioBookingGoogle.ts");
-  assert.match(backend, /INRCY_VISIO_MINIMUM_LEAD_DAYS",\s*1,/);
+  const policy = read("lib/visioBookingPolicy.ts");
+  assert.match(policy, /VISIO_BOOKING_MINIMUM_LEAD_HOURS\s*=\s*4/);
+  assert.match(backend, /getVisioAvailability[\s\S]*?isAllowedVisioStart\(\{ start, now, horizonDays \}\)/);
+  assert.match(backend, /bookVisioSlot[\s\S]*?isAllowedVisioStart\(\{ start, now, horizonDays \}\)/);
+  assert.doesNotMatch(backend, /INRCY_VISIO_MINIMUM_LEAD_DAYS/);
 });
 
 test("l’attribution équipe est privée, auditée et silencieuse pour le professionnel", () => {
@@ -413,8 +419,9 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(resendRoute, /deliveryKey/);
   assert.match(resendRoute, /sec-fetch-site/);
   assert.match(route, /inrCalendarSynced/);
-  assert.match(route, /pastDays:\s*7/);
+  assert.doesNotMatch(route, /pastDays:\s*7/);
   assert.match(route, /futureDays:\s*14/);
+  assert.match(backend, /visioTeamAgendaWindow\(now, futureDays\)/);
   assert.match(route, /searchParams\.get\("refresh"\) === "1"/);
   assert.match(route, /refresh,/);
   assert.match(backend, /moveCalendarEventWithoutUpdates/);
@@ -452,7 +459,7 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(page, /Renvoyer le lien/);
   assert.match(page, /confirmInrcy/);
   assert.match(page, /aucun rappel automatique/i);
-  assert.match(page, /7 jours d’historique et 14 jours à venir/);
+  assert.match(page, /Aujourd’hui et les 14 prochains jours/);
   assert.match(page, /appointments\?refresh=1/);
   assert.match(page, /currentMemberId:\s*target\.id/);
   assert.match(page, /appointmentIdentity: appointment\.identity/);

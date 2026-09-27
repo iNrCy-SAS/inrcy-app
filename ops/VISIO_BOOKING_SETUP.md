@@ -19,7 +19,7 @@ Recommandées :
 - `INRCY_VISIO_PUBLIC_CALENDAR_ID=contact@admin-inrcy.com` : agenda principal du compte affiché comme « Équipe iNrCy », seul expéditeur des invitations externes. Ne pas utiliser ici l’identifiant technique `c_...@group.calendar.google.com` de l’agenda partagé.
 - `INRCY_VISIO_BOOKED_COLOR_ID=9` pour la couleur bleue des rendez-vous réservés.
 - `INRCY_VISIO_HORIZON_DAYS=21`
-- `INRCY_VISIO_MINIMUM_LEAD_DAYS=1` pour proposer les rendez-vous dès le lendemain, sans imposer 24 heures glissantes.
+- Le délai minimum est fixé à 4 heures réelles dans le code. L'ancienne variable `INRCY_VISIO_MINIMUM_LEAD_DAYS` n'est plus utilisée.
 - `INRCY_VISIO_ALLOWED_ORIGINS=https://inrcy.com,https://www.inrcy.com`
 
 Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par défaut conformes aux comptes actuels. Ils peuvent être surchargés avec `INRCY_VISIO_OCEANE_CALENDAR_ID`, `INRCY_VISIO_APOLLINE_CALENDAR_ID` et `INRCY_VISIO_JIMMY_CALENDAR_ID`.
@@ -42,8 +42,8 @@ Le script versionné dans `ops/google-apps-script/inrcy-gmail-calendar-fallback.
 ## Règles métier verrouillées
 
 - rendez-vous du lundi au samedi, dimanche exclu ;
-- horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
-- réservation possible dès le lendemain, jamais le jour même et sans décalage automatique à J+2 ;
+- départs toutes les heures de 9h à 18h, heure de Paris ;
+- réservation possible dès 4 heures après l'instant présent, y compris le jour même si un créneau est disponible ;
 - événement réservé créé en bleu pour 1 heure, avec une fenêtre interne de disponibilité de 2 heures ;
 - rappel orange d'inscription créé directement et de façon idempotente par l'API d'inscription, puis conservé 1 heure uniquement si aucun rendez-vous n'est réservé ;
 - le scan Gmail / Apps Script n'est qu'un filet de récupération : un quota Gmail épuisé ne peut plus empêcher la création normale du rappel ;

@@ -20,7 +20,9 @@ export async function POST() {
     .from("integrations")
     .delete()
     .eq("user_id", activeUserId)
-    .eq("provider", "facebook");
+    .eq("provider", "facebook")
+    .eq("source", "facebook")
+    .eq("product", "facebook");
   if (deleteError) {
     return jsonUserFacingError(deleteError, {
       status: 500,
@@ -33,6 +35,8 @@ export async function POST() {
     .select("id")
     .eq("user_id", activeUserId)
     .eq("provider", "facebook")
+    .eq("source", "facebook")
+    .eq("product", "facebook")
     .limit(1);
   if (verifyError) return jsonUserFacingError(verifyError, { status: 500 });
   if (remaining?.length) {

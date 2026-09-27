@@ -22,6 +22,10 @@ const disconnectRouteSource = readFileSync(
   new URL("../app/api/ads/oauth/[provider]/disconnect/route.ts", import.meta.url),
   "utf8",
 );
+const organicFacebookDisconnectSource = readFileSync(
+  new URL("../app/api/integrations/facebook/disconnect-account/route.ts", import.meta.url),
+  "utf8",
+);
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
   assert.match(settingsSource, /\{connected \? <button[\s\S]*?Déconnexion/);
@@ -63,4 +67,24 @@ test("le panneau affiche l’identité OAuth et respecte une dissociation explic
   assert.match(settingsSource, /Compte Facebook/);
   assert.match(accountsRouteSource, /connectionAccount/);
   assert.match(accountsRouteSource, /wasAccountExplicitlyCleared/);
+});
+
+test("une panne temporaire de découverte conserve les associations Ads enregistrées", () => {
+  const fallback = accountsRouteSource.split("} catch (error) {").at(-1) || "";
+  assert.match(fallback, /selectedAccountId:\s*refreshedConnection\?\.resource_id\s*\|\|\s*""/);
+  assert.match(fallback, /selectedPageId:\s*selectedPageId\(refreshedConnection\)/);
+  assert.match(fallback, /accountSelectionCleared:\s*refreshedConnection\s*\?\s*wasAccountExplicitlyCleared\(refreshedConnection\)/);
+  assert.match(fallback, /selectedAccountAvailable:\s*false/);
+});
+
+test("déconnecter Facebook organique ne supprime pas la connexion Meta Ads", () => {
+  const removal = organicFacebookDisconnectSource.split(".delete()")[1]?.split("if (deleteError)")[0] || "";
+  const verification = organicFacebookDisconnectSource.split("const { data: remaining")[1]?.split("if (verifyError)")[0] || "";
+  for (const query of [removal, verification]) {
+    assert.match(query, /\.eq\("provider", "facebook"\)/);
+    assert.match(query, /\.eq\("source", "facebook"\)/);
+    assert.match(query, /\.eq\("product", "facebook"\)/);
+  }
+  assert.match(disconnectRouteSource, /source = provider === "meta" \? "meta_ads" : "google_ads"/);
+  assert.match(disconnectRouteSource, /\.eq\("product", "ads"\)/);
 });

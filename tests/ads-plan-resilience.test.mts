@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { adsPlanNeedsTrustedLocation } from "../lib/adsCampaignIntelligence.ts";
 
 const routeSource = readFileSync(
   new URL("../app/api/ads/plan/route.ts", import.meta.url),
@@ -33,4 +34,25 @@ test("les incidents de sources secondaires produisent un log serveur borné, san
   assert.match(routeSource, /code: contextErrorCode\(result\.error\)/);
   assert.match(routeSource, /return \{ data: null, error \};/);
   assert.doesNotMatch(routeSource, /message: .*error/);
+});
+
+test("un brief natif sans zone sûre est refusé avant le crédit et les trois moteurs", () => {
+  for (const provider of ["linkedin", "tiktok", "pinterest", "x"]) {
+    assert.equal(adsPlanNeedsTrustedLocation(provider, [], ""), true, provider);
+    assert.equal(adsPlanNeedsTrustedLocation(provider, ["Lyon"], ""), false, provider);
+    assert.equal(adsPlanNeedsTrustedLocation(provider, [], "Paris"), false, provider);
+  }
+  assert.equal(adsPlanNeedsTrustedLocation("google", [], ""), false);
+  assert.equal(adsPlanNeedsTrustedLocation("meta", [], ""), false);
+  const preflight = routeSource.indexOf("adsPlanNeedsTrustedLocation(provider, context.zones, context.localContext.city)");
+  const reservation = routeSource.indexOf("reserveAiCredits(");
+  assert.ok(preflight >= 0 && reservation > preflight);
+  assert.match(routeSource, /ADS_PLAN_LOCATION_REQUIRED/);
+});
+
+test("le délai IA laisse une marge pour rendre la réponse et gérer le crédit", () => {
+  const deadline = routeSource.indexOf("const generationDeadlineAt = startedAt + maxDuration * 1_000 - 15_000");
+  const reservation = routeSource.indexOf("reserveAiCredits(");
+  assert.ok(deadline >= 0 && deadline < reservation);
+  assert.doesNotMatch(routeSource, /const generationDeadlineAt = Date\.now\(\) \+ 110_000/);
 });

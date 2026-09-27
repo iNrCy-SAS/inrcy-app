@@ -1,3 +1,5 @@
+import type { AdsCampaignInput } from "@/lib/adsValidation";
+
 export type AdsPublishMode = "live" | "demo_paused";
 
 export const ADS_LIVE_PUBLISH_CONFIRMATION = "PUBLIER_ET_DEPENSER";
@@ -23,4 +25,51 @@ export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown):
   return mode === "demo_paused"
     ? value === ADS_PAUSED_DEMO_CONFIRMATION
     : value === ADS_LIVE_PUBLISH_CONFIRMATION;
+}
+
+type ConnectorDraft = Pick<AdsCampaignInput,
+  "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
+  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType">;
+
+/** The first Google Search adapter has no numeric CPA/ROAS target input. */
+export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
+  switch (strategy) {
+    case "maximize_conversions": return { maximizeConversions: {} };
+    case "maximize_clicks": return { targetSpend: {} };
+    case "maximize_value": return { maximizeConversionValue: {} };
+    default: return null;
+  }
+}
+
+/** Reject choices that the first live adapters would otherwise silently replace. */
+export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | null {
+  if (draft.provider === "google") {
+    if (draft.campaignType !== "search") {
+      return "La publication Google Ads prend actuellement en charge le Réseau de recherche uniquement.";
+    }
+    if (!googleSearchBiddingFields(draft.bidStrategy)) {
+      return "La stratégie Google Ads choisie requiert une cible CPA/ROAS ou une configuration manuelle non disponible dans ce connecteur. Choisissez Maximiser les conversions, les clics ou la valeur.";
+    }
+    return null;
+  }
+  if (draft.provider !== "meta") return "La publication de ce canal n’est pas encore disponible.";
+  if (draft.campaignType !== "meta_traffic" || draft.objective !== "website_traffic") {
+    return "La publication Meta Ads prend actuellement en charge les campagnes Trafic vers un site web uniquement.";
+  }
+  if (draft.conversionLocation !== "website" || draft.conversionGoal !== "website_visit") {
+    return "La publication Meta Ads mesure actuellement les visites du site web uniquement.";
+  }
+  if (draft.metaPlacements.length !== 2 ||
+      !draft.metaPlacements.includes("facebook_feed") ||
+      !draft.metaPlacements.includes("instagram_feed")) {
+    return "La publication Meta Ads utilise actuellement les fils Facebook et Instagram ensemble uniquement.";
+  }
+  if (draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
+    return "La publication Meta Ads utilise actuellement une image uniquement.";
+  }
+  const callToAction = draft.callToAction.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!["en savoir plus", "decouvrir", "learn more"].includes(callToAction)) {
+    return "L’appel à l’action Meta Ads publié actuellement est « En savoir plus ». Adaptez votre brouillon avant publication.";
+  }
+  return null;
 }

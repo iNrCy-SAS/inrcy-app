@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   VISIO_BOOKING_DURATION_MINUTES,
+  VISIO_BOOKING_MINIMUM_LEAD_HOURS,
   VISIO_BOOKING_SPACING_MINUTES,
   VISIO_BOOKING_START_HOURS,
   chooseBalancedMember,
@@ -10,6 +11,7 @@ import {
   isAllowedVisioStart,
   isMemberFree,
   parseLocalDateTime,
+  visioTeamAgendaWindow,
   zonedDateTimeToUtc,
   type VisioTeamMember,
 } from "../../lib/visioBookingPolicy.ts";
@@ -24,6 +26,7 @@ test("un créneau horaire est proposé de 9 h à 18 h", () => {
   assert.deepEqual([...VISIO_BOOKING_START_HOURS], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
   assert.equal(VISIO_BOOKING_DURATION_MINUTES, 45);
   assert.equal(VISIO_BOOKING_SPACING_MINUTES, 60);
+  assert.equal(VISIO_BOOKING_MINIMUM_LEAD_HOURS, 4);
 });
 
 test("une heure locale de Paris est convertie correctement avant et après le changement d'heure", () => {
@@ -45,14 +48,13 @@ test("la date saisie par l'admin est interprétée à Paris et les dates impossi
   assert.equal(parseLocalDateTime("not-a-date"), null);
 });
 
-test("les dimanches, horaires hors grille et délais calendaires trop courts sont refusés", () => {
+test("les dimanches, horaires hors grille et créneaux à moins de quatre heures sont refusés", () => {
   const now = new Date("2026-09-04T08:00:00.000Z");
   assert.equal(
     isAllowedVisioStart({
       start: new Date("2026-09-06T07:00:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     false,
   );
@@ -61,16 +63,14 @@ test("les dimanches, horaires hors grille et délais calendaires trop courts son
       start: new Date("2026-09-07T08:30:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     false,
   );
   assert.equal(
     isAllowedVisioStart({
-      start: new Date("2026-09-07T07:00:00.000Z"),
+      start: new Date("2026-09-04T11:00:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadDays: 4,
     }),
     false,
   );
@@ -82,7 +82,6 @@ test("les rendez-vous du samedi restent disponibles", () => {
       start: new Date("2026-09-05T07:00:00.000Z"),
       now: new Date("2026-09-04T08:00:00.000Z"),
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     true,
   );
@@ -95,7 +94,6 @@ test("une réservation faite le samedi commence au plus tôt le lundi", () => {
       start: new Date("2026-09-06T07:00:00.000Z"),
       now: saturday,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     false,
   );
@@ -104,41 +102,53 @@ test("une réservation faite le samedi commence au plus tôt le lundi", () => {
       start: new Date("2026-09-07T07:00:00.000Z"),
       now: saturday,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     true,
   );
 });
 
-test("le jour même est refusé mais tous les horaires du lendemain sont permis", () => {
+test("à 8 h à Paris, le créneau libre de 12 h est permis, mais pas celui de 11 h", () => {
   const mondayMorning = new Date("2026-09-07T06:00:00.000Z");
   assert.equal(
     isAllowedVisioStart({
-      start: new Date("2026-09-07T12:00:00.000Z"),
+      start: new Date("2026-09-07T09:00:00.000Z"),
       now: mondayMorning,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     false,
   );
   assert.equal(
     isAllowedVisioStart({
-      start: new Date("2026-09-08T07:00:00.000Z"),
+      start: new Date("2026-09-07T10:00:00.000Z"),
       now: mondayMorning,
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     true,
+  );
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-07T10:00:00.000Z"),
+      now: new Date("2026-09-07T06:01:00.000Z"),
+      horizonDays: 21,
+    }),
+    false,
   );
   assert.equal(
     isAllowedVisioStart({
       start: new Date("2026-09-07T07:00:00.000Z"),
       now: new Date("2026-09-06T18:30:00.000Z"),
       horizonDays: 21,
-      minimumLeadDays: 1,
     }),
     true,
   );
+});
+
+test("l'agenda interne commence à minuit à Paris et inclut quatorze jours futurs complets", () => {
+  const window = visioTeamAgendaWindow(new Date("2026-10-24T21:30:00.000Z"), 14);
+  assert.equal(window.start.toISOString(), "2026-10-23T22:00:00.000Z");
+  assert.equal(window.end.toISOString(), "2026-11-07T23:00:00.000Z");
+  assert.equal(getLocalDateTimeParts(window.start).day, 24);
+  assert.equal(getLocalDateTimeParts(window.end).day, 8);
 });
 
 test("un rendez-vous existant dans la fenêtre d'une heure bloque la personne", () => {

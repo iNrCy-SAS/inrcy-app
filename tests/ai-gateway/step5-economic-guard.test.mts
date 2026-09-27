@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { AI_ENGINE_OPTIONS } from "../../lib/aiEnginePreference.ts";
+import { ADS_CAMPAIGN_MODEL_CHAIN, DEFAULT_ADS_CAMPAIGN_STRATEGIST_MODEL } from "../../lib/adsCampaignIntelligence.ts";
 import {
   AI_FEATURE_POLICIES,
   AiOperationBudgetExceededError,
@@ -71,15 +72,16 @@ test("media copywriting reserves enough output for a complete multi-scene JSON",
   }
 });
 
-test("the model allowlist exactly covers the eight selectable engine models", () => {
+test("the model allowlist covers selectable engines and the Ads strategist chain", () => {
   const allowed = getDefaultAllowedAiGatewayModels();
   assert.deepEqual(
     [...allowed].sort(),
-    AI_ENGINE_OPTIONS.map((option) => option.model).sort(),
+    [...new Set([...AI_ENGINE_OPTIONS.map((option) => option.model), ...ADS_CAMPAIGN_MODEL_CHAIN])].sort(),
   );
   for (const option of AI_ENGINE_OPTIONS) {
     assert.doesNotThrow(() => assertAllowedAiGatewayModel(option.model));
   }
+  assert.doesNotThrow(() => assertAllowedAiGatewayModel(DEFAULT_ADS_CAMPAIGN_STRATEGIST_MODEL));
 });
 
 test("unknown models are blocked unless explicitly added by environment policy", () => {

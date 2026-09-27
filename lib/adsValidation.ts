@@ -1,3 +1,12 @@
+import { isPlannedAdsChannel } from "./adsChannelCapabilities.ts";
+import { assessAdsChannelDraft, type AdsChannelDraft } from "./adsChannelDrafts.ts";
+import {
+  adsChannelWizardSettingsFromBrief,
+  adsChannelWizardSettingsMatchBrief,
+  parseAdsChannelWizardSettings,
+  type AdsChannelWizardSettings,
+} from "./adsChannelWizardSettings.ts";
+
 export const ADS_CHANNELS = [
   { id: "meta", label: "Meta Ads", format: "Trafic · Facebook · Instagram" },
   { id: "google", label: "Google Ads", format: "Recherche · annonces textuelles" },
@@ -104,6 +113,10 @@ export type AdsCampaignInput = {
   negativeKeywords: string[];
   noSpecialCategoryConfirmed: boolean;
   notEuPoliticalConfirmed: boolean;
+  /** Rich planning brief for a draft-only channel. Never an API publish payload. */
+  channelDraft?: AdsChannelDraft;
+  /** Editable native planning choices, without provider account or asset IDs. */
+  channelSettings?: AdsChannelWizardSettings;
 };
 
 export type AdsAccount = {
@@ -176,11 +189,106 @@ function adsMediaUrl(value: unknown): string | null {
   return httpsUrl(value) || mediaLibraryContentUrl(value);
 }
 
+export const ADS_CHANNEL_DRAFT_MAX_BYTES = 16_384;
+
+function containsExternalRefs(value: unknown): boolean {
+  const pending: unknown[] = [value];
+  const visited = new WeakSet<object>();
+  while (pending.length) {
+    const current = pending.pop();
+    if (!current || typeof current !== "object") continue;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    if (Array.isArray(current)) {
+      pending.push(...current);
+      continue;
+    }
+    for (const [key, nested] of Object.entries(current)) {
+      if (key.replace(/[_-]/g, "").toLowerCase() === "externalrefs") return true;
+      pending.push(nested);
+    }
+  }
+  return false;
+}
+
+function onlyDraftKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function hasExpectedChannelDraftShape(value: Record<string, unknown>, channel: AdsChannelId): boolean {
+  const common = ["schemaVersion", "channel", "name", "budget", "audience"];
+  const channelFields: Record<"linkedin" | "tiktok" | "pinterest" | "x", string[]> = {
+    linkedin: ["objectiveType", "format", "locale", "creative"],
+    tiktok: ["objectiveType", "format", "destinationKind", "placementIntent", "optimizationIntent", "creative"],
+    pinterest: ["objectiveType", "intendedPromotionType", "creativeType", "conversionEvent", "creative"],
+    x: ["objective", "format", "targetingMode", "keywords", "creative"],
+  };
+  if (!isPlannedAdsChannel(channel) || !onlyDraftKeys(value, [...common, ...channelFields[channel]])) return false;
+  if (!onlyDraftKeys(value.budget, ["amount", "currency", "period", "level"])) return false;
+  if (!onlyDraftKeys(value.audience, ["locationBriefs", "audienceBrief"])) return false;
+  if (channel === "linkedin" && !onlyDraftKeys(value.locale, ["country", "language"])) return false;
+  const creativeFields = channel === "linkedin"
+    ? ["introText", "headline", "mediaBrief", "destinationUrl", "leadFormBrief"]
+    : channel === "tiktok"
+      ? ["adText", "videoBrief", "destinationUrl", "conversionEventBrief"]
+      : channel === "pinterest"
+        ? ["pinTitle", "pinDescription", "visualBrief", "destinationUrl"]
+        : ["postText", "mediaBrief", "destinationUrl"];
+  return onlyDraftKeys(value.creative, creativeFields);
+}
+
+function parsePlannedChannelDraft(
+  value: unknown,
+  provider: AdsChannelId,
+): { channelDraft: AdsChannelDraft | undefined; error: string | null } {
+  if (value === undefined || value === null) return { channelDraft: undefined, error: null };
+  if (!isPlannedAdsChannel(provider)) {
+    return { channelDraft: undefined, error: "Ce canal n’accepte pas de brief publicitaire spécifique." };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { channelDraft: undefined, error: "Le brief du canal est invalide." };
+  }
+  let serialised: string;
+  try {
+    serialised = JSON.stringify(value);
+  } catch {
+    return { channelDraft: undefined, error: "Le brief du canal n’est pas un JSON valide." };
+  }
+  if (!serialised || new TextEncoder().encode(serialised).length > ADS_CHANNEL_DRAFT_MAX_BYTES) {
+    return { channelDraft: undefined, error: "Le brief du canal dépasse la taille autorisée." };
+  }
+  const candidate: unknown = JSON.parse(serialised);
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return { channelDraft: undefined, error: "Le brief du canal est invalide." };
+  }
+  const raw = candidate as Record<string, unknown>;
+  if (raw.channel !== provider) {
+    return { channelDraft: undefined, error: "Le brief ne correspond pas au canal sélectionné." };
+  }
+  if (raw.schemaVersion !== 1) {
+    return { channelDraft: undefined, error: "La version du brief du canal est inconnue." };
+  }
+  if (containsExternalRefs(candidate)) {
+    return { channelDraft: undefined, error: "Les identifiants publicitaires non vérifiés ne peuvent pas être sauvegardés dans ce brief." };
+  }
+  if (!hasExpectedChannelDraftShape(raw, provider)) {
+    return { channelDraft: undefined, error: "Le brief du canal contient des champs inattendus." };
+  }
+  if (!assessAdsChannelDraft(candidate).briefComplete) {
+    return { channelDraft: undefined, error: "Le brief du canal est incomplet ou incompatible avec son objectif." };
+  }
+  return { channelDraft: candidate as AdsChannelDraft, error: null };
+}
+
 export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draft" | "publish" } = {}): { draft: AdsCampaignInput | null; error: string | null } {
   const purpose = options.purpose || "publish";
   const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const provider = isAdsChannelId(raw.provider) ? raw.provider : null;
   if (!provider) return { draft: null, error: "Choisissez un canal publicitaire disponible." };
+  if (containsExternalRefs(raw)) {
+    return { draft: null, error: "Les identifiants publicitaires externes non vérifiés sont interdits dans ce brouillon." };
+  }
   if (purpose === "publish" && !isAdsProvider(provider)) {
     return { draft: null, error: "La connexion et la publication de ce canal ne sont pas encore disponibles." };
   }
@@ -237,6 +345,10 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   if (trackingParameters.length > 500) return { draft: null, error: "Les paramètres de suivi sont trop longs." };
 
   const primaryText = clean(raw.primaryText);
+  const primaryTextLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 500;
+  if (Array.from(primaryText).length > primaryTextLimit) {
+    return { draft: null, error: `Le message ${provider} dépasse ${primaryTextLimit} caractères.` };
+  }
   const rawImageUrl = clean(raw.imageUrl);
   const imageUrl = rawImageUrl ? adsMediaUrl(rawImageUrl) : null;
   if (rawImageUrl && !imageUrl) return { draft: null, error: "Le visuel doit provenir d’une URL HTTPS ou de votre médiathèque iNrCy." };
@@ -263,6 +375,24 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   }
   const noSpecialCategoryConfirmed = raw.noSpecialCategoryConfirmed === true;
   const notEuPoliticalConfirmed = raw.notEuPoliticalConfirmed === true;
+  const { channelDraft: parsedChannelDraft, error: channelDraftError } = parsePlannedChannelDraft(raw.channelDraft, provider);
+  if (channelDraftError) return { draft: null, error: channelDraftError };
+  if (!isPlannedAdsChannel(provider) && raw.channelSettings != null) {
+    return { draft: null, error: "Ce canal n’accepte pas de réglages publicitaires spécifiques." };
+  }
+  const parsedSettings = isPlannedAdsChannel(provider)
+    ? parseAdsChannelWizardSettings(raw.channelSettings, provider)
+    : { settings: null, error: null };
+  if (parsedSettings.error) return { draft: null, error: parsedSettings.error };
+  const inferredSettings = parsedChannelDraft && !parsedSettings.settings
+    ? adsChannelWizardSettingsFromBrief(parsedChannelDraft) : undefined;
+  const validatedInference = inferredSettings && isPlannedAdsChannel(provider)
+    ? parseAdsChannelWizardSettings(inferredSettings, provider) : null;
+  if (validatedInference?.error) return { draft: null, error: validatedInference.error };
+  const channelSettings = parsedSettings.settings || validatedInference?.settings || undefined;
+  const channelDraft = parsedChannelDraft && channelSettings &&
+    !adsChannelWizardSettingsMatchBrief(channelSettings, parsedChannelDraft)
+    ? undefined : parsedChannelDraft;
 
   if (purpose === "publish" && provider === "meta") {
     if (primaryText.length < 10 || primaryText.length > 500) return { draft: null, error: "Le texte Meta doit contenir entre 10 et 500 caractères." };
@@ -320,6 +450,8 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       negativeKeywords: negativeKeywords || [],
       noSpecialCategoryConfirmed,
       notEuPoliticalConfirmed,
+      ...(channelDraft ? { channelDraft } : {}),
+      ...(channelSettings ? { channelSettings } : {}),
     },
     error: null,
   };

@@ -115,7 +115,10 @@ export async function accessTokenForAds(userId: string, provider: AdsProvider): 
     return decryptToken(integration.access_token_enc);
   }
 
-  if (!integration.expires_at || Date.parse(integration.expires_at) > Date.now() + 120_000) {
+  // An absent or malformed expiry cannot prove that the access token is still
+  // valid. Refresh it rather than leaving an apparently connected account on
+  // an old token forever.
+  if (integration.expires_at && Date.parse(integration.expires_at) > Date.now() + 120_000) {
     return decryptToken(integration.access_token_enc);
   }
   if (!integration.refresh_token_enc) {

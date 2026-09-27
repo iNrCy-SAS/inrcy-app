@@ -102,9 +102,12 @@ export async function GET(request: Request) {
       accounts: [],
       pages: [],
       connectionAccount: connectionAccount(refreshedConnection),
-      accountSelectionCleared: false,
-      selectedAccountId: "",
-      selectedPageId: "",
+      // Provider discovery can fail temporarily without changing the
+      // professional's durable account and identity selections.
+      accountSelectionCleared: refreshedConnection ? wasAccountExplicitlyCleared(refreshedConnection) : false,
+      selectedAccountId: refreshedConnection?.resource_id || "",
+      selectedAccountAvailable: false,
+      selectedPageId: selectedPageId(refreshedConnection),
       error: error instanceof Error ? error.message : "Impossible de charger les comptes publicitaires.",
     });
   }

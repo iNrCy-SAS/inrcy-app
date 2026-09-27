@@ -5,7 +5,7 @@ import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublis
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
-import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode } from "@/lib/adsPublishMode";
+import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -33,10 +33,12 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (limited) return limited;
 
   const { data: stored, error: readError } = await supabaseAdmin.from("ads_campaigns")
-    .select("id,user_id,provider,ad_account_id,currency,daily_budget_cents,draft,status,provider_resources")
+    .select("id,user_id,provider,ad_account_id,currency,daily_budget_cents,draft,status,provider_resources,published_at,updated_at")
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (readError) return NextResponse.json({ error: "Impossible de relire la campagne." }, { status: 503 });
-  if (!stored || stored.status !== "draft") {
+  if (!stored || stored.status !== "draft" || stored.published_at !== null
+    || !stored.provider_resources || typeof stored.provider_resources !== "object" || Array.isArray(stored.provider_resources)
+    || Object.keys(stored.provider_resources).length > 0) {
     return NextResponse.json({ error: "Cette campagne n’est plus un brouillon publiable. Vérifiez son statut avant toute nouvelle tentative." }, { status: 409 });
   }
   const { draft, error: validationError } = parseAdsCampaignInput(stored.draft, { purpose: "publish" });
@@ -45,6 +47,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
   if (!isAdsProvider(draft.provider)) {
     return NextResponse.json({ error: "La connexion et la publication de ce canal ne sont pas encore disponibles." }, { status: 423 });
+  }
+  const unsupportedReason = unsupportedAdsConnectorReason(draft);
+  if (unsupportedReason) {
+    return NextResponse.json({ code: "ADS_CONNECTOR_UNSUPPORTED_CONFIGURATION", error: unsupportedReason }, { status: 422 });
   }
 
   let googleLoginCustomerId: string | undefined;
@@ -65,23 +71,30 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "La connexion publicitaire est indisponible." }, { status: 502 });
   }
 
-  // Atomic state transition prevents duplicate paid campaigns or demo resources.
-  const { data: claimed, error: claimError } = await supabaseAdmin.from("ads_campaigns")
-    .update({ status: "publishing", last_error: null, updated_at: new Date().toISOString() })
-    .eq("id", id).eq("user_id", user.activeUserId).eq("status", "draft")
-    .select("id").maybeSingle();
-  if (claimError || !claimed) {
+  // The database re-checks owner, state and remote resources in the same UPDATE.
+  const { data: claimed, error: claimError } = await supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish", {
+    p_user_id: user.activeUserId,
+    p_campaign_id: id,
+    p_expected_updated_at: stored.updated_at,
+  });
+  if (claimError) {
+    return NextResponse.json({ error: "La vérification du brouillon avant publication est indisponible." }, { status: 503 });
+  }
+  if (!claimed) {
     return NextResponse.json({ error: "La publication a déjà été lancée. Vérifiez le statut avant de réessayer." }, { status: 409 });
   }
 
   let progress: Record<string, unknown> = {};
   const persistProgress = async (resources: Record<string, unknown>) => {
-    const { error } = await supabaseAdmin.from("ads_campaigns").update({
+    // Keep newly created provider IDs even if the database write fails or times out.
+    // The recovery path can then record them under needs_review instead of {}.
+    progress = resources;
+    const { data, error } = await supabaseAdmin.from("ads_campaigns").update({
       provider_resources: resources,
       updated_at: new Date().toISOString(),
-    }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
-    if (error) throw new Error("Impossible d’enregistrer les identifiants de la plateforme publicitaire.");
-    progress = resources;
+    }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing")
+      .select("id").maybeSingle();
+    if (error || !data) throw new Error("Impossible d’enregistrer les identifiants de la plateforme publicitaire.");
   };
 
   try {

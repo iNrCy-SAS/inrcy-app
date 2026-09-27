@@ -100,8 +100,8 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       }
       const meResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { Authorization: `Bearer ${token.access_token}` }, cache: "no-store" });
       const me = await meResponse.json().catch(() => ({})) as { id?: string; name?: string; email?: string };
-      if (!meResponse.ok) throw new Error("Impossible de lire le compte Google connecté.");
-      profileId = me.id || ""; name = me.name || ""; email = me.email || "";
+      if (!meResponse.ok || !me.id) throw new Error("Impossible de vérifier le compte Google connecté.");
+      profileId = me.id; name = me.name || ""; email = me.email || "";
     }
 
     if (!token.access_token) throw new Error("Aucun jeton d’accès n’a été fourni.");

@@ -2,6 +2,7 @@ export const VISIO_BOOKING_TIMEZONE = "Europe/Paris";
 export const VISIO_BOOKING_DURATION_MINUTES = 45;
 export const VISIO_BOOKING_SPACING_MINUTES = 60;
 export const VISIO_BOOKING_START_HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+export const VISIO_BOOKING_MINIMUM_LEAD_HOURS = 4;
 
 export type LocalDateParts = {
   year: number;
@@ -138,6 +139,15 @@ export function localDateKey(parts: LocalDateParts) {
   return [parts.year, String(parts.month).padStart(2, "0"), String(parts.day).padStart(2, "0")].join("-");
 }
 
+export function visioTeamAgendaWindow(now: Date, futureDays: number) {
+  const today = getLocalDateTimeParts(now);
+  return {
+    start: zonedDateTimeToUtc({ ...today, hour: 0, minute: 0 }),
+    // End is exclusive: today and the next `futureDays` full local days.
+    end: zonedDateTimeToUtc({ ...addLocalDays(today, futureDays + 1), hour: 0, minute: 0 }),
+  };
+}
+
 export function periodsOverlap(
   leftStart: Date,
   leftEnd: Date,
@@ -189,7 +199,6 @@ export function isAllowedVisioStart(input: {
   start: Date;
   now: Date;
   horizonDays: number;
-  minimumLeadDays: number;
 }) {
   if (!Number.isFinite(input.start.getTime())) return false;
   const local = getLocalDateTimeParts(input.start);
@@ -200,9 +209,7 @@ export function isAllowedVisioStart(input: {
   ) {
     return false;
   }
-  const earliestLocalDate = localDateKey(
-    addLocalDays(getLocalDateTimeParts(input.now), input.minimumLeadDays),
-  );
+  const earliest = input.now.getTime() + VISIO_BOOKING_MINIMUM_LEAD_HOURS * 60 * 60_000;
   const latest = input.now.getTime() + input.horizonDays * 24 * 60 * 60_000;
-  return localDateKey(local) >= earliestLocalDate && input.start.getTime() <= latest;
+  return input.start.getTime() >= earliest && input.start.getTime() <= latest;
 }

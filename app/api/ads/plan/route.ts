@@ -1,20 +1,31 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
 import {
-  isUsableAdsCampaignPlan,
+  isReviewableAdsCampaignPlan,
   normalizeAdsCampaignPlan,
+  plannedAdsChannelPlanPrompt,
+  type AdsCampaignPlan,
 } from "@/lib/adsCampaignPlan";
-import { resolveAdsCampaignStrategistModel } from "@/lib/adsCampaignIntelligence";
-import { isAdsChannelId } from "@/lib/adsValidation";
-import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { getPlannedAdsChannelCapability, isPlannedAdsChannel } from "@/lib/adsChannelCapabilities";
+import {
+  AdsCampaignModelChainError,
+  adsPlanNeedsTrustedLocation,
+  generateAdsCampaignWithFallback,
+} from "@/lib/adsCampaignIntelligence";
+import { isAdsChannelId, type AdsChannelId } from "@/lib/adsValidation";
+import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
+import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { EMPTY_AI_MEMORY, normalizeAiMemory } from "@/lib/aiMemory";
 import { reserveAiCredits, commitAiCredits, rollbackAiCredits, type AiCreditReservation } from "@/lib/aiUsageQuota";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { captureApiException } from "@/lib/observability/sentry";
+import { getRequestId } from "@/lib/observability/request";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function clean(value: unknown, max: number) {
   return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, max);
@@ -50,6 +61,83 @@ function contextErrorCode(error: unknown) {
   return clean((error as { code?: unknown }).code, 80) || "unknown";
 }
 
+function planRequestId(request: Request) {
+  const candidate = getRequestId(request) || "";
+  return /^[A-Za-z0-9_-]{8,100}$/.test(candidate) ? candidate : randomUUID();
+}
+
+type PlanFailureCode =
+  | "ADS_PROFILE_CONTEXT_UNAVAILABLE"
+  | "ADS_PLAN_TIMEOUT"
+  | "ADS_PLAN_ENGINE_RATE_LIMITED"
+  | "ADS_PLAN_ENGINE_UNAVAILABLE"
+  | "ADS_PLAN_RESPONSE_INCOMPLETE"
+  | "ADS_PLAN_GENERATION_FAILED";
+
+function generationFailureCode(error: unknown): PlanFailureCode {
+  if (error instanceof AdsCampaignModelChainError) {
+    if (error.lastAttemptIncomplete) return "ADS_PLAN_RESPONSE_INCOMPLETE";
+    if (error.lastError) return generationFailureCode(error.lastError);
+    if (error.hadIncompleteResponse) return "ADS_PLAN_RESPONSE_INCOMPLETE";
+  }
+  const code = error && typeof error === "object"
+    ? (error as { code?: unknown }).code
+    : undefined;
+  const name = error instanceof Error ? error.name : "";
+  if (code === "ai_operation_deadline_exceeded" || name === "AbortError" || name === "TimeoutError") return "ADS_PLAN_TIMEOUT";
+  if (code === "ai_gateway_rate_limit") return "ADS_PLAN_ENGINE_RATE_LIMITED";
+  if (code === "ai_gateway_auth" || code === "ai_gateway_unavailable") return "ADS_PLAN_ENGINE_UNAVAILABLE";
+  return "ADS_PLAN_GENERATION_FAILED";
+}
+
+function publicPlanError(code: PlanFailureCode, message: string, status: number, requestId: string) {
+  return NextResponse.json(
+    { error: message, code, requestId },
+    { status, headers: { "Cache-Control": "no-store", "X-Request-Id": requestId } },
+  );
+}
+
+function planIsReadyForReview(plan: AdsCampaignPlan, provider: AdsChannelId) {
+  return isReviewableAdsCampaignPlan(plan, provider);
+}
+
+function reportPlanFailure(args: {
+  request: Request;
+  requestId: string;
+  provider: string;
+  code: PlanFailureCode;
+  stage: "context" | "generation" | "validation" | "credits";
+  startedAt: number;
+  error?: unknown;
+}) {
+  const { request, requestId, provider, code, stage, startedAt, error } = args;
+  const attemptTrace = getAiGenerationAttemptTrace(
+    error instanceof AdsCampaignModelChainError ? error.lastError : error,
+  );
+  const detail = {
+    requestId,
+    code,
+    stage,
+    provider,
+    elapsedMs: Date.now() - startedAt,
+    attemptedStages: attemptTrace?.stages || [],
+    lastAttemptStage: attemptTrace?.lastStage || null,
+  };
+  console.error("[ads.plan] request failed", detail);
+  // A fixed error code reaches Sentry, never a provider response, prompt or
+  // professional profile. The request ID links this event to the server log.
+  const diagnosticRequest = new Request(request.url, {
+    method: request.method,
+    headers: { "x-request-id": requestId },
+  });
+  captureApiException(diagnosticRequest, Object.assign(new Error(code), { code }), {
+    area: "ads",
+    operation: `POST /api/ads/plan:${stage}`,
+    statusCode: code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PROFILE_CONTEXT_UNAVAILABLE" ? 503 : 502,
+    provider,
+  });
+}
+
 /**
  * Le plan reste utile si une source d'enrichissement (mémoire, historique) est
  * momentanément indisponible. Chaque lecture reste faite avec le client RLS de
@@ -77,7 +165,8 @@ async function readContextSource<T>(
   }
 }
 
-function planSystemPrompt(provider: string) {
+function planSystemPrompt(provider: AdsChannelId) {
+  if (isPlannedAdsChannel(provider)) return plannedAdsChannelPlanPrompt(provider);
   return `Tu es le stratège senior d’iNr’ADS. Tu prépares un PLAN DE CAMPAGNE en français pour ${provider}.
 
 Tu aides un professionnel qui ne maîtrise pas la publicité. Toutes les valeurs seront contrôlées, corrigées et validées humainement avant une éventuelle diffusion. Tu ne déclenches jamais une publication et tu ne prétends jamais qu’une campagne est approuvée ou diffusée.
@@ -90,9 +179,11 @@ Avant de répondre, mène silencieusement une analyse complète :
 3. intention de recherche ou d’audience, zones, langues et exclusions utiles ;
 4. cohérence entre le type de campagne, le format média, les messages et l’appel à l’action ;
 5. respect des contraintes éditoriales, vocabulaire interdit et preuves réellement disponibles ;
-6. qualité finale de la structure : le professionnel doit pouvoir relire et comprendre chaque décision sans jargon.
+6. plan de mesure réaliste : action observable, paramètres de suivi seulement si techniquement justifiés ;
+7. budget et enchères : choisir une stratégie simple adaptée à la maturité des conversions. Sans historique chiffré fiable, ne crée ni CPA/ROAS cible, ni prévision de clics ou de ventes ;
+8. qualité finale de la structure : chaque rubrique utile doit être remplie avec un choix précis et cohérent, que le professionnel peut relire sans jargon.
 Si le contexte contient un objectif d’analyse explicite, traite-le comme une direction prioritaire : vérifie sa cohérence avec l’activité, puis construis la campagne la plus adaptée à cet objectif. Si l’analyse est libre, déduis l’angle le plus utile à partir de l’iNrADN sans demander au professionnel de reformuler les informations déjà connues.
-Ne révèle pas ce raisonnement intermédiaire : retourne uniquement le JSON demandé. Préfère une campagne focalisée, mesurable et réaliste à une proposition qui essaie de tout faire.
+Ne révèle pas ce raisonnement intermédiaire : retourne uniquement le JSON demandé. Préfère une campagne focalisée, mesurable et réaliste à une proposition qui essaie de tout faire. Ne laisse pas une rubrique vide quand une recommandation fondée sur le contexte est possible. Ne remplis jamais une rubrique avec une généralité interchangeable. Explique les choix dans rationale en langage professionnel, sans prétendre connaître des statistiques absentes.
 
 Retourne un objet JSON avec exactement ces clés :
 brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale.
@@ -108,13 +199,15 @@ Valeurs autorisées :
 - metaPlacements : tableau parmi facebook_feed | instagram_feed | stories | reels | messenger
 
 L’historique éditorial sert à éviter de répéter un angle déjà beaucoup employé : il ne constitue jamais une preuve commerciale ni une information à inventer.
-Pour Google Search : propose entre 5 et 12 mots-clés d’intention, 3 à 8 titres (30 caractères maximum) et 2 à 4 descriptions (90 caractères maximum). Ajoute des mots-clés négatifs seulement s’ils sont justifiés par le contexte.
-Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief détaille les actifs utiles. Pour Display, Vidéo et Demand Gen, mets l’accent sur les médias requis.
-Pour Meta : privilégie une proposition simple avec texte, audience, zones, objectif, appel à l’action, lieu de conversion, expansion d’audience et placements. Ne sélectionne que des placements cohérents avec le média proposé.
-Le champ rationale explique en deux phrases maximum la logique proposée, sans jargon inutile. Il doit faire le lien entre le besoin du professionnel, l’intention du client et le levier choisi.`;
+Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
+Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
+Pour Meta : rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones, objectif, appel à l’action, lieu de conversion, expansion d’audience et placements. Sélectionne seulement des placements cohérents avec le média proposé et décris le visuel à créer dans mediaBrief. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
+Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl et urlExclusions ne doivent contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+  const requestId = planRequestId(request);
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
   const { user, errorResponse } = await requirePremiumAdsUser();
   if (errorResponse || !user) return errorResponse;
@@ -168,10 +261,16 @@ export async function POST(request: Request) {
 
   const hasReadableProfessionalProfile = Boolean(profileResult.data || businessResult.data);
   if (!hasReadableProfessionalProfile && (businessResult.error || profileResult.error)) {
-    return NextResponse.json({
-      error: "Les informations de votre profil sont momentanément indisponibles. Réessayez dans un instant.",
-      code: "ADS_PROFILE_CONTEXT_UNAVAILABLE",
-    }, { status: 503 });
+    reportPlanFailure({
+      request, requestId, provider, code: "ADS_PROFILE_CONTEXT_UNAVAILABLE",
+      stage: "context", startedAt,
+    });
+    return publicPlanError(
+      "ADS_PROFILE_CONTEXT_UNAVAILABLE",
+      "Les informations de votre profil sont momentanément indisponibles. Réessayez dans un instant.",
+      503,
+      requestId,
+    );
   }
 
   const companyName = resolveProfessionalCompanyNameFromProfile(
@@ -269,38 +368,124 @@ export async function POST(request: Request) {
   if (!hasBusinessSignal) {
     return NextResponse.json({ error: "Ajoutez quelques informations dans iNrADN ou une intention de campagne pour qu’iNrCy prépare une proposition fiable." }, { status: 422 });
   }
+  if (adsPlanNeedsTrustedLocation(provider, context.zones, context.localContext.city)) {
+    return NextResponse.json({
+      error: "Ajoutez une zone d’intervention ou une ville dans iNrADN avant l’analyse de ce canal.",
+      code: "ADS_PLAN_LOCATION_REQUIRED",
+      requestId,
+    }, { status: 422, headers: { "Cache-Control": "no-store", "X-Request-Id": requestId } });
+  }
+
+  // The function limit also includes auth, profile reads and credit cleanup.
+  // Keep time for rollback/commit and a JSON response after generation stops.
+  const generationDeadlineAt = startedAt + maxDuration * 1_000 - 15_000;
+  if (Date.now() >= generationDeadlineAt - 5_750) {
+    reportPlanFailure({ request, requestId, provider, code: "ADS_PLAN_TIMEOUT", stage: "context", startedAt });
+    return publicPlanError(
+      "ADS_PLAN_TIMEOUT",
+      "L’analyse a pris trop de temps. Réessayez dans un instant ou choisissez le parcours manuel.",
+      504,
+      requestId,
+    );
+  }
 
   let reservation: AiCreditReservation | null = null;
+  let stage: "generation" | "validation" | "credits" = "credits";
+  const attemptedStages: string[] = [];
   try {
     const quota = await reserveAiCredits({ supabase: user.supabase, userId: user.activeUserId, action: "ads", credits: 1 });
     if (quota.errorResponse) return quota.errorResponse;
     reservation = quota.reservation;
-    const rawPlan = await aiGenerateJSON<Record<string, unknown>>({
-      feature: "ads.generate",
-      accountId: user.activeUserId,
-      model: resolveAdsCampaignStrategistModel(),
-      system: planSystemPrompt(provider),
-      input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}`,
-      maxOutputTokens: 2_600,
-      timeoutMs: 55_000,
+    stage = "generation";
+    const budget = createAiOperationBudget("ads.generate");
+    const result = await generateAdsCampaignWithFallback({
+      generate: (model, index) => aiGenerateJSON<Record<string, unknown>>({
+        feature: "ads.generate",
+        accountId: user.activeUserId,
+        budget,
+        model: model,
+        // Ads owns its explicit Claude → Mistral → Gemini chain, including
+        // validation failures. Disable the generic transport/model fallback.
+        allowProviderFallback: false,
+        system: planSystemPrompt(provider),
+        input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}`,
+        maxOutputTokens: 8_000,
+        timeoutMs: [50_000, 34_000, 23_000][index],
+        deadlineAt: generationDeadlineAt,
+        onStage: (attemptStage) => {
+          attemptedStages.push(`${model}:${attemptStage}`);
+          console.info("[ads.plan] generation stage started", { requestId, provider, model, attemptStage });
+        },
+      }),
+      validate: (rawPlan) => {
+        stage = "validation";
+        if (provider === "meta" && !String(rawPlan.campaignType || "").startsWith("meta_")) {
+          rawPlan.campaignType = "meta_leads";
+        }
+        if (provider === "google" && String(rawPlan.campaignType || "").startsWith("meta_")) {
+          rawPlan.campaignType = "search";
+        }
+        if (isPlannedAdsChannel(provider)) rawPlan.campaignType = "generic";
+        // A model cannot verify a URL or location. Retain only user context.
+        rawPlan.destinationUrl = destinationUrl || context.localContext.website;
+        rawPlan.urlExclusions = [];
+        rawPlan.targetLocations = context.zones.length
+          ? context.zones
+          : context.localContext.city ? [context.localContext.city] : [];
+        if (typeof rawPlan.trackingParameters !== "string") rawPlan.trackingParameters = "";
+        const candidate = normalizeAdsCampaignPlan(rawPlan, {
+          provider,
+          companyName,
+          destinationUrl: destinationUrl || context.localContext.website,
+          locations: context.zones.length
+            ? context.zones
+            : context.localContext.city ? [context.localContext.city] : [],
+          audiences: context.audiences,
+          services: context.services,
+        });
+        if (!context.zones.length && !context.localContext.city) candidate.targetLocations = [];
+        return planIsReadyForReview(candidate, provider) ? candidate : null;
+      },
+      onAttempt: (model, index) => {
+        stage = "generation";
+        console.info("[ads.plan] model attempt", { requestId, provider, model, attempt: index + 1 });
+      },
+      shouldRetry: (error) => {
+        const code = error && typeof error === "object"
+          ? (error as { code?: unknown }).code : undefined;
+        // Quota, cost, auth and malformed requests are hard stops, not provider
+        // outages. Trying another paid model cannot make them safe or valid.
+        return ![
+          "ai_operation_budget_exceeded",
+          "ai_operation_deadline_exceeded",
+          "ai_gateway_account_limit_reached",
+          "ai_gateway_guard_unavailable",
+          "ai_gateway_auth",
+          "ai_gateway_invalid_request",
+        ].includes(String(code || ""));
+      },
     });
-    const plan = normalizeAdsCampaignPlan(rawPlan, {
-      provider,
-      companyName,
-      destinationUrl,
-      locations: context.zones,
-      audiences: context.audiences,
-      services: context.services,
-    });
-    if (!isUsableAdsCampaignPlan(plan)) {
-      await rollbackAiCredits(reservation);
-      return NextResponse.json({ error: "La proposition iNrCy est incomplète. Réessayez ou choisissez le parcours manuel." }, { status: 502 });
-    }
+    const plan = result.plan;
+    stage = "credits";
     await commitAiCredits(reservation);
+    console.info("[ads.plan] request completed", {
+      requestId, provider, elapsedMs: Date.now() - startedAt,
+      model: result.model,
+      campaignType: plan.campaignType,
+      headlines: plan.headlines.length,
+      descriptions: plan.descriptions.length,
+      keywords: plan.keywords.length,
+      attemptedStages,
+    });
     return NextResponse.json({
       plan,
+      requestId,
       creditsUsed: 1,
       requiresHumanReview: true,
+      ...(isPlannedAdsChannel(provider) ? {
+        draftOnly: true,
+        publicationReady: getPlannedAdsChannelCapability(provider).publicationEnabled,
+      } : {}),
       sources: [
         "iNrADN",
         ...(context.referenceDocuments.length ? ["documents de référence"] : []),
@@ -308,9 +493,20 @@ export async function POST(request: Request) {
         ...(context.recentPublications.length ? ["historique éditorial"] : []),
         ...(analysisObjective ? ["objectif choisi"] : intent ? ["votre priorité"] : []),
       ],
-    }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+    }, { headers: { "Cache-Control": "no-store", "X-Request-Id": requestId } });
+  } catch (error) {
     await rollbackAiCredits(reservation);
-    return NextResponse.json({ error: "La génération iNrCy n’a pas pu aboutir. Réessayez dans un instant ou choisissez le parcours manuel." }, { status: 502 });
+    const code = error instanceof AdsCampaignModelChainError || stage === "generation"
+      ? generationFailureCode(error)
+      : "ADS_PLAN_GENERATION_FAILED";
+    reportPlanFailure({ request, requestId, provider, code, stage, startedAt, error });
+    return publicPlanError(
+      code,
+      code === "ADS_PLAN_RESPONSE_INCOMPLETE"
+        ? "La proposition iNrCy est incomplète après trois moteurs. Réessayez ou choisissez le parcours manuel."
+        : "La génération iNrCy n’a pas pu aboutir. Réessayez dans un instant ou choisissez le parcours manuel.",
+      code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PLAN_ENGINE_UNAVAILABLE" ? 503 : 502,
+      requestId,
+    );
   }
 }

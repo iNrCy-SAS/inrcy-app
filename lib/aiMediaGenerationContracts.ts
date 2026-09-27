@@ -523,7 +523,7 @@ function normalizeInspirationImages(
       data,
       ...(rawRole ? { role: rawRole as AiMediaReferenceRole } : {}),
       usage,
-      ...(rawRole === "character" && usage === "required"
+      ...(rawRole === "character" && [1, 2, 3].includes(characterIndex)
         ? { characterIndex: characterIndex as 1 | 2 | 3 }
         : {}),
     };

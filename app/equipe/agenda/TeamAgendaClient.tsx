@@ -544,7 +544,7 @@ export default function TeamAgendaClient({
               <p className={styles.eyebrow}>OUTIL INTERNE</p>
               <h1>Attribution des rendez-vous</h1>
               <div className={styles.headerMeta}>
-                <span className={styles.period}>7 jours d’historique et 14 jours à venir</span>
+                <span className={styles.period}>Aujourd’hui et les 14 prochains jours</span>
                 <span
                   className={styles.safetyChip}
                   title="Une invitation unique est envoyée lors de la réservation sur le site. Les changements restent silencieux et le lien ne peut ensuite être renvoyé que manuellement."

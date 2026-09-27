@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { googleAdsJson } from "@/lib/adsServer";
+import { googleSearchBiddingFields } from "@/lib/adsPublishMode";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
 
 /**
@@ -18,6 +19,8 @@ export type GoogleAdsPublishProgress = {
   /** Kept for compatibility with already stored publication progress. */
   locationCriterionResourceName: string;
   locationCriterionResourceNames: string[];
+  languageCriterionResourceNames: string[];
+  negativeKeywordCriterionResourceNames: string[];
   adGroupResourceName: string;
   keywordCriterionResourceNames: string[];
   adGroupAdResourceName: string;
@@ -91,8 +94,20 @@ type GoogleTargetLocation = {
   label: string;
 };
 
+type GoogleTargetLanguage = { resourceName: string; code: string };
+
 function gaqlQuoted(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function googleFinalUrlSuffix(value: string): string | null {
+  const suffix = value.trim().replace(/^[?&]+/, "");
+  if (!suffix) return null;
+  if (/[\[\]\r\n#?]/.test(suffix) ||
+      suffix.split("&").some((part) => !/^[^=&\s]+=[^&]*$/.test(part))) {
+    throw new Error("Les balises de suivi Google Ads doivent être des paramètres URL au format nom=valeur&nom=valeur.");
+  }
+  return suffix;
 }
 
 function uniqueLocationLabels(locations: string[]) {
@@ -161,6 +176,31 @@ async function resolveGoogleTargetLocations(
   return resolved.map((entry) => entry.matches[0]);
 }
 
+async function resolveGoogleTargetLanguages(
+  userId: string,
+  customerId: string,
+  languages: string[],
+  loginCustomerId?: string,
+): Promise<GoogleTargetLanguage[]> {
+  const labels = [...new Set((languages.length ? languages : ["fr"])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))].slice(0, 10);
+  const aliases: Record<string, string> = { français: "fr", francais: "fr", french: "fr", anglais: "en", english: "en" };
+  return Promise.all(labels.map(async (label) => {
+    const code = aliases[label.toLocaleLowerCase("fr-FR")] || label;
+    const response = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
+      query: `SELECT language_constant.resource_name, language_constant.code, language_constant.targetable FROM language_constant WHERE language_constant.code = '${gaqlQuoted(code)}' LIMIT 2`,
+    }, loginCustomerId);
+    const matches = (Array.isArray(response.results) ? response.results : [])
+      .map((row) => asRecord(asRecord(row).languageConstant))
+      .filter((entry) => entry.targetable === true && /^languageConstants\/\d+$/.test(String(entry.resourceName || "")));
+    if (matches.length !== 1) {
+      throw new Error(`La langue « ${label} » n’est pas une langue Google Ads ciblable. Utilisez son code, par exemple fr ou en.`);
+    }
+    return { resourceName: String(matches[0].resourceName), code: String(matches[0].code || code) };
+  }));
+}
+
 /**
  * Creates a location-verified Search campaign, then enables its children and
  * finally the campaign. `persistProgress` is optional in the signature for integration
@@ -181,6 +221,11 @@ export async function publishGoogleAdsCampaign(
     throw new Error("L’enregistrement des identifiants Google Ads est requis avant publication.");
   }
   const endDateTime = checkGoogleDraft(draft);
+  const biddingFields = googleSearchBiddingFields(draft.bidStrategy);
+  if (!biddingFields) {
+    throw new Error("La stratégie d’enchères Google Ads choisie n’est pas encore publiable.");
+  }
+  const finalUrlSuffix = googleFinalUrlSuffix(draft.trackingParameters);
   const customerId = draft.adAccountId;
   if (loginCustomerId && !/^\d{5,25}$/.test(loginCustomerId)) {
     throw new Error("Identifiant de compte administrateur Google Ads invalide.");
@@ -199,6 +244,12 @@ export async function publishGoogleAdsCampaign(
     userId,
     customerId,
     draft.targetLocations,
+    loginCustomerId,
+  );
+  const targetLanguages = await resolveGoogleTargetLanguages(
+    userId,
+    customerId,
+    draft.languages,
     loginCustomerId,
   );
 
@@ -224,13 +275,15 @@ export async function publishGoogleAdsCampaign(
       status: "PAUSED",
       advertisingChannelType: "SEARCH",
       campaignBudget: budgetTemp,
-      targetSpend: {},
+      ...biddingFields,
+      ...(finalUrlSuffix ? { finalUrlSuffix } : {}),
       containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
       geoTargetTypeSetting: { positiveGeoTargetType: "PRESENCE" },
       networkSettings: {
         targetGoogleSearch: true,
-        targetSearchNetwork: false,
-        targetPartnerSearchNetwork: draft.googleSearchPartners,
+        // Google Search Partners is targetSearchNetwork. The similarly named
+        // targetPartnerSearchNetwork is a restricted, unrelated partner network.
+        targetSearchNetwork: draft.googleSearchPartners,
         targetContentNetwork: draft.googleDisplayExpansion,
       },
       endDateTime,
@@ -238,6 +291,15 @@ export async function publishGoogleAdsCampaign(
     ...targetLocations.map((location) => ({ campaignCriterionOperation: { create: {
       campaign: campaignTemp,
       location: { geoTargetConstant: location.resourceName },
+    } } })),
+    ...targetLanguages.map((language) => ({ campaignCriterionOperation: { create: {
+      campaign: campaignTemp,
+      language: { languageConstant: language.resourceName },
+    } } })),
+    ...draft.negativeKeywords.map((keyword) => ({ campaignCriterionOperation: { create: {
+      campaign: campaignTemp,
+      negative: true,
+      keyword: { text: keyword, matchType: "BROAD" },
     } } })),
     { adGroupOperation: { create: {
       resourceName: adGroupTemp,
@@ -272,6 +334,7 @@ export async function publishGoogleAdsCampaign(
     throw new Error("Google Ads a refusé la création complète de la campagne.");
   }
 
+  const adGroupOffset = 2 + targetLocations.length + targetLanguages.length + draft.negativeKeywords.length;
   const paused: GoogleAdsPublishProgress = {
     customerId,
     budgetResourceName: resourceNameAt(created, 0, "campaignBudgetResult", `customers/${customerId}/campaignBudgets/`),
@@ -279,10 +342,14 @@ export async function publishGoogleAdsCampaign(
     locationCriterionResourceName: resourceNameAt(created, 2, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`),
     locationCriterionResourceNames: targetLocations.map((_, index) =>
       resourceNameAt(created, 2 + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
-    adGroupResourceName: resourceNameAt(created, 2 + targetLocations.length, "adGroupResult", `customers/${customerId}/adGroups/`),
+    languageCriterionResourceNames: targetLanguages.map((_, index) =>
+      resourceNameAt(created, 2 + targetLocations.length + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
+    negativeKeywordCriterionResourceNames: draft.negativeKeywords.map((_, index) =>
+      resourceNameAt(created, 2 + targetLocations.length + targetLanguages.length + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
+    adGroupResourceName: resourceNameAt(created, adGroupOffset, "adGroupResult", `customers/${customerId}/adGroups/`),
     keywordCriterionResourceNames: draft.keywords.map((_, index) =>
-      resourceNameAt(created, 3 + targetLocations.length + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
-    adGroupAdResourceName: resourceNameAt(created, 3 + targetLocations.length + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
+      resourceNameAt(created, adGroupOffset + 1 + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
+    adGroupAdResourceName: resourceNameAt(created, adGroupOffset + 1 + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
     status: "PAUSED",
   };
 

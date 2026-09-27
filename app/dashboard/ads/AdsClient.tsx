@@ -20,24 +20,31 @@ import {
   type AdsCreationMode,
   type AdsProvider,
 } from "@/lib/adsValidation";
-import { ADS_PAUSED_DEMO_CONFIRMATION } from "@/lib/adsPublishMode";
+import { ADS_PAUSED_DEMO_CONFIRMATION, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
 import type { AdsCampaignPlan } from "@/lib/adsCampaignPlan";
+import { assessAdsChannelDraft, type AdsChannelDraft } from "@/lib/adsChannelDrafts";
+import {
+  adsChannelWizardSettingsFromBrief,
+  defaultAdsChannelWizardSettings,
+  LINKEDIN_WIZARD_FORMATS,
+  PINTEREST_WIZARD_OBJECTIVES,
+  TIKTOK_WIZARD_OBJECTIVES,
+  X_WIZARD_OBJECTIVES,
+  type AdsChannelWizardSettings,
+  type LinkedInWizardSettings,
+  type PinterestWizardSettings,
+  type TikTokWizardSettings,
+  type XWizardSettings,
+} from "@/lib/adsChannelWizardSettings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import AdsConnectionSettings from "./AdsConnectionSettings";
 import AdsCampaignAutoMediaGenerator from "./AdsCampaignAutoMediaGenerator";
 import AdsCampaignAnalysisChoice, { type AdsCampaignAnalysisMode } from "./AdsCampaignAnalysisChoice";
+import AdsCampaignTracking, { type StoredAdsCampaign } from "./AdsCampaignTracking";
 import styles from "./ads.module.css";
 
-type StoredCampaign = {
-  id: string;
-  provider: AdsChannelId;
-  name: string;
-  status: "draft" | "publishing" | "active" | "needs_review" | "demo_paused";
-  draft: AdsCampaignInput;
-  last_error: string | null;
-  created_at: string;
-};
+type StoredCampaign = StoredAdsCampaign;
 
 type AdsConfigAction = "disconnect" | "save-account" | "clear-account" | "save-page" | "clear-page" | null;
 type CampaignCreationPath = "choice" | AdsCreationMode;
@@ -58,7 +65,40 @@ type AccountResponse = {
   error?: string;
 };
 
-// Every channel can be prepared here. Only Meta and Google currently support account connection/publishing.
+const EXTERNAL_CHANNELS = ["linkedin", "tiktok", "pinterest", "x"] as const;
+type ExternalChannelId = (typeof EXTERNAL_CHANNELS)[number];
+type ExternalAdsAccount = { id: string; name: string; currency?: string | null; status?: string; eligibleToAssociate?: boolean };
+type ExternalConnectorStatus = {
+  load: "idle" | "loading" | "ready" | "error";
+  configured: boolean;
+  connected: boolean;
+  status: string;
+  selectedAccountId: string;
+  selectedAccountName: string;
+  error: string;
+};
+
+function isExternalChannel(value: unknown): value is ExternalChannelId {
+  return typeof value === "string" && EXTERNAL_CHANNELS.some((channel) => channel === value);
+}
+
+function emptyExternalStatus(): ExternalConnectorStatus {
+  return { load: "idle", configured: true, connected: false, status: "disconnected", selectedAccountId: "", selectedAccountName: "", error: "" };
+}
+
+function externalStatusDisplay(status: ExternalConnectorStatus): { label: string; tone: string } {
+  if (status.load === "idle" || status.load === "loading") return { label: "Vérification…", tone: "loading" };
+  if (status.load === "error") return { label: "État indisponible", tone: "unavailable" };
+  if (!status.configured) return { label: "Connexion indisponible", tone: "unavailable" };
+  if (status.status === "needs_update" || status.status === "needs_reconnect") return { label: "Connexion à actualiser", tone: "select-account" };
+  if (status.connected && status.selectedAccountId) return { label: "Compte associé", tone: "connected" };
+  if (status.connected) return { label: "Compte à associer", tone: "select-account" };
+  return { label: "À connecter", tone: "disconnected" };
+}
+
+const EXTERNAL_DISCONNECT_CHANNELS: readonly ExternalChannelId[] = ["linkedin", "pinterest", "tiktok", "x"];
+
+// Every channel can be prepared here. Live publication remains limited to Meta and Google.
 const CHANNEL_CATALOG: { id: AdsChannelId; label: string; format: string; logo: string; provider?: AdsProvider }[] = [
   { id: "meta", label: "Meta Ads", format: "Facebook · Instagram", logo: "/ads-logos/meta.svg", provider: "meta" },
   { id: "google", label: "Google Ads", format: "Recherche · annonces textuelles", logo: "/ads-logos/google-ads.svg", provider: "google" },
@@ -162,8 +202,8 @@ function newDraft(provider: AdsChannelId): AdsCampaignInput {
     provider,
     creationMode: "manual",
     campaignType: defaultAdsCampaignType(provider),
-    objective: "leads",
-    conversionGoal: "quote_request",
+    objective: provider === "meta" || isExternalChannel(provider) ? "website_traffic" : "leads",
+    conversionGoal: provider === "meta" || isExternalChannel(provider) ? "website_visit" : "quote_request",
     conversionLocation: "website",
     bidStrategy: "maximize_conversions",
     adAccountId: "",
@@ -189,9 +229,9 @@ function newDraft(provider: AdsChannelId): AdsCampaignInput {
     imageUrl: "",
     creativeUrl: "",
     creativeType: provider === "tiktok" ? "video" : "image",
-    mediaStrategy: provider === "google" ? "search_text" : provider === "tiktok" ? "video" : "image",
+    mediaStrategy: provider === "google" || provider === "x" ? "search_text" : provider === "tiktok" ? "video" : "image",
     mediaBrief: "",
-    callToAction: "Demander un devis",
+    callToAction: provider === "meta" ? "En savoir plus" : "Demander un devis",
     pageId: "",
     headlines: [],
     descriptions: [],
@@ -199,14 +239,209 @@ function newDraft(provider: AdsChannelId): AdsCampaignInput {
     negativeKeywords: [],
     noSpecialCategoryConfirmed: false,
     notEuPoliticalConfirmed: false,
+    ...(isExternalChannel(provider) ? { channelSettings: defaultAdsChannelWizardSettings(provider) } : {}),
   };
 }
+
+function nativeBriefCopy(brief: AdsChannelDraft) {
+  switch (brief.channel) {
+    case "linkedin":
+      return { message: brief.creative.introText, headline: brief.creative.headline, media: brief.creative.mediaBrief, destination: brief.creative.destinationUrl };
+    case "tiktok":
+      return { message: brief.creative.adText, headline: brief.creative.adText, media: brief.creative.videoBrief, destination: brief.creative.destinationUrl };
+    case "pinterest":
+      return { message: brief.creative.pinDescription, headline: brief.creative.pinTitle, media: brief.creative.visualBrief, destination: brief.creative.destinationUrl };
+    case "x":
+      return { message: brief.creative.postText, headline: brief.creative.postText, media: brief.creative.mediaBrief, destination: brief.creative.destinationUrl };
+  }
+}
+
+const NATIVE_BRIEF_TERMS: Record<string, string> = {
+  BRAND_AWARENESS: "Notoriété", WEBSITE_VISIT: "Visites du site", ENGAGEMENT: "Engagement",
+  VIDEO_VIEW: "Vues vidéo", LEAD_GENERATION: "Prospects", WEBSITE_CONVERSION: "Conversions du site",
+  REACH: "Couverture", VIDEO_VIEWS: "Vues vidéo", TRAFFIC: "Trafic", WEB_CONVERSIONS: "Conversions du site",
+  AWARENESS: "Notoriété", CONSIDERATION: "Considération", VIDEO_COMPLETION: "Vues complètes",
+  SALES: "Ventes", LEADS: "Prospects", reach: "Couverture", video_views: "Vues vidéo",
+  website_traffic: "Trafic du site", website_conversions: "Conversions du site", engagement: "Engagement",
+  STANDARD_UPDATE: "Publication sponsorisée", SINGLE_VIDEO: "Vidéo", CAROUSEL: "Carrousel",
+  TEXT_AD: "Annonce textuelle", LEAD_GENERATION_FORM_SPONSORED_CONTENT: "Formulaire de prospects",
+  STANDARD_AD: "Épingle sponsorisée", CATALOG: "Catalogue", REGULAR: "Image", VIDEO: "Vidéo",
+  MAX_VIDEO: "Vidéo étendue", text: "Texte", image: "Image", video: "Vidéo",
+  automatic: "Placements automatiques", tiktok_only: "TikTok uniquement",
+  broad: "Audience large", keywords: "Mots-clés", interests: "Centres d’intérêt",
+  follower_lookalikes: "Audiences similaires", website: "Site web", instant_form: "Formulaire intégré",
+  profile: "Profil", CHECKOUT: "Achat", ADD_TO_CART: "Ajout au panier", SIGNUP: "Inscription", LEAD: "Prospect",
+  titles: "Fonctions / postes", industries: "Secteurs d’entreprise", skills: "Compétences",
+  audiences: "Audiences existantes", conversions: "Conversions", clicks: "Clics", views: "Vues",
+};
+
+function nativeWizardObjective(settings: AdsChannelWizardSettings): string {
+  return settings.channel === "x" ? settings.objective : settings.objectiveType;
+}
+
+function nativeWizardFormat(settings: AdsChannelWizardSettings): string {
+  return settings.channel === "pinterest"
+    ? settings.intendedPromotionType === "CATALOG" ? "Catalogue" : nativeBriefTerm(settings.creativeType || "REGULAR")
+    : nativeBriefTerm(settings.format);
+}
+
+function nativeWizardGenericObjective(settings: AdsChannelWizardSettings): AdsCampaignInput["objective"] {
+  const objective = nativeWizardObjective(settings);
+  if (["BRAND_AWARENESS", "REACH", "AWARENESS", "reach"].includes(objective)) return "awareness";
+  if (["LEAD_GENERATION", "LEADS"].includes(objective)) return "leads";
+  if (["WEBSITE_CONVERSION", "WEB_CONVERSIONS", "SALES", "website_conversions"].includes(objective)) return "sales";
+  if (["ENGAGEMENT", "VIDEO_VIEW", "VIDEO_VIEWS", "VIDEO_COMPLETION", "engagement", "video_views"].includes(objective)) return "engagement";
+  return "website_traffic";
+}
+
+function nativeWizardMediaStrategy(settings: AdsChannelWizardSettings): AdsCampaignInput["mediaStrategy"] {
+  if (settings.channel === "tiktok") return "video";
+  if (settings.channel === "pinterest") {
+    if (settings.intendedPromotionType === "CATALOG") return "product_feed";
+    return settings.creativeType === "VIDEO" || settings.creativeType === "MAX_VIDEO" ? "video" : "image";
+  }
+  if (settings.format === "text" || settings.format === "TEXT_AD") return "search_text";
+  return settings.format === "video" || settings.format === "SINGLE_VIDEO" ? "video" : "image";
+}
+
+function nativeBriefTerm(value: string) {
+  return NATIVE_BRIEF_TERMS[value] || value.replaceAll("_", " ").toLowerCase();
+}
+
+function xPostWeightedLength(value: string) {
+  const urls = value.match(/https?:\/\/\S+/g) || [];
+  return Array.from(value.replace(/https?:\/\/\S+/g, "")).length + urls.length * 23;
+}
+
+function nativeBriefDetails(brief: AdsChannelDraft) {
+  switch (brief.channel) {
+    case "linkedin":
+      return { objective: nativeBriefTerm(brief.objectiveType), format: nativeBriefTerm(brief.format),
+        settings: `Langue ${brief.locale.language.toUpperCase()} · Pays ${brief.locale.country}`,
+        complement: brief.creative.leadFormBrief ? `Formulaire à préparer : ${brief.creative.leadFormBrief}` : "Audience professionnelle à confirmer dans le compte" };
+    case "tiktok":
+      return { objective: nativeBriefTerm(brief.objectiveType), format: "Vidéo verticale",
+        settings: `${nativeBriefTerm(brief.placementIntent)} · Optimisation : ${nativeBriefTerm(brief.optimizationIntent)} · Destination : ${nativeBriefTerm(brief.destinationKind)}`,
+        complement: brief.creative.conversionEventBrief ? `Action à mesurer : ${brief.creative.conversionEventBrief}` : "Vidéo et identité publicitaire à choisir" };
+    case "pinterest":
+      return { objective: nativeBriefTerm(brief.objectiveType),
+        format: `${nativeBriefTerm(brief.intendedPromotionType)}${brief.creativeType ? ` · ${nativeBriefTerm(brief.creativeType)}` : ""}`,
+        settings: brief.conversionEvent ? `Action à mesurer : ${nativeBriefTerm(brief.conversionEvent)}` : "Découverte visuelle",
+        complement: brief.intendedPromotionType === "CATALOG" ? "Catalogue et produits à confirmer dans le compte" : "Épingle et visuel à choisir" };
+    case "x":
+      return { objective: nativeBriefTerm(brief.objective), format: nativeBriefTerm(brief.format),
+        settings: `Ciblage : ${nativeBriefTerm(brief.targetingMode)}${brief.keywords?.length ? ` · ${brief.keywords.join(", ")}` : ""}`,
+        complement: "Publication et compte de financement à confirmer" };
+  }
+}
+
+const NATIVE_BRIEF_SAFE_EDITS = new Set<keyof AdsCampaignInput>([
+  "name", "dailyBudgetEuros", "targetLocations", "targetAudiences", "destinationUrl",
+  "primaryText", "mediaBrief", "headlines", "endDate", "trackingParameters",
+  "adAccountId", "accountCurrency", "pageId", "imageUrl", "creativeUrl",
+  "urlExpansion", "urlExclusions", "googleSearchPartners", "googleDisplayExpansion",
+  "metaAudienceExpansion", "metaPlacements", "noSpecialCategoryConfirmed", "notEuPoliticalConfirmed",
+]);
+
+/** Never keep an AI channel brief if a professional changes its native strategy. */
+function applyDraftEdit(current: AdsCampaignInput, next: Partial<AdsCampaignInput>): AdsCampaignInput {
+  const updated = { ...current, ...next };
+  const brief = current.channelDraft;
+  if (!brief) return updated;
+  if (brief.channel !== current.provider) return { ...updated, channelDraft: undefined };
+
+  const changed = new Set((Object.keys(next) as (keyof AdsCampaignInput)[]).filter(
+    (key) => JSON.stringify(current[key]) !== JSON.stringify(next[key]),
+  ));
+  if (changed.size === 0) return updated;
+  if ([...changed].some((key) => !NATIVE_BRIEF_SAFE_EDITS.has(key))) return { ...updated, channelDraft: undefined };
+  if (changed.has("headlines") && brief.channel !== "linkedin" && brief.channel !== "pinterest") {
+    return { ...updated, channelDraft: undefined };
+  }
+  if (changed.has("primaryText") && (
+    (brief.channel === "tiktok" && Array.from(updated.primaryText).length > 100)
+    || (brief.channel === "x" && xPostWeightedLength(updated.primaryText) > 280)
+  )) return { ...updated, channelDraft: undefined };
+  if (changed.has("headlines") && (
+    (brief.channel === "linkedin" && (updated.headlines[0]?.length || 0) > 200)
+    || (brief.channel === "pinterest" && (updated.headlines[0]?.length || 0) > 100)
+  )) return { ...updated, channelDraft: undefined };
+
+  const common = {
+    name: changed.has("name") ? updated.name.trim() : brief.name,
+    budget: changed.has("dailyBudgetEuros") ? { ...brief.budget, amount: updated.dailyBudgetEuros } : brief.budget,
+    audience: {
+      locationBriefs: changed.has("targetLocations") ? updated.targetLocations : brief.audience.locationBriefs,
+      audienceBrief: changed.has("targetAudiences") ? updated.targetAudiences.join(" ; ") : brief.audience.audienceBrief,
+    },
+  };
+  let channelDraft: AdsChannelDraft;
+  switch (brief.channel) {
+    case "linkedin":
+      channelDraft = { ...brief, ...common, creative: {
+        ...brief.creative,
+        introText: changed.has("primaryText") ? updated.primaryText : brief.creative.introText,
+        headline: changed.has("headlines") ? updated.headlines[0] || "" : brief.creative.headline,
+        mediaBrief: changed.has("mediaBrief") ? updated.mediaBrief : brief.creative.mediaBrief,
+        destinationUrl: changed.has("destinationUrl") ? updated.destinationUrl : brief.creative.destinationUrl,
+      } };
+      break;
+    case "tiktok":
+      channelDraft = { ...brief, ...common, creative: {
+        ...brief.creative,
+        adText: changed.has("primaryText") ? updated.primaryText : brief.creative.adText,
+        videoBrief: changed.has("mediaBrief") ? updated.mediaBrief : brief.creative.videoBrief,
+        destinationUrl: changed.has("destinationUrl") ? updated.destinationUrl : brief.creative.destinationUrl,
+      } };
+      break;
+    case "pinterest":
+      channelDraft = { ...brief, ...common, creative: {
+        ...brief.creative,
+        pinTitle: changed.has("headlines") ? updated.headlines[0] || "" : brief.creative.pinTitle,
+        pinDescription: changed.has("primaryText") ? updated.primaryText : brief.creative.pinDescription,
+        visualBrief: changed.has("mediaBrief") ? updated.mediaBrief : brief.creative.visualBrief,
+        destinationUrl: changed.has("destinationUrl") ? updated.destinationUrl : brief.creative.destinationUrl,
+      } };
+      break;
+    case "x":
+      channelDraft = { ...brief, ...common, creative: {
+        ...brief.creative,
+        postText: changed.has("primaryText") ? updated.primaryText : brief.creative.postText,
+        mediaBrief: changed.has("mediaBrief") ? updated.mediaBrief : brief.creative.mediaBrief,
+        destinationUrl: changed.has("destinationUrl") ? updated.destinationUrl : brief.creative.destinationUrl,
+      } };
+      break;
+  }
+  // The simple draft remains editable even if a native-specific brief becomes incomplete.
+  if (!assessAdsChannelDraft(channelDraft).briefComplete) return { ...updated, channelDraft: undefined };
+  if (changed.has("primaryText")) {
+    if (brief.channel !== "linkedin" || updated.primaryText.length <= 300) {
+      updated.descriptions = [updated.primaryText, ...updated.descriptions.slice(1)];
+    }
+    if (brief.channel === "tiktok" || brief.channel === "x") updated.headlines = [updated.primaryText, ...updated.headlines.slice(1)];
+  }
+  return { ...updated, channelDraft };
+}
+
+type AdsApiRequestError = Error & {
+  code?: string;
+  requestId?: string;
+  status?: number;
+};
 
 async function readJson(response: Response) {
   const data = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
     const message = String(data.error || "Le service est momentanément indisponible. Réessayez dans un instant.");
-    throw new Error(/migration|stockage|relation .* does not exist/i.test(message) ? "L’enregistrement des campagnes sera bientôt disponible. Vous pouvez déjà préparer vos messages." : message);
+    const error = new Error(
+      /migration|stockage|relation .* does not exist/i.test(message)
+        ? "L’enregistrement des campagnes sera bientôt disponible. Vous pouvez déjà préparer vos messages."
+        : message,
+    ) as AdsApiRequestError;
+    error.code = typeof data.code === "string" ? data.code : undefined;
+    error.requestId = typeof data.requestId === "string" ? data.requestId : undefined;
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -392,7 +627,27 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsRefreshKey, setAccountsRefreshKey] = useState(0);
   const [configAction, setConfigAction] = useState<AdsConfigAction>(null);
+  const [externalStatuses, setExternalStatuses] = useState<Record<ExternalChannelId, ExternalConnectorStatus>>({
+    linkedin: emptyExternalStatus(), tiktok: emptyExternalStatus(),
+    pinterest: emptyExternalStatus(), x: emptyExternalStatus(),
+  });
+  const [externalConfiguring, setExternalConfiguring] = useState(false);
+  const [externalAccounts, setExternalAccounts] = useState<ExternalAdsAccount[]>([]);
+  const [externalAccountChoice, setExternalAccountChoice] = useState("");
+  const [externalAccountsLoading, setExternalAccountsLoading] = useState(false);
+  const [externalAccountsLoadFailed, setExternalAccountsLoadFailed] = useState(false);
+  const [externalAction, setExternalAction] = useState<"associate" | "disconnect" | null>(null);
+  const [externalError, setExternalError] = useState("");
+  const externalAccountsRequest = useRef(0);
+  const externalStatusRequests = useRef<Record<ExternalChannelId, number>>({ linkedin: 0, pinterest: 0, tiktok: 0, x: 0 });
   const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
+  const [campaignTotal, setCampaignTotal] = useState(0);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsLoadingMore, setCampaignsLoadingMore] = useState(false);
+  const [campaignNextOffset, setCampaignNextOffset] = useState<number | null>(null);
+  const [campaignsLoadError, setCampaignsLoadError] = useState("");
+  const campaignRequestGeneration = useRef(0);
+  const campaignPageLoading = useRef(false);
   const [tracking, setTracking] = useState(false);
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
   const [confirmedSpend, setConfirmedSpend] = useState(false);
@@ -407,6 +662,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [planRationale, setPlanRationale] = useState("");
   const [planSources, setPlanSources] = useState<string[]>([]);
   const [planError, setPlanError] = useState("");
+  const [planRequestId, setPlanRequestId] = useState("");
   const [autoMediaPlan, setAutoMediaPlan] = useState<AdsCampaignPlan | null>(null);
   const [autoMediaState, setAutoMediaState] = useState<"idle" | "generating" | "ready" | "skipped" | "error">("idle");
   const [autoMediaMessage, setAutoMediaMessage] = useState("");
@@ -475,6 +731,137 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     && (channelId !== "meta" || (selectedPage?.instagramUserId && selectedPage.id === configuredPageId)),
   );
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
+  const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
+  const reviewAccountReady = isAdsProvider(channelId)
+    ? channelAccountReady
+    : Boolean(activeExternalStatus?.connected && activeExternalStatus.selectedAccountId);
+
+  const refreshExternalStatus = useCallback(async (channel: ExternalChannelId) => {
+    const requestId = ++externalStatusRequests.current[channel];
+    setExternalStatuses((current) => ({ ...current, [channel]: { ...current[channel], load: "loading", error: "" } }));
+    try {
+      const data = await readJson(await fetch(`/api/ads/${channel}/status`, { cache: "no-store" }));
+      if (requestId !== externalStatusRequests.current[channel]) return;
+      const status = typeof data.status === "string" ? data.status : "disconnected";
+      const selectedAccountId = typeof data.selectedAccountId === "string" ? data.selectedAccountId : "";
+      const selectedAccountName = typeof data.selectedAccountName === "string" ? data.selectedAccountName
+        : typeof data.selectedAccountLabel === "string" ? data.selectedAccountLabel : "";
+      setExternalStatuses((current) => ({
+        ...current,
+        [channel]: {
+          load: "ready",
+          configured: data.configured !== false && status !== "not_configured" && status !== "configuration_missing",
+          connected: data.connected === true,
+          status,
+          selectedAccountId,
+          selectedAccountName,
+          error: "",
+        },
+      }));
+    } catch (error) {
+      if (requestId !== externalStatusRequests.current[channel]) return;
+      setExternalStatuses((current) => ({
+        ...current,
+        [channel]: { ...current[channel], load: "error", error: error instanceof Error ? error.message : "État indisponible." },
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isExternalChannel(channelId) && externalStatuses[channelId].load === "idle") void refreshExternalStatus(channelId);
+  }, [channelId, externalStatuses, refreshExternalStatus]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const callbackChannel = params.get("channel");
+    if (!isExternalChannel(callbackChannel)) return;
+    const index = CHANNEL_CATALOG.findIndex((channel) => channel.id === callbackChannel);
+    setChannelIndex(index);
+    setChannelId(callbackChannel);
+    setDraft(newDraft(callbackChannel));
+    setConfiguring(false);
+    setNotice("");
+    if (params.has("connection")) {
+      setExternalConfiguring(true);
+      if (params.get("connection") === "error") {
+        setExternalError(params.get("reason") || "La connexion n’a pas abouti. Réessayez.");
+      }
+      params.delete("connection");
+      params.delete("reason");
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
+    }
+  }, []);
+
+  const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string) => {
+    const requestId = ++externalAccountsRequest.current;
+    setExternalAccountsLoading(true);
+    setExternalAccountsLoadFailed(false);
+    try {
+      const data = await readJson(await fetch(`/api/ads/${channel}/accounts`, { cache: "no-store" }));
+      if (requestId !== externalAccountsRequest.current) return;
+      const nextAccounts = Array.isArray(data.accounts)
+        ? data.accounts.filter((account): account is ExternalAdsAccount => account && typeof account === "object" && typeof account.id === "string" && typeof account.name === "string")
+        : [];
+      setExternalAccounts(nextAccounts);
+      setExternalAccountChoice(typeof data.selectedAccountId === "string" ? data.selectedAccountId : persistedAccountId);
+      setExternalError("");
+    } catch (error) {
+      if (requestId === externalAccountsRequest.current) {
+        setExternalAccountsLoadFailed(true);
+        setExternalError(error instanceof Error ? error.message : "Comptes indisponibles.");
+      }
+    } finally {
+      if (requestId === externalAccountsRequest.current) setExternalAccountsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!externalConfiguring || !isExternalChannel(channelId) || !externalStatuses[channelId].connected) return;
+    void loadExternalAccounts(channelId, externalStatuses[channelId].selectedAccountId);
+    return () => { externalAccountsRequest.current += 1; };
+  }, [externalConfiguring, channelId, externalStatuses.linkedin.connected, externalStatuses.linkedin.selectedAccountId, externalStatuses.pinterest.connected, externalStatuses.pinterest.selectedAccountId, externalStatuses.tiktok.connected, externalStatuses.tiktok.selectedAccountId, externalStatuses.x.connected, externalStatuses.x.selectedAccountId, loadExternalAccounts]);
+
+  function openExternalConfiguration(channel: ExternalChannelId) {
+    setConfiguring(false);
+    setExternalError("");
+    setExternalAccounts([]);
+    setExternalAccountsLoadFailed(false);
+    setExternalAccountChoice(externalStatuses[channel].selectedAccountId);
+    setExternalAccountsLoading(externalStatuses[channel].connected);
+    setExternalConfiguring(true);
+  }
+
+  async function associateExternalAccount() {
+    if (!isExternalChannel(channelId) || !externalAccountChoice || externalAction) return;
+    setExternalAction("associate");
+    setExternalError("");
+    try {
+      await readJson(await fetch(`/api/ads/${channelId}/accounts`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: externalAccountChoice }),
+      }));
+      await refreshExternalStatus(channelId);
+    } catch (error) {
+      setExternalError(error instanceof Error ? error.message : "Association impossible.");
+    } finally {
+      setExternalAction(null);
+    }
+  }
+
+  async function disconnectExternalChannel() {
+    if (!isExternalChannel(channelId) || !EXTERNAL_DISCONNECT_CHANNELS.includes(channelId) || externalAction) return;
+    setExternalAction("disconnect");
+    setExternalError("");
+    try {
+      await readJson(await fetch(`/api/ads/${channelId}/disconnect`, { method: "POST" }));
+      setExternalAccounts([]);
+      setExternalAccountChoice("");
+      await refreshExternalStatus(channelId);
+    } catch (error) {
+      setExternalError(error instanceof Error ? error.message : "Déconnexion impossible.");
+    } finally {
+      setExternalAction(null);
+    }
+  }
 
   function selectChannel(index: number) {
     const nextIndex = ((index % CHANNEL_CATALOG.length) + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length;
@@ -497,17 +884,50 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setSavedId(null);
     setDirty(true);
     setConfirmedSpend(false);
-    setNotice(`${CHANNEL_CATALOG[nextIndex].label} : vous pouvez préparer et enregistrer un brouillon. Connexion et publication ne sont pas encore disponibles.`);
+    setNotice("");
   }
 
   const loadCampaigns = useCallback(async () => {
+    const generation = ++campaignRequestGeneration.current;
+    setCampaignsLoading(true);
+    setCampaignsLoadError("");
     try {
       const data = await readJson(await fetch("/api/ads/campaigns", { cache: "no-store" }));
-      setCampaigns(Array.isArray(data.campaigns) ? data.campaigns as StoredCampaign[] : []);
+      if (generation !== campaignRequestGeneration.current) return;
+      const loaded = Array.isArray(data.campaigns) ? data.campaigns as StoredCampaign[] : [];
+      setCampaigns(loaded);
+      setCampaignTotal(typeof data.total === "number" && Number.isFinite(data.total) ? data.total : loaded.length);
+      setCampaignNextOffset(typeof data.nextOffset === "number" && Number.isSafeInteger(data.nextOffset) ? data.nextOffset : null);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Impossible de charger les campagnes.");
+      if (generation === campaignRequestGeneration.current) setCampaignsLoadError(error instanceof Error ? error.message : "Impossible de charger les campagnes.");
+    } finally {
+      if (generation === campaignRequestGeneration.current) setCampaignsLoading(false);
     }
   }, []);
+
+  const loadMoreCampaigns = useCallback(async () => {
+    if (campaignNextOffset === null || campaignsLoading || campaignPageLoading.current) return;
+    const generation = campaignRequestGeneration.current;
+    campaignPageLoading.current = true;
+    setCampaignsLoadingMore(true);
+    setCampaignsLoadError("");
+    try {
+      const data = await readJson(await fetch(`/api/ads/campaigns?offset=${campaignNextOffset}`, { cache: "no-store" }));
+      if (generation !== campaignRequestGeneration.current) return;
+      const loaded = Array.isArray(data.campaigns) ? data.campaigns as StoredCampaign[] : [];
+      setCampaigns((current) => {
+        const knownIds = new Set(current.map((campaign) => campaign.id));
+        return [...current, ...loaded.filter((campaign) => !knownIds.has(campaign.id))];
+      });
+      setCampaignTotal(typeof data.total === "number" && Number.isFinite(data.total) ? data.total : campaignNextOffset + loaded.length);
+      setCampaignNextOffset(typeof data.nextOffset === "number" && Number.isSafeInteger(data.nextOffset) ? data.nextOffset : null);
+    } catch (error) {
+      if (generation === campaignRequestGeneration.current) setCampaignsLoadError(error instanceof Error ? error.message : "Impossible de charger les campagnes suivantes.");
+    } finally {
+      campaignPageLoading.current = false;
+      setCampaignsLoadingMore(false);
+    }
+  }, [campaignNextOffset, campaignsLoading]);
 
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   useEffect(() => {
@@ -541,20 +961,25 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         const persistedAccount = euroAccounts.find((account) => account.id === result.selectedAccountId);
         const suggestedAccount = euroAccounts.find((account) => account.id === result.suggestedAccountId);
         const persistedPage = nextPages.find((page) => page.id === result.selectedPageId);
+        const persistedAccountId = String(result.selectedAccountId || "");
+        const persistedPageId = String(result.selectedPageId || "");
         // `selectedAccountId` is a persisted choice. Keep it intact even if a
         // temporary account-list refresh cannot currently resolve that ID.
-        setConfiguredAccountId(String(result.selectedAccountId || ""));
-        setConfiguredPageId(persistedPage?.id || "");
+        setConfiguredAccountId(persistedAccountId);
+        setConfiguredPageId(persistedPageId);
         setDraft((current) => {
-          const hasPersistedAccount = Boolean(result.selectedAccountId);
+          const hasPersistedAccount = Boolean(persistedAccountId);
           const existingAccount = hasPersistedAccount || result.accountSelectionCleared ? undefined : euroAccounts.find((account) => account.id === current.adAccountId);
           // A provider refresh must never silently switch an associated
           // advertiser account to the only account currently returned.
           const account = persistedAccount || existingAccount || suggestedAccount;
           const existingPage = nextPages.find((page) => page.id === current.pageId);
           const page = persistedPage || existingPage || (channelId === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
-          const adAccountId = account?.id || "";
-          const pageId = channelId === "meta" ? page?.id || "" : current.pageId;
+          // Keep durable IDs visible through a transient provider outage. The
+          // actual live-publish checks still require that their accounts/pages
+          // are freshly available, so this never weakens publication safety.
+          const adAccountId = persistedAccountId || account?.id || "";
+          const pageId = channelId === "meta" ? persistedPageId || page?.id || "" : current.pageId;
           if (current.adAccountId === adAccountId && current.accountCurrency === "EUR" && current.pageId === pageId) return current;
           return { ...current, adAccountId, accountCurrency: "EUR", pageId };
         });
@@ -597,9 +1022,38 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   }
 
   function updateDraft(next: Partial<AdsCampaignInput>) {
-    setDraft((current) => ({ ...current, ...next }));
+    setDraft((current) => applyDraftEdit(current, next));
     setDirty(true);
     setConfirmedSpend(false);
+  }
+
+  function updateNativeSettings(next: AdsChannelWizardSettings) {
+    if (next.channel !== channelId) return;
+    const previous = draft.channelSettings;
+    const objectiveChanged = !previous || nativeWizardObjective(previous) !== nativeWizardObjective(next);
+    const formatChanged = !previous || nativeWizardMediaStrategy(previous) !== nativeWizardMediaStrategy(next);
+    const patch: Partial<AdsCampaignInput> = { channelSettings: next };
+    if (objectiveChanged) {
+      patch.objective = nativeWizardGenericObjective(next);
+      patch.conversionGoal = patch.objective === "leads" ? "lead_form"
+        : patch.objective === "sales" ? "purchase" : "website_visit";
+    }
+    if (formatChanged) {
+      patch.mediaStrategy = nativeWizardMediaStrategy(next);
+      patch.creativeType = patch.mediaStrategy === "video" ? "video" : "image";
+      // A previously attached image/video must not silently survive a format
+      // switch to a different native creative requirement.
+      patch.creativeUrl = "";
+      patch.imageUrl = "";
+    }
+    if (next.channel === "tiktok" && previous?.channel === "tiktok" &&
+        next.destinationKind !== previous.destinationKind) {
+      patch.conversionLocation = next.destinationKind === "instant_form" ? "instant_form" : "website";
+    }
+    if (next.channel === "linkedin" && objectiveChanged) {
+      patch.conversionLocation = next.objectiveType === "LEAD_GENERATION" ? "instant_form" : "website";
+    }
+    updateDraft(patch);
   }
 
   function applyCampaignMedia(item: Pick<MediaLibraryPickerItem, "media_type" | "signed_url" | "title" | "original_file_name">) {
@@ -617,13 +1071,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         : current.mediaStrategy === "video" || current.mediaStrategy === "mixed"
           ? "mixed"
           : "image";
-      return {
-        ...current,
+      return applyDraftEdit(current, {
         creativeUrl: url,
         imageUrl: mediaType === "image" ? url : current.imageUrl,
         creativeType: mediaType,
         mediaStrategy,
-      };
+      });
     });
     setDirty(true);
     setConfirmedSpend(false);
@@ -768,6 +1221,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     stopPlanProgress();
     setPlanProgress(0);
     setPlanError("");
+    setPlanRequestId("");
     setPlanRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
@@ -780,7 +1234,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   }
 
   function applyCampaignPlan(plan: AdsCampaignPlan) {
-    setDraft((current) => ({
+    setDraft((current) => {
+      const channelDraft = plan.channelDraft?.channel === current.provider ? plan.channelDraft : undefined;
+      const channelSettings = channelDraft ? adsChannelWizardSettingsFromBrief(channelDraft) : current.channelSettings;
+      const nativeCopy = channelDraft ? nativeBriefCopy(channelDraft) : null;
+      const proposal: AdsCampaignInput = {
       ...current,
       creationMode: "inrcy",
       campaignType: plan.campaignType,
@@ -812,7 +1270,33 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       descriptions: plan.descriptions.length ? plan.descriptions : current.descriptions,
       keywords: plan.keywords.length ? plan.keywords : current.keywords,
       negativeKeywords: plan.negativeKeywords,
-    }));
+      channelDraft,
+      channelSettings,
+      };
+      if (!channelDraft || !nativeCopy) return proposal;
+      // For prepared-only channels, the audited native brief is the source of
+      // truth for fields that the model could otherwise contradict or invent.
+      return {
+        ...proposal,
+        name: channelDraft.name,
+        objective: channelSettings ? nativeWizardGenericObjective(channelSettings) : proposal.objective,
+        mediaStrategy: channelSettings ? nativeWizardMediaStrategy(channelSettings) : proposal.mediaStrategy,
+        conversionLocation: channelSettings?.channel === "tiktok" && channelSettings.destinationKind === "instant_form"
+          ? "instant_form" : channelSettings?.channel === "linkedin" && channelSettings.objectiveType === "LEAD_GENERATION"
+            ? "instant_form" : "website",
+        dailyBudgetEuros: channelDraft.budget.amount,
+        targetLocations: channelDraft.audience.locationBriefs,
+        destinationUrl: nativeCopy.destination,
+        primaryText: nativeCopy.message,
+        mediaBrief: nativeCopy.media,
+        headlines: nativeCopy.headline
+          ? [nativeCopy.headline, ...plan.headlines.filter((headline) => headline !== nativeCopy.headline)].slice(0, 15)
+          : proposal.headlines,
+        descriptions: channelDraft.channel === "linkedin"
+          ? proposal.descriptions
+          : [nativeCopy.message, ...plan.descriptions.filter((description) => description !== nativeCopy.message)].slice(0, 4),
+      };
+    });
     setDirty(true);
     setConfirmedSpend(false);
   }
@@ -821,16 +1305,16 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     stopPlanProgress();
     setBusy("plan");
     setPlanError("");
+    setPlanRequestId("");
     setPlanRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
     setAutoMediaMessage("");
-    setPlanProgress(7);
+    // Never pretend that an AI answer is 89% complete: while the server is
+    // analysing, the UI deliberately shows an indeterminate, truthful state.
+    setPlanProgress(0);
     let mediaGenerationQueued = false;
-    planProgressTimer.current = setInterval(() => {
-      setPlanProgress((current) => current >= 89 ? current : Math.min(89, current + (current < 45 ? 7 : 4)));
-    }, 520);
     try {
       const result = await readJson(await fetch("/api/ads/plan", {
         method: "POST",
@@ -844,6 +1328,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       const plan = result.plan as AdsCampaignPlan;
       applyCampaignPlan(plan);
+      setPlanRequestId(typeof result.requestId === "string" ? result.requestId : "");
       setPlanRationale(plan.rationale || "iNrCy a préparé une base cohérente à partir de vos informations. Vous gardez la main sur chaque choix.");
       setPlanSources(
         Array.isArray(result.sources)
@@ -858,6 +1343,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setAutoMediaPlan(plan);
       mediaGenerationQueued = true;
     } catch (error) {
+      const requestError = error as AdsApiRequestError;
+      setPlanRequestId(typeof requestError?.requestId === "string" ? requestError.requestId : "");
       setPlanError(error instanceof Error ? error.message : "La génération iNrCy a échoué.");
       setPlanProgress(0);
     } finally {
@@ -869,6 +1356,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   function openAssistedAnalysisSetup() {
     stopPlanProgress();
     setPlanError("");
+    setPlanRequestId("");
     setPlanRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
@@ -896,6 +1384,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setNotice("");
     setPlanProgress(0);
     setPlanError("");
+    setPlanRequestId("");
     setPlanRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
@@ -947,6 +1436,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setNotice(`${channelMeta.label} ne peut pas encore être publiée depuis iNr’ADS. Votre préparation reste un brouillon.`);
       return;
     }
+    const connectorIssue = unsupportedAdsConnectorReason(draft);
+    if (connectorIssue) {
+      setNotice(connectorIssue);
+      return;
+    }
     if (!liveFormatAvailable) {
       setNotice(channelId === "google"
         ? "Ce format Google est prêt à être contrôlé et enregistré, mais seule la campagne Réseau de recherche peut actuellement être publiée depuis iNr’ADS."
@@ -965,7 +1459,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setNotice("Ajoutez une image à cette campagne Meta avant de la publier. Le connecteur Trafic Meta actuellement disponible utilise un visuel image.");
       return;
     }
-    if (channelId !== provider || !savedId || dirty || !selectedAccount || !confirmedSpend || !livePublishingEnabled) return;
+    if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady || !confirmedSpend || !livePublishingEnabled) return;
     if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
       setNotice("Pour diffuser sur Facebook et Instagram, associez un compte Instagram professionnel à la Page sélectionnée dans Meta Business Suite.");
       return;
@@ -980,7 +1474,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       setNotice(`Campagne activée côté plateforme. Sa diffusion reste soumise à la vérification de l’annonce par ${channelMeta.label}.`);
       setConfirmedSpend(false);
-      void loadCampaigns();
+      await loadCampaigns();
+      setCreating(false);
+      setTracking(true);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Publication impossible. Vérifiez le statut de la campagne avant toute nouvelle tentative.");
       void loadCampaigns();
@@ -989,6 +1485,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
 
   async function createPausedDemo() {
     if (!isAdsProvider(channelId)) return;
+    const connectorIssue = unsupportedAdsConnectorReason(draft);
+    if (connectorIssue) {
+      setNotice(connectorIssue);
+      return;
+    }
     if (!liveFormatAvailable) {
       setNotice(channelId === "google"
         ? "La démo en pause est actuellement disponible pour les campagnes Réseau de recherche Google."
@@ -1007,12 +1508,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setNotice("Ajoutez une image à cette campagne Meta avant de créer une démo en pause.");
       return;
     }
-    if (channelId !== provider || !savedId || dirty || !selectedAccount || !connected) return;
+    if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady) return;
     if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
       setNotice("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
       return;
     }
-    const accepted = window.confirm(`Créer une démo réelle, entièrement en pause sur ${channelMeta.label} ?\n\nLa plateforme créera les éléments de campagne, mais iNrCy n’enverra aucune demande d’activation. Aucune diffusion ni dépense ne pourra démarrer.`);
+    const accepted = window.confirm(`Créer une démo réelle en pause sur ${channelMeta.label} ?\n\nLa plateforme créera les éléments de campagne en pause et iNrCy n’enverra aucune demande d’activation. Vérifiez leur état dans le compte publicitaire après la création.`);
     if (!accepted) return;
     setBusy("demo"); setNotice("");
     try {
@@ -1020,9 +1521,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "demo_paused", confirmation: ADS_PAUSED_DEMO_CONFIRMATION }),
       }));
-      setNotice(`Démo créée en pause sur ${channelMeta.label}. Aucune annonce ne diffuse et aucun budget n’est dépensé.`);
+      setNotice(`Démo créée en pause sur ${channelMeta.label}. Vérifiez son état dans le compte publicitaire avant de filmer.`);
       setConfirmedSpend(false);
-      void loadCampaigns();
+      await loadCampaigns();
+      setCreating(false);
+      setTracking(true);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être créée. Vérifiez son statut sur la plateforme avant de réessayer.");
       void loadCampaigns();
@@ -1047,6 +1550,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setDirty(false);
     setConfirmedSpend(false);
     setPlanError("");
+    setPlanRequestId("");
     setPlanRationale("");
     setPlanSources([]);
     setAutoMediaPlan(null);
@@ -1075,6 +1579,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     return Math.max(1, Math.ceil((end - Date.now()) / 86_400_000));
   }, [draft.endDate]);
   const campaignTypeOptions = CAMPAIGN_TYPE_OPTIONS[channelId];
+  const nativeSettings = isExternalChannel(channelId)
+    ? draft.channelSettings?.channel === channelId ? draft.channelSettings : defaultAdsChannelWizardSettings(channelId)
+    : null;
+  const nativeMediaStrategy = nativeSettings ? nativeWizardMediaStrategy(nativeSettings) : null;
+  const nativeMediaUpload = nativeMediaStrategy === "image" || nativeMediaStrategy === "video";
   const mediaStrategyOptions = channelId === "meta"
     ? MEDIA_STRATEGY_OPTIONS.filter((option) => option.value === "image" || option.value === "video" || option.value === "mixed")
     : MEDIA_STRATEGY_OPTIONS;
@@ -1085,11 +1594,27 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       ? draft.campaignType === "meta_traffic"
       : false;
   const livePublisherConversionReady = liveFormatAvailable && draft.conversionLocation === "website";
-  const metaLivePlacementsSupported = channelId !== "meta" || draft.metaPlacements.every((placement) => placement === "facebook_feed" || placement === "instagram_feed");
-  const livePublisherSetupReady = livePublisherConversionReady && metaLivePlacementsSupported;
+  const metaLiveObjectiveSupported = channelId !== "meta" || draft.objective === "website_traffic";
+  const metaLiveGoalSupported = channelId !== "meta" || draft.conversionGoal === "website_visit";
+  const metaLivePlacementsSupported = channelId !== "meta" || (
+    draft.metaPlacements.length === 2 &&
+    draft.metaPlacements.includes("facebook_feed") &&
+    draft.metaPlacements.includes("instagram_feed")
+  );
+  const metaLiveCreativeSupported = channelId !== "meta" || (draft.mediaStrategy === "image" && draft.creativeType === "image");
+  const metaLiveCtaSupported = channelId !== "meta" || ["en savoir plus", "decouvrir", "learn more"].includes(
+    draft.callToAction.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(),
+  );
+  const connectorConfigurationIssue = isAdsProvider(channelId) ? unsupportedAdsConnectorReason(draft) : null;
+  const livePublisherSetupReady = livePublisherConversionReady && !connectorConfigurationIssue;
   const livePublisherMediaReady = channelId !== "meta" || Boolean(draft.imageUrl);
+  const analysisRequestPending = busy === "plan" && autoMediaState !== "generating" && planProgress < 90 && !planError;
   const pendingAnalysisStage = AI_ANALYSIS_STAGES.findIndex((stage) => planProgress < stage.at);
-  const activeAnalysisStage = pendingAnalysisStage === -1 ? AI_ANALYSIS_STAGES.length - 1 : pendingAnalysisStage;
+  const activeAnalysisStage = planError
+    ? -1
+    : analysisRequestPending
+      ? 0
+      : pendingAnalysisStage === -1 ? AI_ANALYSIS_STAGES.length - 1 : pendingAnalysisStage;
 
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -1110,30 +1635,59 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
             </div>
           </div>
           <nav className={styles.headerActions} aria-label="Actions iNr’ADS">
-            <button type="button" className={styles.trackingButton} onClick={() => { setTracking(true); void loadCampaigns(); }}>Suivi des campagnes{campaigns.length > 0 && <span className={styles.trackingCount}>{campaigns.length}</span>}</button>
-            <Link href="/dashboard" className={styles.back}>Fermer</Link>
+            <button type="button" className={styles.trackingButton} aria-label="Suivi des campagnes" title="Suivi des campagnes" onClick={() => { setTracking(true); void loadCampaigns(); }}>
+              <span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 5h12M7 12h12M7 19h12" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /><circle cx="3.5" cy="5" r="1.2" fill="currentColor" /><circle cx="3.5" cy="12" r="1.2" fill="currentColor" /><circle cx="3.5" cy="19" r="1.2" fill="currentColor" /></svg></span>
+              <span className={styles.headerActionText}>Suivi des campagnes</span>
+              {campaigns.length > 0 && <span className={styles.trackingCount}>{campaigns.length}</span>}
+            </button>
+            <Link href="/dashboard" className={`${styles.back} ${styles.headerCloseButton}`} aria-label="Fermer iNr’ADS" title="Fermer iNr’ADS"><span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /></svg></span><span className={styles.headerActionText}>Fermer</span></Link>
           </nav>
         </div>
       </header>
 
+      {notice && !creating && <p className={`${styles.notice} ${styles.cockpitNotice}`} role="status" aria-live="polite">{notice}</p>}
       <section id="ads-channels" className={styles.channelCard} aria-label="Canaux publicitaires">
-        <div className={styles.channelAtmosphere} aria-hidden="true"><span className={styles.channelAtmosphereRadar} /><span className={styles.channelAtmosphereGrid} /><span className={`${styles.channelAtmosphereSignal} ${styles.channelAtmosphereSignalOne}`} /><span className={`${styles.channelAtmosphereSignal} ${styles.channelAtmosphereSignalTwo}`} /><span className={`${styles.channelAtmosphereStar} ${styles.channelAtmosphereStarOne}`}>✦</span><span className={`${styles.channelAtmosphereStar} ${styles.channelAtmosphereStarTwo}`}>✦</span></div>
+        <div className={styles.channelAtmosphere} aria-hidden="true">
+          <span className={styles.channelCreativeStack}><i /><i /><i /></span>
+          <svg className={styles.channelConversionRoutes} viewBox="0 0 1440 560" preserveAspectRatio="xMidYMid slice" focusable="false">
+            <path className={`${styles.channelConversionRoute} ${styles.channelConversionRouteOne}`} d="M-70 430 C 210 365, 360 170, 700 278 S 1125 430, 1510 118" />
+            <path className={`${styles.channelConversionRoute} ${styles.channelConversionRouteTwo}`} d="M-40 150 C 250 250, 430 418, 735 295 S 1140 135, 1490 300" />
+            <path className={`${styles.channelConversionRoute} ${styles.channelConversionRouteThree}`} d="M80 550 C 360 410, 500 510, 770 338 S 1110 212, 1420 425" />
+            <circle className={`${styles.channelRoutePacket} ${styles.channelRoutePacketCyan}`} fill="#69e6ff" stroke="#effdff" r="5">
+              <animateMotion dur="9s" repeatCount="indefinite" path="M-70 430 C 210 365, 360 170, 700 278 S 1125 430, 1510 118" />
+            </circle>
+            <circle className={`${styles.channelRoutePacket} ${styles.channelRoutePacketViolet}`} fill="#e29cff" stroke="#fff0fc" r="4.5">
+              <animateMotion begin="-3.8s" dur="11s" repeatCount="indefinite" path="M-40 150 C 250 250, 430 418, 735 295 S 1140 135, 1490 300" />
+            </circle>
+            <circle className={`${styles.channelRoutePacket} ${styles.channelRoutePacketGreen}`} fill="#7aebba" stroke="#effff8" r="5.5">
+              <animateMotion begin="-6.1s" dur="13s" repeatCount="indefinite" path="M80 550 C 360 410, 500 510, 770 338 S 1110 212, 1420 425" />
+            </circle>
+            <circle className={`${styles.channelRouteNode} ${styles.channelRouteNodeAudience}`} cx="270" cy="300" r="7" />
+            <circle className={`${styles.channelRouteNode} ${styles.channelRouteNodeCreative}`} cx="730" cy="290" r="9" />
+            <circle className={`${styles.channelRouteNode} ${styles.channelRouteNodeConversion}`} cx="1165" cy="225" r="8" />
+          </svg>
+          <span className={styles.channelCockpitGrid} />
+          <span className={styles.channelPerformanceBoard}><i /><i /><i /><b /></span>
+        </div>
         <div className={styles.sectionHeading}><div><span>AMPLIFIEZ VOTRE PORTÉE</span><h2>Choisissez votre terrain de jeu.</h2></div><p>Sélectionnez un canal, puis configurez votre compte.</p></div>
-        <nav className={styles.channelRail} aria-label="Choisir un canal publicitaire">{CHANNEL_CATALOG.map((channel, index) => <button type="button" key={channel.id} data-near={index === channelIndex || index === (channelIndex + 1) % CHANNEL_CATALOG.length || index === (channelIndex - 1 + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length || undefined} onClick={() => selectChannel(index)} aria-pressed={index === channelIndex}>{channel.label}{!channel.provider && <small>Brouillon</small>}</button>)}</nav>
+        <nav className={styles.channelRail} aria-label="Choisir un canal publicitaire">{CHANNEL_CATALOG.map((channel, index) => <button type="button" key={channel.id} aria-label={channel.label} title={channel.label} data-channel={channel.id} data-near={index === channelIndex || index === (channelIndex + 1) % CHANNEL_CATALOG.length || index === (channelIndex - 1 + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length || undefined} onClick={() => selectChannel(index)} aria-pressed={index === channelIndex}><span className={styles.channelRailLogo} aria-hidden="true"><Image src={channel.logo} width={40} height={40} alt="" draggable={false} /></span><span className={styles.channelRailLabel}>{channel.label}</span></button>)}</nav>
         <div className={styles.channelCarousel} data-testid="ads-channel-carousel">
           <button type="button" onClick={() => selectChannel(channelIndex - 1)} aria-label="Canal précédent">‹</button>
           <div className={styles.cubeStage} tabIndex={0} role="group" aria-label="Carrousel des canaux : flèches gauche et droite pour naviguer" onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); selectChannel(channelIndex + (event.key === "ArrowRight" ? 1 : -1)); } }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("button,a")) channelPointerStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = channelPointerStart.current; channelPointerStart.current = null; if (!start) return; const dx = event.clientX - start.x; if (Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(event.clientY - start.y) * 1.5) selectChannel(channelIndex + (dx < 0 ? 1 : -1)); }} onPointerCancel={() => { channelPointerStart.current = null; }}>
           {[-1, 0, 1].map((offset) => {
             const index = (channelIndex + offset + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length;
             const channel = CHANNEL_CATALOG[index];
+            const externalChannel = isExternalChannel(channel.id) ? channel.id : null;
             return <div key={`${offset}-${channel.id}`} data-provider={channel.id} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
               {offset !== 0 && <button className={styles.miniSelect} type="button" aria-label={`Afficher ${channel.label}`} onClick={() => selectChannel(index)} />}
               <span className={styles.channelLogo}><Image src={channel.logo} width={56} height={56} alt="" draggable={false} /></span>
-              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small><span className={styles.channelStatus} data-draft-only={!channel.provider || undefined} data-status={channel.provider ? offset !== 0 ? "available" : channelAccountReady ? "connected" : connectionStatus === "needs_update" ? "select-account" : connected ? "select-account" : "disconnected" : "draft"}>{!channel.provider ? "Brouillon uniquement" : offset !== 0 ? "Disponible" : channelAccountReady ? "Compte connecté" : connectionStatus === "needs_update" ? "Connexion à actualiser" : connected ? "Compte à associer" : "À connecter"}</span></div>
+              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{channel.provider ? <span className={styles.channelStatus} data-status={offset !== 0 ? "available" : channelAccountReady ? "connected" : connectionStatus === "needs_update" ? "select-account" : connected ? "select-account" : "disconnected"}>{offset !== 0 ? "Disponible" : channelAccountReady ? "Compte connecté" : connectionStatus === "needs_update" ? "Connexion à actualiser" : connected ? "Compte à associer" : "À connecter"}</span> : externalChannel && offset === 0 ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
               {offset === 0 && (channel.provider ? <div className={styles.channelActions}>
                 {configuredAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={configuredAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
                 <button type="button" className={styles.channelConfigure} onClick={() => openConfiguration(channel.provider!)}><span aria-hidden="true">⚙</span> Configurer</button>
-              </div> : <span className={styles.comingSoon}>Préparer un brouillon</span>)}
+              </div> : externalChannel ? <div className={styles.channelActions}>
+                <button type="button" className={styles.channelConfigure} onClick={() => openExternalConfiguration(externalChannel)}><span aria-hidden="true">⚙</span> Configurer</button>
+              </div> : null)}
             </div>;
           })}
           </div>
@@ -1146,8 +1700,9 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </div>
 
       <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={closeCampaignCreation} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || busy === "plan") return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1)))); }}>
+      <div className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && name}</button>)}</nav>
+      {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
           <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment voulez-vous créer ?"} channel="Sans diffusion" />
           {analysisSetupOpen ? <>
@@ -1188,74 +1743,121 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           <p className={styles.adsGenerationEyebrow}>iNrCY · ANALYSE &amp; GÉNÉRATION</p>
           <h2>{planProgress === 100 ? "Votre campagne prend forme." : autoMediaState === "generating" ? "iNr’Studio compose votre média." : "iNrCy construit votre campagne."}</h2>
           <p className={styles.adsGenerationLead}>{planProgress === 100 ? "Votre base est prête. Contrôlez chaque recommandation avant de l’enregistrer ou de la diffuser." : autoMediaState === "generating" ? "Le ciblage et les messages sont prêts : iNrCy fabrique maintenant le média adapté au format choisi." : "Nous relions votre iNrADN, vos priorités et l’historique utile pour vous proposer une campagne cohérente."}</p>
-          <div className={styles.adsGenerationProgress} aria-label={`Progression : ${planProgress} %`}><div><span style={{ width: `${planProgress}%` }} /></div><strong>{planProgress}%</strong></div>
+          <div className={styles.adsGenerationProgress} data-pending={analysisRequestPending || undefined} aria-label={analysisRequestPending ? "Analyse iNrCy en cours" : `Progression : ${planProgress} %`} aria-live="polite"><div><span style={{ width: `${analysisRequestPending ? 22 : planProgress}%` }} /></div><strong>{analysisRequestPending ? "Analyse en cours…" : `${planProgress}%`}</strong></div>
           <ol className={styles.adsGenerationStages}>{AI_ANALYSIS_STAGES.map((stage, index) => <li key={stage.label} data-state={planProgress >= stage.at ? "done" : index === activeAnalysisStage ? "active" : "pending"}><span>{planProgress >= stage.at ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{stage.detail}</small></div></li>)}</ol>
-          {autoMediaState === "generating" && autoMediaMessage && <p className={styles.studioMediaGenerationNote} data-state={autoMediaState}>{autoMediaMessage}</p>}
-          {planError && <div className={styles.studioPlanError} role="alert"><strong>La proposition n’a pas pu être finalisée.</strong><span>{planError}</span><div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>Réessayer l’analyse</button><button type="button" className={styles.back} onClick={chooseManualCreation}>Passer au mode manuel</button></div></div>}
+          {autoMediaMessage && <p className={styles.studioMediaGenerationNote} data-state={autoMediaState} role={autoMediaState === "error" ? "alert" : "status"}>{autoMediaMessage}</p>}
+          {planError && <div className={styles.studioPlanError} role="alert"><strong>La proposition n’a pas pu être finalisée.</strong><span>{planError}</span>{planRequestId && <small>Référence technique : {planRequestId}</small>}<div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>Réessayer l’analyse</button><button type="button" className={styles.back} onClick={chooseManualCreation}>Passer au mode manuel</button></div></div>}
           {planProgress === 100 && !planError && <div className={styles.studioPlanReady}><p>{planRationale}</p>{planSources.length > 0 && <div className={styles.studioPlanSources}><span>Analyse basée sur</span><ul>{planSources.map((source) => <li key={source}>{source}</li>)}</ul></div>}</div>}
         </div>
       </section>
 
       <section hidden={step !== foundationsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioFoundationsCard}`}>
-        <StudioStepHeader number={foundationsStep} label="FONDATIONS" title="La direction de votre campagne." channel={channelMeta.label} />
+        <StudioStepHeader number={foundationsStep + 1} label="FONDATIONS" title="La direction de votre campagne." channel={channelMeta.label} />
         <p className={styles.intro}>Définissez ce que vous voulez obtenir. iNrCy utilise ces choix pour guider les messages, le ciblage et la diffusion.</p>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Nom de la campagne<input value={draft.name} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} placeholder="Ex. Demandes de devis locales" /></label>
           <label className={`${styles.field} ${styles.studioWide}`}>Offre ou service à mettre en lumière<VoiceTextarea value={draft.offer} onChange={(offer) => updateDraft({ offer })} maxLength={500} purpose="subject" contextLabel="Offre à mettre en lumière" placeholder="Ex. installation de panneaux solaires avec étude personnalisée" /></label>
-          <label className={styles.field}>Objectif<select value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value as AdsCampaignInput["objective"] })}>{OBJECTIVE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className={styles.field}>Action à mesurer<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          {nativeSettings?.channel === "linkedin" && <>
+            <label className={styles.field}>Objectif LinkedIn<select value={nativeSettings.objectiveType} onChange={(event) => {
+              const objectiveType = event.target.value as LinkedInWizardSettings["objectiveType"];
+              const formats = LINKEDIN_WIZARD_FORMATS[objectiveType] as readonly string[];
+              const format = formats.includes(nativeSettings.format) ? nativeSettings.format : formats[0] as LinkedInWizardSettings["format"];
+              updateNativeSettings({ ...nativeSettings, objectiveType, format });
+            }}>{Object.keys(LINKEDIN_WIZARD_FORMATS).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+          </>}
+          {nativeSettings?.channel === "tiktok" && <>
+            <label className={styles.field}>Objectif TikTok<select value={nativeSettings.objectiveType} onChange={(event) => {
+              const objectiveType = event.target.value as TikTokWizardSettings["objectiveType"];
+              const optimizationIntent = ({ REACH: "reach", VIDEO_VIEWS: "views", TRAFFIC: "clicks", WEB_CONVERSIONS: "conversions", LEAD_GENERATION: "leads", ENGAGEMENT: "engagement" } as const)[objectiveType];
+              updateNativeSettings({ ...nativeSettings, objectiveType, optimizationIntent,
+                destinationKind: objectiveType === "LEAD_GENERATION" ? "instant_form" : "website" });
+            }}>{TIKTOK_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+          </>}
+          {nativeSettings?.channel === "pinterest" && <>
+            <label className={styles.field}>Objectif Pinterest<select value={nativeSettings.objectiveType} onChange={(event) => {
+              const objectiveType = event.target.value as PinterestWizardSettings["objectiveType"];
+              updateNativeSettings({ ...nativeSettings, objectiveType,
+                intendedPromotionType: objectiveType === "VIDEO_COMPLETION" || objectiveType === "AWARENESS" ? "STANDARD_AD" : nativeSettings.intendedPromotionType,
+                creativeType: objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : nativeSettings.intendedPromotionType === "CATALOG" && objectiveType !== "AWARENESS" ? null : nativeSettings.creativeType || "REGULAR",
+                conversionEvent: objectiveType === "SALES" ? "CHECKOUT" : objectiveType === "LEADS" ? "LEAD" : null });
+            }}>{PINTEREST_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+          </>}
+          {nativeSettings?.channel === "x" && <>
+            <label className={styles.field}>Objectif X<select value={nativeSettings.objective} onChange={(event) => {
+              const objective = event.target.value as XWizardSettings["objective"];
+              updateNativeSettings({ ...nativeSettings, objective, format: objective === "video_views" ? "video" : nativeSettings.format });
+            }}>{X_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+          </>}
+          {!nativeSettings && <>
+            <label className={styles.field}>Objectif<select value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value as AdsCampaignInput["objective"] })}>{OBJECTIVE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className={styles.field}>Action à mesurer<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          </>}
         </div>
-        <div className={styles.studioTypeGrid} role="radiogroup" aria-label="Type de campagne">{campaignTypeOptions.map((option) => <button type="button" role="radio" aria-checked={draft.campaignType === option.value} key={option.value} data-selected={draft.campaignType === option.value || undefined} onClick={() => updateDraft({ campaignType: option.value })}><strong>{option.label}</strong><small>{option.detail}</small><span>{draft.campaignType === option.value ? "Choisi" : "Choisir"}</span></button>)}</div>
-        <p className={styles.studioTypeHint}>Un seul type par campagne : pour tester plusieurs leviers, créez ensuite une campagne dédiée à chacun.</p>
+        {!nativeSettings && <><div className={styles.studioTypeGrid} role="radiogroup" aria-label="Type de campagne">{campaignTypeOptions.map((option) => <button type="button" role="radio" aria-checked={draft.campaignType === option.value} key={option.value} data-selected={draft.campaignType === option.value || undefined} onClick={() => updateDraft({ campaignType: option.value })}><strong>{option.label}</strong><small>{option.detail}</small><span>{draft.campaignType === option.value ? "Choisi" : "Choisir"}</span></button>)}</div><p className={styles.studioTypeHint}>Un seul type par campagne : pour tester plusieurs leviers, créez ensuite une campagne dédiée à chacun.</p></>}
+        {nativeSettings && <p className={styles.studioTypeHint}>Vous choisirez le format dans Médias. Les ressources et autorisations seront à confirmer dans votre compte publicitaire.</p>}
       </section>
 
       <section hidden={step !== targetingStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-        <StudioStepHeader number={targetingStep} label="CIBLAGE" title="À qui, où et quand parler." channel={channelMeta.label} />
+        <StudioStepHeader number={targetingStep + 1} label="CIBLAGE" title="À qui, où et quand parler." channel={channelMeta.label} />
         <p className={styles.intro}>Vos zones et vos clients sont des garde-fous : ils évitent une campagne trop large ou des clics peu pertinents.</p>
         <div className={styles.studioGrid}>
           <TagField label="Zones ciblées" helper="Ajoutez une zone à la fois : Entrée ou le bouton Ajouter" values={draft.targetLocations} onChange={(targetLocations) => updateDraft({ targetLocations })} placeholder="Ex. Lyon, Rhône ou 20 km autour de Villeurbanne" note={channelId === "google" ? "Avant diffusion, iNrCy vérifie chaque zone auprès de Google Ads afin d’éviter tout ciblage imprécis." : undefined} />
           <TagField label="Clients / audiences prioritaires" helper="Ajoutez les profils à privilégier" values={draft.targetAudiences} onChange={(targetAudiences) => updateDraft({ targetAudiences })} placeholder="Ex. Propriétaires de maison" />
           <TagField wide label="Langues de vos clients" helper="Ajoutez une langue ou son code" values={draft.languages} onChange={(languages) => updateDraft({ languages })} placeholder="Ex. fr ou en" />
-          {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience &amp; placements Meta</legend><p>Choisissez les emplacements adaptés à votre média ; iNrCy ne coche que les formats cohérents lors de l’analyse.</p><label className={styles.check}><input type="checkbox" checked={draft.metaAudienceExpansion} onChange={(event) => updateDraft({ metaAudienceExpansion: event.target.checked })} />Autoriser Meta à élargir l’audience si cela améliore la probabilité de conversion.</label><div className={styles.studioControlOptions}>{META_PLACEMENT_OPTIONS.map((option) => <label key={option.value}><input type="checkbox" checked={draft.metaPlacements.includes(option.value)} onChange={(event) => updateDraft({ metaPlacements: event.target.checked ? Array.from(new Set([...draft.metaPlacements, option.value])) : draft.metaPlacements.filter((placement) => placement !== option.value) })} />{option.label}</label>)}</div></fieldset>}
+          {nativeSettings?.channel === "linkedin" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Ciblage professionnel LinkedIn</legend><p>Choisissez l’angle principal ; les postes, secteurs ou compétences précis seront à confirmer dans le compte Ads.</p><div className={styles.studioControlOptions}><label>Critère principal<select value={nativeSettings.targetingFacet} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingFacet: event.target.value as LinkedInWizardSettings["targetingFacet"] })}><option value="titles">Fonctions / postes</option><option value="industries">Secteurs d’entreprise</option><option value="skills">Compétences</option></select></label><label>Langue de la campagne<select value={nativeSettings.locale.language} onChange={(event) => updateNativeSettings({ ...nativeSettings, locale: { ...nativeSettings.locale, language: event.target.value } })}><option value="fr">Français</option><option value="en">Anglais</option></select></label></div><small>Locale prévue : {nativeSettings.locale.language.toUpperCase()} · {nativeSettings.locale.country}. Les zones géographiques restent vos choix ci-dessus.</small></fieldset>}
+          {nativeSettings?.channel === "tiktok" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience TikTok</legend><div className={styles.studioControlOptions}><label>Approche d’audience<select value={nativeSettings.targetingMode} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingMode: event.target.value as TikTokWizardSettings["targetingMode"] })}><option value="broad">Audience large</option><option value="interests">Centres d’intérêt</option></select></label></div><small>Les intérêts exacts devront être vérifiés dans le compte annonceur.</small></fieldset>}
+          {nativeSettings?.channel === "pinterest" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Découverte sur Pinterest</legend><p>Choisissez le signal principal à préparer pour votre groupe d’annonces.</p><div className={styles.studioControlOptions}><label>Signal de ciblage<select value={nativeSettings.targetingMode} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingMode: event.target.value as PinterestWizardSettings["targetingMode"] })}><option value="interests">Centres d’intérêt</option><option value="keywords">Recherches / mots-clés</option><option value="audiences">Audiences existantes</option></select></label></div></fieldset>}
+          {nativeSettings?.channel === "x" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience X</legend><p>Votre choix oriente les signaux à détailler à l’étape suivante.</p><div className={styles.studioControlOptions}><label>Approche de ciblage<select value={nativeSettings.targetingMode} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingMode: event.target.value as XWizardSettings["targetingMode"] })}><option value="broad">Audience large</option><option value="keywords">Mots-clés</option><option value="interests">Centres d’intérêt</option><option value="follower_lookalikes">Audiences similaires aux abonnés</option></select></label></div></fieldset>}
+          {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience Meta</legend><label className={styles.check}><input type="checkbox" checked={draft.metaAudienceExpansion} onChange={(event) => updateDraft({ metaAudienceExpansion: event.target.checked })} />Autoriser Meta à élargir l’audience si cela améliore la probabilité de conversion.</label></fieldset>}
         </div>
       </section>
 
       <section hidden={step !== keywordsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioKeywordsCard}`}>
-        <StudioStepHeader number={keywordsStep} label={channelId === "google" ? "MOTS-CLÉS" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : "Les signaux qui orientent Meta."} channel={channelMeta.label} />
-        <p className={styles.intro}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : "Ajoutez les intérêts, besoins et angles qui aident Meta à comprendre à qui votre message doit être montré."}</p>
+        <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? "MOTS-CLÉS" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : "Les signaux qui orientent votre audience."} channel={channelMeta.label} />
+        <p className={styles.intro}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : channelId === "meta" ? "Ajoutez les intérêts, besoins et angles qui aident à orienter votre audience Meta." : `Détaillez les ${nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" ? "mots-clés" : "signaux"} prévus pour ${channelMeta.label}. Les valeurs exactes seront confirmées dans le compte Ads.`}</p>
         <div className={styles.studioGrid}>
-          <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "google" && draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : channelId === "google" ? "Mots-clés recherchés" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><textarea rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder={channelId === "google" ? "Ex. installation panneaux solaires\nDevis photovoltaïque\nPrix panneau solaire" : "Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie"} /></label>
+          <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "google" && draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : channelId === "google" ? "Mots-clés recherchés" : nativeSettings?.channel === "linkedin" ? `Pistes : ${nativeBriefTerm(nativeSettings.targetingFacet)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><textarea rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder={channelId === "google" ? "Ex. installation panneaux solaires\nDevis photovoltaïque\nPrix panneau solaire" : "Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie"} /></label>
+          {nativeSettings && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Des pistes, pas des identifiants publicitaires</strong><p>Ces idées restent dans votre brouillon. iNr’ADS ne les convertit pas automatiquement en audiences ou mots-clés de la plateforme ; vérifiez leur disponibilité avant une création réelle.</p></aside>}
           {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Mots-clés à exclure <small>Pour éviter les recherches non pertinentes</small><textarea rows={4} value={editableList(draft.negativeKeywords)} onChange={(event) => updateDraft({ negativeKeywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. emploi\nformation\noccasion" /></label>}
-          {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Réseaux Google</legend><p>Ces réglages complètent vos mots-clés sans modifier le budget quotidien.</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />Partenaires du Réseau de Recherche</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />Extension Display lorsque pertinente</label></div></fieldset>}
           {channelId === "meta" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Un signal, pas une contrainte rigide</strong><p>iNrCy les combine à vos zones, à votre offre et au comportement observé par Meta. Vous gardez le contrôle sur les audiences définies à l’étape précédente.</p></aside>}
         </div>
       </section>
 
       <section hidden={step !== creativeStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioCreativeCard}`}>
-        <StudioStepHeader number={creativeStep} label="CRÉATIONS" title="Des messages qui donnent envie d’agir." channel={channelMeta.label} />
-        <p className={styles.intro}>Vous pouvez écrire vous-même, partir de la proposition iNrCy et ajuster chaque mot. Les règles de la plateforme restent appliquées à la publication.</p>
+        <StudioStepHeader number={creativeStep + 1} label="CRÉATIONS" title="Des messages qui donnent envie d’agir." channel={channelMeta.label} />
+        <p className={styles.intro}>Vous pouvez écrire vous-même, partir de la proposition iNrCy et ajuster chaque mot. Vérifiez les exigences du canal avant une éventuelle publication.</p>
         <div className={styles.studioGrid}>
-          <label className={`${styles.field} ${styles.studioWide}`}>Message principal<VoiceTextarea value={draft.primaryText} onChange={(primaryText) => updateDraft({ primaryText })} rows={4} maxLength={500} purpose="content" contextLabel="Message principal de la campagne" placeholder="Présentez l’offre, son bénéfice concret et la prochaine action à réaliser." /></label>
-          <label className={styles.field}>{channelId === "google" ? "Titres (3 minimum, un par ligne, 30 caractères max)" : "Titres ou accroches (un par ligne)"}<textarea rows={4} value={editableList(draft.headlines)} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} /></label>
-          <label className={styles.field}>{channelId === "google" ? "Descriptions (2 minimum, une par ligne, 90 caractères max)" : "Descriptions (une par ligne)"}<textarea rows={4} value={editableList(draft.descriptions)} onChange={(event) => updateDraft({ descriptions: parseEditableList(event.target.value.split("\n")) })} /></label>
+          <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "x" ? "Texte du post X" : channelId === "tiktok" ? "Texte de l’annonce TikTok" : channelId === "pinterest" ? "Description de l’épingle" : channelId === "linkedin" ? "Introduction de la publication" : "Message principal"}<VoiceTextarea value={draft.primaryText} onChange={(primaryText) => updateDraft({ primaryText })} rows={4} maxLength={channelId === "linkedin" ? 300 : channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500} purpose="content" contextLabel="Message principal de la campagne" placeholder="Présentez l’offre, son bénéfice concret et la prochaine action à réaliser." /></label>
+          {channelId !== "tiktok" && channelId !== "x" && <label className={styles.field}>{channelId === "google" ? "Titres (3 minimum, un par ligne, 30 caractères max)" : channelId === "pinterest" ? "Titre de l’épingle" : channelId === "linkedin" ? "Titre de la création" : "Titres ou accroches (un par ligne)"}<textarea rows={4} value={editableList(draft.headlines)} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} /></label>}
+          {(channelId === "google" || channelId === "meta") && <label className={styles.field}>{channelId === "google" ? "Descriptions (2 minimum, une par ligne, 90 caractères max)" : "Descriptions (une par ligne)"}<textarea rows={4} value={editableList(draft.descriptions)} onChange={(event) => updateDraft({ descriptions: parseEditableList(event.target.value.split("\n")) })} /></label>}
           <label className={styles.field}>Appel à l’action<input value={draft.callToAction} maxLength={80} onChange={(event) => updateDraft({ callToAction: event.target.value })} placeholder="Ex. Demander un devis" /></label>
-          <aside className={`${styles.studioCopyGuidance} ${styles.field}`}><strong>Contrôle plateforme</strong><p>{channelId === "google" ? "iNrCy vérifie les longueurs de titres et descriptions avant la publication." : "iNrCy vérifie la cohérence entre votre message, votre appel à l’action et le média choisi."}</p></aside>
+          <aside className={`${styles.studioCopyGuidance} ${styles.field}`}><strong>À vérifier</strong><p>{channelId === "google" ? "iNrCy vérifie les longueurs de titres et descriptions avant la publication." : nativeSettings?.channel === "linkedin" ? "Le texte doit correspondre au format sponsorisé choisi, notamment si vous préparez un formulaire de prospects." : nativeSettings?.channel === "tiktok" ? "Gardez un texte court qui accompagne la vidéo et une action cohérente avec sa destination." : nativeSettings?.channel === "pinterest" ? "Le titre, la description et le visuel doivent présenter la même idée." : nativeSettings?.channel === "x" ? "Votre post doit être clair sans dépasser 280 caractères ; vérifiez le média si vous avez choisi image ou vidéo." : "Relisez la cohérence entre votre message, votre appel à l’action et le média choisi."}</p></aside>
         </div>
       </section>
 
       <section hidden={step !== mediaStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard}`}>
-        <StudioStepHeader number={mediaStep} label="MÉDIAS" title="Le bon visuel, au bon format." channel={channelMeta.label} />
+        <StudioStepHeader number={mediaStep + 1} label="MÉDIAS" title="Le bon visuel, au bon format." channel={channelMeta.label} />
         <p className={styles.intro}>Choisissez un média de votre médiathèque, importez-le ou laissez iNr’Studio créer le visuel adapté à cette campagne.</p>
         <div className={styles.studioGrid}>
-          <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder="https://votresite.fr/media.jpg" /></label>
-          <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>
+          {nativeSettings?.channel === "linkedin" && <label className={styles.field}>Format sponsorisé<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format)}</option>)}</select></label>}
+          {nativeSettings?.channel === "pinterest" && <>
+            <label className={styles.field}>Type de promotion<select value={nativeSettings.intendedPromotionType} onChange={(event) => {
+              const intendedPromotionType = event.target.value as PinterestWizardSettings["intendedPromotionType"];
+              updateNativeSettings({ ...nativeSettings, intendedPromotionType,
+                creativeType: intendedPromotionType === "CATALOG" ? null : nativeSettings.objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : "REGULAR" });
+            }}><option value="STANDARD_AD">Épingle sponsorisée</option>{["CONSIDERATION", "SALES", "LEADS"].includes(nativeSettings.objectiveType) && <option value="CATALOG">Catalogue de produits</option>}</select></label>
+            {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
+          </>}
+          {nativeSettings?.channel === "x" && <label className={styles.field}>Format du post<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
+          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {(nativeSettings === null || nativeMediaUpload) && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
+          {nativeMediaStrategy !== "search_text" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
         </div>
-        <div className={styles.campaignMediaWorkspace}>
-          <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{draft.creativeUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{draft.creativeUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>Optionnel selon le format</span>}</div>
-          <div className={styles.campaignMediaActions}>
-            <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>
-            <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>
+        {(nativeSettings === null || nativeMediaUpload) && <div className={styles.campaignMediaWorkspace}>
+          <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{draft.creativeUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{draft.creativeUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
+          <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
+            {nativeMediaStrategy !== "video" && <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>}
+            {nativeMediaStrategy !== "image" && <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>}
             <button type="button" className={styles.campaignMediaGenerate} onClick={() => setCampaignMediaStudioOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">✦</span> Générer</button>
             <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
           </div>
@@ -1264,79 +1866,91 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
           <input ref={campaignImageInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "image")} />
           <input ref={campaignVideoInputRef} type="file" accept="video/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "video")} />
-        </div>
+        </div>}
       </section>
 
       <section hidden={step !== deliveryStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioDeliveryCard}`}>
-        <StudioStepHeader number={deliveryStep} label="DIFFUSION" title="Où envoyer et comment mesurer." channel={channelMeta.label} />
+        <StudioStepHeader number={deliveryStep + 1} label="DIFFUSION" title="Où envoyer et comment mesurer." channel={channelMeta.label} />
         <p className={styles.intro}>Préparez le parcours après le clic : une destination claire, l’action attendue et les paramètres utiles. Rien n’est encore diffusé.</p>
         <div className={styles.studioGrid}>
-          <label className={`${styles.field} ${styles.studioWide}`}>Lien de redirection<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>
-          <label className={styles.field}>Lieu de conversion<select value={draft.conversionLocation} onChange={(event) => updateDraft({ conversionLocation: event.target.value as AdsCampaignInput["conversionLocation"] })}>{CONVERSION_LOCATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} — {option.detail}</option>)}</select></label>
+          {(nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website") && <label className={`${styles.field} ${styles.studioWide}`}>Lien de redirection<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>}
+          {nativeSettings?.channel === "tiktok" && <>
+            <label className={styles.field}>Destination TikTok<select value={nativeSettings.destinationKind} onChange={(event) => updateNativeSettings({ ...nativeSettings, destinationKind: event.target.value as TikTokWizardSettings["destinationKind"] })}><option value="website">Site web</option>{nativeSettings.objectiveType === "LEAD_GENERATION" && <option value="instant_form">Formulaire intégré</option>}{["REACH", "VIDEO_VIEWS", "ENGAGEMENT"].includes(nativeSettings.objectiveType) && <option value="profile">Profil TikTok</option>}</select></label>
+            <div className={styles.field}><span>Optimisation : {nativeBriefTerm(nativeSettings.optimizationIntent)}</span><small>Pour cet objectif, le Pixel ou formulaire devra être confirmé dans TikTok Ads si une conversion est prévue.</small></div>
+            <label className={styles.field}>Emplacements envisagés<select value={nativeSettings.placementIntent} onChange={(event) => updateNativeSettings({ ...nativeSettings, placementIntent: event.target.value as TikTokWizardSettings["placementIntent"] })}><option value="tiktok_only">TikTok uniquement</option><option value="automatic">Placements automatiques</option></select><small>La disponibilité sera vérifiée dans le compte annonceur.</small></label>
+          </>}
+          {nativeSettings?.channel === "pinterest" && (nativeSettings.objectiveType === "SALES" || nativeSettings.objectiveType === "LEADS") && <label className={styles.field}>Événement Pinterest<select value={nativeSettings.conversionEvent || ""} onChange={(event) => updateNativeSettings({ ...nativeSettings, conversionEvent: event.target.value as Exclude<PinterestWizardSettings["conversionEvent"], null> })}>{(nativeSettings.objectiveType === "SALES" ? ["CHECKOUT", "ADD_TO_CART"] : ["LEAD", "SIGNUP"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select><small>La balise et l’événement réels seront vérifiés dans Pinterest Ads.</small></label>}
+          {nativeSettings && <label className={styles.field}>Action souhaitée<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {!nativeSettings && <label className={styles.field}>Lieu de conversion<select value={draft.conversionLocation} onChange={(event) => updateDraft({ conversionLocation: event.target.value as AdsCampaignInput["conversionLocation"] })}>{CONVERSION_LOCATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} — {option.detail}</option>)}</select></label>}
           <label className={styles.field}>Balises de suivi <small>Optionnel</small><input value={draft.trackingParameters} maxLength={500} onChange={(event) => updateDraft({ trackingParameters: event.target.value })} placeholder="utm_source=google&utm_campaign=devis" /></label>
+          {nativeSettings?.channel === "linkedin" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{nativeSettings.objectiveType === "LEAD_GENERATION" ? "Formulaire LinkedIn à préparer" : nativeSettings.objectiveType === "WEBSITE_CONVERSION" ? "Mesure du site à confirmer" : "Destination de l’annonce"}</strong><p>{nativeSettings.objectiveType === "LEAD_GENERATION" ? "Le formulaire de prospects doit appartenir à l’organisation et sera choisi dans le compte LinkedIn Ads." : nativeSettings.objectiveType === "WEBSITE_CONVERSION" ? "La conversion et l’Insight Tag devront être vérifiés dans le compte LinkedIn Ads." : "Le lien et l’action voulue restent une intention tant qu’aucune création publicitaire n’a été vérifiée."}</p></aside>}
+          {nativeSettings?.channel === "x" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Mesure X à confirmer</strong><p>{nativeSettings.objective === "website_conversions" ? "Une source de conversion X valide devra être reliée au compte publicitaire." : "Les résultats réels ne seront visibles qu’après création et validation dans X Ads."}</p></aside>}
           {channelId === "google" && <label className={`${styles.check} ${styles.studioWide}`}><input type="checkbox" checked={draft.urlExpansion} onChange={(event) => updateDraft({ urlExpansion: event.target.checked })} />Autoriser l’utilisation de pages pertinentes de mon site lorsque le format de campagne le permet.</label>}
           {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Pages à exclure <small>Une URL HTTPS par ligne, optionnel</small><textarea rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder="https://votresite.fr/mentions-legales" /></label>}
+          {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Réseaux Google</legend><p>Choisissez les surfaces envisagées. Le budget reste défini à l’étape suivante.</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />Partenaires du Réseau de Recherche</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />Extension Display lorsque pertinente</label></div></fieldset>}
+          {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Placements Meta</legend><p>Choisissez les emplacements adaptés à votre média. Le connecteur disponible peut imposer une sélection plus restreinte.</p><div className={styles.studioControlOptions}>{META_PLACEMENT_OPTIONS.map((option) => <label key={option.value}><input type="checkbox" checked={draft.metaPlacements.includes(option.value)} onChange={(event) => updateDraft({ metaPlacements: event.target.checked ? Array.from(new Set([...draft.metaPlacements, option.value])) : draft.metaPlacements.filter((placement) => placement !== option.value) })} />{option.label}</label>)}</div></fieldset>}
         </div>
       </section>
 
       <section hidden={step !== budgetStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioBudgetCard}`}>
-        <StudioStepHeader number={budgetStep} label="BUDGET" title="Votre investissement, en clair." channel={channelMeta.label} />
+        <StudioStepHeader number={budgetStep + 1} label="BUDGET" title="Votre investissement, en clair." channel={channelMeta.label} />
         <p className={styles.intro}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</p>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Budget quotidien moyen (€)<input type="number" min="5" max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} /></label>
           <label className={styles.field}>Date de fin<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
-          <label className={`${styles.field} ${styles.studioWide}`}>Stratégie de diffusion<select value={draft.bidStrategy} onChange={(event) => updateDraft({ bidStrategy: event.target.value as AdsCampaignInput["bidStrategy"] })}>{BID_STRATEGY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          {!nativeSettings && <label className={`${styles.field} ${styles.studioWide}`}>Stratégie de diffusion<select value={draft.bidStrategy} onChange={(event) => updateDraft({ bidStrategy: event.target.value as AdsCampaignInput["bidStrategy"] })}>{BID_STRATEGY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
         </div>
         <div className={styles.studioBudgetForecast} aria-label="Repères budgétaires">
           <div className={styles.studioBudgetForecastCard}><span>Budget quotidien</span><strong>{Number(draft.dailyBudgetEuros || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong><small>moyenne planifiée</small></div>
           <div className={styles.studioBudgetForecastCard}><span>Durée prévue</span><strong>{estimatedCampaignDays ? `${estimatedCampaignDays} j` : "—"}</strong><small>jusqu’à la date de fin</small></div>
           <div className={styles.studioBudgetForecastCard}><span>Enveloppe estimée</span><strong>{Number.isFinite(estimate) ? estimate.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}</strong><small>budget × durée</small></div>
-          <div className={styles.studioBudgetForecastCard}><span>Optimisation</span><strong>{BID_STRATEGY_OPTIONS.find((option) => option.value === draft.bidStrategy)?.label || "À définir"}</strong><small>pilotée par la plateforme</small></div>
+          {nativeSettings ? <div className={styles.studioBudgetForecastCard}><span>Statut</span><strong>Brouillon</strong><small>Aucune dépense engagée</small></div> : <div className={styles.studioBudgetForecastCard}><span>Optimisation</span><strong>{BID_STRATEGY_OPTIONS.find((option) => option.value === draft.bidStrategy)?.label || "À définir"}</strong><small>pilotée par la plateforme</small></div>}
         </div>
         <div className={styles.studioBudgetPanel}><div><span>À retenir</span><strong>Vous gardez la main.</strong></div><p>{channelId === "google" ? "Google Ads gère la facturation. Son budget quotidien est une moyenne : la dépense peut varier d’un jour à l’autre." : channelId === "meta" ? "Meta gère la facturation. Cette projection est indicative ; vérifiez les règles de dépense de votre compte avant toute diffusion." : "Aucune dépense n’est engagée tant que ce canal reste en préparation."}</p></div>
-        {channelId === "meta" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} />Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</label>}
-        {channelId === "google" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} />Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</label>}
       </section>
 
       <section hidden={step !== validationStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioValidationCard}`}>
-        <StudioStepHeader number={validationStep} label="VOTRE CONTRÔLE" title="Votre campagne, vos décisions." channel={channelMeta.label} />
+        <StudioStepHeader number={validationStep + 1} label="VOTRE CONTRÔLE" title="Votre campagne, vos décisions." channel={channelMeta.label} />
         <p className={styles.intro}>Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme.</p>
+        {channelId === "meta" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} />Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</label>}
+        {channelId === "google" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} />Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</label>}
         <dl className={styles.studioReviewGrid}>
-          <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{selectedCampaignType?.label || channelMeta.label} · {OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}</small></div>
-          <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {selectedAccount?.name || (isAdsProvider(channelId) ? "À configurer" : "Préparation" )}</dd><small>{selectedAccount ? "Compte annonceur prêt à être contrôlé" : "Vous pouvez enregistrer avant de connecter un compte"}</small></div>
+          <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings))} · ${nativeWizardFormat(nativeSettings)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
+           <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {selectedAccount?.name || (isExternalChannel(channelId) && activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : isAdsProvider(channelId) ? "À configurer" : "À associer")}</dd><small>{reviewAccountReady ? "Compte annonceur associé" : selectedAccount ? "Compte ou identité à confirmer dans la configuration" : "Vous pouvez enregistrer avant de connecter un compte"}</small></div>
           <div><dt>Objectif mesuré</dt><dd>{CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{draft.targetLocations.length ? `${draft.targetLocations.length} zone${draft.targetLocations.length > 1 ? "s" : ""} ciblée${draft.targetLocations.length > 1 ? "s" : ""}` : "Zones à préciser"}</small></div>
           <div><dt>Investissement</dt><dd>{draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour</dd><small>Fin prévue : {draft.endDate || "à préciser"}</small></div>
           <div><dt>Redirection</dt><dd>{draft.destinationUrl || "À renseigner"}</dd><small>{draft.keywords.length ? `${draft.keywords.length} signaux / mots-clés préparés` : "Mots-clés ou audiences à compléter"}</small></div>
           <div><dt>Médias &amp; message</dt><dd>{MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{draft.callToAction || "Appel à l’action à définir"}</small></div>
           <div><dt>Conversion &amp; suivi</dt><dd>{CONVERSION_LOCATION_OPTIONS.find((option) => option.value === draft.conversionLocation)?.label}</dd><small>{draft.trackingParameters || "Aucune balise de suivi ajoutée"}</small></div>
-          <div><dt>Diffusion avancée</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? `${draft.metaPlacements.length} placement${draft.metaPlacements.length > 1 ? "s" : ""}` : "Placements à choisir") : channelId === "google" ? `${draft.languages.length} langue${draft.languages.length > 1 ? "s" : ""}` : "Préparation complète"}</dd><small>{channelId === "meta" ? (draft.metaAudienceExpansion ? "Expansion d’audience autorisée" : "Audience strictement contrôlée") : channelId === "google" ? (draft.googleSearchPartners ? "Partenaires de recherche inclus" : "Réseau Google principal") : "À adapter au canal"}</small></div>
+          <div><dt>Diffusion avancée</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? `${draft.metaPlacements.length} placement${draft.metaPlacements.length > 1 ? "s" : ""}` : "Placements à choisir") : channelId === "google" ? `${draft.languages.length} langue${draft.languages.length > 1 ? "s" : ""}` : nativeSettings?.channel === "linkedin" ? nativeBriefTerm(nativeSettings.targetingFacet) : nativeSettings?.channel === "tiktok" ? nativeBriefTerm(nativeSettings.placementIntent) : nativeSettings?.channel === "pinterest" || nativeSettings?.channel === "x" ? nativeBriefTerm(nativeSettings.targetingMode) : "Préparation complète"}</dd><small>{channelId === "meta" ? (draft.metaAudienceExpansion ? "Expansion d’audience autorisée" : "Audience strictement contrôlée") : channelId === "google" ? (draft.googleSearchPartners ? "Partenaires de recherche inclus" : "Réseau Google principal") : nativeSettings?.channel === "tiktok" ? `Destination : ${nativeBriefTerm(nativeSettings.destinationKind)} · Optimisation : ${nativeBriefTerm(nativeSettings.optimizationIntent)}` : nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent ? `Événement : ${nativeBriefTerm(nativeSettings.conversionEvent)}` : "Choix à vérifier sur la plateforme"}</small></div>
         </dl>
-        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>La connexion à {channelMeta.label} et sa publication ne sont pas encore disponibles dans iNr’ADS. Votre préparation reste enregistrable, sans diffusion ni dépense média.</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque.</p> : <>
-          {demoPausedPublishingEnabled && <p className={styles.warning}><strong>Mode démo sécurisé</strong>Cette démonstration crée les éléments chez {channelMeta.label}, tous maintenus en pause. Aucune diffusion ni dépense ne peut démarrer.</p>}
-          {!livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Vous pouvez préparer et enregistrer la campagne. La diffusion réelle n’est pas encore activée.</p>}
+        {draft.channelDraft?.channel === channelId && <details className={styles.studioNativeBrief}>
+          <summary><strong>Brief {channelMeta.label} préparé par iNrCy</strong><span>{nativeBriefDetails(draft.channelDraft).objective} · {nativeBriefDetails(draft.channelDraft).format}</span></summary>
+          <dl>
+            <div><dt>Audience</dt><dd>{draft.channelDraft.audience.audienceBrief}</dd><small>{draft.channelDraft.audience.locationBriefs.join(" · ")}</small></div>
+            <div><dt>Message proposé</dt><dd>{nativeBriefCopy(draft.channelDraft).message}</dd><small>{nativeBriefCopy(draft.channelDraft).headline}</small></div>
+            <div><dt>Direction média</dt><dd>{nativeBriefCopy(draft.channelDraft).media}</dd></div>
+            <div><dt>Réglages du canal</dt><dd>{nativeBriefDetails(draft.channelDraft).settings}</dd><small>{nativeBriefDetails(draft.channelDraft).complement}</small></div>
+          </dl>
+          <p>Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici.</p>
+        </details>}
+        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans le brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram ensemble. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement une image. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque.</p> : <>
+          {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}</p>}
+          {!connectorConfigurationIssue && demoPausedPublishingEnabled && <p className={styles.warning}><strong>Démo en pause</strong>Cette action crée les éléments chez {channelMeta.label} en pause, sans demander leur activation. Vérifiez leur état dans le compte publicitaire après la création.</p>}
+          {!connectorConfigurationIssue && !livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Vous pouvez préparer et enregistrer la campagne. La diffusion réelle n’est pas encore activée.</p>}
         </>}
         <div className={styles.studioFinalActions}>
           <button type="button" className={styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon" : savedId ? "Brouillon enregistré" : "Enregistrer la campagne"}</button>
-          {isAdsProvider(channelId) && livePublisherSetupReady && demoPausedPublishingEnabled && <button type="button" className={styles.secondaryButton} disabled={channelId !== provider || !savedId || dirty || !connected || !livePublisherMediaReady || busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
+          {isAdsProvider(channelId) && livePublisherSetupReady && demoPausedPublishingEnabled && <button type="button" className={styles.secondaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
         </div>
-        {isAdsProvider(channelId) && livePublisherSetupReady && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !livePublishingEnabled || !savedId || dirty || !connected || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
+        {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
       </section>
       {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={styles.headerCta} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
       </div>
       </SettingsDrawer>
 
       <SettingsDrawer title="Suivi des campagnes" isOpen={tracking} onClose={() => setTracking(false)} presentation="centered" headerLead="Retrouvez vos campagnes et reprenez vos brouillons." headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.trackingTitle}><span aria-hidden="true">↗</span> Suivi des campagnes</div>}>
-        <div className={styles.trackingContent}>
-          <div className={styles.trackingIntro}><div><span>VOS CAMPAGNES</span><h2>Gardez le fil de vos annonces.</h2><p>Brouillons, publications et campagnes actives au même endroit.</p></div><strong>{campaigns.length} campagne{campaigns.length > 1 ? "s" : ""}</strong></div>
-          {campaigns.length === 0 ? <div className={styles.trackingEmpty}><span aria-hidden="true">✦</span><strong>Votre première campagne commence ici.</strong><p>Choisissez un canal, lancez une campagne et retrouvez votre brouillon dans ce suivi.</p><button type="button" className={styles.headerCta} onClick={() => setTracking(false)}>Voir les canaux</button></div> : <div className={styles.trackingList}>
-            {campaigns.map((item) => <article key={item.id} className={styles.trackingItem}>
-              <span className={styles.trackingLogo}><Image src={CHANNEL_CATALOG.find((channel) => channel.id === item.provider)?.logo || "/ads-logos/meta.svg"} width={30} height={30} alt="" /></span>
-              <div className={styles.trackingItemCopy}><strong>{item.name}</strong><small>{CHANNEL_CATALOG.find((channel) => channel.id === item.provider)?.label || item.provider}</small>{item.last_error && <p className={styles.error}>{item.last_error}</p>}</div>
-              <span className={styles.trackingStatus} data-status={item.status}>{item.status === "active" ? "Activée côté plateforme" : item.status === "publishing" ? "Publication à vérifier" : item.status === "demo_paused" ? "Démo en pause" : item.status === "needs_review" ? "Vérification manuelle requise" : "Brouillon"}</span>
-              {item.status === "draft" && <button type="button" className={styles.resumeButton} onClick={() => reopen(item)}>Reprendre <span aria-hidden="true">→</span></button>}
-            </article>)}
-          </div>}
-        </div>
+        <AdsCampaignTracking campaigns={campaigns} total={campaignTotal} loading={campaignsLoading} loadingMore={campaignsLoadingMore} hasMore={campaignNextOffset !== null} loadError={campaignsLoadError} onRefresh={loadCampaigns} onLoadMore={loadMoreCampaigns} onClose={() => setTracking(false)} onEdit={reopen} />
       </SettingsDrawer>
     </div>
     <AdsConnectionSettings
@@ -1364,6 +1978,65 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       onClearPage={() => void clearSavedSelection("identity")}
       onDisconnect={() => void disconnectAdsConnection()}
     />
+    <SettingsDrawer
+      title={`Configurer ${channelMeta.label}`}
+      isOpen={externalConfiguring && isExternalChannel(channelId)}
+      onClose={() => { setExternalConfiguring(false); setExternalError(""); }}
+      presentation="centered"
+      headerLead="Associez le compte publicitaire que vous souhaitez utiliser."
+      headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", minHeight: 76 }}
+      headerContent={<div className={styles.externalSettingsTitle}><span className={styles.externalSettingsLogo}><Image src={channelMeta.logo} width={30} height={30} alt="" /></span> Configurer {channelMeta.label}</div>}
+    >
+      {isExternalChannel(channelId) && activeExternalStatus && <div className={styles.externalSettings}>
+        <div className={styles.externalSettingsIntro}>
+          <span>VOTRE ESPACE PUBLICITAIRE</span>
+          <h2>{channelMeta.label}, prêt pour votre prochaine campagne.</h2>
+          <p>Autorisez l’accès, puis choisissez vous-même le compte annonceur à associer. Ce choix reste enregistré jusqu’à ce que vous le changiez ou le déconnectiez.</p>
+        </div>
+        <div className={styles.externalSettingsGrid}>
+          <section className={styles.externalSettingsPanel}>
+            <header><span>01</span><div><h3>Votre connexion</h3><p>Autorisation sécurisée du canal publicitaire</p></div></header>
+            <div className={styles.externalSettingsPanelBody}>
+              <span className={styles.channelStatus} data-status={externalStatusDisplay(activeExternalStatus).tone}>{externalStatusDisplay(activeExternalStatus).label}</span>
+              {activeExternalStatus.load === "loading" ? <p>Lecture de la connexion enregistrée…</p>
+                : activeExternalStatus.load === "error" ? <><p>{activeExternalStatus.error}</p><button type="button" className={styles.externalSecondaryButton} onClick={() => void refreshExternalStatus(channelId)}>Réessayer</button></>
+                : !activeExternalStatus.configured ? <p>La connexion {channelMeta.label} doit être activée côté application avant son utilisation.</p>
+                : activeExternalStatus.connected ? <>
+                  <p>L’accès à {channelMeta.label} est autorisé. Vous pouvez consulter les comptes disponibles et en associer un explicitement.</p>
+                  <div className={styles.externalSettingsActions}>
+                    <a className={styles.externalSecondaryButton} href={`/api/ads/${channelId}/start${channelId === "linkedin" ? "?access=read" : ""}`}>Actualiser la connexion</a>
+                    {EXTERNAL_DISCONNECT_CHANNELS.includes(channelId) && <button type="button" className={styles.externalDestructiveButton} disabled={externalAction !== null} onClick={() => void disconnectExternalChannel()}>{externalAction === "disconnect" ? "Déconnexion…" : "Déconnecter"}</button>}
+                  </div>
+                </> : <>
+                  <p>Connectez votre espace {channelMeta.label} pour afficher les comptes annonceurs accessibles.</p>
+                  <a className={styles.externalPrimaryButton} href={`/api/ads/${channelId}/start${channelId === "linkedin" ? "?access=read" : ""}`}>{activeExternalStatus.status === "needs_update" || activeExternalStatus.status === "needs_reconnect" ? "Reconnecter" : "Connecter"} {channelMeta.label} <span aria-hidden="true">↗</span></a>
+                </>}
+            </div>
+          </section>
+          <section className={styles.externalSettingsPanel}>
+            <header><span>02</span><div><h3>Compte annonceur</h3><p>Votre choix est enregistré séparément de la connexion</p></div></header>
+            <div className={styles.externalSettingsPanelBody}>
+              {activeExternalStatus.selectedAccountId && activeExternalStatus.connected && <div className={styles.externalAssociatedAccount}><small>Compte associé</small><strong>{externalAccounts.find((account) => account.id === activeExternalStatus.selectedAccountId)?.name || activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId}</strong></div>}
+              {!activeExternalStatus.connected ? <p>Connectez d’abord {channelMeta.label} pour choisir votre compte publicitaire.</p>
+                : externalAccountsLoading ? <p>Chargement des comptes accessibles…</p>
+                : externalAccountsLoadFailed ? <><p>La liste des comptes n’a pas pu être chargée.</p><button type="button" className={styles.externalSecondaryButton} onClick={() => void loadExternalAccounts(channelId, activeExternalStatus.selectedAccountId)}>Réessayer</button></>
+                : externalAccounts.length === 0 ? <><p>Aucun compte annonceur accessible pour le moment.</p><button type="button" className={styles.externalSecondaryButton} onClick={() => void loadExternalAccounts(channelId, activeExternalStatus.selectedAccountId)}>Recharger mes comptes</button></>
+                : <>
+                  <label className={styles.externalAccountLabel} htmlFor="external-ad-account">Compte à associer</label>
+                  <select id="external-ad-account" className={styles.externalAccountSelect} value={externalAccountChoice} onChange={(event) => setExternalAccountChoice(event.target.value)}>
+                    <option value="">Choisir un compte</option>
+                    {activeExternalStatus.selectedAccountId && !externalAccounts.some((account) => account.id === activeExternalStatus.selectedAccountId) && <option value={activeExternalStatus.selectedAccountId}>{activeExternalStatus.selectedAccountName || `Compte ${activeExternalStatus.selectedAccountId}`} · déjà associé</option>}
+                    {externalAccounts.map((account) => <option key={account.id} value={account.id} disabled={account.eligibleToAssociate === false || (channelId === "tiktok" && account.currency !== "EUR")}>{account.name} · {account.id}{account.currency ? ` · ${account.currency}` : ""}{account.eligibleToAssociate === false ? " · accès insuffisant" : channelId === "tiktok" && account.currency !== "EUR" ? " · euros requis" : ""}</option>)}
+                  </select>
+                  <button type="button" className={styles.externalPrimaryButton} disabled={!externalAccountChoice || externalAccountChoice === activeExternalStatus.selectedAccountId || externalAction !== null} onClick={() => void associateExternalAccount()}>{externalAction === "associate" ? "Association…" : "Associer ce compte"}</button>
+                </>}
+            </div>
+          </section>
+        </div>
+        {externalError && <p role="alert" className={styles.externalSettingsError}>{externalError}</p>}
+        <p className={styles.externalSettingsFootnote}>La préparation et l’enregistrement des campagnes sont disponibles. La publication sur {channelMeta.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.</p>
+      </div>}
+    </SettingsDrawer>
     {creating && autoMediaPlan && (
       <AdsCampaignAutoMediaGenerator
         key={`${autoMediaPlan.campaignType}-${autoMediaPlan.name}-${autoMediaPlan.mediaBrief}`}
@@ -1376,7 +2049,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         onComplete={(result) => {
           if (!result.item.signed_url) {
             setAutoMediaState("error");
-            setAutoMediaMessage("La campagne est prête, mais le média généré ne peut pas encore être associé. Vous pourrez en ajouter un dans l’étape Créations.");
+            setAutoMediaMessage("La campagne est prête, mais le média généré ne peut pas encore être associé. Vous pourrez en ajouter un à l’étape Médias.");
           } else {
             applyCampaignMedia(result.item);
             setAutoMediaState("ready");
@@ -1395,7 +2068,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         }}
         onError={(message) => {
           setAutoMediaState("error");
-          setAutoMediaMessage(`La campagne est préparée, mais iNr’Studio n’a pas pu créer le média : ${message} Vous pourrez en ajouter un dans l’étape Créations.`);
+          setAutoMediaMessage(`La campagne est préparée, mais iNr’Studio n’a pas pu créer le média : ${message} Vous pourrez en ajouter un à l’étape Médias.`);
           setPlanProgress(100);
           setAutoMediaPlan(null);
           setBusy(null);

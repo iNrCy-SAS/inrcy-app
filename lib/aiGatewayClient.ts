@@ -60,6 +60,34 @@ import {
 
 export type { AiGenerationFeature, AiOperationBudget } from "@/lib/aiGatewayPolicy";
 
+export type AiGenerationAttemptStage = "primary" | "gateway_model" | "openai_direct";
+
+export type AiGenerationAttemptTrace = {
+  stages: AiGenerationAttemptStage[];
+  lastStage: AiGenerationAttemptStage | null;
+  elapsedMs: number;
+};
+
+const AI_GENERATION_ATTEMPT_TRACE = Symbol.for("inrcy.ai-generation-attempt-trace");
+
+export function getAiGenerationAttemptTrace(error: unknown): AiGenerationAttemptTrace | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  return (error as Record<PropertyKey, unknown>)[AI_GENERATION_ATTEMPT_TRACE] as
+    | AiGenerationAttemptTrace
+    | undefined;
+}
+
+function attachAiGenerationAttemptTrace(error: unknown, trace: AiGenerationAttemptTrace): Error {
+  const target = error instanceof Error ? error : new Error(String(error));
+  if (!Object.isExtensible(target)) return target;
+  Object.defineProperty(target, AI_GENERATION_ATTEMPT_TRACE, {
+    value: trace,
+    enumerable: false,
+    configurable: true,
+  });
+  return target;
+}
+
 export class AiGatewayHttpError extends Error {
   code: "ai_gateway_rate_limit" | "ai_gateway_auth" | "ai_gateway_unavailable" | "ai_gateway_invalid_request" | "ai_gateway_request_failed";
   status: number;
@@ -113,6 +141,8 @@ type AiGenerateJsonBaseOptions = {
   responseSchema?: AiJsonResponseSchema;
   /** Optional business normalization applied after parsing and before final schema validation. */
   normalizeResponseBeforeValidation?: AiJsonResponseNormalizer;
+  /** Called when a provider stage starts; never receives credentials or prompt content. */
+  onStage?: (stage: AiGenerationAttemptStage) => void;
 };
 
 type AiGenerateJsonRouting =
@@ -255,7 +285,7 @@ function validatePayloadAgainstPolicy(
 
 type AiJsonExecutionTarget = {
   transport: AiGenerationTransport;
-  stage: "primary" | "gateway_model" | "openai_direct";
+  stage: AiGenerationAttemptStage;
   requestModel: string;
   accountingModel: string;
   jsonMode: AiJsonMode;
@@ -328,6 +358,44 @@ function resolveNextStagesReserveMs(
     return Math.min(32_000, Math.max(8_000, Math.floor(remaining * 0.25)));
   }
   return Math.min(15_000, Math.max(5_000, Math.floor(remaining * 0.18)));
+}
+
+function resolveAdsStageTimeoutMs(args: {
+  stage: AiGenerationAttemptStage;
+  hardDeadlineAt: number;
+  requestedTimeoutMs: number;
+  gatewayFallbackAvailable: boolean;
+  directFallbackAvailable: boolean;
+}) {
+  const remaining = args.hardDeadlineAt - Date.now();
+  if (remaining <= 5_750) throw new AiOperationDeadlineExceededError();
+
+  // ads.generate partage 60 s entre trois moteurs : 26 s pour le stratège,
+  // environ 18 s pour Gemini et au moins 16 s pour OpenAI direct. Si un
+  // secours n'est pas configuré, son temps revient aux moteurs disponibles.
+  const reserveForLaterMs = args.stage === "primary"
+    ? args.gatewayFallbackAvailable && args.directFallbackAvailable
+      ? 34_000
+      : args.gatewayFallbackAvailable || args.directFallbackAvailable
+        ? 22_000
+        : 0
+    : args.stage === "gateway_model" && args.directFallbackAvailable
+      ? 16_000
+      : 0;
+  const stageCapMs = args.stage === "primary"
+    ? args.gatewayFallbackAvailable && args.directFallbackAvailable
+      ? 26_000
+      : args.gatewayFallbackAvailable || args.directFallbackAvailable
+        ? 38_000
+        : 55_000
+    : args.stage === "gateway_model"
+      ? args.directFallbackAvailable ? 18_000 : 28_000
+      : 28_000;
+
+  return Math.max(
+    5_000,
+    Math.min(args.requestedTimeoutMs, stageCapMs, remaining - reserveForLaterMs),
+  );
 }
 
 function hasTimeForFallback(deadlineAt: number, minimumMs = 5_750) {
@@ -726,20 +794,48 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
     ? "transport_error"
     : "gateway_credentials_missing";
 
+  const generationStartedAt = Date.now();
+  const attemptedStages: AiGenerationAttemptStage[] = [];
+  const gatewayFallbackAvailable = opts.allowProviderFallback !== false &&
+    Boolean(gatewayCredential && resolveGatewayFallbackRouting(primaryModel));
+  const directFallbackAvailable = opts.allowProviderFallback !== false && Boolean(directCredential);
+  const markStage = (stage: AiGenerationAttemptStage) => {
+    attemptedStages.push(stage);
+    try {
+      opts.onStage?.(stage);
+    } catch (error) {
+      console.warn("[ai-generation] stage callback failed", {
+        feature: opts.feature,
+        stage,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  try {
   if (gatewayCredential) {
-    const primaryTimeoutMs = resolveFallbackStageTimeoutMs({
-      hardDeadlineAt,
-      requestedTimeoutMs,
-      reserveForNextStagesMs: resolveNextStagesReserveMs(
-        hardDeadlineAt,
-        directCredential ? 2 : 1,
-      ),
-      maxStageMs: requestedTimeoutMs,
-    });
+    const primaryTimeoutMs = opts.feature === "ads.generate"
+      ? resolveAdsStageTimeoutMs({
+          stage: "primary",
+          hardDeadlineAt,
+          requestedTimeoutMs,
+          gatewayFallbackAvailable,
+          directFallbackAvailable,
+        })
+      : resolveFallbackStageTimeoutMs({
+          hardDeadlineAt,
+          requestedTimeoutMs,
+          reserveForNextStagesMs: resolveNextStagesReserveMs(
+            hardDeadlineAt,
+            directCredential ? 2 : 1,
+          ),
+          maxStageMs: requestedTimeoutMs,
+        });
 
     try {
       // Une tentative par niveau : on préfère basculer vers un fournisseur différent
       // plutôt que de rejouer longuement le même modèle en panne.
+      markStage("primary");
       return await executeAiJsonAttempt<T>({
         opts,
         policyMaxOutputTokens: maxOutputTokens,
@@ -753,7 +849,9 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
           jsonMode: primaryRouting.jsonMode,
           credential: gatewayCredential,
           baseUrl: gatewayBaseUrl,
-          retries: Math.max(0, Math.min(1, opts.retries ?? 0)),
+          retries: opts.feature === "ads.generate"
+            ? 0
+            : Math.max(0, Math.min(1, opts.retries ?? 0)),
           timeoutMs: primaryTimeoutMs,
           deadlineAt: hardDeadlineAt,
           engine: primaryEngine,
@@ -775,15 +873,23 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
           gatewayFallback.model,
           process.env.AI_GATEWAY_ALLOWED_MODELS,
         );
-        const gatewayFallbackTimeoutMs = resolveFallbackStageTimeoutMs({
-          hardDeadlineAt,
-          requestedTimeoutMs,
-          reserveForNextStagesMs: resolveNextStagesReserveMs(
-            hardDeadlineAt,
-            directCredential ? 1 : 0,
-          ),
-          maxStageMs: 30_000,
-        });
+        const gatewayFallbackTimeoutMs = opts.feature === "ads.generate"
+          ? resolveAdsStageTimeoutMs({
+              stage: "gateway_model",
+              hardDeadlineAt,
+              requestedTimeoutMs,
+              gatewayFallbackAvailable,
+              directFallbackAvailable,
+            })
+          : resolveFallbackStageTimeoutMs({
+              hardDeadlineAt,
+              requestedTimeoutMs,
+              reserveForNextStagesMs: resolveNextStagesReserveMs(
+                hardDeadlineAt,
+                directCredential ? 1 : 0,
+              ),
+              maxStageMs: 30_000,
+            });
 
         console.warn("[ai-fallback] gateway model fallback", {
           feature: opts.feature,
@@ -796,6 +902,7 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
         });
 
         try {
+          markStage("gateway_model");
           const result = await executeAiJsonAttempt<T>({
             opts,
             policyMaxOutputTokens: maxOutputTokens,
@@ -840,12 +947,20 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
   if (opts.allowProviderFallback !== false && directCredential && hasTimeForFallback(hardDeadlineAt)) {
     const directModel = getOpenAiDirectFallbackModel();
     const accountingModel = getOpenAiDirectAccountingModel();
-    const directTimeoutMs = resolveFallbackStageTimeoutMs({
-      hardDeadlineAt,
-      requestedTimeoutMs,
-      reserveForNextStagesMs: 0,
-      maxStageMs: 28_000,
-    });
+    const directTimeoutMs = opts.feature === "ads.generate"
+      ? resolveAdsStageTimeoutMs({
+          stage: "openai_direct",
+          hardDeadlineAt,
+          requestedTimeoutMs,
+          gatewayFallbackAvailable,
+          directFallbackAvailable,
+        })
+      : resolveFallbackStageTimeoutMs({
+          hardDeadlineAt,
+          requestedTimeoutMs,
+          reserveForNextStagesMs: 0,
+          maxStageMs: 28_000,
+        });
 
     console.error("[ai-fallback] OpenAI direct emergency fallback", {
       feature: opts.feature,
@@ -856,6 +971,7 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
       reason: fallbackReason,
     });
 
+    markStage("openai_direct");
     const result = await executeAiJsonAttempt<T>({
       opts,
       policyMaxOutputTokens: maxOutputTokens,
@@ -893,4 +1009,12 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
   throw lastError instanceof Error
     ? lastError
     : new Error("La génération IA n'a pas pu aboutir après les tentatives de secours.");
+  } catch (error) {
+    if (opts.feature !== "ads.generate") throw error;
+    throw attachAiGenerationAttemptTrace(error, {
+      stages: attemptedStages,
+      lastStage: attemptedStages.at(-1) || null,
+      elapsedMs: Date.now() - generationStartedAt,
+    });
+  }
 }
