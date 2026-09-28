@@ -13,6 +13,7 @@ import {
 } from "@/lib/publicationErrorFrench";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { getVideoPublicationPolicy } from "@/lib/videoPublicationPolicy";
+import { getVideoNormalizationSignature } from "@/lib/mediaVideoNormalizationPolicy";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
@@ -66,6 +67,10 @@ export type PinterestCreateVideoPinArgs = {
   description?: string;
   videoUrl: string;
   videoStoragePath?: string | null;
+  videoMediaId?: string | null;
+  videoBucket?: string | null;
+  videoSourceStoragePath?: string | null;
+  videoSourceBucket?: string | null;
   videoContentType?: string | null;
   videoFileName?: string | null;
   coverImageUrl?: string | null;
@@ -587,10 +592,108 @@ export async function createPinterestImagePin({
   };
 }
 
+async function findPinterestVideoCoverInLibrary(params: {
+  userId?: string | null;
+  videoMediaId?: string | null;
+  videoStoragePath?: string | null;
+  videoBucket?: string | null;
+}) {
+  const accountId = String(params.userId || "").trim();
+  const mediaId = String(params.videoMediaId || "").trim();
+  const sourcePath = sanitizeStoragePath(params.videoStoragePath);
+  const sourceBucket = String(params.videoBucket || "").trim();
+  if (!accountId || (!mediaId && !sourcePath)) return "";
+
+  const ownedVideo = () =>
+    supabaseAdmin
+      .from("pro_media_library")
+      .select(
+        "id,storage_path,canonical_storage_path,bucket_name,canonical_bucket_name,media_type",
+      )
+      .eq("user_id", accountId)
+      .eq("media_type", "video");
+
+  let media: Record<string, unknown> | null = null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaId)) {
+    const result = await ownedVideo().eq("id", mediaId).maybeSingle();
+    if (!result.error) media = result.data as Record<string, unknown> | null;
+  }
+  if (!media && sourcePath) {
+    const original = await ownedVideo()
+      .eq("storage_path", sourcePath)
+      .limit(1)
+      .maybeSingle();
+    if (!original.error) media = original.data as Record<string, unknown> | null;
+    if (!media) {
+      const canonical = await ownedVideo()
+        .eq("canonical_storage_path", sourcePath)
+        .limit(1)
+        .maybeSingle();
+      if (!canonical.error) {
+        media = canonical.data as Record<string, unknown> | null;
+      }
+    }
+  }
+  if (!media) return "";
+
+  // A media ID alone is not enough: never sign a thumbnail for a different
+  // video or account when an old action carries a stale source reference.
+  if (sourcePath) {
+    const originalMatches =
+      sourcePath === String(media.storage_path || "") &&
+      (!sourceBucket || sourceBucket === String(media.bucket_name || ""));
+    const canonicalMatches =
+      sourcePath === String(media.canonical_storage_path || "") &&
+      (!sourceBucket ||
+        sourceBucket === String(media.canonical_bucket_name || ""));
+    if (!originalMatches && !canonicalMatches) return "";
+  }
+
+  const signatures = [
+    getVideoNormalizationSignature("thumbnail"),
+    getVideoNormalizationSignature("frame_01"),
+    getVideoNormalizationSignature("frame_02"),
+    getVideoNormalizationSignature("frame_03"),
+  ];
+  const variants = await supabaseAdmin
+    .from("media_variants")
+    .select("signature,bucket_name,storage_path,mime_type")
+    .eq("account_id", accountId)
+    .eq("media_id", String(media.id || ""))
+    .eq("status", "ready")
+    .in("signature", signatures)
+    .limit(4);
+  if (variants.error) return "";
+
+  for (const signature of signatures) {
+    const variant = (variants.data || []).find(
+      (row) => row.signature === signature,
+    );
+    if (!variant || !/^image\/(jpeg|png|webp)$/i.test(variant.mime_type || "")) {
+      continue;
+    }
+    const bucket = String(variant.bucket_name || "").trim();
+    const path = sanitizeStoragePath(variant.storage_path);
+    if (!bucket || !path) continue;
+    const signedUrl = await createSafeStorageSignedUrl(
+      bucket,
+      path,
+      PINTEREST_COVER_SIGNED_URL_TTL_SECONDS,
+    );
+    const publicUrl = normalizePublicUrl(signedUrl);
+    if (publicUrl) return publicUrl;
+  }
+  return "";
+}
+
 export async function resolvePinterestVideoCoverImageUrl(params: {
   coverImageUrl?: string | null;
   coverStoragePath?: string | null;
   coverBucket?: string | null;
+  userId?: string | null;
+  videoMediaId?: string | null;
+  videoStoragePath?: string | null;
+  videoBucket?: string | null;
 }) {
   const coverStoragePath = sanitizeStoragePath(params.coverStoragePath);
   const requestedBucket = String(params.coverBucket || "").trim();
@@ -617,7 +720,13 @@ export async function resolvePinterestVideoCoverImageUrl(params: {
   }
 
   // Compatibility fallback for old publications that only persisted a URL.
-  return normalizePublicUrl(params.coverImageUrl);
+  const directUrl = normalizePublicUrl(params.coverImageUrl);
+  if (directUrl) return directUrl;
+
+  // iNr'Agent's older scheduled actions did not persist thumbnail fields.
+  // Reuse the already-prepared thumbnail (or a video frame) from the same
+  // account's media registry instead of asking the pro to replace the video.
+  return findPinterestVideoCoverInLibrary(params);
 }
 
 export async function withPinterestVideoProtocolAsset<T>(
@@ -693,6 +802,10 @@ export async function createPinterestVideoPin({
   description,
   videoUrl,
   videoStoragePath,
+  videoMediaId,
+  videoBucket,
+  videoSourceStoragePath,
+  videoSourceBucket,
   videoContentType,
   videoFileName,
   coverImageUrl,
@@ -716,6 +829,10 @@ export async function createPinterestVideoPin({
     coverImageUrl,
     coverStoragePath,
     coverBucket,
+    userId: cleanUserId,
+    videoMediaId,
+    videoStoragePath: videoSourceStoragePath || videoStoragePath,
+    videoBucket: videoSourceBucket || videoBucket,
   });
 
   const sourceFormat = inferPinterestVideoFormat({

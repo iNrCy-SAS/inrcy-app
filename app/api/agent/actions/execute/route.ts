@@ -530,6 +530,8 @@ async function buildVideoPayloadFromAgentAction(
   const videoSettingsByChannel = asRecord(media.videoSettingsByChannel) || null;
 
   return {
+    mediaId:
+      cleanText(media.mediaId || media.media_id || media.id, 100) || null,
     name:
       cleanText(media.name || media.title || "video-iNrAgent.mp4", 180) ||
       "video-iNrAgent.mp4",
@@ -550,6 +552,9 @@ async function buildVideoPayloadFromAgentAction(
         media.thumbnailStoragePath || media.thumbnail_storage_path,
         900,
       ) || null,
+    thumbnailBucket:
+      cleanText(media.thumbnailBucket || media.thumbnail_bucket, 120) ||
+      bucket,
     transformedVariants,
     videoSettingsByChannel,
   };

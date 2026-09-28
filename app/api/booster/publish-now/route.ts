@@ -6365,6 +6365,10 @@ async function publishNowHandler(req: Request) {
                 description,
                 videoUrl: pinterestVideoUrl,
                 videoStoragePath: channelVideo.storagePath,
+                videoMediaId: channelVideo.mediaId,
+                videoBucket: channelVideo.bucket,
+                videoSourceStoragePath: channelVideo.sourceVideo?.storagePath,
+                videoSourceBucket: channelVideo.sourceVideo?.bucket,
                 videoContentType: channelVideo.type,
                 videoFileName: channelVideo.name,
                 coverImageUrl: channelVideo.thumbnailUrl,
@@ -6422,6 +6426,10 @@ async function publishNowHandler(req: Request) {
                 coverImageUrl: channelVideo.thumbnailUrl,
                 coverStoragePath: channelVideo.thumbnailStoragePath,
                 coverBucket: channelVideo.thumbnailBucket,
+                userId,
+                videoMediaId: channelVideo.mediaId,
+                videoStoragePath: channelVideo.sourceVideo?.storagePath || channelVideo.storagePath,
+                videoBucket: channelVideo.sourceVideo?.bucket || channelVideo.bucket,
               });
             if (!pinterestCoverImageUrl) {
               const pinterestUserError =

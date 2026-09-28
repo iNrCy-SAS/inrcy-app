@@ -97,6 +97,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Install Chromium for layout contract tests
+        run: npx playwright install --with-deps chromium
+
       - name: Contract tests
         run: npm run test:contracts
 

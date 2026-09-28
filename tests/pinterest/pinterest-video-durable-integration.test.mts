@@ -34,6 +34,9 @@ const route = read("app/api/booster/publish-now/route.ts");
 const cron = read("app/api/cron/booster-publications/route.ts");
 const pinterestPublish = read("lib/pinterestPublish.ts");
 const inrsendActions = read("lib/inrsend/publicationChannelActions.ts");
+const agentExecute = read("app/api/agent/actions/execute/route.ts");
+const agentSchedule = read("app/api/agent/actions/schedule/route.ts");
+const scheduledPublication = read("lib/inrAgentScheduledPublication.ts");
 const pinterestBranch = sliceBetween(
   route,
   'if (ch === "pinterest")',
@@ -245,4 +248,31 @@ test("Booster sync and iNrSend preserve the thumbnail bucket for Pinterest", () 
     inrsendActions,
     /createPinterestVideoPin\(\{[\s\S]*coverStoragePath:\s*video\.thumbnailStoragePath,[\s\S]*coverBucket:\s*video\.thumbnailBucket/,
   );
+});
+
+test("scheduled iNrAgent videos recover their Pinterest cover from the owner's media library", () => {
+  const lookup = sliceBetween(
+    pinterestPublish,
+    "async function findPinterestVideoCoverInLibrary",
+    "export async function resolvePinterestVideoCoverImageUrl",
+  );
+  assert.match(agentExecute, /mediaId:\s*\n\s*cleanText\(media\.mediaId \|\| media\.media_id \|\| media\.id/);
+  assert.match(agentExecute, /thumbnailBucket:\s*\n\s*cleanText\(media\.thumbnailBucket \|\| media\.thumbnail_bucket/);
+  assert.match(agentSchedule, /mediaId:\s*\n\s*cleanText\(media\.mediaId \|\| media\.media_id \|\| media\.id/);
+  assert.match(agentSchedule, /thumbnailBucket:\s*\n\s*cleanText\(media\.thumbnailBucket \|\| media\.thumbnail_bucket/);
+  assert.match(agentSchedule, /video:\s*videoPayload/);
+  assert.match(scheduledPublication, /body:\s*\{\s*\.\.\.publishPayload/);
+  assert.match(lookup, /\.from\("pro_media_library"\)[\s\S]*\.eq\("user_id", accountId\)/);
+  assert.match(lookup, /sourcePath === String\(media\.storage_path \|\| ""\)/);
+  assert.match(lookup, /sourcePath === String\(media\.canonical_storage_path \|\| ""\)/);
+  assert.match(lookup, /\.from\("media_variants"\)[\s\S]*\.eq\("account_id", accountId\)[\s\S]*\.eq\("media_id", String\(media\.id \|\| ""\)\)[\s\S]*\.eq\("status", "ready"\)/);
+  assert.match(lookup, /getVideoNormalizationSignature\("thumbnail"\)/);
+  assert.match(lookup, /getVideoNormalizationSignature\("frame_01"\)/);
+  assert.match(lookup, /createSafeStorageSignedUrl\([\s\S]*PINTEREST_COVER_SIGNED_URL_TTL_SECONDS/);
+  assert.match(pinterestPublish, /return findPinterestVideoCoverInLibrary\(params\)/);
+  assert.match(durableVideoBranch, /videoMediaId:\s*channelVideo\.mediaId/);
+  assert.match(durableVideoBranch, /videoStoragePath:\s*channelVideo\.sourceVideo\?\.storagePath \|\| channelVideo\.storagePath/);
+  assert.match(pinterestBranch, /videoSourceStoragePath:\s*channelVideo\.sourceVideo\?\.storagePath/);
+  assert.match(inrsendActions, /videoMediaId:\s*video\.mediaId/);
+  assert.match(inrsendActions, /videoSourceStoragePath:\s*[\s\S]*asRecord\(video\.sourceVideo\)\.storagePath/);
 });

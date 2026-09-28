@@ -139,7 +139,13 @@ export default function PublishChannelSelector({
   return (
     <div
       className={styles.blockCard}
-      style={{ minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
+      style={{
+        minWidth: 0,
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        overflow: "visible",
+        zIndex: channelInfoOpen ? 1 : undefined,
+      }}
     >
       <div
         style={{
@@ -307,15 +313,6 @@ export default function PublishChannelSelector({
                           ? i18nT("channel_connected_aria", { channel: channelLabel })
                           : i18nT("channel_disconnected_aria", { channel: channelLabel })
                   }
-                  title={
-                    requiresReconnect
-                      ? i18nT("reconnect_in_channels")
-                      : info
-                        ? i18nT("channel_details_aria", { channel: channelLabel })
-                        : isConnected
-                          ? i18nT("channel_connected")
-                          : i18nT("channel_disconnected")
-                  }
                   disabled={!info}
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
@@ -400,11 +397,13 @@ export default function PublishChannelSelector({
               tabIndex={isConnected ? 0 : -1}
               aria-disabled={!isConnected}
               aria-pressed={isSelected}
-              title={requiresReconnect
+              aria-label={requiresReconnect
                 ? i18nT("channel_reconnect_title", { channel: channelLabel })
-                : info?.fullLabel || (isConnected
-                  ? i18nT("channel_connected_aria", { channel: channelLabel })
-                  : i18nT("channel_disconnected_aria", { channel: channelLabel }))}
+                : info
+                  ? `${channelLabel} — ${info.fullLabel}`
+                  : isConnected
+                    ? i18nT("channel_connected_aria", { channel: channelLabel })
+                    : i18nT("channel_disconnected_aria", { channel: channelLabel })}
               onMouseEnter={() => {
                 if (info) setChannelInfoOpen(key);
               }}
@@ -518,6 +517,7 @@ export default function PublishChannelSelector({
               />
               {isInfoVisible && info ? (
                 <div
+                  aria-hidden="true"
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                   style={{

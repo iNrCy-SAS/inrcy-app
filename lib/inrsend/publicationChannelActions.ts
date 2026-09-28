@@ -219,6 +219,7 @@ type ImageSet = {
 type PublicationMediaType = "images" | "video";
 
 type PersistedVideoAttachment = {
+  mediaId?: string | null;
   name: string;
   type: string;
   size: number;
@@ -846,6 +847,7 @@ function normalizeVideoAttachment(input: unknown): PersistedVideoAttachment | nu
   const publicUrl = url || (storagePath && /^https?:\/\//i.test(storagePath) ? storagePath : "");
 
   return {
+    mediaId: String(src.mediaId || src.media_id || "").trim() || null,
     name: String(src.name || src.filename || src.fileName || src.video_name || "video-inrcy.mp4").trim() || "video-inrcy.mp4",
     type,
     size: Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : 0,
@@ -2470,6 +2472,12 @@ async function replaceChannelDelivery(params: {
         description,
         videoUrl,
         videoStoragePath: video.storagePath,
+        videoMediaId: video.mediaId,
+        videoBucket: video.bucket,
+        videoSourceStoragePath:
+          String(asRecord(video.sourceVideo).storagePath || "").trim() || null,
+        videoSourceBucket:
+          String(asRecord(video.sourceVideo).bucket || "").trim() || null,
         videoContentType: video.type,
         videoFileName: video.name,
         coverImageUrl: video.thumbnailUrl,
