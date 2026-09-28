@@ -15,6 +15,7 @@ import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import {
   defaultAdsCampaignType,
   isAdsProvider,
+  parseAdsCampaignInput,
   type AdsAccount,
   type AdsCampaignInput,
   type AdsChannelId,
@@ -1742,6 +1743,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         accountCurrency: "EUR",
         pageId: confirmation.channelId === "meta" ? confirmation.pageId : draft.pageId,
       };
+      // The server will validate again, but reject an incomplete declaration
+      // before saving a local draft that looks like a completed Google demo.
+      const validated = parseAdsCampaignInput(campaignDraft, { purpose: "publish" });
+      if (!validated.draft) throw new Error(validated.error || "Vérifiez la campagne avant de créer la démo en pause.");
       const saved = await readJson(await fetch("/api/ads/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...campaignDraft, ...(savedId ? { id: savedId } : {}) }),
@@ -2141,7 +2146,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {destinationReview.required && <div className={`${styles.studioDestinationReview} ${styles.studioWide}`}>
             <span>{destinationReview.confirmed ? "✓ Destination validée" : "Vérifiez où votre annonce enverra les visiteurs."}</span>
             {destinationReview.valid && <a href={draft.destinationUrl.trim()} target="_blank" rel="noopener noreferrer">Ouvrir le lien ↗</a>}
-            <label><input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />Je confirme ce lien</label>
             {!destinationReview.valid && <small role="alert">Indiquez un lien HTTPS valide avant de continuer.</small>}
           </div>}
           {nativeSettings?.channel === "tiktok" && <>
@@ -2182,8 +2186,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       <section hidden={step !== validationStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioValidationCard}`}>
         <StudioStepHeader number={validationStep + 1} label="VOTRE CONTRÔLE" title="Votre campagne, vos décisions." mobileTitle="Validation" channel={channelMeta.label} />
         <p className={styles.intro}><span className={styles.studioTitleLong}>Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme.</span><span className={styles.studioTitleShort}>Diffusion après votre accord et celui de la plateforme.</span></p>
-        {channelId === "meta" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} />Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</label>}
-        {channelId === "google" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} />Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</label>}
         <dl className={styles.studioReviewGrid}>
           <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings))} · ${nativeWizardFormat(nativeSettings)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
           <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || "À configurer" : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : "À associer"}</dd><small>{reviewAccountReady ? "Compte annonceur associé" : configuredAccountId ? "Compte associé · accès à vérifier" : "Associez un compte pour créer la démo en pause"}</small></div>
@@ -2208,12 +2210,24 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}</p>}
         </>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
+          {channelId === "meta" && (demoPausedPublishingEnabled || livePublishingEnabled) && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} /><span><strong>Obligatoire avant création sur Meta</strong>Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</span></label>}
+          {channelId === "google" && (demoPausedPublishingEnabled || livePublishingEnabled) && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} /><span><strong>Obligatoire avant création sur Google Ads</strong>Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</span></label>}
           {isAdsProvider(channelId) && demoPausedPublishingEnabled && <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.primaryButton} disabled={busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? demoDialog ? "Création de la démo…" : "Vérification du compte…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
           <button type="button" className={channelId === "google" && !demoPausedPublishingEnabled ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon iNrCy" : savedId ? "Brouillon iNrCy enregistré" : "Garder en brouillon iNrCy"}</button>
         </div>
-        {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
+        {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <div className={styles.studioLivePublishActions}><label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} /><span><strong>Confirmation obligatoire</strong>Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</span></label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></div>}
       </section>
-      {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
+      {creationPath !== "choice" && <div className={styles.wizardNavigation}>
+        <button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button>
+        <span>{step + 1} / {stepNames.length}</span>
+        {step < lastStep ? <div className={styles.wizardNextGroup}>
+          {step === deliveryStep && destinationReview.required && <label className={styles.wizardRequiredCheck}>
+            <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
+            <span><strong>Validation obligatoire</strong>Je confirme ce lien</span>
+          </label>}
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
+        </div> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}
+      </div>}
       </div>
       </SettingsDrawer>
 
@@ -2221,6 +2235,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       mode={demoDialog.mode}
       details={demoDialog.details}
       busy={busy === "demo"}
+      declarationLabel={demoDialog.channelId === "google"
+        ? "Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne."
+        : "Je certifie que cette campagne ne relève pas d’une catégorie publicitaire spéciale Meta."}
+      declarationChecked={demoDialog.channelId === "google" ? draft.notEuPoliticalConfirmed : draft.noSpecialCategoryConfirmed}
+      onDeclarationChange={(checked) => updateDraft(demoDialog.channelId === "google"
+        ? { notEuPoliticalConfirmed: checked }
+        : { noSpecialCategoryConfirmed: checked })}
       onCancel={() => setDemoDialog(null)}
       onConfirm={() => void confirmPausedDemo()}
       onReturnHome={() => {

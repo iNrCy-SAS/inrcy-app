@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
+import { normalizeGoogleTargetLocationLabels } from "@/lib/adsGoogleLocations";
 import { googleAdsJson } from "@/lib/adsServer";
 import { googleSearchBiddingFields } from "@/lib/adsPublishMode";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
@@ -37,6 +38,8 @@ export type GoogleAdsPublishOptions = {
   activate?: boolean;
   /** Prepared before claiming the local draft, so invalid media never strands it. */
   preparedImageData?: string;
+  /** Resolved before the local draft is claimed, so a bad zone is editable. */
+  preparedTargetLocations?: GoogleTargetLocation[];
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -97,10 +100,15 @@ function checkGoogleDraft(draft: AdsCampaignInput): string {
   return endDateTime;
 }
 
-type GoogleTargetLocation = {
+export type GoogleTargetLocation = {
   resourceName: string;
   label: string;
+  countryCode: string;
 };
+
+export class GoogleAdsLocationResolutionError extends Error {
+  readonly code = "ADS_LOCATION_UNRESOLVED";
+}
 
 function gaqlQuoted(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -116,34 +124,25 @@ function googleFinalUrlSuffix(value: string): string | null {
   return suffix;
 }
 
-function uniqueLocationLabels(locations: string[]) {
-  const labels = new Map<string, string>();
-  for (const value of locations) {
-    const label = String(value || "").trim().replace(/\s+/g, " ");
-    if (!label) continue;
-    const key = label.toLocaleLowerCase("fr-FR");
-    if (!labels.has(key)) labels.set(key, label);
-  }
-  return [...labels.values()].slice(0, 20);
-}
-
 async function searchGoogleTargetLocations(
   userId: string,
   customerId: string,
   field: "name" | "canonical_name",
   value: string,
   loginCustomerId?: string,
+  countryCode?: string,
 ): Promise<GoogleTargetLocation[]> {
   const response = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
-    query: `SELECT geo_target_constant.resource_name, geo_target_constant.name, geo_target_constant.canonical_name FROM geo_target_constant WHERE geo_target_constant.${field} = '${gaqlQuoted(value)}' LIMIT 20`,
+    query: `SELECT geo_target_constant.resource_name, geo_target_constant.name, geo_target_constant.canonical_name, geo_target_constant.country_code, geo_target_constant.status FROM geo_target_constant WHERE geo_target_constant.${field} = '${gaqlQuoted(value)}'${countryCode ? ` AND geo_target_constant.country_code = '${countryCode}'` : ""} LIMIT 20`,
   }, loginCustomerId);
   const byResourceName = new Map<string, GoogleTargetLocation>();
   for (const row of Array.isArray(response.results) ? response.results : []) {
     const target = asRecord(asRecord(row).geoTargetConstant);
     const resourceName = String(target.resourceName || "");
     const label = String(target.canonicalName || target.name || "").trim();
-    if (!/^geoTargetConstants\/\d+$/.test(resourceName) || !label) continue;
-    byResourceName.set(resourceName, { resourceName, label });
+    const resolvedCountryCode = String(target.countryCode || "");
+    if (!/^geoTargetConstants\/\d+$/.test(resourceName) || !label || target.status !== "ENABLED") continue;
+    byResourceName.set(resourceName, { resourceName, label, countryCode: resolvedCountryCode });
   }
   return [...byResourceName.values()];
 }
@@ -153,33 +152,50 @@ async function searchGoogleTargetLocations(
  * studio. Resolve those names before the atomic mutate so an ambiguous city
  * can never silently be replaced with the legacy France-wide default.
  */
-async function resolveGoogleTargetLocations(
+export async function resolveGoogleTargetLocations(
   userId: string,
   customerId: string,
   locations: string[],
   loginCustomerId?: string,
 ): Promise<GoogleTargetLocation[]> {
-  const labels = uniqueLocationLabels(locations);
+  const labels = normalizeGoogleTargetLocationLabels(locations);
   if (!labels.length) {
-    return [{ resourceName: "geoTargetConstants/2250", label: "France" }];
+    return [{ resourceName: "geoTargetConstants/2250", label: "France", countryCode: "FR" }];
   }
 
+  const franceIncluded = labels.includes("France");
+
   const resolved = await Promise.all(labels.map(async (label) => {
+    if (label === "France") {
+      return { input: label, matches: [{ resourceName: "geoTargetConstants/2250", label: "France", countryCode: "FR" }], coveredByFrance: false };
+    }
     // A canonical name (for example “Paris, Ile-de-France, France”) removes
     // ambiguity first. Plain city/region names remain convenient when Google
     // exposes exactly one geographic target for the label.
     const canonical = await searchGoogleTargetLocations(userId, customerId, "canonical_name", label, loginCustomerId);
-    const matches = canonical.length === 1
-      ? canonical
-      : await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId);
-    return { input: label, matches };
+    if (canonical.length === 1) {
+      return { input: label, matches: canonical, coveredByFrance: franceIncluded && canonical[0].countryCode === "FR" };
+    }
+    if (franceIncluded) {
+      // A country target already covers its cities and regions. Prefer the
+      // explicit France context for ambiguous names such as “Lille”, without
+      // discarding a canonical foreign target the professional requested.
+      const french = await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId, "FR");
+      if (french.length) return { input: label, matches: french, coveredByFrance: true };
+    }
+    const matches = await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId);
+    return { input: label, matches, coveredByFrance: false };
   }));
 
-  const unresolved = resolved.filter((entry) => entry.matches.length !== 1).map((entry) => entry.input);
+  const unresolved = resolved.filter((entry) => !entry.coveredByFrance && entry.matches.length !== 1).map((entry) => entry.input);
   if (unresolved.length) {
-    throw new Error(`Google Ads ne peut pas identifier précisément la zone ${unresolved.map((label) => `« ${label} »`).join(", ")}. Utilisez une ville, une région ou le nom canonique affiché par Google, puis réessayez.`);
+    throw new GoogleAdsLocationResolutionError(`Google Ads ne peut pas identifier précisément la zone ${unresolved.map((label) => `« ${label} »`).join(", ")}. Corrigez-la à l’étape Ciblage avec le nom canonique affiché par Google, puis réessayez.`);
   }
-  return resolved.map((entry) => entry.matches[0]);
+  const targets = new Map<string, GoogleTargetLocation>();
+  for (const entry of resolved) {
+    if (!entry.coveredByFrance) targets.set(entry.matches[0].resourceName, entry.matches[0]);
+  }
+  return [...targets.values()];
 }
 
 /**
@@ -221,7 +237,7 @@ export async function publishGoogleAdsCampaign(
   if (String(account.id || "") !== customerId || account.currencyCode !== "EUR" || account.manager === true || account.status !== "ENABLED") {
     throw new Error("Le compte Google Ads sélectionné doit être un compte annonceur actif et accessible, en EUR.");
   }
-  const targetLocations = await resolveGoogleTargetLocations(
+  const targetLocations = options.preparedTargetLocations || await resolveGoogleTargetLocations(
     userId,
     customerId,
     draft.targetLocations,

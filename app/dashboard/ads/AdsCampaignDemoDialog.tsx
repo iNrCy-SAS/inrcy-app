@@ -16,14 +16,18 @@ type Props = {
   mode: "confirm" | "success";
   details: AdsCampaignDemoDialogDetails;
   busy: boolean;
+  declarationLabel: string;
+  declarationChecked: boolean;
+  onDeclarationChange: (checked: boolean) => void;
   onCancel: () => void;
   onConfirm: () => void;
   onReturnHome: () => void;
 };
 
-export default function AdsCampaignDemoDialog({ mode, details, busy, onCancel, onConfirm, onReturnHome }: Props) {
+export default function AdsCampaignDemoDialog({ mode, details, busy, declarationLabel, declarationChecked, onDeclarationChange, onCancel, onConfirm, onReturnHome }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  const declarationRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -47,8 +51,9 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, onCancel, o
 
   useEffect(() => {
     if (busy) dialogRef.current?.focus();
+    else if (mode === "confirm" && !declarationChecked) declarationRef.current?.focus();
     else primaryRef.current?.focus();
-  }, [busy, mode]);
+  }, [busy, mode, declarationChecked]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -104,11 +109,15 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, onCancel, o
             <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
             <div><dt>Statut</dt><dd className={styles.paused}>En pause · aucune dépense</dd></div>
           </dl>
+          {mode === "confirm" && <label className={styles.declaration}>
+            <input ref={declarationRef} type="checkbox" checked={declarationChecked} onChange={(event) => onDeclarationChange(event.target.checked)} disabled={busy} />
+            <span>{declarationLabel}<small>Cette déclaration est requise avant la création sur la plateforme.</small></span>
+          </label>}
           {mode === "success" && <p className={styles.verification}>Vérifiez également le statut de la campagne dans votre compte publicitaire.</p>}
           <div className={styles.actions}>
             {mode === "confirm" ? <>
               <button type="button" className={styles.secondary} onClick={onCancel} disabled={busy}>Annuler</button>
-              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} disabled={busy}>{busy ? "Création en cours…" : "Confirmer la démo en pause"}</button>
+              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} disabled={busy || !declarationChecked}>{busy ? "Création en cours…" : "Confirmer la démo en pause"}</button>
             </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}>Retour à l’accueil iNr’ADS <span aria-hidden="true">→</span></button>}
           </div>
         </div>

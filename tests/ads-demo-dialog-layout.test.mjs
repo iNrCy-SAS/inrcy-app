@@ -12,6 +12,7 @@ function fixture() {
       <div class="header"><span class="brandMark">✦</span><div class="brand">iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div><button class="close">×</button></div>
       <div class="content"><span class="eyebrow">VOTRE VALIDATION</span><h2 id="title">Créer votre démo en pause ?</h2><p id="description">Vérifiez la campagne et le compte associé avant de confirmer. La création sur la plateforme se fera en pause, sans activation ni dépense.</p>
       <dl class="summary"><div><dt>Campagne</dt><dd>iNrCy – Search – Essai gratuit 21 jours – France</dd></div><div><dt>Canal</dt><dd>Google Ads</dd></div><div><dt>Compte annonceur</dt><dd>Compte publicitaire professionnel très long<small>6547075545</small></dd></div><div><dt>Statut</dt><dd class="paused">En pause · aucune dépense</dd></div></dl>
+      <label class="declaration"><input type="checkbox"><span>Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.<small>Cette déclaration est requise avant la création sur la plateforme.</small></span></label>
       <div class="actions"><button class="secondary">Annuler</button><button class="primary">Confirmer la démo en pause</button></div></div>
     </div></div></main></body></html>`;
 }

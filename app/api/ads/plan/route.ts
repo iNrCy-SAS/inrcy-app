@@ -16,6 +16,7 @@ import {
 } from "@/lib/adsCampaignIntelligence";
 import { isAdsChannelId, type AdsChannelId } from "@/lib/adsValidation";
 import { resolveAdsCampaignDestination, verifiedAdsDestinationUrl } from "@/lib/adsDestination";
+import { normalizeGoogleTargetLocationLabels } from "@/lib/adsGoogleLocations";
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
@@ -452,17 +453,19 @@ export async function POST(request: Request) {
         // A model cannot verify a URL or location. Retain only user context.
         rawPlan.destinationUrl = resolvedDestination.url;
         rawPlan.urlExclusions = [];
-        rawPlan.targetLocations = context.zones.length
+        const trustedLocations = context.zones.length
           ? context.zones
           : context.localContext.city ? [context.localContext.city] : [];
+        const targetLocations = provider === "google"
+          ? normalizeGoogleTargetLocationLabels(trustedLocations)
+          : trustedLocations;
+        rawPlan.targetLocations = targetLocations;
         if (typeof rawPlan.trackingParameters !== "string") rawPlan.trackingParameters = "";
         const candidate = normalizeAdsCampaignPlan(rawPlan, {
           provider,
           companyName,
           destinationUrl: resolvedDestination.url,
-          locations: context.zones.length
-            ? context.zones
-            : context.localContext.city ? [context.localContext.city] : [],
+          locations: targetLocations,
           audiences: context.audiences,
           services: context.services,
         });

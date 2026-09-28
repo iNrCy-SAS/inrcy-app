@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
-import { publishGoogleAdsCampaign } from "@/lib/adsGooglePublish";
+import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, resolveGoogleTargetLocations, type GoogleTargetLocation } from "@/lib/adsGooglePublish";
 import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -56,6 +56,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   let googleLoginCustomerId: string | undefined;
   let preparedGoogleImageData: string | undefined;
+  let preparedGoogleTargetLocations: GoogleTargetLocation[] | undefined;
   try {
     const connection = await readAdsIntegration(user.activeUserId, draft.provider);
     if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -67,6 +68,13 @@ export async function POST(request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: "Le compte publicitaire EUR sélectionné n’est plus accessible." }, { status: 403 });
     }
     googleLoginCustomerId = selectedAccount.loginCustomerId;
+    if (draft.provider === "google") {
+      // Resolve before claiming the local draft: invalid/ambiguous zones must
+      // remain editable, and no Google mutation has started at this point.
+      preparedGoogleTargetLocations = await resolveGoogleTargetLocations(
+        user.activeUserId, draft.adAccountId, draft.targetLocations, googleLoginCustomerId,
+      );
+    }
     if (draft.provider === "meta") {
       const pages = await listMetaPages(user.activeUserId);
       if (!pages.some((page) => page.id === draft.pageId)) {
@@ -78,6 +86,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       preparedGoogleImageData = await prepareGoogleSearchImageAsset(user.activeUserId, draft.imageUrl);
     }
   } catch (error) {
+    if (error instanceof GoogleAdsLocationResolutionError) {
+      return NextResponse.json({ code: error.code, error: error.message }, { status: 422 });
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "La connexion publicitaire est indisponible." }, { status: 502 });
   }
 
@@ -110,7 +121,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const resources = draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, { activate: !pausedDemo })
-      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedImageData: preparedGoogleImageData });
+      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedImageData: preparedGoogleImageData, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;

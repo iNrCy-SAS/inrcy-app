@@ -91,10 +91,38 @@ test("le connecteur Search transmet les réseaux Google choisis dans le studio",
 
 test("le connecteur Search vérifie les zones saisies avant toute mutation", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(google, /geo_target_constant\.canonical_name/);
   assert.match(google, /draft\.targetLocations/);
   assert.match(google, /locationCriterionResourceNames/);
   assert.match(google, /resolveGoogleTargetLocations\(/);
+  assert.match(google, /countryCode: "FR"/);
+  assert.match(google, /coveredByFrance/);
+  assert.match(route, /code: error\.code, error: error\.message \}, \{ status: 422 \}/);
+  assert.ok(route.indexOf("preparedGoogleTargetLocations = await resolveGoogleTargetLocations(") < route.indexOf('supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish"'));
+  assert.match(route, /preparedTargetLocations: preparedGoogleTargetLocations/);
+});
+
+test("la confirmation de démo impose la déclaration avant l'enregistrement local", () => {
+  const dialog = readFileSync(new URL("../app/dashboard/ads/AdsCampaignDemoDialog.tsx", import.meta.url), "utf8");
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  assert.match(dialog, /checked=\{declarationChecked\}/);
+  assert.match(dialog, /disabled=\{busy \|\| !declarationChecked\}/);
+  assert.match(client, /parseAdsCampaignInput\(campaignDraft, \{ purpose: "publish" \}\)/);
+  assert.ok(client.indexOf('parseAdsCampaignInput(campaignDraft, { purpose: "publish" })') < client.indexOf('const saved = await readJson(await fetch("/api/ads/campaigns"'));
+});
+
+test("les validations bloquantes restent près des actions, les descriptions alignées avec les titres", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
+  const destinationReview = client.slice(client.indexOf("{destinationReview.required && <div"), client.indexOf("{nativeSettings?.channel === \"tiktok\"", client.indexOf("{destinationReview.required && <div")));
+  const navigation = client.slice(client.indexOf("{creationPath !== \"choice\" && <div className={styles.wizardNavigation}"));
+  const finalActions = client.slice(client.indexOf("<div className={styles.studioFinalActions}"), client.indexOf("</section>", client.indexOf("<div className={styles.studioFinalActions}")));
+
+  assert.doesNotMatch(destinationReview, /type="checkbox"/);
+  assert.match(navigation, /wizardNextGroup[\s\S]*?wizardRequiredCheck[\s\S]*?Je confirme ce lien[\s\S]*?Suivant →/);
+  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?Créer une démo en pause/);
+  assert.match(css, /\.googleAdCopyField\{[^}]*align-self:start;align-content:start/);
 });
 
 test("le connecteur Search n'ajoute plus de ciblage linguistique manuel mais garde les exclusions", () => {
