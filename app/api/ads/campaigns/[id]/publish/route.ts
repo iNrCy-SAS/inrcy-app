@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
+import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
 import { publishGoogleAdsCampaign } from "@/lib/adsGooglePublish";
 import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
@@ -57,6 +57,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   let googleLoginCustomerId: string | undefined;
   let preparedGoogleImageData: string | undefined;
   try {
+    const connection = await readAdsIntegration(user.activeUserId, draft.provider);
+    if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
+      return NextResponse.json({ error: "Ce compte annonceur n’est plus celui associé à votre canal publicitaire. Vérifiez l’association avant de créer la campagne." }, { status: 409 });
+    }
     const accounts = await listAdsAccounts(user.activeUserId, draft.provider);
     const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
     if (!selectedAccount) {

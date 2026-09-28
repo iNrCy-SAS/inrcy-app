@@ -61,6 +61,7 @@ type AccountResponse = {
   connectionAccount?: { displayName?: string; email?: string; id?: string };
   accountSelectionCleared?: boolean;
   selectedAccountId?: string;
+  selectedAccountLabel?: string;
   suggestedAccountId?: string;
   selectedPageId?: string;
   error?: string;
@@ -681,6 +682,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [connectionStatus, setConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
   const [connectionAccount, setConnectionAccount] = useState<{ displayName?: string; email?: string; id?: string } | undefined>();
   const [configuredAccountId, setConfiguredAccountId] = useState("");
+  const [configuredAccountLabel, setConfiguredAccountLabel] = useState("");
   const [configuredPageId, setConfiguredPageId] = useState("");
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsRefreshKey, setAccountsRefreshKey] = useState(0);
@@ -708,6 +710,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const campaignPageLoading = useRef(false);
   const [tracking, setTracking] = useState(false);
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
+  const demoSubmissionRef = useRef(false);
   const [confirmedSpend, setConfirmedSpend] = useState(false);
   const [configuring, setConfiguring] = useState(initialConnection !== null);
   const [creating, setCreating] = useState(false);
@@ -785,6 +788,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const configuredAdvertiserAccount = isAdsProvider(channelId)
     ? accounts.find((account) => account.id === configuredAccountId && account.currency === "EUR" && account.provider === channelId)
     : undefined;
+  const associatedAccountName = configuredAdvertiserAccount?.name || configuredAccountLabel || (configuredAccountId ? `Compte ${configuredAccountId}` : "");
   const configuredAdvertiserAccountUrl = configuredAdvertiserAccount && isAdsProvider(channelId)
     ? getAdsAdvertiserAccountUrl(channelId, configuredAdvertiserAccount.id)
     : null;
@@ -797,7 +801,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
   const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
   const reviewAccountReady = isAdsProvider(channelId)
-    ? channelAccountReady
+    ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || configuredPageId))
     : Boolean(activeExternalStatus?.connected && activeExternalStatus.selectedAccountId);
 
   const refreshExternalStatus = useCallback(async (channel: ExternalChannelId) => {
@@ -1002,6 +1006,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setConnectionStatus("disconnected");
       setConnectionAccount(undefined);
       setConfiguredAccountId("");
+      setConfiguredAccountLabel("");
       setConfiguredPageId("");
       setAccounts([]);
       setPages([]);
@@ -1030,6 +1035,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         // `selectedAccountId` is a persisted choice. Keep it intact even if a
         // temporary account-list refresh cannot currently resolve that ID.
         setConfiguredAccountId(persistedAccountId);
+        setConfiguredAccountLabel(String(result.selectedAccountLabel || ""));
         setConfiguredPageId(persistedPageId);
         setDraft((current) => {
           const hasPersistedAccount = Boolean(persistedAccountId);
@@ -1070,6 +1076,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setConnectionStatus("disconnected");
     setConnectionAccount(undefined);
     setConfiguredAccountId("");
+    setConfiguredAccountLabel("");
     setConfiguredPageId("");
     setConfigAction(null);
     setAccounts([]);
@@ -1202,6 +1209,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         body: JSON.stringify({ provider, accountId: draft.adAccountId }),
       }));
       setConfiguredAccountId(String(result.selectedAccountId || draft.adAccountId));
+      setConfiguredAccountLabel(String(result.selectedAccountLabel || selectedAccount?.name || ""));
       setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} associé. Il restera mémorisé jusqu’à ce que vous le dissociiez. Aucune annonce n’a été publiée.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de sélectionner ce compte annonceur.");
@@ -1243,6 +1251,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       if (target === "account") {
         setConfiguredAccountId("");
+        setConfiguredAccountLabel("");
         setConfiguredPageId("");
         updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
         setNotice("Compte annonceur dissocié. Vous pouvez en choisir un autre.");
@@ -1267,6 +1276,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setConnectionStatus("disconnected");
       setConnectionAccount(undefined);
       setConfiguredAccountId("");
+      setConfiguredAccountLabel("");
       setConfiguredPageId("");
       setAccounts([]);
       setPages([]);
@@ -1442,7 +1452,13 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
 
   function startNewCampaign() {
     stopPlanProgress();
-    setDraft(newDraft(channelId));
+    setDraft({
+      ...newDraft(channelId),
+      // The advertiser/identity belongs to the channel, not to an individual
+      // campaign. Starting over must not make an associated account disappear.
+      adAccountId: isAdsProvider(channelId) ? configuredAccountId : "",
+      pageId: channelId === "meta" ? configuredPageId : "",
+    });
     setSavedId(null);
     setDirty(true);
     setNotice("");
@@ -1552,7 +1568,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   }
 
   async function createPausedDemo() {
-    if (!isAdsProvider(channelId)) return;
+    if (!isAdsProvider(channelId) || !demoPausedPublishingEnabled || busy !== null || demoSubmissionRef.current) return;
     const connectorIssue = unsupportedAdsConnectorReason(draft);
     if (connectorIssue) {
       setNotice(connectorIssue);
@@ -1580,28 +1596,72 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setNotice("Ajoutez l’image complémentaire prévue par l’analyse Google Search avant de créer une démo en pause.");
       return;
     }
-    if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady) return;
-    if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
-      setNotice("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
+    if (!livePublisherMediaReady) {
+      setNotice("Le média choisi doit être disponible dans la médiathèque iNrCy avant de créer la démo en pause.");
       return;
     }
-    const accepted = window.confirm(`Créer une démo réelle en pause sur ${channelMeta.label} ?\n\nLa plateforme créera les éléments de campagne en pause et iNrCy n’enverra aucune demande d’activation. Vérifiez leur état dans le compte publicitaire après la création.`);
-    if (!accepted) return;
+    if (channelId !== provider) {
+      setNotice("Le canal de cette campagne a changé. Revenez sur son canal avant de créer la démo.");
+      return;
+    }
+    demoSubmissionRef.current = true;
     setBusy("demo"); setNotice("");
     try {
-      await readJson(await fetch(`/api/ads/campaigns/${savedId}/publish`, {
+      // Resolve the durable association at click time. A fresh campaign may
+      // have a blank local draft even though the advertiser remains linked.
+      const connection = await readJson(await fetch(`/api/ads/accounts?provider=${channelId}`, { cache: "no-store" })) as AccountResponse;
+      const accountId = String(connection.selectedAccountId || "");
+      setConnected(connection.connected);
+      setConnectionStatus(connection.connectionStatus || (connection.connected ? "connected" : "disconnected"));
+      setAccounts(connection.accounts || []);
+      setPages(connection.pages || []);
+      setConfiguredAccountId(accountId);
+      setConfiguredAccountLabel(String(connection.selectedAccountLabel || ""));
+      if (channelId === "meta") setConfiguredPageId(String(connection.selectedPageId || ""));
+      const account = (connection.accounts || []).find((candidate) => candidate.id === accountId && candidate.currency === "EUR");
+      if (!connection.connected || !accountId || !account) {
+        throw new Error(accountId
+          ? "Le compte annonceur associé est momentanément inaccessible. Actualisez la connexion sans dissocier ce compte, puis réessayez."
+          : "Aucun compte annonceur n’est associé à ce canal. Associez-en un une seule fois dans la configuration.");
+      }
+      const pageId = channelId === "meta" ? String(connection.selectedPageId || "") : "";
+      if (channelId === "meta" && !(connection.pages || []).some((page) => page.id === pageId && page.instagramUserId)) {
+        throw new Error("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
+      }
+      setConfiguredAccountLabel(String(connection.selectedAccountLabel || account.name));
+      const accepted = window.confirm(`Créer « ${draft.name} » en pause sur ${channelMeta.label} ?\nCompte associé : ${account.name} (${accountId})\n\nLa campagne sera enregistrée automatiquement dans iNrCy puis créée sur la plateforme en pause, sans activation ni dépense. Vérifiez son état dans le compte publicitaire après la création.`);
+      if (!accepted) return;
+
+      const campaignDraft: AdsCampaignInput = {
+        ...draft,
+        provider: channelId,
+        adAccountId: accountId,
+        accountCurrency: "EUR",
+        pageId: channelId === "meta" ? pageId : draft.pageId,
+      };
+      const saved = await readJson(await fetch("/api/ads/campaigns", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...campaignDraft, id: savedId }),
+      }));
+      const campaignId = String((saved.campaign as { id?: string } | undefined)?.id || "");
+      if (!campaignId) throw new Error("Le brouillon n’a pas pu être confirmé. Aucune campagne Google Ads n’a été créée.");
+      setDraft(campaignDraft);
+      setSavedId(campaignId);
+      setDirty(false);
+
+      await readJson(await fetch(`/api/ads/campaigns/${campaignId}/publish`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "demo_paused", confirmation: ADS_PAUSED_DEMO_CONFIRMATION }),
       }));
-      setNotice(`Démo créée en pause sur ${channelMeta.label}. Vérifiez son état dans le compte publicitaire avant de filmer.`);
+      setNotice(`Campagne créée en pause sur ${channelMeta.label}, compte ${account.name}. Aucune diffusion n’est lancée.`);
       setConfirmedSpend(false);
       await loadCampaigns();
       setCreating(false);
       setTracking(true);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être créée. Vérifiez son statut sur la plateforme avant de réessayer.");
+      setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être confirmée. Vérifiez son statut sur la plateforme avant de réessayer.");
       void loadCampaigns();
-    } finally { setBusy(null); }
+    } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
   function reopen(campaign: StoredCampaign) {
@@ -1991,7 +2051,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         {channelId === "google" && <label className={`${styles.check} ${styles.studioCompliance}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} />Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</label>}
         <dl className={styles.studioReviewGrid}>
           <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings))} · ${nativeWizardFormat(nativeSettings)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
-           <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {selectedAccount?.name || (isExternalChannel(channelId) && activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : isAdsProvider(channelId) ? "À configurer" : "À associer")}</dd><small>{reviewAccountReady ? "Compte annonceur associé" : selectedAccount ? "Compte ou identité à confirmer dans la configuration" : "Vous pouvez enregistrer avant de connecter un compte"}</small></div>
+          <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || "À configurer" : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : "À associer"}</dd><small>{reviewAccountReady ? "Compte annonceur associé" : configuredAccountId ? "Compte associé · accès à vérifier" : "Associez un compte pour créer la démo en pause"}</small></div>
           <div><dt>Objectif mesuré</dt><dd>{CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{draft.targetLocations.length ? `${draft.targetLocations.length} zone${draft.targetLocations.length > 1 ? "s" : ""} ciblée${draft.targetLocations.length > 1 ? "s" : ""}` : "Zones à préciser"}</small></div>
           <div><dt>Investissement</dt><dd>{draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour</dd><small>Fin prévue : {draft.endDate || "à préciser"}</small></div>
           <div><dt>Redirection</dt><dd>{draft.destinationUrl || "À renseigner"}</dd><small>{draft.keywords.length ? `${draft.keywords.length} signaux / mots-clés préparés` : "Mots-clés ou audiences à compléter"}</small></div>
@@ -2015,8 +2075,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           {!connectorConfigurationIssue && !livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Vous pouvez préparer et enregistrer la campagne. La diffusion réelle n’est pas encore activée.</p>}
         </>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
-          <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioSaveCampaignButton}` : styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon" : savedId ? "Brouillon enregistré" : "Enregistrer la campagne"}</button>
-          {isAdsProvider(channelId) && livePublisherSetupReady && demoPausedPublishingEnabled && <button type="button" className={styles.secondaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
+          {isAdsProvider(channelId) && demoPausedPublishingEnabled && <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.primaryButton} disabled={busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
+          <button type="button" className={channelId === "google" && !demoPausedPublishingEnabled ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon iNrCy" : savedId ? "Brouillon iNrCy enregistré" : "Garder en brouillon iNrCy"}</button>
         </div>
         {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
       </section>

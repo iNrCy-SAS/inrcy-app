@@ -53,9 +53,11 @@ export async function GET(request: Request) {
         accounts: [],
         pages: [],
         connectionAccount: connectionAccount(connection),
-        accountSelectionCleared: false,
-        selectedAccountId: "",
-        selectedPageId: "",
+        accountSelectionCleared: connection ? wasAccountExplicitlyCleared(connection) : false,
+        selectedAccountId: connection?.resource_id || "",
+        selectedAccountLabel: connection?.resource_label || "",
+        selectedAccountAvailable: false,
+        selectedPageId: selectedPageId(connection),
       });
     }
 
@@ -88,6 +90,7 @@ export async function GET(request: Request) {
       // dissociate it. Never silently replace or clear it while refreshing
       // the provider's available-account list.
       selectedAccountId: connection.resource_id || "",
+      selectedAccountLabel: connection.resource_label || "",
       selectedAccountAvailable: Boolean(selectedAccount),
       suggestedAccountId,
       selectedPageId: selectedIdentity,
@@ -106,6 +109,7 @@ export async function GET(request: Request) {
       // professional's durable account and identity selections.
       accountSelectionCleared: refreshedConnection ? wasAccountExplicitlyCleared(refreshedConnection) : false,
       selectedAccountId: refreshedConnection?.resource_id || "",
+      selectedAccountLabel: refreshedConnection?.resource_label || "",
       selectedAccountAvailable: false,
       selectedPageId: selectedPageId(refreshedConnection),
       error: error instanceof Error ? error.message : "Impossible de charger les comptes publicitaires.",

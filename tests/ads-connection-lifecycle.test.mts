@@ -26,6 +26,10 @@ const organicFacebookDisconnectSource = readFileSync(
   new URL("../app/api/integrations/facebook/disconnect-account/route.ts", import.meta.url),
   "utf8",
 );
+const publishRouteSource = readFileSync(
+  new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url),
+  "utf8",
+);
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
   assert.match(settingsSource, /\{connected \? <button[\s\S]*?Déconnexion/);
@@ -75,6 +79,24 @@ test("une panne temporaire de découverte conserve les associations Ads enregist
   assert.match(fallback, /selectedPageId:\s*selectedPageId\(refreshedConnection\)/);
   assert.match(fallback, /accountSelectionCleared:\s*refreshedConnection\s*\?\s*wasAccountExplicitlyCleared\(refreshedConnection\)/);
   assert.match(fallback, /selectedAccountAvailable:\s*false/);
+});
+
+test("une connexion à actualiser garde l’association visible sans autoriser une publication", () => {
+  const disconnected = accountsRouteSource.split('if (!connection || connectionStatus !== "connected") {')[1]?.split('const [accounts, pages]')[0] || "";
+  assert.match(disconnected, /selectedAccountId:\s*connection\?\.resource_id\s*\|\|\s*""/);
+  assert.match(disconnected, /selectedAccountAvailable:\s*false/);
+  assert.match(publishRouteSource, /connection\?\.status !== "connected" \|\| connection\.resource_id !== draft\.adAccountId/);
+});
+
+test("une nouvelle campagne reprend le compte associé et la démo l’enregistre dans le même clic", () => {
+  const start = clientSource.split("function startNewCampaign() {")[1]?.split("function closeCampaignCreation()")[0] || "";
+  const demo = clientSource.split("async function createPausedDemo() {")[1]?.split("function reopen(")[0] || "";
+  assert.match(start, /adAccountId: isAdsProvider\(channelId\) \? configuredAccountId : ""/);
+  assert.match(demo, /connection\.selectedAccountId/);
+  assert.match(demo, /fetch\("\/api\/ads\/campaigns", \{/);
+  assert.match(demo, /fetch\(`\/api\/ads\/campaigns\/\$\{campaignId\}\/publish`/);
+  assert.doesNotMatch(demo, /!savedId \|\| dirty/);
+  assert.match(clientSource, /Créer une démo en pause/);
 });
 
 test("déconnecter Facebook organique ne supprime pas la connexion Meta Ads", () => {

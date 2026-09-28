@@ -116,7 +116,6 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     if (provider === "google" && !token.refresh_token && !reusableGoogleRefreshToken) {
       throw new Error("Google n’a pas fourni de jeton de renouvellement Ads. Réessayez la connexion et acceptez l’accès hors ligne.");
     }
-    const keepsSelection = Boolean(existing?.provider_account_id && existing.provider_account_id === profileId);
     const payload = {
       user_id: userId,
       provider: provider === "meta" ? "facebook" : "google",
@@ -131,8 +130,12 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       access_token_enc: encryptToken(token.access_token),
       refresh_token_enc: token.refresh_token ? encryptToken(token.refresh_token) : reusableGoogleRefreshToken,
       expires_at: token.expires_in ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
-      meta: { ...asRecord(keepsSelection ? existing?.meta : null), product: "inr_ads", provider },
-      ...(keepsSelection ? {} : { resource_id: null, resource_label: null }),
+      // Re-authorising OAuth refreshes credentials, not the professional's
+      // explicit advertiser choice. Remote writes still verify access to this
+      // account with the new credentials before creating anything.
+      meta: { ...asRecord(existing?.meta), product: "inr_ads", provider },
+      resource_id: existing?.resource_id || null,
+      resource_label: existing?.resource_label || null,
       updated_at: new Date().toISOString(),
     };
     const saved = existing?.id
