@@ -101,6 +101,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   let progress: Record<string, unknown> = {};
+  let metaProviderMutationStarted = false;
   const persistProgress = async (resources: Record<string, unknown>) => {
     // Keep newly created provider IDs even if the database write fails or times out.
     // The recovery path can then record them under needs_review instead of {}.
@@ -115,7 +116,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   try {
     const resources = draft.provider === "meta"
-      ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, { activate: !pausedDemo })
+      ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, {
+        activate: !pausedDemo,
+        onProviderMutationStart: () => { metaProviderMutationStarted = true; },
+      })
       : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
@@ -138,11 +142,19 @@ export async function POST(request: Request, { params }: RouteContext) {
     // A Google 400 on the first atomic mutate cannot leave provider objects
     // behind. Return the local row to draft so the precise validation error can
     // be fixed and retried without stranding it in needs_review.
-    const rejectedBeforeCreate = draft.provider === "google" && error instanceof GoogleAdsApiError
+    const googleRejectedBeforeCreate = draft.provider === "google" && error instanceof GoogleAdsApiError
       && error.status === 400 && Object.keys(resources).length === 0;
+    // Meta performs account, Page, Instagram, URL, media download and image
+    // dimension checks before this boundary. Those failures are safe to fix
+    // and retry. Once a Graph mutation may have started, keep needs_review
+    // even when a network failure returned no ID: retrying could duplicate a
+    // remotely-created campaign whose response was lost.
+    const metaRejectedBeforeCreate = draft.provider === "meta" && !metaProviderMutationStarted
+      && Object.keys(resources).length === 0;
+    const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate;
     await supabaseAdmin.from("ads_campaigns").update({
       status: rejectedBeforeCreate ? "draft" : "needs_review",
-      provider_resources: resources,
+      provider_resources: rejectedBeforeCreate ? {} : resources,
       last_error: message.slice(0, 1000),
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");

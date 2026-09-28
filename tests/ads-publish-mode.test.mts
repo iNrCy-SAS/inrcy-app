@@ -30,6 +30,11 @@ test("le serveur refuse les formats que les connecteurs Google et Meta ne savent
     conversionGoal: "website_visit",
     conversionLocation: "website",
     metaPlacements: ["facebook_feed", "instagram_feed"],
+    imageUrl: "https://example.com/meta-feed.jpg",
+    metaCreativeAssets: {
+      feedImageUrl: "https://example.com/meta-feed.jpg",
+      storyReelImageUrl: "",
+    },
     callToAction: "En savoir plus",
     mediaStrategy: "image",
     creativeType: "image",
@@ -43,8 +48,37 @@ test("le serveur refuse les formats que les connecteurs Google et Meta ne savent
   assert.match(unsupportedAdsConnectorReason({ ...meta, campaignType: "meta_leads" }) || "", /Trafic/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, conversionLocation: "instant_form" }) || "", /site web/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, conversionGoal: "quote_request" }) || "", /visites/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["facebook_feed", "stories"] }) || "", /fils Facebook et Instagram/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["facebook_feed"] }) || "", /fils Facebook et Instagram/);
+  assert.equal(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["facebook_feed"] }), null);
+  assert.equal(unsupportedAdsConnectorReason({
+    ...meta,
+    metaPlacements: ["stories", "reels"],
+    imageUrl: "",
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "https://example.com/meta-story.jpg" },
+  }), null);
+  assert.equal(unsupportedAdsConnectorReason({
+    ...meta,
+    metaPlacements: ["facebook_feed", "instagram_feed", "stories", "reels"],
+    metaCreativeAssets: {
+      feedImageUrl: "https://example.com/meta-feed.jpg",
+      storyReelImageUrl: "https://example.com/meta-story.jpg",
+    },
+  }), null);
+  assert.match(unsupportedAdsConnectorReason({
+    ...meta,
+    metaPlacements: ["facebook_feed", "stories"],
+  }) || "", /Story\/Reel 9:16/);
+  assert.match(unsupportedAdsConnectorReason({
+    ...meta,
+    metaPlacements: ["facebook_feed"],
+    imageUrl: "",
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
+  }) || "", /Feed 4:5/);
+  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["messenger"] }) || "", /pas Messenger/);
+  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: [] }) || "", /au moins un placement/);
+  assert.equal(unsupportedAdsConnectorReason({
+    ...meta,
+    metaCreativeAssets: undefined,
+  }), null, "un ancien brouillon Feed garde imageUrl comme repli");
   assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "" }) || "", /En savoir plus/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "Demander un devis" }) || "", /En savoir plus/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, mediaStrategy: "video" }) || "", /image/);
@@ -68,9 +102,11 @@ test("les enchères Search respectent la stratégie choisie sans substitution si
 test("les adaptateurs Google et Meta s’arrêtent avant toute activation en mode démo", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
+  const metaCore = readFileSync(new URL("../lib/adsMetaPublishCore.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(google, /if \(options\.activate === false\) return paused;/);
-  assert.match(meta, /if \(!shouldActivate\) \{/);
+  assert.match(meta, /activate: shouldActivate/);
+  assert.match(metaCore, /if \(!input\.activate\) \{/);
   assert.match(route, /status: pausedDemo \? "demo_paused" : "active"/);
   assert.match(route, /activate: !pausedDemo/);
   assert.match(route, /\.eq\("status", "publishing"\)\s*\.select\("id"\)\.maybeSingle\(\)/);
@@ -80,6 +116,23 @@ test("les adaptateurs Google et Meta s’arrêtent avant toute activation en mod
   assert.ok(progressHandler.indexOf("progress = resources;") >= 0);
   assert.ok(progressHandler.indexOf("progress = resources;") < progressHandler.indexOf('supabaseAdmin.from("ads_campaigns").update('));
   assert.match(route, /const resources = error instanceof MetaAdsPublishError \? error\.progress : progress/);
+});
+
+test("un préflight Meta refusé reste corrigeable sans autoriser un doublon après mutation", () => {
+  const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
+
+  assert.match(meta, /onProviderMutationStart\?: \(\) => void/);
+  assert.ok(
+    meta.indexOf("options.onProviderMutationStart?.();") < meta.indexOf("return executeMetaAdsGraphPublish({"),
+    "la frontière doit être signalée juste avant la séquence de mutations Graph",
+  );
+  assert.match(route, /let metaProviderMutationStarted = false/);
+  assert.match(route, /onProviderMutationStart: \(\) => \{ metaProviderMutationStarted = true; \}/);
+  assert.match(route, /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
+  assert.match(route, /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
+  assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : resources/);
+  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate/);
 });
 
 test("le connecteur Search transmet les réseaux Google choisis dans le studio", () => {
@@ -163,8 +216,11 @@ test("le parcours iNrCy génère réellement le média de campagne via iNr’Stu
 
 test("un média privé iNrCy est transformé côté serveur en URL temporaire lisible par Meta", () => {
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
+  const core = readFileSync(new URL("../lib/adsMetaPublishCore.ts", import.meta.url), "utf8");
   assert.match(meta, /verifyMediaLibraryContentToken/);
   assert.match(meta, /createSafeStorageSignedUrl/);
   assert.match(meta, /resolveMetaImageUrl/);
-  assert.match(meta, /imageUrl: metaImageUrl/);
+  assert.match(meta, /downloadMetaImageBytes/);
+  assert.match(core, /\/adimages/);
+  assert.match(core, /asset_feed_spec/);
 });

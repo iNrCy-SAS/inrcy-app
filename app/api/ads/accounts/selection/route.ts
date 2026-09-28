@@ -11,6 +11,7 @@ import {
 } from "@/lib/adsServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
+import { adsAccountCanBeAssociated, adsAccountAssociationIssue } from "@/lib/adsValidation";
 
 type SelectionTarget = "account" | "identity";
 
@@ -83,9 +84,13 @@ export async function POST(request: Request) {
 
     if (accountId !== undefined) {
       const accounts = await listAdsAccounts(user.activeUserId, provider);
-      const account = accounts.find((candidate) => candidate.id === accountId && candidate.currency === "EUR");
+      const account = accounts.find((candidate) => candidate.id === accountId);
       if (!account) {
         return NextResponse.json({ error: "Ce compte publicitaire EUR n’est plus accessible avec cette connexion." }, { status: 403 });
+      }
+      if (!adsAccountCanBeAssociated(account)) {
+        const reason = adsAccountAssociationIssue(account) || "compte non disponible";
+        return NextResponse.json({ error: `Ce compte publicitaire ne peut pas être associé : ${reason}.` }, { status: 409 });
       }
       update.resource_id = account.id;
       update.resource_label = account.name;

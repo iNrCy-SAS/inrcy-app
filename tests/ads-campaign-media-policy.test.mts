@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  assessMetaCreativeAssetReadiness,
   adsMediaKindForPlan,
   adsMediaStrategyAfterAttachment,
   GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
   googleSearchImagePrompt,
   googleSearchImageSubjectPrompt,
+  META_ADS_CREATIVE_SPECS,
+  metaCreativeAssetReadinessReason,
+  metaFeedImagePrompt,
+  metaStoryReelImagePrompt,
   shouldGenerateAdsMedia,
 } from "../lib/adsCampaignMediaPolicy.ts";
 
@@ -19,6 +24,79 @@ test("l’analyse génère seulement un média compatible avec le format", () =>
   assert.equal(shouldGenerateAdsMedia({ provider: "x", campaignType: "generic", mediaStrategy: "search_text" }), false);
   assert.equal(shouldGenerateAdsMedia({ provider: "meta", campaignType: "meta_traffic", mediaStrategy: "image" }), true);
   assert.equal(adsMediaKindForPlan({ provider: "tiktok", campaignType: "generic", mediaStrategy: "video", creativeType: "video" }), "video");
+});
+
+test("les deux prompts Meta verrouillent les formats publicitaires Feed et Story/Reel", () => {
+  const context = {
+    offer: "Audit énergétique pour commerces",
+    name: "Campagne économies d’énergie",
+    primaryText: "Réduisez durablement les dépenses énergétiques de votre commerce.",
+    callToAction: "En savoir plus",
+    targetAudiences: ["commerçants locaux"],
+    mediaBrief: "Montrer une boutique lumineuse et crédible",
+  };
+  const feedPrompt = metaFeedImagePrompt(context);
+  const storyReelPrompt = metaStoryReelImagePrompt(context);
+  assert.deepEqual(META_ADS_CREATIVE_SPECS.feed, {
+    outputFormat: "portrait", aspectRatio: "4:5", width: 1080, height: 1350,
+  });
+  assert.deepEqual(META_ADS_CREATIVE_SPECS.storyReel, {
+    outputFormat: "story", aspectRatio: "9:16", width: 1080, height: 1920,
+  });
+  assert.match(feedPrompt, /Meta Feed.*4:5.*1080 × 1350/);
+  assert.match(storyReelPrompt, /Story\/Reel.*9:16.*1080 × 1920/);
+  assert.match(storyReelPrompt, /zones dégagées en haut et en bas/);
+  assert.match(feedPrompt, /Audit énergétique pour commerces/);
+  assert.match(feedPrompt, /commerçants locaux/);
+  assert.match(feedPrompt, /Aucun texte lisible/);
+  assert.ok(feedPrompt.length <= 1_800);
+  assert.ok(storyReelPrompt.length <= 1_800);
+});
+
+test("la readiness Meta exige chaque asset correspondant sans recadrage implicite", () => {
+  const legacyFeed = assessMetaCreativeAssetReadiness({
+    metaPlacements: ["facebook_feed", "instagram_feed"],
+    imageUrl: "https://example.com/legacy-feed.jpg",
+  });
+  assert.equal(legacyFeed.ready, true);
+  assert.equal(metaCreativeAssetReadinessReason(legacyFeed), null);
+
+  const missingStory = assessMetaCreativeAssetReadiness({
+    metaPlacements: ["facebook_feed", "stories", "reels"],
+    imageUrl: "https://example.com/feed.jpg",
+  });
+  assert.equal(missingStory.ready, false);
+  assert.deepEqual(missingStory.missingAssets, ["storyReelImageUrl"]);
+  assert.match(metaCreativeAssetReadinessReason(missingStory) || "", /Story\/Reel 9:16/);
+
+  const complete = assessMetaCreativeAssetReadiness({
+    metaPlacements: ["facebook_feed", "stories", "reels"],
+    metaCreativeAssets: {
+      feedImageUrl: "https://example.com/feed.jpg",
+      storyReelImageUrl: "https://example.com/story.jpg",
+    },
+  });
+  assert.equal(complete.ready, true);
+  assert.deepEqual(complete.missingAssets, []);
+
+  const duplicated = assessMetaCreativeAssetReadiness({
+    metaPlacements: ["instagram_feed", "stories"],
+    metaCreativeAssets: {
+      feedImageUrl: "https://example.com/same-image.jpg",
+      storyReelImageUrl: "https://example.com/same-image.jpg",
+    },
+  });
+  assert.equal(duplicated.ready, false);
+  assert.equal(duplicated.reusesSameImageAcrossFormats, true);
+  assert.match(metaCreativeAssetReadinessReason(duplicated) || "", /deux images Meta distinctes/);
+
+  const unsupported = assessMetaCreativeAssetReadiness({
+    metaPlacements: ["messenger"],
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
+  });
+  assert.equal(unsupported.ready, false);
+  assert.deepEqual(unsupported.unsupportedPlacements, ["messenger"]);
+  assert.match(metaCreativeAssetReadinessReason(unsupported) || "", /pas Messenger/);
 });
 
 test("Google Search crée la campagne en pause sans liaison d’image rejetée par Google", () => {

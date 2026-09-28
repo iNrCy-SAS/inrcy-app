@@ -172,6 +172,10 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `FACEBOOK_APP_ID`
 - [ ] `FACEBOOK_APP_SECRET`
 - [ ] `FACEBOOK_REDIRECT_URI`
+- [ ] `META_ADS_REDIRECT_URI` — `https://app.inrcy.com/api/ads/oauth/meta/callback` en Production ; doit correspondre exactement à l’URI autorisée dans Meta for Developers
+- [ ] `META_GRAPH_API_VERSION` — version Graph utilisée par le connecteur Marketing API (la valeur par défaut du code doit rester compatible avec l’application Meta)
+- [ ] `INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED=true` — autorise la création de démonstrations Meta/Google entièrement en pause, sans dépense
+- [ ] `INRCY_ADS_LIVE_PUBLISH_ENABLED=true` uniquement après validation métier de la publication active et de la facturation publicitaire directe
 - [ ] `FACEBOOK_LOGIN_FOR_BUSINESS_CONFIG_ID`
 - [ ] `INSTAGRAM_REDIRECT_URI`
 - [ ] `INSTAGRAM_LOGIN_FOR_BUSINESS_CONFIG_ID`

@@ -206,7 +206,7 @@ L’historique éditorial sert à éviter de répéter un angle déjà beaucoup 
 Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
 Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" par compatibilité du schéma, mais l’annonce publiée est uniquement textuelle (titres et descriptions). Ne promets pas de composant image et ne demande pas de génération de média : le connecteur actuel ne peut pas joindre un visuel Search via l’API Google Ads. Laisse mediaBrief, imageUrl et creativeUrl vides.
 Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
-Pour Meta : rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones, objectif, appel à l’action, lieu de conversion, expansion d’audience et placements. Sélectionne seulement des placements cohérents avec le média proposé et décris le visuel à créer dans mediaBrief. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
+Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones et expansion d’audience. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
 Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl doit reprendre l’URL fiable fournie dans preferredDestinationUrl ; n’invente aucune autre URL. urlExclusions ne doit contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
 }
 
@@ -443,8 +443,17 @@ export async function POST(request: Request) {
       }),
       validate: (rawPlan) => {
         stage = "validation";
-        if (provider === "meta" && !String(rawPlan.campaignType || "").startsWith("meta_")) {
-          rawPlan.campaignType = "meta_leads";
+        if (provider === "meta") {
+          // The assisted path finishes on the currently implemented Meta
+          // adapter. Manual mode still exposes the other objectives as drafts.
+          rawPlan.campaignType = "meta_traffic";
+          rawPlan.objective = "website_traffic";
+          rawPlan.conversionGoal = "website_visit";
+          rawPlan.conversionLocation = "website";
+          rawPlan.mediaStrategy = "image";
+          rawPlan.creativeType = "image";
+          rawPlan.callToAction = "En savoir plus";
+          rawPlan.metaPlacements = ["facebook_feed", "instagram_feed", "stories", "reels"];
         }
         if (provider === "google" && String(rawPlan.campaignType || "").startsWith("meta_")) {
           rawPlan.campaignType = "search";

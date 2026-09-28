@@ -1,4 +1,8 @@
 import type { AdsCampaignInput } from "@/lib/adsValidation";
+import {
+  assessMetaCreativeAssetReadiness,
+  metaCreativeAssetReadinessReason,
+} from "./adsCampaignMediaPolicy.ts";
 
 export type AdsPublishMode = "live" | "demo_paused";
 
@@ -29,7 +33,8 @@ export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown):
 
 type ConnectorDraft = Pick<AdsCampaignInput,
   "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
-  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType">;
+  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType"> &
+  Partial<Pick<AdsCampaignInput, "imageUrl" | "metaCreativeAssets">>;
 
 /** The first Google Search adapter has no numeric CPA/ROAS target input. */
 export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
@@ -59,14 +64,15 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
   if (draft.conversionLocation !== "website" || draft.conversionGoal !== "website_visit") {
     return "La publication Meta Ads mesure actuellement les visites du site web uniquement.";
   }
-  if (draft.metaPlacements.length !== 2 ||
-      !draft.metaPlacements.includes("facebook_feed") ||
-      !draft.metaPlacements.includes("instagram_feed")) {
-    return "La publication Meta Ads utilise actuellement les fils Facebook et Instagram ensemble uniquement.";
-  }
   if (draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
     return "La publication Meta Ads utilise actuellement une image uniquement.";
   }
+  const mediaReadinessReason = metaCreativeAssetReadinessReason(assessMetaCreativeAssetReadiness({
+    metaPlacements: draft.metaPlacements,
+    metaCreativeAssets: draft.metaCreativeAssets,
+    imageUrl: draft.imageUrl,
+  }));
+  if (mediaReadinessReason) return mediaReadinessReason;
   const callToAction = draft.callToAction.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (!["en savoir plus", "decouvrir", "learn more"].includes(callToAction)) {
     return "L’appel à l’action Meta Ads publié actuellement est « En savoir plus ». Adaptez votre brouillon avant publication.";

@@ -13,7 +13,7 @@ import type { AdsChannelId } from "@/lib/adsValidation";
 export async function readAdsConnectionSnapshots(userId: string): Promise<AdsConnectionSnapshots> {
   const snapshots = emptyAdsConnectionSnapshots();
   const { data, error } = await supabaseAdmin.from("integrations")
-    .select("source,status,resource_id,resource_label,meta")
+    .select("source,status,expires_at,resource_id,resource_label,meta")
     .eq("user_id", userId)
     .eq("product", "ads")
     .in("source", Object.values(ADS_INTEGRATION_SOURCES));

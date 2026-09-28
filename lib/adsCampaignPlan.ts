@@ -363,14 +363,18 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     ? PLANNED_COPY_LIMITS[context.provider]
     : { headline: 30, description: 90 };
   const campaignType = oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
-  const objective = oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, "leads");
-  const conversionGoal = oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, "quote_request");
+  const objective = oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, context.provider === "meta" ? "website_traffic" : "leads");
+  const conversionGoal = oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, context.provider === "meta" ? "website_visit" : "quote_request");
   const conversionLocation = oneOf(ADS_CONVERSION_LOCATIONS, raw.conversionLocation, "website");
   const bidStrategy = oneOf(ADS_BID_STRATEGIES, raw.bidStrategy, "maximize_conversions");
   const rawMediaStrategy = native.strategy || oneOf(ADS_MEDIA_STRATEGIES, raw.mediaStrategy, defaultMediaStrategy(context.provider));
   const mediaStrategy = mediaStrategyForCampaignType(context.provider, campaignType, rawMediaStrategy);
   const rawCreativeType = raw.creativeType === "video" ? "video" as const : "image" as const;
   const fallbackOffer = context.services?.[0] || "";
+  const requestedMetaPlacements = enumList(ADS_META_PLACEMENTS, raw.metaPlacements, 8);
+  const metaPlacements: AdsMetaPlacement[] = context.provider === "meta"
+    ? requestedMetaPlacements.length ? requestedMetaPlacements : ["facebook_feed", "instagram_feed", "stories", "reels"]
+    : requestedMetaPlacements;
 
   return {
     brand: clean(raw.brand, 120) || clean(context.companyName, 120),
@@ -396,7 +400,7 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     googleSearchPartners: raw.googleSearchPartners === true,
     googleDisplayExpansion: raw.googleDisplayExpansion === true,
     metaAudienceExpansion: raw.metaAudienceExpansion !== false,
-    metaPlacements: enumList(ADS_META_PLACEMENTS, raw.metaPlacements, 8),
+    metaPlacements,
     trackingParameters: clean(raw.trackingParameters, 500),
     primaryText: clean(raw.primaryText, 500) || clean(native.primaryText, 500),
     // The planning endpoint receives no verified media URL. Do not turn a
@@ -406,7 +410,7 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     creativeType: creativeTypeForStrategy(mediaStrategy, rawCreativeType),
     mediaStrategy,
     mediaBrief: clean(raw.mediaBrief, 1_000) || native.mediaBrief,
-    callToAction: clean(raw.callToAction, 80) || "Demander un devis",
+    callToAction: clean(raw.callToAction, 80) || (context.provider === "meta" ? "En savoir plus" : "Demander un devis"),
     headlines: list(raw.headlines, 15, copyLimits.headline).length
       ? list(raw.headlines, 15, copyLimits.headline)
       : native.headline ? [clean(native.headline, copyLimits.headline)] : [],

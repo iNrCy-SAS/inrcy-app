@@ -1,11 +1,43 @@
 import "server-only";
 
-import { listMetaPages, metaAdsJson } from "@/lib/adsServer";
-import { metaFeedTargeting, metaLinkCreativeStory } from "@/lib/adsMetaPlacement";
-import type { AdsCampaignInput } from "@/lib/adsValidation";
-import { verifyMediaLibraryContentToken } from "@/lib/mediaLibraryContentUrl";
-import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { listMetaPages, metaAdsJson } from "./adsServer.ts";
+import {
+  metaCreativeAssetUrls,
+  metaPlacementTargeting,
+  metaPlacementsNeedInstagramIdentity,
+  type MetaAdsPlacement,
+} from "./adsMetaPlacement.ts";
+import {
+  executeMetaAdsGraphPublish,
+  metaUrlTags,
+  MetaAdsPublishError,
+  type PersistMetaAdsProgress,
+} from "./adsMetaPublishCore.ts";
+import { prepareMetaCreativeImageForUpload } from "./adsMetaCreativeImageServer.ts";
+import type { AdsCampaignInput } from "./adsValidation.ts";
+import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
+import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
+import { supabaseAdmin } from "./supabaseAdmin.ts";
+
+const MAX_META_IMAGE_BYTES = 30 * 1024 * 1024;
+
+type MetaCreativeAssets = {
+  feedImageUrl?: string;
+  storyReelImageUrl?: string;
+};
+
+type MetaAdsCampaignDraft = AdsCampaignInput & {
+  noSpecialCategoryConfirmed?: boolean;
+  metaCreativeAssets?: MetaCreativeAssets;
+};
+
+export { MetaAdsPublishError };
+export type {
+  MetaAdsImageResource,
+  MetaAdsPublishProgress,
+  MetaAdsPublishStage,
+  PersistMetaAdsProgress,
+} from "./adsMetaPublishCore.ts";
 
 /**
  * Meta's campaign → ad set → creative → ad hierarchy is created paused.
@@ -13,64 +45,73 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  * durably recorded by the caller.
  * https://www.postman.com/meta/facebook-marketing-api/documentation/9jo4f5y/mapi-onboarding
  */
-export type MetaAdsPublishStage =
-  | "campaign_created"
-  | "adset_created"
-  | "creative_created"
-  | "ad_created"
-  | "demo_paused"
-  | "ad_activated"
-  | "adset_activated"
-  | "active"
-  | "needs_review";
-
-export type MetaAdsPublishProgress = {
-  provider: "meta";
-  adAccountId: string;
-  instagramUserId?: string;
-  campaignId?: string;
-  adSetId?: string;
-  creativeId?: string;
-  adId?: string;
-  stage: MetaAdsPublishStage;
-};
-
-export type PersistMetaAdsProgress = (resources: Record<string, unknown>) => Promise<void>;
-
 export type MetaAdsPublishOptions = {
   /** A review demonstration must never activate provider resources. */
   activate?: boolean;
+  /**
+   * Called immediately before the first Graph mutation. The route uses this
+   * boundary to distinguish a safe, retryable preflight rejection from an
+   * ambiguous provider failure that must be reconciled in Ads Manager.
+   */
+  onProviderMutationStart?: () => void;
 };
-
-export class MetaAdsPublishError extends Error {
-  readonly progress: MetaAdsPublishProgress;
-  readonly campaignMayBeActive: boolean;
-
-  constructor(message: string, progress: MetaAdsPublishProgress, campaignMayBeActive: boolean) {
-    super(message);
-    this.name = "MetaAdsPublishError";
-    this.progress = progress;
-    this.campaignMayBeActive = campaignMayBeActive;
-  }
-}
-
-function requiredMetaId(response: Record<string, unknown>, resource: string): string {
-  const id = String(response.id ?? "");
-  if (!/^\d+$/.test(id)) throw new Error(`Meta n’a pas confirmé la création ${resource}.`);
-  return id;
-}
-
-function requireMetaSuccess(response: Record<string, unknown>, resource: string): void {
-  if (response.success !== true) throw new Error(`Meta n’a pas confirmé l’activation ${resource}.`);
-}
 
 function safeHttpsUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && !url.username && !url.password;
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    return url.protocol === "https:" && !url.username && !url.password &&
+      Boolean(hostname) && hostname !== "localhost" && !hostname.endsWith(".localhost") &&
+      !hostname.endsWith(".local") && !hostname.endsWith(".internal") &&
+      !/^(?:0|10|127|169\.254|192\.168)\./.test(hostname) &&
+      !/^172\.(?:1[6-9]|2\d|3[01])\./.test(hostname) &&
+      hostname !== "::1";
   } catch {
     return false;
   }
+}
+
+async function downloadMetaImageBytes(imageUrl: string): Promise<Buffer> {
+  let response: Response;
+  try {
+    response = await fetch(imageUrl, {
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new Error("Le visuel Meta n’a pas pu être téléchargé. Utilisez une image HTTPS directement accessible, sans redirection.");
+  }
+  if (!response.ok) {
+    throw new Error("Le visuel Meta n’a pas pu être téléchargé avant son import dans Ads Manager.");
+  }
+  const contentType = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Le fichier préparé pour Meta n’est pas une image valide.");
+  }
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_META_IMAGE_BYTES) {
+    throw new Error("Le visuel Meta dépasse la limite de 30 Mo.");
+  }
+  if (!response.body) throw new Error("Le visuel Meta téléchargé est vide.");
+
+  const chunks: Uint8Array[] = [];
+  const reader = response.body.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_META_IMAGE_BYTES) throw new Error("Le visuel Meta dépasse la limite de 30 Mo.");
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (!total) throw new Error("Le visuel Meta téléchargé est vide.");
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 function mediaLibraryIdFromPrivateUrl(value: string): string | null {
@@ -145,13 +186,9 @@ function parisEndTime(endDate: string): string {
   return endTime;
 }
 
-function form(fields: Record<string, string>): URLSearchParams {
-  return new URLSearchParams(fields);
-}
-
 export async function publishMetaAdsCampaign(
   userId: string,
-  draft: AdsCampaignInput & { noSpecialCategoryConfirmed?: boolean },
+  draft: MetaAdsCampaignDraft,
   persistProgress: PersistMetaAdsProgress,
   options: MetaAdsPublishOptions = {},
 ): Promise<Record<string, unknown>> {
@@ -169,7 +206,16 @@ export async function publishMetaAdsCampaign(
   if (!safeHttpsUrl(draft.destinationUrl)) {
     throw new Error("Le lien de destination Meta doit être une URL HTTPS publique.");
   }
-  const metaImageUrl = await resolveMetaImageUrl(userId, draft.imageUrl);
+  const placements = draft.metaPlacements as MetaAdsPlacement[];
+  // Builds and validates the exact placement contract before any provider write.
+  const targeting = metaPlacementTargeting(placements);
+  const needsInstagramIdentity = metaPlacementsNeedInstagramIdentity(placements);
+  const selectedAssets = metaCreativeAssetUrls({
+    placements,
+    imageUrl: draft.imageUrl,
+    metaCreativeAssets: draft.metaCreativeAssets,
+  });
+  const urlTags = metaUrlTags(draft.trackingParameters);
   if (draft.name.trim().length < 3 || draft.primaryText.trim().length < 10) {
     throw new Error("Le nom ou le texte de la campagne Meta est trop court.");
   }
@@ -196,121 +242,56 @@ export async function publishMetaAdsCampaign(
   if (!page) {
     throw new Error("Cette Page Facebook n’est pas autorisée par la connexion Meta Ads.");
   }
-  const instagramUserId = page.instagramUserId;
-  if (!instagramUserId) {
+  const instagramUserId = page.instagramUserId || undefined;
+  if (needsInstagramIdentity && !instagramUserId) {
     throw new Error("Associez un compte Instagram professionnel à cette Page Facebook dans Meta Business Suite, puis actualisez la configuration iNr’ADS.");
   }
-  // A linked Page alone does not prove that this ad account may advertise
-  // with the Instagram identity. Check the account edge before any creation.
-  const instagramAccounts = await metaAdsJson(userId, `${accountPath}/connected_instagram_accounts?fields=id&limit=100`);
-  if (!(Array.isArray(instagramAccounts.data) ? instagramAccounts.data : []).some((item) =>
-    String((item as Record<string, unknown>).id || "") === instagramUserId
-  )) {
-    throw new Error("Le compte Instagram lié à cette Page n’est pas autorisé sur le compte publicitaire Meta sélectionné. Vérifiez son association dans Meta Business Suite, puis actualisez iNr’ADS.");
+  if (needsInstagramIdentity) {
+    // A linked Page alone does not prove that this ad account may advertise
+    // with the Instagram identity. Check the account edge before any creation.
+    const instagramAccounts = await metaAdsJson(userId, `${accountPath}/connected_instagram_accounts?fields=id&limit=100`);
+    if (!(Array.isArray(instagramAccounts.data) ? instagramAccounts.data : []).some((item) =>
+      String((item as Record<string, unknown>).id || "") === instagramUserId
+    )) {
+      throw new Error("Le compte Instagram lié à cette Page n’est pas autorisé sur le compte publicitaire Meta sélectionné. Vérifiez son association dans Meta Business Suite, puis actualisez iNr’ADS.");
+    }
   }
 
-  let progress: MetaAdsPublishProgress = {
-    provider: "meta",
+  // Resolve and download only after the selected account and identities have
+  // been rechecked. Each placement family is inspected independently from the
+  // real image bytes, then normalized to Meta's exact recommended canvas. An
+  // asset is never silently reused for the other placement family.
+  const feedImageUrl = selectedAssets.feedImageUrl
+    ? await resolveMetaImageUrl(userId, selectedAssets.feedImageUrl) : "";
+  const storyReelImageUrl = selectedAssets.storyReelImageUrl
+    ? await resolveMetaImageUrl(userId, selectedAssets.storyReelImageUrl) : "";
+  const feedSourceBytes = feedImageUrl ? await downloadMetaImageBytes(feedImageUrl) : null;
+  const storyReelSourceBytes = storyReelImageUrl ? await downloadMetaImageBytes(storyReelImageUrl) : null;
+  const feedImageBytes = feedSourceBytes
+    ? (await prepareMetaCreativeImageForUpload(feedSourceBytes, "feed")).buffer.toString("base64")
+    : "";
+  const storyReelImageBytes = storyReelSourceBytes
+    ? (await prepareMetaCreativeImageForUpload(storyReelSourceBytes, "storyReel")).buffer.toString("base64")
+    : "";
+
+  options.onProviderMutationStart?.();
+  return executeMetaAdsGraphPublish({
+    userId,
     adAccountId: draft.adAccountId,
-    instagramUserId,
-    stage: "campaign_created",
-  };
-  let campaignActivationAttempted = false;
-
-  const save = async (next: MetaAdsPublishProgress): Promise<void> => {
-    await persistProgress({ ...next });
-    progress = next;
-  };
-
-  try {
-    const campaign = await metaAdsJson(userId, `${accountPath}/campaigns`, form({
-      name: draft.name,
-      objective: "OUTCOME_TRAFFIC",
-      buying_type: "AUCTION",
-      special_ad_categories: "[]",
-      is_adset_budget_sharing_enabled: "false",
-      status: "PAUSED",
-    }));
-    progress = { ...progress, campaignId: requiredMetaId(campaign, "de la campagne"), stage: "campaign_created" };
-    await save(progress);
-
-    const adSet = await metaAdsJson(userId, `${accountPath}/adsets`, form({
-      name: `${draft.name} · France`,
-      campaign_id: progress.campaignId!,
-      optimization_goal: "LINK_CLICKS",
-      billing_event: "IMPRESSIONS",
-      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-      destination_type: "WEBSITE",
-      daily_budget: String(dailyBudgetCents),
-      end_time: endTime,
-      targeting: JSON.stringify(metaFeedTargeting()),
-      status: "PAUSED",
-    }));
-    progress = { ...progress, adSetId: requiredMetaId(adSet, "de l’ensemble publicitaire"), stage: "adset_created" };
-    await save(progress);
-
-    const creative = await metaAdsJson(userId, `${accountPath}/adcreatives`, form({
-      name: `${draft.name} · Visuel`,
-      object_story_spec: JSON.stringify(metaLinkCreativeStory({
-        pageId: draft.pageId,
-        instagramUserId,
-        destinationUrl: draft.destinationUrl,
-        primaryText: draft.primaryText,
-        imageUrl: metaImageUrl,
-      })),
-    }));
-    progress = { ...progress, creativeId: requiredMetaId(creative, "du visuel"), stage: "creative_created" };
-    await save(progress);
-
-    const ad = await metaAdsJson(userId, `${accountPath}/ads`, form({
-      name: `${draft.name} · Annonce`,
-      adset_id: progress.adSetId!,
-      creative: JSON.stringify({ creative_id: progress.creativeId }),
-      status: "PAUSED",
-    }));
-    progress = { ...progress, adId: requiredMetaId(ad, "de l’annonce"), stage: "ad_created" };
-    await save(progress);
-
-    // Used only by the explicit review/demo mode. All remote objects were
-    // created with PAUSED status above, and no activation request is made.
-    if (!shouldActivate) {
-      await save({ ...progress, stage: "demo_paused" });
-      return { ...progress, stage: "demo_paused" };
-    }
-
-    // Child objects may become ACTIVE while their paused parent still prevents
-    // any delivery. The campaign is the final, spend-enabling switch.
-    requireMetaSuccess(await metaAdsJson(userId, progress.adId!, form({ status: "ACTIVE" })), "de l’annonce");
-    await save({ ...progress, stage: "ad_activated" });
-
-    requireMetaSuccess(await metaAdsJson(userId, progress.adSetId!, form({ status: "ACTIVE" })), "de l’ensemble publicitaire");
-    await save({ ...progress, stage: "adset_activated" });
-
-    campaignActivationAttempted = true;
-    requireMetaSuccess(await metaAdsJson(userId, progress.campaignId!, form({ status: "ACTIVE" })), "de la campagne");
-    await save({ ...progress, stage: "active" });
-    return progress;
-  } catch (error) {
-    // An ambiguous final activation response or failed persistence must not
-    // leave an untracked campaign spending money if a pause is still possible.
-    let campaignMayBeActive = false;
-    if (campaignActivationAttempted && progress.campaignId) {
-      try {
-        requireMetaSuccess(await metaAdsJson(userId, progress.campaignId, form({ status: "PAUSED" })), "de la mise en pause de secours");
-      } catch {
-        campaignMayBeActive = true;
-      }
-    }
-    const failedProgress: MetaAdsPublishProgress = { ...progress, stage: "needs_review" };
-    try {
-      await persistProgress({ ...failedProgress });
-    } catch {
-      // Keep the provider IDs on the thrown error for manual reconciliation.
-    }
-    const reason = error instanceof Error ? error.message : "Échec de publication Meta Ads.";
-    const safety = campaignMayBeActive
-      ? "La campagne pourrait être active : vérifiez-la immédiatement dans Meta Ads Manager."
-      : "La campagne reste en pause dans Meta Ads Manager.";
-    throw new MetaAdsPublishError(`${reason} ${safety}`, failedProgress, campaignMayBeActive);
-  }
+    pageId: draft.pageId,
+    instagramUserId: needsInstagramIdentity ? instagramUserId : undefined,
+    name: draft.name,
+    destinationUrl: draft.destinationUrl,
+    primaryText: draft.primaryText,
+    headline: draft.headlines.find((headline) => headline.trim()) || draft.name,
+    description: draft.descriptions.find((description) => description.trim()),
+    dailyBudgetCents,
+    endTime,
+    placements,
+    targeting,
+    urlTags,
+    feedImageBytes,
+    storyReelImageBytes,
+    activate: shouldActivate,
+  }, metaAdsJson, persistProgress);
 }

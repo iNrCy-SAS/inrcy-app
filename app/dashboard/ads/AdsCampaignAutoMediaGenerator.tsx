@@ -6,7 +6,13 @@ import useMediaGeneration, {
   type MediaGenerationFormat,
   type MediaGenerationResult,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
-import { adsMediaKindForPlan, googleSearchImagePrompt, shouldGenerateAdsMedia } from "@/lib/adsCampaignMediaPolicy";
+import {
+  adsMediaKindForPlan,
+  googleSearchImagePrompt,
+  metaFeedImagePrompt,
+  metaStoryReelImagePrompt,
+  shouldGenerateAdsMedia,
+} from "@/lib/adsCampaignMediaPolicy";
 import type { AdsCampaignPlan } from "@/lib/adsCampaignPlan";
 import type { AdsChannelId } from "@/lib/adsValidation";
 
@@ -15,8 +21,14 @@ type AdsCampaignAutoMediaGeneratorProps = {
   plan: AdsCampaignPlan;
   onProgress: (progress: number) => void;
   onComplete: (result: MediaGenerationResult) => void;
+  onMetaPackComplete: (results: MetaPackResults, error?: string) => void;
   onSkip: (reason: string) => void;
   onError: (message: string) => void;
+};
+
+type MetaPackResults = {
+  feed?: MediaGenerationResult;
+  storyReel?: MediaGenerationResult;
 };
 
 function mediaFormatForPlan(plan: AdsCampaignPlan, kind: "image" | "video"): MediaGenerationFormat {
@@ -51,12 +63,14 @@ export default function AdsCampaignAutoMediaGenerator({
   plan,
   onProgress,
   onComplete,
+  onMetaPackComplete,
   onSkip,
   onError,
 }: AdsCampaignAutoMediaGeneratorProps) {
   const startedRef = useRef(false);
   const settledRef = useRef(false);
-  const callbacksRef = useRef({ onProgress, onComplete, onSkip, onError });
+  const callbacksRef = useRef({ onProgress, onComplete, onMetaPackComplete, onSkip, onError });
+  const batchProgressRef = useRef({ index: 0, total: 1 });
   const {
     generate,
     acceptDraft,
@@ -67,8 +81,8 @@ export default function AdsCampaignAutoMediaGenerator({
   // The parent updates its progress UI while generation runs. Keep the latest
   // callbacks without restarting (or cancelling) the paid Studio operation.
   useEffect(() => {
-    callbacksRef.current = { onProgress, onComplete, onSkip, onError };
-  }, [onComplete, onError, onProgress, onSkip]);
+    callbacksRef.current = { onProgress, onComplete, onMetaPackComplete, onSkip, onError };
+  }, [onComplete, onError, onMetaPackComplete, onProgress, onSkip]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -100,7 +114,47 @@ export default function AdsCampaignAutoMediaGenerator({
       }
 
       void (async () => {
+        const metaResults: MetaPackResults = {};
         try {
+          if (provider === "meta") {
+            const slots: ("feed" | "story_reel")[] = [];
+            if (plan.metaPlacements.some((placement) => placement === "facebook_feed" || placement === "instagram_feed")) slots.push("feed");
+            if (plan.metaPlacements.some((placement) => placement === "stories" || placement === "reels")) slots.push("story_reel");
+            if (!slots.length) {
+              throw new Error("Sélectionnez au moins un placement Meta Feed, Story ou Reel avant de générer les visuels.");
+            }
+
+            batchProgressRef.current = { index: 0, total: slots.length };
+            for (let index = 0; index < slots.length; index += 1) {
+              if (disposed) return;
+              const slot = slots[index];
+              batchProgressRef.current = { index, total: slots.length };
+              const metaPrompt = slot === "feed" ? metaFeedImagePrompt(plan) : metaStoryReelImagePrompt(plan);
+              const generated = await generate({
+                creationMode: "free",
+                freePrompt: metaPrompt,
+                kind: "image",
+                subjectSource: "custom",
+                idea: metaPrompt,
+                textKeywords: [],
+                format: slot === "feed" ? "portrait" : "story",
+                imageStyle: "photo",
+                peopleMode: "auto",
+                useBrandColors: false,
+                logoMode: "none",
+                withMusic: false,
+                withNarration: false,
+                source: "studio",
+              });
+              const accepted = await acceptDraft(generated);
+              if (slot === "feed") metaResults.feed = accepted;
+              else metaResults.storyReel = accepted;
+            }
+            settledRef.current = true;
+            if (!disposed) callbacksRef.current.onMetaPackComplete(metaResults);
+            return;
+          }
+
           const generated = await generate({
             creationMode: "free",
             freePrompt: prompt,
@@ -123,11 +177,16 @@ export default function AdsCampaignAutoMediaGenerator({
         } catch (error) {
           if (!disposed) {
             settledRef.current = true;
-            callbacksRef.current.onError(
-              error instanceof Error
-                ? error.message
-                : "Le média iNr’Studio n’a pas pu être généré.",
-            );
+            const message = error instanceof Error
+              ? error.message
+              : "Le média iNr’Studio n’a pas pu être généré.";
+            // A first Meta asset may already have been accepted (and billed)
+            // when generation of the second one fails. Keep it in the draft.
+            if (provider === "meta" && (metaResults.feed || metaResults.storyReel)) {
+              callbacksRef.current.onMetaPackComplete(metaResults, message);
+            } else {
+              callbacksRef.current.onError(message);
+            }
           }
         }
       })();
@@ -144,8 +203,12 @@ export default function AdsCampaignAutoMediaGenerator({
   }, [acceptDraft, cancelGeneration, generate, plan, provider]);
 
   useEffect(() => {
-    if (startedRef.current) callbacksRef.current.onProgress(progress);
-  }, [progress]);
+    if (!startedRef.current) return;
+    const { index, total } = batchProgressRef.current;
+    callbacksRef.current.onProgress(provider === "meta"
+      ? Math.min(100, Math.round(((index * 100) + progress) / Math.max(1, total)))
+      : progress);
+  }, [progress, provider]);
 
   return null;
 }

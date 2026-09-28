@@ -78,7 +78,13 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       const longParams = new URLSearchParams({ grant_type: "fb_exchange_token", client_id: clientId, client_secret: clientSecret, fb_exchange_token: token.access_token });
       const longResponse = await fetch(`${buildMetaGraphUrl("oauth/access_token")}?${longParams.toString()}`, { cache: "no-store" });
       const longToken = await longResponse.json().catch(() => ({})) as TokenPayload;
-      if (longResponse.ok && longToken.access_token) token = longToken;
+      // Never persist a short-lived fallback as if it were a durable Ads
+      // connection. A failed exchange leaves any existing integration intact
+      // and asks the professional to reconnect explicitly.
+      if (!longResponse.ok || !longToken.access_token) {
+        throw new Error("Meta n’a pas fourni de connexion Ads longue durée. Reconnectez votre compte Facebook.");
+      }
+      token = longToken;
       const metaAccessToken = token.access_token;
       if (!metaAccessToken) throw new Error("Meta n’a pas transmis de jeton Ads valide.");
       const meResponse = await fetch(`${buildMetaGraphUrl("me")}?fields=id,name,email`, { headers: { Authorization: `Bearer ${metaAccessToken}` }, cache: "no-store" });

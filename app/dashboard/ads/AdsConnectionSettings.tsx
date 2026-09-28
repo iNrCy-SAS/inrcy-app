@@ -9,7 +9,13 @@ import dashboardStyles from "@/app/dashboard/dashboard.module.css";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
-import { ADS_CHANNELS, type AdsAccount, type AdsProvider } from "@/lib/adsValidation";
+import {
+  ADS_CHANNELS,
+  adsAccountAssociationIssue,
+  adsAccountCanBeAssociated,
+  type AdsAccount,
+  type AdsProvider,
+} from "@/lib/adsValidation";
 import styles from "./AdsConnectionSettings.module.css";
 
 type ConfigAction = "disconnect" | "save-account" | "clear-account" | "save-page" | "clear-page" | null;
@@ -29,7 +35,9 @@ type Props = {
   selectedAccountId: string;
   selectedPageId: string;
   configuredAccountId: string;
+  configuredAccountLabel: string;
   configuredPageId: string;
+  metaNeedsInstagramIdentity: boolean;
   onSelectAccount: (id: string) => void;
   onSelectPage: (id: string) => void;
   onRefreshAccounts: () => void;
@@ -84,7 +92,9 @@ export default function AdsConnectionSettings({
   selectedAccountId,
   selectedPageId,
   configuredAccountId,
+  configuredAccountLabel,
   configuredPageId,
+  metaNeedsInstagramIdentity,
   onSelectAccount,
   onSelectPage,
   onRefreshAccounts,
@@ -118,16 +128,31 @@ export default function AdsConnectionSettings({
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const selectedPage = pages.find((page) => page.id === selectedPageId);
   const savedAccount = accounts.find(
-    (account) => account.id === configuredAccountId && account.currency === "EUR" && account.provider === provider,
+    (account) => account.id === configuredAccountId && account.provider === provider && adsAccountCanBeAssociated(account),
   );
   const savedPage = pages.find((page) => page.id === configuredPageId);
   const accountConfigured = Boolean(savedAccount && savedAccount.id === selectedAccount?.id);
   const identityConfigured = Boolean(savedPage && savedPage.id === selectedPage?.id);
-  const accountCandidateReady = connected && selectedAccount?.currency === "EUR";
-  const configuredAccountUrl = savedAccount
-    ? getAdsAdvertiserAccountUrl(provider, savedAccount.id)
+  const hasConfiguredAccount = Boolean(configuredAccountId);
+  const hasConfiguredPage = Boolean(configuredPageId);
+  const accountCandidateReady = connected && Boolean(selectedAccount && adsAccountCanBeAssociated(selectedAccount));
+  const configuredAccountUrl = configuredAccountId
+    ? getAdsAdvertiserAccountUrl(provider, configuredAccountId)
     : null;
-  const identityReady = identityConfigured && Boolean(savedPage?.instagramUserId);
+  const identityReady = identityConfigured && (
+    !metaNeedsInstagramIdentity || Boolean(savedPage?.instagramUserId)
+  );
+  const identityStatusLabel = identityReady
+    ? metaNeedsInstagramIdentity
+      ? "Facebook + Instagram"
+      : savedPage?.instagramUserId
+        ? "Page + Instagram"
+        : "Page Facebook"
+    : selectedPage && metaNeedsInstagramIdentity && !selectedPage.instagramUserId
+      ? "Instagram requis"
+      : selectedPage
+        ? "À confirmer"
+        : undefined;
   const needsReconnect = connectionStatus === "needs_update";
   const connectedAccountLabel = connectionAccountLabel(provider, connectionAccount);
   const busy = loading || configAction !== null;
@@ -169,21 +194,25 @@ export default function AdsConnectionSettings({
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Compte annonceur</div><div>Sélectionnez le compte en euros qui prendra en charge les frais publicitaires.</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={accountConfigured} label={accountConfigured ? "Compte choisi" : accountCandidateReady ? "À confirmer" : undefined} /></div>
+          <div className={socialStyles.stepStatus}><ConnectionPill connected={accountConfigured} label={accountConfigured ? "Compte choisi" : hasConfiguredAccount ? "Accès à vérifier" : accountCandidateReady ? "À confirmer" : undefined} /></div>
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.resourceControls}>
             <label className={styles.field}>Compte publicitaire en euros
               <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={selectedAccountId} disabled={!connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
-                {accounts.map((account) => <option key={account.id} value={account.id} disabled={account.currency !== "EUR"}>{advertiserAccountLabel(account)}{account.currency !== "EUR" ? " (non pris en charge)" : ""}</option>)}
+                {hasConfiguredAccount && !savedAccount ? <option value={configuredAccountId} disabled>{configuredAccountLabel || `Compte ${configuredAccountId}`} · accès à vérifier</option> : null}
+                {accounts.map((account) => {
+                  const issue = adsAccountAssociationIssue(account);
+                  return <option key={account.id} value={account.id} disabled={Boolean(issue)}>{advertiserAccountLabel(account)}{issue ? ` (${issue})` : ""}</option>;
+                })}
               </select>
             </label>
             <div className={styles.resourceActions}>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!connected || busy} onClick={onRefreshAccounts}>{loading ? "Actualisation…" : "Charger mes comptes"}</button>
               {accountCandidateReady && !accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSaveAccount}>{configAction === "save-account" ? "Association…" : "Associer ce compte"}</button> : null}
-              {configuredAccountUrl ? <a className={`${dashboardStyles.actionBtn} ${styles.viewAccount}`} href={configuredAccountUrl} target="_blank" rel="noreferrer" aria-label={`Voir le compte ${savedAccount?.name ?? "publicitaire"} dans ${current.label}`}>Voir le compte</a> : null}
-              {accountConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearAccount}>{configAction === "clear-account" ? "Dissociation…" : "Dissocier ce compte"}</button> : null}
+              {configuredAccountUrl ? <a className={`${dashboardStyles.actionBtn} ${styles.viewAccount}`} href={configuredAccountUrl} target="_blank" rel="noreferrer" aria-label={`Voir le compte ${(savedAccount?.name ?? configuredAccountLabel) || "publicitaire"} dans ${current.label}`}>Voir le compte</a> : null}
+              {hasConfiguredAccount ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearAccount}>{configAction === "clear-account" ? "Dissociation…" : "Dissocier ce compte"}</button> : null}
             </div>
           </div>
           {selectedAccount ? <p className={styles.detail}>{accountConfigured ? `Compte sélectionné : ${advertiserAccountLabel(selectedAccount)}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
@@ -193,24 +222,25 @@ export default function AdsConnectionSettings({
       {provider === "meta" && <section hidden={compactScreen && step !== 2} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 3 : Identité de l’annonce">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">03</span>
-          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Identité de l’annonce</div><div>Les Pages Facebook et leurs comptes Instagram professionnels liés sont récupérés depuis Meta.</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={identityReady} label={identityReady ? "Facebook + Instagram" : selectedPage ? "À confirmer" : undefined} /></div>
+          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Identité de l’annonce</div><div>{metaNeedsInstagramIdentity ? "Le pack sélectionné comprend Instagram : choisissez une Page Facebook avec un compte Instagram professionnel lié." : "Une Page Facebook suffit pour les placements sélectionnés. Instagram ne sera requis que si vous ajoutez un placement Instagram, Story ou Reel."}</div></div>
+          <div className={socialStyles.stepStatus}><ConnectionPill connected={identityReady} label={identityStatusLabel || (hasConfiguredPage ? "Accès à vérifier" : undefined)} /></div>
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.resourceControls}>
-            <label className={styles.field}>Page Facebook + compte Instagram lié
+            <label className={styles.field}>{metaNeedsInstagramIdentity ? "Page Facebook + compte Instagram lié" : "Page Facebook"}
               <select aria-label={identityConfigured ? "Changer l’identité" : "Choisir l’identité"} value={selectedPageId} disabled={!connected || busy} onChange={(event) => onSelectPage(event.target.value)}>
                 <option value="">Sélectionnez une Page</option>
-                {pages.map((page) => <option key={page.id} value={page.id}>{page.name} · {page.instagramUserId ? "Instagram lié" : "Instagram à associer"}</option>)}
+                {hasConfiguredPage && !savedPage ? <option value={configuredPageId} disabled>Page {configuredPageId} · accès à vérifier</option> : null}
+                {pages.map((page) => <option key={page.id} value={page.id}>{page.name} · {page.instagramUserId ? "Instagram lié" : metaNeedsInstagramIdentity ? "Instagram requis pour ces placements" : "Facebook uniquement"}</option>)}
               </select>
             </label>
             <div className={styles.resourceActions}>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={!connected || busy} onClick={onRefreshAccounts}>{loading ? "Actualisation…" : "Charger mes identités"}</button>
               {selectedPage && !identityConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn}`} disabled={busy} onClick={onSavePage}>{configAction === "save-page" ? "Association…" : "Associer cette identité"}</button> : null}
-              {identityConfigured ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearPage}>{configAction === "clear-page" ? "Dissociation…" : "Dissocier l’identité"}</button> : null}
+              {hasConfiguredPage ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onClearPage}>{configAction === "clear-page" ? "Dissociation…" : "Dissocier l’identité"}</button> : null}
             </div>
           </div>
-          {selectedPage ? <p className={styles.detail}>{identityConfigured && selectedPage.instagramUserId ? "Votre annonce utilisera cette Page Facebook et son compte Instagram déjà lié." : selectedPage.instagramUserId ? "Cette identité sera utilisée après confirmation." : "Associez un compte Instagram professionnel à cette Page dans Meta Business Suite, puis actualisez les identités."}</p> : null}
+          {selectedPage ? <p className={styles.detail}>{identityConfigured && selectedPage.instagramUserId ? "Votre annonce utilisera cette Page Facebook et son compte Instagram déjà lié." : identityConfigured && !metaNeedsInstagramIdentity ? "Cette Page Facebook est prête pour les placements sélectionnés. Instagram ne sera demandé que pour un placement Instagram, Story ou Reel." : selectedPage.instagramUserId ? "Cette identité sera utilisée après confirmation." : metaNeedsInstagramIdentity ? "Associez un compte Instagram professionnel à cette Page dans Meta Business Suite, puis actualisez les identités." : "Cette Page Facebook suffit pour les placements actuellement sélectionnés."}</p> : null}
         </div>
       </section>}
 

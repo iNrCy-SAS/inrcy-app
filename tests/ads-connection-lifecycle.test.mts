@@ -45,7 +45,7 @@ test("Meta Ads et Google Ads partagent le choix et le changement persistants du 
   assert.match(selectionRouteSource, /listAdsAccounts\(user\.activeUserId, provider\)/);
   assert.match(selectionRouteSource, /update\.resource_id = account\.id/);
   assert.match(selectionRouteSource, /account_selection_cleared/);
-  assert.match(settingsSource, /\{accountConfigured \? <button[\s\S]*?Dissocier ce compte/);
+  assert.match(settingsSource, /\{hasConfiguredAccount \? <button[\s\S]*?Dissocier ce compte/);
 });
 
 test("la configuration Meta conserve aussi la sélection de l’identité Facebook et Instagram", () => {
@@ -54,6 +54,16 @@ test("la configuration Meta conserve aussi la sélection de l’identité Facebo
   assert.match(settingsSource, /Dissocier l’identité/);
   assert.match(selectionRouteSource, /listMetaPages\(user\.activeUserId\)/);
   assert.match(selectionRouteSource, /selected_instagram_user_id/);
+});
+
+test("Instagram n’est requis que pour les placements Meta qui l’utilisent", () => {
+  assert.match(settingsSource, /metaNeedsInstagramIdentity: boolean/);
+  assert.match(settingsSource, /!metaNeedsInstagramIdentity \|\| Boolean\(savedPage\?\.instagramUserId\)/);
+  assert.match(settingsSource, /Une Page Facebook suffit pour les placements sélectionnés/);
+  assert.match(settingsSource, /Instagram requis pour ces placements/);
+  assert.match(clientSource, /metaNeedsInstagramIdentity=\{metaNeedsInstagramIdentity\}/);
+  assert.match(clientSource, /Compte et Page Facebook associés/);
+  assert.match(clientSource, /Compte, Page et Instagram associés/);
 });
 
 test("un compte unique est seulement proposé avant une association explicite et la déconnexion reste locale à iNr’ADS", () => {

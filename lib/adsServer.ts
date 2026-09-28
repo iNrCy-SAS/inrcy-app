@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
+import { listAccessibleFacebookPagesDetailed } from "@/lib/metaBusinessAssets";
 import { GoogleAdsApiError, googleAdsApiErrorMessage } from "@/lib/adsGoogleApiError";
 import { ADMIN_USER_IDS, isAdminRole } from "@/lib/roles";
 import type { AdsAccount, AdsProvider } from "@/lib/adsValidation";
@@ -100,6 +102,22 @@ async function markAdsConnectionForReconnect(userId: string, integrationId: stri
     .eq("user_id", userId);
 }
 
+class MetaAdsApiError extends Error {
+  readonly httpStatus: number;
+  readonly code: number | null;
+  readonly subcode: number | null;
+  readonly type: string;
+
+  constructor(input: { message: string; httpStatus: number; code?: unknown; subcode?: unknown; type?: unknown }) {
+    super(input.message);
+    this.name = "MetaAdsApiError";
+    this.httpStatus = input.httpStatus;
+    this.code = Number.isFinite(Number(input.code)) ? Number(input.code) : null;
+    this.subcode = Number.isFinite(Number(input.subcode)) ? Number(input.subcode) : null;
+    this.type = String(input.type || "");
+  }
+}
+
 export async function accessTokenForAds(userId: string, provider: AdsProvider): Promise<string> {
   const integration = await readAdsIntegration(userId, provider);
   if (!integration?.access_token_enc || integration.status !== "connected") {
@@ -165,6 +183,15 @@ async function externalJson(url: string, init: RequestInit, provider?: AdsProvid
     }
     const nested = payload.error && typeof payload.error === "object" ? payload.error as Record<string, unknown> : {};
     const message = String(nested.message || payload.message || response.statusText || "Erreur de la plateforme publicitaire");
+    if (provider === "meta") {
+      throw new MetaAdsApiError({
+        message: message.slice(0, 300),
+        httpStatus: response.status,
+        code: nested.code,
+        subcode: nested.error_subcode,
+        type: nested.type,
+      });
+    }
     throw new Error(message.slice(0, 300));
   }
   return payload;
@@ -172,11 +199,20 @@ async function externalJson(url: string, init: RequestInit, provider?: AdsProvid
 
 export async function metaAdsJson(userId: string, path: string, body?: URLSearchParams) {
   const token = await accessTokenForAds(userId, "meta");
-  return externalJson(buildMetaGraphUrl(path), {
-    method: body ? "POST" : "GET",
-    headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
-    body,
-  });
+  try {
+    return await externalJson(buildMetaGraphUrl(path), {
+      method: body ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
+      body,
+    }, "meta");
+  } catch (error) {
+    if (error instanceof MetaAdsApiError && isMetaAuthorizationError(error)) {
+      const integration = await readAdsIntegration(userId, "meta").catch(() => null);
+      if (integration) await markAdsConnectionForReconnect(userId, integration.id);
+      throw new Error("La connexion Meta Ads doit être actualisée. Reconnectez votre compte Facebook.");
+    }
+    throw error;
+  }
 }
 
 export async function googleAdsJson(userId: string, path: string, body?: Record<string, unknown>, loginCustomerId?: string) {
@@ -197,13 +233,32 @@ export async function googleAdsJson(userId: string, path: string, body?: Record<
 
 export async function listAdsAccounts(userId: string, provider: AdsProvider): Promise<AdsAccount[]> {
   if (provider === "meta") {
-    const response = await metaAdsJson(userId, "me/adaccounts?fields=id,name,currency,account_status&limit=100");
-    const data = Array.isArray(response.data) ? response.data : [];
-    return data.flatMap((row) => {
-      const item = row as Record<string, unknown>;
-      const id = String(item.id || "").replace(/^act_/, "");
-      return /^\d+$/.test(id) ? [{ id, name: String(item.name || `Compte ${id}`), currency: String(item.currency || ""), provider, status: String(item.account_status || "") }] : [];
-    });
+    const accounts = new Map<string, AdsAccount>();
+    let after = "";
+    for (let page = 0; page < 10; page += 1) {
+      const params = new URLSearchParams({ fields: "id,name,currency,account_status", limit: "100" });
+      if (after) params.set("after", after);
+      const response = await metaAdsJson(userId, `me/adaccounts?${params.toString()}`);
+      const data = Array.isArray(response.data) ? response.data : [];
+      for (const row of data) {
+        const item = row as Record<string, unknown>;
+        const id = String(item.id || "").replace(/^act_/, "");
+        if (!/^\d+$/.test(id)) continue;
+        accounts.set(id, {
+          id,
+          name: String(item.name || `Compte ${id}`),
+          currency: String(item.currency || ""),
+          provider,
+          status: String(item.account_status ?? ""),
+        });
+      }
+      const paging = response.paging && typeof response.paging === "object" ? response.paging as Record<string, unknown> : {};
+      const cursors = paging.cursors && typeof paging.cursors === "object" ? paging.cursors as Record<string, unknown> : {};
+      const nextAfter = String(cursors.after || "");
+      if (!paging.next || !nextAfter || nextAfter === after) break;
+      after = nextAfter;
+    }
+    return [...accounts.values()];
   }
 
   const accessible = await googleAdsJson(userId, "customers:listAccessibleCustomers");
@@ -244,16 +299,26 @@ export async function listAdsAccounts(userId: string, provider: AdsProvider): Pr
 }
 
 export async function listMetaPages(userId: string): Promise<{ id: string; name: string; instagramUserId?: string }[]> {
-  const response = await metaAdsJson(userId, "me/accounts?fields=id,name,instagram_business_account{id}&limit=100");
-  return (Array.isArray(response.data) ? response.data : []).flatMap((row) => {
-    const item = row as Record<string, unknown>;
-    const id = String(item.id || "");
-    const instagram = item.instagram_business_account && typeof item.instagram_business_account === "object"
-      ? item.instagram_business_account as Record<string, unknown>
-      : {};
-    const instagramUserId = String(instagram.id || "");
-    return /^\d+$/.test(id)
-      ? [{ id, name: String(item.name || `Page ${id}`), ...(/^\d+$/.test(instagramUserId) ? { instagramUserId } : {}) }]
-      : [];
-  });
+  const token = await accessTokenForAds(userId, "meta");
+  const discovery = await listAccessibleFacebookPagesDetailed(token);
+  if (!discovery.diagnostics.primary_request_succeeded && discovery.pages.length === 0) {
+    const requiredIssue = discovery.diagnostics.issues.find((issue) => !issue.optional);
+    if (requiredIssue && isMetaAuthorizationError({
+      message: requiredIssue.message,
+      type: requiredIssue.type,
+      code: requiredIssue.code,
+      subcode: requiredIssue.subcode,
+      httpStatus: requiredIssue.status,
+    })) {
+      const integration = await readAdsIntegration(userId, "meta").catch(() => null);
+      if (integration) await markAdsConnectionForReconnect(userId, integration.id);
+      throw new Error("La connexion Meta Ads doit être actualisée. Reconnectez votre compte Facebook.");
+    }
+    throw new Error(requiredIssue?.message || "Meta n’a pas permis de charger vos Pages Facebook.");
+  }
+  return discovery.pages.flatMap((page) => /^\d+$/.test(page.id) ? [{
+    id: page.id,
+    name: page.name || `Page ${page.id}`,
+    ...(page.instagram_business_account?.id ? { instagramUserId: page.instagram_business_account.id } : {}),
+  }] : []);
 }

@@ -9,6 +9,7 @@ import {
   type AdsIntegration,
 } from "@/lib/adsServer";
 import { asRecord } from "@/lib/tsSafe";
+import { adsAccountCanBeAssociated } from "@/lib/adsValidation";
 
 function selectedPageId(integration: AdsIntegration | null): string {
   const pageId = asRecord(integration?.meta).selected_page_id;
@@ -32,7 +33,7 @@ function resolveSelectedAccount(
   integration: AdsIntegration,
   accounts: Awaited<ReturnType<typeof listAdsAccounts>>,
 ) {
-  return accounts.find((account) => account.id === integration.resource_id && account.currency === "EUR") || null;
+  return accounts.find((account) => account.id === integration.resource_id && adsAccountCanBeAssociated(account)) || null;
 }
 
 export async function GET(request: Request) {
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
         selectedAccountLabel: connection?.resource_label || "",
         selectedAccountAvailable: false,
         selectedPageId: selectedPageId(connection),
+        selectedPageAvailable: false,
       });
     }
 
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
       listAdsAccounts(user.activeUserId, provider),
       provider === "meta" ? listMetaPages(user.activeUserId) : Promise.resolve([]),
     ]);
-    const eligibleAccounts = accounts.filter((account) => account.currency === "EUR");
+    const eligibleAccounts = accounts.filter(adsAccountCanBeAssociated);
     const selectedAccount = resolveSelectedAccount(connection, accounts);
     // A single eligible account is convenient to preselect, but it is never
     // persisted automatically: the professional explicitly confirms it with
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
       ? eligibleAccounts[0]?.id || ""
       : "";
     const storedPageId = selectedPageId(connection);
-    const selectedIdentity = pages.some((page) => page.id === storedPageId) ? storedPageId : "";
+    const selectedIdentityAvailable = pages.some((page) => page.id === storedPageId);
 
     return NextResponse.json({
       connected: true,
@@ -93,7 +95,8 @@ export async function GET(request: Request) {
       selectedAccountLabel: connection.resource_label || "",
       selectedAccountAvailable: Boolean(selectedAccount),
       suggestedAccountId,
-      selectedPageId: selectedIdentity,
+      selectedPageId: storedPageId,
+      selectedPageAvailable: selectedIdentityAvailable,
     });
   } catch (error) {
     const refreshedConnection = await readAdsIntegration(user.activeUserId, provider).catch(() => connection);
@@ -112,6 +115,7 @@ export async function GET(request: Request) {
       selectedAccountLabel: refreshedConnection?.resource_label || "",
       selectedAccountAvailable: false,
       selectedPageId: selectedPageId(refreshedConnection),
+      selectedPageAvailable: false,
       error: error instanceof Error ? error.message : "Impossible de charger les comptes publicitaires.",
     });
   }

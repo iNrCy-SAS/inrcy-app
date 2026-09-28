@@ -128,6 +128,23 @@ test("native copy keeps channel lengths while Google retains 30/90", () => {
   assert.equal(google.channelDraft, undefined);
 });
 
+test("Meta defaults to the publishable traffic path and both advertising image formats", () => {
+  const plan = normalizeAdsCampaignPlan({
+    name: "Accompagnement local",
+    offer: "Accompagnement professionnel",
+    primaryText: "Découvrez un accompagnement professionnel adapté à votre projet.",
+    mediaBrief: "Montrer concrètement le service dans un contexte professionnel.",
+  }, { provider: "meta", ...trusted });
+
+  assert.equal(plan.campaignType, "meta_traffic");
+  assert.equal(plan.objective, "website_traffic");
+  assert.equal(plan.conversionGoal, "website_visit");
+  assert.equal(plan.callToAction, "En savoir plus");
+  assert.deepEqual(plan.metaPlacements, ["facebook_feed", "instagram_feed", "stories", "reels"]);
+  assert.equal(plan.mediaStrategy, "image");
+  assert.equal(plan.creativeType, "image");
+});
+
 test("the analysis rationale is never cut at an arbitrary 900-character boundary", () => {
   const rationale = "L’offre répond à un besoin professionnel mesurable. ".repeat(24).trim();
   assert.ok(rationale.length > 900);

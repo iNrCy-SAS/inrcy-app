@@ -6,6 +6,10 @@ import {
   parseAdsChannelWizardSettings,
   type AdsChannelWizardSettings,
 } from "./adsChannelWizardSettings.ts";
+import {
+  assessMetaCreativeAssetReadiness,
+  metaCreativeAssetReadinessReason,
+} from "./adsCampaignMediaPolicy.ts";
 
 export const ADS_CHANNELS = [
   { id: "meta", label: "Meta Ads", format: "Trafic · Facebook · Instagram" },
@@ -56,6 +60,13 @@ export type AdsBidStrategy = (typeof ADS_BID_STRATEGIES)[number];
 export type AdsMediaStrategy = (typeof ADS_MEDIA_STRATEGIES)[number];
 export type AdsMetaPlacement = (typeof ADS_META_PLACEMENTS)[number];
 
+export type AdsMetaCreativeAssets = {
+  /** Dedicated 4:5 image for Facebook and Instagram Feed placements. */
+  feedImageUrl: string;
+  /** Dedicated 9:16 image shared by Facebook/Instagram Stories and Reels. */
+  storyReelImageUrl: string;
+};
+
 export function isAdsChannelId(value: unknown): value is AdsChannelId {
   return ADS_CHANNELS.some((channel) => channel.id === value);
 }
@@ -70,7 +81,10 @@ function includes<T extends readonly string[]>(values: T, value: unknown): value
 
 export function defaultAdsCampaignType(provider: AdsChannelId): AdsCampaignType {
   if (provider === "google") return "search";
-  if (provider === "meta") return "meta_leads";
+  // The first Meta connector creates a website-traffic campaign. Starting on
+  // that format keeps both assisted and manual demos publishable by default;
+  // the other objectives remain available as editable iNr'ADS drafts.
+  if (provider === "meta") return "meta_traffic";
   return "generic";
 }
 
@@ -101,6 +115,7 @@ export type AdsCampaignInput = {
   trackingParameters: string;
   primaryText: string;
   imageUrl: string;
+  metaCreativeAssets: AdsMetaCreativeAssets;
   creativeUrl?: string;
   creativeType?: "image" | "video";
   mediaStrategy: AdsMediaStrategy;
@@ -128,6 +143,22 @@ export type AdsAccount = {
   /** Google manager account through which this advertiser account is accessible. */
   loginCustomerId?: string;
 };
+
+/**
+ * An advertiser can only be associated when the connector can actually use it.
+ * Meta exposes numeric account_status values and only `1` means ACTIVE.
+ */
+export function adsAccountAssociationIssue(account: AdsAccount): string | null {
+  if (account.currency.trim().toUpperCase() !== "EUR") return "devise non prise en charge";
+  if (account.provider === "meta" && String(account.status || "").trim() !== "1") {
+    return "compte Meta inactif ou restreint";
+  }
+  return null;
+}
+
+export function adsAccountCanBeAssociated(account: AdsAccount): boolean {
+  return adsAccountAssociationIssue(account) === null;
+}
 
 const clean = (value: unknown) => String(value ?? "").trim();
 
@@ -187,6 +218,55 @@ function mediaLibraryContentUrl(value: unknown): string | null {
 
 function adsMediaUrl(value: unknown): string | null {
   return httpsUrl(value) || mediaLibraryContentUrl(value);
+}
+
+function parseMetaCreativeAssets(
+  value: unknown,
+  provider: AdsChannelId,
+  legacyImageUrl: string,
+): { assets: AdsMetaCreativeAssets | null; error: string | null } {
+  const empty: AdsMetaCreativeAssets = { feedImageUrl: "", storyReelImageUrl: "" };
+  if (value === undefined || value === null) {
+    return {
+      assets: provider === "meta" ? { ...empty, feedImageUrl: legacyImageUrl } : empty,
+      error: null,
+    };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { assets: null, error: "Les créations Meta Feed et Story/Reel sont invalides." };
+  }
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => key !== "feedImageUrl" && key !== "storyReelImageUrl")) {
+    return { assets: null, error: "Les créations Meta contiennent un champ inattendu." };
+  }
+  if ((raw.feedImageUrl !== undefined && typeof raw.feedImageUrl !== "string") ||
+      (raw.storyReelImageUrl !== undefined && typeof raw.storyReelImageUrl !== "string")) {
+    return { assets: null, error: "Les créations Meta Feed et Story/Reel sont invalides." };
+  }
+  const rawFeedImageUrl = clean(raw.feedImageUrl);
+  const rawStoryReelImageUrl = clean(raw.storyReelImageUrl);
+  if (provider !== "meta") {
+    return rawFeedImageUrl || rawStoryReelImageUrl
+      ? { assets: null, error: "Les créations Feed et Story/Reel sont réservées aux campagnes Meta Ads." }
+      : { assets: empty, error: null };
+  }
+  const feedImageUrl = rawFeedImageUrl ? adsMediaUrl(rawFeedImageUrl) : null;
+  const storyReelImageUrl = rawStoryReelImageUrl ? adsMediaUrl(rawStoryReelImageUrl) : null;
+  if (rawFeedImageUrl && !feedImageUrl) {
+    return { assets: null, error: "L’image Meta Feed doit provenir d’une URL HTTPS ou de votre médiathèque iNrCy." };
+  }
+  if (rawStoryReelImageUrl && !storyReelImageUrl) {
+    return { assets: null, error: "L’image Meta Story/Reel doit provenir d’une URL HTTPS ou de votre médiathèque iNrCy." };
+  }
+  return {
+    assets: {
+      // An explicit new-format asset wins; imageUrl remains a compatibility
+      // input for campaigns saved before the two-slot Meta model existed.
+      feedImageUrl: feedImageUrl || legacyImageUrl,
+      storyReelImageUrl: storyReelImageUrl || "",
+    },
+    error: null,
+  };
 }
 
 export const ADS_CHANNEL_DRAFT_MAX_BYTES = 16_384;
@@ -352,6 +432,11 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const rawImageUrl = clean(raw.imageUrl);
   const imageUrl = rawImageUrl ? adsMediaUrl(rawImageUrl) : null;
   if (rawImageUrl && !imageUrl) return { draft: null, error: "Le visuel doit provenir d’une URL HTTPS ou de votre médiathèque iNrCy." };
+  const parsedMetaAssets = parseMetaCreativeAssets(raw.metaCreativeAssets, provider, imageUrl || "");
+  if (parsedMetaAssets.error || !parsedMetaAssets.assets) {
+    return { draft: null, error: parsedMetaAssets.error || "Les créations Meta sont invalides." };
+  }
+  const metaCreativeAssets = parsedMetaAssets.assets;
   const rawCreativeUrl = clean(raw.creativeUrl);
   const creativeUrl = rawCreativeUrl ? adsMediaUrl(rawCreativeUrl) : null;
   if (rawCreativeUrl && !creativeUrl) return { draft: null, error: "Le média doit provenir d’une URL HTTPS ou de votre médiathèque iNrCy." };
@@ -396,7 +481,12 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
 
   if (purpose === "publish" && provider === "meta") {
     if (primaryText.length < 10 || primaryText.length > 500) return { draft: null, error: "Le texte Meta doit contenir entre 10 et 500 caractères." };
-    if (!imageUrl) return { draft: null, error: "Meta requiert un visuel HTTPS ou un média de votre médiathèque iNrCy." };
+    const mediaReadinessReason = metaCreativeAssetReadinessReason(assessMetaCreativeAssetReadiness({
+      metaPlacements,
+      metaCreativeAssets,
+      imageUrl: imageUrl || "",
+    }));
+    if (mediaReadinessReason) return { draft: null, error: mediaReadinessReason };
     if (!/^\d{5,30}$/.test(pageId)) return { draft: null, error: "Sélectionnez une Page Facebook autorisée pour cette annonce." };
     if (!noSpecialCategoryConfirmed) return { draft: null, error: "Confirmez que l’annonce Meta ne relève d’aucune catégorie publicitaire spéciale." };
   } else if (purpose === "publish" && provider === "google") {
@@ -437,7 +527,8 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       metaPlacements: metaPlacements || [],
       trackingParameters,
       primaryText,
-      imageUrl: imageUrl || "",
+      imageUrl: provider === "meta" ? metaCreativeAssets.feedImageUrl : imageUrl || "",
+      metaCreativeAssets,
       creativeUrl: creativeUrl || "",
       creativeType,
       mediaStrategy,

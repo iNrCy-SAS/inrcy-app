@@ -233,7 +233,9 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     field("Message principal", draft.primaryText),
     field("Appel à l’action", draft.callToAction),
     field("Brief média", draft.mediaBrief),
-    field("Média", draft.creativeUrl || draft.imageUrl),
+    field("Visuel Feed Meta (4:5)", campaign.provider === "meta" ? draft.metaCreativeAssets?.feedImageUrl || draft.imageUrl : undefined),
+    field("Visuel Story / Reel Meta (9:16)", campaign.provider === "meta" ? draft.metaCreativeAssets?.storyReelImageUrl : undefined),
+    field("Média", campaign.provider !== "meta" ? draft.creativeUrl || draft.imageUrl : undefined),
     field("Type de média", draft.creativeType),
     field("Paramètres de suivi", draft.trackingParameters),
     field("Aucune catégorie publicitaire spéciale", campaign.provider === "meta" ? draft.noSpecialCategoryConfirmed : undefined),
@@ -266,7 +268,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         </dl></section>
 
         <section className={styles.section} aria-label="Contenu de la campagne"><h3>Contenu de la campagne</h3><dl className={styles.detailGrid}>
-          {campaignFields.map(({ label, value }) => <div key={label}><dt>{label}</dt><dd>{label === "Destination" && /^https:\/\//i.test(value) ? <a href={value} target="_blank" rel="noopener noreferrer">{value} ↗</a> : value}</dd></div>)}
+          {campaignFields.map(({ label, value }) => <div key={label}><dt>{label}</dt><dd>{(label === "Destination" || label.startsWith("Visuel") || label === "Média") && (/^https:\/\//i.test(value) || value.startsWith("/api/")) ? <a href={value} target="_blank" rel="noopener noreferrer">{value} ↗</a> : value}</dd></div>)}
         </dl>
           {draft.channelDraft && <details className={styles.advanced}><summary>Brief spécifique au canal</summary><pre>{JSON.stringify(draft.channelDraft, null, 2)}</pre></details>}
           {draft.channelSettings && <details className={styles.advanced}><summary>Réglages du canal</summary><pre>{JSON.stringify(draft.channelSettings, null, 2)}</pre></details>}

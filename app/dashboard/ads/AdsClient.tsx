@@ -13,6 +13,7 @@ import MediaLibraryPickerModal, {
 import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGeneration";
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import {
+  adsAccountCanBeAssociated,
   defaultAdsCampaignType,
   isAdsProvider,
   parseAdsCampaignInput,
@@ -23,7 +24,16 @@ import {
   type AdsProvider,
 } from "@/lib/adsValidation";
 import { ADS_PAUSED_DEMO_CONFIRMATION, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
-import { adsMediaStrategyAfterAttachment, GOOGLE_SEARCH_IMAGE_REQUIREMENTS, googleSearchImageSubjectPrompt } from "@/lib/adsCampaignMediaPolicy";
+import { metaPlacementsNeedInstagramIdentity } from "@/lib/adsMetaPlacement";
+import {
+  adsMediaStrategyAfterAttachment,
+  assessMetaCreativeAssetReadiness,
+  GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
+  googleSearchImageSubjectPrompt,
+  mergeMetaCreativeAssetUrls,
+  META_ADS_FEED_IMAGE_REQUIREMENTS,
+  META_ADS_STORY_REEL_IMAGE_REQUIREMENTS,
+} from "@/lib/adsCampaignMediaPolicy";
 import { presentAdsCampaignRationale, type AdsCampaignPlan } from "@/lib/adsCampaignPlan";
 import { assessAdsChannelDraft, type AdsChannelDraft } from "@/lib/adsChannelDrafts";
 import {
@@ -51,6 +61,10 @@ import AdsConnectionSettings from "./AdsConnectionSettings";
 import AdsCampaignAutoMediaGenerator from "./AdsCampaignAutoMediaGenerator";
 import AdsCampaignAnalysisChoice, { type AdsCampaignAnalysisMode } from "./AdsCampaignAnalysisChoice";
 import AdsCampaignDemoDialog, { type AdsCampaignDemoDialogDetails } from "./AdsCampaignDemoDialog";
+import MetaAdsMediaPack, {
+  type MetaAdsMediaFormatStatus,
+  type MetaAdsMediaSlot,
+} from "./MetaAdsMediaPack";
 import type { StoredAdsCampaign } from "./AdsCampaignTracking";
 import styles from "./ads.module.css";
 
@@ -72,8 +86,10 @@ type AccountResponse = {
   accountSelectionCleared?: boolean;
   selectedAccountId?: string;
   selectedAccountLabel?: string;
+  selectedAccountAvailable?: boolean;
   suggestedAccountId?: string;
   selectedPageId?: string;
+  selectedPageAvailable?: boolean;
   error?: string;
 };
 
@@ -147,9 +163,9 @@ const CAMPAIGN_TYPE_OPTIONS: Record<AdsChannelId, { value: AdsCampaignInput["cam
     { value: "shopping", label: "Shopping", detail: "Produits et flux marchand" },
   ],
   meta: [
+    { value: "meta_traffic", label: "Trafic", detail: "Visites qualifiées vers votre site" },
     { value: "meta_leads", label: "Prospects", detail: "Demandes de devis et formulaires" },
     { value: "meta_sales", label: "Ventes", detail: "Conversions et achats" },
-    { value: "meta_traffic", label: "Trafic", detail: "Visites qualifiées vers votre site" },
     { value: "meta_awareness", label: "Notoriété", detail: "Faire connaître votre entreprise" },
   ],
   linkedin: [{ value: "generic", label: "Campagne LinkedIn", detail: "Préparation complète" }],
@@ -186,12 +202,12 @@ const CONVERSION_LOCATION_OPTIONS: { value: AdsCampaignInput["conversionLocation
   { value: "store", label: "Point de vente", detail: "Pour attirer près de chez vous" },
 ];
 
-const META_PLACEMENT_OPTIONS: { value: AdsCampaignInput["metaPlacements"][number]; label: string }[] = [
-  { value: "facebook_feed", label: "Fil Facebook" },
-  { value: "instagram_feed", label: "Fil Instagram" },
-  { value: "stories", label: "Stories" },
-  { value: "reels", label: "Reels" },
-  { value: "messenger", label: "Messenger" },
+const META_PLACEMENT_OPTIONS: { value: AdsCampaignInput["metaPlacements"][number]; label: string; format: string; disabled?: boolean }[] = [
+  { value: "facebook_feed", label: "Fil Facebook", format: "4:5" },
+  { value: "instagram_feed", label: "Fil Instagram", format: "4:5" },
+  { value: "stories", label: "Stories", format: "9:16" },
+  { value: "reels", label: "Reels", format: "9:16" },
+  { value: "messenger", label: "Messenger", format: "bientôt", disabled: true },
 ];
 
 const BID_STRATEGY_OPTIONS: { value: AdsCampaignInput["bidStrategy"]; label: string }[] = [
@@ -243,10 +259,11 @@ function newDraft(provider: AdsChannelId): AdsCampaignInput {
     googleSearchPartners: false,
     googleDisplayExpansion: false,
     metaAudienceExpansion: true,
-    metaPlacements: provider === "meta" ? ["facebook_feed", "instagram_feed"] : [],
+    metaPlacements: provider === "meta" ? ["facebook_feed", "instagram_feed", "stories", "reels"] : [],
     trackingParameters: "",
     primaryText: "",
     imageUrl: "",
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
     creativeUrl: "",
     creativeType: provider === "tiktok" ? "video" : "image",
     mediaStrategy: provider === "google" || provider === "x" ? "search_text" : provider === "tiktok" ? "video" : "image",
@@ -359,6 +376,7 @@ const NATIVE_BRIEF_SAFE_EDITS = new Set<keyof AdsCampaignInput>([
   "name", "dailyBudgetEuros", "targetLocations", "targetAudiences", "destinationUrl",
   "primaryText", "mediaBrief", "headlines", "endDate", "trackingParameters",
   "adAccountId", "accountCurrency", "pageId", "imageUrl", "creativeUrl",
+  "metaCreativeAssets",
   "urlExpansion", "urlExclusions", "googleSearchPartners", "googleDisplayExpansion",
   "metaAudienceExpansion", "metaPlacements", "noSpecialCategoryConfirmed", "notEuPoliticalConfirmed",
 ]);
@@ -774,6 +792,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [autoMediaMessage, setAutoMediaMessage] = useState("");
   const [campaignMediaStudioOpen, setCampaignMediaStudioOpen] = useState(false);
   const [campaignMediaLibraryOpen, setCampaignMediaLibraryOpen] = useState(false);
+  const [metaMediaSlot, setMetaMediaSlot] = useState<MetaAdsMediaSlot | null>(null);
+  const [metaMediaFormatStatus, setMetaMediaFormatStatus] = useState<Record<MetaAdsMediaSlot, MetaAdsMediaFormatStatus>>({
+    feed: "empty",
+    story_reel: "empty",
+  });
+  const handleMetaMediaFormatStatus = useCallback((slot: MetaAdsMediaSlot, status: MetaAdsMediaFormatStatus) => {
+    setMetaMediaFormatStatus((current) => current[slot] === status ? current : { ...current, [slot]: status });
+  }, []);
   const [campaignMediaUploadBusy, setCampaignMediaUploadBusy] = useState(false);
   const [campaignMediaUploadError, setCampaignMediaUploadError] = useState("");
   const planProgressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -875,23 +901,47 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const selectedAccount = isAdsProvider(channelId) ? accounts.find((account) => account.id === draft.adAccountId) : undefined;
   const selectedPage = channelId === "meta" ? pages.find((page) => page.id === draft.pageId) : undefined;
   const configuredAdvertiserAccount = isAdsProvider(channelId)
-    ? accounts.find((account) => account.id === configuredAccountId && account.currency === "EUR" && account.provider === channelId)
+    ? accounts.find((account) => account.id === configuredAccountId && account.provider === channelId && adsAccountCanBeAssociated(account))
     : undefined;
   const associatedAccountName = configuredAdvertiserAccount?.name || configuredAccountLabel || (configuredAccountId ? `Compte ${configuredAccountId}` : "");
   const configuredAdvertiserAccountUrl = configuredAccountId && isAdsProvider(channelId)
     ? getAdsAdvertiserAccountUrl(channelId, configuredAccountId)
     : null;
+  const metaNeedsInstagramIdentity = channelId === "meta" && metaPlacementsNeedInstagramIdentity(draft.metaPlacements);
+  const configuredMetaPage = channelId === "meta"
+    ? pages.find((page) => page.id === configuredPageId)
+    : undefined;
   const channelAccountReady = Boolean(
     connected
-    && selectedAccount?.currency === "EUR"
+    && selectedAccount && adsAccountCanBeAssociated(selectedAccount)
     && selectedAccount.id === configuredAccountId
-    && (channelId !== "meta" || (selectedPage?.instagramUserId && selectedPage.id === configuredPageId)),
+    && (channelId !== "meta" || (
+      selectedPage?.id === configuredPageId
+      && (!metaNeedsInstagramIdentity || selectedPage.instagramUserId)
+    )),
   );
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
   const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
   const reviewAccountReady = isAdsProvider(channelId)
-    ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || configuredPageId))
+    ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || (
+      configuredMetaPage
+      && draft.pageId === configuredPageId
+      && (!metaNeedsInstagramIdentity || configuredMetaPage.instagramUserId)
+    )))
     : Boolean(activeExternalStatus?.connected && activeExternalStatus.selectedAccountId);
+  const reviewAccountStatusLabel = reviewAccountReady
+    ? channelId === "meta"
+      ? metaNeedsInstagramIdentity
+        ? "Compte, Page et Instagram associés"
+        : "Compte et Page Facebook associés"
+      : "Compte annonceur associé"
+    : channelId === "meta" && draft.pageId && draft.pageId !== configuredPageId
+      ? "Identité Meta sélectionnée · association à confirmer"
+    : channelId === "meta" && configuredAccountId && configuredPageId && metaNeedsInstagramIdentity
+      ? "Compte et Page associés · Instagram requis pour ces placements"
+      : configuredAccountId
+        ? "Compte associé · accès à vérifier"
+        : "Associez un compte pour créer la démo en pause";
 
   const refreshExternalStatus = useCallback(async (channel: ExternalChannelId) => {
     const requestId = ++externalStatusRequests.current[channel];
@@ -960,6 +1010,16 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
     }
   }, [refreshExternalStatus]);
+
+  useEffect(() => {
+    if (!initialConnection) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("connection")) return;
+    params.delete("connection");
+    params.delete("reason");
+    const query = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [initialConnection]);
 
   const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string) => {
     const requestId = ++externalAccountsRequest.current;
@@ -1052,6 +1112,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPages([]);
     setSavedId(null);
     setDirty(true);
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setConfirmedSpend(false);
     setConfirmedDestinationUrl("");
     setNotice("");
@@ -1084,10 +1145,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         setConnectionAccount(result.connectionAccount);
         setAccounts(nextAccounts);
         setPages(nextPages);
-        const euroAccounts = nextAccounts.filter((account) => account.currency === "EUR");
+        const eligibleAccounts = nextAccounts.filter(adsAccountCanBeAssociated);
         const linkedInstagramPages = nextPages.filter((page) => Boolean(page.instagramUserId));
-        const persistedAccount = euroAccounts.find((account) => account.id === result.selectedAccountId);
-        const suggestedAccount = euroAccounts.find((account) => account.id === result.suggestedAccountId);
+        const persistedAccount = eligibleAccounts.find((account) => account.id === result.selectedAccountId);
+        const suggestedAccount = eligibleAccounts.find((account) => account.id === result.suggestedAccountId);
         const persistedPage = nextPages.find((page) => page.id === result.selectedPageId);
         const persistedAccountId = String(result.selectedAccountId || "");
         const persistedPageId = String(result.selectedPageId || "");
@@ -1101,10 +1162,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           accountId: persistedAccountId,
           accountLabel: String(result.selectedAccountLabel || ""),
           pageId: persistedPageId,
+          ...(persistedAccountId ? { accountAvailable: result.selectedAccountAvailable === true } : {}),
+          ...(persistedPageId ? { pageAvailable: result.selectedPageAvailable === true } : {}),
         } }));
         setDraft((current) => {
           const hasPersistedAccount = Boolean(persistedAccountId);
-          const existingAccount = hasPersistedAccount || result.accountSelectionCleared ? undefined : euroAccounts.find((account) => account.id === current.adAccountId);
+          const existingAccount = hasPersistedAccount || result.accountSelectionCleared ? undefined : eligibleAccounts.find((account) => account.id === current.adAccountId);
           // A provider refresh must never silently switch an associated
           // advertiser account to the only account currently returned.
           const account = persistedAccount || existingAccount || suggestedAccount;
@@ -1120,7 +1183,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         });
         if (result.connectionStatus === "needs_update") {
           setNotice(`La connexion ${channelId === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
-        } else if (result.connected && euroAccounts.length > 1) {
+        } else if (result.connected && eligibleAccounts.length > 1) {
           setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
         }
         if (result.error) setNotice(result.error);
@@ -1149,6 +1212,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setPages([]);
     setSavedId(null);
     setDirty(true);
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setConfirmedSpend(false);
     setConfirmedDestinationUrl("");
     setNotice("");
@@ -1195,13 +1259,44 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     updateDraft(patch);
   }
 
-  function applyCampaignMedia(item: Pick<MediaLibraryPickerItem, "media_type" | "signed_url" | "title" | "original_file_name">) {
+  function applyCampaignMedia(
+    item: Pick<MediaLibraryPickerItem, "media_type" | "signed_url" | "title" | "original_file_name">,
+    requestedMetaSlot: MetaAdsMediaSlot | null = metaMediaSlot,
+  ) {
     const url = String(item.signed_url || "").trim();
     if (!url) {
       setCampaignMediaUploadError("Ce média ne peut pas encore être utilisé : son lien sécurisé est indisponible.");
       return;
     }
     const mediaType = item.media_type === "video" ? "video" : "image";
+    if (channelId === "meta") {
+      if (mediaType !== "image") {
+        setCampaignMediaUploadError("Le pack Meta Ads utilise ici des images publicitaires. Choisissez une image pour ce format.");
+        return;
+      }
+      if (!requestedMetaSlot) {
+        setCampaignMediaUploadError("Choisissez d’abord le format Meta Feed ou Story/Reel à compléter.");
+        return;
+      }
+      setMetaMediaFormatStatus((current) => ({ ...current, [requestedMetaSlot]: "checking" }));
+      setDraft((current) => {
+        const metaCreativeAssets = {
+          ...current.metaCreativeAssets,
+          [requestedMetaSlot === "feed" ? "feedImageUrl" : "storyReelImageUrl"]: url,
+        };
+        return applyDraftEdit(current, {
+          metaCreativeAssets,
+          imageUrl: metaCreativeAssets.feedImageUrl,
+          creativeUrl: metaCreativeAssets.feedImageUrl,
+          creativeType: "image",
+          mediaStrategy: "image",
+        });
+      });
+      setDirty(true);
+      setConfirmedSpend(false);
+      setCampaignMediaUploadError("");
+      return;
+    }
     if (channelId === "google" && draft.campaignType === "search" && mediaType !== "image") {
       setCampaignMediaUploadError("Google Search accepte ici une image en complément de l’annonce texte, pas une vidéo. Choisissez une image.");
       return;
@@ -1259,7 +1354,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
 
   function handleGeneratedCampaignMedia(result: MediaGenerationResult) {
-    applyCampaignMedia(result.item);
+    applyCampaignMedia(result.item, metaMediaSlot);
     setCampaignMediaStudioOpen(false);
   }
 
@@ -1282,6 +1377,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         ...current[provider], status: "connected",
         accountId: String(result.selectedAccountId || draft.adAccountId),
         accountLabel: String(result.selectedAccountLabel || selectedAccount?.name || ""),
+        accountAvailable: true,
       } }));
       setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} associé. Il restera mémorisé jusqu’à ce que vous le dissociiez. Aucune annonce n’a été publiée.`);
     } catch (error) {
@@ -1305,7 +1401,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         body: JSON.stringify({ provider: "meta", pageId: draft.pageId }),
       }));
       setConfiguredPageId(String(result.selectedPageId || draft.pageId));
-      setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: String(result.selectedPageId || draft.pageId) } }));
+      setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: String(result.selectedPageId || draft.pageId), pageAvailable: true } }));
       setNotice("Identité Facebook et Instagram associée pour vos campagnes Meta Ads. Elle restera mémorisée jusqu’à sa dissociation.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de sélectionner cette identité publicitaire.");
@@ -1385,6 +1481,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   function applyCampaignPlan(plan: AdsCampaignPlan) {
     setConfirmedDestinationUrl("");
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setDraft((current) => {
       const channelDraft = plan.channelDraft?.channel === current.provider ? plan.channelDraft : undefined;
       const channelSettings = channelDraft ? adsChannelWizardSettingsFromBrief(channelDraft) : current.channelSettings;
@@ -1414,6 +1511,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       // A fresh analysis must never inherit an unrelated media attachment.
       // Only Studio acceptance or an explicit later user choice supplies one.
       imageUrl: plan.imageUrl,
+      metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
       creativeUrl: plan.creativeUrl,
       creativeType: plan.creativeType,
       mediaStrategy: plan.mediaStrategy,
@@ -1557,6 +1655,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAutoMediaState("idle");
     setAutoMediaMessage("");
     setCampaignMediaUploadError("");
+    setMetaMediaSlot(null);
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setConfirmedSpend(false);
     setCreationPath("choice");
     setAnalysisSetupOpen(false);
@@ -1575,6 +1675,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAutoMediaMessage("");
     setCampaignMediaStudioOpen(false);
     setCampaignMediaLibraryOpen(false);
+    setMetaMediaSlot(null);
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setBusy(null);
     setAnalysisSetupOpen(false);
     setCreating(false);
@@ -1618,16 +1720,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return;
     }
     if (!metaLivePlacementsSupported) {
-      setNotice("Le connecteur Trafic Meta actuellement disponible diffuse dans les fils Facebook et Instagram. Vos autres placements restent bien sauvegardés dans le brouillon.");
-      return;
-    }
-    if (channelId === "meta" && !draft.imageUrl) {
-      setNotice("Ajoutez une image à cette campagne Meta avant de la publier. Le connecteur Trafic Meta actuellement disponible utilise un visuel image.");
+      setNotice("La publication Meta accepte les fils Facebook/Instagram, les Stories et les Reels. Messenger sera ajouté ultérieurement.");
       return;
     }
     if (channelId !== provider || !savedId || dirty || !selectedAccount || !channelAccountReady || !confirmedSpend || !livePublishingEnabled) return;
-    if (provider === "meta" && !pages.some((page) => page.id === draft.pageId && page.instagramUserId)) {
-      setNotice("Pour diffuser sur Facebook et Instagram, associez un compte Instagram professionnel à la Page sélectionnée dans Meta Business Suite.");
+    if (provider === "meta" && !pages.some((page) => page.id === draft.pageId
+      && (!metaNeedsInstagramIdentity || page.instagramUserId))) {
+      setNotice(metaNeedsInstagramIdentity
+        ? "Pour diffuser sur Instagram, les Stories ou les Reels, associez un compte Instagram professionnel à la Page sélectionnée dans Meta Business Suite."
+        : "Sélectionnez une Page Facebook autorisée pour cette campagne Meta Ads.");
       return;
     }
     const accepted = window.confirm(`Publier réellement « ${draft.name} » sur ${channelMeta.label} ?\nCompte : ${selectedAccount.name}\nBudget ${channelId === "google" ? "moyen" : "journalier"} : ${draft.dailyBudgetEuros.toFixed(2)} €/jour\nFin : ${draft.endDate}\nLa plateforme débitera directement le compte publicitaire. iNrCy ne prélève pas le budget média.`);
@@ -1665,15 +1766,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return;
     }
     if (!metaLivePlacementsSupported) {
-      setNotice("La démo Trafic Meta actuellement branchée utilise les fils Facebook et Instagram. Vos autres placements restent sauvegardés dans le brouillon.");
-      return;
-    }
-    if (channelId === "meta" && !draft.imageUrl) {
-      setNotice("Ajoutez une image à cette campagne Meta avant de créer une démo en pause.");
+      setNotice("La démo Meta accepte les fils Facebook/Instagram, les Stories et les Reels. Messenger sera ajouté ultérieurement.");
       return;
     }
     if (!livePublisherMediaReady) {
-      setNotice("Le média choisi doit être disponible dans la médiathèque iNrCy avant de créer la démo en pause.");
+      setNotice(knownMetaMediaInvalid
+        ? "Un visuel Meta ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-le par une image conforme avant de créer la démo."
+        : "Le média choisi doit être disponible dans la médiathèque iNrCy avant de créer la démo en pause.");
       return;
     }
     if (channelId !== provider) {
@@ -1707,8 +1806,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           : "Aucun compte annonceur n’est associé à ce canal. Associez-en un une seule fois dans la configuration.");
       }
       const pageId = channelId === "meta" ? String(connection.selectedPageId || "") : "";
-      if (channelId === "meta" && !(connection.pages || []).some((page) => page.id === pageId && page.instagramUserId)) {
-        throw new Error("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
+      const connectionNeedsInstagramIdentity = channelId === "meta"
+        && metaPlacementsNeedInstagramIdentity(draft.metaPlacements);
+      if (channelId === "meta" && !(connection.pages || []).some((page) => page.id === pageId
+        && (!connectionNeedsInstagramIdentity || page.instagramUserId))) {
+        throw new Error(connectionNeedsInstagramIdentity
+          ? "Pour la démo Meta sur Instagram, Stories ou Reels, associez d’abord un compte Instagram professionnel à la Page sélectionnée."
+          : "Pour la démo Meta, associez d’abord une Page Facebook autorisée.");
       }
       setConfiguredAccountLabel(String(connection.selectedAccountLabel || account.name));
       setDemoDialog({
@@ -1781,6 +1885,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setPages([]);
     }
     setDraft(campaign.draft);
+    setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setSavedId(campaign.id);
     setDirty(false);
     setConfirmedSpend(false);
@@ -1849,10 +1954,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const livePublisherConversionReady = liveFormatAvailable && draft.conversionLocation === "website";
   const metaLiveObjectiveSupported = channelId !== "meta" || draft.objective === "website_traffic";
   const metaLiveGoalSupported = channelId !== "meta" || draft.conversionGoal === "website_visit";
+  const metaMediaReadiness = assessMetaCreativeAssetReadiness({
+    metaPlacements: draft.metaPlacements,
+    metaCreativeAssets: draft.metaCreativeAssets,
+    imageUrl: draft.imageUrl,
+  });
   const metaLivePlacementsSupported = channelId !== "meta" || (
-    draft.metaPlacements.length === 2 &&
-    draft.metaPlacements.includes("facebook_feed") &&
-    draft.metaPlacements.includes("instagram_feed")
+    draft.metaPlacements.length > 0 && !draft.metaPlacements.includes("messenger")
   );
   const metaLiveCreativeSupported = channelId !== "meta" || (draft.mediaStrategy === "image" && draft.creativeType === "image");
   const metaLiveCtaSupported = channelId !== "meta" || ["en savoir plus", "decouvrir", "learn more"].includes(
@@ -1860,7 +1968,29 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   );
   const connectorConfigurationIssue = isAdsProvider(channelId) ? unsupportedAdsConnectorReason(draft) : null;
   const livePublisherSetupReady = livePublisherConversionReady && !connectorConfigurationIssue;
-  const livePublisherMediaReady = channelId !== "meta" || Boolean(draft.imageUrl);
+  const knownMetaMediaInvalid = channelId === "meta" && (
+    (metaMediaReadiness.requiresFeedImage && metaMediaFormatStatus.feed === "invalid")
+    || (metaMediaReadiness.requiresStoryReelImage && metaMediaFormatStatus.story_reel === "invalid")
+  );
+  const livePublisherMediaReady = channelId !== "meta" || (metaMediaReadiness.ready && !knownMetaMediaInvalid);
+  const metaFeedReviewLabel = !metaMediaReadiness.requiresFeedImage
+    ? "Feed non sélectionné"
+    : !draft.metaCreativeAssets.feedImageUrl
+      ? "Feed 4:5 manquant"
+      : metaMediaFormatStatus.feed === "valid"
+        ? "Feed 4:5 conforme"
+        : metaMediaFormatStatus.feed === "invalid"
+          ? "Feed 4:5 non conforme"
+          : "Feed 4:5 à vérifier";
+  const metaStoryReelReviewLabel = !metaMediaReadiness.requiresStoryReelImage
+    ? "Story/Reel non sélectionné"
+    : !draft.metaCreativeAssets.storyReelImageUrl
+      ? "Story/Reel 9:16 manquant"
+      : metaMediaFormatStatus.story_reel === "valid"
+        ? "Story/Reel 9:16 conforme"
+        : metaMediaFormatStatus.story_reel === "invalid"
+          ? "Story/Reel 9:16 non conforme"
+          : "Story/Reel 9:16 à vérifier";
   const analysisRequestPending = busy === "plan" && autoMediaState !== "generating" && planProgress < 90 && !planError;
   const analysisProposalReady = creationPath === "inrcy" && step === analysisStep && planProgress === 100 && busy !== "plan";
   const destinationFieldVisible = nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website";
@@ -1960,7 +2090,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </div>
 
       <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") closeCampaignCreation(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; if (dx < 0 && current === deliveryStep && !destinationReview.canContinue) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
+      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; if (dx < 0 && current === mediaStep && channelId === "meta" && !livePublisherMediaReady) return current; if (dx < 0 && current === deliveryStep && !destinationReview.canContinue) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && name}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
@@ -2109,11 +2239,46 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
           </>}
           {nativeSettings?.channel === "x" && <label className={styles.field}>Format du post<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
-          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-          {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
+          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
           {nativeMediaStrategy !== "search_text" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
         </div>
-        {(nativeSettings === null || nativeMediaUpload) && <div className={styles.campaignMediaWorkspace}>
+        {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}>
+          <legend>Emplacements et formats Meta</legend>
+          <p>Chaque emplacement utilise uniquement le visuel dont le cadrage lui correspond.</p>
+          <div className={styles.studioControlOptions}>{META_PLACEMENT_OPTIONS.map((option) => {
+            const selected = draft.metaPlacements.includes(option.value);
+            // Unsupported legacy placements must remain removable, never selectable.
+            const disabled = Boolean(option.disabled && !selected);
+            return <label key={option.value} aria-disabled={disabled || undefined}>
+              <input type="checkbox" disabled={disabled} checked={selected} onChange={(event) => updateDraft({ metaPlacements: event.target.checked ? Array.from(new Set([...draft.metaPlacements, option.value])) : draft.metaPlacements.filter((placement) => placement !== option.value) })} />
+              {option.label} · {option.format}
+            </label>;
+          })}</div>
+        </fieldset>}
+        {channelId === "meta" && <MetaAdsMediaPack
+          feedImageUrl={draft.metaCreativeAssets.feedImageUrl || null}
+          storyReelImageUrl={draft.metaCreativeAssets.storyReelImageUrl || null}
+          selectedPlacements={draft.metaPlacements}
+          disabled={campaignMediaUploadBusy}
+          onGenerate={(slot) => { setMetaMediaSlot(slot); setCampaignMediaStudioOpen(true); }}
+          onImport={(slot) => { setMetaMediaSlot(slot); campaignImageInputRef.current?.click(); }}
+          onChooseFromLibrary={(slot) => { setMetaMediaSlot(slot); setCampaignMediaLibraryOpen(true); }}
+          onFormatStatusChange={handleMetaMediaFormatStatus}
+          onRemove={(slot) => {
+            setMetaMediaFormatStatus((current) => ({ ...current, [slot]: "empty" }));
+            const metaCreativeAssets = {
+              ...draft.metaCreativeAssets,
+              [slot === "feed" ? "feedImageUrl" : "storyReelImageUrl"]: "",
+            };
+            updateDraft({
+              metaCreativeAssets,
+              imageUrl: metaCreativeAssets.feedImageUrl,
+              creativeUrl: metaCreativeAssets.feedImageUrl,
+            });
+          }}
+        />}
+        {(nativeSettings === null || nativeMediaUpload) && channelId !== "meta" && <div className={styles.campaignMediaWorkspace}>
           <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{googleSearchMedia ? attachedCampaignMediaUrl ? "Image conservée dans iNrCy" : "Aucun média à fournir pour Google Search" : attachedCampaignMediaUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
           {!googleSearchMedia && <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
             {nativeMediaStrategy !== "video" && <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>}
@@ -2125,9 +2290,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {attachedCampaignMediaUrl && <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} />}
           {attachedCampaignMediaUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>{googleSearchMedia ? "Image conservée dans iNrCy" : "Média associé à la campagne"}</strong><small>{googleSearchMedia ? "Non jointe à la campagne Google Search lors de la création en pause." : `${draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.`}</small></div><a href={attachedCampaignMediaUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
+        </div>}
+        {(nativeSettings === null || nativeMediaUpload) && <>
           <input ref={campaignImageInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "image")} />
           <input ref={campaignVideoInputRef} type="file" accept="video/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "video")} />
-        </div>}
+        </>}
+        {channelId === "meta" && campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
       </section>}
 
       <section hidden={step !== deliveryStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioDeliveryCard}`}>
@@ -2154,7 +2322,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {channelId === "google" && <label className={`${styles.check} ${styles.studioWide}`}><input type="checkbox" checked={draft.urlExpansion} onChange={(event) => updateDraft({ urlExpansion: event.target.checked })} />Autoriser l’utilisation de pages pertinentes de mon site lorsque le format de campagne le permet.</label>}
           {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Pages à exclure <small>Une URL HTTPS par ligne, optionnel</small><textarea rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder="https://votresite.fr/mentions-legales" /></label>}
           {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Réseaux Google</legend><p>Choisissez les surfaces envisagées. Le budget reste défini à l’étape suivante.</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />Partenaires du Réseau de Recherche</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />Extension Display lorsque pertinente</label></div></fieldset>}
-          {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Placements Meta</legend><p>Choisissez les emplacements adaptés à votre média. Le connecteur disponible peut imposer une sélection plus restreinte.</p><div className={styles.studioControlOptions}>{META_PLACEMENT_OPTIONS.map((option) => <label key={option.value}><input type="checkbox" checked={draft.metaPlacements.includes(option.value)} onChange={(event) => updateDraft({ metaPlacements: event.target.checked ? Array.from(new Set([...draft.metaPlacements, option.value])) : draft.metaPlacements.filter((placement) => placement !== option.value) })} />{option.label}</label>)}</div></fieldset>}
         </div>
       </section>
 
@@ -2180,11 +2347,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <p className={styles.intro}><span className={styles.studioTitleLong}>Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme.</span><span className={styles.studioTitleShort}>Diffusion après votre accord et celui de la plateforme.</span></p>
         <dl className={styles.studioReviewGrid}>
           <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings))} · ${nativeWizardFormat(nativeSettings)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
-          <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || "À configurer" : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : "À associer"}</dd><small>{reviewAccountReady ? "Compte annonceur associé" : configuredAccountId ? "Compte associé · accès à vérifier" : "Associez un compte pour créer la démo en pause"}</small></div>
+          <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || "À configurer" : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : "À associer"}</dd><small>{reviewAccountStatusLabel}</small></div>
           <div><dt>Objectif mesuré</dt><dd>{CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{draft.targetLocations.length ? `${draft.targetLocations.length} zone${draft.targetLocations.length > 1 ? "s" : ""} ciblée${draft.targetLocations.length > 1 ? "s" : ""}` : "Zones à préciser"}</small></div>
           <div><dt>Investissement</dt><dd>{draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour</dd><small>Fin prévue : {draft.endDate || "à préciser"}</small></div>
           <div><dt>Redirection</dt><dd>{draft.destinationUrl || "À renseigner"}</dd><small>{draft.keywords.length ? `${draft.keywords.length} signaux / mots-clés préparés` : "Mots-clés ou audiences à compléter"}</small></div>
-          <div><dt>Médias &amp; message</dt><dd>{googleSearchMedia ? "Annonces textuelles" : MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{googleSearchMedia && draft.imageUrl ? "Image conservée dans iNrCy, non jointe à Google" : draft.callToAction || "Appel à l’action à définir"}</small></div>
+          <div><dt>Médias &amp; message</dt><dd>{googleSearchMedia ? "Annonces textuelles" : channelId === "meta" ? "Pack images publicitaires Meta" : MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{channelId === "meta" ? `${metaFeedReviewLabel} · ${metaStoryReelReviewLabel}` : googleSearchMedia && draft.imageUrl ? "Image conservée dans iNrCy, non jointe à Google" : draft.callToAction || "Appel à l’action à définir"}</small></div>
           <div><dt>Conversion &amp; suivi</dt><dd>{CONVERSION_LOCATION_OPTIONS.find((option) => option.value === draft.conversionLocation)?.label}</dd><small>{draft.trackingParameters || "Aucune balise de suivi ajoutée"}</small></div>
           <div><dt>Diffusion avancée</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? `${draft.metaPlacements.length} placement${draft.metaPlacements.length > 1 ? "s" : ""}` : "Placements à choisir") : channelId === "google" ? "Langue déduite des annonces et du site" : nativeSettings?.channel === "linkedin" ? nativeBriefTerm(nativeSettings.targetingFacet) : nativeSettings?.channel === "tiktok" ? nativeBriefTerm(nativeSettings.placementIntent) : nativeSettings?.channel === "pinterest" || nativeSettings?.channel === "x" ? nativeBriefTerm(nativeSettings.targetingMode) : "Préparation complète"}</dd><small>{channelId === "meta" ? (draft.metaAudienceExpansion ? "Expansion d’audience autorisée" : "Audience strictement contrôlée") : channelId === "google" ? (draft.googleSearchPartners ? "Partenaires de recherche inclus" : "Réseau Google principal") : nativeSettings?.channel === "tiktok" ? `Destination : ${nativeBriefTerm(nativeSettings.destinationKind)} · Optimisation : ${nativeBriefTerm(nativeSettings.optimizationIntent)}` : nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent ? `Événement : ${nativeBriefTerm(nativeSettings.conversionEvent)}` : "Choix à vérifier sur la plateforme"}</small></div>
         </dl>
@@ -2198,7 +2365,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           </dl>
           <p>Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici.</p>
         </details>}
-        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram ensemble. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement une image. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>{googleSearchMedia ? "La campagne assistée Google Search attend l’image complémentaire promise par l’analyse. Générez-la ou choisissez-la dans la médiathèque iNrCy." : "Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque."}</p> : <>
+        {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le pack média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par un visuel publicitaire conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : "Le média choisi doit être disponible dans la médiathèque iNrCy."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}</p>}
         </>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
@@ -2213,11 +2380,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button>
         <span>{step + 1} / {stepNames.length}</span>
         {step < lastStep ? <div className={styles.wizardNextGroup}>
+          {step === mediaStep && channelId === "meta" && !livePublisherMediaReady && <div className={styles.wizardMediaRequirement} role="status">
+            <strong>Pack média obligatoire</strong>
+            <span>{knownMetaMediaInvalid ? "Remplacez le visuel non conforme avant de continuer." : "Ajoutez chaque format demandé par les placements sélectionnés."}</span>
+          </div>}
           {step === deliveryStep && destinationReview.required && <label className={styles.wizardRequiredCheck}>
             <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
             <span><strong>Validation obligatoire</strong>Je confirme ce lien</span>
           </label>}
-          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === mediaStep && channelId === "meta" && !livePublisherMediaReady) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
         </div> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}
       </div>}
       </div>
@@ -2259,7 +2430,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       selectedAccountId={draft.adAccountId}
       selectedPageId={draft.pageId}
       configuredAccountId={configuredAccountId}
+      configuredAccountLabel={configuredAccountLabel}
       configuredPageId={configuredPageId}
+      metaNeedsInstagramIdentity={metaNeedsInstagramIdentity}
       onSelectAccount={(id) => updateDraft({ adAccountId: id, accountCurrency: "EUR" })}
       onSelectPage={(id) => updateDraft({ pageId: id })}
       onRefreshAccounts={() => setAccountsRefreshKey((key) => key + 1)}
@@ -2351,6 +2524,44 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           setAutoMediaPlan(null);
           setBusy(null);
         }}
+        onMetaPackComplete={(results, generationError) => {
+          const feedImageUrl = String(results.feed?.item.signed_url || "").trim();
+          const storyReelImageUrl = String(results.storyReel?.item.signed_url || "").trim();
+          const needsFeed = autoMediaPlan.metaPlacements.some((placement) => placement === "facebook_feed" || placement === "instagram_feed");
+          const needsStoryReel = autoMediaPlan.metaPlacements.some((placement) => placement === "stories" || placement === "reels");
+          if (feedImageUrl || storyReelImageUrl) {
+            setMetaMediaFormatStatus((current) => ({
+              ...current,
+              ...(feedImageUrl ? { feed: "checking" as const } : {}),
+              ...(storyReelImageUrl ? { story_reel: "checking" as const } : {}),
+            }));
+            setDraft((current) => {
+              const metaCreativeAssets = mergeMetaCreativeAssetUrls(current.metaCreativeAssets, {
+                feedImageUrl,
+                storyReelImageUrl,
+              });
+              return applyDraftEdit(current, {
+                metaCreativeAssets,
+                imageUrl: metaCreativeAssets.feedImageUrl,
+                creativeUrl: metaCreativeAssets.feedImageUrl,
+                creativeType: "image",
+                mediaStrategy: "image",
+              });
+            });
+            setDirty(true);
+            setConfirmedSpend(false);
+          }
+          if (generationError || (needsFeed && !feedImageUrl) || (needsStoryReel && !storyReelImageUrl)) {
+            setAutoMediaState("error");
+            setAutoMediaMessage(`La campagne est prête, mais le pack Meta est incomplet${generationError ? ` : ${generationError}` : "."} ${feedImageUrl || storyReelImageUrl ? "Le visuel déjà créé reste associé à la campagne. " : ""}Complétez le format manquant à l’étape Médias.`);
+          } else {
+            setAutoMediaState("ready");
+            setAutoMediaMessage(`iNr’Studio a généré le pack publicitaire Meta${needsFeed && needsStoryReel ? " : Feed 4:5 et Story/Reel 9:16" : needsFeed ? " Feed 4:5" : " Story/Reel 9:16"}. Chaque visuel est associé uniquement à ses placements.`);
+          }
+          planProgressTarget.current = 100;
+          setAutoMediaPlan(null);
+          setBusy(null);
+        }}
         onSkip={(reason) => {
           setAutoMediaState("skipped");
           setAutoMediaMessage(reason);
@@ -2369,16 +2580,20 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     )}
     <MediaLibraryPickerModal
       open={campaignMediaLibraryOpen}
-      title="Ajouter un média à la campagne"
-      subtitle="Choisissez une image ou une vidéo déjà disponible dans votre médiathèque iNrCy. Elle sera immédiatement associée à cette campagne."
-      accept={googleSearchMedia ? "image" : "all"}
+      title={channelId === "meta"
+        ? `Choisir l’image ${metaMediaSlot === "story_reel" ? "Story/Reel 9:16" : "Feed 4:5"}`
+        : "Ajouter un média à la campagne"}
+      subtitle={channelId === "meta"
+        ? "Choisissez un visuel publicitaire adapté au format sélectionné. L’autre format conserve sa propre image."
+        : "Choisissez une image ou une vidéo déjà disponible dans votre médiathèque iNrCy. Elle sera immédiatement associée à cette campagne."}
+      accept={googleSearchMedia || channelId === "meta" ? "image" : "all"}
       multiple={false}
       maxSelection={1}
       confirmLabel="Ajouter à la campagne"
       onClose={() => setCampaignMediaLibraryOpen(false)}
       onConfirm={(items) => {
         const item = items[0];
-        if (item) applyCampaignMedia(item);
+        if (item) applyCampaignMedia(item, metaMediaSlot);
       }}
     />
     <MediaGeneratorModal
@@ -2387,12 +2602,20 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       source="studio"
       origin="ads"
       initialTab="generate"
-      initialMediaType={googleSearchMedia ? "image" : draft.mediaStrategy === "video" || draft.creativeType === "video" ? "video" : "image"}
-      imageOnly={googleSearchMedia}
-      freeOnly={googleSearchMedia}
-      initialFreePrompt={googleSearchMedia ? googleSearchImageSubjectPrompt(draft) : ""}
-      requiredFreePromptSuffix={googleSearchMedia ? GOOGLE_SEARCH_IMAGE_REQUIREMENTS : ""}
-      fixedFreeFormat={googleSearchMedia ? "square" : undefined}
+      initialMediaType={googleSearchMedia || channelId === "meta" ? "image" : draft.mediaStrategy === "video" || draft.creativeType === "video" ? "video" : "image"}
+      imageOnly={googleSearchMedia || channelId === "meta"}
+      freeOnly={googleSearchMedia || channelId === "meta"}
+      initialFreePrompt={googleSearchMedia
+        ? googleSearchImageSubjectPrompt(draft)
+        : channelId === "meta"
+          ? [draft.mediaBrief, draft.offer && `Offre : ${draft.offer}`, draft.primaryText && `Message : ${draft.primaryText}`].filter(Boolean).join(". ").slice(0, 900)
+          : ""}
+      requiredFreePromptSuffix={googleSearchMedia
+        ? GOOGLE_SEARCH_IMAGE_REQUIREMENTS
+        : channelId === "meta" && metaMediaSlot === "story_reel"
+          ? META_ADS_STORY_REEL_IMAGE_REQUIREMENTS
+          : channelId === "meta" ? META_ADS_FEED_IMAGE_REQUIREMENTS : ""}
+      fixedFreeFormat={googleSearchMedia ? "square" : channelId === "meta" ? metaMediaSlot === "story_reel" ? "story" : "portrait" : undefined}
       publicationBrief={[draft.mediaBrief, draft.offer, draft.primaryText, draft.callToAction].filter(Boolean).join(". ").slice(0, 1_800)}
       acceptMode="insert"
       handoffOriginLabel="iNr’ADS"

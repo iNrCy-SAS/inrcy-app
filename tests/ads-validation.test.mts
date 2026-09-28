@@ -15,6 +15,7 @@ const metaDraft = {
   destinationUrl: "https://example.com/offre",
   primaryText: "Découvrez notre offre locale.",
   imageUrl: "https://example.com/visuel.jpg",
+  metaPlacements: ["facebook_feed", "instagram_feed"],
   pageId: "1234567890",
   headlines: [],
   descriptions: [],
@@ -112,6 +113,73 @@ test("un média privé iNrCy reste utilisable dans un brouillon et à la publica
 
   const invalid = parseAdsCampaignInput({ ...metaDraft, imageUrl: "/api/media-library/items/12345678-1234-1234-1234-1234567890ab/content?token=short" });
   assert.equal(invalid.draft, null);
+});
+
+test("les anciens brouillons Meta migrent leur image vers le slot Feed sans inventer un Story/Reel", () => {
+  const parsed = parseAdsCampaignInput(metaDraft);
+  assert.deepEqual(parsed.draft?.metaCreativeAssets, {
+    feedImageUrl: metaDraft.imageUrl,
+    storyReelImageUrl: "",
+  });
+  assert.equal(parsed.draft?.imageUrl, metaDraft.imageUrl);
+});
+
+test("les créations Meta dédiées valident séparément les formats Feed et Story/Reel", () => {
+  const feedImageUrl = "https://example.com/meta-feed-4x5.jpg";
+  const storyReelImageUrl = "https://example.com/meta-story-reel-9x16.jpg";
+  const parsed = parseAdsCampaignInput({
+    ...metaDraft,
+    imageUrl: "",
+    metaPlacements: ["facebook_feed", "stories", "reels"],
+    metaCreativeAssets: { feedImageUrl, storyReelImageUrl },
+  });
+  assert.equal(parsed.error, null);
+  assert.deepEqual(parsed.draft?.metaCreativeAssets, { feedImageUrl, storyReelImageUrl });
+  assert.equal(parsed.draft?.imageUrl, feedImageUrl);
+
+  const storyOnly = parseAdsCampaignInput({
+    ...metaDraft,
+    imageUrl: "",
+    metaPlacements: ["stories", "reels"],
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl },
+  });
+  assert.equal(storyOnly.error, null);
+  assert.equal(storyOnly.draft?.imageUrl, "");
+
+  assert.match(parseAdsCampaignInput({
+    ...metaDraft,
+    metaPlacements: ["stories"],
+  }).error || "", /Story\/Reel 9:16/);
+});
+
+test("le contrat des créations Meta échoue fermé sur les structures et URL ambiguës", () => {
+  assert.equal(parseAdsCampaignInput({ ...metaDraft, metaCreativeAssets: "https://example.com/image.jpg" }).draft, null);
+  assert.equal(parseAdsCampaignInput({
+    ...metaDraft,
+    metaCreativeAssets: { feedImageUrl: metaDraft.imageUrl, storyReelImageUrl: "", unexpectedId: "123" },
+  }).draft, null);
+  assert.equal(parseAdsCampaignInput({
+    ...metaDraft,
+    metaCreativeAssets: { feedImageUrl: { url: metaDraft.imageUrl }, storyReelImageUrl: "" },
+  }).draft, null);
+  assert.match(parseAdsCampaignInput({
+    ...metaDraft,
+    metaCreativeAssets: { feedImageUrl: "http://example.com/feed.jpg", storyReelImageUrl: "" },
+  }).error || "", /Feed/);
+  assert.match(parseAdsCampaignInput({
+    ...metaDraft,
+    metaPlacements: ["stories"],
+    metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "http://example.com/story.jpg" },
+  }).error || "", /Story\/Reel/);
+  assert.match(parseAdsCampaignInput({
+    ...metaDraft,
+    metaPlacements: ["facebook_feed", "stories"],
+    metaCreativeAssets: { feedImageUrl: metaDraft.imageUrl, storyReelImageUrl: metaDraft.imageUrl },
+  }).error || "", /deux images Meta distinctes/);
+  assert.match(parseAdsCampaignInput({
+    ...googleDraft,
+    metaCreativeAssets: { feedImageUrl: metaDraft.imageUrl, storyReelImageUrl: "" },
+  }).error || "", /réservées aux campagnes Meta Ads/);
 });
 
 test("les réglages avancés de diffusion restent sûrs dans les brouillons", () => {
