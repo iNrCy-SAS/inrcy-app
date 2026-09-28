@@ -220,20 +220,9 @@ export default function TeamAgendaClient({
       statusUpdatingId
     ) return;
     if (!beginAppointmentMutation()) return;
-    const previousMemberId = appointment.currentMemberId;
-    const previousMemberName = appointment.currentMemberName;
     setAssigningId(appointment.id);
     setError("");
     setSuccess("");
-    setAppointments((current) => current.map((item) =>
-      item.id === appointment.id
-        ? {
-            ...item,
-            currentMemberId: target.id,
-            currentMemberName: target.name,
-          }
-        : item,
-    ));
     try {
       const response = await fetch("/api/internal/visio-booking/appointments", {
         method: "POST",
@@ -249,9 +238,13 @@ export default function TeamAgendaClient({
       const payload = await response.json().catch(() => ({})) as {
         error?: string;
         appointment?: TeamAppointment;
+        inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
         throw new Error(payload.error || "La réattribution a échoué.");
+      }
+      if (payload.appointment.currentMemberId !== target.id) {
+        throw new Error("Google Agenda n’a pas confirmé la nouvelle attribution. Actualisez la liste avant de réessayer.");
       }
       setAppointments((current) => current.map((item) =>
         item.id === appointment.id || item.id === payload.appointment?.id
@@ -259,27 +252,25 @@ export default function TeamAgendaClient({
           : item,
       ));
       setSuccess(
-        `${appointment.title} est maintenant attribué uniquement à ${target.name}.`,
+        `${appointment.title} est maintenant attribué à ${target.name} dans Google Agenda.`,
       );
+      if (payload.inrCalendarSynced === false) {
+        setError("La vue iNrCalendar n’a pas encore confirmé cette attribution. Elle sera resynchronisée automatiquement ; utilisez Actualiser pour vérifier.");
+      }
     } catch (assignmentError) {
-      setAppointments((current) => current.map((item) =>
-        item.id === appointment.id
-          ? {
-              ...item,
-              currentMemberId: previousMemberId,
-              currentMemberName: previousMemberName,
-            }
-          : item,
-      ));
       setError(assignmentError instanceof Error ? assignmentError.message : "La réattribution a échoué.");
     } finally {
       setAssigningId("");
       endAppointmentMutation();
+      // A Google move can be partially applied when the last API call fails.
+      // Re-read the shared calendar instead of restoring an optimistic owner.
+      void loadAppointments(false, true);
     }
   }, [
     assigningId,
     beginAppointmentMutation,
     endAppointmentMutation,
+    loadAppointments,
     reschedulingId,
     resendingId,
     statusUpdatingId,
@@ -326,6 +317,7 @@ export default function TeamAgendaClient({
       const payload = await response.json().catch(() => ({})) as {
         error?: string;
         appointment?: TeamAppointment;
+        inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
         throw new Error(payload.error || "Le changement de date a échoué.");
@@ -342,6 +334,9 @@ export default function TeamAgendaClient({
       setSuccess(
         `${appointment.title} a été déplacé au ${formatDay(updatedAppointment.start)} à ${formatTime(updatedAppointment.start, false)}.`,
       );
+      if (payload.inrCalendarSynced === false) {
+        setError("Google Agenda a été modifié, mais la vue iNrCalendar attend encore sa synchronisation. Utilisez Actualiser pour vérifier.");
+      }
     } catch (scheduleError) {
       setError(scheduleError instanceof Error ? scheduleError.message : "Le changement de date a échoué.");
     } finally {
@@ -456,6 +451,7 @@ export default function TeamAgendaClient({
       const payload = (await response.json().catch(() => ({}))) as {
         error?: string;
         appointment?: TeamAppointment;
+        inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
         throw new Error(payload.error || "Le changement de statut a échoué.");
@@ -473,6 +469,9 @@ export default function TeamAgendaClient({
           ? `${appointment.title} est repris dans le nouveau système, sans nouvel e-mail. Vous pouvez maintenant renvoyer son lien Meet si nécessaire.`
           : `${appointment.title} : ${updatedAppointment.statusLabel.toLowerCase()}.`,
       );
+      if (payload.inrCalendarSynced === false) {
+        setError("Google Agenda a été modifié, mais la vue iNrCalendar attend encore sa synchronisation. Utilisez Actualiser pour vérifier.");
+      }
     } catch (statusError) {
       setError(
         statusError instanceof Error

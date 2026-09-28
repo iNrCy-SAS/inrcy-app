@@ -38,22 +38,35 @@ test("the former three-step startup flow is absent from the runtime", () => {
   }
 });
 
-test("the first dashboard arrival shows one account-scoped four-step setup alert", () => {
+test("the first dashboard arrival claims one durable account-scoped setup alert", () => {
   const hook = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
   const dashboard = read("app/dashboard/DashboardClient.tsx");
+  const route = read("app/api/dashboard/setup-intro/route.ts");
+  const migration = read("supabase/migrations/20260928082926_dashboard_setup_intro_once.sql");
 
-  assert.match(hook, /inrcy_dashboard_setup_alert_seen_v2/);
-  assert.match(hook, /readAccountCacheValue\([^;]*accountId/);
-  assert.match(hook, /writeAccountCacheValue\([^;]*"1", accountId\)/);
-  assert.match(hook, /!profileIncomplete && !activityIncomplete/);
+  assert.match(hook, /fetch\("\/api\/dashboard\/setup-intro"/);
+  assert.match(hook, /claimsInFlight\.get\(accountId\)/);
+  assert.match(hook, /if \(!browserAccountId\) return;/);
+  assert.match(hook, /body: JSON\.stringify\(\{ accountId \}\)/);
+  assert.match(hook, /ACTIVE_INRCY_ACCOUNT_EVENT/);
+  assert.match(hook, /BROWSER_SIGN_OUT_START_EVENT/);
+  assert.doesNotMatch(hook, /readAccountCacheValue|writeAccountCacheValue|profileIncomplete|activityIncomplete/);
   assert.match(hook, /confirmInrcy\(\{/);
   assert.match(hook, /steps:\s*\[\s*t\("stepChannels"\),\s*t\("stepDna"\),\s*t\("stepAi"\),\s*t\("stepFirstPublication"\),\s*\]/);
   assert.doesNotMatch(hook, /t\("stepProfile"\)/);
   assert.match(hook, /confirmLabel: t\("confirm"\)/);
   assert.match(hook, /cancelLabel: t\("cancel"\)/);
-  assert.match(hook, /if \(shouldOpenChannels\) onOpenChannels\(\)/);
+  assert.match(hook, /if \(shouldOpenChannels && !cancelled && sequence === requestSequence\) onOpenChannels\(\)/);
   assert.match(dashboard, /useDashboardSetupAlert\(\{/);
   assert.match(dashboard, /onOpenChannels: openInitialChannelConnections/);
+  assert.match(route, /resolveActiveInrcyAccountId\(supabase, user\.id\)/);
+  assert.match(route, /body\?\.accountId !== accountId/);
+  assert.match(route, /supabaseAdmin[\s\S]*?\.from\("inrcy_accounts"\)/);
+  assert.match(route, /\.is\("dashboard_setup_intro_seen_at", null\)/);
+  assert.match(route, /show: Boolean\(data\)/);
+  assert.match(migration, /add column if not exists dashboard_setup_intro_seen_at timestamptz/);
+  assert.match(migration, /default timestamptz '2026-09-28 08:24:04\+00'/);
+  assert.match(migration, /alter column dashboard_setup_intro_seen_at drop default/);
 });
 
 test("the French setup copy follows the approved four-step order and channel CTA", () => {

@@ -97,14 +97,16 @@ test("le connecteur Search vérifie les zones saisies avant toute mutation", () 
   assert.match(google, /resolveGoogleTargetLocations\(/);
 });
 
-test("le connecteur Search publie aussi les langues et mots-clés à exclure", () => {
+test("le connecteur Search n'ajoute plus de ciblage linguistique manuel mais garde les exclusions", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
-  assert.match(google, /language_constant\.code/);
-  assert.match(google, /resolveGoogleTargetLanguages\(/);
-  assert.match(google, /language: \{ languageConstant: language\.resourceName \}/);
+  assert.doesNotMatch(google, /language_constant\.code/);
+  assert.doesNotMatch(google, /resolveGoogleTargetLanguages\(/);
+  assert.doesNotMatch(google, /language: \{ languageConstant:/);
+  assert.match(google, /languageCriterionResourceNames: \[\]/);
   assert.match(google, /negative: true,[\s\S]*?matchType: "BROAD"/);
   assert.match(google, /negativeKeywordCriterionResourceNames/);
-  assert.match(google, /const adGroupOffset = 2 \+ targetLocations\.length \+ targetLanguages\.length \+ draft\.negativeKeywords\.length/);
+  assert.match(google, /const adGroupOffset = 2 \+ targetLocations\.length \+ draft\.negativeKeywords\.length/);
+  assert.match(google, /resourceNameAt\(created, 2 \+ targetLocations\.length \+ index, "campaignCriterionResult"/);
 });
 
 test("les balises de suivi Google sont transmises comme suffixe d’URL, jamais ignorées", () => {

@@ -111,6 +111,62 @@ test("les participants externes restent visibles sans activer de rappel iNrCy", 
   );
 });
 
+test("iNrCalendar garde le Meet de la réservation si la copie a un autre Meet natif", () => {
+  const row = buildInrCalendarGoogleRow({
+    event: event({
+      hangoutLink: "https://meet.google.com/other-room",
+      extendedProperties: {
+        private: {
+          inrcyTeamMirror: "v1",
+          inrcyBooking: "signup-visio",
+          sourceMeetUrl: "https://meet.google.com/abc-defg-hij",
+          sourceCalendarId: "apolline.benedyczak@inrcy.com",
+          sourceEventId: "source-event-1",
+        },
+      },
+    }),
+    calendarId,
+    adminUserId,
+  });
+  assert.ok(row);
+  assert.equal(
+    (row.meta.google as Record<string, unknown>).meetUrl,
+    "https://meet.google.com/abc-defg-hij",
+  );
+});
+
+test("une nouvelle attribution remplace l'ancien responsable importé dans iNrCalendar", () => {
+  const row = buildInrCalendarGoogleRow({
+    event: event({
+      extendedProperties: {
+        private: {
+          inrcyTeamMirror: "v1",
+          inrcyBooking: "signup-visio",
+          sourceMeetUrl: "https://meet.google.com/abc-defg-hij",
+          assignedMemberId: "oceane",
+          assignedMemberEmail: "oceane@inrcy.com",
+        },
+      },
+    }),
+    calendarId,
+    adminUserId,
+    previous: {
+      meta: {
+        google: {
+          assignedMemberId: "apolline",
+          assignedMemberEmail: "apolline@inrcy.com",
+        },
+      },
+    },
+  });
+  assert.ok(row);
+  assert.equal((row.meta.google as Record<string, unknown>).assignedMemberId, "oceane");
+  assert.equal(
+    (row.meta.google as Record<string, unknown>).assignedMemberEmail,
+    "oceane@inrcy.com",
+  );
+});
+
 test("deux copies Google du même rendez-vous utilisent une seule ligne iNrCalendar", () => {
   const canonicalIdentity =
     "ical:series@google.com:2026-09-09T08:00:00.000Z";

@@ -102,8 +102,6 @@ type GoogleTargetLocation = {
   label: string;
 };
 
-type GoogleTargetLanguage = { resourceName: string; code: string };
-
 function gaqlQuoted(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
@@ -184,31 +182,6 @@ async function resolveGoogleTargetLocations(
   return resolved.map((entry) => entry.matches[0]);
 }
 
-async function resolveGoogleTargetLanguages(
-  userId: string,
-  customerId: string,
-  languages: string[],
-  loginCustomerId?: string,
-): Promise<GoogleTargetLanguage[]> {
-  const labels = [...new Set((languages.length ? languages : ["fr"])
-    .map((value) => String(value || "").trim())
-    .filter(Boolean))].slice(0, 10);
-  const aliases: Record<string, string> = { français: "fr", francais: "fr", french: "fr", anglais: "en", english: "en" };
-  return Promise.all(labels.map(async (label) => {
-    const code = aliases[label.toLocaleLowerCase("fr-FR")] || label;
-    const response = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
-      query: `SELECT language_constant.resource_name, language_constant.code, language_constant.targetable FROM language_constant WHERE language_constant.code = '${gaqlQuoted(code)}' LIMIT 2`,
-    }, loginCustomerId);
-    const matches = (Array.isArray(response.results) ? response.results : [])
-      .map((row) => asRecord(asRecord(row).languageConstant))
-      .filter((entry) => entry.targetable === true && /^languageConstants\/\d+$/.test(String(entry.resourceName || "")));
-    if (matches.length !== 1) {
-      throw new Error(`La langue « ${label} » n’est pas une langue Google Ads ciblable. Utilisez son code, par exemple fr ou en.`);
-    }
-    return { resourceName: String(matches[0].resourceName), code: String(matches[0].code || code) };
-  }));
-}
-
 /**
  * Creates a location-verified Search campaign, then enables its children and
  * finally the campaign. `persistProgress` is optional in the signature for integration
@@ -254,12 +227,8 @@ export async function publishGoogleAdsCampaign(
     draft.targetLocations,
     loginCustomerId,
   );
-  const targetLanguages = await resolveGoogleTargetLanguages(
-    userId,
-    customerId,
-    draft.languages,
-    loginCustomerId,
-  );
+  // Search matches languages from the ad copy and landing page. Google Ads
+  // rejects manual CampaignCriterion.language targeting from September 2026.
   const imageData = draft.imageUrl
     ? options.preparedImageData || await prepareGoogleSearchImageAsset(userId, draft.imageUrl)
     : null;
@@ -303,10 +272,6 @@ export async function publishGoogleAdsCampaign(
     ...targetLocations.map((location) => ({ campaignCriterionOperation: { create: {
       campaign: campaignTemp,
       location: { geoTargetConstant: location.resourceName },
-    } } })),
-    ...targetLanguages.map((language) => ({ campaignCriterionOperation: { create: {
-      campaign: campaignTemp,
-      language: { languageConstant: language.resourceName },
     } } })),
     ...draft.negativeKeywords.map((keyword) => ({ campaignCriterionOperation: { create: {
       campaign: campaignTemp,
@@ -364,7 +329,7 @@ export async function publishGoogleAdsCampaign(
     throw new Error("Google Ads a refusé la création complète de la campagne.");
   }
 
-  const adGroupOffset = 2 + targetLocations.length + targetLanguages.length + draft.negativeKeywords.length;
+  const adGroupOffset = 2 + targetLocations.length + draft.negativeKeywords.length;
   const paused: GoogleAdsPublishProgress = {
     customerId,
     budgetResourceName: resourceNameAt(created, 0, "campaignBudgetResult", `customers/${customerId}/campaignBudgets/`),
@@ -372,10 +337,9 @@ export async function publishGoogleAdsCampaign(
     locationCriterionResourceName: resourceNameAt(created, 2, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`),
     locationCriterionResourceNames: targetLocations.map((_, index) =>
       resourceNameAt(created, 2 + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
-    languageCriterionResourceNames: targetLanguages.map((_, index) =>
-      resourceNameAt(created, 2 + targetLocations.length + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
+    languageCriterionResourceNames: [],
     negativeKeywordCriterionResourceNames: draft.negativeKeywords.map((_, index) =>
-      resourceNameAt(created, 2 + targetLocations.length + targetLanguages.length + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
+      resourceNameAt(created, 2 + targetLocations.length + index, "campaignCriterionResult", `customers/${customerId}/campaignCriteria/`)),
     adGroupResourceName: resourceNameAt(created, adGroupOffset, "adGroupResult", `customers/${customerId}/adGroups/`),
     keywordCriterionResourceNames: draft.keywords.map((_, index) =>
       resourceNameAt(created, adGroupOffset + 1 + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),

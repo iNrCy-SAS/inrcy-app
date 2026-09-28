@@ -188,9 +188,10 @@ test("un conflit d'id miroir déterministe se répare sans notification Google",
   );
   assert.match(
     upsert,
-    /events\/\$\{encodeURIComponent\(mirrorEventId\)\}\?sendUpdates=none/,
+    /events\/\$\{encodeURIComponent\(mirrorEventId\)\}\$\{writeQuery\}/,
   );
-  assert.doesNotMatch(upsert, /sendUpdates=all|attendees|conferenceData|sendTxMail/);
+  assert.match(upsert, /conferenceDataVersion=1&/);
+  assert.doesNotMatch(upsert, /sendUpdates=all|attendees|createRequest|sendTxMail/);
 });
 
 test("les répliques inchangées sont regroupées sans perdre un canonique hors fenêtre", () => {
@@ -419,6 +420,11 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(resendRoute, /deliveryKey/);
   assert.match(resendRoute, /sec-fetch-site/);
   assert.match(route, /inrCalendarSynced/);
+  assert.match(route, /syncInrCalendarAfterMutation\(\s*"reassignment",\s*result\.appointment\.start/);
+  assert.match(route, /visio_team_assignment_not_confirmed/);
+  assert.match(page, /payload\.appointment\.currentMemberId !== target\.id/);
+  assert.match(page, /payload\.inrCalendarSynced === false/);
+  assert.match(page, /void loadAppointments\(false, true\)/);
   assert.doesNotMatch(route, /pastDays:\s*7/);
   assert.match(route, /futureDays:\s*14/);
   assert.match(backend, /visioTeamAgendaWindow\(now, futureDays\)/);
@@ -461,7 +467,7 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(page, /aucun rappel automatique/i);
   assert.match(page, /Aujourd’hui et les 14 prochains jours/);
   assert.match(page, /appointments\?refresh=1/);
-  assert.match(page, /currentMemberId:\s*target\.id/);
+  assert.doesNotMatch(page, /currentMemberId:\s*target\.id/);
   assert.match(page, /appointmentIdentity: appointment\.identity/);
   assert.match(page, /appointmentStart: appointment\.start/);
   assert.match(page, /type="datetime-local"/);

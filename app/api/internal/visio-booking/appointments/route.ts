@@ -87,6 +87,15 @@ function assignmentErrorResponse(error: unknown) {
       { status: 404 },
     );
   }
+  if (code === "visio_team_assignment_not_confirmed") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Google Agenda n’a pas confirmé la nouvelle attribution. Actualisez la liste avant de réessayer.",
+      },
+      { status: 409 },
+    );
+  }
   if (code === "visio_team_assignment_external_organizer") {
     return NextResponse.json(
       {
@@ -106,10 +115,14 @@ function assignmentErrorResponse(error: unknown) {
   );
 }
 
-async function syncInrCalendarAfterMutation(context: string) {
+async function syncInrCalendarAfterMutation(context: string, appointmentStart: string) {
+  // The team screen only edits a single appointment. Re-import its week
+  // immediately instead of scanning a whole year on every attribution.
+  const start = new Date(appointmentStart);
   const sync = await syncVisioSharedCalendarToInrCalendar({
-    pastDays: 30,
-    futureDays: 365,
+    ...(Number.isFinite(start.getTime()) ? { now: start } : {}),
+    pastDays: 1,
+    futureDays: 7,
   }).catch((error: unknown) => {
     console.error(
       `[visio-booking][inrcalendar-sync-after-${context}]`,
@@ -191,7 +204,10 @@ export async function POST(request: Request) {
       targetMemberId,
       actor: authorization.actor,
     });
-    const inrCalendarSync = await syncInrCalendarAfterMutation("reassignment");
+    const inrCalendarSync = await syncInrCalendarAfterMutation(
+      "reassignment",
+      result.appointment.start,
+    );
     return NextResponse.json({
       ok: true,
       ...result,
@@ -236,7 +252,10 @@ export async function PATCH(request: Request) {
       newStartLocal,
       actor: authorization.actor,
     });
-    const inrCalendarSync = await syncInrCalendarAfterMutation("reschedule");
+    const inrCalendarSync = await syncInrCalendarAfterMutation(
+      "reschedule",
+      result.appointment.start,
+    );
     return NextResponse.json({
       ok: true,
       ...result,
@@ -292,7 +311,10 @@ export async function PUT(request: Request) {
       confirmPendingAtCurrentSchedule,
       actor: authorization.actor,
     });
-    const inrCalendarSync = await syncInrCalendarAfterMutation("status");
+    const inrCalendarSync = await syncInrCalendarAfterMutation(
+      "status",
+      result.appointment.start,
+    );
     return NextResponse.json({
       ok: true,
       ...result,

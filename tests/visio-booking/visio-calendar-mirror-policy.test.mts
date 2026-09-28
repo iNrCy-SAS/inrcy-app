@@ -12,9 +12,11 @@ import {
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
   teamCalendarExternalAttendees,
+  teamCalendarEventMeetUrl,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarMirrorSourceKey,
+  teamCalendarNativeMeetUrl,
   teamCalendarReplicaReconciliationDecision,
   type TeamCalendarEvent,
   type TeamCalendarMember,
@@ -188,9 +190,14 @@ test("un transfert conserve les invités externes et retire toutes les adresses 
   );
 });
 
-test("le miroir est interne, sans invité ni nouvelle conférence, et conserve le lien Meet", () => {
+test("le miroir de réservation reprend le Meet natif du rendez-vous sans en créer un autre", () => {
   const body = buildTeamCalendarMirrorBody({
     event: sourceEvent({
+      conferenceData: {
+        entryPoints: [
+          { entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" },
+        ],
+      },
       attendees: [
         { email: member.email, self: true, responseStatus: "accepted" },
         { email: "pro@example.com", displayName: "Le pro", responseStatus: "accepted" },
@@ -213,7 +220,11 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
   assert.match(body.description, /Responsable iNrCy : Apolline/);
   assert.match(body.description, /https:\/\/meet\.google\.com\/abc-defg-hij/);
   assert.equal("attendees" in body, false);
-  assert.equal("conferenceData" in body, false);
+  assert.equal(
+    teamCalendarNativeMeetUrl(body),
+    "https://meet.google.com/abc-defg-hij",
+  );
+  assert.equal("createRequest" in (body.conferenceData || {}), false);
   assert.equal(body.reminders.useDefault, false);
   assert.deepEqual(body.reminders.overrides, []);
   assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
@@ -231,6 +242,89 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
     body.extendedProperties.private[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY],
     JSON.stringify(["pro@example.com"]),
   );
+});
+
+test("un Meet ajouté sur une ancienne copie ne remplace jamais celui envoyé au pro", () => {
+  const mirror = sourceEvent({
+    hangoutLink: "https://meet.google.com/other-room",
+    extendedProperties: {
+      private: {
+        [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+        inrcyBooking: "signup-visio",
+        sourceMeetUrl: "https://meet.google.com/abc-defg-hij",
+      },
+    },
+  });
+  assert.equal(
+    teamCalendarEventMeetUrl(mirror),
+    "https://meet.google.com/abc-defg-hij",
+  );
+  assert.equal(
+    teamCalendarNativeMeetUrl(mirror),
+    "https://meet.google.com/other-room",
+  );
+});
+
+test("une réattribution conserve le Meet source et détecte une ancienne conférence à réparer", () => {
+  const target: TeamCalendarMember = {
+    id: "oceane",
+    name: "Océane",
+    email: "oceane@inrcy.com",
+    calendarId: "public@inrcy.com",
+  };
+  const body = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      organizer: { email: "public@inrcy.com" },
+      conferenceData: {
+        entryPoints: [
+          { entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" },
+        ],
+      },
+      extendedProperties: {
+        private: {
+          inrcyBooking: "signup-visio",
+          bookingNonce: "nonce",
+          assignedMemberId: "oceane",
+        },
+      },
+    }),
+    member: target,
+    sharedCalendarId,
+    mirrorEventId: "tm123",
+    fingerprint: "reassigned",
+  });
+  const staleMirror: TeamCalendarEvent = {
+    ...body,
+    conferenceData: {
+      entryPoints: [
+        { entryPointType: "video", uri: "https://meet.google.com/other-room" },
+      ],
+    },
+  };
+  assert.equal(body.extendedProperties.private.assignedMemberId, "oceane");
+  assert.match(body.description, /Responsable iNrCy : Océane/);
+  assert.equal(teamCalendarNativeMeetUrl(body), "https://meet.google.com/abc-defg-hij");
+  assert.notEqual(
+    teamCalendarMirrorContentSignature(staleMirror),
+    teamCalendarMirrorContentSignature(body),
+  );
+});
+
+test("les autres événements ne reçoivent pas de nouvelle conférence native", () => {
+  const body = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      conferenceData: {
+        entryPoints: [
+          { entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" },
+        ],
+      },
+    }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm-other",
+    fingerprint: "other-fingerprint",
+  });
+  assert.equal("conferenceData" in body, false);
 });
 
 test("un événement privé n'expose pas son titre ni sa description", () => {

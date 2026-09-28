@@ -223,12 +223,20 @@ export function getInrCalendarGoogleEventRange(event: InrCalendarGoogleEvent) {
 }
 
 function eventMeetUrl(event: InrCalendarGoogleEvent) {
+  const properties = event.extendedProperties?.private || {};
+  if (
+    properties.inrcyTeamMirror === "v1" &&
+    properties.inrcyBooking === "signup-visio" &&
+    properties.sourceMeetUrl
+  ) {
+    return cleanString(properties.sourceMeetUrl);
+  }
   return cleanString(
     event.hangoutLink ||
       event.conferenceData?.entryPoints?.find(
         (entry) => entry.entryPointType === "video",
       )?.uri ||
-      event.extendedProperties?.private?.sourceMeetUrl,
+      properties.sourceMeetUrl,
   );
 }
 

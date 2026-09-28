@@ -201,15 +201,30 @@ export function isRecoverableDeterministicTeamCalendarMirror(input: {
     input.mirrorEventId === expectedEventId;
 }
 
-export function teamCalendarEventMeetUrl(event: TeamCalendarEvent) {
+export function teamCalendarNativeMeetUrl(event: TeamCalendarEvent) {
   return String(
     event.hangoutLink ||
       event.conferenceData?.entryPoints?.find(
         (entry) => entry.entryPointType === "video",
       )?.uri ||
-      event.extendedProperties?.private?.sourceMeetUrl ||
       "",
   ).trim();
+}
+
+export function teamCalendarEventMeetUrl(event: TeamCalendarEvent) {
+  const properties = event.extendedProperties?.private || {};
+  // A legacy shared copy may still carry a Meet manually created on that copy.
+  // Until its native conference is repaired, the organizer's Meet is the only
+  // link that was sent to the professional and must win in our own UI.
+  const sourceMeetUrl = String(properties.sourceMeetUrl || "").trim();
+  if (
+    properties[TEAM_CALENDAR_MIRROR_KEY] === TEAM_CALENDAR_MIRROR_VALUE &&
+    properties.inrcyBooking === "signup-visio" &&
+    sourceMeetUrl
+  ) {
+    return sourceMeetUrl;
+  }
+  return teamCalendarNativeMeetUrl(event) || sourceMeetUrl;
 }
 
 export function isTeamCalendarEventDeclined(
@@ -500,6 +515,16 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
     event.visibility === "confidential" ||
     event.eventType === "fromGmail";
   const meetUrl = teamCalendarEventMeetUrl(event);
+  // Google Calendar only shows a native Meet button when the conference data
+  // itself is copied. Never create a second conference for the shared copy.
+  const bookingConferenceData =
+    !isPrivate &&
+    sourcePrivate.inrcyBooking === "signup-visio" &&
+    event.conferenceData?.entryPoints?.some(
+      (entry) => entry.entryPointType === "video" && entry.uri,
+    )
+      ? event.conferenceData
+      : undefined;
   const sourceOrganizerEmail = validEmail(event.organizer?.email);
   const sourceCalendarIsOrganizer = [member.email, member.calendarId]
     .map(normalized)
@@ -537,6 +562,7 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
     transparency: event.transparency || "opaque",
     start: event.start || event.originalStartTime,
     end: event.end || event.originalStartTime,
+    ...(bookingConferenceData ? { conferenceData: bookingConferenceData } : {}),
     reminders: { useDefault: false, overrides: [] },
     extendedProperties: {
       private: {

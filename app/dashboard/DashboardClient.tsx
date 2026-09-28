@@ -323,17 +323,12 @@ export default function DashboardClient({
     profileIncomplete,
     activityIncomplete,
     profileCheckReady,
-    completionCheckReady,
   } = useDashboardCompletionChecks();
   const { dnaScore, aiScore } = useDashboardPreparationScores({
     accountId: completionAccountId ?? initialOfficialChannelStatesUserId,
     edition: dashboardEdition,
   });
   useDashboardSetupAlert({
-    accountId: completionAccountId,
-    completionCheckReady,
-    profileIncomplete,
-    activityIncomplete,
     onOpenChannels: openInitialChannelConnections,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);

@@ -80,6 +80,7 @@ import {
   shouldMirrorTeamCalendarEvent,
   teamCalendarExternalAttendees,
   teamCalendarEventMeetUrl,
+  teamCalendarNativeMeetUrl,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarReplicaReconciliationDecision,
@@ -705,6 +706,7 @@ async function upsertTeamMirrorEvent(input: {
     mirrorEventId,
     fingerprint,
   });
+  const writeQuery = `?${"conferenceData" in body ? "conferenceDataVersion=1&" : ""}sendUpdates=none`;
   if (
     input.existing?.id &&
     input.existing.status !== "cancelled" &&
@@ -717,7 +719,7 @@ async function upsertTeamMirrorEvent(input: {
 
   if (input.existing?.id) {
     await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(input.existing.id)}?sendUpdates=none`,
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(input.existing.id)}${writeQuery}`,
       { method: "PATCH", body: JSON.stringify(body) },
     );
     return "updated" as const;
@@ -725,7 +727,7 @@ async function upsertTeamMirrorEvent(input: {
 
   try {
     await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(sharedCalendarId)}/events?sendUpdates=none`,
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events${writeQuery}`,
       { method: "POST", body: JSON.stringify(body) },
     );
     return "created" as const;
@@ -757,7 +759,7 @@ async function upsertTeamMirrorEvent(input: {
         throw new Error("visio_team_mirror_id_conflict");
       }
       await googleCalendarRequest<GoogleCalendarEvent>(
-        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}?sendUpdates=none`,
+        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}${writeQuery}`,
         { method: "PATCH", body: JSON.stringify(body) },
       );
       return existing.status === "cancelled" ? "created" as const : "updated" as const;
@@ -4203,7 +4205,22 @@ async function createMissingBookingCompanion(input: {
     ) {
       throw new Error("visio_booking_companion_id_conflict");
     }
-    if (existing.status !== "cancelled") return existing;
+    if (existing.status !== "cancelled") {
+      if (
+        !input.publicEvent.conferenceData ||
+        teamCalendarNativeMeetUrl(existing) ===
+          teamCalendarNativeMeetUrl(input.publicEvent)
+      ) {
+        return existing;
+      }
+      return googleCalendarRequest<GoogleCalendarEvent>(
+        `${eventPath}?conferenceDataVersion=1&sendUpdates=none`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ conferenceData: input.publicEvent.conferenceData }),
+        },
+      );
+    }
     const { id: _id, ...writableBody } = body;
     return googleCalendarRequest<GoogleCalendarEvent>(
       `${eventPath}?conferenceDataVersion=1&sendUpdates=none`,
@@ -4359,6 +4376,9 @@ async function reassignAutomaticBooking(input: {
       String(companionEvent.id),
       {
         attendees: [],
+        ...(publicEvent.conferenceData
+          ? { conferenceData: publicEvent.conferenceData }
+          : {}),
         extendedProperties: {
           private: {
             ...(companionEvent.extendedProperties?.private || {}),
@@ -4733,13 +4753,22 @@ async function rescheduleAutomaticBooking(input: {
           eventOrganizerMatchesMember(match.event, match.member),
       );
   const scheduledPublicEvent = eventWithSchedule(publicEvent, schedule);
-  const mirrorNeedsSync = !teamCalendarSchedulesMatch(
-    input.mirror,
-    scheduledPublicEvent,
-  );
+  const sourceMeetUrl = teamCalendarNativeMeetUrl(publicEvent);
+  const mirrorNeedsSync =
+    !teamCalendarSchedulesMatch(input.mirror, scheduledPublicEvent) ||
+    Boolean(
+      publicEvent.conferenceData &&
+        sourceMeetUrl &&
+        teamCalendarNativeMeetUrl(input.mirror) !== sourceMeetUrl,
+    );
   const companionsNeedSync = companions.some(
     (companion) =>
-      !teamCalendarSchedulesMatch(companion.event, scheduledPublicEvent),
+      !teamCalendarSchedulesMatch(companion.event, scheduledPublicEvent) ||
+      Boolean(
+        publicEvent.conferenceData &&
+          sourceMeetUrl &&
+          teamCalendarNativeMeetUrl(companion.event) !== sourceMeetUrl,
+      ),
   );
   // When the organizer itself was moved, `schedule.changed` is false. The
   // shared and assigned copies must still be brought to the same slot.
@@ -4750,16 +4779,26 @@ async function rescheduleAutomaticBooking(input: {
   let stagedMirror: GoogleCalendarEvent | null = null;
   try {
     for (const companion of companions) {
-      if (
-        !companion.event.id ||
-        teamCalendarSchedulesMatch(companion.event, scheduledPublicEvent)
-      ) {
-        continue;
-      }
+      if (!companion.event.id) continue;
+      const scheduleMismatch = !teamCalendarSchedulesMatch(
+        companion.event,
+        scheduledPublicEvent,
+      );
+      const meetMismatch = Boolean(
+        publicEvent.conferenceData &&
+          sourceMeetUrl &&
+          teamCalendarNativeMeetUrl(companion.event) !== sourceMeetUrl,
+      );
+      if (!scheduleMismatch && !meetMismatch) continue;
       await patchCalendarEventWithoutUpdates(
         companion.member.calendarId,
         companion.event.id,
-        { start: schedule.start, end: schedule.end },
+        {
+          ...(scheduleMismatch ? { start: schedule.start, end: schedule.end } : {}),
+          ...(meetMismatch
+            ? { conferenceData: publicEvent.conferenceData }
+            : {}),
+        },
       );
     }
 
@@ -5318,6 +5357,9 @@ export async function reassignVisioTeamAppointment(input: {
         : await reassignCalendarAppointment({ mirror, targetMember });
       const appointment = teamAppointmentFromMirror(updatedMirror);
       if (!appointment) throw new Error("visio_team_assignment_mirror_missing");
+      if (appointment.currentMemberId !== targetMember.id) {
+        throw new Error("visio_team_assignment_not_confirmed");
+      }
 
       await recordVisioTeamReassignment({
         actor: input.actor,
