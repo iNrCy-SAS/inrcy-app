@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { GoogleAdsApiError, googleAdsApiErrorMessage } from "@/lib/adsGoogleApiError";
 import { ADMIN_USER_IDS, isAdminRole } from "@/lib/roles";
 import type { AdsAccount, AdsProvider } from "@/lib/adsValidation";
 
@@ -155,10 +156,13 @@ export async function accessTokenForAds(userId: string, provider: AdsProvider): 
   return refreshed.access_token;
 }
 
-async function externalJson(url: string, init: RequestInit): Promise<Record<string, unknown>> {
+async function externalJson(url: string, init: RequestInit, provider?: AdsProvider): Promise<Record<string, unknown>> {
   const response = await fetch(url, { ...init, cache: "no-store" });
   const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
+    if (provider === "google") {
+      throw new GoogleAdsApiError(googleAdsApiErrorMessage(payload, response.statusText || "Erreur Google Ads"), response.status);
+    }
     const nested = payload.error && typeof payload.error === "object" ? payload.error as Record<string, unknown> : {};
     const message = String(nested.message || payload.message || response.statusText || "Erreur de la plateforme publicitaire");
     throw new Error(message.slice(0, 300));
@@ -188,7 +192,7 @@ export async function googleAdsJson(userId: string, path: string, body?: Record<
       ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }, "google");
 }
 
 export async function listAdsAccounts(userId: string, provider: AdsProvider): Promise<AdsAccount[]> {

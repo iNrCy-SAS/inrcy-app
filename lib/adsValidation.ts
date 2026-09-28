@@ -403,9 +403,6 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (headlines.length < 3 || descriptions.length < 2 || keywords.length < 1) {
       return { draft: null, error: "Google Search requiert 3 titres, 2 descriptions et au moins un mot-clé." };
     }
-    if (creationMode === "inrcy" && campaignType === "search" && !imageUrl) {
-      return { draft: null, error: "La campagne Google Search préparée avec iNrCy attend son image complémentaire. Ajoutez une image dans l’étape Médias avant de publier." };
-    }
     if (!notEuPoliticalConfirmed) {
       return { draft: null, error: "Confirmez que la campagne Google ne contient pas de publicité politique ciblant l’Union européenne." };
     }

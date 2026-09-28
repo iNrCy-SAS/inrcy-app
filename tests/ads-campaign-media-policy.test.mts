@@ -12,7 +12,7 @@ import {
 
 test("l’analyse génère seulement un média compatible avec le format", () => {
   const search = { provider: "google", campaignType: "search", mediaStrategy: "search_text" } as const;
-  assert.equal(shouldGenerateAdsMedia(search), true);
+  assert.equal(shouldGenerateAdsMedia(search), false);
   assert.equal(adsMediaKindForPlan({ ...search, creativeType: "image" }), "image");
   assert.equal(adsMediaStrategyAfterAttachment(search, "image"), "search_text");
   assert.equal(shouldGenerateAdsMedia({ provider: "google", campaignType: "shopping", mediaStrategy: "product_feed" }), false);
@@ -21,45 +21,30 @@ test("l’analyse génère seulement un média compatible avec le format", () =>
   assert.equal(adsMediaKindForPlan({ provider: "tiktok", campaignType: "generic", mediaStrategy: "video", creativeType: "video" }), "video");
 });
 
-test("Google Search joint réellement l’image, sans se limiter au texte de l’interface", () => {
+test("Google Search crée la campagne en pause sans liaison d’image rejetée par Google", () => {
   const publisher = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
-  const image = readFileSync(new URL("../lib/adsGoogleImageAsset.ts", import.meta.url), "utf8");
-  assert.match(publisher, /assetOperation: \{ create:/);
-  assert.match(publisher, /imageAsset: \{ data: imageData \}/);
-  assert.match(publisher, /campaignAssetOperation: \{ create:/);
-  assert.match(publisher, /fieldType: "AD_IMAGE"/);
-  assert.match(publisher, /campaignImageAssetResourceName:/);
-  assert.match(route, /prepareGoogleSearchImageAsset\(user\.activeUserId, draft\.imageUrl\)/);
-  assert.ok(route.indexOf("prepareGoogleSearchImageAsset(user.activeUserId, draft.imageUrl)") < route.indexOf('supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish"'));
-  assert.match(image, /verifyMediaLibraryContentToken/);
-  assert.match(image, /\.eq\("user_id", userId\)/);
-  assert.match(image, /\.storage\.from\(bucket\)\.download\(path\)/);
-  assert.doesNotMatch(image, /fetch\(imageUrl/);
+  assert.match(publisher, /advertisingChannelType: "SEARCH"/);
+  assert.match(publisher, /responsiveSearchAd:/);
+  assert.match(publisher, /partialFailure: false/);
+  assert.doesNotMatch(publisher, /campaignAssetOperation|adGroupAssetOperation|fieldType: "AD_IMAGE"/);
+  assert.doesNotMatch(route, /prepareGoogleSearchImageAsset/);
+  assert.match(route, /rejectedBeforeCreate \? "draft" : "needs_review"/);
 });
 
 test("l’UI ne promet pas de média pour les formats sans média et signale l’échec", () => {
   const generator = readFileSync(new URL("../app/dashboard/ads/AdsCampaignAutoMediaGenerator.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
-  const modal = readFileSync(new URL("../app/dashboard/_components/MediaGeneratorModal.tsx", import.meta.url), "utf8");
-  const freeGenerator = readFileSync(new URL("../app/dashboard/_components/MediaFreeGenerator.tsx", import.meta.url), "utf8");
   assert.match(generator, /shouldGenerateAdsMedia/);
   assert.match(generator, /aucun média n’a été généré/);
-  assert.match(generator, /logoMode: googleSearchImage \? "none"/);
-  assert.match(generator, /googleSearchImagePrompt\(plan\)/);
   assert.match(client, /iNr’Studio n’a pas pu créer le média/);
-  assert.match(client, /La campagne assistée Google Search attend l’image complémentaire/);
-  assert.match(client, /imageUrl: plan\.imageUrl,/);
-  assert.match(client, /creativeUrl: plan\.creativeUrl,/);
-  assert.match(client, /imageOnly=\{googleSearchMedia\}/);
-  assert.match(client, /freeOnly=\{googleSearchMedia\}/);
-  assert.match(client, /fixedFreeFormat=\{googleSearchMedia \? "square"/);
-  assert.match(modal, /imageOnly && mediaType === "video"/);
-  assert.match(freeGenerator, /freePrompt: effectivePrompt/);
-  assert.match(freeGenerator, /format: fixedFormat \|\| format/);
+  assert.match(client, /const hasMediaStep = !\(channelId === "google" && draft\.campaignType === "search"\)/);
+  assert.match(client, /\.\.\.\(hasMediaStep \? \["Médias"\] : \[\]\)/);
+  assert.match(client, /\{hasMediaStep && <section hidden=\{step !== mediaStep\}/);
+  assert.match(client, /mediaBrief: plan\.mediaBrief,/);
 });
 
-test("l’étape Médias montre le visuel associé et la validation distingue l’image Google Search", () => {
+test("les campagnes visuelles gardent leur aperçu et Google Search n’annonce pas d’image publiée", () => {
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
   assert.match(client, /const attachedCampaignMediaUrl = googleSearchMedia \? draft\.imageUrl : draft\.creativeUrl \|\| draft\.imageUrl/);
@@ -69,7 +54,8 @@ test("l’étape Médias montre le visuel associé et la validation distingue l�
   assert.match(client, /<video src=\{url\}/);
   assert.match(client, /onError=\{\(\) => setFailed\(true\)\}/);
   assert.match(client, /Aperçu du média indisponible/);
-  assert.match(client, /googleSearchMedia && draft\.imageUrl \? " \+ image complémentaire"/);
+  assert.match(client, /googleSearchMedia \? "Annonces textuelles"/);
+  assert.match(client, /Image conservée dans iNrCy, non jointe à Google/);
   assert.match(css, /\.campaignMediaPreview\{[^}]*height:clamp\(/);
 });
 
@@ -95,6 +81,6 @@ test("le brief Google Search garde les règles visuelles et la pertinence commer
   assert.match(prompt, /contraintes priment sur toute direction visuelle contradictoire/);
   assert.ok(prompt.length <= 1_800);
   assert.match(planRoute, /Pour Google Search : garde mediaStrategy="search_text" et creativeType="image"/);
-  assert.match(planRoute, /l’offre réelle, aux recherches et à la page de destination/);
-  assert.match(planRoute, /Laisse imageUrl et creativeUrl vides/);
+  assert.match(planRoute, /Ne promets pas de composant image/);
+  assert.match(planRoute, /Laisse mediaBrief, imageUrl et creativeUrl vides/);
 });

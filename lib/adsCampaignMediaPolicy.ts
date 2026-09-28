@@ -39,10 +39,12 @@ export function googleSearchImagePrompt(context: GoogleSearchImageContext): stri
   return [GOOGLE_SEARCH_IMAGE_REQUIREMENTS, googleSearchImageSubjectPrompt(context).slice(0, subjectLimit), reminder].join(" ");
 }
 
-/** Google Search can use a campaign-level image asset alongside its text ad. */
+/** The current Search publisher creates responsive text ads only. Google Ads
+ * rejects AD_IMAGE links for this account, so do not spend a Studio credit on
+ * an image that the publisher cannot attach to the campaign. */
 export function shouldGenerateAdsMedia(plan: PlannedMedia): boolean {
   if (plan.mediaStrategy === "product_feed") return false;
-  if (plan.provider === "google" && plan.campaignType === "search") return true;
+  if (plan.provider === "google" && plan.campaignType === "search") return false;
   return plan.mediaStrategy !== "search_text";
 }
 

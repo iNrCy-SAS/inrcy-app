@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
 import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, resolveGoogleTargetLocations, type GoogleTargetLocation } from "@/lib/adsGooglePublish";
-import { prepareGoogleSearchImageAsset } from "@/lib/adsGoogleImageAsset";
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
+import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -55,7 +55,6 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   let googleLoginCustomerId: string | undefined;
-  let preparedGoogleImageData: string | undefined;
   let preparedGoogleTargetLocations: GoogleTargetLocation[] | undefined;
   try {
     const connection = await readAdsIntegration(user.activeUserId, draft.provider);
@@ -80,10 +79,6 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!pages.some((page) => page.id === draft.pageId)) {
         return NextResponse.json({ error: "La Page Facebook sélectionnée n’est plus accessible." }, { status: 403 });
       }
-    } else if (draft.imageUrl) {
-      // Check ownership, file integrity and Google's image size before the
-      // draft is claimed; a bad image must not become a stuck needs_review.
-      preparedGoogleImageData = await prepareGoogleSearchImageAsset(user.activeUserId, draft.imageUrl);
     }
   } catch (error) {
     if (error instanceof GoogleAdsLocationResolutionError) {
@@ -121,7 +116,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const resources = draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, { activate: !pausedDemo })
-      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedImageData: preparedGoogleImageData, preparedTargetLocations: preparedGoogleTargetLocations });
+      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;
@@ -140,12 +135,17 @@ export async function POST(request: Request, { params }: RouteContext) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
     const resources = error instanceof MetaAdsPublishError ? error.progress : progress;
+    // A Google 400 on the first atomic mutate cannot leave provider objects
+    // behind. Return the local row to draft so the precise validation error can
+    // be fixed and retried without stranding it in needs_review.
+    const rejectedBeforeCreate = draft.provider === "google" && error instanceof GoogleAdsApiError
+      && error.status === 400 && Object.keys(resources).length === 0;
     await supabaseAdmin.from("ads_campaigns").update({
-      status: "needs_review",
+      status: rejectedBeforeCreate ? "draft" : "needs_review",
       provider_resources: resources,
       last_error: message.slice(0, 1000),
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
-    return NextResponse.json({ error: `${message} Vérifiez la campagne directement sur ${draft.provider === "meta" ? "Meta Ads Manager" : "Google Ads"} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: 502 });
+    return NextResponse.json({ error: rejectedBeforeCreate ? `${message} Le brouillon iNrCy peut être corrigé puis renvoyé.` : `${message} Vérifiez la campagne directement sur ${draft.provider === "meta" ? "Meta Ads Manager" : "Google Ads"} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: rejectedBeforeCreate ? 422 : 502 });
   }
 }

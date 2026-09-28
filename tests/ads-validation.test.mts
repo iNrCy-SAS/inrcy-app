@@ -39,8 +39,8 @@ test("iNr’ADS valide les brouillons Meta et Google sans jamais arrondir le bud
   assert.equal(parseAdsCampaignInput({ ...metaDraft, dailyBudgetEuros: 12.555 }).draft, null);
 });
 
-test("la publication Google assistée exige l’image promise, pas la création manuelle textuelle", () => {
-  assert.match(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy", imageUrl: "" }).error || "", /image complémentaire/);
+test("la publication Google Search reste textuelle avec ou sans image locale", () => {
+  assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy", imageUrl: "" }).error, null);
   assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "manual", imageUrl: "" }).error, null);
   assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy" }).error, null);
 });
