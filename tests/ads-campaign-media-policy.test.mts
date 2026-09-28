@@ -59,6 +59,20 @@ test("l’UI ne promet pas de média pour les formats sans média et signale l�
   assert.match(freeGenerator, /format: fixedFormat \|\| format/);
 });
 
+test("l’étape Médias montre le visuel associé et la validation distingue l’image Google Search", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
+  assert.match(client, /const attachedCampaignMediaUrl = googleSearchMedia \? draft\.imageUrl : draft\.creativeUrl \|\| draft\.imageUrl/);
+  assert.match(client, /<CampaignMediaPreview key=\{/);
+  assert.match(client, /<Image src=\{url\}/);
+  assert.match(client, /fill unoptimized sizes=/);
+  assert.match(client, /<video src=\{url\}/);
+  assert.match(client, /onError=\{\(\) => setFailed\(true\)\}/);
+  assert.match(client, /Aperçu du média indisponible/);
+  assert.match(client, /googleSearchMedia && draft\.imageUrl \? " \+ image complémentaire"/);
+  assert.match(css, /\.campaignMediaPreview\{[^}]*height:clamp\(/);
+});
+
 test("le brief Google Search garde les règles visuelles et la pertinence commerciale", () => {
   const planRoute = readFileSync(new URL("../app/api/ads/plan/route.ts", import.meta.url), "utf8");
   const context = {

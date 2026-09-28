@@ -15,6 +15,14 @@ test("seuls les brouillons sans ressource fournisseur peuvent changer localement
   assert.equal(canMutateAdsDraft({ ...draft, provider_resources: null }), false);
 });
 
+test("la création d'un brouillon ne transmet pas d'identifiant nul", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/ads/campaigns/route.ts", import.meta.url), "utf8");
+  assert.equal((client.match(/\.\.\.\(savedId \? \{ id: savedId \} : \{\}\)/g) || []).length, 2);
+  assert.match(route, /requestedId != null/);
+  assert.match(route, /typeof requestedId === "string"/);
+});
+
 test("une prolongation exige une date réelle et postérieure dans la fenêtre du studio", () => {
   const now = new Date("2026-09-26T10:00:00.000Z");
   assert.equal(validateDraftExtension("2026-10-01", "2026-10-15", now), null);

@@ -49,6 +49,7 @@ import {
 import AdsConnectionSettings from "./AdsConnectionSettings";
 import AdsCampaignAutoMediaGenerator from "./AdsCampaignAutoMediaGenerator";
 import AdsCampaignAnalysisChoice, { type AdsCampaignAnalysisMode } from "./AdsCampaignAnalysisChoice";
+import AdsCampaignDemoDialog, { type AdsCampaignDemoDialogDetails } from "./AdsCampaignDemoDialog";
 import type { StoredAdsCampaign } from "./AdsCampaignTracking";
 import styles from "./ads.module.css";
 
@@ -58,6 +59,7 @@ type AdsConfigAction = "disconnect" | "save-account" | "clear-account" | "save-p
 type CampaignCreationPath = "choice" | AdsCreationMode;
 type CampaignBusyAction = "save" | "plan" | "publish" | "demo" | null;
 type CampaignMediaUploadKind = "image" | "video";
+type DemoDialogState = { mode: "confirm" | "success"; details: AdsCampaignDemoDialogDetails; channelId: AdsProvider; pageId: string };
 
 type AccountResponse = {
   connected: boolean;
@@ -667,6 +669,34 @@ function StudioStepHeader({
   );
 }
 
+function CampaignMediaPreview({
+  url,
+  type,
+  campaignName,
+  onChooseMedia,
+}: {
+  url: string;
+  type: "image" | "video";
+  campaignName: string;
+  onChooseMedia: () => void;
+}) {
+  const previewable = (url.startsWith("/") && !url.startsWith("//")) || /^https:\/\//i.test(url);
+  const [failed, setFailed] = useState(!previewable);
+
+  return <div className={styles.campaignMediaPreview} data-type={type}>
+    {failed ? <div className={styles.campaignMediaPreviewFallback} role="status">
+      <strong>Aperçu du média indisponible</strong>
+      <p>Vérifiez son lien ou choisissez un autre média dans votre médiathèque.</p>
+      <div>
+        {previewable && <button type="button" onClick={() => setFailed(false)}>Réessayer</button>}
+        <button type="button" onClick={onChooseMedia}>Choisir un autre média</button>
+      </div>
+    </div> : type === "video"
+      ? <video src={url} aria-label="Aperçu de la vidéo associée à la campagne" onError={() => setFailed(true)} controls playsInline preload="metadata" />
+      : <Image src={url} alt={`Aperçu de l’image associée à la campagne ${campaignName}`} onError={() => setFailed(true)} fill unoptimized sizes="(max-width: 800px) 100vw, 70vw" className={styles.campaignMediaPreviewImage} />}
+  </div>;
+}
+
 function campaignPromise(channel: AdsChannelId) {
   if (channel === "google") {
     return "Quand une personne recherche précisément votre service, une campagne Google Ads bien pensée vous place au bon moment, devant la bonne intention.";
@@ -721,6 +751,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const externalStatusRequests = useRef<Record<ExternalChannelId, number>>({ linkedin: 0, pinterest: 0, tiktok: 0, x: 0 });
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
   const demoSubmissionRef = useRef(false);
+  const launchButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [demoDialog, setDemoDialog] = useState<DemoDialogState | null>(null);
   const [confirmedSpend, setConfirmedSpend] = useState(false);
   const [confirmedDestinationUrl, setConfirmedDestinationUrl] = useState("");
   const [configuring, setConfiguring] = useState(initialConnection !== null);
@@ -1532,6 +1564,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   function closeCampaignCreation() {
     stopPlanProgress();
+    setDemoDialog(null);
     setPlanSources([]);
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
@@ -1548,7 +1581,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     try {
       const result = await readJson(await fetch("/api/ads/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...draft, provider: channelId, id: savedId }),
+        body: JSON.stringify({ ...draft, provider: channelId, ...(savedId ? { id: savedId } : {}) }),
       }));
       const campaign = result.campaign as { id: string };
       setSavedId(campaign.id);
@@ -1615,7 +1648,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
 
   async function createPausedDemo() {
-    if (!isAdsProvider(channelId) || !demoPausedPublishingEnabled || busy !== null || demoSubmissionRef.current) return;
+    if (!isAdsProvider(channelId) || !demoPausedPublishingEnabled || busy !== null || demoSubmissionRef.current || demoDialog) return;
     const connectorIssue = unsupportedAdsConnectorReason(draft);
     if (connectorIssue) {
       setNotice(connectorIssue);
@@ -1682,19 +1715,36 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         throw new Error("Pour la démo Meta, associez d’abord un compte Instagram professionnel à la Page sélectionnée.");
       }
       setConfiguredAccountLabel(String(connection.selectedAccountLabel || account.name));
-      const accepted = window.confirm(`Créer « ${draft.name} » en pause sur ${channelMeta.label} ?\nCompte associé : ${account.name} (${accountId})\n\nLa campagne sera enregistrée automatiquement dans iNrCy puis créée sur la plateforme en pause, sans activation ni dépense. Vérifiez son état dans le compte publicitaire après la création.`);
-      if (!accepted) return;
+      setDemoDialog({
+        mode: "confirm",
+        channelId,
+        pageId,
+        details: { campaignName: draft.name, channelLabel: channelMeta.label, accountName: account.name, accountId },
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Le compte annonceur n’a pas pu être vérifié. Réessayez avant de créer la démo.");
+    } finally { demoSubmissionRef.current = false; setBusy(null); }
+  }
 
+  async function confirmPausedDemo() {
+    const confirmation = demoDialog;
+    if (!confirmation || confirmation.mode !== "confirm" || busy !== null || demoSubmissionRef.current) return;
+    demoSubmissionRef.current = true;
+    setBusy("demo"); setNotice("");
+    try {
+      if (confirmation.channelId !== channelId || !creating || step !== validationStep) {
+        throw new Error("Le parcours de la campagne a changé. Revenez à la validation et réessayez.");
+      }
       const campaignDraft: AdsCampaignInput = {
         ...draft,
-        provider: channelId,
-        adAccountId: accountId,
+        provider: confirmation.channelId,
+        adAccountId: confirmation.details.accountId,
         accountCurrency: "EUR",
-        pageId: channelId === "meta" ? pageId : draft.pageId,
+        pageId: confirmation.channelId === "meta" ? confirmation.pageId : draft.pageId,
       };
       const saved = await readJson(await fetch("/api/ads/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...campaignDraft, id: savedId }),
+        body: JSON.stringify({ ...campaignDraft, ...(savedId ? { id: savedId } : {}) }),
       }));
       const campaignId = String((saved.campaign as { id?: string } | undefined)?.id || "");
       if (!campaignId) throw new Error("Le brouillon n’a pas pu être confirmé. Aucune campagne Google Ads n’a été créée.");
@@ -1702,15 +1752,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setSavedId(campaignId);
       setDirty(false);
 
-      await readJson(await fetch(`/api/ads/campaigns/${campaignId}/publish`, {
+      const published = await readJson(await fetch(`/api/ads/campaigns/${campaignId}/publish`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "demo_paused", confirmation: ADS_PAUSED_DEMO_CONFIRMATION }),
       }));
-      setNotice(`Campagne créée en pause sur ${channelMeta.label}, compte ${account.name}. Aucune diffusion n’est lancée.`);
+      if ((published.campaign as { status?: string } | undefined)?.status !== "demo_paused") {
+        throw new Error("La création sur la plateforme n’a pas pu être confirmée. Vérifiez son statut avant toute nouvelle tentative.");
+      }
+      setDemoDialog({ ...confirmation, mode: "success" });
       setConfirmedSpend(false);
-      setCreating(false);
-      router.push("/dashboard/mails?folder=campagnes-ads");
     } catch (error) {
+      setDemoDialog(null);
       setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être confirmée. Vérifiez son statut sur la plateforme avant de réessayer.");
     } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
@@ -1783,6 +1835,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     : null;
   const nativeMediaStrategy = nativeSettings ? nativeWizardMediaStrategy(nativeSettings) : null;
   const googleSearchMedia = channelId === "google" && draft.campaignType === "search";
+  const attachedCampaignMediaUrl = googleSearchMedia ? draft.imageUrl : draft.creativeUrl || draft.imageUrl;
   const nativeMediaUpload = nativeMediaStrategy === "image" || nativeMediaStrategy === "video";
   const mediaStrategyOptions = channelId === "meta"
     ? MEDIA_STRATEGY_OPTIONS.filter((option) => option.value === "image" || option.value === "video" || option.value === "mixed")
@@ -1906,10 +1959,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </section>
 
       <div className={styles.launchArea}>
-        <button type="button" onClick={startNewCampaign} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> Lancer une campagne <span aria-hidden="true">↗</span></button>
+        <button ref={launchButtonRef} type="button" onClick={startNewCampaign} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> Lancer une campagne <span aria-hidden="true">↗</span></button>
       </div>
 
-      <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={closeCampaignCreation} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
+      <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") closeCampaignCreation(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
       <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; if (dx < 0 && current === deliveryStep && !destinationReview.canContinue) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && name}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
@@ -2064,7 +2117,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {nativeMediaStrategy !== "search_text" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
         </div>
         {(nativeSettings === null || nativeMediaUpload) && <div className={styles.campaignMediaWorkspace}>
-          <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{draft.creativeUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{draft.creativeUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
+          <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{attachedCampaignMediaUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
           <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
             {nativeMediaStrategy !== "video" && <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>}
             {nativeMediaStrategy !== "image" && !googleSearchMedia && <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>}
@@ -2072,7 +2125,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
           </div>
           {googleSearchMedia && <p className={styles.campaignMediaFormatHint}>Google Search affiche d’abord une annonce textuelle. L’image carrée de votre médiathèque iNrCy sera jointe comme composant de campagne à la publication ; son affichage dépend de l’éligibilité du compte et de la validation par Google. Dans iNr’Studio, choisissez le format image, sans texte ni logo incrusté.</p>}
-          {draft.creativeUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>Média associé à la campagne</strong><small>{draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.</small></div><a href={draft.creativeUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
+          {attachedCampaignMediaUrl && <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} />}
+          {attachedCampaignMediaUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>Média associé à la campagne</strong><small>{draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.</small></div><a href={attachedCampaignMediaUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
           <input ref={campaignImageInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "image")} />
           <input ref={campaignVideoInputRef} type="file" accept="video/*" hidden onChange={(event) => void handleCampaignMediaUpload(event, "video")} />
@@ -2136,7 +2190,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <div><dt>Objectif mesuré</dt><dd>{CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{draft.targetLocations.length ? `${draft.targetLocations.length} zone${draft.targetLocations.length > 1 ? "s" : ""} ciblée${draft.targetLocations.length > 1 ? "s" : ""}` : "Zones à préciser"}</small></div>
           <div><dt>Investissement</dt><dd>{draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour</dd><small>Fin prévue : {draft.endDate || "à préciser"}</small></div>
           <div><dt>Redirection</dt><dd>{draft.destinationUrl || "À renseigner"}</dd><small>{draft.keywords.length ? `${draft.keywords.length} signaux / mots-clés préparés` : "Mots-clés ou audiences à compléter"}</small></div>
-          <div><dt>Médias &amp; message</dt><dd>{MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{draft.callToAction || "Appel à l’action à définir"}</small></div>
+          <div><dt>Médias &amp; message</dt><dd>{MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}{googleSearchMedia && draft.imageUrl ? " + image complémentaire" : ""}</dd><small>{draft.callToAction || "Appel à l’action à définir"}</small></div>
           <div><dt>Conversion &amp; suivi</dt><dd>{CONVERSION_LOCATION_OPTIONS.find((option) => option.value === draft.conversionLocation)?.label}</dd><small>{draft.trackingParameters || "Aucune balise de suivi ajoutée"}</small></div>
           <div><dt>Diffusion avancée</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? `${draft.metaPlacements.length} placement${draft.metaPlacements.length > 1 ? "s" : ""}` : "Placements à choisir") : channelId === "google" ? "Langue déduite des annonces et du site" : nativeSettings?.channel === "linkedin" ? nativeBriefTerm(nativeSettings.targetingFacet) : nativeSettings?.channel === "tiktok" ? nativeBriefTerm(nativeSettings.placementIntent) : nativeSettings?.channel === "pinterest" || nativeSettings?.channel === "x" ? nativeBriefTerm(nativeSettings.targetingMode) : "Préparation complète"}</dd><small>{channelId === "meta" ? (draft.metaAudienceExpansion ? "Expansion d’audience autorisée" : "Audience strictement contrôlée") : channelId === "google" ? (draft.googleSearchPartners ? "Partenaires de recherche inclus" : "Réseau Google principal") : nativeSettings?.channel === "tiktok" ? `Destination : ${nativeBriefTerm(nativeSettings.destinationKind)} · Optimisation : ${nativeBriefTerm(nativeSettings.optimizationIntent)}` : nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent ? `Événement : ${nativeBriefTerm(nativeSettings.conversionEvent)}` : "Choix à vérifier sur la plateforme"}</small></div>
         </dl>
@@ -2152,11 +2206,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         </details>}
         {!isAdsProvider(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>Vous pouvez connecter et associer votre compte {channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce format à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Vos placements sont bien préparés</strong>La première diffusion Trafic Meta disponible utilise les fils Facebook et Instagram ensemble. Stories, Reels et Messenger restent enregistrés dans votre brouillon pour le connecteur dédié.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement une image. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>Ajoutez votre image avant la diffusion</strong>{googleSearchMedia ? "La campagne assistée Google Search attend l’image complémentaire promise par l’analyse. Générez-la ou choisissez-la dans la médiathèque iNrCy." : "Le connecteur Trafic Meta actuellement disponible utilise un visuel image. Vous pouvez en générer un avec iNr’Studio, en importer un ou le choisir dans la médiathèque."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}</p>}
-          {!connectorConfigurationIssue && demoPausedPublishingEnabled && <p className={styles.warning}><strong>Démo en pause</strong>Cette action crée les éléments chez {channelMeta.label} en pause, sans demander leur activation. Vérifiez leur état dans le compte publicitaire après la création.</p>}
-          {!connectorConfigurationIssue && !livePublishingEnabled && <p className={styles.warning}><strong>Publication bientôt disponible</strong>Vous pouvez préparer et enregistrer la campagne. La diffusion réelle n’est pas encore activée.</p>}
         </>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
-          {isAdsProvider(channelId) && demoPausedPublishingEnabled && <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.primaryButton} disabled={busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? "Création de la démo…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
+          {isAdsProvider(channelId) && demoPausedPublishingEnabled && <button type="button" className={channelId === "google" ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.primaryButton} disabled={busy !== null} onClick={() => void createPausedDemo()}>{busy === "demo" ? demoDialog ? "Création de la démo…" : "Vérification du compte…" : "Créer une démo en pause"} <span aria-hidden="true">↗</span></button>}
           <button type="button" className={channelId === "google" && !demoPausedPublishingEnabled ? `${styles.primaryButton} ${styles.studioDemoCampaignButton}` : styles.secondaryButton} disabled={busy !== null} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : savedId && dirty ? "Mettre à jour le brouillon iNrCy" : savedId ? "Brouillon iNrCy enregistré" : "Garder en brouillon iNrCy"}</button>
         </div>
         {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
@@ -2164,6 +2216,19 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
       </div>
       </SettingsDrawer>
+
+    {demoDialog && <AdsCampaignDemoDialog
+      mode={demoDialog.mode}
+      details={demoDialog.details}
+      busy={busy === "demo"}
+      onCancel={() => setDemoDialog(null)}
+      onConfirm={() => void confirmPausedDemo()}
+      onReturnHome={() => {
+        setNotice(`Campagne « ${demoDialog.details.campaignName} » créée en pause sur ${demoDialog.details.channelLabel}. Aucune diffusion n’est lancée.`);
+        closeCampaignCreation();
+        requestAnimationFrame(() => launchButtonRef.current?.focus());
+      }}
+    />}
 
     </div>
     <AdsConnectionSettings

@@ -68,7 +68,9 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     };
     const requestedId = body?.id;
-    if (requestedId !== undefined && (typeof requestedId !== "string" || !ADS_CAMPAIGN_ID_PATTERN.test(requestedId))) {
+    // A new campaign may come from an older client that serializes its
+    // not-yet-created id as null. Only a supplied, non-null id means update.
+    if (requestedId != null && (typeof requestedId !== "string" || !ADS_CAMPAIGN_ID_PATTERN.test(requestedId))) {
       return NextResponse.json({ error: "Identifiant de brouillon invalide." }, { status: 400 });
     }
     if (typeof requestedId === "string") {
