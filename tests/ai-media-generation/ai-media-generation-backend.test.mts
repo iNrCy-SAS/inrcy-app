@@ -730,7 +730,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v24-structured-studio-contracts"/
+    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v25-rotating-synthetic-casting"/
   );
   assert.match(source, /CONTRAT GÉNÉRER IMAGE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);

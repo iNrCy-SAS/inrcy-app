@@ -3,7 +3,7 @@ import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 
 export const AI_MEDIA_PROMPT_VERSION =
-  "inrcy-media-v24-structured-studio-contracts";
+  "inrcy-media-v25-rotating-synthetic-casting";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 export type AiMediaPromptRecentPublication = {
@@ -17,6 +17,8 @@ export type AiMediaPromptBuilderArgs = {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
   recentPublications?: readonly AiMediaPromptRecentPublication[];
+  /** Rotating synthetic-person direction; never applies to required identities. */
+  castingDirection?: string;
   brandColors?: readonly string[];
   hasLogo?: boolean;
   /** Le texte, le téléphone et le logo exacts seront posés localement. */

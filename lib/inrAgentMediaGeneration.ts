@@ -157,6 +157,7 @@ export async function generateInrAgentMedia(args: {
         model: generated.model,
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
+        casting_variant_key: generated.castingVariantKey,
         studio_media_preference_percent: mediaMix.studioMediaPreferencePercent,
         studio_media_preference_mode: mediaMix.mode,
         studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,

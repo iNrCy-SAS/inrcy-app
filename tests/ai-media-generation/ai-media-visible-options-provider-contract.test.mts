@@ -122,6 +122,7 @@ function buildImagePrompt(
     deferVisibleElementsToComposer?: boolean;
     hasLogo?: boolean;
     brandColors?: string[];
+    castingDirection?: string;
   } = {},
 ) {
   const request = normalizeAiMediaGenerationRequest(
@@ -137,8 +138,16 @@ function buildImagePrompt(
     hasLogo: options.hasLogo ?? request.logoMode !== "none",
     deferVisibleElementsToComposer:
       options.deferVisibleElementsToComposer ?? false,
+    castingDirection: options.castingDirection,
   });
 }
+
+test("le prompt image transmet la variation de casting au fournisseur", () => {
+  const prompt = buildImagePrompt({}, undefined, {
+    castingDirection: "VARIÉTÉ DE PERSONNAGES IA : visage et coiffure distincts.",
+  });
+  assert.match(prompt, /VARIÉTÉ DE PERSONNAGES IA : visage et coiffure distincts/);
+});
 
 function loadImageGatewayRuntime() {
   const filename = path.join(LIB_ROOT, "aiMediaGateway.ts");

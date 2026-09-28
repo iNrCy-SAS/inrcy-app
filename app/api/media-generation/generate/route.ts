@@ -888,6 +888,7 @@ export async function POST(request: Request) {
         model: generated.model,
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
+        casting_variant_key: generated.castingVariantKey,
         soundtrack_id: generated.soundtrack?.id || null,
         video_engine_result: generated.videoEngineResult,
         pipeline_timings_ms: generated.pipelineTimingsMs,

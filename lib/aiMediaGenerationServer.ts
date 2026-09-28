@@ -12,6 +12,7 @@ import {
 } from "@/lib/aiMediaBrandRenderer";
 import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
+import { chooseAiMediaCastingVariation } from "@/lib/aiMediaCastingVariation";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
 import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
@@ -115,6 +116,7 @@ export type AiMediaGenerationServerResult = {
     | null;
   promptVersion: string;
   promptSha256: string;
+  castingVariantKey: string | null;
   pipelineTimingsMs: Record<string, number>;
 };
 
@@ -162,6 +164,36 @@ async function getRecentAiMediaSoundtrackIds(args: {
   } catch {
     // La rotation enrichit la variété, mais ne doit jamais bloquer une vidéo
     // si la lecture de l'historique est momentanément indisponible.
+    return [];
+  }
+}
+
+async function getRecentAiMediaCastingKeys(args: {
+  supabase: SupabaseLike;
+  accountId: string;
+}) {
+  try {
+    const { data, error } = await args.supabase
+      .from("ai_media_generation_jobs")
+      .select("metadata")
+      .eq("account_id", args.accountId)
+      .eq("media_kind", "image")
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .limit(32);
+    if (error || !Array.isArray(data)) return [];
+    return data
+      .map((row) => {
+        const metadata =
+          row?.metadata && typeof row.metadata === "object"
+            ? (row.metadata as Record<string, unknown>)
+            : null;
+        return String(metadata?.casting_variant_key || "").trim();
+      })
+      .filter(Boolean)
+      .slice(0, 16);
+  } catch {
+    // Image generation must remain possible when history is unavailable.
     return [];
   }
 }
@@ -310,6 +342,7 @@ export async function generateAndSaveAiMedia(args: {
       videoEngineResult: null,
       promptVersion: args.request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
       promptSha256: "",
+      castingVariantKey: null,
       pipelineTimingsMs: { ...pipelineTimingsMs },
     };
   }
@@ -348,6 +381,17 @@ export async function generateAndSaveAiMedia(args: {
   };
   const isFreeCreation = providerRequest.creationMode === "free";
   const activePromptVersion = isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
+  const castingEligible = chooseAiMediaCastingVariation({
+    request: providerRequest,
+  });
+  const castingHistoryTask = castingEligible
+    ? measure("casting_history", () =>
+        getRecentAiMediaCastingKeys({
+          supabase: args.supabase,
+          accountId: args.accountId,
+        })
+      )
+    : Promise.resolve([] as string[]);
   const preparedReferenceRoles = providerRequest.inspirationImages.map(
     ({ role, usage, characterIndex }) => ({ role, usage, characterIndex })
   );
@@ -435,6 +479,12 @@ export async function generateAndSaveAiMedia(args: {
   const effectiveColors: [string, string, string] = isFreeCreation ? (freeBrandPolicy?.useBrandColors ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
+  const castingVariation = castingEligible
+    ? chooseAiMediaCastingVariation({
+        request: providerRequest,
+        recentVariantKeys: await castingHistoryTask,
+      })
+    : null;
   const prompt = buildAiMediaPrompt({
     request: providerRequest,
     profile,
@@ -443,6 +493,7 @@ export async function generateAndSaveAiMedia(args: {
     hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition,
     deferVisibleElementsToComposer: useDeterministicImageComposition,
     copy: creativePlan,
+    castingDirection: castingVariation?.direction,
   });
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
@@ -1877,6 +1928,7 @@ export async function generateAndSaveAiMedia(args: {
           creation_mode: providerRequest.creationMode || "guided",
           free_prompt_char_count: providerRequest.freePrompt?.length || 0,
           prompt_sha256: promptHash,
+          casting_variant_key: castingVariation?.key || null,
           subject_source: providerRequest.subjectSource,
           ai_instruction_present: Boolean(providerRequest.aiInstruction),
           ai_instruction_char_count: providerRequest.aiInstruction.length,
@@ -1966,6 +2018,7 @@ export async function generateAndSaveAiMedia(args: {
     videoEngineResult,
     promptVersion: activePromptVersion,
     promptSha256: promptHash,
+    castingVariantKey: castingVariation?.key || null,
     pipelineTimingsMs: completedPipelineTimings,
   };
 }
