@@ -731,6 +731,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [analysisMode, setAnalysisMode] = useState<AdsCampaignAnalysisMode>("free");
   const [guidedAnalysisObjective, setGuidedAnalysisObjective] = useState("");
   const [planProgress, setPlanProgress] = useState(0);
+  const [completedAnalysisStages, setCompletedAnalysisStages] = useState(0);
   const [planRationale, setPlanRationale] = useState("");
   const [planSources, setPlanSources] = useState<string[]>([]);
   const [planError, setPlanError] = useState("");
@@ -743,6 +744,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [campaignMediaUploadBusy, setCampaignMediaUploadBusy] = useState(false);
   const [campaignMediaUploadError, setCampaignMediaUploadError] = useState("");
   const planProgressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const planProgressTarget = useRef(0);
+  const planProgressValue = useRef(0);
+  const planProgressTick = useRef(0);
+  const planResponseReceived = useRef(false);
+  const completedAnalysisStagesValue = useRef(0);
   const campaignImageInputRef = useRef<HTMLInputElement | null>(null);
   const campaignVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [compactScreen, setCompactScreen] = useState(false);
@@ -770,6 +776,42 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       clearInterval(planProgressTimer.current);
       planProgressTimer.current = null;
     }
+  }
+
+  function startPlanProgress() {
+    stopPlanProgress();
+    planProgressTarget.current = 78;
+    planProgressValue.current = 0;
+    planProgressTick.current = 0;
+    planResponseReceived.current = false;
+    completedAnalysisStagesValue.current = 0;
+    setCompletedAnalysisStages(0);
+    setPlanProgress(0);
+
+    // The plan endpoint returns a single final response, not stage telemetry.
+    // Before it answers, the bar is explicitly indicative and capped below the
+    // completed-plan threshold. Checked stages are reserved for the real answer.
+    planProgressTimer.current = setInterval(() => {
+      const tick = ++planProgressTick.current;
+      const target = planProgressTarget.current;
+      const shouldAdvance = planResponseReceived.current || tick % 3 === 0;
+      const cap = target === 100 && completedAnalysisStagesValue.current < AI_ANALYSIS_STAGES.length - 1
+        ? 99 : target;
+      if (shouldAdvance && planProgressValue.current < cap) {
+        planProgressValue.current += 1;
+        setPlanProgress(planProgressValue.current);
+      }
+
+      // A returned plan can be acknowledged one stage at a time. No stage is
+      // marked complete while the server request is still unresolved.
+      const completed = completedAnalysisStagesValue.current;
+      if (planResponseReceived.current && completed < AI_ANALYSIS_STAGES.length - 1 && tick % 7 === 0
+        && planProgressValue.current >= AI_ANALYSIS_STAGES[completed].at) {
+        completedAnalysisStagesValue.current = completed + 1;
+        setCompletedAnalysisStages(completed + 1);
+      }
+      if (planProgressValue.current === 100) stopPlanProgress();
+    }, 120);
   }
 
   useEffect(() => () => {
@@ -1377,7 +1419,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
 
   async function generateCampaignPlan() {
-    stopPlanProgress();
+    startPlanProgress();
     setConfirmedDestinationUrl("");
     setBusy("plan");
     setPlanError("");
@@ -1387,9 +1429,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAutoMediaPlan(null);
     setAutoMediaState("idle");
     setAutoMediaMessage("");
-    // Never pretend that an AI answer is 89% complete: while the server is
-    // analysing, the UI deliberately shows an indeterminate, truthful state.
-    setPlanProgress(0);
     let mediaGenerationQueued = false;
     try {
       const result = await readJson(await fetch("/api/ads/plan", {
@@ -1414,7 +1453,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       // The assisted path includes the real iNr'Studio generation when a
       // visual is useful for the selected campaign format. Search and product
       // feed plans intentionally skip it instead of consuming a media credit.
-      setPlanProgress(90);
+      planResponseReceived.current = true;
+      planProgressTarget.current = 90;
       setAutoMediaState("generating");
       setAutoMediaPlan(plan);
       mediaGenerationQueued = true;
@@ -1422,10 +1462,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       const requestError = error as AdsApiRequestError;
       setPlanRequestId(typeof requestError?.requestId === "string" ? requestError.requestId : "");
       setPlanError(error instanceof Error ? error.message : "La génération iNrCy a échoué.");
+      stopPlanProgress();
+      planProgressTarget.current = 0;
+      planProgressValue.current = 0;
+      completedAnalysisStagesValue.current = 0;
+      setCompletedAnalysisStages(0);
       setPlanProgress(0);
     } finally {
-      stopPlanProgress();
-      if (!mediaGenerationQueued) setBusy(null);
+      if (!mediaGenerationQueued) {
+        stopPlanProgress();
+        setBusy(null);
+      }
     }
   }
 
@@ -1778,9 +1825,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const pendingAnalysisStage = AI_ANALYSIS_STAGES.findIndex((stage) => planProgress < stage.at);
   const activeAnalysisStage = planError
     ? -1
-    : analysisRequestPending
-      ? 0
-      : pendingAnalysisStage === -1 ? AI_ANALYSIS_STAGES.length - 1 : pendingAnalysisStage;
+    : pendingAnalysisStage === -1 ? AI_ANALYSIS_STAGES.length - 1 : pendingAnalysisStage;
 
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -1904,8 +1949,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <p className={styles.adsGenerationEyebrow}>iNrCY · ANALYSE &amp; GÉNÉRATION</p>
           <h2>{planProgress === 100 ? "Votre campagne prend forme." : autoMediaState === "generating" ? "iNr’Studio compose votre média." : "iNrCy construit votre campagne."}</h2>
           <p className={styles.adsGenerationLead}>{planProgress === 100 ? "Votre base est prête. Contrôlez chaque recommandation avant de l’enregistrer ou de la diffuser." : autoMediaState === "generating" ? "Le ciblage et les messages sont prêts : iNrCy fabrique maintenant le média adapté au format choisi." : "Nous relions votre iNrADN, vos priorités et l’historique utile pour vous proposer une campagne cohérente."}</p>
-          <div className={styles.adsGenerationProgress} data-pending={analysisRequestPending || undefined} aria-label={analysisRequestPending ? "Analyse iNrCy en cours" : `Progression : ${planProgress} %`} aria-live="polite"><div><span style={{ width: `${analysisRequestPending ? 22 : planProgress}%` }} /></div><strong>{analysisRequestPending ? "Analyse en cours…" : `${planProgress}%`}</strong></div>
-          <ol className={styles.adsGenerationStages}>{AI_ANALYSIS_STAGES.map((stage, index) => <li key={stage.label} data-state={planProgress >= stage.at ? "done" : index === activeAnalysisStage ? "active" : "pending"}><span>{planProgress >= stage.at ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{stage.detail}</small></div></li>)}</ol>
+          <div className={styles.adsGenerationProgress} data-pending={analysisRequestPending || undefined} role="progressbar" aria-label="Analyse iNrCy et génération du média" aria-valuemin={0} aria-valuemax={100} aria-valuenow={analysisRequestPending ? undefined : planProgress} aria-valuetext={analysisRequestPending ? `Analyse en cours, progression indicative à ${planProgress} %` : undefined}><div><span style={{ width: `${planProgress}%` }} /></div><strong>{analysisRequestPending ? `${planProgress}% estimé` : `${planProgress}%`}</strong></div>
+          <ol className={styles.adsGenerationStages}>{AI_ANALYSIS_STAGES.map((stage, index) => {
+            const done = planProgress === 100 || index < completedAnalysisStages;
+            return <li key={stage.label} data-state={done ? "done" : index <= activeAnalysisStage ? "active" : "pending"}><span>{done ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{stage.detail}</small></div></li>;
+          })}</ol>
           {autoMediaMessage && <p className={styles.studioMediaGenerationNote} data-state={autoMediaState} role={autoMediaState === "error" ? "alert" : "status"}>{autoMediaMessage}</p>}
           {planError && <div className={styles.studioPlanError} role="alert"><strong>La proposition n’a pas pu être finalisée.</strong><span>{planError}</span>{planRequestId && <small>Référence technique : {planRequestId}</small>}<div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>Réessayer l’analyse</button><button type="button" className={styles.back} onClick={chooseManualCreation}>Passer au mode manuel</button></div></div>}
           {!planError && planProgress < 100 && <div className={`${styles.studioPlanReady} ${styles.studioPlanPending}`} aria-hidden="true"><strong className={styles.studioPlanHeading}>Bilan de l’analyse</strong><div className={styles.studioPlanPendingLines}><span /><span /><span /></div></div>}
@@ -2210,7 +2258,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         onProgress={(progress) => {
           setAutoMediaState("generating");
           setAutoMediaMessage(`iNr’Studio crée ${channelId === "google" && autoMediaPlan.campaignType === "search" ? "l’image complémentaire Google Search" : "le média de la campagne"} · ${Math.min(99, Math.max(4, Math.round(progress)))} %`);
-          setPlanProgress((current) => Math.max(current, Math.min(99, 90 + Math.round(progress / 10))));
+          planProgressTarget.current = Math.max(planProgressTarget.current, Math.min(99, 90 + Math.round(progress / 10)));
         }}
         onComplete={(result) => {
           if (!result.item.signed_url) {
@@ -2223,21 +2271,21 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
               ? "iNr’Studio a créé et associé une image pour Google Search. Elle sera proposée comme composant image lors de la publication, sous réserve d’éligibilité et de validation par Google."
               : "iNr’Studio a généré et associé le média de cette campagne. Vous pourrez le remplacer, l’éditer ou le retirer à tout moment.");
           }
-          setPlanProgress(100);
+          planProgressTarget.current = 100;
           setAutoMediaPlan(null);
           setBusy(null);
         }}
         onSkip={(reason) => {
           setAutoMediaState("skipped");
           setAutoMediaMessage(reason);
-          setPlanProgress(100);
+          planProgressTarget.current = 100;
           setAutoMediaPlan(null);
           setBusy(null);
         }}
         onError={(message) => {
           setAutoMediaState("error");
           setAutoMediaMessage(`La campagne est préparée, mais iNr’Studio n’a pas pu créer le média : ${message} Vous pourrez en ajouter un à l’étape Médias.`);
-          setPlanProgress(100);
+          planProgressTarget.current = 100;
           setAutoMediaPlan(null);
           setBusy(null);
         }}
