@@ -9,6 +9,19 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+export async function GET(_request: Request, context: RouteContext) {
+  const { user, errorResponse } = await requirePremiumAdsUser();
+  if (errorResponse || !user) return errorResponse;
+  const { id } = await context.params;
+  if (!ADS_CAMPAIGN_ID_PATTERN.test(id)) return NextResponse.json({ error: "Identifiant de campagne invalide." }, { status: 400 });
+  const { data, error } = await supabaseAdmin.from("ads_campaigns")
+    .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,status,draft,provider_resources,last_error,published_at,created_at")
+    .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
+  if (error) return NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 });
+  if (!data) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
+  return NextResponse.json({ campaign: data }, { headers: { "Cache-Control": "no-store" } });
+}
+
 async function authorizeDraftMutation(request: Request, context: RouteContext, operation: "extend" | "delete") {
   if (!adsRequestOriginAllowed(request)) return { response: adsBadOriginResponse() };
   const { user, errorResponse } = await requirePremiumAdsUser();

@@ -11,9 +11,10 @@ type Props = {
   countsLoading?: boolean;
   onClose: () => void;
   onSelectFolder: (folder: Folder) => void;
+  adsTab?: { active: boolean; count: number | null; onSelect: () => void };
 };
 
-export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder, counts, countsLoading = false, onClose, onSelectFolder }: Props) {
+export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder, counts, countsLoading = false, onClose, onSelectFolder, adsTab }: Props) {
   const i18nT = useTranslations("mails");
   if (!open) return null;
   return (
@@ -27,7 +28,7 @@ export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder,
         </div>
         <div className={styles.mobileMenuBody}>
           {folders.map((f) => {
-            const active = f === folder;
+            const active = !adsTab?.active && f === folder;
             return (
               <button
                 key={f}
@@ -44,6 +45,11 @@ export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder,
               </button>
             );
           })}
+          {adsTab && <button
+            className={`${styles.mobileFolderBtn} ${adsTab.active ? styles.mobileFolderBtnActive : ""}`}
+            onClick={() => { adsTab.onSelect(); onClose(); }}
+            type="button"
+          ><span>Campagnes Ads</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ import {
   generateAdsCampaignWithFallback,
 } from "@/lib/adsCampaignIntelligence";
 import { isAdsChannelId, type AdsChannelId } from "@/lib/adsValidation";
+import { resolveAdsCampaignDestination, verifiedAdsDestinationUrl } from "@/lib/adsDestination";
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
@@ -25,6 +26,7 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 import { captureApiException } from "@/lib/observability/sentry";
 import { getRequestId } from "@/lib/observability/request";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 
 export const maxDuration = 120;
 
@@ -204,7 +206,7 @@ Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec int
 Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" : l’annonce est textuelle, complétée seulement par UN composant image, jamais par une vidéo. Remplis mediaBrief avec une scène photographique carrée 1:1 directement liée à l’offre réelle, aux recherches et à la page de destination, simple et lisible en petite taille, avec le sujet important dans les 80 % centraux. Ne demande aucun texte, prix, appel à l’action, logo, filigrane, collage ou bordure incrustés dans l’image ; n’invente ni produit, ni équipe, ni lieu, ni preuve. Laisse imageUrl et creativeUrl vides : le média n’existe pas encore à ce stade et sa diffusion dépendra de l’éligibilité et de la validation Google.
 Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
 Pour Meta : rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones, objectif, appel à l’action, lieu de conversion, expansion d’audience et placements. Sélectionne seulement des placements cohérents avec le média proposé et décris le visuel à créer dans mediaBrief. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
-Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl et urlExclusions ne doivent contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
+Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl doit reprendre l’URL fiable fournie dans preferredDestinationUrl ; n’invente aucune autre URL. urlExclusions ne doit contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
 }
 
 export async function POST(request: Request) {
@@ -228,7 +230,7 @@ export async function POST(request: Request) {
   const limited = await enforceRateLimit({ name: "ads_plan", identifier: user.authUserId, limit: 24, window: "1 d" });
   if (limited) return limited;
 
-  const [memoryResult, businessResult, profileResult, historyResult, publicationHistoryResult] = await Promise.all([
+  const [memoryResult, businessResult, profileResult, historyResult, publicationHistoryResult, channelStates] = await Promise.all([
     readContextSource("ai_memory", () => user.supabase
       .from("business_ai_memories")
       .select("memory")
@@ -259,6 +261,10 @@ export async function POST(request: Request) {
         .eq("user_id", user.activeUserId)
         .order("created_at", { ascending: false })
         .limit(6) as PromiseLike<ContextQueryResult<PublicationHistoryContextRecord[]>>),
+    getChannelConnectionStates(user.supabase, user.activeUserId).catch((error) => {
+      console.warn("[ads.plan] optional channel destination unavailable", { code: contextErrorCode(error) });
+      return null;
+    }),
   ]);
 
   const hasReadableProfessionalProfile = Boolean(profileResult.data || businessResult.data);
@@ -288,6 +294,24 @@ export async function POST(request: Request) {
     idea: analysisObjective || intent,
     theme: `Campagne ${provider}`,
   });
+  const profileWebsiteUrl = [
+    businessResult.data?.website,
+    businessResult.data?.website_url,
+    businessResult.data?.site_url,
+  ].map(verifiedAdsDestinationUrl).find(Boolean) || "";
+  const websiteDestination = resolveAdsCampaignDestination({
+    profileWebsiteUrl,
+    connectedWebsiteUrl: channelStates?.site_web.connected ? channelStates.site_web.url : null,
+    inrcyWebsiteUrl: channelStates?.site_inrcy.connected ? channelStates.site_inrcy.url : null,
+  });
+  const resolvedDestination = resolveAdsCampaignDestination({
+    explicitUrl: destinationUrl,
+    profileWebsiteUrl,
+    connectedWebsiteUrl: channelStates?.site_web.connected ? channelStates.site_web.url : null,
+    inrcyWebsiteUrl: channelStates?.site_inrcy.connected ? channelStates.site_inrcy.url : null,
+    googleBusinessConnected: channelStates?.gmb.connected,
+    googleBusinessUrl: channelStates?.gmb.url,
+  });
   const context = {
     companyName,
     sector: profile.business.sectorLabel,
@@ -297,12 +321,8 @@ export async function POST(request: Request) {
       city: clean(profile.business.city, 100),
       postalCode: clean(profile.business.postalCode, 24),
       openingHours: clean(profile.business.openingHours, 600),
-      website: clean(
-        businessResult.data?.website
-          ?? businessResult.data?.website_url
-          ?? businessResult.data?.site_url,
-        2_000,
-      ),
+      website: websiteDestination.url,
+      googleBusinessUrl: channelStates?.gmb.connected ? channelStates.gmb.url : null,
     },
     services: compactList(profile.business.services.length ? profile.business.services : memory.specialties, 12, 120),
     zones: compactList(profile.business.interventionZones, 12, 120),
@@ -362,7 +382,8 @@ export async function POST(request: Request) {
       ? { mode: "objectif précis", objective: analysisObjective }
       : { mode: "analyse libre", instruction: "Identifier l’angle de campagne le plus pertinent à partir de l’iNrADN." },
     professionalIntent: analysisObjective || intent,
-    preferredDestinationUrl: destinationUrl,
+    preferredDestinationUrl: resolvedDestination.url,
+    destinationSource: resolvedDestination.source,
   };
   const hasBusinessSignal = Boolean(
     context.companyName || context.description || context.services.length || context.zones.length || context.audiences.length || analysisObjective || intent,
@@ -429,7 +450,7 @@ export async function POST(request: Request) {
         }
         if (isPlannedAdsChannel(provider)) rawPlan.campaignType = "generic";
         // A model cannot verify a URL or location. Retain only user context.
-        rawPlan.destinationUrl = destinationUrl || context.localContext.website;
+        rawPlan.destinationUrl = resolvedDestination.url;
         rawPlan.urlExclusions = [];
         rawPlan.targetLocations = context.zones.length
           ? context.zones
@@ -438,7 +459,7 @@ export async function POST(request: Request) {
         const candidate = normalizeAdsCampaignPlan(rawPlan, {
           provider,
           companyName,
-          destinationUrl: destinationUrl || context.localContext.website,
+          destinationUrl: resolvedDestination.url,
           locations: context.zones.length
             ? context.zones
             : context.localContext.city ? [context.localContext.city] : [],

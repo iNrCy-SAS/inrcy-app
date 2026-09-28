@@ -8,16 +8,17 @@ type Props = {
   counts: FolderCounts;
   countsLoading?: boolean;
   onSelectFolder: (folder: Folder) => void;
+  adsTab?: { active: boolean; count: number | null; onSelect: () => void };
 };
 
-export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, countsLoading = false, onSelectFolder }: Props) {
+export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, countsLoading = false, onSelectFolder, adsTab }: Props) {
   return (
     <div
       className={styles.folderTabs}
-      style={{ "--folder-tab-count": folders.length } as React.CSSProperties}
+      style={{ "--folder-tab-count": folders.length + (adsTab ? 1 : 0) } as React.CSSProperties}
     >
       {folders.map((f) => {
-        const active = f === folder;
+        const active = !adsTab?.active && f === folder;
         return (
           <button
             key={f}
@@ -32,6 +33,12 @@ export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, coun
           </button>
         );
       })}
+      {adsTab && <button
+        className={`${styles.folderTabBtn} ${adsTab.active ? styles.folderTabBtnActive : ""}`}
+        onClick={adsTab.onSelect}
+        type="button"
+        title="Campagnes Ads"
+      ><span className={styles.folderTabLabel}>Campagnes Ads</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
     </div>
   );
 }

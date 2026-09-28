@@ -37,8 +37,8 @@ export async function GET() {
         accounts: visibleAccounts, selectedAccountId: selected?.id || null,
       }),
       accounts: visibleAccounts,
-      selectedAccountId: selected?.id || null,
-      selectedAccountName: selected?.name || null,
+      selectedAccountId: current?.resource_id || null,
+      selectedAccountName: current?.resource_label || selected?.name || null,
       publicationEnabled: false,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -47,7 +47,7 @@ export async function GET() {
     return NextResponse.json({
       configured: true, connected: persisted?.status === "connected",
       status: persisted?.status || "disconnected", readiness: failure?.code || "provider_unavailable",
-      accounts: [], selectedAccountId: null, selectedAccountName: null,
+      accounts: [], selectedAccountId: persisted?.resource_id || null, selectedAccountName: persisted?.resource_label || null,
       publicationEnabled: false, error: failure?.message || "Statut X Ads indisponible.",
     }, { status: failure?.status || 503, headers: { "Cache-Control": "no-store" } });
   }

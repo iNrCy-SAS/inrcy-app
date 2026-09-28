@@ -52,8 +52,8 @@ export async function GET() {
       scopes: currentConnected ? current?.scopes || "" : "",
       missingScopes: currentConnected ? missingPinterestAdsScopes(current?.scopes) : [],
       accounts,
-      selectedAccountId: selected?.id || null,
-      selectedAccountName: selected?.name || null,
+      selectedAccountId: current?.resource_id || null,
+      selectedAccountName: current?.resource_label || selected?.name || null,
       businessAndBillingVerified: false,
       publicationEnabled: false,
     }, { headers: { "Cache-Control": "no-store" } });
@@ -67,8 +67,8 @@ export async function GET() {
       status: persisted?.status || "disconnected",
       readiness: failure?.code || "provider_unavailable",
       accounts: [],
-      selectedAccountId: null,
-      selectedAccountName: null,
+      selectedAccountId: persisted?.resource_id || null,
+      selectedAccountName: persisted?.resource_label || null,
       publicationEnabled: false,
       error: failure?.message || "Statut Pinterest Ads indisponible.",
     }, { status: failure?.status || 503, headers: { "Cache-Control": "no-store" } });

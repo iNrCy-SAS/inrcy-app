@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { isAdsPilotAdmin } from "@/lib/adsServer";
+import { readAdsConnectionSnapshots } from "@/lib/adsConnectionSnapshotServer";
+import { resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
 import { adsOAuthProvider } from "@/lib/adsOAuth";
 import AdsClient from "./AdsClient";
 
@@ -11,10 +13,14 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
   if (!(await isAdsPilotAdmin(data.user.id))) redirect("/dashboard");
+  const accountScope = await resolveInrcyAccountScopeForUser(supabase, data.user);
+  const initialConnections = await readAdsConnectionSnapshots(accountScope.activeUserId);
   const params = await searchParams;
   const channel = adsOAuthProvider(params.channel);
   return <AdsClient
     initialChannel={channel || "meta"}
+    initialEditCampaignId={typeof params.editCampaign === "string" ? params.editCampaign : ""}
+    initialConnections={initialConnections}
     initialConnection={params.connection === "connected" ? "connected" : params.connection === "error" ? "error" : null}
     initialReason={typeof params.reason === "string" ? params.reason : ""}
     livePublishingEnabled={process.env.INRCY_ADS_LIVE_PUBLISH_ENABLED === "true"}

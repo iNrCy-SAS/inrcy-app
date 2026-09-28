@@ -1,15 +1,10 @@
-"use client";
+import { createSupabaseServer } from "@/lib/supabaseServer";
+import { isAdsPilotAdmin } from "@/lib/adsServer";
+import MailboxPageClient from "./MailboxPageClient";
 
-import MailboxClient from "./MailboxClient";
-import { useDashboardEdition } from "../_components/DashboardEditionProvider";
-
-export default function MailboxPage() {
-  const edition = useDashboardEdition();
-  return (
-    <MailboxClient
-      standardMode={edition === "standard"}
-      founderMode={edition === "founder"}
-    />
-  );
+export default async function MailboxPage() {
+  const supabase = await createSupabaseServer();
+  const { data } = await supabase.auth.getUser();
+  const adsEnabled = Boolean(data.user && await isAdsPilotAdmin(data.user.id));
+  return <MailboxPageClient adsEnabled={adsEnabled} />;
 }
-

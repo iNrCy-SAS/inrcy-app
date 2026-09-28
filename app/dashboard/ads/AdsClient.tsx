@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
@@ -38,11 +39,17 @@ import {
   type XWizardSettings,
 } from "@/lib/adsChannelWizardSettings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
+import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+import {
+  adsConnectionDisplay,
+  type AdsConnectionSnapshot,
+  type AdsConnectionSnapshots,
+} from "@/lib/adsConnectionSnapshot";
 import AdsConnectionSettings from "./AdsConnectionSettings";
 import AdsCampaignAutoMediaGenerator from "./AdsCampaignAutoMediaGenerator";
 import AdsCampaignAnalysisChoice, { type AdsCampaignAnalysisMode } from "./AdsCampaignAnalysisChoice";
-import AdsCampaignTracking, { type StoredAdsCampaign } from "./AdsCampaignTracking";
+import type { StoredAdsCampaign } from "./AdsCampaignTracking";
 import styles from "./ads.module.css";
 
 type StoredCampaign = StoredAdsCampaign;
@@ -84,13 +91,21 @@ function isExternalChannel(value: unknown): value is ExternalChannelId {
   return typeof value === "string" && EXTERNAL_CHANNELS.some((channel) => channel === value);
 }
 
-function emptyExternalStatus(): ExternalConnectorStatus {
-  return { load: "idle", configured: true, connected: false, status: "disconnected", selectedAccountId: "", selectedAccountName: "", error: "" };
+function externalStatusFromSnapshot(snapshot: AdsConnectionSnapshot): ExternalConnectorStatus {
+  return {
+    load: snapshot.status === "unknown" ? "idle" : "ready",
+    configured: true,
+    connected: snapshot.status === "connected",
+    status: snapshot.status,
+    selectedAccountId: snapshot.accountId,
+    selectedAccountName: snapshot.accountLabel,
+    error: "",
+  };
 }
 
 function externalStatusDisplay(status: ExternalConnectorStatus): { label: string; tone: string } {
-  if (status.load === "idle" || status.load === "loading") return { label: "Vérification…", tone: "loading" };
-  if (status.load === "error") return { label: "État indisponible", tone: "unavailable" };
+  // A remote refresh must not temporarily hide the durable Ads association.
+  if ((status.load === "idle" || status.load === "loading" || status.load === "error") && status.status === "unknown") return { label: "Vérification…", tone: "loading" };
   if (!status.configured) return { label: "Connexion indisponible", tone: "unavailable" };
   if (status.status === "needs_update" || status.status === "needs_reconnect") return { label: "Connexion à actualiser", tone: "select-account" };
   if (status.connected && status.selectedAccountId) return { label: "Compte associé", tone: "connected" };
@@ -662,13 +677,16 @@ function campaignPromise(channel: AdsChannelId) {
   return "Une campagne claire donne à votre expertise la place qu’elle mérite auprès des personnes prêtes à vous découvrir.";
 }
 
-export default function AdsClient({ initialChannel, initialConnection, initialReason, livePublishingEnabled, demoPausedPublishingEnabled }: {
+export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, livePublishingEnabled, demoPausedPublishingEnabled }: {
   initialChannel: AdsProvider;
+  initialEditCampaignId: string;
+  initialConnections: AdsConnectionSnapshots;
   initialConnection: "connected" | "error" | null;
   initialReason: string;
   livePublishingEnabled: boolean;
   demoPausedPublishingEnabled: boolean;
 }) {
+  const router = useRouter();
   const [provider, setProvider] = useState<AdsProvider>(initialChannel);
   const [channelId, setChannelId] = useState<AdsChannelId>(initialChannel);
   const [channelIndex, setChannelIndex] = useState(() => CHANNEL_CATALOG.findIndex((channel) => channel.id === initialChannel));
@@ -678,18 +696,19 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [dirty, setDirty] = useState(true);
   const [accounts, setAccounts] = useState<AdsAccount[]>([]);
   const [pages, setPages] = useState<{ id: string; name: string; instagramUserId?: string }[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
+  const [connectionSnapshots, setConnectionSnapshots] = useState<AdsConnectionSnapshots>(initialConnections);
+  const [connected, setConnected] = useState(initialConnections[initialChannel].status === "connected");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionDisplayStatus>(initialConnections[initialChannel].status === "unknown" ? "disconnected" : initialConnections[initialChannel].status);
   const [connectionAccount, setConnectionAccount] = useState<{ displayName?: string; email?: string; id?: string } | undefined>();
-  const [configuredAccountId, setConfiguredAccountId] = useState("");
-  const [configuredAccountLabel, setConfiguredAccountLabel] = useState("");
-  const [configuredPageId, setConfiguredPageId] = useState("");
+  const [configuredAccountId, setConfiguredAccountId] = useState(initialConnections[initialChannel].accountId);
+  const [configuredAccountLabel, setConfiguredAccountLabel] = useState(initialConnections[initialChannel].accountLabel);
+  const [configuredPageId, setConfiguredPageId] = useState(initialConnections[initialChannel].pageId);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsRefreshKey, setAccountsRefreshKey] = useState(0);
   const [configAction, setConfigAction] = useState<AdsConfigAction>(null);
   const [externalStatuses, setExternalStatuses] = useState<Record<ExternalChannelId, ExternalConnectorStatus>>({
-    linkedin: emptyExternalStatus(), tiktok: emptyExternalStatus(),
-    pinterest: emptyExternalStatus(), x: emptyExternalStatus(),
+    linkedin: externalStatusFromSnapshot(initialConnections.linkedin), tiktok: externalStatusFromSnapshot(initialConnections.tiktok),
+    pinterest: externalStatusFromSnapshot(initialConnections.pinterest), x: externalStatusFromSnapshot(initialConnections.x),
   });
   const [externalConfiguring, setExternalConfiguring] = useState(false);
   const [externalAccounts, setExternalAccounts] = useState<ExternalAdsAccount[]>([]);
@@ -700,18 +719,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   const [externalError, setExternalError] = useState("");
   const externalAccountsRequest = useRef(0);
   const externalStatusRequests = useRef<Record<ExternalChannelId, number>>({ linkedin: 0, pinterest: 0, tiktok: 0, x: 0 });
-  const [campaigns, setCampaigns] = useState<StoredCampaign[]>([]);
-  const [campaignTotal, setCampaignTotal] = useState(0);
-  const [campaignsLoading, setCampaignsLoading] = useState(false);
-  const [campaignsLoadingMore, setCampaignsLoadingMore] = useState(false);
-  const [campaignNextOffset, setCampaignNextOffset] = useState<number | null>(null);
-  const [campaignsLoadError, setCampaignsLoadError] = useState("");
-  const campaignRequestGeneration = useRef(0);
-  const campaignPageLoading = useRef(false);
-  const [tracking, setTracking] = useState(false);
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
   const demoSubmissionRef = useRef(false);
   const [confirmedSpend, setConfirmedSpend] = useState(false);
+  const [confirmedDestinationUrl, setConfirmedDestinationUrl] = useState("");
   const [configuring, setConfiguring] = useState(initialConnection !== null);
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState(0);
@@ -789,8 +800,8 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     ? accounts.find((account) => account.id === configuredAccountId && account.currency === "EUR" && account.provider === channelId)
     : undefined;
   const associatedAccountName = configuredAdvertiserAccount?.name || configuredAccountLabel || (configuredAccountId ? `Compte ${configuredAccountId}` : "");
-  const configuredAdvertiserAccountUrl = configuredAdvertiserAccount && isAdsProvider(channelId)
-    ? getAdsAdvertiserAccountUrl(channelId, configuredAdvertiserAccount.id)
+  const configuredAdvertiserAccountUrl = configuredAccountId && isAdsProvider(channelId)
+    ? getAdsAdvertiserAccountUrl(channelId, configuredAccountId)
     : null;
   const channelAccountReady = Boolean(
     connected
@@ -826,6 +837,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
           error: "",
         },
       }));
+      setConnectionSnapshots((current) => ({ ...current, [channel]: {
+        status: status === "connected" ? "connected" : status === "needs_update" || status === "needs_reconnect" ? "needs_update" : "disconnected",
+        accountId: selectedAccountId,
+        accountLabel: selectedAccountName,
+        pageId: "",
+      } }));
     } catch (error) {
       if (requestId !== externalStatusRequests.current[channel]) return;
       setExternalStatuses((current) => ({
@@ -840,6 +857,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   }, [channelId, externalStatuses, refreshExternalStatus]);
 
   useEffect(() => {
+    for (const channel of EXTERNAL_CHANNELS) void refreshExternalStatus(channel);
+  }, [refreshExternalStatus]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const callbackChannel = params.get("channel");
     if (!isExternalChannel(callbackChannel)) return;
@@ -847,10 +868,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setChannelIndex(index);
     setChannelId(callbackChannel);
     setDraft(newDraft(callbackChannel));
+    setConfirmedDestinationUrl("");
     setConfiguring(false);
     setNotice("");
     if (params.has("connection")) {
       setExternalConfiguring(true);
+      void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
         setExternalError(params.get("reason") || "La connexion n’a pas abouti. Réessayez.");
       }
@@ -858,7 +881,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       params.delete("reason");
       window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
     }
-  }, []);
+  }, [refreshExternalStatus]);
 
   const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string) => {
     const requestId = ++externalAccountsRequest.current;
@@ -952,52 +975,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setSavedId(null);
     setDirty(true);
     setConfirmedSpend(false);
+    setConfirmedDestinationUrl("");
     setNotice("");
   }
 
-  const loadCampaigns = useCallback(async () => {
-    const generation = ++campaignRequestGeneration.current;
-    setCampaignsLoading(true);
-    setCampaignsLoadError("");
-    try {
-      const data = await readJson(await fetch("/api/ads/campaigns", { cache: "no-store" }));
-      if (generation !== campaignRequestGeneration.current) return;
-      const loaded = Array.isArray(data.campaigns) ? data.campaigns as StoredCampaign[] : [];
-      setCampaigns(loaded);
-      setCampaignTotal(typeof data.total === "number" && Number.isFinite(data.total) ? data.total : loaded.length);
-      setCampaignNextOffset(typeof data.nextOffset === "number" && Number.isSafeInteger(data.nextOffset) ? data.nextOffset : null);
-    } catch (error) {
-      if (generation === campaignRequestGeneration.current) setCampaignsLoadError(error instanceof Error ? error.message : "Impossible de charger les campagnes.");
-    } finally {
-      if (generation === campaignRequestGeneration.current) setCampaignsLoading(false);
-    }
-  }, []);
-
-  const loadMoreCampaigns = useCallback(async () => {
-    if (campaignNextOffset === null || campaignsLoading || campaignPageLoading.current) return;
-    const generation = campaignRequestGeneration.current;
-    campaignPageLoading.current = true;
-    setCampaignsLoadingMore(true);
-    setCampaignsLoadError("");
-    try {
-      const data = await readJson(await fetch(`/api/ads/campaigns?offset=${campaignNextOffset}`, { cache: "no-store" }));
-      if (generation !== campaignRequestGeneration.current) return;
-      const loaded = Array.isArray(data.campaigns) ? data.campaigns as StoredCampaign[] : [];
-      setCampaigns((current) => {
-        const knownIds = new Set(current.map((campaign) => campaign.id));
-        return [...current, ...loaded.filter((campaign) => !knownIds.has(campaign.id))];
-      });
-      setCampaignTotal(typeof data.total === "number" && Number.isFinite(data.total) ? data.total : campaignNextOffset + loaded.length);
-      setCampaignNextOffset(typeof data.nextOffset === "number" && Number.isSafeInteger(data.nextOffset) ? data.nextOffset : null);
-    } catch (error) {
-      if (generation === campaignRequestGeneration.current) setCampaignsLoadError(error instanceof Error ? error.message : "Impossible de charger les campagnes suivantes.");
-    } finally {
-      campaignPageLoading.current = false;
-      setCampaignsLoadingMore(false);
-    }
-  }, [campaignNextOffset, campaignsLoading]);
-
-  useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   useEffect(() => {
     let active = true;
     if (!isAdsProvider(channelId)) {
@@ -1037,6 +1018,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         setConfiguredAccountId(persistedAccountId);
         setConfiguredAccountLabel(String(result.selectedAccountLabel || ""));
         setConfiguredPageId(persistedPageId);
+        setConnectionSnapshots((current) => ({ ...current, [channelId]: {
+          status: result.connectionStatus || (result.connected ? "connected" : "disconnected"),
+          accountId: persistedAccountId,
+          accountLabel: String(result.selectedAccountLabel || ""),
+          pageId: persistedPageId,
+        } }));
         setDraft((current) => {
           const hasPersistedAccount = Boolean(persistedAccountId);
           const existingAccount = hasPersistedAccount || result.accountSelectionCleared ? undefined : euroAccounts.find((account) => account.id === current.adAccountId);
@@ -1072,18 +1059,20 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     if (next === provider && !channelChanged) return;
     if (next !== provider) setProvider(next);
     setDraft(newDraft(next));
-    setConnected(false);
-    setConnectionStatus("disconnected");
+    const savedConnection = connectionSnapshots[next];
+    setConnected(savedConnection.status === "connected");
+    setConnectionStatus(savedConnection.status === "unknown" ? "disconnected" : savedConnection.status);
     setConnectionAccount(undefined);
-    setConfiguredAccountId("");
-    setConfiguredAccountLabel("");
-    setConfiguredPageId("");
+    setConfiguredAccountId(savedConnection.accountId);
+    setConfiguredAccountLabel(savedConnection.accountLabel);
+    setConfiguredPageId(savedConnection.pageId);
     setConfigAction(null);
     setAccounts([]);
     setPages([]);
     setSavedId(null);
     setDirty(true);
     setConfirmedSpend(false);
+    setConfirmedDestinationUrl("");
     setNotice("");
   }
 
@@ -1093,6 +1082,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
   }
 
   function updateDraft(next: Partial<AdsCampaignInput>) {
+    if (Object.prototype.hasOwnProperty.call(next, "destinationUrl")) setConfirmedDestinationUrl("");
     setDraft((current) => applyDraftEdit(current, next));
     setDirty(true);
     setConfirmedSpend(false);
@@ -1210,6 +1200,11 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       setConfiguredAccountId(String(result.selectedAccountId || draft.adAccountId));
       setConfiguredAccountLabel(String(result.selectedAccountLabel || selectedAccount?.name || ""));
+      setConnectionSnapshots((current) => ({ ...current, [provider]: {
+        ...current[provider], status: "connected",
+        accountId: String(result.selectedAccountId || draft.adAccountId),
+        accountLabel: String(result.selectedAccountLabel || selectedAccount?.name || ""),
+      } }));
       setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} associé. Il restera mémorisé jusqu’à ce que vous le dissociiez. Aucune annonce n’a été publiée.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de sélectionner ce compte annonceur.");
@@ -1232,6 +1227,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         body: JSON.stringify({ provider: "meta", pageId: draft.pageId }),
       }));
       setConfiguredPageId(String(result.selectedPageId || draft.pageId));
+      setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: String(result.selectedPageId || draft.pageId) } }));
       setNotice("Identité Facebook et Instagram associée pour vos campagnes Meta Ads. Elle restera mémorisée jusqu’à sa dissociation.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de sélectionner cette identité publicitaire.");
@@ -1250,12 +1246,14 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         body: JSON.stringify({ provider, target }),
       }));
       if (target === "account") {
+        setConnectionSnapshots((current) => ({ ...current, [provider]: { ...current[provider], accountId: "", accountLabel: "", pageId: "" } }));
         setConfiguredAccountId("");
         setConfiguredAccountLabel("");
         setConfiguredPageId("");
         updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
         setNotice("Compte annonceur dissocié. Vous pouvez en choisir un autre.");
       } else {
+        setConnectionSnapshots((current) => ({ ...current, [provider]: { ...current[provider], pageId: "" } }));
         setConfiguredPageId("");
         updateDraft({ pageId: "" });
         setNotice("Identité publicitaire dissociée. Vous pouvez en choisir une autre.");
@@ -1274,6 +1272,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       await readJson(await fetch(`/api/ads/oauth/${provider}/disconnect`, { method: "POST" }));
       setConnected(false);
       setConnectionStatus("disconnected");
+      setConnectionSnapshots((current) => ({ ...current, [provider]: { status: "disconnected", accountId: "", accountLabel: "", pageId: "" } }));
       setConnectionAccount(undefined);
       setConfiguredAccountId("");
       setConfiguredAccountLabel("");
@@ -1300,12 +1299,14 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setAutoMediaState("idle");
     setAutoMediaMessage("");
     setAnalysisSetupOpen(false);
+    setConfirmedDestinationUrl("");
     setCreationPath("manual");
     updateDraft({ creationMode: "manual" });
     setStep(1);
   }
 
   function applyCampaignPlan(plan: AdsCampaignPlan) {
+    setConfirmedDestinationUrl("");
     setDraft((current) => {
       const channelDraft = plan.channelDraft?.channel === current.provider ? plan.channelDraft : undefined;
       const channelSettings = channelDraft ? adsChannelWizardSettingsFromBrief(channelDraft) : current.channelSettings;
@@ -1377,6 +1378,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
 
   async function generateCampaignPlan() {
     stopPlanProgress();
+    setConfirmedDestinationUrl("");
     setBusy("plan");
     setPlanError("");
     setPlanRequestId("");
@@ -1452,6 +1454,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
 
   function startNewCampaign() {
     stopPlanProgress();
+    setConfirmedDestinationUrl("");
     setDraft({
       ...newDraft(channelId),
       // The advertiser/identity belongs to the channel, not to an individual
@@ -1505,7 +1508,6 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       setDirty(false);
       setConfirmedSpend(false);
       setNotice("Brouillon enregistré. Aucune annonce n’a été publiée ni facturée.");
-      void loadCampaigns();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Enregistrement impossible.");
     } finally { setBusy(null); }
@@ -1558,12 +1560,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       setNotice(`Campagne activée côté plateforme. Sa diffusion reste soumise à la vérification de l’annonce par ${channelMeta.label}.`);
       setConfirmedSpend(false);
-      await loadCampaigns();
       setCreating(false);
-      setTracking(true);
+      router.push("/dashboard/mails?folder=campagnes-ads");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Publication impossible. Vérifiez le statut de la campagne avant toute nouvelle tentative.");
-      void loadCampaigns();
     } finally { setBusy(null); }
   }
 
@@ -1613,6 +1613,12 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       const accountId = String(connection.selectedAccountId || "");
       setConnected(connection.connected);
       setConnectionStatus(connection.connectionStatus || (connection.connected ? "connected" : "disconnected"));
+      setConnectionSnapshots((current) => ({ ...current, [channelId]: {
+        status: connection.connectionStatus || (connection.connected ? "connected" : "disconnected"),
+        accountId,
+        accountLabel: String(connection.selectedAccountLabel || ""),
+        pageId: String(connection.selectedPageId || ""),
+      } }));
       setAccounts(connection.accounts || []);
       setPages(connection.pages || []);
       setConfiguredAccountId(accountId);
@@ -1655,19 +1661,17 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       }));
       setNotice(`Campagne créée en pause sur ${channelMeta.label}, compte ${account.name}. Aucune diffusion n’est lancée.`);
       setConfirmedSpend(false);
-      await loadCampaigns();
       setCreating(false);
-      setTracking(true);
+      router.push("/dashboard/mails?folder=campagnes-ads");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "La démo en pause n’a pas pu être confirmée. Vérifiez son statut sur la plateforme avant de réessayer.");
-      void loadCampaigns();
     } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
   function reopen(campaign: StoredCampaign) {
     if (campaign.status !== "draft") return;
     stopPlanProgress();
-    setTracking(false);
+    setConfirmedDestinationUrl("");
     setChannelId(campaign.provider);
     setChannelIndex(CHANNEL_CATALOG.findIndex((channel) => channel.id === campaign.provider));
     if (isAdsProvider(campaign.provider)) {
@@ -1700,6 +1704,22 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     setStep(nextPath === "inrcy" ? 2 : 1);
     setCreating(true);
   }
+
+  // A draft opened from iNr’Send returns straight to the editing step.
+  // This request is scoped again on the server to the active establishment.
+  const editLoadId = useRef("");
+  useEffect(() => {
+    if (!initialEditCampaignId || editLoadId.current === initialEditCampaignId) return;
+    editLoadId.current = initialEditCampaignId;
+    void fetch(`/api/ads/campaigns/${encodeURIComponent(initialEditCampaignId)}`, { cache: "no-store" })
+      .then(readJson)
+      .then((result) => {
+        const campaign = result.campaign as StoredCampaign | undefined;
+        if (!campaign || campaign.status !== "draft") throw new Error("Seuls les brouillons non publiés peuvent être modifiés dans le studio.");
+        reopen(campaign);
+      })
+      .catch((error) => setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir ce brouillon."));
+  }, [initialEditCampaignId]);
 
   const estimate = useMemo(() => {
     const days = Math.max(0, Math.ceil((Date.parse(`${draft.endDate}T23:59:59Z`) - Date.now()) / 86_400_000));
@@ -1746,6 +1766,14 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
     : true) && googleSearchImageSourceReady;
   const analysisRequestPending = busy === "plan" && autoMediaState !== "generating" && planProgress < 90 && !planError;
   const analysisProposalReady = creationPath === "inrcy" && step === analysisStep && planProgress === 100 && busy !== "plan";
+  const destinationFieldVisible = nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website";
+  const destinationReview = adsDestinationReviewState({
+    assisted: creationPath === "inrcy",
+    fieldVisible: destinationFieldVisible,
+    websiteRequired: draft.conversionLocation === "website",
+    destinationUrl: draft.destinationUrl,
+    confirmedUrl: confirmedDestinationUrl,
+  });
   const visiblePlanRationale = presentAdsCampaignRationale(planRationale);
   const pendingAnalysisStage = AI_ANALYSIS_STAGES.findIndex((stage) => planProgress < stage.at);
   const activeAnalysisStage = planError
@@ -1773,11 +1801,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
             </div>
           </div>
           <nav className={styles.headerActions} aria-label="Actions iNr’ADS">
-            <button type="button" className={styles.trackingButton} aria-label="Suivi des campagnes" title="Suivi des campagnes" onClick={() => { setTracking(true); void loadCampaigns(); }}>
+            <Link href="/dashboard/mails?folder=campagnes-ads" className={styles.trackingButton} aria-label="Voir les campagnes dans iNr’Send" title="Voir les campagnes dans iNr’Send">
               <span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 5h12M7 12h12M7 19h12" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /><circle cx="3.5" cy="5" r="1.2" fill="currentColor" /><circle cx="3.5" cy="12" r="1.2" fill="currentColor" /><circle cx="3.5" cy="19" r="1.2" fill="currentColor" /></svg></span>
-              <span className={styles.headerActionText}>Suivi des campagnes</span>
-              {campaigns.length > 0 && <span className={styles.trackingCount}>{campaigns.length}</span>}
-            </button>
+              <span className={styles.headerActionText}>iNr’Send</span>
+            </Link>
             <Link href="/dashboard" className={`${styles.back} ${styles.headerCloseButton}`} aria-label="Fermer iNr’ADS" title="Fermer iNr’ADS"><span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /></svg></span><span className={styles.headerActionText}>Fermer</span></Link>
           </nav>
         </div>
@@ -1819,7 +1846,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
             return <div key={`${offset}-${channel.id}`} data-provider={channel.id} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
               {offset !== 0 && <button className={styles.miniSelect} type="button" aria-label={`Afficher ${channel.label}`} onClick={() => selectChannel(index)} />}
               <span className={styles.channelLogo}><Image src={channel.logo} width={56} height={56} alt="" draggable={false} /></span>
-              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{channel.provider ? <span className={styles.channelStatus} data-status={offset !== 0 ? "available" : channelAccountReady ? "connected" : connectionStatus === "needs_update" ? "select-account" : connected ? "select-account" : "disconnected"}>{offset !== 0 ? "Disponible" : channelAccountReady ? "Compte connecté" : connectionStatus === "needs_update" ? "Connexion à actualiser" : connected ? "Compte à associer" : "À connecter"}</span> : externalChannel && offset === 0 ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
+              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{channel.provider ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots[channel.provider]).tone}>{adsConnectionDisplay(connectionSnapshots[channel.provider]).label}</span> : externalChannel ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
               {offset === 0 && (channel.provider ? <div className={styles.channelActions}>
                 {configuredAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={configuredAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
                 <button type="button" className={styles.channelConfigure} onClick={() => openConfiguration(channel.provider!)}><span aria-hidden="true">⚙</span> Configurer</button>
@@ -1838,7 +1865,7 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
       </div>
 
       <SettingsDrawer title="Créer une campagne" isOpen={creating} onClose={closeCampaignCreation} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.wizardTitle}><span className={styles.modalSpark} aria-hidden="true">✦</span><div>Créer une campagne <small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
+      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; if (dx < 0 && current === deliveryStep && !destinationReview.canContinue) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && name}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
@@ -2008,7 +2035,13 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         <StudioStepHeader number={deliveryStep + 1} label="DIFFUSION" title="Où envoyer et comment mesurer." mobileTitle="Votre diffusion" channel={channelMeta.label} />
         <p className={styles.intro}><span className={styles.studioTitleLong}>Préparez le parcours après le clic : une destination claire, l’action attendue et les paramètres utiles. Rien n’est encore diffusé.</span><span className={styles.studioTitleShort}>Aucune diffusion avant votre validation.</span></p>
         <div className={styles.studioGrid}>
-          {(nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website") && <label className={`${styles.field} ${styles.studioWide}`}>Lien de redirection<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>}
+          {destinationFieldVisible && <label className={`${styles.field} ${styles.studioWide}`}>Lien de redirection<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>}
+          {destinationReview.required && <div className={`${styles.studioDestinationReview} ${styles.studioWide}`}>
+            <span>{destinationReview.confirmed ? "✓ Destination validée" : "Vérifiez où votre annonce enverra les visiteurs."}</span>
+            {destinationReview.valid && <a href={draft.destinationUrl.trim()} target="_blank" rel="noopener noreferrer">Ouvrir le lien ↗</a>}
+            <label><input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />Je confirme ce lien</label>
+            {!destinationReview.valid && <small role="alert">Indiquez un lien HTTPS valide avant de continuer.</small>}
+          </div>}
           {nativeSettings?.channel === "tiktok" && <>
             <label className={styles.field}>Destination TikTok<select value={nativeSettings.destinationKind} onChange={(event) => updateNativeSettings({ ...nativeSettings, destinationKind: event.target.value as TikTokWizardSettings["destinationKind"] })}><option value="website">Site web</option>{nativeSettings.objectiveType === "LEAD_GENERATION" && <option value="instant_form">Formulaire intégré</option>}{["REACH", "VIDEO_VIEWS", "ENGAGEMENT"].includes(nativeSettings.objectiveType) && <option value="profile">Profil TikTok</option>}</select></label>
             <div className={styles.field}><span>Optimisation : {nativeBriefTerm(nativeSettings.optimizationIntent)}</span><small>Pour cet objectif, le Pixel ou formulaire devra être confirmé dans TikTok Ads si une conversion est prévue.</small></div>
@@ -2080,13 +2113,10 @@ export default function AdsClient({ initialChannel, initialConnection, initialRe
         </div>
         {isAdsProvider(channelId) && livePublisherSetupReady && livePublishingEnabled && <><label className={`${styles.check} ${styles.studioFinalCheck}`}><input type="checkbox" checked={confirmedSpend} onChange={(event) => setConfirmedSpend(event.target.checked)} />Je valide le compte, le texte, la destination, la date de fin et la facturation directe par {channelId === "meta" ? "Meta" : "Google"}.</label><button type="button" className={styles.primaryButton} disabled={channelId !== provider || !savedId || dirty || !channelAccountReady || !livePublisherMediaReady || !confirmedSpend || busy !== null} onClick={() => void publish()}>{busy === "publish" ? "Publication en cours…" : `Publier sur ${channelMeta.label}`} <span aria-hidden="true">↗</span></button></>}
       </section>
-      {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
+      {creationPath !== "choice" && <div className={styles.wizardNavigation}><button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button><span>{step + 1} / {stepNames.length}</span>{step < lastStep ? <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button> : <button type="button" className={styles.back} onClick={closeCampaignCreation}>Revenir au cockpit</button>}</div>}
       </div>
       </SettingsDrawer>
 
-      <SettingsDrawer title="Suivi des campagnes" isOpen={tracking} onClose={() => setTracking(false)} presentation="centered" headerLead="Retrouvez vos campagnes et reprenez vos brouillons." headerStyle={{ background: "radial-gradient(ellipse at 20% 0, #246bbd70, transparent 60%), linear-gradient(100deg, #172e5a, #392464 65%, #772b75)", borderBottom: "1px solid #c68aff66", boxShadow: "0 8px 35px #8a4ce52b", minHeight: 76 }} headerContent={<div className={styles.trackingTitle}><span aria-hidden="true">↗</span> Suivi des campagnes</div>}>
-        <AdsCampaignTracking campaigns={campaigns} total={campaignTotal} loading={campaignsLoading} loadingMore={campaignsLoadingMore} hasMore={campaignNextOffset !== null} loadError={campaignsLoadError} onRefresh={loadCampaigns} onLoadMore={loadMoreCampaigns} onClose={() => setTracking(false)} onEdit={reopen} />
-      </SettingsDrawer>
     </div>
     <AdsConnectionSettings
       isOpen={configuring}

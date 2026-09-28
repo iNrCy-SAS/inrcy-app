@@ -43,6 +43,7 @@ import MailboxHeader from "./_components/MailboxHeader";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
 import MobileFoldersMenu from "./_components/MobileFoldersMenu";
 import FolderTabs from "./_components/FolderTabs";
+import AdsCampaignsFolder from "./_components/AdsCampaignsFolder";
 import MailboxToolbar from "./_components/MailboxToolbar";
 import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
@@ -241,21 +242,25 @@ function mailboxHistoryCountsKey(context: MailboxHistoryContext) {
 export default function MailboxClient({
   standardMode = false,
   founderMode = false,
+  adsEnabled = false,
 }: {
   standardMode?: boolean;
   founderMode?: boolean;
+  adsEnabled?: boolean;
 }) {
   const i18nT = useTranslations("mails");
   const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const adsCampaignsSelected = adsEnabled && searchParams?.get("folder") === "campagnes-ads";
+  const [adsCampaignCount, setAdsCampaignCount] = useState<number | null>(null);
   const supabase = useMemo(() => createClient(), []);
   const visibleFolders = useMemo(
-    () => founderMode
-      ? ALL_FOLDERS
-      : ALL_FOLDERS.filter((candidate) => candidate !== "factures" && candidate !== "devis"),
-    [founderMode],
+    () => standardMode ? ALL_FOLDERS.filter((candidate) => candidate === "publications")
+      : founderMode ? ALL_FOLDERS
+        : ALL_FOLDERS.filter((candidate) => candidate !== "factures" && candidate !== "devis"),
+    [founderMode, standardMode],
   );
 
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
@@ -503,10 +508,10 @@ export default function MailboxClient({
       "workflow_finalizer",
       "scheduled_edit_id",
     ].some((key) => searchParams?.has(key));
-    if ((requestedFolder && requestedFolder !== "publications") || hasPremiumComposeIntent) {
+    if ((requestedFolder && requestedFolder !== "publications" && !(adsEnabled && requestedFolder === "campagnes-ads")) || hasPremiumComposeIntent) {
       router.replace("/dashboard/mails?folder=publications", { scroll: false });
     }
-  }, [router, searchParams, standardMode]);
+  }, [adsEnabled, router, searchParams, standardMode]);
 
   // Attachments uploaded by Factures / Devis screens are stored here.
   const ATTACH_BUCKET = "inrbox_attachments";
@@ -5712,7 +5717,7 @@ export default function MailboxClient({
           }}
         />
 
-        {!standardMode ? (
+        {(!standardMode || adsEnabled) ? (
           <MobileFoldersMenu
             folders={visibleFolders}
             open={mobileFoldersOpen}
@@ -5721,21 +5726,24 @@ export default function MailboxClient({
             countsLoading={!historyCountsLoadedOnce}
             onClose={() => setMobileFoldersOpen(false)}
             onSelectFolder={updateFolder}
+            adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
           />
         ) : null}
 
         <div className={styles.grid}>
           <div className={`${styles.card} ${styles.listCard}`}>
-            {!standardMode ? (
+            {(!standardMode || adsEnabled) ? (
               <FolderTabs
                 folders={visibleFolders}
                 folder={folder}
                 counts={counts}
                 countsLoading={!historyCountsLoadedOnce}
                 onSelectFolder={updateFolder}
+                adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
               />
             ) : null}
 
+            {adsCampaignsSelected ? <AdsCampaignsFolder onCountChange={setAdsCampaignCount} /> : <>
             <MailboxToolbar
               publicationOnly={standardMode}
               folder={folder}
@@ -5785,6 +5793,7 @@ export default function MailboxClient({
               refreshHistory={() => loadHistory()}
               historyQuery={historyQuery}
             />
+            </>}
           </div>
         </div>
 

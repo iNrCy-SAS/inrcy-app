@@ -25,8 +25,8 @@ export async function GET() {
       connected,
       status: !configured ? "not_configured" : connected ? "connected" : row ? "needs_reconnect" : "disconnected",
       readiness: connected && row?.resource_id ? "account_selected" : connected ? "account_required" : "connection_required",
-      selectedAccountId: connected ? row?.resource_id || null : null,
-      selectedAccountLabel: connected ? row?.resource_label || null : null,
+      selectedAccountId: row?.resource_id || null,
+      selectedAccountLabel: row?.resource_label || null,
       publicationEnabled: false,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {

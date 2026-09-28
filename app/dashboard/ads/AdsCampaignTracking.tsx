@@ -33,6 +33,7 @@ type Props = {
   onLoadMore: () => Promise<void>;
   onClose: () => void;
   onEdit: (campaign: StoredAdsCampaign) => void;
+  presentation?: "studio" | "inrsend";
 };
 
 const channelLabels: Record<AdsChannelId, { label: string; logo: string }> = {
@@ -74,6 +75,14 @@ function displayDate(value: string | null): string {
   return Number.isFinite(parsed.getTime()) ? dates.format(parsed) : "—";
 }
 
+function displayAdsList(value: unknown, separator = ", "): string {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).join(separator) : "";
+}
+
+function displayAdsPair(...values: unknown[]): string {
+  return values.filter((value): value is string => typeof value === "string" && value.trim().length > 0).join(" · ");
+}
+
 function plusUtcDays(days: number): string {
   const now = new Date();
   const utcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -90,7 +99,8 @@ async function readActionResponse(response: Response): Promise<void> {
   if (!response.ok) throw new Error(data?.error || "L’action n’a pas pu être terminée.");
 }
 
-export default function AdsCampaignTracking({ campaigns, total, loading, loadingMore, hasMore, loadError, onRefresh, onLoadMore, onClose, onEdit }: Props) {
+export default function AdsCampaignTracking({ campaigns, total, loading, loadingMore, hasMore, loadError, onRefresh, onLoadMore, onClose, onEdit, presentation = "studio" }: Props) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [extendId, setExtendId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [nextDate, setNextDate] = useState("");
@@ -166,12 +176,12 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
     }
   }
 
-  return <div className={styles.root}>
+  return <div className={`${styles.root} ${presentation === "inrsend" ? styles.inrsendRoot : ""}`}>
     <header className={styles.hero}>
       <div>
-        <span className={styles.eyebrow}>TABLEAU DE BORD · iNr’ADS</span>
-        <h2>Vos campagnes, en un regard.</h2>
-        <p>Retrouvez les campagnes enregistrées et reprenez vos brouillons sans perdre le fil.</p>
+        <span className={styles.eyebrow}>{presentation === "inrsend" ? "iNr’SEND · CAMPAGNES ADS" : "TABLEAU DE BORD · iNr’ADS"}</span>
+        <h2>Campagnes publicitaires</h2>
+        <p>Campagnes enregistrées, en pause ou en ligne, réunies avec vos autres envois.</p>
       </div>
       <button type="button" className={styles.refresh} disabled={loading} onClick={() => void onRefresh()} aria-label="Actualiser les campagnes">
         <span aria-hidden="true">↻</span> {loading ? "Actualisation…" : "Actualiser"}
@@ -179,7 +189,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
     </header>
 
     <div className={styles.overview} aria-label="Récapitulatif des campagnes enregistrées">
-      <div className={styles.overviewTile}><span>Campagnes enregistrées</span><strong>{total}</strong><small>{hasMore ? `${campaigns.length} sur ${total} affichées` : "Dans votre espace iNr’ADS"}</small></div>
+      <div className={styles.overviewTile}><span>Campagnes enregistrées</span><strong>{total}</strong><small>{hasMore ? `${campaigns.length} sur ${total} affichées` : "Dans iNr’Send"}</small></div>
       <div className={styles.overviewTile}><span>Brouillons affichés</span><strong>{shownDrafts}</strong><small>Modifiables avant publication</small></div>
       <div className={styles.overviewTile}><span>Hors brouillon affichées</span><strong>{shownBeyondDraft}</strong><small>Création, contrôle, publication ou démo</small></div>
     </div>
@@ -196,7 +206,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
             const accountUrl = (campaign.provider === "google" || campaign.provider === "meta")
               ? getAdsAdvertiserAccountUrl(campaign.provider, campaign.ad_account_id)
               : null;
-            const canChange = campaign.status === "draft" && !campaign.published_at && campaign.provider_resources !== null
+            const canChange = campaign.status === "draft" && Boolean(campaign.draft) && !campaign.published_at && campaign.provider_resources !== null
               && typeof campaign.provider_resources === "object" && !Array.isArray(campaign.provider_resources)
               && Object.keys(campaign.provider_resources).length === 0;
             const tomorrow = plusUtcDays(1);
@@ -209,21 +219,48 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
                 ? Boolean(googleCampaignId(campaign.provider_resources, campaign.ad_account_id))
                 : campaign.provider === "meta" && Boolean(metaCampaignId(campaign.provider_resources, campaign.ad_account_id)));
             const metricsState = metricsById[campaign.id];
-            return <article key={campaign.id} className={styles.card}>
+            const expanded = presentation !== "inrsend" || expandedId === campaign.id;
+            const draft: Partial<AdsCampaignInput> = campaign.draft && typeof campaign.draft === "object" ? campaign.draft : {};
+            return <article key={campaign.id} className={`${styles.card} ${presentation === "inrsend" ? styles.inboxCard : ""}`}>
               <div className={styles.cardTop}>
                 <div className={styles.identity}>
                   <span className={styles.logo}><Image src={channel.logo} alt="" width={30} height={30} /></span>
                   <div><strong>{campaign.name || "Campagne sans titre"}</strong><small>{channel.label} · créée le {displayDate(campaign.created_at)}</small></div>
                 </div>
-                <span className={styles.status} data-status={campaign.status}>{statusLabels[campaign.status] || "État à vérifier"}</span>
+                <div className={styles.cardTopActions}><span className={styles.status} data-status={campaign.status}>{statusLabels[campaign.status] || "État à vérifier"}</span>{presentation === "inrsend" && <button type="button" className={styles.primary} aria-expanded={expanded} onClick={() => { setExpandedId(expanded ? null : campaign.id); if (!expanded && canReadMetrics && !metricsById[campaign.id]) void loadMetrics(campaign); }}>{expanded ? "Masquer" : "Détails"}</button>}</div>
               </div>
 
+              {expanded && <>
               <dl className={styles.facts}>
                 <div><dt>Budget/jour prévu</dt><dd>{Number.isFinite(campaign.daily_budget_cents) ? euros.format(campaign.daily_budget_cents / 100) : "—"}</dd></div>
                 <div><dt>Fin prévue</dt><dd>{displayDate(campaign.end_date)}</dd></div>
                 <div><dt>Publication enregistrée</dt><dd>{displayDate(campaign.published_at)}</dd></div>
                 <div><dt>Performances réelles</dt><dd>{metricsState?.status === "ready" ? "30 derniers jours" : metricsState?.status === "empty" ? "Aucune donnée retournée" : canReadMetrics ? "À consulter" : "Indisponibles"}</dd></div>
               </dl>
+              <section className={styles.campaignConfiguration} aria-label={`Contenu de la campagne ${campaign.name}`}>
+                <h3>Contenu de la campagne</h3>
+                <dl className={styles.configurationGrid}>
+                  {([
+                    ["Offre", draft.offer || ""],
+                    ["Objectif", draft.objective || ""],
+                    ["Conversion", displayAdsPair(draft.conversionGoal, draft.conversionLocation)],
+                    ["Type / format", displayAdsPair(draft.campaignType, draft.mediaStrategy)],
+                    ["Stratégie d’enchères", draft.bidStrategy || ""],
+                    ["Compte annonceur", campaign.ad_account_id || "Non associé"],
+                    ["Destination", draft.destinationUrl || "Non renseignée"],
+                    ["Zones", displayAdsList(draft.targetLocations)],
+                    ["Audiences", displayAdsList(draft.targetAudiences)],
+                    ["Langues", displayAdsList(draft.languages)],
+                    ["Mots-clés", displayAdsList(draft.keywords)],
+                    ["Mots-clés à exclure", displayAdsList(draft.negativeKeywords)],
+                    ["Titres", displayAdsList(draft.headlines, " · ")],
+                    ["Descriptions", displayAdsList(draft.descriptions, " · ")],
+                    ["Message principal", draft.primaryText || ""],
+                    ["Appel à l’action", draft.callToAction || ""],
+                    ["Paramètres de suivi", draft.trackingParameters || ""],
+                  ] as [string, string][]).filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+                </dl>
+              </section>
               {campaign.last_error && <p className={styles.campaignError}>Contrôle nécessaire : {campaign.last_error}</p>}
 
               <div className={styles.actions}>
@@ -236,17 +273,17 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
                 {canReadMetrics && <button type="button" className={styles.secondary} disabled={metricsState?.status === "loading"} onClick={() => void loadMetrics(campaign)}>{metricsState?.status === "loading" ? "Lecture des statistiques…" : metricsState ? "Actualiser les statistiques" : "Voir les statistiques"}</button>}
               </div>
 
-              {metricsState?.status === "ready" && metricsState.metrics && <section className={styles.metricsPanel} aria-label={`Statistiques réelles de ${campaign.name}`}>
-                <div className={styles.metricsHeading}><strong>Performances réelles · 30 derniers jours</strong><small>{metricsState.metrics.source === "google" ? "Google Ads" : "Meta Ads"} · relevé le {displayDate(metricsState.metrics.fetchedAt)}</small></div>
-                <dl className={styles.metricsGrid}>
+              <section className={styles.metricsPanel} aria-label={`Statistiques de ${campaign.name}`}>
+                <div className={styles.metricsHeading}><strong>Statistiques de la campagne · 30 derniers jours</strong>{metricsState?.status === "ready" && metricsState.metrics && <small>{metricsState.metrics.source === "google" ? "Google Ads" : "Meta Ads"} · relevé le {displayDate(metricsState.metrics.fetchedAt)}</small>}</div>
+                {metricsState?.status === "ready" && metricsState.metrics ? <dl className={styles.metricsGrid}>
                   <div><dt>Impressions</dt><dd>{quantities.format(metricsState.metrics.impressions)}</dd></div>
                   <div><dt>Clics</dt><dd>{quantities.format(metricsState.metrics.clicks)}</dd></div>
                   <div><dt>Dépenses</dt><dd>{euros.format(metricsState.metrics.spendEuros)}</dd></div>
                   <div><dt>Conversions</dt><dd>{metricsState.metrics.conversions === null ? "Non harmonisées" : quantities.format(metricsState.metrics.conversions)}</dd></div>
-                </dl>
-              </section>}
-              {metricsState?.status === "empty" && <p className={styles.metricsFeedback}>Aucune donnée de diffusion retournée par la plateforme sur les 30 derniers jours.</p>}
-              {metricsState?.status === "error" && <p className={styles.metricsFeedback} role="alert">{metricsState.error}</p>}
+                </dl> : <p className={styles.metricsFeedback} role={metricsState?.status === "error" ? "alert" : "status"}>
+                  {metricsState?.status === "loading" ? "Lecture des performances sur la plateforme…" : metricsState?.status === "empty" ? "Aucune donnée de diffusion retournée sur les 30 derniers jours." : metricsState?.status === "error" ? metricsState.error : campaign.status === "draft" ? "Brouillon non diffusé : aucune statistique pour le moment." : canReadMetrics ? "Ouvrez les détails pour charger les performances." : "Statistiques indisponibles pour ce canal ou cet état."}
+                </p>}
+              </section>
 
               {extendId === campaign.id && <div className={styles.actionPanel}>
                 <label>Nouvelle date de fin du brouillon<input type="date" value={nextDate} min={minDate} max={maxDate} onChange={(event) => setNextDate(event.target.value)} /></label>
@@ -259,6 +296,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
                 <div><button type="button" className={styles.dangerConfirm} disabled={busyId === campaign.id} onClick={() => void deleteDraft(campaign)}>{busyId === campaign.id ? "Suppression…" : "Confirmer la suppression"}</button><button type="button" className={styles.secondary} disabled={Boolean(busyId)} onClick={cancelAction}>Annuler</button></div>
               </div>}
               {actionError && (extendId === campaign.id || deleteId === campaign.id) && <p className={styles.actionError} role="alert">{actionError}</p>}
+              </>}
             </article>;
           })}
         </div>}
