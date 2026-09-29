@@ -26,7 +26,8 @@ export async function GET() {
       accounts,
       selectedAccountId: selected?.id || null,
       selectedAccountName: selected?.name || null,
-      publicationEnabled: false,
+      proposalEnabled: true,
+      publicationEnabled: Boolean(selected && selected.currency === "EUR" && selected.canManageCampaigns === true),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return failureResponse(error);
@@ -55,6 +56,9 @@ export async function POST(request: Request) {
     if (selected.canManageCampaigns === false) {
       return NextResponse.json({ error: "Ce compte Pinterest Ads ne permet pas de gérer des campagnes.", code: "insufficient_account_permissions" }, { status: 403 });
     }
+    if (selected.currency !== "EUR") {
+      return NextResponse.json({ error: "Cette première version de Pinterest Ads accepte uniquement un compte facturé en EUR.", code: "unsupported_account_currency" }, { status: 422 });
+    }
     const { data, error } = await supabaseAdmin.from("integrations")
       .update({ resource_id: selected.id, resource_label: selected.name, updated_at: new Date().toISOString() })
       .eq("id", integration.id)
@@ -65,7 +69,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       selectedAccountId: selected.id,
       account: selected,
-      publicationEnabled: false,
+      proposalEnabled: true,
+      publicationEnabled: selected.canManageCampaigns === true,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return failureResponse(error);

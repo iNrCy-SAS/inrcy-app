@@ -22,7 +22,7 @@ test("la démo Ads reste distincte de la publication réelle", () => {
   assert.equal(hasAdsPublishConfirmation("live", ADS_LIVE_PUBLISH_CONFIRMATION), true);
 });
 
-test("le serveur refuse les formats que les connecteurs Google et Meta ne savent pas publier", () => {
+test("le serveur refuse les formats que les connecteurs Google, Meta et Pinterest ne savent pas publier", () => {
   const meta = {
     provider: "meta",
     campaignType: "meta_traffic",
@@ -82,6 +82,27 @@ test("le serveur refuse les formats que les connecteurs Google et Meta ne savent
   assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "" }) || "", /En savoir plus/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "Demander un devis" }) || "", /En savoir plus/);
   assert.match(unsupportedAdsConnectorReason({ ...meta, mediaStrategy: "video" }) || "", /image/);
+  const pinterest = {
+    ...meta,
+    provider: "pinterest",
+    campaignType: "generic",
+    creativeUrl: "https://example.com/pin.jpg",
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "CONSIDERATION",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "keywords",
+      conversionEvent: null,
+    },
+  } as Parameters<typeof unsupportedAdsConnectorReason>[0];
+  assert.equal(unsupportedAdsConnectorReason(pinterest), null);
+  const unsupportedPinterest = {
+    ...pinterest,
+    channelSettings: { ...pinterest.channelSettings!, objectiveType: "SALES" },
+  } as Parameters<typeof unsupportedAdsConnectorReason>[0];
+  assert.match(unsupportedAdsConnectorReason(unsupportedPinterest) || "", /Notoriété et Considération/);
 
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(route, /code: "ADS_CONNECTOR_UNSUPPORTED_CONFIGURATION"[\s\S]*?status: 422/);
@@ -99,14 +120,17 @@ test("les enchères Search respectent la stratégie choisie sans substitution si
   assert.equal(googleSearchBiddingFields("manual_review"), null);
 });
 
-test("les adaptateurs Google et Meta s’arrêtent avant toute activation en mode démo", () => {
+test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activation en statut Paused", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
   const metaCore = readFileSync(new URL("../lib/adsMetaPublishCore.ts", import.meta.url), "utf8");
+  const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(google, /if \(options\.activate === false\) return paused;/);
   assert.match(meta, /activate: shouldActivate/);
   assert.match(metaCore, /if \(!input\.activate\) \{/);
+  assert.match(pinterest, /if \(options\.activate !== false\)/);
+  assert.match(pinterest, /stage: "paused"/);
   assert.match(route, /status: pausedDemo \? "demo_paused" : "active"/);
   assert.match(route, /activate: !pausedDemo/);
   assert.match(route, /\.eq\("status", "publishing"\)\s*\.select\("id"\)\.maybeSingle\(\)/);
@@ -115,7 +139,7 @@ test("les adaptateurs Google et Meta s’arrêtent avant toute activation en mod
   const progressHandler = route.slice(progressStart, route.indexOf("  try {", progressStart));
   assert.ok(progressHandler.indexOf("progress = resources;") >= 0);
   assert.ok(progressHandler.indexOf("progress = resources;") < progressHandler.indexOf('supabaseAdmin.from("ads_campaigns").update('));
-  assert.match(route, /const resources = error instanceof MetaAdsPublishError \? error\.progress : progress/);
+  assert.match(route, /error instanceof MetaAdsPublishError \|\| error instanceof PinterestAdsPublishError[\s\S]*?error\.progress : progress/);
 });
 
 test("un préflight Meta refusé reste corrigeable sans autoriser un doublon après mutation", () => {
@@ -132,7 +156,7 @@ test("un préflight Meta refusé reste corrigeable sans autoriser un doublon apr
   assert.match(route, /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
   assert.match(route, /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
   assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
-  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate/);
+  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate \|\| pinterestRejectedBeforeCreate/);
 });
 
 test("le connecteur Search transmet les réseaux Google choisis dans le studio", () => {
@@ -156,11 +180,12 @@ test("le connecteur Search vérifie les zones saisies avant toute mutation", () 
   assert.match(route, /preparedTargetLocations: preparedGoogleTargetLocations/);
 });
 
-test("la confirmation de démo impose la déclaration avant l'enregistrement local", () => {
+test("la validation finale impose la déclaration et un statut disponible avant l'enregistrement local", () => {
   const dialog = readFileSync(new URL("../app/dashboard/ads/AdsCampaignDemoDialog.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   assert.match(dialog, /checked=\{declarationChecked\}/);
-  assert.match(dialog, /disabled=\{busy \|\| !declarationChecked\}/);
+  assert.match(dialog, /disabled=\{busy \|\| !declarationChecked \|\| \(launchStatus === "active" \? !activeEnabled : !pausedEnabled\)\}/);
+  assert.match(dialog, /Statut au lancement/);
   assert.match(client, /parseAdsCampaignInput\(campaignDraft, \{ purpose: "publish" \}\)/);
   assert.ok(client.indexOf('parseAdsCampaignInput(campaignDraft, { purpose: "publish" })') < client.indexOf('const saved = await readJson(await fetch("/api/ads/campaigns"'));
 });
@@ -174,7 +199,7 @@ test("les validations bloquantes restent près des actions, les descriptions ali
 
   assert.doesNotMatch(destinationReview, /type="checkbox"/);
   assert.match(navigation, /wizardNextGroup[\s\S]*?wizardRequiredCheck[\s\S]*?Je confirme ce lien[\s\S]*?Suivant →/);
-  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?Créer une démo en pause/);
+  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?Lancer la campagne[\s\S]*?Enregistrer en brouillon/);
   assert.match(css, /\.googleAdCopyField\{[^}]*align-self:start;align-content:start/);
 });
 

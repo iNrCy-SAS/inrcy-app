@@ -5743,7 +5743,7 @@ export default function MailboxClient({
               />
             ) : null}
 
-            {adsCampaignsSelected ? <AdsCampaignsFolder onCountChange={setAdsCampaignCount} /> : <>
+            {adsCampaignsSelected ? <AdsCampaignsFolder onCountChange={setAdsCampaignCount} draftOnly={searchParams?.get("boxView") === "drafts"} /> : <>
             <MailboxToolbar
               publicationOnly={standardMode}
               folder={folder}

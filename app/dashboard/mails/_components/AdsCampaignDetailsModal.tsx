@@ -409,7 +409,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
             <span className={styles.status} data-status={campaign.status}>{adsStatusLabels[campaign.status] || "À vérifier"}</span>
             <div className={`${styles.actions} ${styles.headerActions}`}>
               {canChange ? <>
-                <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => router.push(`/dashboard/ads?editCampaign=${encodeURIComponent(campaign.id)}`)}>Modifier</button>
+                <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => router.push(`/dashboard/ads?channel=${encodeURIComponent(campaign.provider)}&editCampaign=${encodeURIComponent(campaign.id)}`)}>Modifier</button>
                 {minDate <= maxDate && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => { setExtendId(campaign.id); setDeleteId(null); setActionError(""); setNextDate(minDate); }}>Prolonger</button>}
                 <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setActionError(""); }}>Supprimer</button>
               </> : canDiscardLocalRecovery ? <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Nettoyer ce suivi local</button> : isInterruptedRemoteOperation ? <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Contrôler l’opération interrompue"}</button> : canManageRemote ? <>

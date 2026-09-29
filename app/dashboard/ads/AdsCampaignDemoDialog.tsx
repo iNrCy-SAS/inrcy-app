@@ -12,19 +12,25 @@ export type AdsCampaignDemoDialogDetails = {
   accountId: string;
 };
 
+export type AdsCampaignLaunchStatus = "active" | "paused";
+
 type Props = {
   mode: "confirm" | "success";
   details: AdsCampaignDemoDialogDetails;
   busy: boolean;
   declarationLabel: string;
   declarationChecked: boolean;
+  launchStatus: AdsCampaignLaunchStatus;
+  activeEnabled: boolean;
+  pausedEnabled: boolean;
   onDeclarationChange: (checked: boolean) => void;
+  onLaunchStatusChange: (status: AdsCampaignLaunchStatus) => void;
   onCancel: () => void;
   onConfirm: () => void;
   onReturnHome: () => void;
 };
 
-export default function AdsCampaignDemoDialog({ mode, details, busy, declarationLabel, declarationChecked, onDeclarationChange, onCancel, onConfirm, onReturnHome }: Props) {
+export default function AdsCampaignDemoDialog({ mode, details, busy, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const declarationRef = useRef<HTMLInputElement>(null);
@@ -91,24 +97,37 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, declaration
 
   return createPortal(
     <div className={styles.overlay}>
-      <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ads-demo-dialog-title" aria-describedby="ads-demo-dialog-description" tabIndex={-1}>
+      <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ads-launch-dialog-title" aria-describedby="ads-launch-dialog-description" tabIndex={-1}>
         <div className={styles.header}>
           <span className={styles.brandMark} aria-hidden="true">✦</span>
           <div className={styles.brand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>
-          {mode === "confirm" && <button type="button" className={styles.close} onClick={onCancel} disabled={busy} aria-label="Annuler la création de la démo">×</button>}
+          {mode === "confirm" && <button type="button" className={styles.close} onClick={onCancel} disabled={busy} aria-label="Annuler le lancement de la campagne">×</button>}
         </div>
         <div className={styles.content}>
-          <span className={styles.eyebrow}>{mode === "confirm" ? "VOTRE VALIDATION" : "DÉMO CRÉÉE"}</span>
-          <h2 id="ads-demo-dialog-title">{mode === "confirm" ? "Créer votre démo en pause ?" : "Votre démo est créée en pause."}</h2>
-          <p id="ads-demo-dialog-description">{mode === "confirm"
-            ? "Vérifiez la campagne et le compte associé avant de confirmer. La création sur la plateforme se fera en pause, sans activation ni dépense."
-            : "La campagne a été enregistrée dans iNrCy et créée en pause sur la plateforme. Aucune diffusion ni dépense n’a été lancée."}</p>
+          <span className={styles.eyebrow}>{mode === "confirm" ? "VALIDATION FINALE" : "CAMPAGNE CRÉÉE"}</span>
+          <h2 id="ads-launch-dialog-title">{mode === "confirm" ? "Lancer cette campagne ?" : launchStatus === "active" ? "Votre campagne est lancée." : "Votre campagne est créée en pause."}</h2>
+          <p id="ads-launch-dialog-description">{mode === "confirm"
+            ? "Vérifiez le compte et choisissez le statut appliqué au moment de la création sur la plateforme publicitaire."
+            : launchStatus === "active"
+              ? "La campagne a été créée et activée sur la plateforme. Sa diffusion reste soumise à la validation de la régie."
+              : "La campagne a été créée en pause sur la plateforme. Aucune diffusion ni dépense n’a été lancée."}</p>
           <dl className={styles.summary}>
             <div><dt>Campagne</dt><dd>{details.campaignName}</dd></div>
             <div><dt>Canal</dt><dd>{details.channelLabel}</dd></div>
             <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
-            <div><dt>Statut</dt><dd className={styles.paused}>En pause · aucune dépense</dd></div>
+            {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "Paused · aucune diffusion"}</dd></div>}
           </dl>
+          {mode === "confirm" && <fieldset className={styles.statusChoice}>
+            <legend>Statut au lancement</legend>
+            <label data-selected={launchStatus === "active" || undefined} data-disabled={!activeEnabled || undefined}>
+              <input type="radio" name="ads-launch-status" value="active" checked={launchStatus === "active"} disabled={busy || !activeEnabled} onChange={() => onLaunchStatusChange("active")} />
+              <span><strong>Active</strong><small>La campagne pourra être diffusée dès qu’elle aura été validée par la plateforme.</small></span>
+            </label>
+            <label data-selected={launchStatus === "paused" || undefined} data-disabled={!pausedEnabled || undefined}>
+              <input type="radio" name="ads-launch-status" value="paused" checked={launchStatus === "paused"} disabled={busy || !pausedEnabled} onChange={() => onLaunchStatusChange("paused")} />
+              <span><strong>Paused</strong><small>La campagne est créée sans diffusion ni dépense et pourra être activée plus tard.</small></span>
+            </label>
+          </fieldset>}
           {mode === "confirm" && <label className={styles.declaration}>
             <input ref={declarationRef} type="checkbox" checked={declarationChecked} onChange={(event) => onDeclarationChange(event.target.checked)} disabled={busy} />
             <span>{declarationLabel}<small>Cette déclaration est requise avant la création sur la plateforme.</small></span>
@@ -117,7 +136,7 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, declaration
           <div className={styles.actions}>
             {mode === "confirm" ? <>
               <button type="button" className={styles.secondary} onClick={onCancel} disabled={busy}>Annuler</button>
-              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} disabled={busy || !declarationChecked}>{busy ? "Création en cours…" : "Confirmer la démo en pause"}</button>
+              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} disabled={busy || !declarationChecked || (launchStatus === "active" ? !activeEnabled : !pausedEnabled)}>{busy ? "Création en cours…" : launchStatus === "active" ? "Confirmer et lancer" : "Confirmer en pause"}</button>
             </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}>Retour à l’accueil iNr’ADS <span aria-hidden="true">→</span></button>}
           </div>
         </div>

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import test from "node:test";
 import {
+  PINTEREST_ADS_SCOPES,
   buildPinterestAdsAuthorizeUrl,
   isPinterestAdsCallbackUri,
   missingPinterestAdsScopes,
@@ -13,6 +14,7 @@ import {
 } from "../../lib/adsPinterestPolicy.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const allScopes = PINTEREST_ADS_SCOPES.join(",");
 
 test("OAuth Ads uses a dedicated redirect, CSRF state and exact advertising scopes", () => {
   const redirect = "https://example.com/api/ads/pinterest/callback";
@@ -23,7 +25,7 @@ test("OAuth Ads uses a dedicated redirect, CSRF state and exact advertising scop
   assert.equal(url.searchParams.get("redirect_uri"), redirect);
   assert.equal(url.searchParams.get("response_type"), "code");
   assert.equal(url.searchParams.get("state"), "state-123");
-  assert.deepEqual(parsePinterestAdsScopes(url.searchParams.get("scope")), ["ads:read", "ads:write"]);
+  assert.deepEqual(parsePinterestAdsScopes(url.searchParams.get("scope")), [...PINTEREST_ADS_SCOPES]);
 });
 
 test("Pinterest Ads callback stays on its dedicated HTTPS route", () => {
@@ -37,9 +39,9 @@ test("Pinterest Ads callback stays on its dedicated HTTPS route", () => {
 
 test("scope parser accepts Pinterest space/comma formats without inventing grants", () => {
   assert.deepEqual(parsePinterestAdsScopes("ads:read, ads:write ads:read"), ["ads:read", "ads:write"]);
-  assert.deepEqual(missingPinterestAdsScopes("ads:read"), ["ads:write"]);
-  assert.deepEqual(missingPinterestAdsScopes("ads:read,ads:write"), []);
-  assert.deepEqual(missingPinterestAdsScopes(undefined), ["ads:read", "ads:write"]);
+  assert.deepEqual(missingPinterestAdsScopes("ads:read"), PINTEREST_ADS_SCOPES.filter((scope) => scope !== "ads:read"));
+  assert.deepEqual(missingPinterestAdsScopes(allScopes), []);
+  assert.deepEqual(missingPinterestAdsScopes(undefined), [...PINTEREST_ADS_SCOPES]);
 });
 
 test("account normalization distinguishes campaign managers from analysts and unknown roles", () => {
@@ -61,7 +63,7 @@ test("readiness fails closed until scoped account and campaign permission are kn
   const manager = normalizePinterestAdsAccount({ id: "123", permissions: ["CAMPAIGN_MANAGER"] })!;
   const analyst = normalizePinterestAdsAccount({ id: "456", permissions: ["ANALYST"] })!;
   const unknown = normalizePinterestAdsAccount({ id: "789", permissions: [] })!;
-  const common = { connected: true, scopes: "ads:read,ads:write", accounts: [manager, analyst, unknown] };
+  const common = { connected: true, scopes: allScopes, accounts: [manager, analyst, unknown] };
   assert.equal(pinterestAdsReadiness({ connected: false }), "disconnected");
   assert.equal(pinterestAdsReadiness({ ...common, needsReconnect: true }), "needs_reconnect");
   assert.equal(pinterestAdsReadiness({ ...common, scopes: "ads:read" }), "missing_scopes");
@@ -72,11 +74,18 @@ test("readiness fails closed until scoped account and campaign permission are kn
   assert.equal(pinterestAdsReadiness({ ...common, selectedAccountId: "123" }), "ready_for_review");
 });
 
-test("Pinterest Ads connector cannot create or publish paid campaigns", () => {
+test("Pinterest Ads keeps discovery read-only and delegates paid creation to the audited publisher", () => {
   const connector = readFileSync(path.join(root, "lib/adsPinterestServer.ts"), "utf8");
   const accounts = readFileSync(path.join(root, "app/api/ads/pinterest/accounts/route.ts"), "utf8");
+  const publisher = readFileSync(path.join(root, "lib/adsPinterestCampaignPublish.ts"), "utf8");
+  const publishRoute = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
   assert.match(connector, /method: "POST"/); // token exchange only
   assert.doesNotMatch(connector, /\/campaigns|\/ad_groups|\/ad_accounts\/[^?]+\/ads/);
   assert.doesNotMatch(accounts, /createCampaign|publishCampaign/);
-  assert.match(accounts, /publicationEnabled: false/);
+  assert.match(accounts, /publicationEnabled: Boolean\(selected/);
+  assert.match(publisher, /\/campaigns/);
+  assert.match(publisher, /\/ad_groups/);
+  assert.match(publisher, /\/pins\?ad_account_id=/);
+  assert.match(publisher, /\/ads/);
+  assert.match(publishRoute, /publishPinterestAdsCampaign/);
 });

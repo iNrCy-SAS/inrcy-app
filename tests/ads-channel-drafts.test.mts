@@ -91,19 +91,19 @@ test("all four channels distinguish a complete brief from unpublished status", (
     assert.equal(result.channel, draft.channel);
     assert.equal(result.briefComplete, true, `${draft.channel}: ${JSON.stringify(result.briefIssues)}`);
     assert.equal(result.publicationReady, false);
-    assert.ok(result.publicationIssues.some((item) => item.code === "publisher_not_implemented"));
+    assert.ok(result.publicationIssues.some((item) => item.code === (draft.channel === "pinterest" ? "standard_access_and_oauth" : "publisher_not_implemented")));
     assert.ok(result.publicationIssues.some((item) => item.code === "platform_access_unverified"));
   }
 });
 
-test("capability registry never advertises publishing; OAuth is not inferred", () => {
+test("capability registry advertises only the audited Pinterest publisher", () => {
   assert.equal(isPlannedAdsChannel("google"), false);
   assert.equal(isPlannedAdsChannel("linkedin"), true);
   for (const channel of ADS_PLANNED_CHANNELS) {
     const capability = getPlannedAdsChannelCapability(channel);
     assert.equal(capability.briefSupported, true);
-    assert.equal(capability.publicationEnabled, false);
-    assert.equal(capability.publicationGate, "publisher_not_implemented");
+    assert.equal(capability.publicationEnabled, channel === "pinterest");
+    assert.equal(capability.publicationGate, channel === "pinterest" ? "standard_access_and_oauth" : "publisher_not_implemented");
     assert.ok(capability.officialReference.startsWith("https://"));
   }
 });
@@ -153,6 +153,9 @@ test("Pinterest catalog and Pin drafts are separate and conversion events match 
   const mismatch = assessAdsChannelDraft({ ...pinterest, objectiveType: "AWARENESS", intendedPromotionType: "CATALOG", creativeType: "REGULAR" });
   assert.equal(mismatch.briefComplete, false);
   assert.ok(mismatch.briefIssues.some((item) => item.code === "objective_promotion_mismatch"));
+  const leadCatalog = assessAdsChannelDraft({ ...pinterest, intendedPromotionType: "CATALOG", creativeType: undefined });
+  assert.equal(leadCatalog.briefComplete, false);
+  assert.ok(leadCatalog.briefIssues.some((item) => item.code === "objective_promotion_mismatch"));
   const catalog = assessAdsChannelDraft({ ...pinterest, objectiveType: "SALES", intendedPromotionType: "CATALOG", creativeType: undefined, conversionEvent: "CHECKOUT" });
   assert.equal(catalog.briefComplete, true, JSON.stringify(catalog.briefIssues));
   assert.ok(catalog.publicationIssues.some((item) => item.field === "externalRefs.catalogId"));

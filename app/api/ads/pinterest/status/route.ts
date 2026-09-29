@@ -21,6 +21,7 @@ export async function GET() {
       accounts: [],
       selectedAccountId: null,
       missingScopes: [],
+      proposalEnabled: false,
       publicationEnabled: false,
     }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -38,24 +39,26 @@ export async function GET() {
     const currentConnected = current?.status === "connected";
     if (!currentConnected) accounts = [];
     const selected = accounts.find((account) => account.id === current?.resource_id);
+    const readiness = pinterestAdsReadiness({
+      connected: currentConnected,
+      needsReconnect: Boolean(current && current.status === "needs_update"),
+      scopes: current?.scopes,
+      accounts,
+      selectedAccountId: selected?.id || null,
+    });
     return NextResponse.json({
       configured: true,
       connected: currentConnected,
       status: current?.status || "disconnected",
-      readiness: pinterestAdsReadiness({
-        connected: currentConnected,
-        needsReconnect: Boolean(current && current.status === "needs_update"),
-        scopes: current?.scopes,
-        accounts,
-        selectedAccountId: selected?.id || null,
-      }),
+      readiness,
       scopes: currentConnected ? current?.scopes || "" : "",
       missingScopes: currentConnected ? missingPinterestAdsScopes(current?.scopes) : [],
       accounts,
       selectedAccountId: current?.resource_id || null,
       selectedAccountName: current?.resource_label || selected?.name || null,
       businessAndBillingVerified: false,
-      publicationEnabled: false,
+      proposalEnabled: true,
+      publicationEnabled: readiness === "ready_for_review" && selected?.currency === "EUR",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const failure = error instanceof PinterestAdsConnectionError ? error : null;
@@ -69,6 +72,7 @@ export async function GET() {
       accounts: [],
       selectedAccountId: persisted?.resource_id || null,
       selectedAccountName: persisted?.resource_label || null,
+      proposalEnabled: false,
       publicationEnabled: false,
       error: failure?.message || "Statut Pinterest Ads indisponible.",
     }, { status: failure?.status || 503, headers: { "Cache-Control": "no-store" } });

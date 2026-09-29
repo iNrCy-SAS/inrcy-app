@@ -1,5 +1,16 @@
-/** Pinterest Ads connection policy. No campaign mutation is exposed by this module. */
-export const PINTEREST_ADS_SCOPES = ["ads:read", "ads:write"] as const;
+/**
+ * Ads objects use ads:*; an ad-only Pin is created immediately before the ad,
+ * which Pinterest protects with the Pin/board scopes even when ad_account_id
+ * is supplied to POST /v5/pins.
+ */
+export const PINTEREST_ADS_SCOPES = [
+  "ads:read",
+  "ads:write",
+  "boards:read",
+  "boards:write",
+  "pins:read",
+  "pins:write",
+] as const;
 
 export type PinterestAdsAccount = {
   id: string;

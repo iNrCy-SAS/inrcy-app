@@ -21,9 +21,11 @@ export const ADS_CHANNELS = [
 ] as const;
 
 export const ADS_OAUTH_PROVIDERS = ["meta", "google"] as const;
+export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "pinterest"] as const;
 
 export type AdsChannelId = (typeof ADS_CHANNELS)[number]["id"];
 export type AdsProvider = (typeof ADS_OAUTH_PROVIDERS)[number];
+export type AdsDraftAccountChannel = (typeof ADS_DRAFT_ACCOUNT_CHANNELS)[number];
 
 /**
  * The campaign studio keeps the marketing decision separate from the platform
@@ -75,6 +77,11 @@ export function isAdsProvider(value: unknown): value is AdsProvider {
   return value === "meta" || value === "google";
 }
 
+/** Channels whose verified advertiser association can be stored on a local campaign draft. */
+export function isAdsDraftAccountChannel(value: unknown): value is AdsDraftAccountChannel {
+  return value === "meta" || value === "google" || value === "pinterest";
+}
+
 function includes<T extends readonly string[]>(values: T, value: unknown): value is T[number] {
   return typeof value === "string" && (values as readonly string[]).includes(value);
 }
@@ -101,6 +108,8 @@ export type AdsCampaignInput = {
   name: string;
   offer: string;
   dailyBudgetEuros: number;
+  /** Explicit Pinterest CPM/CPC max bid; ignored by other channel publishers. */
+  pinterestBidEuros?: number;
   endDate: string;
   destinationUrl: string;
   urlExpansion: boolean;
@@ -128,7 +137,7 @@ export type AdsCampaignInput = {
   negativeKeywords: string[];
   noSpecialCategoryConfirmed: boolean;
   notEuPoliticalConfirmed: boolean;
-  /** Rich planning brief for a draft-only channel. Never an API publish payload. */
+  /** Rich planning brief generated for the channel. Never trusted as an API publish payload. */
   channelDraft?: AdsChannelDraft;
   /** Editable native planning choices, without provider account or asset IDs. */
   channelSettings?: AdsChannelWizardSettings;
@@ -369,15 +378,16 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   if (containsExternalRefs(raw)) {
     return { draft: null, error: "Les identifiants publicitaires externes non vérifiés sont interdits dans ce brouillon." };
   }
-  if (purpose === "publish" && !isAdsProvider(provider)) {
+  if (purpose === "publish" && !isAdsDraftAccountChannel(provider)) {
     return { draft: null, error: "La connexion et la publication de ce canal ne sont pas encore disponibles." };
   }
 
   const rawAccountId = clean(raw.adAccountId);
   const adAccountId = rawAccountId.replace(/^act_/, "").replace(/-/g, "");
-  if (purpose === "publish" && !/^\d{5,25}$/.test(adAccountId)) return { draft: null, error: "Sélectionnez un compte publicitaire connecté." };
-  if (adAccountId && !/^\d{5,25}$/.test(adAccountId)) return { draft: null, error: "L’identifiant du compte publicitaire est invalide." };
-  if (!isAdsProvider(provider) && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
+  const accountIdPattern = provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
+  if (purpose === "publish" && !accountIdPattern.test(adAccountId)) return { draft: null, error: "Sélectionnez un compte publicitaire connecté." };
+  if (adAccountId && !accountIdPattern.test(adAccountId)) return { draft: null, error: "L’identifiant du compte publicitaire est invalide." };
+  if (!isAdsDraftAccountChannel(provider) && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
   if (raw.accountCurrency !== "EUR") return { draft: null, error: "Cette première version accepte les comptes publicitaires en EUR uniquement." };
 
   const creationMode: AdsCreationMode = includes(ADS_CREATION_MODES, raw.creationMode) ? raw.creationMode : "manual";
@@ -395,6 +405,11 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const dailyBudgetEuros = Number(raw.dailyBudgetEuros);
   if (!Number.isFinite(dailyBudgetEuros) || dailyBudgetEuros < 5 || dailyBudgetEuros > 500 || Math.abs(Math.round(dailyBudgetEuros * 100) - dailyBudgetEuros * 100) > 0.000001) {
     return { draft: null, error: "Le budget journalier doit être compris entre 5 et 500 €, avec deux décimales maximum." };
+  }
+  const pinterestBidEuros = raw.pinterestBidEuros == null ? 1 : Number(raw.pinterestBidEuros);
+  if (provider === "pinterest" && (!Number.isFinite(pinterestBidEuros) || pinterestBidEuros < 0.01
+    || pinterestBidEuros > dailyBudgetEuros || Math.abs(Math.round(pinterestBidEuros * 100) - pinterestBidEuros * 100) > 0.000001)) {
+    return { draft: null, error: "L’enchère Pinterest doit être comprise entre 0,01 € et le budget journalier, avec deux décimales maximum." };
   }
 
   const endDate = clean(raw.endDate);
@@ -496,6 +511,22 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!notEuPoliticalConfirmed) {
       return { draft: null, error: "Confirmez que la campagne Google ne contient pas de publicité politique ciblant l’Union européenne." };
     }
+  } else if (purpose === "publish" && provider === "pinterest") {
+    if (channelSettings?.channel !== "pinterest") {
+      return { draft: null, error: "Choisissez les réglages Pinterest de cette campagne." };
+    }
+    if (headlines.length < 1 || !headlines[0]?.trim()) {
+      return { draft: null, error: "Pinterest requiert un titre pour l’épingle sponsorisée." };
+    }
+    if (primaryText.length < 1) {
+      return { draft: null, error: "Pinterest requiert une description pour l’épingle sponsorisée." };
+    }
+    if (!targetLocations.length) {
+      return { draft: null, error: "Pinterest requiert au moins un pays ciblé." };
+    }
+    if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
+      return { draft: null, error: "Ajoutez une image à l’épingle sponsorisée Pinterest." };
+    }
   } else if (purpose === "publish") {
     return { draft: null, error: "La publication de ce canal n’est pas disponible." };
   }
@@ -514,6 +545,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       name,
       offer,
       dailyBudgetEuros,
+      pinterestBidEuros,
       endDate,
       destinationUrl: destinationUrl || "",
       urlExpansion,

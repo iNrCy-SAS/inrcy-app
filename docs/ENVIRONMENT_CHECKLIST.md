@@ -220,8 +220,14 @@ Configurer les variables canoniques de Production. Le code iNrCy ne route plus v
 - [ ] `PINTEREST_CLIENT_SECRET`
 - [ ] `PINTEREST_REDIRECT_URI`
 - [ ] `PINTEREST_OAUTH_SCOPES`
+- [ ] `PINTEREST_ADS_REDIRECT_URI=https://app.inrcy.com/api/ads/pinterest/callback`
+- [ ] `PINTEREST_ADS_CLIENT_ID` et `PINTEREST_ADS_CLIENT_SECRET` uniquement si Pinterest Ads utilise une app distincte ; sinon le connecteur réutilise la paire canonique ci-dessus
 - [ ] `PINTEREST_APP_ID` (alias legacy uniquement)
 - [ ] `PINTEREST_APP_SECRET` (alias legacy uniquement)
+
+Le connecteur Ads demande `ads:read,ads:write` pour la hiérarchie publicitaire et `boards:read,boards:write,pins:read,pins:write` pour créer l’épingle publicitaire liée à l’annonce. Contrôle avant déploiement : `npm run verify:pinterest-env`.
+
+Le dossier de contrôle, le scénario vidéo OAuth et la description d’application proposée sont dans `docs/PINTEREST_ADS_REVIEW_CHECKLIST.md`.
 
 ## Trustpilot — en attente selon validation plateforme
 

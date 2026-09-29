@@ -33,8 +33,8 @@ export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown):
 
 type ConnectorDraft = Pick<AdsCampaignInput,
   "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
-  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType"> &
-  Partial<Pick<AdsCampaignInput, "imageUrl" | "metaCreativeAssets">>;
+  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType" | "channelSettings"> &
+  Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets">>;
 
 /** The first Google Search adapter has no numeric CPA/ROAS target input. */
 export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
@@ -54,6 +54,23 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     }
     if (!googleSearchBiddingFields(draft.bidStrategy)) {
       return "La stratégie Google Ads choisie requiert une cible CPA/ROAS ou une configuration manuelle non disponible dans ce connecteur. Choisissez Maximiser les conversions, les clics ou la valeur.";
+    }
+    return null;
+  }
+  if (draft.provider === "pinterest") {
+    const settings = draft.channelSettings?.channel === "pinterest" ? draft.channelSettings : null;
+    if (!settings) return "Choisissez les réglages Pinterest avant le lancement.";
+    if (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION") {
+      return "Le lancement Pinterest prend actuellement en charge les objectifs Notoriété et Considération. Les objectifs Vues vidéo, Ventes et Prospects restent disponibles en brouillon.";
+    }
+    if (settings.intendedPromotionType !== "STANDARD_AD" || settings.creativeType !== "REGULAR") {
+      return "Le lancement Pinterest prend actuellement en charge une épingle sponsorisée image. Les vidéos, carrousels et catalogues restent disponibles en brouillon.";
+    }
+    if (draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
+      return "Le lancement Pinterest nécessite actuellement une image unique.";
+    }
+    if (!String(draft.creativeUrl || draft.imageUrl || "").trim()) {
+      return "Ajoutez l’image de l’épingle Pinterest avant le lancement.";
     }
     return null;
   }

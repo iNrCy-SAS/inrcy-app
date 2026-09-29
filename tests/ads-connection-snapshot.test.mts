@@ -28,9 +28,10 @@ test("une connexion révoquée garde l'association mais demande une actualisatio
 
 test("la navigation iNr’ADS envoie le suivi vers le nouvel onglet iNr’Send", () => {
   const adsClient = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const draftsMenu = readFileSync(new URL("../app/dashboard/ads/AdsDraftsMenu.tsx", import.meta.url), "utf8");
   const mailbox = readFileSync(new URL("../app/dashboard/mails/MailboxClient.tsx", import.meta.url), "utf8");
   assert.match(adsClient, /href="\/dashboard\/mails\?folder=campagnes-ads"/);
-  assert.match(adsClient, /router\.push\("\/dashboard\/mails\?folder=campagnes-ads"\)/);
+  assert.match(draftsMenu, /href="\/dashboard\/mails\?folder=campagnes-ads&boxView=drafts"/);
   assert.match(mailbox, /<AdsCampaignsFolder onCountChange=\{setAdsCampaignCount\}/);
   assert.match(mailbox, /adsCampaignsSelected/);
 });

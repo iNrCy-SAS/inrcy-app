@@ -255,7 +255,7 @@ function assessPinterest(raw: RecordValue, brief: AdsDraftIssue[], publication: 
   issue(brief, "invalid_creative_type", "creativeType", catalog
     ? Boolean(raw.creativeType)
     : !isOneOf(raw.creativeType, ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"] as const));
-  issue(brief, "objective_promotion_mismatch", "intendedPromotionType", catalog && !["CONSIDERATION", "SALES", "LEADS"].includes(text(raw.objectiveType)));
+  issue(brief, "objective_promotion_mismatch", "intendedPromotionType", catalog && !["CONSIDERATION", "SALES"].includes(text(raw.objectiveType)));
   issue(brief, "objective_format_mismatch", "creativeType", raw.objectiveType === "VIDEO_COMPLETION" && !["VIDEO", "MAX_VIDEO"].includes(text(raw.creativeType)));
   const conversion = text(raw.conversionEvent);
   const allowedConversionEvents = raw.objectiveType === "SALES" ? ["CHECKOUT", "ADD_TO_CART"] : raw.objectiveType === "LEADS" ? ["SIGNUP", "LEAD"] : [];

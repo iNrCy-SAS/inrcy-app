@@ -58,6 +58,7 @@ test("les combinaisons natives incompatibles échouent avant le stockage", () =>
   assert.ok(parseAdsChannelWizardSettings({ ...linkedin, objectiveType: "VIDEO_VIEW", format: "TEXT_AD" }, "linkedin").error);
   assert.ok(parseAdsChannelWizardSettings({ ...tiktok, objectiveType: "WEB_CONVERSIONS", destinationKind: "profile", optimizationIntent: "conversions" }, "tiktok").error);
   assert.ok(parseAdsChannelWizardSettings({ ...pinterest, objectiveType: "VIDEO_COMPLETION", creativeType: "REGULAR" }, "pinterest").error);
+  assert.ok(parseAdsChannelWizardSettings({ ...pinterest, objectiveType: "LEADS", intendedPromotionType: "CATALOG", creativeType: null, conversionEvent: "LEAD" }, "pinterest").error);
   assert.ok(parseAdsChannelWizardSettings({ ...x, objective: "video_views", format: "text" }, "x").error);
 });
 

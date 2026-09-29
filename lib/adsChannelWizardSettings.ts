@@ -151,7 +151,11 @@ export function parseAdsChannelWizardSettings(
       if (!exactKeys(raw, ["schemaVersion", "channel", "objectiveType", "intendedPromotionType", "creativeType", "targetingMode", "conversionEvent"]) ||
           !oneOf(raw.objectiveType, PINTEREST_WIZARD_OBJECTIVES) ||
           !oneOf(raw.intendedPromotionType, ["STANDARD_AD", "CATALOG"] as const) ||
-          (catalog && !["CONSIDERATION", "SALES", "LEADS"].includes(raw.objectiveType as string)) ||
+          // Pinterest's objective simplification uses CATALOG for product
+          // group promotions under CONSIDERATION or SALES. LEADS remains a
+          // Pin-based STANDARD_AD flow even though it also carries conversion
+          // metadata at ad-group level.
+          (catalog && !["CONSIDERATION", "SALES"].includes(raw.objectiveType as string)) ||
           (catalog ? raw.creativeType !== null : !oneOf(raw.creativeType, ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"] as const)) ||
           (raw.objectiveType === "VIDEO_COMPLETION" && !["VIDEO", "MAX_VIDEO"].includes(String(raw.creativeType))) ||
           !oneOf(raw.targetingMode, ["interests", "keywords", "audiences"] as const) ||

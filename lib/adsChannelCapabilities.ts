@@ -1,7 +1,6 @@
 /**
- * These channels have their own planning contracts, but no campaign publishing
- * adapter. Account OAuth/discovery is a separate capability and must never be
- * inferred from this static registry.
+ * These channels have their own planning contracts. Pinterest also has a
+ * Standard-access publisher; the remaining planned channels stay draft-only.
  */
 export const ADS_PLANNED_CHANNELS = ["linkedin", "tiktok", "pinterest", "x"] as const;
 
@@ -11,8 +10,8 @@ export type AdsPlannedChannelCapability = {
   channel: PlannedAdsChannel;
   draftSchemaVersion: 1;
   briefSupported: true;
-  publicationEnabled: false;
-  publicationGate: "publisher_not_implemented";
+  publicationEnabled: boolean;
+  publicationGate: "publisher_not_implemented" | "standard_access_and_oauth";
   officialReference: string;
 };
 
@@ -39,8 +38,8 @@ export const ADS_PLANNED_CHANNEL_CAPABILITIES: {
     channel: "pinterest",
     draftSchemaVersion: 1,
     briefSupported: true,
-    publicationEnabled: false,
-    publicationGate: "publisher_not_implemented",
+    publicationEnabled: true,
+    publicationGate: "standard_access_and_oauth",
     officialReference: "https://developers.pinterest.com/docs/work-with-ads/create-campaigns-and-ad-groups/",
   },
   x: {

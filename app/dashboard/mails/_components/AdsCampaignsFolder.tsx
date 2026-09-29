@@ -17,14 +17,16 @@ type AdsCampaignsResponse = {
 
 const PAGE_SIZE = 50;
 
-async function loadCampaignPage(offset = 0): Promise<AdsCampaignsResponse> {
-  const response = await fetch(`/api/ads/campaigns?offset=${offset}`, { cache: "no-store" });
+async function loadCampaignPage(offset = 0, draftOnly = false): Promise<AdsCampaignsResponse> {
+  const params = new URLSearchParams({ offset: String(offset) });
+  if (draftOnly) params.set("status", "draft");
+  const response = await fetch(`/api/ads/campaigns?${params.toString()}`, { cache: "no-store" });
   const result = await response.json().catch(() => null) as AdsCampaignsResponse | null;
   if (!response.ok) throw new Error(result?.error || "Impossible de charger les campagnes Ads.");
   return result || {};
 }
 
-export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (count: number) => void }) {
+export default function AdsCampaignsFolder({ onCountChange, draftOnly = false }: { onCountChange: (count: number) => void; draftOnly?: boolean }) {
   const router = useRouter();
   const mounted = useRef(true);
   const [campaigns, setCampaigns] = useState<StoredAdsCampaign[]>([]);
@@ -40,7 +42,7 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
     setLoading(true);
     setLoadError("");
     try {
-      const result = await loadCampaignPage();
+      const result = await loadCampaignPage(0, draftOnly);
       if (!mounted.current) return false;
       const loaded = Array.isArray(result.campaigns) ? result.campaigns : [];
       const count = typeof result.total === "number" ? result.total : loaded.length;
@@ -57,7 +59,7 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [onCountChange]);
+  }, [draftOnly, onCountChange]);
 
   useEffect(() => {
     mounted.current = true;
@@ -70,7 +72,7 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
     setLoadingMore(true);
     setLoadError("");
     try {
-      const result = await loadCampaignPage(nextOffset);
+      const result = await loadCampaignPage(nextOffset, draftOnly);
       if (!mounted.current) return;
       const loaded = Array.isArray(result.campaigns) ? result.campaigns : [];
       setCampaigns((current) => {
@@ -94,8 +96,11 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
 
   return <div className={styles.root}>
     <div className={styles.toolbar}>
-      <div><h2>ADS</h2><span>{total} campagne{total > 1 ? "s" : ""} publicitaire{total > 1 ? "s" : ""} enregistrée{total > 1 ? "s" : ""}</span></div>
-      <button type="button" className={mailboxStyles.btnGhost} disabled={loading} onClick={() => void refresh()} aria-label="Actualiser les campagnes Ads">↻ Actualiser</button>
+      <div><h2>{draftOnly ? "Brouillons ADS" : "ADS"}</h2><span>{total} campagne{total > 1 ? "s" : ""} publicitaire{total > 1 ? "s" : ""} {draftOnly ? `en brouillon` : `enregistrée${total > 1 ? "s" : ""}`}</span></div>
+      <div className={styles.toolbarActions}>
+        <button type="button" className={`${mailboxStyles.btnGhost} ${draftOnly ? styles.activeFilter : ""}`} onClick={() => router.replace(draftOnly ? "/dashboard/mails?folder=campagnes-ads" : "/dashboard/mails?folder=campagnes-ads&boxView=drafts", { scroll: false })}>{draftOnly ? "Toutes les campagnes" : "Brouillons"}</button>
+        <button type="button" className={mailboxStyles.btnGhost} disabled={loading} onClick={() => void refresh()} aria-label="Actualiser les campagnes Ads">↻ Actualiser</button>
+      </div>
     </div>
     {loadError && <p className={styles.error} role="alert">{loadError} <button type="button" onClick={() => void refresh()}>Réessayer</button></p>}
     <div className={mailboxStyles.scrollArea}>
@@ -109,10 +114,12 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
         </div></div>
         {loading && campaigns.length === 0 ? <p className={styles.empty} role="status">Chargement de vos campagnes…</p>
           : loadError && campaigns.length === 0 ? <p className={styles.empty}>La liste des campagnes est momentanément indisponible.</p>
-            : visibleCampaigns.length === 0 ? <div className={styles.empty}>Aucune campagne enregistrée pour le moment. <button type="button" className={mailboxStyles.btnGhost} onClick={() => router.push("/dashboard/ads")}>Voir les canaux</button></div>
+            : visibleCampaigns.length === 0 ? <div className={styles.empty}>{draftOnly ? "Aucun brouillon iNr’ADS en cours." : "Aucune campagne enregistrée pour le moment."} <button type="button" className={mailboxStyles.btnGhost} onClick={() => router.push("/dashboard/ads")}>{draftOnly ? "Créer une campagne" : "Voir les canaux"}</button></div>
             : visibleCampaigns.map((campaign) => <div key={campaign.id} className={mailboxStyles.item}>
               <div className={`${mailboxStyles.itemTop} ${styles.columns} ${styles.row}`}>
-                <div className={`${mailboxStyles.fromRow} ${styles.rowTitle}`}><span className={mailboxStyles.from} title={campaign.name}>{campaign.name || "Campagne sans titre"}</span></div>
+                <div className={`${mailboxStyles.fromRow} ${styles.rowTitle}`}>{campaign.status === "draft"
+                  ? <button type="button" className={styles.draftOpenButton} title={`Reprendre ${campaign.name || "la campagne"} à la validation`} onClick={() => router.push(`/dashboard/ads?channel=${encodeURIComponent(campaign.provider)}&editCampaign=${encodeURIComponent(campaign.id)}`)}>{campaign.name || "Campagne sans titre"}</button>
+                  : <span className={mailboxStyles.from} title={campaign.name}>{campaign.name || "Campagne sans titre"}</span>}</div>
                 <div className={`${mailboxStyles.itemMid} ${styles.channel}`}>
                   <span>{adsChannelLabels[campaign.provider] || campaign.provider}</span>
                   <span className={styles.mobileSummary}> · {adsStatusLabels[campaign.status] || "À vérifier"} · {adsDateTime(campaign.created_at)}</span>

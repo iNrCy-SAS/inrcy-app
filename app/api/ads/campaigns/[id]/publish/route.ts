@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
 import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, resolveGoogleTargetLocations, type GoogleTargetLocation } from "@/lib/adsGooglePublish";
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
+import { PinterestAdsPublishError, publishPinterestAdsCampaign } from "@/lib/adsPinterestCampaignPublish";
+import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
-import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
+import { isAdsDraftAccountChannel, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
 import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
 
@@ -32,9 +34,6 @@ export async function POST(request: Request, { params }: RouteContext) {
   const body = await request.json().catch(() => null) as { confirmation?: unknown; mode?: unknown } | null;
   const mode = parseAdsPublishMode(body?.mode);
   const pausedDemo = mode === "demo_paused";
-  if (!isAdsPublishModeEnabled(mode, process.env)) {
-    return NextResponse.json({ error: pausedDemo ? "Le mode démo en pause est verrouillé. Activez-le uniquement dans un environnement de démonstration contrôlé." : "La publication réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
-  }
   if (!hasAdsPublishConfirmation(mode, body?.confirmation)) {
     return NextResponse.json({ error: pausedDemo ? "Confirmez explicitement la création d’une démo entièrement en pause." : "Confirmez explicitement la publication et la dépense publicitaire." }, { status: 400 });
   }
@@ -58,8 +57,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!draft || draft.provider !== stored.provider || draft.adAccountId !== stored.ad_account_id || Math.round(draft.dailyBudgetEuros * 100) !== stored.daily_budget_cents) {
     return NextResponse.json({ error: validationError || "Le brouillon a changé et doit être enregistré à nouveau." }, { status: 400 });
   }
-  if (!isAdsProvider(draft.provider)) {
+  if (!isAdsDraftAccountChannel(draft.provider)) {
     return NextResponse.json({ error: "La connexion et la publication de ce canal ne sont pas encore disponibles." }, { status: 423 });
+  }
+  // Meta and Google keep their deployment safety flags. Pinterest is enabled
+  // by its Standard API access, fresh OAuth scopes and advertiser checks below.
+  if (draft.provider !== "pinterest" && !isAdsPublishModeEnabled(mode, process.env)) {
+    return NextResponse.json({ error: pausedDemo ? "La création en pause est verrouillée dans cet environnement." : "La publication réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
   }
   const unsupportedReason = unsupportedAdsConnectorReason(draft);
   if (unsupportedReason) {
@@ -69,27 +73,40 @@ export async function POST(request: Request, { params }: RouteContext) {
   let googleLoginCustomerId: string | undefined;
   let preparedGoogleTargetLocations: GoogleTargetLocation[] | undefined;
   try {
-    const connection = await readAdsIntegration(user.activeUserId, draft.provider);
-    if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
-      return NextResponse.json({ error: "Ce compte annonceur n’est plus celui associé à votre canal publicitaire. Vérifiez l’association avant de créer la campagne." }, { status: 409 });
-    }
-    const accounts = await listAdsAccounts(user.activeUserId, draft.provider);
-    const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
-    if (!selectedAccount) {
-      return NextResponse.json({ error: "Le compte publicitaire EUR sélectionné n’est plus accessible." }, { status: 403 });
-    }
-    googleLoginCustomerId = selectedAccount.loginCustomerId;
-    if (draft.provider === "google") {
-      // Resolve before claiming the local draft: invalid/ambiguous zones must
-      // remain editable, and no Google mutation has started at this point.
-      preparedGoogleTargetLocations = await resolveGoogleTargetLocations(
-        user.activeUserId, draft.adAccountId, draft.targetLocations, googleLoginCustomerId,
-      );
-    }
-    if (draft.provider === "meta") {
-      const pages = await listMetaPages(user.activeUserId);
-      if (!pages.some((page) => page.id === draft.pageId)) {
-        return NextResponse.json({ error: "La Page Facebook sélectionnée n’est plus accessible." }, { status: 403 });
+    if (draft.provider === "pinterest") {
+      const connection = await readPinterestAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Ce compte Pinterest Ads n’est plus celui associé au canal. Reconnectez-le avant de lancer la campagne." }, { status: 409 });
+      }
+      const accounts = await listPinterestAdsAccounts(user.activeUserId, connection);
+      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId
+        && account.currency === "EUR" && account.canManageCampaigns === true);
+      if (!selectedAccount) {
+        return NextResponse.json({ error: "Le compte Pinterest Ads EUR n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 });
+      }
+    } else {
+      const connection = await readAdsIntegration(user.activeUserId, draft.provider);
+      if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Ce compte annonceur n’est plus celui associé à votre canal publicitaire. Vérifiez l’association avant de créer la campagne." }, { status: 409 });
+      }
+      const accounts = await listAdsAccounts(user.activeUserId, draft.provider);
+      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
+      if (!selectedAccount) {
+        return NextResponse.json({ error: "Le compte publicitaire EUR sélectionné n’est plus accessible." }, { status: 403 });
+      }
+      googleLoginCustomerId = selectedAccount.loginCustomerId;
+      if (draft.provider === "google") {
+        // Resolve before claiming the local draft: invalid/ambiguous zones must
+        // remain editable, and no Google mutation has started at this point.
+        preparedGoogleTargetLocations = await resolveGoogleTargetLocations(
+          user.activeUserId, draft.adAccountId, draft.targetLocations, googleLoginCustomerId,
+        );
+      }
+      if (draft.provider === "meta") {
+        const pages = await listMetaPages(user.activeUserId);
+        if (!pages.some((page) => page.id === draft.pageId)) {
+          return NextResponse.json({ error: "La Page Facebook sélectionnée n’est plus accessible." }, { status: 403 });
+        }
       }
     }
   } catch (error) {
@@ -136,6 +153,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   let progress: Record<string, unknown> = {};
   let metaProviderMutationStarted = false;
+  let pinterestProviderMutationStarted = false;
   const persistProgress = async (resources: Record<string, unknown>) => {
     // Keep newly created provider IDs even if the database write fails or times out.
     // The recovery path can then record them under needs_review instead of {}.
@@ -154,7 +172,12 @@ export async function POST(request: Request, { params }: RouteContext) {
         activate: !pausedDemo,
         onProviderMutationStart: () => { metaProviderMutationStarted = true; },
       })
-      : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedTargetLocations: preparedGoogleTargetLocations });
+      : draft.provider === "pinterest"
+        ? await publishPinterestAdsCampaign(user.activeUserId, draft, persistProgress, {
+          activate: !pausedDemo,
+          onProviderMutationStart: () => { pinterestProviderMutationStarted = true; },
+        })
+        : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;
@@ -172,7 +195,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ campaign: completed, mode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
-    const resources = error instanceof MetaAdsPublishError ? error.progress : progress;
+    const resources = error instanceof MetaAdsPublishError || error instanceof PinterestAdsPublishError
+      ? error.progress : progress;
     // A Google 400 on the first atomic mutate cannot leave provider objects
     // behind. Return the local row to draft so the precise validation error can
     // be fixed and retried without stranding it in needs_review.
@@ -185,13 +209,18 @@ export async function POST(request: Request, { params }: RouteContext) {
     // remotely-created campaign whose response was lost.
     const metaRejectedBeforeCreate = draft.provider === "meta" && !metaProviderMutationStarted
       && Object.keys(resources).length === 0;
-    const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate;
+    const pinterestRejectedBeforeCreate = draft.provider === "pinterest"
+      && !(error instanceof PinterestAdsPublishError ? error.mutationStarted : pinterestProviderMutationStarted)
+      && Object.keys(resources).length === 0;
+    const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate || pinterestRejectedBeforeCreate;
     await supabaseAdmin.from("ads_campaigns").update({
       status: rejectedBeforeCreate ? "draft" : "needs_review",
       provider_resources: rejectedBeforeCreate ? {} : withInitialPublishRecovery(resources, mode),
       last_error: message.slice(0, 1000),
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
-    return NextResponse.json({ error: rejectedBeforeCreate ? `${message} Le brouillon iNrCy peut être corrigé puis renvoyé.` : `${message} Vérifiez la campagne directement sur ${draft.provider === "meta" ? "Meta Ads Manager" : "Google Ads"} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: rejectedBeforeCreate ? 422 : 502 });
+    const manager = draft.provider === "meta" ? "Meta Ads Manager"
+      : draft.provider === "pinterest" ? "Pinterest Ads Manager" : "Google Ads";
+    return NextResponse.json({ error: rejectedBeforeCreate ? `${message} Le brouillon iNrCy peut être corrigé puis renvoyé.` : `${message} Vérifiez la campagne directement sur ${manager} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: rejectedBeforeCreate ? 422 : 502 });
   }
 }

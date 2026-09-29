@@ -86,16 +86,16 @@ test("les six canaux peuvent être préparés en brouillon sans compte annonceur
   }
 });
 
-test("les canaux non branchés restent impossibles à publier et ne peuvent pas lier de faux comptes", () => {
-  const pinterestDraft = {
+test("LinkedIn, TikTok et X restent impossibles à publier et ne peuvent pas lier de faux comptes", () => {
+  const unconnectedDraft = {
     ...metaDraft,
-    provider: "pinterest",
+    provider: "linkedin",
     adAccountId: "",
-    name: "Pin local",
+    name: "Campagne locale",
     destinationUrl: "",
   };
-  assert.match(parseAdsCampaignInput(pinterestDraft).error || "", /pas encore disponibles/);
-  assert.match(parseAdsCampaignInput({ ...pinterestDraft, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
+  assert.match(parseAdsCampaignInput(unconnectedDraft).error || "", /pas encore disponibles/);
+  assert.match(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
   assert.equal(parseAdsCampaignInput({ ...metaDraft, provider: "meta", adAccountId: "" }, { purpose: "draft" }).draft?.adAccountId, "");
 });
 

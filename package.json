@@ -39,6 +39,7 @@
     "qa:booster-images": "npm run test:booster-images && npm run test:media-rules",
     "verify:pinterest-env": "node scripts/verify-pinterest-env.mjs",
     "qa:pinterest": "node scripts/qa-pinterest-standard.mjs && npm run test:pinterest && npm run verify:pinterest-env",
+    "test:ads-pinterest": "node --test --test-isolation=none --experimental-strip-types tests/ads-pinterest-publish.test.mts tests/ads-pinterest/*.test.mts",
     "audit:ai-gateway": "node scripts/audit-ai-gateway.mjs",
     "test:ai-gateway": "node --test --experimental-strip-types tests/ai-gateway/*.test.mts",
     "test:ai-memory": "node --test --experimental-strip-types tests/ai-memory/*.test.mts tests/booster-content-length/*.test.mts",

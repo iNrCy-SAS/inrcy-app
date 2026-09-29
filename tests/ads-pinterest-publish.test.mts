@@ -26,7 +26,7 @@ const context = {
     id: "123456789012", name: "Annonceur", currency: "EUR", country: "FR",
     permissions: ["ADMIN"], canManageCampaigns: true, eligibleToAssociate: true,
   },
-  grantedScopes: "ads:read,ads:write",
+  grantedScopes: "ads:read,ads:write,boards:read,boards:write,pins:read,pins:write",
   appAccess: "verified" as const,
   billing: "verified" as const,
   campaignWritePermission: "verified" as const,

@@ -3,7 +3,7 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { readAdsConnectionSnapshots } from "@/lib/adsConnectionSnapshotServer";
 import { resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
-import { adsOAuthProvider } from "@/lib/adsOAuth";
+import { isAdsChannelId } from "@/lib/adsValidation";
 import AdsClient from "./AdsClient";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,8 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
   const accountScope = await resolveInrcyAccountScopeForUser(supabase, data.user);
   const initialConnections = await readAdsConnectionSnapshots(accountScope.activeUserId);
   const params = await searchParams;
-  const channel = adsOAuthProvider(params.channel);
+  const requestedChannel = Array.isArray(params.channel) ? params.channel[0] : params.channel;
+  const channel = isAdsChannelId(requestedChannel) ? requestedChannel : null;
   return <AdsClient
     initialChannel={channel || "meta"}
     initialEditCampaignId={typeof params.editCampaign === "string" ? params.editCampaign : ""}

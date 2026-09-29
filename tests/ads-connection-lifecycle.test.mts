@@ -98,15 +98,16 @@ test("une connexion à actualiser garde l’association visible sans autoriser u
   assert.match(publishRouteSource, /connection\?\.status !== "connected" \|\| connection\.resource_id !== draft\.adAccountId/);
 });
 
-test("une nouvelle campagne reprend le compte associé et la démo l’enregistre dans le même clic", () => {
+test("une nouvelle campagne reprend le compte associé et le lancement l’enregistre dans le même clic", () => {
   const start = clientSource.split("function startNewCampaign() {")[1]?.split("function closeCampaignCreation()")[0] || "";
-  const demo = clientSource.split("async function createPausedDemo() {")[1]?.split("function reopen(")[0] || "";
-  assert.match(start, /adAccountId: isAdsProvider\(channelId\) \? configuredAccountId : ""/);
-  assert.match(demo, /connection\.selectedAccountId/);
-  assert.match(demo, /fetch\("\/api\/ads\/campaigns", \{/);
-  assert.match(demo, /fetch\(`\/api\/ads\/campaigns\/\$\{campaignId\}\/publish`/);
-  assert.doesNotMatch(demo, /!savedId \|\| dirty/);
-  assert.match(clientSource, /Créer une démo en pause/);
+  const launchCheck = clientSource.split("async function openLaunchDialog() {")[1]?.split("async function confirmCampaignLaunch()")[0] || "";
+  const launch = clientSource.split("async function confirmCampaignLaunch() {")[1]?.split("function reopen(")[0] || "";
+  assert.match(start, /adAccountId: isAdsProvider\(channelId\)[\s\S]*configuredAccountId[\s\S]*channelId === "pinterest" \? externalStatuses\.pinterest\.selectedAccountId : ""/);
+  assert.match(launchCheck, /connection\.selectedAccountId/);
+  assert.match(launch, /fetch\("\/api\/ads\/campaigns", \{/);
+  assert.match(launch, /fetch\(`\/api\/ads\/campaigns\/\$\{campaignId\}\/publish`/);
+  assert.doesNotMatch(launch, /!savedId \|\| dirty/);
+  assert.match(clientSource, /Lancer la campagne/);
 });
 
 test("déconnecter Facebook organique ne supprime pas la connexion Meta Ads", () => {
