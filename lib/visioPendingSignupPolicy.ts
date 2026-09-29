@@ -11,8 +11,10 @@ import {
 import {
   PENDING_SIGNUP_ASSIGNMENT_KEY,
   PENDING_SIGNUP_ASSIGNMENT_VALUE,
+  TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY,
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
+  teamCalendarAutomationSnapshot,
 } from "./visioCalendarMirrorPolicy.ts";
 import { VISIO_BOOKING_TIMEZONE } from "./visioBookingPolicy.ts";
 
@@ -60,7 +62,7 @@ export function buildPendingSignupReminderCalendarEvent(
     phone: input.phone,
   });
 
-  return {
+  const event = {
     id: eventId,
     status: "confirmed",
     ...content,
@@ -92,6 +94,16 @@ export function buildPendingSignupReminderCalendarEvent(
         sourceOrganizerEmail: calendarId,
         sourceCalendarIsOrganizer: "true",
         sharedCalendarId: calendarId,
+      },
+    },
+  };
+  return {
+    ...event,
+    extendedProperties: {
+      private: {
+        ...event.extendedProperties.private,
+        [TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY]:
+          teamCalendarAutomationSnapshot(event),
       },
     },
   };

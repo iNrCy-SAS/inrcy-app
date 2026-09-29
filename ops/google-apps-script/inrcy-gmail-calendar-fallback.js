@@ -12,7 +12,9 @@ var INRCY_CONFIG = Object.freeze({
   gmailCooldownBaseHours: 2,
   gmailCooldownMaxHours: 12,
   maxThreadsPerRun: 25,
-  triggerHours: 1
+  triggerHours: 1,
+  dedupeLookbackDays: 31,
+  dedupeLookaheadDays: 61
 });
 
 /**
@@ -79,6 +81,18 @@ function synchroniserInscriptions() {
     if (!calendar) {
       throw new Error("Agenda partagé iNrCy introuvable ou inaccessible.");
     }
+    // Charge une seule fois toute la fenêtre utile. Le rappel créé à
+    // l'inscription peut avoir été transformé puis déplacé jusqu'à 60 jours
+    // plus tard : une recherche limitée à l'heure d'inscription le manquerait
+    // et recréerait alors une seconde case orange.
+    var knownCalendarEvents = calendar.getEvents(
+      new Date(
+        now - INRCY_CONFIG.dedupeLookbackDays * 24 * 60 * 60 * 1000
+      ),
+      new Date(
+        now + INRCY_CONFIG.dedupeLookaheadDays * 24 * 60 * 60 * 1000
+      )
+    );
 
     var processed = lireMessagesTraites_(properties);
     var minimumDate = new Date(INRCY_CONFIG.startAtIso);
@@ -157,41 +171,19 @@ function synchroniserInscriptions() {
             "ID message Gmail : " + messageId
           ].join("\n");
 
-          var alreadyExists = calendar
-            .getEvents(
-              new Date(start.getTime() - 60000),
-              new Date(end.getTime() + 60000)
-            )
-            .some(function (event) {
-              var eventDescription = event.getDescription() || "";
-              if (
-                eventDescription.indexOf("ID message Gmail : " + messageId) !==
-                -1
-              ) {
-                return true;
-              }
-              if (prospectUserId && typeof event.getTag === "function") {
-                try {
-                  if (event.getTag("prospectUserId") === prospectUserId) {
-                    return true;
-                  }
-                } catch (_tagError) {
-                  // CalendarApp peut masquer une propriété privée créée par API.
-                }
-              }
-              return Boolean(
-                contactEmail &&
-                  normaliser_(eventDescription).indexOf(
-                    normaliser_(contactEmail)
-                  ) !== -1
-              );
-            });
+          var alreadyExists = inscriptionExisteDeja_(
+            knownCalendarEvents,
+            messageId,
+            prospectUserId,
+            contactEmail
+          );
 
           if (!alreadyExists) {
             var event = calendar.createEvent(title.slice(0, 250), start, end, {
               description: description
             });
             event.setColor(CalendarApp.EventColor.YELLOW);
+            knownCalendarEvents.push(event);
             stats.created += 1;
           } else {
             stats.existing += 1;
@@ -246,6 +238,32 @@ function synchroniserInscriptions() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function inscriptionExisteDeja_(events, messageId, prospectUserId, contactEmail) {
+  var normalizedContactEmail = normaliser_(contactEmail);
+  return (events || []).some(function (event) {
+    var eventDescription = event.getDescription() || "";
+    if (
+      messageId &&
+      eventDescription.indexOf("ID message Gmail : " + messageId) !== -1
+    ) {
+      return true;
+    }
+    if (prospectUserId && typeof event.getTag === "function") {
+      try {
+        if (event.getTag("prospectUserId") === prospectUserId) {
+          return true;
+        }
+      } catch (_tagError) {
+        // CalendarApp peut masquer une propriété privée créée par API.
+      }
+    }
+    return Boolean(
+      normalizedContactEmail &&
+        normaliser_(eventDescription).indexOf(normalizedContactEmail) !== -1
+    );
+  });
 }
 
 function estErreurQuotaGmail_(error) {

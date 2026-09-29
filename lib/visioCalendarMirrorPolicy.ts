@@ -1,7 +1,18 @@
+import { createHash } from "node:crypto";
+
 import { INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY } from "./inrCalendarGoogleSyncConstants.ts";
+import {
+  VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY,
+  VISIO_APPOINTMENT_ORIGIN_KEY,
+  VISIO_APPOINTMENT_STATUS_KEY,
+} from "./visioAppointmentLifecycle.ts";
 
 export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
 export const TEAM_CALENDAR_MIRROR_VALUE = "v1";
+export const TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY =
+  "inrcyTeamAutomationSnapshot";
+export const TEAM_CALENDAR_MANUAL_OVERRIDE_KEY = "inrcyTeamManualOverride";
+export const TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE = "v1";
 export const PENDING_SIGNUP_REMINDER_SUMMARY = "inscription a traiter";
 export const PENDING_SIGNUP_ASSIGNMENT_KEY = "inrcySignupAssignment";
 export const PENDING_SIGNUP_ASSIGNMENT_VALUE = "v1";
@@ -79,6 +90,11 @@ export type TeamCalendarMirrorScheduleReconciliationDecision =
   | "mirror_changed"
   | "source_wins";
 
+export type TeamCalendarAutomationDecision =
+  | "managed"
+  | "manual_override"
+  | "detached";
+
 function normalized(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
@@ -145,6 +161,8 @@ export function pendingSignupReminderProspectUserId(event: TeamCalendarEvent) {
   const privateProperties = event.extendedProperties?.private || {};
   if (
     event.status === "cancelled" ||
+    privateProperties[TEAM_CALENDAR_MANUAL_OVERRIDE_KEY] ===
+      TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE ||
     privateProperties.inrcyBooking ||
     (privateProperties[TEAM_CALENDAR_MIRROR_KEY] &&
       privateProperties[PENDING_SIGNUP_ASSIGNMENT_KEY] !==
@@ -397,6 +415,175 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
   });
 }
 
+/**
+ * Fingerprint only the fields a person can intentionally edit in Google
+ * Calendar. Google-managed conference metadata and iNrCy private properties
+ * are deliberately excluded so they can never create a false manual override.
+ */
+export function teamCalendarManualContentSignature(event: TeamCalendarEvent) {
+  const reminders = event.reminders
+    ? {
+        useDefault: event.reminders.useDefault ?? null,
+        overrides: (event.reminders.overrides || [])
+          .map((override) => ({
+            method: String(override.method || "").trim(),
+            minutes: Number(override.minutes || 0),
+          }))
+          .sort((left, right) =>
+            `${left.method}:${left.minutes}`.localeCompare(
+              `${right.method}:${right.minutes}`,
+            ),
+          ),
+      }
+    : null;
+  const attendees = (event.attendees || [])
+    .filter((attendee) => !attendee.self && !attendee.organizer)
+    .map((attendee) => ({
+      email: validEmail(attendee.email),
+      displayName: String(attendee.displayName || "").trim(),
+      optional: attendee.optional === true,
+      resource: attendee.resource === true,
+      additionalGuests: Number(attendee.additionalGuests || 0),
+    }))
+    .filter((attendee) => attendee.email)
+    .sort((left, right) => left.email.localeCompare(right.email));
+
+  return JSON.stringify({
+    status: event.status || "confirmed",
+    summary: event.summary || "",
+    description: event.description || "",
+    location: event.location || "",
+    colorId: event.colorId || "",
+    visibility: event.visibility || "default",
+    transparency: event.transparency || "opaque",
+    start: comparableCalendarDate(event.start),
+    end: comparableCalendarDate(event.end),
+    reminders,
+    attendees,
+  });
+}
+
+export function teamCalendarAutomationSnapshot(event: TeamCalendarEvent) {
+  return createHash("sha256")
+    .update(teamCalendarManualContentSignature(event), "utf8")
+    .digest("hex");
+}
+
+export function hasTeamCalendarAutomationSnapshotDiverged(
+  event: TeamCalendarEvent,
+) {
+  const storedSnapshot = String(
+    event.extendedProperties?.private?.[
+      TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY
+    ] || "",
+  ).trim();
+  return Boolean(
+    storedSnapshot && storedSnapshot !== teamCalendarAutomationSnapshot(event),
+  );
+}
+
+export function isTeamCalendarAutomationDetached(event: TeamCalendarEvent) {
+  return (
+    event.extendedProperties?.private?.[
+      TEAM_CALENDAR_MANUAL_OVERRIDE_KEY
+    ] === TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE
+  );
+}
+
+const TEAM_CALENDAR_ADMIN_ASSIGNMENT_PROPERTY_KEYS = [
+  "sourceCalendarId",
+  "sourceEventId",
+  "sourceICalUID",
+  "sourceEventUpdated",
+  "sourceFingerprint",
+  "sourceOrganizerEmail",
+  "sourceCalendarIsOrganizer",
+  "sourceHtmlLink",
+  "sourceMeetUrl",
+  "assignedMemberId",
+  "assignedMemberEmail",
+  "sharedCalendarId",
+] as const;
+
+/**
+ * An explicit assignment from the internal Admin screen is still allowed on a
+ * detached appointment. Only assignment/source pointers are refreshed: every
+ * user-editable Calendar field and the permanent manual-override marker stay
+ * untouched.
+ */
+export function detachedTeamCalendarAdminAssignmentPatch(input: {
+  existing: TeamCalendarEvent;
+  desired: TeamCalendarEvent;
+}) {
+  if (!isTeamCalendarAutomationDetached(input.existing)) return null;
+
+  const existingPrivate = input.existing.extendedProperties?.private || {};
+  const desiredPrivate = input.desired.extendedProperties?.private || {};
+  const nextPrivate = { ...existingPrivate };
+  for (const key of TEAM_CALENDAR_ADMIN_ASSIGNMENT_PROPERTY_KEYS) {
+    if (Object.hasOwn(desiredPrivate, key)) nextPrivate[key] = desiredPrivate[key];
+  }
+
+  return {
+    extendedProperties: {
+      ...input.existing.extendedProperties,
+      private: nextPrivate,
+    },
+  };
+}
+
+/**
+ * Once the current Google event no longer matches the last snapshot written
+ * by iNrCy, a person has taken ownership of that copy. Legacy mirrors did not
+ * have a snapshot: they are only detached when their source is still exactly
+ * the one used for the last write and their lifecycle identity still matches.
+ */
+export function teamCalendarAutomationDecision(input: {
+  existing: TeamCalendarEvent;
+  desired: TeamCalendarEvent;
+  currentSourceFingerprint: string;
+}): TeamCalendarAutomationDecision {
+  if (isTeamCalendarAutomationDetached(input.existing)) return "detached";
+
+  const existingProperties = input.existing.extendedProperties?.private || {};
+  const desiredProperties = input.desired.extendedProperties?.private || {};
+  const storedSnapshot = String(
+    existingProperties[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY] || "",
+  ).trim();
+  if (
+    storedSnapshot &&
+    storedSnapshot !== teamCalendarAutomationSnapshot(input.existing)
+  ) {
+    return "manual_override";
+  }
+
+  const lifecycleIdentityMatches = [
+    VISIO_APPOINTMENT_STATUS_KEY,
+    VISIO_APPOINTMENT_ORIGIN_KEY,
+    VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY,
+    "inrcyLogicalAppointmentId",
+  ].every(
+    (key) =>
+      String(existingProperties[key] || "") ===
+      String(desiredProperties[key] || ""),
+  );
+  const existingSourceFingerprint = String(
+    existingProperties.sourceFingerprint || "",
+  ).trim();
+  if (
+    !storedSnapshot &&
+    lifecycleIdentityMatches &&
+    existingSourceFingerprint &&
+    existingSourceFingerprint === String(input.currentSourceFingerprint || "").trim() &&
+    teamCalendarManualContentSignature(input.existing) !==
+      teamCalendarManualContentSignature(input.desired)
+  ) {
+    return "manual_override";
+  }
+
+  return "managed";
+}
+
 export function teamCalendarReplicaReconciliationDecision(input: {
   storedFingerprint?: string;
   actualFingerprint?: string;
@@ -574,6 +761,30 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
           : {}),
         ...(sourcePrivate.prospectUserId
           ? { prospectUserId: sourcePrivate.prospectUserId }
+          : {}),
+        ...(sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY]
+          ? {
+              [VISIO_APPOINTMENT_STATUS_KEY]:
+                sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY],
+            }
+          : {}),
+        ...(sourcePrivate[VISIO_APPOINTMENT_ORIGIN_KEY]
+          ? {
+              [VISIO_APPOINTMENT_ORIGIN_KEY]:
+                sourcePrivate[VISIO_APPOINTMENT_ORIGIN_KEY],
+            }
+          : {}),
+        ...(sourcePrivate[VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY]
+          ? {
+              [VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY]:
+                sourcePrivate[VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY],
+            }
+          : {}),
+        ...(sourcePrivate.inrcyLogicalAppointmentId
+          ? {
+              inrcyLogicalAppointmentId:
+                sourcePrivate.inrcyLogicalAppointmentId,
+            }
           : {}),
         ...(sourceGuestEmails
           ? { [INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY]: sourceGuestEmails }

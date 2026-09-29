@@ -58,7 +58,7 @@ export async function POST(req: Request): Promise<Response> {
     `Compte connecté : ${user.email ?? "(non disponible)"}`,
     `User ID : ${user.id}`,
     "",
-    "Rappel programme : 50 € de chèque cadeau pour tout parrainage d’un client qui reste engagé au minimum 6 mois.",
+    "Rappel programme : 50 € de chèque cadeau pour tout parrainage d’un client qui reste engagé au minimum 3 mois.",
   ].join("\n");
 
   const html = `<!doctype html>
@@ -77,7 +77,7 @@ export async function POST(req: Request): Promise<Response> {
         <tr><td style="padding:10px 0;border-top:1px solid #e2e8f0;"><strong>Compte connecté</strong><br />${user.email ?? "(non disponible)"}</td></tr>
       </table>
       <p style="margin:18px 0 0 0;font-size:13px;line-height:1.6;color:#64748b;">
-        Rappel programme : 50 € de chèque cadeau pour tout parrainage d’un client qui reste engagé au minimum 6 mois.
+        Rappel programme : 50 € de chèque cadeau pour tout parrainage d’un client qui reste engagé au minimum 3 mois.
       </p>
     </div>
   </body>

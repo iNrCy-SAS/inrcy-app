@@ -120,7 +120,7 @@ export default function ReferralPanel({
             <div style={{ fontSize: 26, lineHeight: 1.08, fontWeight: 800, color: "white" }}>
               {i18nT("recommandez_un_professionnel_et_debloquez_b0df4e25")}{" "}<span style={{ color: "#f9a8d4" }}>50 €</span> {" "}{i18nT("de_cheque_cadeau_1c7fe645")}{" "}</div>
             <div style={{ color: "rgba(226,232,240,0.9)", fontSize: 14, lineHeight: 1.65 }}>
-              {i18nT("des_qu_un_client_recommande_rejoint_1851aabd")}{" "}<strong>{i18nT("6_mois_1242b310")}</strong>{i18nT("nous_validons_votre_recompense_remplissez_le_4af97166")}{" "}</div>
+              {i18nT("des_qu_un_client_recommande_rejoint_1851aabd")}{" "}<strong>{i18nT("3_mois_d07765c5")}</strong>{i18nT("nous_validons_votre_recompense_remplissez_le_4af97166")}{" "}</div>
           </div>
 
           <div
@@ -141,7 +141,7 @@ export default function ReferralPanel({
             <div style={{ display: "grid", gap: 8, color: "white", fontSize: 14, lineHeight: 1.45 }}>
               <div>{i18nT("1_contact_recommande_qualifie_0c1b9a17")}</div>
               <div>{i18nT("50_de_cheque_cadeau_apres_validation_7f358de6")}</div>
-              <div>{i18nT("client_engage_au_minimum_6_mois_68e0f36c")}</div>
+              <div>{i18nT("client_engage_au_minimum_3_mois_7337b4c1")}</div>
               <div>{i18nT("envoi_direct_a_l_equipe_inrcy_4fd0cfce")}</div>
             </div>
           </div>

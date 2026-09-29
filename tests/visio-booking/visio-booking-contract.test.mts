@@ -96,7 +96,7 @@ test("une inscription crée un rendez-vous depuis une adresse iNrCy propre puis 
   assert.match(eventPolicy, /member\.id !== input\.assignedMemberId/);
   assert.match(creation, /bookingCompanionEventId/);
   assert.match(creation, /createMissingBookingCompanion/);
-  assert.match(creation, /upsertTeamMirrorEvent/);
+  assert.match(creation, /ensureDirectBookingSharedMirror/);
   assert.match(backend, /getExistingBooking\(eventId, claims\)/);
   assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
   assert.doesNotMatch(creation, /syncManagedCalendarReplicas\(event\)/);
@@ -127,6 +127,69 @@ test("une inscription crée un rendez-vous depuis une adresse iNrCy propre puis 
   assert.doesNotMatch(creation, /createdMasterEvent|sendMonitoringMail/);
   const booking = backend.slice(backend.indexOf("export async function bookVisioSlot"));
   assert.ok((booking.match(/ensureBookingDeliveriesForEvent/g) || []).length >= 3);
+});
+
+test("chaque reprise de réservation répare le miroir partagé avant de finaliser", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const creation = backend.slice(
+    backend.indexOf("async function createGoogleBookingEvent"),
+    backend.indexOf("async function convertPendingSignupToScheduledAppointment"),
+  );
+  const booking = backend.slice(
+    backend.indexOf("export async function bookVisioSlot"),
+    backend.indexOf("function normalizedCalendarId"),
+  );
+
+  assert.match(
+    backend,
+    /async function ensureDirectBookingSharedMirror\s*\(/,
+    "la réparation du miroir doit être centralisée et idempotente",
+  );
+  const sharedMirrorRepair = backend.slice(
+    backend.indexOf("async function ensureDirectBookingSharedMirror"),
+    backend.indexOf("async function waitForMeetConference"),
+  );
+  assert.match(
+    sharedMirrorRepair,
+    /await cancelDuplicateAppointmentMirrors\([\s\S]*?return confirmedMirror/,
+    "la confirmation doit supprimer immédiatement les anciennes copies automatiques",
+  );
+  assert.match(
+    creation,
+    /await ensureDirectBookingSharedMirror\([\s\S]*?await ensureBookingDeliveriesForEvent/,
+    "une nouvelle réservation doit confirmer son miroir avant les livraisons",
+  );
+  assert.doesNotMatch(
+    creation,
+    /ensureDirectBookingSharedMirror\([\s\S]*?\)\.catch\(/,
+    "une erreur de miroir ne doit plus être avalée après la création du master public",
+  );
+
+  const existingPath = booking.slice(
+    booking.indexOf("if (existing)"),
+    booking.indexOf("const slotLock"),
+  );
+  const existingAfterLockPath = booking.slice(
+    booking.indexOf("if (existingAfterLock)"),
+    booking.indexOf("const spacingEnd"),
+  );
+  const racePath = booking.slice(
+    booking.indexOf("const racedEvent"),
+    booking.indexOf("throw error", booking.indexOf("const racedEvent")),
+  );
+
+  for (const [label, source] of [
+    ["existing", existingPath],
+    ["existingAfterLock", existingAfterLockPath],
+    ["race", racePath],
+  ] as const) {
+    const repair = source.indexOf("await ensureDirectBookingSharedMirror");
+    const finalize = source.indexOf("finalizeBookedVisio");
+    assert.ok(
+      repair >= 0 && finalize >= 0 && repair < finalize,
+      `${label}: le miroir partagé doit être réparé avant le nettoyage du rappel orange`,
+    );
+  }
 });
 
 test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
@@ -188,10 +251,110 @@ test("un conflit d'id miroir déterministe se répare sans notification Google",
   );
   assert.match(
     upsert,
-    /events\/\$\{encodeURIComponent\(mirrorEventId\)\}\$\{writeQuery\}/,
+    /events\/\$\{encodeURIComponent\(mirrorEventId\)\}\?sendUpdates=none/,
   );
-  assert.match(upsert, /conferenceDataVersion=1&/);
+  assert.match(upsert, /const \{ conferenceData, \.\.\.coreBody \} = body/);
+  assert.match(
+    upsert,
+    /attachConference[\s\S]*?conferenceDataVersion=1&sendUpdates=none/,
+  );
+  assert.match(upsert, /JSON\.stringify\(coreBody\)/);
   assert.doesNotMatch(upsert, /sendUpdates=all|attendees|createRequest|sendTxMail/);
+});
+
+test("une copie modifiée manuellement sort de toute automatisation agenda", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const upsert = backend.slice(
+    backend.indexOf("async function upsertTeamMirrorEvent"),
+    backend.indexOf("async function cancelSharedCalendarEvent"),
+  );
+  const cancel = backend.slice(
+    backend.indexOf("async function cancelSharedCalendarEvent"),
+    backend.indexOf("async function cancelDuplicatePendingSignupReminders"),
+  );
+  const sync = backend.slice(
+    backend.indexOf("export async function syncVisioTeamCalendarsToShared"),
+    backend.indexOf("async function readFreeBusy"),
+  );
+  const managedFanout = backend.slice(
+    backend.indexOf("async function syncManagedCalendarReplicas"),
+    backend.indexOf("async function reconcileManagedCalendarReplica"),
+  );
+
+  assert.match(
+    upsert,
+    /isTeamCalendarAutomationDetached\(input\.existing\)[\s\S]*?allowDetachedAdminAssignment[\s\S]*?return "unchanged" as const/,
+  );
+  assert.match(
+    upsert,
+    /detachedTeamCalendarAdminAssignmentPatch[\s\S]*?patchCalendarEventWithoutUpdates/,
+  );
+  assert.match(
+    cancel,
+    /isTeamCalendarAutomationDetached\(event\)[\s\S]*?return false[\s\S]*?hasTeamCalendarAutomationSnapshotDiverged\(event\)[\s\S]*?detachTeamCalendarAutomation\(event\)[\s\S]*?return false/,
+  );
+  assert.match(
+    sync,
+    /automationDecision === "manual_override"[\s\S]*?detachTeamCalendarAutomation\(existingMirror\)[\s\S]*?continue;[\s\S]*?automationDecision === "detached"[\s\S]*?continue;[\s\S]*?upsertTeamMirrorEvent/,
+  );
+  assert.match(
+    sync,
+    /legacyAssignedManualOverride[\s\S]*?detachTeamCalendarAutomation\(reminder\)[\s\S]*?continue;[\s\S]*?managedCanonicalByReplicaId/,
+  );
+  assert.match(
+    managedFanout,
+    /isTeamCalendarAutomationDetached\(canonical\)[\s\S]*?return canonical/,
+  );
+});
+
+test("une réservation directe préserve un rappel détaché et réutilise son nouveau miroir", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const findExisting = backend.slice(
+    backend.indexOf("async function findExistingDirectBookingSharedMirror"),
+    backend.indexOf("async function ensureDirectBookingSharedMirror"),
+  );
+  const ensureMirror = backend.slice(
+    backend.indexOf("async function ensureDirectBookingSharedMirror"),
+    backend.indexOf("async function waitForMeetConference"),
+  );
+
+  assert.match(
+    findExisting,
+    /managedMirrorEventId[\s\S]*?isTeamCalendarAutomationDetached\(candidate\)[\s\S]*?continue/,
+  );
+  assert.match(
+    ensureMirror,
+    /managedMirrorEventId = teamMirrorEventIdForSource[\s\S]*?existingMirror\?\.id \|\| managedMirrorEventId/,
+  );
+  assert.match(
+    ensureMirror,
+    /findExistingDirectBookingSharedMirror\([\s\S]*?managedMirrorEventId/,
+  );
+  assert.match(
+    backend,
+    /preferredActiveAppointmentMirrors[\s\S]*?eventIsBooking !== currentIsBooking[\s\S]*?eventIsBooking[\s\S]*?eventIsDetached/,
+  );
+});
+
+test("une réattribution Admin d'un ancien rendez-vous détaché reste limitée aux métadonnées", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const reassign = backend.slice(
+    backend.indexOf("async function reassignAutomaticBooking"),
+    backend.indexOf("async function reassignCalendarAppointment"),
+  );
+  const detachedBranch = reassign.slice(
+    reassign.indexOf("if (isTeamCalendarAutomationDetached(input.mirror))"),
+    reassign.indexOf("const updated = await patchCalendarEventWithoutUpdates"),
+  );
+
+  assert.match(
+    detachedBranch,
+    /detachedTeamCalendarAdminAssignmentPatch[\s\S]*?assignmentPatch/,
+  );
+  assert.doesNotMatch(
+    detachedBranch,
+    /\b(?:attendees|summary|description|start|end)\b/,
+  );
 });
 
 test("les répliques inchangées sont regroupées sans perdre un canonique hors fenêtre", () => {

@@ -85,7 +85,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/embed/:path*",
+        source: "/embed/actus",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -96,6 +96,20 @@ const nextConfig: NextConfig = {
               "default-src 'none'; img-src https: data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors *",
           },
           { key: "Cache-Control", value: "no-store" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=15552000; includeSubDomains; preload",
+          },
+        ],
+      },
+      {
+        // Media is public to the widget but is not an embeddable HTML page.
+        // Keep cross-origin delivery without broadening frame-ancestors.
+        source: "/embed/actus/media",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
           {
             key: "Strict-Transport-Security",
             value: "max-age=15552000; includeSubDomains; preload",
@@ -146,7 +160,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/((?!widgets/|embed/|email/|signature-client\\.png$).*)",
+        source: "/((?!widgets/|embed/actus(?:/|$)|email/|signature-client\\.png$).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-DNS-Prefetch-Control", value: "off" },

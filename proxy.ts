@@ -19,6 +19,7 @@ import {
   tryNormalizeAppLocale,
   type AppLocale,
 } from "./i18n/config";
+import { isPublicEmbedPath } from "./lib/actusWidgetEmbed";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -544,6 +545,16 @@ export async function proxy(req: NextRequest) {
   }
   if (explicitlyRequestedLocale) {
     requestHeaders.set(APP_LOCALE_REQUEST_HEADER, explicitlyRequestedLocale);
+  }
+
+  // Embed routes are anonymous, read-only documents rendered inside customer
+  // sites. Never refresh the dashboard session here: a stale app.inrcy.com
+  // cookie would otherwise redirect the iframe to /login, whose DENY policy
+  // is intentionally not embeddable.
+  if (isPublicEmbedPath(pathname)) {
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("x-request-id", requestId);
+    return response;
   }
 
   // TikTok downloads photos anonymously from this signed public endpoint.

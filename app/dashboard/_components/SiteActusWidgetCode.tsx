@@ -4,6 +4,11 @@ import { useTranslations } from "next-intl";
 
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  createActusWidgetEmbedUrl,
+  isActusWidgetEmbedUrl,
+  resolvePublicAppOrigin,
+} from "@/lib/actusWidgetEmbed";
 import styles from "../dashboard.module.css";
 import { getNormalizedSiteDomain } from "../dashboard.utils";
 import { normalizeActusAccent } from "../dashboard.types";
@@ -36,12 +41,7 @@ const getConfigKey = (config: GeneratedActusWidgetConfig | null) => {
 };
 
 const getPublicAppOrigin = () => {
-  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL || "https://app.inrcy.com";
-  try {
-    return new URL(configuredOrigin).origin;
-  } catch {
-    return "https://app.inrcy.com";
-  }
+  return resolvePublicAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
 };
 
 const buildEmbedDefinition = (config: GeneratedActusWidgetConfig) => {
@@ -49,7 +49,7 @@ const buildEmbedDefinition = (config: GeneratedActusWidgetConfig) => {
   const publicAppOrigin = getPublicAppOrigin();
   const iframeId = `inrcy-actus-${domain || "site"}-${config.layout}`.replace(/[^a-z0-9_-]/gi, "-");
   const initialHeight = config.layout === "carousel" || config.layout === "grid" ? 560 : config.layout === "compact" ? 360 : 260;
-  const embedUrl = new URL(`${publicAppOrigin}/embed/actus`);
+  const embedUrl = createActusWidgetEmbedUrl(publicAppOrigin);
   embedUrl.searchParams.set("frameId", iframeId);
   embedUrl.searchParams.set("domain", domain || "votre-site.fr");
   embedUrl.searchParams.set("source", config.source);
@@ -203,6 +203,24 @@ export default function InrcyActus() {
 const buildSnippet = (config: GeneratedActusWidgetConfig, target: WidgetInstallTarget) =>
   target === "react_next" ? buildReactNextSnippet(config) : buildHtmlSnippet(config);
 
+const copyText = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Clipboard unavailable");
+};
+
 export default function SiteActusWidgetCode({
   savedUrl,
   source,
@@ -279,7 +297,13 @@ export default function SiteActusWidgetCode({
 
       const ok = await onGenerate();
       if (ok === false) return;
-      setGeneratedConfig({ ...currentConfig, token: effectiveToken });
+      const nextConfig = { ...currentConfig, token: effectiveToken };
+      const { src } = buildEmbedDefinition(nextConfig);
+      if (!isActusWidgetEmbedUrl(src)) {
+        setGenerateNotice(i18nT("enregistrement_impossible_pour_le_moment_b9a11825"));
+        return;
+      }
+      setGeneratedConfig(nextConfig);
       onHideCode();
       setGenerateNotice(i18nT("code_genere_avec_succes_vous_pouvez_d4de2c80"));
     } catch {
@@ -334,12 +358,15 @@ export default function SiteActusWidgetCode({
           {showCode ? i18nT("masquer_le_code_86dd3838") : i18nT("afficher_le_code_d5d99382")}
         </button>
         <button type="button" className={styles.actionBtn} disabled={!codeReady} style={!codeReady ? { opacity: 0.5, cursor: "not-allowed" } : undefined} onClick={async () => {
-          if (!codeReady) return;
+          if (!codeReady || !generatedConfig) return;
           try {
-            await navigator.clipboard?.writeText(snippet);
+            const { src } = buildEmbedDefinition(generatedConfig);
+            if (!isActusWidgetEmbedUrl(src)) throw new Error("Invalid embed URL");
+            await copyText(snippet);
             setCopyNotice(i18nT("code_copie_cdc31064"));
           } catch {
             setCopyNotice(null);
+            setGenerateNotice(i18nT("enregistrement_impossible_pour_le_moment_b9a11825"));
           }
         }}>
           {i18nT("copier_le_code_ffdfce13")}{" "}</button>

@@ -5,6 +5,15 @@ import {
   buildPendingSignupReminderCalendarEvent,
   pendingSignupReminderEventId,
 } from "../../lib/visioPendingSignupPolicy.ts";
+import {
+  TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+  isTeamCalendarAutomationDetached,
+  pendingSignupReminderProspectUserId,
+  teamCalendarAutomationDecision,
+  teamCalendarAutomationSnapshot,
+} from "../../lib/visioCalendarMirrorPolicy.ts";
 
 const input = {
   userId: "f259a6ed-927a-489d-a257-f221b361b7f9",
@@ -54,4 +63,43 @@ test("le rappel porte les métadonnées privées de déduplication et de cycle d
   assert.equal(properties.inrcyLogicalAppointmentId, `prospect:${input.userId}`);
   assert.equal(properties.sourceEventId, event.id);
   assert.equal(properties.sharedCalendarId, input.calendarId);
+  assert.equal(
+    properties[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY],
+    teamCalendarAutomationSnapshot(event),
+  );
+});
+
+test("un rappel orange recoloré manuellement en bleu foncé est détaché", () => {
+  const desired = buildPendingSignupReminderCalendarEvent(input);
+  const manuallyRecolored = { ...desired, colorId: "9" };
+
+  assert.equal(
+    teamCalendarAutomationDecision({
+      existing: manuallyRecolored,
+      desired,
+      currentSourceFingerprint: "",
+    }),
+    "manual_override",
+  );
+
+  const detached = {
+    ...manuallyRecolored,
+    extendedProperties: {
+      private: {
+        ...manuallyRecolored.extendedProperties.private,
+        [TEAM_CALENDAR_MANUAL_OVERRIDE_KEY]:
+          TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+      },
+    },
+  };
+  assert.equal(isTeamCalendarAutomationDetached(detached), true);
+  assert.equal(pendingSignupReminderProspectUserId(detached), "");
+  assert.equal(
+    teamCalendarAutomationDecision({
+      existing: detached,
+      desired,
+      currentSourceFingerprint: "",
+    }),
+    "detached",
+  );
 });

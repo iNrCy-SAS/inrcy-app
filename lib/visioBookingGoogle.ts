@@ -70,16 +70,25 @@ import {
 import {
   PENDING_SIGNUP_ASSIGNMENT_KEY,
   PENDING_SIGNUP_ASSIGNMENT_VALUE,
+  TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
+  detachedTeamCalendarAdminAssignmentPatch,
+  hasTeamCalendarAutomationSnapshotDiverged,
   hasAutomaticGoogleCalendarReminders,
   isRecoverableDeterministicTeamCalendarMirror,
   isPendingSignupReminderForProspect,
+  isTeamCalendarAutomationDetached,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
+  teamCalendarAutomationDecision,
+  teamCalendarAutomationSnapshot,
   teamCalendarExternalAttendees,
   teamCalendarEventMeetUrl,
+  teamCalendarManualContentSignature,
   teamCalendarNativeMeetUrl,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorScheduleReconciliationDecision,
@@ -108,6 +117,7 @@ import {
 } from "@/lib/visioBookingPolicy";
 import {
   buildPendingSignupReminderCalendarEvent,
+  pendingSignupReminderEventId,
   type PendingSignupReminderInput,
 } from "@/lib/visioPendingSignupPolicy";
 import type { VisioBookingClaims } from "@/lib/visioBookingToken";
@@ -627,6 +637,48 @@ function teamMirrorFingerprint(event: GoogleCalendarEvent, member: VisioTeamMemb
     .digest("hex");
 }
 
+function withTeamCalendarAutomationSnapshot<T extends GoogleCalendarEvent>(
+  event: T,
+): T {
+  const privateProperties = event.extendedProperties?.private || {};
+  const withProperties = {
+    ...event,
+    extendedProperties: {
+      ...event.extendedProperties,
+      private: {
+        ...privateProperties,
+      },
+    },
+  };
+  withProperties.extendedProperties.private[
+    TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY
+  ] = teamCalendarAutomationSnapshot(withProperties);
+  return withProperties as T;
+}
+
+async function detachTeamCalendarAutomation(event: GoogleCalendarEvent) {
+  if (!event.id || isTeamCalendarAutomationDetached(event)) return false;
+  const privateProperties = event.extendedProperties?.private || {};
+  const detached = withTeamCalendarAutomationSnapshot({
+    ...event,
+    extendedProperties: {
+      ...event.extendedProperties,
+      private: {
+        ...privateProperties,
+        [TEAM_CALENDAR_MANUAL_OVERRIDE_KEY]:
+          TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+      },
+    },
+  });
+  const updated = await patchCalendarEventWithoutUpdates(
+    getVisioSharedCalendarId(),
+    event.id,
+    { extendedProperties: detached.extendedProperties },
+  );
+  Object.assign(event, updated);
+  return true;
+}
+
 function sharedMirrorCarriesManualScheduleChange(input: {
   source: GoogleCalendarEvent;
   member: VisioTeamMember;
@@ -688,6 +740,7 @@ async function upsertTeamMirrorEvent(input: {
   member: VisioTeamMember;
   existing?: GoogleCalendarEvent;
   mirrorEventId?: string;
+  allowDetachedAdminAssignment?: boolean;
 }) {
   if (!input.event.id) throw new Error("visio_team_mirror_source_id_missing");
   const sharedCalendarId = getVisioSharedCalendarId();
@@ -699,18 +752,61 @@ async function upsertTeamMirrorEvent(input: {
     input.existing?.id ||
     input.mirrorEventId ||
     expectedMirrorEventId;
-  const body = buildTeamCalendarMirrorBody({
-    event: input.event,
-    member: input.member,
-    sharedCalendarId,
-    mirrorEventId,
-    fingerprint,
-  });
-  const writeQuery = `?${"conferenceData" in body ? "conferenceDataVersion=1&" : ""}sendUpdates=none`;
+  const body = withTeamCalendarAutomationSnapshot(
+    buildTeamCalendarMirrorBody({
+      event: input.event,
+      member: input.member,
+      sharedCalendarId,
+      mirrorEventId,
+      fingerprint,
+    }),
+  );
+  if (input.existing && isTeamCalendarAutomationDetached(input.existing)) {
+    const assignmentPatch = input.allowDetachedAdminAssignment
+      ? detachedTeamCalendarAdminAssignmentPatch({
+          existing: input.existing,
+          desired: body,
+        })
+      : null;
+    if (!input.existing.id || !assignmentPatch) return "unchanged" as const;
+    await patchCalendarEventWithoutUpdates(
+      sharedCalendarId,
+      input.existing.id,
+      assignmentPatch,
+    );
+    return "updated" as const;
+  }
+  const { conferenceData, ...coreBody } = body;
+  const attachConference = async (eventId: string) => {
+    if (!conferenceData) return;
+    try {
+      await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1&sendUpdates=none`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ conferenceData }),
+        },
+      );
+    } catch (error) {
+      // The shared event remains the canonical coloured appointment even if
+      // Google temporarily refuses to copy the native Meet payload. The Meet
+      // URL is also kept in sourceMeetUrl and a later sync retries this patch.
+      console.warn(
+        "[visio-booking][shared-calendar-conference-copy]",
+        error instanceof Error ? error.message : "conference_copy_failed",
+      );
+    }
+  };
   if (
     input.existing?.id &&
     input.existing.status !== "cancelled" &&
     existingFingerprint === fingerprint &&
+    input.existing.extendedProperties?.private?.[
+      TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY
+    ] ===
+      (body.extendedProperties.private as Record<string, string>)[
+        TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY
+      ] &&
     teamCalendarMirrorContentSignature(input.existing) ===
       teamCalendarMirrorContentSignature(body)
   ) {
@@ -719,17 +815,19 @@ async function upsertTeamMirrorEvent(input: {
 
   if (input.existing?.id) {
     await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(input.existing.id)}${writeQuery}`,
-      { method: "PATCH", body: JSON.stringify(body) },
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(input.existing.id)}?sendUpdates=none`,
+      { method: "PATCH", body: JSON.stringify(coreBody) },
     );
+    await attachConference(input.existing.id);
     return "updated" as const;
   }
 
   try {
     await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(sharedCalendarId)}/events${writeQuery}`,
-      { method: "POST", body: JSON.stringify(body) },
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events?sendUpdates=none`,
+      { method: "POST", body: JSON.stringify(coreBody) },
     );
+    await attachConference(mirrorEventId);
     return "created" as const;
   } catch (error) {
     if (
@@ -759,9 +857,10 @@ async function upsertTeamMirrorEvent(input: {
         throw new Error("visio_team_mirror_id_conflict");
       }
       await googleCalendarRequest<GoogleCalendarEvent>(
-        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}${writeQuery}`,
-        { method: "PATCH", body: JSON.stringify(body) },
+        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}?sendUpdates=none`,
+        { method: "PATCH", body: JSON.stringify(coreBody) },
       );
+      await attachConference(mirrorEventId);
       return existing.status === "cancelled" ? "created" as const : "updated" as const;
     }
     throw error;
@@ -769,14 +868,32 @@ async function upsertTeamMirrorEvent(input: {
 }
 
 async function cancelSharedCalendarEvent(event: GoogleCalendarEvent) {
-  if (!event.id || event.status === "cancelled") return false;
+  if (
+    !event.id ||
+    event.status === "cancelled" ||
+    isTeamCalendarAutomationDetached(event)
+  ) {
+    return false;
+  }
+  if (hasTeamCalendarAutomationSnapshotDiverged(event)) {
+    await detachTeamCalendarAutomation(event);
+    return false;
+  }
+  const cancelled = withTeamCalendarAutomationSnapshot({
+    ...event,
+    status: "cancelled",
+  });
   await googleCalendarRequest<GoogleCalendarEvent>(
     `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events/${encodeURIComponent(event.id)}?sendUpdates=none`,
     {
       method: "PATCH",
-      body: JSON.stringify({ status: "cancelled" }),
+      body: JSON.stringify({
+        status: "cancelled",
+        extendedProperties: cancelled.extendedProperties,
+      }),
     },
   );
+  Object.assign(event, cancelled);
   return true;
 }
 
@@ -826,7 +943,25 @@ function preferredActiveAppointmentMirrors(
     }
     const identity = sharedVisioMirrorDeduplicationIdentity(event);
     const current = preferred.get(identity);
-    if (!current || shouldPreferAppointmentMirror(event, current)) {
+    const eventIsBooking =
+      event.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] ===
+      PRIVATE_BOOKING_VALUE;
+    const currentIsBooking = current
+      ? current.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] ===
+        PRIVATE_BOOKING_VALUE
+      : false;
+    const eventIsDetached = isTeamCalendarAutomationDetached(event);
+    const currentIsDetached = current
+      ? isTeamCalendarAutomationDetached(current)
+      : false;
+    if (
+      !current ||
+      (eventIsBooking !== currentIsBooking
+        ? eventIsBooking
+        : (eventIsDetached && !currentIsDetached) ||
+          (eventIsDetached === currentIsDetached &&
+            shouldPreferAppointmentMirror(event, current)))
+    ) {
       preferred.set(identity, event);
     }
   }
@@ -852,6 +987,7 @@ async function reconcileSharedAppointmentDuplicates(
     if (
       !event.id ||
       event.status === "cancelled" ||
+      isTeamCalendarAutomationDetached(event) ||
       event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] !==
         TEAM_CALENDAR_MIRROR_VALUE
     ) {
@@ -868,6 +1004,18 @@ async function reconcileSharedAppointmentDuplicates(
 }
 
 async function findPendingSignupReminder(claims: VisioBookingClaims) {
+  const deterministicReminder = await getCalendarEvent(
+    getVisioSharedCalendarId(),
+    pendingSignupReminderEventId(claims.sub),
+  );
+  if (
+    deterministicReminder &&
+    isPendingSignupReminderForProspect(deterministicReminder, claims.sub) &&
+    lifecycleStatusForEvent(deterministicReminder) === "signup_pending"
+  ) {
+    return deterministicReminder;
+  }
+
   const signupTime = new Date(claims.iat * 1_000);
   const timeMin = new Date(signupTime.getTime() - 7 * 24 * 60 * 60_000);
   const timeMax = new Date(
@@ -890,10 +1038,21 @@ async function removePendingSignupRemindersForProspect(
   const signupTime = new Date(claims.iat * 1_000);
   const timeMin = new Date(signupTime.getTime() - 24 * 60 * 60_000);
   const timeMax = new Date(signupTime.getTime() + 24 * 60 * 60_000);
-  const events = await listVisioSharedCalendarEvents(timeMin, timeMax, false);
+  const [deterministicReminder, listedEvents] = await Promise.all([
+    getCalendarEvent(
+      getVisioSharedCalendarId(),
+      pendingSignupReminderEventId(claims.sub),
+    ),
+    listVisioSharedCalendarEvents(timeMin, timeMax, false),
+  ]);
+  const events = new Map(
+    [deterministicReminder, ...listedEvents].flatMap((event) =>
+      event?.id ? [[event.id, event] as const] : [],
+    ),
+  );
   let removed = 0;
 
-  for (const event of events) {
+  for (const event of events.values()) {
     if (
       !isPendingSignupReminderForProspect(event, claims.sub) ||
       lifecycleStatusForEvent(event) !== "signup_pending"
@@ -1195,6 +1354,7 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       if (
         !event.id ||
         event.status === "cancelled" ||
+        isTeamCalendarAutomationDetached(event) ||
         event.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] !==
           PRIVATE_BOOKING_VALUE ||
         !hasAutomaticGoogleCalendarReminders(event)
@@ -1298,6 +1458,80 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             left.id.localeCompare(right.id),
         )[0];
       if (!assignedMember) continue;
+      const safeContent = buildPendingSignupCalendarContent({
+        event: reminder,
+        assignedMember,
+      });
+      const reminderProperties = reminder.extendedProperties?.private || {};
+      const pendingStatus: VisioAppointmentStatus =
+        reminderProperties[VISIO_APPOINTMENT_STATUS_KEY] ===
+        "signup_cancelled"
+          ? "signup_cancelled"
+          : "signup_pending";
+      const pendingLifecycle = lifecyclePrivateProperties({
+        status: pendingStatus,
+        origin: "signup_without_appointment",
+      });
+      const pendingBody = {
+        ...safeContent,
+        location: "",
+        colorId: visioAppointmentColorId(pendingStatus),
+        attendees: [],
+        reminders: { useDefault: false, overrides: [] },
+        extendedProperties: {
+          private: {
+            ...reminderProperties,
+            ...pendingLifecycle,
+            [PENDING_SIGNUP_ASSIGNMENT_KEY]:
+              PENDING_SIGNUP_ASSIGNMENT_VALUE,
+            [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+            [PRIVATE_LOGICAL_APPOINTMENT_KEY]: `prospect:${prospectUserId}`,
+            assignedMemberId: assignedMember.id,
+            assignedMemberEmail: assignedMember.email,
+            prospectUserId,
+            sourceCalendarId: sharedCalendarId,
+            sourceEventId: reminder.id,
+            sourceOrganizerEmail: sharedCalendarId,
+            sourceCalendarIsOrganizer: "true",
+            sharedCalendarId,
+          },
+        },
+      };
+      const expectedReminder = withTeamCalendarAutomationSnapshot({
+        ...reminder,
+        ...pendingBody,
+      });
+      const automationDecision = teamCalendarAutomationDecision({
+        existing: reminder,
+        desired: expectedReminder,
+        currentSourceFingerprint: "",
+      });
+      const legacyAssignedManualOverride = Boolean(
+        existingMember &&
+          !String(
+            reminderProperties[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY] || "",
+          ).trim() &&
+          teamCalendarManualContentSignature(reminder) !==
+            teamCalendarManualContentSignature(expectedReminder),
+      );
+      if (
+        automationDecision === "manual_override" ||
+        legacyAssignedManualOverride
+      ) {
+        try {
+          if (await detachTeamCalendarAutomation(reminder)) result.updated += 1;
+        } catch (error) {
+          result.errors.push({
+            memberId: "shared",
+            code: visioGoogleErrorCode(error),
+          });
+        }
+        continue;
+      }
+      if (automationDecision === "detached") {
+        result.skipped += 1;
+        continue;
+      }
       const externalAttendees = teamCalendarExternalAttendees(
         reminder,
         managedCalendarIds,
@@ -1330,20 +1564,6 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         }
         continue;
       }
-      const safeContent = buildPendingSignupCalendarContent({
-        event: reminder,
-        assignedMember,
-      });
-      const reminderProperties = reminder.extendedProperties?.private || {};
-      const pendingStatus: VisioAppointmentStatus =
-        reminderProperties[VISIO_APPOINTMENT_STATUS_KEY] ===
-        "signup_cancelled"
-          ? "signup_cancelled"
-          : "signup_pending";
-      const pendingLifecycle = lifecyclePrivateProperties({
-        status: pendingStatus,
-        origin: "signup_without_appointment",
-      });
       const needsSanitizing =
         !existingMember ||
         reminder.summary !== safeContent.summary ||
@@ -1357,34 +1577,19 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         reminderProperties.prospectUserId !== prospectUserId ||
         reminderProperties[VISIO_APPOINTMENT_STATUS_KEY] !== pendingStatus ||
         reminderProperties[VISIO_APPOINTMENT_ORIGIN_KEY] !==
-          "signup_without_appointment";
+          "signup_without_appointment" ||
+        reminderProperties[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY] !==
+          (expectedReminder.extendedProperties?.private as
+            | Record<string, string>
+            | undefined)?.[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY];
       if (!needsSanitizing) continue;
       try {
         const updatedReminder = await patchCalendarEventWithoutUpdates(
           sharedCalendarId,
           reminder.id,
           {
-            ...safeContent,
-            colorId: visioAppointmentColorId(pendingStatus),
-            attendees: [],
-            extendedProperties: {
-              private: {
-                ...reminderProperties,
-                ...pendingLifecycle,
-                [PENDING_SIGNUP_ASSIGNMENT_KEY]:
-                  PENDING_SIGNUP_ASSIGNMENT_VALUE,
-                [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
-                [PRIVATE_LOGICAL_APPOINTMENT_KEY]: `prospect:${prospectUserId}`,
-                assignedMemberId: assignedMember.id,
-                assignedMemberEmail: assignedMember.email,
-                prospectUserId,
-                sourceCalendarId: sharedCalendarId,
-                sourceEventId: reminder.id,
-                sourceOrganizerEmail: sharedCalendarId,
-                sourceCalendarIsOrganizer: "true",
-                sharedCalendarId,
-              },
-            },
+            ...pendingBody,
+            extendedProperties: expectedReminder.extendedProperties,
           },
         );
         Object.assign(reminder, updatedReminder);
@@ -1410,6 +1615,7 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       if (
         canonical.id &&
         canonical.status !== "cancelled" &&
+        !isTeamCalendarAutomationDetached(canonical) &&
         isManagedLifecycleEvent(canonical)
       ) {
         const replicaId = calendarReplicaEventId(canonical);
@@ -1784,6 +1990,40 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             // assigned internally to another team member.
             calendarId: member.calendarId,
           };
+          if (existingMirror) {
+            const currentSourceFingerprint = teamMirrorFingerprint(
+              event,
+              mirrorMember,
+            );
+            const desiredMirror = withTeamCalendarAutomationSnapshot(
+              buildTeamCalendarMirrorBody({
+                event,
+                member: mirrorMember,
+                sharedCalendarId,
+                mirrorEventId: String(existingMirror.id || ""),
+                fingerprint: currentSourceFingerprint,
+              }),
+            );
+            const automationDecision = teamCalendarAutomationDecision({
+              existing: existingMirror,
+              desired: desiredMirror,
+              currentSourceFingerprint,
+            });
+            if (automationDecision === "manual_override") {
+              if (await detachTeamCalendarAutomation(existingMirror)) {
+                result.updated += 1;
+              }
+              canonicalSourceByIdentity.set(identity, sourceKey);
+              canonicalSourceActive.set(sourceKey, true);
+              continue;
+            }
+            if (automationDecision === "detached") {
+              result.skipped += 1;
+              canonicalSourceByIdentity.set(identity, sourceKey);
+              canonicalSourceActive.set(sourceKey, true);
+              continue;
+            }
+          }
           const schedulesDiffer = Boolean(
             existingMirror && !teamCalendarSchedulesMatch(event, existingMirror),
           );
@@ -2612,6 +2852,143 @@ function assertMatchingBookingEvent(
   }
 }
 
+async function findExistingDirectBookingSharedMirror(input: {
+  claims: VisioBookingClaims;
+  hint?: GoogleCalendarEvent | null;
+  managedMirrorEventId: string;
+}) {
+  const sharedCalendarId = getVisioSharedCalendarId();
+  const deterministicId = pendingSignupReminderEventId(input.claims.sub);
+  const bookingId = bookingEventId(input.claims.nonce);
+  const candidateIds = [...new Set([
+    input.hint?.id,
+    deterministicId,
+    input.managedMirrorEventId,
+    bookingId,
+  ].filter((value): value is string => Boolean(value)))];
+
+  for (const eventId of candidateIds) {
+    const candidate =
+      input.hint?.id === eventId
+        ? input.hint
+        : await getCalendarEvent(sharedCalendarId, eventId);
+    if (!candidate) continue;
+    const candidateProspectId = String(
+      candidate.extendedProperties?.private?.prospectUserId || "",
+    ).trim();
+    if (
+      candidateProspectId &&
+      candidateProspectId !== input.claims.sub
+    ) {
+      throw new Error("visio_direct_booking_shared_mirror_conflict");
+    }
+    if (isTeamCalendarAutomationDetached(candidate)) continue;
+    if (
+      eventId === deterministicId ||
+      candidateProspectId === input.claims.sub
+    ) {
+      return candidate;
+    }
+  }
+
+  // Compatibility for mirrors produced before the deterministic shared id.
+  // This list is only a legacy fallback; the current orange reminder is
+  // always found by its direct event id above, even when events.list is stale.
+  const signupTime = new Date(input.claims.iat * 1_000);
+  const candidates = await listBookingEvents(
+    new Date(signupTime.getTime() - 7 * 24 * 60 * 60_000),
+    new Date(
+      Math.max(Date.now(), signupTime.getTime()) +
+        (getVisioBookingHorizonDays() + 7) * 24 * 60 * 60_000,
+    ),
+  );
+  return candidates.find((candidate) => {
+    const properties = candidate.extendedProperties?.private || {};
+    return (
+      !isTeamCalendarAutomationDetached(candidate) &&
+      properties.prospectUserId === input.claims.sub &&
+      properties[PRIVATE_BOOKING_KEY] === PRIVATE_BOOKING_VALUE
+    );
+  }) || null;
+}
+
+async function ensureDirectBookingSharedMirror(input: {
+  event: GoogleCalendarEvent;
+  claims: VisioBookingClaims;
+  member?: VisioTeamMember;
+  existingMirror?: GoogleCalendarEvent | null;
+}) {
+  const publicCalendarId = getVisioPublicCalendarId();
+  const masterEventId = bookingEventId(input.claims.nonce);
+  const inputProperties = input.event.extendedProperties?.private || {};
+  const sourceEvent =
+    input.event.id === masterEventId &&
+    inputProperties[TEAM_CALENDAR_MIRROR_KEY] !== TEAM_CALENDAR_MIRROR_VALUE
+      ? input.event
+      : await getCalendarEvent(publicCalendarId, masterEventId);
+  if (!sourceEvent) throw new Error("visio_direct_booking_public_event_missing");
+  assertMatchingBookingEvent(sourceEvent, input.claims);
+
+  const properties = sourceEvent.extendedProperties?.private || {};
+  const assignedMember =
+    input.member ||
+    getVisioTeamMembers().find(
+      (member) =>
+        member.id === String(properties.assignedMemberId || "").trim() ||
+        member.email ===
+          String(properties.assignedMemberEmail || "").trim().toLowerCase(),
+    );
+  if (!assignedMember) {
+    throw new Error("visio_direct_booking_assignee_missing");
+  }
+
+  const mirrorMember = { ...assignedMember, calendarId: publicCalendarId };
+  const managedMirrorEventId = teamMirrorEventIdForSource(
+    mirrorMember,
+    sourceEvent,
+  );
+
+  const existingMirror = await findExistingDirectBookingSharedMirror({
+    claims: input.claims,
+    hint: input.existingMirror,
+    managedMirrorEventId,
+  });
+  const mirrorEventId =
+    existingMirror?.id || managedMirrorEventId;
+  await upsertTeamMirrorEvent({
+    event: sourceEvent,
+    member: mirrorMember,
+    existing: existingMirror || undefined,
+    mirrorEventId,
+  });
+
+  const confirmedMirror = await getCalendarEvent(
+    getVisioSharedCalendarId(),
+    mirrorEventId,
+  );
+  const confirmedProperties =
+    confirmedMirror?.extendedProperties?.private || {};
+  if (
+    !confirmedMirror ||
+    confirmedMirror.status === "cancelled" ||
+    confirmedProperties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
+    confirmedProperties.prospectUserId !== input.claims.sub ||
+    confirmedProperties[VISIO_APPOINTMENT_STATUS_KEY] !==
+      "appointment_scheduled_direct" ||
+    confirmedProperties[VISIO_APPOINTMENT_ORIGIN_KEY] !==
+      "signup_with_appointment" ||
+    confirmedMirror.colorId !==
+      visioAppointmentColorId("appointment_scheduled_direct")
+  ) {
+    throw new Error("visio_direct_booking_shared_mirror_unconfirmed");
+  }
+  await cancelDuplicateAppointmentMirrors(
+    String(confirmedMirror.id),
+    confirmedMirror,
+  );
+  return confirmedMirror;
+}
+
 async function waitForMeetConference(
   calendarId: string,
   eventId: string,
@@ -2924,16 +3301,11 @@ async function createGoogleBookingEvent(input: {
     }
   }
 
-  await upsertTeamMirrorEvent({
+  await ensureDirectBookingSharedMirror({
     event,
-    member: { ...input.member, calendarId: publicCalendarId },
-    existing: pendingReminder || undefined,
-    mirrorEventId: pendingReminder?.id || input.eventId,
-  }).catch((error: unknown) => {
-    console.error(
-      "[visio-booking][shared-calendar-copy]",
-      error instanceof Error ? error.message : "copy_failed",
-    );
+    claims: input.claims,
+    member: input.member,
+    existingMirror: pendingReminder,
   });
 
   await ensureBookingDeliveriesForEvent({
@@ -3061,6 +3433,7 @@ export async function bookVisioSlot(
     const members = getVisioTeamMembers();
     const existing = await getExistingBooking(eventId, claims);
     if (existing) {
+      await ensureDirectBookingSharedMirror({ event: existing, claims });
       await ensureBookingDeliveriesForEvent({ event: existing, claims, start });
       return finalizeBookedVisio(
         claims,
@@ -3071,6 +3444,10 @@ export async function bookVisioSlot(
     try {
       const existingAfterLock = await getExistingBooking(eventId, claims);
       if (existingAfterLock) {
+        await ensureDirectBookingSharedMirror({
+          event: existingAfterLock,
+          claims,
+        });
         await ensureBookingDeliveriesForEvent({
           event: existingAfterLock,
           claims,
@@ -3133,6 +3510,10 @@ export async function bookVisioSlot(
         ) {
           const racedEvent = await getExistingBooking(eventId, claims);
           if (racedEvent) {
+            await ensureDirectBookingSharedMirror({
+              event: racedEvent,
+              claims,
+            });
             await ensureBookingDeliveriesForEvent({
               event: racedEvent,
               claims,
@@ -3829,6 +4210,7 @@ function isReusableBookingForProspect(
 
 async function syncManagedCalendarReplicas(canonical: GoogleCalendarEvent) {
   if (!canonical.id || canonical.status === "cancelled") return;
+  if (isTeamCalendarAutomationDetached(canonical)) return canonical;
   const storedStatus = lifecycleStatusForEvent(canonical);
   const origin = lifecycleOriginForEvent(canonical, storedStatus);
   const status = visioAppointmentStatusAfterColorChange({
@@ -3932,6 +4314,9 @@ async function reconcileManagedCalendarReplica(
     }
     reconciliation.replicaFanouts += 1;
     return "updated" as const;
+  }
+  if (isTeamCalendarAutomationDetached(canonical)) {
+    return "skipped" as const;
   }
 
   const currentStatus = lifecycleStatusForEvent(canonical);
@@ -4254,6 +4639,7 @@ async function createMissingBookingCompanion(input: {
 async function reassignAutomaticBooking(input: {
   mirror: GoogleCalendarEvent;
   targetMember: VisioTeamMember;
+  allowDetachedMirrorAssignment?: boolean;
 }) {
   const properties = input.mirror.extendedProperties?.private || {};
   const bookingNonce = String(properties.bookingNonce || "").trim();
@@ -4264,6 +4650,28 @@ async function reassignAutomaticBooking(input: {
       PRIVATE_BOOKING_SINGLE_EVENT_VALUE &&
     input.mirror.id
   ) {
+    if (isTeamCalendarAutomationDetached(input.mirror)) {
+      const assignmentPatch = input.allowDetachedMirrorAssignment
+        ? detachedTeamCalendarAdminAssignmentPatch({
+            existing: input.mirror,
+            desired: {
+              extendedProperties: {
+                private: {
+                  ...properties,
+                  assignedMemberId: input.targetMember.id,
+                  assignedMemberEmail: input.targetMember.email,
+                },
+              },
+            },
+          })
+        : null;
+      if (!assignmentPatch) return input.mirror;
+      return patchCalendarEventWithoutUpdates(
+        getVisioSharedCalendarId(),
+        input.mirror.id,
+        assignmentPatch,
+      );
+    }
     const updated = await patchCalendarEventWithoutUpdates(
       getVisioSharedCalendarId(),
       input.mirror.id,
@@ -4410,6 +4818,7 @@ async function reassignAutomaticBooking(input: {
     event: publicEvent,
     member: { ...input.targetMember, calendarId: publicCalendarId },
     existing: input.mirror,
+    allowDetachedAdminAssignment: input.allowDetachedMirrorAssignment,
   });
   const updatedMirror = await getCalendarEvent(
     getVisioSharedCalendarId(),
@@ -4423,6 +4832,7 @@ async function reassignAutomaticBooking(input: {
 async function reassignCalendarAppointment(input: {
   mirror: GoogleCalendarEvent;
   targetMember: VisioTeamMember;
+  allowDetachedMirrorAssignment?: boolean;
 }) {
   const properties = input.mirror.extendedProperties?.private || {};
   let sourceCalendarId = String(properties.sourceCalendarId || "").trim();
@@ -4573,6 +4983,7 @@ async function reassignCalendarAppointment(input: {
     event: movedEvent,
     member: input.targetMember,
     existing: input.mirror,
+    allowDetachedAdminAssignment: input.allowDetachedMirrorAssignment,
   });
   const updatedMirror = await getCalendarEvent(
     getVisioSharedCalendarId(),
@@ -5353,8 +5764,16 @@ export async function reassignVisioTeamAppointment(input: {
         mirror.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] ===
         PRIVATE_BOOKING_VALUE;
       const updatedMirror = isBooking
-        ? await reassignAutomaticBooking({ mirror, targetMember })
-        : await reassignCalendarAppointment({ mirror, targetMember });
+        ? await reassignAutomaticBooking({
+            mirror,
+            targetMember,
+            allowDetachedMirrorAssignment: true,
+          })
+        : await reassignCalendarAppointment({
+            mirror,
+            targetMember,
+            allowDetachedMirrorAssignment: true,
+          });
       const appointment = teamAppointmentFromMirror(updatedMirror);
       if (!appointment) throw new Error("visio_team_assignment_mirror_missing");
       if (appointment.currentMemberId !== targetMember.id) {

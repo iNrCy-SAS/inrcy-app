@@ -3,16 +3,24 @@ import test from "node:test";
 
 import { INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY } from "../../lib/inrCalendarGoogleSyncConstants.ts";
 import {
+  TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_KEY,
+  TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
+  detachedTeamCalendarAdminAssignmentPatch,
+  hasTeamCalendarAutomationSnapshotDiverged,
   hasAutomaticGoogleCalendarReminders,
   isRecoverableDeterministicTeamCalendarMirror,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
+  teamCalendarAutomationDecision,
+  teamCalendarAutomationSnapshot,
   teamCalendarExternalAttendees,
   teamCalendarEventMeetUrl,
+  teamCalendarManualContentSignature,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarMirrorSourceKey,
@@ -241,6 +249,49 @@ test("le miroir de réservation reprend le Meet natif du rendez-vous sans en cr�
   assert.equal(
     body.extendedProperties.private[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY],
     JSON.stringify(["pro@example.com"]),
+  );
+});
+
+test("le miroir d'une réservation directe conserve son cycle métier et son identité logique", () => {
+  const body = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      colorId: "9",
+      extendedProperties: {
+        private: {
+          inrcyBooking: "signup-visio",
+          bookingNonce: "nonce-direct",
+          prospectUserId: "prospect-direct",
+          inrcyAppointmentStatus: "appointment_scheduled_direct",
+          inrcyAppointmentOrigin: "signup_with_appointment",
+          inrcyAppointmentLifecycleVersion: "v1",
+          inrcyLogicalAppointmentId: "prospect:prospect-direct",
+        },
+      },
+    }),
+    member,
+    sharedCalendarId,
+    // Le rappel orange est réutilisé : son id diffère donc volontairement de
+    // l'id déterministe du rendez-vous public.
+    mirrorEventId: "pending-signup-reminder-id",
+    fingerprint: "direct-booking-fingerprint",
+  });
+
+  assert.equal(body.colorId, "9");
+  assert.equal(
+    body.extendedProperties.private.inrcyAppointmentStatus,
+    "appointment_scheduled_direct",
+  );
+  assert.equal(
+    body.extendedProperties.private.inrcyAppointmentOrigin,
+    "signup_with_appointment",
+  );
+  assert.equal(
+    body.extendedProperties.private.inrcyAppointmentLifecycleVersion,
+    "v1",
+  );
+  assert.equal(
+    body.extendedProperties.private.inrcyLogicalAppointmentId,
+    "prospect:prospect-direct",
   );
 });
 
@@ -489,6 +540,172 @@ test("les valeurs Google implicites gardent la même signature", () => {
   assert.equal(
     teamCalendarMirrorContentSignature(googleResponse),
     teamCalendarMirrorContentSignature(inrcyRequest),
+  );
+});
+
+test("deux offsets équivalents ne simulent pas une modification manuelle", () => {
+  const first = sourceEvent({
+    start: { dateTime: "2026-09-08T11:00:00+02:00" },
+    end: { dateTime: "2026-09-08T12:00:00+02:00" },
+  });
+  const normalizedByGoogle = sourceEvent({
+    start: { dateTime: "2026-09-08T09:00:00Z" },
+    end: { dateTime: "2026-09-08T10:00:00Z" },
+  });
+  assert.equal(
+    teamCalendarManualContentSignature(first),
+    teamCalendarManualContentSignature(normalizedByGoogle),
+  );
+  assert.equal(
+    teamCalendarAutomationSnapshot(first),
+    teamCalendarAutomationSnapshot(normalizedByGoogle),
+  );
+});
+
+test("une modification manuelle d'un miroir le détache définitivement", () => {
+  const desired = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      colorId: "9",
+      extendedProperties: {
+        private: {
+          inrcyAppointmentStatus: "appointment_scheduled_direct",
+          inrcyAppointmentOrigin: "signup_with_appointment",
+          inrcyAppointmentLifecycleVersion: "v1",
+          inrcyLogicalAppointmentId: "prospect:user-1",
+        },
+      },
+    }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm-manual",
+    fingerprint: "source-v1",
+  });
+  const managed = {
+    ...desired,
+    extendedProperties: {
+      private: {
+        ...desired.extendedProperties.private,
+        [TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY]:
+          teamCalendarAutomationSnapshot(desired),
+      },
+    },
+  };
+  const manuallyEdited = {
+    ...managed,
+    summary: "Titre choisi manuellement",
+    colorId: "5",
+  };
+
+  assert.equal(hasTeamCalendarAutomationSnapshotDiverged(managed), false);
+  assert.equal(
+    hasTeamCalendarAutomationSnapshotDiverged(manuallyEdited),
+    true,
+  );
+
+  assert.equal(
+    teamCalendarAutomationDecision({
+      existing: manuallyEdited,
+      desired: managed,
+      currentSourceFingerprint: "source-v1",
+    }),
+    "manual_override",
+  );
+
+  const detached = {
+    ...manuallyEdited,
+    extendedProperties: {
+      private: {
+        ...manuallyEdited.extendedProperties.private,
+        [TEAM_CALENDAR_MANUAL_OVERRIDE_KEY]:
+          TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+      },
+    },
+  };
+  assert.equal(
+    teamCalendarAutomationDecision({
+      existing: detached,
+      desired: managed,
+      currentSourceFingerprint: "source-v2",
+    }),
+    "detached",
+  );
+});
+
+test("une attribution Admin met à jour un miroir détaché sans toucher aux choix manuels", () => {
+  const detached: TeamCalendarEvent = {
+    id: "tm-detached",
+    summary: "Titre choisi manuellement",
+    description: "Notes choisies manuellement",
+    colorId: "5",
+    start: { dateTime: "2026-10-01T09:15:00+02:00" },
+    end: { dateTime: "2026-10-01T10:15:00+02:00" },
+    attendees: [{ email: "client@example.com" }],
+    extendedProperties: {
+      private: {
+        [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+        [TEAM_CALENDAR_MANUAL_OVERRIDE_KEY]:
+          TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+        [TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY]: "manual-snapshot",
+        assignedMemberId: "jimmy",
+        assignedMemberEmail: "jimmy@inrcy.com",
+        sourceCalendarId: "jimmy@inrcy.com",
+        sourceEventId: "source-before",
+        customManualProperty: "keep-me",
+      },
+    },
+  };
+  const desired = buildTeamCalendarMirrorBody({
+    event: sourceEvent({ id: "source-after" }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm-detached",
+    fingerprint: "source-after-fingerprint",
+  });
+  const patch = detachedTeamCalendarAdminAssignmentPatch({
+    existing: detached,
+    desired,
+  });
+  assert.ok(patch);
+
+  const reassigned = { ...detached, ...patch };
+  assert.equal(reassigned.summary, detached.summary);
+  assert.equal(reassigned.description, detached.description);
+  assert.equal(reassigned.colorId, detached.colorId);
+  assert.deepEqual(reassigned.start, detached.start);
+  assert.deepEqual(reassigned.end, detached.end);
+  assert.deepEqual(reassigned.attendees, detached.attendees);
+  assert.equal(
+    reassigned.extendedProperties?.private?.[TEAM_CALENDAR_MANUAL_OVERRIDE_KEY],
+    TEAM_CALENDAR_MANUAL_OVERRIDE_VALUE,
+  );
+  assert.equal(
+    reassigned.extendedProperties?.private?.[TEAM_CALENDAR_AUTOMATION_SNAPSHOT_KEY],
+    "manual-snapshot",
+  );
+  assert.equal(
+    reassigned.extendedProperties?.private?.customManualProperty,
+    "keep-me",
+  );
+  assert.equal(reassigned.extendedProperties?.private?.assignedMemberId, member.id);
+  assert.equal(
+    reassigned.extendedProperties?.private?.assignedMemberEmail,
+    member.email,
+  );
+  assert.equal(
+    reassigned.extendedProperties?.private?.sourceCalendarId,
+    member.calendarId,
+  );
+  assert.equal(
+    reassigned.extendedProperties?.private?.sourceEventId,
+    "source-after",
+  );
+  assert.equal(
+    teamCalendarAutomationDecision({
+      existing: reassigned,
+      desired,
+      currentSourceFingerprint: "source-after-fingerprint",
+    }),
+    "detached",
   );
 });
 

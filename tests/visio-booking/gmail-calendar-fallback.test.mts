@@ -34,3 +34,74 @@ test("le secours reconnaît le rappel direct et ne crée pas de doublon", () => 
   assert.match(script, /normaliser_\(eventDescription\)/);
   assert.match(script, /stats\.existing \+= 1/);
 });
+
+test("la déduplication couvre les rendez-vous convertis et déplacés", () => {
+  assert.match(script, /dedupeLookbackDays:\s*31/);
+  assert.match(script, /dedupeLookaheadDays:\s*61/);
+  assert.match(script, /var knownCalendarEvents = calendar\.getEvents/);
+  assert.match(
+    script,
+    /inscriptionExisteDeja_\(\s*knownCalendarEvents,\s*messageId,\s*prospectUserId,\s*contactEmail\s*\)/,
+  );
+  assert.match(script, /knownCalendarEvents\.push\(event\)/);
+  assert.doesNotMatch(script, /new Date\(start\.getTime\(\) - 60000\)/);
+});
+
+test("un rendez-vous déjà converti reste détecté par identité métier", () => {
+  const context: Record<string, unknown> = {};
+  vm.runInNewContext(
+    `${script}\nthis.__inscriptionExisteDeja = inscriptionExisteDeja_;`,
+    context,
+  );
+
+  const inscriptionExisteDeja = context.__inscriptionExisteDeja as (
+    events: unknown[],
+    messageId: string,
+    prospectUserId: string,
+    contactEmail: string,
+  ) => boolean;
+
+  const movedBooking = {
+    getDescription: () => "Nom : Pro Test\nE-mail : pro@example.com",
+    getTag: (key: string) => (key === "prospectUserId" ? "prospect-123" : ""),
+  };
+  assert.equal(
+    inscriptionExisteDeja(
+      [movedBooking],
+      "message-gmail-nouveau",
+      "prospect-123",
+      "pro@example.com",
+    ),
+    true,
+  );
+
+  const bookingWithHiddenTags = {
+    getDescription: () => "Client inscrit — PRO@EXAMPLE.COM",
+    getTag: () => {
+      throw new Error("tag non lisible");
+    },
+  };
+  assert.equal(
+    inscriptionExisteDeja(
+      [bookingWithHiddenTags],
+      "message-gmail-nouveau",
+      "prospect-123",
+      "pro@example.com",
+    ),
+    true,
+  );
+
+  const unrelatedEvent = {
+    getDescription: () => "Rendez-vous sans rapport",
+    getTag: () => "",
+  };
+  assert.equal(
+    inscriptionExisteDeja(
+      [unrelatedEvent],
+      "message-gmail-nouveau",
+      "prospect-123",
+      "pro@example.com",
+    ),
+    false,
+  );
+});
