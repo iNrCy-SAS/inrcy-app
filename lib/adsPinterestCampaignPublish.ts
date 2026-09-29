@@ -10,6 +10,7 @@ import {
   pinterestLiveConfigurationIssue,
 } from "./adsPinterestPublish.ts";
 import { pinterestAdsAccessToken } from "./adsPinterestServer.ts";
+import { pinterestCountryCodes } from "./adsPinterestLocations.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
 import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
 import { supabaseAdmin } from "./supabaseAdmin.ts";
@@ -25,6 +26,8 @@ type PinterestPublishProgress = Record<string, unknown> & {
 
 type PinterestPublishOptions = {
   activate?: boolean;
+  /** Fresh advertiser country returned by Pinterest account discovery. */
+  accountCountry?: string | null;
   onProviderMutationStart?: () => void;
 };
 
@@ -162,28 +165,15 @@ async function resolvePinterestImageUrl(userId: string, value: string): Promise<
   return signed;
 }
 
-const COUNTRY_ALIASES: Record<string, string> = {
-  france: "FR", belgique: "BE", belgium: "BE", suisse: "CH", switzerland: "CH",
-  luxembourg: "LU", espagne: "ES", spain: "ES", italie: "IT", italy: "IT",
-  allemagne: "DE", germany: "DE", portugal: "PT", paysbas: "NL", netherlands: "NL",
-  royaumeuni: "GB", unitedkingdom: "GB", irlande: "IE", ireland: "IE",
-  autriche: "AT", austria: "AT", canada: "CA", etatsunis: "US", unitedstates: "US",
-};
-
-function normalizedCountry(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
-}
-
-export function resolvePinterestCountryCodes(locations: readonly string[]): string[] {
-  const codes = locations.map((value) => {
-    const raw = value.trim();
-    if (/^[a-z]{2}$/i.test(raw)) return raw.toUpperCase();
-    return COUNTRY_ALIASES[normalizedCountry(raw)] || "";
-  });
-  if (!codes.length || codes.some((code) => !code)) {
+export function resolvePinterestCountryCodes(
+  locations: readonly string[],
+  accountCountry?: string | null,
+): string[] {
+  const codes = pinterestCountryCodes(locations, accountCountry);
+  if (!codes.length) {
     throw new Error("Le lancement Pinterest accepte actuellement un ciblage par pays. Utilisez le nom du pays ou son code ISO à 2 lettres (ex. France ou FR).");
   }
-  return [...new Set(codes)];
+  return codes;
 }
 
 function endTimestamp(endDate: string): number {
@@ -236,7 +226,10 @@ export async function publishPinterestAdsCampaign(
     }
     if (!safeHttpsUrl(draft.destinationUrl)) throw new Error("Le lien de destination Pinterest doit être une URL HTTPS publique.");
     const imageUrl = await resolvePinterestImageUrl(userId, String(draft.creativeUrl || draft.imageUrl || ""));
-    const locationCodes = resolvePinterestCountryCodes(draft.targetLocations);
+    // Older iNrADN profiles may have persisted cities/service areas here.
+    // Automatic targeting only needs a country, so use any explicit country
+    // first and otherwise the freshly verified Pinterest advertiser country.
+    const locationCodes = resolvePinterestCountryCodes(draft.targetLocations, options.accountCountry);
     const dailySpendCap = microCurrency(draft.dailyBudgetEuros);
     const bidInMicroCurrency = bidMicroCurrency(draft.pinterestBidEuros ?? 1, draft.dailyBudgetEuros);
     const endTime = endTimestamp(draft.endDate);

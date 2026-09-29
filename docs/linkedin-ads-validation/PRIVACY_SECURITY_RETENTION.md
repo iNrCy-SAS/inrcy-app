@@ -2,6 +2,8 @@
 
 Ce document prépare la revue technique. Il ne remplace ni une validation juridique ni la politique de confidentialité publique.
 
+Le Development Tier de l’app dédiée **iNrCy Ads** est approuvé depuis le 30 septembre 2026. Cette approbation fournisseur ne change ni les finalités, ni les règles de conservation, ni la désactivation actuelle des mutations distantes. Les gaps ci-dessous sont des prérequis de conformité produit et, lorsqu’indiqué, de future revue Standard.
+
 ## Données traitées par le connecteur actuel
 
 | Donnée | Source | Finalité | Stockage actuel |
@@ -14,7 +16,7 @@ Ce document prépare la revue technique. Il ne remplace ni une validation juridi
 | Statuts de servabilité | `adAccounts/{id}` | Bloquer les comptes non diffusables | Dernière vérification |
 | Brouillon de campagne iNrCy | Données saisies/proposées dans iNrCy | Préparation et reprise ultérieure | Donnée iNrCy, pas une campagne LinkedIn distante |
 
-Le connecteur actuel ne demande pas de reporting et ne collecte pas de données de performance LinkedIn Ads.
+Le consentement manage inclut `r_ads_reporting` pour la fonction statistiques explicitement prévue. Tant que le workflow distant reste désactivé, aucune route de production ne collecte ni ne persiste de données de performance LinkedIn Ads.
 
 ## Contrôles techniques vérifiés dans le code
 
@@ -43,7 +45,7 @@ LinkedIn impose des durées différentes selon la catégorie de données et pré
 
 Source : <https://learn.microsoft.com/en-us/linkedin/marketing/data-storage-requirements?view=li-lms-2026-03>
 
-Le connecteur doit éviter de persister tout catalogue de ciblage ou donnée membre qui n’est pas indispensable. Une politique de purge explicite doit être définie avant l’ajout du reporting, de données d’organisation détaillées, de Lead Gen ou d’audiences.
+Le connecteur doit éviter de persister tout catalogue de ciblage ou donnée membre qui n’est pas indispensable. Une politique de purge explicite doit être définie avant toute persistance de reporting, de données d’organisation détaillées, de Lead Gen ou d’audiences. Les données de localisation Microsoft Bing ne doivent pas être stockées.
 
 ## Règles produit à afficher et respecter
 

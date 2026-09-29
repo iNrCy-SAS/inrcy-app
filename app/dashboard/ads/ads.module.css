@@ -497,6 +497,10 @@
 .studioWorkspace .stepper button{flex:0 0 auto;white-space:nowrap}
 .studioWorkspace .stepper button:disabled{cursor:not-allowed;opacity:.5}
 .studioChoiceCard,.studioCard,.studioAnalysisCard{position:relative;overflow:hidden;border-color:#9ca6ed68;background:radial-gradient(ellipse at 100% 0,#b65bd630,transparent 55%),radial-gradient(ellipse at 0 100%,#2778c128,transparent 55%),linear-gradient(128deg,#142d56ef,#25204af2);box-shadow:inset 0 1px #ffffff13,0 24px 58px #05081649}
+.studioCard[data-channel=linkedin]{border-color:#4da3ef8c;background:radial-gradient(ellipse at 100% 0,#0a66c24d,transparent 55%),radial-gradient(ellipse at 0 100%,#0ea5e92c,transparent 55%),linear-gradient(128deg,#102f5af2,#152d51f4)}
+.studioCard[data-channel=linkedin] .studioStepLabel{color:#71c7ff}.studioCard[data-channel=linkedin] .studioStepChannel{border-color:#50a8ef80;color:#e8f6ff;background:#0a66c242}
+.studioCard[data-channel=x]{border-color:#f8fafc73;background:radial-gradient(ellipse at 100% 0,#f8fafc1f,transparent 52%),radial-gradient(ellipse at 0 100%,#64748b2d,transparent 55%),linear-gradient(128deg,#080d18f5,#1d2738f5)}
+.studioCard[data-channel=x] .studioStepLabel{color:#f8fafc}.studioCard[data-channel=x] .studioStepChannel{border-color:#f8fafc66;color:#fff;background:#02061799}
 .studioChoiceCard:before,.studioCard:before{position:absolute;inset:0;z-index:-1;content:"";opacity:.65;background:linear-gradient(90deg,transparent 0 39%,#ffffff07 39% 39.08%,transparent 39.08% 100%),linear-gradient(0deg,transparent 0 73%,#ffffff05 73% 73.15%,transparent 73.15% 100%);pointer-events:none}
 .studioChoiceCard{max-width:1180px!important;margin-inline:auto!important;padding:clamp(18px,2.6vh,32px) clamp(20px,4vw,52px)!important}
 .studioStepHeader{position:relative;z-index:1;display:grid;grid-template-columns:minmax(130px,1fr) minmax(260px,1.6fr) minmax(130px,1fr);align-items:center;gap:14px;min-height:43px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #abc5f038}
@@ -700,6 +704,15 @@
 .campaignMediaPreview{position:relative;z-index:1;overflow:hidden;width:100%;height:clamp(190px,30vh,300px);border:1px solid #89c5ee72;border-radius:15px;background:radial-gradient(circle at center,#2f5d8d5e,#07142df0 74%);box-shadow:inset 0 1px #ffffff20}
 .campaignMediaPreviewImage{object-fit:contain;object-position:center}
 .campaignMediaPreview video{display:block;width:100%;height:100%;object-fit:contain}
+.studioPinterestFormatCard,.studioPureMediaCard{background:radial-gradient(ellipse at 100% 0,#e6002342,transparent 52%),radial-gradient(ellipse at 0 100%,#2778c128,transparent 55%),linear-gradient(128deg,#142d56ef,#302047f2)}
+.studioDedicatedMediaCard .campaignMediaWorkspace{margin-top:12px}
+.studioDedicatedMediaCard .campaignMediaPreview{height:clamp(300px,46vh,520px);min-height:300px;background:radial-gradient(circle at center,#263f6e73,#050b1cf2 76%)}
+.studioDedicatedMediaCard .campaignMediaPreviewImage,.studioDedicatedMediaCard .campaignMediaPreview video{object-fit:contain;object-position:center}
+.campaignMediaPreview[data-empty=true]{border-style:dashed;background:radial-gradient(circle at center,#2b568559,#050b1ce8 76%)}
+.campaignMediaPreviewFallback>span{display:grid;place-items:center;width:48px;height:48px;border:1px solid #c8b1ffb5;border-radius:15px;color:#fff;background:linear-gradient(130deg,#2b8edc,#9e57d2);box-shadow:0 8px 24px #040a2080;font-size:24px}
+.campaignMediaSourceNotice{display:grid;grid-template-columns:46px minmax(0,1fr);align-items:center;gap:13px;margin-top:12px;padding:17px;border:1px solid #f07a8b70;border-radius:17px;background:linear-gradient(125deg,#3f163b99,#172b5799);box-shadow:inset 0 1px #ffffff1c}
+.campaignMediaSourceNotice>span{display:grid;place-items:center;width:44px;height:44px;border:1px solid #ff9eaa8c;border-radius:14px;color:#fff;background:#a8183b82;font-size:21px}
+.campaignMediaSourceNotice strong{display:block;color:#fff;font-size:13px}.campaignMediaSourceNotice p{margin:4px 0 0;color:#d9d5eb;font-size:11px;line-height:1.5}
 .campaignMediaPreviewFallback{display:flex;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:9px;padding:18px;color:#eaf6ff;text-align:center}
 .campaignMediaPreviewFallback strong{font-size:13px}.campaignMediaPreviewFallback p{max-width:420px;margin:0;color:#c5d9ef;font-size:11px;line-height:1.45}
 .campaignMediaPreviewFallback>div{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
@@ -715,7 +728,8 @@
 .campaignMediaError{position:relative;z-index:1;margin:0;padding:10px 12px;border:1px solid #ff9ba982;border-radius:12px;color:#ffe1e6;background:#67233c9e;font-size:11px;font-weight:700;line-height:1.4}
 
 @media(max-width:800px){.campaignMediaWorkspace{margin-top:17px;padding:15px}.campaignMediaActions,.campaignMediaActions[data-three-actions]{grid-template-columns:repeat(2,minmax(0,1fr))}.campaignMediaAttached{grid-template-columns:28px minmax(0,1fr) auto}.campaignMediaAttached button{grid-column:2/-1;justify-self:start}}
-@media(max-width:540px){.studioMediaGenerationNote{font-size:11px}.campaignMediaWorkspace{gap:12px;padding:14px;border-radius:16px}.campaignMediaWorkspaceHeading{align-items:flex-start;flex-direction:column;gap:7px}.campaignMediaWorkspaceHeading>span{align-self:flex-start}.campaignMediaActions button{min-height:42px;padding:8px 7px;font-size:10px}.campaignMediaActions button>span{font-size:14px}.campaignMediaFormatHint{font-size:10px}.campaignMediaAttached{grid-template-columns:25px minmax(0,1fr);gap:8px}.campaignMediaAttached>span{width:24px;height:24px}.campaignMediaAttached a{grid-column:2;justify-self:start}.campaignMediaAttached button{grid-column:2;justify-self:start}.campaignMediaAttached small{white-space:normal}}
+@media(max-width:800px){.studioDedicatedMediaCard .campaignMediaPreview{height:clamp(260px,46vh,430px);min-height:260px}}
+@media(max-width:540px){.studioMediaGenerationNote{font-size:11px}.campaignMediaWorkspace{gap:12px;padding:14px;border-radius:16px}.campaignMediaWorkspaceHeading{align-items:flex-start;flex-direction:column;gap:7px}.campaignMediaWorkspaceHeading>span{align-self:flex-start}.campaignMediaActions button{min-height:42px;padding:8px 7px;font-size:10px}.campaignMediaActions button>span{font-size:14px}.campaignMediaFormatHint{font-size:10px}.campaignMediaAttached{grid-template-columns:25px minmax(0,1fr);gap:8px}.campaignMediaAttached>span{width:24px;height:24px}.campaignMediaAttached a{grid-column:2;justify-self:start}.campaignMediaAttached button{grid-column:2;justify-self:start}.campaignMediaAttached small{white-space:normal}.studioDedicatedMediaCard .campaignMediaPreview{height:clamp(230px,42vh,360px);min-height:230px}.campaignMediaSourceNotice{grid-template-columns:1fr}.campaignMediaSourceNotice>span{width:38px;height:38px}}
 
 /* Dedicated campaign steps keep targeting, copy and media easy to scan. */
 .studioKeywordGuidance,.studioCopyGuidance{display:grid;align-content:start;gap:6px;margin:0;padding:14px 16px;border:1px solid #8fb9e063;border-radius:15px;background:linear-gradient(120deg,#13335eaa,#32204e9c);box-shadow:inset 0 1px #ffffff14}

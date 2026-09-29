@@ -8,8 +8,25 @@ export type XAdsAccount = {
   permissions: string[];
   canManageCampaigns: boolean | null;
   billingReady: boolean | null;
-  eligibleToAssociate: boolean;
+  /** `null` means discovery succeeded but role/currency/billing still need live verification. */
+  eligibleToAssociate: boolean | null;
 };
+
+export const X_ADS_INTEGRATION_IDENTITY = {
+  provider: "x",
+  source: "x_ads",
+  product: "ads",
+} as const;
+
+export function isXAdsIntegrationIdentity(value: {
+  provider?: unknown;
+  source?: unknown;
+  product?: unknown;
+}): boolean {
+  return value.provider === X_ADS_INTEGRATION_IDENTITY.provider
+    && value.source === X_ADS_INTEGRATION_IDENTITY.source
+    && value.product === X_ADS_INTEGRATION_IDENTITY.product;
+}
 
 export type XAdsReadiness =
   | "disconnected"
@@ -60,7 +77,10 @@ export function normalizeXAdsAccount(value: unknown): XAdsAccount | null {
     permissions: [],
     canManageCampaigns: null,
     billingReady: null,
-    eligibleToAssociate: false,
+    // GET /accounts only discovers advertisers. The selected advertiser is
+    // persisted exclusively after POST has rechecked role, EUR funding and
+    // account status against X Ads.
+    eligibleToAssociate: null,
   };
 }
 
@@ -111,6 +131,7 @@ export function xAdsReadiness(input: {
   if (!input.selectedAccountId) return "account_selection_required";
   const selected = accounts.find((account) => account.id === input.selectedAccountId);
   if (!selected) return "account_verification_required";
+  if (selected.eligibleToAssociate === null) return "account_verification_required";
   if (selected.deleted || selected.approvalStatus !== "ACCEPTED") return "ineligible_ad_account";
   if (selected.currency !== "EUR") return "eur_account_required";
   if (selected.canManageCampaigns === null) return "account_verification_required";

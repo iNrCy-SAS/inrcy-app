@@ -7,7 +7,9 @@ import { getLinkedInAdsCredentials, getLinkedInAdsRedirectUri } from "@/lib/adsL
 export async function GET(request: Request) {
   const { user, errorResponse } = await requirePremiumAdsUser();
   if (errorResponse || !user) return errorResponse;
-  const modeParam = new URL(request.url).searchParams.get("access") || "read";
+  // The primary Ads connection is complete in one explicit consent. A
+  // read-only diagnostic flow remains available with `?access=read`.
+  const modeParam = new URL(request.url).searchParams.get("access") || "manage";
   if (modeParam !== "read" && modeParam !== "manage") {
     return NextResponse.json({ error: "Mode d’accès LinkedIn Ads inconnu.", code: "invalid_access_mode" }, { status: 400 });
   }
@@ -17,8 +19,6 @@ export async function GET(request: Request) {
   let redirectUri: string;
   try {
     redirectUri = getLinkedInAdsRedirectUri(request.url);
-    const parsed = new URL(redirectUri);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") throw new Error("Invalid redirect URI");
   } catch {
     return NextResponse.json({ error: "URL de retour LinkedIn Ads invalide.", code: "redirect_uri_invalid" }, { status: 503 });
   }

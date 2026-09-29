@@ -188,7 +188,7 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `LINKEDIN_API_VERSION`
 - [ ] `LINKEDIN_SCOPE_OVERRIDES`
 
-### LinkedIn Ads — connexion Marketing séparée
+### LinkedIn Ads — connexion Marketing séparée (Development approuvé le 30/09/2026)
 
 - [ ] `LINKEDIN_ADS_CLIENT_ID`
 - [ ] `LINKEDIN_ADS_CLIENT_SECRET`
@@ -196,6 +196,8 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `LINKEDIN_ADS_API_VERSION=202609` — facultatif tant que la valeur par défaut du code reste la version active visée
 
 Les variables Ads sont toujours explicites : le serveur ne réutilise jamais implicitement `LINKEDIN_CLIENT_ID` ou `LINKEDIN_CLIENT_SECRET`. LinkedIn permet techniquement d'ajouter le produit Advertising API à une app existante ; une app dédiée Ads reste recommandée pour isoler les scopes, la revue et les secrets. Dans les deux cas, les routes, le callback et la ligne `integrations` (`provider=source=linkedin_ads`, `product=ads`) restent distincts de LinkedIn organique.
+
+Constat en lecture seule du 30/09/2026 : l’app dédiée **iNrCy Ads** est au **Development Tier**, le callback exact est enregistré et Auth expose `r_ads` / `rw_ads`. Le projet Vercel contient les trois variables `LINKEDIN_ADS_CLIENT_ID`, `LINKEDIN_ADS_CLIENT_SECRET` et `LINKEDIN_ADS_REDIRECT_URI`, sans que leurs valeurs aient été affichées. Les cases restent à valider environnement par environnement avec le vérificateur ; la vidéo ne concerne qu’une future demande Standard.
 
 Le connecteur demande seulement `r_ads` pour découvrir les comptes ou `rw_ads` pour préparer la gestion de campagnes. `r_ads_reporting` ne doit être ajouté que lorsqu'un vrai parcours de statistiques Ads l'utilise et peut être démontré. Contrôle avant déploiement : `npm run verify:linkedin-ads-env`.
 
@@ -205,6 +207,19 @@ Le connecteur demande seulement `r_ads` pour découvrir les comptes ou `rw_ads` 
 - [ ] `X_CLIENT_SECRET`
 - [ ] `X_REDIRECT_URI` — optionnel en local ; en Production, fixer `https://app.inrcy.com/api/integrations/x/callback`
 - [ ] `X_OAUTH_SCOPES` — optionnel ; le socle requis (`tweet.read`, `users.read`, `tweet.write`, `media.write`, `offline.access`) reste toujours ajouté par le serveur
+
+### X Ads — connexion OAuth 1.0a séparée
+
+- [ ] `X_ADS_API_KEY` — Consumer Key de l'app approuvée pour X Ads API
+- [ ] `X_ADS_API_SECRET` — Consumer Secret, serveur uniquement
+- [ ] `X_ADS_REDIRECT_URI=https://app.inrcy.com/api/ads/x/callback`
+- [ ] `X_ADS_API_VERSION=12`
+- [ ] `NEXT_PUBLIC_APP_URL=https://app.inrcy.com`
+- [ ] `INRCY_CREDENTIALS_SECRET` — clé base64 de 32 octets pour chiffrer les jetons utilisateur
+
+X Ads utilise OAuth 1.0a en contexte utilisateur ; il n'existe pas de liste de scopes OAuth 2.0 à concaténer dans l'URL. L'app doit être réglée en **Read and write**, puis approuvée séparément au niveau **Ads API Standard Access**. Les variables, le callback et la ligne `integrations` (`provider=x`, `source=x_ads`, `product=ads`) restent distincts de la connexion X organique. Après l'approbation Ads, les jetons utilisateur doivent être régénérés avant le premier appel Ads.
+
+Contrôle avant déploiement : `npm run verify:x-ads-env`. Dossier de validation : `docs/x-ads-validation/README.md`.
 
 ## Microsoft / Outlook
 

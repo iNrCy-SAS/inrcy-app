@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   buildLinkedInAdsAuthorizationUrl,
+  LINKEDIN_ADS_MANAGE_SCOPES,
   linkedInAdsAccessTokenIsFresh,
   linkedInAdsCanRetainAccount,
   linkedInAdsCanManageCampaigns,
@@ -10,21 +11,57 @@ import {
   linkedInAdsHasAccessMode,
   linkedInAdsHasReadAccess,
   linkedInAdsScopes,
+  missingLinkedInAdsScopes,
   normalizeLinkedInAdsAccount,
   normalizeLinkedInAdsAccountUser,
+  resolveLinkedInAdsRedirectUri,
 } from "../lib/adsLinkedInPolicy.ts";
 
 const root = new URL("../", import.meta.url);
 const source = (path: string) => readFileSync(new URL(path, root), "utf8");
 
-test("LinkedIn Ads requests only its own read or manage Marketing scopes", () => {
-  for (const [mode, expected] of [["read", "r_ads"], ["manage", "rw_ads"]] as const) {
+test("LinkedIn Ads requests its least-privilege read or complete campaign-management scopes", () => {
+  const manage = "rw_ads r_ads_reporting r_organization_admin w_organization_social";
+  assert.deepEqual([...LINKEDIN_ADS_MANAGE_SCOPES], manage.split(" "));
+  for (const [mode, expected] of [["read", "r_ads"], ["manage", manage]] as const) {
     const url = new URL(buildLinkedInAdsAuthorizationUrl("ads-client", "https://example.com/api/ads/linkedin/callback", "opaque-state", mode));
     assert.equal(url.origin, "https://www.linkedin.com");
     assert.equal(url.pathname, "/oauth/v2/authorization");
     assert.equal(url.searchParams.get("scope"), expected);
     assert.equal(url.searchParams.get("state"), "opaque-state");
     assert.equal(url.searchParams.get("redirect_uri"), "https://example.com/api/ads/linkedin/callback");
+    assert.equal(url.searchParams.get("scope")?.includes("r_organization_social"), false);
+    assert.equal(url.searchParams.get("scope")?.includes("w_member_social"), false);
+    assert.equal(url.searchParams.get("scope")?.includes("rw_organization_admin"), false);
+  }
+});
+
+test("LinkedIn Ads resolves only the exact dedicated callback on the public app origin", () => {
+  assert.equal(resolveLinkedInAdsRedirectUri({
+    explicit: "https://app.inrcy.com/api/ads/linkedin/callback",
+    appUrl: "https://app.inrcy.com",
+    siteUrl: "https://inrcy.com",
+    requestUrl: "https://preview.example.test/api/ads/linkedin/start",
+  }), "https://app.inrcy.com/api/ads/linkedin/callback");
+  assert.equal(resolveLinkedInAdsRedirectUri({
+    appUrl: "https://app.inrcy.com/dashboard",
+    requestUrl: "https://preview.example.test/api/ads/linkedin/start",
+  }), "https://app.inrcy.com/api/ads/linkedin/callback");
+  assert.equal(resolveLinkedInAdsRedirectUri({
+    requestUrl: "http://127.0.0.1:3011/api/ads/linkedin/start",
+  }), "http://127.0.0.1:3011/api/ads/linkedin/callback");
+
+  for (const explicit of [
+    "https://evil.example/api/ads/linkedin/callback",
+    "http://app.inrcy.com/api/ads/linkedin/callback",
+    "https://app.inrcy.com/api/integrations/linkedin/callback",
+    "https://app.inrcy.com/api/ads/linkedin/callback?next=evil",
+  ]) {
+    assert.throws(() => resolveLinkedInAdsRedirectUri({
+      explicit,
+      appUrl: "https://app.inrcy.com",
+      requestUrl: "https://app.inrcy.com/api/ads/linkedin/start",
+    }));
   }
 });
 
@@ -35,7 +72,13 @@ test("scope parsing accepts comma or space separators but refuses organic scopes
   assert.equal(linkedInAdsHasReadAccess("w_member_social openid"), false);
   assert.equal(linkedInAdsHasAccessMode("rw_ads", "read"), true);
   assert.equal(linkedInAdsHasAccessMode("r_ads", "manage"), false);
-  assert.equal(linkedInAdsHasAccessMode("rw_ads", "manage"), true);
+  assert.equal(linkedInAdsHasAccessMode("rw_ads", "manage"), false);
+  assert.equal(linkedInAdsHasAccessMode(
+    "rw_ads r_ads_reporting r_organization_admin w_organization_social", "manage",
+  ), true);
+  assert.deepEqual(missingLinkedInAdsScopes("rw_ads", "manage"), [
+    "r_ads_reporting", "r_organization_admin", "w_organization_social",
+  ]);
 });
 
 test("ad-account roles and URNs are parsed strictly", () => {
@@ -139,6 +182,8 @@ test("connector stays separate from organic LinkedIn and has no ad publishing en
   const start = source("app/api/ads/linkedin/start/route.ts");
   const accounts = source("app/api/ads/linkedin/accounts/route.ts");
   const status = source("app/api/ads/linkedin/status/route.ts");
+  const validation = source("lib/adsValidation.ts");
+  const publishRoute = source("app/api/ads/campaigns/[id]/publish/route.ts");
   assert.match(server, /LINKEDIN_ADS_PROVIDER = "linkedin_ads"/);
   assert.match(server, /LINKEDIN_ADS_SOURCE = "linkedin_ads"/);
   assert.match(server, /LINKEDIN_ADS_CLIENT_ID/);
@@ -149,6 +194,8 @@ test("connector stays separate from organic LinkedIn and has no ad publishing en
   assert.match(accounts, /adsRequestOriginAllowed\(request\)/);
   assert.match(accounts, /ads_linkedin_accounts/);
   assert.match(status, /publicationEnabled: false/);
+  assert.match(validation, /value === "meta" \|\| value === "google" \|\| value === "pinterest"/);
+  assert.doesNotMatch(publishRoute, /publishLinkedInAdsCampaign|prepareLinkedInAdsDraftCampaign/);
   assert.match(source("app/api/ads/linkedin/callback/route.ts"), /oauth_linkedin_ads_callback/);
   assert.doesNotMatch(server, /POST https:\/\/api\.linkedin\.com\/rest\/adCampaigns/);
 });
@@ -160,12 +207,19 @@ test("LinkedIn Ads and organic LinkedIn keep distinct OAuth, callback, storage a
   const organicDisconnect = source("app/api/integrations/linkedin/disconnect-account/route.ts");
   const organicScopes = source("lib/linkedinScopes.ts");
   const server = source("lib/adsLinkedInServer.ts");
+  const callback = source("app/api/ads/linkedin/callback/route.ts");
+  const policy = source("lib/adsLinkedInPolicy.ts");
 
   assert.match(adsStart, /makeOAuthState\(\s*"ads_linkedin"/);
   assert.match(adsStart, /getLinkedInAdsRedirectUri\(request\.url\)/);
-  assert.match(server, /\/api\/ads\/linkedin\/callback/);
+  assert.match(policy, /\/api\/ads\/linkedin\/callback/);
   assert.match(server, /process\.env\.LINKEDIN_ADS_CLIENT_ID/);
   assert.match(server, /process\.env\.LINKEDIN_ADS_CLIENT_SECRET/);
+  assert.match(server, /process\.env\.NEXT_PUBLIC_APP_URL/);
+  assert.match(server, /resolveLinkedInAdsRedirectUri/);
+  assert.match(server, /linkedInAdsHasAccessMode\(scopes\.join\(" "\), requestedMode\)/);
+  assert.match(server, /"missing_scopes", 403/);
+  assert.match(callback, /saveLinkedInAdsConnection\(userId, token, state\.state\.mode\)/);
   assert.match(adsDisconnect, /\.eq\("provider", LINKEDIN_ADS_PROVIDER\)/);
   assert.match(adsDisconnect, /\.eq\("source", LINKEDIN_ADS_SOURCE\)/);
   assert.match(adsDisconnect, /\.eq\("product", LINKEDIN_ADS_PRODUCT\)/);
@@ -180,22 +234,25 @@ test("LinkedIn Ads and organic LinkedIn keep distinct OAuth, callback, storage a
   assert.doesNotMatch(organicScopes, /["']rw_ads["']/);
 });
 
-test("LinkedIn UI starts in r_ads and offers an explicit rw_ads management upgrade without promising publication", () => {
+test("LinkedIn UI uses the complete Ads management consent by default without promising publication", () => {
   const settings = source("app/dashboard/ads/ExternalAdsConnectionSettings.tsx");
   const client = source("app/dashboard/ads/AdsClient.tsx");
   const start = source("app/api/ads/linkedin/start/route.ts");
   const status = source("app/api/ads/linkedin/status/route.ts");
 
-  assert.match(start, /modeParam[^;]*\|\| "read"/);
+  assert.match(start, /modeParam[^;]*\|\| "manage"/);
   assert.match(start, /modeParam !== "read" && modeParam !== "manage"/);
-  assert.match(settings, /channel === "linkedin"[\s\S]*status\.missingScopes\?\.includes\("rw_ads"\)/);
-  assert.match(settings, /href=\{oauthHref\(channel, "manage"\)\}>Autoriser la gestion/);
-  assert.match(settings, /linkedinRefreshAccess[\s\S]*status\.scopes\?\.includes\("rw_ads"\)[\s\S]*\? "manage"[\s\S]*: "read"/);
+  assert.match(settings, /linkedinAccess: "read" \| "manage" = "manage"/);
+  assert.match(settings, /channel === "linkedin"[\s\S]*Boolean\(status\.missingScopes\?\.length\)/);
+  assert.match(settings, /linkedinManagementMissing[\s\S]*\? "needs_update"/);
+  assert.match(settings, /reconnexion requise pour la gestion complète/);
+  assert.match(settings, /href=\{oauthHref\(channel, "manage"\)\}>Compléter les autorisations Ads/);
+  assert.match(settings, /linkedinRefreshAccess = channel === "linkedin" \? "manage" : "read"/);
   assert.match(client, /scopes = Array\.isArray\(data\.scopes\)/);
   assert.match(client, /missingScopes = Array\.isArray\(data\.missingScopes\)/);
   assert.match(client, /selectedAccountCanManage: data\.selectedAccountCanManage === true/);
   assert.match(client, /selectedAccountCanServe: data\.selectedAccountCanServe === true/);
-  assert.match(status, /missingScopes: connected && !scopes\.includes\("rw_ads"\) \? \["rw_ads"\] : \[\]/);
+  assert.match(status, /missingLinkedInAdsScopes\(scopes\.join\(" "\), "manage"\)/);
   assert.match(status, /publicationEnabled: false/);
   assert.match(settings, /Rôle LinkedIn/);
   assert.match(settings, /Servabilité/);

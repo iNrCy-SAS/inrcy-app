@@ -12,6 +12,10 @@ import {
   pinterestLiveConfigurationIssue,
   preflightPinterestDraftCampaign,
 } from "../lib/adsPinterestPublish.ts";
+import {
+  normalizePinterestAutomaticLocations,
+  pinterestCountryCodes,
+} from "../lib/adsPinterestLocations.ts";
 
 const draft = {
   schemaVersion: 1,
@@ -118,6 +122,13 @@ test("Pinterest live preflight refuses manual targeting and precise placements b
   assert.match(pinterestLiveConfigurationIssue({ ...draft, targetingMode: "audiences" }) || "", /audiences/);
   assert.match(pinterestLiveConfigurationIssue(draft, ["idée cadeau"]) || "", /Mots-clés|mots-clés/);
   assert.match(pinterestLiveConfigurationIssue({ ...draft, placementGroup: "BROWSE" }) || "", /emplacements/);
+});
+
+test("Pinterest automatic targeting repairs local profile zones with the verified advertiser country", () => {
+  assert.deepEqual(pinterestCountryCodes(["Lille", "Roubaix", "Nord"], "FR"), ["FR"]);
+  assert.deepEqual(pinterestCountryCodes(["Bruxelles", "Belgique", "Lille"], "FR"), ["BE"]);
+  assert.deepEqual(normalizePinterestAutomaticLocations(["Lille, France", "Roubaix"]), ["FR"]);
+  assert.deepEqual(normalizePinterestAutomaticLocations(["Lille", "Roubaix"]), ["Lille", "Roubaix"]);
 });
 
 test("Pinterest live payloads keep every entity paused and create an ad-only Pin", () => {

@@ -54,7 +54,7 @@ import {
 } from "@/lib/adsChannelWizardSettings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import { preparePinterestTargetingTransition } from "@/lib/adsPinterestTargetingTransition";
-import { adsDraftValidationStep } from "@/lib/adsDraftNavigation";
+import { adsDraftHasMediaStep, adsDraftValidationStep } from "@/lib/adsDraftNavigation";
 import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import {
@@ -102,7 +102,13 @@ type AccountResponse = {
 
 const EXTERNAL_CHANNELS = ["linkedin", "tiktok", "pinterest", "x"] as const;
 type ExternalChannelId = (typeof EXTERNAL_CHANNELS)[number];
-type ExternalAdsAccount = { id: string; name: string; currency?: string | null; status?: string; eligibleToAssociate?: boolean };
+type ExternalAdsAccount = { id: string; name: string; currency?: string | null; status?: string; eligibleToAssociate?: boolean | null };
+type ExternalAccountsCacheEntry = {
+  accounts: ExternalAdsAccount[];
+  choice: string;
+  loaded: boolean;
+  failed: boolean;
+};
 type ExternalConnectorStatus = {
   load: "idle" | "loading" | "ready" | "error";
   configured: boolean;
@@ -368,7 +374,7 @@ function nativeWizardMediaStrategy(settings: AdsChannelWizardSettings): AdsCampa
     if (settings.intendedPromotionType === "CATALOG") return "product_feed";
     return settings.creativeType === "VIDEO" || settings.creativeType === "MAX_VIDEO" ? "video" : "image";
   }
-  if (settings.format === "text" || settings.format === "TEXT_AD") return "search_text";
+  if (settings.channel === "x" && settings.format === "text") return "search_text";
   return settings.format === "video" || settings.format === "SINGLE_VIDEO" ? "video" : "image";
 }
 
@@ -804,7 +810,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [configuredAccountLabel, setConfiguredAccountLabel] = useState(initialConnections[initialChannel].accountLabel);
   const [configuredPageId, setConfiguredPageId] = useState(initialConnections[initialChannel].pageId);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [accountsRefreshKey, setAccountsRefreshKey] = useState(0);
+  const [accountsRefreshRevisions, setAccountsRefreshRevisions] = useState<Record<AdsProvider, number>>({ meta: 0, google: 0 });
+  const providerAccountsCache = useRef<Partial<Record<AdsProvider, AccountResponse>>>({});
+  const providerAccountsFetchedRevision = useRef<Record<AdsProvider, number>>({ meta: -1, google: -1 });
   const [configAction, setConfigAction] = useState<AdsConfigAction>(null);
   const [externalStatuses, setExternalStatuses] = useState<Record<ExternalChannelId, ExternalConnectorStatus>>({
     linkedin: externalStatusFromSnapshot(initialConnections.linkedin), tiktok: externalStatusFromSnapshot(initialConnections.tiktok),
@@ -818,6 +826,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [externalAction, setExternalAction] = useState<"associate" | "disconnect" | null>(null);
   const [externalError, setExternalError] = useState("");
   const externalAccountsRequest = useRef(0);
+  const externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>({
+    linkedin: { accounts: [], choice: initialConnections.linkedin.accountId, loaded: false, failed: false },
+    pinterest: { accounts: [], choice: initialConnections.pinterest.accountId, loaded: false, failed: false },
+    tiktok: { accounts: [], choice: initialConnections.tiktok.accountId, loaded: false, failed: false },
+    x: { accounts: [], choice: initialConnections.x.accountId, loaded: false, failed: false },
+  });
   const externalStatusRequests = useRef<Record<ExternalChannelId, number>>({ linkedin: 0, pinterest: 0, tiktok: 0, x: 0 });
   const [busy, setBusy] = useState<CampaignBusyAction>(null);
   const [draftsRevision, setDraftsRevision] = useState(0);
@@ -868,14 +882,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const studioWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const keywordStepName = channelId === "google" ? "Mots-clés" : "Signaux";
-  // The automated Search publisher creates text ads. Do not present a media
-  // step until this connector can reliably attach an image asset to Google.
-  const hasMediaStep = !(channelId === "google" && draft.campaignType === "search");
+  // Only genuinely text-only formats omit this workspace. Keep the same rule
+  // for a fresh campaign, an AI proposal and a reopened draft.
+  const hasMediaStep = adsDraftHasMediaStep(draft);
   const manualStepNames = channelId === "pinterest"
-    ? ["Votre projet", "Objectif Pinterest", "Audience Pinterest", "Découverte Pinterest", "Épingle sponsorisée", "Format du Pin", "Destination & mesure", "Budget Pinterest", "Validation Pinterest"]
+    ? ["Votre projet", "Objectif Pinterest", "Audience Pinterest", "Découverte Pinterest", "Épingle sponsorisée", "Format du Pin", "Pur média", "Destination & mesure", "Budget Pinterest", "Validation Pinterest"]
     : ["Votre projet", "Fondations", "Ciblage", keywordStepName, "Créations", ...(hasMediaStep ? ["Médias"] : []), "Diffusion", "Budget", "Validation"];
   const inrcyStepNames = channelId === "pinterest"
-    ? ["Votre projet", "Analyse iNrCy", "Objectif Pinterest", "Audience Pinterest", "Découverte Pinterest", "Épingle sponsorisée", "Format du Pin", "Destination & mesure", "Budget Pinterest", "Validation Pinterest"]
+    ? ["Votre projet", "Analyse iNrCy", "Objectif Pinterest", "Audience Pinterest", "Découverte Pinterest", "Épingle sponsorisée", "Format du Pin", "Pur média", "Destination & mesure", "Budget Pinterest", "Validation Pinterest"]
     : ["Votre projet", "Analyse iNrCy", "Fondations", "Ciblage", keywordStepName, "Créations", ...(hasMediaStep ? ["Médias"] : []), "Diffusion", "Budget", "Validation"];
   const stepNames = creationPath === "inrcy" ? inrcyStepNames : manualStepNames;
   const displayedStepNames = creationPath === "choice" && analysisSetupOpen ? inrcyStepNames : stepNames;
@@ -884,8 +898,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const targetingStep = foundationsStep + 1;
   const keywordsStep = targetingStep + 1;
   const creativeStep = keywordsStep + 1;
-  const mediaStep = hasMediaStep ? creativeStep + 1 : -1;
-  const deliveryStep = creativeStep + (hasMediaStep ? 2 : 1);
+  const pinterestFormatStep = channelId === "pinterest" ? creativeStep + 1 : -1;
+  const mediaStep = hasMediaStep ? creativeStep + (channelId === "pinterest" ? 2 : 1) : -1;
+  const deliveryStep = creativeStep + (hasMediaStep ? channelId === "pinterest" ? 3 : 2 : 1);
   const budgetStep = deliveryStep + 1;
   const validationStep = budgetStep + 1;
   const analysisStep = creationPath === "inrcy" ? 1 : -1;
@@ -955,6 +970,57 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }, []);
   const [notice, setNotice] = useState(initialConnection === "error" ? /Meta.*HTTPS/i.test(initialReason) ? "Pour connecter Meta Ads, ouvrez iNrCy depuis son adresse sécurisée (HTTPS)." : initialReason || "La connexion publicitaire n’a pas abouti." : "");
 
+  const applyProviderAccountsResult = useCallback((channel: AdsProvider, result: AccountResponse, announce: boolean) => {
+    const nextAccounts = result.accounts || [];
+    const nextPages = result.pages || [];
+    const eligibleAccounts = nextAccounts.filter(adsAccountCanBeAssociated);
+    const linkedInstagramPages = nextPages.filter((page) => Boolean(page.instagramUserId));
+    const persistedAccount = eligibleAccounts.find((account) => account.id === result.selectedAccountId);
+    const suggestedAccount = eligibleAccounts.find((account) => account.id === result.suggestedAccountId);
+    const persistedPage = nextPages.find((page) => page.id === result.selectedPageId);
+    const persistedAccountId = String(result.selectedAccountId || "");
+    const persistedPageId = String(result.selectedPageId || "");
+
+    setConnected(result.connected);
+    setConnectionStatus(result.connectionStatus || (result.connected ? "connected" : "disconnected"));
+    setConnectionAccount(result.connectionAccount);
+    setAccounts(nextAccounts);
+    setPages(nextPages);
+    setConfiguredAccountId(persistedAccountId);
+    setConfiguredAccountLabel(String(result.selectedAccountLabel || ""));
+    setConfiguredPageId(persistedPageId);
+    setConnectionSnapshots((current) => ({ ...current, [channel]: {
+      status: result.connectionStatus || (result.connected ? "connected" : "disconnected"),
+      accountId: persistedAccountId,
+      accountLabel: String(result.selectedAccountLabel || ""),
+      pageId: persistedPageId,
+      ...(persistedAccountId ? { accountAvailable: result.selectedAccountAvailable === true } : {}),
+      ...(persistedPageId ? { pageAvailable: result.selectedPageAvailable === true } : {}),
+    } }));
+    setDraft((current) => {
+      if (current.provider !== channel) return current;
+      const hasPersistedAccount = Boolean(persistedAccountId);
+      const existingAccount = hasPersistedAccount || result.accountSelectionCleared
+        ? undefined
+        : eligibleAccounts.find((account) => account.id === current.adAccountId);
+      const account = persistedAccount || existingAccount || suggestedAccount;
+      const existingPage = nextPages.find((page) => page.id === current.pageId);
+      const page = persistedPage || existingPage || (channel === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
+      const adAccountId = persistedAccountId || account?.id || "";
+      const pageId = channel === "meta" ? persistedPageId || page?.id || "" : current.pageId;
+      if (current.adAccountId === adAccountId && current.accountCurrency === "EUR" && current.pageId === pageId) return current;
+      return { ...current, adAccountId, accountCurrency: "EUR", pageId };
+    });
+
+    if (!announce) return;
+    if (result.connectionStatus === "needs_update") {
+      setNotice(`La connexion ${channel === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
+    } else if (result.connected && eligibleAccounts.length > 1) {
+      setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
+    }
+    if (result.error) setNotice(result.error);
+  }, []);
+
   const selectedAccount = isAdsProvider(channelId) ? accounts.find((account) => account.id === draft.adAccountId) : undefined;
   const configuredAdvertiserAccount = isAdsProvider(channelId)
     ? accounts.find((account) => account.id === configuredAccountId && account.provider === channelId && adsAccountCanBeAssociated(account))
@@ -1001,9 +1067,16 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           ? "Associez un compte pour enregistrer cette proposition"
           : "Associez un compte pour créer la démo en pause";
 
-  const refreshExternalStatus = useCallback(async (channel: ExternalChannelId) => {
+  const refreshExternalStatus = useCallback(async (channel: ExternalChannelId, options?: { silent?: boolean }) => {
     const requestId = ++externalStatusRequests.current[channel];
-    setExternalStatuses((current) => ({ ...current, [channel]: { ...current[channel], load: "loading", error: "" } }));
+    setExternalStatuses((current) => ({
+      ...current,
+      [channel]: {
+        ...current[channel],
+        load: options?.silent && current[channel].load === "ready" ? "ready" : "loading",
+        error: "",
+      },
+    }));
     try {
       const data = await readJson(await fetch(`/api/ads/${channel}/status`, { cache: "no-store" }));
       if (requestId !== externalStatusRequests.current[channel]) return;
@@ -1050,7 +1123,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }, [channelId, externalStatuses, refreshExternalStatus]);
 
   useEffect(() => {
-    for (const channel of EXTERNAL_CHANNELS) void refreshExternalStatus(channel);
+    for (const channel of EXTERNAL_CHANNELS) void refreshExternalStatus(channel, { silent: true });
   }, [refreshExternalStatus]);
 
   useEffect(() => {
@@ -1065,6 +1138,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setConfiguring(false);
     setNotice("");
     if (params.has("connection")) {
+      externalAccountsCache.current[callbackChannel] = {
+        accounts: [],
+        choice: "",
+        loaded: false,
+        failed: false,
+      };
       setExternalConfiguring(true);
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
@@ -1086,7 +1165,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
   }, [initialConnection]);
 
-  const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string) => {
+  const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string, force = false) => {
+    const cached = externalAccountsCache.current[channel];
+    if (cached.loaded && !force) {
+      setExternalAccounts(cached.accounts);
+      setExternalAccountChoice(cached.choice || persistedAccountId);
+      setExternalAccountsLoadFailed(cached.failed);
+      setExternalAccountsLoading(false);
+      return;
+    }
     const requestId = ++externalAccountsRequest.current;
     setExternalAccountsLoading(true);
     setExternalAccountsLoadFailed(false);
@@ -1096,8 +1183,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       const nextAccounts = Array.isArray(data.accounts)
         ? data.accounts.filter((account): account is ExternalAdsAccount => account && typeof account === "object" && typeof account.id === "string" && typeof account.name === "string")
         : [];
+      const nextChoice = typeof data.selectedAccountId === "string" ? data.selectedAccountId : persistedAccountId;
+      externalAccountsCache.current[channel] = { accounts: nextAccounts, choice: nextChoice, loaded: true, failed: false };
       setExternalAccounts(nextAccounts);
-      setExternalAccountChoice(typeof data.selectedAccountId === "string" ? data.selectedAccountId : persistedAccountId);
+      setExternalAccountChoice(nextChoice);
       setExternalStatuses((current) => ({
         ...current,
         [channel]: {
@@ -1110,6 +1199,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setExternalError("");
     } catch (error) {
       if (requestId === externalAccountsRequest.current) {
+        externalAccountsCache.current[channel] = { ...cached, failed: true };
         setExternalAccountsLoadFailed(true);
         setExternalError(error instanceof Error ? error.message : "Comptes indisponibles.");
       }
@@ -1136,6 +1226,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       await readJson(await fetch(`/api/ads/${channelId}/accounts`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: externalAccountChoice }),
       }));
+      externalAccountsCache.current[channelId] = {
+        ...externalAccountsCache.current[channelId],
+        choice: externalAccountChoice,
+      };
       await refreshExternalStatus(channelId);
     } catch (error) {
       setExternalError(error instanceof Error ? error.message : "Association impossible.");
@@ -1150,6 +1244,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setExternalError("");
     try {
       await readJson(await fetch(`/api/ads/${channelId}/disconnect`, { method: "POST" }));
+      externalAccountsCache.current[channelId] = { accounts: [], choice: "", loaded: false, failed: false };
       setExternalAccounts([]);
       setExternalAccountChoice("");
       await refreshExternalStatus(channelId);
@@ -1200,10 +1295,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
     setConfiguring(false);
     setExternalError("");
-    setExternalAccounts([]);
-    setExternalAccountsLoadFailed(false);
-    setExternalAccountChoice(externalStatuses[channel].selectedAccountId);
-    setExternalAccountsLoading(externalStatuses[channel].connected);
+    const cached = externalAccountsCache.current[channel];
+    setExternalAccounts(cached.accounts);
+    setExternalAccountsLoadFailed(cached.failed);
+    setExternalAccountChoice(cached.choice || externalStatuses[channel].selectedAccountId);
+    setExternalAccountsLoading(externalStatuses[channel].connected && !cached.loaded);
     setExternalConfiguring(true);
   }
 
@@ -1221,66 +1317,30 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setPages([]);
       return () => { active = false; };
     }
+
+    const activeProvider = channelId;
+    const refreshRevision = accountsRefreshRevisions[activeProvider];
+    const cached = providerAccountsCache.current[activeProvider];
+    if (cached && providerAccountsFetchedRevision.current[activeProvider] === refreshRevision) {
+      applyProviderAccountsResult(activeProvider, cached, false);
+      setLoadingAccounts(false);
+      return () => { active = false; };
+    }
+
     setLoadingAccounts(true);
-    void fetch(`/api/ads/accounts?provider=${channelId}`, { cache: "no-store" })
+    void fetch(`/api/ads/accounts?provider=${activeProvider}`, { cache: "no-store" })
       .then(readJson)
       .then((data) => {
         if (!active) return;
         const result = data as AccountResponse;
-        const nextAccounts = result.accounts || [];
-        const nextPages = result.pages || [];
-        setConnected(result.connected);
-        setConnectionStatus(result.connectionStatus || (result.connected ? "connected" : "disconnected"));
-        setConnectionAccount(result.connectionAccount);
-        setAccounts(nextAccounts);
-        setPages(nextPages);
-        const eligibleAccounts = nextAccounts.filter(adsAccountCanBeAssociated);
-        const linkedInstagramPages = nextPages.filter((page) => Boolean(page.instagramUserId));
-        const persistedAccount = eligibleAccounts.find((account) => account.id === result.selectedAccountId);
-        const suggestedAccount = eligibleAccounts.find((account) => account.id === result.suggestedAccountId);
-        const persistedPage = nextPages.find((page) => page.id === result.selectedPageId);
-        const persistedAccountId = String(result.selectedAccountId || "");
-        const persistedPageId = String(result.selectedPageId || "");
-        // `selectedAccountId` is a persisted choice. Keep it intact even if a
-        // temporary account-list refresh cannot currently resolve that ID.
-        setConfiguredAccountId(persistedAccountId);
-        setConfiguredAccountLabel(String(result.selectedAccountLabel || ""));
-        setConfiguredPageId(persistedPageId);
-        setConnectionSnapshots((current) => ({ ...current, [channelId]: {
-          status: result.connectionStatus || (result.connected ? "connected" : "disconnected"),
-          accountId: persistedAccountId,
-          accountLabel: String(result.selectedAccountLabel || ""),
-          pageId: persistedPageId,
-          ...(persistedAccountId ? { accountAvailable: result.selectedAccountAvailable === true } : {}),
-          ...(persistedPageId ? { pageAvailable: result.selectedPageAvailable === true } : {}),
-        } }));
-        setDraft((current) => {
-          const hasPersistedAccount = Boolean(persistedAccountId);
-          const existingAccount = hasPersistedAccount || result.accountSelectionCleared ? undefined : eligibleAccounts.find((account) => account.id === current.adAccountId);
-          // A provider refresh must never silently switch an associated
-          // advertiser account to the only account currently returned.
-          const account = persistedAccount || existingAccount || suggestedAccount;
-          const existingPage = nextPages.find((page) => page.id === current.pageId);
-          const page = persistedPage || existingPage || (channelId === "meta" && linkedInstagramPages.length === 1 ? linkedInstagramPages[0] : undefined);
-          // Keep durable IDs visible through a transient provider outage. The
-          // actual live-publish checks still require that their accounts/pages
-          // are freshly available, so this never weakens publication safety.
-          const adAccountId = persistedAccountId || account?.id || "";
-          const pageId = channelId === "meta" ? persistedPageId || page?.id || "" : current.pageId;
-          if (current.adAccountId === adAccountId && current.accountCurrency === "EUR" && current.pageId === pageId) return current;
-          return { ...current, adAccountId, accountCurrency: "EUR", pageId };
-        });
-        if (result.connectionStatus === "needs_update") {
-          setNotice(`La connexion ${channelId === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
-        } else if (result.connected && eligibleAccounts.length > 1) {
-          setNotice("Connexion réussie. Chargez et choisissez le compte annonceur à utiliser.");
-        }
-        if (result.error) setNotice(result.error);
+        providerAccountsCache.current[activeProvider] = result;
+        providerAccountsFetchedRevision.current[activeProvider] = refreshRevision;
+        applyProviderAccountsResult(activeProvider, result, true);
       })
       .catch((error) => { if (active) setNotice(error instanceof Error ? error.message : "Connexion publicitaire indisponible."); })
       .finally(() => { if (active) setLoadingAccounts(false); });
     return () => { active = false; };
-  }, [channelId, accountsRefreshKey]);
+  }, [accountsRefreshRevisions, applyProviderAccountsResult, channelId]);
 
   function changeProvider(next: AdsProvider) {
     setChannelIndex(CHANNEL_CATALOG.findIndex((channel) => channel.provider === next));
@@ -1288,17 +1348,22 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setChannelId(next);
     if (next === provider && !channelChanged) return;
     if (next !== provider) setProvider(next);
-    setDraft(newDraft(next));
+    const cached = providerAccountsCache.current[next];
     const savedConnection = connectionSnapshots[next];
-    setConnected(savedConnection.status === "connected");
-    setConnectionStatus(savedConnection.status === "unknown" ? "disconnected" : savedConnection.status);
-    setConnectionAccount(undefined);
-    setConfiguredAccountId(savedConnection.accountId);
-    setConfiguredAccountLabel(savedConnection.accountLabel);
-    setConfiguredPageId(savedConnection.pageId);
+    const nextDraft = newDraft(next);
+    nextDraft.adAccountId = String(cached?.selectedAccountId || savedConnection.accountId || "");
+    if (next === "meta") nextDraft.pageId = String(cached?.selectedPageId || savedConnection.pageId || "");
+    setDraft(nextDraft);
+    setConnected(cached?.connected ?? savedConnection.status === "connected");
+    setConnectionStatus(cached?.connectionStatus || (savedConnection.status === "unknown" ? "disconnected" : savedConnection.status));
+    setConnectionAccount(cached?.connectionAccount);
+    setConfiguredAccountId(String(cached?.selectedAccountId || savedConnection.accountId || ""));
+    setConfiguredAccountLabel(String(cached?.selectedAccountLabel || savedConnection.accountLabel || ""));
+    setConfiguredPageId(String(cached?.selectedPageId || savedConnection.pageId || ""));
     setConfigAction(null);
-    setAccounts([]);
-    setPages([]);
+    setAccounts(cached?.accounts || []);
+    setPages(cached?.pages || []);
+    setLoadingAccounts(!cached);
     setSavedId(null);
     setDirty(true);
     setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
@@ -1479,12 +1544,21 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, accountId: draft.adAccountId }),
       }));
-      setConfiguredAccountId(String(result.selectedAccountId || draft.adAccountId));
-      setConfiguredAccountLabel(String(result.selectedAccountLabel || selectedAccount?.name || ""));
+      const selectedAccountId = String(result.selectedAccountId || draft.adAccountId);
+      const selectedAccountLabel = String(result.selectedAccountLabel || selectedAccount?.name || "");
+      setConfiguredAccountId(selectedAccountId);
+      setConfiguredAccountLabel(selectedAccountLabel);
+      const cached = providerAccountsCache.current[provider];
+      if (cached) providerAccountsCache.current[provider] = {
+        ...cached,
+        selectedAccountId,
+        selectedAccountLabel,
+        selectedAccountAvailable: true,
+      };
       setConnectionSnapshots((current) => ({ ...current, [provider]: {
         ...current[provider], status: "connected",
-        accountId: String(result.selectedAccountId || draft.adAccountId),
-        accountLabel: String(result.selectedAccountLabel || selectedAccount?.name || ""),
+        accountId: selectedAccountId,
+        accountLabel: selectedAccountLabel,
         accountAvailable: true,
       } }));
       setNotice(`Compte ${provider === "google" ? "Google Ads" : "Meta Ads"} associé. Il restera mémorisé jusqu’à ce que vous le dissociiez. Aucune annonce n’a été publiée.`);
@@ -1508,8 +1582,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "meta", pageId: draft.pageId }),
       }));
-      setConfiguredPageId(String(result.selectedPageId || draft.pageId));
-      setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: String(result.selectedPageId || draft.pageId), pageAvailable: true } }));
+      const selectedPageId = String(result.selectedPageId || draft.pageId);
+      setConfiguredPageId(selectedPageId);
+      const cached = providerAccountsCache.current.meta;
+      if (cached) providerAccountsCache.current.meta = { ...cached, selectedPageId, selectedPageAvailable: true };
+      setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: selectedPageId, pageAvailable: true } }));
       setNotice("Identité Facebook et Instagram associée pour vos campagnes Meta Ads. Elle restera mémorisée jusqu’à sa dissociation.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Impossible de sélectionner cette identité publicitaire.");
@@ -1528,6 +1605,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         body: JSON.stringify({ provider, target }),
       }));
       if (target === "account") {
+        const cached = providerAccountsCache.current[provider];
+        if (cached) providerAccountsCache.current[provider] = {
+          ...cached,
+          selectedAccountId: "",
+          selectedAccountLabel: "",
+          selectedAccountAvailable: false,
+          selectedPageId: provider === "meta" ? "" : cached.selectedPageId,
+          selectedPageAvailable: provider === "meta" ? false : cached.selectedPageAvailable,
+        };
         setConnectionSnapshots((current) => ({ ...current, [provider]: { ...current[provider], accountId: "", accountLabel: "", pageId: "" } }));
         setConfiguredAccountId("");
         setConfiguredAccountLabel("");
@@ -1535,6 +1621,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
         setNotice("Compte annonceur dissocié. Vous pouvez en choisir un autre.");
       } else {
+        const cached = providerAccountsCache.current[provider];
+        if (cached) providerAccountsCache.current[provider] = { ...cached, selectedPageId: "", selectedPageAvailable: false };
         setConnectionSnapshots((current) => ({ ...current, [provider]: { ...current[provider], pageId: "" } }));
         setConfiguredPageId("");
         updateDraft({ pageId: "" });
@@ -1552,6 +1640,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setNotice("");
     try {
       await readJson(await fetch(`/api/ads/oauth/${provider}/disconnect`, { method: "POST" }));
+      providerAccountsCache.current[provider] = {
+        connected: false,
+        connectionStatus: "disconnected",
+        accounts: [],
+        pages: [],
+        selectedAccountId: "",
+        selectedAccountLabel: "",
+        selectedPageId: "",
+      };
       setConnected(false);
       setConnectionStatus("disconnected");
       setConnectionSnapshots((current) => ({ ...current, [provider]: { status: "disconnected", accountId: "", accountLabel: "", pageId: "" } }));
@@ -2293,6 +2390,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
               const format = formats.includes(nativeSettings.format) ? nativeSettings.format : formats[0] as LinkedInWizardSettings["format"];
               updateNativeSettings({ ...nativeSettings, objectiveType, format });
             }}>{Object.keys(LINKEDIN_WIZARD_FORMATS).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+            <label className={styles.field}>Format sponsorisé<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format)}</option>)}</select><small>Ce choix fixe les ressources à préparer dans l’étape Médias dédiée.</small></label>
           </>}
           {nativeSettings?.channel === "tiktok" && <>
             <label className={styles.field}>Objectif TikTok<select value={nativeSettings.objectiveType} onChange={(event) => {
@@ -2318,6 +2416,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
               const objective = event.target.value as XWizardSettings["objective"];
               updateNativeSettings({ ...nativeSettings, objective, format: objective === "video_views" ? "video" : nativeSettings.format });
             }}>{X_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+            <label className={styles.field}>Format du post X Ads<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select><small>{nativeSettings.format === "text" ? "Le post texte est le seul format X Ads sans étape Média." : "Le fichier sera préparé dans l’étape Médias dédiée à X Ads."}</small></label>
           </>}
           {!nativeSettings && <>
             <label className={styles.field}>Objectif<select value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value as AdsCampaignInput["objective"] })}>{OBJECTIVE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -2325,7 +2424,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           </>}
         </div>
         {!nativeSettings && <><div className={styles.studioTypeGrid} role="radiogroup" aria-label="Type de campagne">{campaignTypeOptions.map((option) => <button type="button" role="radio" aria-checked={draft.campaignType === option.value} key={option.value} data-selected={draft.campaignType === option.value || undefined} onClick={() => updateDraft({ campaignType: option.value })}><strong>{option.label}</strong><small>{option.detail}</small><span>{draft.campaignType === option.value ? "Choisi" : "Choisir"}</span></button>)}</div><p className={styles.studioTypeHint}>Un seul type par campagne : pour tester plusieurs leviers, créez ensuite une campagne dédiée à chacun.</p></>}
-        {nativeSettings && <p className={styles.studioTypeHint}>Vous choisirez le format dans Médias. Les ressources et autorisations seront à confirmer dans votre compte publicitaire.</p>}
+        {nativeSettings && <p className={styles.studioTypeHint}>{channelId === "pinterest" ? "Vous choisirez le format du Pin à l’étape suivante, puis son fichier dans Pur média." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Le format texte ne nécessite aucun média ; le parcours passe directement à la diffusion." : nativeSettings.channel === "linkedin" || nativeSettings.channel === "x" ? "Le format est choisi ici ; la prochaine étape Médias reste consacrée au fichier et à son aperçu." : "Le format est défini ; l’étape Médias reste consacrée au fichier et à son aperçu."} Les ressources et autorisations seront à confirmer dans votre compte publicitaire Ads, séparément de toute connexion organique.</p>}
       </section>
 
       <section hidden={step !== targetingStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
@@ -2367,23 +2466,28 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         </div>
       </section>
 
-      {hasMediaStep && <section hidden={step !== mediaStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard}`}>
-        <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? "FORMAT DU PIN" : "MÉDIAS"} title={channelId === "pinterest" ? "Le visuel qui attire l’attention." : "Le bon visuel, au bon format."} mobileTitle={channelId === "pinterest" ? "Votre visuel" : "Vos médias"} channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Complétez le Pin avec un visuel cohérent avec son titre, sa description et sa destination. L’image simple est publiable aujourd’hui ; les autres formats restent en brouillon." : "Choisissez un média de votre médiathèque, importez-le ou laissez iNr’Studio créer le visuel adapté à cette campagne."}</p>
+      {nativeSettings?.channel === "pinterest" && <section hidden={step !== pinterestFormatStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioPinterestFormatCard}`}>
+        <StudioStepHeader number={pinterestFormatStep + 1} label="FORMAT DU PIN" title="Le format adapté à votre idée." mobileTitle="Votre format" channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Choisissez la structure publicitaire, le format du Pin et la direction créative. Le média lui-même sera ajouté, généré ou choisi à l’étape suivante.</p>
         <div className={styles.studioGrid}>
-          {nativeSettings?.channel === "linkedin" && <label className={styles.field}>Format sponsorisé<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format)}</option>)}</select></label>}
-          {nativeSettings?.channel === "pinterest" && <>
-            <label className={styles.field}>Type de promotion<select value={nativeSettings.intendedPromotionType} onChange={(event) => {
-              const intendedPromotionType = event.target.value as PinterestWizardSettings["intendedPromotionType"];
-              updateNativeSettings({ ...nativeSettings, intendedPromotionType,
-                creativeType: intendedPromotionType === "CATALOG" ? null : nativeSettings.objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : "REGULAR" });
-            }}><option value="STANDARD_AD">Épingle sponsorisée</option>{["CONSIDERATION", "SALES"].includes(nativeSettings.objectiveType) && <option value="CATALOG">Catalogue de produits · brouillon</option>}</select></label>
-            {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{pinterestCreativeLabel(value as Exclude<PinterestWizardSettings["creativeType"], null>)}</option>)}</select></label>}
-          </>}
-          {nativeSettings?.channel === "x" && <label className={styles.field}>Format du post<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>}
-          {nativeSettings ? <div className={styles.field}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          <label className={styles.field}>Type de promotion<select value={nativeSettings.intendedPromotionType} onChange={(event) => {
+            const intendedPromotionType = event.target.value as PinterestWizardSettings["intendedPromotionType"];
+            updateNativeSettings({ ...nativeSettings, intendedPromotionType,
+              creativeType: intendedPromotionType === "CATALOG" ? null : nativeSettings.objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : "REGULAR" });
+          }}><option value="STANDARD_AD">Épingle sponsorisée</option>{["CONSIDERATION", "SALES"].includes(nativeSettings.objectiveType) && <option value="CATALOG">Catalogue de produits · brouillon</option>}</select></label>
+          {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{pinterestCreativeLabel(value as Exclude<PinterestWizardSettings["creativeType"], null>)}</option>)}</select></label>}
+          <div className={`${styles.field} ${styles.studioWide}`}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.creativeType === "REGULAR" ? "L’image simple peut être publiée aujourd’hui. Les droits et le fichier seront contrôlés avant la création." : "Ce format est conservé dans le brouillon jusqu’à l’activation de son connecteur de publication."}</small></div>
+          <label className={`${styles.field} ${styles.studioWide}`}>Direction créative du Pin<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Direction créative du Pin" placeholder="Style, produit, scène, preuves à montrer et composition souhaitée…" /></label>
+        </div>
+      </section>}
+
+      {hasMediaStep && <section hidden={step !== mediaStep} data-channel={channelId} data-media-step="true" className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioDedicatedMediaCard} ${channelId === "pinterest" ? styles.studioPureMediaCard : ""}`}>
+        <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? "PUR MÉDIA" : "MÉDIAS"} title={channelId === "pinterest" ? "Votre média, visible en entier." : "Vos médias, visibles en entier."} mobileTitle={channelId === "pinterest" ? "Votre média" : "Vos médias"} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Importez, générez ou choisissez le fichier du Pin. L’aperçu conserve son cadrage complet : aucune partie du média n’est masquée." : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
+        <div className={styles.studioGrid}>
+          {nativeSettings ? <div className={styles.field}><span>{nativeSettings.channel === "pinterest" ? "Média attendu" : "Format prévu"} : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads ; aucun fichier isolé n’est requis ici." : nativeSettings.channel === "pinterest" ? "Le fichier et ses droits seront vérifiés avant toute publication." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
           {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && <label className={styles.field}>Lien externe d’un média <small>Optionnel, HTTPS</small><input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label>}
-          {nativeMediaStrategy !== "search_text" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
+          {nativeMediaStrategy !== "search_text" && channelId !== "pinterest" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
         </div>
         {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}>
           <legend>Emplacements et formats Meta</legend>
@@ -2420,6 +2524,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             });
           }}
         />}
+        {nativeSettings?.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" && <div className={styles.campaignMediaSourceNotice} role="status">
+          <span aria-hidden="true">▦</span>
+          <div><strong>Source média : catalogue Pinterest</strong><p>Les images et vidéos proviendront du catalogue et du groupe de produits associés dans Pinterest Ads. Cette étape reste dédiée à la source créative, sans demander un fichier isolé.</p></div>
+        </div>}
         {(nativeSettings === null || nativeMediaUpload) && channelId !== "meta" && <div className={styles.campaignMediaWorkspace}>
           <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{googleSearchMedia ? attachedCampaignMediaUrl ? "Image conservée dans iNrCy" : "Aucun média à fournir pour Google Search" : attachedCampaignMediaUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
           {!googleSearchMedia && <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
@@ -2429,7 +2537,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
           </div>}
           {googleSearchMedia && <p className={styles.campaignMediaFormatHint}>La démo Google Search publie uniquement les titres et descriptions. Une image enregistrée auparavant reste visible dans iNrCy, mais elle n’est pas jointe à la campagne Google Ads. Aucun crédit média n’est utilisé pour les nouvelles campagnes Search.</p>}
-          {attachedCampaignMediaUrl && <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} />}
+          {attachedCampaignMediaUrl ? <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} /> : <div className={styles.campaignMediaPreview} data-empty="true" role="status"><div className={styles.campaignMediaPreviewFallback}><span aria-hidden="true">✦</span><strong>Aperçu complet du média</strong><p>Le fichier choisi ou généré apparaîtra ici en entier, sans recadrage.</p></div></div>}
           {attachedCampaignMediaUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>{googleSearchMedia ? "Image conservée dans iNrCy" : "Média associé à la campagne"}</strong><small>{googleSearchMedia ? "Non jointe à la campagne Google Search lors de la création en pause." : `${draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.`}</small></div><a href={attachedCampaignMediaUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
         </div>}
@@ -2586,7 +2694,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       metaNeedsInstagramIdentity={metaNeedsInstagramIdentity}
       onSelectAccount={(id) => updateDraft({ adAccountId: id, accountCurrency: "EUR" })}
       onSelectPage={(id) => updateDraft({ pageId: id })}
-      onRefreshAccounts={() => setAccountsRefreshKey((key) => key + 1)}
+      onRefreshAccounts={() => setAccountsRefreshRevisions((current) => ({
+        ...current,
+        [provider]: current[provider] + 1,
+      }))}
       onSaveAccount={() => void saveAccountSelection()}
       onClearAccount={() => void clearSavedSelection("account")}
       onSavePage={() => void savePageSelection()}
@@ -2608,7 +2719,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       error={externalError}
       onSelectAccount={setExternalAccountChoice}
       onRefreshStatus={() => void refreshExternalStatus(externalSettingsChannel)}
-      onRefreshAccounts={() => void loadExternalAccounts(externalSettingsChannel, externalStatuses[externalSettingsChannel].selectedAccountId)}
+      onRefreshAccounts={() => void loadExternalAccounts(externalSettingsChannel, externalStatuses[externalSettingsChannel].selectedAccountId, true)}
       onAssociateAccount={() => void associateExternalAccount()}
       onDisconnect={() => void disconnectExternalChannel()}
     />

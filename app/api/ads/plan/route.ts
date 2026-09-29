@@ -306,6 +306,12 @@ export async function POST(request: Request) {
     idea: analysisObjective || intent,
     theme: `Campagne ${provider}`,
   });
+  const trustedBusinessCountry = clean(
+    businessResult.data?.hq_country
+      ?? businessResult.data?.hqCountry
+      ?? businessResult.data?.country,
+    120,
+  );
   const profileWebsiteUrl = [
     businessResult.data?.website,
     businessResult.data?.website_url,
@@ -504,6 +510,7 @@ export async function POST(request: Request) {
           companyName,
           destinationUrl: resolvedDestination.url,
           locations: targetLocations,
+          country: trustedBusinessCountry,
           audiences: context.audiences,
           services: context.services,
         });
@@ -515,6 +522,7 @@ export async function POST(request: Request) {
             companyName,
             destinationUrl: resolvedDestination.url,
             locations: targetLocations,
+            country: trustedBusinessCountry,
             audiences: context.audiences,
             services: context.services,
           });

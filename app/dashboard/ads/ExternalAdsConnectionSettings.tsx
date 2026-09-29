@@ -33,7 +33,7 @@ export type ExternalAdsSettingsAccount = {
   name: string;
   currency?: string | null;
   status?: string;
-  eligibleToAssociate?: boolean;
+  eligibleToAssociate?: boolean | null;
   permissions?: string[];
   canManageCampaigns?: boolean;
   canServeCampaigns?: boolean;
@@ -79,7 +79,7 @@ const CHANNEL_UI: Record<ExternalAdsSettingsChannel, {
     label: "LinkedIn Ads",
     logo: "/ads-logos/linkedin.svg",
     lead: "Votre espace publicitaire LinkedIn.",
-    connectionCopy: "Connectez-vous à LinkedIn avec les autorisations publicitaires. Cette connexion est indépendante de vos publications organiques.",
+    connectionCopy: "Autorisez la gestion des campagnes, le Sponsored Content et les statistiques Ads. Cette connexion reste indépendante de vos publications LinkedIn organiques.",
     accountCopy: "Sélectionnez le compte annonceur qui prendra en charge vos campagnes LinkedIn.",
     accountLabel: "Compte publicitaire",
     requiresEuro: false,
@@ -107,13 +107,13 @@ const CHANNEL_UI: Record<ExternalAdsSettingsChannel, {
     logo: "/ads-logos/x.svg",
     lead: "Votre espace publicitaire X.",
     connectionCopy: "Connectez-vous à X avec les autorisations publicitaires. Cette connexion est indépendante de vos publications organiques.",
-    accountCopy: "Sélectionnez le compte annonceur qui prendra en charge vos campagnes X.",
-    accountLabel: "Compte publicitaire",
-    requiresEuro: false,
+    accountCopy: "Sélectionnez le compte en euros qui prendra en charge vos campagnes X.",
+    accountLabel: "Compte publicitaire en euros",
+    requiresEuro: true,
   },
 };
 
-function oauthHref(channel: ExternalAdsSettingsChannel, linkedinAccess: "read" | "manage" = "read") {
+function oauthHref(channel: ExternalAdsSettingsChannel, linkedinAccess: "read" | "manage" = "manage") {
   return `/api/ads/${channel}/start${channel === "linkedin" ? `?access=${linkedinAccess}` : ""}`;
 }
 
@@ -157,39 +157,53 @@ export default function ExternalAdsConnectionSettings({
   useEffect(() => { setStep(0); }, [channel]);
 
   const needsReconnect = status.status === "needs_update" || status.status === "needs_reconnect";
-  const connectionDisplayStatus: ConnectionDisplayStatus = needsReconnect
+  const linkedinManagementMissing = channel === "linkedin"
+    && status.connected
+    && Boolean(status.missingScopes?.length);
+  const connectionDisplayStatus: ConnectionDisplayStatus = needsReconnect || linkedinManagementMissing
     ? "needs_update"
     : status.connected ? "connected" : "disconnected";
-  const connectionStatusLabel = status.load === "loading" || status.load === "idle"
-    ? "Vérification…"
-    : !status.configured
+  const connectionStatusLabel = !status.configured
       ? "Indisponible"
+      : linkedinManagementMissing
+        ? "Autorisations à compléter"
+      : status.connected
+        ? undefined
+        : status.load === "loading" || status.load === "idle"
+          ? "Vérification…"
       : status.load === "error" && !status.connected
         ? "À vérifier"
         : undefined;
-  const busy = accountsLoading || action !== null || status.load === "loading";
+  const busy = accountsLoading || action !== null || (status.load === "loading" && !status.connected);
   const selectedAccount = accounts.find((account) => account.id === accountChoice);
   const configuredAccount = accounts.find((account) => account.id === status.selectedAccountId);
-  const selectedAccountEligible = Boolean(selectedAccount
+  const selectedAccountCanBeVerified = Boolean(selectedAccount
     && selectedAccount.eligibleToAssociate !== false
-    && (!current.requiresEuro || selectedAccount.currency === "EUR"));
+    && (!current.requiresEuro || !selectedAccount.currency || selectedAccount.currency === "EUR"));
+  const configuredAccountEligibilityAccepted = channel === "x"
+    ? configuredAccount?.eligibleToAssociate === true
+    : configuredAccount?.eligibleToAssociate !== false;
   const configuredAccountEligible = Boolean(configuredAccount
-    && configuredAccount.eligibleToAssociate !== false
+    && configuredAccountEligibilityAccepted
     && (!current.requiresEuro || configuredAccount.currency === "EUR"));
   const accountConfigured = Boolean(status.connected
     && status.selectedAccountId
     && status.selectedAccountId === accountChoice
     && configuredAccountEligible);
   const hasConfiguredAccount = Boolean(status.selectedAccountId);
-  const accountCandidateReady = status.connected && selectedAccountEligible;
-  const connectionValue = status.load === "loading" || status.load === "idle"
-    ? `Vérification de la connexion ${current.label}…`
-    : !status.configured
+  // A newly discovered X advertiser is intentionally tri-state: the user may
+  // nominate it, but POST /accounts must verify it before it can be persisted.
+  const accountCandidateReady = status.connected && selectedAccountCanBeVerified;
+  const connectionValue = !status.configured
       ? `Connexion ${current.label} indisponible`
       : needsReconnect
         ? `La connexion ${current.label} doit être actualisée`
+        : linkedinManagementMissing
+          ? `${current.label} connecté · reconnexion requise pour la gestion complète`
         : status.connected
           ? `${current.label} connecté`
+          : status.load === "loading" || status.load === "idle"
+            ? `Vérification de la connexion ${current.label}…`
           : `Aucun compte ${current.label} connecté`;
   const accountStatusLabel = accountConfigured
     ? "Compte choisi"
@@ -199,15 +213,10 @@ export default function ExternalAdsConnectionSettings({
         ? "À confirmer"
         : undefined;
   const configuredAccountUrl = getAdsAdvertiserAccountUrl(channel, status.selectedAccountId);
-  const effectiveError = error || (status.load === "error" ? status.error : "");
-  const linkedinManagementMissing = channel === "linkedin"
-    && status.connected
-    && status.missingScopes?.includes("rw_ads") === true;
-  const linkedinRefreshAccess = channel === "linkedin" && status.scopes?.includes("rw_ads")
-    ? "manage"
-    : "read";
+  const effectiveError = error || (status.load === "error" && !status.connected ? status.error : "");
+  const linkedinRefreshAccess = channel === "linkedin" ? "manage" : "read";
   const accountOptions = useMemo(() => accounts.map((account) => {
-    const unsupportedCurrency = current.requiresEuro && account.currency !== "EUR";
+    const unsupportedCurrency = current.requiresEuro && Boolean(account.currency) && account.currency !== "EUR";
     const unavailable = account.eligibleToAssociate === false || unsupportedCurrency;
     const reason = account.eligibleToAssociate === false
       ? "accès insuffisant"
@@ -243,7 +252,7 @@ export default function ExternalAdsConnectionSettings({
             <input readOnly aria-label={`Compte connecté à ${current.label}`} value={connectionValue} />
             {status.load === "error" ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={busy} onClick={onRefreshStatus}>Réessayer</button> : null}
             {status.configured && status.connected ? <>
-              {linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, "manage")}>Autoriser la gestion <span aria-hidden="true">→</span></a> : null}
+              {linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, "manage")}>Compléter les autorisations Ads <span aria-hidden="true">→</span></a> : null}
               <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Actualiser la connexion <span aria-hidden="true">→</span></a>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
             </> : status.configured && needsReconnect ? <>
@@ -283,7 +292,7 @@ export default function ExternalAdsConnectionSettings({
       </section>
 
       {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
-      <p className={styles.footnote}>{channel === "pinterest" ? "Le compte Pinterest Ads associé est vérifié de nouveau avant chaque lancement. Vous pourrez créer la campagne en statut Active ou Paused depuis la validation finale, ou la conserver en brouillon iNrCy." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p>
+      <p className={styles.footnote}>{channel === "pinterest" ? "Le compte Pinterest Ads associé est vérifié de nouveau avant chaque lancement. Vous pourrez créer la campagne en statut Active ou Paused depuis la validation finale, ou la conserver en brouillon iNrCy." : channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p>
 
       {compactScreen ? <div className={styles.footer}>
         <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>

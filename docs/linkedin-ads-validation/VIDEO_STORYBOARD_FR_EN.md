@@ -1,6 +1,6 @@
-# Storyboard vidéo LinkedIn Ads — FR / EN
+# Storyboard vidéo LinkedIn Ads Standard — FR / EN
 
-LinkedIn demande une vidéo pour l’upgrade Advertising API Standard montrant comment la plateforme crée, modifie ou optimise des campagnes LinkedIn. Le script ci-dessous ne doit être tourné qu’après activation d’une mutation distante réelle.
+Le **Development Tier est déjà approuvé depuis le 30 septembre 2026 sans vidéo à fournir**. LinkedIn demande une vidéo uniquement pour une future demande d’upgrade Advertising API **Standard**, montrant comment la plateforme crée, modifie ou optimise des campagnes LinkedIn. Le script ci-dessous ne doit être tourné qu’après activation d’une mutation distante réelle.
 
 Durée conseillée : 4 à 6 minutes. Format : capture d’écran lisible, une seule prise ou montage sans ellipse masquant les actions importantes, narration ou sous-titres.
 
@@ -19,10 +19,10 @@ Durée conseillée : 4 à 6 minutes. Format : capture d’écran lisible, une se
 | --- | --- | --- | --- |
 | 00:00 | Page d’accueil iNrCy, domaine visible | « iNrCy aide un professionnel authentifié à préparer et gérer ses propres campagnes publicitaires. » | Produit réel et URL |
 | 00:20 | iNr’ADS, choisir LinkedIn Ads | « Le canal LinkedIn Ads est distinct de notre connexion LinkedIn organique. » | Séparation des usages |
-| 00:40 | Ouvrir Configurer puis Connecter | « La connexion initiale demande uniquement la lecture des comptes publicitaires. » | Départ OAuth `r_ads` |
+| 00:40 | Ouvrir Configurer puis Connecter | « La connexion Ads demande en une fois les autorisations strictement nécessaires aux campagnes, au Sponsored Content et aux statistiques. » | Quatre scopes manage visibles |
 | 01:00 | Consentement LinkedIn, puis retour iNrCy | « L’utilisateur accorde lui-même l’autorisation sur le domaine LinkedIn. Le callback et le state sont vérifiés côté serveur. » | Consentement réel et retour |
 | 01:25 | Charger puis associer le compte | « iNrCy liste uniquement les comptes administrés par ce membre et vérifie son rôle, le statut et la servabilité. » | Compte réel, données inutiles masquées |
-| 01:50 | Autoriser la gestion | « La permission de gestion `rw_ads` fait l’objet d’un consentement distinct. » | Upgrade explicite |
+| 01:50 | Vérifier les autorisations | « iNrCy refuse un consentement incomplet et garde cette connexion séparée de LinkedIn organique. » | Scopes introspectés |
 | 02:15 | Démarrer une campagne LinkedIn | « Le professionnel choisit l’objectif, l’audience, la création, la destination, le budget et le calendrier. L’IA propose des valeurs, mais l’utilisateur contrôle chaque étape. » | Modales LinkedIn dédiées |
 | 02:55 | Écran de validation | « Avant tout envoi, iNrCy affiche le compte, l’organisation, le budget, les dates, la locale et les zones qui seront utilisés. » | Récapitulatif complet |
 | 03:20 | Confirmer création `DRAFT` | « Nous créons une campagne non diffusée afin de démontrer le flux sans dépenses. » | Réponse de succès réelle, ID distant |
@@ -40,10 +40,10 @@ Si la version soumise crée aussi un creative ou un Sponsored Content, le montre
 | --- | --- | --- | --- |
 | 00:00 | iNrCy home, domain visible | “iNrCy helps authenticated business users prepare and manage their own advertising campaigns.” | Real product and URL |
 | 00:20 | iNr’ADS, select LinkedIn Ads | “LinkedIn Ads is separated from our organic LinkedIn connection.” | Use-case separation |
-| 00:40 | Open Configure and Connect | “The initial connection requests only permission to read the member’s advertising accounts.” | `r_ads` OAuth start |
+| 00:40 | Open Configure and Connect | “The Ads connection requests the exact permissions needed for campaigns, Sponsored Content, and reporting in one consent.” | Four manage scopes visible |
 | 01:00 | LinkedIn consent, then return | “The member grants access on LinkedIn. iNrCy validates the callback and state on the server.” | Real consent and callback |
 | 01:25 | Load and associate an account | “iNrCy lists only accounts administered by this member and rechecks role, status, and serving eligibility.” | Real authorized account |
-| 01:50 | Authorize management | “The `rw_ads` management permission requires a separate explicit authorization.” | Explicit scope upgrade |
+| 01:50 | Verify permissions | “iNrCy rejects incomplete consent and keeps this connection separate from organic LinkedIn.” | Introspected scopes |
 | 02:15 | Start a LinkedIn campaign | “The business user reviews the objective, audience, creative, destination, budget, and schedule. AI may propose values, but the user controls every step.” | LinkedIn-specific flow |
 | 02:55 | Final review | “Before any API mutation, iNrCy displays the selected account, organization, budget, dates, locale, and locations.” | Complete review |
 | 03:20 | Confirm `DRAFT` creation | “We create a non-serving campaign to demonstrate the workflow without incurring spend.” | Real success and remote ID |

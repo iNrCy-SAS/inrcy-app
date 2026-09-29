@@ -26,6 +26,7 @@ import {
   type AdsMediaStrategy,
   type AdsMetaPlacement,
 } from "./adsValidation.ts";
+import { normalizePinterestAutomaticLocations } from "./adsPinterestLocations.ts";
 
 export type AdsCampaignPlan = {
   brand: string;
@@ -68,6 +69,8 @@ type PlanContext = {
   companyName?: string;
   destinationUrl?: string;
   locations?: string[];
+  /** Trusted business country, used to reduce Pinterest geo targeting to a country. */
+  country?: string;
   audiences?: string[];
   services?: string[];
 };
@@ -474,7 +477,7 @@ export function plannedAdsChannelPlanPrompt(channel: PlannedAdsChannel): string 
   const channelInstructions: Record<PlannedAdsChannel, string> = {
     linkedin: `LinkedIn Ads : cible une audience professionnelle justifiée par l’activité. channelDraft.objectiveType = BRAND_AWARENESS | WEBSITE_VISIT | ENGAGEMENT | VIDEO_VIEW | LEAD_GENERATION | WEBSITE_CONVERSION. channelDraft.format = STANDARD_UPDATE | SINGLE_VIDEO | CAROUSEL | TEXT_AD | LEAD_GENERATION_FORM_SPONSORED_CONTENT ; VIDEO_VIEW exige SINGLE_VIDEO et LEAD_GENERATION exige LEAD_GENERATION_FORM_SPONSORED_CONTENT. channelDraft.locale = {country:"FR",language:"fr"} seulement si ces paramètres conviennent aux zones et à la langue connues. channelDraft.creative = {introText,headline,mediaBrief,destinationUrl,leadFormBrief}. introText : accroche et argument professionnel concrets (600 caractères au plus) ; headline : 200 caractères au plus. Pour LEAD_GENERATION, décris le formulaire et son intérêt dans leadFormBrief.`,
     tiktok: `TikTok Ads : ne propose que la voie vidéo préparée dans l’application. channelDraft.objectiveType = REACH | VIDEO_VIEWS | TRAFFIC | WEB_CONVERSIONS | LEAD_GENERATION | ENGAGEMENT ; format="video" ; destinationKind="website" | "instant_form" | "profile" ; placementIntent="automatic" | "tiktok_only" ; optimizationIntent="reach" | "views" | "clicks" | "conversions" | "leads" | "engagement". channelDraft.creative = {adText,videoBrief,destinationUrl,conversionEventBrief}. adText : 100 caractères au plus. videoBrief : scène verticale, déroulé, démonstration et appel à l’action réalistes ; aucun média existant ne doit être supposé. Pour WEB_CONVERSIONS, nomme l’action observable dans conversionEventBrief sans prétendre qu’un Pixel existe.`,
-    pinterest: `Pinterest Ads : fonde l’idée créative sur une recherche d’inspiration plausible pour cette activité. Remplis explicitement tout le channelDraft Pinterest ; un plan racine générique sans brief natif est invalide. channelDraft.objectiveType = AWARENESS | CONSIDERATION | VIDEO_COMPLETION | SALES | LEADS ; intendedPromotionType="STANDARD_AD" | "CATALOG" ; targetingMode="automatic" | "interests" | "keywords" | "audiences". Utilise automatic pour le parcours publiable actuel et retourne alors obligatoirement keywords=[] : ce mode s’appuie sur le contenu du Pin et les zones fiables, pas sur des mots-clés proposés par le moteur. interests, keywords et audiences restent des intentions de brouillon tant que leurs identifiants Pinterest n’ont pas été résolus ; pour ces trois modes manuels seulement, conserve les signaux utiles dans keywords. Choisis CATALOG uniquement avec CONSIDERATION ou SALES, et seulement si des produits et un catalogue sont attestés ; LEADS reste STANDARD_AD. Sinon choisis STANDARD_AD. Pour STANDARD_AD, creativeType=REGULAR | VIDEO | MAX_VIDEO | CAROUSEL ; VIDEO_COMPLETION requiert VIDEO ou MAX_VIDEO. Pour CATALOG, mets creativeType à null. Pour SALES, conversionEvent=CHECKOUT | ADD_TO_CART ; pour LEADS, SIGNUP | LEAD ; sinon mets conversionEvent à null. Sans preferredDestinationUrl HTTPS fiable, choisis AWARENESS (ou VIDEO_COMPLETION avec une vraie stratégie vidéo), jamais CONSIDERATION, SALES ou LEADS. Pour le parcours publiable actuel, privilégie STANDARD_AD + REGULAR avec AWARENESS ou CONSIDERATION ; les autres combinaisons restent révisables et enregistrables en brouillon. channelDraft.creative = {pinTitle,pinDescription,visualBrief,destinationUrl}. pinTitle : 100 caractères au plus ; pinDescription : 800 caractères au plus ; visualBrief décrit le format visuel, la scène et la preuve vérifiée, pas un Pin déjà publié. Le budget est une hypothèse quotidienne explicite ; le statut de lancement Active ou Paused, la date de fin, l’enchère MAX_BID, le billable_event et placement_group=ALL sont contrôlés dans les étapes finales et ne doivent pas être inventés dans channelDraft.`,
+    pinterest: `Pinterest Ads : fonde l’idée créative sur une recherche d’inspiration plausible pour cette activité. Remplis explicitement tout le channelDraft Pinterest ; un plan racine générique sans brief natif est invalide. channelDraft.objectiveType = AWARENESS | CONSIDERATION | VIDEO_COMPLETION | SALES | LEADS ; intendedPromotionType="STANDARD_AD" | "CATALOG" ; targetingMode="automatic" | "interests" | "keywords" | "audiences". Utilise automatic pour le parcours publiable actuel et retourne alors obligatoirement keywords=[] : ce mode s’appuie sur le contenu du Pin et les zones fiables, pas sur des mots-clés proposés par le moteur. Pour le ciblage géographique publiable, targetLocations et channelDraft.audience.locationBriefs contiennent uniquement le pays fiable (nom du pays ou code ISO à 2 lettres), jamais une liste de villes, départements ou rayons locaux. interests, keywords et audiences restent des intentions de brouillon tant que leurs identifiants Pinterest n’ont pas été résolus ; pour ces trois modes manuels seulement, conserve les signaux utiles dans keywords. Choisis CATALOG uniquement avec CONSIDERATION ou SALES, et seulement si des produits et un catalogue sont attestés ; LEADS reste STANDARD_AD. Sinon choisis STANDARD_AD. Pour STANDARD_AD, creativeType=REGULAR | VIDEO | MAX_VIDEO | CAROUSEL ; VIDEO_COMPLETION requiert VIDEO ou MAX_VIDEO. Pour CATALOG, mets creativeType à null. Pour SALES, conversionEvent=CHECKOUT | ADD_TO_CART ; pour LEADS, SIGNUP | LEAD ; sinon mets conversionEvent à null. Sans preferredDestinationUrl HTTPS fiable, choisis AWARENESS (ou VIDEO_COMPLETION avec une vraie stratégie vidéo), jamais CONSIDERATION, SALES ou LEADS. Pour le parcours publiable actuel, privilégie STANDARD_AD + REGULAR avec AWARENESS ou CONSIDERATION ; les autres combinaisons restent révisables et enregistrables en brouillon. channelDraft.creative = {pinTitle,pinDescription,visualBrief,destinationUrl}. pinTitle : 100 caractères au plus ; pinDescription : 800 caractères au plus ; visualBrief décrit le format visuel, la scène et la preuve vérifiée, pas un Pin déjà publié. Le budget est une hypothèse quotidienne explicite ; le statut de lancement Active ou Paused, la date de fin, l’enchère MAX_BID, le billable_event et placement_group=ALL sont contrôlés dans les étapes finales et ne doivent pas être inventés dans channelDraft.`,
     x: `X Ads : distingue conversation pertinente et publicité intrusive. channelDraft.objective = reach | video_views | website_traffic | website_conversions | engagement ; format=text | image | video ; video_views requiert video ; targetingMode=broad | keywords | interests | follower_lookalikes ; keywords est une liste courte, concrète, uniquement si targetingMode=keywords. channelDraft.creative = {postText,mediaBrief,destinationUrl}. postText : un vrai texte de publication de 280 caractères maximum, en comptant chaque URL pour 23 caractères. mediaBrief décrit le visuel/vidéo nécessaire quand format n’est pas text. Ne prétends jamais qu’un post publicitaire, un financement ou un événement de conversion existe déjà.`,
   };
 
@@ -539,7 +542,11 @@ function creativeTypeForStrategy(
  */
 export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): AdsCampaignPlan {
   const raw = record(value);
-  const channelDraft = normalizePlannedAdsChannelDraft(raw.channelDraft, context, raw);
+  const trustedLocations = list(context.locations, 20, 120);
+  const planContext = context.provider === "pinterest"
+    ? { ...context, locations: normalizePinterestAutomaticLocations(trustedLocations, context.country) }
+    : context;
+  const channelDraft = normalizePlannedAdsChannelDraft(raw.channelDraft, planContext, raw);
   const rawKeywords = list(raw.keywords, 20, 80);
   const automaticPinterestTargeting = context.provider === "pinterest" && (
     (channelDraft?.channel === "pinterest" && channelDraft.targetingMode === "automatic")
@@ -575,11 +582,16 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     destinationUrl: httpsUrl(raw.destinationUrl) || httpsUrl(context.destinationUrl),
     urlExpansion: raw.urlExpansion !== false,
     urlExclusions: list(raw.urlExclusions, 20, 300).filter((url) => Boolean(httpsUrl(url))),
-    targetLocations: list(raw.targetLocations, 20, 120).length
-      ? list(raw.targetLocations, 20, 120)
-      : list(context.locations, 20, 120).length
-        ? list(context.locations, 20, 120)
-        : context.provider === "google" ? ["France"] : [],
+    targetLocations: context.provider === "pinterest"
+      ? normalizePinterestAutomaticLocations(
+        list(raw.targetLocations, 20, 120).length ? list(raw.targetLocations, 20, 120) : trustedLocations,
+        context.country,
+      )
+      : list(raw.targetLocations, 20, 120).length
+        ? list(raw.targetLocations, 20, 120)
+        : trustedLocations.length
+          ? trustedLocations
+          : context.provider === "google" ? ["France"] : [],
     targetAudiences: list(raw.targetAudiences, 20, 160).length
       ? list(raw.targetAudiences, 20, 160)
       : list(context.audiences, 20, 160),

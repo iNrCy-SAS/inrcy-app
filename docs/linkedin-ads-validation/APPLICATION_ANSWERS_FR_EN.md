@@ -1,6 +1,6 @@
 # Réponses proposées pour la demande LinkedIn Ads — FR / EN
 
-Ces textes sont des brouillons. Ils doivent être adaptés aux champs exacts du portail et à la version effectivement démontrée. Supprimer toute phrase décrivant une fonction non encore active.
+Le Development Tier de l’app dédiée **iNrCy Ads** est approuvé depuis le 30 septembre 2026. Les textes Development ci-dessous sont conservés comme archive de cadrage et ne doivent pas être soumis une seconde fois. Les textes Standard restent des brouillons à adapter à la version réellement démontrée.
 
 ## Nom du produit / Product name
 
@@ -46,17 +46,21 @@ Business owners, marketing managers, and authorized service providers who manage
 
 **FR**
 
-- `r_ads` pour afficher les comptes publicitaires accessibles au membre et permettre une sélection explicite.
-- `rw_ads` seulement lorsque l’utilisateur choisit « Autoriser la gestion », afin de créer ou modifier une campagne sur le compte sélectionné.
+- `rw_ads` pour lire et gérer les campagnes du compte explicitement sélectionné.
+- `r_ads_reporting` pour consulter les performances des campagnes demandées par l’utilisateur.
+- `r_organization_admin` pour vérifier le rôle détenu sur la Page utilisée par l’annonce.
+- `w_organization_social` pour créer le Direct Sponsored Content de l’annonce image.
 
-iNrCy ne demande pas `r_ads_reporting` dans ce périmètre et ne mélange pas les permissions LinkedIn organiques avec la connexion Ads.
+Le mode diagnostic séparé utilise uniquement `r_ads`. iNrCy exclut `r_organization_social`, `w_member_social` et `rw_organization_admin`, et ne mélange pas la ligne OAuth Ads avec la connexion LinkedIn organique.
 
 **EN**
 
-- `r_ads` to display advertising accounts accessible to the authenticated member and allow explicit account selection.
-- `rw_ads` only after the user selects “Authorize management,” so the application can create or edit a campaign on the selected account.
+- `rw_ads` to read and manage campaigns for the explicitly selected advertising account.
+- `r_ads_reporting` to retrieve performance for campaigns requested by the user.
+- `r_organization_admin` to verify the member’s role on the Page used by the ad.
+- `w_organization_social` to create the image ad’s Direct Sponsored Content.
 
-iNrCy does not request `r_ads_reporting` in this scope and does not mix organic LinkedIn permissions into the Ads connection.
+A separate diagnostic mode requests only `r_ads`. iNrCy excludes `r_organization_social`, `w_member_social`, and `rw_organization_admin`, and keeps the Ads OAuth record separate from the organic LinkedIn connection.
 
 ## Contrôle utilisateur / User control
 
@@ -90,15 +94,15 @@ iNrCy stores only the data required for the requested connection and management 
 
 ## Niveau demandé / Requested tier
 
-### Texte pour Development
+### Archive du cadrage Development — déjà approuvé
 
 **FR**
 
-Nous demandons le niveau Development afin de construire et tester le parcours de bout en bout sur les comptes administrés et explicitement associés à notre application. Nous comprenons que ce niveau limite les modifications à cinq comptes administrés et que les comptes publicitaires réels doivent être créés dans Campaign Manager.
+Le niveau Development nous permet de construire et tester le parcours de bout en bout sur les comptes administrés et explicitement associés à notre application. Nous comprenons que ce niveau limite les modifications à cinq comptes administrés et que les comptes publicitaires réels doivent être créés dans Campaign Manager.
 
 **EN**
 
-We are requesting Development tier access to build and test the end-to-end workflow on advertising accounts administered by the authenticated member and explicitly associated with our application. We understand that this tier limits edits to five administered accounts and that real advertising accounts must be created in Campaign Manager.
+Development tier access allows us to build and test the end-to-end workflow on advertising accounts administered by the authenticated member and explicitly associated with our application. We understand that this tier limits edits to five administered accounts and that real advertising accounts must be created in Campaign Manager.
 
 ### Texte pour Standard — à utiliser après démonstration réelle
 
@@ -114,13 +118,13 @@ After building and testing the integration under Development tier, we are reques
 
 **FR**
 
-Le périmètre actuel n’inclut pas le reporting publicitaire, la synchronisation des prospects, les Matched Audiences, les Conversions API, l’enrichissement de profils, ni l’export de données de membres.
+Le périmètre actuel inclut uniquement les statistiques de campagne Ads nécessaires au tableau de bord. Il n’inclut pas la synchronisation des prospects, les Matched Audiences, les Conversions API, l’enrichissement de profils, la lecture des publications organiques ni l’export de données de membres.
 
 **EN**
 
-The current scope does not include advertising reporting, lead synchronization, Matched Audiences, the Conversions API, profile enrichment, or export of member data.
+The current scope includes only campaign-level Ads statistics needed by the dashboard. It excludes lead synchronization, Matched Audiences, the Conversions API, profile enrichment, organic post reading, and member-data export.
 
-## Champs à compléter avant soumission
+## Champs à compléter avant une éventuelle soumission Standard
 
 - `[APP_LINKEDIN_NAME]` — nom exact dans le portail.
 - `[APP_LINKEDIN_ID]` — à conserver hors des captures publiques si nécessaire.

@@ -76,8 +76,22 @@ test("the Pinterest OAuth return opens Pinterest and the proposal exposes native
   assert.match(client, /Découverte Pinterest/);
   assert.match(client, /Épingle sponsorisée/);
   assert.match(client, /Format du Pin/);
+  assert.match(client, /Pur média/);
+  assert.match(client, /pinterestFormatStep/);
+  assert.match(client, /Votre média, visible en entier/);
   assert.match(client, /Destination & mesure/);
   assert.match(client, /Voir ma proposition Pinterest/);
+});
+
+test("Pinterest sépare le format du fichier média et conserve tout le cadrage", () => {
+  const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
+  const css = readFileSync(path.join(root, "app/dashboard/ads/ads.module.css"), "utf8");
+  assert.match(client, /hidden=\{step !== pinterestFormatStep\}/);
+  assert.match(client, /hidden=\{step !== mediaStep\}/);
+  assert.match(client, /L’aperçu conserve son cadrage complet/);
+  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview\{[^}]*height:clamp\(/);
+  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreviewImage[^}]*object-fit:contain/);
+  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview video\{[^}]*object-fit:contain/);
 });
 
 test("saving a Pinterest proposal revalidates the persisted advertiser server-side", () => {
@@ -122,6 +136,9 @@ test("Pinterest publication persists the complete hierarchy and the database unl
   assert.match(contract, /is_removable: true/);
   assert.ok(contract.indexOf('path: `${accountPath}/ads`') < contract.indexOf('path: `${accountPath}/campaigns`'));
   assert.match(publisher, /for \(const step of buildPinterestActivationSteps/);
+  assert.match(publisher, /resolvePinterestCountryCodes\(draft\.targetLocations, options\.accountCountry\)/);
+  assert.match(route, /pinterestAccountCountry = selectedAccount\.country/);
+  assert.match(route, /accountCountry: pinterestAccountCountry/);
   assert.match(route, /PinterestAdsPublishError/);
   assert.match(route, /Pinterest Ads Manager/);
   assert.match(migration, /'meta'::text, 'google'::text, 'pinterest'::text/);

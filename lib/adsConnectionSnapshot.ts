@@ -12,14 +12,35 @@ export type AdsConnectionSnapshot = {
 
 export type AdsConnectionSnapshots = Record<AdsChannelId, AdsConnectionSnapshot>;
 
-export const ADS_INTEGRATION_SOURCES: Record<AdsChannelId, string> = {
-  meta: "meta_ads",
-  google: "google_ads",
-  linkedin: "linkedin_ads",
-  tiktok: "tiktok_ads",
-  pinterest: "pinterest_ads",
-  x: "x_ads",
+export type AdsIntegrationIdentity = {
+  provider: string;
+  source: string;
+  product: "ads";
 };
+
+export const ADS_INTEGRATION_IDENTITIES: Record<AdsChannelId, AdsIntegrationIdentity> = {
+  meta: { provider: "facebook", source: "meta_ads", product: "ads" },
+  google: { provider: "google", source: "google_ads", product: "ads" },
+  linkedin: { provider: "linkedin", source: "linkedin_ads", product: "ads" },
+  tiktok: { provider: "tiktok", source: "tiktok_ads", product: "ads" },
+  pinterest: { provider: "pinterest", source: "pinterest_ads", product: "ads" },
+  x: { provider: "x", source: "x_ads", product: "ads" },
+};
+
+export const ADS_INTEGRATION_SOURCES = Object.fromEntries(
+  Object.entries(ADS_INTEGRATION_IDENTITIES).map(([channel, identity]) => [channel, identity.source]),
+) as Record<AdsChannelId, string>;
+
+export function isAdsIntegrationForChannel(
+  row: { provider?: unknown; source?: unknown; product?: unknown } | null | undefined,
+  channel: AdsChannelId,
+): boolean {
+  if (!row) return false;
+  const identity = ADS_INTEGRATION_IDENTITIES[channel];
+  return row.provider === identity.provider
+    && row.source === identity.source
+    && row.product === identity.product;
+}
 
 export function unknownAdsConnection(): AdsConnectionSnapshot {
   return { status: "unknown", accountId: "", accountLabel: "", pageId: "" };

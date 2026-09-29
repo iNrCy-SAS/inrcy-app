@@ -3,7 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { signXAdsOAuthRequest, xAdsPercentEncode } from "../../lib/adsXOAuth1.ts";
-import { isXAdsCallbackUri, normalizeXAdsAccount, verifyXAdsAccount, xAdsReadiness } from "../../lib/adsXPolicy.ts";
+import {
+  isXAdsCallbackUri,
+  isXAdsIntegrationIdentity,
+  normalizeXAdsAccount,
+  verifyXAdsAccount,
+  X_ADS_INTEGRATION_IDENTITY,
+  xAdsReadiness,
+} from "../../lib/adsXPolicy.ts";
+import { isAdsIntegrationForChannel } from "../../lib/adsConnectionSnapshot.ts";
 
 function source(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -46,7 +54,8 @@ test("X Ads association requires accepted account, verified EUR and management p
   const raw = normalizeXAdsAccount({ id: "abc123", name: "Mon entreprise", approval_status: "ACCEPTED", deleted: false });
   assert.ok(raw);
   assert.equal(raw.currency, null);
-  assert.equal(raw.eligibleToAssociate, false);
+  assert.equal(raw.eligibleToAssociate, null);
+  assert.equal(xAdsReadiness({ connected: true, accounts: [raw], selectedAccountId: raw.id }), "account_verification_required");
   const verified = verifyXAdsAccount(
     raw,
     { permissions: ["AD_MANAGER"] },
@@ -68,11 +77,17 @@ test("X Ads keeps paid publication disabled and isolates its integration from or
   const accountsRoute = source("app/api/ads/x/accounts/route.ts");
   const statusRoute = source("app/api/ads/x/status/route.ts");
   const disconnectRoute = source("app/api/ads/x/disconnect/route.ts");
-  assert.match(server, /X_ADS_SOURCE = "x_ads"/);
-  assert.match(server, /X_ADS_PRODUCT = "ads"/);
+  assert.deepEqual(X_ADS_INTEGRATION_IDENTITY, { provider: "x", source: "x_ads", product: "ads" });
+  assert.match(server, /X_ADS_SOURCE = X_ADS_INTEGRATION_IDENTITY\.source/);
+  assert.match(server, /X_ADS_PRODUCT = X_ADS_INTEGRATION_IDENTITY\.product/);
   assert.match(server, /sameXUser \? previous\?\.resource_id : null/);
   assert.match(server, /isXAdsCallbackUri\(callbackUri\)/);
-  assert.match(server, /\/11\/accounts/);
+  assert.match(server, /new URL\(callbackUri\)\.origin !== appOrigin/);
+  assert.match(server, /X_ADS_CURRENT_API_VERSION = "12"/);
+  assert.match(server, /X_ADS_API_VERSION \|\| X_ADS_CURRENT_API_VERSION/);
+  assert.match(server, /X_ADS_API_KEY/);
+  assert.match(server, /X_ADS_API_SECRET/);
+  assert.doesNotMatch(server, /process\.env\.X_CLIENT_(?:ID|SECRET)/);
   assert.match(server, /authenticated_user_access/);
   assert.match(server, /funding_instruments/);
   assert.match(accountsRoute, /eligibleToAssociate/);
@@ -84,4 +99,46 @@ test("X Ads keeps paid publication disabled and isolates its integration from or
   assert.match(disconnectRoute, /\.eq\("source", X_ADS_SOURCE\)/);
   assert.match(disconnectRoute, /\.eq\("product", X_ADS_PRODUCT\)/);
   assert.doesNotMatch(server + accountsRoute + statusRoute, /\/campaigns\b|\/tweets\b|\/promoted_tweets\b/);
+});
+
+test("X Ads and organic X identities cannot select or delete one another", () => {
+  const ads = { provider: "x", source: "x_ads", product: "ads", id: "ads-row" };
+  const organic = { provider: "x", source: "x", product: "x", id: "organic-row" };
+  const malformed = { provider: "twitter", source: "x_ads", product: "ads", id: "wrong-provider" };
+
+  assert.equal(isXAdsIntegrationIdentity(ads), true);
+  assert.equal(isXAdsIntegrationIdentity(organic), false);
+  assert.equal(isXAdsIntegrationIdentity(malformed), false);
+  assert.equal(isAdsIntegrationForChannel(ads, "x"), true);
+  assert.equal(isAdsIntegrationForChannel(organic, "x"), false);
+  assert.equal(isAdsIntegrationForChannel(malformed, "x"), false);
+
+  const afterAdsDisconnect = [ads, organic].filter((row) => !isXAdsIntegrationIdentity(row));
+  assert.deepEqual(afterAdsDisconnect.map((row) => row.id), ["organic-row"]);
+  const afterOrganicDisconnect = [ads, organic].filter((row) => !(
+    row.provider === "x" && row.source === "x" && row.product === "x"
+  ));
+  assert.deepEqual(afterOrganicDisconnect.map((row) => row.id), ["ads-row"]);
+});
+
+test("the first discovered X advertiser stays selectable but cannot persist before verification", () => {
+  const discovered = normalizeXAdsAccount({
+    id: "first123",
+    name: "Premier compte",
+    approval_status: "ACCEPTED",
+    deleted: false,
+  });
+  assert.ok(discovered);
+  assert.equal(discovered.eligibleToAssociate, null);
+
+  const connectionUi = source("app/dashboard/ads/ExternalAdsConnectionSettings.tsx");
+  assert.match(connectionUi, /x:\s*\{[\s\S]*?requiresEuro:\s*true/);
+  assert.match(connectionUi, /selectedAccount\.eligibleToAssociate !== false/);
+  assert.match(connectionUi, /channel === "x"[\s\S]*?configuredAccount\?\.eligibleToAssociate === true/);
+  assert.match(connectionUi, /Boolean\(account\.currency\)[\s\S]*?account\.currency !== "EUR"/);
+
+  const accountsRoute = source("app/api/ads/x/accounts/route.ts");
+  assert.match(accountsRoute, /verifySelectedXAdsAccount\(user\.activeUserId, integration, account\)/);
+  assert.match(accountsRoute, /if \(!verified\.eligibleToAssociate\)/);
+  assert.match(accountsRoute, /\.update\(\{ resource_id: verified\.id/);
 });

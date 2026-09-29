@@ -29,6 +29,20 @@ test("les six modales iNrADS suivent le même cycle sans fermer le panneau", () 
   assert.match(drawer, /keepMounted \|\| isOpen/);
 });
 
+test("le swipe conserve les connexions et comptes déjà chargés sans saut visuel", () => {
+  assert.match(client, /providerAccountsCache = useRef<Partial<Record<AdsProvider, AccountResponse>>>/);
+  assert.match(client, /externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>/);
+  assert.match(client, /if \(cached && providerAccountsFetchedRevision\.current\[activeProvider\] === refreshRevision\)/);
+  assert.match(client, /if \(cached\.loaded && !force\)/);
+  assert.match(client, /refreshExternalStatus\(channel, \{ silent: true \}\)/);
+  assert.doesNotMatch(
+    client.split("function openChannelConfiguration(channel: AdsChannelId)")[1]?.split("useEffect(() =>", 1)[0] || "",
+    /setExternalAccounts\(\[\]\)/,
+  );
+  assert.match(externalSettings, /status\.connected[\s\S]*?\? `\$\{current\.label\} connecté`[\s\S]*?status\.load === "loading"/);
+  assert.match(externalSettings, /status\.load === "error" && !status\.connected/);
+});
+
 test("LinkedIn, TikTok, Pinterest et X réutilisent les deux cartes horizontales de Meta et Google", () => {
   for (const channel of ["linkedin", "tiktok", "pinterest", "x"]) {
     assert.match(externalSettings, new RegExp(`\\b${channel}: \\{`));
@@ -50,7 +64,7 @@ test("Pinterest conserve sa touche rouge et magenta sans modifier ses routes OAu
   assert.match(connectionStyles, /\.pinterest \{\s*--channel-rgb: 230, 0, 35;\s*--channel-secondary-rgb: 190, 24, 93;/);
   assert.match(externalSettings, /pinterest:[\s\S]*?logo: "\/ads-logos\/pinterest\.svg"/);
   assert.match(externalSettings, /`\/api\/ads\/\$\{channel\}\/start/);
-  assert.match(externalSettings, /Autoriser la gestion/);
+  assert.match(externalSettings, /Autorisez la gestion des campagnes, le Sponsored Content et les statistiques Ads/);
   assert.match(externalSettings, /oauthHref\(channel, "manage"\)/);
 });
 

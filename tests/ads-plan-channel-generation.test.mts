@@ -98,7 +98,10 @@ test("all planned channels produce reviewable, platform-specific drafts without 
     assert.equal(isReviewableAdsCampaignPlan(plan, channel), true, channel);
     assert.equal(plan.channelDraft?.channel, channel);
     assert.equal(plan.channelDraft?.creative.destinationUrl, trusted.destinationUrl);
-    assert.deepEqual(plan.channelDraft?.audience.locationBriefs, trusted.locations);
+    assert.deepEqual(
+      plan.channelDraft?.audience.locationBriefs,
+      channel === "pinterest" ? ["FR"] : trusted.locations,
+    );
     assert.equal("externalRefs" in (plan.channelDraft || {}), false);
     assert.equal(assessAdsChannelDraft(plan.channelDraft).publicationReady, false);
     assert.ok(plan.primaryText);
@@ -131,6 +134,23 @@ test("native copy keeps channel lengths while Google retains 30/90", () => {
   assert.equal(google.headlines[0].length, 30);
   assert.equal(google.descriptions[0].length, 90);
   assert.equal(google.channelDraft, undefined);
+});
+
+test("Pinterest automatic plans reduce historical local zones to the trusted business country", () => {
+  const plan = normalizeAdsCampaignPlan({
+    name: "Pinterest national",
+    offer: "Accompagnement professionnel",
+    targetLocations: ["Lille", "Roubaix", "Hauts-de-France"],
+    channelDraft: drafts.pinterest,
+  }, {
+    provider: "pinterest",
+    ...trusted,
+    locations: ["Lille", "Roubaix", "Hauts-de-France"],
+    country: "France",
+  });
+
+  assert.deepEqual(plan.targetLocations, ["FR"]);
+  assert.deepEqual(plan.channelDraft?.audience.locationBriefs, ["FR"]);
 });
 
 test("Meta defaults to the publishable traffic path and both advertising image formats", () => {

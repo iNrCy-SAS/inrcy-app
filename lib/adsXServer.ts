@@ -3,13 +3,20 @@ import "server-only";
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { signXAdsOAuthRequest } from "@/lib/adsXOAuth1";
-import { isXAdsCallbackUri, normalizeXAdsAccount, verifyXAdsAccount, type XAdsAccount } from "@/lib/adsXPolicy";
+import {
+  isXAdsCallbackUri,
+  normalizeXAdsAccount,
+  verifyXAdsAccount,
+  X_ADS_INTEGRATION_IDENTITY,
+  type XAdsAccount,
+} from "@/lib/adsXPolicy";
 
-export const X_ADS_PROVIDER = "x";
-export const X_ADS_SOURCE = "x_ads";
-export const X_ADS_PRODUCT = "ads";
+export const X_ADS_PROVIDER = X_ADS_INTEGRATION_IDENTITY.provider;
+export const X_ADS_SOURCE = X_ADS_INTEGRATION_IDENTITY.source;
+export const X_ADS_PRODUCT = X_ADS_INTEGRATION_IDENTITY.product;
 const X_OAUTH_ORIGIN = "https://api.x.com";
 const X_ADS_ORIGIN = "https://ads-api.x.com";
+export const X_ADS_CURRENT_API_VERSION = "12";
 
 export type XAdsIntegration = {
   id: string;
@@ -36,12 +43,27 @@ export function getXAdsCredentials() {
   return { apiKey, apiSecret, configured: Boolean(apiKey && apiSecret) };
 }
 
+export function getXAdsApiVersion(): string {
+  const version = String(process.env.X_ADS_API_VERSION || X_ADS_CURRENT_API_VERSION).trim();
+  if (version !== X_ADS_CURRENT_API_VERSION) {
+    throw new XAdsConnectionError(
+      `Version X Ads API non prise en charge : utilisez ${X_ADS_CURRENT_API_VERSION}.`,
+      "api_version_invalid",
+    );
+  }
+  return version;
+}
+
 export function getXAdsRedirectUri(requestUrl: string): string {
   const explicit = String(process.env.X_ADS_REDIRECT_URI || "").trim();
   const site = String(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  const callbackUri = explicit || `${site ? new URL(site).origin : new URL(requestUrl).origin}/api/ads/x/callback`;
+  const appOrigin = site ? new URL(site).origin : new URL(requestUrl).origin;
+  const callbackUri = explicit || `${appOrigin}/api/ads/x/callback`;
   if (!isXAdsCallbackUri(callbackUri)) {
     throw new XAdsConnectionError("URL de retour X Ads invalide : utilisez /api/ads/x/callback.", "redirect_uri_invalid");
+  }
+  if (new URL(callbackUri).origin !== appOrigin) {
+    throw new XAdsConnectionError("L’URL de retour X Ads doit utiliser l’origine canonique de l’application.", "redirect_origin_invalid");
   }
   return callbackUri;
 }
@@ -186,15 +208,16 @@ async function signedXAdsGet<T>(userId: string, row: XAdsIntegration, url: strin
   return payload;
 }
 
-/** Read-only discovery via the officially documented GET /11/accounts endpoint. */
+/** Read-only discovery via the current versioned GET /accounts endpoint. */
 export async function listXAdsAccounts(userId: string, row?: XAdsIntegration | null): Promise<XAdsAccount[]> {
   const integration = row === undefined ? await readXAdsIntegration(userId) : row;
   if (!integration) throw new XAdsConnectionError("Connectez X Ads.", "not_connected", 409);
+  const apiVersion = getXAdsApiVersion();
   const found = new Map<string, XAdsAccount>();
   let cursor = "";
   const seenCursors = new Set<string>();
   for (let page = 0; page < 20; page += 1) {
-    const url = new URL(`${X_ADS_ORIGIN}/11/accounts`);
+    const url = new URL(`${X_ADS_ORIGIN}/${apiVersion}/accounts`);
     url.searchParams.set("count", "200");
     if (cursor) url.searchParams.set("cursor", cursor);
     const result = await signedXAdsGet<{ data?: unknown[]; next_cursor?: string }>(userId, integration, url.toString());
@@ -219,12 +242,13 @@ export async function listXAdsAccounts(userId: string, row?: XAdsIntegration | n
 /** Explicit verification of the chosen account's role and EUR funding currency. */
 export async function verifySelectedXAdsAccount(userId: string, row: XAdsIntegration, account: XAdsAccount): Promise<XAdsAccount> {
   const encodedId = encodeURIComponent(account.id);
+  const apiVersion = getXAdsApiVersion();
   const fundingTask = async () => {
     const instruments: unknown[] = [];
     const seenCursors = new Set<string>();
     let cursor = "";
     for (let page = 0; page < 20; page += 1) {
-      const url = new URL(`${X_ADS_ORIGIN}/12/accounts/${encodedId}/funding_instruments`);
+      const url = new URL(`${X_ADS_ORIGIN}/${apiVersion}/accounts/${encodedId}/funding_instruments`);
       url.searchParams.set("count", "200");
       if (cursor) url.searchParams.set("cursor", cursor);
       const result = await signedXAdsGet<{ data?: unknown[]; next_cursor?: string }>(userId, row, url.toString());
@@ -243,7 +267,7 @@ export async function verifySelectedXAdsAccount(userId: string, row: XAdsIntegra
     return instruments;
   };
   const [access, funding] = await Promise.all([
-    signedXAdsGet<{ data?: unknown }>(userId, row, `${X_ADS_ORIGIN}/12/accounts/${encodedId}/authenticated_user_access`),
+    signedXAdsGet<{ data?: unknown }>(userId, row, `${X_ADS_ORIGIN}/${apiVersion}/accounts/${encodedId}/authenticated_user_access`),
     fundingTask(),
   ]);
   if (!access.data || typeof access.data !== "object" || Array.isArray(access.data)) {

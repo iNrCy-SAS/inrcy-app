@@ -10,6 +10,7 @@ import {
   linkedInAdsScopes,
   normalizeLinkedInAdsAccount,
   normalizeLinkedInAdsAccountUser,
+  resolveLinkedInAdsRedirectUri,
   type LinkedInAdsAccessMode,
   type LinkedInAdsAccount,
   type LinkedInAdsAccountUser,
@@ -76,11 +77,12 @@ export function getLinkedInAdsCredentials() {
 }
 
 export function getLinkedInAdsRedirectUri(requestUrl: string): string {
-  const explicit = String(process.env.LINKEDIN_ADS_REDIRECT_URI || "").trim();
-  if (explicit) return explicit;
-  const site = String(process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  const origin = site ? new URL(site).origin : new URL(requestUrl).origin;
-  return `${origin}/api/ads/linkedin/callback`;
+  return resolveLinkedInAdsRedirectUri({
+    explicit: process.env.LINKEDIN_ADS_REDIRECT_URI,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+    requestUrl,
+  });
 }
 
 function linkedInAdsVersion(): string {

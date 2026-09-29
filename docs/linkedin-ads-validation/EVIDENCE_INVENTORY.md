@@ -8,11 +8,11 @@ Convention de nommage : `LIADS-XX-description-AAAA-MM-JJ.ext`.
 
 | ID | Capture attendue | État | Masquage |
 | --- | --- | --- | --- |
-| LIADS-01 | App LinkedIn, nom et Page associée | À produire | Client ID si non nécessaire |
-| LIADS-02 | Products avec Advertising API et niveau Development | À produire | Autres produits hors périmètre |
-| LIADS-03 | Auth avec callback Ads exact | À produire | Client Secret toujours masqué |
-| LIADS-04 | Auth avec `r_ads` et `rw_ads` disponibles | À produire | Aucun jeton |
-| LIADS-05 | View Ad Accounts avec le compte de démo ajouté | À produire | Masquer comptes tiers |
+| LIADS-01 | App LinkedIn dédiée utilisée pour Ads | **Constatée le 30/09/2026 : iNrCy Ads** ; copie expurgée à archiver hors dépôt | Client ID si non nécessaire |
+| LIADS-02 | Products avec Advertising API et niveau Development | **Development Tier confirmé le 30/09/2026** sur preuve officielle utilisateur et contrôle portail en lecture seule | Autres produits hors périmètre |
+| LIADS-03 | Auth avec callback Ads exact | **Confirmé le 30/09/2026** : `https://app.inrcy.com/api/ads/linkedin/callback` ; copie expurgée à archiver | Client Secret toujours masqué |
+| LIADS-04 | Auth avec scopes Ads disponibles | `r_ads` et `rw_ads` confirmés le 30/09/2026 ; produire une nouvelle preuve pour `r_ads_reporting`, `r_organization_admin` et `w_organization_social` | Aucun jeton |
+| LIADS-05 | View Ad Accounts avec le compte de démo ajouté | **Confirmé le 30/09/2026** : compte iNrCy `558357276`, Development Tier ; capture utilisateur reçue | Masquer comptes tiers |
 
 ## B. Produit iNrCy
 
@@ -20,9 +20,9 @@ Convention de nommage : `LIADS-XX-description-AAAA-MM-JJ.ext`.
 | --- | --- | --- | --- |
 | LIADS-10 | Carte LinkedIn Ads dans iNr’ADS | À produire | Design production |
 | LIADS-11 | Modale de connexion LinkedIn Ads | À produire | Séparation de l’organique visible |
-| LIADS-12 | Consentement LinkedIn `r_ads` | À produire | Domaine LinkedIn visible |
+| LIADS-12 | Consentement LinkedIn manage complet | À produire | Les quatre scopes exacts et le domaine LinkedIn sont visibles |
 | LIADS-13 | Liste des comptes et association | À produire | Comptes tiers masqués |
-| LIADS-14 | Scope `rw_ads` demandé par action explicite | À produire | Libellé de gestion clair |
+| LIADS-14 | Scopes `rw_ads r_ads_reporting r_organization_admin w_organization_social` | À produire | Aucun scope organique de lecture superflu |
 | LIADS-15 | Rôle, état et servabilité du compte | À produire | Données cohérentes avec Campaign Manager |
 | LIADS-16 | Déconnexion Ads, puis organique toujours connecté | À produire | Deux écrans horodatés |
 
@@ -59,12 +59,14 @@ Ces preuves sont bloquées parce que la publication/mutation LinkedIn est actuel
 | LIADS-41 | Réponses finales au formulaire | Brouillon disponible | Correspondent à la vidéo |
 | LIADS-42 | Relecture produit/juridique/sécurité | À planifier | Approbateurs nommés |
 | LIADS-43 | Copie PDF ou capture de la demande envoyée | Non soumise | Date et identifiant de dossier |
-| LIADS-44 | Décision LinkedIn | Inconnue | Ne jamais présumer l’approbation |
+| LIADS-44 | Décision LinkedIn Development | **Approuvée le 30/09/2026** | Conserver l’original officiel hors dépôt et une copie expurgée si nécessaire |
+| LIADS-45 | Décision LinkedIn Standard | Non demandée | Ne jamais présumer le Standard à partir du Development |
 
 ## Journal de collecte
 
 | Date | ID | Auteur | Environnement | Commit/déploiement | Observation |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-30 | LIADS-01 à LIADS-04, LIADS-44 | Utilisateur + contrôle portail en lecture seule | LinkedIn Developers | Sans objet | App dédiée **iNrCy Ads** ; Advertising API **Development Tier** ; callback exact ; `r_ads` et `rw_ads` disponibles. Les trois scopes complémentaires restent à prouver au consentement. Aucun secret consulté ou copié. |
 | `[AAAA-MM-JJ]` | `[LIADS-XX]` | `[NOM]` | `[Preview/Production]` | `[SHA/URL]` | `[NOTE]` |
 
 ## Vérification avant partage externe
@@ -74,4 +76,4 @@ Ces preuves sont bloquées parce que la publication/mutation LinkedIn est actuel
 - [ ] Les noms, dates et fonctions correspondent à la version soumise.
 - [ ] Le commit et le déploiement de la vidéo sont identifiés en interne.
 - [ ] La vidéo et les captures restent accessibles pendant toute la durée de la revue.
-- [ ] Aucune preuve ne prétend à une approbation Development ou Standard non confirmée dans le portail.
+- [ ] Toute mention de Development renvoie au constat officiel du 30/09/2026 ; aucune preuve ne prétend à un Standard Tier non confirmé.

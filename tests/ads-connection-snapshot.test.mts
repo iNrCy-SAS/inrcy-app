@@ -6,6 +6,7 @@ import {
   adsConnectionDisplay,
   adsConnectionSnapshotFromRow,
   emptyAdsConnectionSnapshots,
+  isAdsIntegrationForChannel,
 } from "../lib/adsConnectionSnapshot.ts";
 
 test("une association Ads persistée reste affichée pendant le changement de canal", () => {
@@ -24,6 +25,12 @@ test("une connexion révoquée garde l'association mais demande une actualisatio
   const snapshot = adsConnectionSnapshotFromRow({ status: "needs_update", resource_id: "6547075545" });
   assert.equal(snapshot.accountId, "6547075545");
   assert.deepEqual(adsConnectionDisplay(snapshot), { label: "Connexion à actualiser", tone: "select-account" });
+});
+
+test("le snapshot X Ads exige provider, source et product sans confondre X organique", () => {
+  assert.equal(isAdsIntegrationForChannel({ provider: "x", source: "x_ads", product: "ads" }, "x"), true);
+  assert.equal(isAdsIntegrationForChannel({ provider: "x", source: "x", product: "x" }, "x"), false);
+  assert.equal(isAdsIntegrationForChannel({ provider: "twitter", source: "x_ads", product: "ads" }, "x"), false);
 });
 
 test("la navigation iNr’ADS envoie le suivi vers le nouvel onglet iNr’Send", () => {

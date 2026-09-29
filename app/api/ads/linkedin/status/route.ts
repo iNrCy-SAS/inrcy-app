@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
-import { linkedInAdsAccessTokenIsFresh, linkedInAdsHasReadAccess, linkedInAdsScopes } from "@/lib/adsLinkedInPolicy";
+import { linkedInAdsAccessTokenIsFresh, linkedInAdsHasReadAccess, linkedInAdsScopes, missingLinkedInAdsScopes } from "@/lib/adsLinkedInPolicy";
 import { getLinkedInAdsCredentials, LinkedInAdsConnectionError, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 
 export async function GET() {
@@ -18,15 +18,17 @@ export async function GET() {
     const configured = getLinkedInAdsCredentials().configured;
     const connected = configured && integration?.status === "connected"
       && linkedInAdsHasReadAccess(integration.scopes) && (accessFresh || refreshAvailable);
+    const manageMissingScopes = connected ? missingLinkedInAdsScopes(scopes.join(" "), "manage") : [];
     const status = !configured ? "not_configured"
       : !integration ? "disconnected" : connected ? "connected" : "needs_reconnect";
     return NextResponse.json({
       configured, connected, status,
       readiness: !connected ? "connection_required"
-        : !integration?.resource_id ? "account_selection_required"
+        : manageMissingScopes.length ? "manage_scopes_required"
+          : !integration?.resource_id ? "account_selection_required"
           : meta.selected_account_can_manage === true ? "manage_access_last_verified" : "read_only",
       scopes,
-      missingScopes: connected && !scopes.includes("rw_ads") ? ["rw_ads"] : [],
+      missingScopes: manageMissingScopes,
       accounts: [],
       selectedAccountId: integration?.resource_id || null,
       selectedAccountName: integration?.resource_label || null,

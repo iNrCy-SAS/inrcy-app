@@ -80,6 +80,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   let googleLoginCustomerId: string | undefined;
   let preparedGoogleTargetLocations: GoogleTargetLocation[] | undefined;
+  let pinterestAccountCountry: string | null | undefined;
   try {
     if (draft.provider === "pinterest") {
       const connection = await readPinterestAdsIntegration(user.activeUserId);
@@ -92,6 +93,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!selectedAccount) {
         return NextResponse.json({ error: "Le compte Pinterest Ads EUR n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 });
       }
+      pinterestAccountCountry = selectedAccount.country;
     } else {
       const connection = await readAdsIntegration(user.activeUserId, draft.provider);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -183,6 +185,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       : draft.provider === "pinterest"
         ? await publishPinterestAdsCampaign(user.activeUserId, draft, persistProgress, {
           activate: !createPaused,
+          accountCountry: pinterestAccountCountry,
           onProviderMutationStart: () => { pinterestProviderMutationStarted = true; },
         })
         : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !createPaused, preparedTargetLocations: preparedGoogleTargetLocations });

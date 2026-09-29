@@ -1,6 +1,6 @@
 # LinkedIn Ads — dossier de validation iNrCy
 
-État du dossier : **préparé, non soumis**. Dernière vérification documentaire : 29 septembre 2026.
+État du dossier : **Advertising API Development approuvé**. Constat officiel fourni par l’utilisateur et revérifié en lecture seule dans le portail LinkedIn le **30 septembre 2026** pour l’app dédiée **iNrCy Ads**. La demande Standard n’est ni prête ni soumise.
 
 Ce dossier rassemble les éléments nécessaires pour activer puis faire valider l’intégration LinkedIn Ads d’iNrCy. Il ne contient aucun Client Secret, jeton OAuth, identifiant personnel ni preuve d’approbation qui n’existe pas encore.
 
@@ -9,15 +9,19 @@ Ce dossier rassemble les éléments nécessaires pour activer puis faire valider
 | Élément | État | Conséquence |
 | --- | --- | --- |
 | Connexion OAuth Ads séparée de LinkedIn organique | Implémentée dans le code | Démonstrable après configuration de l’app LinkedIn |
-| Scopes minimaux `r_ads` puis `rw_ads` | Implémentés | Le consentement de gestion est demandé explicitement |
+| OAuth Ads principal | Implémenté | `rw_ads r_ads_reporting r_organization_admin w_organization_social` en un consentement ; `r_ads` réservé au diagnostic lecture seule |
 | Liste et association d’un compte publicitaire | Implémentées | Le compte et le rôle sont relus depuis LinkedIn |
 | Sérialisation locale d’une campagne LinkedIn `DRAFT` | Préparée, non envoyée | Ce n’est pas une création de campagne distante |
 | Route de création/modification de campagne LinkedIn | **Absente / désactivée** | La vidéo Standard conforme ne peut pas encore être tournée |
-| Accès Advertising API Development | À confirmer dans le portail | Aucun accès externe n’est présumé |
-| Accès Advertising API Standard | Non demandé dans ce dossier | Demande séparée après test réel |
-| Vidéo Standard | Storyboard prêt | À enregistrer seulement quand une mutation réelle fonctionne |
+| App dédiée, callback et permissions | Development et callback confirmés le 30/09/2026 | App **iNrCy Ads** ; vérifier au prochain consentement que les quatre scopes manage sont effectivement accordés |
+| Accès Advertising API Development | **Approuvé le 30/09/2026** | Permet maintenant les tests Development sur les comptes ajoutés à l’app |
+| Configuration Vercel dédiée | Présence des trois variables OAuth Ads confirmée en lecture seule | Valeurs non copiées ; contrôle d’environnement encore à exécuter dans chaque cible |
+| Accès Advertising API Standard | Non demandé | Demande séparée seulement après une mutation réelle démontrable |
+| Vidéo Standard | Storyboard prêt, non tourné | **Aucune vidéo n’est requise pour conserver le Development Tier déjà approuvé** |
 
 Le code retourne actuellement `publicationEnabled: false`. Il ne faut donc pas présenter l’intégration comme capable de publier ou modifier une campagne LinkedIn en production.
+
+Le guide Image Ads générique mentionne aussi `r_organization_social`. Le flux iNrCy actuel est volontairement **create-only** pour le contenu sponsorisé : il prépare uniquement `POST /rest/posts` avec `w_organization_social` et ne fait aucun `GET`, finder ou réutilisation de posts LinkedIn. `r_organization_social` est donc exclu. Toute future fonction de lecture ou de réutilisation de posts devra faire l’objet d’une nouvelle revue de périmètre et de consentement.
 
 ## Development ou Standard ?
 
@@ -28,20 +32,18 @@ LinkedIn attribue deux niveaux Advertising API :
 
 Tous les appels API, même au niveau Development, portent sur des données de production. Il faut utiliser un compte maîtrisé, éviter toute diffusion et conserver la campagne en `DRAFT` ou dans un état non diffusé pendant la démonstration.
 
-Le niveau Standard n’est pas automatique. LinkedIn demande une demande distincte, via le Developer Support Portal, accompagnée d’une vidéo montrant comment la plateforme **crée, modifie ou optimise** des campagnes LinkedIn. Une connexion OAuth, une liste de comptes ou un brouillon uniquement local ne répondent pas seuls à cette exigence.
+Le niveau Standard n’est pas automatique. LinkedIn demande une demande distincte, via le Developer Support Portal, accompagnée d’une vidéo montrant comment la plateforme **crée, modifie ou optimise** des campagnes LinkedIn. Une connexion OAuth, une liste de comptes ou un brouillon uniquement local ne répondent pas seuls à cette exigence. Cette vidéo concerne le futur passage **Development → Standard** ; elle n’était pas nécessaire à l’approbation Development constatée le 30 septembre 2026.
 
 ## Ordre recommandé
 
-1. Choisir et documenter l’app LinkedIn utilisée pour Ads. iNrCy recommande une app Ads dédiée, même si LinkedIn n’annonce pas cette séparation comme une obligation technique.
-2. Demander le produit Advertising API et obtenir le niveau Development.
-3. Déclarer le callback exact `https://app.inrcy.com/api/ads/linkedin/callback`.
-4. Configurer les variables serveur, puis exécuter `npm run verify:linkedin-ads-env`.
-5. Ajouter dans le portail les comptes autorisés au niveau Development via **Products > Advertising API > View Ad Accounts**.
-6. Démontrer OAuth, lecture des comptes, association et déconnexion Ads, sans impacter LinkedIn organique.
-7. Implémenter et tester une mutation distante réelle, limitée et sûre : création d’une campagne `DRAFT`, puis modification vérifiable dans Campaign Manager.
-8. Enregistrer la vidéo Standard avec les preuves décrites dans ce dossier.
-9. Faire une relecture humaine du texte, de la politique de confidentialité, des captures et des identifiants masqués.
-10. Soumettre la demande Standard manuellement. Aucune soumission n’est automatisée par ce dossier.
+1. **Terminé** — app dédiée **iNrCy Ads**, produit Advertising API Development et callback exact confirmés dans le portail. Le code demande les quatre scopes manage strictement nécessaires et refuse un consentement incomplet.
+2. Contrôler les variables serveur dans chaque environnement sans afficher leurs valeurs, puis exécuter `npm run verify:linkedin-ads-env`.
+3. Ajouter dans le portail les comptes autorisés au niveau Development via **Products > Advertising API > View Ad Accounts**.
+4. Démontrer OAuth, lecture des comptes, association et déconnexion Ads, sans impacter LinkedIn organique.
+5. Brancher le workflow distant durable déjà sérialisé : création `DRAFT`, modification, archivage/suppression conforme au statut et lecture `adAnalytics`, avec persistance des URN et reprise idempotente.
+6. Enregistrer la vidéo **uniquement pour la demande Standard** avec les preuves décrites dans ce dossier.
+7. Faire une relecture humaine du texte, de la politique de confidentialité, des captures et des identifiants masqués.
+8. Soumettre la demande Standard manuellement si elle devient nécessaire. Aucune soumission n’est automatisée par ce dossier.
 
 ## Documents du dossier
 

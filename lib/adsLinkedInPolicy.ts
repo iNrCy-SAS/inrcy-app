@@ -1,7 +1,13 @@
-/** Read-only policy for LinkedIn Marketing API account discovery. */
+/** Dedicated LinkedIn Ads OAuth policy; never reuse the organic connector. */
 export const LINKEDIN_ADS_API_VERSION = "202609";
 export const LINKEDIN_ADS_READ_SCOPE = "r_ads";
 export const LINKEDIN_ADS_MANAGE_SCOPE = "rw_ads";
+export const LINKEDIN_ADS_MANAGE_SCOPES = [
+  "rw_ads",
+  "r_ads_reporting",
+  "r_organization_admin",
+  "w_organization_social",
+] as const;
 
 export type LinkedInAdsAccessMode = "read" | "manage";
 export type LinkedInAdsRole =
@@ -40,13 +46,19 @@ export function linkedInAdsHasReadAccess(value: unknown): boolean {
 }
 
 export function linkedInAdsScopeForMode(mode: LinkedInAdsAccessMode): string {
-  return mode === "manage" ? LINKEDIN_ADS_MANAGE_SCOPE : LINKEDIN_ADS_READ_SCOPE;
+  return mode === "manage" ? LINKEDIN_ADS_MANAGE_SCOPES.join(" ") : LINKEDIN_ADS_READ_SCOPE;
+}
+
+export function missingLinkedInAdsScopes(value: unknown, mode: LinkedInAdsAccessMode): string[] {
+  const scopes = linkedInAdsScopes(value);
+  const required = mode === "manage" ? LINKEDIN_ADS_MANAGE_SCOPES : [LINKEDIN_ADS_READ_SCOPE];
+  return required.filter((scope) => !scopes.includes(scope));
 }
 
 export function linkedInAdsHasAccessMode(value: unknown, mode: LinkedInAdsAccessMode): boolean {
   const scopes = linkedInAdsScopes(value);
   return mode === "manage"
-    ? scopes.includes(LINKEDIN_ADS_MANAGE_SCOPE)
+    ? missingLinkedInAdsScopes(scopes.join(" "), "manage").length === 0
     : linkedInAdsHasReadAccess(scopes.join(" "));
 }
 
@@ -60,6 +72,46 @@ export function buildLinkedInAdsAuthorizationUrl(clientId: string, redirectUri: 
     scope: linkedInAdsScopeForMode(mode),
   }).toString();
   return url.toString();
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+/**
+ * Resolves the Ads callback from the dedicated setting first, then the public
+ * app origin. The result is deliberately stricter than a generic OAuth URL:
+ * LinkedIn requires an exact redirect URI match and the Ads callback must not
+ * drift to the organic LinkedIn route or to another origin.
+ */
+export function resolveLinkedInAdsRedirectUri(input: {
+  explicit?: unknown;
+  appUrl?: unknown;
+  siteUrl?: unknown;
+  requestUrl: string;
+}): string {
+  const request = new URL(input.requestUrl);
+  const configuredApp = String(input.appUrl || "").trim();
+  const configuredSite = String(input.siteUrl || "").trim();
+  const canonical = new URL(configuredApp || configuredSite || request.origin);
+  const explicit = String(input.explicit || "").trim();
+  const redirect = explicit
+    ? new URL(explicit)
+    : new URL("/api/ads/linkedin/callback", canonical.origin);
+
+  if (redirect.pathname !== "/api/ads/linkedin/callback"
+    || redirect.search || redirect.hash || redirect.username || redirect.password) {
+    throw new TypeError("Invalid LinkedIn Ads redirect URI");
+  }
+  const local = isLoopbackHostname(redirect.hostname);
+  if ((!local && redirect.protocol !== "https:")
+    || (local && redirect.protocol !== "http:" && redirect.protocol !== "https:")) {
+    throw new TypeError("Invalid LinkedIn Ads redirect protocol");
+  }
+  if ((configuredApp || configuredSite) && redirect.origin !== canonical.origin) {
+    throw new TypeError("LinkedIn Ads redirect origin mismatch");
+  }
+  return redirect.toString();
 }
 
 export function isLinkedInAdsAccountId(value: unknown): value is string {

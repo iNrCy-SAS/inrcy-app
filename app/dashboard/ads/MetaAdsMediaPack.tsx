@@ -138,6 +138,7 @@ function SlotCard({
   return (
     <section
       className={styles.slot}
+      role="listitem"
       data-slot={config.id}
       data-status={status}
       data-selected={selected.length > 0}
@@ -161,7 +162,7 @@ function SlotCard({
         ))}
       </div>
 
-      <div className={styles.preview} data-format={config.id}>
+      <div className={styles.preview} data-format={config.id} aria-label={`Aperçu complet ${config.format} pour ${config.title}`}>
         <div className={styles.previewFrame}>
           {hasImage && !previewFailed ? (
             <Image
@@ -169,7 +170,7 @@ function SlotCard({
               alt={`Aperçu ${config.format} pour ${config.title}`}
               fill
               unoptimized
-              sizes="(max-width: 680px) 65vw, 250px"
+              sizes="(max-width: 680px) 82vw, (max-width: 1200px) 42vw, 520px"
               className={styles.previewImage}
               onLoad={(event) => {
                 const image = event.currentTarget;
@@ -237,7 +238,7 @@ export default function MetaAdsMediaPack({
     slot.placementLabels.some(({ id: placement }) => selectedPlacements.includes(placement))
   ).length;
   return (
-    <div className={[styles.pack, className].filter(Boolean).join(" ")} role="group" aria-label="Visuels Meta Ads">
+    <div className={[styles.pack, className].filter(Boolean).join(" ")} role="group" aria-label="Visuels Meta Ads" data-media-gallery="meta">
       <div className={styles.intro}>
         <div>
           <span>PACK MÉDIAS META</span>
@@ -247,7 +248,7 @@ export default function MetaAdsMediaPack({
         <strong aria-live="polite">{selectedSlotCount} format{selectedSlotCount > 1 ? "s" : ""} sélectionné{selectedSlotCount > 1 ? "s" : ""}</strong>
       </div>
 
-      <div className={styles.grid}>
+      <div className={styles.grid} role="list" aria-label="Galerie des formats Meta Ads">
         {slots.map((config) => {
           const imageUrl = config.id === "feed" ? feedImageUrl : storyReelImageUrl;
           return (
@@ -271,7 +272,7 @@ export default function MetaAdsMediaPack({
       {selectedPlacements.includes("messenger") ? (
         <p className={styles.messengerNote}>Messenger est sélectionné. Vérifiez son format séparément avant une diffusion.</p>
       ) : null}
-      <p className={styles.formatNote}>Les aperçus montrent un cadrage indicatif. Vérifiez les dimensions et les zones importantes de chaque image avant diffusion.</p>
+      <p className={styles.formatNote}>Chaque image est affichée en entier, sans recadrage. Les bandes libres éventuelles préservent le fichier original ; vérifiez néanmoins ses dimensions avant diffusion.</p>
     </div>
   );
 }

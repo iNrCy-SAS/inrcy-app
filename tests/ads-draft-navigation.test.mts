@@ -1,13 +1,27 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { adsDraftValidationStep } from "../lib/adsDraftNavigation.ts";
+import { adsDraftHasMediaStep, adsDraftValidationStep } from "../lib/adsDraftNavigation.ts";
 
 test("un brouillon reprend toujours sur la validation adaptée à son parcours", () => {
   assert.equal(adsDraftValidationStep({ provider: "google", campaignType: "search", creationMode: "manual" }), 7);
   assert.equal(adsDraftValidationStep({ provider: "google", campaignType: "search", creationMode: "inrcy" }), 8);
   assert.equal(adsDraftValidationStep({ provider: "meta", campaignType: "meta_traffic", creationMode: "manual" }), 8);
-  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "inrcy" }), 9);
+  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "manual" }), 9);
+  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "inrcy" }), 10);
+});
+
+test("seuls Google Search et le post X textuel omettent l’étape médias", () => {
+  assert.equal(adsDraftHasMediaStep({ provider: "google", campaignType: "search" }), false);
+  assert.equal(adsDraftHasMediaStep({ provider: "google", campaignType: "performance_max" }), true);
+  assert.equal(adsDraftHasMediaStep({ provider: "meta", campaignType: "meta_traffic" }), true);
+  assert.equal(adsDraftHasMediaStep({ provider: "linkedin", campaignType: "generic", channelSettings: { schemaVersion: 1, channel: "linkedin", objectiveType: "WEBSITE_VISIT", format: "TEXT_AD", targetingFacet: "titles", locale: { country: "FR", language: "fr" } } }), true);
+  assert.equal(adsDraftHasMediaStep({ provider: "tiktok", campaignType: "generic" }), true);
+  assert.equal(adsDraftHasMediaStep({ provider: "pinterest", campaignType: "generic", channelSettings: { schemaVersion: 1, channel: "pinterest", objectiveType: "SALES", intendedPromotionType: "CATALOG", creativeType: null, targetingMode: "automatic", conversionEvent: "CHECKOUT" } }), true);
+  assert.equal(adsDraftHasMediaStep({ provider: "x", campaignType: "generic", channelSettings: { schemaVersion: 1, channel: "x", objective: "website_traffic", format: "text", targetingMode: "broad" } }), false);
+  assert.equal(adsDraftHasMediaStep({ provider: "x", campaignType: "generic", channelSettings: { schemaVersion: 1, channel: "x", objective: "website_traffic", format: "image", targetingMode: "broad" } }), true);
+  assert.equal(adsDraftValidationStep({ provider: "x", campaignType: "generic", creationMode: "manual", channelSettings: { schemaVersion: 1, channel: "x", objective: "website_traffic", format: "text", targetingMode: "broad" } }), 7);
+  assert.equal(adsDraftValidationStep({ provider: "x", campaignType: "generic", creationMode: "manual", channelSettings: { schemaVersion: 1, channel: "x", objective: "website_traffic", format: "video", targetingMode: "broad" } }), 8);
 });
 
 test("le menu iNr’ADS lit uniquement les brouillons et les rouvre sans dupliquer le stockage", () => {

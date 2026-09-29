@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  buildLinkedInAdsFinalizationSteps,
+  prepareLinkedInAdsDarkPost,
   prepareLinkedInAdsDraftCampaign,
+  prepareLinkedInAdsDraftCreative,
   type LinkedInAdsCampaignEvidence,
   type LinkedInAdsDraftCampaignChoices,
 } from "../lib/adsLinkedInPublish.ts";
@@ -36,14 +39,14 @@ function fixture(): {
         adAccountUrn: "urn:li:sponsoredAccount:123",
         campaignGroupUrn: "urn:li:sponsoredCampaignGroup:456",
         organizationUrn: "urn:li:organization:789",
-        creativeAssetUrn: "urn:li:image:asset",
+        creativeAssetUrn: "urn:li:image:C4D10AQFexample",
         geoUrns: ["urn:li:geo:105015875"],
       },
     },
     evidence: {
       fetchedAtMs: now - 1000,
       selectedAccountId: "123",
-      scopes: "rw_ads",
+      scopes: "rw_ads r_ads_reporting r_organization_admin w_organization_social",
       account: {
         id: "123", name: "Compte test", currency: "EUR", country: "FR", status: "ACTIVE", type: "BUSINESS",
         productType: "", servingStatuses: ["RUNNABLE"], test: false,
@@ -54,10 +57,17 @@ function fixture(): {
         runSchedule: { start: now - 60_000, end: end + 60_000 },
       },
       organization: { urn: "urn:li:organization:789", role: "DIRECT_SPONSORED_CONTENT_POSTER" },
+      image: {
+        urn: "urn:li:image:C4D10AQFexample", owner: "urn:li:organization:789", status: "AVAILABLE",
+        associatedAccount: "urn:li:sponsoredAccount:123",
+      },
       geoUrns: ["urn:li:geo:105015875"],
       supportedLocales: [{ language: "fr", country: "FR" }],
     },
-    choices: { bidAmount: "2.50", startAtMs: start, endAtMs: end },
+    choices: {
+      bidAmount: "2.50", startAtMs: start, endAtMs: end,
+      politicalIntentConfirmed: true, discriminationNoticeAcknowledged: true,
+    },
   };
 }
 
@@ -75,6 +85,7 @@ test("LinkedIn serializes only a non-serving DRAFT campaign with verified resour
   assert.equal(result.request.body.objectiveType, "WEBSITE_VISIT");
   assert.equal(result.request.body.type, "SPONSORED_UPDATES");
   assert.equal(result.request.body.costType, "CPC");
+  assert.equal(result.request.body.politicalIntent, "NOT_POLITICAL");
   assert.equal(result.request.body.dailyBudget.amount, "25.00");
   assert.equal(result.request.body.unitCost.amount, "2.50");
   assert.deepEqual(result.request.body.targetingCriteria.include.and, [
@@ -83,6 +94,79 @@ test("LinkedIn serializes only a non-serving DRAFT campaign with verified resour
   ]);
   assert.equal(JSON.stringify(result.request).includes("creativeAssetUrn"), false);
   assert.equal(JSON.stringify(result.request).includes("ACTIVE"), false);
+});
+
+test("LinkedIn requires both regulatory confirmations", () => {
+  const { draft, evidence, choices } = fixture();
+  choices.politicalIntentConfirmed = false;
+  choices.discriminationNoticeAcknowledged = false;
+  const result = prepareLinkedInAdsDraftCampaign(draft, evidence, choices, now);
+  assert.equal(result.readyForDraftCreate, false);
+  assert.ok(result.issues.some((item) => item.code === "political_intent_confirmation_required"));
+  assert.ok(result.issues.some((item) => item.code === "targeting_notice_acknowledgement_required"));
+});
+
+test("LinkedIn serializes a dark post then a separate DRAFT creative", () => {
+  const { draft, evidence } = fixture();
+  const post = prepareLinkedInAdsDarkPost(draft, evidence, now);
+  assert.equal(post.readyForDraftCreate, true);
+  assert.ok(post.request);
+  assert.equal(post.request.path, "/rest/posts");
+  assert.equal(post.request.body.distribution.feedDistribution, "NONE");
+  assert.equal(post.request.body.adContext.dscStatus, "ACTIVE");
+  assert.equal(post.request.body.content.media.id, "urn:li:image:C4D10AQFexample");
+
+  evidence.campaign = {
+    urn: "urn:li:sponsoredCampaign:1001", account: "urn:li:sponsoredAccount:123", status: "DRAFT",
+  };
+  const creative = prepareLinkedInAdsDraftCreative(
+    draft, evidence, "urn:li:sponsoredCampaign:1001", "urn:li:share:2002", now,
+  );
+  assert.equal(creative.readyForDraftCreate, true);
+  assert.ok(creative.request);
+  assert.equal(creative.request.path, "/rest/adAccounts/123/creatives");
+  assert.equal(creative.request.body.intendedStatus, "DRAFT");
+  assert.equal(creative.request.body.content.reference, "urn:li:share:2002");
+});
+
+test("LinkedIn finalization makes the creative reviewable before the campaign status switch", () => {
+  const steps = buildLinkedInAdsFinalizationSteps(
+    "123", "urn:li:sponsoredCampaign:1001", "urn:li:sponsoredCreative:3003", "PAUSED",
+  );
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].body.patch.$set.intendedStatus, "ACTIVE");
+  assert.equal(steps[1].body.patch.$set.status, "PAUSED");
+  assert.equal(steps[0].path, "/rest/adAccounts/123/creatives/urn%3Ali%3AsponsoredCreative%3A3003");
+  assert.equal(steps[1].path, "/rest/adAccounts/123/adCampaigns/1001");
+});
+
+test("LinkedIn blocks dark posts and creatives without fresh step-specific authorization evidence", () => {
+  const { draft, evidence } = fixture();
+  evidence.scopes = "rw_ads r_ads_reporting r_organization_admin";
+  const post = prepareLinkedInAdsDarkPost(draft, evidence, now);
+  assert.equal(post.readyForDraftCreate, false);
+  assert.ok(post.issues.some((item) => item.code === "organization_write_scope_required"));
+
+  evidence.scopes = "w_organization_social";
+  evidence.account.permissions = ["VIEWER"];
+  evidence.account.canManageCampaigns = false;
+  const viewerPost = prepareLinkedInAdsDarkPost(draft, evidence, now);
+  assert.equal(viewerPost.readyForDraftCreate, false);
+  assert.ok(viewerPost.issues.some((item) => item.code === "account_manage_access_unverified"));
+
+  evidence.scopes = "rw_ads r_ads_reporting r_organization_admin w_organization_social";
+  evidence.account.permissions = ["CAMPAIGN_MANAGER"];
+  evidence.account.canManageCampaigns = true;
+  evidence.campaign = {
+    urn: "urn:li:sponsoredCampaign:1001", account: "urn:li:sponsoredAccount:999", status: "DRAFT",
+  };
+  evidence.fetchedAtMs = now - 6 * 60_000;
+  const creative = prepareLinkedInAdsDraftCreative(
+    draft, evidence, "urn:li:sponsoredCampaign:1001", "urn:li:share:2002", now,
+  );
+  assert.equal(creative.readyForDraftCreate, false);
+  assert.ok(creative.issues.some((item) => item.code === "campaign_unverified"));
+  assert.ok(creative.issues.some((item) => item.code === "platform_evidence_stale"));
 });
 
 test("LinkedIn rejects stale, read-only and mismatched account evidence", () => {
