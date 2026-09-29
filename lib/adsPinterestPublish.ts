@@ -17,6 +17,171 @@ export const PINTEREST_ADS_CREATION_PATHS = {
   ads: (adAccountId: string) => `/v5/ad_accounts/${adAccountId}/ads`,
 } as const;
 
+export type PinterestLiveObjective = "AWARENESS" | "CONSIDERATION";
+export type PinterestLivePlacementGroup = "ALL";
+
+type PinterestLiveSettings = {
+  objectiveType?: unknown;
+  intendedPromotionType?: unknown;
+  creativeType?: unknown;
+  targetingMode?: unknown;
+  /** Reserved for a future UI contract; never silently accept a new placement. */
+  placementGroup?: unknown;
+  placementIntent?: unknown;
+  placement?: unknown;
+  keywords?: unknown;
+  keywordIds?: unknown;
+};
+
+type PinterestLiveCampaignBodyInput = {
+  name: string;
+  objectiveType: PinterestLiveObjective;
+  dailySpendCap: number;
+  endTime: number;
+};
+
+type PinterestLiveAdGroupBodyInput = {
+  name: string;
+  campaignId: string;
+  objectiveType: PinterestLiveObjective;
+  bidInMicroCurrency: number;
+  locationCodes: string[];
+};
+
+type PinterestAdOnlyPinBodyInput = {
+  title: string;
+  description: string;
+  destinationUrl: string;
+  imageUrl: string;
+};
+
+type PinterestLiveAdBodyInput = {
+  name: string;
+  adGroupId: string;
+  pinId: string;
+  destinationUrl: string;
+};
+
+/**
+ * The first live path deliberately exposes only automatic targeting and all
+ * placements. Interest and audience labels are not Pinterest resource IDs,
+ * while keyword targeting requires a separate provider mutation. Rejecting
+ * those modes before the first mutation prevents a saved choice from being
+ * silently replaced by broad targeting.
+ */
+function hasDeclaredKeywords(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => typeof item === "string" ? item.trim() : item != null);
+  if (typeof value === "string") return Boolean(value.trim());
+  return Boolean(value && typeof value === "object" && Object.keys(value).length);
+}
+
+export function pinterestLiveConfigurationIssue(
+  value: PinterestLiveSettings | null | undefined,
+  campaignKeywords?: unknown,
+): string | null {
+  if (!value || (value.objectiveType !== "AWARENESS" && value.objectiveType !== "CONSIDERATION")) {
+    return "Le lancement Pinterest prend actuellement en charge les objectifs Notoriété et Considération.";
+  }
+  if (value.intendedPromotionType !== "STANDARD_AD" || value.creativeType !== "REGULAR") {
+    return "Le lancement Pinterest prend actuellement en charge une épingle sponsorisée image standard.";
+  }
+  if (value.targetingMode !== "automatic") {
+    return "Le lancement Pinterest prend actuellement en charge le ciblage automatique Pinterest. Les intérêts, mots-clés et audiences doivent rester en brouillon tant que leurs ressources Pinterest ne sont pas résolues.";
+  }
+  if (hasDeclaredKeywords(campaignKeywords ?? value.keywords ?? value.keywordIds)) {
+    return "Les mots-clés Pinterest ne sont pas publiables automatiquement pour le moment. Retirez-les du lancement réel ou conservez cette configuration en brouillon.";
+  }
+  const declaredPlacement = value.placementGroup ?? value.placementIntent ?? value.placement;
+  if (declaredPlacement != null && !["ALL", "all", "automatic"].includes(String(declaredPlacement))) {
+    return "Le lancement Pinterest prend actuellement en charge tous les emplacements. Un placement plus précis doit rester en brouillon.";
+  }
+  return null;
+}
+
+/** Pinterest v5 campaign create payload. Every provider entity starts paused. */
+export function buildPinterestLiveCampaignBody(input: PinterestLiveCampaignBodyInput) {
+  return {
+    name: input.name,
+    status: "PAUSED" as const,
+    objective_type: input.objectiveType,
+    intended_promotion_type: "STANDARD_AD" as const,
+    is_campaign_budget_optimization: true,
+    is_flexible_daily_budgets: false,
+    daily_spend_cap: input.dailySpendCap,
+    end_time: input.endTime,
+  };
+}
+
+/**
+ * `auto_targeting_enabled` is Pinterest's ad-group Performance+ targeting,
+ * not a Performance+ campaign (`is_performance_plus`). The latter has a
+ * different AUTOMATIC_BID-only contract that this publisher does not enable.
+ */
+export function buildPinterestLiveAdGroupBody(input: PinterestLiveAdGroupBodyInput) {
+  return {
+    name: input.name,
+    campaign_id: input.campaignId,
+    status: "PAUSED" as const,
+    billable_event: input.objectiveType === "AWARENESS" ? "IMPRESSION" as const : "CLICKTHROUGH" as const,
+    bid_in_micro_currency: input.bidInMicroCurrency,
+    bid_strategy_type: "MAX_BID" as const,
+    placement_group: "ALL" as PinterestLivePlacementGroup,
+    auto_targeting_enabled: true,
+    targeting_spec: { LOCATION: input.locationCodes },
+  };
+}
+
+/** Creates a protected ad-only Pin, so no public board identifier is needed. */
+export function buildPinterestAdOnlyPinBody(input: PinterestAdOnlyPinBodyInput) {
+  return {
+    title: input.title,
+    description: input.description,
+    link: input.destinationUrl,
+    media_source: { source_type: "image_url" as const, url: input.imageUrl, is_standard: true },
+    is_removable: true,
+  };
+}
+
+export function buildPinterestLiveAdBody(input: PinterestLiveAdBodyInput) {
+  return {
+    name: input.name,
+    ad_group_id: input.adGroupId,
+    pin_id: input.pinId,
+    creative_type: "REGULAR" as const,
+    status: "PAUSED" as const,
+    destination_url: input.destinationUrl,
+    is_removable: true,
+  };
+}
+
+export function buildPinterestEntityStatusPatch(id: string, status: "ACTIVE" | "PAUSED") {
+  return [{ id, status }];
+}
+
+export function buildPinterestActivationSteps(
+  adAccountId: string,
+  ids: { campaignId: string; adGroupId: string; adId: string },
+) {
+  const accountPath = `/ad_accounts/${adAccountId}`;
+  return [
+    {
+      path: `${accountPath}/ads`,
+      body: buildPinterestEntityStatusPatch(ids.adId, "ACTIVE"),
+      stage: "ad_activated" as const,
+    },
+    {
+      path: `${accountPath}/ad_groups`,
+      body: buildPinterestEntityStatusPatch(ids.adGroupId, "ACTIVE"),
+      stage: "ad_group_activated" as const,
+    },
+    {
+      path: `${accountPath}/campaigns`,
+      body: buildPinterestEntityStatusPatch(ids.campaignId, "ACTIVE"),
+      stage: "active" as const,
+    },
+  ];
+}
+
 export type PinterestAdsDraftCampaignBody = {
   name: string;
   status: "DRAFT";
@@ -38,6 +203,9 @@ export type PinterestAdsDraftCampaignIssue = {
     | "billing_unverified"
     | "campaign_permission_unverified"
     | "stale_provider_evidence"
+    | "unsupported_targeting"
+    | "unsupported_keywords"
+    | "unsupported_placement"
     | "unsupported_budget";
   field: string;
 };
@@ -88,6 +256,12 @@ export function preflightPinterestDraftCampaign(
 
   if (raw.channel !== "pinterest" || !assessAdsChannelDraft(raw).briefComplete) {
     add("invalid_brief", "channelDraft");
+  }
+  if (raw.targetingMode !== "automatic") add("unsupported_targeting", "targetingMode");
+  if (hasDeclaredKeywords(raw.keywords ?? raw.keywordIds)) add("unsupported_keywords", "keywords");
+  const declaredPlacement = raw.placementGroup ?? raw.placementIntent ?? raw.placement;
+  if (declaredPlacement != null && !["ALL", "all", "automatic"].includes(String(declaredPlacement))) {
+    add("unsupported_placement", "placement");
   }
   if (!account || !/^\d{5,30}$/.test(account.id) || account.currency !== "EUR" || account.canManageCampaigns !== true) {
     add("invalid_account", "selectedAccount");

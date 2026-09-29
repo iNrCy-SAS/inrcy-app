@@ -78,6 +78,13 @@ export type TikTokAdsDraft = AdsChannelDraftBase<"tiktok"> & {
 export type PinterestAdsDraft = AdsChannelDraftBase<"pinterest"> & {
   objectiveType: "AWARENESS" | "CONSIDERATION" | "VIDEO_COMPLETION" | "SALES" | "LEADS";
   intendedPromotionType: "STANDARD_AD" | "CATALOG";
+  /**
+   * `automatic` maps to Pinterest Performance+ targeting
+   * (`auto_targeting_enabled`) and does not require the AI to invent an
+   * interest, keyword or audience identifier. Manual modes remain planning
+   * choices until their provider resources have been resolved server-side.
+   */
+  targetingMode: "automatic" | "interests" | "keywords" | "audiences";
   /** Native creative_type is only used for Pin-based STANDARD_AD campaigns. */
   creativeType?: "REGULAR" | "VIDEO" | "MAX_VIDEO" | "CAROUSEL";
   conversionEvent?: "CHECKOUT" | "ADD_TO_CART" | "SIGNUP" | "LEAD";
@@ -134,6 +141,27 @@ type RecordValue = Record<string, unknown>;
 
 function record(value: unknown): RecordValue {
   return value && typeof value === "object" && !Array.isArray(value) ? value as RecordValue : {};
+}
+
+/**
+ * Pinterest briefs were already persisted with schemaVersion 1 before the
+ * targeting choice became part of the native brief. Keep that wire version
+ * readable while giving the missing choice the only safe, ID-free default.
+ *
+ * This helper deliberately changes nothing else. Callers must still run the
+ * normal strict shape/content checks, so unexpected fields and external
+ * resource identifiers remain rejected.
+ */
+export function isLegacyPinterestAdsDraft(value: unknown): boolean {
+  const raw = record(value);
+  return raw.channel === "pinterest"
+    && raw.schemaVersion === 1
+    && !Object.hasOwn(raw, "targetingMode");
+}
+
+export function normalizeAdsChannelDraftCompatibility(value: unknown): unknown {
+  if (!isLegacyPinterestAdsDraft(value)) return value;
+  return { ...(value as RecordValue), targetingMode: "automatic" };
 }
 
 function text(value: unknown): string {
@@ -251,6 +279,7 @@ const PINTEREST_OBJECTIVES = ["AWARENESS", "CONSIDERATION", "VIDEO_COMPLETION", 
 function assessPinterest(raw: RecordValue, brief: AdsDraftIssue[], publication: AdsDraftIssue[]): void {
   issue(brief, "unsupported_objective", "objectiveType", !isOneOf(raw.objectiveType, PINTEREST_OBJECTIVES));
   issue(brief, "invalid_promotion_type", "intendedPromotionType", !isOneOf(raw.intendedPromotionType, ["STANDARD_AD", "CATALOG"] as const));
+  issue(brief, "invalid_targeting_mode", "targetingMode", !isOneOf(raw.targetingMode, ["automatic", "interests", "keywords", "audiences"] as const));
   const catalog = raw.intendedPromotionType === "CATALOG";
   issue(brief, "invalid_creative_type", "creativeType", catalog
     ? Boolean(raw.creativeType)
@@ -307,7 +336,7 @@ function assessX(raw: RecordValue, brief: AdsDraftIssue[], publication: AdsDraft
 
 /** A complete brief is never a signal that spending or publishing is safe. */
 export function assessAdsChannelDraft(value: unknown): AdsChannelDraftAssessment {
-  const raw = record(value);
+  const raw = record(normalizeAdsChannelDraftCompatibility(value));
   if (!isPlannedAdsChannel(raw.channel)) {
     return {
       channel: null,

@@ -1,13 +1,22 @@
 import "server-only";
 
 import type { AdsCampaignInput } from "./adsValidation.ts";
+import {
+  buildPinterestActivationSteps,
+  buildPinterestAdOnlyPinBody,
+  buildPinterestLiveAdBody,
+  buildPinterestLiveAdGroupBody,
+  buildPinterestLiveCampaignBody,
+  pinterestLiveConfigurationIssue,
+} from "./adsPinterestPublish.ts";
 import { pinterestAdsAccessToken } from "./adsPinterestServer.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
 import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
 import { supabaseAdmin } from "./supabaseAdmin.ts";
 
 type PinterestPublishProgress = Record<string, unknown> & {
-  stage?: "campaign_created" | "ad_group_created" | "pin_created" | "ad_created" | "paused" | "active";
+  stage?: "campaign_created" | "ad_group_created" | "pin_created" | "ad_created" |
+    "paused" | "ad_activated" | "ad_group_activated" | "active";
   campaignId?: string;
   adGroupId?: string;
   pinId?: string;
@@ -220,9 +229,10 @@ export async function publishPinterestAdsCampaign(
       throw new Error("Le compte Pinterest Ads EUR est invalide.");
     }
     const settings = draft.channelSettings?.channel === "pinterest" ? draft.channelSettings : null;
-    if (!settings || (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION")
-      || settings.intendedPromotionType !== "STANDARD_AD" || settings.creativeType !== "REGULAR") {
-      throw new Error("Le lancement Pinterest prend actuellement en charge une épingle sponsorisée image avec un objectif Notoriété ou Considération.");
+    const configurationIssue = pinterestLiveConfigurationIssue(settings, draft.keywords);
+    if (configurationIssue) throw new Error(configurationIssue);
+    if (!settings || (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION")) {
+      throw new Error("Les réglages Pinterest sont incomplets.");
     }
     if (!safeHttpsUrl(draft.destinationUrl)) throw new Error("Le lien de destination Pinterest doit être une URL HTTPS publique.");
     const imageUrl = await resolvePinterestImageUrl(userId, String(draft.creativeUrl || draft.imageUrl || ""));
@@ -243,63 +253,58 @@ export async function publishPinterestAdsCampaign(
       return pinterestAdsRequest(accessToken, path, method, body);
     };
 
-    const campaignId = batchCreatedId(await mutate(`${accountPath}/campaigns`, "POST", [{
-      name: draft.name.trim(),
-      status: "PAUSED",
-      objective_type: settings.objectiveType,
-      intended_promotion_type: "STANDARD_AD",
-      is_campaign_budget_optimization: true,
-      is_flexible_daily_budgets: false,
-      daily_spend_cap: dailySpendCap,
-      end_time: endTime,
-    }]), "de la campagne");
+    const campaignId = batchCreatedId(await mutate(`${accountPath}/campaigns`, "POST", [
+      buildPinterestLiveCampaignBody({
+        name: draft.name.trim(),
+        objectiveType: settings.objectiveType,
+        dailySpendCap,
+        endTime,
+      }),
+    ]), "de la campagne");
     progress = { campaignId, stage: "campaign_created" };
     await persistProgress(progress);
 
-    const billableEvent = settings.objectiveType === "AWARENESS" ? "IMPRESSION" : "CLICKTHROUGH";
-    const adGroupId = batchCreatedId(await mutate(`${accountPath}/ad_groups`, "POST", [{
-      name: `${draft.name.trim()} · Groupe d’annonces`,
-      campaign_id: campaignId,
-      status: "PAUSED",
-      billable_event: billableEvent,
-      bid_in_micro_currency: bidInMicroCurrency,
-      bid_strategy_type: "MAX_BID",
-      placement_group: "ALL",
-      targeting_spec: { LOCATION: locationCodes },
-    }]), "du groupe d’annonces");
+    const adGroupId = batchCreatedId(await mutate(`${accountPath}/ad_groups`, "POST", [
+      buildPinterestLiveAdGroupBody({
+        name: `${draft.name.trim()} · Groupe d’annonces`,
+        campaignId,
+        objectiveType: settings.objectiveType,
+        bidInMicroCurrency,
+        locationCodes,
+      }),
+    ]), "du groupe d’annonces");
     progress = { ...progress, adGroupId, stage: "ad_group_created" };
     await persistProgress(progress);
 
-    const pinId = pinCreatedId(await mutate(`/pins?ad_account_id=${encodeURIComponent(draft.adAccountId)}`, "POST", {
-      title,
-      description,
-      link: draft.destinationUrl,
-      media_source: { source_type: "image_url", url: imageUrl, is_standard: true },
-    }));
+    const pinId = pinCreatedId(await mutate(
+      `/pins?ad_account_id=${encodeURIComponent(draft.adAccountId)}`,
+      "POST",
+      buildPinterestAdOnlyPinBody({ title, description, destinationUrl: draft.destinationUrl, imageUrl }),
+    ));
     progress = { ...progress, pinId, stage: "pin_created" };
     await persistProgress(progress);
 
-    const adId = batchCreatedId(await mutate(`${accountPath}/ads`, "POST", [{
-      name: `${draft.name.trim()} · Épingle sponsorisée`,
-      ad_group_id: adGroupId,
-      pin_id: pinId,
-      creative_type: "REGULAR",
-      status: "PAUSED",
-      destination_url: draft.destinationUrl,
-      is_removable: true,
-    }]), "de l’annonce");
+    const adId = batchCreatedId(await mutate(`${accountPath}/ads`, "POST", [
+      buildPinterestLiveAdBody({
+        name: `${draft.name.trim()} · Épingle sponsorisée`,
+        adGroupId,
+        pinId,
+        destinationUrl: draft.destinationUrl,
+      }),
+    ]), "de l’annonce");
     progress = { ...progress, adId, stage: "ad_created" };
     await persistProgress(progress);
 
     if (options.activate !== false) {
-      await mutate(`${accountPath}/ads`, "PATCH", [{ id: adId, status: "ACTIVE" }]);
-      await mutate(`${accountPath}/ad_groups`, "PATCH", [{ id: adGroupId, status: "ACTIVE" }]);
-      await mutate(`${accountPath}/campaigns`, "PATCH", [{ id: campaignId, status: "ACTIVE" }]);
-      progress = { ...progress, stage: "active" };
+      for (const step of buildPinterestActivationSteps(draft.adAccountId, { campaignId, adGroupId, adId })) {
+        await mutate(step.path, "PATCH", step.body);
+        progress = { ...progress, stage: step.stage };
+        await persistProgress(progress);
+      }
     } else {
       progress = { ...progress, stage: "paused" };
+      await persistProgress(progress);
     }
-    await persistProgress(progress);
     return progress;
   } catch (error) {
     if (error instanceof PinterestAdsPublishError) throw error;

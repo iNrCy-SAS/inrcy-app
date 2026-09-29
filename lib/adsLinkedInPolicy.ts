@@ -19,8 +19,12 @@ export type LinkedInAdsAccount = {
   country: string;
   status: string;
   type: string;
+  productType: string;
+  servingStatuses: string[];
+  test: boolean;
   permissions: LinkedInAdsRole[];
   canManageCampaigns: boolean;
+  canServeCampaigns: boolean;
 };
 
 const MANAGE_ROLES = new Set<LinkedInAdsRole>(["CAMPAIGN_MANAGER", "ACCOUNT_MANAGER", "ACCOUNT_BILLING_ADMIN"]);
@@ -37,6 +41,13 @@ export function linkedInAdsHasReadAccess(value: unknown): boolean {
 
 export function linkedInAdsScopeForMode(mode: LinkedInAdsAccessMode): string {
   return mode === "manage" ? LINKEDIN_ADS_MANAGE_SCOPE : LINKEDIN_ADS_READ_SCOPE;
+}
+
+export function linkedInAdsHasAccessMode(value: unknown, mode: LinkedInAdsAccessMode): boolean {
+  const scopes = linkedInAdsScopes(value);
+  return mode === "manage"
+    ? scopes.includes(LINKEDIN_ADS_MANAGE_SCOPE)
+    : linkedInAdsHasReadAccess(scopes.join(" "));
 }
 
 export function buildLinkedInAdsAuthorizationUrl(clientId: string, redirectUri: string, state: string, mode: LinkedInAdsAccessMode): string {
@@ -64,11 +75,32 @@ export function normalizeLinkedInAdsAccountUser(value: unknown): LinkedInAdsAcco
   return match && role && ALL_ROLES.has(role) && memberUrn ? { id: match[1], role, memberUrn } : null;
 }
 
-export function linkedInAdsCanManageCampaigns(role: LinkedInAdsRole, scopes: unknown, accountStatus: string, accountType: string): boolean {
+export function linkedInAdsCanManageCampaigns(
+  role: LinkedInAdsRole,
+  scopes: unknown,
+  accountStatus: string,
+  accountType: string,
+  productType = "",
+): boolean {
+  // Since API version 202608, Enterprise accounts can identify the LinkedIn
+  // product they belong to. Fail closed for Talent Solutions / LinkedIn-on-
+  // LinkedIn accounts: they are not Marketing Solutions advertiser accounts.
+  const marketingAccount = accountType === "BUSINESS"
+    || (accountType === "ENTERPRISE" && productType === "MARKETING_SOLUTIONS");
   return MANAGE_ROLES.has(role)
     && linkedInAdsScopes(scopes).includes(LINKEDIN_ADS_MANAGE_SCOPE)
     && accountStatus === "ACTIVE"
-    && (accountType === "BUSINESS" || accountType === "ENTERPRISE");
+    && marketingAccount;
+}
+
+export function linkedInAdsCanServeCampaigns(
+  canManageCampaigns: boolean,
+  servingStatuses: unknown,
+  test: boolean,
+): boolean {
+  if (!canManageCampaigns || test || !Array.isArray(servingStatuses)) return false;
+  const statuses = servingStatuses.filter((status): status is string => typeof status === "string");
+  return statuses.length === 1 && statuses[0] === "RUNNABLE";
 }
 
 /** A prior account choice survives OAuth only for the same member and a still-authorized account. */
@@ -95,9 +127,16 @@ export function normalizeLinkedInAdsAccount(value: unknown, membership: LinkedIn
   const country = typeof row.country === "string" ? row.country : "";
   const status = typeof row.status === "string" ? row.status : "";
   const type = typeof row.type === "string" ? row.type : "";
+  const productType = typeof row.productType === "string" ? row.productType : "";
+  const servingStatuses = Array.isArray(row.servingStatuses)
+    ? row.servingStatuses.filter((item): item is string => typeof item === "string")
+    : [];
+  const test = row.test === true;
+  const canManageCampaigns = linkedInAdsCanManageCampaigns(membership.role, scopes, status, type, productType);
   return {
-    id, name, currency, country, status, type,
+    id, name, currency, country, status, type, productType, servingStatuses, test,
     permissions: [membership.role],
-    canManageCampaigns: linkedInAdsCanManageCampaigns(membership.role, scopes, status, type),
+    canManageCampaigns,
+    canServeCampaigns: linkedInAdsCanServeCampaigns(canManageCampaigns, servingStatuses, test),
   };
 }

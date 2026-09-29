@@ -7,7 +7,7 @@ export const adsChannelLabels: Record<StoredAdsCampaign["provider"], string> = {
 
 export const adsStatusLabels: Record<StoredAdsCampaign["status"], string> = {
   draft: "Brouillon", publishing: "Création en cours", active: "Active",
-  needs_review: "Contrôle requis", demo_paused: "En pause",
+  paused: "En pause", needs_review: "Contrôle requis", demo_paused: "Démo en pause",
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {

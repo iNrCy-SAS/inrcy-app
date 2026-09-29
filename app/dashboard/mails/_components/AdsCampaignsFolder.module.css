@@ -19,7 +19,7 @@
 .status[data-status="active"]{border-color:#6bdfac91;color:#b9ffe1;background:#367b6259}
 .status[data-status="needs_review"]{border-color:#f3aeaf99;color:#ffe1e1;background:#b64b6261}
 .status[data-status="publishing"]{border-color:#eac38c96;color:#ffe4bd;background:#a4783766}
-.status[data-status="demo_paused"]{border-color:#8db9f3a4;color:#d9ecff;background:#4c70a364}
+.status[data-status="paused"],.status[data-status="demo_paused"]{border-color:#8db9f3a4;color:#d9ecff;background:#4c70a364}
 .mobileSummary{display:none}
 .empty{display:flex;min-height:160px;align-items:center;justify-content:center;flex-direction:column;gap:12px;margin:0;padding:24px;color:#bfcee9;text-align:center;font-size:13px}
 .error,.success{margin:10px 14px 0;padding:10px 12px;border-radius:12px;font-size:12px;line-height:1.45}

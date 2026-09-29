@@ -51,7 +51,7 @@
 .status[data-status=active]{border-color:#6bdfac91;color:#b9ffe1;background:#367b6259}
 .status[data-status=needs_review]{border-color:#f3aeaf99;color:#ffe1e1;background:#b64b6261}
 .status[data-status=publishing]{border-color:#eac38c96;color:#ffe4bd;background:#a4783766}
-.status[data-status=demo_paused]{border-color:#8db9f3a4;color:#d9ecff;background:#4c70a364}
+.status[data-status=paused],.status[data-status=demo_paused]{border-color:#8db9f3a4;color:#d9ecff;background:#4c70a364}
 .facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
 .facts>div{min-width:0;padding:10px 12px;border:1px solid #7e9eca3b;border-radius:12px;background:#08193477}
 .facts dt{color:#9eb4d2;font-size:10px;font-weight:700}

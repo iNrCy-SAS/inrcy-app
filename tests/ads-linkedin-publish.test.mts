@@ -46,7 +46,8 @@ function fixture(): {
       scopes: "rw_ads",
       account: {
         id: "123", name: "Compte test", currency: "EUR", country: "FR", status: "ACTIVE", type: "BUSINESS",
-        permissions: ["CAMPAIGN_MANAGER"], canManageCampaigns: true,
+        productType: "", servingStatuses: ["RUNNABLE"], test: false,
+        permissions: ["CAMPAIGN_MANAGER"], canManageCampaigns: true, canServeCampaigns: true,
       },
       campaignGroup: {
         id: "456", account: "urn:li:sponsoredAccount:123", status: "ACTIVE", objectiveType: "WEBSITE_VISIT",
@@ -129,6 +130,7 @@ test("LinkedIn requires campaign-specific bid and schedule and blocks other draf
 test("LinkedIn requires enterprise group type allowance and never treats refs as proof", () => {
   const { draft, evidence, choices } = fixture();
   evidence.account.type = "ENTERPRISE";
+  evidence.account.productType = "MARKETING_SOLUTIONS";
   evidence.campaignGroup.allowedCampaignTypes = ["TEXT_AD"];
   draft.externalRefs!.campaignGroupUrn = "urn:li:sponsoredCampaignGroup:999";
   const result = prepareLinkedInAdsDraftCampaign(draft, evidence, choices, now);

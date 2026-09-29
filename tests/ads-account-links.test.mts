@@ -11,6 +11,11 @@ test("les liens de compte Ads ne sont construits qu’avec un identifiant public
     getAdsAdvertiserAccountUrl("meta", "act_492163888244053"),
     "https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=act_492163888244053",
   );
+  assert.equal(
+    getAdsAdvertiserAccountUrl("pinterest", "123456789012345678"),
+    "https://ads.pinterest.com/",
+  );
   assert.equal(getAdsAdvertiserAccountUrl("google", "6547075545&next=https://bad.example"), null);
   assert.equal(getAdsAdvertiserAccountUrl("meta", "javascript:alert(1)"), null);
+  assert.equal(getAdsAdvertiserAccountUrl("pinterest", "12345?next=https://bad.example"), null);
 });

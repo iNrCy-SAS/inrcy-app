@@ -25,7 +25,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return NextResponse.json({ error: "Impossible de relire la campagne." }, { status: 503 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
-  if (!["active", "demo_paused", "needs_review"].includes(campaign.status)) {
+  if (!["active", "paused", "demo_paused", "needs_review"].includes(campaign.status)) {
     return NextResponse.json({ error: "Aucune statistique de diffusion pour ce brouillon." }, { status: 409 });
   }
 

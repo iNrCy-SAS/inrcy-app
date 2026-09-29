@@ -4,6 +4,7 @@ import { verifyOAuthState } from "@/lib/security";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
 import { isAdsPilotAdmin } from "@/lib/adsServer";
 import { exchangeLinkedInAdsCode, getLinkedInAdsRedirectUri, saveLinkedInAdsConnection, LinkedInAdsConnectionError } from "@/lib/adsLinkedInServer";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -30,6 +31,24 @@ export async function GET(request: Request) {
     if (error || !data.user || data.user.id !== state.state.authUserId) return finish("error", "auth_required");
     if (!(await isAdsPilotAdmin(data.user.id))) return finish("error", "ads_pilot_only");
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, data.user.id, state.state.accountId);
+    const userLimited = await enforceRateLimit({
+      name: "oauth_linkedin_ads_callback",
+      identifier: userId,
+      limit: 10,
+      fallbackLimit: 5,
+      window: "10 m",
+      code: "linkedin_ads_oauth_rate_limit",
+    });
+    if (userLimited) return finish("error", "rate_limited");
+    const ipLimited = await enforceRateLimit({
+      name: "oauth_linkedin_ads_callback_ip",
+      identifier: getClientIp(request),
+      limit: 20,
+      fallbackLimit: 10,
+      window: "10 m",
+      code: "linkedin_ads_oauth_rate_limit",
+    });
+    if (ipLimited) return finish("error", "rate_limited");
     const token = await exchangeLinkedInAdsCode(code, getLinkedInAdsRedirectUri(request.url));
     await saveLinkedInAdsConnection(userId, token, state.state.mode);
     return finish("connected");

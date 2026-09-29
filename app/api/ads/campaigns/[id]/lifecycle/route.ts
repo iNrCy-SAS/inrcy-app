@@ -29,6 +29,12 @@ import {
   setMetaAdsCampaignPaused,
   updateMetaAdsCampaign,
 } from "@/lib/adsMetaLifecycle";
+import {
+  PinterestAdsLifecycleError,
+  readPinterestAdsCampaignState,
+  setPinterestAdsCampaignPaused,
+} from "@/lib/adsPinterestLifecycle";
+import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ADS_CAMPAIGN_ID_PATTERN } from "../trackingPolicy";
@@ -37,10 +43,10 @@ export const runtime = "nodejs";
 export const maxDuration = 180;
 
 type RouteContext = { params: Promise<{ id: string }> };
-type StableRemoteCampaignStatus = "active" | "demo_paused" | "needs_review";
-type RemoteLifecycleOperation = "update" | "pause" | "reconcile" | "delete";
+type StableRemoteCampaignStatus = "active" | "paused" | "demo_paused" | "needs_review";
+type RemoteLifecycleOperation = "update" | "pause" | "resume" | "reconcile" | "delete";
 type LifecycleClaimOperation = RemoteLifecycleOperation | "initial_publish";
-type InitialPublishMode = "demo_paused" | "live";
+type InitialPublishMode = "demo_paused" | "paused" | "live";
 type LifecycleClaimRequest = { action: LifecycleClaimOperation; changes: AdsCampaignLifecycleChanges; mode?: InitialPublishMode | null };
 
 type LifecycleRecovery = {
@@ -52,13 +58,13 @@ type LifecycleRecovery = {
 
 type RemoteActionResult = {
   providerResources: Record<string, unknown>;
-  status: "active" | "demo_paused";
+  status: "active" | "paused" | "demo_paused";
   reconciledChanges?: AdsCampaignLifecycleChanges;
 };
 
 type RemoteCampaignRow = {
   id: string;
-  provider: "google" | "meta";
+  provider: "google" | "meta" | "pinterest";
   ad_account_id: string;
   name: string;
   daily_budget_cents: number;
@@ -119,15 +125,15 @@ function normalizedRecoveryChanges(value: unknown): AdsCampaignLifecycleChanges 
 function lifecycleRecovery(value: unknown): LifecycleRecovery | null {
   const recovery = record(record(value).inrcyLifecycleRecovery);
   const operation = recovery.operation;
-  if (operation !== "update" && operation !== "pause" && operation !== "delete" && operation !== "initial_publish") return null;
+  if (operation !== "update" && operation !== "pause" && operation !== "resume" && operation !== "delete" && operation !== "initial_publish") return null;
   const previousStatus = recovery.previousStatus;
   const mode = recovery.mode;
   return {
     operation,
-    previousStatus: previousStatus === "active" || previousStatus === "demo_paused" || previousStatus === "needs_review"
+    previousStatus: previousStatus === "active" || previousStatus === "paused" || previousStatus === "demo_paused" || previousStatus === "needs_review"
       ? previousStatus : null,
     changes: operation === "update" ? normalizedRecoveryChanges(recovery.changes) : {},
-    mode: mode === "demo_paused" || mode === "live" ? mode : null,
+    mode: mode === "demo_paused" || mode === "paused" || mode === "live" ? mode : null,
   };
 }
 
@@ -160,9 +166,9 @@ async function recoverStaleLifecycleClaim(
   const claimedTimestamp = Date.parse(claimedAt || String(data.updated_at || ""));
   const previousStatus = claim.previousStatus;
   const claimedOperation = claim.operation;
-  const stableStatus: StableRemoteCampaignStatus | null = previousStatus === "active" || previousStatus === "demo_paused" || previousStatus === "needs_review"
+  const stableStatus: StableRemoteCampaignStatus | null = previousStatus === "active" || previousStatus === "paused" || previousStatus === "demo_paused" || previousStatus === "needs_review"
     ? previousStatus : null;
-  const hasLifecycleClaim = Boolean(stableStatus) && (claimedOperation === "update" || claimedOperation === "pause" || claimedOperation === "reconcile" || claimedOperation === "delete");
+  const hasLifecycleClaim = Boolean(stableStatus) && (claimedOperation === "update" || claimedOperation === "pause" || claimedOperation === "resume" || claimedOperation === "reconcile" || claimedOperation === "delete");
   const operation: LifecycleClaimOperation = hasLifecycleClaim ? claimedOperation as RemoteLifecycleOperation : "initial_publish";
   const staleAfterMs = (maxDuration + 120) * 1_000;
 
@@ -184,7 +190,7 @@ async function recoverStaleLifecycleClaim(
       operation,
       stableStatus,
       operation === "update" ? record(claim.changes) : undefined,
-      operation === "initial_publish" && (claim.mode === "demo_paused" || claim.mode === "live") ? claim.mode : null,
+      operation === "initial_publish" && (claim.mode === "demo_paused" || claim.mode === "paused" || claim.mode === "live") ? claim.mode : null,
     );
   const { data: recovered, error } = await supabaseAdmin.from("ads_campaigns").update({
     status: recoveredStatus,
@@ -217,8 +223,11 @@ function messageFrom(error: unknown): string {
     : "La plateforme publicitaire n’a pas pu terminer cette action.").slice(0, 1_000);
 }
 
-function remoteMayHaveChanged(error: unknown, provider: "google" | "meta"): boolean {
+function remoteMayHaveChanged(error: unknown, provider: "google" | "meta" | "pinterest"): boolean {
   if (error instanceof AdsLifecyclePersistenceError) return true;
+  if (provider === "pinterest") {
+    return error instanceof PinterestAdsLifecycleError ? error.remoteMayHaveChanged : true;
+  }
   if (provider === "meta") {
     return error instanceof MetaAdsLifecycleError ? error.remoteMayHaveChanged : false;
   }
@@ -227,6 +236,10 @@ function remoteMayHaveChanged(error: unknown, provider: "google" | "meta"): bool
   }
   if (error instanceof GoogleAdsApiError) return error.status >= 500;
   return true;
+}
+
+function pausedLocalStatus(campaign: RemoteCampaignRow): "paused" | "demo_paused" {
+  return campaign.status === "demo_paused" ? "demo_paused" : "paused";
 }
 
 function providerChanges(changes: AdsCampaignLifecycleChanges) {
@@ -281,6 +294,9 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
   }
 
   if (localCleanupOnly) return { id, user, campaign, localCleanupOnly: true as const };
+  if (operation === "delete" && campaign.provider === "pinterest") {
+    return { response: NextResponse.json({ error: "Archivez cette campagne depuis Pinterest Ads Manager. iNrSend ne supprime pas automatiquement une campagne Pinterest." }, { status: 409 }) };
+  }
 
   const draft = record(campaign.draft);
   const draftAccountId = String(draft.adAccountId || "").replace(/^act_/, "").replace(/-/g, "");
@@ -289,6 +305,19 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
   }
 
   try {
+    if (campaign.provider === "pinterest") {
+      const connection = await readPinterestAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== campaign.ad_account_id) {
+        return { response: NextResponse.json({ error: "Reconnectez le compte Pinterest Ads associé avant de gérer cette campagne." }, { status: 409 }) };
+      }
+      const accounts = await listPinterestAdsAccounts(user.activeUserId, connection);
+      const account = accounts.find((entry) => entry.id === campaign.ad_account_id
+        && entry.currency === "EUR" && entry.canManageCampaigns === true);
+      if (!account) {
+        return { response: NextResponse.json({ error: "Ce compte Pinterest Ads n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 }) };
+      }
+      return { id, user, campaign, account: { ...account, loginCustomerId: undefined }, localCleanupOnly: false as const };
+    }
     const connection = await readAdsIntegration(user.activeUserId, campaign.provider);
     if (connection?.status !== "connected") {
       return { response: NextResponse.json({ error: "Reconnectez votre compte publicitaire avant de gérer cette campagne." }, { status: 409 }) };
@@ -377,6 +406,40 @@ async function executeRemoteAction(input: {
       ? "La création initiale est incomplète sur la plateforme. Supprimez la campagne distante depuis iNrSend ou contrôlez-la dans le compte publicitaire."
       : "Aucun identifiant de campagne distante n’a été enregistré. Contrôlez le compte publicitaire puis utilisez le nettoyage local explicite.");
   }
+  if (campaign.provider === "pinterest") {
+    if (request.action === "update" || recovery?.operation === "update") {
+      throw new Error("Modifiez les réglages avancés de cette campagne directement dans Pinterest Ads Manager.");
+    }
+    const common = { adAccountId: campaign.ad_account_id, resources: campaign.provider_resources };
+    const pausedStatus = recovery?.operation === "initial_publish" && recovery.mode === "demo_paused"
+      ? "demo_paused" as const
+      : pausedLocalStatus(campaign);
+    if (request.action === "reconcile") {
+      if (recovery?.operation === "pause" || recovery?.operation === "resume") {
+        const result = await setPinterestAdsCampaignPaused(userId, {
+          ...common,
+          paused: recovery.operation === "pause",
+        });
+        return {
+          providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+          status: result.state === "active" ? "active" : pausedStatus,
+        };
+      }
+      const result = await readPinterestAdsCampaignState(userId, common);
+      return {
+        providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+        status: result.state === "active" ? "active" : pausedStatus,
+      };
+    }
+    const result = await setPinterestAdsCampaignPaused(userId, {
+      ...common,
+      paused: request.action !== "resume",
+    });
+    return {
+      providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+      status: result.state === "active" ? "active" : "paused",
+    };
+  }
   if (campaign.provider === "google") {
     const adapter = createGoogleAdsRemoteCampaignAdapter({
       userId,
@@ -389,7 +452,7 @@ async function executeRemoteAction(input: {
         const result = await adapter.update(providerChanges(recovery.changes));
         return {
           providerResources: result.providerResources,
-          status: result.status === "ENABLED" ? "active" : "demo_paused",
+          status: result.status === "ENABLED" ? "active" : pausedLocalStatus(campaign),
           reconciledChanges: recovery.changes,
         };
       }
@@ -397,8 +460,12 @@ async function executeRemoteAction(input: {
         const result = await adapter.pause();
         return {
           providerResources: result.providerResources,
-          status: "demo_paused",
+          status: "paused",
         };
+      }
+      if (recovery?.operation === "resume") {
+        const result = await adapter.resume();
+        return { providerResources: result.providerResources, status: "active" };
       }
       const snapshot = await adapter.read();
       if (snapshot.status === "REMOVED") {
@@ -406,15 +473,15 @@ async function executeRemoteAction(input: {
       }
       return {
         providerResources: campaign.provider_resources,
-        status: snapshot.status === "ENABLED" ? "active" as const : "demo_paused" as const,
+        status: snapshot.status === "ENABLED" ? "active" as const : pausedLocalStatus(campaign),
       };
     }
     const result = request.action === "update"
       ? await adapter.update(providerChanges(request.changes))
-      : await adapter.pause();
+      : request.action === "resume" ? await adapter.resume() : await adapter.pause();
     return {
       providerResources: result.providerResources,
-      status: result.status === "ENABLED" ? "active" as const : "demo_paused" as const,
+      status: result.status === "ENABLED" ? "active" as const : request.action === "pause" ? "paused" : pausedLocalStatus(campaign),
     };
   }
 
@@ -434,7 +501,7 @@ async function executeRemoteAction(input: {
           lifecycleState: result.state,
           lifecycleUpdatedAt: new Date().toISOString(),
         },
-        status: result.state === "active" ? "active" : "demo_paused",
+        status: result.state === "active" ? "active" : pausedLocalStatus(campaign),
         reconciledChanges: recovery.changes,
       };
     }
@@ -446,7 +513,18 @@ async function executeRemoteAction(input: {
           lifecycleState: result.state,
           lifecycleUpdatedAt: new Date().toISOString(),
         },
-        status: "demo_paused",
+        status: "paused",
+      };
+    }
+    if (recovery?.operation === "resume") {
+      const result = await setMetaAdsCampaignPaused(userId, { ...common, paused: false });
+      return {
+        providerResources: {
+          ...result.resources,
+          lifecycleState: result.state,
+          lifecycleUpdatedAt: new Date().toISOString(),
+        },
+        status: "active",
       };
     }
     const state = await readMetaAdsCampaignState(userId, common);
@@ -456,7 +534,7 @@ async function executeRemoteAction(input: {
         lifecycleState: state,
         lifecycleUpdatedAt: new Date().toISOString(),
       },
-      status: state === "active" ? "active" as const : "demo_paused" as const,
+      status: state === "active" ? "active" as const : pausedLocalStatus(campaign),
     };
   }
   const result = request.action === "update"
@@ -469,7 +547,7 @@ async function executeRemoteAction(input: {
         ...(request.changes.targetLocations !== undefined ? { targetLocations: request.changes.targetLocations } : {}),
       },
     })
-    : await setMetaAdsCampaignPaused(userId, { ...common, paused: true });
+    : await setMetaAdsCampaignPaused(userId, { ...common, paused: request.action !== "resume" });
   return {
     providerResources: {
       ...result.resources,
@@ -477,8 +555,8 @@ async function executeRemoteAction(input: {
       lifecycleUpdatedAt: new Date().toISOString(),
     },
     status: result.state === "active" ? "active" as const
-      : result.state === "paused" ? "demo_paused" as const
-        : campaign.status === "demo_paused" ? "demo_paused" as const : "active" as const,
+      : result.state === "paused" ? request.action === "pause" ? "paused" as const : pausedLocalStatus(campaign)
+        : campaign.status === "demo_paused" ? "demo_paused" as const : campaign.status === "paused" ? "paused" as const : "active" as const,
   };
 }
 
@@ -495,16 +573,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (campaign.status === "needs_review" && parsed.request.action !== "reconcile") {
     return NextResponse.json({ error: "Contrôlez d’abord cette campagne sur la plateforme avant de la modifier ou de la réactiver." }, { status: 409 });
   }
+  if (parsed.request.action === "resume" && campaign.status !== "paused") {
+    return NextResponse.json({ error: campaign.status === "demo_paused"
+      ? "Cette ancienne démo en pause ne peut pas être activée depuis iNrSend."
+      : "Seule une campagne réelle en pause peut être reprise." }, { status: 409 });
+  }
+  if (parsed.request.action === "update" && campaign.provider === "pinterest") {
+    return NextResponse.json({ error: "Modifiez les réglages avancés de cette campagne directement dans Pinterest Ads Manager." }, { status: 409 });
+  }
   const pendingRecovery = parsed.request.action === "reconcile" ? lifecycleRecovery(campaign.provider_resources) : null;
   const effectiveRequest: LifecycleClaimRequest = pendingRecovery?.operation === "update"
     ? { action: "update", changes: pendingRecovery.changes || {} }
     : pendingRecovery?.operation === "pause"
       ? { action: "pause", changes: {} }
-      : pendingRecovery?.operation === "delete"
-        ? { action: "delete", changes: {} }
-        : pendingRecovery?.operation === "initial_publish"
-          ? { action: "initial_publish", changes: {}, mode: pendingRecovery.mode }
-          : parsed.request;
+      : pendingRecovery?.operation === "resume"
+        ? { action: "resume", changes: {} }
+        : pendingRecovery?.operation === "delete"
+          ? { action: "delete", changes: {} }
+          : pendingRecovery?.operation === "initial_publish"
+            ? { action: "initial_publish", changes: {}, mode: pendingRecovery.mode }
+            : parsed.request;
   const claimed = await claimCampaign(campaign, user.activeUserId, effectiveRequest);
   if (!claimed.claimedAt) return NextResponse.json({ error: claimed.error }, { status: 409 });
   let providerResources = campaign.provider_resources;

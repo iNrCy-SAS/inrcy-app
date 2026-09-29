@@ -35,7 +35,7 @@ function campaign(provider: string, adAccountId: string) {
     mediaStrategy: "image",
     headlines: ["Préparez votre prochain projet"],
     descriptions: [],
-    keywords: ["idées projet"],
+    keywords: [],
     negativeKeywords: [],
     channelSettings: {
       schemaVersion: 1,
@@ -43,7 +43,7 @@ function campaign(provider: string, adAccountId: string) {
       objectiveType: "CONSIDERATION",
       intendedPromotionType: "STANDARD_AD",
       creativeType: "REGULAR",
-      targetingMode: "keywords",
+      targetingMode: "automatic",
       conversionEvent: null,
     },
   };
@@ -107,17 +107,21 @@ test("the final existing modal adds Active by default and Paused as the alternat
   assert.match(dialog, /Statut au lancement/);
   assert.match(dialog, /value="active"/);
   assert.match(dialog, /value="paused"/);
-  assert.match(client, /mode: paused \? "demo_paused" : "live"/);
+  assert.match(client, /mode: paused \? "paused" : "live"/);
 });
 
 test("Pinterest publication persists the complete hierarchy and the database unlock", () => {
   const publisher = readFileSync(path.join(root, "lib/adsPinterestCampaignPublish.ts"), "utf8");
+  const contract = readFileSync(path.join(root, "lib/adsPinterestPublish.ts"), "utf8");
   const route = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
   const migration = readFileSync(path.join(root, "supabase/migrations/20260929130000_enable_pinterest_ads_publication.sql"), "utf8");
   for (const resource of ["campaignId", "adGroupId", "pinId", "adId"]) assert.match(publisher, new RegExp(resource));
-  assert.match(publisher, /bid_in_micro_currency: bidInMicroCurrency/);
-  assert.match(publisher, /bid_strategy_type: "MAX_BID"/);
-  assert.ok(publisher.indexOf('`${accountPath}/ads`, "PATCH"') < publisher.indexOf('`${accountPath}/campaigns`, "PATCH"'));
+  assert.match(contract, /bid_in_micro_currency: input\.bidInMicroCurrency/);
+  assert.match(contract, /bid_strategy_type: "MAX_BID"/);
+  assert.match(contract, /auto_targeting_enabled: true/);
+  assert.match(contract, /is_removable: true/);
+  assert.ok(contract.indexOf('path: `${accountPath}/ads`') < contract.indexOf('path: `${accountPath}/campaigns`'));
+  assert.match(publisher, /for \(const step of buildPinterestActivationSteps/);
   assert.match(route, /PinterestAdsPublishError/);
   assert.match(route, /Pinterest Ads Manager/);
   assert.match(migration, /'meta'::text, 'google'::text, 'pinterest'::text/);

@@ -5,13 +5,43 @@
     #0b1225 !important;
 }
 
+:global([data-dashboard-settings-modal=true]):has(.content.linkedin) {
+  background:
+    radial-gradient(ellipse at 4% 0, rgba(10, 102, 194, .2), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(14, 165, 233, .12), transparent 52%),
+    #0b1225 !important;
+}
+
+:global([data-dashboard-settings-modal=true]):has(.content.tiktok) {
+  background:
+    radial-gradient(ellipse at 4% 0, rgba(37, 244, 238, .13), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(254, 44, 85, .17), transparent 52%),
+    #0b1225 !important;
+}
+
+:global([data-dashboard-settings-modal=true]):has(.content.pinterest) {
+  background:
+    radial-gradient(ellipse at 4% 0, rgba(230, 0, 35, .21), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(190, 24, 93, .17), transparent 52%),
+    #0b1225 !important;
+}
+
+:global([data-dashboard-settings-modal=true]):has(.content.x) {
+  background:
+    radial-gradient(ellipse at 4% 0, rgba(148, 163, 184, .16), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(71, 85, 105, .18), transparent 52%),
+    #0b1225 !important;
+}
+
 .content {
   box-sizing: border-box;
   width: 100%;
+  max-width: 1920px;
   min-height: 100%;
   margin: 0 auto;
   padding: clamp(18px, 3vh, 36px) clamp(14px, 2.3vw, 42px);
   align-content: start;
+  grid-auto-rows: max-content;
   grid-template-rows: none;
   gap: clamp(12px, 1.5vh, 18px);
   color: #f8faff;
@@ -27,9 +57,32 @@
   --channel-secondary-rgb: 251, 188, 5;
 }
 
+.linkedin {
+  --channel-rgb: 10, 102, 194;
+  --channel-secondary-rgb: 14, 165, 233;
+}
+
+.tiktok {
+  --channel-rgb: 37, 244, 238;
+  --channel-secondary-rgb: 254, 44, 85;
+}
+
+.pinterest {
+  --channel-rgb: 230, 0, 35;
+  --channel-secondary-rgb: 190, 24, 93;
+}
+
+.x {
+  --channel-rgb: 148, 163, 184;
+  --channel-secondary-rgb: 71, 85, 105;
+}
+
 .step {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 0;
+  min-width: 0;
   flex-direction: column;
   justify-content: flex-start;
   border-color: rgba(var(--channel-rgb), .52);
@@ -61,26 +114,33 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
+}
+
+.controlRow > input {
+  flex: 1 1 420px;
+  width: auto !important;
 }
 
 .resourceControls {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
   align-items: end;
+  width: 100%;
   min-width: 0;
   gap: 10px;
 }
 
 .resourceControls > .field {
-  flex: 1 1 520px;
   margin: 0;
 }
 
 .resourceActions {
   display: flex;
-  flex: 0 0 auto;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
   gap: 10px;
   min-width: 0;
 }
@@ -96,9 +156,21 @@
   background: linear-gradient(115deg, rgba(var(--channel-rgb), .42), rgba(var(--channel-secondary-rgb), .34)) !important;
 }
 
+.channelPrimary {
+  border-color: rgba(var(--channel-rgb), .62) !important;
+  background: linear-gradient(115deg, rgba(var(--channel-rgb), .76), rgba(var(--channel-secondary-rgb), .68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 8px 21px rgba(var(--channel-rgb), .2) !important;
+}
+
+.channelPrimary:hover {
+  border-color: rgba(var(--channel-secondary-rgb), .78) !important;
+  background: linear-gradient(115deg, rgba(var(--channel-rgb), .88), rgba(var(--channel-secondary-rgb), .8)) !important;
+}
+
 .controlRow input {
   box-sizing: border-box;
   min-width: 0;
+  min-height: 45px;
   padding: 10px 13px;
   border-radius: 12px;
   border: 1px solid rgba(var(--channel-rgb), .5) !important;
@@ -177,6 +249,25 @@
   line-height: 1.45;
 }
 
+.inlineError {
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid rgba(248, 113, 113, .38);
+  border-radius: 11px;
+  color: #ffe3e9;
+  background: rgba(168, 74, 102, .2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.footnote {
+  margin: 0;
+  color: #aebcda;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .refresh {
   display: inline-flex;
   align-items: center;
@@ -235,9 +326,21 @@
 .done:focus-visible,
 .previous:focus-visible,
 .refresh:focus-visible,
+.controlRow input:focus-visible,
 .field select:focus-visible {
   outline: 2px solid rgb(var(--channel-secondary-rgb));
   outline-offset: 3px;
+}
+
+@media (max-width: 1280px) {
+  .resourceControls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resourceActions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 .content[data-compact] {
@@ -276,6 +379,7 @@
 @media (max-width: 620px) {
   .resourceControls {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .resourceActions {

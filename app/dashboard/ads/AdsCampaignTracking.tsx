@@ -14,7 +14,7 @@ export type StoredAdsCampaign = {
   name: string;
   daily_budget_cents: number;
   end_date: string;
-  status: "draft" | "publishing" | "active" | "needs_review" | "demo_paused";
+  status: "draft" | "publishing" | "active" | "paused" | "needs_review" | "demo_paused";
   draft: AdsCampaignInput;
   provider_resources: Record<string, unknown> | null;
   last_error: string | null;
@@ -49,6 +49,7 @@ const statusLabels: Record<StoredAdsCampaign["status"], string> = {
   draft: "Brouillon",
   publishing: "Création en cours sur la plateforme",
   active: "Activée à la publication",
+  paused: "En pause sur la plateforme",
   needs_review: "Contrôle requis",
   demo_paused: "Démo créée en pause",
 };
@@ -214,7 +215,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
             const minDate = afterEnd > tomorrow ? afterEnd : tomorrow;
             const maxDate = plusUtcDays(89);
             const canExtend = minDate <= maxDate;
-            const canReadMetrics = ["active", "demo_paused", "needs_review"].includes(campaign.status)
+            const canReadMetrics = ["active", "paused", "demo_paused", "needs_review"].includes(campaign.status)
               && (campaign.provider === "google"
                 ? Boolean(googleCampaignId(campaign.provider_resources, campaign.ad_account_id))
                 : campaign.provider === "meta" && Boolean(metaCampaignId(campaign.provider_resources, campaign.ad_account_id)));

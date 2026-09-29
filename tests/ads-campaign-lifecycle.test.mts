@@ -41,10 +41,10 @@ test("les modifications distantes rejettent les valeurs imprécises", () => {
   assert.match(parseAdsCampaignLifecycleRequest({ action: "update", changes: { targetLocations: [] } }, now).error || "", /1 et 20/);
 });
 
-test("la mise en pause ne demande aucun champ éditable et la reprise payante reste interdite ici", () => {
+test("la mise en pause et la reprise ne demandent aucun champ éditable", () => {
   assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "pause" }, now).request, { action: "pause", changes: {} });
+  assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "resume" }, now).request, { action: "resume", changes: {} });
   assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "reconcile" }, now).request, { action: "reconcile", changes: {} });
-  assert.match(parseAdsCampaignLifecycleRequest({ action: "resume" }, now).error || "", /invalide/);
 });
 
 test("seules les campagnes fournisseur identifiées sont gérables", () => {
@@ -57,6 +57,7 @@ test("seules les campagnes fournisseur identifiées sont gérables", () => {
   assert.equal(canManageRemoteAdsCampaign({ ...base, provider_resources: {} }), false);
   assert.equal(canManageRemoteAdsCampaign({ ...base, provider_resources: { imageAssets: { feed: { id: "1" } } } }), false);
   assert.equal(canManageRemoteAdsCampaign({ ...base, provider: "linkedin" }), false);
+  assert.equal(canManageRemoteAdsCampaign({ provider: "pinterest", status: "paused", provider_resources: { campaignId: "123456" } }), true);
 });
 
 test("une création initiale n’est complète qu’avec toute la hiérarchie requise", () => {
@@ -134,4 +135,14 @@ test("la publication initiale conserve un marqueur de reprise jusqu’à sa fina
   assert.match(route, /provider_resources: \{ inrcyLifecycleClaim: initialLifecycleClaim \}/);
   assert.match(route, /provider_resources: \{ \.\.\.resources, inrcyLifecycleClaim: initialLifecycleClaim \}/);
   assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
+});
+
+test("le statut paused réel reste distinct des anciennes démos dans la base et le cycle de reprise", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/20260929213916_ads_real_paused_status.sql", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/lifecycle/route.ts", import.meta.url), "utf8");
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  assert.match(migration, /'active', 'paused', 'needs_review', 'demo_paused'/);
+  assert.match(client, /mode: paused \? "paused" : "live"/);
+  assert.match(route, /action: "resume"/);
+  assert.match(route, /setPinterestAdsCampaignPaused/);
 });

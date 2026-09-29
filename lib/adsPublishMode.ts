@@ -4,9 +4,10 @@ import {
   metaCreativeAssetReadinessReason,
 } from "./adsCampaignMediaPolicy.ts";
 
-export type AdsPublishMode = "live" | "demo_paused";
+export type AdsPublishMode = "live" | "paused" | "demo_paused";
 
 export const ADS_LIVE_PUBLISH_CONFIRMATION = "PUBLIER_ET_DEPENSER";
+export const ADS_PAUSED_PUBLISH_CONFIRMATION = "CREER_CAMPAGNE_EN_PAUSE";
 export const ADS_PAUSED_DEMO_CONFIRMATION = "CREER_DEMO_EN_PAUSE";
 
 type AdsPublishEnvironment = Record<string, string | undefined>;
@@ -16,7 +17,8 @@ type AdsPublishEnvironment = Record<string, string | undefined>;
  * locked unless its own explicit environment flag and confirmation are set.
  */
 export function parseAdsPublishMode(value: unknown): AdsPublishMode {
-  return value === "demo_paused" ? "demo_paused" : "live";
+  if (value === "paused" || value === "demo_paused") return value;
+  return "live";
 }
 
 export function isAdsPublishModeEnabled(mode: AdsPublishMode, environment: AdsPublishEnvironment): boolean {
@@ -26,15 +28,15 @@ export function isAdsPublishModeEnabled(mode: AdsPublishMode, environment: AdsPu
 }
 
 export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown): boolean {
-  return mode === "demo_paused"
-    ? value === ADS_PAUSED_DEMO_CONFIRMATION
-    : value === ADS_LIVE_PUBLISH_CONFIRMATION;
+  if (mode === "demo_paused") return value === ADS_PAUSED_DEMO_CONFIRMATION;
+  if (mode === "paused") return value === ADS_PAUSED_PUBLISH_CONFIRMATION;
+  return value === ADS_LIVE_PUBLISH_CONFIRMATION;
 }
 
 type ConnectorDraft = Pick<AdsCampaignInput,
   "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
   "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType" | "channelSettings"> &
-  Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets">>;
+  Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets" | "keywords">>;
 
 /** The first Google Search adapter has no numeric CPA/ROAS target input. */
 export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
@@ -62,6 +64,12 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     if (!settings) return "Choisissez les réglages Pinterest avant le lancement.";
     if (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION") {
       return "Le lancement Pinterest prend actuellement en charge les objectifs Notoriété et Considération. Les objectifs Vues vidéo, Ventes et Prospects restent disponibles en brouillon.";
+    }
+    if (settings.targetingMode !== "automatic") {
+      return "Le lancement Pinterest prend actuellement en charge le ciblage automatique Pinterest. Les intérêts, mots-clés et audiences restent enregistrables en brouillon jusqu’à leur sélection vérifiée dans le compte.";
+    }
+    if (draft.keywords?.length) {
+      return "Les mots-clés Pinterest ne sont pas publiables automatiquement pour le moment. Retirez-les du lancement réel ou conservez cette configuration en brouillon.";
     }
     if (settings.intendedPromotionType !== "STANDARD_AD" || settings.creativeType !== "REGULAR") {
       return "Le lancement Pinterest prend actuellement en charge une épingle sponsorisée image. Les vidéos, carrousels et catalogues restent disponibles en brouillon.";

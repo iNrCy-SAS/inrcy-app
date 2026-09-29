@@ -1,4 +1,4 @@
-import type { AdsChannelDraft } from "./adsChannelDrafts.ts";
+import { normalizeAdsChannelDraftCompatibility, type AdsChannelDraft } from "./adsChannelDrafts.ts";
 import type { PlannedAdsChannel } from "./adsChannelCapabilities.ts";
 
 /** Local planning choices only. Never serialize these values to an Ads API. */
@@ -39,7 +39,7 @@ export type PinterestWizardSettings = {
   objectiveType: (typeof PINTEREST_WIZARD_OBJECTIVES)[number];
   intendedPromotionType: "STANDARD_AD" | "CATALOG";
   creativeType: "REGULAR" | "VIDEO" | "MAX_VIDEO" | "CAROUSEL" | null;
-  targetingMode: "interests" | "keywords" | "audiences";
+  targetingMode: "automatic" | "interests" | "keywords" | "audiences";
   conversionEvent: "CHECKOUT" | "ADD_TO_CART" | "SIGNUP" | "LEAD" | null;
 };
 export type XWizardSettings = {
@@ -55,29 +55,31 @@ export function defaultAdsChannelWizardSettings(channel: PlannedAdsChannel): Ads
   switch (channel) {
     case "linkedin": return { schemaVersion: 1, channel, objectiveType: "WEBSITE_VISIT", format: "STANDARD_UPDATE", targetingFacet: "titles", locale: { country: "FR", language: "fr" } };
     case "tiktok": return { schemaVersion: 1, channel, objectiveType: "TRAFFIC", format: "video", targetingMode: "broad", placementIntent: "tiktok_only", optimizationIntent: "clicks", destinationKind: "website" };
-    case "pinterest": return { schemaVersion: 1, channel, objectiveType: "CONSIDERATION", intendedPromotionType: "STANDARD_AD", creativeType: "REGULAR", targetingMode: "interests", conversionEvent: null };
+    case "pinterest": return { schemaVersion: 1, channel, objectiveType: "CONSIDERATION", intendedPromotionType: "STANDARD_AD", creativeType: "REGULAR", targetingMode: "automatic", conversionEvent: null };
     case "x": return { schemaVersion: 1, channel, objective: "website_traffic", format: "text", targetingMode: "broad" };
   }
 }
 
 export function adsChannelWizardSettingsFromBrief(brief: AdsChannelDraft): AdsChannelWizardSettings {
-  const defaults = defaultAdsChannelWizardSettings(brief.channel);
-  switch (brief.channel) {
-    case "linkedin": return { ...(defaults as LinkedInWizardSettings), objectiveType: brief.objectiveType, format: brief.format, locale: brief.locale };
-    case "tiktok": return { ...(defaults as TikTokWizardSettings), objectiveType: brief.objectiveType, format: brief.format, placementIntent: brief.placementIntent, optimizationIntent: brief.optimizationIntent, destinationKind: brief.destinationKind };
-    case "pinterest": return { ...(defaults as PinterestWizardSettings), objectiveType: brief.objectiveType, intendedPromotionType: brief.intendedPromotionType, creativeType: brief.creativeType || null, conversionEvent: brief.conversionEvent || null };
-    case "x": return { ...(defaults as XWizardSettings), objective: brief.objective, format: brief.format, targetingMode: brief.targetingMode };
+  const compatibleBrief = normalizeAdsChannelDraftCompatibility(brief) as AdsChannelDraft;
+  const defaults = defaultAdsChannelWizardSettings(compatibleBrief.channel);
+  switch (compatibleBrief.channel) {
+    case "linkedin": return { ...(defaults as LinkedInWizardSettings), objectiveType: compatibleBrief.objectiveType, format: compatibleBrief.format, locale: compatibleBrief.locale };
+    case "tiktok": return { ...(defaults as TikTokWizardSettings), objectiveType: compatibleBrief.objectiveType, format: compatibleBrief.format, placementIntent: compatibleBrief.placementIntent, optimizationIntent: compatibleBrief.optimizationIntent, destinationKind: compatibleBrief.destinationKind };
+    case "pinterest": return { ...(defaults as PinterestWizardSettings), objectiveType: compatibleBrief.objectiveType, intendedPromotionType: compatibleBrief.intendedPromotionType, creativeType: compatibleBrief.creativeType || null, targetingMode: compatibleBrief.targetingMode, conversionEvent: compatibleBrief.conversionEvent || null };
+    case "x": return { ...(defaults as XWizardSettings), objective: compatibleBrief.objective, format: compatibleBrief.format, targetingMode: compatibleBrief.targetingMode };
   }
 }
 
 /** A changed native choice invalidates the AI brief even after a JSON round trip. */
 export function adsChannelWizardSettingsMatchBrief(settings: AdsChannelWizardSettings, brief: AdsChannelDraft): boolean {
-  if (settings.channel !== brief.channel) return false;
+  const compatibleBrief = normalizeAdsChannelDraftCompatibility(brief) as AdsChannelDraft;
+  if (settings.channel !== compatibleBrief.channel) return false;
   switch (settings.channel) {
-    case "linkedin": return brief.channel === "linkedin" && settings.objectiveType === brief.objectiveType && settings.format === brief.format && settings.targetingFacet === "titles" && settings.locale.country === brief.locale.country && settings.locale.language === brief.locale.language;
-    case "tiktok": return brief.channel === "tiktok" && settings.objectiveType === brief.objectiveType && settings.format === brief.format && settings.targetingMode === "broad" && settings.placementIntent === brief.placementIntent && settings.optimizationIntent === brief.optimizationIntent && settings.destinationKind === brief.destinationKind;
-    case "pinterest": return brief.channel === "pinterest" && settings.objectiveType === brief.objectiveType && settings.intendedPromotionType === brief.intendedPromotionType && settings.creativeType === (brief.creativeType || null) && settings.targetingMode === "interests" && settings.conversionEvent === (brief.conversionEvent || null);
-    case "x": return brief.channel === "x" && settings.objective === brief.objective && settings.format === brief.format && settings.targetingMode === brief.targetingMode;
+    case "linkedin": return compatibleBrief.channel === "linkedin" && settings.objectiveType === compatibleBrief.objectiveType && settings.format === compatibleBrief.format && settings.targetingFacet === "titles" && settings.locale.country === compatibleBrief.locale.country && settings.locale.language === compatibleBrief.locale.language;
+    case "tiktok": return compatibleBrief.channel === "tiktok" && settings.objectiveType === compatibleBrief.objectiveType && settings.format === compatibleBrief.format && settings.targetingMode === "broad" && settings.placementIntent === compatibleBrief.placementIntent && settings.optimizationIntent === compatibleBrief.optimizationIntent && settings.destinationKind === compatibleBrief.destinationKind;
+    case "pinterest": return compatibleBrief.channel === "pinterest" && settings.objectiveType === compatibleBrief.objectiveType && settings.intendedPromotionType === compatibleBrief.intendedPromotionType && settings.creativeType === (compatibleBrief.creativeType || null) && settings.targetingMode === compatibleBrief.targetingMode && settings.conversionEvent === (compatibleBrief.conversionEvent || null);
+    case "x": return compatibleBrief.channel === "x" && settings.objective === compatibleBrief.objective && settings.format === compatibleBrief.format && settings.targetingMode === compatibleBrief.targetingMode;
   }
 }
 
@@ -158,7 +160,7 @@ export function parseAdsChannelWizardSettings(
           (catalog && !["CONSIDERATION", "SALES"].includes(raw.objectiveType as string)) ||
           (catalog ? raw.creativeType !== null : !oneOf(raw.creativeType, ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"] as const)) ||
           (raw.objectiveType === "VIDEO_COMPLETION" && !["VIDEO", "MAX_VIDEO"].includes(String(raw.creativeType))) ||
-          !oneOf(raw.targetingMode, ["interests", "keywords", "audiences"] as const) ||
+          !oneOf(raw.targetingMode, ["automatic", "interests", "keywords", "audiences"] as const) ||
           (allowedEvents.length ? !allowedEvents.includes(String(conversion)) : conversion !== null)) break;
       return { settings: raw as PinterestWizardSettings, error: null };
     }

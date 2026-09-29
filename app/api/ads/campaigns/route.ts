@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
-import { isAdsProvider, parseAdsCampaignInput } from "@/lib/adsValidation";
+import { isAdsProvider, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -30,7 +30,10 @@ export async function GET(request: Request) {
     .order("id", { ascending: false })
     .range(offset, offset + CAMPAIGN_PAGE_SIZE - 1);
   if (error) return NextResponse.json({ error: "Le stockage iNr’ADS n’est pas encore prêt. Appliquez la migration ADS." }, { status: 503 });
-  const campaigns = data || [];
+  const campaigns = (data || []).map((campaign) => ({
+    ...campaign,
+    draft: normalizeStoredAdsCampaignDraft(campaign.draft),
+  }));
   const total = count ?? offset + campaigns.length;
   const nextOffset = offset + campaigns.length < total && campaigns.length > 0 ? offset + campaigns.length : null;
   return NextResponse.json({ campaigns, total, nextOffset }, { headers: { "Cache-Control": "no-store" } });

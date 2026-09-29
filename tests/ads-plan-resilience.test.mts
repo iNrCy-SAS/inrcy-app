@@ -63,3 +63,18 @@ test("le délai IA laisse une marge pour rendre la réponse et gérer le crédit
   assert.ok(deadline >= 0 && deadline < reservation);
   assert.doesNotMatch(routeSource, /const generationDeadlineAt = Date\.now\(\) \+ 110_000/);
 });
+
+test("Pinterest impose son schéma natif avant la validation sémantique", () => {
+  assert.match(routeSource, /provider === "pinterest" \? \{ responseSchema: pinterestAdsCampaignPlanResponseSchema\(\) \}/);
+  assert.match(routeSource, /adsCampaignPlanValidationIssueCodes\(rawPlan/);
+});
+
+test("chaque moteur journalise une étape et des codes non sensibles", () => {
+  assert.match(routeSource, /\[ads\.plan\] model attempt rejected/);
+  assert.match(routeSource, /stage: "generation"/);
+  assert.match(routeSource, /stage: "validation"/);
+  assert.match(routeSource, /engineCode: safeEngineErrorCode\(error\)/);
+  assert.match(routeSource, /reasonCode: "ADS_PLAN_RESPONSE_INCOMPLETE"/);
+  assert.match(routeSource, /issueCodes/);
+  assert.doesNotMatch(routeSource, /model attempt rejected", \{[^}]*\b(?:rawPlan|primaryText|pinDescription|system|input)\b/);
+});

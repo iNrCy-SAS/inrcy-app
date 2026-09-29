@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
-import { parseAdsCampaignInput } from "@/lib/adsValidation";
+import { normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft, validateDraftExtension } from "./trackingPolicy";
@@ -19,7 +19,9 @@ export async function GET(_request: Request, context: RouteContext) {
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 });
   if (!data) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
-  return NextResponse.json({ campaign: data }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({
+    campaign: { ...data, draft: normalizeStoredAdsCampaignDraft(data.draft) },
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 async function authorizeDraftMutation(request: Request, context: RouteContext, operation: "extend" | "delete") {

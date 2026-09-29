@@ -21,7 +21,7 @@ export async function GET() {
     const status = !configured ? "not_configured"
       : !integration ? "disconnected" : connected ? "connected" : "needs_reconnect";
     return NextResponse.json({
-      connected, status,
+      configured, connected, status,
       readiness: !connected ? "connection_required"
         : !integration?.resource_id ? "account_selection_required"
           : meta.selected_account_can_manage === true ? "manage_access_last_verified" : "read_only",
@@ -31,12 +31,16 @@ export async function GET() {
       selectedAccountId: integration?.resource_id || null,
       selectedAccountName: integration?.resource_label || null,
       selectedAccountCanManage: connected && meta.selected_account_can_manage === true,
+      selectedAccountCanServe: connected && meta.selected_account_can_serve === true,
       accountVerificationRequired: true,
       refreshAvailable,
       publicationEnabled: false,
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof LinkedInAdsConnectionError ? error.status : 503;
-    return NextResponse.json({ error: "État LinkedIn Ads indisponible.", code: "status_unavailable" }, { status });
+    return NextResponse.json(
+      { error: "État LinkedIn Ads indisponible.", code: "status_unavailable" },
+      { status, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }

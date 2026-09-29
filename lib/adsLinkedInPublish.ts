@@ -126,7 +126,13 @@ export function prepareLinkedInAdsDraftCampaign(
   const scopes = string(evidence.scopes);
   const roles = Array.isArray(account.permissions) ? account.permissions : [];
   const canManage = roles.some((role) => ["CAMPAIGN_MANAGER", "ACCOUNT_MANAGER", "ACCOUNT_BILLING_ADMIN"].includes(String(role))
-    && linkedInAdsCanManageCampaigns(role as LinkedInAdsRole, scopes, string(account.status), string(account.type)));
+    && linkedInAdsCanManageCampaigns(
+      role as LinkedInAdsRole,
+      scopes,
+      string(account.status),
+      string(account.type),
+      string(account.productType),
+    ));
   issue(issues, "account_manage_access_unverified", "account", !canManage || account.canManageCampaigns !== true);
   issue(issues, "account_currency_mismatch", "account.currency", string(account.currency) !== "EUR");
 

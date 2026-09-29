@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ADS_LIVE_PUBLISH_CONFIRMATION,
   ADS_PAUSED_DEMO_CONFIRMATION,
+  ADS_PAUSED_PUBLISH_CONFIRMATION,
   hasAdsPublishConfirmation,
   isAdsPublishModeEnabled,
   parseAdsPublishMode,
@@ -13,13 +14,17 @@ import {
 
 test("la démo Ads reste distincte de la publication réelle", () => {
   assert.equal(parseAdsPublishMode("demo_paused"), "demo_paused");
+  assert.equal(parseAdsPublishMode("paused"), "paused");
   assert.equal(parseAdsPublishMode("anything-else"), "live");
   assert.equal(isAdsPublishModeEnabled("demo_paused", { INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED: "true" }), true);
   assert.equal(isAdsPublishModeEnabled("demo_paused", { INRCY_ADS_LIVE_PUBLISH_ENABLED: "true" }), false);
   assert.equal(isAdsPublishModeEnabled("live", { INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED: "true" }), false);
+  assert.equal(isAdsPublishModeEnabled("paused", { INRCY_ADS_LIVE_PUBLISH_ENABLED: "true" }), true);
   assert.equal(hasAdsPublishConfirmation("demo_paused", ADS_PAUSED_DEMO_CONFIRMATION), true);
   assert.equal(hasAdsPublishConfirmation("demo_paused", ADS_LIVE_PUBLISH_CONFIRMATION), false);
   assert.equal(hasAdsPublishConfirmation("live", ADS_LIVE_PUBLISH_CONFIRMATION), true);
+  assert.equal(hasAdsPublishConfirmation("paused", ADS_PAUSED_PUBLISH_CONFIRMATION), true);
+  assert.equal(hasAdsPublishConfirmation("paused", ADS_PAUSED_DEMO_CONFIRMATION), false);
 });
 
 test("le serveur refuse les formats que les connecteurs Google, Meta et Pinterest ne savent pas publier", () => {
@@ -93,14 +98,35 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
       objectiveType: "CONSIDERATION",
       intendedPromotionType: "STANDARD_AD",
       creativeType: "REGULAR",
-      targetingMode: "keywords",
+      targetingMode: "automatic",
       conversionEvent: null,
     },
   } as Parameters<typeof unsupportedAdsConnectorReason>[0];
   assert.equal(unsupportedAdsConnectorReason(pinterest), null);
+  assert.match(unsupportedAdsConnectorReason({ ...pinterest, keywords: ["idée cadeau"] }) || "", /mots-clés/i);
+  assert.match(unsupportedAdsConnectorReason({
+    ...pinterest,
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "CONSIDERATION",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "keywords",
+      conversionEvent: null,
+    },
+  } as Parameters<typeof unsupportedAdsConnectorReason>[0]) || "", /mots-clés/);
   const unsupportedPinterest = {
     ...pinterest,
-    channelSettings: { ...pinterest.channelSettings!, objectiveType: "SALES" },
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "SALES",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "automatic",
+      conversionEvent: "CHECKOUT",
+    },
   } as Parameters<typeof unsupportedAdsConnectorReason>[0];
   assert.match(unsupportedAdsConnectorReason(unsupportedPinterest) || "", /Notoriété et Considération/);
 
@@ -125,14 +151,19 @@ test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activa
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
   const metaCore = readFileSync(new URL("../lib/adsMetaPublishCore.ts", import.meta.url), "utf8");
   const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
+  const pinterestContract = readFileSync(new URL("../lib/adsPinterestPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(google, /if \(options\.activate === false\) return paused;/);
   assert.match(meta, /activate: shouldActivate/);
   assert.match(metaCore, /if \(!input\.activate\) \{/);
   assert.match(pinterest, /if \(options\.activate !== false\)/);
   assert.match(pinterest, /stage: "paused"/);
-  assert.match(route, /status: pausedDemo \? "demo_paused" : "active"/);
-  assert.match(route, /activate: !pausedDemo/);
+  assert.match(pinterest, /buildPinterestActivationSteps/);
+  assert.ok(pinterestContract.indexOf('stage: "ad_activated"') < pinterestContract.indexOf('stage: "ad_group_activated"'));
+  assert.ok(pinterestContract.indexOf('stage: "ad_group_activated"') < pinterestContract.indexOf('stage: "active"'));
+  assert.match(pinterest, /buildPinterestAdOnlyPinBody/);
+  assert.match(route, /const completedStatus = pausedDemo \? "demo_paused" : pausedLaunch \? "paused" : "active"/);
+  assert.match(route, /activate: !createPaused/);
   assert.match(route, /\.eq\("status", "publishing"\)\s*\.select\("id"\)\.maybeSingle\(\)/);
   assert.match(route, /if \(error \|\| !data\) throw new Error\("Impossible d’enregistrer les identifiants de la plateforme publicitaire\."\)/);
   const progressStart = route.indexOf("const persistProgress = async");
@@ -142,8 +173,9 @@ test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activa
   assert.match(route, /error instanceof MetaAdsPublishError \|\| error instanceof PinterestAdsPublishError[\s\S]*?error\.progress : progress/);
 });
 
-test("un préflight Meta refusé reste corrigeable sans autoriser un doublon après mutation", () => {
+test("un préflight Meta ou Pinterest refusé reste corrigeable sans autoriser un doublon après mutation", () => {
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
+  const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
 
   assert.match(meta, /onProviderMutationStart\?: \(\) => void/);
@@ -156,6 +188,14 @@ test("un préflight Meta refusé reste corrigeable sans autoriser un doublon apr
   assert.match(route, /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
   assert.match(route, /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
   assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
+  assert.match(pinterest, /onProviderMutationStart\?: \(\) => void/);
+  assert.ok(
+    pinterest.indexOf("options.onProviderMutationStart?.();") < pinterest.indexOf("return pinterestAdsRequest(accessToken, path, method, body);"),
+    "la frontière Pinterest doit être signalée juste avant la première mutation fournisseur",
+  );
+  assert.match(route, /let pinterestProviderMutationStarted = false/);
+  assert.match(route, /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
+  assert.match(route, /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
   assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate \|\| pinterestRejectedBeforeCreate/);
 });
 

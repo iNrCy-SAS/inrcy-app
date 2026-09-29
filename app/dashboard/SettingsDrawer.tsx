@@ -22,6 +22,8 @@ type Props = {
   closeOnBackdrop?: boolean;
   /** Autorise la fermeture avec la touche Échap. Activé par défaut. */
   closeOnEscape?: boolean;
+  /** Prépare le portail masqué afin qu'un changement de panneau reste visuellement continu. */
+  keepMounted?: boolean;
   children: React.ReactNode;
 };
 
@@ -41,6 +43,7 @@ export default function SettingsDrawer({
   headerActions,
   closeOnBackdrop = true,
   closeOnEscape = true,
+  keepMounted = false,
   children,
 }: Props) {
   const t = useDashboardI18n();
@@ -48,7 +51,7 @@ export default function SettingsDrawer({
   // Valeurs stables côté serveur/client au premier rendu : évite les erreurs React #418
   // quand le drawer est ouvert directement depuis une URL sur mobile.
   const [portalReady, setPortalReady] = useState(false);
-  const [hasBeenOpened, setHasBeenOpened] = useState(isOpen);
+  const [hasBeenOpened, setHasBeenOpened] = useState(keepMounted || isOpen);
   const [viewportWidth, setViewportWidth] = useState<number>(1440);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
@@ -61,8 +64,8 @@ export default function SettingsDrawer({
   }, []);
 
   useEffect(() => {
-    if (isOpen) setHasBeenOpened(true);
-  }, [isOpen]);
+    if (isOpen || keepMounted) setHasBeenOpened(true);
+  }, [isOpen, keepMounted]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

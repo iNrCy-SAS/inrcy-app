@@ -12,6 +12,9 @@ export async function POST(request: Request) {
     .eq("provider", LINKEDIN_ADS_PROVIDER)
     .eq("source", LINKEDIN_ADS_SOURCE)
     .eq("product", LINKEDIN_ADS_PRODUCT);
-  if (error) return NextResponse.json({ error: "Impossible de déconnecter LinkedIn Ads.", code: "storage_unavailable" }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  if (error) return NextResponse.json(
+    { error: "Impossible de déconnecter LinkedIn Ads.", code: "storage_unavailable" },
+    { status: 500, headers: { "Cache-Control": "no-store" } },
+  );
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

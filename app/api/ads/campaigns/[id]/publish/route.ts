@@ -15,7 +15,7 @@ export const maxDuration = 180;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function withInitialPublishRecovery(resources: Record<string, unknown>, mode: "demo_paused" | "live"): Record<string, unknown> {
+function withInitialPublishRecovery(resources: Record<string, unknown>, mode: "demo_paused" | "paused" | "live"): Record<string, unknown> {
   const recovered = { ...resources };
   delete recovered.inrcyLifecycleClaim;
   recovered.inrcyLifecycleRecovery = {
@@ -34,8 +34,14 @@ export async function POST(request: Request, { params }: RouteContext) {
   const body = await request.json().catch(() => null) as { confirmation?: unknown; mode?: unknown } | null;
   const mode = parseAdsPublishMode(body?.mode);
   const pausedDemo = mode === "demo_paused";
+  const pausedLaunch = mode === "paused";
+  const createPaused = pausedDemo || pausedLaunch;
   if (!hasAdsPublishConfirmation(mode, body?.confirmation)) {
-    return NextResponse.json({ error: pausedDemo ? "Confirmez explicitement la création d’une démo entièrement en pause." : "Confirmez explicitement la publication et la dépense publicitaire." }, { status: 400 });
+    return NextResponse.json({ error: pausedDemo
+      ? "Confirmez explicitement la création d’une démo entièrement en pause."
+      : pausedLaunch
+        ? "Confirmez explicitement la création réelle de la campagne en pause."
+        : "Confirmez explicitement la publication et la dépense publicitaire." }, { status: 400 });
   }
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
@@ -63,7 +69,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   // Meta and Google keep their deployment safety flags. Pinterest is enabled
   // by its Standard API access, fresh OAuth scopes and advertiser checks below.
   if (draft.provider !== "pinterest" && !isAdsPublishModeEnabled(mode, process.env)) {
-    return NextResponse.json({ error: pausedDemo ? "La création en pause est verrouillée dans cet environnement." : "La publication réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
+    return NextResponse.json({ error: pausedDemo
+      ? "La création de démo en pause est verrouillée dans cet environnement."
+      : "La création réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
   }
   const unsupportedReason = unsupportedAdsConnectorReason(draft);
   if (unsupportedReason) {
@@ -169,28 +177,34 @@ export async function POST(request: Request, { params }: RouteContext) {
   try {
     const resources = draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, {
-        activate: !pausedDemo,
+        activate: !createPaused,
         onProviderMutationStart: () => { metaProviderMutationStarted = true; },
       })
       : draft.provider === "pinterest"
         ? await publishPinterestAdsCampaign(user.activeUserId, draft, persistProgress, {
-          activate: !pausedDemo,
+          activate: !createPaused,
           onProviderMutationStart: () => { pinterestProviderMutationStarted = true; },
         })
-        : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !pausedDemo, preparedTargetLocations: preparedGoogleTargetLocations });
+        : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !createPaused, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;
+    const completedAt = new Date().toISOString();
+    const completedStatus = pausedDemo ? "demo_paused" : pausedLaunch ? "paused" : "active";
     const { data: completed, error: finalError } = await supabaseAdmin.from("ads_campaigns").update({
-      status: pausedDemo ? "demo_paused" : "active",
+      status: completedStatus,
       provider_resources: completedResources,
-      published_at: pausedDemo ? null : new Date().toISOString(),
+      published_at: pausedDemo ? null : completedAt,
       last_error: null,
-      updated_at: new Date().toISOString(),
+      updated_at: completedAt,
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing")
       .select("id,status,provider_resources").maybeSingle();
     if (finalError || !completed) {
-      throw new Error(pausedDemo ? "La démo a pu être créée en pause, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative." : "La campagne peut être active, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative.");
+      throw new Error(pausedDemo
+        ? "La démo a pu être créée en pause, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative."
+        : pausedLaunch
+          ? "La campagne a pu être créée en pause, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative."
+          : "La campagne peut être active, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative.");
     }
     return NextResponse.json({ campaign: completed, mode });
   } catch (error) {

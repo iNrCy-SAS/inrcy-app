@@ -3,8 +3,11 @@ import { NextResponse } from "next/server";
 
 import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
 import {
+  adsCampaignPlanValidationIssueCodes,
+  assessAdsCampaignPlanReview,
   isReviewableAdsCampaignPlan,
   normalizeAdsCampaignPlan,
+  pinterestAdsCampaignPlanResponseSchema,
   plannedAdsChannelPlanPrompt,
   type AdsCampaignPlan,
 } from "@/lib/adsCampaignPlan";
@@ -65,6 +68,13 @@ function contextErrorCode(error: unknown) {
   return clean((error as { code?: unknown }).code, 80) || "unknown";
 }
 
+function safeEngineErrorCode(error: unknown) {
+  const candidate = error && typeof error === "object"
+    ? clean((error as { code?: unknown }).code, 80)
+    : "";
+  return /^[A-Za-z0-9_.:-]{1,80}$/.test(candidate) ? candidate : "unknown";
+}
+
 function planRequestId(request: Request) {
   const candidate = getRequestId(request) || "";
   return /^[A-Za-z0-9_-]{8,100}$/.test(candidate) ? candidate : randomUUID();
@@ -91,6 +101,7 @@ function generationFailureCode(error: unknown): PlanFailureCode {
   if (code === "ai_operation_deadline_exceeded" || name === "AbortError" || name === "TimeoutError") return "ADS_PLAN_TIMEOUT";
   if (code === "ai_gateway_rate_limit") return "ADS_PLAN_ENGINE_RATE_LIMITED";
   if (code === "ai_gateway_auth" || code === "ai_gateway_unavailable") return "ADS_PLAN_ENGINE_UNAVAILABLE";
+  if (code === "ai_gateway_invalid_output") return "ADS_PLAN_RESPONSE_INCOMPLETE";
   return "ADS_PLAN_GENERATION_FAILED";
 }
 
@@ -423,25 +434,43 @@ export async function POST(request: Request) {
     stage = "generation";
     const budget = createAiOperationBudget("ads.generate");
     const result = await generateAdsCampaignWithFallback({
-      generate: (model, index) => aiGenerateJSON<Record<string, unknown>>({
-        feature: "ads.generate",
-        accountId: user.activeUserId,
-        budget,
-        model: model,
-        // Ads owns its explicit Claude → Mistral → Gemini chain, including
-        // validation failures. Disable the generic transport/model fallback.
-        allowProviderFallback: false,
-        system: planSystemPrompt(provider),
-        input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}`,
-        maxOutputTokens: 8_000,
-        timeoutMs: [50_000, 34_000, 23_000][index],
-        deadlineAt: generationDeadlineAt,
-        onStage: (attemptStage) => {
-          attemptedStages.push(`${model}:${attemptStage}`);
-          console.info("[ads.plan] generation stage started", { requestId, provider, model, attemptStage });
-        },
-      }),
-      validate: (rawPlan) => {
+      generate: async (model, index) => {
+        try {
+          return await aiGenerateJSON<Record<string, unknown>>({
+            feature: "ads.generate",
+            accountId: user.activeUserId,
+            budget,
+            model: model,
+            // Ads owns its explicit Claude → Mistral → Gemini chain, including
+            // validation failures. Disable the generic transport/model fallback.
+            allowProviderFallback: false,
+            system: planSystemPrompt(provider),
+            input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}`,
+            ...(provider === "pinterest" ? { responseSchema: pinterestAdsCampaignPlanResponseSchema() } : {}),
+            maxOutputTokens: 8_000,
+            timeoutMs: [50_000, 34_000, 23_000][index],
+            deadlineAt: generationDeadlineAt,
+            onStage: (attemptStage) => {
+              attemptedStages.push(`${model}:${attemptStage}`);
+              console.info("[ads.plan] generation stage started", { requestId, provider, model, attemptStage });
+            },
+          });
+        } catch (error) {
+          const trace = getAiGenerationAttemptTrace(error);
+          console.warn("[ads.plan] model attempt rejected", {
+            requestId,
+            provider,
+            model,
+            attempt: index + 1,
+            stage: "generation",
+            reasonCode: generationFailureCode(error),
+            engineCode: safeEngineErrorCode(error),
+            attemptedStages: trace?.stages || [],
+          });
+          throw error;
+        }
+      },
+      validate: (rawPlan, model) => {
         stage = "validation";
         if (provider === "meta") {
           // The assisted path finishes on the currently implemented Meta
@@ -479,6 +508,33 @@ export async function POST(request: Request) {
           services: context.services,
         });
         if (!context.zones.length && !context.localContext.city) candidate.targetLocations = [];
+        const review = assessAdsCampaignPlanReview(candidate, provider);
+        if (!review.reviewable) {
+          const issueCodes = adsCampaignPlanValidationIssueCodes(rawPlan, {
+            provider,
+            companyName,
+            destinationUrl: resolvedDestination.url,
+            locations: targetLocations,
+            audiences: context.audiences,
+            services: context.services,
+          });
+          console.warn("[ads.plan] model attempt rejected", {
+            requestId,
+            provider,
+            model,
+            stage: "validation",
+            reasonCode: "ADS_PLAN_RESPONSE_INCOMPLETE",
+            issueCodes,
+          });
+          return null;
+        }
+        console.info("[ads.plan] model response accepted", {
+          requestId,
+          provider,
+          model,
+          stage: "validation",
+          reasonCode: "ADS_PLAN_RESPONSE_VALID",
+        });
         return planIsReadyForReview(candidate, provider) ? candidate : null;
       },
       onAttempt: (model, index) => {

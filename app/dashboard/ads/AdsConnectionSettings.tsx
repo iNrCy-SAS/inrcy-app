@@ -10,7 +10,6 @@ import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings"
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import {
-  ADS_CHANNELS,
   adsAccountAssociationIssue,
   adsAccountCanBeAssociated,
   type AdsAccount,
@@ -20,10 +19,16 @@ import styles from "./AdsConnectionSettings.module.css";
 
 type ConfigAction = "disconnect" | "save-account" | "clear-account" | "save-page" | "clear-page" | null;
 
+type NavigationTarget = {
+  name: string;
+  onSelect: () => void;
+};
+
 type Props = {
   isOpen: boolean;
   provider: AdsProvider;
-  onSelectProvider: (provider: AdsProvider) => void;
+  previous: NavigationTarget;
+  next: NavigationTarget;
   onClose: () => void;
   connected: boolean;
   connectionStatus: ConnectionDisplayStatus;
@@ -80,7 +85,8 @@ function advertiserAccountLabel(account: AdsAccount) {
 export default function AdsConnectionSettings({
   isOpen,
   provider,
-  onSelectProvider,
+  previous,
+  next,
   onClose,
   connected,
   connectionStatus,
@@ -117,14 +123,7 @@ export default function AdsConnectionSettings({
   }, []);
   useEffect(() => { setStep(0); }, [provider]);
 
-  const settingsChannels = ADS_CHANNELS.filter(
-    (channel): channel is Extract<(typeof ADS_CHANNELS)[number], { id: AdsProvider }> =>
-      channel.id === "meta" || channel.id === "google",
-  );
-  const index = Math.max(0, settingsChannels.findIndex((channel) => channel.id === provider));
-  const current = settingsChannels[index]!;
-  const previous = settingsChannels[(index - 1 + settingsChannels.length) % settingsChannels.length]!;
-  const next = settingsChannels[(index + 1) % settingsChannels.length]!;
+  const current = { label: provider === "meta" ? "Meta Ads" : "Google Ads" };
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const selectedPage = pages.find((page) => page.id === selectedPageId);
   const savedAccount = accounts.find(
@@ -162,11 +161,12 @@ export default function AdsConnectionSettings({
     isOpen={isOpen}
     onClose={onClose}
     presentation="centered"
+    keepMounted
     headerContent={<ChannelSettingsHeader
       name={current.label}
       logoSrc={LOGOS[provider]}
-      previous={{ name: previous.label, onSelect: () => onSelectProvider(previous.id) }}
-      next={{ name: next.label, onSelect: () => onSelectProvider(next.id) }}
+      previous={previous}
+      next={next}
     />}
     headerLead={provider === "meta" ? "Votre espace publicitaire Facebook et Instagram." : "Vos annonces de recherche Google Ads."}
     headerStyle={getChannelSettingsHeaderStyle(provider === "meta" ? "facebook" : "gmb")}

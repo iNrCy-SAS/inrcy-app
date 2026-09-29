@@ -119,12 +119,20 @@
 @media(prefers-reduced-motion:reduce){.page *,.workspace *{transition:none!important;scroll-behavior:auto!important}}
 
 /* Same center / previous / next composition and 58px swipe threshold as the dashboard. */
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="meta"]){--ads-wizard-primary-rgb:24,119,242;--ads-wizard-secondary-rgb:168,85,247}
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="google"]){--ads-wizard-primary-rgb:66,133,244;--ads-wizard-secondary-rgb:251,188,5}
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="linkedin"]){--ads-wizard-primary-rgb:10,102,194;--ads-wizard-secondary-rgb:14,165,233}
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="tiktok"]){--ads-wizard-primary-rgb:37,244,238;--ads-wizard-secondary-rgb:254,44,85}
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="pinterest"]){--ads-wizard-primary-rgb:230,0,35;--ads-wizard-secondary-rgb:190,24,93}
+:global([data-dashboard-settings-modal=true]):has(.studioWorkspace [data-channel="x"]){--ads-wizard-primary-rgb:148,163,184;--ads-wizard-secondary-rgb:71,85,105}
 .modalBrand{font-size:27px;font-weight:950;letter-spacing:-.05em;line-height:1.1;color:#fff}
-.modalBrand>span{color:#dcabff}
+.modalBrand>span{color:rgb(var(--ads-wizard-secondary-rgb,220,171,255))}
 .modalBrand small{display:block;font-size:8px;letter-spacing:.18em;margin-top:6px;color:#b7cbed;font-weight:800}
 .wizardTitle{gap:15px;font-size:24px;letter-spacing:-.025em}
-.wizardTitle small{display:block;font-size:11px;font-weight:650;letter-spacing:.03em;color:#d8bff6;margin-top:5px}
+.wizardTitle small{display:block;font-size:11px;font-weight:650;letter-spacing:.03em;color:rgba(var(--ads-wizard-secondary-rgb,216,191,246),.92);margin-top:5px}
 .wizardTitle .modalSpark{display:grid;place-items:center;flex:0 0 47px;width:47px;height:47px;border:1px solid #e0b4ff73;border-radius:16px;background:linear-gradient(145deg,#7d6eee8c,#db64d182);color:#fff0ff;font-size:29px;box-shadow:0 0 23px #d36cea40}
+.wizardTitle .wizardChannelLogo{display:grid;place-items:center;flex:0 0 47px;width:47px;height:47px;border:1px solid rgba(var(--ads-wizard-secondary-rgb,255,255,255),.58);border-radius:16px;background:radial-gradient(circle at 28% 18%,rgba(255,255,255,.28),transparent 35%),linear-gradient(145deg,rgba(var(--ads-wizard-primary-rgb,125,110,238),.48),rgba(var(--ads-wizard-secondary-rgb,219,100,209),.34));box-shadow:inset 0 1px #ffffff45,0 0 22px rgba(var(--ads-wizard-primary-rgb,3,7,18),.3),0 8px 24px #03071238}
+.wizardTitle .wizardChannelLogo img{width:34px;height:34px;object-fit:contain}
 :global([data-dashboard-settings-modal=true]):has(.workspace){background:radial-gradient(ellipse at 6% 0,#194a8e70,transparent 52%),radial-gradient(ellipse at 100% 100%,#6a237060,transparent 55%),#090f25!important}
 .workspace{width:min(100%,1440px);padding:12px 24px}
 .workspace .card{padding:24px 30px;background-color:#172241}
@@ -204,7 +212,8 @@
   .externalSettingsLogo img{width:24px;height:24px}
 }
 @media(max-width:999px){.campaignCard .formGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.campaignCard .formGrid>.field{grid-column:span 1}.campaignCard .formGrid>.field:nth-child(n+5),.campaignCard[data-channel=google] .formGrid>.field:nth-child(n+5){grid-column:span 2}.workspace{padding:12px}.workspace .card{padding:22px}.wizardTitle{font-size:20px}}
-@media(max-width:600px){.campaignCard .formGrid{grid-template-columns:1fr}.campaignCard .formGrid>.field:nth-child(n+5),.campaignCard[data-channel=google] .formGrid>.field:nth-child(n+5){grid-column:1}.workspace .aiCard,.workspace .publishCard{display:block}.wizardTitle{font-size:16px}.wizardTitle .modalSpark{display:none}.wizardTitle small{font-size:10px}.workspace .card{padding:18px}.workspace .wizardNavigation{gap:8px}}
+@media(max-width:600px){.campaignCard .formGrid{grid-template-columns:1fr}.campaignCard .formGrid>.field:nth-child(n+5),.campaignCard[data-channel=google] .formGrid>.field:nth-child(n+5){grid-column:1}.workspace .aiCard,.workspace .publishCard{display:block}.wizardTitle{gap:9px;font-size:16px}.wizardTitle .modalSpark{display:none}.wizardTitle .wizardChannelLogo{width:34px;height:34px;flex-basis:34px;border-radius:11px}.wizardTitle .wizardChannelLogo img{width:24px;height:24px}.wizardTitle small{font-size:10px}.workspace .card{padding:18px}.workspace .wizardNavigation{gap:8px}}
+@media(max-width:420px){.wizardTitle .wizardChannelLogo{display:none}}
 .page{box-sizing:border-box}
 .channelCard{display:flex;flex-direction:column;flex:1.55 1 0;min-height:0}
 .channelRail{display:flex;justify-content:center;gap:8px;flex:0 0 auto;margin-bottom:12px;overflow-x:auto;padding:3px 0 7px;scrollbar-width:thin}

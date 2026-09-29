@@ -1,5 +1,10 @@
 import { isPlannedAdsChannel } from "./adsChannelCapabilities.ts";
-import { assessAdsChannelDraft, type AdsChannelDraft } from "./adsChannelDrafts.ts";
+import {
+  assessAdsChannelDraft,
+  isLegacyPinterestAdsDraft,
+  normalizeAdsChannelDraftCompatibility,
+  type AdsChannelDraft,
+} from "./adsChannelDrafts.ts";
 import {
   adsChannelWizardSettingsFromBrief,
   adsChannelWizardSettingsMatchBrief,
@@ -310,7 +315,7 @@ function hasExpectedChannelDraftShape(value: Record<string, unknown>, channel: A
   const channelFields: Record<"linkedin" | "tiktok" | "pinterest" | "x", string[]> = {
     linkedin: ["objectiveType", "format", "locale", "creative"],
     tiktok: ["objectiveType", "format", "destinationKind", "placementIntent", "optimizationIntent", "creative"],
-    pinterest: ["objectiveType", "intendedPromotionType", "creativeType", "conversionEvent", "creative"],
+    pinterest: ["objectiveType", "intendedPromotionType", "targetingMode", "creativeType", "conversionEvent", "creative"],
     x: ["objective", "format", "targetingMode", "keywords", "creative"],
   };
   if (!isPlannedAdsChannel(channel) || !onlyDraftKeys(value, [...common, ...channelFields[channel]])) return false;
@@ -347,7 +352,7 @@ function parsePlannedChannelDraft(
   if (!serialised || new TextEncoder().encode(serialised).length > ADS_CHANNEL_DRAFT_MAX_BYTES) {
     return { channelDraft: undefined, error: "Le brief du canal dépasse la taille autorisée." };
   }
-  const candidate: unknown = JSON.parse(serialised);
+  const candidate: unknown = normalizeAdsChannelDraftCompatibility(JSON.parse(serialised));
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return { channelDraft: undefined, error: "Le brief du canal est invalide." };
   }
@@ -372,12 +377,34 @@ function parsePlannedChannelDraft(
 
 export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draft" | "publish" } = {}): { draft: AdsCampaignInput | null; error: string | null } {
   const purpose = options.purpose || "publish";
-  const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  const provider = isAdsChannelId(raw.provider) ? raw.provider : null;
+  const sourceRaw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const provider = isAdsChannelId(sourceRaw.provider) ? sourceRaw.provider : null;
   if (!provider) return { draft: null, error: "Choisissez un canal publicitaire disponible." };
-  if (containsExternalRefs(raw)) {
+  if (containsExternalRefs(sourceRaw)) {
     return { draft: null, error: "Les identifiants publicitaires externes non vérifiés sont interdits dans ce brouillon." };
   }
+  const legacyPinterestDraft = provider === "pinterest" && isLegacyPinterestAdsDraft(sourceRaw.channelDraft);
+  const legacySettingsRecord = sourceRaw.channelSettings && typeof sourceRaw.channelSettings === "object"
+    && !Array.isArray(sourceRaw.channelSettings)
+      ? sourceRaw.channelSettings as Record<string, unknown>
+      : null;
+  const legacySettingsTargetingMode = legacySettingsRecord?.targetingMode;
+  const legacySettingsCanMigrate = legacySettingsRecord?.channel === "pinterest"
+    && legacySettingsRecord.schemaVersion === 1
+    && (
+      !Object.hasOwn(legacySettingsRecord, "targetingMode")
+      || ["automatic", "interests", "keywords", "audiences"].includes(String(legacySettingsTargetingMode))
+    );
+  const legacySettings = legacySettingsCanMigrate
+    ? { ...legacySettingsRecord, targetingMode: "automatic" }
+    : sourceRaw.channelSettings;
+  const raw = legacyPinterestDraft
+    ? {
+        ...sourceRaw,
+        channelDraft: normalizeAdsChannelDraftCompatibility(sourceRaw.channelDraft),
+        ...(sourceRaw.channelSettings == null ? {} : { channelSettings: legacySettings }),
+      }
+    : sourceRaw;
   if (purpose === "publish" && !isAdsDraftAccountChannel(provider)) {
     return { draft: null, error: "La connexion et la publication de ce canal ne sont pas encore disponibles." };
   }
@@ -578,4 +605,17 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     },
     error: null,
   };
+}
+
+/**
+ * Upgrade a valid stored Pinterest v1 draft before returning it to the studio.
+ * Invalid or unrelated payloads are left byte-for-byte untouched; save and
+ * publish paths will still reject them through parseAdsCampaignInput.
+ */
+export function normalizeStoredAdsCampaignDraft(value: unknown): unknown {
+  const raw = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+  if (!raw || raw.provider !== "pinterest" || !isLegacyPinterestAdsDraft(raw.channelDraft)) return value;
+  return parseAdsCampaignInput(raw, { purpose: "draft" }).draft || value;
 }

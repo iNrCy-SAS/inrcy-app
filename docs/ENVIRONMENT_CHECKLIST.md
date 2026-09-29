@@ -188,6 +188,17 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `LINKEDIN_API_VERSION`
 - [ ] `LINKEDIN_SCOPE_OVERRIDES`
 
+### LinkedIn Ads — connexion Marketing séparée
+
+- [ ] `LINKEDIN_ADS_CLIENT_ID`
+- [ ] `LINKEDIN_ADS_CLIENT_SECRET`
+- [ ] `LINKEDIN_ADS_REDIRECT_URI=https://app.inrcy.com/api/ads/linkedin/callback`
+- [ ] `LINKEDIN_ADS_API_VERSION=202609` — facultatif tant que la valeur par défaut du code reste la version active visée
+
+Les variables Ads sont toujours explicites : le serveur ne réutilise jamais implicitement `LINKEDIN_CLIENT_ID` ou `LINKEDIN_CLIENT_SECRET`. LinkedIn permet techniquement d'ajouter le produit Advertising API à une app existante ; une app dédiée Ads reste recommandée pour isoler les scopes, la revue et les secrets. Dans les deux cas, les routes, le callback et la ligne `integrations` (`provider=source=linkedin_ads`, `product=ads`) restent distincts de LinkedIn organique.
+
+Le connecteur demande seulement `r_ads` pour découvrir les comptes ou `rw_ads` pour préparer la gestion de campagnes. `r_ads_reporting` ne doit être ajouté que lorsqu'un vrai parcours de statistiques Ads l'utilise et peut être démontré. Contrôle avant déploiement : `npm run verify:linkedin-ads-env`.
+
 ## X
 
 - [ ] `X_CLIENT_ID`

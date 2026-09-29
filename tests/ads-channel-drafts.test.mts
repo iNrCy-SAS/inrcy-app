@@ -59,6 +59,7 @@ const pinterest: PinterestAdsDraft = {
   audience,
   objectiveType: "LEADS",
   intendedPromotionType: "STANDARD_AD",
+  targetingMode: "automatic",
   creativeType: "REGULAR",
   conversionEvent: "LEAD",
   creative: {

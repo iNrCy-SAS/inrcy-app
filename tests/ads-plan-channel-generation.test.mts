@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  adsCampaignPlanValidationIssueCodes,
   isReviewableAdsCampaignPlan,
   normalizeAdsCampaignPlan,
   normalizePlannedAdsChannelDraft,
+  pinterestAdsCampaignPlanResponseSchema,
   plannedAdsChannelPlanPrompt,
   presentAdsCampaignRationale,
 } from "../lib/adsCampaignPlan.ts";
 import { assessAdsChannelDraft } from "../lib/adsChannelDrafts.ts";
+import { adsChannelWizardSettingsFromBrief } from "../lib/adsChannelWizardSettings.ts";
+import { unsupportedAdsConnectorReason } from "../lib/adsPublishMode.ts";
 
 const trusted = {
   companyName: "Atelier Exemple",
@@ -58,6 +62,7 @@ const drafts = {
     channel: "pinterest",
     objectiveType: "LEADS",
     intendedPromotionType: "STANDARD_AD",
+    targetingMode: "automatic",
     creativeType: "REGULAR",
     conversionEvent: "LEAD",
     creative: {
@@ -173,11 +178,141 @@ test("missing or incompatible native fields fail closed and require the next mod
   assert.equal(noTrustedZone, null);
 });
 
+test("a realistic Pinterest answer survives harmless provider JSON drift without weakening native validation", () => {
+  const raw = {
+    name: "Inspiration locale Pinterest",
+    offer: "Accompagnement professionnel",
+    objective: "website_traffic",
+    conversionGoal: "website_visit",
+    primaryText: "Découvrez une méthode claire pour préparer votre projet local.",
+    mediaStrategy: "image",
+    creativeType: "image",
+    mediaBrief: "Image verticale montrant les étapes concrètes de l’accompagnement.",
+    headlines: ["Préparez votre projet local"],
+    descriptions: ["Une méthode claire et visuelle pour avancer."],
+    keywords: ["préparer projet local", "idées accompagnement"],
+    targetAudiences: ["Personnes préparant un projet local"],
+    channelDraft: {
+      schemaVersion: 1,
+      channel: "Pinterest Ads",
+      // Common multi-provider drift: JSON numbers/casing vary while the
+      // actual strategic values remain explicit and valid.
+      budget: { amount: "25,00", currency: "eur", period: "DAILY", level: "Campaign" },
+      audience: { audienceBrief: "Personnes préparant un projet local" },
+      objectiveType: "consideration",
+      intendedPromotionType: "standard-ad",
+      targetingMode: "AUTOMATIC",
+      creativeType: "regular",
+      conversionEvent: null,
+      creative: {},
+    },
+  };
+  const plan = normalizeAdsCampaignPlan(raw, { provider: "pinterest", ...trusted });
+  assert.equal(isReviewableAdsCampaignPlan(plan, "pinterest"), true);
+  const pinterestDraft = plan.channelDraft?.channel === "pinterest" ? plan.channelDraft : null;
+  assert.ok(pinterestDraft);
+  assert.equal(pinterestDraft.name, raw.name);
+  assert.equal(pinterestDraft.budget.amount, 25);
+  assert.equal(pinterestDraft.budget.currency, "EUR");
+  assert.equal(pinterestDraft.budget.period, "daily");
+  assert.equal(pinterestDraft.budget.level, "campaign");
+  assert.equal(pinterestDraft.targetingMode, "automatic");
+  assert.equal(pinterestDraft.creative.destinationUrl, trusted.destinationUrl);
+  assert.equal(pinterestDraft.creative.pinTitle, raw.headlines[0]);
+  assert.deepEqual(plan.keywords, []);
+  assert.equal(unsupportedAdsConnectorReason({
+    provider: "pinterest",
+    campaignType: plan.campaignType,
+    objective: plan.objective,
+    conversionGoal: plan.conversionGoal,
+    conversionLocation: plan.conversionLocation,
+    bidStrategy: plan.bidStrategy,
+    metaPlacements: plan.metaPlacements,
+    callToAction: plan.callToAction,
+    mediaStrategy: plan.mediaStrategy,
+    creativeType: plan.creativeType,
+    channelSettings: adsChannelWizardSettingsFromBrief(pinterestDraft),
+    creativeUrl: "https://cdn.example.fr/pinterest/image.jpg",
+    keywords: plan.keywords,
+  }), null);
+  assert.deepEqual(adsCampaignPlanValidationIssueCodes(raw, { provider: "pinterest", ...trusted }), []);
+});
+
+test("manual Pinterest targeting modes retain their planning signals", () => {
+  for (const targetingMode of ["interests", "keywords", "audiences"] as const) {
+    const signals = [`signal ${targetingMode}`, "projet local"];
+    const plan = normalizeAdsCampaignPlan({
+      name: "Signaux Pinterest manuels",
+      offer: "Accompagnement professionnel",
+      objective: "website_traffic",
+      conversionGoal: "website_visit",
+      primaryText: "Découvrez une méthode claire pour préparer votre projet local.",
+      mediaStrategy: "image",
+      creativeType: "image",
+      mediaBrief: "Image verticale montrant les étapes concrètes de l’accompagnement.",
+      headlines: ["Préparez votre projet local"],
+      descriptions: ["Une méthode claire et visuelle pour avancer."],
+      keywords: signals,
+      channelDraft: { ...drafts.pinterest, objectiveType: "CONSIDERATION", conversionEvent: null, targetingMode },
+    }, { provider: "pinterest", ...trusted });
+    assert.deepEqual(plan.keywords, signals, targetingMode);
+    assert.equal(plan.channelDraft?.channel === "pinterest" ? plan.channelDraft.targetingMode : null, targetingMode);
+  }
+});
+
+test("Pinterest semantic failures expose only stable issue codes", () => {
+  const raw = {
+    name: "Ventes Pinterest",
+    offer: "Accompagnement professionnel",
+    objective: "sales",
+    conversionGoal: "website_visit",
+    primaryText: "Découvrez notre accompagnement professionnel.",
+    mediaStrategy: "image",
+    creativeType: "image",
+    mediaBrief: "Image verticale montrant le service dans un contexte réel.",
+    headlines: ["Un projet accompagné"],
+    descriptions: ["Une méthode professionnelle à découvrir."],
+    channelDraft: {
+      ...drafts.pinterest,
+      objectiveType: "SALES",
+      conversionEvent: null,
+    },
+  };
+  const issues = adsCampaignPlanValidationIssueCodes(raw, { provider: "pinterest", ...trusted });
+  assert.ok(issues.includes("native_invalid_conversion_event"));
+  assert.equal(issues.some((issue) => issue.includes("Accompagnement")), false);
+});
+
+test("Pinterest generation uses a strict native response schema", () => {
+  const response = pinterestAdsCampaignPlanResponseSchema();
+  assert.equal(response.strict, true);
+  const root = response.schema as { required: string[]; properties: Record<string, unknown> };
+  assert.ok(root.required.includes("channelDraft"));
+  const channelDraft = root.properties.channelDraft as {
+    required: string[];
+    properties: Record<string, { enum?: unknown[]; type?: unknown }>;
+  };
+  for (const field of ["objectiveType", "intendedPromotionType", "targetingMode", "creativeType", "conversionEvent", "budget", "audience", "creative"]) {
+    assert.ok(channelDraft.required.includes(field), field);
+  }
+  assert.deepEqual(channelDraft.properties.targetingMode.enum, ["automatic", "interests", "keywords", "audiences"]);
+  assert.deepEqual(channelDraft.properties.creativeType.type, ["string", "null"]);
+  assert.deepEqual(channelDraft.properties.conversionEvent.type, ["string", "null"]);
+  assert.equal(Object.hasOwn(channelDraft.properties, "externalRefs"), false);
+});
+
 test("native prompts demand a brief only and do not assert publication access", () => {
   for (const channel of ["linkedin", "tiktok", "pinterest", "x"] as const) {
     const prompt = plannedAdsChannelPlanPrompt(channel);
-    assert.match(prompt, /BROUILLON/);
-    assert.match(prompt, /aucun adaptateur de publication/);
+    if (channel === "pinterest") {
+      assert.match(prompt, /publication réelle/);
+      assert.match(prompt, /targetingMode="automatic"/);
+      assert.match(prompt, /keywords=\[\]/);
+      assert.doesNotMatch(prompt, /aucun adaptateur de publication/);
+    } else {
+      assert.match(prompt, /BROUILLON/);
+      assert.match(prompt, /aucun adaptateur de publication/);
+    }
     assert.match(prompt, /N’ajoute PAS externalRefs/);
     assert.match(prompt, /channelDraft/);
     assert.match(prompt, /pas les limites Google de 30\/90/);

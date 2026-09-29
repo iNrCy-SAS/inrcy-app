@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ADS_CHANNEL_DRAFT_MAX_BYTES,
+  normalizeStoredAdsCampaignDraft,
   parseAdsCampaignInput,
 } from "../lib/adsValidation.ts";
 import { normalizePlannedAdsChannelDraft } from "../lib/adsCampaignPlan.ts";
+import { adsChannelWizardSettingsFromBrief } from "../lib/adsChannelWizardSettings.ts";
 
 const endDate = new Date(Date.now() + 8 * 86_400_000).toISOString().slice(0, 10);
 const budget = { amount: 30, currency: "EUR", period: "daily", level: "campaign" };
@@ -24,7 +26,7 @@ const channelDrafts = {
   },
   pinterest: {
     schemaVersion: 1, channel: "pinterest", name: "Service Pinterest Lyon", budget, audience,
-    objectiveType: "LEADS", intendedPromotionType: "STANDARD_AD", creativeType: "REGULAR", conversionEvent: "LEAD",
+    objectiveType: "LEADS", intendedPromotionType: "STANDARD_AD", targetingMode: "automatic", creativeType: "REGULAR", conversionEvent: "LEAD",
     creative: { pinTitle: "Un projet bien accompagné", pinDescription: "Une idée à découvrir pour mieux préparer votre projet.", visualBrief: "Image verticale à créer avec une illustration concrète du service.", destinationUrl: creativeUrl },
   },
   x: {
@@ -81,6 +83,106 @@ test("les briefs normalisés par la génération sont acceptés au stockage", ()
     assert.equal(parsed.error, null, provider);
     assert.deepEqual(parsed.draft?.channelDraft, JSON.parse(JSON.stringify(generated)));
   }
+});
+
+test("un ancien JSON Pinterest v1 sans targetingMode migre vers automatic sur tout le cycle", () => {
+  const legacyChannelDraft = JSON.parse(JSON.stringify(channelDrafts.pinterest)) as Record<string, unknown>;
+  delete legacyChannelDraft.targetingMode;
+  const legacyJson = JSON.stringify({
+    ...campaign("pinterest", legacyChannelDraft),
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "LEADS",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "interests",
+      conversionEvent: "LEAD",
+    },
+  });
+
+  const saved = parseAdsCampaignInput(JSON.parse(legacyJson), { purpose: "draft" });
+  assert.equal(saved.error, null);
+  assert.equal(saved.draft?.channelDraft?.channel, "pinterest");
+  assert.equal(saved.draft?.channelDraft?.channel === "pinterest" ? saved.draft.channelDraft.targetingMode : null, "automatic");
+  assert.equal(saved.draft?.channelSettings?.channel === "pinterest" ? saved.draft.channelSettings.targetingMode : null, "automatic");
+
+  const reopened = normalizeStoredAdsCampaignDraft(JSON.parse(legacyJson)) as { channelDraft?: { targetingMode?: string }; channelSettings?: { targetingMode?: string } };
+  assert.equal(reopened.channelDraft?.targetingMode, "automatic");
+  assert.equal(reopened.channelSettings?.targetingMode, "automatic");
+  const reopenedAgain = parseAdsCampaignInput(JSON.parse(JSON.stringify(reopened)), { purpose: "draft" });
+  assert.equal(reopenedAgain.error, null);
+  assert.equal(reopenedAgain.draft?.channelDraft?.channel === "pinterest" ? reopenedAgain.draft.channelDraft.targetingMode : null, "automatic");
+
+  const planned = normalizePlannedAdsChannelDraft(legacyChannelDraft, {
+    provider: "pinterest",
+    destinationUrl: creativeUrl,
+    locations: ["Lyon, France"],
+    audiences: ["Entreprises locales"],
+  });
+  assert.equal(planned?.channel, "pinterest");
+  assert.equal(planned?.channel === "pinterest" ? planned.targetingMode : null, "automatic");
+  const wizardSettings = planned ? adsChannelWizardSettingsFromBrief(planned) : null;
+  assert.equal(wizardSettings?.channel === "pinterest" ? wizardSettings.targetingMode : null, "automatic");
+});
+
+test("la compatibilité Pinterest v1 ne masque aucun identifiant ni champ invalide", () => {
+  const legacyChannelDraft = JSON.parse(JSON.stringify(channelDrafts.pinterest)) as Record<string, unknown>;
+  delete legacyChannelDraft.targetingMode;
+
+  const withInventedId = parseAdsCampaignInput(campaign("pinterest", {
+    ...legacyChannelDraft,
+    externalRefs: { pinId: "invented" },
+  }), { purpose: "draft" });
+  assert.match(withInventedId.error || "", /identifiants publicitaires/);
+
+  const withUnexpectedId = parseAdsCampaignInput(campaign("pinterest", {
+    ...legacyChannelDraft,
+    pinId: "invented",
+  }), { purpose: "draft" });
+  assert.match(withUnexpectedId.error || "", /champs inattendus/);
+
+  const invalidBudget = parseAdsCampaignInput(campaign("pinterest", {
+    ...legacyChannelDraft,
+    budget: { ...budget, amount: 1 },
+  }), { purpose: "draft" });
+  assert.match(invalidBudget.error || "", /incomplet/);
+
+  const invalidLegacySettings = parseAdsCampaignInput({
+    ...campaign("pinterest", legacyChannelDraft),
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "LEADS",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "invented",
+      conversionEvent: "LEAD",
+    },
+  }, { purpose: "draft" });
+  assert.match(invalidLegacySettings.error || "", /réglages natifs/);
+});
+
+test("un ciblage Pinterest explicite n’est jamais remplacé par la compatibilité legacy", () => {
+  const explicitManual = {
+    ...channelDrafts.pinterest,
+    targetingMode: "interests" as const,
+  };
+  const parsed = parseAdsCampaignInput({
+    ...campaign("pinterest", explicitManual),
+    channelSettings: {
+      schemaVersion: 1,
+      channel: "pinterest",
+      objectiveType: "LEADS",
+      intendedPromotionType: "STANDARD_AD",
+      creativeType: "REGULAR",
+      targetingMode: "interests",
+      conversionEvent: "LEAD",
+    },
+  }, { purpose: "draft" });
+  assert.equal(parsed.error, null);
+  assert.equal(parsed.draft?.channelDraft?.channel === "pinterest" ? parsed.draft.channelDraft.targetingMode : null, "interests");
+  assert.equal(parsed.draft?.channelSettings?.channel === "pinterest" ? parsed.draft.channelSettings.targetingMode : null, "interests");
 });
 
 test("un brief est facultatif en mode manuel et Google/Meta restent inchangés", () => {

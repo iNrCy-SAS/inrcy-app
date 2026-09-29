@@ -85,7 +85,7 @@ function canChangeDraft(campaign: StoredAdsCampaign) {
 }
 
 function canReadMetrics(campaign: StoredAdsCampaign) {
-  if (!["active", "demo_paused", "needs_review"].includes(campaign.status)) return false;
+  if (!["active", "paused", "demo_paused", "needs_review"].includes(campaign.status)) return false;
   return campaign.provider === "google"
     ? Boolean(googleCampaignId(campaign.provider_resources, campaign.ad_account_id))
     : campaign.provider === "meta" && Boolean(metaCampaignId(campaign.provider_resources, campaign.ad_account_id));
@@ -284,6 +284,8 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       setRemoteEditId(null);
       const successMessage = action === "pause"
         ? "La campagne est maintenant en pause sur la plateforme publicitaire."
+        : action === "resume"
+          ? "La campagne est maintenant active sur la plateforme publicitaire."
         : action === "reconcile"
           ? "Le statut de la campagne a été resynchronisé avec la plateforme publicitaire."
         : "La campagne a été mise à jour sur la plateforme publicitaire.";
@@ -342,17 +344,21 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
   const canDiscardLocalRecovery = canDiscardInterruptedInitialPublish(campaign);
   const canManageRemote = canManageRemoteAdsCampaign(campaign);
   const isInterruptedRemoteOperation = canRecoverInterruptedAdsCampaign(campaign);
-  const canMutateRemote = canManageRemote && (campaign.status === "active" || campaign.status === "demo_paused");
+  const canEditRemote = canManageRemote && (campaign.provider === "google" || campaign.provider === "meta")
+    && (campaign.status === "active" || campaign.status === "paused" || campaign.status === "demo_paused");
+  const canToggleRemote = canManageRemote && (campaign.status === "active" || campaign.status === "paused");
+  const canDeleteRemote = canManageRemote && (campaign.provider === "google" || campaign.provider === "meta");
   const canMetrics = canReadMetrics(campaign);
   const remoteEditError = remoteEditValidation(remoteEdit, remoteEditDirty);
   const metricsState = metricsById[campaign.id];
   const minDate = [dayAfter(campaign.end_date), plusUtcDays(1)].sort().at(-1) || "";
   const maxDate = plusUtcDays(90);
-  const accountUrl = campaign.provider === "google" || campaign.provider === "meta"
-    ? getAdsAdvertiserAccountUrl(campaign.provider, campaign.ad_account_id) : null;
+  const accountUrl = getAdsAdvertiserAccountUrl(campaign.provider, campaign.ad_account_id);
   const providerCampaignId = campaign.provider === "google"
     ? googleCampaignId(campaign.provider_resources, campaign.ad_account_id)
-    : campaign.provider === "meta" ? metaCampaignId(campaign.provider_resources, campaign.ad_account_id) : null;
+    : campaign.provider === "meta" ? metaCampaignId(campaign.provider_resources, campaign.ad_account_id)
+      : campaign.provider === "pinterest" && typeof campaign.provider_resources?.campaignId === "string"
+        ? campaign.provider_resources.campaignId : null;
   const campaignFields = [
     field("Compte annonceur", campaign.ad_account_id || "Non associé"),
     field("Identifiant sur la plateforme", providerCampaignId),
@@ -413,12 +419,13 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
                 {minDate <= maxDate && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => { setExtendId(campaign.id); setDeleteId(null); setActionError(""); setNextDate(minDate); }}>Prolonger</button>}
                 <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setActionError(""); }}>Supprimer</button>
               </> : canDiscardLocalRecovery ? <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Nettoyer ce suivi local</button> : isInterruptedRemoteOperation ? <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Contrôler l’opération interrompue"}</button> : canManageRemote ? <>
-                {canMutateRemote && <>
+                {canEditRemote && <>
                   <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => openRemoteEdit(campaign, draft)}>Modifier</button>
-                  {campaign.status === "active" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "pause")}>{busyId === campaign.id ? "Synchronisation…" : "Mettre en pause"}</button>}
                 </>}
-                {!canMutateRemote && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Resynchroniser le statut"}</button>}
-                <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Supprimer</button>
+                {canToggleRemote && campaign.status === "active" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "pause")}>{busyId === campaign.id ? "Synchronisation…" : "Mettre en pause"}</button>}
+                {canToggleRemote && campaign.status === "paused" && <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "resume")}>{busyId === campaign.id ? "Activation…" : "Reprendre la campagne"}</button>}
+                {campaign.status === "needs_review" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Resynchroniser le statut"}</button>}
+                {canDeleteRemote && <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Supprimer</button>}
               </> : null}
               {accountUrl && campaign.status !== "draft" && <a className={mailboxStyles.btnGhost} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir le compte publicitaire ↗</a>}
             </div>
@@ -429,7 +436,8 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         {actionError && <p className={styles.error} role="alert">{actionError}</p>}
         {canDiscardLocalRecovery ? <p className={styles.muted}>Aucun identifiant de campagne distante n’a été enregistré. Contrôlez d’abord le compte publicitaire ; ce nettoyage ne déclenche aucune action sur la plateforme.</p>
           : isInterruptedRemoteOperation ? <p className={styles.muted}>iNrSend vérifie que l’opération est réellement interrompue puis la place en contrôle, sans jamais activer de dépense.</p>
-            : canManageRemote && !canMutateRemote ? <p className={styles.muted}>Cette lecture ne réactive pas la campagne. Une modification interrompue est rejouée de façon idempotente avant d’être enregistrée localement.</p>
+            : campaign.status === "paused" ? <p className={styles.muted}>Cette campagne existe réellement sur la plateforme et reste sans diffusion. Vous pouvez la reprendre ici sans la recréer.</p>
+              : canManageRemote && campaign.status === "needs_review" ? <p className={styles.muted}>Cette lecture ne réactive pas la campagne. Une opération interrompue est vérifiée avant d’être enregistrée localement.</p>
               : !canChange && !canManageRemote ? <p className={styles.muted}>Cette campagne ne dispose pas d’identifiants fournisseur complets. Contrôlez-la sur la plateforme publicitaire.</p>
                 : null}
         {remoteEditId === campaign.id && <form className={`${styles.confirmation} ${styles.editPanel}`} noValidate onSubmit={(event) => { event.preventDefault(); void saveRemoteEdit(campaign); }}>

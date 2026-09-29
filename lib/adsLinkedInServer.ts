@@ -5,8 +5,8 @@ import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import {
   LINKEDIN_ADS_API_VERSION,
   linkedInAdsCanRetainAccount,
+  linkedInAdsHasAccessMode,
   linkedInAdsHasReadAccess,
-  linkedInAdsScopeForMode,
   linkedInAdsScopes,
   normalizeLinkedInAdsAccount,
   normalizeLinkedInAdsAccountUser,
@@ -129,8 +129,14 @@ async function verifiedLinkedInAdsScopes(accessToken: string): Promise<string[]>
     cache: "no-store",
     signal: AbortSignal.timeout(15000),
   });
-  const payload = await response.json().catch(() => ({})) as { active?: boolean; client_id?: string; scope?: string };
-  if (!response.ok || payload.active !== true || (payload.client_id && payload.client_id !== clientId)) {
+  const payload = await response.json().catch(() => ({})) as {
+    active?: boolean;
+    auth_type?: string;
+    client_id?: string;
+    scope?: string;
+  };
+  if (!response.ok || payload.active !== true || (payload.client_id && payload.client_id !== clientId)
+    || (payload.auth_type && payload.auth_type !== "3L")) {
     throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401);
   }
   const scopes = linkedInAdsScopes(payload.scope);
@@ -211,9 +217,8 @@ export async function saveLinkedInAdsConnection(userId: string, token: LinkedInA
   if (!token.access_token || !positiveSeconds(token.expires_in)) {
     throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads invalide.", "authorization_invalid", 401);
   }
-  const requestedScope = linkedInAdsScopeForMode(requestedMode);
   const scopes = await verifiedLinkedInAdsScopes(token.access_token);
-  if (!scopes.includes(requestedScope) || !linkedInAdsHasReadAccess(scopes.join(" "))) {
+  if (!linkedInAdsHasAccessMode(scopes.join(" "), requestedMode)) {
     throw new LinkedInAdsConnectionError("Autorisation LinkedIn Ads requise non accordée.", "missing_scopes", 403);
   }
   // Also verifies that Marketing API access is actually approved for this OAuth app.
@@ -255,6 +260,7 @@ export async function saveLinkedInAdsConnection(userId: string, token: LinkedInA
       selected_account_role: retainAccount ? memberships.find((membership) => membership.id === existing?.resource_id)?.role || null : null,
       // Account status and role must be verified again after every authorization.
       selected_account_can_manage: false,
+      selected_account_can_serve: false,
     },
     updated_at: new Date().toISOString(),
   };
@@ -311,6 +317,7 @@ export async function linkedInAdsAuthorization(userId: string, row?: LinkedInAds
       refresh_expires_at: expiryFromSeconds(refreshed.refresh_token_expires_in) || previousMeta.refresh_expires_at || null,
       // Refresh does not prove the account is still active or that its role is unchanged.
       selected_account_can_manage: false,
+      selected_account_can_serve: false,
     },
     updated_at: new Date().toISOString(),
   }).eq("id", integration.id).eq("user_id", userId);
@@ -349,12 +356,19 @@ export async function selectLinkedInAdsAccount(userId: string, accountId: string
   const selected = accounts.find((account) => account.id === accountId);
   if (!selected) throw new LinkedInAdsConnectionError("Compte LinkedIn Ads inaccessible.", "account_access_denied", 403);
   const previousMeta = asRecord(integration?.meta);
-  const { error } = await supabaseAdmin.from("integrations").update({
+  const { data, error } = await supabaseAdmin.from("integrations").update({
     resource_id: selected.id,
     resource_label: selected.name,
-    meta: { ...previousMeta, selected_account_role: selected.permissions[0], selected_account_can_manage: selected.canManageCampaigns },
+    meta: {
+      ...previousMeta,
+      selected_account_role: selected.permissions[0],
+      selected_account_can_manage: selected.canManageCampaigns,
+      selected_account_can_serve: selected.canServeCampaigns,
+      selected_account_verified_at: new Date().toISOString(),
+    },
     updated_at: new Date().toISOString(),
-  }).eq("id", integration!.id).eq("user_id", userId);
+  }).eq("id", integration!.id).eq("user_id", userId).eq("status", "connected").select("id").maybeSingle();
   if (error) throw new LinkedInAdsConnectionError("Sélection LinkedIn Ads non enregistrée.", "storage_unavailable");
+  if (!data) throw new LinkedInAdsConnectionError("La connexion LinkedIn Ads a changé ; rechargez les comptes.", "connection_changed", 409);
   return selected;
 }

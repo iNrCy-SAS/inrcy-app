@@ -1,20 +1,33 @@
-import type { AdsProvider } from "./adsValidation";
+import type { AdsChannelId } from "./adsValidation";
 
 /**
  * Builds the public manager URL for an advertiser account selected in iNr’ADS.
  *
  * Account identifiers come from third-party APIs, so accept only their known
- * numeric formats before putting them in an external URL. Google displays its
- * customer IDs with optional dashes and Meta often prefixes them with `act_`.
+ * safe formats. Google displays customer IDs with optional dashes and Meta
+ * often prefixes them with `act_`. External managers use stable provider URLs
+ * rather than interpolating an untrusted identifier into their destination.
  */
 export function getAdsAdvertiserAccountUrl(
-  provider: AdsProvider,
+  provider: AdsChannelId,
   rawAccountId: string | null | undefined,
 ): string | null {
-  const accountId = String(rawAccountId ?? "")
-    .trim()
-    .replace(/^act_/i, "")
-    .replace(/-/g, "");
+  const rawId = String(rawAccountId ?? "").trim();
+
+  if (provider === "pinterest") {
+    return /^\d{5,30}$/.test(rawId) ? "https://ads.pinterest.com/" : null;
+  }
+  if (provider === "linkedin") {
+    return /^\d{3,30}$/.test(rawId) ? "https://www.linkedin.com/campaignmanager/" : null;
+  }
+  if (provider === "tiktok") {
+    return /^\d{5,30}$/.test(rawId) ? "https://ads.tiktok.com/i18n/perf/" : null;
+  }
+  if (provider === "x") {
+    return /^[A-Za-z0-9_-]{1,100}$/.test(rawId) ? "https://ads.x.com/" : null;
+  }
+
+  const accountId = rawId.replace(/^act_/i, "").replace(/-/g, "");
 
   if (!/^\d{5,25}$/.test(accountId)) return null;
 
