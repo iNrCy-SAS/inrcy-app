@@ -403,9 +403,48 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         </div>
       </div>
       <div className={`${mailboxStyles.modalBody} ${styles.modalBody}`}>
-        <div className={styles.detailHeading}><div><h2 id="ads-campaign-details-title">{campaign.name || "Campagne sans titre"}</h2><p>{adsChannelLabels[campaign.provider] || campaign.provider} · créée le {adsDateTime(campaign.created_at)}</p></div><span className={styles.status} data-status={campaign.status}>{adsStatusLabels[campaign.status] || "À vérifier"}</span></div>
+        <div className={styles.detailHeading}>
+          <div className={styles.detailTitle}><h2 id="ads-campaign-details-title">{campaign.name || "Campagne sans titre"}</h2><p>{adsChannelLabels[campaign.provider] || campaign.provider} · créée le {adsDateTime(campaign.created_at)}</p></div>
+          <div className={styles.detailHeadingControls}>
+            <span className={styles.status} data-status={campaign.status}>{adsStatusLabels[campaign.status] || "À vérifier"}</span>
+            <div className={`${styles.actions} ${styles.headerActions}`}>
+              {canChange ? <>
+                <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => router.push(`/dashboard/ads?editCampaign=${encodeURIComponent(campaign.id)}`)}>Modifier</button>
+                {minDate <= maxDate && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => { setExtendId(campaign.id); setDeleteId(null); setActionError(""); setNextDate(minDate); }}>Prolonger</button>}
+                <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setActionError(""); }}>Supprimer</button>
+              </> : canDiscardLocalRecovery ? <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Nettoyer ce suivi local</button> : isInterruptedRemoteOperation ? <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Contrôler l’opération interrompue"}</button> : canManageRemote ? <>
+                {canMutateRemote && <>
+                  <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => openRemoteEdit(campaign, draft)}>Modifier</button>
+                  {campaign.status === "active" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "pause")}>{busyId === campaign.id ? "Synchronisation…" : "Mettre en pause"}</button>}
+                </>}
+                {!canMutateRemote && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Resynchroniser le statut"}</button>}
+                <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Supprimer</button>
+              </> : null}
+              {accountUrl && campaign.status !== "draft" && <a className={mailboxStyles.btnGhost} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir le compte publicitaire ↗</a>}
+            </div>
+          </div>
+        </div>
         {actionSuccess && <p className={styles.success} role="status">{actionSuccess}</p>}
         {campaign.last_error && <p className={styles.error} role="alert">Contrôle nécessaire : {campaign.last_error}</p>}
+        {actionError && <p className={styles.error} role="alert">{actionError}</p>}
+        {canDiscardLocalRecovery ? <p className={styles.muted}>Aucun identifiant de campagne distante n’a été enregistré. Contrôlez d’abord le compte publicitaire ; ce nettoyage ne déclenche aucune action sur la plateforme.</p>
+          : isInterruptedRemoteOperation ? <p className={styles.muted}>iNrSend vérifie que l’opération est réellement interrompue puis la place en contrôle, sans jamais activer de dépense.</p>
+            : canManageRemote && !canMutateRemote ? <p className={styles.muted}>Cette lecture ne réactive pas la campagne. Une modification interrompue est rejouée de façon idempotente avant d’être enregistrée localement.</p>
+              : !canChange && !canManageRemote ? <p className={styles.muted}>Cette campagne ne dispose pas d’identifiants fournisseur complets. Contrôlez-la sur la plateforme publicitaire.</p>
+                : null}
+        {remoteEditId === campaign.id && <form className={`${styles.confirmation} ${styles.editPanel}`} noValidate onSubmit={(event) => { event.preventDefault(); void saveRemoteEdit(campaign); }}>
+          <div className={styles.editHeading}><div><strong>Modifier la campagne sur {adsChannelLabels[campaign.provider] || campaign.provider}</strong><p>Les changements seront envoyés à la plateforme avant d’être enregistrés dans iNrSend.</p></div><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Fermer</button></div>
+          <div className={styles.editGrid}>
+            <label>Nom de la campagne<input type="text" minLength={3} maxLength={100} value={remoteEdit.name} onChange={(event) => { setRemoteEdit((current) => ({ ...current, name: event.target.value })); setRemoteEditDirty((current) => ({ ...current, name: true })); }} /></label>
+            <label>Budget quotidien (€)<input type="number" inputMode="decimal" min="5" max="500" step="0.01" value={remoteEdit.dailyBudgetEuros} onChange={(event) => { setRemoteEdit((current) => ({ ...current, dailyBudgetEuros: event.target.value })); setRemoteEditDirty((current) => ({ ...current, dailyBudgetEuros: true })); }} /></label>
+            <label>Date de fin<input type="date" min={plusUtcDays(1)} max={maxDate} value={remoteEdit.endDate} onChange={(event) => { setRemoteEdit((current) => ({ ...current, endDate: event.target.value })); setRemoteEditDirty((current) => ({ ...current, endDate: true })); }} /></label>
+            <label className={styles.editLocations}>Zones ciblées<textarea rows={4} maxLength={2_500} value={remoteEdit.targetLocations} onChange={(event) => { setRemoteEdit((current) => ({ ...current, targetLocations: event.target.value })); setRemoteEditDirty((current) => ({ ...current, targetLocations: true })); }} placeholder="Une zone par ligne, par exemple : Lille&#10;Hauts-de-France" /><small>1 à 20 zones. Les noms sont revalidés par la plateforme.</small></label>
+          </div>
+          <div><button type="submit" className={styles.primary} disabled={busyId === campaign.id || Boolean(remoteEditError)}>{busyId === campaign.id ? "Mise à jour sur la plateforme…" : "Enregistrer sur la plateforme"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Annuler</button></div>
+          {remoteEditError && <small role="status">{remoteEditError}</small>}
+        </form>}
+        {extendId === campaign.id && <div className={styles.confirmation}><label>Nouvelle date de fin du brouillon <input type="date" value={nextDate} min={minDate} max={maxDate} onChange={(event) => setNextDate(event.target.value)} /></label><div><button type="button" className={styles.primary} disabled={busyId === campaign.id || !nextDate || nextDate < minDate || nextDate > maxDate} onClick={() => void extendDraft(campaign)}>{busyId ? "Enregistrement…" : "Enregistrer"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setExtendId(null)} disabled={Boolean(busyId)}>Annuler</button></div><small>Le changement concerne uniquement le brouillon iNr’ADS.</small></div>}
+        {deleteId === campaign.id && <div className={styles.confirmation}><strong>{canChange ? "Supprimer définitivement ce brouillon ?" : canDiscardLocalRecovery ? "Retirer définitivement ce suivi local interrompu ?" : `Supprimer définitivement la campagne sur ${adsChannelLabels[campaign.provider] || campaign.provider} ?`}</strong><p>{canChange ? "Aucune campagne publiée ne sera supprimée." : canDiscardLocalRecovery ? "Vérifiez d’abord le compte publicitaire. Aucun identifiant de campagne n’étant disponible, cette action retire uniquement la ligne iNrSend et ne modifie rien sur la plateforme." : "Cette action supprime la campagne chez le fournisseur puis la retire d’iNrSend. Elle est irréversible."}</p><div><button type="button" className={styles.danger} disabled={busyId === campaign.id} onClick={() => void (canChange ? deleteDraft(campaign) : deleteRemoteCampaign(campaign))}>{busyId ? "Suppression…" : canDiscardLocalRecovery ? "Confirmer le nettoyage local" : "Confirmer la suppression définitive"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setDeleteId(null)} disabled={Boolean(busyId)}>Annuler</button></div></div>}
 
         <div className={styles.detailTabs} role="tablist" aria-label="Détails de la campagne">
           <button id="ads-campaign-info-tab" type="button" role="tab" aria-selected={activeTab === "info"} aria-controls="ads-campaign-info-panel" data-active={activeTab === "info"} onClick={() => setActiveTab("info")}>Infos campagne</button>
@@ -433,44 +472,6 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
           <p className={styles.metricSource}>Les statuts iNr’ADS ne sont pas synchronisés en direct. Vérifiez l’état actuel dans votre compte publicitaire.</p>
         </section>}
 
-        <div className={styles.actions}>
-          {canChange ? <>
-            <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => router.push(`/dashboard/ads?editCampaign=${encodeURIComponent(campaign.id)}`)}>Modifier</button>
-            {minDate <= maxDate && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => { setExtendId(campaign.id); setDeleteId(null); setActionError(""); setNextDate(minDate); }}>Prolonger</button>}
-            <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setActionError(""); }}>Supprimer</button>
-          </> : canDiscardLocalRecovery ? <>
-            <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Nettoyer ce suivi local</button>
-            <span className={styles.muted}>Aucun identifiant de campagne distante n’a été enregistré. Contrôlez d’abord le compte publicitaire ; ce nettoyage ne déclenche aucune action sur la plateforme.</span>
-          </> : isInterruptedRemoteOperation ? <>
-            <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Contrôler l’opération interrompue"}</button>
-            <span className={styles.muted}>iNrSend vérifie que l’opération est réellement interrompue puis la place en contrôle, sans jamais activer de dépense.</span>
-          </> : canManageRemote ? <>
-            {canMutateRemote && <>
-              <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => openRemoteEdit(campaign, draft)}>Modifier</button>
-              {campaign.status === "active" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "pause")}>{busyId === campaign.id ? "Synchronisation…" : "Mettre en pause"}</button>}
-            </>}
-            {!canMutateRemote && <>
-              <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Resynchroniser le statut"}</button>
-              <span className={styles.muted}>Cette lecture ne réactive pas la campagne. Une modification interrompue est rejouée de façon idempotente avant d’être enregistrée localement.</span>
-            </>}
-            <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Supprimer</button>
-          </> : <span className={styles.muted}>Cette campagne ne dispose pas d’identifiants fournisseur complets. Contrôlez-la sur la plateforme publicitaire.</span>}
-          {accountUrl && campaign.status !== "draft" && <a className={mailboxStyles.btnGhost} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir le compte publicitaire ↗</a>}
-        </div>
-        {remoteEditId === campaign.id && <form className={`${styles.confirmation} ${styles.editPanel}`} noValidate onSubmit={(event) => { event.preventDefault(); void saveRemoteEdit(campaign); }}>
-          <div className={styles.editHeading}><div><strong>Modifier la campagne sur {adsChannelLabels[campaign.provider] || campaign.provider}</strong><p>Les changements seront envoyés à la plateforme avant d’être enregistrés dans iNrSend.</p></div><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Fermer</button></div>
-          <div className={styles.editGrid}>
-            <label>Nom de la campagne<input type="text" minLength={3} maxLength={100} value={remoteEdit.name} onChange={(event) => { setRemoteEdit((current) => ({ ...current, name: event.target.value })); setRemoteEditDirty((current) => ({ ...current, name: true })); }} /></label>
-            <label>Budget quotidien (€)<input type="number" inputMode="decimal" min="5" max="500" step="0.01" value={remoteEdit.dailyBudgetEuros} onChange={(event) => { setRemoteEdit((current) => ({ ...current, dailyBudgetEuros: event.target.value })); setRemoteEditDirty((current) => ({ ...current, dailyBudgetEuros: true })); }} /></label>
-            <label>Date de fin<input type="date" min={plusUtcDays(1)} max={maxDate} value={remoteEdit.endDate} onChange={(event) => { setRemoteEdit((current) => ({ ...current, endDate: event.target.value })); setRemoteEditDirty((current) => ({ ...current, endDate: true })); }} /></label>
-            <label className={styles.editLocations}>Zones ciblées<textarea rows={4} maxLength={2_500} value={remoteEdit.targetLocations} onChange={(event) => { setRemoteEdit((current) => ({ ...current, targetLocations: event.target.value })); setRemoteEditDirty((current) => ({ ...current, targetLocations: true })); }} placeholder="Une zone par ligne, par exemple : Lille&#10;Hauts-de-France" /><small>1 à 20 zones. Les noms sont revalidés par la plateforme.</small></label>
-          </div>
-          <div><button type="submit" className={styles.primary} disabled={busyId === campaign.id || Boolean(remoteEditError)}>{busyId === campaign.id ? "Mise à jour sur la plateforme…" : "Enregistrer sur la plateforme"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Annuler</button></div>
-          {remoteEditError && <small role="status">{remoteEditError}</small>}
-        </form>}
-        {extendId === campaign.id && <div className={styles.confirmation}><label>Nouvelle date de fin du brouillon <input type="date" value={nextDate} min={minDate} max={maxDate} onChange={(event) => setNextDate(event.target.value)} /></label><div><button type="button" className={styles.primary} disabled={busyId === campaign.id || !nextDate || nextDate < minDate || nextDate > maxDate} onClick={() => void extendDraft(campaign)}>{busyId ? "Enregistrement…" : "Enregistrer"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setExtendId(null)} disabled={Boolean(busyId)}>Annuler</button></div><small>Le changement concerne uniquement le brouillon iNr’ADS.</small></div>}
-        {deleteId === campaign.id && <div className={styles.confirmation}><strong>{canChange ? "Supprimer définitivement ce brouillon ?" : canDiscardLocalRecovery ? "Retirer définitivement ce suivi local interrompu ?" : `Supprimer définitivement la campagne sur ${adsChannelLabels[campaign.provider] || campaign.provider} ?`}</strong><p>{canChange ? "Aucune campagne publiée ne sera supprimée." : canDiscardLocalRecovery ? "Vérifiez d’abord le compte publicitaire. Aucun identifiant de campagne n’étant disponible, cette action retire uniquement la ligne iNrSend et ne modifie rien sur la plateforme." : "Cette action supprime la campagne chez le fournisseur puis la retire d’iNrSend. Elle est irréversible."}</p><div><button type="button" className={styles.danger} disabled={busyId === campaign.id} onClick={() => void (canChange ? deleteDraft(campaign) : deleteRemoteCampaign(campaign))}>{busyId ? "Suppression…" : canDiscardLocalRecovery ? "Confirmer le nettoyage local" : "Confirmer la suppression définitive"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setDeleteId(null)} disabled={Boolean(busyId)}>Annuler</button></div></div>}
-        {actionError && <p className={styles.error} role="alert">{actionError}</p>}
       </div>
     </div>
   </div>, document.body);
