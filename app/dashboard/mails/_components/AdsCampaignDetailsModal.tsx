@@ -28,6 +28,7 @@ type Props = {
 };
 
 type MetricsState = { status: "loading" | "ready" | "empty" | "error"; metrics?: AdsCampaignMetrics; error?: string };
+type DetailsTab = "info" | "stats";
 type RemoteEditState = {
   name: string;
   dailyBudgetEuros: string;
@@ -130,6 +131,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState<DetailsTab>("info");
 
   onCloseRef.current = onClose;
   busyRef.current = busyId;
@@ -147,6 +149,10 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     setExtendId(null);
     setDeleteId(null);
     setRemoteEditId(null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId) setActiveTab("info");
   }, [selectedId]);
 
   useEffect(() => {
@@ -383,8 +389,8 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     field("Aucune publicité politique UE", draft.notEuPoliticalConfirmed),
   ].filter((entry): entry is { label: string; value: string } => entry !== null);
 
-  return createPortal(<div className={mailboxStyles.modalOverlay} onClick={close}>
-    <div ref={cardRef} className={`${mailboxStyles.modalCard} ${mailboxStyles.detailsModalCard} ${styles.modal}`} role="dialog" aria-modal="true" aria-labelledby="ads-campaign-details-title" onClick={(event) => event.stopPropagation()}>
+  return createPortal(<div className={`${mailboxStyles.modalOverlay} ${styles.fullScreenOverlay}`} onClick={close}>
+    <div ref={cardRef} className={`${mailboxStyles.modalCard} ${mailboxStyles.detailsModalCard} ${styles.modal} ${styles.fullScreenModal}`} role="dialog" aria-modal="true" aria-labelledby="ads-campaign-details-title" onClick={(event) => event.stopPropagation()}>
       <div className={mailboxStyles.modalHeader}>
         <div className={mailboxStyles.modalTitle}>Détails · {adsChannelLabels[campaign.provider] || campaign.provider}</div>
         <div className={mailboxStyles.detailsHeaderActions}>
@@ -401,26 +407,31 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         {actionSuccess && <p className={styles.success} role="status">{actionSuccess}</p>}
         {campaign.last_error && <p className={styles.error} role="alert">Contrôle nécessaire : {campaign.last_error}</p>}
 
-        <section className={styles.section} aria-label="Informations générales"><h3>Informations générales</h3><dl className={styles.detailGrid}>
-          <div><dt>Budget par jour</dt><dd>{Number.isFinite(campaign.daily_budget_cents) ? euro.format(campaign.daily_budget_cents / 100) : "—"}</dd></div>
-          <div><dt>Fin prévue</dt><dd>{adsDate(campaign.end_date)}</dd></div>
-          <div><dt>Publication enregistrée</dt><dd>{adsDateTime(campaign.published_at)}</dd></div>
-          <div><dt>Mode de création</dt><dd>{draft.creationMode === "inrcy" ? "Avec iNr’Cy" : "Manuel"}</dd></div>
-        </dl></section>
+        <div className={styles.detailTabs} role="tablist" aria-label="Détails de la campagne">
+          <button id="ads-campaign-info-tab" type="button" role="tab" aria-selected={activeTab === "info"} aria-controls="ads-campaign-info-panel" data-active={activeTab === "info"} onClick={() => setActiveTab("info")}>Infos campagne</button>
+          <button id="ads-campaign-stats-tab" type="button" role="tab" aria-selected={activeTab === "stats"} aria-controls="ads-campaign-stats-panel" data-active={activeTab === "stats"} onClick={() => setActiveTab("stats")}>Stats</button>
+        </div>
 
-        <section className={styles.section} aria-label="Contenu de la campagne"><h3>Contenu de la campagne</h3><dl className={styles.detailGrid}>
-          {campaignFields.map(({ label, value }) => <div key={label}><dt>{label}</dt><dd>{(label === "Destination" || label.startsWith("Visuel") || label === "Média") && (/^https:\/\//i.test(value) || value.startsWith("/api/")) ? <a href={value} target="_blank" rel="noopener noreferrer">{value} ↗</a> : value}</dd></div>)}
-        </dl>
-          {draft.channelDraft && <details className={styles.advanced}><summary>Brief spécifique au canal</summary><pre>{JSON.stringify(draft.channelDraft, null, 2)}</pre></details>}
-          {draft.channelSettings && <details className={styles.advanced}><summary>Réglages du canal</summary><pre>{JSON.stringify(draft.channelSettings, null, 2)}</pre></details>}
-        </section>
+        {activeTab === "info" ? <div id="ads-campaign-info-panel" className={styles.tabPanel} role="tabpanel" aria-labelledby="ads-campaign-info-tab">
+          <section className={styles.section} aria-label="Informations générales"><h3>Informations générales</h3><dl className={styles.detailGrid}>
+            <div><dt>Budget par jour</dt><dd>{Number.isFinite(campaign.daily_budget_cents) ? euro.format(campaign.daily_budget_cents / 100) : "—"}</dd></div>
+            <div><dt>Fin prévue</dt><dd>{adsDate(campaign.end_date)}</dd></div>
+            <div><dt>Publication enregistrée</dt><dd>{adsDateTime(campaign.published_at)}</dd></div>
+            <div><dt>Mode de création</dt><dd>{draft.creationMode === "inrcy" ? "Avec iNr’Cy" : "Manuel"}</dd></div>
+          </dl></section>
 
-        <section className={styles.section} aria-label="Statistiques de la campagne"><div className={styles.sectionHeading}><h3>Statistiques · 30 derniers jours</h3>{canMetrics && <button type="button" className={mailboxStyles.btnGhost} disabled={metricsState?.status === "loading"} onClick={() => void loadMetrics(campaign)}>{metricsState?.status === "loading" ? "Lecture…" : "Actualiser"}</button>}</div>
+          <section className={styles.section} aria-label="Contenu de la campagne"><h3>Contenu de la campagne</h3><dl className={styles.detailGrid}>
+            {campaignFields.map(({ label, value }) => <div key={label}><dt>{label}</dt><dd>{(label === "Destination" || label.startsWith("Visuel") || label === "Média") && (/^https:\/\//i.test(value) || value.startsWith("/api/")) ? <a href={value} target="_blank" rel="noopener noreferrer">{value} ↗</a> : value}</dd></div>)}
+          </dl>
+            {draft.channelDraft && <details className={styles.advanced}><summary>Brief spécifique au canal</summary><pre>{JSON.stringify(draft.channelDraft, null, 2)}</pre></details>}
+            {draft.channelSettings && <details className={styles.advanced}><summary>Réglages du canal</summary><pre>{JSON.stringify(draft.channelSettings, null, 2)}</pre></details>}
+          </section>
+        </div> : <section id="ads-campaign-stats-panel" className={`${styles.section} ${styles.tabPanel}`} role="tabpanel" aria-labelledby="ads-campaign-stats-tab" aria-label="Statistiques de la campagne"><div className={styles.sectionHeading}><h3>Statistiques · 30 derniers jours</h3>{canMetrics && <button type="button" className={mailboxStyles.btnGhost} disabled={metricsState?.status === "loading"} onClick={() => void loadMetrics(campaign)}>{metricsState?.status === "loading" ? "Lecture…" : "Actualiser"}</button>}</div>
           {metricsState?.status === "ready" && metricsState.metrics ? <><p className={styles.metricSource}>{metricsState.metrics.source === "google" ? "Google Ads" : "Meta Ads"} · relevé le {adsDateTime(metricsState.metrics.fetchedAt)}</p><dl className={styles.metricsGrid}>
             <div><dt>Impressions</dt><dd>{number.format(metricsState.metrics.impressions)}</dd></div><div><dt>Clics</dt><dd>{number.format(metricsState.metrics.clicks)}</dd></div><div><dt>Dépenses</dt><dd>{euro.format(metricsState.metrics.spendEuros)}</dd></div><div><dt>Conversions</dt><dd>{metricsState.metrics.conversions === null ? "Non harmonisées" : number.format(metricsState.metrics.conversions)}</dd></div>
           </dl></> : <p className={styles.metricSource} role={metricsState?.status === "error" ? "alert" : "status"}>{metricsState?.status === "loading" ? "Lecture des performances sur la plateforme…" : metricsState?.status === "empty" ? "Aucune donnée de diffusion retournée." : metricsState?.status === "error" ? metricsState.error : campaign.status === "draft" ? "Brouillon non diffusé : aucune statistique." : "Statistiques indisponibles pour ce canal ou cet état."}</p>}
           <p className={styles.metricSource}>Les statuts iNr’ADS ne sont pas synchronisés en direct. Vérifiez l’état actuel dans votre compte publicitaire.</p>
-        </section>
+        </section>}
 
         <div className={styles.actions}>
           {canChange ? <>

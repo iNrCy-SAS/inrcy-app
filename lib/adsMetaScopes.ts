@@ -5,11 +5,15 @@
  * choose a Facebook Page, and resolve its linked professional Instagram identity.
  * `instagram_business_basic` intentionally does not belong here: it is for the
  * separate Instagram Login product and cannot replace this Page-linked Ads flow.
+ * `ads_read` is requested explicitly because iNr’Send calls the Ads Insights
+ * endpoint for campaign reporting. Keeping it in the OAuth consent also aligns
+ * the granted permissions with the App Review evidence for that feature.
  * `business_management` is not needed for the current `/me/adaccounts` and
  * `/me/accounts` calls, so it is intentionally not requested.
  */
 export const META_ADS_REQUIRED_PERMISSIONS = [
   "ads_management",
+  "ads_read",
   "pages_show_list",
   "pages_read_engagement",
   "instagram_basic",
