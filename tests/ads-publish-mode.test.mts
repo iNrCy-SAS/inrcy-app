@@ -131,7 +131,7 @@ test("un préflight Meta refusé reste corrigeable sans autoriser un doublon apr
   assert.match(route, /onProviderMutationStart: \(\) => \{ metaProviderMutationStarted = true; \}/);
   assert.match(route, /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
   assert.match(route, /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
-  assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : resources/);
+  assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
   assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate/);
 });
 

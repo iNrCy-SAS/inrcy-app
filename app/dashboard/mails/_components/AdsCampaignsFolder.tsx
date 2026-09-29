@@ -36,12 +36,12 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
   const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setLoadError("");
     try {
       const result = await loadCampaignPage();
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       const loaded = Array.isArray(result.campaigns) ? result.campaigns : [];
       const count = typeof result.total === "number" ? result.total : loaded.length;
       setCampaigns(loaded);
@@ -50,8 +50,10 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
       setNextOffset(typeof result.nextOffset === "number" ? result.nextOffset : null);
       setSelectedId((current) => current && loaded.some((campaign) => campaign.id === current) ? current : null);
       onCountChange(count);
+      return true;
     } catch (error) {
       if (mounted.current) setLoadError(error instanceof Error ? error.message : "Campagnes indisponibles.");
+      return false;
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -92,7 +94,7 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
 
   return <div className={styles.root}>
     <div className={styles.toolbar}>
-      <div><h2>Campagnes Ads</h2><span>{total} campagne{total > 1 ? "s" : ""} enregistrée{total > 1 ? "s" : ""}</span></div>
+      <div><h2>ADS</h2><span>{total} campagne{total > 1 ? "s" : ""} publicitaire{total > 1 ? "s" : ""} enregistrée{total > 1 ? "s" : ""}</span></div>
       <button type="button" className={mailboxStyles.btnGhost} disabled={loading} onClick={() => void refresh()} aria-label="Actualiser les campagnes Ads">↻ Actualiser</button>
     </div>
     {loadError && <p className={styles.error} role="alert">{loadError} <button type="button" onClick={() => void refresh()}>Réessayer</button></p>}
@@ -108,8 +110,7 @@ export default function AdsCampaignsFolder({ onCountChange }: { onCountChange: (
         {loading && campaigns.length === 0 ? <p className={styles.empty} role="status">Chargement de vos campagnes…</p>
           : loadError && campaigns.length === 0 ? <p className={styles.empty}>La liste des campagnes est momentanément indisponible.</p>
             : visibleCampaigns.length === 0 ? <div className={styles.empty}>Aucune campagne enregistrée pour le moment. <button type="button" className={mailboxStyles.btnGhost} onClick={() => router.push("/dashboard/ads")}>Voir les canaux</button></div>
-            : visibleCampaigns.map((campaign) => <div key={campaign.id} className={mailboxStyles.item} role="button" tabIndex={0}
-              onClick={() => setSelectedId(campaign.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedId(campaign.id); } }}>
+            : visibleCampaigns.map((campaign) => <div key={campaign.id} className={mailboxStyles.item}>
               <div className={`${mailboxStyles.itemTop} ${styles.columns} ${styles.row}`}>
                 <div className={`${mailboxStyles.fromRow} ${styles.rowTitle}`}><span className={mailboxStyles.from} title={campaign.name}>{campaign.name || "Campagne sans titre"}</span></div>
                 <div className={`${mailboxStyles.itemMid} ${styles.channel}`}>

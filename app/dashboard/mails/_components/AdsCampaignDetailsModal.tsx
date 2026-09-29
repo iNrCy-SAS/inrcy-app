@@ -5,6 +5,14 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { StoredAdsCampaign } from "@/app/dashboard/ads/AdsCampaignTracking";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
+import {
+  ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION,
+  ADS_REMOTE_DELETE_CONFIRMATION,
+  canDiscardInterruptedInitialPublish,
+  canManageRemoteAdsCampaign,
+  canRecoverInterruptedAdsCampaign,
+  type AdsCampaignLifecycleAction,
+} from "@/lib/adsCampaignLifecycle";
 import { googleCampaignId, metaCampaignId, type AdsCampaignMetrics } from "@/lib/adsCampaignMetrics";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
 import { adsChannelLabels, adsDate, adsDateTime, adsStatusLabels } from "./adsCampaignsFolder.shared";
@@ -16,12 +24,20 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onClose: () => void;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<boolean>;
 };
 
 type MetricsState = { status: "loading" | "ready" | "empty" | "error"; metrics?: AdsCampaignMetrics; error?: string };
+type RemoteEditState = {
+  name: string;
+  dailyBudgetEuros: string;
+  endDate: string;
+  targetLocations: string;
+};
+type RemoteEditDirty = Record<keyof RemoteEditState, boolean>;
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
+const cleanRemoteEditDirty = (): RemoteEditDirty => ({ name: false, dailyBudgetEuros: false, endDate: false, targetLocations: false });
 
 function plusUtcDays(days: number) {
   const now = new Date();
@@ -31,6 +47,34 @@ function plusUtcDays(days: number) {
 function dayAfter(value: string) {
   const timestamp = Date.parse(`${value}T00:00:00.000Z`);
   return Number.isFinite(timestamp) ? new Date(timestamp + 86_400_000).toISOString().slice(0, 10) : plusUtcDays(1);
+}
+
+function remoteLocations(value: string) {
+  return value.split(/\r?\n|;/).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function remoteEditValidation(state: RemoteEditState, dirty: RemoteEditDirty): string | null {
+  if (!Object.values(dirty).some(Boolean)) return "Modifiez au moins un champ avant d’enregistrer.";
+  if (dirty.name && (state.name.trim().length < 3 || state.name.trim().length > 100)) {
+    return "Le nom doit contenir entre 3 et 100 caractères.";
+  }
+  if (dirty.dailyBudgetEuros) {
+    const amount = Number(state.dailyBudgetEuros);
+    const cents = Math.round(amount * 100);
+    if (!Number.isFinite(amount) || amount < 5 || amount > 500 || Math.abs(cents - amount * 100) > 0.000001) {
+      return "Le budget doit être compris entre 5 et 500 €, avec deux décimales maximum.";
+    }
+  }
+  if (dirty.endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(state.endDate) || state.endDate < plusUtcDays(1) || state.endDate > plusUtcDays(90))) {
+    return "La date de fin doit être comprise entre demain et dans 90 jours.";
+  }
+  if (dirty.targetLocations) {
+    const locations = remoteLocations(state.targetLocations);
+    if (!locations.length || locations.length > 20 || locations.some((entry) => entry.length > 120)) {
+      return "Indiquez entre 1 et 20 zones, une par ligne.";
+    }
+  }
+  return null;
 }
 
 function canChangeDraft(campaign: StoredAdsCampaign) {
@@ -79,6 +123,9 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
   const [metricsById, setMetricsById] = useState<Record<string, MetricsState>>({});
   const [extendId, setExtendId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [remoteEditId, setRemoteEditId] = useState<string | null>(null);
+  const [remoteEdit, setRemoteEdit] = useState<RemoteEditState>({ name: "", dailyBudgetEuros: "", endDate: "", targetLocations: "" });
+  const [remoteEditDirty, setRemoteEditDirty] = useState<RemoteEditDirty>(cleanRemoteEditDirty);
   const [nextDate, setNextDate] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
@@ -99,6 +146,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     setActionSuccess("");
     setExtendId(null);
     setDeleteId(null);
+    setRemoteEditId(null);
   }, [selectedId]);
 
   useEffect(() => {
@@ -111,7 +159,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         if (!busyRef.current) onCloseRef.current();
       }
       if (event.key !== "Tab" || !cardRef.current) return;
-      const elements = Array.from(cardRef.current.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],input:not(:disabled),summary"));
+      const elements = Array.from(cardRef.current.querySelectorAll<HTMLElement>("button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),summary"));
       if (!elements.length) return;
       if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements.at(-1)?.focus(); }
       else if (!event.shiftKey && document.activeElement === elements.at(-1)) { event.preventDefault(); elements[0]?.focus(); }
@@ -144,6 +192,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     if (busyId) return;
     setExtendId(null);
     setDeleteId(null);
+    setRemoteEditId(null);
     setActionError("");
     onClose();
   }
@@ -153,6 +202,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     if (!next || busyId) return;
     setExtendId(null);
     setDeleteId(null);
+    setRemoteEditId(null);
     setActionError("");
     setActionSuccess("");
     onSelect(next.id);
@@ -166,10 +216,11 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       await readActionResponse(await fetch(`/api/ads/campaigns/${encodeURIComponent(current.id)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endDate: nextDate }),
       }));
-      await onRefresh();
+      const refreshed = await onRefresh();
       setExtendId(null);
       setNextDate("");
-      setActionSuccess("La date de fin du brouillon a été mise à jour.");
+      if (refreshed) setActionSuccess("La date de fin du brouillon a été mise à jour.");
+      else setActionError("La date a bien été enregistrée, mais la liste n’a pas pu être actualisée.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Impossible de prolonger ce brouillon.");
     } finally {
@@ -193,14 +244,104 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     }
   }
 
+  function openRemoteEdit(current: StoredAdsCampaign, currentDraft: Partial<AdsCampaignInput>) {
+    setRemoteEditId(current.id);
+    setExtendId(null);
+    setDeleteId(null);
+    setActionError("");
+    setActionSuccess("");
+    setRemoteEdit({
+      name: current.name || "",
+      dailyBudgetEuros: Number.isFinite(current.daily_budget_cents) ? (current.daily_budget_cents / 100).toFixed(2) : "",
+      endDate: current.end_date || "",
+      targetLocations: Array.isArray(currentDraft.targetLocations) ? currentDraft.targetLocations.join("\n") : "",
+    });
+    setRemoteEditDirty(cleanRemoteEditDirty());
+  }
+
+  async function runRemoteAction(
+    current: StoredAdsCampaign,
+    action: AdsCampaignLifecycleAction,
+    changes?: Record<string, unknown>,
+  ) {
+    if (busyId) return;
+    setBusyId(current.id);
+    setActionError("");
+    setActionSuccess("");
+    try {
+      await readActionResponse(await fetch(`/api/ads/campaigns/${encodeURIComponent(current.id)}/lifecycle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...(changes ? { changes } : {}) }),
+      }));
+      const refreshed = await onRefresh();
+      setRemoteEditId(null);
+      const successMessage = action === "pause"
+        ? "La campagne est maintenant en pause sur la plateforme publicitaire."
+        : action === "reconcile"
+          ? "Le statut de la campagne a été resynchronisé avec la plateforme publicitaire."
+        : "La campagne a été mise à jour sur la plateforme publicitaire.";
+      if (refreshed) setActionSuccess(successMessage);
+      else setActionError(`${successMessage} La liste iNrSend n’a toutefois pas pu être actualisée.`);
+    } catch (error) {
+      if (action === "reconcile") await onRefresh();
+      setActionError(error instanceof Error ? error.message : "Impossible de gérer cette campagne.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveRemoteEdit(current: StoredAdsCampaign) {
+    const validationError = remoteEditValidation(remoteEdit, remoteEditDirty);
+    if (validationError) {
+      setActionError(validationError);
+      return;
+    }
+    await runRemoteAction(current, "update", {
+      ...(remoteEditDirty.name ? { name: remoteEdit.name } : {}),
+      ...(remoteEditDirty.dailyBudgetEuros ? { dailyBudgetEuros: Number(remoteEdit.dailyBudgetEuros) } : {}),
+      ...(remoteEditDirty.endDate ? { endDate: remoteEdit.endDate } : {}),
+      ...(remoteEditDirty.targetLocations ? { targetLocations: remoteLocations(remoteEdit.targetLocations) } : {}),
+    });
+  }
+
+  async function deleteRemoteCampaign(current: StoredAdsCampaign) {
+    if (busyId) return;
+    setBusyId(current.id);
+    setActionError("");
+    try {
+      await readActionResponse(await fetch(`/api/ads/campaigns/${encodeURIComponent(current.id)}/lifecycle`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmation: canDiscardInterruptedInitialPublish(current)
+            ? ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION
+            : ADS_REMOTE_DELETE_CONFIRMATION,
+        }),
+      }));
+      onClose();
+      setDeleteId(null);
+      await onRefresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Impossible de supprimer cette campagne.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (!portalReady || !campaign) return null;
 
   const draft: Partial<AdsCampaignInput> = campaign.draft && typeof campaign.draft === "object" ? campaign.draft : {};
   const canChange = canChangeDraft(campaign);
+  const canDiscardLocalRecovery = canDiscardInterruptedInitialPublish(campaign);
+  const canManageRemote = canManageRemoteAdsCampaign(campaign);
+  const isInterruptedRemoteOperation = canRecoverInterruptedAdsCampaign(campaign);
+  const canMutateRemote = canManageRemote && (campaign.status === "active" || campaign.status === "demo_paused");
   const canMetrics = canReadMetrics(campaign);
+  const remoteEditError = remoteEditValidation(remoteEdit, remoteEditDirty);
   const metricsState = metricsById[campaign.id];
   const minDate = [dayAfter(campaign.end_date), plusUtcDays(1)].sort().at(-1) || "";
-  const maxDate = plusUtcDays(89);
+  const maxDate = plusUtcDays(90);
   const accountUrl = campaign.provider === "google" || campaign.provider === "meta"
     ? getAdsAdvertiserAccountUrl(campaign.provider, campaign.ad_account_id) : null;
   const providerCampaignId = campaign.provider === "google"
@@ -286,11 +427,38 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
             <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => router.push(`/dashboard/ads?editCampaign=${encodeURIComponent(campaign.id)}`)}>Modifier</button>
             {minDate <= maxDate && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => { setExtendId(campaign.id); setDeleteId(null); setActionError(""); setNextDate(minDate); }}>Prolonger</button>}
             <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setActionError(""); }}>Supprimer</button>
-          </> : <span className={styles.muted}>Après lancement, la modification et la suppression doivent se faire sur la plateforme publicitaire.</span>}
+          </> : canDiscardLocalRecovery ? <>
+            <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Nettoyer ce suivi local</button>
+            <span className={styles.muted}>Aucun identifiant de campagne distante n’a été enregistré. Contrôlez d’abord le compte publicitaire ; ce nettoyage ne déclenche aucune action sur la plateforme.</span>
+          </> : isInterruptedRemoteOperation ? <>
+            <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Contrôler l’opération interrompue"}</button>
+            <span className={styles.muted}>iNrSend vérifie que l’opération est réellement interrompue puis la place en contrôle, sans jamais activer de dépense.</span>
+          </> : canManageRemote ? <>
+            {canMutateRemote && <>
+              <button type="button" className={styles.primary} disabled={Boolean(busyId)} onClick={() => openRemoteEdit(campaign, draft)}>Modifier</button>
+              {campaign.status === "active" && <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "pause")}>{busyId === campaign.id ? "Synchronisation…" : "Mettre en pause"}</button>}
+            </>}
+            {!canMutateRemote && <>
+              <button type="button" className={mailboxStyles.btnGhost} disabled={Boolean(busyId)} onClick={() => void runRemoteAction(campaign, "reconcile")}>{busyId === campaign.id ? "Contrôle…" : "Resynchroniser le statut"}</button>
+              <span className={styles.muted}>Cette lecture ne réactive pas la campagne. Une modification interrompue est rejouée de façon idempotente avant d’être enregistrée localement.</span>
+            </>}
+            <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { setDeleteId(campaign.id); setExtendId(null); setRemoteEditId(null); setActionError(""); }}>Supprimer</button>
+          </> : <span className={styles.muted}>Cette campagne ne dispose pas d’identifiants fournisseur complets. Contrôlez-la sur la plateforme publicitaire.</span>}
           {accountUrl && campaign.status !== "draft" && <a className={mailboxStyles.btnGhost} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir le compte publicitaire ↗</a>}
         </div>
+        {remoteEditId === campaign.id && <form className={`${styles.confirmation} ${styles.editPanel}`} noValidate onSubmit={(event) => { event.preventDefault(); void saveRemoteEdit(campaign); }}>
+          <div className={styles.editHeading}><div><strong>Modifier la campagne sur {adsChannelLabels[campaign.provider] || campaign.provider}</strong><p>Les changements seront envoyés à la plateforme avant d’être enregistrés dans iNrSend.</p></div><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Fermer</button></div>
+          <div className={styles.editGrid}>
+            <label>Nom de la campagne<input type="text" minLength={3} maxLength={100} value={remoteEdit.name} onChange={(event) => { setRemoteEdit((current) => ({ ...current, name: event.target.value })); setRemoteEditDirty((current) => ({ ...current, name: true })); }} /></label>
+            <label>Budget quotidien (€)<input type="number" inputMode="decimal" min="5" max="500" step="0.01" value={remoteEdit.dailyBudgetEuros} onChange={(event) => { setRemoteEdit((current) => ({ ...current, dailyBudgetEuros: event.target.value })); setRemoteEditDirty((current) => ({ ...current, dailyBudgetEuros: true })); }} /></label>
+            <label>Date de fin<input type="date" min={plusUtcDays(1)} max={maxDate} value={remoteEdit.endDate} onChange={(event) => { setRemoteEdit((current) => ({ ...current, endDate: event.target.value })); setRemoteEditDirty((current) => ({ ...current, endDate: true })); }} /></label>
+            <label className={styles.editLocations}>Zones ciblées<textarea rows={4} maxLength={2_500} value={remoteEdit.targetLocations} onChange={(event) => { setRemoteEdit((current) => ({ ...current, targetLocations: event.target.value })); setRemoteEditDirty((current) => ({ ...current, targetLocations: true })); }} placeholder="Une zone par ligne, par exemple : Lille&#10;Hauts-de-France" /><small>1 à 20 zones. Les noms sont revalidés par la plateforme.</small></label>
+          </div>
+          <div><button type="submit" className={styles.primary} disabled={busyId === campaign.id || Boolean(remoteEditError)}>{busyId === campaign.id ? "Mise à jour sur la plateforme…" : "Enregistrer sur la plateforme"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setRemoteEditId(null)} disabled={Boolean(busyId)}>Annuler</button></div>
+          {remoteEditError && <small role="status">{remoteEditError}</small>}
+        </form>}
         {extendId === campaign.id && <div className={styles.confirmation}><label>Nouvelle date de fin du brouillon <input type="date" value={nextDate} min={minDate} max={maxDate} onChange={(event) => setNextDate(event.target.value)} /></label><div><button type="button" className={styles.primary} disabled={busyId === campaign.id || !nextDate || nextDate < minDate || nextDate > maxDate} onClick={() => void extendDraft(campaign)}>{busyId ? "Enregistrement…" : "Enregistrer"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setExtendId(null)} disabled={Boolean(busyId)}>Annuler</button></div><small>Le changement concerne uniquement le brouillon iNr’ADS.</small></div>}
-        {deleteId === campaign.id && <div className={styles.confirmation}><strong>Supprimer définitivement ce brouillon ?</strong><p>Aucune campagne publiée ne sera supprimée.</p><div><button type="button" className={styles.danger} disabled={busyId === campaign.id} onClick={() => void deleteDraft(campaign)}>{busyId ? "Suppression…" : "Confirmer la suppression"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setDeleteId(null)} disabled={Boolean(busyId)}>Annuler</button></div></div>}
+        {deleteId === campaign.id && <div className={styles.confirmation}><strong>{canChange ? "Supprimer définitivement ce brouillon ?" : canDiscardLocalRecovery ? "Retirer définitivement ce suivi local interrompu ?" : `Supprimer définitivement la campagne sur ${adsChannelLabels[campaign.provider] || campaign.provider} ?`}</strong><p>{canChange ? "Aucune campagne publiée ne sera supprimée." : canDiscardLocalRecovery ? "Vérifiez d’abord le compte publicitaire. Aucun identifiant de campagne n’étant disponible, cette action retire uniquement la ligne iNrSend et ne modifie rien sur la plateforme." : "Cette action supprime la campagne chez le fournisseur puis la retire d’iNrSend. Elle est irréversible."}</p><div><button type="button" className={styles.danger} disabled={busyId === campaign.id} onClick={() => void (canChange ? deleteDraft(campaign) : deleteRemoteCampaign(campaign))}>{busyId ? "Suppression…" : canDiscardLocalRecovery ? "Confirmer le nettoyage local" : "Confirmer la suppression définitive"}</button><button type="button" className={mailboxStyles.btnGhost} onClick={() => setDeleteId(null)} disabled={Boolean(busyId)}>Annuler</button></div></div>}
         {actionError && <p className={styles.error} role="alert">{actionError}</p>}
       </div>
     </div>

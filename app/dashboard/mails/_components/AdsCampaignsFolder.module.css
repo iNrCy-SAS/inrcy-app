@@ -1,7 +1,7 @@
 .root{display:flex;flex:1;min-height:0;flex-direction:column;color:#f7f8ff}
 .root button{font:inherit;cursor:pointer}
 .root button:disabled{cursor:not-allowed;opacity:.5}
-.root button:focus-visible,.root a:focus-visible,.root input:focus-visible{outline:2px solid #9be0ff;outline-offset:2px}
+.root button:focus-visible,.root a:focus-visible,.root input:focus-visible,.root textarea:focus-visible,.modal button:focus-visible,.modal a:focus-visible,.modal input:focus-visible,.modal textarea:focus-visible{outline:2px solid #9be0ff;outline-offset:2px}
 .toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 16px;border-bottom:1px solid #ffffff20}
 .toolbar h2{margin:0 0 3px;font-size:16px;line-height:1.2}
 .toolbar span{color:#adbfdb;font-size:11px}
@@ -52,5 +52,15 @@
 .confirmation input{min-height:37px;padding:7px 10px;border:1px solid #9fb3e577;border-radius:9px;color:#fff;background:#0d1b39;color-scheme:dark}
 .confirmation>div{display:flex;flex-wrap:wrap;gap:8px}
 .confirmation p,.confirmation small{margin:0;color:#b9c9e2;font-size:11px}
+.editPanel{width:100%}
+.editHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;width:100%}
+.editHeading>div{display:grid;gap:5px}
+.editHeading p{max-width:720px}
+.editGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}
+.editGrid label{align-content:start}
+.editGrid input,.editGrid textarea{box-sizing:border-box;width:100%;min-height:40px;padding:9px 11px;border:1px solid #9fb3e577;border-radius:10px;color:#fff;background:#0d1b39;color-scheme:dark;font:inherit;resize:vertical}
+.editLocations{grid-column:1/-1}
+.editLocations small{font-weight:500}
 @media(max-width:950px){.detailGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.metricsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.toolbar{padding:10px 12px}.toolbar h2{font-size:14px}.toolbar button{font-size:11px}.row{grid-template-columns:minmax(0,1fr) 74px!important;grid-template-areas:"title action" "meta action";gap:3px 10px}.rowTitle{grid-area:title}.channel{grid-area:meta!important;text-align:left!important;display:block!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.statusCell,.row> :nth-child(4){display:none}.row> :last-child{grid-area:action}.mobileSummary{display:inline;font-weight:650}.modalBody{padding:12px!important}.detailHeading{flex-direction:column;gap:8px}.detailGrid{grid-template-columns:1fr}.metricsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:950px){.editGrid{grid-template-columns:1fr 1fr}.editLocations{grid-column:1/-1}}
+@media(max-width:640px){.toolbar{padding:10px 12px}.toolbar h2{font-size:14px}.toolbar button{font-size:11px}.row{grid-template-columns:minmax(0,1fr) 74px!important;grid-template-areas:"title action" "meta action";gap:3px 10px}.rowTitle{grid-area:title}.channel{grid-area:meta!important;text-align:left!important;display:block!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.statusCell,.row> :nth-child(4){display:none}.row> :last-child{grid-area:action}.mobileSummary{display:inline;font-weight:650}.modalBody{padding:12px!important}.detailHeading{flex-direction:column;gap:8px}.detailGrid{grid-template-columns:1fr}.metricsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.editHeading{align-items:stretch;flex-direction:column}.editGrid{grid-template-columns:1fr}.editLocations{grid-column:auto}}

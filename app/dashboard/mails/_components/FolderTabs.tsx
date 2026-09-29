@@ -37,8 +37,8 @@ export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, coun
         className={`${styles.folderTabBtn} ${adsTab.active ? styles.folderTabBtnActive : ""}`}
         onClick={adsTab.onSelect}
         type="button"
-        title="Campagnes Ads"
-      ><span className={styles.folderTabLabel}>Campagnes Ads</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
+        title="ADS"
+      ><span className={styles.folderTabLabel}>ADS</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
     </div>
   );
 }

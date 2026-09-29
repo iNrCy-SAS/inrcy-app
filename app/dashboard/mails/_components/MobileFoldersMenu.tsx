@@ -49,7 +49,7 @@ export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder,
             className={`${styles.mobileFolderBtn} ${adsTab.active ? styles.mobileFolderBtnActive : ""}`}
             onClick={() => { adsTab.onSelect(); onClose(); }}
             type="button"
-          ><span>Campagnes Ads</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
+          ><span>ADS</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
         </div>
       </div>
     </div>

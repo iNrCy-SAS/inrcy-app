@@ -13,6 +13,18 @@ export const maxDuration = 180;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function withInitialPublishRecovery(resources: Record<string, unknown>, mode: "demo_paused" | "live"): Record<string, unknown> {
+  const recovered = { ...resources };
+  delete recovered.inrcyLifecycleClaim;
+  recovered.inrcyLifecycleRecovery = {
+    operation: "initial_publish",
+    previousStatus: null,
+    mode,
+    recoveredAt: new Date().toISOString(),
+  };
+  return recovered;
+}
+
 export async function POST(request: Request, { params }: RouteContext) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
   const { user, errorResponse } = await requirePremiumAdsUser();
@@ -100,6 +112,28 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "La publication a déjà été lancée. Vérifiez le statut avant de réessayer." }, { status: 409 });
   }
 
+  const initialClaimedAt = new Date().toISOString();
+  const initialLifecycleClaim = {
+    claimedAt: initialClaimedAt,
+    previousStatus: "draft",
+    operation: "initial_publish",
+    mode,
+  };
+  const { data: markedClaim, error: markedClaimError } = await supabaseAdmin.from("ads_campaigns").update({
+    provider_resources: { inrcyLifecycleClaim: initialLifecycleClaim },
+    updated_at: initialClaimedAt,
+  }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing")
+    .select("id").maybeSingle();
+  if (markedClaimError || !markedClaim) {
+    await supabaseAdmin.from("ads_campaigns").update({
+      status: "draft",
+      provider_resources: {},
+      last_error: "La création n’a pas démarré : le verrou de reprise n’a pas pu être enregistré.",
+      updated_at: new Date().toISOString(),
+    }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
+    return NextResponse.json({ error: "La création n’a pas démarré. Réessayez après avoir actualisé iNr’ADS." }, { status: 503 });
+  }
+
   let progress: Record<string, unknown> = {};
   let metaProviderMutationStarted = false;
   const persistProgress = async (resources: Record<string, unknown>) => {
@@ -107,7 +141,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     // The recovery path can then record them under needs_review instead of {}.
     progress = resources;
     const { data, error } = await supabaseAdmin.from("ads_campaigns").update({
-      provider_resources: resources,
+      provider_resources: { ...resources, inrcyLifecycleClaim: initialLifecycleClaim },
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing")
       .select("id").maybeSingle();
@@ -154,7 +188,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate;
     await supabaseAdmin.from("ads_campaigns").update({
       status: rejectedBeforeCreate ? "draft" : "needs_review",
-      provider_resources: rejectedBeforeCreate ? {} : resources,
+      provider_resources: rejectedBeforeCreate ? {} : withInitialPublishRecovery(resources, mode),
       last_error: message.slice(0, 1000),
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
