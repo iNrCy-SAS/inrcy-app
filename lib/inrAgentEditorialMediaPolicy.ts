@@ -1,10 +1,34 @@
+import { normalizeInrAgentPublicationMediaTypes } from "./inrAgentSettings.ts";
+
 export const INR_AGENT_EDITORIAL_VIDEO_RATIO = 0.1;
 export const INR_AGENT_EDITORIAL_MIN_SLOTS_FOR_VIDEO = 8;
 
+export type InrAgentPublicationMedia = {
+  mediaKind: "image" | "video";
+  imageCount: 0 | 1 | 3;
+  videoDurationSeconds?: 8;
+};
+
+/** A one-based publication ordinal, independent of the visible planning window. */
+export function inrAgentPublicationMediaAt(
+  sequence: number,
+  mediaTypes: unknown,
+): InrAgentPublicationMedia {
+  const ordinal = Number.isFinite(sequence) ? Math.max(1, Math.floor(sequence)) : 1;
+  const position = (ordinal - 1) % 10;
+  const selected = normalizeInrAgentPublicationMediaTypes(mediaTypes);
+  if (selected.video && position === 9) {
+    return { mediaKind: "video", imageCount: 0, videoDurationSeconds: 8 };
+  }
+  return {
+    mediaKind: "image",
+    imageCount: selected.carousel && (position === 3 || position === 7) ? 3 : 1,
+  };
+}
+
 /**
- * Videos stay exceptional in an automatically generated editorial calendar.
- * A short plan contains images only; longer plans target roughly one video for
- * ten publications. YouTube-only plans are handled separately by the planner.
+ * Legacy mix retained for historical callers. New plans and instant preparation
+ * use inrAgentPublicationMediaAt and the professional's explicit opt-in choices.
  */
 export function inrAgentEditorialVideoCount(totalSlotsRaw: number): number {
   const totalSlots = Math.max(0, Math.floor(Number(totalSlotsRaw) || 0));

@@ -11,15 +11,31 @@ class ConnectionError extends Error {
   constructor(message: string, code: string, status = 503) { super(message); this.code = code; this.status = status; }
 }
 
-function moduleFromFile(path: string, imports: Record<string, unknown>, fetcher?: typeof fetch) {
+type PublishProgress = Record<string, unknown>;
+type PublisherModule = {
+  publishPinterestAdsCampaign: (userId: string, draft: unknown, persist: (progress: PublishProgress) => Promise<void>, options?: { activate?: boolean }) => Promise<PublishProgress>;
+};
+type ProviderCall = { path: string; method: string; body: unknown };
+
+function record(value: unknown): Record<string, unknown> {
+  assert.ok(value !== null && typeof value === "object" && !Array.isArray(value));
+  return value as Record<string, unknown>;
+}
+
+function batchItem(call: ProviderCall | undefined): Record<string, unknown> {
+  assert.ok(call && Array.isArray(call.body));
+  return record(call.body[0]);
+}
+
+function moduleFromFile<T>(path: string, imports: Record<string, unknown>, fetcher?: typeof fetch): T {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  const exports: Record<string, (...args: any[]) => any> = {};
+  const exports: Record<string, unknown> = {};
   new Function("exports", "require", "fetch", compiled)(exports, (id: string) => {
     assert.ok(id in imports, `Unexpected dependency: ${id}`);
     return imports[id];
   }, fetcher);
-  return exports;
+  return exports as T;
 }
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/targeting-catalog-fr.json", import.meta.url), "utf8"));
@@ -29,7 +45,7 @@ const account = { id: "123456", currency: "EUR", country: "FR", canManageCampaig
 
 function routeHarness(overrides: { auth?: unknown; accounts?: unknown[]; limited?: Response; failure?: Error } = {}) {
   const calls: string[] = [];
-  const route = moduleFromFile("../../app/api/ads/pinterest/targeting/route.ts", {
+  const route = moduleFromFile<{ GET: (request: Request) => Promise<Response> }>("../../app/api/ads/pinterest/targeting/route.ts", {
     "next/server": { NextResponse: { json: (value: unknown, init: ResponseInit) => Response.json(value, init) } },
     "@/lib/adsServer": { requirePremiumAdsUser: async (channel: string) => { calls.push(`auth:${channel}`); return overrides.auth || { user: { activeUserId: "user-one" }, errorResponse: null }; } },
     "@/lib/adsPinterestLocations": locations,
@@ -84,7 +100,7 @@ test("targeting never exposes unknown exception details", async () => {
 
 test("targeting catalog cache is isolated by user and account and reads only provider resources", async () => {
   const calls: string[] = [];
-  const service = moduleFromFile("../../lib/adsPinterestTargetingServer.ts", {
+  const service = moduleFromFile<{ listPinterestAdsGeographyOptions: (userId: string, accountId: string, connection: typeof integration) => Promise<typeof options> }>("../../lib/adsPinterestTargetingServer.ts", {
     "server-only": {},
     "./adsPinterestLocations": locations,
     "./adsPinterestServer": {
@@ -111,8 +127,8 @@ test("targeting catalog cache is isolated by user and account and reads only pro
 });
 
 function publisherHarness(rejectActivation = false) {
-  const calls: { path: string; method: string; body: any }[] = [];
-  const publisher = moduleFromFile("../../lib/adsPinterestCampaignPublish.ts", {
+  const calls: ProviderCall[] = [];
+  const publisher = moduleFromFile<PublisherModule>("../../lib/adsPinterestCampaignPublish.ts", {
     "server-only": {},
     "./adsPinterestPublish.ts": publish,
     "./adsPinterestServer.ts": { pinterestAdsAccessToken: async () => "fake-token" },
@@ -123,10 +139,10 @@ function publisherHarness(rejectActivation = false) {
   }, async (url, init) => {
     const path = new URL(String(url)).pathname;
     const method = String(init?.method);
-    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+    const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     calls.push({ path, method, body });
     if (method === "GET") return Response.json(fixture[path.split("/").at(-1)!]);
-    if (method === "PATCH") return Response.json({ items: [{ data: { id: body[0].id, status: "ACTIVE" }, exceptions: rejectActivation ? [{ message: "declined" }] : [] }] });
+    if (method === "PATCH") return Response.json({ items: [{ data: { id: batchItem({ path, method, body }).id, status: "ACTIVE" }, exceptions: rejectActivation ? [{ message: "declined" }] : [] }] });
     if (path.endsWith("/pins")) return Response.json({ id: "333333" });
     const id = path.endsWith("/campaigns") ? "111111" : path.endsWith("/ad_groups") ? "222222" : "444444";
     return Response.json({ items: [{ data: { id, status: "PAUSED" }, exceptions: [] }] });
@@ -146,41 +162,41 @@ const campaign = {
 
 test("Pinterest actual publisher validates local catalog and sends targeting and UTM on paused resources", async () => {
   const { publisher, calls } = publisherHarness();
-  const progress: any[] = [];
-  const result = await publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage: unknown) => { progress.push(stage); }, { activate: false });
+  const progress: PublishProgress[] = [];
+  const result = await publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage) => { progress.push(stage); }, { activate: false });
   assert.equal(result.stage, "paused");
   assert.equal(result.initialActivationPending, true);
   assert.deepEqual(calls.slice(0, 3).map((call) => call.method), ["GET", "GET", "GET"]);
   assert.deepEqual(calls.filter((call) => call.method === "POST").map((call) => call.path.split("/").at(-1)), ["campaigns", "ad_groups", "pins", "ads"]);
-  assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/ad_groups"))?.body[0].targeting_spec, { LOCATION: ["250059"], LOCALE: ["fr"] });
-  assert.equal(calls.find((call) => call.path.endsWith("/pins"))?.body.link, "https://example.fr/offre?utm_source=pinterest&utm_campaign=locale");
-  assert.equal(calls.find((call) => call.path.endsWith("/ads"))?.body[0].destination_url, "https://example.fr/offre?utm_source=pinterest&utm_campaign=locale");
+  assert.deepEqual(batchItem(calls.find((call) => call.method === "POST" && call.path.endsWith("/ad_groups"))).targeting_spec, { LOCATION: ["250059"], LOCALE: ["fr"] });
+  assert.equal(record(calls.find((call) => call.path.endsWith("/pins"))?.body).link, "https://example.fr/offre?utm_source=pinterest&utm_campaign=locale");
+  assert.equal(batchItem(calls.find((call) => call.path.endsWith("/ads"))).destination_url, "https://example.fr/offre?utm_source=pinterest&utm_campaign=locale");
   assert.equal(calls.some((call) => call.method === "PATCH"), false);
-  assert.equal(progress.at(-1).stage, "paused");
+  assert.equal(progress.at(-1)?.stage, "paused");
 });
 
 test("Pinterest actual publisher rejects unsupported local targets and languages before any write", async () => {
   for (const change of [{ targetLocations: ["Lille"] }, { languages: ["unknown"] }]) {
     const { publisher, calls } = publisherHarness();
-    await assert.rejects(publisher.publishPinterestAdsCampaign("user-one", { ...campaign, ...change }, async () => {}), (error: any) => error.mutationStarted === false && /unique/.test(error.message));
+    await assert.rejects(publisher.publishPinterestAdsCampaign("user-one", { ...campaign, ...change }, async () => {}), (error: unknown) => error instanceof Error && "mutationStarted" in error && error.mutationStarted === false && /unique/.test(error.message));
     assert.equal(calls.some((call) => call.method !== "GET"), false);
   }
 });
 
 test("Pinterest actual publisher never reports an item-level activation failure as active", async () => {
   const { publisher, calls } = publisherHarness(true);
-  const progress: any[] = [];
-  await assert.rejects(publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage: unknown) => { progress.push(stage); }), (error: any) => error.mutationStarted === true && /pas confirmé/.test(error.message));
+  const progress: PublishProgress[] = [];
+  await assert.rejects(publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage) => { progress.push(stage); }), (error: unknown) => error instanceof Error && "mutationStarted" in error && error.mutationStarted === true && /pas confirmé/.test(error.message));
   assert.equal(calls.filter((call) => call.method === "PATCH").length, 1);
   assert.equal(progress.some((item) => item.stage === "active"), false);
-  assert.equal(progress.at(-1).stage, "ad_created");
-  assert.equal(progress.at(-1).initialActivationPending, true);
+  assert.equal(progress.at(-1)?.stage, "ad_created");
+  assert.equal(progress.at(-1)?.initialActivationPending, true);
 });
 
 test("Pinterest consumes the initial activation marker only after the campaign is activated last", async () => {
   const { publisher, calls } = publisherHarness();
-  const progress: any[] = [];
-  const result = await publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage: unknown) => { progress.push(stage); });
+  const progress: PublishProgress[] = [];
+  const result = await publisher.publishPinterestAdsCampaign("user-one", campaign, async (stage) => { progress.push(stage); });
   assert.equal(result.stage, "active");
   assert.equal(result.initialActivationPending, false);
   assert.equal(calls.at(-1)?.path, "/v5/ad_accounts/123456/campaigns");

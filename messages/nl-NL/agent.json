@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "Mediatypen",
+  "publication_media_single_image": "1 afbeelding",
+  "publication_media_video": "Video van 8 s",
+  "publication_media_carousel": "3 afbeeldingen",
   "1_fois_par_mois_a9697a49": "Eenmaal per maand",
   "1_fois_par_semaine_3753e32e": "Eenmaal per week",
   "1_mois_e5493c85": "1 maand",
@@ -538,7 +542,7 @@
   "regenerate_media": "Media opnieuw genereren",
   "regenerate_confirm_title": "Opnieuw genereren voor {channel}?",
   "regenerate_content_confirm": "iNrCy maakt alleen de titel en tekst voor {channel} opnieuw. De datum, media en andere kanalen blijven ongewijzigd.",
-  "regenerate_media_confirm": "iNrCy maakt één nieuw media-item voor de volledige publicatie en past dit toe op alle geselecteerde kanalen. De tekst en datum blijven ongewijzigd.",
+  "regenerate_media_confirm": "iNrCy maakt de media van de publicatie opnieuw, behoudt het formaat en het aantal afbeeldingen en past ze toe op alle geselecteerde kanalen. De tekst en datum blijven ongewijzigd.",
   "regenerate_failed": "Het opnieuw genereren is niet voltooid. Bestaande inhoud is niet vervangen.",
   "regenerate_content_success": "De inhoud voor {channel} is opnieuw gegenereerd.",
   "regenerate_media_success": "De media zijn opnieuw gegenereerd voor alle kanalen van de publicatie.",

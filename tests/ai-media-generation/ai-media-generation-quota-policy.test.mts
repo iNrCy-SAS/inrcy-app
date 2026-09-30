@@ -19,30 +19,30 @@ import {
 test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {
     standard: {
-      image: 20,
+      image: 25,
       video: 48,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
     premium: {
-      image: 30,
+      image: 50,
       video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
     founder: {
-      image: 30,
+      image: 50,
       video: 144,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
   });
 
-  assert.equal(getAiMediaMonthlyLimit("standard", "image"), 20);
+  assert.equal(getAiMediaMonthlyLimit("standard", "image"), 25);
   assert.equal(getAiMediaMonthlyLimit("standard", "video"), 48);
-  assert.equal(getAiMediaMonthlyLimit("premium", "image"), 30);
+  assert.equal(getAiMediaMonthlyLimit("premium", "image"), 50);
   assert.equal(getAiMediaMonthlyLimit("premium", "video"), 144);
-  assert.equal(getAiMediaMonthlyLimit("founder", "image"), 30);
+  assert.equal(getAiMediaMonthlyLimit("founder", "image"), 50);
   assert.equal(getAiMediaMonthlyLimit("founder", "video"), 144);
   assert.equal(getAiMediaVideoMaxDuration("standard"), 24);
   assert.equal(getAiMediaVideoMaxDuration("premium"), 24);

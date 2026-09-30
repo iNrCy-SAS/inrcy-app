@@ -62,8 +62,10 @@ test("dashboard buttons and direct URLs never branch on profile completion", () 
   assert.doesNotMatch(sources, /requireDashboardRequiredSetupCompleted/);
 
   assert.match(read("app/dashboard/DashboardClient.tsx"), /mode=\{dashboardBoosterModal\}/);
-  assert.match(read("app/dashboard/_components/DashboardStandardModulesCard.tsx"), /data-testid="standard-booster-publish"/);
-  assert.match(read("app/dashboard/_components/DashboardStandardModulesCard.tsx"), /onClick=\{openPublishModal\}/);
+  assert.match(read("app/dashboard/_components/DashboardStandardModulesCard.tsx"), /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
+  const sharedModules = read("app/dashboard/_components/DashboardModulesCard.tsx");
+  assert.match(sharedModules, /data-testid=\{standardMode \? "standard-booster-publish" : "premium-booster-publish"\}/);
+  assert.match(sharedModules, /onClick=\{openPublishModal\}/);
 });
 
 test("completion remains informational but does not trigger the once-only introduction", () => {

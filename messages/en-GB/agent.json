@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "Media types",
+  "publication_media_single_image": "1 image",
+  "publication_media_video": "8-second video",
+  "publication_media_carousel": "3 images",
   "1_fois_par_mois_a9697a49": "1 time per month",
   "1_fois_par_semaine_3753e32e": "1 time per week",
   "1_mois_e5493c85": "1 month",
@@ -538,7 +542,7 @@
   "regenerate_media": "Regenerate media",
   "regenerate_confirm_title": "Regenerate for {channel}?",
   "regenerate_content_confirm": "iNrCy will recreate only the title and text for {channel}. The date, media and other channels will remain unchanged.",
-  "regenerate_media_confirm": "iNrCy will create one new media asset for the entire publication and apply it to every selected channel. The text and date will remain unchanged.",
+  "regenerate_media_confirm": "iNrCy will recreate the publication’s media, preserving the format and number of images, then apply them to every selected channel. The text and date will remain unchanged.",
   "regenerate_failed": "Regeneration did not complete. No existing content was replaced.",
   "regenerate_content_success": "The {channel} content was regenerated.",
   "regenerate_media_success": "The media was regenerated for every publication channel.",

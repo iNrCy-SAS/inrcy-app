@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  AI_MEDIA_MONTHLY_LIMITS,
   AI_MEDIA_ROLLOVER_CAPS,
   getAiMediaRolloverCap,
 } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
@@ -56,25 +57,25 @@ test("les plafonds produit conservent 70 images et reportent les secondes selon 
 });
 
 test("les credits inutilises se cumulent puis s'arretent exactement au plafond", () => {
-  let standardImages = 20;
+  let standardImages = AI_MEDIA_MONTHLY_LIMITS.standard.image;
   standardImages = nextPeriodLimit({
     previousLimit: standardImages,
     previousUsed: 0,
-    monthlyRecharge: 20,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
     cap: 70,
   });
-  assert.equal(standardImages, 40);
+  assert.equal(standardImages, 50);
   standardImages = nextPeriodLimit({
     previousLimit: standardImages,
     previousUsed: 0,
-    monthlyRecharge: 20,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
     cap: 70,
   });
-  assert.equal(standardImages, 60);
+  assert.equal(standardImages, 70);
   standardImages = nextPeriodLimit({
     previousLimit: standardImages,
     previousUsed: 0,
-    monthlyRecharge: 20,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
     cap: 70,
   });
   assert.equal(standardImages, 70);
@@ -82,24 +83,24 @@ test("les credits inutilises se cumulent puis s'arretent exactement au plafond",
     nextPeriodLimit({
       previousLimit: standardImages,
       previousUsed: 0,
-      monthlyRecharge: 20,
+      monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
       cap: 70,
     }),
     70,
   );
 
-  let premiumImages = 30;
+  let premiumImages = AI_MEDIA_MONTHLY_LIMITS.premium.image;
   premiumImages = nextPeriodLimit({
     previousLimit: premiumImages,
     previousUsed: 0,
-    monthlyRecharge: 30,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.premium.image,
     cap: 70,
   });
-  assert.equal(premiumImages, 60);
+  assert.equal(premiumImages, 70);
   premiumImages = nextPeriodLimit({
     previousLimit: premiumImages,
     previousUsed: 0,
-    monthlyRecharge: 30,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.premium.image,
     cap: 70,
   });
   assert.equal(premiumImages, 70);
@@ -120,7 +121,7 @@ test("les credits perdus au plafond ne reapparaissent pas apres une consommation
   const afterCapMonth = nextPeriodLimit({
     previousLimit: 70,
     previousUsed: 0,
-    monthlyRecharge: 20,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
     cap: 70,
   });
   assert.equal(afterCapMonth, 70);
@@ -128,18 +129,18 @@ test("les credits perdus au plafond ne reapparaissent pas apres une consommation
   const afterUsingThirty = nextPeriodLimit({
     previousLimit: afterCapMonth,
     previousUsed: 30,
-    monthlyRecharge: 20,
+    monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
     cap: 70,
   });
-  assert.equal(afterUsingThirty, 60);
+  assert.equal(afterUsingThirty, 65);
 });
 
 test("plusieurs mois sans connexion sont credites sans depasser la cagnotte", () => {
   assert.equal(
     nextPeriodLimit({
-      previousLimit: 20,
+      previousLimit: AI_MEDIA_MONTHLY_LIMITS.standard.image,
       previousUsed: 8,
-      monthlyRecharge: 20,
+      monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.image,
       elapsedMonths: 3,
       cap: 70,
     }),

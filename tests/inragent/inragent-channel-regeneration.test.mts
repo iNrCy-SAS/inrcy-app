@@ -58,11 +58,12 @@ test("media regeneration is atomic, generated once and applied to every publicat
   assert.match(route, /const actionChannels = currentChannelsForAction\(action\)/);
   assert.match(
     route,
-    /const expectedCount =\s*mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 1/,
+    /const expectedCount =\s*mediaKind === "image" \? currentPublicationImageCount\(action\) : 1/,
   );
   assert.match(route, /for \(let index = 0; index < expectedCount; index \+= 1\)/);
   assert.match(route, /variantSeed: `\$\{actionId\}:global:\$\{mediaKind\}/);
-  assert.match(route, /if \(generatedMedia\.length !== expectedCount\)/);
+  assert.match(route, /if \(generatedMedia\.length !== expectedCount/);
+  assert.match(route, /generationRequestId: `\$\{actionId\}:global:\$\{mediaKind\}:\$\{generationRevision\}:\$\{generationIntent\}:\$\{index\}`/);
   assert.match(route, /Aucun média de la publication n’a été remplacé/);
   assert.match(
     mediaBranch,

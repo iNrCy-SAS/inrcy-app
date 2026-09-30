@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { contractTestBatches } from "./contract-test-batches.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -48,32 +49,28 @@ console.log(
   `[contracts] Running ${testFiles.length} files with concurrency ${concurrency}.`,
 );
 
-const child = spawn(
-  process.execPath,
-  [
-    "--test",
-    "--experimental-strip-types",
-    `--test-concurrency=${concurrency}`,
-    ...relativeTestFiles,
-  ],
-  {
-    cwd: repositoryRoot,
-    env: process.env,
-    stdio: "inherit",
-    windowsHide: true,
-  },
-);
-
-child.once("error", (error) => {
-  console.error("[contracts] Unable to start the Node test runner.", error);
-  process.exitCode = 1;
-});
-
-child.once("exit", (code, signal) => {
-  if (signal) {
-    console.error(`[contracts] Test runner stopped by signal ${signal}.`);
-    process.exitCode = 1;
-    return;
-  }
-  process.exitCode = code ?? 1;
-});
+const batches = contractTestBatches(relativeTestFiles);
+let exitCode = 0;
+for (const [index, batch] of batches.entries()) {
+  if (batches.length > 1) console.log(`[contracts] Batch ${index + 1}/${batches.length}: ${batch.length} files.`);
+  const batchExitCode = await new Promise((resolve) => {
+    const child = spawn(
+      process.execPath,
+      ["--test", "--experimental-strip-types", `--test-concurrency=${concurrency}`, ...batch],
+      { cwd: repositoryRoot, env: process.env, stdio: "inherit", windowsHide: true },
+    );
+    child.once("error", (error) => {
+      console.error("[contracts] Unable to start the Node test runner.", error);
+      resolve(1);
+    });
+    child.once("exit", (code, signal) => {
+      if (signal) console.error(`[contracts] Test runner stopped by signal ${signal}.`);
+      resolve(signal ? 1 : code ?? 1);
+    });
+  }).catch((error) => {
+    console.error("[contracts] Unable to start the Node test runner.", error);
+    return 1;
+  });
+  if (batchExitCode !== 0) exitCode = 1;
+}
+process.exitCode = exitCode;

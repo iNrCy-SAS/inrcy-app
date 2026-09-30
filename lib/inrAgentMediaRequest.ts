@@ -55,10 +55,15 @@ export function buildInrAgentMediaGenerationRequest(args: {
   theme: InrAgentTheme;
   kind: AiMediaKind;
   mediaMix: InrAgentMediaMixResolution;
+  /** Les nouveaux formats Publier utilisent un seul clip de huit secondes. */
+  videoDurationSeconds?: 8;
 }): AiMediaGenerationRequest {
   const peopleCriterion = peopleCriterionForMode(args.mediaMix.peopleMode);
   const generationMode: AiMediaGenerationMode =
     peopleCriterion === "auto" ? "ai_free" : "ai_criteria";
+  const durationSeconds = args.kind === "video"
+    ? args.videoDurationSeconds ?? args.mediaMix.durationSeconds
+    : null;
 
   return normalizeAiMediaGenerationRequest({
     operation: "generate",
@@ -102,10 +107,10 @@ export function buildInrAgentMediaGenerationRequest(args: {
     teamVideoSpeechMode: "voiceover",
     teamVideoVeoConsent: false,
     identityReferenceSetId: "",
-    durationSeconds: args.mediaMix.durationSeconds,
+    durationSeconds,
     sceneMode: videoSceneMode({
       kind: args.kind,
-      durationSeconds: args.mediaMix.durationSeconds,
+      durationSeconds,
       connectScenes: args.mediaMix.connectScenes,
     }),
     connectScenes: args.mediaMix.connectScenes,

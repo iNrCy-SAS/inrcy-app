@@ -58,9 +58,9 @@ function renderHelp(nativeLayer: boolean, initialOverflow: string) {
     if (name.endsWith(".module.css")) return { default: { nativeLayer: "nativeLayer" } };
     return require(name);
   };
-  const module = { exports: {} as { default?: (props: unknown) => TestElement } };
-  new Function("require", "module", "exports", "document", "window", "HTMLElement", compiled)(mockRequire, module, module.exports, document, window, Element);
-  const view = module.exports.default!({ open: true, nativeLayer, title: "Canaux", children: "Contenu inchangé", onClose: () => { closeRequests += 1; } });
+  const testModule = { exports: {} as { default?: (props: unknown) => TestElement } };
+  new Function("require", "module", "exports", "document", "window", "HTMLElement", compiled)(mockRequire, testModule, testModule.exports, document, window, Element);
+  const view = testModule.exports.default!({ open: true, nativeLayer, title: "Canaux", children: "Contenu inchangé", onClose: () => { closeRequests += 1; } });
   refs[0].current = dialog;
   refs[1].current = closeButton;
   const cleanups = effects.map((effect) => effect()).filter((cleanup): cleanup is () => void => typeof cleanup === "function");

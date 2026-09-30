@@ -120,6 +120,7 @@ import {
   appendInrAgentPublicationIdeaSlot,
   inrAgentPublicationIdeaFieldCount,
   normalizeInrAgentStudioMediaPreferencePercent,
+  normalizeInrAgentPublicationMediaTypes,
   sanitizeInrAgentSettings,
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
@@ -1121,6 +1122,12 @@ export default function AgentClient() {
     [agentConnectedChannels, selected]
   );
   const settingsConfig = settingsKey ? configs[settingsKey] : null;
+  const settingsPublicationMediaTypes = normalizeInrAgentPublicationMediaTypes(
+    settingsConfig?.publicationMediaTypes,
+  );
+  const settingsSingleImagePercent = 100
+    - (settingsPublicationMediaTypes.video ? 10 : 0)
+    - (settingsPublicationMediaTypes.carousel ? 20 : 0);
   const settingsPublicationIdeaFieldCount = settingsConfig
     ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
     : 0;
@@ -9084,31 +9091,70 @@ export default function AgentClient() {
                   <p className={styles.modalHint}>
                     {i18nT("preferred_media_hint")}
                   </p>
-                  <div className={styles.choiceGrid}>
-                    {(
-                      [
-                        ["media_library", "preferred_media_library"],
-                        ["image_bank", "preferred_media_bank"],
-                        ["ai_generation", "preferred_media_ai"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <button
-                        type="button"
-                        key={value}
-                        className={
-                          settingsConfig.preferredMediaSource === value
-                            ? styles.choiceActive
-                            : ""
-                        }
-                        onClick={() =>
-                          updateConfig(settingsAutomation.key, {
-                            preferredMediaSource: value,
-                          })
-                        }
-                      >
-                        {i18nT(label)}
-                      </button>
-                    ))}
+                  <div className={styles.settingsMediaPreferencesRow}>
+                    <div className={styles.choiceGrid}>
+                      {(
+                        [
+                          ["media_library", "preferred_media_library"],
+                          ["image_bank", "preferred_media_bank"],
+                          ["ai_generation", "preferred_media_ai"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <button
+                          type="button"
+                          key={value}
+                          aria-pressed={settingsConfig.preferredMediaSource === value}
+                          className={
+                            settingsConfig.preferredMediaSource === value
+                              ? styles.choiceActive
+                              : ""
+                          }
+                          onClick={() =>
+                            updateConfig(settingsAutomation.key, {
+                              preferredMediaSource: value,
+                            })
+                          }
+                        >
+                          {i18nT(label)}
+                        </button>
+                      ))}
+                    </div>
+                    <fieldset className={styles.publicationMediaTypes}>
+                      <legend>{i18nT("publication_media_types")}</legend>
+                      <label data-selected="true" data-required="true">
+                        <input type="checkbox" checked disabled />
+                        <span>{i18nT("publication_media_single_image")}</span>
+                        <small>{settingsSingleImagePercent} %</small>
+                      </label>
+                      <label data-selected={settingsPublicationMediaTypes.video || undefined}>
+                        <input
+                          type="checkbox"
+                          checked={settingsPublicationMediaTypes.video}
+                          onChange={(event) => updateConfig("publish", {
+                            publicationMediaTypes: {
+                              ...settingsPublicationMediaTypes,
+                              video: event.target.checked,
+                            },
+                          })}
+                        />
+                        <span>{i18nT("publication_media_video")}</span>
+                        <small>10 %</small>
+                      </label>
+                      <label data-selected={settingsPublicationMediaTypes.carousel || undefined}>
+                        <input
+                          type="checkbox"
+                          checked={settingsPublicationMediaTypes.carousel}
+                          onChange={(event) => updateConfig("publish", {
+                            publicationMediaTypes: {
+                              ...settingsPublicationMediaTypes,
+                              carousel: event.target.checked,
+                            },
+                          })}
+                        />
+                        <span>{i18nT("publication_media_carousel")}</span>
+                        <small>20 %</small>
+                      </label>
+                    </fieldset>
                   </div>
                   {settingsConfig.preferredMediaSource === "ai_generation" ? (
                     <div className={styles.studioMediaMixControl}>

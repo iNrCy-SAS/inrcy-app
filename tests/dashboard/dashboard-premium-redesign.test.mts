@@ -128,11 +128,12 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   assert.match(modules, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
 });
 
-test("le rendu Premium ne contourne ni le forfait Standard, ni le pilote Ads, ni les droits comptables", () => {
+test("le rendu expose les canaux Ads validés sans contourner Standard ni les droits comptables", () => {
   assert.match(channels, /standardMode \? \(\s*<DashboardStandardModulesCard[\s\S]*?onOpenPremium=\{\(\) => openPanel\("abonnement"\)\}[\s\S]*?\) : \(\s*<DashboardModulesCard/);
-  assert.equal([...channels.matchAll(/adsPilotEnabled=\{isAdmin\}/g)].length, 2);
+  assert.equal([...channels.matchAll(/\badsPilotEnabled\s+inrAgentEnabled=/g)].length, 2);
   assert.match(modules, /adsPilotEnabled = false/);
-  assert.match(modules, /onClick=\{adsPilotEnabled \? \(\) => startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
+  assert.match(modules, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
+  assert.match(modules, /data-dashboard-prefetch=\{adsPilotEnabled && !standardMode \? "\/dashboard\/ads" : undefined\}/);
   assert.match(modules, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
   assert.match(modules, /hasAccountingDashboardAccess\(dashboardEdition\)/);
   assert.match(modules, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);

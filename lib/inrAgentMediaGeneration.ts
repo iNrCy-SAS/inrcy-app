@@ -1,8 +1,11 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
-import { acceptGeneratedAiMediaDraft } from "@/lib/aiGeneratedMediaRegistry";
+import {
+  acceptGeneratedAiMediaDraft,
+  getPersistedGeneratedAiMediaId,
+} from "@/lib/aiGeneratedMediaRegistry";
 import {
   type AiMediaKind,
   type AiMediaLibraryPickerItem,
@@ -23,6 +26,8 @@ import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
 import { buildInrAgentMediaGenerationRequest } from "@/lib/inrAgentMediaRequest";
 
 type SupabaseLike = Parameters<typeof generateAndSaveAiMedia>[0]["supabase"];
+
+const MAX_GENERATION_ATTEMPTS = 3;
 
 export type InrAgentGeneratedMediaOutcome =
   | "generated"
@@ -61,6 +66,10 @@ export async function generateInrAgentMedia(args: {
   studioPreferences?: AiMediaGeneratorPreferences | null;
   /** Seed stable (action + index) pour éviter un changement au retry. */
   variantSeed?: string;
+  /** Force un clip court sans modifier les anciens appels Studio 16/24 s. */
+  videoDurationSeconds?: 8;
+  /** Identifie un emplacement et une partie de carrousel, stable au retry. */
+  generationRequestId?: string;
 }): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
   const videoEntitlement =
@@ -83,25 +92,29 @@ export async function generateInrAgentMedia(args: {
       args.variantSeed ||
       `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
   });
+  const generationRequestId = args.generationRequestId?.trim();
   const request = buildInrAgentMediaGenerationRequest({
-    requestId: `inr-agent:${randomUUID()}`,
+    requestId: generationRequestId
+      ? `inr-agent:${createHash("sha256").update(generationRequestId).digest("hex")}`
+      : `inr-agent:${randomUUID()}`,
     idea: args.idea,
     theme: args.theme,
     kind: args.kind,
     mediaMix,
+    videoDurationSeconds: args.videoDurationSeconds,
   });
   const fingerprint = createAiMediaRequestFingerprint({
     contract: "inrcy-agent-ai-media-v1",
     request,
   });
 
-  const reservation = await reserveAiMediaGeneration({
+  const reservationArgs = {
     accountId: args.accountId,
     actorAuthUserId: args.actorAuthUserId,
     requestKey: request.requestId,
     requestFingerprint: fingerprint,
     mediaKind: args.kind,
-    surface: "booster",
+    surface: "booster" as const,
     edition,
     reservationTtlSeconds: args.kind === "video" ? 3_600 : 900,
     quotaAmount:
@@ -118,21 +131,72 @@ export async function generateInrAgentMedia(args: {
       studio_media_preference_mode: mediaMix.mode,
       studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
     },
-  });
+  };
+  let reservation: Awaited<ReturnType<typeof reserveAiMediaGeneration>> | null = null;
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    reservation = await reserveAiMediaGeneration(reservationArgs);
+    if (reservation.outcome === "quota_reached") {
+      return { item: null, outcome: "quota_reached", kind: args.kind };
+    }
+    if (reservation.outcome === "premium_required") {
+      return { item: null, outcome: "studio_unavailable", kind: args.kind };
+    }
+    if (!reservation.jobId) break;
+    if (reservation.outcome === "reserved") break;
 
-  if (reservation.outcome === "quota_reached") {
-    return { item: null, outcome: "quota_reached", kind: args.kind };
-  }
-  if (reservation.outcome === "premium_required") {
-    return { item: null, outcome: "studio_unavailable", kind: args.kind };
-  }
-  if (reservation.outcome !== "reserved" || !reservation.jobId) {
+    // Une reprise ne doit jamais rappeler le fournisseur pour un job en cours
+    // ni pour un média déjà enregistré, même si sa finalisation a échoué.
+    try {
+      const mediaId = await getPersistedGeneratedAiMediaId({
+        accountId: args.accountId,
+        jobId: reservation.jobId,
+      });
+      if (mediaId) {
+        if (reservation.status !== "completed") {
+          await completeAiMediaGeneration({
+            accountId: args.accountId,
+            jobId: reservation.jobId,
+            mediaId,
+            metadata: { source: "inr_agent", recovered_from_idempotent_replay: true },
+          });
+        }
+        const accepted = await acceptGeneratedAiMediaDraft({
+          accountId: args.accountId,
+          authUserId: args.actorAuthUserId,
+          mediaId,
+        });
+        return {
+          item: accepted,
+          outcome: accepted ? "generated" : "finalization_failed",
+          kind: args.kind,
+          ...(accepted ? {} : { errorCode: "inr_agent_ai_media_accept_failed" }),
+        };
+      }
+    } catch (error) {
+      return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: errorCode(error) };
+    }
+
+    if (reservation.status === "failed" && generationRequestId && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
+      // Le ledger ne rouvre pas les jobs terminaux. Deux retries concurrents
+      // dérivent la même clé du job échoué : un seul peut réserver la suite.
+      reservationArgs.requestKey = `${request.requestId}:retry:${reservation.jobId}`;
+      continue;
+    }
     return {
       item: null,
-      outcome: "generation_failed",
+      outcome: reservation.status === "completed" ? "finalization_failed" : "generation_failed",
       kind: args.kind,
-      errorCode: "inr_agent_ai_media_reservation_unavailable",
+      errorCode: reservation.status === "completed"
+        ? "inr_agent_ai_media_completed_media_unavailable"
+        : reservation.status === "failed"
+        ? "inr_agent_ai_media_retry_exhausted"
+        : reservation.status === "expired"
+        ? "inr_agent_ai_media_expired_requires_review"
+        : "inr_agent_ai_media_generation_in_progress",
     };
+  }
+  if (reservation?.outcome !== "reserved" || !reservation.jobId) {
+    return { item: null, outcome: "generation_failed", kind: args.kind, errorCode: "inr_agent_ai_media_reservation_unavailable" };
   }
 
   let mediaPersisted = false;
@@ -181,13 +245,25 @@ export async function generateInrAgentMedia(args: {
     return { item: accepted, outcome: "generated", kind: args.kind };
   } catch (error) {
     if (!mediaPersisted && !quotaCompleted) {
-      await failAiMediaGeneration({
-        accountId: args.accountId,
-        jobId: reservation.jobId,
-        errorCode: errorCode(error),
-        errorMessage: error instanceof Error ? error.message : String(error),
-        metadata: { source: "inr_agent" },
-      }).catch(() => undefined);
+      try {
+        mediaPersisted = Boolean(await getPersistedGeneratedAiMediaId({
+          accountId: args.accountId,
+          jobId: reservation.jobId,
+        }));
+      } catch {
+        // Une lecture indisponible ne prouve pas l'absence du média. Conserver
+        // la réservation permet une reprise sans nouvelle génération payante.
+        return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_persistence_check_unavailable" };
+      }
+      if (!mediaPersisted) {
+        await failAiMediaGeneration({
+          accountId: args.accountId,
+          jobId: reservation.jobId,
+          errorCode: errorCode(error),
+          errorMessage: error instanceof Error ? error.message : String(error),
+          metadata: { source: "inr_agent" },
+        }).catch(() => undefined);
+      }
     }
     return {
       item: null,

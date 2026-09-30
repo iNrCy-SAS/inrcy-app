@@ -3,6 +3,7 @@ import type { ImageInteractions } from "@/lib/imageInteractions";
 import type {
   InrAgentFrequency,
   InrAgentPreferredMediaSource,
+  InrAgentPublicationMediaTypes,
   InrAgentPlanningHorizonDays,
   InrAgentSettings,
   InrAgentValidationMode,
@@ -54,6 +55,7 @@ export type AutomationConfig = {
   source: string;
   signatureAutomatic: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
+  publicationMediaTypes: InrAgentPublicationMediaTypes;
   studioMediaPreferencePercent: number;
   planningHorizonDays: InrAgentPlanningHorizonDays;
   publicationIdeas: string[];

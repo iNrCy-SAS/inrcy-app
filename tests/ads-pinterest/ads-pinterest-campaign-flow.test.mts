@@ -59,12 +59,23 @@ test("a verified Pinterest advertiser ID can follow a local campaign proposal", 
 });
 
 test("planned channels without the completed account binding still reject advertiser IDs", () => {
-  for (const provider of ["tiktok", "x"]) {
+  for (const provider of ["tiktok"]) {
     const input = campaign("pinterest", "123456789012");
     input.provider = provider;
     delete (input as { channelSettings?: unknown }).channelSettings;
     assert.match(parseAdsCampaignInput(input, { purpose: "draft" }).error || "", /Connectez ce canal/);
   }
+});
+
+test("X accepts its connected advertiser in a draft but still refuses publication", () => {
+  const input = campaign("x", "ab12cd");
+  delete (input as { channelSettings?: unknown }).channelSettings;
+  const draft = parseAdsCampaignInput(input, { purpose: "draft" });
+  assert.equal(draft.error, null);
+  assert.equal(draft.draft?.adAccountId, "ab12cd");
+  const publication = parseAdsCampaignInput(input, { purpose: "publish" });
+  assert.equal(publication.draft, null);
+  assert.ok(publication.error);
 });
 
 test("Pinterest preserves draft alternatives but requires an explicit single title before publishing", () => {

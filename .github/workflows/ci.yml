@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: ["**"]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -121,7 +122,8 @@ jobs:
     timeout-minutes: 30
     needs: build
 
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    # Feature branches and manual runs verify the build without E2E writes.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
 
     env:
       # Supabase

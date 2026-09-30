@@ -161,6 +161,25 @@ test("iNrAgent ne transforme jamais un mix sans référence en dialogue biométr
   assert.equal(request.identityMode, "auto");
 });
 
+test("le nouveau format huit secondes prime sur le mix Studio sans altérer les appels historiques", () => {
+  const args = {
+    requestId: "inr-agent:nouveau-format-video",
+    idea: "Montrer le geste de finition d'un menuisier",
+    theme: "coulisses" as const,
+    kind: "video" as const,
+    mediaMix: mediaMix({ durationSeconds: 24, connectScenes: true }),
+  };
+  const short = buildInrAgentMediaGenerationRequest({ ...args, videoDurationSeconds: 8 });
+  assert.equal(short.durationSeconds, 8);
+  assert.equal(short.sceneMode, "single");
+  assert.equal(short.connectScenes, false);
+  const legacy = buildInrAgentMediaGenerationRequest(args);
+  assert.equal(legacy.durationSeconds, 24);
+  assert.equal(legacy.connectScenes, true);
+  const image = buildInrAgentMediaGenerationRequest({ ...args, kind: "image", videoDurationSeconds: 8 });
+  assert.equal(image.durationSeconds, null);
+});
+
 test("iNrAgent n'a aucun prompt parallèle et passe uniquement par le composeur Studio v23", () => {
   const agentGeneration = source("lib/inrAgentMediaGeneration.ts");
   const requestAdapter = source("lib/inrAgentMediaRequest.ts");

@@ -104,6 +104,18 @@ export const INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS = 6;
 export const INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS = 12;
 export const INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH = 500;
 
+export type InrAgentPublicationMediaTypes = {
+  singleImage: true;
+  video: boolean;
+  carousel: boolean;
+};
+
+export function normalizeInrAgentPublicationMediaTypes(value: unknown): InrAgentPublicationMediaTypes {
+  const record = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+  return { singleImage: true, video: record.video === true, carousel: record.carousel === true };
+}
+
 export function normalizeInrAgentPublicationIdeas(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -154,6 +166,7 @@ export type InrAgentAutomationSettings = {
   imageRequired: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
   studioMediaPreferencePercent: number;
+  publicationMediaTypes?: InrAgentPublicationMediaTypes;
   planningHorizonDays: InrAgentPlanningHorizonDays;
   recipientScope: InrAgentRecipientScope;
   sourceStrategy: InrAgentSourceStrategy;
@@ -576,6 +589,9 @@ export function sanitizeInrAgentAutomationSettings(
     planningHorizonDays,
     ...(key === "publish"
       ? {
+          publicationMediaTypes: normalizeInrAgentPublicationMediaTypes(
+            source.publicationMediaTypes ?? metadata.publicationMediaTypes,
+          ),
           publicationIdeas: normalizeInrAgentPublicationIdeas(
             normalizedMetadataBase.publicationIdeas,
           ),
@@ -605,6 +621,9 @@ export function sanitizeInrAgentAutomationSettings(
     preferredMediaSource,
     studioMediaPreferencePercent,
     planningHorizonDays,
+    publicationMediaTypes: normalizeInrAgentPublicationMediaTypes(
+      source.publicationMediaTypes ?? metadata.publicationMediaTypes,
+    ),
     recipientScope: includesValue(INR_AGENT_RECIPIENT_SCOPES, source.recipientScope) ? source.recipientScope : defaults.recipientScope,
     sourceStrategy: includesValue(INR_AGENT_SOURCE_STRATEGIES, source.sourceStrategy) ? source.sourceStrategy : defaults.sourceStrategy,
     lastPreparedAt: sanitizeNullableString(source.lastPreparedAt) ?? defaults.lastPreparedAt,
@@ -681,7 +700,12 @@ export function automationSettingsToDbRow(userId: string, key: InrAgentAutomatio
     last_prepared_at: automation.lastPreparedAt,
     last_executed_at: automation.lastExecutedAt,
     next_run_at: automation.nextRunAt,
-    metadata: automation.metadata,
+    metadata: {
+      ...automation.metadata,
+      ...(key === "publish" ? { publicationMediaTypes: normalizeInrAgentPublicationMediaTypes(
+        automation.publicationMediaTypes ?? automation.metadata.publicationMediaTypes,
+      ) } : {}),
+    },
     updated_at: new Date().toISOString(),
   };
 }

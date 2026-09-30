@@ -37,7 +37,7 @@ test("seul l'espace /embed est reconnu comme intégrable", () => {
 test("le proxy ne peut pas rediriger un embed vers le login", () => {
   const proxy = read("proxy.ts");
   const embedBypassIndex = proxy.indexOf("if (isPublicEmbedPath(pathname))");
-  const authClientIndex = proxy.indexOf("createProxySupabaseClient(\n    req,");
+  const authClientIndex = proxy.search(/createProxySupabaseClient\(\s*req,/);
 
   assert.ok(embedBypassIndex > 0, "le bypass /embed doit exister");
   assert.ok(authClientIndex > 0, "le rafraîchissement Supabase doit exister");

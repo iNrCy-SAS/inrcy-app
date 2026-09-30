@@ -1,6 +1,7 @@
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   normalizeInrAgentPublicationIdeas,
+  normalizeInrAgentPublicationMediaTypes,
   sanitizeInrAgentSettings,
   type InrAgentAutomationSettings,
   type InrAgentPreferredMediaSource,
@@ -433,6 +434,9 @@ export function settingsToConfigs(
             ? source.metadata.signatureAutomatic
             : true,
         preferredMediaSource: source.preferredMediaSource,
+        publicationMediaTypes: normalizeInrAgentPublicationMediaTypes(
+          source.publicationMediaTypes ?? source.metadata?.publicationMediaTypes,
+        ),
         studioMediaPreferencePercent:
           source.studioMediaPreferencePercent,
         planningHorizonDays: source.planningHorizonDays,
@@ -466,6 +470,13 @@ export function configToAutomationSettings(
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
     preferredMediaSource: config.preferredMediaSource,
+    ...(key === "publish"
+      ? {
+          publicationMediaTypes: normalizeInrAgentPublicationMediaTypes(
+            config.publicationMediaTypes,
+          ),
+        }
+      : {}),
     studioMediaPreferencePercent: config.studioMediaPreferencePercent,
     planningHorizonDays: config.planningHorizonDays,
     ...(key === "publish"
@@ -522,6 +533,10 @@ export function configToAutomationSettings(
       key === "publish"
         ? config.preferredMediaSource
         : (existing.preferredMediaSource as InrAgentPreferredMediaSource),
+    publicationMediaTypes:
+      key === "publish"
+        ? normalizeInrAgentPublicationMediaTypes(config.publicationMediaTypes)
+        : existing.publicationMediaTypes,
     studioMediaPreferencePercent:
       key === "publish"
         ? config.studioMediaPreferencePercent

@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "Types de médias",
+  "publication_media_single_image": "1 image",
+  "publication_media_video": "Vidéo 8 s",
+  "publication_media_carousel": "3 images",
   "1_fois_par_mois_a9697a49": "1 fois par mois",
   "1_fois_par_semaine_3753e32e": "1 fois par semaine",
   "1_mois_e5493c85": "1 mois",
@@ -538,7 +542,7 @@
   "regenerate_media": "Régénérer le média",
   "regenerate_confirm_title": "Régénérer pour {channel} ?",
   "regenerate_content_confirm": "iNrCy va recréer uniquement le titre et le texte de {channel}. La date, le média et les autres canaux resteront inchangés.",
-  "regenerate_media_confirm": "iNrCy va recréer un seul média pour toute la publication — une vidéo ou une seule image selon le format actuel — et l’appliquer à tous les canaux sélectionnés. Le texte et la date resteront inchangés.",
+  "regenerate_media_confirm": "iNrCy va recréer les médias de la publication en conservant leur format et le nombre d’images, puis les appliquer à tous les canaux sélectionnés. Le texte et la date resteront inchangés.",
   "regenerate_failed": "La régénération n’a pas abouti. Aucun contenu existant n’a été remplacé.",
   "regenerate_content_success": "Le contenu {channel} a été régénéré.",
   "regenerate_media_success": "Le média a été régénéré pour tous les canaux de la publication.",

@@ -156,6 +156,7 @@ function editorialPlanPayload(
     tone: slot.tone,
     mediaKind: slot.mediaKind,
     imageCount: slot.imageCount,
+    ...(slot.videoDurationSeconds ? { videoDurationSeconds: slot.videoDurationSeconds } : {}),
     channels: slot.channels,
     timezone,
     scheduleSignature: slot.scheduleSignature,
@@ -469,7 +470,7 @@ export async function analyzeInrAgentEditorialPlanChange(args: {
     generatedPublications += 1;
     if (plan.mediaKind === "video") lostVideos += 1;
     if (plan.mediaKind === "image") {
-      lostImages += INR_AGENT_IMAGES_PER_PUBLICATION;
+      lostImages += Number(plan.imageCount) === 3 ? 3 : INR_AGENT_IMAGES_PER_PUBLICATION;
     }
   }
 
@@ -479,9 +480,8 @@ export async function analyzeInrAgentEditorialPlanChange(args: {
   for (const slot of slotsToGenerate) {
     if (slot.mediaKind === "video") {
       requiredVideos += 1;
-      // Le plan éditorial ne fige pas encore la durée : réserver le maximum
-      // évite de promettre une régénération que les préférences 24 s bloqueraient.
-      requiredVideoSeconds += 24;
+      // Les nouveaux formats figent 8 s ; préserver l’estimation des anciens plans.
+      requiredVideoSeconds += slot.videoDurationSeconds || 24;
     }
     if (slot.mediaKind === "image") requiredImages += slot.imageCount;
   }
@@ -1319,6 +1319,14 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       nowMs: now.getTime(),
     });
     const { retry, retryAt, quotaLimited: isQuotaLimited } = retryDecision;
+    // La préparation peut avoir figé les parties d'un carrousel avant un
+    // échec partiel. Conserver ces données récentes pour reprendre sans débit double.
+    const latest = await args.supabase.from("inr_agent_actions")
+      .select("metadata,status").eq("id", candidate.id).eq("user_id", args.userId).maybeSingle();
+    if (latest.error) throw latest.error;
+    if (!latest.data || latest.data.status !== "executing") {
+      return { status: "contended" as const, actionId: candidate.id };
+    }
     await args.supabase
       .from("inr_agent_actions")
       .update({
@@ -1326,6 +1334,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
         last_error: message,
         metadata: {
           ...claimedMetadata,
+          ...asRecord(latest.data.metadata),
           editorialState: retry ? "retry" : "failed",
           editorialNextRetryAt: retryAt,
           editorialLastError: message,
@@ -1335,7 +1344,8 @@ export async function prepareNextInrAgentEditorialSlot(args: {
         updated_at: new Date().toISOString(),
       })
       .eq("id", candidate.id)
-      .eq("user_id", args.userId);
+      .eq("user_id", args.userId)
+      .eq("status", "executing");
     return {
       status: retry ? ("retry" as const) : ("failed" as const),
       actionId: candidate.id,

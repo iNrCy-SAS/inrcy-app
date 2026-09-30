@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "媒体类型",
+  "publication_media_single_image": "1 张图片",
+  "publication_media_video": "8 秒视频",
+  "publication_media_carousel": "3 张图片",
   "1_fois_par_mois_a9697a49": "每月1次",
   "1_fois_par_semaine_3753e32e": "每周 1 次",
   "1_mois_e5493c85": "1 个月",
@@ -538,7 +542,7 @@
   "regenerate_media": "重新生成媒体",
   "regenerate_confirm_title": "为 {channel} 重新生成？",
   "regenerate_content_confirm": "iNrCy 只会重新生成 {channel} 的标题和正文。日期、媒体和其他渠道保持不变。",
-  "regenerate_media_confirm": "iNrCy 将为整篇发布内容生成一个新媒体，并将其应用到所有已选择的渠道。正文和日期保持不变。",
+  "regenerate_media_confirm": "iNrCy 将重新生成发布内容的媒体，保留原有格式和图片数量，并应用到所有已选择的渠道。正文和日期保持不变。",
   "regenerate_failed": "重新生成未完成。现有内容未被替换。",
   "regenerate_content_success": "已重新生成 {channel} 内容。",
   "regenerate_media_success": "已为该发布内容的所有渠道重新生成媒体。",

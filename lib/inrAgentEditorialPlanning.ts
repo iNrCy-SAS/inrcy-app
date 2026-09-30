@@ -1,16 +1,19 @@
 import {
+  normalizeInrAgentPublicationMediaTypes,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
   type InrAgentFrequency,
   type InrAgentTheme,
   type InrAgentTone,
-} from "@/lib/inrAgentSettings";
+} from "./inrAgentSettings.ts";
 import {
+  effectiveInrAgentMonthDays,
   inrAgentMonthlyDateCount,
+  inrAgentMonthlyOccurrenceIndex,
   isInrAgentScheduledMonthDay,
   normalizeInrAgentMonthDays,
-} from "@/lib/inrAgentMonthSchedule";
-import { inrAgentEditorialVideoCount } from "@/lib/inrAgentEditorialMediaPolicy";
+} from "./inrAgentMonthSchedule.ts";
+import { inrAgentPublicationMediaAt } from "./inrAgentEditorialMediaPolicy.ts";
 import type { InrAgentEditorialFocus } from "@/lib/inrAgentEditorialVariation";
 
 export const INR_AGENT_EDITORIAL_HORIZON_DAYS = 15;
@@ -27,7 +30,8 @@ export type InrAgentEditorialSlot = {
   theme: InrAgentTheme;
   tone: InrAgentTone;
   mediaKind: InrAgentEditorialMediaKind;
-  imageCount: 0 | 1;
+  imageCount: 0 | 1 | 3;
+  videoDurationSeconds?: 8;
   channels: InrAgentChannel[];
   scheduleSignature: string;
   criteriaSignature: string;
@@ -257,18 +261,53 @@ function plannedTheme(
   return usable[(startingIndex + sequence) % usable.length];
 }
 
-function videoSlotKeys(slotKeys: string[]) {
-  // La vidéo reste exceptionnelle : aucune sur un planning court, puis environ
-  // 10 % du volume. Les calendriers exclusivement YouTube restent traités plus bas.
-  const videoCount = inrAgentEditorialVideoCount(slotKeys.length);
-  return new Set(
-    [...slotKeys]
-      .sort(
-        (left, right) =>
-          stableScore(`${left}:video`) - stableScore(`${right}:video`),
-      )
-      .slice(0, videoCount),
+function publicationOrdinal(args: {
+  scheduledFor: string;
+  timezone: string;
+  frequency: InrAgentFrequency;
+  scheduleSlots: ScheduleSlot[];
+  monthDays: number[];
+}) {
+  const local = getLocalParts(new Date(args.scheduledFor), args.timezone);
+  if (args.frequency === "one_off") return 1;
+  if (inrAgentMonthlyDateCount(args.frequency)) {
+    const monthIndex = (local.year - 2020) * 12 + local.month - 1;
+    // Count real occurrences: the 30th and 31st can merge in a short month.
+    // A rolling horizon therefore cannot skip a position in the ten-slot mix.
+    let previousOccurrences = 0;
+    for (let index = 0; index < monthIndex; index += 1) {
+      previousOccurrences += effectiveInrAgentMonthDays(
+        2020 + Math.floor(index / 12), (index % 12) + 1, args.monthDays,
+      ).length;
+    }
+    return previousOccurrences + inrAgentMonthlyOccurrenceIndex(local, args.monthDays) + 1;
+  }
+  if (args.frequency === "quarterly") {
+    return (local.year - 2020) * 4 + Math.floor((local.month - 1) / 3) + 1;
+  }
+  // Monday of the week containing 1 January 2020. Use local calendar dates so
+  // daylight-saving changes never move the publication's format.
+  const weekIndex = Math.floor(
+    (Date.UTC(local.year, local.month - 1, local.day) - Date.UTC(2019, 11, 30)) /
+      (7 * 86_400_000),
   );
+  const orderedSlots = [...args.scheduleSlots].sort((left, right) =>
+    ((left.dayOfWeek + 6) % 7) - ((right.dayOfWeek + 6) % 7) || left.time.localeCompare(right.time),
+  );
+  const localTime = `${String(local.hour).padStart(2, "0")}:${String(local.minute).padStart(2, "0")}`;
+  const rank = orderedSlots.findIndex((slot) => slot.dayOfWeek === local.weekday && slot.time === localTime);
+  return weekIndex * orderedSlots.length + Math.max(0, rank) + 1;
+}
+
+function editorialCriteriaSignature(automation: InrAgentAutomationSettings, tone?: InrAgentTone | string) {
+  return signature([
+    automation.allowedChannels,
+    automation.allowedThemes,
+    automation.preferredMediaSource,
+    automation.useImageBank,
+    automation.imageRequired,
+    toneValue(tone),
+  ]);
 }
 
 export function getInrAgentEditorialPlanSignatures(args: {
@@ -283,6 +322,10 @@ export function getInrAgentEditorialPlanSignatures(args: {
     asRecord(args.automation.metadata).monthDays,
     frequency,
   );
+  const mediaTypes = normalizeInrAgentPublicationMediaTypes(
+    args.automation.publicationMediaTypes ?? asRecord(args.automation.metadata).publicationMediaTypes,
+  );
+  const baseCriteriaSignature = editorialCriteriaSignature(args.automation, args.tone);
   return {
     scheduleSignature: signature([
       args.automation.enabled,
@@ -291,14 +334,10 @@ export function getInrAgentEditorialPlanSignatures(args: {
       monthDays,
       timezone,
     ]),
-    criteriaSignature: signature([
-      args.automation.allowedChannels,
-      args.automation.allowedThemes,
-      args.automation.preferredMediaSource,
-      args.automation.useImageBank,
-      args.automation.imageRequired,
-      toneValue(args.tone),
-    ]),
+    // Preserve existing draft signatures on rollout when both options are off.
+    criteriaSignature: mediaTypes.video || mediaTypes.carousel
+      ? `${baseCriteriaSignature}|${JSON.stringify(mediaTypes)}`
+      : baseCriteriaSignature,
   };
 }
 
@@ -369,30 +408,23 @@ export function buildInrAgentEditorialPlan(args: {
   const slotKeys = uniqueOccurrences.map(
     (scheduledFor) => `publish:${scheduledFor}`,
   );
-  const plannedVideos = videoSlotKeys(slotKeys);
-  const aiGeneration = automation.preferredMediaSource === "ai_generation";
+  const mediaTypes = normalizeInrAgentPublicationMediaTypes(
+    automation.publicationMediaTypes ?? asRecord(automation.metadata).publicationMediaTypes,
+  );
   const baseChannels = Array.from(new Set(automation.allowedChannels));
-  const onlyYoutube =
-    baseChannels.length === 1 && baseChannels.includes("youtube");
   const tone = toneValue(args.tone);
-  const planSeed = `${scheduleSignature}:${criteriaSignature}`;
+  const planSeed = `${scheduleSignature}:${editorialCriteriaSignature(automation, args.tone)}`;
 
   return uniqueOccurrences.map((scheduledFor, index) => {
     const slotKey = slotKeys[index];
     const theme = plannedTheme(automation.allowedThemes, planSeed, index);
-    let mediaKind: InrAgentEditorialMediaKind = "existing";
+    const media = inrAgentPublicationMediaAt(publicationOrdinal({
+      scheduledFor, timezone, frequency, scheduleSlots, monthDays,
+    }), mediaTypes);
     let channels = [...baseChannels];
 
-    if (aiGeneration) {
-      mediaKind =
-        onlyYoutube || plannedVideos.has(slotKey) ? "video" : "image";
-      if (mediaKind === "image") {
-        channels = channels.filter((channel) => channel !== "youtube");
-        if (!channels.length) {
-          channels = [...baseChannels];
-          mediaKind = "video";
-        }
-      }
+    if (media.mediaKind === "image") {
+      channels = channels.filter((channel) => channel !== "youtube");
     }
 
     return {
@@ -402,9 +434,7 @@ export function buildInrAgentEditorialPlan(args: {
       totalSlots: uniqueOccurrences.length,
       theme,
       tone,
-      mediaKind,
-      imageCount:
-        mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
+      ...media,
       channels,
       scheduleSignature,
       criteriaSignature,

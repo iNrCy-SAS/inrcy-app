@@ -41,6 +41,7 @@ import {
   INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG,
   INR_AGENT_X_PUBLISH_MIGRATION_FLAG,
   normalizeInrAgentPublicationIdeas,
+  normalizeInrAgentPublicationMediaTypes,
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
@@ -60,6 +61,7 @@ import {
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
+import { normalizeAiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
 import { applySafePreferredCta, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
@@ -73,7 +75,8 @@ import {
   normalizeInrAgentEditorialFocus,
   type InrAgentEditorialFocus,
 } from "@/lib/inrAgentEditorialVariation";
-import { inrAgentNextInstantMediaKind } from "@/lib/inrAgentEditorialMediaPolicy";
+import { inrAgentPublicationMediaAt } from "@/lib/inrAgentEditorialMediaPolicy";
+import { createHash, randomUUID } from "node:crypto";
 import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
 export const maxDuration = 800;
@@ -130,6 +133,7 @@ type InstantMediaMixState = {
   preparedPublications: number;
   videoPublications: number;
   mediaKind: "image" | "video";
+  imageCount: 0 | 1 | 3;
   historyAvailable: boolean;
 };
 
@@ -433,9 +437,8 @@ function normalizeEditorialPlan(
     theme,
     tone: normalizeAgentTone(record.tone),
     mediaKind,
-    // Les anciens plans pouvaient encore contenir imageCount: 2. La politique
-    // courante s'applique au moment de la génération pour préserver le quota.
-    imageCount: mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
+    imageCount: mediaKind === "image" ? (record.imageCount === 3 ? 3 : INR_AGENT_IMAGES_PER_PUBLICATION) : 0,
+    ...(record.videoDurationSeconds === 8 ? { videoDurationSeconds: 8 as const } : {}),
     channels,
     scheduleSignature: cleanText(record.scheduleSignature, 2_000),
     criteriaSignature: cleanText(record.criteriaSignature, 2_000),
@@ -597,7 +600,8 @@ async function loadRecentMediaUsage(userId: string): Promise<RecentMediaUsage> {
 }
 
 async function loadInstantMediaMixState(
-  userId: string
+  userId: string,
+  mediaTypes: unknown,
 ): Promise<InstantMediaMixState> {
   const instantActionMetadata = {
     preparedManually: true,
@@ -632,6 +636,7 @@ async function loadInstantMediaMixState(
       videoPublications: 0,
       // Fail closed on quota cost: a history outage must never force a video.
       mediaKind: "image",
+      imageCount: 1,
       historyAvailable: false,
     };
   }
@@ -641,10 +646,7 @@ async function loadInstantMediaMixState(
   return {
     preparedPublications,
     videoPublications,
-    mediaKind: inrAgentNextInstantMediaKind({
-      preparedPublications,
-      videoPublications,
-    }),
+    ...inrAgentPublicationMediaAt(preparedPublications + 1, mediaTypes),
     historyAvailable: true,
   };
 }
@@ -1490,6 +1492,7 @@ async function pickMediaFromProLibrary(args: {
   business: JsonRecord | null;
   theme: InrAgentTheme;
   preferredTypes: Array<"image" | "video">;
+  videoDurationSeconds?: 8;
   recentMediaUsage: RecentMediaUsage;
   attempts?: MediaSelectionAttempt[];
 }): Promise<ImageBankAsset | null> {
@@ -1515,6 +1518,7 @@ async function pickMediaFromProLibrary(args: {
     const mediaType = row.media_type === "video" ? "video" : "image";
     const size = Number(row.size_bytes || 0);
     const duration = Number(row.duration_seconds || 0);
+    if (mediaType === "video" && args.videoDurationSeconds === 8 && Math.abs(duration - 8) > 0.1) return null;
 
     return {
       id: String(row.id || ""),
@@ -1840,6 +1844,7 @@ async function pickDiversifiedMedia(args: {
   business: JsonRecord | null;
   theme: InrAgentTheme;
   preferredTypes: Array<"image" | "video">;
+  videoDurationSeconds?: 8;
   preferredSource: InrAgentPreferredMediaSource;
   recentMediaUsage: RecentMediaUsage;
 }): Promise<{
@@ -1850,12 +1855,12 @@ async function pickDiversifiedMedia(args: {
 }> {
   const attempts: MediaSelectionAttempt[] = [];
   const proMedia = await pickMediaFromProLibrary({ ...args, attempts });
-  const imageBankMedia = await pickImageFromBank({
+  const imageBankMedia = args.preferredTypes.includes("image") ? await pickImageFromBank({
     business: args.business,
     theme: args.theme,
     recentMediaUsage: args.recentMediaUsage,
     attempts,
-  });
+  }) : null;
 
   let selected: ImageBankAsset | null = null;
   const roll: number | null = null;
@@ -2066,7 +2071,7 @@ export async function POST(request: Request) {
       : Promise.resolve(null);
   const instantMediaMixPromise = editorialTarget
     ? Promise.resolve(null)
-    : loadInstantMediaMixState(userId);
+    : loadInstantMediaMixState(userId, automation.publicationMediaTypes);
 
   const [
     availableChannels,
@@ -2088,12 +2093,18 @@ export async function POST(request: Request) {
     instantMediaMixPromise,
   ]);
   const plannedMediaKind = editorialTarget?.plan.mediaKind;
+  const publicationMediaTypes = normalizeInrAgentPublicationMediaTypes(automation.publicationMediaTypes);
   const automaticMediaKind =
-    plannedMediaKind === "image" ||
-    plannedMediaKind === "video" ||
-    plannedMediaKind === "existing"
-      ? plannedMediaKind
+    plannedMediaKind === "video"
+      ? (publicationMediaTypes.video ? "video" : "image")
+      : plannedMediaKind === "image" ? "image"
       : instantMediaMix?.mediaKind || "image";
+  const requestedImageCount = automaticMediaKind === "image"
+    ? (publicationMediaTypes.carousel && (editorialTarget?.plan.imageCount === 3 || instantMediaMix?.imageCount === 3) ? 3 : 1)
+    : 0;
+  const videoDurationSeconds = automaticMediaKind === "video"
+    ? (editorialTarget ? editorialTarget.plan.videoDurationSeconds : 8)
+    : undefined;
   // Les canaux actifs sauvegardés au moment de la préparation sont la source
   // de vérité. Le plan éditorial fige la date, le thème et le type de média,
   // mais ne doit jamais réappliquer une ancienne liste de canaux.
@@ -2183,12 +2194,24 @@ export async function POST(request: Request) {
   const idea = editorialTarget
     ? `${guidedIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
     : guidedIdea;
-  const requiresGeneratedVideo =
-    automaticMediaKind !== "image" && channels.includes("youtube_shorts");
-  const prefersExistingVideo =
-    automaticMediaKind === "video" ||
-    (automaticMediaKind === "existing" &&
-      (requiresGeneratedVideo || channels.includes("tiktok")));
+  const prefersExistingVideo = automaticMediaKind === "video";
+  let quotaReservation: AiCreditReservation | null = null;
+  const actionCredits = computeBoosterAiCredits({
+    mediaType: automaticMediaKind === "video" ? "video" : "images",
+    imagesForAI: automaticMediaKind === "image" ? [{}] : [],
+    videoForAI: automaticMediaKind === "video" ? {} : undefined,
+  });
+  if (!isAdmin) {
+    const quota = editorialTarget
+      ? await reserveInrAgentEditorialCredits({
+          supabase, userId: quotaAccountId, credits: actionCredits,
+          horizonDays: automation.planningHorizonDays, idempotencyKey: editorialTarget.id,
+        })
+      : await reserveAiCredits({ supabase, userId: quotaAccountId, action: "booster", credits: actionCredits });
+    if (quota.errorResponse) return quota.errorResponse;
+    quotaReservation = quota.reservation;
+  }
+  try {
   const mediaSelectionStartedAt = Date.now();
   const recentMediaUsage = await loadRecentMediaUsage(userId);
   const diversifiedMediaSelection = automation.useImageBank
@@ -2196,9 +2219,8 @@ export async function POST(request: Request) {
         userId,
         business,
         theme: agentTheme,
-        preferredTypes: prefersExistingVideo
-          ? ["video", "image"]
-          : ["image", "video"],
+        preferredTypes: prefersExistingVideo ? ["video"] : ["image"],
+        videoDurationSeconds,
         preferredSource: automation.preferredMediaSource,
         recentMediaUsage,
       })
@@ -2218,47 +2240,89 @@ export async function POST(request: Request) {
   const fallbackMedia = diversifiedMediaSelection.media;
   const fallbackKind =
     fallbackMedia?.mediaType || fallbackMedia?.kind || "image";
-  const shouldGenerateMedia =
-    automation.preferredMediaSource === "ai_generation" ||
-    !fallbackMedia ||
-    (automaticMediaKind !== "existing" &&
-      fallbackKind !== automaticMediaKind) ||
-    (requiresGeneratedVideo && fallbackKind !== "video");
-  const generatedKind =
-    automaticMediaKind === "image" || automaticMediaKind === "video"
-      ? automaticMediaKind
-      : requiresGeneratedVideo
-      ? "video"
-      : "image";
-  const requestedGenerationCount =
-    shouldGenerateMedia && generatedKind === "image"
-      ? INR_AGENT_IMAGES_PER_PUBLICATION
-      : shouldGenerateMedia
-      ? 1
-      : 0;
+  const fallbackAssets: ImageBankAsset[] = fallbackMedia && fallbackKind === automaticMediaKind
+    ? [fallbackMedia] : [];
+  const carouselSelectionUsage: RecentMediaUsage = {
+    ...recentMediaUsage,
+    proMediaIds: new Set(recentMediaUsage.proMediaIds),
+    imageBankIds: new Set(recentMediaUsage.imageBankIds),
+    storageKeys: new Set(recentMediaUsage.storageKeys),
+  };
+  // Les trois visuels sont distincts, même lorsque la médiathèque est prioritaire.
+  while (automation.useImageBank && automaticMediaKind === "image" &&
+    fallbackAssets.length > 0 && fallbackAssets.length < requestedImageCount) {
+    for (const asset of fallbackAssets) {
+      if (asset.librarySource === "pro_media_library") carouselSelectionUsage.proMediaIds.add(asset.id);
+      else carouselSelectionUsage.imageBankIds.add(asset.id);
+      carouselSelectionUsage.storageKeys.add(getMediaSourceKey(asset.librarySource || "inrcy_image_bank", asset.storagePath));
+    }
+    const next = await pickDiversifiedMedia({
+      userId, business, theme: agentTheme, preferredTypes: ["image"],
+      preferredSource: automation.preferredMediaSource, recentMediaUsage: carouselSelectionUsage,
+    });
+    if (!next.media || fallbackAssets.some((asset) => asset.id === next.media?.id || asset.storagePath === next.media?.storagePath)) break;
+    fallbackAssets.push(next.media);
+  }
+  const generatedKind = automaticMediaKind;
+  const desiredMediaCount = requestedImageCount || 1;
+  let existingMediaAssets = automation.preferredMediaSource === "ai_generation" ? [] : fallbackAssets;
+  const mediaSnapshotSignature = createHash("sha256").update(JSON.stringify([
+    editorialTarget?.plan.criteriaSignature, automaticMediaKind, desiredMediaCount,
+    automation.preferredMediaSource, automation.studioMediaPreferencePercent,
+  ])).digest("hex");
+  const savedMediaSnapshot = asRecord(editorialTarget?.metadata.editorialMediaGeneration);
+  const reuseMediaSnapshot = savedMediaSnapshot.signature === mediaSnapshotSignature && typeof savedMediaSnapshot.idea === "string";
+  const generationIdea = reuseMediaSnapshot ? String(savedMediaSnapshot.idea) : idea;
+  const generationTheme = reuseMediaSnapshot && typeof savedMediaSnapshot.theme === "string"
+    ? savedMediaSnapshot.theme as InrAgentTheme : agentTheme;
+  const generationStudioPreferences = reuseMediaSnapshot
+    ? (savedMediaSnapshot.studioPreferences ? normalizeAiMediaGeneratorPreferences(savedMediaSnapshot.studioPreferences) : null)
+    : studioMediaPreferences;
+  if (reuseMediaSnapshot && Array.isArray(savedMediaSnapshot.existingAssets)) {
+    existingMediaAssets = savedMediaSnapshot.existingAssets as ImageBankAsset[];
+  }
+  if (editorialTarget && !reuseMediaSnapshot) {
+    // Figer les entrées avant le premier débit assure un retry identique, même
+    // si le profil, l’historique ou les réglages Studio évoluent entre-temps.
+    editorialTarget.metadata = {
+      ...editorialTarget.metadata,
+      editorialMediaGeneration: {
+        signature: mediaSnapshotSignature, idea, theme: agentTheme,
+        studioPreferences: studioMediaPreferences,
+        existingAssets: existingMediaAssets,
+      },
+    };
+    const saved = await supabaseAdmin.from("inr_agent_actions")
+      .update({ metadata: editorialTarget.metadata })
+      .eq("id", editorialTarget.id).eq("user_id", userId).eq("status", "executing")
+      .select("id").maybeSingle();
+    if (saved.error || !saved.data) throw new Error("editorial_media_snapshot_unavailable");
+  }
+  const requestedGenerationCount = Math.max(0, desiredMediaCount - existingMediaAssets.length);
+  const shouldGenerateMedia = requestedGenerationCount > 0;
   const generatedMediaResults: Array<
     Awaited<ReturnType<typeof generateInrAgentMedia>>
   > = [];
-  const mediaVariantSeed = [
-    userId,
-    editorialTarget?.id || "on-demand",
-    editorialTarget?.plan.scheduledFor || "unscheduled",
-    agentTheme,
-    runtimeFocus?.focusKey || "no-editorial-focus",
-  ].join(":");
+  const mediaRequestScope = editorialTarget
+    ? `${editorialTarget.id}:${mediaSnapshotSignature.slice(0, 16)}`
+    : randomUUID();
   for (let index = 0; index < requestedGenerationCount; index += 1) {
     generatedMediaResults.push(
       await generateInrAgentMedia({
         supabase: supabaseAdmin,
         accountId: userId,
         actorAuthUserId: actorUserId,
-        idea,
-        theme: agentTheme,
+        idea: requestedImageCount === 3
+          ? `${generationIdea}\n\nCARROUSEL COHÉRENT DE 3 IMAGES — visuel ${existingMediaAssets.length + index + 1}/3. Même sujet et identité visuelle, cadrage et détail complémentaires aux autres visuels. Aucun fait, résultat client ou chantier inventé.`
+          : generationIdea,
+        theme: generationTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,
         studioMediaPreferencePercent: automation.studioMediaPreferencePercent,
-        studioPreferences: studioMediaPreferences,
-        variantSeed: `${mediaVariantSeed}:${index}`,
+        studioPreferences: generationStudioPreferences,
+        variantSeed: `${mediaRequestScope}:${existingMediaAssets.length + index}`,
+        generationRequestId: `${mediaRequestScope}:part:${existingMediaAssets.length + index}`,
+        videoDurationSeconds,
       })
     );
   }
@@ -2271,43 +2335,24 @@ export async function POST(request: Request) {
       ? [generatedPickerItemToAgentMedia({ item: result.item, business })]
       : []
   );
-  const fallbackMatchesPlan =
-    automaticMediaKind === "existing" || automaticMediaKind === fallbackKind;
-  let media = generatedMediaResult?.item
-    ? generatedPickerItemToAgentMedia({
-        item: generatedMediaResult.item,
-        business,
-      })
-    : fallbackMatchesPlan
-    ? fallbackMedia
-    : null;
-
-  // Si une génération d'image ne peut pas satisfaire YouTube Shorts, on ne
-  // remplace jamais une vidéo existante valide par cette image.
+  const selectedMediaAssets = [...existingMediaAssets, ...generatedMediaAssets];
+  const mediaAssets: ImageBankAsset[] = selectedMediaAssets.length === desiredMediaCount
+    ? selectedMediaAssets
+    : fallbackAssets.length === desiredMediaCount && generatedMediaAssets.length === 0 ? fallbackAssets : selectedMediaAssets;
+  const media = mediaAssets[0] || null;
   if (
-    requiresGeneratedVideo &&
-    generatedMediaResult?.item &&
-    generatedMediaResult.item.media_type !== "video" &&
-    fallbackKind === "video"
-  ) {
-    media = fallbackMedia;
-  }
-  const mediaAssets: ImageBankAsset[] = generatedMediaAssets.length
-    ? generatedMediaAssets
-    : media
-    ? [media]
-    : [];
-  if (
-    editorialTarget &&
-    automation.imageRequired &&
-    requestedGenerationCount > 0 &&
-    mediaAssets.length === 0
+    mediaAssets.length !== desiredMediaCount
   ) {
     const outcomes = generatedMediaResults.map((result) => result.outcome);
-    const primaryOutcome = outcomes[0] || "generation_failed";
+    const primaryOutcome = outcomes.includes("quota_reached") ? "quota_reached"
+      : outcomes.find((outcome) => outcome !== "generated") || "generation_failed";
     return NextResponse.json(
       {
-        error: `editorial_media_${primaryOutcome}`,
+        error: primaryOutcome === "quota_reached"
+          ? "Le quota de médias est insuffisant pour terminer cette publication. Les médias déjà préparés sont conservés pour la reprise."
+          : desiredMediaCount === 3
+          ? "Le carrousel doit contenir ses trois images avant validation. La préparation sera reprise sans regénérer les images déjà obtenues."
+          : "Le média de cette publication n’a pas pu être préparé. Réessayez dans quelques instants.",
         code: "editorial_media_required_unavailable",
         outcomes,
       },
@@ -2471,32 +2516,7 @@ export async function POST(request: Request) {
       (asset) => (asset.mediaType || asset.kind || "image") === "video"
     ) || null;
 
-  let quotaReservation: AiCreditReservation | null = null;
-  const actionCredits = computeBoosterAiCredits({
-    mediaType: mediaKind === "video" ? "video" : "images",
-    imagesForAI: image ? [image] : [],
-    videoForAI: video || undefined,
-  });
-  if (!isAdmin) {
-    const quota = editorialTarget
-      ? await reserveInrAgentEditorialCredits({
-          supabase,
-          userId: quotaAccountId,
-          credits: actionCredits,
-          horizonDays: automation.planningHorizonDays,
-          idempotencyKey: editorialTarget.id,
-        })
-      : await reserveAiCredits({
-          supabase,
-          userId: quotaAccountId,
-          action: "booster",
-          credits: actionCredits,
-        });
-    if (quota.errorResponse) return quota.errorResponse;
-    quotaReservation = quota.reservation;
-  }
-
-  const fastMetadataOnlyMedia = shouldUseFastAgentMediaContext(image);
+  const fastMetadataOnlyMedia = images.length === 1 && shouldUseFastAgentMediaContext(image);
   let videoPreparation: InrAgentCachedVideoPreparationResult | null = null;
   if (video) {
     const videoPreparationStartedAt = Date.now();
@@ -2522,7 +2542,7 @@ export async function POST(request: Request) {
     ? videoPreparation?.frames || []
     : fastMetadataOnlyMedia
     ? []
-    : await prepareAgentSelectedImageForAI(image);
+    : (await Promise.all(images.map((asset) => prepareAgentSelectedImageForAI(asset)))).flat();
   imagePreparationMs = video ? 0 : Date.now() - imagePreparationStartedAt;
   const selectedMediaContext = buildAgentSelectedMediaContext(
     media,
@@ -2769,6 +2789,7 @@ export async function POST(request: Request) {
     if (insertError) {
       persistenceMs = Date.now() - persistenceStartedAt;
       await rollbackAiCredits(quotaReservation);
+      quotaReservation = null;
       console.warn("[inr-agent] prepare-publish timing", {
         userId,
         isCron,
@@ -2845,6 +2866,7 @@ export async function POST(request: Request) {
     persistenceMs = Date.now() - persistenceStartedAt;
 
     await commitAiCredits(quotaReservation);
+    quotaReservation = null;
     console.info("[inr-agent] prepare-publish timing", {
       userId,
       isCron,
@@ -2878,6 +2900,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     await rollbackAiCredits(quotaReservation);
+    quotaReservation = null;
     console.warn("[inr-agent] prepare-publish timing", {
       userId,
       isCron,
@@ -2908,6 +2931,10 @@ export async function POST(request: Request) {
           : String(error || "Erreur inconnue"),
     });
     throw error;
+  }
+  } finally {
+    // Toute sortie avant la génération du texte restitue sa réservation.
+    if (quotaReservation) await rollbackAiCredits(quotaReservation);
   }
 }
 function channelMediaAdaptation(

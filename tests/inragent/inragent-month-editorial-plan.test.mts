@@ -42,13 +42,11 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
   assert.match(planner, /automation\.allowedChannels/);
   assert.match(planner, /toneValue\(args\.tone\)/);
   assert.match(planner, /startingIndex \+ sequence/);
-  assert.match(planner, /inrAgentEditorialVideoCount\(slotKeys\.length\)/);
+  assert.match(planner, /inrAgentPublicationMediaAt\(publicationOrdinal\(/);
   assert.match(planner, /INR_AGENT_IMAGES_PER_PUBLICATION = 1 as const/);
-  assert.match(planner, /imageCount: 0 \| 1/);
-  assert.match(
-    planner,
-    /mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 0/
-  );
+  assert.match(planner, /imageCount: 0 \| 1 \| 3/);
+  assert.match(planner, /videoDurationSeconds\?: 8/);
+  assert.match(planner, /\.\.\.media,/);
   assert.doesNotMatch(planner, /plannedImageCount/);
   assert.match(
     planner,
@@ -149,7 +147,7 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
 });
 
-test("la préparation limite iNrAgent à une image jusqu'à Booster et à l'agenda", () => {
+test("la préparation transmet les médias choisis jusqu'à Booster et à l'agenda", () => {
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
   const regenerate = read("app/api/agent/actions/regenerate-channel/route.ts");
   const server = read("lib/inrAgentEditorialPlanServer.ts");
@@ -182,8 +180,10 @@ test("la préparation limite iNrAgent à une image jusqu'à Booster et à l'agen
   assert.match(client, /selectedPreparedAction\.scheduledFor/);
   assert.match(regenerate, /INR_AGENT_IMAGES_PER_PUBLICATION/);
   assert.doesNotMatch(regenerate, /seconde image complémentaire/);
-  assert.match(server, /lostImages \+= INR_AGENT_IMAGES_PER_PUBLICATION/);
-  assert.match(messages, /une vidéo ou une seule image/);
+  assert.match(server, /lostImages \+= Number\(plan\.imageCount\) === 3 \? 3 : INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.match(server, /requiredImages \+= slot\.imageCount/);
+  assert.match(server, /requiredVideoSeconds \+= slot\.videoDurationSeconds \|\| 24/);
+  assert.match(messages, /en conservant leur format et le nombre d’images/);
 });
 
 test("les vidéos automatiques iNrAgent restent exceptionnelles", () => {
@@ -238,7 +238,7 @@ test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
 
   assert.match(prepare, /loadInstantMediaMixState/);
-  assert.match(prepare, /inrAgentNextInstantMediaKind/);
+  assert.match(prepare, /inrAgentPublicationMediaAt\(preparedPublications \+ 1, mediaTypes\)/);
   assert.match(prepare, /preparedManually:\s*true/);
   assert.match(prepare, /editorialPlan:\s*false/);
   assert.match(prepare, /contains\("payload", \{ mediaType: "video" \}\)/);
@@ -247,10 +247,8 @@ test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
     prepare,
     /automaticMediaKind === "image" && channel === "youtube_shorts"/
   );
-  assert.match(
-    prepare,
-    /automaticMediaKind === "existing" &&[\s\S]*?channels\.includes\("tiktok"\)/
-  );
+  assert.match(prepare, /publicationMediaTypes\.carousel &&/);
+  assert.doesNotMatch(prepare, /automaticMediaKind === "existing"/);
 });
 
 test("les médias iNrAgent sont adaptés sans rognage automatique", () => {

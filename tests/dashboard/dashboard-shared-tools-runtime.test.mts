@@ -327,7 +327,7 @@ test("Agent planning receives the real edition, keeping campaign automation hidd
   }
 });
 
-test("Ads keeps the independent administrator pilot gate and does not grant Standard server rights", () => {
+test("available Ads opens for Premium and Founder while Standard keeps its subscription and server gates", () => {
   for (const variant of variants) {
     const unavailable = harness(variant);
     const coming = action(unavailable.render().tree, "adsCard");
@@ -335,9 +335,13 @@ test("Ads keeps the independent administrator pilot gate and does not grant Stan
     assert.equal(coming.props.onClick, undefined);
     assert.equal(coming.props["data-dashboard-prefetch"], undefined);
     assert.match(content(coming), /À venir/);
-    const pilot = harness({ ...variant, props: { adsPilotEnabled: true } });
-    click(action(pilot.render().tree, "adsCard"));
-    assert.deepEqual(pilot.calls.routes, ["/dashboard/ads"]);
+    const available = harness({ ...variant, props: { adsPilotEnabled: true } });
+    const button = action(available.render().tree, "adsCard");
+    click(button);
+    const standard = variant.edition === "standard";
+    assert.deepEqual(available.calls.routes, standard ? [] : ["/dashboard/ads"]);
+    assert.deepEqual(available.calls.panels, standard ? ["abonnement"] : []);
+    assert.equal(button.props["data-dashboard-prefetch"], standard ? undefined : "/dashboard/ads");
   }
   assert.equal(editionPolicy.isStandardDashboardRouteAllowed("/dashboard/ads"), false);
   assert.equal(editionPolicy.isStandardApiRouteAllowed("/api/ads/campaigns"), false);

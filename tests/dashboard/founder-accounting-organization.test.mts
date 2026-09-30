@@ -109,7 +109,7 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
   assert.match(source, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
-  assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
+  assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => standardMode \? startPanelOpening\("abonnement"\) : startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
   assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
   assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
   assert.match(source, /data-testid=\{standardMode \? "standard-agent-planning-icon" : "premium-agent-planning"\}/);

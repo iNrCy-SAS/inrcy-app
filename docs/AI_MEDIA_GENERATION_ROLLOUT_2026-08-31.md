@@ -7,7 +7,7 @@
 - Les images passent par **Vercel AI Gateway**. Les vidéos proposent Gemini Omni Flash (choix rapide par défaut) et Google Veo 3.1 Fast (choix cinématographique) ; une scène Omni non facturée peut basculer vers Veo, puis Lite peut prendre le relais sur un échec Veo non facturé. `GEMINI_API_KEY` ne doit jamais être exposée au navigateur.
 - Pour une image, le modèle reçoit uniquement le sujet actuel, le Profil et le logo officiel. Le logo est l’unique fichier image de référence ; la Médiathèque et les anciens médias ne sont jamais transmis.
 - Le quota appartient à l’**établissement actif** (`account_id`), jamais au seul utilisateur AUTH ni à un compteur commun au bundle multicompte.
-- Chaque établissement possède son propre compteur. Trois établissements couverts par l’édition Standard disposent donc chacun de 20 images et 5 vidéos par mois, soit 60 images et 15 vidéos au total.
+- Chaque établissement possède son propre compteur. Après application de la migration images 25/50, trois établissements Standard disposent donc chacun de 25 images et 48 secondes vidéo par mois, soit 75 images et 144 secondes au total.
 - L’entitlement commercial peut rester facturé au niveau du propriétaire AUTH ou d’un bundle multicompte. Le code doit néanmoins le résoudre sémantiquement depuis `activeUserId` afin de rester compatible avec une future facturation par établissement.
 - Les périodes sont des mois calendaires en UTC. Une réservation en cours réduit immédiatement le solde disponible ; elle devient une consommation uniquement à la réussite.
 - Booster et l’atelier avancé « Générer un média » sont accessibles à toutes les éditions. Les deux surfaces partagent le quota mensuel de l’établissement actif.
@@ -24,13 +24,17 @@
 
 ## 2. Plafonds livrés
 
-| Édition de l’établissement | Images / mois | Vidéos / mois | Durées vidéo | Atelier avancé |
+| Édition de l’établissement | Images / mois | Secondes vidéo / mois | Durées vidéo | Atelier avancé |
 | --- | ---: | ---: | --- | --- |
-| Standard | 20 | 5 | 8 s | Oui |
-| Premium | 30 | 6 | 8, 16 ou 24 s | Oui |
-| Founder | 30 | 6 | 8, 16 ou 24 s | Oui |
+| Standard | 25 | 48 | 8, 16 ou 24 s | Oui |
+| Premium | 50 | 144 | 8, 16 ou 24 s | Oui |
+| Founder | 50 | 144 | 8, 16 ou 24 s | Oui |
 
-Ces valeurs sont présentes dans `public.ai_media_plan_limits` et dans le helper serveur. Le seul admin global iNrCy est présenté comme illimité ; le serveur applique un fusible interne à 10 000, jamais lu depuis le body client. Un propriétaire d’établissement ou un membre `admin` n’obtient pas automatiquement cet illimité.
+Les recharges images 25/50 exigent l’application de la migration `ai_media_image_limits_25_50` sur la base cible ; modifier le helper seul ne change pas le quota réel. Les secondes vidéo restent inchangées. Le report est plafonné à 70 images pour tous, 168 secondes vidéo en Standard et 480 en Premium/Founder. Les compteurs affichés dans Studio, Booster, Modification d’image, iNrAgent et iNrADS proviennent du même quota par établissement.
+
+La migration modifie uniquement `public.ai_media_plan_limits.image_monthly_limit`. Elle conserve les surcharges éventuelles par compte, les médias, les consommations, les réservations et les périodes. La fonction de report existante applique à la prochaine consultation ou réservation le delta du mois courant (+5 Standard, +20 Premium/Founder), dans la limite de la cagnotte ; aucun compteur ne doit être remis à zéro. Les anciens patchs SQL ci-dessous documentent l’historique et ne doivent pas être rejoués pour cette hausse.
+
+Le seul admin global iNrCy est présenté comme illimité ; le serveur applique un fusible interne à 10 000, jamais lu depuis le body client. Un propriétaire d’établissement ou un membre `admin` n’obtient pas automatiquement cet illimité.
 
 ## 3. Préflight Supabase
 
@@ -172,7 +176,7 @@ Le runtime possède des valeurs conservatrices par défaut. Les surcharges suiva
 - `AI_MEDIA_IMAGE_TIMEOUT_MS` et `AI_MEDIA_VIDEO_TIMEOUT_MS` : délais maximums, bornés côté serveur.
 - `AI_MEDIA_VEO_POLL_MS` : polling, à calibrer d’abord en Preview. `AI_MEDIA_OMNI_CONCURRENCY` (défaut 3) et `AI_MEDIA_VEO_CONCURRENCY` (défaut 2) règlent le parallélisme sans raccord. L’option `connectScenes` dans Finitions (bloc 4), sous les durées, désactive ce parallélisme et chaîne les frames sous un délai vidéo global ;
 - `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE` et `AI_MEDIA_TTS_TIMEOUT_MS` : réglages optionnels de la voix off.
-- `AI_GATEWAY_MAX_COST_MICRO_USD_PER_ACCOUNT_DAY` : le défaut du code est `20000000`. Toute valeur Vercel existante surcharge ce défaut et doit rester au moins à `20000000` pour ne pas bloquer un Premium qui utilise légitimement 6 vidéos et 30 images le même jour.
+- `AI_GATEWAY_MAX_COST_MICRO_USD_PER_ACCOUNT_DAY` : le défaut du code est `20000000`. Toute valeur Vercel existante surcharge ce défaut. La hausse à 50 images ne modifie pas ce garde-fou indépendant : avec les estimations du code, 144 secondes vidéo à `100000` micro-USD/s et 50 images à `65000` représentent `17650000` micro-USD, avant voix off, références et autres appels IA. Il s’agit d’une estimation de réservation, pas d’un tarif facturé vérifié.
 
 Les coûts par défaut sont `100000` micro-USD/s pour Omni 720p et Fast, `50000` pour Lite et `400000` pour le modèle Standard non utilisé. Une vidéo Omni ou Fast de 8, 16 ou 24 secondes coûte donc environ 0,80, 1,60 ou 2,40 USD. Chaque moteur réserve puis comptabilise uniquement les scènes réellement produites ; aucun second moteur n’est lancé pour remplacer une scène déjà facturable. Une valeur trop basse affaiblit le coupe-circuit économique ; documenter toute modification après contrôle du tarif officiel Google.
 

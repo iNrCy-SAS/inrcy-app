@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "Tipos de média",
+  "publication_media_single_image": "1 imagem",
+  "publication_media_video": "Vídeo de 8 s",
+  "publication_media_carousel": "3 imagens",
   "1_fois_par_mois_a9697a49": "Uma vez por mês",
   "1_fois_par_semaine_3753e32e": "Uma vez por semana",
   "1_mois_e5493c85": "1 mês",
@@ -538,7 +542,7 @@
   "regenerate_media": "Regenerar o média",
   "regenerate_confirm_title": "Regenerar para {channel}?",
   "regenerate_content_confirm": "O iNrCy recriará apenas o título e o texto de {channel}. A data, o média e os outros canais permanecerão inalterados.",
-  "regenerate_media_confirm": "O iNrCy criará um novo média para toda a publicação e aplicá-lo-á a todos os canais selecionados. O texto e a data permanecerão inalterados.",
+  "regenerate_media_confirm": "O iNrCy recriará os conteúdos multimédia da publicação, mantendo o formato e o número de imagens, e aplicá-los-á a todos os canais selecionados. O texto e a data permanecerão inalterados.",
   "regenerate_failed": "A regeneração não foi concluída. Nenhum conteúdo existente foi substituído.",
   "regenerate_content_success": "O conteúdo de {channel} foi regenerado.",
   "regenerate_media_success": "O média foi regenerado para todos os canais da publicação.",

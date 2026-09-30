@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
@@ -38,6 +37,7 @@ import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferenc
 import { INR_AGENT_IMAGES_PER_PUBLICATION } from "@/lib/inrAgentEditorialPlanning";
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
 import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
+import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -143,6 +143,24 @@ function currentChannelsForAction(action: ReturnType<typeof rowToInrAgentAction>
     ...values(nested.channels),
     ...values(nested.selectedChannels),
   ]);
+}
+
+function currentPublicationImageCount(action: ReturnType<typeof rowToInrAgentAction>) {
+  const payload = action.payload || {};
+  const nested = asRecord(payload.publishPayload) || {};
+  const imageMaps = [asRecord(payload.imagesByChannel), asRecord(nested.imagesByChannel)];
+  const candidates = [
+    action.imageAssets,
+    payload.images, payload.image_assets, payload.mediaAssets,
+    nested.images, nested.image_assets, nested.mediaAssets,
+    ...imageMaps.flatMap((map) => map ? Object.values(map) : []),
+  ];
+  return Math.max(INR_AGENT_IMAGES_PER_PUBLICATION, ...candidates.map((candidate) => {
+    const images = (Array.isArray(candidate) ? candidate : [])
+      .map(cleanPublishMedia)
+      .filter((media) => media?.kind === "image");
+    return new Set(images.map((media) => media!.id || media!.storagePath || media!.url)).size;
+  }));
 }
 
 function regeneratedIdea(args: {
@@ -461,7 +479,20 @@ export async function POST(request: Request) {
       ? "video"
       : "image";
   const expectedCount =
-    mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 1;
+    mediaKind === "image" ? currentPublicationImageCount(action) : 1;
+  if (expectedCount > INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT) {
+    return NextResponse.json({
+      error: "Cette série contient trop d’images pour être régénérée. Les médias existants ont été conservés.",
+    }, { status: 409 });
+  }
+  const editorialPlan = asRecord(payload.editorialPlan) || {};
+  const videoDurationSeconds = mediaKind === "video" && (
+    editorialPlan.videoDurationSeconds === 8 ||
+    Number(currentVideo?.duration || globalMedia?.duration) === 8
+  ) ? 8 as const : undefined;
+  // A failed attempt keeps the action revision and reuses already generated
+  // parts. A successful replacement changes updatedAt, allowing a fresh request.
+  const generationRevision = action.updatedAt || action.preparedAt || action.createdAt;
   const mediaIdea = regeneratedMediaIdea({
     payload,
     actionSummary: action.summary,
@@ -472,25 +503,41 @@ export async function POST(request: Request) {
       isAdminUserForAi(supabase, authUserId || activeUserId),
       loadInrAgentStudioMediaPreferences({ supabase: supabaseAdmin, accountId: activeUserId }),
     ]);
+    const generationIntent = createHash("sha256").update(JSON.stringify([
+      mediaIdea, theme, studioPreferences, expectedCount, videoDurationSeconds,
+    ])).digest("hex").slice(0, 16);
     const results = [];
     for (let index = 0; index < expectedCount; index += 1) {
-      results.push(await generateInrAgentMedia({
+      const result = await generateInrAgentMedia({
         supabase: supabaseAdmin,
         accountId: activeUserId,
         actorAuthUserId: authUserId || activeUserId,
-        idea: mediaIdea,
+        idea: expectedCount > 1
+          ? `${mediaIdea}\n\nIMAGE ${index + 1} SUR ${expectedCount} D’UNE MÊME SÉRIE. ${index === 0
+            ? "Présente le sujet avec une vue d’ensemble claire."
+            : index === expectedCount - 1
+              ? "Termine la série par une application ou un résultat concret, sans inventer de preuve."
+              : "Montre un détail complémentaire utile, avec un cadrage distinct."} Garde la même identité visuelle ; ne reproduis pas une autre image de la série.`
+          : mediaIdea,
         theme,
         kind: mediaKind,
         adminUnlimited: isAdmin,
         studioMediaPreferencePercent: 100,
         studioPreferences,
-        variantSeed: `${actionId}:global:${mediaKind}:${index}:${randomUUID()}`,
-      }));
+        videoDurationSeconds,
+        variantSeed: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
+        generationRequestId: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
+      });
+      results.push(result);
+      if (!result.item) break;
     }
     const generatedMedia = results
       .map((result) => result.item ? generatedItemToAgentMedia(result.item) : null)
-      .filter((item): item is NonNullable<ReturnType<typeof cleanPublishMedia>> => Boolean(item));
-    if (generatedMedia.length !== expectedCount) {
+      .filter((item): item is NonNullable<ReturnType<typeof cleanPublishMedia>> => Boolean(item)
+        && item?.kind === mediaKind
+        && (!videoDurationSeconds || Math.abs(Number(item?.duration) - videoDurationSeconds) <= 0.1));
+    if (generatedMedia.length !== expectedCount
+      || new Set(generatedMedia.map((item) => item.id || item.storagePath || item.url)).size !== expectedCount) {
       const quotaReached = results.some((result) => result.outcome === "quota_reached");
       return NextResponse.json(
         {

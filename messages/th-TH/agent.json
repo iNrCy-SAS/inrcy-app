@@ -1,4 +1,8 @@
 {
+  "publication_media_types": "ประเภทสื่อ",
+  "publication_media_single_image": "1 รูป",
+  "publication_media_video": "วิดีโอ 8 วินาที",
+  "publication_media_carousel": "3 รูป",
   "1_fois_par_mois_a9697a49": "1 ครั้งต่อเดือน",
   "1_fois_par_semaine_3753e32e": "1 ครั้งต่อสัปดาห์",
   "1_mois_e5493c85": "1 เดือน",
@@ -538,7 +542,7 @@
   "regenerate_media": "สร้างสื่อใหม่",
   "regenerate_confirm_title": "สร้างใหม่สำหรับ {channel} หรือไม่",
   "regenerate_content_confirm": "iNrCy จะสร้างเฉพาะชื่อเรื่องและข้อความของ {channel} ใหม่ วันที่ สื่อ และช่องทางอื่นจะไม่เปลี่ยนแปลง",
-  "regenerate_media_confirm": "iNrCy จะสร้างสื่อใหม่หนึ่งรายการสำหรับโพสต์ทั้งหมดและนำไปใช้กับทุกช่องทางที่เลือก ข้อความและวันที่จะไม่เปลี่ยนแปลง",
+  "regenerate_media_confirm": "iNrCy จะสร้างสื่อของโพสต์ใหม่ โดยคงรูปแบบและจำนวนรูปภาพเดิม แล้วนำไปใช้กับทุกช่องทางที่เลือก ข้อความและวันที่จะไม่เปลี่ยนแปลง",
   "regenerate_failed": "การสร้างใหม่ไม่เสร็จสมบูรณ์ เนื้อหาเดิมไม่ได้ถูกแทนที่",
   "regenerate_content_success": "สร้างเนื้อหาของ {channel} ใหม่แล้ว",
   "regenerate_media_success": "สร้างสื่อใหม่สำหรับทุกช่องทางของโพสต์แล้ว",
