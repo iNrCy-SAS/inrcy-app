@@ -705,7 +705,8 @@
 .campaignMediaPreviewImage{object-fit:contain;object-position:center}
 .campaignMediaPreview video{display:block;width:100%;height:100%;object-fit:contain}
 .studioPinterestFormatCard,.studioPureMediaCard{background:radial-gradient(ellipse at 100% 0,#e6002342,transparent 52%),radial-gradient(ellipse at 0 100%,#2778c128,transparent 55%),linear-gradient(128deg,#142d56ef,#302047f2)}
-.studioDedicatedMediaCard .campaignMediaWorkspace{margin-top:12px}
+/* Keep the full preview inside the card's scroll area instead of shrinking and clipping it. */
+.studioDedicatedMediaCard .campaignMediaWorkspace{flex:0 0 auto;margin-top:12px}
 .studioDedicatedMediaCard .campaignMediaPreview{height:clamp(300px,46vh,520px);min-height:300px;background:radial-gradient(circle at center,#263f6e73,#050b1cf2 76%)}
 .studioDedicatedMediaCard .campaignMediaPreviewImage,.studioDedicatedMediaCard .campaignMediaPreview video{object-fit:contain;object-position:center}
 .campaignMediaPreview[data-empty=true]{border-style:dashed;background:radial-gradient(circle at center,#2b568559,#050b1ce8 76%)}
