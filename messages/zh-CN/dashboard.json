@@ -699,6 +699,24 @@
     "aiGoalsTitle": "目标和保障措施",
     "aiGoalsDescription": "列出预期的结果、你的灵感以及要避免的事情。"
   },
+  "signatureTools": {
+    "createTitle": "创作与推广",
+    "pilotTitle": "管理与发展",
+    "mailCampaigns": "邮件营销",
+    "businessSpace": "您的企业工作空间",
+    "amplify": "扩大影响",
+    "imagine": "激发创意",
+    "automate": "自动执行",
+    "adsDescription": "通过多渠道营销活动吸引更多客户。",
+    "createCampaign": "创建营销活动",
+    "comingSoon": "即将推出",
+    "openStudio": "打开 Studio",
+    "access": "进入",
+    "manage": "管理",
+    "open": "打开",
+    "viewStats": "查看统计",
+    "dnaDescription": "用 AI 梳理您的企业信息。"
+  },
   "standard": {
     "pilotTitle": "控制箱",
     "pilotSubtitle": "衡量、发现、建立忠诚度",

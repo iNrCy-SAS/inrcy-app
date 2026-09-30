@@ -176,6 +176,17 @@
 .cardButton > span,
 .toolButton > span { font-size: 16px; font-weight: 450; line-height: .8; }
 
+.cardButton > svg,
+.toolButton > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .boosterWave { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; opacity: .94; animation: waveBreath 9s ease-in-out infinite alternate; }
 .boosterChart { position: absolute; z-index: -1; right: 5%; bottom: 25px; display: flex; align-items: flex-end; gap: 9px; width: 118px; height: 98px; padding: 20px 17px 16px; border: 1px solid #ba81ff72; border-radius: 17px; background: linear-gradient(140deg, #2c258c4f, #ac21be42); box-shadow: inset 0 0 18px #ad68ff11, 0 10px 40px #53108230; transform: perspective(400px) rotateY(-14deg) rotateZ(7deg); }
 .boosterChart span { flex: 1; height: 34%; border-radius: 4px 4px 2px 2px; background: linear-gradient(#8dceff, #6d50eb); box-shadow: inset 0 1px 1px #ebd1ff99, 0 0 12px #a865ff33; }

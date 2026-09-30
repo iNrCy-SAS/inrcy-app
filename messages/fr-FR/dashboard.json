@@ -699,6 +699,24 @@
     "aiGoalsTitle": "Objectifs et garde-fous",
     "aiGoalsDescription": "Cadrez les résultats attendus, vos inspirations et ce qu’il faut éviter."
   },
+  "signatureTools": {
+    "createTitle": "Créer & amplifier",
+    "pilotTitle": "Piloter & développer",
+    "mailCampaigns": "Campagnes mails",
+    "businessSpace": "VOTRE ESPACE ENTREPRISE",
+    "amplify": "AMPLIFIEZ",
+    "imagine": "IMAGINEZ",
+    "automate": "AUTOMATISEZ",
+    "adsDescription": "Campagnes multicanales pour plus de clients.",
+    "createCampaign": "Créer une campagne",
+    "comingSoon": "À venir",
+    "openStudio": "Ouvrir Studio",
+    "access": "Accéder",
+    "manage": "Gérer",
+    "open": "Ouvrir",
+    "viewStats": "Voir les stats",
+    "dnaDescription": "Structurez votre entreprise avec l’IA."
+  },
   "standard": {
     "pilotTitle": "Boîte de pilotage",
     "pilotSubtitle": "Mesurez, retrouvez, fidélisez",

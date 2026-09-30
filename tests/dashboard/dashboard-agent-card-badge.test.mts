@@ -22,11 +22,13 @@ test("le dashboard retire le raccourci Agent du header et transmet son autorisat
 test("les logos Premium et Standard ouvrent la navigation Agent existante sans ignorer chargement ou autorisation", () => {
   for (const source of [premium, standard]) {
     assert.match(source, /inrAgentEnabled\?: boolean/);
-    assert.match(source, /inrAgentEnabled = true/);
-    assert.match(source, /<DashboardAgentLogoButton[\s\S]*?enabled=\{inrAgentEnabled\}[\s\S]*?onClick=\{\(\) => startModuleNavigation\(agentPath\)\}/);
   }
+  assert.match(standard, /\{ onOpenPremium, \.\.\.props \}/);
+  assert.match(standard, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
+  assert.doesNotMatch(standard, /useInrAgentPendingCount|DashboardAgentLogoButton|useDelayedPendingAction/);
+  assert.match(premium, /inrAgentEnabled = true/);
+  assert.match(premium, /<DashboardAgentLogoButton[\s\S]*?enabled=\{inrAgentEnabled\}[\s\S]*?onClick=\{\(\) => startModuleNavigation\(agentPath\)\}/);
   assert.match(premium, /<DashboardAgentLogoButton[\s\S]*?busy=\{isModuleLoadingVisible\(agentPath\)\}/);
-  assert.match(standard, /<DashboardAgentLogoButton[\s\S]*?busy=\{isVisible\(`route:\$\{agentPath\}`\)\}/);
   assert.match(logo, /type="button"/);
   assert.match(logo, /disabled=\{!enabled \|\| busy\}/);
   assert.match(logo, /aria-busy=\{busy \|\| undefined\}/);

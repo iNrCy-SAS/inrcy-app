@@ -26,6 +26,7 @@ test("shared delayed pending hook avoids loading flashes while keeping actions p
 test("dashboard tool, modal and configure buttons share the delayed loading behavior", () => {
   const actionButton = read("app/dashboard/_components/DashboardActionButton.tsx");
   const modules = read("app/dashboard/_components/DashboardModulesCard.tsx");
+  const standardModules = read("app/dashboard/_components/DashboardStandardModulesCard.tsx");
   const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
   const mobileNavigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
 
@@ -40,6 +41,9 @@ test("dashboard tool, modal and configure buttons share the delayed loading beha
   assert.match(modules, /modal:cash/);
   assert.match(modules, /panel:/);
   assert.match(modules, /route:/);
+  assert.match(standardModules, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
+  assert.doesNotMatch(standardModules, /useDelayedPendingAction|useState|setTimeout/);
+  assert.match(modules, /searchParams\.get\("action"\) === "publish" \|\| \(standardMode && searchParams\.get\("panel"\)\)/);
   assert.match(bubble, /configureLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(bubble, /data-dashboard-prefetch=/);
   assert.match(mobileNavigation, /modal:publish/);

@@ -699,6 +699,24 @@
     "aiGoalsTitle": "Goals and guardrails",
     "aiGoalsDescription": "Set the expected results, your inspiration and what must be avoided."
   },
+  "signatureTools": {
+    "createTitle": "Create & amplify",
+    "pilotTitle": "Manage & grow",
+    "mailCampaigns": "Email campaigns",
+    "businessSpace": "YOUR BUSINESS SPACE",
+    "amplify": "AMPLIFY",
+    "imagine": "IMAGINE",
+    "automate": "AUTOMATE",
+    "adsDescription": "Multichannel campaigns to reach more customers.",
+    "createCampaign": "Create a campaign",
+    "comingSoon": "Coming soon",
+    "openStudio": "Open Studio",
+    "access": "Open",
+    "manage": "Manage",
+    "open": "Open",
+    "viewStats": "View stats",
+    "dnaDescription": "Shape your business with AI."
+  },
   "standard": {
     "pilotTitle": "Dashboard",
     "pilotSubtitle": "Measure, find, retain",

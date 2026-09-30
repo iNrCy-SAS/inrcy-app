@@ -699,6 +699,24 @@
     "aiGoalsTitle": "วัตถุประสงค์และการป้องกัน",
     "aiGoalsDescription": "วางกรอบผลลัพธ์ที่คาดหวัง แรงบันดาลใจของคุณ และสิ่งที่ควรหลีกเลี่ยง"
   },
+  "signatureTools": {
+    "createTitle": "สร้างสรรค์และขยายผล",
+    "pilotTitle": "บริหารและเติบโต",
+    "mailCampaigns": "แคมเปญอีเมล",
+    "businessSpace": "พื้นที่ธุรกิจของคุณ",
+    "amplify": "ขยายการเข้าถึง",
+    "imagine": "สร้างสรรค์",
+    "automate": "ทำงานอัตโนมัติ",
+    "adsDescription": "แคมเปญหลายช่องทางเพื่อเข้าถึงลูกค้ามากขึ้น",
+    "createCampaign": "สร้างแคมเปญ",
+    "comingSoon": "เร็ว ๆ นี้",
+    "openStudio": "เปิด Studio",
+    "access": "เข้าใช้งาน",
+    "manage": "จัดการ",
+    "open": "เปิด",
+    "viewStats": "ดูสถิติ",
+    "dnaDescription": "จัดโครงสร้างธุรกิจของคุณด้วย AI"
+  },
   "standard": {
     "pilotTitle": "กล่องควบคุม",
     "pilotSubtitle": "วัดผล ค้นหา สร้างความภักดี",

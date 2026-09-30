@@ -45,8 +45,12 @@ const standardModulesSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardStandardModulesCard.tsx", import.meta.url),
   "utf8",
 );
-const standardModulesCssSource = readFileSync(
-  new URL("../../app/dashboard/_components/DashboardStandardModulesCard.module.css", import.meta.url),
+const sharedModulesSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardModulesCard.tsx", import.meta.url),
+  "utf8",
+);
+const sharedModulesCssSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardSignatureTools.module.css", import.meta.url),
   "utf8",
 );
 const campaignChoicesSource = readFileSync(
@@ -334,7 +338,7 @@ test("la capture de contact iNrBadge reste autonome en Standard sans renvoyer ve
   assert.match(badgeLeadApiSource, /to: proEmail/);
 });
 
-test("Standard conserve le dashboard actuel et ne remplace que les deux blocs inférieurs", () => {
+test("Standard et Premium partagent le même dashboard, avec un adaptateur Standard conservant ses droits", () => {
   assert.match(dashboardClientSource, /<DashboardHero/);
   assert.match(dashboardClientSource, /<DashboardChannelsSection/);
   assert.match(dashboardClientSource, /standardMode=\{isStandardEdition\}/);
@@ -342,6 +346,10 @@ test("Standard conserve le dashboard actuel et ne remplace que les deux blocs in
   assert.match(channelsSectionSource, /standardMode \? \(/);
   assert.match(channelsSectionSource, /<DashboardStandardModulesCard/);
   assert.match(channelsSectionSource, /<DashboardModulesCard/);
+  assert.match(standardModulesSource, /\{ onOpenPremium, \.\.\.props \}/);
+  assert.match(standardModulesSource, /<DashboardModulesCard \{\.\.\.props\} standardMode openPanel=\{onOpenPremium\}/);
+  assert.doesNotMatch(standardModulesSource, /module\.css|<section|<article|useState/);
+  assert.match(sharedModulesSource, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
 });
 
 test("Standard conserve les vraies bulles de connexion avec Voir et Configurer", () => {
@@ -379,31 +387,35 @@ test("un canal desactive reste gris tandis qu'un canal a connecter garde son eta
 });
 
 test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster, iNrAgent et iNrStudio", () => {
-  assert.match(standardModulesSource, /\/dashboard\/stats/);
-  assert.match(standardModulesSource, /folder=publications&boxView=sent/);
-  assert.match(standardModulesSource, /\/dashboard\/e-reputation/);
-  assert.match(standardModulesSource, /t\("boosterCta"\)/);
-  assert.match(standardModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
-  assert.match(standardModulesSource, /standardStyles\.agentPanel/);
-  assert.match(standardModulesSource, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(standardModulesSource, /data-testid="standard-studio-open"/);
-  assert.match(standardModulesSource, /data-dashboard-prefetch=\{studioPath\}/);
-  assert.match(standardModulesSource, /standardStyles\.studioPanel/);
+  assert.match(sharedModulesSource, /\/dashboard\/stats/);
+  assert.match(sharedModulesSource, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
+  assert.match(sharedModulesSource, /description: standardMode \? standardT\("sendDescription"\) : t\.modules\.mailsSub/);
+  assert.match(sharedModulesSource, /\/dashboard\/e-reputation/);
+  assert.match(sharedModulesSource, /onClick=\{openPublishModal\}/);
+  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
+  assert.match(sharedModulesSource, /signatureStyles\.agentCard/);
+  assert.match(sharedModulesSource, /const studioPath = "\/dashboard\/generer-media"/);
+  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
+  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{studioPath\}/);
+  assert.match(sharedModulesSource, /signatureStyles\.studioCard/);
   assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
   assert.match(dashboardI18nSource, /"studioCta": "Studio Médias"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/agenda/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/propulser/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/fideliser/);
-  assert.match(standardModulesSource, /standardStyles\.boosterPanel/);
-  assert.doesNotMatch(standardModulesSource, /gearboxTitle|gearboxSub|boosterStage|boosterCard/);
-  assert.match(standardModulesSource, /standardStyles\.toolAction/);
+  // The adapter cannot introduce its own unlocked routes; the shared renderer
+  // checks premiumOnly at both action and prefetch boundaries (tested below).
+  assert.match(sharedModulesSource, /signatureStyles\.boosterCard/);
+  assert.match(sharedModulesSource, /signatureStyles\.toolButton/);
+  assert.match(sharedModulesSource, /startModuleNavigation\("\/dashboard\/adn-entreprise"\)/);
 });
 
-test("Standard partage la rangée sous Booster à parts égales entre iNrAgent et iNrStudio", () => {
-  assert.match(standardModulesSource, /data-dashboard-standard-secondary-tools="true"/);
-  assert.match(standardModulesCssSource, /\.secondaryToolsRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(standardModulesCssSource, /@media \(max-width: 760px\)[\s\S]*?\.secondaryToolsRow\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
+test("Standard reprend la même rangée ADS, Studio et Agent, avec Studio et Agent de même largeur", () => {
+  assert.match(sharedModulesSource, /data-dashboard-standard-secondary-tools=\{standardMode \? "true" : undefined\}/);
+  assert.match(sharedModulesCssSource, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr 1fr/);
+  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.creationGrid\s*\{\s*grid-template-columns:\s*1fr 1fr/);
+  assert.match(sharedModulesCssSource, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{\s*grid-column:\s*1 \/ -1/);
   for (const key of ["studioEyebrow", "studioLine1", "studioLine2", "studioCta"]) {
     assert.match(dashboardI18nSource, new RegExp(`"${key}":\\s*"[^"]+"`));
   }
@@ -411,16 +423,16 @@ test("Standard partage la rangée sous Booster à parts égales entre iNrAgent e
 
 test("le raccourci calendrier du bloc iNrAgent réutilise la modale sans dupliquer le bouton Planning", () => {
   const planningTriggers =
-    standardModulesSource.match(/data-testid="standard-agent-planning(?:-icon)?"/g) ?? [];
+    sharedModulesSource.match(/"standard-agent-planning(?:-icon)?"/g) ?? [];
 
-  assert.deepEqual(planningTriggers, ['data-testid="standard-agent-planning-icon"']);
+  assert.deepEqual(planningTriggers, ['"standard-agent-planning-icon"']);
   assert.doesNotMatch(
     standardModulesSource,
     /className=\{standardStyles\.agentPlanningButton\}/,
   );
-  assert.match(standardModulesSource, /data-testid="standard-agent-pilotage"/);
-  assert.match(standardModulesSource, /t\("agentPlanning"\)/);
-  assert.match(standardModulesSource, /<DashboardAgentPlanningModal/);
+  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-agent-pilotage" : "premium-agent-pilotage"\}/);
+  assert.match(sharedModulesSource, /standardT\("agentPlanning"\)/);
+  assert.match(sharedModulesSource, /<DashboardAgentPlanningModal[\s\S]*?standardMode=\{standardMode\}/);
   assert.match(
     dashboardAgentPlanningSource,
     /import \{ AgentScheduleModal \} from "\.\/AgentActionModals"/,
@@ -471,21 +483,26 @@ test("le planning conserve Modifier et Reprogrammer dans la vue de consultation"
 
 test("le CTA Booster Standard reste accessible quel que soit l'état du profil", () => {
   assert.match(channelsSectionSource, /<DashboardStandardModulesCard/);
-  assert.match(standardModulesSource, /data-testid="standard-booster-publish"/);
-  assert.match(standardModulesSource, /onClick=\{openPublishModal\}/);
-  assert.match(standardModulesSource, /disabled=\{isVisible\("modal:publish"\)\}/);
-  assert.doesNotMatch(standardModulesSource, /RequiredSetupLock|requiredSetupLocked|profil/);
+  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-booster-publish" : "premium-booster-publish"\}/);
+  assert.match(sharedModulesSource, /onClick=\{openPublishModal\}/);
+  assert.match(sharedModulesSource, /disabled=\{isVisible\("modal:publish"\)\}/);
+  assert.doesNotMatch(sharedModulesSource, /RequiredSetupLock|requiredSetupLocked/);
   assert.doesNotMatch(channelsSectionSource, /requiredSetupLockVisible/);
 });
 
 test("le tableau Standard montre tous les outils Premium, mais verrouille ceux qui demandent Premium", () => {
-  assert.match(standardModulesSource, /standardStyles\.agendaRow/);
-  assert.match(standardModulesSource, /standardStyles\.crmRow/);
-  assert.match(standardModulesSource, /<DashboardCampaignChoices/);
-  assert.match(standardModulesSource, /locked/);
+  assert.match(sharedModulesSource, /path: "\/dashboard\/agenda"[^\n]*premiumOnly: true/);
+  assert.match(sharedModulesSource, /path: "\/dashboard\/crm"[^\n]*premiumOnly: true/);
+  assert.match(sharedModulesSource, /data-dashboard-prefetch=\{standardMode && tool\.premiumOnly \? undefined : tool\.path\}/);
+  assert.match(sharedModulesSource, /onClick=\{standardMode && tool\.premiumOnly \? \(\) => startPanelOpening\("abonnement"\)/);
   assert.match(standardModulesSource, /onOpenPremium/);
-  assert.match(standardModulesSource, /standardStyles\.lockedToolAction/);
-  assert.match(standardModulesSource, /<DashboardPremiumLockIcon \/> \{dashboardCopy\.modules\.campaignsPremiumLabel\}/);
+  assert.match(sharedModulesSource, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
+  assert.match(sharedModulesSource, /standardMode && tool\.premiumOnly \? <><DashboardPremiumLockIcon \/>\{t\.modules\.campaignsPremiumLabel\}/);
+  assert.match(sharedModulesSource, /const openCampaignModal = \(\) => \{\s*if \(standardMode\) \{\s*startPanelOpening\("abonnement"\);\s*return;/);
+  assert.match(sharedModulesSource, /!standardMode && campaignModalOpen \?/);
+  assert.match(sharedModulesSource, /data-testid=\{standardMode \? "standard-campaign-mails" : "premium-campaign-open"\}/);
+  assert.match(sharedModulesSource, /adsPilotEnabled \? \(standardMode \? "standard-campaign-ads" : "premium-campaign-ads"\) : "campaign-ads-coming-soon"/);
+  assert.match(sharedModulesSource, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
   assert.match(campaignChoicesSource, /data-testid=\{locked \? "standard-campaign-mails"/);
   assert.match(campaignChoicesSource, /data-testid=\{adsComingSoon \? "campaign-ads-coming-soon" : locked \? "standard-campaign-ads"/);
   assert.match(campaignChoicesSource, /DashboardPremiumLockIcon/);
@@ -493,7 +510,7 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
   assert.match(campaignChoicesSource, /adsComingSoon \? <>À venir<\/>/);
   assert.doesNotMatch(standardModulesSource, /lockedToolHint/);
   assert.doesNotMatch(campaignChoicesSource, /campaignPremiumHint/);
-  assert.doesNotMatch(standardModulesCssSource, /\.lockedToolHint|\.campaignPremiumHint/);
+  assert.doesNotMatch(sharedModulesCssSource, /\.lockedToolHint|\.campaignPremiumHint/);
   assert.match(fluxBubblesSource, /const mailPremiumLocked = standardMode && m\.key === "mails";/);
   assert.match(fluxBubblesSource, /premiumLocked: mailPremiumLocked/);
   assert.match(fluxBubblesSource, /premiumLabel: copy\.modules\.campaignsPremiumLabel/);
@@ -510,10 +527,10 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
 });
 
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {
-  assert.match(standardModulesSource, /onClick=\{openBoosterSummary\}/);
-  assert.match(standardModulesSource, /t\("boosterSummary"\)/);
+  assert.match(sharedModulesSource, /onClick=\{openBoosterSummary\}/);
+  assert.match(sharedModulesSource, /standardT\("boosterSummary"\)/);
   assert.match(dashboardI18nSource, /"boosterSummary": "Bilan"/);
-  assert.doesNotMatch(standardModulesSource, /href="\/dashboard\/stats"[\s\S]{0,240}Bilan/);
+  assert.doesNotMatch(sharedModulesSource, /href="\/dashboard\/stats"[\s\S]{0,240}Bilan/);
   assert.match(boosterModalLayerSource, /aria-label=\{i18nT\("bilan_booster_f20fce08"\)\}/);
   assert.match(boosterModalLayerSource, /i18nT\("bilan_a80c4623"\)/);
   assert.match(boosterI18nSource, /"bilan_booster_f20fce08": "Bilan Booster"/);

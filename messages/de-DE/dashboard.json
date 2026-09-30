@@ -699,6 +699,24 @@
     "aiGoalsTitle": "Ziele und Leitplanken",
     "aiGoalsDescription": "Legen Sie Ergebnisse, Inspirationen und zu vermeidende Inhalte fest."
   },
+  "signatureTools": {
+    "createTitle": "Erstellen & verstärken",
+    "pilotTitle": "Steuern & wachsen",
+    "mailCampaigns": "E-Mail-Kampagnen",
+    "businessSpace": "IHR UNTERNEHMENSBEREICH",
+    "amplify": "VERSTÄRKEN",
+    "imagine": "GESTALTEN",
+    "automate": "AUTOMATISIEREN",
+    "adsDescription": "Kanalübergreifende Kampagnen für mehr Kunden.",
+    "createCampaign": "Kampagne erstellen",
+    "comingSoon": "Demnächst",
+    "openStudio": "Studio öffnen",
+    "access": "Öffnen",
+    "manage": "Verwalten",
+    "open": "Öffnen",
+    "viewStats": "Statistiken ansehen",
+    "dnaDescription": "Strukturieren Sie Ihr Unternehmen mit KI."
+  },
   "standard": {
     "pilotTitle": "Kontrollfeld",
     "pilotSubtitle": "Messen, verfolgen und speichern",

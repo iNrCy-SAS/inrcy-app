@@ -699,6 +699,24 @@
     "aiGoalsTitle": "Doelen en grenzen",
     "aiGoalsDescription": "Bepaal de gewenste resultaten, inspiratie en wat vermeden moet worden."
   },
+  "signatureTools": {
+    "createTitle": "Creëren & versterken",
+    "pilotTitle": "Beheren & groeien",
+    "mailCampaigns": "E-mailcampagnes",
+    "businessSpace": "UW BEDRIJFSOMGEVING",
+    "amplify": "VERSTERK",
+    "imagine": "ONTWERP",
+    "automate": "AUTOMATISEER",
+    "adsDescription": "Multichannelcampagnes voor meer klanten.",
+    "createCampaign": "Campagne maken",
+    "comingSoon": "Binnenkort",
+    "openStudio": "Studio openen",
+    "access": "Openen",
+    "manage": "Beheren",
+    "open": "Openen",
+    "viewStats": "Statistieken bekijken",
+    "dnaDescription": "Geef uw bedrijf structuur met AI."
+  },
   "standard": {
     "pilotTitle": "Configuratiescherm",
     "pilotSubtitle": "Meten, volgen en bewaren",

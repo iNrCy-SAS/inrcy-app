@@ -699,6 +699,24 @@
     "aiGoalsTitle": "Obiettivi e limiti",
     "aiGoalsDescription": "Definisci i risultati, le ispirazioni e ciò che deve essere evitato."
   },
+  "signatureTools": {
+    "createTitle": "Crea e amplifica",
+    "pilotTitle": "Gestisci e sviluppa",
+    "mailCampaigns": "Campagne email",
+    "businessSpace": "IL TUO SPAZIO AZIENDALE",
+    "amplify": "AMPLIFICA",
+    "imagine": "IMMAGINA",
+    "automate": "AUTOMATIZZA",
+    "adsDescription": "Campagne multicanale per raggiungere più clienti.",
+    "createCampaign": "Crea una campagna",
+    "comingSoon": "Prossimamente",
+    "openStudio": "Apri Studio",
+    "access": "Accedi",
+    "manage": "Gestisci",
+    "open": "Apri",
+    "viewStats": "Vedi statistiche",
+    "dnaDescription": "Struttura la tua azienda con l’IA."
+  },
   "standard": {
     "pilotTitle": "Pannello di controllo",
     "pilotSubtitle": "Misura, monitora e conserva",

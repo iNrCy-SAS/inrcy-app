@@ -64,17 +64,17 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
   const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
   const creation = source.indexOf('id="dashboard-create-title"');
-  const booster = source.indexOf('data-testid="premium-booster-publish"');
-  const secondary = source.indexOf('data-dashboard-premium-secondary-tools="true"');
-  const ads = source.indexOf('data-testid={adsPilotEnabled ? "premium-campaign-ads"');
-  const studio = source.indexOf('data-testid="premium-studio-open"');
-  const agent = source.indexOf('data-testid="premium-agent-planning"');
+  const booster = source.indexOf('"premium-booster-publish"');
+  const secondary = source.indexOf('data-dashboard-premium-secondary-tools=');
+  const ads = source.indexOf('"premium-campaign-ads"');
+  const studio = source.indexOf('"premium-studio-open"');
+  const agent = source.indexOf('"premium-agent-planning"');
   const pilot = source.indexOf('id="dashboard-pilot-title"');
   const dna = source.indexOf('data-dashboard-prefetch="/dashboard/adn-entreprise"');
   const signatures = source.indexOf("{signatureTools.map");
   const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
   const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
-  const mailCampaigns = source.indexOf('data-testid="premium-campaign-open"');
+  const mailCampaigns = source.indexOf('"premium-campaign-open"');
 
   assert.ok(creation >= 0 && creation < booster);
   assert.ok(booster < secondary && secondary < ads && ads < studio && studio < agent);
@@ -83,11 +83,13 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
 
   // These four tools stay together; Réputation and Campagnes mails form the row below.
   const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
-  const signaturePaths = Array.from(
-    signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g),
+  const signatureNames = Array.from(
+    signatureDefinitions.matchAll(/tone: "([^"]+)"/g),
     (match) => match[1],
   );
-  assert.deepEqual(signaturePaths, ["/dashboard/mails", "/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.deepEqual(signatureNames, ["sendCard", "statsCard", "calendarCard", "crmCard"]);
+  assert.match(signatureDefinitions, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
+  assert.deepEqual([...signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
   assert.match(source, /className=\{signatureStyles\.relationshipGrid\}/);
   assert.match(source, /signatureStyles\.reputationCard/);
@@ -101,7 +103,7 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);
 
   // The visual regrouping must keep the existing tool entry points and access restrictions.
-  assert.match(source, /data-testid="premium-campaign-open"/);
+  assert.match(source, /data-testid=\{standardMode \? "standard-campaign-mails" : "premium-campaign-open"\}/);
   assert.match(campaignChoices, /premium-campaign-open/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
@@ -110,13 +112,14 @@ test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus
   assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
   assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
   assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
-  assert.match(source, /data-testid="premium-agent-planning"/);
+  assert.match(source, /data-testid=\{standardMode \? "standard-agent-planning-icon" : "premium-agent-planning"\}/);
   assert.match(source, /className=\{signatureStyles\.planningButton\}/);
-  assert.match(source, /data-testid="premium-agent-planning"[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
-  assert.match(source, /data-testid="premium-studio-open"/);
+  assert.match(source, /"premium-agent-planning"\}[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
+  assert.match(source, /data-testid=\{standardMode \? "standard-studio-open" : "premium-studio-open"\}/);
   assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
   assert.match(source, /<DashboardAgentPlanningModal/);
-  assert.match(source, /standardMode=\{false\}/);
+  assert.match(source, /standardMode=\{standardMode\}/);
+  assert.match(source, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);
   assert.match(source, /mobile-shortcuts\/inrcrm-bubble\.png/);
   assert.match(source, /const calendarLabel = i18nT\("inr_calendar_a9473176"\)\.replace/);

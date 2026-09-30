@@ -43,7 +43,9 @@ test("le dashboard compact conserve le cockpit et remplace les sauts haut/bas pa
 test("Booster reste en tête, puis ADS, Studio et Agent ; les signatures précèdent Réputation et Campagnes mails", () => {
   assertOrdered(modules, 'aria-labelledby="dashboard-create-title"', "signatureStyles.boosterCard", "signatureStyles.adsCard", "signatureStyles.studioCard", "signatureStyles.agentCard", 'aria-labelledby="dashboard-pilot-title"', "signatureStyles.dnaCard", "signatureStyles.signatureGrid", "signatureStyles.relationshipGrid", "signatureStyles.reputationCard", "signatureStyles.mailCampaignCard");
   const signatureDeclaration = modules.slice(modules.indexOf("const signatureTools:"), modules.indexOf("  return (", modules.indexOf("const signatureTools:")));
-  assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/mails", "/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.deepEqual([...signatureDeclaration.matchAll(/tone: "([^"]+)"/g)].map((match) => match[1]), ["sendCard", "statsCard", "calendarCard", "crmCard"]);
+  assert.match(signatureDeclaration, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
+  assert.deepEqual([...signatureDeclaration.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]), ["/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
   assert.match(toolsCss, /\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   assert.match(toolsCss, /\.signatureGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(toolsCss, /\.relationshipGrid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -51,13 +53,13 @@ test("Booster reste en tête, puis ADS, Studio et Agent ; les signatures précè
 });
 
 test("Campagnes mails est une carte visible à côté de Réputation, pas un petit raccourci dans le titre", () => {
-  const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{campaignModalOpen ?"));
-  assertOrdered(relationshipRow, "signatureStyles.reputationCard", "signatureStyles.mailCampaignCard", 'data-testid="premium-campaign-open"');
+  const relationshipRow = modules.slice(modules.indexOf('data-dashboard-relationship-tools="true"'), modules.indexOf("{!standardMode && campaignModalOpen ?"));
+  assertOrdered(relationshipRow, "signatureStyles.reputationCard", "signatureStyles.mailCampaignCard", '"premium-campaign-open"');
   assert.match(relationshipRow, /signatureStyles\.relationshipLogo[^\n]*<ToolGlyph kind="mail"/);
   assert.match(relationshipRow, /<h4>\{copy\.mailCampaigns\}<\/h4><p>\{t\.modules\.campaignsSub\}<\/p>/);
   assert.match(relationshipRow, /onClick=\{openCampaignModal\}/);
-  assert.match(relationshipRow, /disabled=\{isVisible\("modal:campaigns"\)\}/);
-  assert.match(relationshipRow, /aria-busy=\{isVisible\("modal:campaigns"\) \|\| undefined\}/);
+  assert.match(relationshipRow, /disabled=\{standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\}/);
+  assert.match(relationshipRow, /aria-busy=\{\(standardMode \? isPanelLoadingVisible\("abonnement"\) : isVisible\("modal:campaigns"\)\) \|\| undefined\}/);
   assert.doesNotMatch(modules, /signatureStyles\.contextButton/);
   assert.match(toolsCss, /@media \(max-width: 540px\)[\s\S]*?\.relationshipGrid\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
 });
@@ -68,8 +70,8 @@ test("les réglages, le planning et le bilan ont des commandes clairement visibl
   assert.match(toolsCss, /\.boosterStats svg\s*\{[^}]*width: 18px; height: 18px/);
   assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.settingsButton,\s*\.planningButton\s*\{[^}]*width: 40px; height: 40px/);
   assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.boosterStats\s*\{[^}]*min-height: 40px/);
-  assert.match(modules, /data-testid="premium-agent-planning"[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
-  assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{tool\.settingsLabel\}/);
+  assert.match(modules, /data-testid=\{standardMode \? "standard-agent-planning-icon" : "premium-agent-planning"\}[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
+  assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{standardMode \? `\$\{tool\.settingsLabel\} — \$\{t\.modules\.campaignsPremiumLabel\}` : tool\.settingsLabel\}/);
 });
 
 test("les outils conservent leurs destinations et les callbacks de publication, bilan et statistiques", () => {
@@ -85,7 +87,7 @@ test("les outils conservent leurs destinations et les callbacks de publication, 
   }
   assert.match(modules, /onClick=\{openCampaignModal\}/);
   assert.match(modules, /onClick=\{openAgentPlanning\}/);
-  assert.match(modules, /onClick=\{\(\) => startPanelOpening\(tool\.panel!\)\}/);
+  assert.match(modules, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
 });
 
 test("le rendu Premium ne contourne ni le forfait Standard, ni le pilote Ads, ni les droits comptables", () => {
@@ -95,6 +97,8 @@ test("le rendu Premium ne contourne ni le forfait Standard, ni le pilote Ads, ni
   assert.match(modules, /onClick=\{adsPilotEnabled \? \(\) => startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
   assert.match(modules, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
   assert.match(modules, /hasAccountingDashboardAccess\(dashboardEdition\)/);
+  assert.match(modules, /const standardMode = standardModeOverride \|\| dashboardEdition === "standard"/);
+  assert.match(modules, /const accountingEnabled = !standardMode && hasAccountingDashboardAccess\(dashboardEdition\)/);
   assert.match(modules, /accountingEnabled && cashModalOpen \?/);
 });
 

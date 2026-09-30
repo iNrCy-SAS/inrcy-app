@@ -17,6 +17,7 @@ import { useDashboardEdition } from "./DashboardEditionProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
+import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -55,6 +56,7 @@ type DashboardModulesCardProps = {
   onOpenBoosterStats?: () => void;
   adsPilotEnabled?: boolean;
   inrAgentEnabled?: boolean;
+  standardMode?: boolean;
 };
 
 function PlanningIcon() {
@@ -132,15 +134,17 @@ function BoosterWave() {
   );
 }
 
-export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true }: DashboardModulesCardProps) {
+export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true, standardMode: standardModeOverride = false }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
+  const signatureT = useTranslations("dashboard.signatureTools");
   const t = useDashboardI18n();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dashboardEdition = useDashboardEdition();
-  const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
+  const standardMode = standardModeOverride || dashboardEdition === "standard";
+  const accountingEnabled = !standardMode && hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [agentPlanningOpen, setAgentPlanningOpen] = useState(false);
@@ -184,11 +188,11 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
     }
 
     if (pendingKey === "modal:publish") {
-      if (searchParams.get("action") === "publish") {
+      if (searchParams.get("action") === "publish" || (standardMode && searchParams.get("panel"))) {
         completeAction(pendingKey);
       }
     }
-  }, [campaignModalOpen, cashModalOpen, completeAction, pathname, pendingKey, searchParams]);
+  }, [campaignModalOpen, cashModalOpen, completeAction, pathname, pendingKey, searchParams, standardMode]);
 
   useEffect(() => {
     if (accountingEnabled && searchParams.get("action") === "cash") {
@@ -222,6 +226,10 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   };
 
   const openCampaignModal = () => {
+    if (standardMode) {
+      startPanelOpening("abonnement");
+      return;
+    }
     if (!beginAction("modal:campaigns")) return;
     setCampaignModalOpen(true);
   };
@@ -254,24 +262,20 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const statsLabel = i18nT("inr_stats_881d9239").replace(/\s*→\s*$/u, "");
   const calendarLabel = i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "");
   const crmLabel = i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "");
-  const copy = t.locale.startsWith("fr") ? {
-    createTitle: "Créer & amplifier", pilotTitle: "Piloter & développer", mailCampaigns: "Campagnes mails", businessSpace: "VOTRE ESPACE ENTREPRISE",
-    amplify: "AMPLIFIEZ", imagine: "IMAGINEZ", automate: "AUTOMATISEZ", adsDescription: "Campagnes multicanales pour plus de clients.",
-    createCampaign: "Créer une campagne", comingSoon: "À venir", openStudio: "Ouvrir Studio", access: "Accéder", manage: "Gérer", open: "Ouvrir", viewStats: "Voir les stats", dnaDescription: "Structurez votre entreprise avec l’IA.",
-  } : {
-    createTitle: "Create & amplify", pilotTitle: "Manage & grow", mailCampaigns: "Email campaigns", businessSpace: "YOUR BUSINESS SPACE",
-    amplify: "AMPLIFY", imagine: "IMAGINE", automate: "AUTOMATE", adsDescription: "Multichannel campaigns to reach more customers.",
-    createCampaign: "Create a campaign", comingSoon: "Coming soon", openStudio: "Open Studio", access: "Open", manage: "Manage", open: "Open", viewStats: "View stats", dnaDescription: "Shape your business with AI.",
+  const copy = {
+    createTitle: signatureT("createTitle"), pilotTitle: signatureT("pilotTitle"), mailCampaigns: signatureT("mailCampaigns"), businessSpace: signatureT("businessSpace"),
+    amplify: signatureT("amplify"), imagine: signatureT("imagine"), automate: signatureT("automate"), adsDescription: signatureT("adsDescription"),
+    createCampaign: signatureT("createCampaign"), comingSoon: signatureT("comingSoon"), openStudio: signatureT("openStudio"), access: signatureT("access"), manage: signatureT("manage"), open: signatureT("open"), viewStats: signatureT("viewStats"), dnaDescription: signatureT("dnaDescription"),
   };
-  const signatureTools: { path: string; title: string; description: string; logo: string; tone: string; glyph: ToolGlyphKind; action: string; panel?: DashboardPanelName; settingsLabel?: string }[] = [
-    { path: "/dashboard/mails", title: sendLabel, description: t.modules.mailsSub, logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
+  const signatureTools: { path: string; title: string; description: string; logo: string; tone: string; glyph: ToolGlyphKind; action: string; panel?: DashboardPanelName; settingsLabel?: string; premiumOnly?: boolean }[] = [
+    { path: standardMode ? "/dashboard/mails?folder=publications&boxView=sent" : "/dashboard/mails", title: sendLabel, description: standardMode ? standardT("sendDescription") : t.modules.mailsSub, logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: standardMode ? standardT("sendCta") : copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
     { path: "/dashboard/stats", title: statsLabel, description: t.modules.statsSub, logo: "/inrstats-logo-seul.png", tone: "statsCard", glyph: "stats", action: copy.viewStats },
-    { path: "/dashboard/agenda", title: calendarLabel, description: t.modules.agendaSub, logo: "/mobile-shortcuts/inrcalendar-bubble.png", tone: "calendarCard", glyph: "planning", action: copy.open, panel: "agenda", settingsLabel: t.modules.agendaSettingsAria },
-    { path: "/dashboard/crm", title: crmLabel, description: t.modules.crmSub, logo: "/mobile-shortcuts/inrcrm-bubble.png", tone: "crmCard", glyph: "people", action: copy.access },
+    { path: "/dashboard/agenda", title: calendarLabel, description: t.modules.agendaSub, logo: "/mobile-shortcuts/inrcalendar-bubble.png", tone: "calendarCard", glyph: "planning", action: copy.open, panel: "agenda", settingsLabel: t.modules.agendaSettingsAria, premiumOnly: true },
+    { path: "/dashboard/crm", title: crmLabel, description: t.modules.crmSub, logo: "/mobile-shortcuts/inrcrm-bubble.png", tone: "crmCard", glyph: "people", action: copy.access, premiumOnly: true },
   ];
   return (
     <>
-        <div className={signatureStyles.lowerRow} data-dashboard-premium-lower-blocks="true">
+        <div className={signatureStyles.lowerRow} data-dashboard-standard-lower-blocks={standardMode ? "true" : undefined} data-dashboard-premium-lower-blocks={!standardMode ? "true" : undefined}>
           <section className={signatureStyles.panel} aria-labelledby="dashboard-create-title" id={DASHBOARD_GEARBOX_ANCHOR_ID}>
             <header className={signatureStyles.panelHeader}>
               <h3 id="dashboard-create-title"><span className={signatureStyles.headingIcon} aria-hidden="true">ϟ</span>{copy.createTitle}</h3>
@@ -288,7 +292,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.primaryButton}
-                  data-testid="premium-booster-publish"
+                  data-testid={standardMode ? "standard-booster-publish" : "premium-booster-publish"}
                   onClick={openPublishModal}
                   disabled={isVisible("modal:publish")}
                   aria-busy={isVisible("modal:publish") || undefined}
@@ -305,7 +309,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
               ><ToolGlyph kind="stats" /><span>{standardT("boosterSummary")}</span></button>
             </article>
 
-            <div className={signatureStyles.creationGrid} data-dashboard-premium-secondary-tools="true">
+            <div className={signatureStyles.creationGrid} data-dashboard-standard-secondary-tools={standardMode ? "true" : undefined} data-dashboard-premium-secondary-tools={!standardMode ? "true" : undefined}>
               <article className={`${signatureStyles.creationCard} ${signatureStyles.adsCard}`}>
                 <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="ads" /></span>
                 <div className={signatureStyles.creationCopy}>
@@ -317,13 +321,13 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.cardButton}
-                  data-testid={adsPilotEnabled ? "premium-campaign-ads" : "campaign-ads-coming-soon"}
+                  data-testid={adsPilotEnabled ? (standardMode ? "standard-campaign-ads" : "premium-campaign-ads") : "campaign-ads-coming-soon"}
                   data-dashboard-prefetch={adsPilotEnabled ? "/dashboard/ads" : undefined}
                   onClick={adsPilotEnabled ? () => startModuleNavigation("/dashboard/ads") : undefined}
                   disabled={!adsPilotEnabled || isModuleLoadingVisible("/dashboard/ads")}
                   aria-busy={isModuleLoadingVisible("/dashboard/ads") || undefined}
-                  aria-label={!adsPilotEnabled ? `iNr’ADS — ${copy.comingSoon}` : "iNr’ADS"}
-                >{!adsPilotEnabled ? copy.comingSoon : isModuleLoadingVisible("/dashboard/ads") ? i18nT("chargement_01cba1df") : copy.createCampaign}{adsPilotEnabled ? <ArrowIcon /> : null}</button>
+                  aria-label={!adsPilotEnabled ? `iNr’ADS — ${copy.comingSoon}` : standardMode ? `iNr’ADS — ${t.modules.campaignsPremiumLabel}` : "iNr’ADS"}
+                >{!adsPilotEnabled ? copy.comingSoon : isModuleLoadingVisible("/dashboard/ads") ? i18nT("chargement_01cba1df") : standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : copy.createCampaign}{adsPilotEnabled && !standardMode ? <ArrowIcon /> : null}</button>
               </article>
 
               <article className={`${signatureStyles.creationCard} ${signatureStyles.studioCard}`}>
@@ -337,7 +341,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.cardButton}
-                  data-testid="premium-studio-open"
+                  data-testid={standardMode ? "standard-studio-open" : "premium-studio-open"}
                   data-dashboard-prefetch={studioPath}
                   onClick={() => startModuleNavigation(studioPath)}
                   disabled={isModuleLoadingVisible(studioPath)}
@@ -360,7 +364,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.planningButton}
-                  data-testid="premium-agent-planning"
+                  data-testid={standardMode ? "standard-agent-planning-icon" : "premium-agent-planning"}
                   onClick={openAgentPlanning}
                   aria-label={standardT("agentPlanning")}
                   title={standardT("agentPlanning")}
@@ -369,7 +373,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.cardButton}
-                  data-testid="premium-agent-pilotage"
+                  data-testid={standardMode ? "standard-agent-pilotage" : "premium-agent-pilotage"}
                   data-dashboard-prefetch={agentPath}
                   onClick={() => startModuleNavigation(agentPath)}
                   disabled={isModuleLoadingVisible(agentPath)}
@@ -409,22 +413,22 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                     <button
                       type="button"
                       className={signatureStyles.settingsButton}
-                      aria-label={tool.settingsLabel}
+                      aria-label={standardMode ? `${tool.settingsLabel} — ${t.modules.campaignsPremiumLabel}` : tool.settingsLabel}
                       title={t.notifications.settings}
-                      onClick={() => startPanelOpening(tool.panel!)}
-                      disabled={isPanelLoadingVisible(tool.panel)}
-                      aria-busy={isPanelLoadingVisible(tool.panel) || undefined}
-                    ><SettingsIcon /></button>
+                      onClick={() => startPanelOpening(standardMode ? "abonnement" : tool.panel!)}
+                      disabled={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel)}
+                      aria-busy={isPanelLoadingVisible(standardMode ? "abonnement" : tool.panel) || undefined}
+                    >{standardMode ? <DashboardPremiumLockIcon /> : <SettingsIcon />}</button>
                   ) : null}
                   <button
                     type="button"
                     className={signatureStyles.toolButton}
-                    data-dashboard-prefetch={tool.path}
-                    onClick={tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
-                    disabled={isModuleLoadingVisible(tool.path)}
-                    aria-busy={isModuleLoadingVisible(tool.path) || undefined}
-                    aria-label={tool.title}
-                  >{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></button>
+                    data-dashboard-prefetch={standardMode && tool.premiumOnly ? undefined : tool.path}
+                    onClick={standardMode && tool.premiumOnly ? () => startPanelOpening("abonnement") : tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
+                    disabled={standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)}
+                    aria-busy={(standardMode && tool.premiumOnly ? isPanelLoadingVisible("abonnement") : isModuleLoadingVisible(tool.path)) || undefined}
+                    aria-label={standardMode && tool.premiumOnly ? `${tool.title} — ${t.modules.campaignsPremiumLabel}` : tool.title}
+                  >{standardMode && tool.premiumOnly ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></>}</button>
                 </article>
               ))}
             </div>
@@ -451,18 +455,18 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                 <button
                   type="button"
                   className={signatureStyles.cardButton}
-                  data-testid="premium-campaign-open"
+                  data-testid={standardMode ? "standard-campaign-mails" : "premium-campaign-open"}
                   onClick={openCampaignModal}
-                  disabled={isVisible("modal:campaigns")}
-                  aria-busy={isVisible("modal:campaigns") || undefined}
-                  aria-label={t.modules.mailCampaignTitle}
-                >{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></button>
+                  disabled={standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")}
+                  aria-busy={(standardMode ? isPanelLoadingVisible("abonnement") : isVisible("modal:campaigns")) || undefined}
+                  aria-label={standardMode ? `${t.modules.mailCampaignTitle} — ${t.modules.campaignsPremiumLabel}` : t.modules.mailCampaignTitle}
+                >{standardMode ? <><DashboardPremiumLockIcon />{t.modules.campaignsPremiumLabel}</> : <>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></>}</button>
               </article>
             </div>
           </section>
         </div>
 
-        {campaignModalOpen ? (
+        {!standardMode && campaignModalOpen ? (
           <BaseModal
             title={t.modules.campaignsModalTitle}
             moduleLabel={t.modules.campaignsModalLabel}
@@ -566,7 +570,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
         {agentPlanningOpen ? (
           <DashboardAgentPlanningModal
             open
-            standardMode={false}
+            standardMode={standardMode}
             onClose={() => setAgentPlanningOpen(false)}
             onManage={() => startModuleNavigation("/dashboard/agent")}
           />
