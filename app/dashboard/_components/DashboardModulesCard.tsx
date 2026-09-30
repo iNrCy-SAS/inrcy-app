@@ -409,7 +409,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   <span className={signatureStyles.signatureLogo} aria-hidden="true"><Image src={tool.logo} alt="" width={52} height={52} /></span>
                   <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p>{tool.description}</p></div>
                   <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
-                  {tool.panel ? (
+                  {tool.panel && (!standardMode || tool.premiumOnly) ? (
                     <button
                       type="button"
                       className={signatureStyles.settingsButton}

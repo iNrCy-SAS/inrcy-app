@@ -74,6 +74,44 @@ test("les réglages, le planning et le bilan ont des commandes clairement visibl
   assert.match(modules, /className=\{signatureStyles\.settingsButton\}[\s\S]*?aria-label=\{standardMode \? `\$\{tool\.settingsLabel\} — \$\{t\.modules\.campaignsPremiumLabel\}` : tool\.settingsLabel\}/);
 });
 
+test("les cartes de pilotage conservent des textes et actions lisibles à chaque breakpoint", () => {
+  const readableSizes = [
+    [".dnaCopy h4", 21],
+    [".dnaCopy p", 12],
+    [".signatureCopy h4", 15],
+    [".signatureCopy p", 12],
+    [".relationshipCopy h4", 16],
+    [".relationshipCopy p", 12],
+    [".dnaCard .cardButton", 11],
+    [".toolButton", 11],
+    [".relationshipCard .cardButton", 12],
+  ] as const;
+
+  for (const [selector, minimum] of readableSizes) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const blocks = [...toolsCss.matchAll(new RegExp(`^\\s*${escaped}\\s*\\{([^}]+)\\}`, "gm"))];
+    assert.ok(blocks.length, `${selector} must define its readable sizes`);
+    for (const [, block] of blocks) {
+      const size = block.match(/font-size:\s*(\d+)px/);
+      if (size) assert.ok(Number(size[1]) >= minimum, `${selector}: ${size[1]}px is too small`);
+      const height = block.match(/min-height:\s*(\d+)px/);
+      if (selector.includes("Button") && height) {
+        assert.ok(Number(height[1]) >= 34, `${selector}: actions must remain at least 34px high`);
+      }
+    }
+  }
+
+  for (const selector of ["signatureCard", "relationshipCard"]) {
+    const blocks = [...toolsCss.matchAll(new RegExp(`^\\s*\\.${selector}\\s*\\{([^}]+)\\}`, "gm"))];
+    for (const [, block] of blocks) {
+      const padding = block.match(/padding:\s*\d+px\s+\d+px\s+(\d+)px/);
+      if (padding) assert.ok(Number(padding[1]) >= 46, `${selector}: reserve room below text for the larger action`);
+    }
+  }
+  assert.match(toolsCss, /@media \(max-width: 700px\)[\s\S]*?\.toolButton\s*\{[^}]*max-width: calc\(100% - 20px\)/);
+  assert.match(toolsCss, /@media \(max-width: 420px\)[\s\S]*?\.signatureCard\s*\{[^}]*padding: 12px 10px 60px/);
+});
+
 test("les outils conservent leurs destinations et les callbacks de publication, bilan et statistiques", () => {
   assert.match(modules, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\);\s*else goToModule\("\/dashboard\?action=publish"\)/);
   assert.match(modules, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\);\s*else goToModule\("\/dashboard\?stats=1"\)/);

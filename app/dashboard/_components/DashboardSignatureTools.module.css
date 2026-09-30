@@ -234,25 +234,25 @@
 .dnaCard { position: relative; isolation: isolate; display: flex; align-items: center; min-height: 84px; min-width: 0; gap: 18px; overflow: hidden; padding: 12px 18px; border: 1px solid #627fffc7; border-radius: 15px; background: radial-gradient(ellipse at 4% 0%, #0068d55c, transparent 65%), linear-gradient(105deg, #08427580, #122a7177 65%, #3d1b8bc7); }
 .dnaCard .cardLogo { width: 58px; height: 58px; }
 .dnaCopy { position: relative; z-index: 1; min-width: 0; flex: 1; }
-.dnaCopy h4 { margin: 0 0 5px; font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.025em; }
-.dnaCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #dce5ff; }
-.dnaCard .cardButton { min-width: 103px; min-height: 35px; flex-shrink: 0; background: linear-gradient(110deg, #496aff, #8334fa 60%, #c41fe6); }
+.dnaCopy h4 { margin: 0 0 5px; font-size: 24px; line-height: 1.15; font-weight: 800; letter-spacing: -.025em; }
+.dnaCopy p { margin: 0; font-size: 14px; line-height: 1.4; color: #dce5ff; }
+.dnaCard .cardButton { min-width: 112px; min-height: 39px; font-size: 12px; flex-shrink: 0; background: linear-gradient(110deg, #496aff, #8334fa 60%, #c41fe6); }
 .dnaArt { position: absolute; z-index: -1; right: 23%; top: 13px; width: 65px; height: 65px; color: #5487ed; opacity: .48; transform: rotate(-8deg); }
 .dnaArt svg { width: 100%; height: 100%; }
 .dnaArt::after { position: absolute; inset: 5px -14px 0 14px; border: 1px solid #5563e984; border-radius: 7px; transform: rotate(19deg); content: ""; }
 
 .signatureGrid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(95px, 1fr)); gap: 9px; min-width: 0; }
-.signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 49px minmax(0, 1fr); align-content: start; align-items: center; gap: 0 12px; min-width: 0; padding: 13px 13px 37px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
+.signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 49px minmax(0, 1fr); align-content: start; align-items: center; gap: 0 12px; min-width: 0; padding: 13px 13px 47px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
 .signatureLogo { display: grid; place-items: center; grid-row: 1; width: 49px; height: 49px; border-radius: 50%; color: var(--tool-accent); filter: drop-shadow(0 0 9px #028bef3b); }
 .signatureLogo img { width: 100%; height: 100%; object-fit: contain; }
 .signatureCopy { align-self: start; min-width: 0; padding-right: 31px; }
-.signatureCopy h4 { margin: 2px 0 5px; font-size: 14px; font-weight: 800; line-height: 1.15; letter-spacing: -.015em; }
-.signatureCopy p { margin: 0; max-width: 172px; font-size: 10px; line-height: 1.35; color: #dce3fb; }
+.signatureCopy h4 { margin: 2px 0 5px; font-size: 16px; font-weight: 800; line-height: 1.2; letter-spacing: -.015em; }
+.signatureCopy p { margin: 0; max-width: 205px; font-size: 12px; line-height: 1.4; color: #dce3fb; }
 .signatureArt { position: absolute; z-index: -1; right: 8px; bottom: 7px; display: grid; place-items: center; width: 58px; height: 58px; color: var(--tool-accent); opacity: .22; transform: rotate(8deg); }
 .signatureArt svg { width: 100%; height: 100%; }
 .settingsButton { top: 7px; right: 7px; }
-.toolButton { position: absolute; right: 12px; bottom: 9px; min-height: 26px; padding: 5px 11px; min-width: 88px; gap: 8px; font-size: 9px; border-color: #599ffcce; background: linear-gradient(110deg, #006ebb, #3043b7); }
-.toolButton > span { font-size: 13px; }
+.toolButton { position: absolute; right: 12px; bottom: 9px; min-height: 34px; padding: 7px 15px; min-width: 102px; gap: 8px; font-size: 12px; border-color: #599ffcce; background: linear-gradient(110deg, #006ebb, #3043b7); }
+.toolButton > span { font-size: 16px; }
 .statsCard { --tool-accent: #cf6bfb; border-color: #9561dda8; background: linear-gradient(120deg, #302460d9, #191b4cc7 57%, #311954d9); }
 .statsCard .toolButton { background: linear-gradient(110deg, #6c28bd, #6620aa); border-color: #b86ef5c7; }
 .calendarCard { --tool-accent: #e6a442; border-color: #bf905f94; background: linear-gradient(120deg, #41323dde, #202a3ad9 57%, #4f383da6); }
@@ -261,14 +261,14 @@
 .crmCard .toolButton { background: linear-gradient(110deg, #0082a9, #066ac1); border-color: #5ddcffc2; }
 
 .relationshipGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; min-width: 0; }
-.relationshipCard { position: relative; isolation: isolate; min-height: 86px; min-width: 0; overflow: hidden; padding: 12px 12px 35px; border: 1px solid #d14d9ba6; border-radius: 14px; }
+.relationshipCard { position: relative; isolation: isolate; min-height: 98px; min-width: 0; overflow: hidden; padding: 12px 12px 46px; border: 1px solid #d14d9ba6; border-radius: 14px; }
 .relationshipLogo { position: absolute; top: 14px; left: 12px; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #ed939bb0; border-radius: 50%; color: #ffd0bc; background: radial-gradient(circle at 30% 20%, #d776616e, #ad335248); box-shadow: inset 0 1px 5px #ffc9b827, 0 0 15px #f9686330; }
 .relationshipLogo svg { width: 70%; height: 70%; }
 .relationshipCopy { position: relative; z-index: 1; min-width: 0; padding-left: 53px; }
-.relationshipCopy h4 { margin: 0 0 4px; font-size: 14px; line-height: 1.15; font-weight: 800; }
-.relationshipCopy p { margin: 0; font-size: 10px; line-height: 1.35; color: #efdaee; }
-.relationshipCard .cardButton { position: absolute; right: 10px; bottom: 8px; min-width: 85px; min-height: 26px; padding: 5px 11px; font-size: 9px; gap: 8px; }
-.relationshipCard .cardButton > span { font-size: 13px; }
+.relationshipCopy h4 { margin: 0 0 4px; font-size: 16px; line-height: 1.2; font-weight: 800; }
+.relationshipCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #efdaee; }
+.relationshipCard .cardButton { position: absolute; right: 10px; bottom: 8px; min-width: 99px; min-height: 34px; padding: 7px 15px; font-size: 12px; gap: 8px; }
+.relationshipCard .cardButton > span { font-size: 16px; }
 .reputationCard { background: radial-gradient(ellipse at 8% 15%, #a63c5d44, transparent 56%), linear-gradient(110deg, #4f1f4e, #351749 52%, #69185e); }
 .reputationCard .cardButton { border-color: #ff9bd094; background: linear-gradient(105deg, #d62a84, #b52c93); }
 .mailCampaignCard { border-color: #e49a838f; background: radial-gradient(ellipse at 0% 5%, #de824b38, transparent 63%), linear-gradient(112deg, #65404b, #58304f 55%, #782a63); }
@@ -290,9 +290,12 @@
   .boosterCard { min-height: 215px; }
   .creationGrid { min-height: 180px; }
   .creationCopy p { font-size: 12px; }
-  .signatureCopy h4 { font-size: 16px; }
-  .signatureCopy p { font-size: 12px; max-width: 205px; }
-  .toolButton { min-height: 30px; font-size: 10px; }
+  .signatureCopy h4 { font-size: 18px; }
+  .signatureCopy p { font-size: 13px; max-width: 235px; }
+  .toolButton { min-height: 36px; }
+  .relationshipCopy h4 { font-size: 18px; }
+  .relationshipCopy p { font-size: 13px; }
+  .relationshipCard .cardButton { min-height: 36px; }
 }
 
 @media (max-width: 1450px) and (min-width: 1101px) {
@@ -314,13 +317,13 @@
   .boosterChart { width: 90px; height: 83px; right: 4%; opacity: .85; }
   .dnaCard { gap: 12px; padding: 11px 13px; }
   .dnaCard .cardLogo { width: 49px; height: 49px; }
-  .dnaCopy h4 { font-size: 20px; }
-  .dnaCopy p { font-size: 11px; max-width: 200px; }
-  .dnaCard .cardButton { min-width: 85px; padding: 7px 12px; font-size: 10px; }
-  .signatureCard { grid-template-columns: 41px minmax(0, 1fr); gap: 0 9px; padding: 12px 10px 39px; }
+  .dnaCopy h4 { font-size: 22px; }
+  .dnaCopy p { font-size: 13px; max-width: 220px; }
+  .dnaCard .cardButton { min-width: 95px; padding: 8px 13px; }
+  .signatureCard { grid-template-columns: 41px minmax(0, 1fr); gap: 0 9px; padding: 12px 10px 47px; }
   .signatureLogo { width: 41px; height: 41px; }
-  .signatureCopy h4 { font-size: 13px; }
-  .signatureCopy p { font-size: 10px; }
+  .signatureCopy h4 { font-size: 15px; }
+  .signatureCopy p { font-size: 12px; }
   .reputationStars { opacity: .26; }
 }
 
@@ -336,13 +339,13 @@
   .creationCopy h4 { font-size: 17px; }
   .creationCopy p { font-size: 12px; }
   .signatureGrid { grid-template-rows: repeat(2, minmax(110px, 1fr)); }
-  .signatureCopy h4 { font-size: 16px; }
-  .signatureCopy p { font-size: 12px; }
-  .toolButton { min-height: 30px; font-size: 10px; }
+  .signatureCopy h4 { font-size: 18px; }
+  .signatureCopy p { font-size: 13px; }
+  .toolButton { min-height: 36px; }
   .dnaCard { min-height: 90px; }
-  .relationshipCard { min-height: 91px; }
-  .relationshipCopy h4 { font-size: 15px; }
-  .relationshipCard .cardButton { min-height: 29px; font-size: 10px; }
+  .relationshipCard { min-height: 100px; }
+  .relationshipCopy h4 { font-size: 17px; }
+  .relationshipCard .cardButton { min-height: 36px; }
 }
 
 @media (max-width: 700px) {
@@ -375,34 +378,34 @@
   .creationCard .cardButton { min-height: 36px; font-size: 11px; }
   .dnaCard { padding: 12px; gap: 12px; }
   .dnaCard .cardLogo { width: 49px; height: 49px; }
-  .dnaCopy h4 { font-size: 21px; }
-  .dnaCopy p { font-size: 11px; max-width: 205px; }
-  .dnaCard .cardButton { min-width: 82px; padding: 7px 11px; font-size: 10px; }
+  .dnaCopy h4 { font-size: 23px; }
+  .dnaCopy p { font-size: 13px; max-width: 225px; }
+  .dnaCard .cardButton { min-width: 92px; padding: 8px 12px; }
   .dnaArt { right: 20%; opacity: .22; }
-  .signatureCard { display: block; padding: 12px 10px 48px; }
+  .signatureCard { display: block; padding: 12px 10px 60px; }
   .signatureLogo { width: 43px; height: 43px; margin-bottom: 9px; }
   .signatureCopy { padding-right: 0; }
-  .signatureCopy h4 { font-size: 13px; }
-  .signatureCopy p { font-size: 10px; }
-  .toolButton { min-height: 32px; min-width: 88px; font-size: 10px; bottom: 9px; }
+  .signatureCopy h4 { font-size: 15px; }
+  .signatureCopy p { font-size: 12px; }
+  .toolButton { min-height: 36px; min-width: 94px; max-width: calc(100% - 20px); padding: 8px 12px; font-size: 11px; right: 10px; bottom: 9px; }
   .settingsButton,
   .planningButton { width: 40px; height: 40px; padding: 9px; }
   .settingsButton { top: 9px; right: 9px; }
-  .relationshipCard { padding: 12px 10px 40px; }
+  .relationshipCard { padding: 12px 10px 49px; }
   .relationshipLogo { left: 10px; width: 37px; height: 37px; }
   .relationshipCopy { padding-left: 47px; }
-  .relationshipCopy h4 { font-size: 14px; }
-  .relationshipCard .cardButton { min-width: 77px; padding: 7px 11px; min-height: 32px; font-size: 10px; }
+  .relationshipCopy h4 { font-size: 16px; }
+  .relationshipCard .cardButton { min-width: 91px; padding: 8px 13px; min-height: 36px; font-size: 12px; }
   .reputationStars { display: none; }
 }
 
 @media (max-width: 540px) {
   .relationshipGrid { grid-template-columns: minmax(0, 1fr); }
-  .relationshipCard { min-height: 87px; }
+  .relationshipCard { min-height: 98px; }
   .relationshipLogo { width: 43px; height: 43px; }
   .relationshipCopy { padding-left: 55px; }
-  .relationshipCopy h4 { font-size: 16px; }
-  .relationshipCopy p { font-size: 11px; }
+  .relationshipCopy h4 { font-size: 18px; }
+  .relationshipCopy p { font-size: 12px; }
 }
 
 @media (max-width: 420px) {
@@ -417,15 +420,15 @@
   .creationCopy { padding-left: 0; padding-top: 41px; min-height: 118px; }
   .adsCard .creationCopy { padding-top: 0; min-height: 50px; }
   .creationCopy .eyebrow { display: none; }
-  .signatureCard { display: block; padding: 12px 10px 48px; }
+  .signatureCard { display: block; padding: 12px 10px 60px; }
   .signatureLogo { width: 38px; height: 38px; margin-bottom: 9px; }
-  .signatureCopy h4 { font-size: 14px; }
-  .signatureCopy p { font-size: 11px; }
+  .signatureCopy h4 { font-size: 15px; }
+  .signatureCopy p { font-size: 12px; }
   .dnaCard { gap: 9px; padding: 11px; }
   .dnaCard .cardLogo { width: 42px; height: 42px; }
-  .dnaCopy h4 { font-size: 19px; }
-  .dnaCopy p { font-size: 10px; }
-  .dnaCard .cardButton { min-width: 71px; padding: 7px 10px; font-size: 9px; }
+  .dnaCopy h4 { font-size: 21px; }
+  .dnaCopy p { font-size: 12px; }
+  .dnaCard .cardButton { min-width: 80px; padding: 8px 11px; font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

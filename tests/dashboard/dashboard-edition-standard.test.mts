@@ -497,6 +497,7 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
   assert.match(sharedModulesSource, /onClick=\{standardMode && tool\.premiumOnly \? \(\) => startPanelOpening\("abonnement"\)/);
   assert.match(standardModulesSource, /onOpenPremium/);
   assert.match(sharedModulesSource, /onClick=\{\(\) => startPanelOpening\(standardMode \? "abonnement" : tool\.panel!\)\}/);
+  assert.match(sharedModulesSource, /\{tool\.panel && \(!standardMode \|\| tool\.premiumOnly\) \? \(/);
   assert.match(sharedModulesSource, /standardMode && tool\.premiumOnly \? <><DashboardPremiumLockIcon \/>\{t\.modules\.campaignsPremiumLabel\}/);
   assert.match(sharedModulesSource, /const openCampaignModal = \(\) => \{\s*if \(standardMode\) \{\s*startPanelOpening\("abonnement"\);\s*return;/);
   assert.match(sharedModulesSource, /!standardMode && campaignModalOpen \?/);

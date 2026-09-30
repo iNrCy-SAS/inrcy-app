@@ -213,18 +213,22 @@ test("the shared visual copy has the same sixteen translated keys in all nine lo
   }
 });
 
-test("Standard Send opens publication history only and its mail settings request Premium", () => {
-  const standard = harness(variants[0]);
-  const send = action(standard.render().tree, "sendCard");
-  const path = "/dashboard/mails?folder=publications&boxView=sent";
-  assert.equal(send.props["data-dashboard-prefetch"], path);
-  click(send);
-  assert.deepEqual(standard.calls.routes, [path]);
-  assert.deepEqual(standard.calls.warmups, [path]);
-  standard.release();
-  click(find(card(standard.render().tree, "sendCard"), (node) => hasClass(node, "settingsButton")));
-  assert.deepEqual(standard.calls.panels, ["abonnement"]);
-  assert.deepEqual(standard.calls.routes, [path]);
+test("Standard Send opens publication history only without any settings control or Premium lock", () => {
+  for (const variant of [variants[0], { edition: "standard" as const, props: { standardMode: false } }]) {
+    const standard = harness(variant);
+    const tree = standard.render().tree;
+    const sendCard = card(tree, "sendCard");
+    assert.equal(elements(sendCard).filter((node) => hasClass(node, "settingsButton")).length, 0);
+    assert.equal(elements(sendCard).filter((node) => node.type === "button").length, 1);
+    assert.doesNotMatch(renderToStaticMarkup(sendCard), /settingsButton|Premium|M8 10V7a4 4 0 0 1 8 0v3/);
+    const send = action(tree, "sendCard");
+    const path = "/dashboard/mails?folder=publications&boxView=sent";
+    assert.equal(send.props["data-dashboard-prefetch"], path);
+    click(send);
+    assert.deepEqual(standard.calls.routes, [path]);
+    assert.deepEqual(standard.calls.warmups, [path]);
+    assert.deepEqual(standard.calls.panels, []);
+  }
 });
 
 test("Standard Calendar, CRM and email campaigns stay visible and locked without warming a forbidden route", () => {
@@ -240,7 +244,13 @@ test("Standard Calendar, CRM and email campaigns stay visible and locked without
     assert.equal(elements(standard.render().tree).some((node) => node.props.role === "dialog"), false);
   }
   const standard = harness(variants[0]);
-  click(find(card(standard.render().tree, "calendarCard"), (node) => hasClass(node, "settingsButton")));
+  const tree = standard.render().tree;
+  const calendarSettings = elements(card(tree, "calendarCard")).filter((node) => hasClass(node, "settingsButton"));
+  assert.equal(calendarSettings.length, 1);
+  assert.match(String(calendarSettings[0].props["aria-label"]), /Premium/);
+  assert.match(renderToStaticMarkup(calendarSettings[0]), /M8 10V7a4 4 0 0 1 8 0v3/);
+  assert.equal(elements(card(tree, "crmCard")).filter((node) => hasClass(node, "settingsButton")).length, 0, "CRM must not gain a top settings lock");
+  click(calendarSettings[0]);
   assert.deepEqual(standard.calls.panels, ["abonnement"]);
 });
 
@@ -254,7 +264,12 @@ test("Premium and Founder retain direct tool routes, settings panels and the rea
     }
     for (const [name, panel] of [["sendCard", "mails"], ["calendarCard", "agenda"]]) {
       const unlocked = harness({ edition });
-      click(find(card(unlocked.render().tree, name), (node) => hasClass(node, "settingsButton")));
+      const tree = unlocked.render().tree;
+      assert.equal(elements(tree).filter((node) => hasClass(node, "settingsButton")).length, 2);
+      const settings = find(card(tree, name), (node) => hasClass(node, "settingsButton"));
+      assert.match(renderToStaticMarkup(settings), /M12 15\.5a3\.5 3\.5/);
+      assert.doesNotMatch(renderToStaticMarkup(settings), /M8 10V7a4 4 0 0 1 8 0v3/);
+      click(settings);
       assert.deepEqual(unlocked.calls.panels, [panel]);
     }
     for (const path of ["/dashboard/propulser", "/dashboard/fideliser"]) {
