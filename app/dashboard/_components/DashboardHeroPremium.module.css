@@ -141,8 +141,8 @@
 .generatorHeaderLead { display: flex; align-items: center; gap: 9px; }
 .generatorTitle { font-size: clamp(16px, 1.22vw, 20px); font-weight: 850; letter-spacing: -.03em; white-space: nowrap; }
 .generatorHeaderLead > button { flex-shrink: 0; }
-.generatorEfficiencyFlow { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid #8176e935; border-radius: 999px; background: #13245638; color: #d6dff6; font-size: 9px; white-space: nowrap; }
-.generatorEfficiencyFlow b { color: #86bbf5; font-weight: 400; }
+.generatorEfficiencyFlow { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid #8176e970; border-radius: 999px; background: #13245670; color: #e4eaff; font-size: 12px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.generatorEfficiencyFlow b { color: #a8d6ff; font-size: 1.15em; font-weight: 700; }
 .generatorHeaderRight { display: flex; flex-shrink: 0; align-items: center; gap: 7px; }
 .generatorSettingsBtn, .generatorRefreshBtn { display: grid; flex: 0 0 36px; place-items: center; width: 36px; height: 36px; padding: 7px; border: 1px solid #91c3ffaa; border-radius: 11px; color: #e2f6ff; background: linear-gradient(135deg, #1a3c6eee, #30245be0); box-shadow: inset 0 1px 2px #e0f3ff29, 0 0 12px #569bff17; cursor: pointer; transition: background 150ms, border-color 150ms; }
 .generatorSettingsBtn:hover, .generatorRefreshBtn:hover { background: #3d5195; border-color: #b3f0ff; }
@@ -187,7 +187,7 @@
   .metricHint, .metricSplitLabel { font-size: 11px; }
   .metricIcon { width: 51px; height: 51px; }
   .metricCard { padding-left: 76px; }
-  .generatorEfficiencyFlow { font-size: 10px; padding-inline: 12px; }
+  .generatorEfficiencyFlow { font-size: 13px; padding-inline: 16px; }
 }
 
 @media (min-width: 1101px) and (max-height: 900px) {
