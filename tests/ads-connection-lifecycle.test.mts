@@ -32,7 +32,7 @@ const publishRouteSource = readFileSync(
 );
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
-  assert.match(settingsSource, /\{connected \? <button[\s\S]*?Déconnexion/);
+  assert.match(settingsSource, /\{locked \? <button[^>]*disabled[\s\S]*? : connected \? <button[\s\S]*?Déconnexion/);
   assert.match(settingsSource, /needsReconnect \? <>/);
   assert.match(settingsSource, /oauthLabel\(provider, "reconnect"\)/);
 });
@@ -45,7 +45,7 @@ test("Meta Ads et Google Ads partagent le choix et le changement persistants du 
   assert.match(selectionRouteSource, /listAdsAccounts\(user\.activeUserId, provider\)/);
   assert.match(selectionRouteSource, /update\.resource_id = account\.id/);
   assert.match(selectionRouteSource, /account_selection_cleared/);
-  assert.match(settingsSource, /\{hasConfiguredAccount \? <button[\s\S]*?Dissocier ce compte/);
+  assert.match(settingsSource, /\{!locked && hasConfiguredAccount \? <button[\s\S]*?Dissocier ce compte/);
 });
 
 test("la configuration Meta conserve aussi la sélection de l’identité Facebook et Instagram", () => {
