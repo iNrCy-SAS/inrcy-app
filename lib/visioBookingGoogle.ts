@@ -1342,8 +1342,32 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     const sharedEvents = await listVisioSharedCalendarEvents(timeMin, timeMax);
     const sharedCalendarId = getVisioSharedCalendarId();
 
+    // `signup_cancelled` was a visible pink compatibility state. It is no
+    // longer a business flow: a removed pending signup must disappear from
+    // the shared calendar and every internal replica.
+    for (const event of sharedEvents) {
+      if (
+        !event.id ||
+        event.status === "cancelled" ||
+        !isManagedLifecycleEvent(event) ||
+        lifecycleStatusForEvent(event) !== "signup_cancelled"
+      ) {
+        continue;
+      }
+      try {
+        await cancelManagedPendingSignupEverywhere({ canonical: event });
+        result.cancelled += 1;
+      } catch (error) {
+        result.errors.push({
+          memberId: "shared",
+          code: visioGoogleErrorCode(error),
+        });
+      }
+    }
+
     // An interrupted signup flow used to be able to leave several reminder
-    // blocks for the same professional. Keep exactly one before assigning it.
+    // blocks for the same professional. Remove legacy pink states first, then
+    // keep exactly one active reminder before assigning it.
     result.cancelled += await cancelDuplicatePendingSignupReminders(sharedEvents);
 
     // Repair historical site bookings silently. Older versions attached
@@ -1791,9 +1815,7 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         }
         // A deleted single event can come back from Google as a tombstone
         // stripped of its extended properties. The deterministic replica id
-        // still lets us map that action to the one shared appointment. A
-        // deletion therefore becomes the matching red business status; the
-        // canonical event itself is never destroyed.
+        // still lets us map that action to the one shared appointment.
         const deletedReplicaCanonical =
           event.id && event.status === "cancelled"
             ? managedCanonicalByReplicaId.get(event.id)
@@ -1803,8 +1825,26 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             const currentStatus = lifecycleStatusForEvent(
               deletedReplicaCanonical,
             );
+            if (
+              currentStatus === "signup_pending" ||
+              currentStatus === "signup_cancelled"
+            ) {
+              await cancelManagedPendingSignupEverywhere({
+                canonical: deletedReplicaCanonical,
+                replicaEventId: event.id,
+              });
+              managedCanonicalById.set(
+                deletedReplicaCanonical.id,
+                deletedReplicaCanonical,
+              );
+              fullySyncedManagedCanonicalIds.add(
+                deletedReplicaCanonical.id,
+              );
+              result.reconciliation.replicaFanouts += 1;
+              result.cancelled += 1;
+              continue;
+            }
             const isAlreadyCancelled =
-              currentStatus === "signup_cancelled" ||
               currentStatus === "appointment_cancelled";
             const updatedCanonical = isAlreadyCancelled
               ? deletedReplicaCanonical
@@ -4086,8 +4126,13 @@ async function restoreManagedCanonicalFromReplica(input: {
   const { replica } = input;
   const properties = { ...(replica.extendedProperties?.private || {}) };
   const previousStatus = lifecycleStatusForEvent(replica);
+  if (
+    previousStatus === "signup_pending" ||
+    previousStatus === "signup_cancelled"
+  ) {
+    throw new Error("visio_pending_signup_restore_forbidden");
+  }
   const status: VisioAppointmentStatus =
-    previousStatus === "signup_cancelled" ||
     previousStatus === "appointment_cancelled"
       ? previousStatus
       : cancellationStatusFor(previousStatus);
@@ -4096,7 +4141,6 @@ async function restoreManagedCanonicalFromReplica(input: {
   const details = readVisioAppointmentPublicDetails(publicContent);
   const professionalEmail = String(details.email || "").trim().toLowerCase();
   const shouldKeepProfessional =
-    status !== "signup_cancelled" &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(professionalEmail);
 
   delete properties[PRIVATE_CALENDAR_REPLICA_KEY];
@@ -4301,6 +4345,21 @@ async function reconcileManagedCalendarReplica(
     }
   }
   if (!canonical?.id || canonical.status === "cancelled") {
+    const replicaStatus = lifecycleStatusForEvent(replica);
+    if (
+      replicaStatus === "signup_pending" ||
+      replicaStatus === "signup_cancelled"
+    ) {
+      await cancelManagedPendingSignupEverywhere({
+        canonical,
+        canonicalEventId,
+        replicaEventId: replica.id,
+      });
+      managedCanonicalById.set(canonicalEventId, canonical || null);
+      fullySyncedManagedCanonicalIds.add(canonicalEventId);
+      reconciliation.replicaFanouts += 1;
+      return "cancelled" as const;
+    }
     const restored = await restoreManagedCanonicalFromReplica({
       replica,
       cancelledCanonical: canonical,
@@ -4497,6 +4556,39 @@ async function cancelCalendarEventWithoutUpdates(
     }
     throw error;
   }
+}
+
+async function cancelManagedPendingSignupEverywhere(input: {
+  canonical?: GoogleCalendarEvent | null;
+  canonicalEventId?: string;
+  replicaEventId?: string;
+}) {
+  const canonicalEventId = String(
+    input.canonical?.id || input.canonicalEventId || "",
+  ).trim();
+  const replicaEventId = String(
+    input.replicaEventId ||
+      (input.canonical ? calendarReplicaEventId(input.canonical) : ""),
+  ).trim();
+
+  const removals: Promise<void>[] = [];
+  if (canonicalEventId) {
+    removals.push(
+      cancelCalendarEventWithoutUpdates(
+        getVisioSharedCalendarId(),
+        canonicalEventId,
+      ),
+    );
+  }
+  if (replicaEventId) {
+    for (const member of getVisioTeamMembers()) {
+      removals.push(
+        cancelCalendarEventWithoutUpdates(member.calendarId, replicaEventId),
+      );
+    }
+  }
+  await Promise.all(removals);
+  if (input.canonical) input.canonical.status = "cancelled";
 }
 
 async function cancelDuplicateAppointmentMirrors(

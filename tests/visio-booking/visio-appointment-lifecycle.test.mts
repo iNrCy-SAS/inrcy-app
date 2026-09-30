@@ -46,7 +46,7 @@ test("une inscription sans rendez-vous ne devient pas rendez-vous par la couleur
       "signup_cancelled",
       "signup_without_appointment",
     ),
-    true,
+    false,
   );
   assert.equal(
     scheduledStatusForOrigin("signup_without_appointment"),
@@ -167,6 +167,14 @@ test("un changement de couleur Google ne produit qu'une transition métier autor
       currentStatus: "signup_pending",
       origin: "signup_without_appointment",
       colorId: "7",
+    }),
+    "signup_pending",
+  );
+  assert.equal(
+    visioAppointmentStatusAfterColorChange({
+      currentStatus: "signup_pending",
+      origin: "signup_without_appointment",
+      colorId: "4",
     }),
     "signup_pending",
   );

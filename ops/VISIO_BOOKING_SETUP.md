@@ -35,9 +35,9 @@ Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par d
 
 Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’extension. Le plugin observe la réponse de l’appel d’inscription existant : il ne crée jamais une seconde inscription.
 
-## Apps Script de récupération
+## Ancien Apps Script à désactiver
 
-Le script versionné dans `ops/google-apps-script/inrcy-gmail-calendar-fallback.js` n'est plus le chemin principal. Copier cette version dans le projet Apps Script du compte `compte@inrcy.com`, l'enregistrer, puis exécuter une fois `installerAutomatisation` pour remplacer l'ancien déclencheur par un passage horaire. Le script rattrape un rappel manquant sans dupliquer celui déjà créé directement par l'API d'inscription.
+L'API d'inscription est l'unique créateur des rappels. Le projet Apps Script du compte `compte@inrcy.com` ne doit plus posséder de déclencheur `synchroniserInscriptions` : ce second producteur créait des doublons roses à partir des e-mails Gmail. Supprimer le déclencheur installé puis archiver le projet ; ne pas le réinstaller.
 
 ## Règles métier verrouillées
 
@@ -46,7 +46,8 @@ Le script versionné dans `ops/google-apps-script/inrcy-gmail-calendar-fallback.
 - réservation possible dès 4 heures après l'instant présent, y compris le jour même si un créneau est disponible ;
 - événement réservé créé en bleu pour 1 heure, avec une fenêtre interne de disponibilité de 2 heures ;
 - rappel orange d'inscription créé directement et de façon idempotente par l'API d'inscription, puis conservé 1 heure uniquement si aucun rendez-vous n'est réservé ;
-- le scan Gmail / Apps Script n'est qu'un filet de récupération : un quota Gmail épuisé ne peut plus empêcher la création normale du rappel ;
+- aucun scan Gmail / Apps Script ne crée de case Agenda ;
+- la suppression d'une inscription jaune supprime aussi ses copies internes et ne la transforme jamais en case rose ;
 - retrait automatique du rappel orange correspondant dès qu'un rendez-vous est confirmé ;
 - deux rendez-vous simultanés maximum ;
 - attribution automatique à la personne disponible ayant reçu le moins de rendez-vous ;

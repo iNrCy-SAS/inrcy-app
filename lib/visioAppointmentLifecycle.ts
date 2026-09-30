@@ -150,9 +150,14 @@ export function visioAppointmentManualTransitions(
   const scheduled = scheduledStatusForOrigin(origin);
   switch (status) {
     case "signup_pending":
-      return ["signup_cancelled"];
+      // A pending signup is either scheduled or deleted from Google Calendar.
+      // Keeping a visible `signup_cancelled` transition used to create a pink
+      // duplicate beside the original yellow reminder.
+      return [];
     case "signup_cancelled":
-      return ["signup_pending"];
+      // Legacy-only status. The calendar synchronizer removes these events
+      // instead of exposing a reversible pink workflow.
+      return [];
     case "appointment_scheduled_from_signup":
     case "appointment_scheduled_direct":
       return ["appointment_signed", "appointment_cancelled"];

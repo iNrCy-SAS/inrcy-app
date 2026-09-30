@@ -427,6 +427,40 @@ test("les répliques inchangées sont regroupées sans perdre un canonique hors 
   assert.match(teamSync, /MANAGED_REPLICA_CREATE_CONCURRENCY/);
 });
 
+test("supprimer une inscription jaune la retire partout sans flux rose", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const lifecycle = read("lib/visioAppointmentLifecycle.ts");
+  const teamSync = backend.slice(
+    backend.indexOf("export async function syncVisioTeamCalendarsToShared"),
+    backend.indexOf("async function readFreeBusy"),
+  );
+  const replicaReconciliation = backend.slice(
+    backend.indexOf("async function reconcileManagedCalendarReplica"),
+    backend.indexOf("async function moveCalendarEventWithoutUpdates"),
+  );
+
+  assert.match(
+    backend,
+    /async function cancelManagedPendingSignupEverywhere[\s\S]*?cancelCalendarEventWithoutUpdates\([\s\S]*?getVisioSharedCalendarId\(\)[\s\S]*?for \(const member of getVisioTeamMembers\(\)\)/,
+  );
+  assert.match(
+    teamSync,
+    /deletedReplicaCanonical[\s\S]*?currentStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?result\.cancelled \+= 1/,
+  );
+  assert.match(
+    replicaReconciliation,
+    /replicaStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?return "cancelled" as const/,
+  );
+  assert.match(
+    teamSync,
+    /lifecycleStatusForEvent\(event\) !== "signup_cancelled"[\s\S]*?cancelManagedPendingSignupEverywhere/,
+  );
+  assert.match(
+    lifecycle,
+    /case "signup_pending":[\s\S]*?return \[\];[\s\S]*?case "signup_cancelled":[\s\S]*?return \[\];/,
+  );
+});
+
 test("les mutations agenda ont priorité sur les synchronisations automatiques", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const teamSync = backend.slice(
