@@ -571,12 +571,12 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     || enumToken(record(raw.channelDraft).targetingMode, "lower") === "automatic"
   );
   const native = plannedCopy(channelDraft);
-  const campaignType = oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
-  const objective = oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, context.provider === "meta" ? "website_traffic" : "leads");
-  const conversionGoal = oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, context.provider === "meta" ? "website_visit" : "quote_request");
+  const campaignType = context.provider === "openai" ? "generic" : oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
+  const objective = context.provider === "openai" ? "website_traffic" : oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, context.provider === "meta" ? "website_traffic" : "leads");
+  const conversionGoal = context.provider === "openai" ? "website_visit" : oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, context.provider === "meta" ? "website_visit" : "quote_request");
   const conversionLocation = oneOf(ADS_CONVERSION_LOCATIONS, raw.conversionLocation, "website");
-  const bidStrategy = oneOf(ADS_BID_STRATEGIES, raw.bidStrategy, "maximize_conversions");
-  const rawMediaStrategy = native.strategy || oneOf(ADS_MEDIA_STRATEGIES, raw.mediaStrategy, defaultMediaStrategy(context.provider));
+  const bidStrategy = context.provider === "openai" ? "manual_review" : oneOf(ADS_BID_STRATEGIES, raw.bidStrategy, "maximize_conversions");
+  const rawMediaStrategy = context.provider === "openai" ? "image" : native.strategy || oneOf(ADS_MEDIA_STRATEGIES, raw.mediaStrategy, defaultMediaStrategy(context.provider));
   const mediaStrategy = mediaStrategyForCampaignType(context.provider, campaignType, rawMediaStrategy);
   const rawCreativeType = raw.creativeType === "video" ? "video" as const : "image" as const;
   const fallbackOffer = context.services?.[0] || "";
@@ -584,10 +584,14 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
   const metaPlacements: AdsMetaPlacement[] = context.provider === "meta"
     ? requestedMetaPlacements.length ? requestedMetaPlacements : ["facebook_feed", "instagram_feed", "stories", "reels"]
     : requestedMetaPlacements;
-  const headlines = context.provider === "pinterest"
+  const headlines = context.provider === "openai"
+    ? adsCopyList(raw.headlines, 1)
+    : context.provider === "pinterest"
     ? adsCopyList(native.headline ? [native.headline] : raw.headlines, 1)
     : adsCopyList(raw.headlines, 15);
-  const descriptions = context.provider === "pinterest"
+  const descriptions = context.provider === "openai"
+    ? adsCopyList(raw.descriptions, 1)
+    : context.provider === "pinterest"
     ? adsCopyList(native.description ? [native.description] : raw.descriptions, 1)
     : adsCopyList(raw.descriptions, 4);
   const offer = adsCopyText(raw.offer) || adsCopyText(fallbackOffer);
@@ -596,9 +600,10 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     website_visit: "En savoir plus", purchase: "Découvrir l’offre", message: "Nous écrire",
     store_visit: "Nous rendre visite", custom: "En savoir plus",
   };
-  const callToAction = adsCopyText(raw.callToAction)
+  const callToAction = context.provider === "openai" ? "" : adsCopyText(raw.callToAction)
     || (context.provider === "meta" ? "En savoir plus" : fallbackActions[conversionGoal]);
   const primaryText = (context.provider === "pinterest" ? native.primaryText : "") || adsCopyText(raw.primaryText) || native.primaryText
+    || (context.provider === "openai" ? descriptions[0] || "" : "")
     || (context.provider === "google" ? descriptions.join(" ") || [offer, callToAction].filter(Boolean).join(". ") : "");
 
   return {
@@ -627,24 +632,25 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     googleDisplayExpansion: raw.googleDisplayExpansion === true,
     metaAudienceExpansion: raw.metaAudienceExpansion !== false,
     metaPlacements,
-    trackingParameters: clean(raw.trackingParameters, 500),
+    trackingParameters: context.provider === "openai" ? "" : clean(raw.trackingParameters, 500),
     primaryText,
     // The planning endpoint receives no verified media URL. Do not turn a
     // model-invented link into an ad asset; Studio or the professional adds it.
     imageUrl: "",
     creativeUrl: "",
-    creativeType: creativeTypeForStrategy(mediaStrategy, rawCreativeType),
+    creativeType: context.provider === "openai" ? "image" : creativeTypeForStrategy(mediaStrategy, rawCreativeType),
     mediaStrategy,
     mediaBrief: adsCopyText(raw.mediaBrief) || native.mediaBrief,
     callToAction,
     headlines: headlines.length ? headlines : native.headline ? [native.headline] : [],
-    descriptions: descriptions.length ? descriptions : native.description ? [native.description] : [],
+    descriptions: context.provider === "openai" && primaryText ? [primaryText]
+      : descriptions.length ? descriptions : native.description ? [native.description] : [],
     // Performance+ targeting uses the Pin and trusted locations. Keeping
     // model-suggested keywords here would make an otherwise live-compatible
     // Pinterest plan fail the publisher preflight. Manual targeting modes keep
     // their planning signals unchanged for later provider-side resolution.
-    keywords: automaticPinterestTargeting ? [] : rawKeywords,
-    negativeKeywords: list(raw.negativeKeywords, 40, 80),
+    keywords: automaticPinterestTargeting || context.provider === "openai" ? [] : rawKeywords,
+    negativeKeywords: context.provider === "openai" ? [] : list(raw.negativeKeywords, 40, 80),
     rationale: cleanRationale(raw.rationale),
     ...(channelDraft ? { channelDraft } : {}),
   };
@@ -668,6 +674,11 @@ export function assessAdsCampaignPlanReview(
   if (!plan.name) issues.push("missing_name");
   if (!plan.offer) issues.push("missing_offer");
   if (!plan.primaryText) issues.push("missing_primary_text");
+  if (provider === "openai") {
+    if (plan.headlines.length !== 1 || plan.headlines[0]?.length < 3) issues.push("openai_card_title_missing");
+    if (plan.descriptions.length !== 1 || plan.descriptions[0] !== plan.primaryText) issues.push("openai_card_body_mismatch");
+    if (plan.campaignType !== "generic" || plan.mediaStrategy !== "image" || plan.creativeType !== "image") issues.push("openai_card_format_invalid");
+  }
   if (isPlannedAdsChannel(provider)) {
     if (plan.campaignType !== "generic") issues.push("invalid_planned_campaign_type");
     if (!plan.channelDraft) {

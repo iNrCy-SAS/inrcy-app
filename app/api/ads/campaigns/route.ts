@@ -4,6 +4,7 @@ import { isAdsProvider, isAdsChannelId, normalizeStoredAdsCampaignDraft, parseAd
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import { listXAdsAccounts, readXAdsIntegration, verifySelectedXAdsAccount } from "@/lib/adsXServer";
+import { readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
@@ -99,6 +100,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Le compte X Ads doit rester accepté, en euros, avec un rôle Administrateur ou Ad Manager vérifié." }, { status: 403 });
       }
     }
+    if (draft.provider === "openai" && draft.adAccountId) {
+      const integration = await readOpenaiAdsIntegration(user.activeUserId);
+      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Le compte ChatGPT Ads du brouillon n’est plus celui associé au canal." }, { status: 409 });
+      }
+    }
     if (draft.provider === "meta" && draft.pageId) {
       const pages = await listMetaPages(user.activeUserId);
       if (!pages.some((page) => page.id === draft.pageId)) {
@@ -107,7 +114,7 @@ export async function POST(request: Request) {
     }
 
     // This association does not grant publication: X drafts remain local only.
-    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin" || draft.provider === "x"
+    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin" || draft.provider === "x" || draft.provider === "openai"
       ? draft.adAccountId : "";
 
     const payload = {

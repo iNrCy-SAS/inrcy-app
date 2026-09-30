@@ -708,6 +708,18 @@
     "imagine": "ONTWERP",
     "automate": "AUTOMATISEER",
     "adsDescription": "Multichannelcampagnes voor meer klanten.",
+    "adsInfo": {
+      "open": "Informatie over iNr’ADS-kanalen",
+      "title": "Welk kanaal past bij uw campagne?",
+      "close": "Sluiten",
+      "google": "Wees zichtbaar wanneer mensen in uw buurt naar uw diensten zoeken.",
+      "pinterest": "Inspireer aankoopplannen met uw producten en gerealiseerde projecten.",
+      "openai": "Toon uw oplossing aan mensen die hun opties verkennen in ChatGPT.",
+      "meta": "Laat uw bedrijf zien op Facebook en Instagram, waar uw klanten tijd doorbrengen.",
+      "linkedin": "Breng uw expertise onder de aandacht van beslissers en ontdek B2B-kansen.",
+      "tiktok": "Toon uw vakmanschap in korte video's die de aandacht trekken.",
+      "x": "Praat mee over actuele onderwerpen en geef uw merk een stem."
+    },
     "createCampaign": "Campagne maken",
     "comingSoon": "Binnenkort",
     "openStudio": "Studio openen",

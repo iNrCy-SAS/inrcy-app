@@ -1,5 +1,5 @@
 /**
- * Copy-generation contract for the six iNr'ADS acquisition channels.
+ * Copy-generation contract for the iNr'ADS acquisition channels.
  *
  * Platform character counts below describe the named ad format, not ad-policy
  * approval. The platform can reject an otherwise valid draft; a human review is
@@ -7,7 +7,7 @@
  */
 import { adsCopyLooksIncomplete, adsCopyText } from "./adsPlanQuality.ts";
 
-export const ADS_COPY_CHANNELS = ["meta", "google", "linkedin", "tiktok", "pinterest", "x"] as const;
+export const ADS_COPY_CHANNELS = ["meta", "google", "linkedin", "tiktok", "pinterest", "x", "openai"] as const;
 export type AdsCopyChannel = (typeof ADS_COPY_CHANNELS)[number];
 
 export type SuggestedAdsCopy = {
@@ -75,6 +75,14 @@ const COPY_SPECS: Record<AdsCopyChannel, AdsCopySpec> = {
     counts: { headlines: 1, descriptions: 1, keywords: 0 },
     minimum: { primaryText: 15, headlines: 0, descriptions: 0, keywords: 0 },
   },
+  openai: {
+    label: "ChatGPT Ads",
+    format: "carte publicitaire image dans ChatGPT",
+    instructions: "Écris une seule carte directement lisible : un titre de 3 à 50 caractères et un texte principal de 1 à 100 caractères. Fournis exactement un titre et une description identique au texte principal ; cette carte n'affiche pas de variantes supplémentaires. Le message présente l'offre attestée et une raison concrète d'ouvrir la page. N'imite pas une réponse de ChatGPT et ne suggère aucune recommandation personnelle d'OpenAI. Aucun mot-clé publicitaire n'est publié ; renvoie keywords=[].",
+    limits: { primaryText: 100, headlines: 50, descriptions: 100, keywords: 80 },
+    counts: { headlines: 1, descriptions: 1, keywords: 0 },
+    minimum: { primaryText: 1, headlines: 1, descriptions: 1, keywords: 0 },
+  },
 };
 
 export function parseAdsCopyChannel(value: unknown): AdsCopyChannel | null {
@@ -114,10 +122,12 @@ export function normalizeSuggestedAdsCopy(channel: AdsCopyChannel, value: unknow
     : {};
   const spec = COPY_SPECS[channel];
   const descriptions = list(source.descriptions, spec.counts.descriptions, spec.limits.descriptions);
+  const primaryText = (channel === "pinterest" ? descriptions[0] : "") || adsCopyText(source.primaryText)
+    || (["google", "pinterest", "openai"].includes(channel) ? descriptions.join(" ") : "");
   return {
-    primaryText: (channel === "pinterest" ? descriptions[0] : "") || adsCopyText(source.primaryText) || (["google", "pinterest"].includes(channel) ? descriptions.join(" ") : ""),
+    primaryText,
     headlines: list(source.headlines, spec.counts.headlines, spec.limits.headlines),
-    descriptions,
+    descriptions: channel === "openai" && primaryText ? [primaryText] : descriptions,
     keywords: list(source.keywords, spec.counts.keywords, spec.limits.keywords),
   };
 }

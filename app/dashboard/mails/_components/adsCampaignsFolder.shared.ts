@@ -3,6 +3,7 @@ import type { StoredAdsCampaign } from "@/app/dashboard/ads/AdsCampaignTracking"
 export const adsChannelLabels: Record<StoredAdsCampaign["provider"], string> = {
   google: "Google Ads", meta: "Meta Ads", linkedin: "LinkedIn Ads",
   tiktok: "TikTok Ads", pinterest: "Pinterest Ads", x: "X Ads",
+  openai: "ChatGPT Ads",
 };
 
 export const adsStatusLabels: Record<StoredAdsCampaign["status"], string> = {

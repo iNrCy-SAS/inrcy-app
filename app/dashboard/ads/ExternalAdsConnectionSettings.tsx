@@ -50,6 +50,7 @@ type NavigationTarget = {
 type Props = {
   isOpen: boolean;
   channel: ExternalAdsSettingsChannel;
+  locked?: boolean;
   previous: NavigationTarget;
   next: NavigationTarget;
   onClose: () => void;
@@ -128,6 +129,7 @@ function accountLabel(account: ExternalAdsSettingsAccount) {
 export default function ExternalAdsConnectionSettings({
   isOpen,
   channel,
+  locked = false,
   previous,
   next,
   onClose,
@@ -154,10 +156,10 @@ export default function ExternalAdsConnectionSettings({
   const linkedinManagementMissing = channel === "linkedin"
     && status.connected
     && Boolean(status.missingScopes?.length);
-  const connectionDisplayStatus: ConnectionDisplayStatus = needsReconnect || linkedinManagementMissing
+  const connectionDisplayStatus: ConnectionDisplayStatus = locked ? "disconnected" : needsReconnect || linkedinManagementMissing
     ? "needs_update"
     : status.connected ? "connected" : "disconnected";
-  const connectionStatusLabel = !status.configured
+  const connectionStatusLabel = locked ? "Verrouillé" : !status.configured
       ? "Indisponible"
       : linkedinManagementMissing
         ? "Autorisations à compléter"
@@ -168,7 +170,7 @@ export default function ExternalAdsConnectionSettings({
       : status.load === "error" && !status.connected
         ? "À vérifier"
         : undefined;
-  const busy = accountsLoading || action !== null || (status.load === "loading" && !status.connected);
+  const busy = locked || accountsLoading || action !== null || (status.load === "loading" && !status.connected);
   const selectedAccount = accounts.find((account) => account.id === accountChoice);
   const configuredAccount = accounts.find((account) => account.id === status.selectedAccountId);
   const selectedAccountCanBeVerified = Boolean(selectedAccount
@@ -180,13 +182,13 @@ export default function ExternalAdsConnectionSettings({
   const configuredAccountEligible = Boolean(configuredAccount
     && configuredAccountEligibilityAccepted
     && (!current.requiresEuro || configuredAccount.currency === "EUR"));
-  const accountConfigured = adsAssociationDisplayReady(status.connected, status.selectedAccountId, accountChoice,
+  const accountConfigured = !locked && adsAssociationDisplayReady(status.connected, status.selectedAccountId, accountChoice,
     accountsLoaded ? configuredAccountEligible : undefined);
   const hasConfiguredAccount = Boolean(status.selectedAccountId);
   // A newly discovered X advertiser is intentionally tri-state: the user may
   // nominate it, but POST /accounts must verify it before it can be persisted.
-  const accountCandidateReady = status.connected && selectedAccountCanBeVerified;
-  const connectionValue = !status.configured
+  const accountCandidateReady = !locked && status.connected && selectedAccountCanBeVerified;
+  const connectionValue = locked ? "Connexion réservée à l’administration" : !status.configured
       ? `Connexion ${current.label} indisponible`
       : needsReconnect
         ? `La connexion ${current.label} doit être actualisée`
@@ -204,8 +206,8 @@ export default function ExternalAdsConnectionSettings({
       : accountCandidateReady
         ? "À confirmer"
         : undefined;
-  const configuredAccountUrl = getAdsAdvertiserAccountUrl(channel, status.selectedAccountId);
-  const effectiveError = error || (status.load === "error" && !status.connected ? status.error : "");
+  const configuredAccountUrl = locked ? null : getAdsAdvertiserAccountUrl(channel, status.selectedAccountId);
+  const effectiveError = locked ? "" : error || (status.load === "error" && !status.connected ? status.error : "");
   const linkedinRefreshAccess = channel === "linkedin" ? "manage" : "read";
   const accountOptions = useMemo(() => accounts.map((account) => {
     const unsupportedCurrency = current.requiresEuro && Boolean(account.currency) && account.currency !== "EUR";
@@ -236,21 +238,21 @@ export default function ExternalAdsConnectionSettings({
       <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
-          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{current.connectionCopy}</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={status.connected} status={connectionDisplayStatus} label={connectionStatusLabel} /></div>
+          <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{locked ? "Canal en validation : connexion réservée à l’administration." : current.connectionCopy}</div></div>
+          <div className={socialStyles.stepStatus}>{locked ? <span className={styles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={status.connected} status={connectionDisplayStatus} label={connectionStatusLabel} />}</div>
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.controlRow}>
             <input readOnly aria-label={`Compte connecté à ${current.label}`} value={connectionValue} />
-            {status.load === "error" ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={busy} onClick={onRefreshStatus}>Réessayer</button> : null}
-            {status.configured && status.connected ? <>
+            {locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${styles.lockedAction}`} disabled>Connecter {current.label}</button> : status.load === "error" ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={busy} onClick={onRefreshStatus}>Réessayer</button> : null}
+            {!locked && status.configured && status.connected ? <>
               {linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, "manage")}>Compléter les autorisations Ads <span aria-hidden="true">→</span></a> : null}
               {needsReconnect && !linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Actualiser la connexion <span aria-hidden="true">→</span></a> : null}
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
-            </> : status.configured && needsReconnect ? <>
+            </> : !locked && status.configured && needsReconnect ? <>
               <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Reconnecter {current.label} <span aria-hidden="true">→</span></a>
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
-            </> : status.configured && status.load !== "loading" && status.load !== "idle" ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel)}>Connecter {current.label} <span aria-hidden="true">→</span></a> : <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled>{status.configured ? "Vérification…" : "Connexion indisponible"}</button>}
+            </> : !locked && status.configured && status.load !== "loading" && status.load !== "idle" ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel)}>Connecter {current.label} <span aria-hidden="true">→</span></a> : !locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled>{status.configured ? "Vérification…" : "Connexion indisponible"}</button> : null}
           </div>
         </div>
       </section>
@@ -259,12 +261,12 @@ export default function ExternalAdsConnectionSettings({
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Compte annonceur</div><div>{current.accountCopy}</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={accountConfigured} label={accountStatusLabel} /></div>
+          <div className={socialStyles.stepStatus}>{locked ? <span className={styles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={accountConfigured} label={accountStatusLabel} />}</div>
         </div>
         <div className={`${socialStyles.stepBody} ${styles.stepBody}`}>
           <div className={styles.resourceControls}>
             <label className={styles.field}>{current.accountLabel}
-              <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
+              <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={locked ? "" : accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
                 {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`}{accountsLoaded ? " · accès à vérifier" : ""}</option> : null}
                 {accountOptions.map(({ account, unavailable, reason }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{reason ? ` (${reason})` : ""}</option>)}
@@ -284,7 +286,7 @@ export default function ExternalAdsConnectionSettings({
       </section>
 
       {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
-      {channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
+      {!locked && channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
 
       <div className={styles.footer}>
         <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>

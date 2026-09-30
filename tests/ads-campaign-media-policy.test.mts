@@ -6,6 +6,8 @@ import {
   adsMediaKindForPlan,
   adsMediaFormatForPlan,
   adsMediaStrategyAfterAttachment,
+  CHATGPT_ADS_IMAGE_REQUIREMENTS,
+  chatgptAdsImagePrompt,
   GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
   googleSearchImagePrompt,
   googleSearchImageSubjectPrompt,
@@ -49,6 +51,23 @@ test("le format Pinterest n’altère ni les autres canaux ni les vidéos", () =
   assert.equal(adsMediaFormatForPlan({ provider: "meta", campaignType: "meta_traffic" }, "image"), "portrait");
   assert.equal(adsMediaFormatForPlan({ provider: "google", campaignType: "video" }, "video"), "landscape");
   assert.equal(adsMediaFormatForPlan({ provider: "pinterest", campaignType: "generic" }, "video"), "story");
+});
+
+test("ChatGPT Ads prépare un JPG carré et un brief visuel fidèle au commerce local", () => {
+  const format = adsMediaFormatForPlan({ provider: "openai", campaignType: "generic" }, "image");
+  assert.equal(format, "square");
+  assert.equal(AI_MEDIA_FORMAT_SPECS[format].width, AI_MEDIA_FORMAT_SPECS[format].height);
+  const prompt = chatgptAdsImagePrompt({
+    offer: "Réparation de vélos à Lille",
+    primaryText: "Faites réparer votre vélo près de chez vous.",
+    targetLocations: ["Lille"],
+    mediaBrief: "Un atelier lumineux avec un vélo sur pied de réparation.",
+  });
+  assert.ok(prompt.startsWith(CHATGPT_ADS_IMAGE_REQUIREMENTS));
+  assert.match(prompt, /Réparation de vélos à Lille/);
+  assert.match(prompt, /Aucun texte incrusté/);
+  assert.match(prompt, /sans inventer.*approbation par ChatGPT ou OpenAI/);
+  assert.ok(prompt.length <= 1_800);
 });
 
 test("l’analyse génère seulement un média compatible avec le format", () => {

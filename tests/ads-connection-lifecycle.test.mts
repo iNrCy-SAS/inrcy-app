@@ -32,7 +32,7 @@ const publishRouteSource = readFileSync(
 );
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
-  assert.match(settingsSource, /\{connected \? <button[\s\S]*?Déconnexion/);
+  assert.match(settingsSource, /\{locked \? <button[^>]*disabled[\s\S]*? : connected \? <button[\s\S]*?Déconnexion/);
   assert.match(settingsSource, /needsReconnect \? <>/);
   assert.match(settingsSource, /oauthLabel\(provider, "reconnect"\)/);
 });
@@ -45,7 +45,7 @@ test("Meta Ads et Google Ads partagent le choix et le changement persistants du 
   assert.match(selectionRouteSource, /listAdsAccounts\(user\.activeUserId, provider\)/);
   assert.match(selectionRouteSource, /update\.resource_id = account\.id/);
   assert.match(selectionRouteSource, /account_selection_cleared/);
-  assert.match(settingsSource, /\{hasConfiguredAccount \? <button[\s\S]*?Dissocier ce compte/);
+  assert.match(settingsSource, /\{!locked && hasConfiguredAccount \? <button[\s\S]*?Dissocier ce compte/);
 });
 
 test("la configuration Meta conserve aussi la sélection de l’identité Facebook et Instagram", () => {
@@ -102,7 +102,7 @@ test("une nouvelle campagne reprend le compte associé et le lancement l’enreg
   const start = clientSource.split("function startNewCampaign() {")[1]?.split("function closeCampaignCreation()")[0] || "";
   const launchCheck = clientSource.split("async function openLaunchDialog() {")[1]?.split("async function confirmCampaignLaunch()")[0] || "";
   const launch = clientSource.split("async function confirmCampaignLaunch() {")[1]?.split("function reopen(")[0] || "";
-  assert.match(start, /adAccountId: isAdsProvider\(channelId\)\s*\? configuredAccountId\s*: isExternalChannel\(channelId\) \? externalStatuses\[channelId\]\.selectedAccountId : ""/);
+  assert.match(start, /adAccountId: isAdsProvider\(channelId\)\s*\? configuredAccountId\s*: isExternalChannel\(channelId\) \? externalStatuses\[channelId\]\.selectedAccountId\s*: channelId === "openai" \? connectionSnapshots\.openai\.accountId : ""/);
   assert.match(launchCheck, /connection\.selectedAccountId/);
   assert.match(launch, /fetch\("\/api\/ads\/campaigns", \{/);
   assert.match(launch, /fetch\(`\/api\/ads\/campaigns\/\$\{campaignId\}\/publish`/);

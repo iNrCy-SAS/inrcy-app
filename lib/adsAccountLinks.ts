@@ -26,6 +26,9 @@ export function getAdsAdvertiserAccountUrl(
   if (provider === "x") {
     return /^[A-Za-z0-9_-]{1,100}$/.test(rawId) ? "https://ads.x.com/" : null;
   }
+  if (provider === "openai") {
+    return /^adacct_[A-Za-z0-9_-]{1,100}$/.test(rawId) ? "https://ads.openai.com/" : null;
+  }
 
   const accountId = rawId.replace(/^act_/i, "").replace(/-/g, "");
 

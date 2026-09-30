@@ -9,9 +9,9 @@ const connectionStyles = readFileSync(new URL("../app/dashboard/ads/AdsConnectio
 const adsStyles = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 const drawer = readFileSync(new URL("../app/dashboard/SettingsDrawer.tsx", import.meta.url), "utf8");
 
-test("les six modales iNrADS suivent le même cycle sans fermer le panneau", () => {
+test("les sept modales iNrADS suivent le même cycle sans fermer le panneau", () => {
   const catalog = client.split("const CHANNEL_CATALOG")[1]?.split("];", 1)[0] || "";
-  const order = ["meta", "google", "linkedin", "tiktok", "pinterest", "x"];
+  const order = ["meta", "google", "linkedin", "tiktok", "pinterest", "x", "openai"];
   let cursor = -1;
   for (const channel of order) {
     const next = catalog.indexOf(`id: "${channel}"`);
@@ -71,7 +71,7 @@ test("Pinterest conserve sa touche rouge et magenta sans modifier ses routes OAu
 test("un compte Pinterest associé expose Voir le compte dans la carte et dans la modale", () => {
   assert.match(client, /externalAdvertiserAccountUrl = externalChannel[\s\S]*getAdsAdvertiserAccountUrl\(externalChannel, externalStatuses\[externalChannel\]\.selectedAccountId\)/);
   assert.match(client, /externalAdvertiserAccountUrl \? <a className=\{styles\.channelViewAccount\}[\s\S]*?target="_blank"[\s\S]*?>Voir le compte<\/a>/);
-  assert.match(externalSettings, /configuredAccountUrl = getAdsAdvertiserAccountUrl\(channel, status\.selectedAccountId\)/);
+  assert.match(externalSettings, /configuredAccountUrl = locked \? null : getAdsAdvertiserAccountUrl\(channel, status\.selectedAccountId\)/);
   assert.match(externalSettings, /configuredAccountUrl \? <a[\s\S]*?target="_blank"[\s\S]*?>Voir le compte<\/a>/);
 });
 

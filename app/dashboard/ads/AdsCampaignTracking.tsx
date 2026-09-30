@@ -43,6 +43,7 @@ const channelLabels: Record<AdsChannelId, { label: string; logo: string }> = {
   tiktok: { label: "TikTok Ads", logo: "/ads-logos/tiktok.svg" },
   pinterest: { label: "Pinterest Ads", logo: "/ads-logos/pinterest.svg" },
   x: { label: "X Ads", logo: "/ads-logos/x.svg" },
+  openai: { label: "ChatGPT Ads", logo: "/ads-logos/chatgpt-ads.svg" },
 };
 
 const statusLabels: Record<StoredAdsCampaign["status"], string> = {

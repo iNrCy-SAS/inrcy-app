@@ -708,6 +708,18 @@
     "imagine": "激发创意",
     "automate": "自动执行",
     "adsDescription": "通过多渠道营销活动吸引更多客户。",
+    "adsInfo": {
+      "open": "了解 iNr’ADS 广告渠道",
+      "title": "如何选择广告渠道？",
+      "close": "关闭",
+      "google": "当附近客户搜索您的服务时，让他们看见您。",
+      "pinterest": "用产品与实际作品启发客户的购买计划。",
+      "openai": "向正在 ChatGPT 中探索选项的人介绍您的解决方案。",
+      "meta": "在客户常用的 Facebook 和 Instagram 上展示您的业务。",
+      "linkedin": "向决策者展示专业能力，寻找 B2B 合作机会。",
+      "tiktok": "用引人注目的短视频展示您的专业技能。",
+      "x": "参与当下热门话题，让更多人听见您的品牌。"
+    },
     "createCampaign": "创建营销活动",
     "comingSoon": "即将推出",
     "openStudio": "打开 Studio",

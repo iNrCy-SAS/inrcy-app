@@ -56,6 +56,38 @@ export const PINTEREST_ADS_IMAGE_SPEC = {
   height: 1_350,
 } as const;
 
+export const CHATGPT_ADS_IMAGE_REQUIREMENTS = [
+  "Crée une seule image publicitaire carrée 1:1, nette et lisible sur mobile.",
+  "Illustre fidèlement l’offre réelle et la page de destination, sans inventer de réalisation, de résultat garanti ni d’approbation par ChatGPT ou OpenAI.",
+  "Aucun texte incrusté, faux logo, filigrane, bordure ou collage : le titre et le message seront ajoutés séparément à la carte publicitaire.",
+].join(" ");
+
+function completeFragment(value: string, max: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= max) return trimmed;
+  const prefix = trimmed.slice(0, max + 1);
+  const lastSpace = prefix.lastIndexOf(" ");
+  return (lastSpace > max / 2 ? prefix.slice(0, lastSpace) : prefix.slice(0, max)).trim();
+}
+
+export function chatgptAdsImageSubjectPrompt(context: {
+  offer: string;
+  primaryText: string;
+  targetLocations: string[];
+  mediaBrief: string;
+}): string {
+  return [
+    context.offer && `Offre à illustrer : ${completeFragment(context.offer, 260)}.`,
+    context.targetLocations.length && `Contexte local : ${context.targetLocations.slice(0, 3).map((zone) => completeFragment(zone, 70)).join(", ")}.`,
+    context.primaryText && `Intention du message, sans l’écrire dans l’image : ${completeFragment(context.primaryText, 100)}.`,
+    context.mediaBrief && `Direction visuelle : ${completeFragment(context.mediaBrief, 420)}.`,
+  ].filter(Boolean).join(" ");
+}
+
+export function chatgptAdsImagePrompt(context: Parameters<typeof chatgptAdsImageSubjectPrompt>[0]): string {
+  return [CHATGPT_ADS_IMAGE_REQUIREMENTS, chatgptAdsImageSubjectPrompt(context)].filter(Boolean).join(" ");
+}
+
 export function adsMediaFormatForPlan(
   plan: Pick<PlannedMedia, "provider" | "campaignType">,
   kind: "image" | "video",

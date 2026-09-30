@@ -23,10 +23,11 @@ export const ADS_CHANNELS = [
   { id: "tiktok", label: "TikTok Ads", format: "Vidéo · communautés" },
   { id: "pinterest", label: "Pinterest Ads", format: "Découverte visuelle" },
   { id: "x", label: "X Ads", format: "Conversations · actualité" },
+  { id: "openai", label: "ChatGPT Ads", format: "Découverte dans ChatGPT" },
 ] as const;
 
 export const ADS_OAUTH_PROVIDERS = ["meta", "google"] as const;
-export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "linkedin", "pinterest"] as const;
+export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "linkedin", "pinterest", "openai"] as const;
 
 export type AdsChannelId = (typeof ADS_CHANNELS)[number]["id"];
 export type AdsProvider = (typeof ADS_OAUTH_PROVIDERS)[number];
@@ -82,9 +83,9 @@ export function isAdsProvider(value: unknown): value is AdsProvider {
   return value === "meta" || value === "google";
 }
 
-/** Channels with account-bound campaign publication adapters. X remains draft-only. */
+/** Channels with account-bound campaign publication adapters. X and TikTok remain draft-only. */
 export function isAdsDraftAccountChannel(value: unknown): value is AdsDraftAccountChannel {
-  return value === "meta" || value === "google" || value === "linkedin" || value === "pinterest";
+  return value === "meta" || value === "google" || value === "linkedin" || value === "pinterest" || value === "openai";
 }
 
 function includes<T extends readonly string[]>(values: T, value: unknown): value is T[number] {
@@ -115,6 +116,8 @@ export type AdsCampaignInput = {
   dailyBudgetEuros: number;
   /** Explicit Pinterest CPM/CPC max bid; ignored by other channel publishers. */
   pinterestBidEuros?: number;
+  /** Explicit per-event bid for the first ChatGPT Ads chat-card format. */
+  openaiBidEuros?: number;
   /** Verified LinkedIn choices. Provider ownership is always re-read before a mutation. */
   linkedinCampaignGroupId?: string;
   linkedinOrganizationUrn?: string;
@@ -419,8 +422,9 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const rawAccountId = clean(raw.adAccountId);
   // X Ads account IDs are opaque alphanumeric identifiers, unlike the numeric
   // advertisers used by the live adapters. Never transform an X identifier.
-  const adAccountId = provider === "x" ? rawAccountId : rawAccountId.replace(/^act_/, "").replace(/-/g, "");
-  const accountIdPattern = provider === "x" ? /^[a-z0-9]+$/i : provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
+  const adAccountId = provider === "x" || provider === "openai" ? rawAccountId : rawAccountId.replace(/^act_/, "").replace(/-/g, "");
+  const accountIdPattern = provider === "openai" ? /^adacct_[A-Za-z0-9_-]{1,100}$/
+    : provider === "x" ? /^[a-z0-9]+$/i : provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
   if (purpose === "publish" && !accountIdPattern.test(adAccountId)) return { draft: null, error: "Sélectionnez un compte publicitaire connecté." };
   if (adAccountId && !accountIdPattern.test(adAccountId)) return { draft: null, error: "L’identifiant du compte publicitaire est invalide." };
   if (!isAdsDraftAccountChannel(provider) && provider !== "x" && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
@@ -442,10 +446,19 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   if (!Number.isFinite(dailyBudgetEuros) || dailyBudgetEuros < 5 || dailyBudgetEuros > 500 || Math.abs(Math.round(dailyBudgetEuros * 100) - dailyBudgetEuros * 100) > 0.000001) {
     return { draft: null, error: "Le budget journalier doit être compris entre 5 et 500 €, avec deux décimales maximum." };
   }
+  if (provider === "openai" && dailyBudgetEuros < 15) {
+    return { draft: null, error: "Ce parcours ChatGPT Ads commence à 15 € de budget quotidien moyen ; le compte peut exiger davantage." };
+  }
   const pinterestBidEuros = raw.pinterestBidEuros == null ? 1 : Number(raw.pinterestBidEuros);
   if (provider === "pinterest" && (!Number.isFinite(pinterestBidEuros) || pinterestBidEuros < 0.01
     || pinterestBidEuros > dailyBudgetEuros || Math.abs(Math.round(pinterestBidEuros * 100) - pinterestBidEuros * 100) > 0.000001)) {
     return { draft: null, error: "L’enchère Pinterest doit être comprise entre 0,01 € et le budget journalier, avec deux décimales maximum." };
+  }
+  const openaiBidEuros = raw.openaiBidEuros == null ? undefined : Number(raw.openaiBidEuros);
+  if (provider === "openai" && openaiBidEuros !== undefined &&
+    (!Number.isFinite(openaiBidEuros) || openaiBidEuros < 0.01 || openaiBidEuros > dailyBudgetEuros
+      || Math.abs(Math.round(openaiBidEuros * 100) - openaiBidEuros * 100) > 0.000001)) {
+    return { draft: null, error: "L’enchère ChatGPT Ads doit être comprise entre 0,01 € et le budget quotidien, avec deux décimales maximum." };
   }
   const linkedinCampaignGroupId = clean(raw.linkedinCampaignGroupId);
   const linkedinOrganizationUrn = clean(raw.linkedinOrganizationUrn);
@@ -508,7 +521,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   if (trackingParameters.length > 500) return { draft: null, error: "Les paramètres de suivi sont trop longs." };
 
   const primaryText = clean(raw.primaryText);
-  const primaryTextLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 500;
+  const primaryTextLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "x" ? 280 : provider === "tiktok" || provider === "openai" ? 100 : 500;
   if (Array.from(primaryText).length > primaryTextLimit) {
     return { draft: null, error: `Le message ${provider} dépasse ${primaryTextLimit} caractères.` };
   }
@@ -532,8 +545,8 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const callToAction = clean(raw.callToAction);
   if (callToAction.length > 80) return { draft: null, error: "L’appel à l’action est trop long." };
   const pageId = clean(raw.pageId);
-  const headlineLimit = provider === "linkedin" ? 200 : provider === "pinterest" ? 100 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 30;
-  const descriptionLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 90;
+  const headlineLimit = provider === "linkedin" ? 200 : provider === "pinterest" ? 100 : provider === "openai" ? 50 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 30;
+  const descriptionLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "openai" ? 100 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 90;
   const headlines = textList(raw.headlines, 15, headlineLimit);
   const descriptions = textList(raw.descriptions, 4, descriptionLimit);
   const keywords = textList(raw.keywords, 20, 80);
@@ -617,6 +630,26 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!primaryText || !headlines[0]?.trim()) {
       return { draft: null, error: "LinkedIn requiert une introduction et un titre pour la création sponsorisée." };
     }
+  } else if (purpose === "publish" && provider === "openai") {
+    if (campaignType !== "generic" || objective !== "website_traffic"
+      || conversionGoal !== "website_visit" || conversionLocation !== "website"
+      || bidStrategy !== "manual_review" || mediaStrategy !== "image" || creativeType !== "image") {
+      return { draft: null, error: "Le premier parcours ChatGPT Ads utilise une carte image et l’objectif clics vers votre site." };
+    }
+    if (trackingParameters || keywords.length || negativeKeywords.length || callToAction) {
+      return { draft: null, error: "Retirez les anciens paramètres de suivi, mots-clés et appels à l’action : ce parcours ChatGPT Ads ne les transmet pas." };
+    }
+    if (targetLocations.length < 1) {
+      return { draft: null, error: "Choisissez au moins une zone locale à vérifier auprès de ChatGPT Ads." };
+    }
+    if (!openaiBidEuros) return { draft: null, error: "Renseignez l’enchère maximale ChatGPT Ads." };
+    if (headlines.length !== 1 || headlines[0].length < 3) {
+      return { draft: null, error: "La carte ChatGPT Ads demande un seul titre de 3 à 50 caractères." };
+    }
+    if (!primaryText || (descriptions.length > 0 && (descriptions.length !== 1 || descriptions[0] !== primaryText))) {
+      return { draft: null, error: "La carte ChatGPT Ads demande un texte unique de 1 à 100 caractères." };
+    }
+    if (!imageUrl && !creativeUrl) return { draft: null, error: "Ajoutez une image à la carte ChatGPT Ads." };
   } else if (purpose === "publish") {
     return { draft: null, error: "La publication de ce canal n’est pas disponible." };
   }
@@ -636,6 +669,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       offer,
       dailyBudgetEuros,
       pinterestBidEuros,
+      openaiBidEuros,
       linkedinCampaignGroupId,
       linkedinOrganizationUrn,
       linkedinGeoTargets: linkedinGeoTargets.filter((target): target is { urn: string; name: string } => target !== null),

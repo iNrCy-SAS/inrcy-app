@@ -164,10 +164,15 @@ test("LinkedIn : connexion connue reste visible mais les autorisations manquante
   const file = ts.createSourceFile("ExternalAdsConnectionSettings.tsx", readFileSync(new URL("../app/dashboard/ads/ExternalAdsConnectionSettings.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   for (const load of ["ready", "loading", "error"]) {
     for (const missingScopes of [[], ["rw_ads"]]) {
-      const scope: Record<string, unknown> = { channel: "linkedin", status: { connected: true, configured: true, status: "connected", load, missingScopes } };
+      const scope: Record<string, unknown> = { channel: "linkedin", locked: false, status: { connected: true, configured: true, status: "connected", load, missingScopes } };
       for (const key of ["needsReconnect", "linkedinManagementMissing", "connectionDisplayStatus", "connectionStatusLabel"]) scope[key] = actual(key, scope, file);
       assert.equal(scope.connectionDisplayStatus, missingScopes.length ? "needs_update" : "connected");
       assert.equal(scope.connectionStatusLabel, missingScopes.length ? "Autorisations à compléter" : undefined);
+      scope.locked = true;
+      scope.connectionDisplayStatus = actual("connectionDisplayStatus", scope, file);
+      scope.connectionStatusLabel = actual("connectionStatusLabel", scope, file);
+      assert.equal(scope.connectionDisplayStatus, "disconnected");
+      assert.equal(scope.connectionStatusLabel, "Verrouillé");
     }
   }
 });

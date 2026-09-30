@@ -8,6 +8,7 @@ import useMediaGeneration, {
 import {
   adsMediaKindForPlan,
   adsMediaFormatForPlan,
+  chatgptAdsImagePrompt,
   googleSearchImagePrompt,
   metaFeedImagePrompt,
   metaStoryReelImagePrompt,
@@ -38,6 +39,7 @@ function mediaPromptForPlan(provider: AdsChannelId, plan: AdsCampaignPlan, kind:
     return googleSearchImagePrompt(plan);
   }
   if (provider === "pinterest" && kind === "image") return pinterestAdsImagePrompt(plan);
+  if (provider === "openai" && kind === "image") return chatgptAdsImagePrompt(plan);
   return [
     plan.mediaBrief,
     plan.offer && `Offre ou service : ${plan.offer}`,

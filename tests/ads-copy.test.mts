@@ -10,8 +10,8 @@ import {
   parseAdsCopyChannel,
 } from "../lib/adsCopy.ts";
 
-test("accepts six stable channel identifiers and legacy provider identifiers", () => {
-  assert.deepEqual(ADS_COPY_CHANNELS, ["meta", "google", "linkedin", "tiktok", "pinterest", "x"]);
+test("accepts seven stable channel identifiers and legacy provider identifiers", () => {
+  assert.deepEqual(ADS_COPY_CHANNELS, ["meta", "google", "linkedin", "tiktok", "pinterest", "x", "openai"]);
   for (const channel of ADS_COPY_CHANNELS) assert.equal(parseAdsCopyChannel(channel), channel);
   assert.equal(parseAdsCopyChannel("unknown"), null);
   assert.equal(parseAdsCopyChannel(undefined), null);
@@ -28,6 +28,8 @@ test("builds channel-specific prompts without suggesting that copy is automatica
   assert.match(prompts.tiktok, /vise 60 caractères maximum/);
   assert.match(prompts.pinterest, /800 caractères maximum/);
   assert.match(prompts.x, /257 caractères maximum/);
+  assert.match(prompts.openai, /3 à 50 caractères/);
+  assert.match(prompts.openai, /1 à 100 caractères/);
   for (const prompt of Object.values(prompts)) {
     assert.match(prompt, /sans garantir son acceptation/);
     assert.match(prompt, /Ne crée ni ne publie/);

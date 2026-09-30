@@ -708,6 +708,18 @@
     "imagine": "GESTALTEN",
     "automate": "AUTOMATISIEREN",
     "adsDescription": "Kanalübergreifende Kampagnen für mehr Kunden.",
+    "adsInfo": {
+      "open": "Informationen zu iNr’ADS-Kanälen",
+      "title": "Welcher Kanal passt zu Ihrer Kampagne?",
+      "close": "Schließen",
+      "google": "Seien Sie sichtbar, wenn Menschen in Ihrer Nähe nach Ihren Leistungen suchen.",
+      "pinterest": "Inspirieren Sie Kaufpläne mit Ihren Produkten und Referenzprojekten.",
+      "openai": "Stellen Sie Ihre Lösung Menschen vor, die in ChatGPT ihre Möglichkeiten erkunden.",
+      "meta": "Machen Sie Ihr Unternehmen auf Facebook und Instagram bekannt, wo Ihre Kunden Zeit verbringen.",
+      "linkedin": "Zeigen Sie Entscheidern Ihre Expertise und eröffnen Sie B2B-Chancen.",
+      "tiktok": "Zeigen Sie Ihr Können in kurzen Videos, die Aufmerksamkeit wecken.",
+      "x": "Bringen Sie Ihre Marke in aktuelle Gespräche ein."
+    },
     "createCampaign": "Kampagne erstellen",
     "comingSoon": "Demnächst",
     "openStudio": "Studio öffnen",
