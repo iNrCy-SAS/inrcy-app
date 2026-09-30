@@ -21,7 +21,7 @@ test.describe('calendar write api', () => {
   test.skip(!email || !password, 'E2E_EMAIL et E2E_PASSWORD sont requis');
   test.skip(!allowWrites, 'E2E_ALLOW_WRITES=true requis pour les tests en écriture');
 
-  test('create then delete an agenda event', async ({ page }) => {
+  test('create then delete an agenda draft without confirmations or reminders', async ({ page }) => {
     await login(page);
 
     const start = new Date(Date.now() + 24 * 3600 * 1000);
@@ -43,6 +43,8 @@ test.describe('calendar write api', () => {
             start: startIso,
             end: endIso,
             allDay: false,
+            // Keep CI CRUD isolated even if this account enables real confirmations.
+            inrcy: { status: 'draft', reminders: { enabled: false } },
           }),
         });
 
