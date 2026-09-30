@@ -7,7 +7,7 @@ import {
 } from "@/lib/adsXServer";
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("x");
   if (errorResponse || !user) return errorResponse;
   if (!getXAdsCredentials().configured) {
     return NextResponse.json({

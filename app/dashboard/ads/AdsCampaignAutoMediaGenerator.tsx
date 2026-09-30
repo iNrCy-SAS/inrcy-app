@@ -3,14 +3,15 @@
 import { useEffect, useRef } from "react";
 
 import useMediaGeneration, {
-  type MediaGenerationFormat,
   type MediaGenerationResult,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import {
   adsMediaKindForPlan,
+  adsMediaFormatForPlan,
   googleSearchImagePrompt,
   metaFeedImagePrompt,
   metaStoryReelImagePrompt,
+  pinterestAdsImagePrompt,
   shouldGenerateAdsMedia,
 } from "@/lib/adsCampaignMediaPolicy";
 import type { AdsCampaignPlan } from "@/lib/adsCampaignPlan";
@@ -31,17 +32,12 @@ type MetaPackResults = {
   storyReel?: MediaGenerationResult;
 };
 
-function mediaFormatForPlan(plan: AdsCampaignPlan, kind: "image" | "video"): MediaGenerationFormat {
-  if (kind === "video") return plan.campaignType === "video" ? "landscape" : "story";
-  if (plan.campaignType.startsWith("meta_")) return "portrait";
-  return "square";
-}
-
-function mediaPromptForPlan(provider: AdsChannelId, plan: AdsCampaignPlan) {
+function mediaPromptForPlan(provider: AdsChannelId, plan: AdsCampaignPlan, kind: "image" | "video") {
   const googleSearchImage = provider === "google" && plan.campaignType === "search";
   if (googleSearchImage) {
     return googleSearchImagePrompt(plan);
   }
+  if (provider === "pinterest" && kind === "image") return pinterestAdsImagePrompt(plan);
   return [
     plan.mediaBrief,
     plan.offer && `Offre ou service : ${plan.offer}`,
@@ -106,7 +102,7 @@ export default function AdsCampaignAutoMediaGenerator({
 
       const kind = adsMediaKindForPlan({ provider, campaignType: plan.campaignType, mediaStrategy: plan.mediaStrategy, creativeType: plan.creativeType });
       const googleSearchImage = provider === "google" && plan.campaignType === "search";
-      const prompt = mediaPromptForPlan(provider, plan);
+      const prompt = mediaPromptForPlan(provider, plan, kind);
       if (prompt.length < 3) {
         settledRef.current = true;
         callbacksRef.current.onError("La campagne est prête, mais il manque une consigne suffisamment précise pour générer son média.");
@@ -162,11 +158,11 @@ export default function AdsCampaignAutoMediaGenerator({
             subjectSource: "custom",
             idea: prompt,
             textKeywords: [],
-            format: mediaFormatForPlan(plan, kind),
+            format: adsMediaFormatForPlan({ provider, campaignType: plan.campaignType }, kind),
             imageStyle: "photo",
             peopleMode: "auto",
             useBrandColors: !googleSearchImage,
-            logoMode: googleSearchImage ? "none" : "discreet",
+            logoMode: googleSearchImage || provider === "pinterest" ? "none" : "discreet",
             withMusic: kind === "video",
             withNarration: false,
             source: "studio",

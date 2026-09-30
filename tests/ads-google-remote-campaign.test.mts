@@ -158,7 +158,7 @@ function mockGoogleAds(options: {
     resolveTargetLocations,
     now: () => Date.parse("2026-09-29T10:00:00Z"),
   });
-  return { adapter, calls, state };
+  return { adapter, calls, state, request, resolveTargetLocations };
 }
 
 test("les provider_resources Google Ads sont validées avant tout appel distant", () => {
@@ -324,6 +324,114 @@ test("pause et reprise relisent le statut et deviennent idempotentes", async () 
   assert.equal(resumed.changed, true);
   assert.equal(resumed.status, "ENABLED");
   assert.equal(calls.filter((call) => call.path.endsWith("/campaigns:mutate")).length, 2);
+  assert.equal(calls.some((call) => call.path.endsWith("/googleAds:mutate")), false, "une reprise ordinaire préserve les pauses manuelles des enfants");
+});
+
+function initialLaunch(options: {
+  invalidManifest?: boolean; wrongParent?: boolean; missingChild?: boolean;
+  malformedMutation?: boolean; unappliedMutation?: boolean; removedChild?: boolean;
+  campaignAlreadyActive?: boolean; completed?: boolean; childrenAlreadyEnabled?: boolean;
+} = {}) {
+  const base = mockGoogleAds({ status: options.campaignAlreadyActive ? "ENABLED" : "PAUSED" });
+  const group = providerResources.adGroupResourceName;
+  const ad = `customers/${customerId}/adGroupAds/222~333`;
+  const keyword = `customers/${customerId}/adGroupCriteria/222~444`;
+  const childStates: Record<string, string> = {
+    [group]: options.childrenAlreadyEnabled ? "ENABLED" : "PAUSED",
+    [ad]: options.removedChild ? "REMOVED" : options.childrenAlreadyEnabled ? "ENABLED" : "PAUSED",
+    [keyword]: options.childrenAlreadyEnabled ? "ENABLED" : "PAUSED",
+  };
+  const request: GoogleAdsRemoteRequest = async (path, body) => {
+    const query = String(body.query || "");
+    if (query.includes("FROM ad_group")) {
+      base.calls.push({ path, body });
+      if (query.includes("FROM ad_group_ad")) return { results: options.missingChild ? [] : [{ adGroupAd: { resourceName: ad, adGroup: group, status: childStates[ad] } }] };
+      if (query.includes("FROM ad_group_criterion")) return { results: [{ adGroupCriterion: { resourceName: keyword, adGroup: group, status: childStates[keyword] } }] };
+      return { results: [{ adGroup: { resourceName: group, campaign: options.wrongParent ? `customers/${customerId}/campaigns/999` : campaignResourceName, status: childStates[group] } }] };
+    }
+    if (path.endsWith("/googleAds:mutate")) {
+      base.calls.push({ path, body });
+      assert.equal(base.state.status, "PAUSED", "le parent doit rester en pause pendant l’activation des enfants");
+      if (options.malformedMutation) return { mutateOperationResponses: [] };
+      const operations = body.mutateOperations as Record<string, { update: { resourceName: string; status: string } }>[];
+      return { mutateOperationResponses: operations.map((operation) => {
+        const [key, value] = Object.entries(operation)[0];
+        if (!options.unappliedMutation) childStates[value.update.resourceName] = value.update.status;
+        return { [key.replace("Operation", "Result")]: { resourceName: value.update.resourceName } };
+      }) };
+    }
+    return base.request(path, body);
+  };
+  const saved = {
+    ...providerResources, status: "PAUSED", initialActivationPending: !options.completed,
+    adGroupAdResourceName: options.invalidManifest ? `customers/9999999999/adGroupAds/222~333` : ad,
+    keywordCriterionResourceNames: [keyword],
+  };
+  const makeAdapter = (resources: unknown = saved) => createGoogleAdsRemoteCampaignCoreAdapter({
+    expectedCustomerId: customerId, providerResources: resources, request, resolveTargetLocations: base.resolveTargetLocations,
+  });
+  return { ...base, adapter: makeAdapter(), makeAdapter, childStates, group, ad, keyword };
+}
+
+test("la première reprise Google active les enfants vérifiés avant le parent puis consomme le marqueur", async () => {
+  const h = initialLaunch();
+  const resumed = await h.adapter.resume();
+  assert.equal(resumed.status, "ENABLED");
+  assert.equal(resumed.providerResources.initialActivationPending, false);
+  assert.ok(Object.values(h.childStates).every((status) => status === "ENABLED"));
+  const mutations = h.calls.filter((call) => call.path.endsWith(":mutate"));
+  assert.ok(mutations[0].path.endsWith("/googleAds:mutate"));
+  assert.ok(mutations[1].path.endsWith("/campaigns:mutate"));
+
+  // Subsequent ordinary pause/resume uses the persisted consumed marker.
+  h.childStates[h.ad] = "PAUSED";
+  const ordinary = h.makeAdapter(resumed.providerResources);
+  const paused = await ordinary.pause();
+  assert.equal(paused.providerResources.initialActivationPending, false);
+  h.calls.length = 0;
+  await h.makeAdapter(paused.providerResources).resume();
+  assert.equal(h.childStates[h.ad], "PAUSED");
+  assert.equal(h.calls.some((call) => call.path.endsWith("/googleAds:mutate")), false);
+});
+
+test("un manifeste initial absent ou déjà consommé ne réactive jamais les enfants", async () => {
+  const h = initialLaunch({ completed: true });
+  await h.adapter.resume();
+  assert.ok(Object.values(h.childStates).every((status) => status === "PAUSED"));
+  assert.equal(h.calls.some((call) => call.path.endsWith("/googleAds:mutate")), false);
+});
+
+test("la première reprise refuse les ressources étrangères, supprimées ou manquantes avant mutation", async () => {
+  for (const options of [{ invalidManifest: true }, { wrongParent: true }, { missingChild: true }, { removedChild: true }]) {
+    const h = initialLaunch(options);
+    await assert.rejects(() => h.adapter.resume(), GoogleAdsRemoteCampaignError);
+    assert.equal(h.calls.some((call) => call.path.endsWith(":mutate")), false);
+  }
+});
+
+test("une activation enfant mal confirmée laisse le parent Google en pause", async () => {
+  for (const options of [{ malformedMutation: true }, { unappliedMutation: true }]) {
+    const h = initialLaunch(options);
+    await assert.rejects(() => h.adapter.resume(), (error) => error instanceof GoogleAdsRemoteCampaignError && error.code === "REMOTE_MUTATION_UNCONFIRMED");
+    assert.equal(h.state.status, "PAUSED");
+    assert.equal(h.calls.some((call) => call.path.endsWith("/campaigns:mutate")), false);
+  }
+});
+
+test("une campagne déjà active ne réactive jamais ses enfants manuellement pausés", async () => {
+  const h = initialLaunch({ campaignAlreadyActive: true });
+  await assert.rejects(() => h.adapter.resume(), /pause manuelle est conservée/);
+  assert.equal(h.calls.some((call) => call.path.endsWith(":mutate")), false);
+  const paused = await h.adapter.pause();
+  assert.equal(paused.providerResources.initialActivationPending, false);
+});
+
+test("une reprise initiale dont les enfants sont déjà actifs ne répète pas leurs mutations", async () => {
+  const h = initialLaunch({ childrenAlreadyEnabled: true });
+  const result = await h.adapter.resume();
+  assert.equal(result.providerResources.initialActivationPending, false);
+  assert.equal(h.calls.some((call) => call.path.endsWith("/googleAds:mutate")), false);
+  assert.equal(h.calls.filter((call) => call.path.endsWith("/campaigns:mutate")).length, 1);
 });
 
 test("remove supprime à distance puis traite les répétitions comme un no-op", async () => {

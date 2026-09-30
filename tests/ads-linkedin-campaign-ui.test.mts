@@ -92,5 +92,6 @@ test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou méd
   assert.match(client, /pausedEnabled=\{demoDialog\.channelId === "linkedin"[\s\S]*canManageCampaigns/);
   assert.match(client, /\/api\/ads\/linkedin\/accounts/);
   assert.match(client, /Média LinkedIn/);
-  assert.match(client, /maxLength=\{channelId === "pinterest" \? 100 : channelId === "linkedin" \? 200/);
+  assert.match(client, /title\.length > \(channelId === "pinterest" \? 100 : 200\)/);
+  assert.match(client, /caractères maximum par titre ; reformulez tout dépassement/);
 });

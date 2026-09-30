@@ -12,6 +12,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
 import { adsAccountCanBeAssociated, adsAccountAssociationIssue } from "@/lib/adsValidation";
+import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 
 type SelectionTarget = "account" | "identity";
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const provider = adsOAuthProvider(body?.provider);
   if (!provider) return NextResponse.json({ error: "Canal publicitaire inconnu." }, { status: 400 });
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, provider))) return adsPilotOnlyResponse();
 
   const accountId = typeof body?.accountId === "string" ? body.accountId.trim() : undefined;
   const pageId = typeof body?.pageId === "string" ? body.pageId.trim() : undefined;
@@ -141,6 +143,7 @@ export async function DELETE(request: Request) {
   const provider = adsOAuthProvider(body?.provider);
   const target = selectionTarget(body?.target);
   if (!provider || !target) return NextResponse.json({ error: "Demande de déconnexion incomplète." }, { status: 400 });
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, provider))) return adsPilotOnlyResponse();
   if (provider !== "meta" && target === "identity") {
     return NextResponse.json({ error: "Google Ads n’utilise pas d’identité Facebook ou Instagram." }, { status: 400 });
   }

@@ -18,7 +18,7 @@ function failureResponse(error: unknown) {
 }
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("tiktok");
   if (errorResponse || !user) return errorResponse;
   try {
     const integration = await readTikTokAdsIntegration(user.activeUserId);
@@ -40,7 +40,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("tiktok");
   if (errorResponse || !user) return errorResponse;
   const body = await request.json().catch(() => null) as { accountId?: unknown } | null;
   const accountId = typeof body?.accountId === "string" ? body.accountId.trim() : "";

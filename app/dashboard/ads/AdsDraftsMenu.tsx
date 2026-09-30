@@ -112,6 +112,8 @@ export default function AdsDraftsMenu({ refreshKey, onOpenDraft }: Props) {
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls="ads-drafts-menu"
+      aria-label={total > 0 ? `Brouillons (${total})` : "Brouillons"}
+      title="Brouillons"
       onClick={() => {
         const next = !open;
         setOpen(next);
@@ -119,7 +121,7 @@ export default function AdsDraftsMenu({ refreshKey, onOpenDraft }: Props) {
       }}
     >
       <span className={styles.triggerIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3.5h9l3 3V20.5H6z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M15 3.5v3h3M9 11h6M9 15h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg></span>
-      <span>Brouillons</span>
+      <span className={styles.triggerLabel}>Brouillons</span>
       {total > 0 ? <span className={styles.badge} aria-label={`${total} brouillon${total > 1 ? "s" : ""}`}>{total > 99 ? "99+" : total}</span> : null}
     </button>
 

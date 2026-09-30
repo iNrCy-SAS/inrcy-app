@@ -26,6 +26,8 @@ export type GoogleAdsPublishProgress = {
   keywordCriterionResourceNames: string[];
   adGroupAdResourceName: string;
   status: "PAUSED" | "ENABLED";
+  /** Only a first launch may enable the children created paused by this publisher. */
+  initialActivationPending: boolean;
 };
 
 export type PersistGoogleAdsProgress = (progress: GoogleAdsPublishProgress) => Promise<void> | void;
@@ -35,6 +37,8 @@ export type GoogleAdsPublishOptions = {
   activate?: boolean;
   /** Resolved before the local draft is claimed, so a bad zone is editable. */
   preparedTargetLocations?: GoogleTargetLocation[];
+  /** Marks the first request that could create remote resources. */
+  onProviderMutationStart?: () => void;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -68,7 +72,7 @@ function checkGoogleDraft(draft: AdsCampaignInput): string {
     throw new Error("Confirmez explicitement que la campagne ne contient pas de publicité politique ciblant l’Union européenne.");
   }
   if (!Number.isFinite(draft.dailyBudgetEuros) || draft.dailyBudgetEuros < 5 || draft.dailyBudgetEuros > 500 ||
-      Math.round(draft.dailyBudgetEuros * 100) !== draft.dailyBudgetEuros * 100) {
+      Math.abs(Math.round(draft.dailyBudgetEuros * 100) - draft.dailyBudgetEuros * 100) > 0.000001) {
     throw new Error("Budget journalier Google Ads invalide.");
   }
   const endDateTime = `${draft.endDate} 23:59:59`;
@@ -152,7 +156,7 @@ export async function resolveGoogleTargetLocations(
 ): Promise<GoogleTargetLocation[]> {
   const labels = normalizeGoogleTargetLocationLabels(locations);
   if (!labels.length) {
-    return [{ resourceName: "geoTargetConstants/2250", label: "France", countryCode: "FR" }];
+    throw new GoogleAdsLocationResolutionError("Choisissez au moins une zone à l’étape Ciblage. Aucun pays ne sera ajouté par défaut.");
   }
 
   const franceIncluded = labels.includes("France");
@@ -235,13 +239,16 @@ export async function publishGoogleAdsCampaign(
     draft.targetLocations,
     loginCustomerId,
   );
+  if (!targetLocations.length || targetLocations.some((location) => !/^geoTargetConstants\/\d+$/.test(location.resourceName))) {
+    throw new GoogleAdsLocationResolutionError("Vérifiez les zones ciblées avant publication. Aucune campagne sans zone vérifiée ne sera créée.");
+  }
   // Search matches languages from the ad copy and landing page. Google Ads
   // rejects manual CampaignCriterion.language targeting from September 2026.
   const budgetTemp = `customers/${customerId}/campaignBudgets/-1`;
   const campaignTemp = `customers/${customerId}/campaigns/-2`;
   const adGroupTemp = `customers/${customerId}/adGroups/-3`;
-  const budgetName = `${draft.name.slice(0, 70)} · iNr’ADS ${randomUUID().slice(0, 8)}`;
-  const amountMicros = String(Math.round(draft.dailyBudgetEuros * 1_000_000));
+  const budgetName = `${draft.name} · iNr’ADS ${randomUUID().slice(0, 8)}`;
+  const amountMicros = String(Math.round(draft.dailyBudgetEuros * 100) * 10_000);
 
   // A single atomic mutate avoids an incomplete remote campaign when an ad,
   // keyword or targeting criterion fails validation.
@@ -284,7 +291,7 @@ export async function publishGoogleAdsCampaign(
     { adGroupOperation: { create: {
       resourceName: adGroupTemp,
       campaign: campaignTemp,
-      name: `${draft.name.slice(0, 70)} · Groupe principal`,
+      name: `${draft.name} · Groupe principal`,
       type: "SEARCH_STANDARD",
       status: "PAUSED",
     } } },
@@ -305,6 +312,7 @@ export async function publishGoogleAdsCampaign(
       },
     } } },
   ];
+  options.onProviderMutationStart?.();
   const created = await googleAdsJson(userId, `customers/${customerId}/googleAds:mutate`, {
     partialFailure: false,
     mutateOperations,
@@ -329,6 +337,7 @@ export async function publishGoogleAdsCampaign(
       resourceNameAt(created, adGroupOffset + 1 + index, "adGroupCriterionResult", `customers/${customerId}/adGroupCriteria/`)),
     adGroupAdResourceName: resourceNameAt(created, adGroupOffset + 1 + draft.keywords.length, "adGroupAdResult", `customers/${customerId}/adGroupAds/`),
     status: "PAUSED",
+    initialActivationPending: true,
   };
 
   // If local persistence fails, absolutely nothing is enabled. The remote
@@ -356,6 +365,16 @@ export async function publishGoogleAdsCampaign(
       mutateOperations: enableChildren,
     }, loginCustomerId);
     if (prepared.partialFailureError) throw new Error("Échec de l’activation des éléments publicitaires.");
+    const expectedChildren = [
+      { key: "adGroupResult", name: paused.adGroupResourceName },
+      ...paused.keywordCriterionResourceNames.map((name) => ({ key: "adGroupCriterionResult", name })),
+      { key: "adGroupAdResult", name: paused.adGroupAdResourceName },
+    ];
+    const results = Array.isArray(prepared.mutateOperationResponses) ? prepared.mutateOperationResponses : [];
+    if (results.length !== expectedChildren.length || expectedChildren.some((expected, index) =>
+      asRecord(asRecord(results[index])[expected.key]).resourceName !== expected.name)) {
+      throw new Error("Google Ads n’a pas confirmé tous les éléments de la campagne. La campagne reste en pause.");
+    }
   } catch {
     throw new Error(`Campagne Google Ads conservée en pause (${paused.campaignResourceName}) : l’activation des annonces ou mots-clés a échoué.`);
   }
@@ -374,7 +393,7 @@ export async function publishGoogleAdsCampaign(
     throw new Error(`L’activation Google Ads n’a pas pu être confirmée (${paused.campaignResourceName}). Vérifiez le statut sur Google Ads avant de réessayer pour éviter un doublon.`);
   }
 
-  const enabled: GoogleAdsPublishProgress = { ...paused, status: "ENABLED" };
+  const enabled: GoogleAdsPublishProgress = { ...paused, status: "ENABLED", initialActivationPending: false };
   try {
     await persistProgress(enabled);
   } catch {

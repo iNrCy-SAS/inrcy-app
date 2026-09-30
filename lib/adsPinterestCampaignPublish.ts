@@ -8,9 +8,11 @@ import {
   buildPinterestLiveAdGroupBody,
   buildPinterestLiveCampaignBody,
   pinterestLiveConfigurationIssue,
+  pinterestDestinationUrl,
+  assertPinterestBatchStatus,
 } from "./adsPinterestPublish.ts";
 import { pinterestAdsAccessToken } from "./adsPinterestServer.ts";
-import { pinterestCountryCodes } from "./adsPinterestLocations.ts";
+import { matchPinterestGeographies, matchPinterestTargetLanguages } from "./adsPinterestLocations.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
 import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
 import { supabaseAdmin } from "./supabaseAdmin.ts";
@@ -22,11 +24,12 @@ type PinterestPublishProgress = Record<string, unknown> & {
   adGroupId?: string;
   pinId?: string;
   adId?: string;
+  initialActivationPending?: boolean;
 };
 
 type PinterestPublishOptions = {
   activate?: boolean;
-  /** Fresh advertiser country returned by Pinterest account discovery. */
+  /** Account metadata only; never used as an audience fallback. */
   accountCountry?: string | null;
   onProviderMutationStart?: () => void;
 };
@@ -68,8 +71,8 @@ function providerErrorMessage(value: unknown, status: number): string {
 async function pinterestAdsRequest(
   accessToken: string,
   path: string,
-  method: "POST" | "PATCH",
-  body: unknown,
+  method: "GET" | "POST" | "PATCH",
+  body?: unknown,
 ): Promise<unknown> {
   let response: Response;
   try {
@@ -80,12 +83,15 @@ async function pinterestAdsRequest(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
       cache: "no-store",
+      redirect: "error",
       signal: AbortSignal.timeout(30_000),
     });
   } catch {
-    throw new Error("Pinterest Ads n’a pas confirmé la création. Vérifiez Ads Manager avant toute nouvelle tentative.");
+    throw new Error(method === "GET"
+      ? "Les options de ciblage Pinterest n’ont pas pu être vérifiées. Aucune création n’a été envoyée. Réessayez dans quelques instants."
+      : "Pinterest Ads n’a pas confirmé la création. Vérifiez Ads Manager avant toute nouvelle tentative.");
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(providerErrorMessage(payload, response.status));
@@ -165,17 +171,6 @@ async function resolvePinterestImageUrl(userId: string, value: string): Promise<
   return signed;
 }
 
-export function resolvePinterestCountryCodes(
-  locations: readonly string[],
-  accountCountry?: string | null,
-): string[] {
-  const codes = pinterestCountryCodes(locations, accountCountry);
-  if (!codes.length) {
-    throw new Error("Le lancement Pinterest accepte actuellement un ciblage par pays. Utilisez le nom du pays ou son code ISO à 2 lettres (ex. France ou FR).");
-  }
-  return codes;
-}
-
 function endTimestamp(endDate: string): number {
   const milliseconds = Date.parse(`${endDate}T23:59:59Z`);
   const days = (milliseconds - Date.now()) / 86_400_000;
@@ -225,18 +220,26 @@ export async function publishPinterestAdsCampaign(
       throw new Error("Les réglages Pinterest sont incomplets.");
     }
     if (!safeHttpsUrl(draft.destinationUrl)) throw new Error("Le lien de destination Pinterest doit être une URL HTTPS publique.");
+    const destinationUrl = pinterestDestinationUrl(draft.destinationUrl, draft.trackingParameters);
     const imageUrl = await resolvePinterestImageUrl(userId, String(draft.creativeUrl || draft.imageUrl || ""));
-    // Older iNrADN profiles may have persisted cities/service areas here.
-    // Automatic targeting only needs a country, so use any explicit country
-    // first and otherwise the freshly verified Pinterest advertiser country.
-    const locationCodes = resolvePinterestCountryCodes(draft.targetLocations, options.accountCountry);
     const dailySpendCap = microCurrency(draft.dailyBudgetEuros);
     const bidInMicroCurrency = bidMicroCurrency(draft.pinterestBidEuros ?? 1, draft.dailyBudgetEuros);
     const endTime = endTimestamp(draft.endDate);
-    const title = String(draft.headlines[0] || draft.name).trim().slice(0, 100);
-    const description = draft.primaryText.trim().slice(0, 800);
+    const title = String(draft.headlines[0] || draft.name).trim();
+    const description = draft.primaryText.trim();
     if (!title || !description) throw new Error("Le titre et la description de l’épingle Pinterest sont obligatoires.");
+    if (Array.from(title).length > 100 || Array.from(description).length > 800) {
+      throw new Error("Reformulez le titre (100 caractères) ou la description (800 caractères) Pinterest avant publication.");
+    }
     const accessToken = await pinterestAdsAccessToken(userId);
+    const [locationOptions, geoOptions, localeOptions] = await Promise.all(
+      ["LOCATION", "GEO", "LOCALE"].map((type) => pinterestAdsRequest(accessToken,
+        `/resources/targeting/${type}?ad_account_id=${encodeURIComponent(draft.adAccountId)}`, "GET")),
+    );
+    const targetingSpec = {
+      ...matchPinterestGeographies(draft.targetLocations, locationOptions, geoOptions),
+      LOCALE: matchPinterestTargetLanguages(draft.languages, localeOptions),
+    };
     const accountPath = `/ad_accounts/${draft.adAccountId}`;
     const mutate = async (path: string, method: "POST" | "PATCH", body: unknown) => {
       if (!mutationStarted) {
@@ -254,7 +257,7 @@ export async function publishPinterestAdsCampaign(
         endTime,
       }),
     ]), "de la campagne");
-    progress = { campaignId, stage: "campaign_created" };
+    progress = { campaignId, stage: "campaign_created", initialActivationPending: true };
     await persistProgress(progress);
 
     const adGroupId = batchCreatedId(await mutate(`${accountPath}/ad_groups`, "POST", [
@@ -263,7 +266,7 @@ export async function publishPinterestAdsCampaign(
         campaignId,
         objectiveType: settings.objectiveType,
         bidInMicroCurrency,
-        locationCodes,
+        targetingSpec,
       }),
     ]), "du groupe d’annonces");
     progress = { ...progress, adGroupId, stage: "ad_group_created" };
@@ -272,7 +275,7 @@ export async function publishPinterestAdsCampaign(
     const pinId = pinCreatedId(await mutate(
       `/pins?ad_account_id=${encodeURIComponent(draft.adAccountId)}`,
       "POST",
-      buildPinterestAdOnlyPinBody({ title, description, destinationUrl: draft.destinationUrl, imageUrl }),
+      buildPinterestAdOnlyPinBody({ title, description, destinationUrl, imageUrl }),
     ));
     progress = { ...progress, pinId, stage: "pin_created" };
     await persistProgress(progress);
@@ -282,7 +285,7 @@ export async function publishPinterestAdsCampaign(
         name: `${draft.name.trim()} · Épingle sponsorisée`,
         adGroupId,
         pinId,
-        destinationUrl: draft.destinationUrl,
+        destinationUrl,
       }),
     ]), "de l’annonce");
     progress = { ...progress, adId, stage: "ad_created" };
@@ -290,8 +293,9 @@ export async function publishPinterestAdsCampaign(
 
     if (options.activate !== false) {
       for (const step of buildPinterestActivationSteps(draft.adAccountId, { campaignId, adGroupId, adId })) {
-        await mutate(step.path, "PATCH", step.body);
-        progress = { ...progress, stage: step.stage };
+        const result = await mutate(step.path, "PATCH", step.body);
+        assertPinterestBatchStatus(result, step.body[0].id, "ACTIVE");
+        progress = { ...progress, stage: step.stage, initialActivationPending: step.stage !== "active" };
         await persistProgress(progress);
       }
     } else {

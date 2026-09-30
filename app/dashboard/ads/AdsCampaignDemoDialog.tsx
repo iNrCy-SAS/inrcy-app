@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { nextAdsPublicationProgress, type AdsPublicationPhase } from "@/lib/adsPublicationProgress";
 
 import styles from "./AdsCampaignDemoDialog.module.css";
 
@@ -18,6 +19,7 @@ type Props = {
   mode: "confirm" | "success";
   details: AdsCampaignDemoDialogDetails;
   busy: boolean;
+  publicationPhase: AdsPublicationPhase;
   declarationLabel: string;
   declarationChecked: boolean;
   launchStatus: AdsCampaignLaunchStatus;
@@ -30,11 +32,24 @@ type Props = {
   onReturnHome: () => void;
 };
 
-export default function AdsCampaignDemoDialog({ mode, details, busy, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
+export default function AdsCampaignDemoDialog({ mode, details, busy, publicationPhase, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const declarationRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const [waitingProgress, setWaitingProgress] = useState(0);
+  const progress = mode === "success" && publicationPhase === "success"
+    ? 100
+    : Math.max(publicationPhase === "sending" ? 12 : 1, Math.min(99, waitingProgress));
+  const progressLabel = publicationPhase === "saving" ? "Préparation" : "Envoi";
+
+  useEffect(() => {
+    if (!busy || (publicationPhase !== "saving" && publicationPhase !== "sending")) return;
+    const timer = window.setInterval(() => {
+      setWaitingProgress((current) => nextAdsPublicationProgress(current, publicationPhase));
+    }, 850);
+    return () => window.clearInterval(timer);
+  }, [busy, publicationPhase]);
 
   useEffect(() => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -115,7 +130,7 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, declaration
             <div><dt>Campagne</dt><dd>{details.campaignName}</dd></div>
             <div><dt>Canal</dt><dd>{details.channelLabel}</dd></div>
             <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
-            {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "Paused · aucune diffusion"}</dd></div>}
+            {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "En pause · aucune diffusion"}</dd></div>}
           </dl>
           {mode === "confirm" && <fieldset className={styles.statusChoice}>
             <legend>Statut au lancement</legend>
@@ -125,20 +140,19 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, declaration
             </label>
             <label data-selected={launchStatus === "paused" || undefined} data-disabled={!pausedEnabled || undefined}>
               <input type="radio" name="ads-launch-status" value="paused" checked={launchStatus === "paused"} disabled={busy || !pausedEnabled} onChange={() => onLaunchStatusChange("paused")} />
-              <span><strong>Paused</strong><small>La campagne est créée sans diffusion ni dépense et pourra être activée plus tard.</small></span>
+              <span><strong>En pause</strong><small>La campagne est créée sans diffusion ni dépense et pourra être activée plus tard.</small></span>
             </label>
           </fieldset>}
           {mode === "confirm" && <label className={styles.declaration}>
             <input ref={declarationRef} type="checkbox" checked={declarationChecked} onChange={(event) => onDeclarationChange(event.target.checked)} disabled={busy} />
             <span>{declarationLabel}<small>Cette déclaration est requise avant la création sur la plateforme.</small></span>
           </label>}
-          {mode === "success" && <p className={styles.verification}>Vérifiez également le statut de la campagne dans votre compte publicitaire.</p>}
-          <div className={styles.actions}>
+        </div>
+        <div className={styles.actions}>
             {mode === "confirm" ? <>
               <button type="button" className={styles.secondary} onClick={onCancel} disabled={busy}>Annuler</button>
-              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} disabled={busy || !declarationChecked || (launchStatus === "active" ? !activeEnabled : !pausedEnabled)}>{busy ? "Création en cours…" : launchStatus === "active" ? "Confirmer et lancer" : "Confirmer en pause"}</button>
-            </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}>Retour à l’accueil iNr’ADS <span aria-hidden="true">→</span></button>}
-          </div>
+              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} aria-busy={busy} aria-label={busy ? `${progressLabel} en cours, progression indicative : ${progress} pour cent` : undefined} disabled={busy || !declarationChecked || (launchStatus === "active" ? !activeEnabled : !pausedEnabled)}>{busy ? <>{progressLabel}… <span className={styles.progress}>{progress} %</span></> : launchStatus === "active" ? "Confirmer et lancer" : "Confirmer en pause"}</button>
+            </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}><span className={styles.progress}>{progress} %</span> Retour à l’accueil iNr’ADS <span aria-hidden="true">→</span></button>}
         </div>
       </div>
     </div>,

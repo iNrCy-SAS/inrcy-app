@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: Promise<{ provid
   const provider = adsOAuthProvider((await context.params).provider);
   if (!provider) return NextResponse.json({ error: "Canal publicitaire inconnu." }, { status: 404 });
 
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser(provider);
   if (errorResponse || !user) return errorResponse;
 
   const source = provider === "meta" ? "meta_ads" : "google_ads";

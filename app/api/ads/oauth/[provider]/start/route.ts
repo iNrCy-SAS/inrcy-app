@@ -8,7 +8,7 @@ import { applyMetaAdsOAuthParameters } from "@/lib/adsMetaScopes";
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const provider = adsOAuthProvider((await context.params).provider);
   if (!provider) return NextResponse.json({ error: "Canal publicitaire inconnu." }, { status: 404 });
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser(provider);
   if (errorResponse || !user) return errorResponse;
 
   const clientId = provider === "meta" ? process.env.FACEBOOK_APP_ID : process.env.GOOGLE_CLIENT_ID;

@@ -94,13 +94,10 @@ test("le passage au ciblage automatique exige un accord avant de retirer les sig
   assert.deepEqual(generatedAutomatic.keywords, []);
 });
 
-test("le studio présente la hiérarchie réelle et les champs Pinterest remplis par l’IA", () => {
+test("le studio présente les choix Pinterest utiles et les champs remplis par l’IA", () => {
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 
   for (const label of [
-    "Niveau 1 · Campagne Pinterest",
-    "Niveau 2 · Groupe d’annonces",
-    "Niveau 3 · Pin et annonce",
     "Objectif Pinterest",
     "Mode de ciblage Pinterest",
     "Description de l’épingle",
@@ -111,7 +108,11 @@ test("le studio présente la hiérarchie réelle et les champs Pinterest remplis
   ]) assert.match(client, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.match(client, /Ciblage automatique — recommandé · publiable/);
-  assert.match(client, /ce n’est pas une campagne Performance\+ complète/);
+  assert.match(client, /Pinterest optimise l’audience à partir du contenu de votre Pin, dans les zones choisies/);
+  assert.match(client, /hasKeywordsStep \? \["Découverte Pinterest"\] : \[\]/);
+  assert.match(client, /"Découverte automatique du Pin"/);
+  assert.match(client, /Un seul titre · 100 caractères maximum/);
+  assert.match(client, /Choisissez un seul titre pour votre épingle/);
   assert.match(client, /pinterestTargetingLabel\(nativeSettings\.targetingMode\)/);
   assert.match(client, /pinterest: "Pinterest"/);
   assert.match(client, /`Créer une campagne \$\{CAMPAIGN_CHANNEL_NAMES\[channelId\]\}`/);
@@ -125,4 +126,15 @@ test("le studio présente la hiérarchie réelle et les champs Pinterest remplis
   assert.match(client, /Retirer les signaux manuels/);
   assert.match(client, /connectorConfigurationIssue[\s\S]*clearPinterestManualSignals/);
   assert.match(client, /channelDraft\?\.channel === "pinterest" && channelDraft\.targetingMode === "automatic"/);
+});
+
+test("les zones Pinterest ne sont ajoutées que par un choix explicite dans le compte associé", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const search = client.slice(client.indexOf("function PinterestLocationSearch("), client.indexOf("function GoogleAdCopyField("));
+  assert.match(search, /\/api\/ads\/pinterest\/targeting\?query=/);
+  assert.match(search, /response\.selectedAccountId !== accountId/);
+  assert.match(search, /requestId !== requestRef\.current/);
+  assert.match(search, /onClick=\{\(\) => onChange\(\[\.\.\.locations, option\.name\]\)\}/);
+  assert.match(search, /Pays entier/);
+  assert.doesNotMatch(search, /onChange\(response|onChange\(options/);
 });

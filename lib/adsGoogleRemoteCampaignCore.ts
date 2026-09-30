@@ -95,7 +95,8 @@ type CoreAdapterInput = {
 };
 
 type MutationExpectation = {
-  resultKey: "campaignResult" | "campaignBudgetResult" | "campaignCriterionResult";
+  resultKey: "campaignResult" | "campaignBudgetResult" | "campaignCriterionResult" |
+    "adGroupResult" | "adGroupCriterionResult" | "adGroupAdResult";
   expectedResourceName?: string;
   expectedPrefix?: string;
 };
@@ -103,6 +104,73 @@ type MutationExpectation = {
 const CAMPAIGN_RESOURCE = /^customers\/(\d{5,25})\/campaigns\/(\d+)$/;
 const BUDGET_RESOURCE = /^customers\/(\d{5,25})\/campaignBudgets\/(\d+)$/;
 const GEO_TARGET_RESOURCE = /^geoTargetConstants\/\d+$/;
+
+type InitialActivationResources = {
+  adGroupResourceName: string;
+  adGroupAdResourceName: string;
+  keywordCriterionResourceNames: string[];
+};
+
+function initialActivationResources(resources: GoogleAdsProviderResources): InitialActivationResources | null {
+  if (resources.source.initialActivationPending !== true) return null;
+  const group = String(resources.source.adGroupResourceName || "");
+  const groupMatch = group.match(/^customers\/(\d{5,25})\/adGroups\/(\d+)$/);
+  const ad = String(resources.source.adGroupAdResourceName || "");
+  const adMatch = ad.match(/^customers\/(\d{5,25})\/adGroupAds\/(\d+)~\d+$/);
+  const keywords = resources.source.keywordCriterionResourceNames;
+  if (!groupMatch || groupMatch[1] !== resources.customerId || !adMatch || adMatch[1] !== resources.customerId
+    || adMatch[2] !== groupMatch[2] || !Array.isArray(keywords) || !keywords.length || keywords.length > 20
+    || new Set(keywords).size !== keywords.length || keywords.some((value) => {
+      const match = typeof value === "string" ? value.match(/^customers\/(\d{5,25})\/adGroupCriteria\/(\d+)~\d+$/) : null;
+      return !match || match[1] !== resources.customerId || match[2] !== groupMatch[2];
+    })) {
+    invalidResources("Les éléments de la première activation Google Ads sont incomplets ou appartiennent à un autre compte/groupe.");
+  }
+  return { adGroupResourceName: group, adGroupAdResourceName: ad, keywordCriterionResourceNames: keywords as string[] };
+}
+
+type InitialActivationChild = {
+  resourceName: string;
+  status: "ENABLED" | "PAUSED";
+  operationKey: "adGroupOperation" | "adGroupAdOperation" | "adGroupCriterionOperation";
+  resultKey: MutationExpectation["resultKey"];
+};
+
+async function readInitialActivationChildren(
+  resources: GoogleAdsProviderResources,
+  manifest: InitialActivationResources,
+  request: GoogleAdsRemoteRequest,
+): Promise<InitialActivationChild[]> {
+  const queries = [
+    `SELECT ad_group.resource_name, ad_group.campaign, ad_group.status FROM ad_group WHERE ad_group.resource_name = '${manifest.adGroupResourceName}'`,
+    `SELECT ad_group_ad.resource_name, ad_group_ad.ad_group, ad_group_ad.status FROM ad_group_ad WHERE ad_group_ad.resource_name = '${manifest.adGroupAdResourceName}'`,
+    `SELECT ad_group_criterion.resource_name, ad_group_criterion.ad_group, ad_group_criterion.status FROM ad_group_criterion WHERE ad_group_criterion.resource_name IN (${manifest.keywordCriterionResourceNames.map((name) => `'${name}'`).join(",")})`,
+  ];
+  const responses = await Promise.all(queries.map((query) => request(`customers/${resources.customerId}/googleAds:search`, { query })));
+  const children: InitialActivationChild[] = [];
+  const add = (response: Record<string, unknown>, key: string, expectedNames: string[], parentField: string, expectedParent: string,
+    operationKey: InitialActivationChild["operationKey"], resultKey: MutationExpectation["resultKey"]) => {
+    const rows = Array.isArray(response.results) ? response.results : [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const child = record(record(row)[key]);
+      const name = String(child.resourceName || "");
+      if (!expectedNames.includes(name) || seen.has(name) || child[parentField] !== expectedParent
+        || (child.status !== "PAUSED" && child.status !== "ENABLED")) {
+        throw new GoogleAdsRemoteCampaignError("REMOTE_RESOURCE_MISMATCH", "Les annonces ou mots-clés Google Ads ne correspondent plus aux éléments créés en pause. Vérifiez-les sur Google Ads.");
+      }
+      seen.add(name);
+      children.push({ resourceName: name, status: child.status, operationKey, resultKey });
+    }
+    if (seen.size !== expectedNames.length || response.nextPageToken) {
+      throw new GoogleAdsRemoteCampaignError("REMOTE_RESPONSE_INCOMPLETE", "Google Ads n’a pas confirmé tous les éléments de la première activation. Vérifiez leur état sur Google Ads.");
+    }
+  };
+  add(responses[0], "adGroup", [manifest.adGroupResourceName], "campaign", resources.campaignResourceName, "adGroupOperation", "adGroupResult");
+  add(responses[2], "adGroupCriterion", manifest.keywordCriterionResourceNames, "adGroup", manifest.adGroupResourceName, "adGroupCriterionOperation", "adGroupCriterionResult");
+  add(responses[1], "adGroupAd", [manifest.adGroupAdResourceName], "adGroup", manifest.adGroupResourceName, "adGroupAdOperation", "adGroupAdResult");
+  return children;
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -381,6 +449,7 @@ function persistedResources(
   resources: GoogleAdsProviderResources,
   status: GoogleAdsRemoteCampaignStatus,
   snapshot: GoogleAdsRemoteCampaignSnapshot | null,
+  initialActivationCompleted = false,
 ): Record<string, unknown> {
   const locationCriterionResourceNames = snapshot
     ? snapshot.locationCriteria.map((criterion) => criterion.resourceName)
@@ -399,6 +468,8 @@ function persistedResources(
       : {}),
     locationCriterionResourceNames,
     status,
+    ...(source.initialActivationPending === true && (initialActivationCompleted || status === "ENABLED")
+      ? { initialActivationPending: false } : {}),
   };
 }
 
@@ -466,12 +537,16 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
 ): GoogleAdsRemoteCampaignAdapter {
   const resources = parseGoogleAdsProviderResources(input.providerResources, input.expectedCustomerId);
   const now = input.now || Date.now;
+  let activationWasObserved = resources.source.initialActivationPending === false;
+  const persist = (status: GoogleAdsRemoteCampaignStatus, snapshot: GoogleAdsRemoteCampaignSnapshot | null) =>
+    persistedResources(resources, status, snapshot, activationWasObserved);
 
   const read = async () => {
     const snapshot = await readSnapshot(resources, input.request);
     if (!snapshot) {
       throw new GoogleAdsRemoteCampaignError("REMOTE_CAMPAIGN_NOT_FOUND", "La campagne Google Ads enregistrée est introuvable ou inaccessible.");
     }
+    if (snapshot.status === "ENABLED") activationWasObserved = true;
     return snapshot;
   };
 
@@ -551,7 +626,7 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
         changed: false,
         status: before.status,
         snapshot: before,
-        providerResources: persistedResources(resources, before.status, before),
+        providerResources: persist(before.status, before),
       };
     }
 
@@ -573,15 +648,42 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
       changed: true,
       status: after.status,
       snapshot: after,
-      providerResources: persistedResources(resources, after.status, after),
+      providerResources: persist(after.status, after),
     };
   };
 
   const setStatus = async (status: "ENABLED" | "PAUSED"): Promise<GoogleAdsRemoteCampaignMutationResult> => {
     const action = status === "PAUSED" ? "pause" : "resume";
+    // Legacy campaigns and ordinary resumes never touch child statuses. Only
+    // the publisher's explicit first-activation manifest authorizes this work.
+    const initial = status === "ENABLED" && !activationWasObserved ? initialActivationResources(resources) : null;
     const before = await read();
     if (before.status === "REMOVED") {
       throw new GoogleAdsRemoteCampaignError("REMOTE_CAMPAIGN_REMOVED", "Une campagne Google Ads supprimée ne peut plus être activée ni mise en pause.");
+    }
+    if (initial) {
+      const children = await readInitialActivationChildren(resources, initial, input.request);
+      const pausedChildren = children.filter((child) => child.status === "PAUSED");
+      if (before.status === "ENABLED" && pausedChildren.length) {
+        throw new GoogleAdsRemoteCampaignError("REMOTE_RESOURCE_MISMATCH", "La campagne Google Ads a déjà été activée mais certains éléments sont en pause. Vérifiez-les sur Google Ads ; leur pause manuelle est conservée.");
+      }
+      if (pausedChildren.length) {
+        try {
+          const response = await input.request(`customers/${resources.customerId}/googleAds:mutate`, {
+            partialFailure: false,
+            mutateOperations: pausedChildren.map((child) => ({
+              [child.operationKey]: { update: { resourceName: child.resourceName, status: "ENABLED" }, updateMask: "status" },
+            })),
+          });
+          assertUnifiedMutationResponse(response, pausedChildren.map((child) => ({
+            resultKey: child.resultKey, expectedResourceName: child.resourceName,
+          })));
+          const verified = await readInitialActivationChildren(resources, initial, input.request);
+          if (verified.some((child) => child.status !== "ENABLED")) throw new Error("Un élément Google Ads reste en pause.");
+        } catch (error) {
+          throw new GoogleAdsRemoteCampaignError("REMOTE_MUTATION_UNCONFIRMED", "Google Ads n’a pas confirmé l’activation des annonces et mots-clés. La campagne reste en pause ; contrôlez ses éléments avant de réessayer.", { cause: error });
+        }
+      }
     }
     if (before.status === status) {
       return {
@@ -589,7 +691,7 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
         changed: false,
         status,
         snapshot: before,
-        providerResources: persistedResources(resources, status, before),
+        providerResources: persist(status, before),
       };
     }
 
@@ -616,7 +718,7 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
       changed: true,
       status,
       snapshot: after,
-      providerResources: persistedResources(resources, status, after),
+      providerResources: persist(status, after),
     };
   };
 
@@ -628,7 +730,7 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
         changed: false,
         status: "REMOVED",
         snapshot: before,
-        providerResources: persistedResources(resources, "REMOVED", before),
+        providerResources: persist("REMOVED", before),
       };
     }
 
@@ -652,7 +754,7 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
       changed: true,
       status: "REMOVED",
       snapshot: after,
-      providerResources: persistedResources(resources, "REMOVED", after),
+      providerResources: persist("REMOVED", after),
     };
   };
 

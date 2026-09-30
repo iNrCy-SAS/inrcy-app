@@ -7,10 +7,23 @@ import {
   ADS_PAUSED_PUBLISH_CONFIRMATION,
   hasAdsPublishConfirmation,
   isAdsPublishModeEnabled,
+  isAdsChannelPublishEnabled,
   parseAdsPublishMode,
   unsupportedAdsConnectorReason,
   googleSearchBiddingFields,
 } from "../lib/adsPublishMode.ts";
+
+test("approved Google and Pinterest publish independently while pilot channels stay gated", () => {
+  for (const channel of ["google", "pinterest"]) {
+    assert.equal(isAdsChannelPublishEnabled(channel, "live", {}), true);
+    assert.equal(isAdsChannelPublishEnabled(channel, "paused", {}), true);
+  }
+  assert.equal(isAdsChannelPublishEnabled("google", "live", { INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "false" }), false);
+  assert.equal(isAdsChannelPublishEnabled("pinterest", "live", { INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "false" }), false);
+  for (const channel of ["meta", "linkedin", "x", "tiktok"]) {
+    assert.equal(isAdsChannelPublishEnabled(channel, "live", {}), false);
+  }
+});
 
 test("la démo Ads reste distincte de la publication réelle", () => {
   assert.equal(parseAdsPublishMode("demo_paused"), "demo_paused");

@@ -4,6 +4,7 @@ import {
   ADS_COPY_CHANNELS,
   buildAdsCopyInput,
   buildAdsCopySystemPrompt,
+  generateSuggestedAdsCopyWithRepair,
   isUsableSuggestedAdsCopy,
   normalizeSuggestedAdsCopy,
   parseAdsCopyChannel,
@@ -43,7 +44,7 @@ test("builds a bounded generation input with the selected channel and verified b
 
 test("normalizes each channel to its own output fields and character limits", () => {
   const google = normalizeSuggestedAdsCopy("google", {
-    primaryText: "résumé",
+    primaryText: "Un résumé complet de l’offre.",
     headlines: ["a".repeat(31), "Titre correct", "Deux", "Trois", "Quatre", "Cinq"],
     descriptions: ["d".repeat(91), "Description correcte", "Deuxième description"],
     keywords: ["réparation vélo", "réglage freins"],
@@ -66,7 +67,8 @@ test("normalizes each channel to its own output fields and character limits", ()
   const tiktok = normalizeSuggestedAdsCopy("tiktok", {
     primaryText: "t".repeat(120), headlines: ["ignored"], descriptions: ["ignored"], keywords: ["ignored"],
   });
-  assert.equal(tiktok.primaryText.length, 100);
+  assert.equal(tiktok.primaryText.length, 120);
+  assert.equal(isUsableSuggestedAdsCopy("tiktok", tiktok), false);
   assert.deepEqual(tiktok.headlines, []);
   assert.deepEqual(tiktok.descriptions, []);
   assert.deepEqual(tiktok.keywords, []);
@@ -80,8 +82,34 @@ test("requires the right minimum assets for Meta, Pinterest, and X", () => {
     primaryText: "", headlines: ["Titre de Pin"], descriptions: ["Description de Pin"], keywords: ["vélo"],
   });
   assert.equal(isUsableSuggestedAdsCopy("pinterest", pinterest), true);
+  assert.deepEqual(pinterest.keywords, []);
+  assert.equal(pinterest.primaryText, "Description de Pin");
 
   const x = normalizeSuggestedAdsCopy("x", { primaryText: "x".repeat(300) });
-  assert.equal(x.primaryText.length, 257);
-  assert.equal(isUsableSuggestedAdsCopy("x", x), true);
+  assert.equal(x.primaryText.length, 300);
+  assert.equal(isUsableSuggestedAdsCopy("x", x), false);
+});
+
+test("overlong manual copy is rewritten once, never clipped or accepted as usable", async () => {
+  const complete = "Découvrez notre atelier de réparation de vélos à Lille.";
+  const attempts: string[] = [];
+  const copy = await generateSuggestedAdsCopyWithRepair("tiktok", async (instruction, attempt) => {
+    attempts.push(instruction);
+    return { primaryText: attempt === 0 ? `${complete} ${complete}` : complete };
+  });
+  assert.equal(copy?.primaryText, complete);
+  assert.equal(attempts.length, 2);
+  assert.match(attempts[1], /Réécris/);
+  assert.match(attempts[1], /sans inventer/);
+  assert.equal(await generateSuggestedAdsCopyWithRepair("tiktok", async () => ({ primaryText: complete.repeat(3) })), null);
+});
+
+test("manual Google copy fills its summary from complete descriptions when omitted", () => {
+  const copy = normalizeSuggestedAdsCopy("google", {
+    headlines: ["Réparation de vélos", "Votre atelier à Lille", "Prenez rendez-vous"],
+    descriptions: ["Réparez votre vélo dans notre atelier à Lille.", "Prenez rendez-vous avec notre équipe."],
+    keywords: ["réparation vélo Lille"],
+  });
+  assert.equal(copy.primaryText, "Réparez votre vélo dans notre atelier à Lille. Prenez rendez-vous avec notre équipe.");
+  assert.equal(isUsableSuggestedAdsCopy("google", copy), true);
 });

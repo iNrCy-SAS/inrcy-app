@@ -1,0 +1,43 @@
+{
+  "source": "Pinterest API v5 /resources/targeting, 2026-09-30, public targeting catalog excerpt",
+  "LOCATION": [
+    {
+      "250059": "France: Nord",
+      "250062": "France: Pas-de-Calais",
+      "FR": "France"
+    }
+  ],
+  "GEO": [
+    {
+      "FR": {
+        "regions": {
+          "FR-HDF": {
+            "country": "FR",
+            "name": "Hauts-de-France"
+          },
+          "FR-IDF": {
+            "country": "FR",
+            "name": "Île-de-France"
+          }
+        },
+        "country": "France",
+        "metros": {
+          "250062": {
+            "country": "FR",
+            "name": "Pas-de-Calais"
+          },
+          "250059": {
+            "country": "FR",
+            "name": "Nord"
+          }
+        }
+      }
+    }
+  ],
+  "LOCALE": [
+    {
+      "en": "anglais",
+      "fr": "français"
+    }
+  ]
+}

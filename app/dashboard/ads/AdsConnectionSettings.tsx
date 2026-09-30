@@ -9,6 +9,7 @@ import dashboardStyles from "@/app/dashboard/dashboard.module.css";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+import { adsAssociationDisplayReady } from "@/lib/adsConnectionSnapshot";
 import {
   adsAccountAssociationIssue,
   adsAccountCanBeAssociated,
@@ -34,6 +35,7 @@ type Props = {
   connectionStatus: ConnectionDisplayStatus;
   connectionAccount?: { displayName?: string; email?: string; id?: string };
   loading: boolean;
+  error?: string;
   configAction: ConfigAction;
   accounts: AdsAccount[];
   pages: { id: string; name: string; instagramUserId?: string }[];
@@ -42,6 +44,8 @@ type Props = {
   configuredAccountId: string;
   configuredAccountLabel: string;
   configuredPageId: string;
+  configuredAccountAvailable?: boolean;
+  configuredPageAvailable?: boolean;
   metaNeedsInstagramIdentity: boolean;
   onSelectAccount: (id: string) => void;
   onSelectPage: (id: string) => void;
@@ -92,6 +96,7 @@ export default function AdsConnectionSettings({
   connectionStatus,
   connectionAccount,
   loading,
+  error,
   configAction,
   accounts,
   pages,
@@ -100,6 +105,8 @@ export default function AdsConnectionSettings({
   configuredAccountId,
   configuredAccountLabel,
   configuredPageId,
+  configuredAccountAvailable,
+  configuredPageAvailable,
   metaNeedsInstagramIdentity,
   onSelectAccount,
   onSelectPage,
@@ -110,17 +117,9 @@ export default function AdsConnectionSettings({
   onSavePage,
   onClearPage,
 }: Props) {
-  const [compactScreen, setCompactScreen] = useState(false);
   const [step, setStep] = useState(0);
   const stepCount = provider === "meta" ? 3 : 2;
 
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 999px), (max-height: 659px)");
-    const update = () => { setCompactScreen(media.matches); setStep(0); };
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
   useEffect(() => { setStep(0); }, [provider]);
 
   const current = { label: provider === "meta" ? "Meta Ads" : "Google Ads" };
@@ -130,8 +129,8 @@ export default function AdsConnectionSettings({
     (account) => account.id === configuredAccountId && account.provider === provider && adsAccountCanBeAssociated(account),
   );
   const savedPage = pages.find((page) => page.id === configuredPageId);
-  const accountConfigured = Boolean(savedAccount && savedAccount.id === selectedAccount?.id);
-  const identityConfigured = Boolean(savedPage && savedPage.id === selectedPage?.id);
+  const accountConfigured = adsAssociationDisplayReady(connected, configuredAccountId, selectedAccountId, configuredAccountAvailable);
+  const identityConfigured = adsAssociationDisplayReady(connected, configuredPageId, selectedPageId, configuredPageAvailable);
   const hasConfiguredAccount = Boolean(configuredAccountId);
   const hasConfiguredPage = Boolean(configuredPageId);
   const accountCandidateReady = connected && Boolean(selectedAccount && adsAccountCanBeAssociated(selectedAccount));
@@ -172,8 +171,9 @@ export default function AdsConnectionSettings({
     headerStyle={getChannelSettingsHeaderStyle(provider === "meta" ? "facebook" : "gmb")}
     headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={onClose} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
   >
-    <div className={`${styles.content} ${socialStyles.journey} ${provider === "meta" ? styles.meta : styles.google}`} data-compact={compactScreen || undefined}>
-      <section hidden={compactScreen && step !== 0} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
+    <div className={`${styles.content} ${socialStyles.journey} ${provider === "meta" ? styles.meta : styles.google}`} data-step={step}>
+      {error ? <p role="alert" className={styles.inlineError}>{error}</p> : null}
+      <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{provider === "meta" ? "Connectez-vous via Facebook avec les autorisations Ads. Cette connexion est indépendante des publications gratuites du dashboard." : "Une seule autorisation Google Ads donne accès à vos comptes publicitaires pour les annonces de recherche."}</div></div>
@@ -190,7 +190,7 @@ export default function AdsConnectionSettings({
         </div>
       </section>
 
-      <section hidden={compactScreen && step !== 1} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 2 : Compte annonceur">
+      <section data-step-index="1" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 2 : Compte annonceur">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Compte annonceur</div><div>Sélectionnez le compte en euros qui prendra en charge les frais publicitaires.</div></div>
@@ -201,7 +201,7 @@ export default function AdsConnectionSettings({
             <label className={styles.field}>Compte publicitaire en euros
               <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={selectedAccountId} disabled={!connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
-                {hasConfiguredAccount && !savedAccount ? <option value={configuredAccountId} disabled>{configuredAccountLabel || `Compte ${configuredAccountId}`} · accès à vérifier</option> : null}
+                {hasConfiguredAccount && !savedAccount ? <option value={configuredAccountId} disabled>{configuredAccountLabel || `Compte ${configuredAccountId}`}{configuredAccountAvailable === false ? " · accès à vérifier" : ""}</option> : null}
                 {accounts.map((account) => {
                   const issue = adsAccountAssociationIssue(account);
                   return <option key={account.id} value={account.id} disabled={Boolean(issue)}>{advertiserAccountLabel(account)}{issue ? ` (${issue})` : ""}</option>;
@@ -219,7 +219,7 @@ export default function AdsConnectionSettings({
         </div>
       </section>
 
-      {provider === "meta" && <section hidden={compactScreen && step !== 2} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 3 : Identité de l’annonce">
+      {provider === "meta" && <section data-step-index="2" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 3 : Identité de l’annonce">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">03</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Identité de l’annonce</div><div>{metaNeedsInstagramIdentity ? "Le pack sélectionné comprend Instagram : choisissez une Page Facebook avec un compte Instagram professionnel lié." : "Une Page Facebook suffit pour les placements sélectionnés. Instagram ne sera requis que si vous ajoutez un placement Instagram, Story ou Reel."}</div></div>
@@ -230,7 +230,7 @@ export default function AdsConnectionSettings({
             <label className={styles.field}>{metaNeedsInstagramIdentity ? "Page Facebook + compte Instagram lié" : "Page Facebook"}
               <select aria-label={identityConfigured ? "Changer l’identité" : "Choisir l’identité"} value={selectedPageId} disabled={!connected || busy} onChange={(event) => onSelectPage(event.target.value)}>
                 <option value="">Sélectionnez une Page</option>
-                {hasConfiguredPage && !savedPage ? <option value={configuredPageId} disabled>Page {configuredPageId} · accès à vérifier</option> : null}
+                {hasConfiguredPage && !savedPage ? <option value={configuredPageId} disabled>Page {configuredPageId}{configuredPageAvailable === false ? " · accès à vérifier" : ""}</option> : null}
                 {pages.map((page) => <option key={page.id} value={page.id}>{page.name} · {page.instagramUserId ? "Instagram lié" : metaNeedsInstagramIdentity ? "Instagram requis pour ces placements" : "Facebook uniquement"}</option>)}
               </select>
             </label>
@@ -244,11 +244,11 @@ export default function AdsConnectionSettings({
         </div>
       </section>}
 
-      {compactScreen ? <div className={styles.footer}>
+      <div className={styles.footer}>
         <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep((currentStep) => currentStep - 1)}>← Précédent</button>
         <span className={styles.progress}>Étape {step + 1} / {stepCount}</span>
         {step < stepCount - 1 ? <button type="button" className={styles.done} onClick={() => setStep((currentStep) => currentStep + 1)}>Suivant →</button> : <button type="button" className={styles.done} onClick={onClose}>Fermer</button>}
-      </div> : null}
+      </div>
     </div>
   </SettingsDrawer>;
 }

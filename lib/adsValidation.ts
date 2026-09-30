@@ -571,6 +571,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!/^\d{5,30}$/.test(pageId)) return { draft: null, error: "Sélectionnez une Page Facebook autorisée pour cette annonce." };
     if (!noSpecialCategoryConfirmed) return { draft: null, error: "Confirmez que l’annonce Meta ne relève d’aucune catégorie publicitaire spéciale." };
   } else if (purpose === "publish" && provider === "google") {
+    if (!targetLocations.length) return { draft: null, error: "Google Search requiert au moins une zone ciblée." };
     if (headlines.length < 3 || descriptions.length < 2 || keywords.length < 1) {
       return { draft: null, error: "Google Search requiert 3 titres, 2 descriptions et au moins un mot-clé." };
     }
@@ -581,14 +582,14 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (channelSettings?.channel !== "pinterest") {
       return { draft: null, error: "Choisissez les réglages Pinterest de cette campagne." };
     }
-    if (headlines.length < 1 || !headlines[0]?.trim()) {
-      return { draft: null, error: "Pinterest requiert un titre pour l’épingle sponsorisée." };
+    if (headlines.length !== 1 || !headlines[0]?.trim()) {
+      return { draft: null, error: "Choisissez un seul titre pour l’épingle sponsorisée Pinterest avant publication." };
     }
     if (primaryText.length < 1) {
       return { draft: null, error: "Pinterest requiert une description pour l’épingle sponsorisée." };
     }
     if (!targetLocations.length) {
-      return { draft: null, error: "Pinterest requiert au moins un pays ciblé." };
+      return { draft: null, error: "Pinterest requiert au moins une zone ciblée." };
     }
     if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
       return { draft: null, error: "Ajoutez une image à l’épingle sponsorisée Pinterest." };

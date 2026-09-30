@@ -28,6 +28,7 @@ const googleDraft = {
   ...metaDraft,
   provider: "google",
   adAccountId: "1234567890",
+  targetLocations: ["Lille"],
   headlines: ["Un service local", "Découvrez nos offres", "Contactez-nous"],
   descriptions: ["Découvrez notre offre locale.", "Consultez les informations et contactez-nous."],
   keywords: ["service local"],
@@ -44,6 +45,21 @@ test("la publication Google Search reste textuelle avec ou sans image locale", (
   assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy", imageUrl: "" }).error, null);
   assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "manual", imageUrl: "" }).error, null);
   assert.equal(parseAdsCampaignInput({ ...googleDraft, creationMode: "inrcy" }).error, null);
+});
+
+test("Google exige une zone explicite avant publication et n’invente jamais France pour un brouillon vide", () => {
+  for (const targetLocations of [undefined, null, [], [" "]]) {
+    const incomplete = { ...googleDraft, targetLocations };
+    const published = parseAdsCampaignInput(incomplete, { purpose: "publish" });
+    assert.equal(published.draft, null);
+    assert.match(published.error || "", /zone ciblée/);
+    const saved = parseAdsCampaignInput(incomplete, { purpose: "draft" });
+    assert.equal(saved.error, null);
+    assert.deepEqual(saved.draft?.targetLocations, []);
+  }
+  const local = parseAdsCampaignInput(googleDraft, { purpose: "publish" });
+  assert.equal(local.error, null);
+  assert.deepEqual(local.draft?.targetLocations, ["Lille"]);
 });
 
 test("iNr’ADS refuse les déclarations réglementaires manquantes", () => {

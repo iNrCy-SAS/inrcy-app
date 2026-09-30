@@ -7,6 +7,7 @@ import * as linkedInPolicy from "../lib/adsLinkedInPolicy.ts";
 import * as linkedInPreflight from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as linkedInPublish from "../lib/adsLinkedInPublish.ts";
 import * as linkedInCore from "../lib/adsLinkedInPublisherCore.ts";
+import { isAdsChannelPublishEnabled } from "../lib/adsPublishMode.ts";
 
 import {
   assertLinkedInPublishProgress,
@@ -153,7 +154,28 @@ test("publisher verifies the creative and campaign after final mutation for both
 test("LinkedIn rollout is provider-specific and the database permits its real resources only after migration", () => {
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/20260930004822_enable_linkedin_ads_publication.sql", import.meta.url), "utf8");
-  assert.match(route, /draft\.provider === "linkedin"[\s\S]*?INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"/);
+  const routeAst = ts.createSourceFile("publish-route.ts", route, ts.ScriptTarget.Latest, true);
+  let gateExpression: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(routeAst) === "publishModeEnabled") gateExpression = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(routeAst);
+  assert.ok(gateExpression, "the route must decide the rollout gate before its provider mutation");
+  const routeGate = new Function("draft", "mode", "process", "isAdsChannelPublishEnabled", `return (${gateExpression.getText(routeAst)});`);
+  for (const mode of ["live", "paused", "demo_paused"] as const) {
+    for (const sharedFlag of ["false", "true"]) {
+      for (const dedicatedFlag of [undefined, "false", "true"]) {
+        const environment = {
+          INRCY_ADS_LIVE_PUBLISH_ENABLED: sharedFlag,
+          INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED: sharedFlag,
+          INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: dedicatedFlag,
+        };
+        assert.equal(routeGate({ provider: "linkedin" }, mode, { env: environment }, isAdsChannelPublishEnabled), dedicatedFlag === "true");
+        assert.equal(routeGate({ provider: "meta" }, mode, { env: environment }, isAdsChannelPublishEnabled), sharedFlag === "true");
+      }
+    }
+  }
   assert.match(migration, /'linkedin'::text/);
   assert.match(migration, /or \(status = 'draft' and ad_account_id = ''\)/);
   assert.ok(migration.trim().length > 200, "the LinkedIn migration must never be an empty placeholder");

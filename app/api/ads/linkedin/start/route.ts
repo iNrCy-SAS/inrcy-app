@@ -5,7 +5,7 @@ import { buildLinkedInAdsAuthorizationUrl, type LinkedInAdsAccessMode } from "@/
 import { getLinkedInAdsCredentials, getLinkedInAdsRedirectUri } from "@/lib/adsLinkedInServer";
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   // The primary Ads connection is complete in one explicit consent. A
   // read-only diagnostic flow remains available with `?access=read`.

@@ -1,7 +1,10 @@
+import { assertPinterestBatchStatus } from "./adsPinterestPublish.ts";
+
 export type PinterestAdsLifecycleResources = {
   campaignId: string;
   adGroupId: string;
   adId: string;
+  initialActivationPending?: boolean;
 };
 
 export type PinterestAdsLifecycleRequest = (
@@ -55,6 +58,7 @@ function resources(value: unknown): PinterestAdsLifecycleResources {
     campaignId: cleanId(source.campaignId),
     adGroupId: cleanId(source.adGroupId),
     adId: cleanId(source.adId),
+    ...(typeof source.initialActivationPending === "boolean" ? { initialActivationPending: source.initialActivationPending } : {}),
   };
   if (![parsed.campaignId, parsed.adGroupId, parsed.adId].every((id) => /^\d{5,30}$/.test(id))) {
     throw new PinterestAdsLifecycleError(
@@ -64,18 +68,6 @@ function resources(value: unknown): PinterestAdsLifecycleResources {
     );
   }
   return parsed;
-}
-
-function batchSuccess(value: unknown, label: string): void {
-  const root = record(value);
-  const items = Array.isArray(root.items) ? root.items : [];
-  if (!items.length) throw new Error(`Pinterest n’a pas confirmé ${label}.`);
-  const first = record(items[0]);
-  const exceptions = Array.isArray(first.exceptions) ? first.exceptions : [];
-  if (!exceptions.length) return;
-  const exception = record(exceptions[0]);
-  const message = typeof exception.message === "string" ? exception.message.trim() : "";
-  throw new Error(message || `Pinterest n’a pas confirmé ${label}.`);
 }
 
 function campaignState(value: unknown): "active" | "paused" {
@@ -92,7 +84,7 @@ async function assertHierarchy(
   adAccountId: string,
   value: unknown,
   request: PinterestAdsLifecycleRequest,
-): Promise<{ resources: PinterestAdsLifecycleResources; state: "active" | "paused" }> {
+): Promise<{ resources: PinterestAdsLifecycleResources; state: "active" | "paused"; adStatus: string; adGroupStatus: string }> {
   if (!/^\d{5,30}$/.test(adAccountId)) {
     throw new PinterestAdsLifecycleError("Le compte Pinterest Ads enregistré est invalide.", false, false);
   }
@@ -115,7 +107,14 @@ async function assertHierarchy(
   if (cleanId(ad.id) !== parsed.adId || cleanId(ad.ad_group_id) !== parsed.adGroupId) {
     throw new PinterestAdsLifecycleError("L’annonce Pinterest ne correspond plus à cette campagne.", false, false);
   }
-  return { resources: parsed, state: campaignState(campaign) };
+  return { resources: parsed, state: campaignState(campaign), adStatus: String(ad.status || ""), adGroupStatus: String(adGroup.status || "") };
+}
+
+function publicResult(current: { resources: PinterestAdsLifecycleResources; state: "active" | "paused" }, activated = false): PinterestAdsLifecycleResult {
+  return {
+    state: current.state,
+    resources: { ...current.resources, ...(current.resources.initialActivationPending === true && (activated || current.state === "active") ? { initialActivationPending: false } : {}) },
+  };
 }
 
 export async function readPinterestAdsCampaignState(
@@ -124,7 +123,7 @@ export async function readPinterestAdsCampaignState(
   request: PinterestAdsLifecycleRequest,
 ): Promise<PinterestAdsLifecycleResult> {
   const current = await assertHierarchy(adAccountId, value, request);
-  return { state: current.state, resources: current.resources };
+  return publicResult(current);
 }
 
 export async function pausePinterestAdsCampaign(
@@ -133,16 +132,16 @@ export async function pausePinterestAdsCampaign(
   request: PinterestAdsLifecycleRequest,
 ): Promise<PinterestAdsLifecycleResult> {
   const current = await assertHierarchy(adAccountId, value, request);
-  if (current.state === "paused") return current;
+  if (current.state === "paused") return publicResult(current);
   let mutationAttempted = false;
   try {
     mutationAttempted = true;
-    batchSuccess(await request(`/ad_accounts/${adAccountId}/campaigns`, "PATCH", [
+    assertPinterestBatchStatus(await request(`/ad_accounts/${adAccountId}/campaigns`, "PATCH", [
       { id: current.resources.campaignId, status: "PAUSED" },
-    ]), "la mise en pause de la campagne");
+    ]), current.resources.campaignId, "PAUSED");
     const confirmed = await assertHierarchy(adAccountId, current.resources, request);
     if (confirmed.state !== "paused") throw new Error("Pinterest n’a pas confirmé le statut PAUSED.");
-    return confirmed;
+    return publicResult(confirmed, true);
   } catch (error) {
     throw new PinterestAdsLifecycleError(
       `${error instanceof Error ? error.message : "Échec de la mise en pause Pinterest."} Vérifiez le statut dans Pinterest Ads Manager.`,
@@ -158,33 +157,61 @@ export async function resumePinterestAdsCampaign(
   request: PinterestAdsLifecycleRequest,
 ): Promise<PinterestAdsLifecycleResult> {
   const current = await assertHierarchy(adAccountId, value, request);
-  if (current.state === "active") return current;
+  const initialActivation = current.resources.initialActivationPending === true;
+  if (initialActivation && (!["ACTIVE", "PAUSED"].includes(current.adStatus) || !["ACTIVE", "PAUSED"].includes(current.adGroupStatus))) {
+    throw new PinterestAdsLifecycleError("Un élément de la première activation Pinterest est supprimé ou son statut n’est pas vérifiable.", false, current.state === "active");
+  }
+  if (current.state === "active") {
+    if (initialActivation && (current.adStatus !== "ACTIVE" || current.adGroupStatus !== "ACTIVE")) {
+      throw new PinterestAdsLifecycleError("La campagne Pinterest est active mais certains éléments sont en pause. Vérifiez-les dans Ads Manager ; leur pause manuelle est conservée.", false, true);
+    }
+    return publicResult(current);
+  }
   const base = `/ad_accounts/${adAccountId}`;
   let mutationAttempted = false;
   let campaignActivationAttempted = false;
   try {
+    // Ordinary campaign resumes preserve manually paused ads/groups. Only the
+    // publisher's first-activation marker permits changing child statuses.
+    if (initialActivation) {
+      if (current.adStatus === "PAUSED") {
+        mutationAttempted = true;
+        assertPinterestBatchStatus(await request(`${base}/ads`, "PATCH", [
+          { id: current.resources.adId, status: "ACTIVE" },
+        ]), current.resources.adId, "ACTIVE");
+      }
+      if (current.adGroupStatus === "PAUSED") {
+        mutationAttempted = true;
+        assertPinterestBatchStatus(await request(`${base}/ad_groups`, "PATCH", [
+          { id: current.resources.adGroupId, status: "ACTIVE" },
+        ]), current.resources.adGroupId, "ACTIVE");
+      }
+      const childrenConfirmed = await assertHierarchy(adAccountId, current.resources, request);
+      if (childrenConfirmed.adStatus !== "ACTIVE" || childrenConfirmed.adGroupStatus !== "ACTIVE") {
+        throw new Error("Pinterest n’a pas confirmé l’activation des annonces et du groupe. La campagne reste en pause.");
+      }
+    }
     mutationAttempted = true;
-    batchSuccess(await request(`${base}/ads`, "PATCH", [
-      { id: current.resources.adId, status: "ACTIVE" },
-    ]), "la reprise de l’annonce");
-    batchSuccess(await request(`${base}/ad_groups`, "PATCH", [
-      { id: current.resources.adGroupId, status: "ACTIVE" },
-    ]), "la reprise du groupe d’annonces");
     campaignActivationAttempted = true;
-    batchSuccess(await request(`${base}/campaigns`, "PATCH", [
+    assertPinterestBatchStatus(await request(`${base}/campaigns`, "PATCH", [
       { id: current.resources.campaignId, status: "ACTIVE" },
-    ]), "la reprise de la campagne");
+    ]), current.resources.campaignId, "ACTIVE");
     const confirmed = await assertHierarchy(adAccountId, current.resources, request);
     if (confirmed.state !== "active") throw new Error("Pinterest n’a pas confirmé le statut ACTIVE.");
-    return confirmed;
+    if (initialActivation && (confirmed.adStatus !== "ACTIVE" || confirmed.adGroupStatus !== "ACTIVE")) {
+      throw new Error("Un élément Pinterest n’est plus actif. Vérifiez le groupe et l’annonce.");
+    }
+    return publicResult(confirmed);
   } catch (error) {
     let safetyPauseConfirmed = false;
     if (mutationAttempted) {
       try {
-        batchSuccess(await request(`${base}/campaigns`, "PATCH", [
+        assertPinterestBatchStatus(await request(`${base}/campaigns`, "PATCH", [
           { id: current.resources.campaignId, status: "PAUSED" },
-        ]), "la remise en pause de sécurité");
-        safetyPauseConfirmed = true;
+        ]), current.resources.campaignId, "PAUSED");
+        const campaign = entity(await request(`${base}/campaigns/${current.resources.campaignId}`, "GET"));
+        safetyPauseConfirmed = cleanId(campaign.id) === current.resources.campaignId
+          && cleanId(campaign.ad_account_id) === adAccountId && campaign.status === "PAUSED";
       } catch {
         safetyPauseConfirmed = false;
       }

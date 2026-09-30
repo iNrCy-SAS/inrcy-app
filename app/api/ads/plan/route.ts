@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
-import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
+import { adsBadOriginResponse, adsPilotOnlyResponse, adsRequestOriginAllowed, isAdsChannelUserAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
 import {
   adsCampaignPlanValidationIssueCodes,
   assessAdsCampaignPlanReview,
@@ -20,6 +20,7 @@ import {
 import { isAdsChannelId, type AdsChannelId } from "@/lib/adsValidation";
 import { resolveAdsCampaignDestination, verifiedAdsDestinationUrl } from "@/lib/adsDestination";
 import { normalizeGoogleTargetLocationLabels } from "@/lib/adsGoogleLocations";
+import { ADS_PLAN_EDITORIAL_INSTRUCTIONS, ADS_PLAN_STRATEGY_INSTRUCTIONS, adsPlanQualityRepairInstructions, adsPlanRepairDetails, canRepairAdsPlanQuality, selectAdsPlanLocations } from "@/lib/adsPlanQuality";
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
@@ -213,8 +214,13 @@ Valeurs autorisées :
 - creativeType : image | video
 - metaPlacements : tableau parmi facebook_feed | instagram_feed | stories | reels | messenger
 
-L’historique éditorial sert à éviter de répéter un angle déjà beaucoup employé : il ne constitue jamais une preuve commerciale ni une information à inventer.
-Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
+L’historique éditorial et les noms de campagnes passées servent seulement à éviter les répétitions : ils ne prouvent ni une offre actuelle, ni une promesse, ni un ciblage. Seules les zones sélectionnées dans zones définissent le périmètre de cette campagne. Un ancien nom contenant « France » ne justifie jamais une campagne nationale.
+${ADS_PLAN_EDITORIAL_INSTRUCTIONS}
+${ADS_PLAN_STRATEGY_INSTRUCTIONS}
+rationale utilise un français métier (« visites du site », « maximisation des clics »), sans nom de champ ou code API tel que website_traffic ou maximize_clicks.
+primaryText contient au plus 500 caractères pour Google et Meta. Pour Google Search, c'est la synthèse rédigée de l'offre ; elle ne remplace ni les titres ni les descriptions. Si aucun suivi des conversions n'est attesté, privilégie une visite du site mesurable avec maximize_clicks ; ne présente jamais un suivi non vérifié comme déjà configuré.
+Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Pour rédiger avec une marge fiable, vise 24 à 28 caractères par titre et 70 à 80 par description ; les textes naturellement plus courts conviennent, sans remplissage artificiel. Écris chaque description comme une seule phrase courte sur une idée et une action, sans accumuler marque, horaires et toutes les villes. Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
+Pour Google Search : organise les requêtes autour de cette seule offre et d'une même intention d'achat ou de prise de contact, comme les termes que le client chercherait réellement. Un métier seul, un nom de réseau social ou un terme générique de visibilité ne suffit pas sans lien avec l'offre. Évite les recherches purement informatives si le but est une demande commerciale. Les titres doivent rester autonomes dans n'importe quel assemblage ; répartis-les entre service, besoin concret, bénéfice attesté, différence vérifiée, zone et action, sans simples permutations. Les descriptions apportent des informations complémentaires et une prochaine étape claire. Vérifie que les exclusions ne contredisent ni les requêtes positives ni l'offre : n'exclus pas « gratuit » si l'offre est un essai gratuit, ni « formation » pour un organisme de formation. Sans exclusion justifiée, retourne [].
 Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" par compatibilité du schéma, mais l’annonce publiée est uniquement textuelle (titres et descriptions). Ne promets pas de composant image et ne demande pas de génération de média : le connecteur actuel ne peut pas joindre un visuel Search via l’API Google Ads. Laisse mediaBrief, imageUrl et creativeUrl vides.
 Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
 Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones et expansion d’audience. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
@@ -235,6 +241,7 @@ export async function POST(request: Request) {
   const analysisObjective = clean(body.analysisObjective, 1_200);
   const destinationUrl = clean(body.destinationUrl, 2_000);
   if (!provider) return NextResponse.json({ error: "Choisissez d’abord un canal publicitaire." }, { status: 400 });
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, provider))) return adsPilotOnlyResponse();
   if (analysisMode === "goal" && !analysisObjective) {
     return NextResponse.json({ error: "Décrivez l’objectif que vous souhaitez confier à iNrCy." }, { status: 400 });
   }
@@ -330,6 +337,12 @@ export async function POST(request: Request) {
     googleBusinessConnected: channelStates?.gmb.connected,
     googleBusinessUrl: channelStates?.gmb.url,
   });
+  const campaignLocations = selectAdsPlanLocations({
+    locations: compactList(profile.business.interventionZones, 20, 120),
+    city: clean(profile.business.city, 100),
+    country: trustedBusinessCountry,
+    intent: analysisObjective || intent,
+  });
   const context = {
     companyName,
     sector: profile.business.sectorLabel,
@@ -343,7 +356,7 @@ export async function POST(request: Request) {
       googleBusinessUrl: channelStates?.gmb.connected ? channelStates.gmb.url : null,
     },
     services: compactList(profile.business.services.length ? profile.business.services : memory.specialties, 12, 120),
-    zones: compactList(profile.business.interventionZones, 12, 120),
+    zones: campaignLocations,
     audiences: compactList(profile.business.customerTypologies.length ? profile.business.customerTypologies : memory.targetAudiences, 12, 160),
     strengths: compactList([...profile.business.strengths, ...memory.differentiators], 12, 160),
     customerNeeds: compactList(memory.customerNeeds, 12, 160),
@@ -433,28 +446,32 @@ export async function POST(request: Request) {
   let reservation: AiCreditReservation | null = null;
   let stage: "generation" | "validation" | "credits" = "credits";
   const attemptedStages: string[] = [];
+  let previousQualityIssues: string[] = [];
+  let previousQualityDetails = "";
   try {
     const quota = await reserveAiCredits({ supabase: user.supabase, userId: user.activeUserId, action: "ads", credits: 1 });
     if (quota.errorResponse) return quota.errorResponse;
     reservation = quota.reservation;
     stage = "generation";
-    const budget = createAiOperationBudget("ads.generate");
+    const budget = createAiOperationBudget("ads.generate", { maxCalls: 4, maxReservedOutputTokens: 32_000 });
     const result = await generateAdsCampaignWithFallback({
-      generate: async (model, index) => {
+      generate: async (model, index, qualityRepair = false) => {
         try {
           return await aiGenerateJSON<Record<string, unknown>>({
             feature: "ads.generate",
             accountId: user.activeUserId,
             budget,
             model: model,
-            // Ads owns its explicit Claude → Mistral → Gemini chain, including
-            // validation failures. Disable the generic transport/model fallback.
+            // Ads owns Terra → Claude → Mistral → Gemini and one optional
+            // primary repair, with four actual calls total and one deadline.
             allowProviderFallback: false,
             system: planSystemPrompt(provider),
-            input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}`,
+            input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}${previousQualityIssues.length
+              ? `\nCONTRÔLE QUALITÉ : la proposition précédente a été refusée pour ${previousQualityIssues.join(", ")}. ${adsPlanQualityRepairInstructions(previousQualityIssues)}\n${previousQualityDetails}`
+              : ""}`,
             ...(provider === "pinterest" ? { responseSchema: pinterestAdsCampaignPlanResponseSchema() } : {}),
-            maxOutputTokens: 8_000,
-            timeoutMs: [50_000, 34_000, 23_000][index],
+            maxOutputTokens: qualityRepair ? 4_000 : 8_000,
+            timeoutMs: qualityRepair ? 25_000 : [42_000, 34_000, 22_000, 15_000][index],
             deadlineAt: generationDeadlineAt,
             onStage: (attemptStage) => {
               attemptedStages.push(`${model}:${attemptStage}`);
@@ -526,6 +543,8 @@ export async function POST(request: Request) {
             audiences: context.audiences,
             services: context.services,
           });
+          previousQualityIssues = issueCodes;
+          previousQualityDetails = adsPlanRepairDetails(candidate, provider);
           console.warn("[ads.plan] model attempt rejected", {
             requestId,
             provider,
@@ -545,9 +564,10 @@ export async function POST(request: Request) {
         });
         return planIsReadyForReview(candidate, provider) ? candidate : null;
       },
-      onAttempt: (model, index) => {
+      canRepairPrimary: () => canRepairAdsPlanQuality(previousQualityIssues, generationDeadlineAt - Date.now()),
+      onAttempt: (model, index, qualityRepair = false) => {
         stage = "generation";
-        console.info("[ads.plan] model attempt", { requestId, provider, model, attempt: index + 1 });
+        console.info("[ads.plan] model attempt", { requestId, provider, model, attempt: index + 1, qualityRepair });
       },
       shouldRetry: (error) => {
         const code = error && typeof error === "object"

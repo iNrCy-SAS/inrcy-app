@@ -7,6 +7,7 @@ import {
 } from "../lib/adsMetaPlacement.ts";
 import {
   executeMetaAdsGraphPublish,
+  resolveMetaAdsPublishTargeting,
   metaUrlTags,
   MetaAdsPublishError,
   type MetaAdsGraphPublishInput,
@@ -36,7 +37,7 @@ function publishInput(overrides: Partial<MetaAdsGraphPublishInput> = {}): MetaAd
     dailyBudgetCents: 1_250,
     endTime: "2026-12-01T23:59:59+01:00",
     placements,
-    targeting: metaPlacementTargeting(placements),
+    targeting: { ...metaPlacementTargeting(placements), geo_locations: { cities: [{ key: "999" }] } },
     urlTags: "utm_source=meta&utm_campaign=offre_locale",
     feedImageBytes: Buffer.from("feed-original-bytes").toString("base64"),
     storyReelImageBytes: Buffer.from("vertical-original-bytes").toString("base64"),
@@ -76,7 +77,6 @@ function graphHarness(options: { failCampaignActivation?: boolean } = {}) {
 test("Meta cible exactement les fils, Stories et Reels sélectionnés", () => {
   assert.deepEqual(metaPlacementTargeting(["facebook_feed", "stories", "reels"]), {
     age_min: 18,
-    geo_locations: { countries: ["FR"] },
     publisher_platforms: ["facebook", "instagram"],
     facebook_positions: ["feed", "story", "facebook_reels"],
     instagram_positions: ["story", "reels"],
@@ -92,6 +92,51 @@ test("les balises Meta deviennent url_tags sans accepter une URL ou un fragment"
   assert.throws(() => metaUrlTags("https://example.com/?utm_source=meta"), /invalides/);
   assert.throws(() => metaUrlTags("utm_source=meta#fragment"), /invalides/);
   assert.throws(() => metaUrlTags("utm_source"), /cle=valeur/);
+});
+
+test("la création Meta envoie la ville vérifiée et conserve les placements choisis", async () => {
+  const { calls, graph } = graphHarness();
+  const targeting = await resolveMetaAdsPublishTargeting("user-1", ["facebook_feed"], ["Lyon"], async (_userId, path, body) => {
+    assert.equal(body, undefined);
+    assert.equal(new URL(`https://graph.test/${path}`).searchParams.get("q"), "Lyon");
+    return { data: [{ key: "999", type: "city", name: "Lyon", region: "Auvergne-Rhône-Alpes", country_code: "FR" }] };
+  });
+  await executeMetaAdsGraphPublish(publishInput({ targeting }), graph, async () => {});
+  const sent = JSON.parse(calls.find((call) => call.path.endsWith("/adsets"))!.body!.targeting);
+  assert.deepEqual(sent.geo_locations, { cities: [{ key: "999" }], location_types: ["home", "recent"] });
+  assert.deepEqual(sent.publisher_platforms, ["facebook"]);
+  assert.equal("countries" in sent.geo_locations, false);
+});
+
+test("les zones Meta absentes, introuvables ou ambiguës bloquent la création sans élargir à la France", async () => {
+  for (const scenario of [
+    { zones: [], data: [], error: /1 et 20 zones/ },
+    { zones: ["Zone imaginaire"], data: [], error: /ne reconnaît pas précisément/ },
+    { zones: ["Saint-Denis"], data: [
+      { key: "997", type: "city", name: "Saint-Denis", region: "Île-de-France", country_code: "FR" },
+      { key: "996", type: "city", name: "Saint-Denis", region: "La Réunion", country_code: "FR" },
+    ], error: /plusieurs zones équivalentes/ },
+  ]) {
+    const { calls, graph } = graphHarness();
+    await assert.rejects(async () => {
+      const targeting = await resolveMetaAdsPublishTargeting("user-1", ["facebook_feed"], scenario.zones, async (_userId, _path, body) => {
+        assert.equal(body, undefined);
+        return { data: scenario.data };
+      });
+      await executeMetaAdsGraphPublish(publishInput({ targeting }), graph, async () => {});
+    }, scenario.error);
+    assert.equal(calls.length, 0);
+  }
+});
+
+test("la France entière exige un choix explicite et les placements seuls ne suffisent pas à publier", async () => {
+  const national = await resolveMetaAdsPublishTargeting("user-1", ["facebook_feed"], ["France"], async () => {
+    throw new Error("Le choix explicite France ne nécessite pas de recherche.");
+  });
+  assert.deepEqual(national.geo_locations, { countries: ["FR"], location_types: ["home", "recent"] });
+  const { calls, graph } = graphHarness();
+  await assert.rejects(() => executeMetaAdsGraphPublish(publishInput({ targeting: metaPlacementTargeting(["facebook_feed"]) }), graph, async () => {}), /zones Meta/);
+  assert.equal(calls.length, 0);
 });
 
 test("Meta refuse un placement vertical sans visuel 9:16 au lieu de recadrer le fil", () => {
@@ -148,6 +193,7 @@ test("le publisher mocké importe les deux octets puis crée une creative person
   assert.equal(calls[3].body?.status, "PAUSED");
   assert.equal(calls[5].body?.status, "PAUSED");
   assert.deepEqual(JSON.parse(calls[3].body!.targeting), input.targeting);
+  assert.equal(calls[3].body?.name, `${input.name} · Audience`);
 
   const creative = calls[4].body!;
   assert.equal(creative.link_url, "https://example.com/offre");
@@ -211,7 +257,6 @@ test("une campagne feed-only n’importe qu’un asset et active la campagne en 
   const { calls, graph } = graphHarness();
   const input = publishInput({
     placements: ["facebook_feed"],
-    targeting: metaPlacementTargeting(["facebook_feed"]),
     instagramUserId: undefined,
     storyReelImageBytes: undefined,
     activate: true,
@@ -255,7 +300,6 @@ test("un échec de persistance après upload conserve le hash dans l’erreur de
   const { calls, graph } = graphHarness();
   const input = publishInput({
     placements: ["facebook_feed"],
-    targeting: metaPlacementTargeting(["facebook_feed"]),
     instagramUserId: undefined,
     storyReelImageBytes: undefined,
   });

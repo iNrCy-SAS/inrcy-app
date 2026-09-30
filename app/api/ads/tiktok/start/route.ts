@@ -6,7 +6,7 @@ import { tikTokAdsAuthorizeUrl } from "@/lib/adsTikTokPolicy";
 import { makeOAuthState } from "@/lib/security";
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("tiktok");
   if (errorResponse || !user) return errorResponse;
 
   const configured = String(process.env.TIKTOK_ADS_AUTHORIZATION_URL || "").trim();

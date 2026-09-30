@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { verifyOAuthState } from "@/lib/security";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
-import { isAdsPilotAdmin } from "@/lib/adsServer";
+import { isAdsChannelUserAllowed } from "@/lib/adsServer";
 import {
   exchangePinterestAdsCode,
   getPinterestAdsRedirectUri,
@@ -39,8 +39,8 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServer();
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user || data.user.id !== state.state.authUserId) return finish("error", "auth_required");
-    if (!(await isAdsPilotAdmin(data.user.id))) return finish("error", "ads_pilot_only");
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, data.user.id, state.state.accountId);
+    if (!(await isAdsChannelUserAllowed(data.user.id, userId, "pinterest"))) return finish("error", "premium_required");
     const token = await exchangePinterestAdsCode(code, getPinterestAdsRedirectUri(request.url));
     await savePinterestAdsConnection(userId, token);
     return finish("connected");

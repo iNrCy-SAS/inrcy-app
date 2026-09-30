@@ -5,6 +5,7 @@ import type {
   AdsMetaCreativeAssets,
   AdsMetaPlacement,
 } from "./adsValidation.ts";
+import type { AiMediaOutputFormat } from "./aiMediaGenerationContracts.ts";
 
 type PlannedMedia = {
   provider: AdsChannelId;
@@ -45,6 +46,41 @@ export const META_ADS_CREATIVE_SPECS = {
     height: 1_920,
   },
 } as const;
+
+// Studio currently normalizes portrait images to 4:5. Do not request a 2:3
+// composition that this shared pipeline would crop or replace with a square.
+export const PINTEREST_ADS_IMAGE_SPEC = {
+  outputFormat: "portrait",
+  aspectRatio: "4:5",
+  width: 1_080,
+  height: 1_350,
+} as const;
+
+export function adsMediaFormatForPlan(
+  plan: Pick<PlannedMedia, "provider" | "campaignType">,
+  kind: "image" | "video",
+): AiMediaOutputFormat {
+  if (kind === "video") return plan.campaignType === "video" ? "landscape" : "story";
+  if (plan.provider === "pinterest") return PINTEREST_ADS_IMAGE_SPEC.outputFormat;
+  if (plan.campaignType.startsWith("meta_")) return "portrait";
+  return "square";
+}
+
+export function pinterestAdsImagePrompt(context: MetaAdsImageContext): string {
+  const requirements = [
+    "Crée une seule image publicitaire Pinterest verticale au format portrait 4:5 (1080 × 1350 px).",
+    "Une scène d’inspiration professionnelle, nette et lisible sur mobile : mets en valeur l’offre réelle et son contexte d’usage, avec une composition verticale et des marges autour du sujet essentiel.",
+    "Aucun texte incrusté, logo ajouté, filigrane, bordure, faux avant/après ni preuve inventée. Une scène générée est une illustration, jamais une réalisation client attestée.",
+  ].join(" ");
+  const reminder = "Le format final 4:5 et ces contraintes priment sur toute consigne contradictoire du brief.";
+  const subject = [
+    `Offre réelle à illustrer : ${(context.offer || context.brand || context.name).slice(0, 280)}.`,
+    context.primaryText && `Intention de l’annonce, sans l’écrire dans l’image : ${context.primaryText.slice(0, 300)}.`,
+    context.targetAudiences.length && `Public visé : ${context.targetAudiences.slice(0, 2).map((audience) => audience.slice(0, 90)).join(", ")}.`,
+    context.mediaBrief && `Direction visuelle, uniquement si compatible avec le format final 4:5 : ${context.mediaBrief.slice(0, 450)}.`,
+  ].filter(Boolean).join(" ");
+  return [requirements, subject.slice(0, 1_800 - requirements.length - reminder.length - 2), reminder].join(" ");
+}
 
 export const META_ADS_FEED_IMAGE_REQUIREMENTS = [
   "Crée uniquement UNE image publicitaire Meta Feed verticale 4:5 (1080 × 1350 px), jamais une vidéo.",

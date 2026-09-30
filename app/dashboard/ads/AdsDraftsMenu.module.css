@@ -23,5 +23,5 @@
 .footer a{color:#ddc6ff;font-size:11px;font-weight:850;text-decoration:none}
 .footer a:hover{text-decoration:underline}
 @media(max-width:800px){.trigger{min-height:38px;padding:9px 12px;font-size:11px}.panel{position:fixed;top:82px;right:14px;left:14px;width:auto;max-height:calc(100dvh - 100px)}}
-@media(max-width:520px){.root{flex:1}.trigger{width:100%}.panel{top:126px}}
+@media(max-width:800px){.root{flex:0 0 auto}.trigger{position:relative;width:38px;height:38px;min-height:38px;padding:0;border-radius:50%}.triggerLabel{display:none}.badge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 3px;font-size:9px}.panel{top:76px}}
 

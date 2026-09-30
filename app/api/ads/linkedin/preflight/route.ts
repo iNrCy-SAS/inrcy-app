@@ -52,7 +52,7 @@ function preflightInput(url: URL): LinkedInAdsPreflightInput {
 }
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   const limited = await enforceRateLimit({
     name: "ads_linkedin_preflight",

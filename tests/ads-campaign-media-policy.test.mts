@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assessMetaCreativeAssetReadiness,
   adsMediaKindForPlan,
+  adsMediaFormatForPlan,
   adsMediaStrategyAfterAttachment,
   GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
   googleSearchImagePrompt,
@@ -12,8 +13,43 @@ import {
   metaCreativeAssetReadinessReason,
   metaFeedImagePrompt,
   metaStoryReelImagePrompt,
+  PINTEREST_ADS_IMAGE_SPEC,
+  pinterestAdsImagePrompt,
   shouldGenerateAdsMedia,
 } from "../lib/adsCampaignMediaPolicy.ts";
+import { AI_MEDIA_FORMAT_SPECS } from "../lib/aiMediaGenerationContracts.ts";
+
+test("Pinterest génère un portrait cohérent avec le format réellement livré par Studio", () => {
+  const format = adsMediaFormatForPlan({ provider: "pinterest", campaignType: "generic" }, "image");
+  const studio = AI_MEDIA_FORMAT_SPECS[format];
+  assert.equal(format, "portrait");
+  assert.equal(studio.aspectRatio, PINTEREST_ADS_IMAGE_SPEC.aspectRatio);
+  assert.equal(studio.width, PINTEREST_ADS_IMAGE_SPEC.width);
+  assert.equal(studio.height, PINTEREST_ADS_IMAGE_SPEC.height);
+  const prompt = pinterestAdsImagePrompt({
+    offer: "Aménagement de cuisines",
+    name: "Inspiration cuisine",
+    primaryText: "Découvrez des idées d’aménagement.",
+    targetAudiences: ["propriétaires locaux"],
+    mediaBrief: "Une cuisine lumineuse, avec des rangements accessibles.",
+  });
+  assert.match(prompt, /Pinterest verticale.*4:5.*1080 × 1350/);
+  assert.match(prompt, /Aménagement de cuisines/);
+  assert.match(prompt, /rangements accessibles/);
+  assert.match(prompt, /jamais une réalisation client attestée/);
+  assert.match(prompt, /Aucun texte incrusté/);
+  assert.ok(prompt.length <= 1_800);
+  const olderDraftPrompt = pinterestAdsImagePrompt({ name: "Cuisine", offer: "Cuisine", targetAudiences: [], mediaBrief: "Ancien format 2:3. " + "Détail ".repeat(500) });
+  assert.ok(olderDraftPrompt.length <= 1_800);
+  assert.ok(olderDraftPrompt.endsWith("Le format final 4:5 et ces contraintes priment sur toute consigne contradictoire du brief."));
+});
+
+test("le format Pinterest n’altère ni les autres canaux ni les vidéos", () => {
+  assert.equal(adsMediaFormatForPlan({ provider: "google", campaignType: "display" }, "image"), "square");
+  assert.equal(adsMediaFormatForPlan({ provider: "meta", campaignType: "meta_traffic" }, "image"), "portrait");
+  assert.equal(adsMediaFormatForPlan({ provider: "google", campaignType: "video" }, "video"), "landscape");
+  assert.equal(adsMediaFormatForPlan({ provider: "pinterest", campaignType: "generic" }, "video"), "story");
+});
 
 test("l’analyse génère seulement un média compatible avec le format", () => {
   const search = { provider: "google", campaignType: "search", mediaStrategy: "search_text" } as const;

@@ -9,6 +9,7 @@ import dashboardStyles from "@/app/dashboard/dashboard.module.css";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+import { adsAssociationDisplayReady } from "@/lib/adsConnectionSnapshot";
 import styles from "./AdsConnectionSettings.module.css";
 
 export type ExternalAdsSettingsChannel = "linkedin" | "tiktok" | "pinterest" | "x";
@@ -56,6 +57,7 @@ type Props = {
   accounts: ExternalAdsSettingsAccount[];
   accountChoice: string;
   accountsLoading: boolean;
+  accountsLoaded: boolean;
   accountsLoadFailed: boolean;
   action: "associate" | "disconnect" | null;
   error: string;
@@ -133,6 +135,7 @@ export default function ExternalAdsConnectionSettings({
   accounts,
   accountChoice,
   accountsLoading,
+  accountsLoaded,
   accountsLoadFailed,
   action,
   error,
@@ -142,17 +145,8 @@ export default function ExternalAdsConnectionSettings({
   onAssociateAccount,
   onDisconnect,
 }: Props) {
-  const [compactScreen, setCompactScreen] = useState(false);
   const [step, setStep] = useState(0);
   const current = CHANNEL_UI[channel];
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 999px), (max-height: 659px)");
-    const update = () => { setCompactScreen(media.matches); setStep(0); };
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
 
   useEffect(() => { setStep(0); }, [channel]);
 
@@ -186,10 +180,8 @@ export default function ExternalAdsConnectionSettings({
   const configuredAccountEligible = Boolean(configuredAccount
     && configuredAccountEligibilityAccepted
     && (!current.requiresEuro || configuredAccount.currency === "EUR"));
-  const accountConfigured = Boolean(status.connected
-    && status.selectedAccountId
-    && status.selectedAccountId === accountChoice
-    && configuredAccountEligible);
+  const accountConfigured = adsAssociationDisplayReady(status.connected, status.selectedAccountId, accountChoice,
+    accountsLoaded ? configuredAccountEligible : undefined);
   const hasConfiguredAccount = Boolean(status.selectedAccountId);
   // A newly discovered X advertiser is intentionally tri-state: the user may
   // nominate it, but POST /accounts must verify it before it can be persisted.
@@ -240,8 +232,8 @@ export default function ExternalAdsConnectionSettings({
     headerStyle={getChannelSettingsHeaderStyle(channel)}
     headerActions={<button type="button" className={dashboardStyles.channelSettingsAllChannelsButton} onClick={onClose} aria-label="Tous les canaux" title="Tous les canaux"><span className={dashboardStyles.channelSettingsAllChannelsIcon} aria-hidden="true">☷</span><span className={dashboardStyles.channelSettingsAllChannelsLabel}>Tous les canaux</span></button>}
   >
-    <div className={`${styles.content} ${socialStyles.journey} ${styles[channel]}`} data-compact={compactScreen || undefined}>
-      <section hidden={compactScreen && step !== 0} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
+    <div className={`${styles.content} ${socialStyles.journey} ${styles[channel]}`} data-step={step}>
+      <section data-step-index="0" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Votre connexion</div><div>{current.connectionCopy}</div></div>
@@ -253,7 +245,7 @@ export default function ExternalAdsConnectionSettings({
             {status.load === "error" ? <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.secondaryBtn}`} disabled={busy} onClick={onRefreshStatus}>Réessayer</button> : null}
             {status.configured && status.connected ? <>
               {linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, "manage")}>Compléter les autorisations Ads <span aria-hidden="true">→</span></a> : null}
-              <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Actualiser la connexion <span aria-hidden="true">→</span></a>
+              {needsReconnect && !linkedinManagementMissing ? <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Actualiser la connexion <span aria-hidden="true">→</span></a> : null}
               <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} disabled={busy} onClick={onDisconnect}>{action === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>
             </> : status.configured && needsReconnect ? <>
               <a className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${styles.channelPrimary}`} href={oauthHref(channel, linkedinRefreshAccess)}>Reconnecter {current.label} <span aria-hidden="true">→</span></a>
@@ -263,7 +255,7 @@ export default function ExternalAdsConnectionSettings({
         </div>
       </section>
 
-      <section hidden={compactScreen && step !== 1} className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 2 : Compte annonceur">
+      <section data-step-index="1" className={`${socialStyles.stepCard} ${styles.step}`} aria-label="Étape 2 : Compte annonceur">
         <div className={`${socialStyles.stepHeader} ${styles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
           <div className={`${socialStyles.stepCopy} ${styles.stepCopy}`}><div>Compte annonceur</div><div>{current.accountCopy}</div></div>
@@ -274,7 +266,7 @@ export default function ExternalAdsConnectionSettings({
             <label className={styles.field}>{current.accountLabel}
               <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
-                {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`} · accès à vérifier</option> : null}
+                {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`}{accountsLoaded ? " · accès à vérifier" : ""}</option> : null}
                 {accountOptions.map(({ account, unavailable, reason }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{reason ? ` (${reason})` : ""}</option>)}
               </select>
             </label>
@@ -292,13 +284,13 @@ export default function ExternalAdsConnectionSettings({
       </section>
 
       {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
-      <p className={styles.footnote}>{channel === "pinterest" ? "Le compte Pinterest Ads associé est vérifié de nouveau avant chaque lancement. Vous pourrez créer la campagne en statut Active ou Paused depuis la validation finale, ou la conserver en brouillon iNrCy." : channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p>
+      {channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
 
-      {compactScreen ? <div className={styles.footer}>
+      <div className={styles.footer}>
         <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>
         <span className={styles.progress}>Étape {step + 1} / 2</span>
         {step === 0 ? <button type="button" className={styles.done} onClick={() => setStep(1)}>Suivant →</button> : <button type="button" className={styles.done} onClick={onClose}>Fermer</button>}
-      </div> : null}
+      </div>
     </div>
   </SettingsDrawer>;
 }

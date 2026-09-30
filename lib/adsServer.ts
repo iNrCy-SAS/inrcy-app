@@ -9,7 +9,9 @@ import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
 import { listAccessibleFacebookPagesDetailed } from "@/lib/metaBusinessAssets";
 import { GoogleAdsApiError, googleAdsApiErrorMessage } from "@/lib/adsGoogleApiError";
 import { ADMIN_USER_IDS, isAdminRole } from "@/lib/roles";
-import type { AdsAccount, AdsProvider } from "@/lib/adsValidation";
+import type { AdsAccount, AdsChannelId, AdsProvider } from "@/lib/adsValidation";
+import { getDashboardEditionForAccountId, premiumRequiredApiResponse } from "@/lib/dashboardEditionServer";
+import { adsAccessAllowed, isAdsPublicChannel } from "@/lib/adsAccessPolicy";
 
 export const GOOGLE_ADS_API_VERSION = "v25";
 
@@ -31,7 +33,7 @@ export type AdsIntegration = {
 
 export type AdsConnectionStatus = "connected" | "needs_update" | "disconnected";
 
-/** Temporary launch guard: iNr’ADS stays available only to the Admin test account. */
+/** The pilot guard still applies to channels awaiting their platform approval. */
 export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
   if (ADMIN_USER_IDS.some((adminUserId) => adminUserId === authUserId)) return true;
 
@@ -47,18 +49,29 @@ export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
 export function adsPilotOnlyResponse() {
   return NextResponse.json(
     {
-      error: "iNr’ADS est actuellement en préparation. L’accès est temporairement réservé au compte Admin.",
+      error: "Ce canal publicitaire reste réservé au compte Admin jusqu’à sa validation.",
       code: "INRCY_ADS_COMING_SOON",
     },
     { status: 403 },
   );
 }
 
-/** @deprecated Name kept while all Ads routes move through the temporary Admin-only launch guard. */
-export async function requirePremiumAdsUser() {
+export async function isAdsUserAllowed(authUserId: string, activeUserId: string): Promise<boolean> {
+  if (await isAdsPilotAdmin(authUserId)) return true;
+  const edition = await getDashboardEditionForAccountId(activeUserId);
+  return adsAccessAllowed(edition, false);
+}
+
+export async function isAdsChannelUserAllowed(authUserId: string, activeUserId: string, channel: AdsChannelId): Promise<boolean> {
+  if (!isAdsPublicChannel(channel)) return isAdsPilotAdmin(authUserId);
+  return isAdsUserAllowed(authUserId, activeUserId);
+}
+
+export async function requirePremiumAdsUser(channel?: AdsChannelId) {
   const user = await requireUser();
   if (user.errorResponse) return { user: null, errorResponse: user.errorResponse };
-  if (!(await isAdsPilotAdmin(user.authUserId))) return { user: null, errorResponse: adsPilotOnlyResponse() };
+  if (!(await isAdsUserAllowed(user.authUserId, user.activeUserId))) return { user: null, errorResponse: premiumRequiredApiResponse() };
+  if (channel && !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, channel))) return { user: null, errorResponse: adsPilotOnlyResponse() };
   return { user, errorResponse: null };
 }
 

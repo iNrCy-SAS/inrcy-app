@@ -37,10 +37,10 @@ function resolveSelectedAccount(
 }
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
-  if (errorResponse || !user) return errorResponse;
   const provider = adsOAuthProvider(new URL(request.url).searchParams.get("provider"));
   if (!provider) return NextResponse.json({ error: "Canal inconnu." }, { status: 400 });
+  const { user, errorResponse } = await requirePremiumAdsUser(provider);
+  if (errorResponse || !user) return errorResponse;
 
   let connection: AdsIntegration | null = null;
   try {

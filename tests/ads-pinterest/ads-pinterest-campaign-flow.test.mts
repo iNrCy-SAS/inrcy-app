@@ -67,6 +67,14 @@ test("planned channels without the completed account binding still reject advert
   }
 });
 
+test("Pinterest preserves draft alternatives but requires an explicit single title before publishing", () => {
+  const input = { ...campaign("pinterest", "123456789012"), headlines: ["Préparez votre projet", "Découvrez notre service"] };
+  assert.deepEqual(parseAdsCampaignInput(input, { purpose: "draft" }).draft?.headlines, input.headlines);
+  const published = parseAdsCampaignInput(input, { purpose: "publish" });
+  assert.equal(published.draft, null);
+  assert.match(published.error || "", /un seul titre/);
+});
+
 test("the Pinterest OAuth return opens Pinterest and the proposal exposes native review steps", () => {
   const page = readFileSync(path.join(root, "app/dashboard/ads/page.tsx"), "utf8");
   const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
@@ -88,7 +96,7 @@ test("Pinterest sépare le format du fichier média et conserve tout le cadrage"
   const css = readFileSync(path.join(root, "app/dashboard/ads/ads.module.css"), "utf8");
   assert.match(client, /hidden=\{step !== pinterestFormatStep\}/);
   assert.match(client, /hidden=\{step !== mediaStep\}/);
-  assert.match(client, /L’aperçu conserve son cadrage complet/);
+  assert.match(client, /<CampaignMediaPreview key=/);
   assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview\{[^}]*height:clamp\(/);
   assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreviewImage[^}]*object-fit:contain/);
   assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview video\{[^}]*object-fit:contain/);
@@ -138,7 +146,9 @@ test("Pinterest publication persists the complete hierarchy and the database unl
   assert.match(contract, /is_removable: true/);
   assert.ok(contract.indexOf('path: `${accountPath}/ads`') < contract.indexOf('path: `${accountPath}/campaigns`'));
   assert.match(publisher, /for \(const step of buildPinterestActivationSteps/);
-  assert.match(publisher, /resolvePinterestCountryCodes\(draft\.targetLocations, options\.accountCountry\)/);
+  assert.match(publisher, /matchPinterestGeographies\(draft\.targetLocations, locationOptions, geoOptions\)/);
+  assert.match(publisher, /LOCALE: matchPinterestTargetLanguages\(draft\.languages, localeOptions\)/);
+  assert.ok(publisher.indexOf("const targetingSpec") < publisher.indexOf("const campaignId = batchCreatedId"));
   assert.match(route, /pinterestAccountCountry = selectedAccount\.country/);
   assert.match(route, /accountCountry: pinterestAccountCountry/);
   assert.match(route, /PinterestAdsPublishError/);

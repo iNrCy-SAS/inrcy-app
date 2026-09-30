@@ -27,7 +27,7 @@ type Props = {
   inrAgentEnabled?: boolean;
 };
 
-export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, openPanel, onOpenChannelsHelp, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, standardMode = false, isAdmin = false, inrAgentEnabled = true }: Props) {
+export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, openPanel, onOpenChannelsHelp, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, standardMode = false, inrAgentEnabled = true }: Props) {
   const [channelsOpen, setChannelsOpen] = useState(false);
   const locale = useLocale();
   const isFrench = locale.startsWith("fr");
@@ -54,9 +54,9 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
       </div>
       <div id={DASHBOARD_TOOLS_ANCHOR_ID} className={styles.toolsAnchor}>
         {standardMode ? (
-          <DashboardStandardModulesCard goToModule={goToModule} onOpenPremium={() => openPanel("abonnement")} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled={isAdmin} inrAgentEnabled={inrAgentEnabled} />
+          <DashboardStandardModulesCard goToModule={goToModule} onOpenPremium={() => openPanel("abonnement")} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled inrAgentEnabled={inrAgentEnabled} />
         ) : (
-          <DashboardModulesCard goToModule={goToModule} openPanel={openPanel} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled={isAdmin} inrAgentEnabled={inrAgentEnabled} />
+          <DashboardModulesCard goToModule={goToModule} openPanel={openPanel} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled inrAgentEnabled={inrAgentEnabled} />
         )}
       </div>
       {channelsOpen ? <DashboardChannelsModal items={fluxBubbleItems} summary={{ connected, total: summaryItems.length }} onClose={() => setChannelsOpen(false)} onOpenHelp={onOpenChannelsHelp} /> : null}

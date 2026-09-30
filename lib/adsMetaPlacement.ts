@@ -113,7 +113,6 @@ function placementSelection(
 export function metaPlacementTargeting(placements: readonly MetaAdsPlacement[]) {
   return {
     age_min: 18,
-    geo_locations: { countries: ["FR"] },
     ...placementSelection(placements, "all"),
   };
 }

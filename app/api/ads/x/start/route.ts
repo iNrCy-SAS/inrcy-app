@@ -7,7 +7,7 @@ import { getXAdsCredentials, getXAdsRedirectUri, requestXAdsToken, XAdsConnectio
 const X_ADS_REQUEST_COOKIE = "inrcy_oauth_x_ads_request";
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("x");
   if (errorResponse || !user) return errorResponse;
   if (!getXAdsCredentials().configured) {
     return NextResponse.json({ error: "Configuration X Ads OAuth 1.0a incomplète.", code: "configuration_missing" }, { status: 503 });

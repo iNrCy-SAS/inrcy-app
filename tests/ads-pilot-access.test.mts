@@ -21,16 +21,20 @@ const adsCallbackSource = readFileSync(
   "utf8",
 );
 
-test("iNr’ADS reste visible, mais est verrouillé hors compte Admin pendant la préparation", () => {
+test("iNr’ADS ouvre Google et Pinterest aux professionnels Premium et conserve le verrou pilote des autres canaux", () => {
   assert.match(dashboardClientSource, /isAdmin=\{isAdmin\}/);
-  assert.match(channelsSource, /adsPilotEnabled=\{isAdmin\}/);
+  assert.match(channelsSource, /adsPilotEnabled inrAgentEnabled/);
   assert.match(campaignChoicesSource, /adsComingSoon/);
   assert.match(campaignChoicesSource, /campaign-ads-coming-soon/);
   assert.match(campaignChoicesSource, /À venir/);
   assert.match(adsServerSource, /isAdsPilotAdmin/);
+  assert.match(adsServerSource, /getDashboardEditionForAccountId\(activeUserId\)/);
+  assert.match(adsServerSource, /isAdsChannelUserAllowed/);
   assert.match(adsServerSource, /INRCY_ADS_COMING_SOON/);
   assert.match(adsServerSource, /GOOGLE_ADS_API_VERSION/);
   assert.match(adsServerSource, /"login-customer-id"/);
   assert.match(adsPageSource, /isAdsPilotAdmin/);
-  assert.match(adsCallbackSource, /isAdsPilotAdmin/);
+  assert.match(adsPageSource, /isAdsUserAllowed\(data\.user\.id, accountScope\.activeUserId\)/);
+  assert.match(adsPageSource, /initialChannel=\{channel \|\| "google"\}/);
+  assert.match(adsCallbackSource, /isAdsChannelUserAllowed/);
 });

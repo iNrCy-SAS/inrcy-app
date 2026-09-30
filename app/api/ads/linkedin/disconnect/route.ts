@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(request: Request) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   const { error } = await supabaseAdmin.from("integrations").delete()
     .eq("user_id", user.activeUserId)

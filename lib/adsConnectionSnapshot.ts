@@ -12,6 +12,12 @@ export type AdsConnectionSnapshot = {
 
 export type AdsConnectionSnapshots = Record<AdsChannelId, AdsConnectionSnapshot>;
 
+/** A saved association remains visible while its provider list refreshes.
+ * This is display state only; publishing still verifies the account remotely. */
+export function adsAssociationDisplayReady(connected: boolean, persistedId: string, selectedId: string, available?: boolean): boolean {
+  return connected && Boolean(persistedId) && persistedId === selectedId && available !== false;
+}
+
 export type AdsIntegrationIdentity = {
   provider: string;
   source: string;

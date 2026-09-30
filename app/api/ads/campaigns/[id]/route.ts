@@ -4,6 +4,8 @@ import { normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/ad
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft, validateDraftExtension } from "./trackingPolicy";
+import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
+import { isAdsChannelId } from "@/lib/adsValidation";
 
 export const runtime = "nodejs";
 
@@ -19,6 +21,7 @@ export async function GET(_request: Request, context: RouteContext) {
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 });
   if (!data) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
+  if (!isAdsChannelId(data.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, data.provider))) return adsPilotOnlyResponse();
   return NextResponse.json({
     campaign: { ...data, draft: normalizeStoredAdsCampaignDraft(data.draft) },
   }, { headers: { "Cache-Control": "no-store" } });
@@ -35,10 +38,11 @@ async function authorizeDraftMutation(request: Request, context: RouteContext, o
   const limited = await enforceRateLimit({ name: `ads_campaign_${operation}`, identifier: user.authUserId, limit: 30, window: "1 h" });
   if (limited) return { response: limited };
   const { data, error } = await supabaseAdmin.from("ads_campaigns")
-    .select("id,user_id,status,published_at,provider_resources,end_date,updated_at,draft")
+    .select("id,user_id,provider,status,published_at,provider_resources,end_date,updated_at,draft")
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return { response: NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 }) };
   if (!data) return { response: NextResponse.json({ error: "Campagne introuvable." }, { status: 404 }) };
+  if (!isAdsChannelId(data.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, data.provider))) return { response: adsPilotOnlyResponse() };
   if (!canMutateAdsDraft(data)) {
     return { response: NextResponse.json({ error: "Seul un brouillon sans publication ni ressource sur une plateforme peut être modifié ou supprimé ici." }, { status: 409 }) };
   }

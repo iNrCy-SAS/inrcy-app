@@ -17,6 +17,12 @@ export function adsDraftHasMediaStep(draft: AdsDraftMediaShape): boolean {
     && draft.channelSettings.format === "text");
 }
 
+/** Automatic Pinterest targeting has no manual discovery fields to complete. */
+export function adsDraftHasKeywordsStep(draft: Pick<AdsCampaignInput, "provider"> & Partial<Pick<AdsCampaignInput, "channelSettings">>): boolean {
+  if (draft.provider !== "pinterest") return true;
+  return draft.channelSettings?.channel === "pinterest" && draft.channelSettings.targetingMode !== "automatic";
+}
+
 /**
  * Returns the last editable studio step for a stored campaign.
  *
@@ -33,5 +39,6 @@ export function adsDraftValidationStep(
   const assistedAnalysisStep = draft.creationMode === "inrcy" ? 1 : 0;
   const mediaStep = adsDraftHasMediaStep(draft) ? 1 : 0;
   const pinterestPureMediaStep = draft.provider === "pinterest" ? 1 : 0;
-  return 7 + assistedAnalysisStep + mediaStep + pinterestPureMediaStep;
+  const skippedDiscoveryStep = adsDraftHasKeywordsStep(draft) ? 0 : 1;
+  return 7 + assistedAnalysisStep + mediaStep + pinterestPureMediaStep - skippedDiscoveryStep;
 }

@@ -9,7 +9,8 @@ import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLi
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsDraftAccountChannel, parseAdsCampaignInput } from "@/lib/adsValidation";
-import { hasAdsPublishConfirmation, isAdsPublishModeEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
+import { hasAdsPublishConfirmation, isAdsChannelPublishEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
+import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
 
 export const runtime = "nodejs";
@@ -68,12 +69,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!isAdsDraftAccountChannel(draft.provider)) {
     return NextResponse.json({ error: "La connexion et la publication de ce canal ne sont pas encore disponibles." }, { status: 423 });
   }
-  // Meta/Google keep their shared rollout flag. LinkedIn has a dedicated gate
-  // so enabling its approved Development account can never unlock another
-  // provider by accident. Pinterest is enabled by its Standard API access.
-  const publishModeEnabled = draft.provider === "linkedin"
-    ? process.env.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"
-    : draft.provider === "pinterest" || isAdsPublishModeEnabled(mode, process.env);
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
+  // Approved Google/Pinterest channels have independent kill switches.
+  // Pilot providers keep separate gates and remain restricted to admins.
+  const publishModeEnabled = isAdsChannelPublishEnabled(draft.provider, mode, process.env);
   if (!publishModeEnabled) {
     return NextResponse.json({ error: pausedDemo
       ? "La création de démo en pause est verrouillée dans cet environnement."
@@ -182,6 +181,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   let progress: Record<string, unknown> = {};
+  let googleProviderMutationStarted = false;
   let metaProviderMutationStarted = false;
   let pinterestProviderMutationStarted = false;
   let linkedinProviderMutationStarted = false;
@@ -215,7 +215,11 @@ export async function POST(request: Request, { params }: RouteContext) {
             activate: !createPaused,
             onProviderMutationStart: () => { linkedinProviderMutationStarted = true; },
           })
-        : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !createPaused, preparedTargetLocations: preparedGoogleTargetLocations });
+        : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, {
+          activate: !createPaused,
+          preparedTargetLocations: preparedGoogleTargetLocations,
+          onProviderMutationStart: () => { googleProviderMutationStarted = true; },
+        });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
       : resources;
@@ -244,8 +248,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     // A Google 400 on the first atomic mutate cannot leave provider objects
     // behind. Return the local row to draft so the precise validation error can
     // be fixed and retried without stranding it in needs_review.
-    const googleRejectedBeforeCreate = draft.provider === "google" && error instanceof GoogleAdsApiError
-      && error.status === 400 && Object.keys(resources).length === 0;
+    const googleRejectedBeforeCreate = draft.provider === "google"
+      && (!googleProviderMutationStarted || (error instanceof GoogleAdsApiError && error.status === 400))
+      && Object.keys(resources).length === 0;
     // Meta performs account, Page, Instagram, URL, media download and image
     // dimension checks before this boundary. Those failures are safe to fix
     // and retry. Once a Graph mutation may have started, keep needs_review

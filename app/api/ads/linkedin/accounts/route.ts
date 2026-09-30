@@ -24,7 +24,7 @@ async function accountsRateLimit(userId: string) {
 }
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   const limited = await accountsRateLimit(user.activeUserId);
   if (limited) return limited;
@@ -45,7 +45,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   const limited = await accountsRateLimit(user.activeUserId);
   if (limited) return limited;

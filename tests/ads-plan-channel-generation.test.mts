@@ -92,6 +92,7 @@ test("all planned channels produce reviewable, platform-specific drafts without 
     const plan = normalizeAdsCampaignPlan({
       name: "Accompagnement local",
       offer: "Accompagnement professionnel",
+      rationale: "L’accompagnement répond aux besoins des entreprises de Lyon. Le format présente une étape concrète et invite à consulter l’offre, sans présumer du suivi des conversions.",
       campaignType: "generic",
       channelDraft: drafts[channel],
     }, { provider: channel, ...trusted });
@@ -100,7 +101,7 @@ test("all planned channels produce reviewable, platform-specific drafts without 
     assert.equal(plan.channelDraft?.creative.destinationUrl, trusted.destinationUrl);
     assert.deepEqual(
       plan.channelDraft?.audience.locationBriefs,
-      channel === "pinterest" ? ["FR"] : trusted.locations,
+      trusted.locations,
     );
     assert.equal("externalRefs" in (plan.channelDraft || {}), false);
     assert.equal(assessAdsChannelDraft(plan.channelDraft).publicationReady, false);
@@ -109,7 +110,7 @@ test("all planned channels produce reviewable, platform-specific drafts without 
   }
 });
 
-test("native copy keeps channel lengths while Google retains 30/90", () => {
+test("overlong copy remains whole and is rejected instead of being clipped to channel limits", () => {
   const longHeadline = "H".repeat(120);
   const longDescription = "D".repeat(220);
   const pinterest = normalizeAdsCampaignPlan({
@@ -117,10 +118,11 @@ test("native copy keeps channel lengths while Google retains 30/90", () => {
     offer: "Accompagnement professionnel",
     headlines: [longHeadline],
     descriptions: [longDescription],
-    channelDraft: drafts.pinterest,
+    channelDraft: { ...drafts.pinterest, creative: { ...drafts.pinterest.creative, pinTitle: longHeadline, pinDescription: longDescription } },
   }, { provider: "pinterest", ...trusted });
-  assert.equal(pinterest.headlines[0].length, 100);
+  assert.equal(pinterest.headlines[0], longHeadline);
   assert.equal(pinterest.descriptions[0].length, 220);
+  assert.equal(isReviewableAdsCampaignPlan(pinterest, "pinterest"), false);
   const linkedin = normalizeAdsCampaignPlan({
     name: "LinkedIn",
     offer: "Accompagnement professionnel",
@@ -131,12 +133,13 @@ test("native copy keeps channel lengths while Google retains 30/90", () => {
   assert.equal(linkedin.headlines[0].length, 120);
   assert.equal(linkedin.descriptions[0].length, 220);
   const google = normalizeAdsCampaignPlan({ headlines: [longHeadline], descriptions: [longDescription] }, { provider: "google", ...trusted });
-  assert.equal(google.headlines[0].length, 30);
-  assert.equal(google.descriptions[0].length, 90);
+  assert.equal(google.headlines[0], longHeadline);
+  assert.equal(google.descriptions[0], longDescription);
+  assert.equal(isReviewableAdsCampaignPlan(google, "google"), false);
   assert.equal(google.channelDraft, undefined);
 });
 
-test("Pinterest automatic plans reduce historical local zones to the trusted business country", () => {
+test("Pinterest automatic plans retain local service areas without widening to a country", () => {
   const plan = normalizeAdsCampaignPlan({
     name: "Pinterest national",
     offer: "Accompagnement professionnel",
@@ -149,8 +152,22 @@ test("Pinterest automatic plans reduce historical local zones to the trusted bus
     country: "France",
   });
 
-  assert.deepEqual(plan.targetLocations, ["FR"]);
-  assert.deepEqual(plan.channelDraft?.audience.locationBriefs, ["FR"]);
+  assert.deepEqual(plan.targetLocations, ["Lille", "Roubaix"]);
+  assert.deepEqual(plan.channelDraft?.audience.locationBriefs, ["Lille", "Roubaix"]);
+});
+
+test("Pinterest presents the one native title and description that the Pin publisher uses", () => {
+  const plan = normalizeAdsCampaignPlan({
+    name: "Pinterest local", offer: "Projet local", primaryText: "Synthèse différente",
+    headlines: ["Variante A", "Variante B"], descriptions: ["Description A", "Description B"],
+    channelDraft: drafts.pinterest,
+  }, { provider: "pinterest", ...trusted });
+  assert.deepEqual(plan.headlines, [drafts.pinterest.creative.pinTitle]);
+  assert.deepEqual(plan.descriptions, [drafts.pinterest.creative.pinDescription]);
+  assert.equal(plan.primaryText, drafts.pinterest.creative.pinDescription);
+  const properties = pinterestAdsCampaignPlanResponseSchema().schema.properties as Record<string, { maxItems?: number }>;
+  assert.equal(properties.headlines.maxItems, 1);
+  assert.equal(properties.descriptions.maxItems, 1);
 });
 
 test("Meta defaults to the publishable traffic path and both advertising image formats", () => {
@@ -202,6 +219,7 @@ test("a realistic Pinterest answer survives harmless provider JSON drift without
   const raw = {
     name: "Inspiration locale Pinterest",
     offer: "Accompagnement professionnel",
+    rationale: "L’épingle aide les professionnels locaux à préparer leur projet en présentant une méthode concrète. La visite du site permet de découvrir l’accompagnement ; les résultats restent à vérifier après diffusion.",
     objective: "website_traffic",
     conversionGoal: "website_visit",
     primaryText: "Découvrez une méthode claire pour préparer votre projet local.",
@@ -328,10 +346,13 @@ test("native prompts demand a brief only and do not assert publication access", 
       assert.match(prompt, /publication réelle/);
       assert.match(prompt, /targetingMode="automatic"/);
       assert.match(prompt, /keywords=\[\]/);
+      assert.match(prompt, /portrait 4:5 \(1080×1350\)/);
+      assert.doesNotMatch(prompt, /2:3/);
       assert.doesNotMatch(prompt, /aucun adaptateur de publication/);
     } else {
       assert.match(prompt, /BROUILLON/);
-      assert.match(prompt, /aucun adaptateur de publication/);
+      assert.match(prompt, /vérifiés par le connecteur/);
+      assert.doesNotMatch(prompt, /aucun adaptateur de publication/);
     }
     assert.match(prompt, /N’ajoute PAS externalRefs/);
     assert.match(prompt, /channelDraft/);

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   buildPinterestActivationSteps,
@@ -11,10 +12,16 @@ import {
   PINTEREST_ADS_CREATION_PATHS,
   pinterestLiveConfigurationIssue,
   preflightPinterestDraftCampaign,
+  pinterestDestinationUrl,
+  assertPinterestBatchStatus,
 } from "../lib/adsPinterestPublish.ts";
 import {
   normalizePinterestAutomaticLocations,
   pinterestCountryCodes,
+  matchPinterestGeographies,
+  matchPinterestTargetLanguages,
+  pinterestGeographyOptions,
+  searchPinterestGeographyOptions,
 } from "../lib/adsPinterestLocations.ts";
 
 const draft = {
@@ -124,11 +131,78 @@ test("Pinterest live preflight refuses manual targeting and precise placements b
   assert.match(pinterestLiveConfigurationIssue({ ...draft, placementGroup: "BROWSE" }) || "", /emplacements/);
 });
 
-test("Pinterest automatic targeting repairs local profile zones with the verified advertiser country", () => {
-  assert.deepEqual(pinterestCountryCodes(["Lille", "Roubaix", "Nord"], "FR"), ["FR"]);
+test("Pinterest conserve les zones locales sans les remplacer par le pays de l’annonceur", () => {
+  assert.deepEqual(pinterestCountryCodes(["Lille", "Roubaix", "Nord"], "FR"), []);
+  assert.deepEqual(pinterestCountryCodes([], "FR"), []);
   assert.deepEqual(pinterestCountryCodes(["Bruxelles", "Belgique", "Lille"], "FR"), ["BE"]);
-  assert.deepEqual(normalizePinterestAutomaticLocations(["Lille, France", "Roubaix"]), ["FR"]);
+  assert.deepEqual(normalizePinterestAutomaticLocations(["Lille, France", "Roubaix"]), ["Lille, France", "Roubaix"]);
   assert.deepEqual(normalizePinterestAutomaticLocations(["Lille", "Roubaix"]), ["Lille", "Roubaix"]);
+  assert.deepEqual(normalizePinterestAutomaticLocations(["Île-de-France", "France"]), ["Île-de-France", "FR"]);
+});
+
+test("Pinterest distingue métropole LOCATION, région GEO et pays exact dans les catalogues", () => {
+  const locations = [{ FR: "France", BE: "Belgium", "501": "France: Lille", "502": "Belgium: Bruxelles" }];
+  const geos = [{ "FR-HDF": "France: Hauts-de-France", "FR-IDF": "France: Île-de-France", "FR-59000": "France: 59000" }];
+  assert.deepEqual(matchPinterestGeographies(["Lille, France"], locations, geos), { LOCATION: ["501"] });
+  assert.deepEqual(matchPinterestGeographies(["Lille", "Hauts-de-France"], locations, geos), { LOCATION: ["501"], GEO: ["FR-HDF"] });
+  assert.deepEqual(matchPinterestGeographies(["Île-de-France"], locations, geos), { GEO: ["FR-IDF"] });
+  assert.deepEqual(matchPinterestGeographies(["FR-59000"], locations, geos), { GEO: ["FR-59000"] });
+  assert.deepEqual(matchPinterestGeographies(["Belgique", "FR"], locations, geos), { LOCATION: ["BE", "FR"] });
+});
+
+test("Pinterest refuse zones absentes, homonymes, rayons non résolus et mélanges GEO", () => {
+  const locations = [{ FR: "France", "501": "France: Saint-Denis", "502": "France: Saint-Denis" }];
+  assert.throws(() => matchPinterestGeographies(["Saint-Denis"], locations, []), /unique/);
+  assert.throws(() => matchPinterestGeographies(["France", "Ville inconnue"], locations, []), /unique/);
+  assert.throws(() => matchPinterestGeographies(["20 km autour de Lille"], locations, []), /unique/);
+  assert.throws(() => matchPinterestGeographies([], locations, []), /1 et 20/);
+  assert.throws(() => matchPinterestGeographies(["France"], [], []), /unique/);
+  assert.throws(() => matchPinterestGeographies(["FR-HDF", "FR-59000"], [], [{ "FR-HDF": "France: Hauts-de-France", "FR-59000": "France: 59000" }]), /mélangés/);
+});
+
+test("Pinterest transmet uniquement les langues explicitement reconnues par son catalogue", () => {
+  const catalog = [{ fr: "French", en: "English", de: "German" }];
+  assert.deepEqual(matchPinterestTargetLanguages(["fr", "Français", "English"], catalog), ["fr", "en"]);
+  assert.throws(() => matchPinterestTargetLanguages(["Langue inconnue"], catalog), /langue.*unique/);
+  assert.throws(() => matchPinterestTargetLanguages(["fr"], []), /langue.*unique/);
+  assert.throws(() => matchPinterestTargetLanguages([], catalog), /langue Pinterest/);
+});
+
+test("les catalogues Pinterest réels ciblent les départements et régions sans inventer de ville", () => {
+  const catalogs = JSON.parse(readFileSync(new URL("./ads-pinterest/fixtures/targeting-catalog-fr.json", import.meta.url), "utf8"));
+  const options = pinterestGeographyOptions(catalogs.LOCATION, catalogs.GEO);
+  assert.equal(options.filter((option) => option.id === "250059").length, 1);
+  assert.equal(options.find((option) => option.id === "FR-HDF")?.kind, "region");
+  const geography = matchPinterestGeographies(["Nord", "Pas-de-Calais"], catalogs.LOCATION, catalogs.GEO);
+  assert.deepEqual(geography, { LOCATION: ["250059", "250062"] });
+  assert.deepEqual(matchPinterestGeographies(["Hauts-de-France", "Île-de-France"], catalogs.LOCATION, catalogs.GEO), { GEO: ["FR-HDF", "FR-IDF"] });
+  assert.throws(() => matchPinterestGeographies(["Lille"], catalogs.LOCATION, catalogs.GEO), /unique/);
+  assert.throws(() => matchPinterestGeographies(["59000"], catalogs.LOCATION, catalogs.GEO), /unique/);
+  const targetingSpec = { ...geography, LOCALE: matchPinterestTargetLanguages(["français"], catalogs.LOCALE) };
+  const payload = buildPinterestLiveAdGroupBody({ name: "Offre locale", campaignId: "111111", objectiveType: "CONSIDERATION", bidInMicroCurrency: 1_000_000, targetingSpec });
+  assert.deepEqual(payload.targeting_spec, { LOCATION: ["250059", "250062"], LOCALE: ["fr"] });
+});
+
+test("la recherche Pinterest limite au pays du compte et chaque choix reste publiable à l'identique", () => {
+  const catalogs = JSON.parse(readFileSync(new URL("./ads-pinterest/fixtures/targeting-catalog-fr.json", import.meta.url), "utf8"));
+  const options = pinterestGeographyOptions(catalogs.LOCATION, catalogs.GEO);
+  const countries = [...options,
+    { id: "BE", name: "Belgique", type: "LOCATION" as const, kind: "country" as const },
+    { id: "999", name: "Belgique: Nord", type: "LOCATION" as const, kind: "metro" as const },
+  ];
+  assert.deepEqual(searchPinterestGeographyOptions(countries, "FR", "nord").map((option) => option.id), ["250059"]);
+  assert.deepEqual(searchPinterestGeographyOptions(countries, "BE", "nord").map((option) => option.id), ["999"]);
+  assert.equal(searchPinterestGeographyOptions(countries, "FR", "lille").length, 0);
+  assert.equal(searchPinterestGeographyOptions(countries, "FR", "59000").length, 0);
+  const regionalOptions = searchPinterestGeographyOptions(countries, "FR", "ile france");
+  assert.deepEqual(regionalOptions.map((option) => option.id), ["FR-IDF"]);
+  for (const option of searchPinterestGeographyOptions(countries, "FR", "")) {
+    assert.deepEqual(matchPinterestGeographies([option.name], catalogs.LOCATION, catalogs.GEO), { [option.type]: [option.id] });
+  }
+  assert.equal(searchPinterestGeographyOptions(countries, "FR", "").at(-1)?.kind, "country");
+  const many = Array.from({ length: 80 }, (_, index) => ({ id: String(index), name: `France: Zone ${index}`, type: "LOCATION" as const, kind: "metro" as const }));
+  assert.equal(searchPinterestGeographyOptions([...options, ...many], "FR", "").length, 40);
+  assert.equal(searchPinterestGeographyOptions(countries, "", "").length, 0);
 });
 
 test("Pinterest live payloads keep every entity paused and create an ad-only Pin", () => {
@@ -153,7 +227,7 @@ test("Pinterest live payloads keep every entity paused and create an ad-only Pin
     campaignId: "111111111111",
     objectiveType: "CONSIDERATION",
     bidInMicroCurrency: 1_000_000,
-    locationCodes: ["FR", "BE"],
+    targetingSpec: { LOCATION: ["FR", "BE"], LOCALE: ["fr"] },
   }), {
     name: "Découverte Pinterest · Groupe d’annonces",
     campaign_id: "111111111111",
@@ -163,7 +237,7 @@ test("Pinterest live payloads keep every entity paused and create an ad-only Pin
     bid_strategy_type: "MAX_BID",
     placement_group: "ALL",
     auto_targeting_enabled: true,
-    targeting_spec: { LOCATION: ["FR", "BE"] },
+    targeting_spec: { LOCATION: ["FR", "BE"], LOCALE: ["fr"] },
   });
 
   assert.deepEqual(buildPinterestAdOnlyPinBody({
@@ -223,6 +297,25 @@ test("Pinterest live status patches are explicit and never default to ACTIVE", (
       stage: "active",
     },
   ]);
+});
+
+test("Pinterest conserve la destination et transmet les paramètres de suivi validés", () => {
+  const destination = pinterestDestinationUrl("https://example.fr/offre?source=site&utm_source=old#contact", "?utm_source=pinterest&utm_campaign=offre%20locale");
+  assert.equal(destination, "https://example.fr/offre?source=site&utm_source=pinterest&utm_campaign=offre+locale#contact");
+  assert.equal(pinterestDestinationUrl("https://example.fr/offre#contact", ""), "https://example.fr/offre#contact");
+  assert.throws(() => pinterestDestinationUrl("https://example.fr", "utm_source=pinterest#bad"), /paramètres URL/);
+  assert.throws(() => pinterestDestinationUrl("https://example.fr", "utm_source"), /paramètres URL/);
+});
+
+test("Pinterest refuse le faux succès HTTP 200 pendant l’activation", () => {
+  assert.doesNotThrow(() => assertPinterestBatchStatus({ items: [{ data: { id: "123456", status: "ACTIVE" }, exceptions: [] }] }, "123456", "ACTIVE"));
+  for (const response of [
+    {}, { items: [] },
+    { items: [{ data: { id: "123456", status: "ACTIVE" }, exceptions: [{ message: "refused" }] }] },
+    { items: [{ data: { id: "999999", status: "ACTIVE" } }] },
+    { items: [{ data: { id: "123456", status: "PAUSED" } }] },
+    { items: [{ data: { id: "123456" } }] },
+  ]) assert.throws(() => assertPinterestBatchStatus(response, "123456", "ACTIVE"), /pas confirmé/);
 });
 
 test("Pinterest does not reuse old or future provider verification", () => {

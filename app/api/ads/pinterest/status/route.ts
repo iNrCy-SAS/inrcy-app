@@ -9,7 +9,7 @@ import {
 } from "@/lib/adsPinterestServer";
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("pinterest");
   if (errorResponse || !user) return errorResponse;
   const configured = getPinterestAdsCredentials().configured;
   if (!configured) {

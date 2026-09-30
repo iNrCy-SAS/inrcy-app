@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import {
   adsBadOriginResponse,
   adsRequestOriginAllowed,
@@ -49,6 +50,7 @@ import { linkedInAdsHasAccessMode } from "@/lib/adsLinkedInPolicy";
 import { linkedInAdsAuthorization, listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import type { LinkedInAdsPublishProgress } from "@/lib/adsLinkedInPublisherCore";
 import { parseAdsCampaignInput } from "@/lib/adsValidation";
+import { isAdsChannelPublishEnabled } from "@/lib/adsPublishMode";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ADS_CAMPAIGN_ID_PATTERN } from "../trackingPolicy";
@@ -302,10 +304,13 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return { response: NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 }) };
   if (!data) return { response: NextResponse.json({ error: "Campagne introuvable." }, { status: 404 }) };
+  const campaign = data as RemoteCampaignRow;
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, campaign.provider))) {
+    return { response: adsPilotOnlyResponse() };
+  }
   if (data.status === "publishing") {
     return { response: await recoverStaleLifecycleClaim(data as Record<string, unknown>, user.activeUserId) };
   }
-  const campaign = data as RemoteCampaignRow;
   const localCleanupOnly = operation === "delete" && canDiscardInterruptedInitialPublish(campaign);
   if (!localCleanupOnly && !canManageRemoteAdsCampaign(data)) {
     return { response: NextResponse.json({ error: "Cette campagne distante ne peut pas être gérée depuis iNrSend dans son état actuel." }, { status: 409 }) };
@@ -567,13 +572,13 @@ async function executeRemoteAction(input: {
           paused: recovery.operation === "pause",
         });
         return {
-          providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+          providerResources: { ...campaign.provider_resources, ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
           status: result.state === "active" ? "active" : pausedStatus,
         };
       }
       const result = await readPinterestAdsCampaignState(userId, common);
       return {
-        providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+        providerResources: { ...campaign.provider_resources, ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
         status: result.state === "active" ? "active" : pausedStatus,
       };
     }
@@ -582,7 +587,7 @@ async function executeRemoteAction(input: {
       paused: request.action !== "resume",
     });
     return {
-      providerResources: { ...campaign.provider_resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+      providerResources: { ...campaign.provider_resources, ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
       status: result.state === "active" ? "active" : "paused",
     };
   }
@@ -618,7 +623,11 @@ async function executeRemoteAction(input: {
         throw new GoogleAdsRemoteCampaignError("REMOTE_CAMPAIGN_REMOVED", "Cette campagne a déjà été supprimée de Google Ads.");
       }
       return {
-        providerResources: campaign.provider_resources,
+        providerResources: {
+          ...campaign.provider_resources,
+          ...(snapshot.status === "ENABLED" && campaign.provider_resources.initialActivationPending === true
+            ? { initialActivationPending: false } : {}),
+        },
         status: snapshot.status === "ENABLED" ? "active" as const : pausedLocalStatus(campaign),
       };
     }
@@ -749,6 +758,21 @@ export async function PATCH(request: Request, context: RouteContext) {
             : pendingRecovery?.operation === "initial_publish"
               ? { action: "initial_publish", changes: {}, mode: pendingRecovery.mode }
               : parsed.request;
+  // A recovered resume is still an activation. LinkedIn initial-publish
+  // recovery can also create/activate resources; the other providers only
+  // read their existing initial-publish state here. Keep pause, deletion and
+  // read-only reconciliation available while a channel is disabled.
+  const publishMode = effectiveRequest.action === "resume"
+    ? "live"
+    : campaign.provider === "linkedin" && effectiveRequest.action === "initial_publish"
+      ? effectiveRequest.mode || "live"
+      : null;
+  if (publishMode && !isAdsChannelPublishEnabled(campaign.provider, publishMode, process.env)) {
+    return NextResponse.json({
+      code: "ADS_CHANNEL_PUBLICATION_DISABLED",
+      error: "La création et la reprise de ce canal publicitaire sont momentanément désactivées. Vous pouvez toujours mettre en pause la campagne ou consulter son état.",
+    }, { status: 423 });
+  }
   const claimed = await claimCampaign(campaign, user.activeUserId, effectiveRequest);
   if (!claimed.claimedAt) return NextResponse.json({ error: claimed.error }, { status: 409 });
   let providerResources = campaign.provider_resources;

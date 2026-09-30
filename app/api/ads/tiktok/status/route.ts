@@ -5,7 +5,7 @@ import { readTikTokAdsIntegration } from "@/lib/adsTikTokServer";
 import { tikTokAdsAccessTokenIsFresh, tikTokAdsAuthorizeUrl, tikTokAdsRefreshTokenIsUsable } from "@/lib/adsTikTokPolicy";
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("tiktok");
   if (errorResponse || !user) return errorResponse;
   try {
     // Read the durable association, without calling TikTok on every screen open.

@@ -1,5 +1,31 @@
 import { assessAdsChannelDraft, type PinterestAdsDraft } from "./adsChannelDrafts.ts";
 import { missingPinterestAdsScopes, type PinterestAdsAccount } from "./adsPinterestPolicy.ts";
+import type { PinterestResolvedTargeting } from "./adsPinterestLocations.ts";
+
+/** Keep the reviewed tracking query on both the Pin and the paid ad. */
+export function pinterestDestinationUrl(destinationUrl: string, trackingParameters: string): string {
+  const tracking = trackingParameters.trim().replace(/^[?&]+/, "");
+  if (!tracking) return destinationUrl;
+  if (tracking.length > 500 || /[\[\]\r\n#?]/.test(tracking)
+    || tracking.split("&").some((part) => !/^[^=&\s]+=[^&]*$/.test(part))) {
+    throw new Error("Les balises de suivi Pinterest doivent être des paramètres URL au format nom=valeur&nom=valeur.");
+  }
+  const destination = new URL(destinationUrl);
+  for (const [name, value] of new URLSearchParams(tracking)) destination.searchParams.set(name, value);
+  return destination.toString();
+}
+
+/** A batch HTTP 200 may still contain an item-level failure. */
+export function assertPinterestBatchStatus(payload: unknown, expectedId: string, expectedStatus: "ACTIVE" | "PAUSED"): void {
+  const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const items = object(payload).items;
+  const item = Array.isArray(items) && items.length === 1 ? object(items[0]) : {};
+  const data = object(item.data);
+  const exceptions = item.exceptions;
+  if ((Array.isArray(exceptions) && exceptions.length) || data.id !== expectedId || data.status !== expectedStatus) {
+    throw new Error(`Pinterest n’a pas confirmé le statut ${expectedStatus} de la ressource ${expectedId}. Vérifiez la campagne dans Pinterest Ads Manager.`);
+  }
+}
 
 /**
  * Pinterest v5 campaign preparation only. This module has no HTTP side effects.
@@ -45,7 +71,7 @@ type PinterestLiveAdGroupBodyInput = {
   campaignId: string;
   objectiveType: PinterestLiveObjective;
   bidInMicroCurrency: number;
-  locationCodes: string[];
+  targetingSpec: PinterestResolvedTargeting;
 };
 
 type PinterestAdOnlyPinBodyInput = {
@@ -127,7 +153,7 @@ export function buildPinterestLiveAdGroupBody(input: PinterestLiveAdGroupBodyInp
     bid_strategy_type: "MAX_BID" as const,
     placement_group: "ALL" as PinterestLivePlacementGroup,
     auto_targeting_enabled: true,
-    targeting_spec: { LOCATION: input.locationCodes },
+    targeting_spec: input.targetingSpec,
   };
 }
 

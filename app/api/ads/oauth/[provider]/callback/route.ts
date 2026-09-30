@@ -5,7 +5,7 @@ import { encryptToken } from "@/lib/oauthCrypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
 import { verifyOAuthState } from "@/lib/security";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
-import { isAdsPilotAdmin } from "@/lib/adsServer";
+import { isAdsChannelUserAllowed } from "@/lib/adsServer";
 import { adsOAuthProvider, adsOAuthRedirectUri, adsReturnUrl } from "@/lib/adsOAuth";
 import { META_ADS_REQUIRED_PERMISSIONS } from "@/lib/adsMetaScopes";
 import { asRecord } from "@/lib/tsSafe";
@@ -58,8 +58,8 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     const supabase = await createSupabaseServer();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user || auth.user.id !== state.state.authUserId) return finish("error", "Reconnectez-vous à iNrCy avant de continuer.");
-    if (!(await isAdsPilotAdmin(auth.user.id))) return finish("error", "iNr’ADS est actuellement en préparation.");
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, auth.user.id, state.state.accountId);
+    if (!(await isAdsChannelUserAllowed(auth.user.id, userId, provider))) return finish("error", "Ce canal n’est pas encore accessible pour votre compte.");
 
     const redirectUri = adsOAuthRedirectUri(request.url, provider);
     const clientId = provider === "meta" ? process.env.FACEBOOK_APP_ID : process.env.GOOGLE_CLIENT_ID;

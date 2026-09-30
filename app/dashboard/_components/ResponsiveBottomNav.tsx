@@ -173,6 +173,7 @@ function ResponsiveBottomNavMobile() {
   const i18nT = useTranslations("shell");
   const router = useRouter();
   const pathname = usePathname();
+  const adsWorkspaceActive = pathname === "/dashboard/ads" || pathname.startsWith("/dashboard/ads/");
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardEdition = useDashboardEdition();
@@ -713,8 +714,9 @@ function ResponsiveBottomNavMobile() {
             aria-label={labels.publish}
             aria-current={publishActive ? "page" : undefined}
             aria-busy={publishLoadingVisible || undefined}
-            aria-disabled={publishActive || publishLoadingVisible ? "true" : undefined}
-            disabled={publishActive}
+            aria-disabled={publishActive || publishLoadingVisible || adsWorkspaceActive ? "true" : undefined}
+            disabled={publishActive || adsWorkspaceActive}
+            title={adsWorkspaceActive ? "La publication naturelle est indisponible dans iNr’ADS" : undefined}
             onClick={() => {
               navigate("/dashboard?action=publish");
             }}

@@ -5,7 +5,7 @@ import { buildPinterestAdsAuthorizeUrl } from "@/lib/adsPinterestPolicy";
 import { getPinterestAdsCredentials, getPinterestAdsRedirectUri } from "@/lib/adsPinterestServer";
 
 export async function GET(request: Request) {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("pinterest");
   if (errorResponse || !user) return errorResponse;
   const { clientId, configured } = getPinterestAdsCredentials();
   if (!configured) return NextResponse.json({ error: "Configuration Pinterest Ads incomplète.", code: "configuration_missing" }, { status: 503 });

@@ -38,10 +38,12 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
 }
 
-function gateScope(channelId: string, livePublishingEnabled: boolean, publicationEnabled: unknown, load = "ready") {
+function gateScope(channelId: string, livePublishingEnabled: boolean, publicationEnabled: unknown, load = "ready", googlePublishingEnabled = true, pinterestPublishingEnabled = true) {
   const scope: Record<string, unknown> = {
     channelId,
     livePublishingEnabled,
+    googlePublishingEnabled,
+    pinterestPublishingEnabled,
     externalStatuses: { linkedin: { load, publicationEnabled } },
     demoDialog: { channelId },
     linkedInPreflight: { account: { canServeCampaigns: true, canManageCampaigns: true } },
@@ -51,15 +53,19 @@ function gateScope(channelId: string, livePublishingEnabled: boolean, publicatio
   return scope;
 }
 
-test("LinkedIn uses its dedicated gate independently from the Meta/Google flag in opening and both launch modes", () => {
+test("the four channel gates remain independent in opening and both launch modes", () => {
   for (const global of [false, true]) {
     for (const dedicated of [false, true]) {
-      for (const channel of ["linkedin", "meta", "google", "pinterest"]) {
-        const scope = gateScope(channel, global, dedicated);
-        const expected = channel === "linkedin" ? dedicated : channel === "pinterest" || global;
-        assert.equal(expression(variable("channelPublishingEnabled"), scope), expected, `${channel}, global=${global}, dedicated=${dedicated}`);
-        assert.equal(dialogGate("activeEnabled", scope), expected);
-        assert.equal(dialogGate("pausedEnabled", scope), expected);
+      for (const googleEnabled of [false, true]) {
+        for (const pinterestEnabled of [false, true]) {
+          for (const channel of ["linkedin", "meta", "google", "pinterest"]) {
+            const scope = gateScope(channel, global, dedicated, "ready", googleEnabled, pinterestEnabled);
+            const expected = { linkedin: dedicated, meta: global, google: googleEnabled, pinterest: pinterestEnabled }[channel];
+            assert.equal(expression(variable("channelPublishingEnabled"), scope), expected, `${channel}, global=${global}, dedicated=${dedicated}`);
+            assert.equal(dialogGate("activeEnabled", scope), expected);
+            assert.equal(dialogGate("pausedEnabled", scope), expected);
+          }
+        }
       }
     }
   }
@@ -125,7 +131,7 @@ test("opening and confirming a disabled LinkedIn launch return before any accoun
     channelId: "linkedin", channelPublishingEnabled: false, channelMeta: { label: "LinkedIn Ads" },
     isAdsDraftAccountChannel: () => true, busy: null, demoSubmissionRef: { current: false },
     linkedInSelectionsReady: true, linkedInComplianceReady: true, demoDialog: null,
-    setNotice: (notice: string) => notices.push(notice), setBusy: () => {}, setDemoDialog: () => {},
+    setNotice: (notice: string) => notices.push(notice), setBusy: () => {}, setDemoDialog: () => {}, setPublicationPhase: () => {},
     creating: true, step: 5, validationStep: 5,
     fetch: () => { requests += 1; throw new Error("unexpected request"); },
   };

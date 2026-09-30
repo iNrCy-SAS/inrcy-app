@@ -1,8 +1,22 @@
 import {
   metaAssetFeedSpec,
   metaCreativeIdentity,
+  metaPlacementTargeting,
   type MetaAdsPlacement,
 } from "./adsMetaPlacement.ts";
+import { resolveMetaAdsTargetLocations } from "./adsMetaLifecycleCore.ts";
+
+/** Resolve the reviewed zones before any image upload or campaign mutation. */
+export async function resolveMetaAdsPublishTargeting(
+  userId: string,
+  placements: readonly MetaAdsPlacement[],
+  targetLocations: string[],
+  graph: MetaAdsGraphJson,
+): Promise<Record<string, unknown>> {
+  const placementTargeting = metaPlacementTargeting(placements);
+  const geoLocations = await resolveMetaAdsTargetLocations(userId, targetLocations, graph);
+  return { ...placementTargeting, geo_locations: geoLocations };
+}
 
 export type MetaAdsPublishStage =
   | "preparing"
@@ -153,6 +167,12 @@ export async function executeMetaAdsGraphPublish(
   metaAdsJson: MetaAdsGraphJson,
   persistProgress: PersistMetaAdsProgress,
 ): Promise<Record<string, unknown>> {
+  const geoLocations = asRecord(input.targeting.geo_locations);
+  if (!["countries", "regions", "cities", "zips"].some((key) =>
+    Array.isArray(geoLocations[key]) && geoLocations[key].length > 0
+  )) {
+    throw new Error("Vérifiez les zones Meta avant la création de la campagne.");
+  }
   const accountPath = `act_${input.adAccountId}`;
   let progress: MetaAdsPublishProgress = {
     provider: "meta",
@@ -212,7 +232,7 @@ export async function executeMetaAdsGraphPublish(
     });
 
     const adSet = await metaAdsJson(input.userId, `${accountPath}/adsets`, form({
-      name: `${input.name} · France`,
+      name: `${input.name} · Audience`,
       campaign_id: progress.campaignId!,
       optimization_goal: "LINK_CLICKS",
       billing_event: "IMPRESSIONS",

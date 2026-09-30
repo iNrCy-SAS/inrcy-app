@@ -13,8 +13,8 @@ export const ADS_PAUSED_DEMO_CONFIRMATION = "CREER_DEMO_EN_PAUSE";
 type AdsPublishEnvironment = Record<string, string | undefined>;
 
 /**
- * Unknown request values always resolve to the live path. That path stays
- * locked unless its own explicit environment flag and confirmation are set.
+ * Unknown request values resolve to the live path, which always requires
+ * explicit spending confirmation and an enabled provider.
  */
 export function parseAdsPublishMode(value: unknown): AdsPublishMode {
   if (value === "paused" || value === "demo_paused") return value;
@@ -25,6 +25,14 @@ export function isAdsPublishModeEnabled(mode: AdsPublishMode, environment: AdsPu
   return mode === "demo_paused"
     ? environment.INRCY_ADS_DEMO_PAUSED_PUBLISH_ENABLED === "true"
     : environment.INRCY_ADS_LIVE_PUBLISH_ENABLED === "true";
+}
+
+/** Approved channels have independent kill switches; pilot flags do not unlock other providers. */
+export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMode, environment: AdsPublishEnvironment): boolean {
+  if (provider === "google") return environment.INRCY_GOOGLE_ADS_PUBLISH_ENABLED !== "false";
+  if (provider === "pinterest") return environment.INRCY_PINTEREST_ADS_PUBLISH_ENABLED !== "false";
+  if (provider === "linkedin") return environment.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true";
+  return provider === "meta" && isAdsPublishModeEnabled(mode, environment);
 }
 
 export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown): boolean {

@@ -1,14 +1,29 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { adsDraftHasMediaStep, adsDraftValidationStep } from "../lib/adsDraftNavigation.ts";
+import { adsDraftHasKeywordsStep, adsDraftHasMediaStep, adsDraftValidationStep } from "../lib/adsDraftNavigation.ts";
 
 test("un brouillon reprend toujours sur la validation adaptée à son parcours", () => {
   assert.equal(adsDraftValidationStep({ provider: "google", campaignType: "search", creationMode: "manual" }), 7);
   assert.equal(adsDraftValidationStep({ provider: "google", campaignType: "search", creationMode: "inrcy" }), 8);
   assert.equal(adsDraftValidationStep({ provider: "meta", campaignType: "meta_traffic", creationMode: "manual" }), 8);
-  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "manual" }), 9);
-  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "inrcy" }), 10);
+  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "manual" }), 8);
+  assert.equal(adsDraftValidationStep({ provider: "pinterest", campaignType: "generic", creationMode: "inrcy" }), 9);
+});
+
+test("Pinterest automatique omet Découverte, les trois ciblages manuels la conservent", () => {
+  const draft = { provider: "pinterest" as const, campaignType: "generic" as const, creationMode: "inrcy" as const };
+  assert.equal(adsDraftHasKeywordsStep(draft), false);
+  for (const targetingMode of ["automatic", "interests", "keywords", "audiences"] as const) {
+    const configured = { ...draft, channelSettings: { schemaVersion: 1 as const, channel: "pinterest" as const,
+      objectiveType: "CONSIDERATION" as const, intendedPromotionType: "STANDARD_AD" as const,
+      creativeType: "REGULAR" as const, targetingMode, conversionEvent: null } };
+    assert.equal(adsDraftHasKeywordsStep(configured), targetingMode !== "automatic");
+    assert.equal(adsDraftValidationStep(configured), targetingMode === "automatic" ? 9 : 10);
+  }
+  for (const provider of ["google", "meta", "linkedin", "tiktok", "x"] as const) {
+    assert.equal(adsDraftHasKeywordsStep({ provider }), true);
+  }
 });
 
 test("seuls Google Search et le post X textuel omettent l’étape médias", () => {
@@ -33,7 +48,7 @@ test("le menu iNr’ADS lit uniquement les brouillons et les rouvre sans dupliqu
   assert.match(menu, /folder=campagnes-ads&boxView=drafts/);
   assert.match(client, /<AdsDraftsMenu refreshKey=\{draftsRevision\} onOpenDraft=\{openDraftFromHeader\}/);
   assert.match(client, /setStep\(adsDraftValidationStep\(campaign\.draft\)\)/);
-  assert.match(client, /Toutes les étapes précédentes restent modifiables/);
+  assert.doesNotMatch(client, /setNotice\(`Brouillon.*rouvert/);
   assert.match(route, /requestedStatus !== null && requestedStatus !== "draft"/);
   assert.match(route, /query = query\.eq\("status", "draft"\)/);
   assert.doesNotMatch(route, /from\("send_items"\)/);

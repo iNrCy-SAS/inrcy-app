@@ -322,8 +322,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   type="button"
                   className={signatureStyles.cardButton}
                   data-testid={adsPilotEnabled ? (standardMode ? "standard-campaign-ads" : "premium-campaign-ads") : "campaign-ads-coming-soon"}
-                  data-dashboard-prefetch={adsPilotEnabled ? "/dashboard/ads" : undefined}
-                  onClick={adsPilotEnabled ? () => startModuleNavigation("/dashboard/ads") : undefined}
+                  data-dashboard-prefetch={adsPilotEnabled && !standardMode ? "/dashboard/ads" : undefined}
+                  onClick={adsPilotEnabled ? () => standardMode ? startPanelOpening("abonnement") : startModuleNavigation("/dashboard/ads") : undefined}
                   disabled={!adsPilotEnabled || isModuleLoadingVisible("/dashboard/ads")}
                   aria-busy={isModuleLoadingVisible("/dashboard/ads") || undefined}
                   aria-label={!adsPilotEnabled ? `iNr’ADS — ${copy.comingSoon}` : standardMode ? `iNr’ADS — ${t.modules.campaignsPremiumLabel}` : "iNr’ADS"}

@@ -4,7 +4,7 @@ import { linkedInAdsAccessTokenIsFresh, linkedInAdsHasReadAccess, linkedInAdsSco
 import { getLinkedInAdsCredentials, LinkedInAdsConnectionError, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 
 export async function GET() {
-  const { user, errorResponse } = await requirePremiumAdsUser();
+  const { user, errorResponse } = await requirePremiumAdsUser("linkedin");
   if (errorResponse || !user) return errorResponse;
   try {
     const integration = await readLinkedInAdsIntegration(user.activeUserId);

@@ -3,12 +3,12 @@ import "server-only";
 import { listMetaPages, metaAdsJson } from "./adsServer.ts";
 import {
   metaCreativeAssetUrls,
-  metaPlacementTargeting,
   metaPlacementsNeedInstagramIdentity,
   type MetaAdsPlacement,
 } from "./adsMetaPlacement.ts";
 import {
   executeMetaAdsGraphPublish,
+  resolveMetaAdsPublishTargeting,
   metaUrlTags,
   MetaAdsPublishError,
   type PersistMetaAdsProgress,
@@ -207,8 +207,6 @@ export async function publishMetaAdsCampaign(
     throw new Error("Le lien de destination Meta doit être une URL HTTPS publique.");
   }
   const placements = draft.metaPlacements as MetaAdsPlacement[];
-  // Builds and validates the exact placement contract before any provider write.
-  const targeting = metaPlacementTargeting(placements);
   const needsInstagramIdentity = metaPlacementsNeedInstagramIdentity(placements);
   const selectedAssets = metaCreativeAssetUrls({
     placements,
@@ -256,6 +254,10 @@ export async function publishMetaAdsCampaign(
       throw new Error("Le compte Instagram lié à cette Page n’est pas autorisé sur le compte publicitaire Meta sélectionné. Vérifiez son association dans Meta Business Suite, puis actualisez iNr’ADS.");
     }
   }
+
+  // The review's local zones must be the actual ad-set geography. The shared
+  // resolver rejects unknown/ambiguous locations instead of widening to France.
+  const targeting = await resolveMetaAdsPublishTargeting(userId, placements, draft.targetLocations, metaAdsJson);
 
   // Resolve and download only after the selected account and identities have
   // been rechecked. Each placement family is inspected independently from the

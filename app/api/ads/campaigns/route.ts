@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
-import { isAdsProvider, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
+import { isAdsProvider, isAdsChannelId, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
+import { isAdsPilotAdmin, isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 
 const CAMPAIGN_PAGE_SIZE = 50;
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
   let query = supabaseAdmin.from("ads_campaigns")
     .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact" })
     .eq("user_id", user.activeUserId);
+  if (!(await isAdsPilotAdmin(user.authUserId))) query = query.in("provider", ["google", "pinterest"]);
   if (requestedStatus === "draft") query = query.eq("status", "draft");
   const { data, error, count } = await query
     .order("created_at", { ascending: false })
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const { draft, error: validationError } = parseAdsCampaignInput(body, { purpose: "draft" });
   if (!draft) return NextResponse.json({ error: validationError }, { status: 400 });
+  if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
 
   try {
     if (isAdsProvider(draft.provider) && draft.adAccountId) {
@@ -87,9 +90,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Pinterest can bind its verified advertiser to a local proposal while
-    // provider-side campaign creation remains disabled. The other planned
-    // channels still keep their advertiser outside the campaign payload.
+    // Persist advertisers only for channels with account-bound campaign adapters.
     const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin"
       ? draft.adAccountId : "";
 
@@ -112,10 +113,11 @@ export async function POST(request: Request) {
     }
     if (typeof requestedId === "string") {
       const { data: existing, error: readError } = await supabaseAdmin.from("ads_campaigns")
-        .select("id,status,published_at,provider_resources,updated_at")
+        .select("id,provider,status,published_at,provider_resources,updated_at")
         .eq("id", requestedId).eq("user_id", user.activeUserId).maybeSingle();
       if (readError) return NextResponse.json({ error: "Impossible de vérifier ce brouillon." }, { status: 503 });
       if (!existing) return NextResponse.json({ error: "Brouillon introuvable." }, { status: 404 });
+      if (!isAdsChannelId(existing.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, existing.provider))) return adsPilotOnlyResponse();
       if (!canMutateAdsDraft(existing)) {
         return NextResponse.json({ error: "Ce brouillon possède déjà une publication ou des ressources sur une plateforme et ne peut plus être modifié ici." }, { status: 409 });
       }

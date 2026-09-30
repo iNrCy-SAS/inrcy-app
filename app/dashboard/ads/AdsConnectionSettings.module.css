@@ -291,7 +291,7 @@
 }
 
 .footer {
-  display: flex;
+  display: none;
   justify-content: flex-end;
   align-items: center;
   min-height: 44px;
@@ -343,37 +343,46 @@
   }
 }
 
-.content[data-compact] {
+@media (max-width: 999px), (max-height: 659px) {
+.content {
   gap: 12px;
   min-height: 100%;
   grid-template-rows: minmax(0, 1fr) auto;
   padding: 5px 0 0;
 }
 
-.content[data-compact] .step {
+.content .step {
   display: block;
   min-height: 0;
 }
 
-.content[data-compact] .step[hidden] {
+.content .step[data-step-index] {
   display: none;
 }
 
-.content[data-compact] .stepHeader,
-.content[data-compact] .stepBody {
+.content[data-step="0"] .step[data-step-index="0"],
+.content[data-step="1"] .step[data-step-index="1"],
+.content[data-step="2"] .step[data-step-index="2"] {
+  display: block;
+}
+
+.content .stepHeader,
+.content .stepBody {
   padding: 13px;
 }
 
-.content[data-compact] .footer {
+.content .footer {
+  display: flex;
   justify-content: space-between;
   gap: 8px;
   padding-top: 0;
 }
 
-.content[data-compact] .footer :is(.previous, .done) {
+.content .footer :is(.previous, .done) {
   min-height: 38px;
   padding: 8px 13px;
   font-size: 11px;
+}
 }
 
 @media (max-width: 620px) {
@@ -386,45 +395,45 @@
     flex-wrap: wrap;
   }
 
-  .content[data-compact] .controlRow input,
-  .content[data-compact] .controlRow :is(button, a),
-  .content[data-compact] .resourceActions :is(button, a) {
+  .content .controlRow input,
+  .content .controlRow :is(button, a),
+  .content .resourceActions :is(button, a) {
     width: 100% !important;
     flex: 1 1 100%;
   }
 
-  .content[data-compact] .controlRow .field {
+  .content .controlRow .field {
     flex-basis: 100%;
   }
 
-  .content[data-compact] .refresh {
+  .content .refresh {
     width: 100% !important;
   }
 }
 
 @media (max-height: 600px) and (max-width: 999px) {
-  .content[data-compact] {
+  .content {
     gap: 8px;
     padding: 0;
   }
 
-  .content[data-compact] .stepHeader,
-  .content[data-compact] .stepBody {
+  .content .stepHeader,
+  .content .stepBody {
     padding: 10px 12px;
   }
 
-  .content[data-compact] .stepCopy > div:nth-child(2) {
+  .content .stepCopy > div:nth-child(2) {
     font-size: 11px;
     line-height: 1.25;
   }
 
-  .content[data-compact] .field select,
-  .content[data-compact] .controlRow input {
+  .content .field select,
+  .content .controlRow input {
     min-height: 38px;
     font-size: 13px;
   }
 
-  .content[data-compact] .detail {
+  .content .detail {
     font-size: 10px;
     line-height: 1.3;
   }
