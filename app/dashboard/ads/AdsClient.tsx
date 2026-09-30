@@ -1113,6 +1113,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const nextConnectionChannel = CHANNEL_CATALOG[(connectionChannelIndex + 1) % CHANNEL_CATALOG.length];
   const externalSettingsChannel: ExternalChannelId = isExternalChannel(channelId) ? channelId : "linkedin";
   const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
+  // LinkedIn has its own rollout gate. A durable account snapshot is not a
+  // publication authorization: require the current status endpoint to confirm it.
+  const linkedInPublishingEnabled = externalStatuses.linkedin.load === "ready"
+    && externalStatuses.linkedin.publicationEnabled === true;
+  const channelPublishingEnabled = channelId === "linkedin"
+    ? linkedInPublishingEnabled
+    : channelId === "pinterest" || livePublishingEnabled;
   const reviewAccountReady = isAdsProvider(channelId)
     ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || (
       configuredMetaPage
@@ -1147,6 +1154,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       [channel]: {
         ...current[channel],
         load: options?.silent && current[channel].load === "ready" ? "ready" : "loading",
+        publicationEnabled: channel === "linkedin" ? false : current[channel].publicationEnabled,
         error: "",
       },
     }));
@@ -1266,7 +1274,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           ...current[channel],
           selectedAccountCanManage: data.selectedAccountCanManage === true,
           selectedAccountCanServe: data.selectedAccountCanServe === true,
-          publicationEnabled: data.publicationEnabled === true,
+          // Account discovery does not own LinkedIn's rollout authorization.
+          publicationEnabled: channel === "linkedin"
+            ? current[channel].publicationEnabled
+            : data.publicationEnabled === true,
         },
       }));
       setExternalError("");
@@ -2062,7 +2073,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         : "Confirmez la déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire avant la validation finale.");
       return;
     }
-    if (channelId !== "pinterest" && !livePublishingEnabled) {
+    if (!channelPublishingEnabled) {
       setNotice(`Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`);
       return;
     }
@@ -2231,6 +2242,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     try {
       if (confirmation.channelId !== channelId || !creating || step !== validationStep) {
         throw new Error("Le parcours de la campagne a changé. Revenez à la validation et réessayez.");
+      }
+      if (!channelPublishingEnabled) {
+        throw new Error(`Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`);
       }
       const campaignDraft: AdsCampaignInput = {
         ...draft,
@@ -2958,11 +2972,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       busy={busy === "demo"}
       launchStatus={demoDialog.launchStatus}
       activeEnabled={demoDialog.channelId === "linkedin"
-        ? Boolean(livePublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
+        ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
           && selectedLinkedInCampaignGroup?.status === "ACTIVE")
         : demoDialog.channelId === "pinterest" || livePublishingEnabled}
       pausedEnabled={demoDialog.channelId === "linkedin"
-        ? Boolean(livePublishingEnabled && linkedInPreflight?.account?.canManageCampaigns)
+        ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns)
         : demoDialog.channelId === "pinterest" || livePublishingEnabled}
       declarationLabel={demoDialog.launchStatus === "active"
         ? `Je valide le compte, la campagne et la facturation directe par ${demoDialog.details.channelLabel}, et je confirme le lancement en statut Active.`

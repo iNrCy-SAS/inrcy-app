@@ -291,15 +291,10 @@ function providerDraft(
   };
 }
 
-async function collectPublicationEvidence(
+async function readPublicationAccount(
   userId: string,
   draft: AdsCampaignInput,
-  targetStatus: "ACTIVE" | "PAUSED",
-  fetchImpl: PublisherFetch,
-  sleep: (milliseconds: number) => Promise<void>,
-  now: () => number,
-  imageUrn?: string,
-): Promise<PublicationEvidence> {
+) {
   const integration = await readLinkedInAdsIntegration(userId);
   if (!integration || integration.status !== "connected" || integration.resource_id !== draft.adAccountId) {
     throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads associé a changé. Reconnectez-le avant le lancement.", "connection_changed", 409);
@@ -315,6 +310,19 @@ async function collectPublicationEvidence(
   }
   if (account.currency !== "EUR") throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads doit être en EUR.", "unsupported_account_currency", 422);
   if (!account.canManageCampaigns) throw new LinkedInAdsConnectionError("Votre rôle LinkedIn ne permet plus de gérer les campagnes.", "account_access_denied", 403);
+  return { token, scopes, account };
+}
+
+async function collectPublicationEvidence(
+  userId: string,
+  draft: AdsCampaignInput,
+  targetStatus: "ACTIVE" | "PAUSED",
+  fetchImpl: PublisherFetch,
+  sleep: (milliseconds: number) => Promise<void>,
+  now: () => number,
+  imageUrn?: string,
+): Promise<PublicationEvidence> {
+  const { token, scopes, account } = await readPublicationAccount(userId, draft);
   if (targetStatus === "ACTIVE" && !account.canServeCampaigns) {
     throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads est suspendu, en attente ou On hold. Réactivez sa servabilité dans Campaign Manager avant tout lancement.", "account_not_serving", 409);
   }
@@ -489,12 +497,13 @@ function campaignEvidence(
   accountId: string,
   groupUrn: string,
   organizationUrn: string,
+  expectedStatus: "DRAFT" | "ACTIVE" | "PAUSED" = "DRAFT",
 ): LinkedInAdsCampaignEvidence["campaign"] | null {
   const row = record(payload);
   const id = linkedInAdsCampaignReference(row.id)?.urn;
   const account = text(row.account);
   const status = text(row.status);
-  return id === campaignUrn && account === `urn:li:sponsoredAccount:${accountId}` && status === "DRAFT"
+  return id === campaignUrn && account === `urn:li:sponsoredAccount:${accountId}` && status === expectedStatus
     && text(row.campaignGroup) === groupUrn && text(row.associatedEntity) === organizationUrn
     && row.objectiveType === "WEBSITE_VISIT" && row.format === "STANDARD_UPDATE" && row.type === "SPONSORED_UPDATES"
     ? { urn: campaignUrn, account, status } : null;
@@ -562,6 +571,42 @@ export async function publishLinkedInAdsCampaign(
       const step = progress.pendingStep as LinkedInAdsCreateStep;
       await persist({ ...progress, pendingStep: undefined, uncertainStep: step });
       throw new Error("Une création LinkedIn a été interrompue après son envoi. Contrôlez Campaign Manager avant toute reprise.");
+    }
+
+    // A final PATCH can succeed even when its response or the local completion
+    // write is lost. Reconcile that exact state before DRAFT-only serialization
+    // or media/preflight checks. This branch never activates or creates anything.
+    const finalCheckpoint = progress.stage === "active" || progress.stage === "paused";
+    if (progress.pendingStep === "finalize_campaign" || finalCheckpoint) {
+      if ((!finalCheckpoint && progress.stage !== "creative_active")
+        || (progress.pendingStep && progress.pendingStep !== "finalize_campaign")) {
+        throw new Error("Le checkpoint de finalisation LinkedIn est incohérent.");
+      }
+      const { token } = await readPublicationAccount(userId, draft);
+      const campaign = linkedInAdsCampaignReference(progress.campaignUrn)!;
+      const [campaignPayload, creativePayload] = await Promise.all([
+        linkedInRead(token, `/rest/adAccounts/${draft.adAccountId}/adCampaigns/${campaign.id}`, fetchImpl, sleep),
+        linkedInRead(token, `/rest/adAccounts/${draft.adAccountId}/creatives/${encodeURIComponent(progress.creativeUrn!)}`, fetchImpl, sleep),
+      ]);
+      const remoteStatus = text(campaignPayload.status);
+      const stillDraft = !finalCheckpoint && remoteStatus === "DRAFT";
+      if (!campaignEvidence(
+        campaignPayload, campaign.urn, draft.adAccountId,
+        `urn:li:sponsoredCampaignGroup:${draft.linkedinCampaignGroupId}`,
+        String(draft.linkedinOrganizationUrn || ""),
+        stillDraft ? "DRAFT" : targetStatus,
+      ) || linkedInAdsCreativeUrn(creativePayload.id) !== progress.creativeUrn
+        || text(creativePayload.campaign) !== campaign.urn
+        || text(record(creativePayload.content).reference) !== progress.postUrn
+        || text(creativePayload.intendedStatus) !== "ACTIVE") {
+        throw new Error("LinkedIn n’a pas confirmé les ressources et le statut attendus pour cette reprise. Contrôlez Campaign Manager.");
+      }
+      if (!stillDraft) {
+        await persist({ ...progress, stage: targetStatus === "ACTIVE" ? "active" : "paused", pendingStep: undefined });
+        return progress;
+      }
+      // The final PATCH was not applied: keep the durable hierarchy and run the
+      // normal live checks before retrying only the requested final status.
     }
 
     // Phase 1: all local and live account/targeting evidence is checked before

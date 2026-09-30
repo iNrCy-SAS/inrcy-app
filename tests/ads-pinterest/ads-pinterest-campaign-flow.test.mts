@@ -59,7 +59,7 @@ test("a verified Pinterest advertiser ID can follow a local campaign proposal", 
 });
 
 test("planned channels without the completed account binding still reject advertiser IDs", () => {
-  for (const provider of ["linkedin", "tiktok", "x"]) {
+  for (const provider of ["tiktok", "x"]) {
     const input = campaign("pinterest", "123456789012");
     input.provider = provider;
     delete (input as { channelSettings?: unknown }).channelSettings;
@@ -115,7 +115,9 @@ test("Pinterest environment checks cover the dedicated Ads callback and credenti
 test("the final existing modal adds Active by default and Paused as the alternative", () => {
   const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
   const dialog = readFileSync(path.join(root, "app/dashboard/ads/AdsCampaignDemoDialog.tsx"), "utf8");
-  assert.match(client, /launchStatus: "active"/);
+  assert.match(client, /let launchStatus: AdsCampaignLaunchStatus = "active"/);
+  assert.match(client, /if \(connection\.selectedAccountCanServe !== true \|\| group\.status !== "ACTIVE"\) launchStatus = "paused"/);
+  assert.match(client, /setDemoDialog\(\{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
   assert.match(client, /"Lancer la campagne"/);
   assert.match(client, /"Enregistrer en brouillon"/);
   assert.match(dialog, /Statut au lancement/);

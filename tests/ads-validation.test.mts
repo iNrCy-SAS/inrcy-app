@@ -86,17 +86,28 @@ test("les six canaux peuvent être préparés en brouillon sans compte annonceur
   }
 });
 
-test("LinkedIn, TikTok et X restent impossibles à publier et ne peuvent pas lier de faux comptes", () => {
+test("TikTok et X restent impossibles à publier et ne peuvent pas lier de faux comptes", () => {
   const unconnectedDraft = {
     ...metaDraft,
-    provider: "linkedin",
+    provider: "tiktok",
     adAccountId: "",
     name: "Campagne locale",
     destinationUrl: "",
   };
-  assert.match(parseAdsCampaignInput(unconnectedDraft).error || "", /pas encore disponibles/);
-  assert.match(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
+  for (const provider of ["tiktok", "x"]) {
+    assert.match(parseAdsCampaignInput({ ...unconnectedDraft, provider }).error || "", /pas encore disponibles/);
+    assert.match(parseAdsCampaignInput({ ...unconnectedDraft, provider, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
+  }
   assert.equal(parseAdsCampaignInput({ ...metaDraft, provider: "meta", adAccountId: "" }, { purpose: "draft" }).draft?.adAccountId, "");
+});
+
+test("LinkedIn accepte un identifiant de compte en brouillon mais exige un compte valide avant publication", () => {
+  const linkedInDraft = { ...metaDraft, provider: "linkedin", name: "Campagne LinkedIn" };
+  assert.match(parseAdsCampaignInput({ ...linkedInDraft, adAccountId: "" }).error || "", /Sélectionnez un compte publicitaire connecté/);
+  assert.match(parseAdsCampaignInput({ ...linkedInDraft, adAccountId: "faux-compte" }, { purpose: "draft" }).error || "", /identifiant du compte publicitaire est invalide/);
+  const saved = parseAdsCampaignInput({ ...linkedInDraft, adAccountId: "1234567890" }, { purpose: "draft" });
+  assert.equal(saved.error, null);
+  assert.equal(saved.draft?.adAccountId, "1234567890");
 });
 
 test("les médias préparatoires exigent une URL HTTPS valide", () => {

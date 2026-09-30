@@ -102,7 +102,7 @@ test("une nouvelle campagne reprend le compte associé et le lancement l’enreg
   const start = clientSource.split("function startNewCampaign() {")[1]?.split("function closeCampaignCreation()")[0] || "";
   const launchCheck = clientSource.split("async function openLaunchDialog() {")[1]?.split("async function confirmCampaignLaunch()")[0] || "";
   const launch = clientSource.split("async function confirmCampaignLaunch() {")[1]?.split("function reopen(")[0] || "";
-  assert.match(start, /adAccountId: isAdsProvider\(channelId\)[\s\S]*configuredAccountId[\s\S]*channelId === "pinterest" \? externalStatuses\.pinterest\.selectedAccountId : ""/);
+  assert.match(start, /adAccountId: isAdsProvider\(channelId\)\s*\? configuredAccountId\s*: isExternalChannel\(channelId\) \? externalStatuses\[channelId\]\.selectedAccountId : ""/);
   assert.match(launchCheck, /connection\.selectedAccountId/);
   assert.match(launch, /fetch\("\/api\/ads\/campaigns", \{/);
   assert.match(launch, /fetch\(`\/api\/ads\/campaigns\/\$\{campaignId\}\/publish`/);

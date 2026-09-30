@@ -1,4 +1,5 @@
 -- LinkedIn Advertising API Development access now backs the fail-closed image
+-- Applied to production with migration version 20260930004822.
 -- publisher. Provider-side resources remain allowed only for channels with a
 -- real publisher; TikTok and X stay local-draft-only.
 alter table public.ads_campaigns

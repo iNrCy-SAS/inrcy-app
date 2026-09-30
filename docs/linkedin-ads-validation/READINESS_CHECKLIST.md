@@ -60,7 +60,7 @@ Ne cocher un élément que lorsqu’une preuve datée est disponible. Les captur
 - [x] Le code relit immédiatement compte, rôle, Page/organisation, groupe de campagnes, géographies exactes par `q=urns`, locale, audience et pricing.
 - [x] Le média est relu dans la médiathèque appartenant à l’utilisateur, décodé et borné avant l’initialisation de l’upload LinkedIn.
 - [x] Chaque image/campagne/post/creative est enregistré dans `provider_resources` avant l’étape suivante ; un `POST` incertain est placé en contrôle et n’est pas répété automatiquement.
-- [ ] La migration `20260930000116_enable_linkedin_ads_publication.sql` est appliquée sur Supabase Production.
+- [x] La migration `20260930004822_enable_linkedin_ads_publication.sql` est appliquée sur Supabase Production (30 septembre 2026, contrainte validée, RLS conservé).
 - [ ] Le publisher LinkedIn dédié est déployé avec son verrou activé dans l’environnement de test retenu.
 - [ ] Une campagne `DRAFT` est créée sur un compte Development explicitement autorisé.
 - [ ] La campagne distante apparaît dans Campaign Manager avec le bon compte, objectif, budget, calendrier et ciblage.

@@ -39,7 +39,7 @@
     "qa:booster-images": "npm run test:booster-images && npm run test:media-rules",
     "verify:pinterest-env": "node scripts/verify-pinterest-env.mjs",
     "verify:linkedin-ads-env": "node scripts/verify-linkedin-ads-env.mjs",
-    "test:ads-linkedin": "node --test --test-isolation=none --experimental-strip-types tests/ads-linkedin-connector.test.mts tests/ads-linkedin-env.test.mts tests/ads-linkedin-publish.test.mts tests/ads-linkedin-preflight.test.mts tests/ads-linkedin-operations.test.mts tests/ads-linkedin-publisher.test.mts tests/ads-linkedin-campaign-ui.test.mts tests/ads-linkedin-lifecycle.test.mts",
+    "test:ads-linkedin": "node --test --test-isolation=none --experimental-strip-types tests/ads-linkedin-connector.test.mts tests/ads-linkedin-env.test.mts tests/ads-linkedin-publish.test.mts tests/ads-linkedin-preflight.test.mts tests/ads-linkedin-operations.test.mts tests/ads-linkedin-publisher.test.mts tests/ads-linkedin-campaign-ui.test.mts tests/ads-linkedin-publication-gate.test.mts tests/ads-linkedin-lifecycle.test.mts",
     "verify:x-ads-env": "node scripts/verify-x-ads-env.mjs",
     "test:ads-x": "node --test --test-isolation=none --experimental-strip-types tests/ads-x/*.test.mts",
     "qa:x-ads": "npm run test:ads-x && npm run verify:x-ads-env",

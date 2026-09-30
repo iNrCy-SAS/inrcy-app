@@ -173,7 +173,7 @@ test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activa
   assert.match(route, /error instanceof MetaAdsPublishError \|\| error instanceof PinterestAdsPublishError[\s\S]*?error\.progress : progress/);
 });
 
-test("un préflight Meta ou Pinterest refusé reste corrigeable sans autoriser un doublon après mutation", () => {
+test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans autoriser un doublon après mutation", () => {
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
   const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
@@ -196,7 +196,8 @@ test("un préflight Meta ou Pinterest refusé reste corrigeable sans autoriser u
   assert.match(route, /let pinterestProviderMutationStarted = false/);
   assert.match(route, /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
   assert.match(route, /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
-  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate \|\| pinterestRejectedBeforeCreate/);
+  assert.match(route, /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !\("imageUrn" in resources \|\| "campaignUrn" in resources \|\| "postUrn" in resources \|\| "creativeUrn" in resources\)/);
+  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate;/);
 });
 
 test("le connecteur Search transmet les réseaux Google choisis dans le studio", () => {

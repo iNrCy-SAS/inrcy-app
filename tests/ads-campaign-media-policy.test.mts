@@ -116,8 +116,8 @@ test("l’UI ne promet pas de média pour les formats sans média et signale l�
   assert.match(generator, /shouldGenerateAdsMedia/);
   assert.match(generator, /aucun média n’a été généré/);
   assert.match(client, /iNr’Studio n’a pas pu créer le média/);
-  assert.match(client, /const hasMediaStep = !\(channelId === "google" && draft\.campaignType === "search"\)/);
-  assert.match(client, /\.\.\.\(hasMediaStep \? \["Médias"\] : \[\]\)/);
+  assert.match(client, /const hasMediaStep = adsDraftHasMediaStep\(draft\)/);
+  assert.match(client, /\.\.\.\(hasMediaStep \? \[mediaStepName\] : \[\]\)/);
   assert.match(client, /\{hasMediaStep && <section hidden=\{step !== mediaStep\}/);
   assert.match(client, /mediaBrief: plan\.mediaBrief,/);
 });

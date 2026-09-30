@@ -93,7 +93,10 @@ test("ADN and IA scores hydrate from a strictly account-scoped cache before sile
 });
 
 test("visited channel settings stay mounted and restore their scroll position", () => {
-  assert.match(settingsDrawer, /const \[hasBeenOpened, setHasBeenOpened\] = useState\(isOpen\)/);
+  assert.match(settingsDrawer, /keepMounted = false/);
+  assert.match(settingsDrawer, /const \[hasBeenOpened, setHasBeenOpened\] = useState\(keepMounted \|\| isOpen\)/);
+  assert.match(settingsDrawer, /if \(isOpen \|\| keepMounted\) setHasBeenOpened\(true\)/);
+  assert.doesNotMatch(settingsDrawer, /setHasBeenOpened\(false\)/);
   assert.match(settingsDrawer, /if \(!hasBeenOpened \|\| !portalReady\) return null/);
   assert.match(settingsDrawer, /display: isOpen \? "flex" : "none"/);
   assert.match(settingsDrawerContent, /const MEMORIZED_CHANNEL_PANELS = new Set\(/);
