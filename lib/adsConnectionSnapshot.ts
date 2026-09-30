@@ -31,6 +31,7 @@ export const ADS_INTEGRATION_IDENTITIES: Record<AdsChannelId, AdsIntegrationIden
   tiktok: { provider: "tiktok", source: "tiktok_ads", product: "ads" },
   pinterest: { provider: "pinterest", source: "pinterest_ads", product: "ads" },
   x: { provider: "x", source: "x_ads", product: "ads" },
+  openai: { provider: "openai", source: "openai_ads", product: "ads" },
 };
 
 export const ADS_INTEGRATION_SOURCES = Object.fromEntries(
@@ -57,6 +58,7 @@ export function emptyAdsConnectionSnapshots(): AdsConnectionSnapshots {
     meta: unknownAdsConnection(), google: unknownAdsConnection(),
     linkedin: unknownAdsConnection(), tiktok: unknownAdsConnection(),
     pinterest: unknownAdsConnection(), x: unknownAdsConnection(),
+    openai: unknownAdsConnection(),
   };
 }
 

@@ -210,7 +210,8 @@ test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans a
   assert.match(route, /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
   assert.match(route, /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
   assert.match(route, /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !\("imageUrn" in resources \|\| "campaignUrn" in resources \|\| "postUrn" in resources \|\| "creativeUrn" in resources\)/);
-  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate;/);
+  assert.match(route, /const openaiRejectedBeforeCreate = draft\.provider === "openai" && openaiDraftRetrySafe/);
+  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate \|\| openaiRejectedBeforeCreate;/);
 });
 
 test("le connecteur Search transmet les réseaux Google choisis dans le studio", () => {

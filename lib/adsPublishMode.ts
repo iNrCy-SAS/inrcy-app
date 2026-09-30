@@ -32,7 +32,21 @@ export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMod
   if (provider === "google") return environment.INRCY_GOOGLE_ADS_PUBLISH_ENABLED !== "false";
   if (provider === "pinterest") return environment.INRCY_PINTEREST_ADS_PUBLISH_ENABLED !== "false";
   if (provider === "linkedin") return environment.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true";
+  // A ChatGPT Ads account and its billing must be verified before live delivery.
+  // The first connector only creates real provider resources in Paused state.
+  if (provider === "openai") return mode === "paused" && environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED === "true";
   return provider === "meta" && isAdsPublishModeEnabled(mode, environment);
+}
+
+/** A confirmed 400 before any provider ID is editable; uncertain responses need manual review. */
+export function openaiDraftRetrySafe(input: {
+  mutationStarted: boolean;
+  httpStatus?: number;
+  resources: Record<string, unknown>;
+}): boolean {
+  const hasRemoteResource = ["campaignId", "adGroupId", "imageFileId", "adId"]
+    .some((key) => Boolean(input.resources[key]));
+  return !hasRemoteResource && (!input.mutationStarted || input.httpStatus === 400);
 }
 
 export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown): boolean {
@@ -44,7 +58,8 @@ export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown):
 type ConnectorDraft = Pick<AdsCampaignInput,
   "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
   "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType" | "channelSettings"> &
-  Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets" | "keywords">>;
+  Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets" | "keywords" |
+    "targetLocations" | "headlines" | "primaryText" | "openaiBidEuros" | "trackingParameters" | "negativeKeywords">>;
 
 /** The first Google Search adapter has no numeric CPA/ROAS target input. */
 export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
@@ -100,6 +115,30 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     }
     if (!String(draft.creativeUrl || draft.imageUrl || "").trim()) {
       return "Ajoutez l’image sponsorisée LinkedIn avant le lancement.";
+    }
+    return null;
+  }
+  if (draft.provider === "openai") {
+    if (draft.campaignType !== "generic" || draft.objective !== "website_traffic"
+      || draft.conversionGoal !== "website_visit" || draft.bidStrategy !== "manual_review") {
+      return "Le premier parcours ChatGPT Ads prépare une carte image pour obtenir des clics vers le site.";
+    }
+    if (draft.conversionLocation !== "website" || draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
+      return "ChatGPT Ads requiert une carte image et une page de destination HTTPS dans ce parcours.";
+    }
+    if (!draft.targetLocations?.length) return "Choisissez au moins une zone exacte pour ChatGPT Ads.";
+    if (!draft.imageUrl && !draft.creativeUrl) return "Ajoutez une image pour la carte ChatGPT Ads.";
+    if (draft.headlines?.length !== 1 || !draft.headlines[0] || draft.headlines[0].length < 3 || draft.headlines[0].length > 50) {
+      return "La carte ChatGPT Ads requiert un seul titre de 3 à 50 caractères.";
+    }
+    if (!draft.primaryText || draft.primaryText.length > 100) {
+      return "La carte ChatGPT Ads requiert un texte de 1 à 100 caractères.";
+    }
+    if (!draft.openaiBidEuros || draft.openaiBidEuros <= 0) {
+      return "Définissez une enchère maximale par clic avant la création sur ChatGPT Ads.";
+    }
+    if (draft.trackingParameters?.trim() || draft.keywords?.length || draft.negativeKeywords?.length || draft.callToAction.trim()) {
+      return "Retirez les paramètres de suivi, mots-clés et appels à l’action : ce parcours ChatGPT Ads ne les transmet pas.";
     }
     return null;
   }

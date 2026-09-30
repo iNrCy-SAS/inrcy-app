@@ -19,6 +19,7 @@ export function adsDraftHasMediaStep(draft: AdsDraftMediaShape): boolean {
 
 /** Automatic Pinterest targeting has no manual discovery fields to complete. */
 export function adsDraftHasKeywordsStep(draft: Pick<AdsCampaignInput, "provider"> & Partial<Pick<AdsCampaignInput, "channelSettings">>): boolean {
+  if (draft.provider === "openai") return false;
   if (draft.provider !== "pinterest") return true;
   return draft.channelSettings?.channel === "pinterest" && draft.channelSettings.targetingMode !== "automatic";
 }

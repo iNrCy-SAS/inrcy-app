@@ -194,7 +194,7 @@ test("connector stays separate from organic LinkedIn while the Ads publisher use
   assert.match(accounts, /adsRequestOriginAllowed\(request\)/);
   assert.match(accounts, /ads_linkedin_accounts/);
   assert.match(status, /INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"/);
-  assert.match(validation, /ADS_DRAFT_ACCOUNT_CHANNELS = \["meta", "google", "linkedin", "pinterest"\]/);
+  assert.match(validation, /ADS_DRAFT_ACCOUNT_CHANNELS = \["meta", "google", "linkedin", "pinterest", "openai"\]/);
   assert.match(validation, /isAdsDraftAccountChannel[\s\S]*?value === "linkedin"/);
   assert.match(publishRoute, /publishLinkedInAdsCampaign/);
   assert.match(publishRoute, /isAdsChannelPublishEnabled\(draft\.provider, mode, process\.env\)/);

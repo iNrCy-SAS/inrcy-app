@@ -23,6 +23,7 @@ const CHANNEL_LABELS: Record<StoredAdsCampaign["provider"], string> = {
   tiktok: "TikTok Ads",
   pinterest: "Pinterest Ads",
   x: "X Ads",
+  openai: "ChatGPT Ads",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {

@@ -9,9 +9,12 @@ import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLi
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsDraftAccountChannel, parseAdsCampaignInput } from "@/lib/adsValidation";
-import { hasAdsPublishConfirmation, isAdsChannelPublishEnabled, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
+import { hasAdsPublishConfirmation, isAdsChannelPublishEnabled, openaiDraftRetrySafe, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
 import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
+import { assessOpenaiAdsAccount, createPausedOpenaiAdsCampaign, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
+import { readChatgptAdsApiKey, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
+import { resolveOpenaiAdsImageUrl } from "@/lib/adsOpenaiMediaServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -28,6 +31,25 @@ function withInitialPublishRecovery(resources: Record<string, unknown>, mode: "d
     recoveredAt: new Date().toISOString(),
   };
   return recovered;
+}
+
+function advertiserEndOfDay(endDate: string, timeZone: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || !timeZone) throw new Error("Le fuseau horaire du compte ChatGPT Ads doit être confirmé.");
+  const reference = new Date(`${endDate}T12:00:00Z`);
+  if (Number.isNaN(reference.getTime()) || reference.toISOString().slice(0, 10) !== endDate) {
+    throw new Error("La date de fin ChatGPT Ads est invalide.");
+  }
+  let offsetName = "";
+  try {
+    offsetName = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" })
+      .formatToParts(reference).find((part) => part.type === "timeZoneName")?.value || "";
+  } catch { /* unknown advertiser timezone */ }
+  const offset = /^GMT(?:([+-])(\d{1,2})(?::(\d{2}))?)?$/.exec(offsetName);
+  if (!offset) throw new Error("Le fuseau horaire ChatGPT Ads est invalide.");
+  const suffix = offset[1] ? `${offset[1]}${offset[2].padStart(2, "0")}:${offset[3] || "00"}` : "+00:00";
+  const milliseconds = Date.parse(`${endDate}T23:59:59${suffix}`);
+  if (!Number.isFinite(milliseconds) || milliseconds <= Date.now()) throw new Error("La fin ChatGPT Ads doit être dans le futur.");
+  return Math.floor(milliseconds / 1000);
 }
 
 export async function POST(request: Request, { params }: RouteContext) {
@@ -86,6 +108,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   let googleLoginCustomerId: string | undefined;
   let preparedGoogleTargetLocations: GoogleTargetLocation[] | undefined;
   let pinterestAccountCountry: string | null | undefined;
+  let openaiApiKey = "";
+  let openaiImage: { imageUrl: string; mediaStableId: string } | null = null;
+  let openaiEndTime: number | undefined;
   try {
     if (draft.provider === "pinterest") {
       const connection = await readPinterestAdsIntegration(user.activeUserId);
@@ -113,6 +138,23 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!createPaused && !selectedAccount.canServeCampaigns) {
         return NextResponse.json({ error: "Le compte LinkedIn Ads est On hold ou non servable. Choisissez En pause ou réactivez le compte dans Campaign Manager." }, { status: 409 });
       }
+    } else if (draft.provider === "openai") {
+      if (mode !== "paused") {
+        return NextResponse.json({ error: "ChatGPT Ads crée actuellement les campagnes en pause uniquement." }, { status: 423 });
+      }
+      const connection = await readOpenaiAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Le compte ChatGPT Ads associé a changé. Vérifiez sa connexion avant toute création." }, { status: 409 });
+      }
+      openaiApiKey = await readChatgptAdsApiKey(user.activeUserId) || "";
+      if (!openaiApiKey) return NextResponse.json({ error: "Ajoutez une clé Advertiser API du compte ChatGPT Ads avant toute création." }, { status: 403 });
+      const account = await verifyOpenaiAdsAccount({ apiKey: openaiApiKey, expectedAccountId: draft.adAccountId });
+      const readiness = assessOpenaiAdsAccount(account);
+      if (!readiness.ready) {
+        return NextResponse.json({ error: readiness.message || "Le compte ChatGPT Ads attend sa validation dans Ads Manager." }, { status: 409 });
+      }
+      openaiImage = await resolveOpenaiAdsImageUrl(user.activeUserId, draft.creativeUrl || draft.imageUrl);
+      openaiEndTime = advertiserEndOfDay(draft.endDate, account.timezone);
     } else {
       const connection = await readAdsIntegration(user.activeUserId, draft.provider);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -185,6 +227,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   let metaProviderMutationStarted = false;
   let pinterestProviderMutationStarted = false;
   let linkedinProviderMutationStarted = false;
+  let openaiProviderMutationStarted = false;
   const persistProgress = async (resources: Record<string, unknown>) => {
     // Keep newly created provider IDs even if the database write fails or times out.
     // The recovery path can then record them under needs_review instead of {}.
@@ -198,7 +241,32 @@ export async function POST(request: Request, { params }: RouteContext) {
   };
 
   try {
-    const resources = draft.provider === "meta"
+    const resources = draft.provider === "openai"
+      ? await createPausedOpenaiAdsCampaign({
+        apiKey: openaiApiKey,
+        request: {
+          operationId: id,
+          expectedAccountId: draft.adAccountId,
+          campaignName: draft.name,
+          biddingType: "clicks",
+          budget: { dailySpendLimitMicros: Math.round(draft.dailyBudgetEuros * 1_000_000) },
+          targetLocations: draft.targetLocations,
+          countryCode: "FR",
+          endTime: openaiEndTime,
+          adGroupName: `${draft.name} · groupe`,
+          contextHints: [draft.offer].filter(Boolean),
+          maxBidMicros: Math.round(Number(draft.openaiBidEuros || 0) * 1_000_000),
+          adName: `${draft.name} · carte`,
+          title: draft.headlines[0],
+          body: draft.primaryText,
+          destinationUrl: draft.destinationUrl,
+          imageUrl: openaiImage?.imageUrl || "",
+          mediaStableId: openaiImage?.mediaStableId || "",
+        },
+        onProgress: async (step) => { await persistProgress({ ...step }); },
+        onProviderMutationStart: () => { openaiProviderMutationStarted = true; },
+      })
+      : draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, {
         activate: !createPaused,
         onProviderMutationStart: () => { metaProviderMutationStarted = true; },
@@ -243,8 +311,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ campaign: completed, mode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
-    const resources = error instanceof MetaAdsPublishError || error instanceof PinterestAdsPublishError || error instanceof LinkedInAdsPublishError
-      ? error.progress : progress;
+    const resources = error instanceof OpenaiAdsPublishError
+      ? error.progress ? { ...error.progress } : progress
+      : error instanceof MetaAdsPublishError || error instanceof PinterestAdsPublishError || error instanceof LinkedInAdsPublishError
+        ? error.progress : progress;
     // A Google 400 on the first atomic mutate cannot leave provider objects
     // behind. Return the local row to draft so the precise validation error can
     // be fixed and retried without stranding it in needs_review.
@@ -264,8 +334,16 @@ export async function POST(request: Request, { params }: RouteContext) {
     const linkedinRejectedBeforeCreate = draft.provider === "linkedin"
       && (error instanceof LinkedInAdsPublishError ? error.retrySafe : !linkedinProviderMutationStarted)
       && !("imageUrn" in resources || "campaignUrn" in resources || "postUrn" in resources || "creativeUrn" in resources);
+    // A confirmed 400 on the first POST is a rejected request, not an
+    // uncertain network result. Keep the draft editable; lost responses and
+    // server failures still require manual review to prevent duplicates.
+    const openaiRejectedBeforeCreate = draft.provider === "openai" && openaiDraftRetrySafe({
+      mutationStarted: error instanceof OpenaiAdsPublishError ? error.mutationStarted : openaiProviderMutationStarted,
+      httpStatus: error instanceof OpenaiAdsPublishError ? error.httpStatus : undefined,
+      resources: resources as Record<string, unknown>,
+    });
     const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate
-      || pinterestRejectedBeforeCreate || linkedinRejectedBeforeCreate;
+      || pinterestRejectedBeforeCreate || linkedinRejectedBeforeCreate || openaiRejectedBeforeCreate;
     await supabaseAdmin.from("ads_campaigns").update({
       status: rejectedBeforeCreate ? "draft" : "needs_review",
       provider_resources: rejectedBeforeCreate ? {} : withInitialPublishRecovery(resources, mode),
@@ -274,7 +352,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
     const manager = draft.provider === "meta" ? "Meta Ads Manager"
       : draft.provider === "pinterest" ? "Pinterest Ads Manager"
-        : draft.provider === "linkedin" ? "LinkedIn Campaign Manager" : "Google Ads";
+        : draft.provider === "linkedin" ? "LinkedIn Campaign Manager"
+          : draft.provider === "openai" ? "ChatGPT Ads Manager" : "Google Ads";
     return NextResponse.json({ error: rejectedBeforeCreate ? `${message} Le brouillon iNrCy peut être corrigé puis renvoyé.` : `${message} Vérifiez la campagne directement sur ${manager} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: rejectedBeforeCreate ? 422 : 502 });
   }
 }

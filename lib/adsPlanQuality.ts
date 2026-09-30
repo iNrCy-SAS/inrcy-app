@@ -25,6 +25,7 @@ export const ADS_PLAN_COPY_LIMITS = {
   tiktok: { primary: 100, headline: 100, description: 100 },
   pinterest: { primary: 800, headline: 100, description: 800 },
   x: { primary: 280, headline: 280, description: 280 },
+  openai: { primary: 100, headline: 50, description: 100 },
 } as const;
 
 /** Detect objective failure signals; this is not a substitute for editorial review. */

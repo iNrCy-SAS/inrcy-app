@@ -708,6 +708,18 @@
     "imagine": "IMAGINEZ",
     "automate": "AUTOMATISEZ",
     "adsDescription": "Campagnes multicanales pour plus de clients.",
+    "adsInfo": {
+      "open": "Informations sur les canaux iNr’ADS",
+      "title": "Quel canal pour votre campagne ?",
+      "close": "Fermer",
+      "google": "Soyez visible quand un futur client cherche vos services près de chez lui.",
+      "pinterest": "Inspirez les projets d’achat avec vos produits et vos réalisations.",
+      "openai": "Présentez votre solution aux personnes qui explorent leurs options dans ChatGPT.",
+      "meta": "Faites découvrir votre activité sur Facebook et Instagram, là où vos clients passent du temps.",
+      "linkedin": "Mettez votre expertise devant les décideurs et ouvrez des opportunités B2B.",
+      "tiktok": "Montrez votre savoir-faire en vidéos courtes qui captent l’attention.",
+      "x": "Entrez dans les conversations du moment et faites entendre votre marque."
+    },
     "createCampaign": "Créer une campagne",
     "comingSoon": "À venir",
     "openStudio": "Ouvrir Studio",

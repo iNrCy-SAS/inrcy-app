@@ -921,12 +921,13 @@
    canvas deliberately renders one focused square rather than a shrunken trio. */
 .channelRailLogo{display:none}
 .headerActionIcon{display:none}
+.inrsendHeaderLogo{display:block;width:28px;height:28px;object-fit:contain}
 
 @media(max-width:650px){
   .channelRail{
     display:grid;
-    grid-template-columns:repeat(6,42px);
-    width:min(100%,277px);
+    grid-template-columns:repeat(7,42px);
+    width:min(100%,324px);
     justify-content:center;
     align-items:center;
     gap:5px;
@@ -963,6 +964,7 @@
   .channelRail button[data-channel=tiktok]{--channel-bubble:#8af6e0}
   .channelRail button[data-channel=pinterest]{--channel-bubble:#ff8497}
   .channelRail button[data-channel=x]{--channel-bubble:#dce9ff}
+  .channelRail button[data-channel=openai]{--channel-bubble:#9ee9f1}
   .channelRail button:hover{opacity:1;transform:translateY(-2px);border-color:color-mix(in srgb,var(--channel-bubble) 82%,#fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--channel-bubble) 18%,transparent),0 0 20px color-mix(in srgb,var(--channel-bubble) 33%,transparent),inset 0 1px #ffffff55}
   .channelRail button[aria-pressed=true]{
     opacity:1;
@@ -1067,7 +1069,7 @@
   .headerActionIcon svg{width:18px;height:18px}
   .trackingCount{position:absolute;top:-4px;right:-5px;min-width:15px;height:15px;padding:0 3px;border:1px solid #f2d7ff;color:#fff;background:#ba58d5;font-size:8px;line-height:1}
 
-  .channelRail{grid-template-columns:repeat(6,40px);width:min(100%,265px);gap:5px}
+  .channelRail{grid-template-columns:repeat(7,40px);width:min(100%,310px);gap:5px}
   .channelRail button,.channelRail button[data-near]{width:40px;min-width:40px;height:40px;min-height:40px}
   .channelRailLogo{width:25px;height:25px}
   .channelConversionRouteTwo,.channelConversionRouteThree{display:inline}
@@ -1080,7 +1082,8 @@
   .header h1{font-size:26px}
   .headerIdentity p{font-size:8px}
   .headerActions .trackingButton,.headerCloseButton{width:35px;min-width:35px;height:35px;min-height:35px}
-  .channelRail{grid-template-columns:repeat(6,36px);width:min(100%,239px);gap:4px}
+  .inrsendHeaderLogo{width:26px;height:26px}
+  .channelRail{grid-template-columns:repeat(7,36px);width:min(100%,276px);gap:4px}
   .channelRail button,.channelRail button[data-near]{width:36px;min-width:36px;height:36px;min-height:36px;padding:5px}
   .channelRailLogo{width:22px;height:22px}
 }
@@ -1088,9 +1091,9 @@
 @media(max-width:320px){
   .channelCarousel{gap:5px}
   .channelCarousel>button{width:30px;flex-basis:30px;height:40px}
-  .channelRail{grid-template-columns:repeat(6,32px);width:min(100%,207px);gap:3px}
-  .channelRail button,.channelRail button[data-near]{width:32px;min-width:32px;height:32px;min-height:32px;padding:4px}
-  .channelRailLogo{width:20px;height:20px}
+  .channelRail{grid-template-columns:repeat(7,36px);width:min(100%,264px);gap:2px}
+  .channelRail button,.channelRail button[data-near]{width:36px;min-width:36px;height:36px;min-height:36px;padding:4px}
+  .channelRailLogo{width:22px;height:22px}
   .cubeStage .channelActive{--ads-mobile-cube-size:min(calc(100cqw - 8px),calc(100cqh - 8px),64vw,250px)}
   .cubeStage .channelActive .channelActions{gap:3px}
 }
@@ -1155,6 +1158,46 @@
   .cubeStage .channel[data-provider=tiktok] .channelLogo{--channel-logo-accent:#8af6e0}
   .cubeStage .channel[data-provider=pinterest] .channelLogo{--channel-logo-accent:#ff8497}
   .cubeStage .channel[data-provider=x] .channelLogo{--channel-logo-accent:#dce9ff}
+  .cubeStage .channel[data-provider=openai] .channelLogo{--channel-logo-accent:#9ee9f1}
   .cubeStage .channelActive .channelLogo{transform:translateY(-2px) scale(1.035);border-color:color-mix(in srgb,var(--channel-logo-accent) 76%,#fff);box-shadow:0 0 0 3px color-mix(in srgb,var(--channel-logo-accent) 19%,transparent),0 0 29px color-mix(in srgb,var(--channel-logo-accent) 43%,transparent),0 12px 26px #03071b8c,inset 0 1px #ffffff9c,inset 0 -9px 15px #050a2557}
   .cubeStage .channelActive .channelLogo::before{inset:3px;border-color:#ffffff94;box-shadow:inset 0 0 16px #ffffff25,0 0 13px var(--channel-logo-accent)}
+}
+
+.studioBudgetMobileSummary{display:none}
+
+/* The first ChatGPT Ads format has one objective, one image and no language
+   targeting. Keep its short mobile steps visible above the action bar. */
+@media(max-width:540px){
+  .studioWorkspace .studioCard[data-channel="openai"]{padding:11px 12px!important}
+  .studioWorkspace .studioCard[data-channel="openai"] .studioStepHeader{gap:4px;margin-bottom:7px;padding-bottom:6px}
+  .studioWorkspace .studioCard[data-channel="openai"] .studioStepHeader h2{font-size:18px;line-height:1.15}
+  .studioWorkspace .studioCard[data-channel="openai"] .studioGrid{gap:7px}
+  .studioWorkspace .studioCard[data-channel="openai"] .field{gap:3px}
+  .studioWorkspace .studioCard[data-channel="openai"] .field input,.studioWorkspace .studioCard[data-channel="openai"] .field select{min-height:36px;padding:7px 10px;font-size:13px}
+  .studioWorkspace .studioFoundationsCard[data-channel="openai"] .voiceTextarea textarea{min-height:54px!important;padding:7px 44px 10px 10px!important;font-size:13px}
+  .studioWorkspace .studioFoundationsCard[data-channel="openai"] .studioTypeGrid{margin-top:7px}
+  .studioWorkspace .studioFoundationsCard[data-channel="openai"] .studioTypeGrid button{min-height:56px;gap:2px;padding:8px 10px}
+  .studioWorkspace .studioTargetingCard[data-channel="openai"] .tagInputShell{min-height:53px;gap:5px;padding:6px}
+  .studioWorkspace .studioTargetingCard[data-channel="openai"] .tagChip{min-height:25px;padding:4px 7px;font-size:10px}
+  .studioWorkspace .studioTargetingCard[data-channel="openai"] .tagAddButton{min-height:26px;padding:4px 7px}
+  .studioWorkspace .studioTargetingCard[data-channel="openai"] .tagFieldNote{font-size:9px;line-height:1.25}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaWorkspace{gap:7px;margin-top:6px;padding:9px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaWorkspaceHeading{gap:4px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaWorkspaceHeading strong{font-size:11px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaWorkspaceHeading>span{padding:4px 7px;font-size:9px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaActions{gap:5px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaActions button{min-height:32px;padding:5px;font-size:9px}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaPreview{height:clamp(120px,23vh,165px);min-height:0}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaPreview[data-empty="true"]{display:none}
+  .studioWorkspace .studioMediaCard[data-channel="openai"] .campaignMediaAttached{gap:5px;padding:7px}
+  .studioWorkspace .studioBudgetCard[data-channel="openai"] .studioBudgetForecast,.studioWorkspace .studioBudgetCard[data-channel="openai"] .studioBudgetPanel{display:none}
+  .studioWorkspace .studioBudgetCard[data-channel="openai"] .studioBudgetMobileSummary{display:block;margin:8px 0 0;padding:8px 10px;border:1px solid #9ba3e556;border-radius:12px;background:#172b51;color:#dbe8ff;font-size:10px;line-height:1.35}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReviewGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:8px 0}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReviewGrid>div{min-height:0;gap:2px;padding:7px}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReviewGrid dd{overflow-wrap:break-word;word-break:normal;font-size:10px;line-height:1.2}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReviewGrid small{font-size:9px;line-height:1.2}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReadiness{margin:7px 0;padding:7px 9px;font-size:10px;line-height:1.3}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioReadiness strong{margin-bottom:2px;font-size:11px}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioFinalActions{gap:6px;margin-top:8px}
+  .studioWorkspace .studioValidationCard[data-channel="openai"] .studioFinalActions button{min-height:36px;padding:7px 9px;font-size:11px}
 }

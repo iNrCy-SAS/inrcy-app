@@ -18,6 +18,7 @@ import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
+import AdsChannelInfoModal from "./AdsChannelInfoModal";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -147,6 +148,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const accountingEnabled = !standardMode && hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [adsInfoOpen, setAdsInfoOpen] = useState(false);
   const [agentPlanningOpen, setAgentPlanningOpen] = useState(false);
   const {
     pendingKey,
@@ -317,6 +319,14 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
                   <h4>iNr’ADS</h4>
                   <p>{copy.adsDescription}</p>
                 </div>
+                <button
+                  type="button"
+                  className={signatureStyles.adsInfoButton}
+                  onClick={() => setAdsInfoOpen(true)}
+                  aria-label={signatureT("adsInfo.open")}
+                  title={signatureT("adsInfo.open")}
+                  aria-haspopup="dialog"
+                >i</button>
                 <span className={signatureStyles.ghostArt} aria-hidden="true"><ToolGlyph kind="megaphone" /></span>
                 <button
                   type="button"
@@ -575,6 +585,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
             onManage={() => startModuleNavigation("/dashboard/agent")}
           />
         ) : null}
+        {adsInfoOpen ? <AdsChannelInfoModal onClose={() => setAdsInfoOpen(false)} /> : null}
     </>
 
   );

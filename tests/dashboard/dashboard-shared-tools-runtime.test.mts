@@ -131,6 +131,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "next/dynamic") return { __esModule: true, default: () => (props: Props) => createElement("div", { "data-agent-planning": "true", "data-standard-mode": props.standardMode }) };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
+    if (specifier === "./AdsChannelInfoModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": "iNr’ADS", onClick: props.onClose }) };
     if (specifier === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ ...messages.dashboard, locale }) };
     if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? options.pendingCount ?? 0 : 0; } };
     if (specifier === "./DashboardToolWarmup") return { requestDashboardToolWarmup: (path: string) => { calls.warmups.push(path); } };
@@ -198,18 +199,38 @@ test("Standard, Premium and Founder render the same signature cards, hierarchy a
   }
 });
 
-test("the shared visual copy has the same sixteen translated keys in all nine locales", () => {
+test("the shared visual copy and Ads channel information are translated in all nine locales", () => {
   const keys = ["createTitle", "pilotTitle", "mailCampaigns", "businessSpace", "amplify", "imagine", "automate", "adsDescription", "createCampaign", "comingSoon", "openStudio", "access", "manage", "open", "viewStats", "dnaDescription"].sort();
+  const adsInfoKeys = ["open", "title", "close", "google", "pinterest", "openai", "meta", "linkedin", "tiktok", "x"].sort();
   for (const locale of ["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
-    const translated = messagesFor(locale).dashboard.signatureTools as Record<string, string>;
+    const translated = messagesFor(locale).dashboard.signatureTools as Record<string, string | Record<string, string>>;
     assert.ok(translated, `${locale} signatureTools catalog`);
-    assert.deepEqual(Object.keys(translated).sort(), keys, locale);
+    assert.deepEqual(Object.keys(translated).sort(), [...keys, "adsInfo"].sort(), locale);
     for (const key of keys) assert.ok(typeof translated[key] === "string" && translated[key].trim(), `${locale}/${key}`);
+    const adsInfo = translated.adsInfo as Record<string, string>;
+    assert.deepEqual(Object.keys(adsInfo).sort(), adsInfoKeys, `${locale}/adsInfo`);
+    for (const key of adsInfoKeys) assert.ok(adsInfo[key]?.trim(), `${locale}/adsInfo.${key}`);
     for (const variant of variants.slice(0, 2)) {
       const { tree } = harness({ ...variant, locale }).render();
       const rendered = content(tree);
-      for (const key of ["createTitle", "pilotTitle", "mailCampaigns", "dnaDescription", "adsDescription"]) assert.ok(rendered.includes(translated[key]), `${locale} rendered ${key}`);
+      for (const key of ["createTitle", "pilotTitle", "mailCampaigns", "dnaDescription", "adsDescription"]) {
+        const expected = translated[key];
+        assert.ok(typeof expected === "string" && rendered.includes(expected), `${locale} rendered ${key}`);
+      }
     }
+  }
+});
+
+test("Ads information opens in every edition without navigating to a locked channel", () => {
+  for (const variant of variants) {
+    const view = harness(variant);
+    const info = find(card(view.render().tree, "adsCard"), (node) => hasClass(node, "adsInfoButton"));
+    assert.equal(info.props["aria-haspopup"], "dialog");
+    click(info);
+    const dialog = find(view.render().tree, (node) => node.props.role === "dialog" && node.props["aria-label"] === "iNr’ADS");
+    assert.ok(dialog);
+    assert.deepEqual(view.calls.routes, []);
+    assert.deepEqual(view.calls.panels, []);
   }
 });
 

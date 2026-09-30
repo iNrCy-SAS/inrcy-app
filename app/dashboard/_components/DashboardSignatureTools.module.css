@@ -212,6 +212,8 @@
 .adsCard .cardLogo { border-color: #fa84da; background: radial-gradient(circle at 25% 15%, #dd53d188, #811a9a); color: #ffdefd; box-shadow: 0 0 20px #e82cd53b; }
 .adsCard .eyebrow { color: #f3a4e2; }
 .adsCard .cardButton { background: linear-gradient(105deg, #e847b6, #b534e6 48%, #6e2ff6); border-color: #eea4ffd4; }
+.adsInfoButton { position: absolute; z-index: 4; top: 9px; right: 9px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid #f2a9ebae; border-radius: 50%; color: #fff; background: #803a9ca8; font: inherit; font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer; }
+.adsInfoButton:hover { background: #b24fbb; }
 .studioCard { --accent: #6bafffd6; background: linear-gradient(140deg, #074c9a, #122a75 59%, #242775); }
 .studioCard .cardLogo { color: #fff; background: radial-gradient(circle at 20% 15%, #487fff, #1938eb); border-color: #70abff; }
 .studioCard .cardButton { background: linear-gradient(105deg, #00aeed, #0054ef 70%, #452dff); border-color: #80d8ffbd; }
