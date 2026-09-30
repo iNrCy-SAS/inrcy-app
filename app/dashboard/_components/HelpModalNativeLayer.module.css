@@ -1,0 +1,18 @@
+.nativeLayer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.nativeLayer::backdrop { background: transparent; }
+.nativeLayer button:focus-visible,
+.nativeLayer a:focus-visible { outline: 2px solid #a9e9ff; outline-offset: 3px; }

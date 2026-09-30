@@ -13,6 +13,7 @@ import standardStyles from "./DashboardStandardModulesCard.module.css";
 import DashboardCampaignChoices from "./DashboardCampaignChoices";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
+import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -26,6 +27,7 @@ type Props = {
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
   adsPilotEnabled?: boolean;
+  inrAgentEnabled?: boolean;
 };
 
 function ArrowIcon() {
@@ -68,6 +70,7 @@ export default function DashboardStandardModulesCard({
   onOpenBoosterPublish,
   onOpenBoosterStats,
   adsPilotEnabled = false,
+  inrAgentEnabled = true,
 }: Props) {
   const i18nT = useTranslations("shell");
   const t = useTranslations("dashboard.standard");
@@ -295,9 +298,12 @@ export default function DashboardStandardModulesCard({
           <span className={standardStyles.agentOrbit} aria-hidden="true" />
           <span className={standardStyles.agentNodeOne} aria-hidden="true" />
           <span className={standardStyles.agentNodeTwo} aria-hidden="true" />
-          <span className={standardStyles.agentLogo} aria-hidden="true">
-            <Image src="/icons/inr-agent-header.png" alt="" width={52} height={52} />
-          </span>
+          <DashboardAgentLogoButton
+            className={standardStyles.agentLogo}
+            enabled={inrAgentEnabled}
+            busy={isVisible(`route:${agentPath}`)}
+            onClick={() => startModuleNavigation(agentPath)}
+          />
           <div className={standardStyles.agentCopy}>
             <span>{t("agentEyebrow")}</span>
             <h3>{i18nT("inr_agent_e5261e85")}</h3>

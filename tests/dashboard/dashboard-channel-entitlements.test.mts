@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+import { getChannelTone } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
 import {
   DASHBOARD_CHANNEL_POWER_SETUP,
   DASHBOARD_CHANNEL_SETUP,
@@ -65,13 +67,34 @@ test("Site iNrCy reste indépendant du forfait et affiche Non souscrit sans droi
 test("le compteur Standard ignore les deux bulles commerciales", () => {
   assert.match(
     channelsSectionSource,
-    /standardMode[\s\S]*item\.key !== "mails" && item\.key !== "site_inrcy"/,
+    /const summaryItems = standardMode \? fluxBubbleItems\.filter\(\(item\) => item\.key !== "mails" && item\.key !== "site_inrcy"\) : fluxBubbleItems;/,
   );
-  assert.match(channelsSectionSource, /availableChannelsCount = summaryModules\.length/);
   assert.match(
     channelsSectionSource,
-    /connectedChannelsCount[\s\S]*availableChannelsCount[\s\S]*t\.channels\.available/,
+    /const connected = summaryItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length;/,
   );
+  assert.match(channelsSectionSource, /\{connected\}<small>\/\{summaryItems\.length\}<\/small>/);
+  assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total: summaryItems\.length \}\}/);
+
+  // Exercise the exact pure counter expressions without importing the client-side TSX tree.
+  const counters = channelsSectionSource.match(/const summaryItems = [^\r\n]+[\r\n]+\s*const connected = [^\r\n]+/)?.[0];
+  assert.ok(counters, "les deux compteurs dérivent ensemble des canaux réels");
+  const fluxBubbleItems = DASHBOARD_CHANNEL_SETUP.map(({ key }) => ({
+    key,
+    bubbleStatus: key === "x" ? "reconnect" : key === "youtube_shorts" ? "available" : "connected",
+    bubbleStatusText: key === "pinterest" ? "Connexion à réactualiser" : "Connecté",
+  }));
+  const evaluate = (standardMode: boolean) => runInNewContext(
+    `${counters}\n({ connected, total: summaryItems.length });`,
+    { standardMode, fluxBubbleItems, getChannelTone },
+    { timeout: 100 },
+  ) as { connected: number; total: number };
+  const standard = evaluate(true);
+  const premium = evaluate(false);
+  assert.equal(standard.total, 11, "Mails et Site iNrCy ne gonflent pas le dénominateur Standard");
+  assert.equal(standard.connected, 8, "les connexions à actualiser et à reconnecter sont exclues");
+  assert.equal(premium.total, 13, "les deux canaux commerciaux restent comptés en Premium");
+  assert.equal(premium.connected, 10, "les deux connexions commerciales ne sont pas comptées en Standard");
 });
 
 test("la puissance attribue un pourcentage propre à chacun des onze canaux actifs", () => {

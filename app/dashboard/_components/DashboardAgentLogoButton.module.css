@@ -1,0 +1,44 @@
+.button {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid #a7aaffb3;
+  color: #f4edff;
+  background: linear-gradient(140deg, #395bf8, #5d2abe);
+  box-shadow: inset 0 1px 7px #ccbfff38, 0 0 18px #8a69f840;
+  cursor: pointer;
+  transition: box-shadow .2s, border-color .2s;
+}
+
+/* Layout classes retain sizing and positioning; the notification must not be clipped. */
+button.button[data-agent-logo-button] { overflow: visible; padding: 0; border-radius: 50%; }
+.logo { display: block; width: 88%; height: 88%; border-radius: 50%; object-fit: contain; pointer-events: none; }
+.button:hover:not(:disabled) { border-color: #cfcdff; box-shadow: 0 0 23px #9b73ff80, inset 0 1px 7px #e1daff45; }
+.button:focus-visible { outline: 2px solid #c2f7ff; outline-offset: 4px; }
+.button:disabled { cursor: default; opacity: .6; }
+
+.badge {
+  position: absolute;
+  z-index: 2;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 5px;
+  border: 1px solid #dfc3ffd9;
+  border-radius: 99px;
+  color: #fff;
+  background: linear-gradient(140deg, #d246f0, #8852fa);
+  box-shadow: 0 0 0 2px #252259, 0 0 13px #ba50ee6b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) { .button { transition: none; } }

@@ -52,6 +52,7 @@ test("bubble logos use immutable static assets and stay mounted in the dashboard
   const persistentCache = read("app/dashboard/_components/DashboardPersistentImageCache.tsx");
   const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
   const channels = read("app/dashboard/_components/DashboardChannelsSection.tsx");
+  const channelsModal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
 
   assert.match(constants, /import inrcyBubbleIcon from/);
   assert.match(constants, /DASHBOARD_BUBBLE_ICON_PRELOADS/);
@@ -63,6 +64,13 @@ test("bubble logos use immutable static assets and stay mounted in the dashboard
   assert.match(persistentCache, /DASHBOARD_BUBBLE_ICON_PRELOADS\.map/);
   assert.match(bubble, /loading="eager"/);
   assert.match(bubble, /fetchPriority="high"/);
-  assert.match(channels, /className=\{styles\.carouselIconImg\}/);
-  assert.match(channels, /decoding="sync"/);
+  assert.match(bubble, /decoding="sync"/);
+  assert.match(channels, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
+  assert.match(channelsModal, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
+  // Unoptimized satellite images use the same immutable URLs already decoded by the persistent cache.
+  const satelliteImage = channelsModal.match(/<Image\s+src=\{item\.logoSrc\}[^>]*\/>/)?.[0];
+  assert.ok(satelliteImage, "satellite logos must reuse the real channel asset");
+  assert.match(satelliteImage, /unoptimized/);
+  assert.match(satelliteImage, /loading="eager"/);
+  assert.match(satelliteImage, /decoding="sync"/);
 });

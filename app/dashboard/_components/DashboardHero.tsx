@@ -4,7 +4,24 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import HelpButton from "./HelpButton";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
-import styles from "../dashboard.module.css";
+import styles from "./DashboardHeroPremium.module.css";
+import legacyStyles from "../dashboard.module.css";
+
+type HeroIconName = "channels" | "dna" | "ai" | "rocket" | "chart" | "target" | "people";
+
+function HeroIcon({ name }: { name: HeroIconName }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {name === "channels" ? <><path d="m16 5 12 7-12 7-12-7 12-7Z" /><path d="m4 17 12 7 12-7M4 22l12 7 12-7" /></> : null}
+      {name === "dna" ? <><path d="M9 3c0 11 14 15 14 26M23 3C23 14 9 18 9 29" /><path d="M10 6h12M12 11h8M12 21h8M10 26h12" /></> : null}
+      {name === "ai" ? <><path d="M13 5a4 4 0 0 0-7 3 4 4 0 0 0-2 7 5 5 0 0 0 2 8 4 4 0 0 0 7 4V5ZM19 5a4 4 0 0 1 7 3 4 4 0 0 1 2 7 5 5 0 0 1-2 8 4 4 0 0 1-7 4V5Z" /><path d="M8 10c3 1 3 3 2 5M6 21c3-1 4 1 4 3M24 10c-3 1-3 3-2 5M26 21c-3-1-4 1-4 3M13 19l-4-2M19 19l4-2" /></> : null}
+      {name === "rocket" ? <><path d="M12 21c2-9 7-15 17-18-1 11-7 17-16 19l-1-1Z" /><path d="m11 14-5 1-3 7 8-2M19 22l-1 5-7 3 2-8M9 24l-5 5" /><circle cx="22" cy="10" r="3" /></> : null}
+      {name === "chart" ? <><rect x="5" y="18" width="5" height="11" rx="1.5" fill="currentColor" stroke="none" opacity=".7" /><rect x="14" y="11" width="5" height="18" rx="1.5" fill="currentColor" stroke="none" opacity=".85" /><rect x="23" y="4" width="5" height="25" rx="1.5" fill="currentColor" stroke="none" /></> : null}
+      {name === "target" ? <><path d="M27 15a11 11 0 1 1-10-10M22 16a6 6 0 1 1-6-6" /><path d="m16 16 12-12M22 4h6v6" /><circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none" /></> : null}
+      {name === "people" ? <><circle cx="16" cy="10" r="4" /><circle cx="6" cy="13" r="3" /><circle cx="26" cy="13" r="3" /><path d="M9 27v-3a7 7 0 0 1 14 0v3H9ZM3 26v-3a5 5 0 0 1 4-5M29 26v-3a5 5 0 0 0-4-5" /></> : null}
+    </svg>
+  );
+}
 
 type InertiaSnapshot = {
   multiplier: number;
@@ -158,6 +175,7 @@ export default function DashboardHero({
             >
               <div className={styles.cockpitStageHeading}>
                 <span className={styles.cockpitStageNumber}>{index + 1}</span>
+                <span className={styles.cockpitStageIcon}><HeroIcon name={step.key} /></span>
                 <div className={styles.cockpitStageTitleWrap}>
                   <small>{step.title}</small>
                   <button
@@ -211,10 +229,6 @@ export default function DashboardHero({
       </div>
 
       <div className={styles.generatorCard}>
-        <div className={styles.generatorFX} aria-hidden />
-        <div className={styles.generatorFX2} aria-hidden />
-        <div className={styles.generatorFX3} aria-hidden />
-
         <div className={styles.generatorHeader}>
           <div className={styles.generatorHeaderCopy}>
             <div className={styles.generatorHeaderLead}>
@@ -284,20 +298,22 @@ export default function DashboardHero({
 
         <div className={styles.generatorGrid}>
           <div className={`${styles.metricCard} ${styles.metricInertia}`}>
+            <span className={styles.metricIcon}><HeroIcon name="rocket" /></span>
             <div className={styles.metricLabel}>{t.hero.inertiaUnits}</div>
             <div className={styles.metricValue}>{uiBalance}</div>
             <div className={styles.metricHint}>
               {i18nT("turbo_ui_value_value_value_value_9a1ca86b", { value0: inertiaSnapshot.multiplier, value1: inertiaSnapshot.connectedCount, value2: inertiaSnapshot.totalChannels, value3: t.hero.channels })}</div>
           </div>
 
-          <div className={styles.generatorCoreCenter} aria-hidden>
-            <div className={styles.miniCoreRing} />
-            <div className={styles.miniCoreRotor} />
-            <div className={styles.miniCoreGlass} />
-            <div className={styles.miniCoreGlow} />
+          <div className={legacyStyles.generatorCoreCenter} aria-hidden>
+            <div className={legacyStyles.miniCoreRing} />
+            <div className={legacyStyles.miniCoreRotor} />
+            <div className={legacyStyles.miniCoreGlass} />
+            <div className={legacyStyles.miniCoreGlow} />
           </div>
 
           <div className={`${styles.metricCard} ${styles.metricCa}`}>
+            <span className={styles.metricIcon}><HeroIcon name="chart" /></span>
             <div className={styles.metricLabel}>{t.hero.potentialRevenue}</div>
             <div className={styles.metricValue}>
               {estimatedValue === null ? "—" : `${estimatedValue.toLocaleString(t.locale)} €`}
@@ -306,6 +322,7 @@ export default function DashboardHero({
           </div>
 
           <div className={`${styles.metricCard} ${styles.metricOpportunities}`}>
+            <span className={styles.metricIcon}><HeroIcon name="target" /></span>
             <div className={styles.metricLabel}>{t.hero.opportunities}</div>
 
             <div className={styles.metricValueRow}>
@@ -328,6 +345,7 @@ export default function DashboardHero({
           </div>
 
           <div className={`${styles.metricCard} ${styles.metricDemandes}`}>
+            <span className={styles.metricIcon}><HeroIcon name="people" /></span>
             <div className={styles.metricLabel}>{t.hero.capturedLeads}</div>
             <div className={styles.metricSplit}>
               <div className={styles.metricSplitItem}>

@@ -1,6 +1,7 @@
 "use client";
 
 import styles from "./dashboard.module.css";
+import experienceStyles from "./_components/DashboardExperience.module.css";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
@@ -89,12 +90,7 @@ import {
   STANDARD_PUBLICATION_CHANNEL_KEYS,
   isDashboardDestinationAllowedForEdition,
 } from "@/lib/dashboardEdition";
-import {
-  DASHBOARD_GEARBOX_ANCHOR_ID,
-  DASHBOARD_TOOLS_ANCHOR_ID,
-  DASHBOARD_TOP_ANCHOR_ID,
-  scrollToDashboardAnchor,
-} from "./dashboard.scroll";
+import { DASHBOARD_TOP_ANCHOR_ID } from "./dashboard.scroll";
 
 
 import {
@@ -4125,7 +4121,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   } = buildDashboardPanelProps(locals);
 
   return (
-    <main id={DASHBOARD_TOP_ANCHOR_ID} className={styles.page}>
+    <main id={DASHBOARD_TOP_ANCHOR_ID} className={`${styles.page} ${experienceStyles.dashboard}`}>
       <DashboardTopbar
         desktopNotificationMenuRef={desktopNotificationMenuRef}
         mobileNotificationMenuRef={mobileNotificationMenuRef}
@@ -4143,7 +4139,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onNavigateCta={navigateDashboardCta}
         openPanel={openPanel}
         inrAgentEnabled={canAccessInrAgent}
-        showInrAgent
+        showInrAgent={false}
         isAdmin={isAdmin}
         userEmail={userEmail}
         userFirstLetter={userFirstLetter}
@@ -4195,31 +4191,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onClose={closeChannelConnections}
       />
 
-      <div className={styles.dashboardQuickJumpRow}>
-        <button
-          type="button"
-          className={`${styles.dashboardQuickJump} ${styles.dashboardQuickJumpDown}`}
-          onClick={() => {
-            const responsiveDashboard = typeof window !== "undefined" &&
-              window.matchMedia("(max-width: 700px), (hover: none) and (pointer: coarse)").matches;
-            const targetAnchor = responsiveDashboard &&
-              typeof document !== "undefined" &&
-              document.getElementById(DASHBOARD_GEARBOX_ANCHOR_ID)
-              ? DASHBOARD_GEARBOX_ANCHOR_ID
-              : DASHBOARD_TOOLS_ANCHOR_ID;
-            scrollToDashboardAnchor(targetAnchor);
-          }}
-          aria-label={dashboardCopy.quickNavigation.goToTools}
-          title={dashboardCopy.quickNavigation.goToTools}
-        >
-          <span className={styles.dashboardQuickJumpShine} aria-hidden="true" />
-          <span className={styles.dashboardQuickJumpLabel}>{dashboardCopy.quickNavigation.tools}</span>
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 4v15m0 0-6-6m6 6 6-6" />
-          </svg>
-        </button>
-      </div>
-
       {generatorSettingsOpen ? (
         <GeneratorSettingsModal
           opportunities={oppTotal}
@@ -4238,6 +4209,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onOpenBoosterStats={openBoosterStats}
         standardMode={isStandardEdition}
         isAdmin={isAdmin}
+        inrAgentEnabled={canAccessInrAgent}
       />
 
       <DashboardBoosterModalLayer

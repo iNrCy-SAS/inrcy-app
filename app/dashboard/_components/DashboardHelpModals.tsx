@@ -161,6 +161,7 @@ export default function DashboardHelpModals({
 
       <HelpModal
         open={helpCanauxOpen}
+        nativeLayer
         title={i18nT("canaux_inrcy_527346d9")}
         onClose={onCloseCanaux}
       >
@@ -615,6 +616,7 @@ export default function DashboardHelpModals({
 
       <HelpModal
         open={helpSiteInrcyOpen}
+        nativeLayer
         title={i18nT("site_inrcy_57016d6f")}
         onClose={onCloseSiteInrcy}
       >
@@ -626,6 +628,7 @@ export default function DashboardHelpModals({
 
       <HelpModal
         open={helpSiteWebOpen}
+        nativeLayer
         title={i18nT("site_web_7e78af33")}
         onClose={onCloseSiteWeb}
       >

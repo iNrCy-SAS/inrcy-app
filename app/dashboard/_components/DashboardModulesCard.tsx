@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
 import BaseModal from "./WorkflowBaseModal";
@@ -15,8 +15,8 @@ import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
-import standardStyles from "./DashboardStandardModulesCard.module.css";
-import DashboardCampaignChoices from "./DashboardCampaignChoices";
+import signatureStyles from "./DashboardSignatureTools.module.css";
+import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -54,12 +54,13 @@ type DashboardModulesCardProps = {
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
   adsPilotEnabled?: boolean;
+  inrAgentEnabled?: boolean;
 };
 
 function PlanningIcon() {
   return (
     <svg
-      className={styles.gearPlanningIcon}
+      className={signatureStyles.planningIcon}
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
@@ -95,7 +96,43 @@ function SettingsIcon() {
   );
 }
 
-export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false }: DashboardModulesCardProps) {
+type ToolGlyphKind = "mail" | "stats" | "ads" | "megaphone" | "sparkles" | "image" | "planning" | "dna" | "document" | "people" | "trophy";
+
+function ToolGlyph({ kind }: { kind: ToolGlyphKind }) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {kind === "mail" ? <><rect x="7" y="12" width="34" height="25" rx="5" /><path d="m8 15 16 12 16-12M8 35l10-10m22 10L30 25" /></> : null}
+      {kind === "stats" ? <><rect x="7" y="28" width="7" height="13" rx="2" fill="currentColor" stroke="none" /><rect x="21" y="19" width="7" height="22" rx="2" fill="currentColor" stroke="none" /><rect x="35" y="7" width="7" height="34" rx="2" fill="currentColor" stroke="none" /></> : null}
+      {kind === "ads" ? <><circle cx="21" cy="27" r="15" /><circle cx="21" cy="27" r="8" /><path d="m21 27 18-18m-1-5v7h7M9 8V4m-2 2h4" /></> : null}
+      {kind === "megaphone" ? <><path d="M28 9 15 17H8v15h7l13 8V9Z" fill="currentColor" fillOpacity=".3" /><path d="m15 32 4 11h-7L8 32m25-15 6-3m-6 18 6 3m-5-11h8M28 16c7 1 7 15 0 16" /></> : null}
+      {kind === "sparkles" ? <><path d="m24 6 4.7 13.3L42 24l-13.3 4.7L24 42l-4.7-13.3L6 24l13.3-4.7L24 6Z" fill="currentColor" /><path d="m39 5 1.3 3.7L44 10l-3.7 1.3L39 15l-1.3-3.7L34 10l3.7-1.3L39 5ZM8 34l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z" fill="currentColor" stroke="none" /></> : null}
+      {kind === "image" ? <><rect x="6" y="8" width="36" height="32" rx="5" fill="currentColor" fillOpacity=".12" /><circle cx="16" cy="18" r="3" /><path d="m8 36 11-12 7 7 7-9 8 14" fill="currentColor" fillOpacity=".3" /></> : null}
+      {kind === "planning" ? <><rect x="6" y="9" width="36" height="33" rx="5" /><path d="M15 5v9M33 5v9M6 20h36M15 28h5m7 0h5m-17 7h5m7 0h5" /></> : null}
+      {kind === "dna" ? <><path d="M14 5c0 16 20 21 20 38M34 5c0 16-20 21-20 38M16 10h16M19 16h10M18 33h12M15 39h18" /><path d="m20 23 8 5m0-5-8 5" opacity=".5" /></> : null}
+      {kind === "document" ? <><rect x="9" y="5" width="29" height="38" rx="4" fill="currentColor" fillOpacity=".1" /><path d="M16 14h15M16 21h15M16 28h15M16 35h9" /></> : null}
+      {kind === "people" ? <><circle cx="19" cy="16" r="7" fill="currentColor" fillOpacity=".35" /><path d="M5 40v-5a14 14 0 0 1 28 0v5H5Z" fill="currentColor" fillOpacity=".35" /><path d="M32 10a7 7 0 0 1 0 14m7 16h5v-5a13 13 0 0 0-8-12" /></> : null}
+      {kind === "trophy" ? <><path d="M15 7h18v11c0 9-5 12-9 12s-9-3-9-12V7Z" fill="currentColor" fillOpacity=".3" /><path d="M15 11H7v6c0 7 6 8 10 8M33 11h8v6c0 7-6 8-10 8M24 30v9m-8 3h16m-3-3H19" /></> : null}
+    </svg>
+  );
+}
+
+function BoosterWave() {
+  const id = useId().replace(/:/g, "");
+  return (
+    <svg className={signatureStyles.boosterWave} viewBox="0 0 720 240" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={`${id}-wave`} x1="0" y1="1" x2="1" y2="0"><stop stopColor="#08d6ff" /><stop offset=".48" stopColor="#546cff" /><stop offset="1" stopColor="#f289ff" /></linearGradient>
+        <radialGradient id={`${id}-star`}><stop stopColor="#fff" /><stop offset=".2" stopColor="#b8caff" /><stop offset="1" stopColor="#8956ff" stopOpacity="0" /></radialGradient>
+      </defs>
+      {Array.from({ length: 16 }, (_, index) => (
+        <path key={index} d={`M160 ${220 + index * 2}C290 ${55 + index * 7} 300 ${285 - index * 3} 450 ${145 - index * 4}S600 ${20 + index * 6} 745 ${12 + index * 5}`} fill="none" stroke={`url(#${id}-wave)`} strokeWidth={index === 7 ? 2.5 : .7} opacity={index === 7 ? .92 : .08 + index * .014} />
+      ))}
+      <circle cx="618" cy="39" r="20" fill={`url(#${id}-star)`} /><circle cx="440" cy="144" r="13" fill={`url(#${id}-star)`} /><circle cx="275" cy="187" r="10" fill={`url(#${id}-star)`} /><circle cx="573" cy="101" r="3" fill="#d5dbff" /><circle cx="496" cy="54" r="2" fill="#ab8fff" /><circle cx="352" cy="174" r="2" fill="#7beaff" />
+    </svg>
+  );
+}
+
+export default function DashboardModulesCard({ goToModule, openPanel, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats, adsPilotEnabled = false, inrAgentEnabled = true }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
   const standardT = useTranslations("dashboard.standard");
   const t = useDashboardI18n();
@@ -217,272 +254,212 @@ export default function DashboardModulesCard({ goToModule, openPanel, onOpenStat
   const statsLabel = i18nT("inr_stats_881d9239").replace(/\s*→\s*$/u, "");
   const calendarLabel = i18nT("inr_calendar_a9473176").replace(/\s*→\s*$/u, "");
   const crmLabel = i18nT("inr_crm_aa43648a").replace(/\s*→\s*$/u, "");
+  const copy = t.locale.startsWith("fr") ? {
+    createTitle: "Créer & amplifier", pilotTitle: "Piloter & développer", mailCampaigns: "Campagnes mails", businessSpace: "VOTRE ESPACE ENTREPRISE",
+    amplify: "AMPLIFIEZ", imagine: "IMAGINEZ", automate: "AUTOMATISEZ", adsDescription: "Campagnes multicanales pour plus de clients.",
+    createCampaign: "Créer une campagne", comingSoon: "À venir", openStudio: "Ouvrir Studio", access: "Accéder", manage: "Gérer", open: "Ouvrir", viewStats: "Voir les stats", dnaDescription: "Structurez votre entreprise avec l’IA.",
+  } : {
+    createTitle: "Create & amplify", pilotTitle: "Manage & grow", mailCampaigns: "Email campaigns", businessSpace: "YOUR BUSINESS SPACE",
+    amplify: "AMPLIFY", imagine: "IMAGINE", automate: "AUTOMATE", adsDescription: "Multichannel campaigns to reach more customers.",
+    createCampaign: "Create a campaign", comingSoon: "Coming soon", openStudio: "Open Studio", access: "Open", manage: "Manage", open: "Open", viewStats: "View stats", dnaDescription: "Shape your business with AI.",
+  };
+  const signatureTools: { path: string; title: string; description: string; logo: string; tone: string; glyph: ToolGlyphKind; action: string; panel?: DashboardPanelName; settingsLabel?: string }[] = [
+    { path: "/dashboard/mails", title: sendLabel, description: t.modules.mailsSub, logo: "/inrsend-logo-seul.png", tone: "sendCard", glyph: "mail", action: copy.manage, panel: "mails", settingsLabel: t.modules.mailsSettingsAria },
+    { path: "/dashboard/stats", title: statsLabel, description: t.modules.statsSub, logo: "/inrstats-logo-seul.png", tone: "statsCard", glyph: "stats", action: copy.viewStats },
+    { path: "/dashboard/agenda", title: calendarLabel, description: t.modules.agendaSub, logo: "/mobile-shortcuts/inrcalendar-bubble.png", tone: "calendarCard", glyph: "planning", action: copy.open, panel: "agenda", settingsLabel: t.modules.agendaSettingsAria },
+    { path: "/dashboard/crm", title: crmLabel, description: t.modules.crmSub, logo: "/mobile-shortcuts/inrcrm-bubble.png", tone: "crmCard", glyph: "people", action: copy.access },
+  ];
   return (
     <>
-        <div className={styles.lowerRow} data-dashboard-premium-lower-blocks="true">
-          <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.pilotPanel} ${standardStyles.premiumPilotPanel}`}>
-            <div className={`${styles.blockHead} ${standardStyles.pilotHead}`}>
-              <h3 className={styles.h3}>{t.modules.dashboardTitle}</h3>
-              <span className={styles.smallMuted}>{t.modules.dashboardSub}</span>
-            </div>
+        <div className={signatureStyles.lowerRow} data-dashboard-premium-lower-blocks="true">
+          <section className={signatureStyles.panel} aria-labelledby="dashboard-create-title" id={DASHBOARD_GEARBOX_ANCHOR_ID}>
+            <header className={signatureStyles.panelHeader}>
+              <h3 id="dashboard-create-title"><span className={signatureStyles.headingIcon} aria-hidden="true">ϟ</span>{copy.createTitle}</h3>
+            </header>
 
-            <div className={`${standardStyles.dashboardList} ${standardStyles.premiumDashboardList}`}>
-              <span className={standardStyles.pilotOrbit} aria-hidden="true" />
-
-              <article className={`${standardStyles.toolRow} ${standardStyles.sendRow}`}>
-                <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/inrsend-logo-seul.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.toolCopy}>
-                  <h4>{i18nT("inr_apos_send_aaa1fcec")}</h4>
-                  <p>{t.modules.mailsSub}</p>
-                </div>
-                <span className={standardStyles.toolActionGroup}>
-                  <button
-                    type="button"
-                    className={standardStyles.toolSettings}
-                    aria-label={t.modules.mailsSettingsAria}
-                    title={t.notifications.settings}
-                    onClick={() => startPanelOpening("mails")}
-                    disabled={isPanelLoadingVisible("mails")}
-                    aria-busy={isPanelLoadingVisible("mails") || undefined}
-                  >
-                    <SettingsIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={standardStyles.toolAction}
-                    data-dashboard-prefetch="/dashboard/mails"
-                    onClick={() => startModuleNavigation("/dashboard/mails")}
-                    disabled={isModuleLoadingVisible("/dashboard/mails")}
-                    aria-busy={isModuleLoadingVisible("/dashboard/mails") || undefined}
-                  >
-                    {isModuleLoadingVisible("/dashboard/mails") ? i18nT("chargement_01cba1df") : sendLabel} <ArrowIcon />
-                  </button>
-                </span>
-              </article>
-
-              <article className={`${standardStyles.toolRow} ${standardStyles.statsRow}`}>
-                <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/inrstats-logo-seul.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.toolCopy}>
-                  <h4>{i18nT("inr_apos_stats_e43f5622")}</h4>
-                  <p>{t.modules.statsSub}</p>
-                </div>
+            <article className={signatureStyles.boosterCard}>
+              <BoosterWave />
+              <span className={signatureStyles.boosterAura} aria-hidden="true" />
+              <span className={signatureStyles.boosterRocket} aria-hidden="true"><BoosterIcon /></span>
+              <div className={signatureStyles.boosterCopy}>
+                <span className={signatureStyles.eyebrow}>{standardT("boosterEyebrow")}</span>
+                <h4>{t.modules.publishTitle}</h4>
+                <p>{standardT("boosterLine1")}<br /><strong>{standardT("boosterLine2")}</strong></p>
                 <button
                   type="button"
-                  className={standardStyles.toolAction}
-                  data-dashboard-prefetch="/dashboard/stats"
-                  onClick={openStats}
-                  disabled={isModuleLoadingVisible("/dashboard/stats")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/stats") || undefined}
-                >
-                  {isModuleLoadingVisible("/dashboard/stats") ? i18nT("chargement_01cba1df") : statsLabel} <ArrowIcon />
-                </button>
-              </article>
-
-              <article className={`${standardStyles.toolRow} ${standardStyles.reputationRow}`}>
-                <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/mobile-shortcuts/optimized/reputation-shortcut.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.toolCopy}>
-                  <h4>{standardT("reputationName")}</h4>
-                  <p>{t.modules.reputationSub}</p>
-                </div>
-                <button
-                  type="button"
-                  className={standardStyles.toolAction}
-                  data-dashboard-prefetch="/dashboard/e-reputation"
-                  onClick={() => startModuleNavigation("/dashboard/e-reputation")}
-                  disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
-                >
-                  {isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta} <ArrowIcon />
-                </button>
-              </article>
-
-              <article className={`${standardStyles.toolRow} ${standardStyles.agendaRow}`}>
-                <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/mobile-shortcuts/inrcalendar-bubble.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.toolCopy}>
-                  <h4>{calendarLabel}</h4>
-                  <p>{t.modules.agendaSub}</p>
-                </div>
-                <span className={standardStyles.toolActionGroup}>
-                  <button
-                    type="button"
-                    className={standardStyles.toolSettings}
-                    aria-label={t.modules.agendaSettingsAria}
-                    title={t.notifications.settings}
-                    onClick={() => startPanelOpening("agenda")}
-                    disabled={isPanelLoadingVisible("agenda")}
-                    aria-busy={isPanelLoadingVisible("agenda") || undefined}
-                  >
-                    <SettingsIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={standardStyles.toolAction}
-                    data-dashboard-prefetch="/dashboard/agenda"
-                    onClick={() => startModuleNavigation("/dashboard/agenda")}
-                    disabled={isModuleLoadingVisible("/dashboard/agenda")}
-                    aria-busy={isModuleLoadingVisible("/dashboard/agenda") || undefined}
-                  >
-                    {isModuleLoadingVisible("/dashboard/agenda") ? i18nT("chargement_01cba1df") : calendarLabel} <ArrowIcon />
-                  </button>
-                </span>
-              </article>
-
-              <article className={`${standardStyles.toolRow} ${standardStyles.crmRow}`}>
-                <span className={standardStyles.toolLogo} aria-hidden="true">
-                  <Image src="/mobile-shortcuts/inrcrm-bubble.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.toolCopy}>
-                  <h4>{crmLabel}</h4>
-                  <p>{t.modules.crmSub}</p>
-                </div>
-                <button
-                  type="button"
-                  className={standardStyles.toolAction}
-                  data-dashboard-prefetch="/dashboard/crm"
-                  onClick={() => startModuleNavigation("/dashboard/crm")}
-                  disabled={isModuleLoadingVisible("/dashboard/crm")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/crm") || undefined}
-                >
-                  {isModuleLoadingVisible("/dashboard/crm") ? i18nT("chargement_01cba1df") : crmLabel} <ArrowIcon />
-                </button>
-              </article>
-            </div>
-          </section>
-
-          <div
-            id={DASHBOARD_GEARBOX_ANCHOR_ID}
-            className={`${standardStyles.standardActionStack} ${standardStyles.premiumActionStack}`}
-          >
-            <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.boosterPanel}`}>
-              <span className={standardStyles.boosterGrid} aria-hidden="true" />
-              <span className={standardStyles.boosterOrbit} aria-hidden="true" />
-              <span className={standardStyles.boosterNodeOne} aria-hidden="true" />
-              <span className={standardStyles.boosterNodeTwo} aria-hidden="true" />
-              <span className={standardStyles.boosterNodeThree} aria-hidden="true" />
-
-              <div className={standardStyles.boosterContent}>
-                <span className={standardStyles.boosterEyebrow}>{standardT("boosterEyebrow")}</span>
-                <span className={standardStyles.boosterLogo} aria-hidden="true"><BoosterIcon /></span>
-                <div className={standardStyles.boosterCopy}>
-                  <h3>{t.modules.publishTitle}</h3>
-                  <p>{standardT("boosterLine1")}<br /><strong>{standardT("boosterLine2")}</strong></p>
-                  <span className={standardStyles.boosterCtaShell}>
-                    <button
-                      type="button"
-                      data-testid="premium-booster-publish"
-                      onClick={openPublishModal}
-                      disabled={isVisible("modal:publish")}
-                      aria-busy={isVisible("modal:publish") || undefined}
-                      aria-label={t.modules.publishCta}
-                    >
-                      {isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta} <ArrowIcon />
-                    </button>
-                  </span>
-                </div>
+                  className={signatureStyles.primaryButton}
+                  data-testid="premium-booster-publish"
+                  onClick={openPublishModal}
+                  disabled={isVisible("modal:publish")}
+                  aria-busy={isVisible("modal:publish") || undefined}
+                  aria-label={t.modules.publishCta}
+                >{isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta}<ArrowIcon /></button>
               </div>
-
+              <div className={signatureStyles.boosterChart} aria-hidden="true"><span /><span /><span /><i /></div>
               <button
                 type="button"
-                className={standardStyles.boosterStats}
+                className={signatureStyles.boosterStats}
                 aria-label={t.modules.boosterStatsTitle}
                 title={t.modules.boosterStatsTitle}
                 onClick={openBoosterSummary}
-              >
-                <span aria-hidden="true"><i /><i /><i /></span>
-                <b>{standardT("boosterSummary")}</b>
-              </button>
-            </section>
+              ><ToolGlyph kind="stats" /><span>{standardT("boosterSummary")}</span></button>
+            </article>
 
-            <DashboardCampaignChoices
-              mailTitle={t.modules.mailCampaignTitle}
-              mailDescription={t.modules.campaignsSub}
-              adsTitle={t.modules.adsCampaignTitle}
-              adsDescription={t.modules.adsCampaignSub}
-              actionLabel={t.modules.campaignsCta}
-              premiumLabel={t.modules.campaignsPremiumLabel}
-              mailBusy={isVisible("modal:campaigns")}
-              adsBusy={adsPilotEnabled && isModuleLoadingVisible("/dashboard/ads")}
-              adsComingSoon={!adsPilotEnabled}
-              onOpenMails={openCampaignModal}
-              onOpenAds={() => {
-                if (adsPilotEnabled) startModuleNavigation("/dashboard/ads");
-              }}
-            />
-
-            <div className={standardStyles.secondaryToolsRow} data-dashboard-premium-secondary-tools="true">
-              <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>
-                <span className={standardStyles.agentGlow} aria-hidden="true" />
-                <span className={standardStyles.agentMesh} aria-hidden="true" />
-                <span className={standardStyles.agentOrbit} aria-hidden="true" />
-                <span className={standardStyles.agentNodeOne} aria-hidden="true" />
-                <span className={standardStyles.agentNodeTwo} aria-hidden="true" />
-                <span className={standardStyles.agentLogo} aria-hidden="true">
-                  <Image src="/icons/inr-agent-header.png" alt="" width={52} height={52} />
-                </span>
-                <div className={standardStyles.agentCopy}>
-                  <span>{standardT("agentEyebrow")}</span>
-                  <h3 aria-label={t.modules.agentTitle}><b>{t.modules.agentTitle.slice(0, 4)}</b>{t.modules.agentTitle.slice(4)}</h3>
-                  <p>{t.modules.agentSub}</p>
+            <div className={signatureStyles.creationGrid} data-dashboard-premium-secondary-tools="true">
+              <article className={`${signatureStyles.creationCard} ${signatureStyles.adsCard}`}>
+                <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="ads" /></span>
+                <div className={signatureStyles.creationCopy}>
+                  <span className={signatureStyles.eyebrow}>{copy.amplify}</span>
+                  <h4>iNr’ADS</h4>
+                  <p>{copy.adsDescription}</p>
                 </div>
+                <span className={signatureStyles.ghostArt} aria-hidden="true"><ToolGlyph kind="megaphone" /></span>
                 <button
-                  className={standardStyles.agentPlanningIconButton}
                   type="button"
-                  data-testid="premium-agent-planning"
-                  onClick={openAgentPlanning}
-                  aria-label={standardT("agentPlanning")}
-                  title={standardT("agentPlanning")}
-                >
-                  <PlanningIcon />
-                </button>
-                <span className={standardStyles.agentActions}>
-                  <button
-                    className={standardStyles.agentPilotButton}
-                    type="button"
-                    data-testid="premium-agent-pilotage"
-                    data-dashboard-prefetch={agentPath}
-                    onClick={() => startModuleNavigation(agentPath)}
-                    disabled={isModuleLoadingVisible(agentPath)}
-                    aria-busy={isModuleLoadingVisible(agentPath) || undefined}
-                  >
-                    {isModuleLoadingVisible(agentPath) ? i18nT("chargement_01cba1df") : t.modules.agentCta} <ArrowIcon />
-                  </button>
-                </span>
-              </section>
+                  className={signatureStyles.cardButton}
+                  data-testid={adsPilotEnabled ? "premium-campaign-ads" : "campaign-ads-coming-soon"}
+                  data-dashboard-prefetch={adsPilotEnabled ? "/dashboard/ads" : undefined}
+                  onClick={adsPilotEnabled ? () => startModuleNavigation("/dashboard/ads") : undefined}
+                  disabled={!adsPilotEnabled || isModuleLoadingVisible("/dashboard/ads")}
+                  aria-busy={isModuleLoadingVisible("/dashboard/ads") || undefined}
+                  aria-label={!adsPilotEnabled ? `iNr’ADS — ${copy.comingSoon}` : "iNr’ADS"}
+                >{!adsPilotEnabled ? copy.comingSoon : isModuleLoadingVisible("/dashboard/ads") ? i18nT("chargement_01cba1df") : copy.createCampaign}{adsPilotEnabled ? <ArrowIcon /> : null}</button>
+              </article>
 
-              <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.studioPanel}`}>
-                <span className={standardStyles.studioGlow} aria-hidden="true" />
-                <span className={standardStyles.studioGrid} aria-hidden="true" />
-                <span className={standardStyles.studioOrbit} aria-hidden="true" />
-                <span className={standardStyles.studioNodeOne} aria-hidden="true" />
-                <span className={standardStyles.studioNodeTwo} aria-hidden="true" />
-                <span className={standardStyles.studioLogo} aria-hidden="true">✦</span>
-                <div className={standardStyles.studioCopy}>
-                  <span>{standardT("studioEyebrow")}</span>
-                  <h3 aria-label="iNr’Studio"><b>iNr’</b>Studio</h3>
-                  <p>{standardT("studioLine1")} <strong>{standardT("studioLine2")}</strong></p>
+              <article className={`${signatureStyles.creationCard} ${signatureStyles.studioCard}`}>
+                <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="sparkles" /></span>
+                <div className={signatureStyles.creationCopy}>
+                  <span className={signatureStyles.eyebrow}>{copy.imagine}</span>
+                  <h4>iNr’Studio</h4>
+                  <p>{standardT("studioLine1")} {standardT("studioLine2")}</p>
                 </div>
+                <span className={signatureStyles.ghostArt} aria-hidden="true"><ToolGlyph kind="image" /></span>
                 <button
-                  className={standardStyles.studioButton}
                   type="button"
+                  className={signatureStyles.cardButton}
                   data-testid="premium-studio-open"
                   data-dashboard-prefetch={studioPath}
                   onClick={() => startModuleNavigation(studioPath)}
                   disabled={isModuleLoadingVisible(studioPath)}
                   aria-busy={isModuleLoadingVisible(studioPath) || undefined}
-                >
-                  {isModuleLoadingVisible(studioPath) ? i18nT("chargement_01cba1df") : standardT("studioCta")} <ArrowIcon />
-                </button>
-              </section>
+                >{isModuleLoadingVisible(studioPath) ? i18nT("chargement_01cba1df") : copy.openStudio}<ArrowIcon /></button>
+              </article>
+
+              <article className={`${signatureStyles.creationCard} ${signatureStyles.agentCard}`}>
+                <DashboardAgentLogoButton
+                  className={signatureStyles.cardLogo}
+                  enabled={inrAgentEnabled}
+                  busy={isModuleLoadingVisible(agentPath)}
+                  onClick={() => startModuleNavigation(agentPath)}
+                />
+                <div className={signatureStyles.creationCopy}>
+                  <span className={signatureStyles.eyebrow}>{copy.automate}</span>
+                  <h4>{t.modules.agentTitle}</h4>
+                  <p>{t.modules.agentSub}</p>
+                </div>
+                <button
+                  type="button"
+                  className={signatureStyles.planningButton}
+                  data-testid="premium-agent-planning"
+                  onClick={openAgentPlanning}
+                  aria-label={standardT("agentPlanning")}
+                  title={standardT("agentPlanning")}
+                ><PlanningIcon /></button>
+                <span className={signatureStyles.ghostArt} aria-hidden="true"><ToolGlyph kind="planning" /></span>
+                <button
+                  type="button"
+                  className={signatureStyles.cardButton}
+                  data-testid="premium-agent-pilotage"
+                  data-dashboard-prefetch={agentPath}
+                  onClick={() => startModuleNavigation(agentPath)}
+                  disabled={isModuleLoadingVisible(agentPath)}
+                  aria-busy={isModuleLoadingVisible(agentPath) || undefined}
+                >{isModuleLoadingVisible(agentPath) ? i18nT("chargement_01cba1df") : t.modules.agentCta}<ArrowIcon /></button>
+              </article>
             </div>
-          </div>
+          </section>
+
+          <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-pilot-title">
+            <header className={signatureStyles.panelHeader}>
+              <h3 id="dashboard-pilot-title"><span className={signatureStyles.headingIcon} aria-hidden="true"><ToolGlyph kind="stats" /></span>{copy.pilotTitle}</h3>
+              <span className={signatureStyles.panelCaption}>{copy.businessSpace}</span>
+            </header>
+
+            <article className={signatureStyles.dnaCard}>
+              <span className={signatureStyles.cardLogo} aria-hidden="true"><ToolGlyph kind="dna" /></span>
+              <div className={signatureStyles.dnaCopy}><h4>iNr’ADN</h4><p>{copy.dnaDescription}</p></div>
+              <span className={signatureStyles.dnaArt} aria-hidden="true"><ToolGlyph kind="document" /></span>
+              <button
+                type="button"
+                className={signatureStyles.cardButton}
+                data-dashboard-prefetch="/dashboard/adn-entreprise"
+                onClick={() => startModuleNavigation("/dashboard/adn-entreprise")}
+                disabled={isModuleLoadingVisible("/dashboard/adn-entreprise")}
+                aria-busy={isModuleLoadingVisible("/dashboard/adn-entreprise") || undefined}
+              >{isModuleLoadingVisible("/dashboard/adn-entreprise") ? i18nT("chargement_01cba1df") : copy.access}<ArrowIcon /></button>
+            </article>
+
+            <div className={signatureStyles.signatureGrid}>
+              {signatureTools.map((tool) => (
+                <article className={`${signatureStyles.signatureCard} ${signatureStyles[tool.tone]}`} key={tool.path}>
+                  <span className={signatureStyles.signatureLogo} aria-hidden="true"><Image src={tool.logo} alt="" width={52} height={52} /></span>
+                  <div className={signatureStyles.signatureCopy}><h4>{tool.title}</h4><p>{tool.description}</p></div>
+                  <span className={signatureStyles.signatureArt} aria-hidden="true"><ToolGlyph kind={tool.glyph} /></span>
+                  {tool.panel ? (
+                    <button
+                      type="button"
+                      className={signatureStyles.settingsButton}
+                      aria-label={tool.settingsLabel}
+                      title={t.notifications.settings}
+                      onClick={() => startPanelOpening(tool.panel!)}
+                      disabled={isPanelLoadingVisible(tool.panel)}
+                      aria-busy={isPanelLoadingVisible(tool.panel) || undefined}
+                    ><SettingsIcon /></button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={signatureStyles.toolButton}
+                    data-dashboard-prefetch={tool.path}
+                    onClick={tool.path === "/dashboard/stats" ? openStats : () => startModuleNavigation(tool.path)}
+                    disabled={isModuleLoadingVisible(tool.path)}
+                    aria-busy={isModuleLoadingVisible(tool.path) || undefined}
+                    aria-label={tool.title}
+                  >{isModuleLoadingVisible(tool.path) ? i18nT("chargement_01cba1df") : tool.action}<ArrowIcon /></button>
+                </article>
+              ))}
+            </div>
+
+            <div className={signatureStyles.relationshipGrid} data-dashboard-relationship-tools="true">
+              <article className={`${signatureStyles.relationshipCard} ${signatureStyles.reputationCard}`}>
+                <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="trophy" /></span>
+                <div className={signatureStyles.relationshipCopy}><h4>{standardT("reputationName")}</h4><p>{t.modules.reputationSub}</p></div>
+                <span className={signatureStyles.reputationStars} aria-hidden="true">✦<b>★</b>★<b>★</b>✦</span>
+                <button
+                  type="button"
+                  className={signatureStyles.cardButton}
+                  data-dashboard-prefetch="/dashboard/e-reputation"
+                  onClick={() => startModuleNavigation("/dashboard/e-reputation")}
+                  disabled={isModuleLoadingVisible("/dashboard/e-reputation")}
+                  aria-busy={isModuleLoadingVisible("/dashboard/e-reputation") || undefined}
+                >{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}<ArrowIcon /></button>
+              </article>
+
+              <article className={`${signatureStyles.relationshipCard} ${signatureStyles.mailCampaignCard}`}>
+                <span className={signatureStyles.relationshipLogo} aria-hidden="true"><ToolGlyph kind="mail" /></span>
+                <div className={signatureStyles.relationshipCopy}><h4>{copy.mailCampaigns}</h4><p>{t.modules.campaignsSub}</p></div>
+                <span className={signatureStyles.mailCampaignArt} aria-hidden="true"><ToolGlyph kind="mail" /></span>
+                <button
+                  type="button"
+                  className={signatureStyles.cardButton}
+                  data-testid="premium-campaign-open"
+                  onClick={openCampaignModal}
+                  disabled={isVisible("modal:campaigns")}
+                  aria-busy={isVisible("modal:campaigns") || undefined}
+                  aria-label={t.modules.mailCampaignTitle}
+                >{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}<ArrowIcon /></button>
+              </article>
+            </div>
+          </section>
         </div>
 
         {campaignModalOpen ? (

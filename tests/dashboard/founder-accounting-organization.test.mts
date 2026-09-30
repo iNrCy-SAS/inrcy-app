@@ -59,51 +59,70 @@ test("Founder est la seule édition qui possède Encaisser, Factures et Devis", 
   );
 });
 
-test("le cockpit Premium aligne cinq outils à gauche puis Booster, Campagnes, iNrAgent et iNrStudio à droite", () => {
+test("le cockpit Premium met Booster en tête et groupe les signatures au-dessus de Réputation et Campagnes mails", () => {
   const source = read("app/dashboard/_components/DashboardModulesCard.tsx");
   const campaignChoices = read("app/dashboard/_components/DashboardCampaignChoices.tsx");
-  const styles = read("app/dashboard/_components/DashboardStandardModulesCard.module.css");
-  const stats = source.indexOf('data-dashboard-prefetch="/dashboard/stats"');
-  const send = source.indexOf('data-dashboard-prefetch="/dashboard/mails"');
-  const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
-  const agenda = source.indexOf('data-dashboard-prefetch="/dashboard/agenda"');
-  const crm = source.indexOf('data-dashboard-prefetch="/dashboard/crm"');
+  const styles = read("app/dashboard/_components/DashboardSignatureTools.module.css");
+  const creation = source.indexOf('id="dashboard-create-title"');
   const booster = source.indexOf('data-testid="premium-booster-publish"');
-  const campaigns = source.indexOf("<DashboardCampaignChoices");
-  const agent = source.indexOf('data-testid="premium-agent-planning"');
+  const secondary = source.indexOf('data-dashboard-premium-secondary-tools="true"');
+  const ads = source.indexOf('data-testid={adsPilotEnabled ? "premium-campaign-ads"');
   const studio = source.indexOf('data-testid="premium-studio-open"');
+  const agent = source.indexOf('data-testid="premium-agent-planning"');
+  const pilot = source.indexOf('id="dashboard-pilot-title"');
+  const dna = source.indexOf('data-dashboard-prefetch="/dashboard/adn-entreprise"');
+  const signatures = source.indexOf("{signatureTools.map");
+  const relationships = source.indexOf('data-dashboard-relationship-tools="true"');
+  const reputation = source.indexOf('data-dashboard-prefetch="/dashboard/e-reputation"');
+  const mailCampaigns = source.indexOf('data-testid="premium-campaign-open"');
 
-  assert.ok(send >= 0 && send < stats);
-  assert.ok(stats < reputation && reputation < agenda && agenda < crm);
-  assert.ok(crm < booster && booster < campaigns && campaigns < agent && agent < studio);
+  assert.ok(creation >= 0 && creation < booster);
+  assert.ok(booster < secondary && secondary < ads && ads < studio && studio < agent);
+  assert.ok(agent < pilot && pilot < dna && dna < signatures && signatures < relationships);
+  assert.ok(relationships < reputation && reputation < mailCampaigns);
+
+  // These four tools stay together; Réputation and Campagnes mails form the row below.
+  const signatureDefinitions = source.slice(source.indexOf("const signatureTools:"), creation);
+  const signaturePaths = Array.from(
+    signatureDefinitions.matchAll(/\{ path: "(\/dashboard\/[^"]+)"/g),
+    (match) => match[1],
+  );
+  assert.deepEqual(signaturePaths, ["/dashboard/mails", "/dashboard/stats", "/dashboard/agenda", "/dashboard/crm"]);
+  assert.match(source, /className=\{signatureStyles\.signatureGrid\}/);
+  assert.match(source, /className=\{signatureStyles\.relationshipGrid\}/);
+  assert.match(source, /signatureStyles\.reputationCard/);
+  assert.match(source, /signatureStyles\.mailCampaignCard/);
+  assert.match(styles, /\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  assert.match(styles, /\.creationGrid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr 1fr/);
+  assert.match(styles, /\.signatureGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.relationshipGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.adsCard\s*\{[^}]*grid-column:\s*1 \/ -1/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.boosterWave\s*\{\s*animation:\s*none/);
+
+  // The visual regrouping must keep the existing tool entry points and access restrictions.
+  assert.match(source, /data-testid="premium-campaign-open"/);
   assert.match(campaignChoices, /premium-campaign-open/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
+  assert.match(source, /disabled=\{!adsPilotEnabled \|\| isModuleLoadingVisible\("\/dashboard\/ads"\)\}/);
+  assert.match(source, /onClick=\{adsPilotEnabled \? \(\) => startModuleNavigation\("\/dashboard\/ads"\) : undefined\}/);
+  assert.match(source, /if \(onOpenBoosterPublish\) onOpenBoosterPublish\(\)/);
+  assert.match(source, /if \(onOpenBoosterStats\) onOpenBoosterStats\(\)/);
   assert.match(source, /data-testid="premium-agent-planning"/);
-  assert.match(source, /className=\{standardStyles\.agentPlanningIconButton\}/);
+  assert.match(source, /className=\{signatureStyles\.planningButton\}/);
   assert.match(source, /data-testid="premium-agent-planning"[\s\S]*?aria-label=\{standardT\("agentPlanning"\)\}/);
   assert.match(source, /data-testid="premium-studio-open"/);
   assert.match(source, /const studioPath = "\/dashboard\/generer-media"/);
-  assert.match(source, /data-dashboard-premium-secondary-tools="true"/);
   assert.match(source, /<DashboardAgentPlanningModal/);
   assert.match(source, /standardMode=\{false\}/);
-  assert.match(styles, /\.premiumPilotPanel\s*\{[\s\S]*?min-height:\s*520px/);
-  assert.match(styles, /\.premiumDashboardList\s*\{[\s\S]*?grid-template-rows:\s*repeat\(5, minmax\(74px, 1fr\)\)/);
-  assert.match(styles, /\.toolRow\s*\{[\s\S]*?--tool-side-width:\s*160px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
-  assert.match(styles, /\.premiumDashboardList \.toolRow\s*\{[\s\S]*?--tool-side-width:\s*140px[\s\S]*?grid-template-columns:\s*var\(--tool-side-width\) minmax\(0, 1fr\) var\(--tool-side-width\)/);
-  assert.match(styles, /\.premiumActionStack\s*\{[\s\S]*?min-height:\s*520px[\s\S]*?grid-template-rows:\s*minmax\(190px, 1\.05fr\)/);
-  assert.match(styles, /\.agentPlanningIconButton\s*\{[\s\S]*?position:\s*absolute[\s\S]*?display:\s*grid[\s\S]*?width:\s*40px[\s\S]*?border-radius:\s*50%/);
-  assert.match(styles, /\.premiumActionStack \.agentActions\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
-  assert.match(styles, /\.premiumActionStack \.boosterStats\s*\{[\s\S]*?min-height:\s*42px/);
   assert.match(source, /mobile-shortcuts\/inrcalendar-bubble\.png/);
   assert.match(source, /mobile-shortcuts\/inrcrm-bubble\.png/);
   assert.match(source, /const calendarLabel = i18nT\("inr_calendar_a9473176"\)\.replace/);
   assert.match(source, /const crmLabel = i18nT\("inr_crm_aa43648a"\)\.replace/);
   assert.match(source, /const sendLabel = i18nT\("inr_send_fd44a9fa"\)\.replace/);
   assert.match(source, /const statsLabel = i18nT\("inr_stats_881d9239"\)\.replace/);
-  assert.match(styles, /\.secondaryToolsRow\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.secondaryToolsRow\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 
 test("les onglets iNrSend occupent toute la largeur selon l'édition", () => {

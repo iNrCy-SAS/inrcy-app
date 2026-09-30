@@ -23,6 +23,7 @@ import {
   resolveInrBadgePublicEmail,
 } from "../../lib/inrBadgeEditionPolicy.ts";
 import { DEFAULT_INRBADGE_SHARE_SETTINGS } from "../../lib/inrBadgeSettings.ts";
+import { getChannelTone } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
 
 const dashboardClientSource = readFileSync(
   new URL("../../app/dashboard/DashboardClient.tsx", import.meta.url),
@@ -30,6 +31,14 @@ const dashboardClientSource = readFileSync(
 );
 const channelsSectionSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardChannelsSection.tsx", import.meta.url),
+  "utf8",
+);
+const channelsModalSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardChannelsModal.tsx", import.meta.url),
+  "utf8",
+);
+const channelsModalCssSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardChannelsModal.module.css", import.meta.url),
   "utf8",
 );
 const standardModulesSource = readFileSync(
@@ -336,36 +345,37 @@ test("Standard conserve le dashboard actuel et ne remplace que les deux blocs in
 });
 
 test("Standard conserve les vraies bulles de connexion avec Voir et Configurer", () => {
-  assert.match(channelsSectionSource, /<DashboardFluxBubble/);
+  assert.match(channelsSectionSource, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
+  assert.match(channelsModalSource, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
+  assert.match(channelsModalSource, /const selectedItem = selected \? \{\s*\.\.\.selected,/);
+  assert.match(channelsModalSource, /onConfigure: \(\) => \{ closeDialog\(\); selected\.onConfigure\(\); \}/);
+  assert.doesNotMatch(channelsModalSource, /(?:configureDisabled|createDisabled|premiumLocked):\s*false/);
   assert.match(dashboardClientSource, /STANDARD_DASHBOARD_BUBBLE_KEYS/);
   assert.match(dashboardClientSource, /STANDARD_BONUS_CHANNEL_KEYS/);
   assert.match(connectionBubbleSource, /item\.viewFallbackLabel \|\| i18nT\("voir_8a754f1f"\)/);
   assert.match(connectionBubbleSource, /item\.configureLabel \|\| i18nT\("configurer_382efbe9"\)/);
+  assert.match(connectionBubbleSource, /disabled=\{item\.configureDisabled \|\| configureLoadingVisible\}/);
+  assert.match(channelsSectionSource, /standardMode \? fluxBubbleItems\.filter\(\(item\) => item\.key !== "mails" && item\.key !== "site_inrcy"\) : fluxBubbleItems/);
+  assert.match(channelsSectionSource, /summaryItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length/);
+  assert.match(channelsSectionSource, /summary=\{\{ connected, total: summaryItems\.length \}\}/);
 });
 
 test("un canal desactive reste gris tandis qu'un canal a connecter garde son etat disponible", () => {
-  assert.match(
-    channelsSectionSource,
-    /type ChannelPillTone = "connected" \| "available" \| "warning" \| "disabled";/,
-  );
-  assert.match(channelsSectionSource, /item\.bubbleStatus === "coming"\) return "disabled";/);
-  assert.match(
-    channelsSectionSource,
-    /tone === "disabled"[\s\S]{0,120}styles\.channelPillDisabled/,
-  );
-  assert.match(
-    channelsSectionSource,
-    /tone === "disabled"[\s\S]{0,120}styles\.carouselIconBtnDisabled/,
-  );
-  assert.match(dashboardCssSource, /\.channelPillDisabled\.channelPillActive\s*\{/);
-  assert.match(
-    dashboardCssSource,
-    /\.channelPillDisabled \.channelPillDot\s*\{[\s\S]*?background:\s*#64748b;/,
-  );
-  assert.match(
-    dashboardCssSource,
-    /\.carouselIconBtnDisabled\.carouselIconBtnActive\s*\{[\s\S]*?grayscale\(0\.82\)/,
-  );
+  const channel = (bubbleStatus: Parameters<typeof getChannelTone>[0]["bubbleStatus"], bubbleStatusText: string) => ({
+    key: "test", name: "Test", description: "", accent: "blue", logoSrc: "/test.svg", logoAlt: "", bubbleStatus, bubbleStatusText, onConfigure: () => {},
+  });
+  assert.equal(getChannelTone(channel("coming", "À venir")), "disabled");
+  assert.equal(getChannelTone(channel("coming", "Token expiré")), "disabled");
+  assert.equal(getChannelTone(channel("available", "À connecter")), "available");
+  assert.equal(getChannelTone(channel("connected", "Connecté")), "connected");
+  assert.equal(getChannelTone(channel("reconnect", "Connexion requise")), "warning");
+  assert.match(channelsModalSource, /const tone = getChannelTone\(item\)/);
+  assert.match(channelsModalSource, /styles\.satellite\} \$\{styles\[tone\]\}/);
+  assert.match(channelsModalSource, /data-tone=\{getChannelTone\(selected\)\}/);
+  assert.match(channelsModalCssSource, /\.disabled\s*\{[^}]*filter: saturate\(\.45\)/);
+  assert.match(channelsModalCssSource, /\.disabled \.satelliteStatus\s*\{[^}]*background: #8794ad/);
+  assert.match(channelsModalCssSource, /\.available \.satelliteStatus, \.warning \.satelliteStatus\s*\{[^}]*background: #ffc863/);
+  assert.match(channelsModalCssSource, /\.selectedBubble\[data-tone="disabled"\] > article\s*\{[^}]*border-color: #9ba7c0/);
 });
 
 test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster, iNrAgent et iNrStudio", () => {
@@ -490,7 +500,13 @@ test("le tableau Standard montre tous les outils Premium, mais verrouille ceux q
   assert.match(fluxBubblesSource, /openPanel\("abonnement"\)/);
   assert.match(fluxBubbleSource, /item\.premiumLocked/);
   assert.match(fluxBubbleSource, /DashboardPremiumLockIcon/);
-  assert.match(channelsSectionSource, /item\.premiumLocked \? \([\s\S]*?channelPillPremiumLock/);
+  // The old channel pill was removed; the selected real bubble still owns the Premium lock.
+  assert.match(channelsSectionSource, /<DashboardChannelsModal items=\{fluxBubbleItems\}/);
+  assert.match(channelsModalSource, /const selectedItem = selected \? \{\s*\.\.\.selected,/);
+  assert.match(channelsModalSource, /<DashboardFluxBubble key=\{selected\.key\} item=\{selectedItem!\}/);
+  assert.doesNotMatch(channelsModalSource, /premiumLocked:\s*false/);
+  assert.match(fluxBubbleSource, /\{item\.premiumLocked \? \([\s\S]*?DashboardPremiumLockIcon/);
+  assert.match(fluxBubbleSource, /\{!item\.premiumLocked \? \(/);
 });
 
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {

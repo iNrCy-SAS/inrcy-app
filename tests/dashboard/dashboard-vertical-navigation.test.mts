@@ -14,19 +14,23 @@ const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
 const layout = read("app/dashboard/layout.tsx");
 const memory = read("app/dashboard/_components/DashboardScrollMemory.tsx");
 const scroll = read("app/dashboard/dashboard.scroll.ts");
-const css = read("app/dashboard/dashboard.module.css");
 
-test("le cockpit relie les zones haute et outils par deux commandes accessibles", () => {
+test("le cockpit compact remplace les deux commandes verticales par un hub de canaux accessible", () => {
+  // Keep the existing landmarks for links and scroll restoration, without the obsolete jump buttons.
   assert.match(dashboard, /id=\{DASHBOARD_TOP_ANCHOR_ID\}/);
-  assert.match(dashboard, /window\.matchMedia\("\(max-width: 700px\), \(hover: none\) and \(pointer: coarse\)"\)/);
-  assert.match(dashboard, /DASHBOARD_GEARBOX_ANCHOR_ID/);
-  assert.match(dashboard, /scrollToDashboardAnchor\(targetAnchor\)/);
-  assert.match(dashboard, /aria-label=\{dashboardCopy\.quickNavigation\.goToTools\}/);
   assert.match(channels, /id=\{DASHBOARD_TOOLS_ANCHOR_ID\}/);
   assert.match(modules, /id=\{DASHBOARD_GEARBOX_ANCHOR_ID\}/);
-  assert.match(channels, /scrollToDashboardAnchor\(DASHBOARD_TOP_ANCHOR_ID\)/);
-  assert.match(channels, /aria-label=\{t\.quickNavigation\.goToTop\}/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.dashboardQuickJump/);
+  assert.doesNotMatch(dashboard, /dashboardQuickJump|quickNavigation\.goToTools|scrollToDashboardAnchor/);
+  assert.doesNotMatch(channels, /quickNavigation\.goToTop|scrollToDashboardAnchor/);
+
+  assert.match(channels, /data-testid="dashboard-channels-hub"/);
+  assert.match(channels, /onClick=\{\(\) => setChannelsOpen\(true\)\}/);
+  assert.match(channels, /aria-haspopup="dialog"/);
+  assert.match(channels, /aria-expanded=\{channelsOpen\}/);
+  assert.match(channels, /getChannelTone\(item\) === "connected"/);
+  assert.match(channels, /<small>\/\{summaryItems\.length\}<\/small>/);
+  assert.match(channels, /channelsOpen \? <DashboardChannelsModal items=\{fluxBubbleItems\}/);
+  assert.match(channels, /onClose=\{\(\) => setChannelsOpen\(false\)\}/);
 });
 
 test("la hauteur du dashboard est mémorisée universellement, sans rustine par outil", () => {

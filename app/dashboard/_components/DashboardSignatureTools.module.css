@@ -1,0 +1,424 @@
+.lowerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 22px;
+  width: 100%;
+  color: #f5f7ff;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #627cff94;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 0% 0%, #006dd74d, transparent 60%),
+    radial-gradient(ellipse at 100% 100%, #812ac233, transparent 65%),
+    linear-gradient(120deg, #0a2048ed, #16183ced 62%, #2a164bed);
+  box-shadow: inset 0 1px 0 #b5d9ff17, 0 7px 30px #02081930;
+}
+
+.panel::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 65px;
+  border-radius: inherit;
+  background-image: radial-gradient(#87bfff26 .7px, transparent .8px);
+  background-size: 10px 10px;
+  mask-image: linear-gradient(to right, transparent 25%, black, transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.panelHeader {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  gap: 10px;
+  padding: 0 5px 2px;
+}
+
+.panelHeader h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: clamp(15px, 1.2vw, 20px);
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
+.headingIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 30px;
+  color: #a1eeff;
+  font-size: 34px;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px #36bfff99);
+}
+
+.headingIcon svg { width: 28px; height: 28px; }
+.panelCaption { color: #a5b8e8; font-size: 8px; font-weight: 750; letter-spacing: .13em; }
+
+.boosterStats {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  color: #d8e6ff;
+  border: 1px solid #9d9edf50;
+  border-radius: 99px;
+  background: #131a416e;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+
+.boosterStats:hover { background: #5561b336; border-color: #b4b9ff91; }
+
+.boosterCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 0 190px;
+  min-width: 0;
+  min-height: 190px;
+  gap: clamp(14px, 1.8vw, 29px);
+  overflow: hidden;
+  padding: 20px 24px;
+  isolation: isolate;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  background:
+    radial-gradient(ellipse at 3% 0%, #0072e1, transparent 65%) padding-box,
+    linear-gradient(118deg, #074191, #132564 48%, #451b7e 82%, #8927a3) padding-box,
+    linear-gradient(135deg, #50efff, #578aff 32%, #b266fc 72%, #e887ff) border-box;
+  box-shadow: inset 0 0 38px #4a7af419, 0 0 20px #486afd17;
+}
+
+.boosterAura {
+  position: absolute;
+  z-index: -1;
+  width: 280px;
+  height: 280px;
+  left: -120px;
+  top: -70px;
+  border: 1px solid #50d8ff1a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px #19aeff06, 0 0 0 45px #41bfff05;
+}
+
+.boosterRocket {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: clamp(64px, 5.5vw, 94px);
+  height: clamp(64px, 5.5vw, 94px);
+  border: 1px solid #8ab8ff;
+  border-radius: 50%;
+  color: #e0fbff;
+  background: radial-gradient(circle at 28% 18%, #1688ff99, #284dde9e 62%, #b133da55);
+  box-shadow: inset 0 0 20px #5796ff6b, 0 0 25px #0cbfff38;
+  transform: rotate(-5deg);
+}
+
+.boosterRocket svg { width: 62%; height: 62%; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 5px #1cebff); }
+.boosterCopy { position: relative; z-index: 2; min-width: 0; }
+.eyebrow { display: block; color: #b8dbff; font-size: 8px; font-weight: 800; line-height: 1.2; letter-spacing: .12em; }
+.boosterCopy .eyebrow { margin-bottom: 3px; color: #a5d6ff; }
+.boosterCopy h4 { margin: 0; font-size: clamp(34px, 3.25vw, 53px); font-weight: 850; letter-spacing: -.04em; line-height: 1.1; text-shadow: 0 3px 20px #10266144; }
+.boosterCopy p { margin: 6px 0 14px; font-size: clamp(12px, .97vw, 16px); line-height: 1.45; color: #e0e8ff; }
+.boosterCopy p strong { color: #d9b9ff; font-weight: 650; }
+
+.primaryButton,
+.cardButton,
+.toolButton {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 17px;
+  border: 1px solid #b4c5ff9e;
+  border-radius: 99px;
+  color: #fff;
+  background: linear-gradient(110deg, #059eef, #484dff 56%, #c021f5);
+  box-shadow: inset 0 1px 0 #ffffff20, 0 3px 14px #164ff224;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform .2s, filter .2s, box-shadow .2s;
+}
+
+.primaryButton { min-width: 155px; min-height: 38px; font-size: 13px; background: linear-gradient(100deg, #00c0eb, #2661ff 55%, #ab33fa); box-shadow: inset 0 1px 0 #b7faff55, 0 0 22px #2373ff4d; }
+.primaryButton:hover,
+.cardButton:hover,
+.toolButton:hover { transform: translateY(-2px); filter: brightness(1.16); box-shadow: 0 5px 20px #8655f44a; }
+.primaryButton > span,
+.cardButton > span,
+.toolButton > span { font-size: 16px; font-weight: 450; line-height: .8; }
+
+.boosterWave { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; opacity: .94; animation: waveBreath 9s ease-in-out infinite alternate; }
+.boosterChart { position: absolute; z-index: -1; right: 5%; bottom: 25px; display: flex; align-items: flex-end; gap: 9px; width: 118px; height: 98px; padding: 20px 17px 16px; border: 1px solid #ba81ff72; border-radius: 17px; background: linear-gradient(140deg, #2c258c4f, #ac21be42); box-shadow: inset 0 0 18px #ad68ff11, 0 10px 40px #53108230; transform: perspective(400px) rotateY(-14deg) rotateZ(7deg); }
+.boosterChart span { flex: 1; height: 34%; border-radius: 4px 4px 2px 2px; background: linear-gradient(#8dceff, #6d50eb); box-shadow: inset 0 1px 1px #ebd1ff99, 0 0 12px #a865ff33; }
+.boosterChart span:nth-child(2) { height: 58%; background: linear-gradient(#d798ff, #b837e5); }
+.boosterChart span:nth-child(3) { height: 86%; background: linear-gradient(#f5a6ff, #b83bd7); }
+.boosterChart i { position: absolute; width: 70%; height: 25px; top: 14px; left: 12px; border-bottom: 1px solid #e6b6ff99; border-radius: 0 0 50% 50%; transform: rotate(-24deg); }
+.boosterStats { position: absolute; z-index: 3; top: 11px; right: 11px; min-height: 36px; padding: 7px 11px; font-size: 11px; border-color: #a9baff99; background: #243c76de; box-shadow: inset 0 1px 0 #e5edff1c, 0 3px 14px #05133242; }
+.boosterStats svg { width: 18px; height: 18px; color: #b9e8ff; }
+
+.creationGrid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; min-width: 0; min-height: 170px; gap: 9px; }
+.creationCard { --accent: #859bff; position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; min-width: 0; padding: 16px 13px 13px; border: 1px solid var(--accent); border-radius: 15px; background: linear-gradient(135deg, #123b8b, #192560 68%, #3d246e); box-shadow: inset 0 1px 0 #d2ddff14; }
+.creationCard::before { position: absolute; z-index: -1; width: 150px; height: 150px; right: -65px; bottom: -95px; border-radius: 50%; box-shadow: 0 0 65px 25px #8948ff52; content: ""; }
+.creationCard .cardLogo { position: absolute; top: 16px; left: 13px; width: 45px; height: 45px; }
+.creationCopy { min-width: 0; min-height: 98px; padding-left: 55px; }
+.creationCopy h4 { margin: 4px 0 5px; font-size: clamp(14px, 1.05vw, 18px); line-height: 1.2; letter-spacing: -.02em; font-weight: 800; }
+.creationCopy p { margin: 0; max-width: 190px; font-size: 11px; line-height: 1.4; color: #dde0fa; }
+.creationCard .cardButton { margin-top: auto; min-height: 34px; padding: 7px 13px; font-size: 10px; gap: 8px; }
+.creationCard .eyebrow { font-size: 7px; letter-spacing: .1em; }
+.cardLogo { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 56px; height: 56px; overflow: hidden; border: 1px solid #bb99ffbf; border-radius: 50%; color: #eee1ff; background: radial-gradient(circle at 30% 20%, #7458ed8c, #621ac766); box-shadow: inset 0 1px 7px #ceb7ff27, 0 0 15px #8950e934; }
+.cardLogo svg { width: 68%; height: 68%; }
+.cardLogo img { width: 88%; height: 88%; object-fit: contain; }
+.adsCard { --accent: #e77fc2c7; background: radial-gradient(ellipse at 100% 100%, #a334cc5e, transparent 68%), linear-gradient(135deg, #60244d, #422166 62%, #3c246e); }
+.adsCard .cardLogo { border-color: #fa84da; background: radial-gradient(circle at 25% 15%, #dd53d188, #811a9a); color: #ffdefd; box-shadow: 0 0 20px #e82cd53b; }
+.adsCard .eyebrow { color: #f3a4e2; }
+.adsCard .cardButton { background: linear-gradient(105deg, #e847b6, #b534e6 48%, #6e2ff6); border-color: #eea4ffd4; }
+.studioCard { --accent: #6bafffd6; background: linear-gradient(140deg, #074c9a, #122a75 59%, #242775); }
+.studioCard .cardLogo { color: #fff; background: radial-gradient(circle at 20% 15%, #487fff, #1938eb); border-color: #70abff; }
+.studioCard .cardButton { background: linear-gradient(105deg, #00aeed, #0054ef 70%, #452dff); border-color: #80d8ffbd; }
+.agentCard { --accent: #8891ffbd; background: linear-gradient(140deg, #1f3990, #211e79 58%, #402186); }
+.agentCard .cardLogo { background: linear-gradient(140deg, #395bf8, #5d2abe); border-color: #9695ff; }
+.agentCard .creationCopy { padding-right: 24px; }
+.agentCard .cardButton { background: linear-gradient(105deg, #7531fc, #5524ee 65%, #6146f9); border-color: #af86ffbd; }
+.ghostArt { position: absolute; z-index: -1; right: 7px; bottom: 17px; width: 57px; height: 57px; display: grid; place-items: center; border: 1px solid #a35eff50; border-radius: 10px; color: #bc77fa; background: linear-gradient(130deg, #a75afa16, #6528b844); transform: rotate(8deg); opacity: .7; }
+.ghostArt svg { width: 80%; height: 80%; }
+.adsCard .ghostArt { color: #ed7beb; width: 63px; height: 63px; bottom: 38px; right: 8px; transform: rotate(-8deg); }
+.planningButton,
+.settingsButton { position: absolute; z-index: 3; display: grid; place-items: center; width: 36px; height: 36px; padding: 8px; border: 1px solid #b5c7ff9c; border-radius: 11px; color: #edf4ff; background: #31477edb; box-shadow: inset 0 1px 0 #e3eaff1f, 0 2px 12px #020b2440; cursor: pointer; transition: background .2s; }
+.planningButton { top: 9px; right: 8px; }
+.planningButton:hover,
+.settingsButton:hover { background: #5c58b775; }
+.planningIcon,
+.settingsButton svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.pilotPanel { border-color: #9971c08c; background: radial-gradient(ellipse at 0% 0%, #0868d63b, transparent 60%), radial-gradient(ellipse at 100% 100%, #762e993d, transparent 65%), linear-gradient(120deg, #0a2048ed, #171b45ed 64%, #291746ed); }
+.dnaCard { position: relative; isolation: isolate; display: flex; align-items: center; min-height: 84px; min-width: 0; gap: 18px; overflow: hidden; padding: 12px 18px; border: 1px solid #627fffc7; border-radius: 15px; background: radial-gradient(ellipse at 4% 0%, #0068d55c, transparent 65%), linear-gradient(105deg, #08427580, #122a7177 65%, #3d1b8bc7); }
+.dnaCard .cardLogo { width: 58px; height: 58px; }
+.dnaCopy { position: relative; z-index: 1; min-width: 0; flex: 1; }
+.dnaCopy h4 { margin: 0 0 5px; font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.025em; }
+.dnaCopy p { margin: 0; font-size: 12px; line-height: 1.4; color: #dce5ff; }
+.dnaCard .cardButton { min-width: 103px; min-height: 35px; flex-shrink: 0; background: linear-gradient(110deg, #496aff, #8334fa 60%, #c41fe6); }
+.dnaArt { position: absolute; z-index: -1; right: 23%; top: 13px; width: 65px; height: 65px; color: #5487ed; opacity: .48; transform: rotate(-8deg); }
+.dnaArt svg { width: 100%; height: 100%; }
+.dnaArt::after { position: absolute; inset: 5px -14px 0 14px; border: 1px solid #5563e984; border-radius: 7px; transform: rotate(19deg); content: ""; }
+
+.signatureGrid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(95px, 1fr)); gap: 9px; min-width: 0; }
+.signatureCard { --tool-accent: #3aacff; position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: 49px minmax(0, 1fr); align-content: start; align-items: center; gap: 0 12px; min-width: 0; padding: 13px 13px 37px; border: 1px solid #1d9cecac; border-radius: 14px; background: linear-gradient(120deg, #06417ec2, #0b2356c7 57%, #081e4ebd); }
+.signatureLogo { display: grid; place-items: center; grid-row: 1; width: 49px; height: 49px; border-radius: 50%; color: var(--tool-accent); filter: drop-shadow(0 0 9px #028bef3b); }
+.signatureLogo img { width: 100%; height: 100%; object-fit: contain; }
+.signatureCopy { align-self: start; min-width: 0; padding-right: 31px; }
+.signatureCopy h4 { margin: 2px 0 5px; font-size: 14px; font-weight: 800; line-height: 1.15; letter-spacing: -.015em; }
+.signatureCopy p { margin: 0; max-width: 172px; font-size: 10px; line-height: 1.35; color: #dce3fb; }
+.signatureArt { position: absolute; z-index: -1; right: 8px; bottom: 7px; display: grid; place-items: center; width: 58px; height: 58px; color: var(--tool-accent); opacity: .22; transform: rotate(8deg); }
+.signatureArt svg { width: 100%; height: 100%; }
+.settingsButton { top: 7px; right: 7px; }
+.toolButton { position: absolute; right: 12px; bottom: 9px; min-height: 26px; padding: 5px 11px; min-width: 88px; gap: 8px; font-size: 9px; border-color: #599ffcce; background: linear-gradient(110deg, #006ebb, #3043b7); }
+.toolButton > span { font-size: 13px; }
+.statsCard { --tool-accent: #cf6bfb; border-color: #9561dda8; background: linear-gradient(120deg, #302460d9, #191b4cc7 57%, #311954d9); }
+.statsCard .toolButton { background: linear-gradient(110deg, #6c28bd, #6620aa); border-color: #b86ef5c7; }
+.calendarCard { --tool-accent: #e6a442; border-color: #bf905f94; background: linear-gradient(120deg, #41323dde, #202a3ad9 57%, #4f383da6); }
+.calendarCard .toolButton { background: linear-gradient(110deg, #86613e, #624233); border-color: #e7ac5acc; }
+.crmCard { --tool-accent: #20d5e9; border-color: #24b6e1c2; background: linear-gradient(120deg, #004368d4, #0d2b59c7 57%, #122869de); }
+.crmCard .toolButton { background: linear-gradient(110deg, #0082a9, #066ac1); border-color: #5ddcffc2; }
+
+.relationshipGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; min-width: 0; }
+.relationshipCard { position: relative; isolation: isolate; min-height: 86px; min-width: 0; overflow: hidden; padding: 12px 12px 35px; border: 1px solid #d14d9ba6; border-radius: 14px; }
+.relationshipLogo { position: absolute; top: 14px; left: 12px; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #ed939bb0; border-radius: 50%; color: #ffd0bc; background: radial-gradient(circle at 30% 20%, #d776616e, #ad335248); box-shadow: inset 0 1px 5px #ffc9b827, 0 0 15px #f9686330; }
+.relationshipLogo svg { width: 70%; height: 70%; }
+.relationshipCopy { position: relative; z-index: 1; min-width: 0; padding-left: 53px; }
+.relationshipCopy h4 { margin: 0 0 4px; font-size: 14px; line-height: 1.15; font-weight: 800; }
+.relationshipCopy p { margin: 0; font-size: 10px; line-height: 1.35; color: #efdaee; }
+.relationshipCard .cardButton { position: absolute; right: 10px; bottom: 8px; min-width: 85px; min-height: 26px; padding: 5px 11px; font-size: 9px; gap: 8px; }
+.relationshipCard .cardButton > span { font-size: 13px; }
+.reputationCard { background: radial-gradient(ellipse at 8% 15%, #a63c5d44, transparent 56%), linear-gradient(110deg, #4f1f4e, #351749 52%, #69185e); }
+.reputationCard .cardButton { border-color: #ff9bd094; background: linear-gradient(105deg, #d62a84, #b52c93); }
+.mailCampaignCard { border-color: #e49a838f; background: radial-gradient(ellipse at 0% 5%, #de824b38, transparent 63%), linear-gradient(112deg, #65404b, #58304f 55%, #782a63); }
+.mailCampaignCard .relationshipLogo { border-color: #ffc395b3; color: #ffdec6; background: radial-gradient(circle at 25% 15%, #efba655e, #bf5b464f); box-shadow: inset 0 1px 5px #ffe4ab38, 0 0 15px #eaac5235; }
+.mailCampaignCard .cardButton { border-color: #ffd3a88a; background: linear-gradient(105deg, #be723c, #d05777 68%, #ba4284); }
+.mailCampaignArt { position: absolute; z-index: -1; right: 10px; bottom: 14px; width: 60px; height: 60px; color: #f9b086; opacity: .14; transform: rotate(-14deg); }
+.mailCampaignArt svg { width: 100%; height: 100%; }
+.reputationStars { position: absolute; z-index: -1; right: 10%; bottom: 23px; display: flex; align-items: baseline; gap: 2px; color: #ed438d; opacity: .25; font-size: 19px; transform: rotate(-12deg); }
+.reputationStars b:nth-of-type(1) { transform: translateY(-6px); }
+.reputationStars b:nth-of-type(2) { transform: translateY(-10px); }
+
+.lowerRow button:focus-visible { outline: 2px solid #b8f7ff; outline-offset: 3px; }
+.lowerRow button:disabled { cursor: default; opacity: .58; transform: none; filter: none; }
+
+@keyframes waveBreath { from { transform: translate3d(0, 0, 0) scale(1); opacity: .78; } to { transform: translate3d(-5px, 3px, 0) scale(1.035); opacity: 1; } }
+
+@media (min-width: 1900px) {
+  .panel { padding: 18px; gap: 12px; }
+  .boosterCard { min-height: 215px; }
+  .creationGrid { min-height: 180px; }
+  .creationCopy p { font-size: 12px; }
+  .signatureCopy h4 { font-size: 16px; }
+  .signatureCopy p { font-size: 12px; max-width: 205px; }
+  .toolButton { min-height: 30px; font-size: 10px; }
+}
+
+@media (max-width: 1450px) and (min-width: 1101px) {
+  .panel { padding: 12px; }
+  .panelHeader { gap: 5px; }
+  .panelHeader h3 { font-size: 16px; gap: 7px; }
+  .panelCaption { display: none; }
+  .creationCard { padding: 13px 10px 12px; }
+  .creationCard .cardLogo { width: 36px; height: 36px; left: 10px; top: 13px; }
+  .creationCopy { padding-left: 0; padding-top: 42px; min-height: 110px; }
+  .agentCard .creationCopy { padding-right: 0; }
+  .creationCopy .eyebrow { display: none; }
+  .creationCopy h4 { margin-top: 0; font-size: 14px; }
+  .creationCopy p { max-width: 145px; font-size: 10px; }
+  .creationCard .cardButton { font-size: 9px; padding: 7px 10px; gap: 5px; }
+  .ghostArt { right: 5px; bottom: 16px; width: 44px; height: 44px; opacity: .28; }
+  .adsCard .ghostArt { bottom: 30px; width: 50px; height: 50px; }
+  .boosterCard { padding: 19px; }
+  .boosterChart { width: 90px; height: 83px; right: 4%; opacity: .85; }
+  .dnaCard { gap: 12px; padding: 11px 13px; }
+  .dnaCard .cardLogo { width: 49px; height: 49px; }
+  .dnaCopy h4 { font-size: 20px; }
+  .dnaCopy p { font-size: 11px; max-width: 200px; }
+  .dnaCard .cardButton { min-width: 85px; padding: 7px 12px; font-size: 10px; }
+  .signatureCard { grid-template-columns: 41px minmax(0, 1fr); gap: 0 9px; padding: 12px 10px 39px; }
+  .signatureLogo { width: 41px; height: 41px; }
+  .signatureCopy h4 { font-size: 13px; }
+  .signatureCopy p { font-size: 10px; }
+  .reputationStars { opacity: .26; }
+}
+
+@media (max-width: 1100px) {
+  .lowerRow { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .panel { padding: 15px; }
+  .panelHeader h3 { font-size: 20px; }
+  .boosterCard { min-height: 205px; }
+  .boosterRocket { width: 88px; height: 88px; }
+  .boosterCopy h4 { font-size: 48px; }
+  .boosterCopy p { font-size: 15px; }
+  .creationGrid { min-height: 175px; }
+  .creationCopy h4 { font-size: 17px; }
+  .creationCopy p { font-size: 12px; }
+  .signatureGrid { grid-template-rows: repeat(2, minmax(110px, 1fr)); }
+  .signatureCopy h4 { font-size: 16px; }
+  .signatureCopy p { font-size: 12px; }
+  .toolButton { min-height: 30px; font-size: 10px; }
+  .dnaCard { min-height: 90px; }
+  .relationshipCard { min-height: 91px; }
+  .relationshipCopy h4 { font-size: 15px; }
+  .relationshipCard .cardButton { min-height: 29px; font-size: 10px; }
+}
+
+@media (max-width: 700px) {
+  .panel { padding: 12px; border-radius: 17px; }
+  .panelHeader { padding-inline: 1px; }
+  .panelHeader h3 { font-size: 17px; gap: 7px; }
+  .panelCaption { display: none; }
+  .boosterCard { gap: 17px; padding: 44px 18px 19px; min-height: 216px; }
+  .boosterStats { top: 9px; right: 9px; min-height: 40px; font-size: 12px; }
+  .boosterRocket { width: 68px; height: 68px; }
+  .boosterCopy h4 { font-size: 41px; }
+  .boosterCopy p { font-size: 13px; }
+  .boosterCopy .eyebrow { font-size: 7px; }
+  .boosterChart { width: 85px; height: 85px; opacity: .48; right: 4%; }
+  .primaryButton { min-width: 133px; min-height: 37px; font-size: 12px; }
+  .creationGrid { grid-template-columns: 1fr 1fr; }
+  .creationCard { min-height: 171px; padding: 16px 12px 12px; }
+  .adsCard { grid-column: 1 / -1; min-height: 120px; padding: 16px; }
+  .adsCard .cardLogo { width: 51px; height: 51px; top: 18px; left: 16px; }
+  .adsCard .creationCopy { padding-left: 64px; min-height: 50px; padding-right: 135px; }
+  .adsCard .creationCopy p { max-width: none; }
+  .adsCard .creationCopy h4 { font-size: 21px; }
+  .adsCard .cardButton { margin-top: 12px; margin-left: 64px; }
+  .adsCard .ghostArt { width: 75px; height: 75px; right: 22px; bottom: 21px; }
+  .creationCopy { padding-left: 50px; }
+  .agentCard .creationCopy { padding-left: 0; padding-top: 49px; padding-right: 0; }
+  .creationCopy h4 { font-size: 16px; }
+  .creationCopy p { font-size: 11px; }
+  .creationCard .cardLogo { width: 41px; height: 41px; }
+  .creationCard .cardButton { min-height: 36px; font-size: 11px; }
+  .dnaCard { padding: 12px; gap: 12px; }
+  .dnaCard .cardLogo { width: 49px; height: 49px; }
+  .dnaCopy h4 { font-size: 21px; }
+  .dnaCopy p { font-size: 11px; max-width: 205px; }
+  .dnaCard .cardButton { min-width: 82px; padding: 7px 11px; font-size: 10px; }
+  .dnaArt { right: 20%; opacity: .22; }
+  .signatureCard { display: block; padding: 12px 10px 48px; }
+  .signatureLogo { width: 43px; height: 43px; margin-bottom: 9px; }
+  .signatureCopy { padding-right: 0; }
+  .signatureCopy h4 { font-size: 13px; }
+  .signatureCopy p { font-size: 10px; }
+  .toolButton { min-height: 32px; min-width: 88px; font-size: 10px; bottom: 9px; }
+  .settingsButton,
+  .planningButton { width: 40px; height: 40px; padding: 9px; }
+  .settingsButton { top: 9px; right: 9px; }
+  .relationshipCard { padding: 12px 10px 40px; }
+  .relationshipLogo { left: 10px; width: 37px; height: 37px; }
+  .relationshipCopy { padding-left: 47px; }
+  .relationshipCopy h4 { font-size: 14px; }
+  .relationshipCard .cardButton { min-width: 77px; padding: 7px 11px; min-height: 32px; font-size: 10px; }
+  .reputationStars { display: none; }
+}
+
+@media (max-width: 540px) {
+  .relationshipGrid { grid-template-columns: minmax(0, 1fr); }
+  .relationshipCard { min-height: 87px; }
+  .relationshipLogo { width: 43px; height: 43px; }
+  .relationshipCopy { padding-left: 55px; }
+  .relationshipCopy h4 { font-size: 16px; }
+  .relationshipCopy p { font-size: 11px; }
+}
+
+@media (max-width: 420px) {
+  .panel { padding: 10px; gap: 9px; }
+  .panelHeader h3 { font-size: 16px; }
+  .boosterCard { padding: 46px 14px 19px; gap: 12px; }
+  .boosterRocket { width: 53px; height: 53px; }
+  .boosterCopy h4 { font-size: 38px; }
+  .boosterChart { right: -25px; opacity: .35; }
+  .adsCard .creationCopy { padding-right: 48px; }
+  .adsCard .ghostArt { width: 55px; height: 55px; opacity: .48; right: 12px; }
+  .creationCopy { padding-left: 0; padding-top: 41px; min-height: 118px; }
+  .adsCard .creationCopy { padding-top: 0; min-height: 50px; }
+  .creationCopy .eyebrow { display: none; }
+  .signatureCard { display: block; padding: 12px 10px 48px; }
+  .signatureLogo { width: 38px; height: 38px; margin-bottom: 9px; }
+  .signatureCopy h4 { font-size: 14px; }
+  .signatureCopy p { font-size: 11px; }
+  .dnaCard { gap: 9px; padding: 11px; }
+  .dnaCard .cardLogo { width: 42px; height: 42px; }
+  .dnaCopy h4 { font-size: 19px; }
+  .dnaCopy p { font-size: 10px; }
+  .dnaCard .cardButton { min-width: 71px; padding: 7px 10px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boosterWave { animation: none; }
+  .lowerRow button { transition: none; }
+  .lowerRow button:hover { transform: none; }
+}
