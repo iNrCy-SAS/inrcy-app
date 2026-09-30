@@ -102,7 +102,7 @@ test("les six canaux peuvent être préparés en brouillon sans compte annonceur
   }
 });
 
-test("TikTok et X restent impossibles à publier et ne peuvent pas lier de faux comptes", () => {
+test("TikTok et X restent impossibles à publier ; seule l’association X peut accompagner un brouillon", () => {
   const unconnectedDraft = {
     ...metaDraft,
     provider: "tiktok",
@@ -112,8 +112,10 @@ test("TikTok et X restent impossibles à publier et ne peuvent pas lier de faux 
   };
   for (const provider of ["tiktok", "x"]) {
     assert.match(parseAdsCampaignInput({ ...unconnectedDraft, provider }).error || "", /pas encore disponibles/);
-    assert.match(parseAdsCampaignInput({ ...unconnectedDraft, provider, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
   }
+  assert.match(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
+  // Ownership and current access for an X account are checked by POST /campaigns.
+  assert.equal(parseAdsCampaignInput({ ...unconnectedDraft, provider: "x", adAccountId: "Ab12cd" }, { purpose: "draft" }).draft?.adAccountId, "Ab12cd");
   assert.equal(parseAdsCampaignInput({ ...metaDraft, provider: "meta", adAccountId: "" }, { purpose: "draft" }).draft?.adAccountId, "");
 });
 

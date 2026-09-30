@@ -82,7 +82,7 @@ export function isAdsProvider(value: unknown): value is AdsProvider {
   return value === "meta" || value === "google";
 }
 
-/** Channels whose verified advertiser association can be stored on a local campaign draft. */
+/** Channels with account-bound campaign publication adapters. X remains draft-only. */
 export function isAdsDraftAccountChannel(value: unknown): value is AdsDraftAccountChannel {
   return value === "meta" || value === "google" || value === "linkedin" || value === "pinterest";
 }
@@ -417,11 +417,13 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   }
 
   const rawAccountId = clean(raw.adAccountId);
-  const adAccountId = rawAccountId.replace(/^act_/, "").replace(/-/g, "");
-  const accountIdPattern = provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
+  // X Ads account IDs are opaque alphanumeric identifiers, unlike the numeric
+  // advertisers used by the live adapters. Never transform an X identifier.
+  const adAccountId = provider === "x" ? rawAccountId : rawAccountId.replace(/^act_/, "").replace(/-/g, "");
+  const accountIdPattern = provider === "x" ? /^[a-z0-9]+$/i : provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
   if (purpose === "publish" && !accountIdPattern.test(adAccountId)) return { draft: null, error: "Sélectionnez un compte publicitaire connecté." };
   if (adAccountId && !accountIdPattern.test(adAccountId)) return { draft: null, error: "L’identifiant du compte publicitaire est invalide." };
-  if (!isAdsDraftAccountChannel(provider) && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
+  if (!isAdsDraftAccountChannel(provider) && provider !== "x" && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
   if (raw.accountCurrency !== "EUR") return { draft: null, error: "Cette première version accepte les comptes publicitaires en EUR uniquement." };
 
   const creationMode: AdsCreationMode = includes(ADS_CREATION_MODES, raw.creationMode) ? raw.creationMode : "manual";

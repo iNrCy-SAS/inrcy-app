@@ -3,6 +3,7 @@ import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMet
 import { isAdsProvider, isAdsChannelId, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
+import { listXAdsAccounts, readXAdsIntegration, verifySelectedXAdsAccount } from "@/lib/adsXServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
@@ -83,6 +84,21 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Le compte LinkedIn Ads EUR associé n’est plus accessible avec un rôle de gestion des campagnes." }, { status: 403 });
       }
     }
+    if (draft.provider === "x" && draft.adAccountId) {
+      const integration = await readXAdsIntegration(user.activeUserId);
+      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Ce compte X Ads n’est plus celui associé au canal. Vérifiez la connexion avant d’enregistrer le brouillon." }, { status: 409 });
+      }
+      const accounts = await listXAdsAccounts(user.activeUserId, integration);
+      const account = accounts.find((entry) => entry.id === draft.adAccountId);
+      if (!account) {
+        return NextResponse.json({ error: "Le compte X Ads associé n’est plus accessible." }, { status: 403 });
+      }
+      const verified = await verifySelectedXAdsAccount(user.activeUserId, integration, account);
+      if (verified.eligibleToAssociate !== true) {
+        return NextResponse.json({ error: "Le compte X Ads doit rester accepté, en euros, avec un rôle Administrateur ou Ad Manager vérifié." }, { status: 403 });
+      }
+    }
     if (draft.provider === "meta" && draft.pageId) {
       const pages = await listMetaPages(user.activeUserId);
       if (!pages.some((page) => page.id === draft.pageId)) {
@@ -90,8 +106,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Persist advertisers only for channels with account-bound campaign adapters.
-    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin"
+    // This association does not grant publication: X drafts remain local only.
+    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin" || draft.provider === "x"
       ? draft.adAccountId : "";
 
     const payload = {
