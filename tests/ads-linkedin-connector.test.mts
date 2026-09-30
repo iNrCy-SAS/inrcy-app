@@ -177,7 +177,7 @@ test("LinkedIn connection status cannot rely on missing or malformed access expi
   assert.equal(linkedInAdsAccessTokenIsFresh("2026-09-27T10:03:00Z", now), true);
 });
 
-test("connector stays separate from organic LinkedIn and has no ad publishing endpoint", () => {
+test("connector stays separate from organic LinkedIn while the Ads publisher uses the dedicated connection", () => {
   const server = source("lib/adsLinkedInServer.ts");
   const start = source("app/api/ads/linkedin/start/route.ts");
   const accounts = source("app/api/ads/linkedin/accounts/route.ts");
@@ -193,9 +193,11 @@ test("connector stays separate from organic LinkedIn and has no ad publishing en
   assert.match(start, /"ads_linkedin"/);
   assert.match(accounts, /adsRequestOriginAllowed\(request\)/);
   assert.match(accounts, /ads_linkedin_accounts/);
-  assert.match(status, /publicationEnabled: false/);
-  assert.match(validation, /value === "meta" \|\| value === "google" \|\| value === "pinterest"/);
-  assert.doesNotMatch(publishRoute, /publishLinkedInAdsCampaign|prepareLinkedInAdsDraftCampaign/);
+  assert.match(status, /INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"/);
+  assert.match(validation, /ADS_DRAFT_ACCOUNT_CHANNELS = \["meta", "google", "linkedin", "pinterest"\]/);
+  assert.match(validation, /isAdsDraftAccountChannel[\s\S]*?value === "linkedin"/);
+  assert.match(publishRoute, /publishLinkedInAdsCampaign/);
+  assert.match(publishRoute, /INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"/);
   assert.match(source("app/api/ads/linkedin/callback/route.ts"), /oauth_linkedin_ads_callback/);
   assert.doesNotMatch(server, /POST https:\/\/api\.linkedin\.com\/rest\/adCampaigns/);
 });
@@ -234,7 +236,7 @@ test("LinkedIn Ads and organic LinkedIn keep distinct OAuth, callback, storage a
   assert.doesNotMatch(organicScopes, /["']rw_ads["']/);
 });
 
-test("LinkedIn UI uses the complete Ads management consent by default without promising publication", () => {
+test("LinkedIn UI uses the complete Ads management consent and reports the dedicated rollout gate", () => {
   const settings = source("app/dashboard/ads/ExternalAdsConnectionSettings.tsx");
   const client = source("app/dashboard/ads/AdsClient.tsx");
   const start = source("app/api/ads/linkedin/start/route.ts");
@@ -253,7 +255,7 @@ test("LinkedIn UI uses the complete Ads management consent by default without pr
   assert.match(client, /selectedAccountCanManage: data\.selectedAccountCanManage === true/);
   assert.match(client, /selectedAccountCanServe: data\.selectedAccountCanServe === true/);
   assert.match(status, /missingLinkedInAdsScopes\(scopes\.join\(" "\), "manage"\)/);
-  assert.match(status, /publicationEnabled: false/);
+  assert.match(status, /INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"/);
   assert.match(settings, /Rôle LinkedIn/);
   assert.match(settings, /Servabilité/);
   assert.match(settings, /La publication sur \$\{current\.label\} n’est pas encore activée/);

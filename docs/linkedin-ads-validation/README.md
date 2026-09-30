@@ -11,15 +11,16 @@ Ce dossier rassemble les éléments nécessaires pour activer puis faire valider
 | Connexion OAuth Ads séparée de LinkedIn organique | Implémentée dans le code | Démonstrable après configuration de l’app LinkedIn |
 | OAuth Ads principal | Implémenté | `rw_ads r_ads_reporting r_organization_admin w_organization_social` en un consentement ; `r_ads` réservé au diagnostic lecture seule |
 | Liste et association d’un compte publicitaire | Implémentées | Le compte et le rôle sont relus depuis LinkedIn |
-| Sérialisation locale d’une campagne LinkedIn `DRAFT` | Préparée, non envoyée | Ce n’est pas une création de campagne distante |
-| Route de création/modification de campagne LinkedIn | **Absente / désactivée** | La vidéo Standard conforme ne peut pas encore être tournée |
+| Publication Image Ads classique | Implémentée derrière un verrou LinkedIn dédié | Image médiathèque → campagne `DRAFT` → dark post → creative → statut final ; aucun appel live n’a été exécuté pendant la QA |
+| Reprise et idempotence | Implémentées | Chaque URN/ID est persisté avant l’étape suivante ; un `POST` à résultat incertain bloque toute répétition aveugle |
+| Modification, statut, archivage/suppression et statistiques | Implémentation serveur et tests en finalisation | Chaque mutation doit relire le compte, le rôle et la propriété distante ; aucune preuve live n’est encore produite |
 | App dédiée, callback et permissions | Development et callback confirmés le 30/09/2026 | App **iNrCy Ads** ; vérifier au prochain consentement que les quatre scopes manage sont effectivement accordés |
 | Accès Advertising API Development | **Approuvé le 30/09/2026** | Permet maintenant les tests Development sur les comptes ajoutés à l’app |
-| Configuration Vercel dédiée | Présence des trois variables OAuth Ads confirmée en lecture seule | Valeurs non copiées ; contrôle d’environnement encore à exécuter dans chaque cible |
+| Configuration Vercel dédiée | OAuth et allowlist Development `558357276` confirmés en lecture seule | Valeurs secrètes non copiées ; le verrou `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED` reste volontairement séparé des autres canaux |
 | Accès Advertising API Standard | Non demandé | Demande séparée seulement après une mutation réelle démontrable |
 | Vidéo Standard | Storyboard prêt, non tourné | **Aucune vidéo n’est requise pour conserver le Development Tier déjà approuvé** |
 
-Le code retourne actuellement `publicationEnabled: false`. Il ne faut donc pas présenter l’intégration comme capable de publier ou modifier une campagne LinkedIn en production.
+Le code possède maintenant un publisher réel, mais il reste **fail-closed** tant que la migration Supabase n’est pas appliquée et que `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED=true` n’est pas configuré dans l’environnement visé. Le compte `558357276` étant encore signalé **On hold**, un lancement `ACTIVE` est refusé. Le chemin `PAUSED` peut servir au test Development sans diffusion après déploiement, migration et contrôle humain. Aucun appel LinkedIn de mutation n’a été réalisé par la QA automatisée.
 
 Le guide Image Ads générique mentionne aussi `r_organization_social`. Le flux iNrCy actuel est volontairement **create-only** pour le contenu sponsorisé : il prépare uniquement `POST /rest/posts` avec `w_organization_social` et ne fait aucun `GET`, finder ou réutilisation de posts LinkedIn. `r_organization_social` est donc exclu. Toute future fonction de lecture ou de réutilisation de posts devra faire l’objet d’une nouvelle revue de périmètre et de consentement.
 
@@ -40,10 +41,11 @@ Le niveau Standard n’est pas automatique. LinkedIn demande une demande distinc
 2. Contrôler les variables serveur dans chaque environnement sans afficher leurs valeurs, puis exécuter `npm run verify:linkedin-ads-env`.
 3. Ajouter dans le portail les comptes autorisés au niveau Development via **Products > Advertising API > View Ad Accounts**.
 4. Démontrer OAuth, lecture des comptes, association et déconnexion Ads, sans impacter LinkedIn organique.
-5. Brancher le workflow distant durable déjà sérialisé : création `DRAFT`, modification, archivage/suppression conforme au statut et lecture `adAnalytics`, avec persistance des URN et reprise idempotente.
-6. Enregistrer la vidéo **uniquement pour la demande Standard** avec les preuves décrites dans ce dossier.
-7. Faire une relecture humaine du texte, de la politique de confidentialité, des captures et des identifiants masqués.
-8. Soumettre la demande Standard manuellement si elle devient nécessaire. Aucune soumission n’est automatisée par ce dossier.
+5. Appliquer la migration Supabase, déployer le code et activer uniquement le verrou LinkedIn dans l’environnement choisi.
+6. Effectuer avec validation humaine un smoke test Development en `PAUSED`, puis vérifier les IDs et le statut dans Campaign Manager. Ne jamais choisir `ACTIVE` tant que le compte est On hold ou que le groupe parent n’est pas `ACTIVE`.
+7. Enregistrer la vidéo **uniquement pour la demande Standard** avec les preuves décrites dans ce dossier.
+8. Faire une relecture humaine du texte, de la politique de confidentialité, des captures et des identifiants masqués.
+9. Soumettre la demande Standard manuellement si elle devient nécessaire. Aucune soumission n’est automatisée par ce dossier.
 
 ## Documents du dossier
 

@@ -36,7 +36,9 @@ export async function GET() {
       selectedAccountCanServe: connected && meta.selected_account_can_serve === true,
       accountVerificationRequired: true,
       refreshAvailable,
-      publicationEnabled: false,
+      // Dedicated rollout gate: enabling LinkedIn can never unlock Meta or
+      // Google, which intentionally keep their own approval lifecycle.
+      publicationEnabled: process.env.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof LinkedInAdsConnectionError ? error.status : 503;

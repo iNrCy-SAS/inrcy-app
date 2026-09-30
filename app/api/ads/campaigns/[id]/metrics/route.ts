@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { googleAdsJson, listAdsAccounts, metaAdsJson, requirePremiumAdsUser } from "@/lib/adsServer";
-import { googleCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseMetaAdsMetrics } from "@/lib/adsCampaignMetrics";
+import { googleCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseLinkedInAdsMetrics, parseMetaAdsMetrics } from "@/lib/adsCampaignMetrics";
+import { readLinkedInAdsCampaignAnalytics } from "@/lib/adsLinkedInLifecycle";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -53,6 +54,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
       const report = await metaAdsJson(user.activeUserId,
         `${campaignId}/insights?fields=impressions,clicks,spend&date_preset=last_30d&limit=1`);
       const metrics = parseMetaAdsMetrics(report, fetchedAt);
+      return NextResponse.json(metrics ? { metrics } : { metrics: null, reason: "no_data" }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (campaign.provider === "linkedin") {
+      const end = new Date();
+      const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - 29));
+      const report = await readLinkedInAdsCampaignAnalytics(user.activeUserId, {
+        adAccountId: accountId,
+        resources: campaign.provider_resources,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+      });
+      const metrics = parseLinkedInAdsMetrics(report.payload, fetchedAt, report.campaignUrn);
       return NextResponse.json(metrics ? { metrics } : { metrics: null, reason: "no_data" }, { headers: { "Cache-Control": "no-store" } });
     }
     return NextResponse.json({ error: "Les statistiques de ce canal ne sont pas encore synchronisées." }, { status: 409 });

@@ -245,7 +245,7 @@ export function prepareLinkedInAdsDraftCampaign(
   const organizationUrn = string(organization.urn);
   issue(issues, "organization_unverified", "externalRefs.organizationUrn",
     !ORGANIZATION_URN.test(organizationUrn) || string(refs.organizationUrn) !== organizationUrn
-      || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER"].includes(string(organization.role)));
+      || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER", "CONTENT_ADMINISTRATOR"].includes(string(organization.role)));
 
   const image = record(evidence.image);
   const imageUrn = string(image.urn);
@@ -276,7 +276,7 @@ export function prepareLinkedInAdsDraftCampaign(
   const groupSchedule = record(group.runSchedule);
   issue(issues, "invalid_schedule", "choices.startAtMs",
     !safeTime(startAtMs) || !safeTime(nowMs) || startAtMs < nowMs + 60_000
-      || !safeTime(groupSchedule.start) || startAtMs < groupSchedule.start
+      || (groupSchedule.start !== undefined && (!safeTime(groupSchedule.start) || startAtMs < groupSchedule.start))
       || (safeTime(groupSchedule.end) && startAtMs >= groupSchedule.end));
   issue(issues, "invalid_schedule", "choices.endAtMs",
     endAtMs !== undefined && (!safeTime(endAtMs) || !safeTime(startAtMs) || endAtMs <= startAtMs
@@ -376,7 +376,7 @@ export function prepareLinkedInAdsDarkPost(
     !canManage || account.canManageCampaigns !== true || !linkedInAdsScopes(scopes).includes("rw_ads"));
   issue(issues, "organization_unverified", "externalRefs.organizationUrn",
     !ORGANIZATION_URN.test(organizationUrn) || string(refs.organizationUrn) !== organizationUrn
-      || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER"].includes(string(organization.role)));
+      || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER", "CONTENT_ADMINISTRATOR"].includes(string(organization.role)));
   issue(issues, "image_unverified", "externalRefs.creativeAssetUrn",
     !IMAGE_URN.test(imageUrn) || string(refs.creativeAssetUrn) !== imageUrn
       || image.status !== "AVAILABLE" || string(image.owner) !== organizationUrn

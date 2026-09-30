@@ -4,6 +4,8 @@ import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, resolveGoog
 import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
 import { PinterestAdsPublishError, publishPinterestAdsCampaign } from "@/lib/adsPinterestCampaignPublish";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
+import { LinkedInAdsPublishError, publishLinkedInAdsCampaign } from "@/lib/adsLinkedInPublisherServer";
+import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { isAdsDraftAccountChannel, parseAdsCampaignInput } from "@/lib/adsValidation";
@@ -66,9 +68,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!isAdsDraftAccountChannel(draft.provider)) {
     return NextResponse.json({ error: "La connexion et la publication de ce canal ne sont pas encore disponibles." }, { status: 423 });
   }
-  // Meta and Google keep their deployment safety flags. Pinterest is enabled
-  // by its Standard API access, fresh OAuth scopes and advertiser checks below.
-  if (draft.provider !== "pinterest" && !isAdsPublishModeEnabled(mode, process.env)) {
+  // Meta/Google keep their shared rollout flag. LinkedIn has a dedicated gate
+  // so enabling its approved Development account can never unlock another
+  // provider by accident. Pinterest is enabled by its Standard API access.
+  const publishModeEnabled = draft.provider === "linkedin"
+    ? process.env.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true"
+    : draft.provider === "pinterest" || isAdsPublishModeEnabled(mode, process.env);
+  if (!publishModeEnabled) {
     return NextResponse.json({ error: pausedDemo
       ? "La création de démo en pause est verrouillée dans cet environnement."
       : "La création réelle est verrouillée tant que les accès publicitaires ne sont pas validés et testés." }, { status: 423 });
@@ -94,6 +100,20 @@ export async function POST(request: Request, { params }: RouteContext) {
         return NextResponse.json({ error: "Le compte Pinterest Ads EUR n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 });
       }
       pinterestAccountCountry = selectedAccount.country;
+    } else if (draft.provider === "linkedin") {
+      const connection = await readLinkedInAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Ce compte LinkedIn Ads n’est plus celui associé au canal. Reconnectez-le avant de lancer la campagne." }, { status: 409 });
+      }
+      const accounts = await listLinkedInAdsAccounts(user.activeUserId, connection);
+      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId
+        && account.currency === "EUR" && account.canManageCampaigns === true);
+      if (!selectedAccount) {
+        return NextResponse.json({ error: "Le compte LinkedIn Ads EUR n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 });
+      }
+      if (!createPaused && !selectedAccount.canServeCampaigns) {
+        return NextResponse.json({ error: "Le compte LinkedIn Ads est On hold ou non servable. Choisissez En pause ou réactivez le compte dans Campaign Manager." }, { status: 409 });
+      }
     } else {
       const connection = await readAdsIntegration(user.activeUserId, draft.provider);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -164,6 +184,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   let progress: Record<string, unknown> = {};
   let metaProviderMutationStarted = false;
   let pinterestProviderMutationStarted = false;
+  let linkedinProviderMutationStarted = false;
   const persistProgress = async (resources: Record<string, unknown>) => {
     // Keep newly created provider IDs even if the database write fails or times out.
     // The recovery path can then record them under needs_review instead of {}.
@@ -188,6 +209,12 @@ export async function POST(request: Request, { params }: RouteContext) {
           accountCountry: pinterestAccountCountry,
           onProviderMutationStart: () => { pinterestProviderMutationStarted = true; },
         })
+        : draft.provider === "linkedin"
+          ? await publishLinkedInAdsCampaign(user.activeUserId, draft, persistProgress, {
+            operationKey: `linkedin:${id}`,
+            activate: !createPaused,
+            onProviderMutationStart: () => { linkedinProviderMutationStarted = true; },
+          })
         : await publishGoogleAdsCampaign(user.activeUserId, draft, persistProgress, googleLoginCustomerId, { activate: !createPaused, preparedTargetLocations: preparedGoogleTargetLocations });
     const completedResources = pausedDemo
       ? { ...resources, demoPaused: true, demoCreatedAt: new Date().toISOString() }
@@ -212,7 +239,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ campaign: completed, mode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
-    const resources = error instanceof MetaAdsPublishError || error instanceof PinterestAdsPublishError
+    const resources = error instanceof MetaAdsPublishError || error instanceof PinterestAdsPublishError || error instanceof LinkedInAdsPublishError
       ? error.progress : progress;
     // A Google 400 on the first atomic mutate cannot leave provider objects
     // behind. Return the local row to draft so the precise validation error can
@@ -229,7 +256,11 @@ export async function POST(request: Request, { params }: RouteContext) {
     const pinterestRejectedBeforeCreate = draft.provider === "pinterest"
       && !(error instanceof PinterestAdsPublishError ? error.mutationStarted : pinterestProviderMutationStarted)
       && Object.keys(resources).length === 0;
-    const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate || pinterestRejectedBeforeCreate;
+    const linkedinRejectedBeforeCreate = draft.provider === "linkedin"
+      && (error instanceof LinkedInAdsPublishError ? error.retrySafe : !linkedinProviderMutationStarted)
+      && !("imageUrn" in resources || "campaignUrn" in resources || "postUrn" in resources || "creativeUrn" in resources);
+    const rejectedBeforeCreate = googleRejectedBeforeCreate || metaRejectedBeforeCreate
+      || pinterestRejectedBeforeCreate || linkedinRejectedBeforeCreate;
     await supabaseAdmin.from("ads_campaigns").update({
       status: rejectedBeforeCreate ? "draft" : "needs_review",
       provider_resources: rejectedBeforeCreate ? {} : withInitialPublishRecovery(resources, mode),
@@ -237,7 +268,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       updated_at: new Date().toISOString(),
     }).eq("id", id).eq("user_id", user.activeUserId).eq("status", "publishing");
     const manager = draft.provider === "meta" ? "Meta Ads Manager"
-      : draft.provider === "pinterest" ? "Pinterest Ads Manager" : "Google Ads";
+      : draft.provider === "pinterest" ? "Pinterest Ads Manager"
+        : draft.provider === "linkedin" ? "LinkedIn Campaign Manager" : "Google Ads";
     return NextResponse.json({ error: rejectedBeforeCreate ? `${message} Le brouillon iNrCy peut être corrigé puis renvoyé.` : `${message} Vérifiez la campagne directement sur ${manager} ; ne relancez pas sans contrôle pour éviter un doublon.` }, { status: rejectedBeforeCreate ? 422 : 502 });
   }
 }

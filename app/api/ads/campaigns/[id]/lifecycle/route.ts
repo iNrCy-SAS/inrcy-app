@@ -9,6 +9,7 @@ import {
 import {
   canDiscardInterruptedInitialPublish,
   canManageRemoteAdsCampaign,
+  hasRemoteArchiveConfirmation,
   hasCompleteInitialPublishResources,
   hasLocalRecoveryDiscardConfirmation,
   hasProviderCampaignIdentifier,
@@ -35,6 +36,19 @@ import {
   setPinterestAdsCampaignPaused,
 } from "@/lib/adsPinterestLifecycle";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
+import {
+  deleteLinkedInAdsCampaign,
+  archiveLinkedInAdsCampaign,
+  LinkedInAdsLifecycleError,
+  readLinkedInAdsCampaignState,
+  setLinkedInAdsCampaignPaused,
+  updateLinkedInAdsCampaign,
+} from "@/lib/adsLinkedInLifecycle";
+import { LinkedInAdsPublishError, publishLinkedInAdsCampaign } from "@/lib/adsLinkedInPublisherServer";
+import { linkedInAdsHasAccessMode } from "@/lib/adsLinkedInPolicy";
+import { linkedInAdsAuthorization, listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
+import type { LinkedInAdsPublishProgress } from "@/lib/adsLinkedInPublisherCore";
+import { parseAdsCampaignInput } from "@/lib/adsValidation";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ADS_CAMPAIGN_ID_PATTERN } from "../trackingPolicy";
@@ -44,7 +58,7 @@ export const maxDuration = 180;
 
 type RouteContext = { params: Promise<{ id: string }> };
 type StableRemoteCampaignStatus = "active" | "paused" | "demo_paused" | "needs_review";
-type RemoteLifecycleOperation = "update" | "pause" | "resume" | "reconcile" | "delete";
+type RemoteLifecycleOperation = "update" | "pause" | "resume" | "archive" | "reconcile" | "delete";
 type LifecycleClaimOperation = RemoteLifecycleOperation | "initial_publish";
 type InitialPublishMode = "demo_paused" | "paused" | "live";
 type LifecycleClaimRequest = { action: LifecycleClaimOperation; changes: AdsCampaignLifecycleChanges; mode?: InitialPublishMode | null };
@@ -64,7 +78,7 @@ type RemoteActionResult = {
 
 type RemoteCampaignRow = {
   id: string;
-  provider: "google" | "meta" | "pinterest";
+  provider: "google" | "meta" | "pinterest" | "linkedin";
   ad_account_id: string;
   name: string;
   daily_budget_cents: number;
@@ -125,7 +139,7 @@ function normalizedRecoveryChanges(value: unknown): AdsCampaignLifecycleChanges 
 function lifecycleRecovery(value: unknown): LifecycleRecovery | null {
   const recovery = record(record(value).inrcyLifecycleRecovery);
   const operation = recovery.operation;
-  if (operation !== "update" && operation !== "pause" && operation !== "resume" && operation !== "delete" && operation !== "initial_publish") return null;
+  if (operation !== "update" && operation !== "pause" && operation !== "resume" && operation !== "archive" && operation !== "delete" && operation !== "initial_publish") return null;
   const previousStatus = recovery.previousStatus;
   const mode = recovery.mode;
   return {
@@ -168,7 +182,7 @@ async function recoverStaleLifecycleClaim(
   const claimedOperation = claim.operation;
   const stableStatus: StableRemoteCampaignStatus | null = previousStatus === "active" || previousStatus === "paused" || previousStatus === "demo_paused" || previousStatus === "needs_review"
     ? previousStatus : null;
-  const hasLifecycleClaim = Boolean(stableStatus) && (claimedOperation === "update" || claimedOperation === "pause" || claimedOperation === "resume" || claimedOperation === "reconcile" || claimedOperation === "delete");
+  const hasLifecycleClaim = Boolean(stableStatus) && (claimedOperation === "update" || claimedOperation === "pause" || claimedOperation === "resume" || claimedOperation === "archive" || claimedOperation === "reconcile" || claimedOperation === "delete");
   const operation: LifecycleClaimOperation = hasLifecycleClaim ? claimedOperation as RemoteLifecycleOperation : "initial_publish";
   const staleAfterMs = (maxDuration + 120) * 1_000;
 
@@ -223,8 +237,12 @@ function messageFrom(error: unknown): string {
     : "La plateforme publicitaire n’a pas pu terminer cette action.").slice(0, 1_000);
 }
 
-function remoteMayHaveChanged(error: unknown, provider: "google" | "meta" | "pinterest"): boolean {
+function remoteMayHaveChanged(error: unknown, provider: "google" | "meta" | "pinterest" | "linkedin"): boolean {
   if (error instanceof AdsLifecyclePersistenceError) return true;
+  if (provider === "linkedin") {
+    if (error instanceof LinkedInAdsPublishError) return !error.retrySafe;
+    return error instanceof LinkedInAdsLifecycleError ? error.remoteMayHaveChanged : true;
+  }
   if (provider === "pinterest") {
     return error instanceof PinterestAdsLifecycleError ? error.remoteMayHaveChanged : true;
   }
@@ -305,6 +323,24 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
   }
 
   try {
+    if (campaign.provider === "linkedin") {
+      const connection = await readLinkedInAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== campaign.ad_account_id) {
+        return { response: NextResponse.json({ error: "Reconnectez le compte LinkedIn Ads associé avant de gérer cette campagne." }, { status: 409 }) };
+      }
+      const { scopes } = await linkedInAdsAuthorization(user.activeUserId, connection);
+      if (!linkedInAdsHasAccessMode(scopes, "manage")) {
+        return { response: NextResponse.json({ error: "Reconnectez LinkedIn Ads avec les autorisations de gestion." }, { status: 403 }) };
+      }
+      const account = (await listLinkedInAdsAccounts(user.activeUserId, connection))
+        .find((entry) => entry.id === campaign.ad_account_id && entry.currency === "EUR" && entry.canManageCampaigns);
+      const allowlisted = String(process.env.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
+        .split(/[\s,]+/).includes(campaign.ad_account_id);
+      if (!account || !allowlisted) {
+        return { response: NextResponse.json({ error: "Ce compte LinkedIn Ads n’est plus gérable ou mappé à l’application." }, { status: 403 }) };
+      }
+      return { id, user, campaign, account: { ...account, loginCustomerId: undefined }, localCleanupOnly: false as const };
+    }
     if (campaign.provider === "pinterest") {
       const connection = await readPinterestAdsIntegration(user.activeUserId);
       if (connection?.status !== "connected" || connection.resource_id !== campaign.ad_account_id) {
@@ -394,6 +430,7 @@ async function executeRemoteAction(input: {
   request: AdsCampaignLifecycleRequest;
   userId: string;
   campaign: RemoteCampaignRow;
+  claimedAt: string;
   loginCustomerId?: string;
 }): Promise<RemoteActionResult> {
   const { request, userId, campaign } = input;
@@ -401,10 +438,119 @@ async function executeRemoteAction(input: {
   if (recovery?.operation === "update" && !recovery.changes) {
     throw new Error("La modification interrompue ne contient pas assez d’informations pour être resynchronisée automatiquement. Contrôlez-la sur la plateforme.");
   }
-  if (recovery?.operation === "initial_publish" && !hasCompleteInitialPublishResources(campaign)) {
+  if (campaign.provider !== "linkedin" && recovery?.operation === "initial_publish" && !hasCompleteInitialPublishResources(campaign)) {
     throw new Error(hasProviderCampaignIdentifier(campaign)
       ? "La création initiale est incomplète sur la plateforme. Supprimez la campagne distante depuis iNrSend ou contrôlez-la dans le compte publicitaire."
       : "Aucun identifiant de campagne distante n’a été enregistré. Contrôlez le compte publicitaire puis utilisez le nettoyage local explicite.");
+  }
+  if (campaign.provider === "linkedin") {
+    if (request.action === "reconcile" && recovery?.operation === "initial_publish") {
+      if (!recovery.mode) throw new Error("Le mode de reprise LinkedIn n’est pas vérifiable.");
+      const parsedDraft = parseAdsCampaignInput(campaign.draft, { purpose: "publish" });
+      if (!parsedDraft.draft || parsedDraft.draft.provider !== "linkedin"
+        || parsedDraft.draft.adAccountId !== campaign.ad_account_id) {
+        throw new Error(parsedDraft.error || "Le brouillon LinkedIn de reprise n’est plus valide.");
+      }
+      const initialProgress = withoutLifecycleMetadata(campaign.provider_resources) as LinkedInAdsPublishProgress;
+      const targetPaused = recovery.mode !== "live";
+      const result = await publishLinkedInAdsCampaign(
+        userId,
+        parsedDraft.draft,
+        async (checkpoint) => {
+          const { data, error } = await supabaseAdmin.from("ads_campaigns").update({
+            provider_resources: {
+              ...checkpoint,
+              inrcyLifecycleClaim: {
+                claimedAt: input.claimedAt,
+                previousStatus: campaign.status,
+                operation: "initial_publish",
+                mode: recovery.mode,
+              },
+            },
+          }).eq("id", campaign.id).eq("user_id", userId)
+            .eq("status", "publishing").eq("updated_at", input.claimedAt)
+            .select("id").maybeSingle();
+          if (error || !data) throw new AdsLifecyclePersistenceError("Le checkpoint LinkedIn n’a pas pu être enregistré.");
+        },
+        {
+          operationKey: `linkedin:${campaign.id}`,
+          activate: !targetPaused,
+          initialProgress,
+        },
+      );
+      return {
+        providerResources: result,
+        status: recovery.mode === "demo_paused" ? "demo_paused" : targetPaused ? "paused" : "active",
+      };
+    }
+    const common = { adAccountId: campaign.ad_account_id, resources: campaign.provider_resources };
+    if (request.action === "reconcile") {
+      if (recovery?.operation === "update" && recovery.changes) {
+        if (recovery.changes.targetLocations) throw new Error("Modifiez le ciblage LinkedIn dans Campaign Manager.");
+        const result = await updateLinkedInAdsCampaign(userId, {
+          ...common,
+          changes: {
+            name: recovery.changes.name,
+            dailyBudgetCents: recovery.changes.dailyBudgetCents,
+            endDate: recovery.changes.endDate,
+          },
+        });
+        return {
+          providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+          status: result.state === "active" ? "active" : pausedLocalStatus(campaign),
+          reconciledChanges: recovery.changes,
+        };
+      }
+      if (recovery?.operation === "pause" || recovery?.operation === "resume") {
+        const result = await setLinkedInAdsCampaignPaused(userId, { ...common, paused: recovery.operation === "pause" });
+        return {
+          providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+          status: result.state === "active" ? "active" : "paused",
+        };
+      }
+      if (recovery?.operation === "archive") {
+        const result = await archiveLinkedInAdsCampaign(userId, common);
+        return {
+          providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+          status: "paused",
+        };
+      }
+      const result = await readLinkedInAdsCampaignState(userId, common);
+      if (result.state !== "active" && result.state !== "paused") {
+        throw new Error("La campagne LinkedIn n’est plus dans un état gérable depuis iNrSend.");
+      }
+      return {
+        providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+        status: result.state,
+      };
+    }
+    if (request.action === "update") {
+      if (request.changes.targetLocations) throw new Error("Modifiez le ciblage LinkedIn dans Campaign Manager.");
+      const result = await updateLinkedInAdsCampaign(userId, {
+        ...common,
+        changes: {
+          name: request.changes.name,
+          dailyBudgetCents: request.changes.dailyBudgetCents,
+          endDate: request.changes.endDate,
+        },
+      });
+      return {
+        providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+        status: result.state === "active" ? "active" : pausedLocalStatus(campaign),
+      };
+    }
+    if (request.action === "archive") {
+      const result = await archiveLinkedInAdsCampaign(userId, common);
+      return {
+        providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+        status: "paused",
+      };
+    }
+    const result = await setLinkedInAdsCampaignPaused(userId, { ...common, paused: request.action !== "resume" });
+    return {
+      providerResources: { ...result.resources, lifecycleState: result.state, lifecycleUpdatedAt: new Date().toISOString() },
+      status: result.state === "active" ? "active" : "paused",
+    };
   }
   if (campaign.provider === "pinterest") {
     if (request.action === "update" || recovery?.operation === "update") {
@@ -570,6 +716,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   const body = await request.json().catch(() => null);
   const parsed = parseAdsCampaignLifecycleRequest(body);
   if (!parsed.request) return NextResponse.json({ error: parsed.error || "Action invalide." }, { status: 400 });
+  if (parsed.request.action === "archive") {
+    if (campaign.provider !== "linkedin") {
+      return NextResponse.json({ error: "L’archivage depuis iNrSend est disponible uniquement pour LinkedIn Ads." }, { status: 409 });
+    }
+    if (!hasRemoteArchiveConfirmation(body)) {
+      return NextResponse.json({ error: "Confirmez explicitement l’archivage distant de cette campagne." }, { status: 400 });
+    }
+  }
   if (campaign.status === "needs_review" && parsed.request.action !== "reconcile") {
     return NextResponse.json({ error: "Contrôlez d’abord cette campagne sur la plateforme avant de la modifier ou de la réactiver." }, { status: 409 });
   }
@@ -588,11 +742,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       ? { action: "pause", changes: {} }
       : pendingRecovery?.operation === "resume"
         ? { action: "resume", changes: {} }
-        : pendingRecovery?.operation === "delete"
-          ? { action: "delete", changes: {} }
-          : pendingRecovery?.operation === "initial_publish"
-            ? { action: "initial_publish", changes: {}, mode: pendingRecovery.mode }
-            : parsed.request;
+        : pendingRecovery?.operation === "archive"
+          ? { action: "archive", changes: {} }
+          : pendingRecovery?.operation === "delete"
+            ? { action: "delete", changes: {} }
+            : pendingRecovery?.operation === "initial_publish"
+              ? { action: "initial_publish", changes: {}, mode: pendingRecovery.mode }
+              : parsed.request;
   const claimed = await claimCampaign(campaign, user.activeUserId, effectiveRequest);
   if (!claimed.claimedAt) return NextResponse.json({ error: claimed.error }, { status: 409 });
   let providerResources = campaign.provider_resources;
@@ -601,6 +757,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       request: parsed.request,
       userId: user.activeUserId,
       campaign,
+      claimedAt: claimed.claimedAt,
       loginCustomerId: account.loginCustomerId,
     });
     providerResources = remote.providerResources;
@@ -625,6 +782,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     return NextResponse.json({ campaign: data });
   } catch (lifecycleError) {
+    if (lifecycleError instanceof LinkedInAdsPublishError) providerResources = lifecycleError.progress;
     const error = messageFrom(lifecycleError);
     const unsafe = remoteMayHaveChanged(lifecycleError, campaign.provider);
     const recovered = await recoverCampaign({
@@ -686,6 +844,16 @@ export async function DELETE(request: Request, context: RouteContext) {
       });
       const result = await adapter.remove();
       providerResources = result.providerResources;
+    } else if (campaign.provider === "linkedin") {
+      const result = await deleteLinkedInAdsCampaign(user.activeUserId, {
+        adAccountId: campaign.ad_account_id,
+        resources: campaign.provider_resources,
+      });
+      providerResources = {
+        ...result.resources,
+        lifecycleState: result.state,
+        lifecycleUpdatedAt: new Date().toISOString(),
+      };
     } else {
       const result = await deleteMetaAdsCampaign(user.activeUserId, {
         adAccountId: campaign.ad_account_id,

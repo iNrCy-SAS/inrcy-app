@@ -26,7 +26,7 @@ export const ADS_CHANNELS = [
 ] as const;
 
 export const ADS_OAUTH_PROVIDERS = ["meta", "google"] as const;
-export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "pinterest"] as const;
+export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "linkedin", "pinterest"] as const;
 
 export type AdsChannelId = (typeof ADS_CHANNELS)[number]["id"];
 export type AdsProvider = (typeof ADS_OAUTH_PROVIDERS)[number];
@@ -84,7 +84,7 @@ export function isAdsProvider(value: unknown): value is AdsProvider {
 
 /** Channels whose verified advertiser association can be stored on a local campaign draft. */
 export function isAdsDraftAccountChannel(value: unknown): value is AdsDraftAccountChannel {
-  return value === "meta" || value === "google" || value === "pinterest";
+  return value === "meta" || value === "google" || value === "linkedin" || value === "pinterest";
 }
 
 function includes<T extends readonly string[]>(values: T, value: unknown): value is T[number] {
@@ -115,6 +115,13 @@ export type AdsCampaignInput = {
   dailyBudgetEuros: number;
   /** Explicit Pinterest CPM/CPC max bid; ignored by other channel publishers. */
   pinterestBidEuros?: number;
+  /** Verified LinkedIn choices. Provider ownership is always re-read before a mutation. */
+  linkedinCampaignGroupId?: string;
+  linkedinOrganizationUrn?: string;
+  linkedinGeoTargets?: Array<{ urn: string; name: string }>;
+  linkedinBidEuros?: number;
+  linkedinPoliticalIntentConfirmed?: boolean;
+  linkedinTargetingNoticeAcknowledged?: boolean;
   endDate: string;
   destinationUrl: string;
   urlExpansion: boolean;
@@ -438,6 +445,38 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     || pinterestBidEuros > dailyBudgetEuros || Math.abs(Math.round(pinterestBidEuros * 100) - pinterestBidEuros * 100) > 0.000001)) {
     return { draft: null, error: "L’enchère Pinterest doit être comprise entre 0,01 € et le budget journalier, avec deux décimales maximum." };
   }
+  const linkedinCampaignGroupId = clean(raw.linkedinCampaignGroupId);
+  const linkedinOrganizationUrn = clean(raw.linkedinOrganizationUrn);
+  const linkedinGeoTargets = Array.isArray(raw.linkedinGeoTargets)
+    ? raw.linkedinGeoTargets.map((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const row = value as Record<string, unknown>;
+      if (Object.keys(row).some((key) => key !== "urn" && key !== "name")) return null;
+      const urn = clean(row.urn);
+      const name = clean(row.name);
+      return /^urn:li:geo:\d{1,25}$/.test(urn) && name.length >= 1 && name.length <= 160 ? { urn, name } : null;
+    })
+    : [];
+  const linkedinBidEuros = raw.linkedinBidEuros == null ? undefined : Number(raw.linkedinBidEuros);
+  const linkedinPoliticalIntentConfirmed = raw.linkedinPoliticalIntentConfirmed === true;
+  const linkedinTargetingNoticeAcknowledged = raw.linkedinTargetingNoticeAcknowledged === true;
+  if (provider === "linkedin") {
+    if (linkedinCampaignGroupId && !/^\d{1,25}$/.test(linkedinCampaignGroupId)) {
+      return { draft: null, error: "Le groupe de campagnes LinkedIn sélectionné est invalide." };
+    }
+    if (linkedinOrganizationUrn && !/^urn:li:organization:\d{1,25}$/.test(linkedinOrganizationUrn)) {
+      return { draft: null, error: "La Page LinkedIn sélectionnée est invalide." };
+    }
+    if (linkedinGeoTargets.some((target) => target === null) || linkedinGeoTargets.length > 20
+      || new Set(linkedinGeoTargets.map((target) => target?.urn)).size !== linkedinGeoTargets.length) {
+      return { draft: null, error: "Les zones LinkedIn sélectionnées sont invalides." };
+    }
+    if (linkedinBidEuros !== undefined && (!Number.isFinite(linkedinBidEuros) || linkedinBidEuros <= 0
+      || linkedinBidEuros > dailyBudgetEuros
+      || Math.abs(Math.round(linkedinBidEuros * 100) - linkedinBidEuros * 100) > 0.000001)) {
+      return { draft: null, error: "L’enchère LinkedIn doit être positive, inférieure au budget journalier et limitée à deux décimales." };
+    }
+  }
 
   const endDate = clean(raw.endDate);
   const endTime = Date.parse(`${endDate}T23:59:59Z`);
@@ -554,6 +593,27 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
       return { draft: null, error: "Ajoutez une image à l’épingle sponsorisée Pinterest." };
     }
+  } else if (purpose === "publish" && provider === "linkedin") {
+    if (channelSettings?.channel !== "linkedin" || channelSettings.objectiveType !== "WEBSITE_VISIT"
+      || channelSettings.format !== "STANDARD_UPDATE") {
+      return { draft: null, error: "Le lancement LinkedIn prend actuellement en charge une campagne Visites du site avec une image sponsorisée." };
+    }
+    if (!linkedinCampaignGroupId) return { draft: null, error: "Sélectionnez un groupe de campagnes LinkedIn vérifié." };
+    if (!linkedinOrganizationUrn) return { draft: null, error: "Sélectionnez une Page LinkedIn autorisée." };
+    if (linkedinBidEuros === undefined) return { draft: null, error: "Choisissez une enchère CPC LinkedIn vérifiée." };
+    if (!linkedinPoliticalIntentConfirmed) {
+      return { draft: null, error: "Confirmez que la campagne LinkedIn n’est pas une publicité politique ciblant l’Union européenne." };
+    }
+    if (!linkedinTargetingNoticeAcknowledged) {
+      return { draft: null, error: "Acceptez la notice LinkedIn relative au ciblage non discriminatoire." };
+    }
+    if (!linkedinGeoTargets.length) return { draft: null, error: "Sélectionnez au moins une zone géographique LinkedIn vérifiée." };
+    if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
+      return { draft: null, error: "Ajoutez une image unique à la campagne LinkedIn." };
+    }
+    if (!primaryText || !headlines[0]?.trim()) {
+      return { draft: null, error: "LinkedIn requiert une introduction et un titre pour la création sponsorisée." };
+    }
   } else if (purpose === "publish") {
     return { draft: null, error: "La publication de ce canal n’est pas disponible." };
   }
@@ -573,6 +633,12 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       offer,
       dailyBudgetEuros,
       pinterestBidEuros,
+      linkedinCampaignGroupId,
+      linkedinOrganizationUrn,
+      linkedinGeoTargets: linkedinGeoTargets.filter((target): target is { urn: string; name: string } => target !== null),
+      linkedinBidEuros,
+      linkedinPoliticalIntentConfirmed,
+      linkedinTargetingNoticeAcknowledged,
       endDate,
       destinationUrl: destinationUrl || "",
       urlExpansion,

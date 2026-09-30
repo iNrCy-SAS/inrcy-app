@@ -5,6 +5,7 @@ import {
   buildLinkedInAdsAudienceCountPath,
   buildLinkedInAdsBudgetPricingPath,
   buildLinkedInAdsGeoSearchPath,
+  buildLinkedInAdsGeoUrnsPath,
   linkedInAdsPreflightBlockers,
   normalizeLinkedInAdsAudienceCount,
   normalizeLinkedInAdsBudgetPricing,
@@ -47,6 +48,10 @@ test("LinkedIn preflight builds Bing-geo, audience and pricing read paths", () =
   const geoPath = buildLinkedInAdsGeoSearchPath("France", "fr", "FR");
   assert.match(geoPath, /adTargetingEntities\?q=typeahead/);
   assert.match(geoPath, /adTargetingFacet%3Alocations/);
+  const exactGeoPath = buildLinkedInAdsGeoUrnsPath(["urn:li:geo:105015875"], "fr", "FR");
+  assert.match(exactGeoPath, /adTargetingEntities\?q=urns/);
+  assert.match(exactGeoPath, /queryVersion=QUERY_USES_URNS/);
+  assert.match(exactGeoPath, /urns=List%28urn%3Ali%3Ageo%3A105015875%29/);
   const audiencePath = buildLinkedInAdsAudienceCountPath(["urn:li:geo:105015875"], "fr", "FR");
   assert.match(audiencePath, /audienceCounts\?q=targetingCriteriaV2/);
   assert.match(audiencePath, /urn%3Ali%3Ageo%3A105015875/);
@@ -72,7 +77,7 @@ test("LinkedIn preflight requires audience >= 300 and provider pricing evidence"
   const campaignGroup = normalizeLinkedInAdsCampaignGroup(group, "123");
   const common = {
     scopes: ["rw_ads", "r_ads_reporting", "r_organization_admin", "w_organization_social"],
-    accountCurrency: "EUR", canManageCampaigns: true, campaignGroup,
+    accountCurrency: "EUR", canManageCampaigns: true, canServeCampaigns: true, targetStatus: "ACTIVE" as const, campaignGroup,
     image: { urn: "urn:li:image:C4D10AQFexample", owner: "urn:li:organization:789", status: "AVAILABLE", associatedAccount: null },
     organizationUrn: "urn:li:organization:789", localeSupported: true,
     verifiedGeoUrns: ["urn:li:geo:105015875"], pricing,
@@ -85,9 +90,20 @@ test("LinkedIn preflight requires audience >= 300 and provider pricing evidence"
     scopes: common.scopes.filter((scope) => scope !== "r_ads_reporting"),
     audienceCount: 300,
   }).includes("missing_scope:r_ads_reporting"));
+
+  const pausedGroup = normalizeLinkedInAdsCampaignGroup({ ...group, status: "PAUSED" }, "123");
+  const activeBlocked = linkedInAdsPreflightBlockers({
+    ...common, campaignGroup: pausedGroup, canServeCampaigns: false, audienceCount: 300,
+  });
+  assert.ok(activeBlocked.includes("account_not_serving"));
+  assert.ok(activeBlocked.includes("campaign_group_not_active"));
+  assert.deepEqual(linkedInAdsPreflightBlockers({
+    ...common, targetStatus: "PAUSED", campaignGroup: pausedGroup,
+    canServeCampaigns: false, audienceCount: 300,
+  }), []);
 });
 
-test("LinkedIn route remains read-only and remote publication stays disabled", () => {
+test("LinkedIn resource preflight remains GET-only while publication is isolated in its publisher", () => {
   const route = readFileSync("app/api/ads/linkedin/preflight/route.ts", "utf8");
   const server = readFileSync("lib/adsLinkedInPreflightServer.ts", "utf8");
   assert.match(route, /export async function GET/);

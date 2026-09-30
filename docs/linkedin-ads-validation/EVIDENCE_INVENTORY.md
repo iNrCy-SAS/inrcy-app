@@ -30,21 +30,21 @@ Convention de nommage : `LIADS-XX-description-AAAA-MM-JJ.ext`.
 
 | ID | Preuve attendue | État actuel | Critère |
 | --- | --- | --- | --- |
-| LIADS-20 | Récapitulatif iNrCy avant mutation | Bloqué | Même nom/compte que LinkedIn |
-| LIADS-21 | Réponse de création réussie expurgée | Bloqué | ID distant, aucun jeton |
-| LIADS-22 | Campagne dans Campaign Manager | Bloqué | Statut non diffusé |
-| LIADS-23 | Modification initiée dans iNrCy | Bloqué | Champ précis visible |
-| LIADS-24 | Modification visible dans Campaign Manager | Bloqué | Valeur identique |
-| LIADS-25 | Gestion propre d’un refus de rôle/scope | Bloqué | Message actionnable |
+| LIADS-20 | Récapitulatif iNrCy avant mutation | À produire après déploiement/migration | Même nom/compte que LinkedIn |
+| LIADS-21 | Réponse de création réussie expurgée | À produire lors du smoke test `PAUSED` | ID distant, aucun jeton ni URL d’upload |
+| LIADS-22 | Campagne dans Campaign Manager | À produire lors du smoke test `PAUSED` | Statut non diffusé |
+| LIADS-23 | Modification initiée dans iNrCy | À produire après création contrôlée | Champ précis visible |
+| LIADS-24 | Modification visible dans Campaign Manager | À produire après création contrôlée | Valeur identique |
+| LIADS-25 | Gestion propre d’un refus de rôle/scope | À produire | Message actionnable |
 
-Ces preuves sont bloquées parce que la publication/mutation LinkedIn est actuellement désactivée dans le code.
+Le code publisher est implémenté, mais ces preuves ne doivent pas être marquées « faites » avant application de la migration, déploiement, activation du verrou LinkedIn dédié et contrôle humain d’un test Development `PAUSED`. Aucun appel live n’a été effectué par les tests automatisés.
 
 ## D. Sécurité, confidentialité et exploitation
 
 | ID | Preuve attendue | État | Critère |
 | --- | --- | --- | --- |
 | LIADS-30 | `npm run verify:linkedin-ads-env` | À produire | Sortie sans valeurs secrètes |
-| LIADS-31 | `npm run test:ads-linkedin` | À produire | Suite verte, commit identifié |
+| LIADS-31 | `npm run test:ads-linkedin` | **55/55 verts localement le 30/09/2026** ; à rattacher au commit final | Suite verte, commit identifié |
 | LIADS-32 | Politique de confidentialité publique | Route publique vérifiée le 29/09/2026 ; revue Ads à faire | Navigation privée, HTTP 200 et texte cohérent avec la vidéo |
 | LIADS-33 | Page de suppression de compte/données | À vérifier | Instructions utilisables |
 | LIADS-34 | Test de suppression de l’intégration Ads | À produire | Ligne et jetons supprimés |
@@ -67,6 +67,7 @@ Ces preuves sont bloquées parce que la publication/mutation LinkedIn est actuel
 | Date | ID | Auteur | Environnement | Commit/déploiement | Observation |
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-30 | LIADS-01 à LIADS-04, LIADS-44 | Utilisateur + contrôle portail en lecture seule | LinkedIn Developers | Sans objet | App dédiée **iNrCy Ads** ; Advertising API **Development Tier** ; callback exact ; `r_ads` et `rw_ads` disponibles. Les trois scopes complémentaires restent à prouver au consentement. Aucun secret consulté ou copié. |
+| 2026-09-30 | LIADS-05, LIADS-31 | Utilisateur + QA code sans réseau | Portail LinkedIn + workspace local | À rattacher au commit final | Compte `558357276` mappé ; publisher durable et verrou fournisseur testés localement, sans mutation LinkedIn réelle. |
 | `[AAAA-MM-JJ]` | `[LIADS-XX]` | `[NOM]` | `[Preview/Production]` | `[SHA/URL]` | `[NOTE]` |
 
 ## Vérification avant partage externe

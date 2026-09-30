@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { googleCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseMetaAdsMetrics } from "../lib/adsCampaignMetrics.ts";
+import { googleCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseLinkedInAdsMetrics, parseMetaAdsMetrics } from "../lib/adsCampaignMetrics.ts";
 
 const at = "2026-09-26T12:00:00.000Z";
 
@@ -35,6 +35,19 @@ test("Meta report does not conflate different actions with conversions", () => {
     spendEuros: 2.31, conversions: null, fetchedAt: at,
   });
   assert.equal(parseMetaAdsMetrics({ data: [] }, at), null);
+});
+
+test("LinkedIn agrège uniquement les lignes de la campagne confirmée", () => {
+  const urn = "urn:li:sponsoredCampaign:456";
+  assert.deepEqual(parseLinkedInAdsMetrics({ elements: [
+    { pivotValues: [urn], impressions: 10, clicks: 2, costInLocalCurrency: "3.50", externalWebsiteConversions: 1 },
+    { pivotValues: [urn], impressions: 5, landingPageClicks: 1, costInLocalCurrency: "1.25" },
+  ] }, at, urn), {
+    period: "last_30_days", source: "linkedin", impressions: 15, clicks: 3,
+    spendEuros: 4.75, conversions: 1, fetchedAt: at,
+  });
+  assert.equal(parseLinkedInAdsMetrics({ elements: [] }, at, urn), null);
+  assert.throws(() => parseLinkedInAdsMetrics({ elements: [{ pivotValues: ["urn:li:sponsoredCampaign:999"], impressions: 1 }] }, at, urn));
 });
 
 test("malformed provider reports cannot become fabricated zeroes", () => {

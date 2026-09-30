@@ -1,7 +1,8 @@
 export const ADS_REMOTE_DELETE_CONFIRMATION = "DELETE_REMOTE_AD_CAMPAIGN";
+export const ADS_REMOTE_ARCHIVE_CONFIRMATION = "ARCHIVE_REMOTE_AD_CAMPAIGN";
 export const ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION = "DISCARD_INTERRUPTED_AD_CAMPAIGN_LOCAL_RECORD";
 
-export type AdsCampaignLifecycleAction = "update" | "pause" | "resume" | "reconcile";
+export type AdsCampaignLifecycleAction = "update" | "pause" | "resume" | "archive" | "reconcile";
 
 export type AdsCampaignLifecycleChanges = {
   name?: string;
@@ -44,7 +45,7 @@ export function parseAdsCampaignLifecycleRequest(
 ): { request: AdsCampaignLifecycleRequest | null; error: string | null } {
   if (!isRecord(value)) return { request: null, error: "Requête de gestion invalide." };
   const action = value.action;
-  if (action !== "update" && action !== "pause" && action !== "resume" && action !== "reconcile") {
+  if (action !== "update" && action !== "pause" && action !== "resume" && action !== "archive" && action !== "reconcile") {
     return { request: null, error: "Action de campagne invalide." };
   }
   if (action !== "update") return { request: { action, changes: {} }, error: null };
@@ -115,7 +116,8 @@ function lifecycleRecoveryOperation(resources: unknown): string | null {
 export function hasProviderCampaignIdentifier(input: RemoteCampaignIdentity): boolean {
   const resources = isRecord(input.provider_resources) ? input.provider_resources : {};
   const value = input.provider === "google" ? resources.campaignResourceName
-    : input.provider === "meta" || input.provider === "pinterest" ? resources.campaignId : undefined;
+    : input.provider === "meta" || input.provider === "pinterest" ? resources.campaignId
+      : input.provider === "linkedin" ? resources.campaignUrn ?? resources.campaignId : undefined;
   // Any persisted value is treated as a possible remote identity here. A
   // malformed ID must be inspected, never downgraded to a safe local-only
   // cleanup merely because its type is unexpected.
@@ -146,11 +148,20 @@ export function hasCompleteInitialPublishResources(input: RemoteCampaignIdentity
     return [resources.campaignId, resources.adGroupId, resources.pinId, resources.adId]
       .every((value) => typeof value === "string" && /^\d{5,30}$/.test(value));
   }
+  if (input.provider === "linkedin") {
+    const campaignUrn = typeof resources.campaignUrn === "string" ? resources.campaignUrn : "";
+    const campaignId = typeof resources.campaignId === "string" ? resources.campaignId : "";
+    return campaignUrn === `urn:li:sponsoredCampaign:${campaignId}`
+      && /^\d{1,25}$/.test(campaignId)
+      && typeof resources.postUrn === "string" && /^urn:li:(?:share|ugcPost):\d{1,25}$/.test(resources.postUrn)
+      && typeof resources.creativeUrn === "string" && /^urn:li:sponsoredCreative:\d{1,25}$/.test(resources.creativeUrn)
+      && (resources.stage === "active" || resources.stage === "paused");
+  }
   return false;
 }
 
 export function canDiscardInterruptedInitialPublish(input: RemoteCampaignIdentity): boolean {
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest")
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin")
     && input.status === "needs_review"
     && lifecycleRecoveryOperation(input.provider_resources) === "initial_publish"
     && !hasProviderCampaignIdentifier(input);
@@ -162,20 +173,26 @@ export function canManageRemoteAdsCampaign(input: {
   status: unknown;
   provider_resources: unknown;
 }): boolean {
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest")
+  const linkedInInitialRecovery = input.provider === "linkedin" && input.status === "needs_review"
+    && lifecycleRecoveryOperation(input.provider_resources) === "initial_publish";
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin")
     && (input.status === "active" || input.status === "paused" || input.status === "demo_paused" || input.status === "needs_review")
-    && hasProviderCampaignIdentifier(input);
+    && (hasProviderCampaignIdentifier(input) || linkedInInitialRecovery);
 }
 
 export function canRecoverInterruptedAdsCampaign(input: {
   provider: unknown;
   status: unknown;
 }): boolean {
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest") && input.status === "publishing";
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin") && input.status === "publishing";
 }
 
 export function hasRemoteDeleteConfirmation(value: unknown): boolean {
   return isRecord(value) && value.confirmation === ADS_REMOTE_DELETE_CONFIRMATION;
+}
+
+export function hasRemoteArchiveConfirmation(value: unknown): boolean {
+  return isRecord(value) && value.confirmation === ADS_REMOTE_ARCHIVE_CONFIRMATION;
 }
 
 export function hasLocalRecoveryDiscardConfirmation(value: unknown): boolean {

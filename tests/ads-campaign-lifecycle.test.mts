@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION,
+  ADS_REMOTE_ARCHIVE_CONFIRMATION,
   ADS_REMOTE_DELETE_CONFIRMATION,
   canDiscardInterruptedInitialPublish,
   canManageRemoteAdsCampaign,
   canRecoverInterruptedAdsCampaign,
   hasCompleteInitialPublishResources,
   hasLocalRecoveryDiscardConfirmation,
+  hasRemoteArchiveConfirmation,
   hasRemoteDeleteConfirmation,
   parseAdsCampaignLifecycleRequest,
 } from "../lib/adsCampaignLifecycle.ts";
@@ -45,6 +47,7 @@ test("la mise en pause et la reprise ne demandent aucun champ éditable", () => 
   assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "pause" }, now).request, { action: "pause", changes: {} });
   assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "resume" }, now).request, { action: "resume", changes: {} });
   assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "reconcile" }, now).request, { action: "reconcile", changes: {} });
+  assert.deepEqual(parseAdsCampaignLifecycleRequest({ action: "archive" }, now).request, { action: "archive", changes: {} });
 });
 
 test("seules les campagnes fournisseur identifiées sont gérables", () => {
@@ -106,6 +109,11 @@ test("la suppression distante exige une confirmation exacte", () => {
   assert.equal(hasRemoteDeleteConfirmation({ confirmation: "DELETE" }), false);
 });
 
+test("l’archivage distant exige une confirmation dédiée exacte", () => {
+  assert.equal(hasRemoteArchiveConfirmation({ confirmation: ADS_REMOTE_ARCHIVE_CONFIRMATION }), true);
+  assert.equal(hasRemoteArchiveConfirmation({ confirmation: ADS_REMOTE_DELETE_CONFIRMATION }), false);
+});
+
 test("la route verrouille les mutations, expire les verrous interrompus et supprime d'abord chez le fournisseur", () => {
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/lifecycle/route.ts", import.meta.url), "utf8");
   assert.match(route, /adsRequestOriginAllowed\(request\)/);
@@ -119,6 +127,11 @@ test("la route verrouille les mutations, expire les verrous interrompus et suppr
   assert.match(route, /preserveRecovery: Boolean\(pendingRecovery\)/);
   assert.match(route, /hasCompleteInitialPublishResources\(campaign\)/);
   assert.match(route, /hasLocalRecoveryDiscardConfirmation\(body\)/);
+  assert.match(route, /hasRemoteArchiveConfirmation\(body\)/);
+  assert.match(route, /await archiveLinkedInAdsCampaign\(/);
+  assert.match(route, /parseAdsCampaignInput\(campaign\.draft, \{ purpose: "publish" \}\)/);
+  assert.match(route, /parsedDraft\.draft\.provider !== "linkedin"/);
+  assert.match(route, /parsedDraft\.draft\.adAccountId !== campaign\.ad_account_id/);
   assert.match(route, /reconciledChanges: recovery\.changes/);
   assert.match(route, /\.select\("id"\)\.maybeSingle\(\);[\s\S]*?return !error && Boolean\(data\);/);
   assert.match(route, /\.eq\("status", campaign\.status\)\.eq\("updated_at", campaign\.updated_at\)/);

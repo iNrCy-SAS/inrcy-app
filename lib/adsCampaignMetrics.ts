@@ -1,7 +1,7 @@
 /** Read-only reporting values. Never derive performance from budget or AI projections. */
 export type AdsCampaignMetrics = {
   period: "last_30_days";
-  source: "google" | "meta";
+  source: "google" | "meta" | "linkedin";
   impressions: number;
   clicks: number;
   spendEuros: number;
@@ -65,6 +65,40 @@ export function parseMetaAdsMetrics(payload: unknown, fetchedAt: string): AdsCam
     period: "last_30_days", source: "meta", impressions, clicks,
     spendEuros, conversions: null, fetchedAt,
   };
+}
+
+export function parseLinkedInAdsMetrics(
+  payload: unknown,
+  fetchedAt: string,
+  campaignUrn: string,
+): AdsCampaignMetrics | null {
+  const rows = record(payload).elements;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let impressions = 0;
+  let clicks = 0;
+  let spendEuros = 0;
+  let conversions = 0;
+  for (const value of rows) {
+    const row = record(value);
+    const pivots = Array.isArray(row.pivotValues) ? row.pivotValues : [];
+    if (pivots.length !== 1 || pivots[0] !== campaignUrn) throw new Error("Rapport LinkedIn Ads incohérent.");
+    if (!["impressions", "clicks", "landingPageClicks", "costInLocalCurrency", "externalWebsiteConversions"]
+      .some((key) => Object.hasOwn(row, key))) throw new Error("Rapport LinkedIn Ads incomplet.");
+    const rowImpressions = Object.hasOwn(row, "impressions") ? nonNegativeNumber(row.impressions) : 0;
+    const rowClicks = Object.hasOwn(row, "clicks") ? nonNegativeNumber(row.clicks)
+      : Object.hasOwn(row, "landingPageClicks") ? nonNegativeNumber(row.landingPageClicks) : 0;
+    const rowSpend = Object.hasOwn(row, "costInLocalCurrency") ? nonNegativeNumber(row.costInLocalCurrency) : 0;
+    const rowConversions = Object.hasOwn(row, "externalWebsiteConversions")
+      ? nonNegativeNumber(row.externalWebsiteConversions) : 0;
+    if (rowImpressions === null || rowClicks === null || rowSpend === null || rowConversions === null) {
+      throw new Error("Rapport LinkedIn Ads incomplet.");
+    }
+    impressions += rowImpressions;
+    clicks += rowClicks;
+    spendEuros += rowSpend;
+    conversions += rowConversions;
+  }
+  return { period: "last_30_days", source: "linkedin", impressions, clicks, spendEuros, conversions, fetchedAt };
 }
 
 export function googleCampaignId(resources: unknown, accountId: string): string | null {

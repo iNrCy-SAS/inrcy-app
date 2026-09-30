@@ -15,6 +15,7 @@ export type LinkedInAdsCampaignOperationEvidence = {
     urn: string;
     account: string;
     status: LinkedInAdsCampaignStatus;
+    runSchedule?: { start?: number; end?: number };
   };
 };
 
@@ -93,6 +94,7 @@ export function buildLinkedInAdsCampaignEditRequest(input: {
   name?: string;
   dailyBudget?: number;
   bidAmount?: number;
+  endAtMs?: number;
   nowMs?: number;
 }): PartialUpdateRequest {
   const path = operationPath(input.evidence, input.nowMs ?? Date.now());
@@ -106,6 +108,14 @@ export function buildLinkedInAdsCampaignEditRequest(input: {
   }
   if (input.dailyBudget !== undefined) set.dailyBudget = { amount: money(input.dailyBudget), currencyCode: "EUR" };
   if (input.bidAmount !== undefined) set.unitCost = { amount: money(input.bidAmount), currencyCode: "EUR" };
+  if (input.endAtMs !== undefined) {
+    const start = input.evidence.campaign.runSchedule?.start;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(input.endAtMs)
+      || Number(input.endAtMs) <= Number(start)) {
+      throw new TypeError("Invalid LinkedIn campaign schedule");
+    }
+    set.runSchedule = { start, end: input.endAtMs };
+  }
   if (!Object.keys(set).length) throw new TypeError("No LinkedIn campaign field to update");
   return { method: "POST", path, headers: mutationHeaders(), body: { patch: { $set: set } } };
 }

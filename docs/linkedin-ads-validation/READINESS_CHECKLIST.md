@@ -34,6 +34,8 @@ Ne cocher un élément que lorsqu’une preuve datée est disponible. Les captur
 - [ ] `LINKEDIN_ADS_API_VERSION=202609` ou une version active plus récente validée par les tests.
 - [ ] `NEXT_PUBLIC_APP_URL=https://app.inrcy.com`.
 - [ ] `INRCY_CREDENTIALS_SECRET` décode exactement 32 octets.
+- [x] `LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS=558357276` est présent dans Vercel Production/Preview et correspond au compte ajouté dans **View Ad Accounts**. Présence confirmée le 30/09/2026, valeur non secrète.
+- [ ] `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED=true` est activé uniquement après migration et déploiement du publisher LinkedIn ; cette variable ne déverrouille aucun autre canal.
 - [ ] `npm run verify:linkedin-ads-env` réussit dans l’environnement visé.
 - [ ] Les variables sont présentes en Production et dans l’environnement de démonstration retenu.
 
@@ -52,10 +54,14 @@ Ne cocher un élément que lorsqu’une preuve datée est disponible. Les captur
 - [ ] La déconnexion LinkedIn Ads n’efface pas la connexion LinkedIn organique.
 - [ ] Après déconnexion, les données d’intégration Ads locales ont disparu.
 
-## 5. Mutation réelle nécessaire avant la future vidéo Standard
+## 5. Publisher réel et preuve nécessaire avant la future vidéo Standard
 
-- [ ] Une route serveur appelle réellement l’API LinkedIn versionnée.
-- [ ] Le code relit immédiatement compte, rôle, Page/organisation, groupe de campagnes, géographies et locale.
+- [x] La route serveur de publication implémente les appels LinkedIn versionnés, derrière le verrou `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED`.
+- [x] Le code relit immédiatement compte, rôle, Page/organisation, groupe de campagnes, géographies exactes par `q=urns`, locale, audience et pricing.
+- [x] Le média est relu dans la médiathèque appartenant à l’utilisateur, décodé et borné avant l’initialisation de l’upload LinkedIn.
+- [x] Chaque image/campagne/post/creative est enregistré dans `provider_resources` avant l’étape suivante ; un `POST` incertain est placé en contrôle et n’est pas répété automatiquement.
+- [ ] La migration `20260930000116_enable_linkedin_ads_publication.sql` est appliquée sur Supabase Production.
+- [ ] Le publisher LinkedIn dédié est déployé avec son verrou activé dans l’environnement de test retenu.
 - [ ] Une campagne `DRAFT` est créée sur un compte Development explicitement autorisé.
 - [ ] La campagne distante apparaît dans Campaign Manager avec le bon compte, objectif, budget, calendrier et ciblage.
 - [ ] Une modification distante est effectuée et visible dans Campaign Manager.
@@ -65,7 +71,7 @@ Ne cocher un élément que lorsqu’une preuve datée est disponible. Les captur
 - [ ] Aucune campagne n’est activée pendant la démonstration.
 - [ ] La création publicitaire, le Sponsored Content et les assets sont soit implémentés et vérifiés, soit explicitement hors périmètre dans la vidéo.
 
-À la date du dossier, cette section n’est pas remplissable : `publicationEnabled` vaut `false` et aucune route de mutation LinkedIn n’est exposée.
+Le code de mutation est présent, mais les preuves fournisseur de cette section restent incomplètes tant qu’aucun smoke test Development `PAUSED` n’a été déclenché et contrôlé manuellement. Le compte `558357276` est encore **On hold** : le backend refuse donc `ACTIVE` ; il n’active jamais automatiquement le groupe parent.
 
 ## 6. Confidentialité et conformité
 
@@ -95,4 +101,4 @@ Le Development Tier est déjà approuvé et ne nécessite pas cette vidéo. Ne c
 
 ## État de soumission actuel
 
-Le **Development Tier est approuvé depuis le 30/09/2026**. La connexion et l’association de compte peuvent donc être éprouvées sur les comptes Development autorisés. Le connecteur ne crée, ne modifie et n’optimise encore aucune campagne distante : seule une éventuelle demande **Standard** doit attendre cette mutation réelle et sa preuve vidéo.
+Le **Development Tier est approuvé depuis le 30/09/2026** et le compte `558357276` est mappé. La chaîne distante est implémentée et testée sans réseau, mais elle n’a encore créé, modifié ni optimisé de campagne réelle. Une éventuelle demande **Standard** doit attendre le smoke test `PAUSED`, sa vérification dans Campaign Manager et la preuve vidéo correspondante.

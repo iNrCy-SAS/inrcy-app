@@ -173,6 +173,22 @@ export function buildLinkedInAdsGeoSearchPath(query: string, language: string, c
   return `/rest/adTargetingEntities?${params.toString()}`;
 }
 
+/** Re-resolves chosen Bing geo URNs instead of trusting a prior typeahead row. */
+export function buildLinkedInAdsGeoUrnsPath(geoUrns: string[], language: string, country: string): string {
+  const urns = [...new Set(geoUrns)];
+  if (!urns.length || urns.length > 20 || urns.some((urn) => !GEO_URN.test(urn))
+    || !/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)) {
+    throw new TypeError("Invalid LinkedIn Ads geo URNs");
+  }
+  const params = new URLSearchParams({
+    q: "urns",
+    queryVersion: "QUERY_USES_URNS",
+    urns: `List(${urns.join(",")})`,
+    locale: `(language:${language},country:${country})`,
+  });
+  return `/rest/adTargetingEntities?${params.toString()}`;
+}
+
 export function buildLinkedInAdsLocalesPath(): string {
   const params = new URLSearchParams({
     q: "adTargetingFacet",
@@ -250,8 +266,12 @@ export function linkedInAdsPreflightBlockers(input: {
   scopes: string[];
   accountCurrency: string;
   canManageCampaigns: boolean;
+  canServeCampaigns: boolean;
+  targetStatus?: "ACTIVE" | "PAUSED";
   campaignGroup?: LinkedInAdsCampaignGroup | null;
   image?: LinkedInAdsImageEvidence | null;
+  /** Image is uploaded after account/targeting preflight in the live publisher. */
+  requireImage?: boolean;
   organizationUrn?: string | null;
   localeSupported: boolean;
   verifiedGeoUrns: string[];
@@ -267,8 +287,12 @@ export function linkedInAdsPreflightBlockers(input: {
     blockers.push(`missing_scope:${scope}`);
   }
   if (!input.canManageCampaigns) blockers.push("account_manage_access_unverified");
+  if (input.targetStatus !== "PAUSED" && !input.canServeCampaigns) blockers.push("account_not_serving");
   if (input.accountCurrency !== "EUR") blockers.push("unsupported_account_currency");
   if (!input.campaignGroup) blockers.push("campaign_group_required");
+  if (input.targetStatus !== "PAUSED" && input.campaignGroup && input.campaignGroup.status !== "ACTIVE") {
+    blockers.push("campaign_group_not_active");
+  }
   if (input.campaignGroup && input.campaignGroup.objectiveType && input.campaignGroup.objectiveType !== "WEBSITE_VISIT") {
     blockers.push("campaign_group_objective_mismatch");
   }
@@ -276,9 +300,9 @@ export function linkedInAdsPreflightBlockers(input: {
     && !input.campaignGroup.allowedCampaignTypes.includes("SPONSORED_UPDATES")) {
     blockers.push("campaign_group_format_unsupported");
   }
-  if (!input.image || input.image.status !== "AVAILABLE") blockers.push("available_image_required");
+  if (input.requireImage !== false && (!input.image || input.image.status !== "AVAILABLE")) blockers.push("available_image_required");
   if (!input.organizationUrn || !ORGANIZATION_URN.test(input.organizationUrn)) blockers.push("organization_required");
-  if (input.image && input.organizationUrn && input.image.owner !== input.organizationUrn) blockers.push("image_owner_mismatch");
+  if (input.requireImage !== false && input.image && input.organizationUrn && input.image.owner !== input.organizationUrn) blockers.push("image_owner_mismatch");
   if (!input.localeSupported) blockers.push("unsupported_locale");
   if (!input.verifiedGeoUrns.length) blockers.push("verified_geo_required");
   if (input.audienceCount === null) blockers.push("audience_count_required");

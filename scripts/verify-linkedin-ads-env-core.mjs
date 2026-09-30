@@ -4,6 +4,7 @@ const REQUIRED = [
   "LINKEDIN_ADS_REDIRECT_URI",
   "NEXT_PUBLIC_APP_URL",
   "INRCY_CREDENTIALS_SECRET",
+  "LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS",
 ];
 
 const PUBLIC_SECRETS = [
@@ -85,6 +86,21 @@ export function validateLinkedInAdsEnv(env) {
     errors.push("INRCY_CREDENTIALS_SECRET doit décoder exactement 32 octets en base64.");
   }
 
+  const developmentAccountValues = value(env, "LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS")
+    .split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
+  const developmentAccountIds = [...new Set(developmentAccountValues)];
+  if (!developmentAccountIds.length || developmentAccountIds.some((id) => !/^\d{1,25}$/.test(id))) {
+    errors.push("LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS doit contenir uniquement les IDs numériques mappés dans View Ad Accounts.");
+  }
+  const rawPublishGate = value(env, "INRCY_LINKEDIN_ADS_PUBLISH_ENABLED");
+  if (rawPublishGate && rawPublishGate !== "true" && rawPublishGate !== "false") {
+    errors.push("INRCY_LINKEDIN_ADS_PUBLISH_ENABLED doit valoir true ou false.");
+  }
+  const publicationEnabled = rawPublishGate === "true";
+  if (!publicationEnabled) {
+    warnings.push("Le publisher LinkedIn Ads reste verrouillé tant que INRCY_LINKEDIN_ADS_PUBLISH_ENABLED=true n’est pas configuré.");
+  }
+
   const sameApp = Boolean(value(env, "LINKEDIN_CLIENT_ID"))
     && value(env, "LINKEDIN_CLIENT_ID") === value(env, "LINKEDIN_ADS_CLIENT_ID");
   if (sameApp) {
@@ -101,6 +117,8 @@ export function validateLinkedInAdsEnv(env) {
       version,
       readScope: LINKEDIN_ADS_READ_SCOPE,
       manageScopes: [...LINKEDIN_ADS_MANAGE_SCOPES],
+      developmentAccountIds,
+      publicationEnabled,
       credentialLabel: sameApp ? "explicit shared LinkedIn app" : "dedicated LinkedIn Ads pair",
     },
   };

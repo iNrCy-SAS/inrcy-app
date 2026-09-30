@@ -19,4 +19,6 @@ console.log(`  Ads redirect path: ${result.details.redirectPath}`);
 console.log(`  Marketing API version: ${result.details.version}`);
 console.log(`  OAuth read-only scope: ${result.details.readScope}`);
 console.log(`  OAuth manage scopes: ${result.details.manageScopes.join(" ")}`);
+console.log(`  Development-mapped accounts: ${result.details.developmentAccountIds.join(", ")}`);
+console.log(`  LinkedIn publisher gate: ${result.details.publicationEnabled ? "enabled" : "locked"}`);
 console.log(`  Credentials: ${result.details.credentialLabel}`);

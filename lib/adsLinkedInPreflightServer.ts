@@ -44,7 +44,7 @@ export type LinkedInAdsPreflightInput = {
 
 type OrganizationAccess = {
   urn: string;
-  role: "ADMINISTRATOR" | "DIRECT_SPONSORED_CONTENT_POSTER";
+  role: "ADMINISTRATOR" | "DIRECT_SPONSORED_CONTENT_POSTER" | "CONTENT_ADMINISTRATOR";
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -101,7 +101,7 @@ function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | n
     const row = record(value);
     if (row.state !== "APPROVED") continue;
     const role = text(row.role);
-    if (role !== "ADMINISTRATOR" && role !== "DIRECT_SPONSORED_CONTENT_POSTER") continue;
+    if (role !== "ADMINISTRATOR" && role !== "DIRECT_SPONSORED_CONTENT_POSTER" && role !== "CONTENT_ADMINISTRATOR") continue;
     const urn = text(row.organization) || text(row.organizationTarget);
     if (!ORGANIZATION_URN.test(urn)) return null;
     found.set(urn, { urn, role });
@@ -178,6 +178,8 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     scopes,
     accountCurrency: account.currency,
     canManageCampaigns: account.canManageCampaigns,
+    canServeCampaigns: account.canServeCampaigns,
+    targetStatus: "ACTIVE",
     campaignGroup: selectedGroup,
     image,
     organizationUrn: selectedOrganization?.urn || null,

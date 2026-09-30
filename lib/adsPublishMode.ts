@@ -82,6 +82,19 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     }
     return null;
   }
+  if (draft.provider === "linkedin") {
+    const settings = draft.channelSettings?.channel === "linkedin" ? draft.channelSettings : null;
+    if (!settings || settings.objectiveType !== "WEBSITE_VISIT" || settings.format !== "STANDARD_UPDATE") {
+      return "Le lancement LinkedIn prend actuellement en charge une campagne Visites du site avec une image sponsorisée uniquement.";
+    }
+    if (draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
+      return "Le lancement LinkedIn nécessite actuellement une image unique.";
+    }
+    if (!String(draft.creativeUrl || draft.imageUrl || "").trim()) {
+      return "Ajoutez l’image sponsorisée LinkedIn avant le lancement.";
+    }
+    return null;
+  }
   if (draft.provider !== "meta") return "La publication de ce canal n’est pas encore disponible.";
   if (draft.campaignType !== "meta_traffic" || draft.objective !== "website_traffic") {
     return "La publication Meta Ads prend actuellement en charge les campagnes Trafic vers un site web uniquement.";

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
 import { isAdsProvider, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
+import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
@@ -67,6 +68,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Le compte Pinterest Ads EUR associé n’est plus accessible." }, { status: 403 });
       }
     }
+    if (draft.provider === "linkedin" && draft.adAccountId) {
+      const integration = await readLinkedInAdsIntegration(user.activeUserId);
+      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
+        return NextResponse.json({ error: "Ce compte LinkedIn Ads n’est plus celui associé au canal. Vérifiez la connexion avant d’enregistrer le brouillon." }, { status: 409 });
+      }
+      const accounts = await listLinkedInAdsAccounts(user.activeUserId, integration);
+      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId
+        && account.currency === "EUR" && account.canManageCampaigns === true);
+      if (!selectedAccount) {
+        return NextResponse.json({ error: "Le compte LinkedIn Ads EUR associé n’est plus accessible avec un rôle de gestion des campagnes." }, { status: 403 });
+      }
+    }
     if (draft.provider === "meta" && draft.pageId) {
       const pages = await listMetaPages(user.activeUserId);
       if (!pages.some((page) => page.id === draft.pageId)) {
@@ -77,7 +90,8 @@ export async function POST(request: Request) {
     // Pinterest can bind its verified advertiser to a local proposal while
     // provider-side campaign creation remains disabled. The other planned
     // channels still keep their advertiser outside the campaign payload.
-    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" ? draft.adAccountId : "";
+    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin"
+      ? draft.adAccountId : "";
 
     const payload = {
       user_id: user.activeUserId,

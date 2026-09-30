@@ -1,6 +1,6 @@
 # Matrice technique LinkedIn Ads
 
-Cette matrice décrit le code présent au 30 septembre 2026. Elle distingue ce qui est actif de ce qui est seulement préparé. L’app dédiée **iNrCy Ads** dispose du **Development Tier** et du callback Ads exact. Le Standard Tier n’est pas accordé ni demandé.
+Cette matrice décrit le code présent au 30 septembre 2026. L’app dédiée **iNrCy Ads** dispose du **Development Tier**, du callback Ads exact et du compte `558357276` mappé. Le publisher est implémenté mais reste protégé par une migration et un verrou de déploiement propres à LinkedIn. Le Standard Tier n’est pas accordé ni demandé.
 
 ## Scopes et consentement
 
@@ -28,8 +28,9 @@ LinkedIn documente `rw_ads` pour certains rôles, dont `CREATIVE_MANAGER`. Par p
 | `POST /api/ads/linkedin/accounts` | Associe un compte à iNrCy | Origine, session, format d’ID, appartenance relue côté LinkedIn | Local uniquement |
 | `POST /api/ads/linkedin/disconnect` | Supprime la connexion Ads locale | Origine, session, filtre `provider/source/product=linkedin_ads/ads` | Suppression locale |
 | `GET /api/ads/linkedin/preflight` | Relit les preuves requises avant mutation | Compte Development, groupe, Page, image, Bing Geo, locale, audience et pricing | Lecture uniquement |
+| `POST /api/ads/campaigns/{id}/publish` | Publie une Image Ad classique | Brouillon propriétaire, confirmation forte, verrou LinkedIn, compte allowlisté, preuves fraîches, média iNrCy valide, checkpoints durables | Oui, seulement après déploiement du verrou |
 
-Il n’existe pas de route `/publish`, `/campaigns` ou équivalent qui envoie une campagne à LinkedIn. Toute matrice de revue doit conserver cette mention tant que `publicationEnabled: false`.
+Le publisher n’est pas une simulation : il prépare puis envoie les ressources LinkedIn lorsque le verrou serveur est activé. Les tests automatisés utilisent uniquement des contrats/mocks et n’effectuent aucun appel réel. Tant que la migration Supabase et `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED=true` ne sont pas déployés, la route refuse toute mutation LinkedIn.
 
 ## Appels LinkedIn réalisés
 
@@ -40,12 +41,17 @@ Il n’existe pas de route `/publish`, `/campaigns` ou équivalent qui envoie un
 | `POST https://www.linkedin.com/oauth/v2/introspectToken` | Vérifie jeton, type 3L, `client_id` et scopes | Secret serveur |
 | `GET https://api.linkedin.com/rest/adAccountUsers?q=authenticatedUser` | Lit les rôles du membre sur ses comptes | Bearer, `Linkedin-Version`, REST.li 2.0 |
 | `GET https://api.linkedin.com/rest/adAccounts/{id}` | Relit les détails, statut et servabilité | Bearer, `Linkedin-Version`, REST.li 2.0 |
+| `POST /rest/images?action=initializeUpload`, puis `PUT` binaire et `GET /rest/images/{urn}` | Charge et confirme l’image | URL d’upload LinkedIn strictement validée, redirect interdit, Bearer jamais journalisé |
+| `POST /rest/adAccounts/{id}/adCampaigns` | Crée la campagne en `DRAFT` | Compte EUR allowlisté, groupe/Page/geos/audience/pricing relus |
+| `POST /rest/posts` | Crée le dark post | `feedDistribution=NONE`, Page autorisée, scope `w_organization_social` |
+| `POST /rest/adAccounts/{id}/creatives` | Crée la creative en `DRAFT` | Campagne et post vérifiés |
+| `PARTIAL_UPDATE` creative puis campagne | Rend la creative reviewable, puis applique `ACTIVE` ou `PAUSED` | `ACTIVE` exige compte servable et groupe parent `ACTIVE`; `PAUSED` ne diffuse pas |
 
-La vérification des géographies utilise actuellement les suggestions `adTargetingEntities?q=typeahead`. Elle peut bloquer à tort une URN déjà sélectionnée qui n’apparaît plus dans les suggestions courantes. Avant toute mutation réelle, le workflow devra relire chaque URN sélectionnée avec le finder fournisseur adapté (`q=urns`) ; aucune donnée Bing Maps ne doit être persistée.
+Le choix UI part du finder `adTargetingEntities?q=typeahead`, mais le publisher ne lui fait pas confiance : avant chaque mutation, il relit l’ensemble exact des URN sélectionnées avec `q=urns`, vérifie la facette `locations` et n’enregistre aucune donnée Bing Maps supplémentaire.
 
-## Préparation de campagne non branchée
+## Workflow de campagne branché et fail-closed
 
-`lib/adsLinkedInPublish.ts` et `lib/adsLinkedInOperations.ts` sérialisent localement :
+`lib/adsLinkedInPublish.ts`, `lib/adsLinkedInPublisherCore.ts`, `lib/adsLinkedInPublisherServer.ts` et `lib/adsLinkedInOperations.ts` couvrent :
 
 - `POST /rest/adAccounts/{id}/adCampaigns` ;
 - objectif `WEBSITE_VISIT` ;
@@ -59,7 +65,7 @@ La vérification des géographies utilise actuellement les suggestions `adTarget
 - `DELETE` uniquement pour un `DRAFT`, sinon `PENDING_DELETION` ;
 - statistiques `GET /rest/adAnalytics` au pivot `CAMPAIGN`, granularité quotidienne.
 
-Ces modules ne font aucun appel réseau. Ils exigent des preuves LinkedIn fraîches de moins de cinq minutes et des confirmations fortes pour activation, archivage et suppression. Les opérations d’édition, d’activation/pause et d’archivage refusent `COMPLETED`, `CANCELED`, `PENDING_DELETION` et `REMOVED`. La réactivation spécifique d’une campagne `COMPLETED`, qui exigerait aussi son calendrier original et une nouvelle date de fin, n’est pas implémentée. Leur existence ne doit pas être décrite comme une campagne LinkedIn créée ou modifiée tant que le workflow distant reste désactivé.
+Le serveur exécute ces appels uniquement après contrôle complet et verrou de déploiement. Chaque URN/ID est enregistré avant le `POST` suivant. Comme LinkedIn ne documente pas de clé d’idempotence sur ces créations, toute réponse perdue place l’étape en état `uncertain` et interdit une répétition automatique. Les opérations d’édition, d’activation/pause et d’archivage refusent `COMPLETED`, `CANCELED`, `PENDING_DELETION` et `REMOVED`. La réactivation spécifique d’une campagne `COMPLETED`, qui exigerait aussi son calendrier original et une nouvelle date de fin, n’est pas implémentée.
 
 ## Variables d’environnement
 
@@ -71,6 +77,8 @@ Ces modules ne font aucun appel réseau. Ils exigent des preuves LinkedIn fraîc
 | `LINKEDIN_ADS_API_VERSION` | Recommandée | Non | `202609` dans le code actuel |
 | `NEXT_PUBLIC_APP_URL` | Oui | Non | `https://app.inrcy.com` en production |
 | `INRCY_CREDENTIALS_SECRET` | Oui | **Oui** | Base64 décodant exactement 32 octets |
+| `LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS` | Oui au Development Tier | Non | IDs numériques réellement ajoutés dans **View Ad Accounts** ; `558357276` actuellement |
+| `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED` | Oui pour muter | Non | Doit valoir exactement `true`; verrou propre à LinkedIn, sans effet sur Meta/Google |
 
 La présence de `LINKEDIN_ADS_CLIENT_ID`, `LINKEDIN_ADS_CLIENT_SECRET` et `LINKEDIN_ADS_REDIRECT_URI` dans le projet Vercel a été constatée en lecture seule le 30/09/2026, sans afficher leurs valeurs. Ce constat ne remplace pas `npm run verify:linkedin-ads-env` dans chaque environnement visé. La résolution serveur privilégie `NEXT_PUBLIC_APP_URL`, puis `NEXT_PUBLIC_SITE_URL`, et refuse un callback d’un autre origin, une autre route, une query string, un fragment ou du HTTP hors loopback.
 
@@ -95,9 +103,9 @@ Pour signaler qu’un compte peut gérer une campagne, iNrCy exige :
 - un compte `ACTIVE` ;
 - un type `BUSINESS`, ou `ENTERPRISE` avec `productType=MARKETING_SOLUTIONS`.
 
-Pour signaler qu’un compte peut diffuser, iNrCy exige en plus `servingStatuses=[RUNNABLE]` et refuse les comptes marqués `test`. Cette indication reste informative tant que la publication est désactivée.
+Pour un lancement `ACTIVE`, iNrCy exige en plus `servingStatuses=[RUNNABLE]`, refuse les comptes marqués `test` et exige un groupe parent `ACTIVE`. Une création finale `PAUSED` reste possible avec un compte gérable mais On hold et un groupe `DRAFT`/`PAUSED` ; elle ne promet aucune diffusion. iNrCy n’active jamais le groupe parent implicitement.
 
-`LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS` est uniquement un miroir local fail-closed des comptes que l’équipe affirme avoir ajoutés dans **View Ad Accounts**. Sa présence ne constitue jamais une preuve LinkedIn : la capture portail datée reste obligatoire, et la liste est actuellement vide.
+`LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS` est uniquement un miroir local fail-closed des comptes ajoutés dans **View Ad Accounts**. Sa présence ne constitue jamais une preuve LinkedIn : la capture portail datée reste obligatoire. La valeur `558357276` a été configurée dans Vercel Production/Preview le 30/09/2026.
 
 ## Contrôles reproductibles
 

@@ -4,11 +4,11 @@
 
 ## Prérequis externe restant
 
-1. Déployer `LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS=558357276`, strictement aligné sur le compte réellement mappé dans le portail. Cette allowlist locale est un garde-fou fail-closed ; la capture datée de `View Ad Accounts` reste la preuve fournisseur.
+1. **Configuré le 30/09/2026** — `LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS=558357276` dans Vercel Production/Preview, strictement aligné sur le compte réellement mappé. Cette allowlist locale reste un garde-fou ; la capture datée de `View Ad Accounts` est la preuve fournisseur.
 2. Reconnecter LinkedIn Ads avec le consentement gestion complet : `rw_ads r_ads_reporting r_organization_admin w_organization_social`. `r_organization_social`, `w_member_social` et `rw_organization_admin` restent exclus. Le diagnostic lecture seule peut toujours utiliser `r_ads` séparément.
 3. Relire la devise, la facturation, le statut et les rôles du compte. Tant que Campaign Manager le signale **On hold**, aucune diffusion ne doit être autorisée.
 
-## Contrôle implémenté, sans écriture LinkedIn
+## Contrôle de ressources GET-only
 
 `GET /api/ads/linkedin/preflight` relit à chaque passage :
 
@@ -21,13 +21,13 @@
 - les limites de budget et d’enchère retournées par `adBudgetPricing` ;
 - les consentements « non politique » et non-discrimination.
 
-Le résultat expose toujours `publicationEnabled: false`. Aucune route de QA n’appelle un `POST`, un `PATCH` ou un `DELETE` LinkedIn.
+Cette route de sélection/préflight reste volontairement GET-only. Le statut global expose séparément le verrou `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED`; les tests QA ne déclenchent jamais de `POST`, `PARTIAL_UPDATE`, `PUT` ou `DELETE` LinkedIn.
 
-Limite volontaire du préflight actuel : les géographies sont confirmées à partir du finder `typeahead`, qui peut ne pas renvoyer une URN précédemment choisie. Avant d’activer une mutation, chaque URN devra être relue explicitement avec le finder fournisseur `q=urns`. Jusqu’à cette évolution, un échec de correspondance bloque la préparation au lieu de faire confiance à l’ID client.
+Le finder UI peut utiliser `typeahead`, mais le publisher relit avant mutation l’ensemble exact des URN choisies via `q=urns` et vérifie la facette `locations`. Un écart bloque la création au lieu de faire confiance au brouillon client.
 
-## Chaîne de création préparée mais non activée
+## Chaîne de création implémentée, déploiement encore verrouillé
 
-Les sérialiseurs construisent la séquence officielle et non diffusée : campagne `DRAFT`, dark post avec `feedDistribution: NONE`, creative `DRAFT`, puis creative `ACTIVE` avant que la campagne passe en dernier à `PAUSED` ou `ACTIVE` selon le choix final. Des contrats séparés couvrent modification, archivage, suppression conforme au statut (`DELETE` seulement pour `DRAFT`, sinon `PENDING_DELETION`) et statistiques `adAnalytics`. Les requêtes ne sont pas exécutées tant qu’un workflow durable n’a pas été ajouté pour persister une `operationKey` et chaque URN après chaque succès ; en cas de timeout, un POST ne doit jamais être répété aveuglément.
+La séquence officielle est branchée : image initialisée/uploadée/confirmée, campagne `DRAFT`, dark post avec `feedDistribution: NONE`, creative `DRAFT` puis `ACTIVE`, et campagne finale `PAUSED` ou `ACTIVE`. Une `operationKey` stable et chaque URN/ID sont persistés dans `provider_resources` avant l’étape suivante. En l’absence de clé d’idempotence LinkedIn documentée, un `POST` à réponse incertaine bloque la reprise automatique. `ACTIVE` exige un compte servable et un groupe parent `ACTIVE`; le compte actuellement On hold ne peut donc être lancé qu’en `PAUSED` après migration, déploiement et confirmation humaine.
 
 ## Vidéo de validation
 

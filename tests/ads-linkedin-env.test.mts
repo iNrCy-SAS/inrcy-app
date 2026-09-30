@@ -18,6 +18,8 @@ function env(overrides: EnvMap = {}): EnvMap {
     LINKEDIN_ADS_API_VERSION: "202609",
     NEXT_PUBLIC_APP_URL: "https://app.inrcy.com",
     INRCY_CREDENTIALS_SECRET: Buffer.alloc(32, 11).toString("base64"),
+    LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: "558357276",
+    INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "true",
     LINKEDIN_REDIRECT_URI: "https://app.inrcy.com/api/integrations/linkedin/callback",
     LINKEDIN_CLIENT_ID: "organic-linkedin-client",
     ...overrides,
@@ -32,6 +34,8 @@ test("LinkedIn Ads env validator accepts the dedicated Development configuration
   assert.equal(result.details?.redirectPath, "/api/ads/linkedin/callback");
   assert.equal(result.details?.readScope, LINKEDIN_ADS_READ_SCOPE);
   assert.deepEqual(result.details?.manageScopes, LINKEDIN_ADS_MANAGE_SCOPES);
+  assert.deepEqual(result.details?.developmentAccountIds, ["558357276"]);
+  assert.equal(result.details?.publicationEnabled, true);
   assert.deepEqual(LINKEDIN_ADS_MANAGE_SCOPES, [
     "rw_ads", "r_ads_reporting", "r_organization_admin", "w_organization_social",
   ]);
@@ -46,6 +50,7 @@ test("LinkedIn Ads env verifier reports the exact separated scope sets", () => {
   assert.match(verifier, /OAuth manage scopes:/);
   assert.match(verifier, /manageScopes\.join\(" "\)/);
   assert.doesNotMatch(verifier, /r_ads \(lecture\), rw_ads \(gestion\)/);
+  assert.match(verifier, /LinkedIn publisher gate:/);
 });
 
 test("LinkedIn Ads env validator rejects callback drift from the verified URI", () => {
@@ -77,4 +82,21 @@ test("LinkedIn Ads env validator keeps organic and Ads callbacks isolated", () =
   }));
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((error) => /callbacks LinkedIn organique et LinkedIn Ads doivent être distincts/.test(error)));
+});
+
+test("LinkedIn Ads env validator rejects an absent or malformed Development allowlist", () => {
+  for (const accountIds of ["", "558357276,not-an-id"]) {
+    const result = validateLinkedInAdsEnv(env({ LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: accountIds }));
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((error) => /DEVELOPMENT_ACCOUNT_IDS/.test(error)));
+  }
+});
+
+test("LinkedIn Ads uses a provider-specific publication gate", () => {
+  const locked = validateLinkedInAdsEnv(env({ INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "false" }));
+  assert.equal(locked.ok, true);
+  assert.equal(locked.details?.publicationEnabled, false);
+  assert.ok(locked.warnings.some((warning) => /publisher LinkedIn Ads reste verrouillé/.test(warning)));
+  const malformed = validateLinkedInAdsEnv(env({ INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "yes" }));
+  assert.equal(malformed.ok, false);
 });
