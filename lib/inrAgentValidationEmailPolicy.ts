@@ -5,6 +5,7 @@ export const INR_AGENT_VALIDATION_EMAIL_SCOPE =
 export const INR_AGENT_VALIDATION_EMAIL_LOCK_TTL_MS = 15 * 60 * 1000;
 
 type InrAgentValidationEmailInput = {
+  kind?: "ready" | "reminder";
   firstName?: string | null;
   companyName?: string | null;
   publicationCount: number;
@@ -94,15 +95,26 @@ export function buildInrAgentValidationEmail(
       : `Diffusion prévue ${firstDate}.`
     : `Programmation préparée pour les ${horizonDays} prochains jours.`;
   const dashboardUrl = safeDashboardUrl(input.dashboardUrl);
-  const subject = plural
-    ? `iNrCy — ${count} publications iNrAgent attendent votre validation`
-    : "iNrCy — 1 publication iNrAgent attend votre validation";
-  const headline = plural
-    ? `${count} publications sont prêtes`
-    : "Votre publication est prête";
-  const instruction = plural
-    ? "Contrôlez les textes, les médias et les canaux, puis validez les publications que vous souhaitez programmer."
-    : "Contrôlez le texte, le média et les canaux, puis validez la publication que vous souhaitez programmer.";
+  const reminder = input.kind === "reminder";
+  const subject = reminder
+    ? plural
+      ? `iNrCy — ${count} publications à valider avant leur échéance`
+      : "iNrCy — publication à valider avant son échéance"
+    : plural
+      ? `iNrCy — ${count} publications iNrAgent attendent votre validation`
+      : "iNrCy — 1 publication iNrAgent attend votre validation";
+  const headline = reminder
+    ? plural
+      ? `${count} publications attendent votre validation`
+      : "Une publication attend votre validation"
+    : plural
+      ? `${count} publications sont prêtes`
+      : "Votre publication est prête";
+  const instruction = reminder
+    ? "Leur heure de diffusion approche. Vérifiez-les et validez-les si vous souhaitez qu’elles soient programmées."
+    : plural
+      ? "Contrôlez les textes, les médias et les canaux, puis validez les publications que vous souhaitez programmer."
+      : "Contrôlez le texte, le média et les canaux, puis validez la publication que vous souhaitez programmer.";
   const escapedDashboardUrl = escapeHtml(dashboardUrl);
 
   const text = [
@@ -178,7 +190,7 @@ export function buildInrAgentValidationEmail(
                     </td>
                   </tr>
                 </table>
-                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#8194bd;">Cet e-mail est envoyé lorsqu’un nouveau lot iNrAgent est prêt à être contrôlé.</p>
+                <p style="margin:24px 0 0 0;font-size:13px;line-height:1.6;color:#8194bd;">${reminder ? "Cette alerte d’échéance est envoyée au plus une fois par publication encore en attente." : "Cet e-mail est envoyé lorsqu’un nouveau lot iNrAgent est prêt à être contrôlé."}</p>
                 <p style="margin:18px 0 0 0;font-size:14px;line-height:1.6;color:#b9c8e7;">L’équipe iNrCy</p>
               </td>
             </tr>

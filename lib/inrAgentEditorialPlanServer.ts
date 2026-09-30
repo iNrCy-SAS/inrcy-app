@@ -32,6 +32,15 @@ import {
   resolveInrAgentEditorialRepairChannels,
 } from "@/lib/inrAgentPublishChannels";
 import { deliverInrAgentValidationReadyEmail } from "@/lib/inrAgentValidationEmailDelivery";
+import {
+  buildValidationNoticeDedupeKey,
+  buildValidationNoticeDeliveryKey,
+  chooseValidationNotices,
+  INR_AGENT_READY_NOTICE_KIND,
+  INR_AGENT_REMINDER_NOTICE_KIND,
+  INR_AGENT_VALIDATION_EMAIL_SCOPE_V1,
+  INR_AGENT_VALIDATION_EMAIL_SCOPE_V2,
+} from "@/lib/inrAgentValidationNoticePolicy";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 type SupabaseLike = any;
@@ -1079,73 +1088,145 @@ export async function notifyReadyInrAgentEditorialBatch(args: {
   const awaitingValidation = activeRows.filter(
     (row) => row.status === "pending_validation",
   );
-  const stillPreparing = activeRows.some((row) =>
-    ["draft", "executing", "failed", "prepared", "pending"].includes(
-      cleanText(row.status, 40),
-    ),
-  );
-  if (!awaitingValidation.length || stillPreparing) {
+  if (!awaitingValidation.length) {
     return {
       status: "not_ready" as const,
-      awaitingValidation: awaitingValidation.length,
-      remaining: activeRows.length - awaitingValidation.length,
+      awaitingValidation: 0,
+      remaining: activeRows.length,
     };
   }
 
-  const batchSignature = createHash("sha256")
-    .update(
-      awaitingValidation
-        .map((row) => `${row.id}:${row.scheduled_for || ""}`)
-        .join("|"),
-    )
-    .digest("hex")
-    .slice(0, 20);
-  const count = awaitingValidation.length;
-  const result = await insertNotificationOnce({
-    user_id: args.userId,
-    category: "action",
-    kind: "inr_agent_editorial_batch_ready",
-    title: "Vos publications iNr’Agent sont prêtes",
-    body: `iNr’Agent a préparé ${count} publication${count > 1 ? "s" : ""} pour les ${horizonDays} prochains jours. Contrôlez-les puis validez-les avant leur diffusion.`,
-    cta_label: "Contrôler mes publications",
-    cta_url: "/dashboard/agent",
-    dedupe_key: `inr-agent-editorial-ready:${args.userId}:${batchSignature}`,
-    meta: {
-      source: "inr_agent_editorial_plan",
-      batchSignature,
-      horizonDays,
-      publicationCount: count,
-      actionIds: awaitingValidation.map((row) => row.id),
-    },
-  });
-  let emailDelivery:
-    | Awaited<ReturnType<typeof deliverInrAgentValidationReadyEmail>>
-    | { status: "failed"; error: string };
-  try {
-    emailDelivery = await deliverInrAgentValidationReadyEmail({
-      supabase: args.supabase,
+  const historyStart = new Date(now.getTime() - 35 * 86_400_000).toISOString();
+  const [{ data: noticeHistory, error: noticeError }, { data: emailHistory, error: emailError }] =
+    await Promise.all([
+      args.supabase
+        .from("notifications")
+        .select("kind,created_at,meta")
+        .eq("user_id", args.userId)
+        .in("kind", [INR_AGENT_READY_NOTICE_KIND, INR_AGENT_REMINDER_NOTICE_KIND])
+        .gte("created_at", historyStart)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      args.supabase
+        .from("execution_idempotency_locks")
+        .select("scope,status,completed_at,metadata")
+        .eq("user_id", args.userId)
+        .in("scope", [INR_AGENT_VALIDATION_EMAIL_SCOPE_V1, INR_AGENT_VALIDATION_EMAIL_SCOPE_V2])
+        .gte("created_at", historyStart)
+        .order("created_at", { ascending: false })
+        .limit(500),
+    ]);
+  if (noticeError) throw noticeError;
+  if (emailError) {
+    console.warn("[inr-agent] validation email history unavailable", {
       userId: args.userId,
-      batchSignature,
-      publicationCount: count,
-      horizonDays,
-      firstScheduledAt: awaitingValidation[0]?.scheduled_for || null,
-      lastScheduledAt:
-        awaitingValidation[awaitingValidation.length - 1]?.scheduled_for || null,
-    });
-  } catch (emailError) {
-    const message = errorMessage(emailError);
-    console.error("[inr-agent] validation email preparation failed", {
-      userId: args.userId,
-      batchSignature,
       error: emailError,
     });
-    emailDelivery = { status: "failed", error: message };
+  }
+
+  const decision = chooseValidationNotices({
+    pending: awaitingValidation.map((row) => ({
+      id: row.id,
+      scheduled_for: row.scheduled_for,
+    })),
+    notices: Array.isArray(noticeHistory) ? noticeHistory : [],
+    emails: Array.isArray(emailHistory) ? emailHistory : [],
+    now,
+  });
+  let inserted = false;
+  if (decision.newReady.length) {
+    const actionIds = decision.newReady.map((row) => row.id);
+    const batchSignature = createHash("sha256")
+      .update([...actionIds].sort().join("|"))
+      .digest("hex")
+      .slice(0, 20);
+    const count = actionIds.length;
+    const result = await insertNotificationOnce({
+      user_id: args.userId,
+      category: "action",
+      kind: INR_AGENT_READY_NOTICE_KIND,
+      title: "Vos publications iNr’Agent sont prêtes",
+      body: `iNr’Agent a préparé ${count} publication${count > 1 ? "s" : ""} pour les ${horizonDays} prochains jours. Contrôlez-les puis validez-les avant leur diffusion.`,
+      cta_label: "Contrôler mes publications",
+      cta_url: "/dashboard/agent",
+      dedupe_key: buildValidationNoticeDedupeKey({
+        userId: args.userId,
+        now,
+        kind: "ready",
+      }),
+      meta: {
+        source: "inr_agent_editorial_plan",
+        batchSignature,
+        horizonDays,
+        publicationCount: count,
+        actionIds,
+      },
+    });
+    inserted = result.inserted;
+  }
+  if (decision.inAppReminder.length) {
+    const actionIds = decision.inAppReminder.map((row) => row.id);
+    const count = actionIds.length;
+    await insertNotificationOnce({
+      user_id: args.userId,
+      category: "action",
+      kind: INR_AGENT_REMINDER_NOTICE_KIND,
+      title: "Publications à valider bientôt",
+      body: `${count} publication${count > 1 ? "s" : ""} attend${count > 1 ? "ent" : ""} encore votre validation avant l’heure prévue. Sans validation, aucune diffusion ne partira.`,
+      cta_label: "Voir mes publications",
+      cta_url: "/dashboard/agent",
+      dedupe_key: buildValidationNoticeDedupeKey({
+        userId: args.userId,
+        now,
+        kind: "reminder",
+      }),
+      meta: {
+        source: "inr_agent_editorial_plan",
+        publicationCount: count,
+        actionIds,
+      },
+    });
+  }
+
+  let emailDelivery: { status: string; error?: string } = {
+    status: emailError ? "history_unavailable" : "not_due",
+  };
+  if (!emailError && decision.emailKind && decision.emailSlot && decision.emailActions.length) {
+    const first = decision.emailActions[0];
+    const last = decision.emailActions[decision.emailActions.length - 1];
+    const deliveryKey = buildValidationNoticeDeliveryKey({
+      userId: args.userId,
+      now,
+      slot: decision.emailSlot,
+    });
+    try {
+      emailDelivery = await deliverInrAgentValidationReadyEmail({
+        supabase: args.supabase,
+        userId: args.userId,
+        deliveryKey,
+        actionIds: decision.emailActions.map((row) => row.id),
+        kind: decision.emailKind,
+        publicationCount: decision.emailActions.length,
+        horizonDays,
+        firstScheduledAt: first?.scheduled_for || null,
+        lastScheduledAt: last?.scheduled_for || null,
+      });
+    } catch (deliveryError) {
+      const message = errorMessage(deliveryError);
+      console.error("[inr-agent] validation email preparation failed", {
+        userId: args.userId,
+        deliveryKey,
+        error: deliveryError,
+      });
+      emailDelivery = { status: "failed", error: message };
+    }
   }
   return {
-    status: result.inserted ? ("notified" as const) : ("already_notified" as const),
+    status: inserted ? ("notified" as const) : ("already_notified" as const),
     emailStatus: emailDelivery.status,
-    awaitingValidation: count,
-    remaining: 0,
+    awaitingValidation: awaitingValidation.length,
+    remaining: activeRows.length - awaitingValidation.length,
+    reminderCount: decision.inAppReminder.length,
   };
 }
 

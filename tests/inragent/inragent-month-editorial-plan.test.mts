@@ -329,6 +329,7 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
   const editorial = read("lib/inrAgentEditorialPlanServer.ts");
+  const notices = read("lib/inrAgentValidationNoticePolicy.ts");
   const scheduledCron = read(
     "app/api/cron/inr-agent-scheduled-actions/route.ts"
   );
@@ -351,7 +352,7 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   );
   assert.match(editorial, /cancelAutomaticScheduledExecution/);
   assert.match(editorial, /notifyReadyInrAgentEditorialBatch/);
-  assert.match(editorial, /inr_agent_editorial_batch_ready/);
+  assert.match(notices, /inr_agent_editorial_batch_ready/);
   assert.match(editorial, /editorialReactivatedAt/);
   assert.match(scheduledCron, /automaticPublicationStillAuthorized/);
   assert.match(scheduledCron, /return false;/);

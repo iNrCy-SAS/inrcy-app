@@ -8,11 +8,10 @@ import {
 } from "@/lib/executionIdempotency";
 import {
   buildInrAgentValidationEmail,
-  buildInrAgentValidationEmailDeliveryKey,
   buildInrAgentValidationEmailMessageId,
   INR_AGENT_VALIDATION_EMAIL_LOCK_TTL_MS,
-  INR_AGENT_VALIDATION_EMAIL_SCOPE,
 } from "@/lib/inrAgentValidationEmailPolicy";
+import { INR_AGENT_VALIDATION_EMAIL_SCOPE_V2 } from "@/lib/inrAgentValidationNoticePolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { sendTxMail } from "@/lib/txMailer";
@@ -94,12 +93,25 @@ async function resolveValidationEmailRecipient(
 export async function deliverInrAgentValidationReadyEmail(args: {
   supabase: SupabaseLike;
   userId: string;
-  batchSignature: string;
+  deliveryKey: string;
+  actionIds: string[];
+  kind: "ready" | "reminder";
   publicationCount: number;
   horizonDays: number;
   firstScheduledAt?: string | null;
   lastScheduledAt?: string | null;
 }) {
+  const { data: preferences, error: preferencesError } = await args.supabase
+    .from("notification_preferences")
+    .select("email_enabled,action_enabled")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+  if (preferencesError) {
+    return { status: "preferences_unavailable" as const };
+  }
+  if (preferences?.email_enabled === false || preferences?.action_enabled === false) {
+    return { status: "preferences_disabled" as const };
+  }
   if (!smtpConfigured()) {
     return { status: "smtp_not_configured" as const };
   }
@@ -112,18 +124,15 @@ export async function deliverInrAgentValidationReadyEmail(args: {
     return { status: "missing_recipient" as const };
   }
 
-  const deliveryKey = buildInrAgentValidationEmailDeliveryKey({
-    userId: args.userId,
-    batchSignature: args.batchSignature,
-  });
   const claim = await acquireExecutionIdempotencyLock({
     supabase: args.supabase,
     userId: args.userId,
-    scope: INR_AGENT_VALIDATION_EMAIL_SCOPE,
-    idempotencyKey: deliveryKey,
+    scope: INR_AGENT_VALIDATION_EMAIL_SCOPE_V2,
+    idempotencyKey: args.deliveryKey,
     ttlMs: INR_AGENT_VALIDATION_EMAIL_LOCK_TTL_MS,
     metadata: {
-      batchSignature: args.batchSignature,
+      actionIds: args.actionIds,
+      kind: args.kind,
       publicationCount: args.publicationCount,
       firstScheduledAt: args.firstScheduledAt || null,
       lastScheduledAt: args.lastScheduledAt || null,
@@ -139,7 +148,7 @@ export async function deliverInrAgentValidationReadyEmail(args: {
   if (claim.state === "unavailable" || !claim.lock?.id) {
     console.error("[inr-agent] validation email blocked: idempotency unavailable", {
       userId: args.userId,
-      batchSignature: args.batchSignature,
+      deliveryKey: args.deliveryKey,
       error:
         claim.state === "unavailable" ? claim.error : "idempotency_lock_missing",
     });
@@ -152,9 +161,10 @@ export async function deliverInrAgentValidationReadyEmail(args: {
   ).replace(/\/$/, "");
   const dashboardUrl = `${appUrl}/dashboard/agent`;
   const messageId = buildInrAgentValidationEmailMessageId(
-    `${args.userId}:${args.batchSignature}`,
+    `${args.userId}:${args.deliveryKey}`,
   );
   const mail = buildInrAgentValidationEmail({
+    kind: args.kind,
     firstName: recipient.firstName,
     companyName: recipient.companyName,
     publicationCount: args.publicationCount,
@@ -179,7 +189,8 @@ export async function deliverInrAgentValidationReadyEmail(args: {
       lockId: claim.lock.id,
       result: { ok: true, sentAt, messageId },
       metadata: {
-        batchSignature: args.batchSignature,
+        actionIds: args.actionIds,
+        kind: args.kind,
         publicationCount: args.publicationCount,
         firstScheduledAt: args.firstScheduledAt || null,
         lastScheduledAt: args.lastScheduledAt || null,
@@ -192,13 +203,14 @@ export async function deliverInrAgentValidationReadyEmail(args: {
       lockId: claim.lock.id,
       error: errorMessage(error),
       metadata: {
-        batchSignature: args.batchSignature,
+        actionIds: args.actionIds,
+        kind: args.kind,
         publicationCount: args.publicationCount,
       },
     });
     console.error("[inr-agent] validation email delivery failed", {
       userId: args.userId,
-      batchSignature: args.batchSignature,
+      deliveryKey: args.deliveryKey,
       error,
     });
     return { status: "failed" as const, error: errorMessage(error) };

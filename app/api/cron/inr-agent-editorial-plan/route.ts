@@ -249,17 +249,10 @@ export async function POST(request: Request) {
           now,
         });
         if (result.status !== "idle") generationAttempts += 1;
-        const notification = await notifyReadyInrAgentEditorialBatch({
-          supabase: supabaseAdmin,
-          userId: entry.userId,
-          horizonDays: entry.automation.planningHorizonDays,
-          now,
-        });
-        if (result.status !== "idle" || notification.status !== "not_ready") {
+        if (result.status !== "idle") {
           generated.push({
             userId: entry.userId,
             ...result,
-            notification,
           });
         }
       } catch (error) {
@@ -270,6 +263,43 @@ export async function POST(request: Request) {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+  }
+
+  // Every enabled account must be checked for validation deadlines, even when
+  // the generation budget was spent on other accounts during this cron run.
+  const notificationResults: Array<Record<string, unknown>> = [];
+  if (!dryRun) {
+    for (let index = 0; index < enabledRows.length; index += 5) {
+      const group = enabledRows.slice(index, index + 5);
+      const results = await Promise.all(
+        group.map(async (entry) => {
+          try {
+            const result = await notifyReadyInrAgentEditorialBatch({
+              supabase: supabaseAdmin,
+              userId: entry.userId,
+              horizonDays: entry.automation.planningHorizonDays,
+              now,
+            });
+            if (
+              result.status === "notified" ||
+              Number(result.reminderCount || 0) > 0 ||
+              result.emailStatus === "sent" ||
+              result.emailStatus === "failed"
+            ) {
+              return { userId: entry.userId, ...result };
+            }
+            return null;
+          } catch (error) {
+            return {
+              userId: entry.userId,
+              status: "failed",
+              error: error instanceof Error ? error.message : String(error),
+            };
+          }
+        }),
+      );
+      for (const result of results) if (result) notificationResults.push(result);
     }
   }
 
@@ -285,8 +315,10 @@ export async function POST(request: Request) {
       0,
     ),
     generated: generated.length,
+    notified: notificationResults.length,
     reconciliations,
     generationResults: generated,
+    notificationResults,
   });
 }
 
