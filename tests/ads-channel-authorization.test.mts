@@ -29,7 +29,7 @@ const baseScope = {
 };
 
 test("a Premium user cannot trigger private-channel recovery before the channel guard", async () => {
-  for (const provider of ["meta", "linkedin", "tiktok", "x"] as const) {
+  for (const provider of ["meta", "linkedin", "tiktok", "x", "openai"] as const) {
     let recoveries = 0;
     const query = {
       select() { return this; }, eq() { return this; },
@@ -47,7 +47,7 @@ test("a Premium user cannot trigger private-channel recovery before the channel 
 });
 
 test("a public-channel payload cannot overwrite an existing private-channel draft", async () => {
-  for (const provider of ["meta", "linkedin", "tiktok", "x"] as const) {
+  for (const provider of ["meta", "linkedin", "tiktok", "x", "openai"] as const) {
     let writes = 0;
     const query = {
       select() { return this; }, eq() { return this; },

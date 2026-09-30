@@ -764,6 +764,12 @@
 .pinterestLocationOptions li>span{display:grid;gap:3px;min-width:0;overflow-wrap:break-word}
 .pinterestLocationOptions strong{color:#edf2ff;font-size:12px}.pinterestLocationOptions small{color:#bfcde5;font-size:10px}
 .pinterestLocationSearch button:disabled,.channelRail button:disabled,.miniSelect:disabled{cursor:not-allowed;opacity:.55}
+.channelRail button[data-locked=true]{opacity:.45;filter:grayscale(1)}
+.channelRail button[data-locked=true]:hover{opacity:.58}
+.channelRail button[data-locked=true][aria-pressed=true]{opacity:.65;filter:grayscale(1)}
+.channel[data-locked=true] .channelLogo{filter:grayscale(1);opacity:.68}
+.channel[data-locked=true] .channelStatus{color:#c6cbd7}
+.launchArea .launchButton:disabled{filter:grayscale(.9);box-shadow:none;cursor:not-allowed}
 .studioTargetingMode{min-width:0;align-content:start}
 .studioTargetingCard .pinterestLocationSearch{gap:6px;padding:10px}
 .studioTargetingCard .pinterestLocationOptions li{padding:5px 8px}

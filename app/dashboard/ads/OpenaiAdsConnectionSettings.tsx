@@ -27,6 +27,7 @@ type Status = {
 
 type Props = {
   isOpen: boolean;
+  locked?: boolean;
   previous: { name: string; onSelect: () => void };
   next: { name: string; onSelect: () => void };
   onClose: () => void;
@@ -55,7 +56,7 @@ async function readResponse(response: Response): Promise<Status> {
   return result;
 }
 
-export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, onClose, onConnectionChange, initialConnection }: Props) {
+export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, previous, next, onClose, onConnectionChange, initialConnection }: Props) {
   const [status, setStatus] = useState<Status>(() => fromSnapshot(initialConnection));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState<"connect" | "disconnect" | null>(null);
@@ -80,9 +81,12 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
   useEffect(() => {
     if (isOpen) {
       setStep(0);
-      void refresh();
+      if (locked) {
+        setStatus(fromSnapshot());
+        setRefreshed(true);
+      } else void refresh();
     }
-  }, [isOpen, refresh]);
+  }, [isOpen, locked, refresh]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,6 +116,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (locked) return;
     const key = keyInput.current?.value.trim() || "";
     if (!key || busy) return;
     setBusy("connect");
@@ -134,7 +139,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
   }
 
   async function disconnect() {
-    if (busy) return;
+    if (locked || busy) return;
     setBusy("disconnect");
     setError("");
     try {
@@ -148,8 +153,8 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
     }
   }
 
-  const connected = status.connected;
-  const connectionDisplayStatus = status.status === "needs_update" ? "needs_update" : connected ? "connected" : "disconnected";
+  const connected = !locked && status.connected;
+  const connectionDisplayStatus = locked ? "disconnected" : status.status === "needs_update" ? "needs_update" : connected ? "connected" : "disconnected";
   const accountUrl = /^adacct_[A-Za-z0-9_-]+$/.test(status.accountId)
     ? `https://ads.openai.com/settings?act=${encodeURIComponent(status.accountId)}`
     : "https://ads.openai.com/";
@@ -173,19 +178,19 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
       <section data-step-index="0" className={`${socialStyles.stepCard} ${adsStyles.step}`} aria-label="Étape 1 : Votre connexion">
         <div className={`${socialStyles.stepHeader} ${adsStyles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
-          <div className={socialStyles.stepCopy}><div>Votre connexion</div><div>La clé Ads Manager de chaque entreprise autorise l’accès à son compte publicitaire ChatGPT.</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={connected} status={connectionDisplayStatus} label={busy === "connect" ? "Vérification…" : undefined} /></div>
+          <div className={socialStyles.stepCopy}><div>Votre connexion</div><div>{locked ? "Canal en validation : connexion réservée à l’administration." : "La clé Ads Manager de chaque entreprise autorise l’accès à son compte publicitaire ChatGPT."}</div></div>
+          <div className={socialStyles.stepStatus}>{locked ? <span className={adsStyles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={connected} status={connectionDisplayStatus} label={busy === "connect" ? "Vérification…" : undefined} />}</div>
         </div>
         <div className={`${socialStyles.stepBody} ${adsStyles.stepBody}`}>
           <div className={adsStyles.controlRow}>
-            <input readOnly aria-label="Compte connecté à ChatGPT Ads" value={connected ? `Compte connecté : ${status.accountName || status.accountId}` : status.status === "needs_update" ? "Connexion à actualiser" : "Aucun compte connecté"} />
+            <input readOnly aria-label="Compte connecté à ChatGPT Ads" value={locked ? "Connexion réservée à l’administration" : connected ? `Compte connecté : ${status.accountName || status.accountId}` : status.status === "needs_update" ? "Connexion à actualiser" : "Aucun compte connecté"} />
             {connected && <button type="button" className={`${dashboardStyles.actionBtn} ${dashboardStyles.disconnectBtn}`} onClick={() => void disconnect()} disabled={busy !== null}>{busy === "disconnect" ? "Déconnexion…" : "Déconnexion"}</button>}
           </div>
           <form className={styles.keyForm} onSubmit={(event) => void connect(event)}>
             <label htmlFor="openai-ads-key">{connected ? "Actualiser la clé Ads Manager" : "Clé Ads Manager"}<small>La clé OpenAI API habituelle ne donne pas accès aux publicités.</small></label>
             <div className={`${adsStyles.controlRow} ${styles.keyRow}`}>
-              <input ref={keyInput} id="openai-ads-key" type="password" autoComplete="off" spellCheck={false} placeholder="Collez la clé publicitaire" maxLength={2048} required />
-              <button type="submit" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${adsStyles.channelPrimary}`} disabled={busy !== null}>{busy === "connect" ? "Vérification…" : connected ? "Actualiser" : "Connecter"} <span aria-hidden="true">→</span></button>
+              <input ref={keyInput} id="openai-ads-key" type="password" autoComplete="off" spellCheck={false} placeholder="Collez la clé publicitaire" maxLength={2048} required disabled={locked} />
+              <button type="submit" className={`${dashboardStyles.actionBtn} ${dashboardStyles.connectBtn} ${adsStyles.channelPrimary} ${locked ? adsStyles.lockedAction : ""}`} disabled={locked || busy !== null}>{busy === "connect" ? "Vérification…" : connected ? "Actualiser" : "Connecter"} <span aria-hidden="true">→</span></button>
             </div>
           </form>
           {!refreshed && !connected && <p className={adsStyles.detail} role="status">Vérification de la connexion…</p>}
@@ -196,7 +201,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
         <div className={`${socialStyles.stepHeader} ${adsStyles.stepHeader}`}>
           <span className={socialStyles.stepNumber} aria-hidden="true">02</span>
           <div className={socialStyles.stepCopy}><div>Compte annonceur</div><div>Vérifiez le compte et son droit de créer des campagnes dans Ads Manager.</div></div>
-          <div className={socialStyles.stepStatus}><ConnectionPill connected={connected && Boolean(status.accountId)} label={connected ? "Compte reconnu" : undefined} /></div>
+          <div className={socialStyles.stepStatus}>{locked ? <span className={adsStyles.lockedPill}>Verrouillé</span> : <ConnectionPill connected={connected && Boolean(status.accountId)} label={connected ? "Compte reconnu" : undefined} />}</div>
         </div>
         <div className={`${socialStyles.stepBody} ${adsStyles.stepBody}`}>
           <div className={adsStyles.resourceControls}>
@@ -204,9 +209,9 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
               <strong>{connected ? status.accountName || status.accountId : "Aucun compte associé"}</strong>
               {connected && <small>{status.accountId}{status.currency ? ` · ${status.currency}` : ""}</small>}
             </div>
-            <div className={adsStyles.resourceActions}><a className={`${dashboardStyles.actionBtn} ${adsStyles.viewAccount}`} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir Ads Manager <span aria-hidden="true">↗</span></a></div>
+            <div className={adsStyles.resourceActions}>{locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${adsStyles.lockedAction}`} disabled>Ouvrir Ads Manager</button> : <a className={`${dashboardStyles.actionBtn} ${adsStyles.viewAccount}`} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir Ads Manager <span aria-hidden="true">↗</span></a>}</div>
           </div>
-          <p className={adsStyles.detail}>{connected
+          <p className={adsStyles.detail}>{locked ? "La configuration ChatGPT Ads sera disponible après validation de ce canal." : connected
             ? status.readinessMessage || (status.publicationEnabled
               ? "Création de campagnes en pause disponible. La diffusion reste soumise à validation dans Ads Manager."
               : "Connexion reconnue. Le lancement attend encore l’ouverture du canal ou les validations requises.")
@@ -216,8 +221,8 @@ export default function OpenaiAdsConnectionSettings({ isOpen, previous, next, on
         </div>
       </section>
 
-      {error && <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p>}
-      <p className={adsStyles.footnote}>Les campagnes créées via iNr’ADS sont envoyées <strong>en pause</strong>. Aucune diffusion ni dépense ne démarre sans une activation ultérieure explicite.</p>
+      {!locked && error && <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p>}
+      {!locked && <p className={adsStyles.footnote}>Les campagnes créées via iNr’ADS sont envoyées <strong>en pause</strong>. Aucune diffusion ni dépense ne démarre sans une activation ultérieure explicite.</p>}
       <div className={adsStyles.footer}>
         <button type="button" className={adsStyles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>
         <span className={adsStyles.progress}>Étape {step + 1} / 2</span>
