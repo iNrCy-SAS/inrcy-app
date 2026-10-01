@@ -15,6 +15,7 @@ import {
 } from "@/lib/adsValidation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { ADS_PUBLIC_CHANNELS } from "@/lib/adsAccessPolicy";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
 
 const CAMPAIGN_PAGE_SIZE = 50;
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
   let query = supabaseAdmin.from("ads_campaigns")
     .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact" })
     .eq("user_id", user.activeUserId);
-  if (!(await isAdsPilotAdmin(user.authUserId))) query = query.in("provider", ["google", "pinterest"]);
+  if (!(await isAdsPilotAdmin(user.authUserId))) query = query.in("provider", [...ADS_PUBLIC_CHANNELS]);
   if (requestedStatus === "draft") query = query.eq("status", "draft");
   const { data, error, count } = await query
     .order("created_at", { ascending: false })

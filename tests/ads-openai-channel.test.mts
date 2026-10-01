@@ -34,14 +34,17 @@ const chatgptDraft = {
   creativeUrl: "https://example.com/carte.jpg",
 };
 
-test("ChatGPT Ads reste réservé à l’administrateur et à la création réelle en pause", () => {
-  assert.equal(adsAccessAllowed("premium", false, "openai"), false);
+test("ChatGPT Ads est ouvert aux comptes Premium et Founder, avec création réelle en pause uniquement", () => {
+  assert.equal(adsAccessAllowed("premium", false, "openai"), true);
+  assert.equal(adsAccessAllowed("founder", false, "openai"), true);
+  assert.equal(adsAccessAllowed("standard", false, "openai"), false);
   assert.equal(adsAccessAllowed("standard", true, "openai"), true);
   const gate = { INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED: "true" };
   assert.equal(isAdsChannelPublishEnabled("openai", "paused", gate), true);
   assert.equal(isAdsChannelPublishEnabled("openai", "live", gate), false);
   assert.equal(isAdsChannelPublishEnabled("openai", "demo_paused", gate), false);
-  assert.equal(isAdsChannelPublishEnabled("openai", "paused", {}), false);
+  assert.equal(isAdsChannelPublishEnabled("openai", "paused", {}), true);
+  assert.equal(isAdsChannelPublishEnabled("openai", "paused", { INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED: "false" }), false);
 });
 
 test("la carte ChatGPT validée garde sa zone locale, son texte entier et son enchère", () => {
@@ -96,4 +99,13 @@ test("un refus HTTP 400 avant création rend le brouillon corrigeable sans autor
   assert.equal(openaiDraftRetrySafe({ mutationStarted: true, httpStatus: 502, resources: { stage: "verified" } }), false);
   assert.equal(openaiDraftRetrySafe({ mutationStarted: true, resources: { stage: "verified" } }), false);
   assert.equal(openaiDraftRetrySafe({ mutationStarted: true, httpStatus: 400, resources: { campaignId: "cmp_1" } }), false);
+});
+
+test("une connexion ChatGPT à actualiser conserve l’identité durable sans autoriser le lancement", () => {
+  const statusRoute = readFileSync(new URL("../app/api/ads/openai/status/route.ts", import.meta.url), "utf8");
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  assert.match(statusRoute, /account\?\.id \|\| integration\?\.resource_id/);
+  assert.match(statusRoute, /account\?\.name \|\| integration\?\.resource_label/);
+  assert.match(client, /status\.status === "needs_update" \? "needs_update" : "disconnected"/);
+  assert.match(client, /status\.connected === true && accountId/);
 });

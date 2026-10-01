@@ -436,7 +436,9 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
         {actionError && <p className={styles.error} role="alert">{actionError}</p>}
         {canDiscardLocalRecovery ? <p className={styles.muted}>Aucun identifiant de campagne distante n’a été enregistré. Contrôlez d’abord le compte publicitaire ; ce nettoyage ne déclenche aucune action sur la plateforme.</p>
           : isInterruptedRemoteOperation ? <p className={styles.muted}>iNrSend vérifie que l’opération est réellement interrompue puis la place en contrôle, sans jamais activer de dépense.</p>
-            : campaign.status === "paused" ? <p className={styles.muted}>Cette campagne existe réellement sur la plateforme et reste sans diffusion. Vous pouvez la reprendre ici sans la recréer.</p>
+            : campaign.status === "paused" ? <p className={styles.muted}>{campaign.provider === "openai"
+              ? "Cette campagne ChatGPT Ads a été créée en pause, sans diffusion. Contrôlez-la et activez-la uniquement depuis Ads Manager ; l’activation depuis iNrSend n’est pas disponible."
+              : "Cette campagne existe réellement sur la plateforme et reste sans diffusion. Vous pouvez la reprendre ici sans la recréer."}</p>
               : canManageRemote && campaign.status === "needs_review" ? <p className={styles.muted}>Cette lecture ne réactive pas la campagne. Une opération interrompue est vérifiée avant d’être enregistrée localement.</p>
               : !canChange && !canManageRemote ? <p className={styles.muted}>Cette campagne ne dispose pas d’identifiants fournisseur complets. Contrôlez-la sur la plateforme publicitaire.</p>
                 : null}

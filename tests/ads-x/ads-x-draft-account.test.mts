@@ -78,20 +78,21 @@ function harness(options: {
   return { events, writes, save: (body = draft) => execute(new Request("https://app.example/api/ads/campaigns", { method: "POST", body: JSON.stringify(body) })) };
 }
 
-test("POST persiste le compte X associé seulement après vérification fraîche de son accès", async () => {
+test("POST persiste localement le compte X sans dépendre d’un préflight fournisseur", async () => {
   const h = harness();
   assert.equal((await h.save()).status, 200);
-  assert.deepEqual(h.events, ["connection", "accounts", "verify", "insert"]);
+  assert.deepEqual(h.events, ["insert"]);
   assert.equal(h.writes[0].user_id, "business-owner");
   assert.equal(h.writes[0].ad_account_id, accountId);
   assert.equal((h.writes[0].draft as { adAccountId: string }).adAccountId, accountId);
 });
 
-test("POST refuse compte non associé, retiré, refusé, non EUR ou rôle révoqué sans écriture", async () => {
+test("POST garde le brouillon X enregistrable lorsque le fournisseur est indisponible ou à revérifier", async () => {
   for (const options of [{ connected: false }, { associatedId: "Other123" }, { listed: false }, { permission: "VIEWER" }, { currency: "USD" }, { accepted: false }]) {
     const h = harness(options);
-    assert.ok([403, 409].includes((await h.save()).status), JSON.stringify(options));
-    assert.equal(h.writes.length, 0);
+    assert.equal((await h.save()).status, 200, JSON.stringify(options));
+    assert.deepEqual(h.events, ["insert"], JSON.stringify(options));
+    assert.equal(h.writes.length, 1, JSON.stringify(options));
   }
 });
 

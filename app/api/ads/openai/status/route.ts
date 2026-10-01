@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
 import { assessOpenaiAdsAccount, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
 import { openaiAdsStoredAccount, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
+import { isAdsChannelPublishEnabled } from "@/lib/adsPublishMode";
 import { decryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -54,15 +55,17 @@ export async function GET() {
     }
     const assessment = account ? assessOpenaiAdsAccount(account) : null;
     const pausedCreationEnabled = Boolean(connected && !refreshError && assessment?.ready
-      && process.env.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED === "true");
+      && isAdsChannelPublishEnabled("openai", "paused", process.env));
+    const accountId = account?.id || integration?.resource_id || "";
+    const accountName = account?.name || integration?.resource_label || "";
     return NextResponse.json({
       configured: true,
       connected,
       status: connected ? "connected" : integration ? "needs_update" : "disconnected",
-      accountId: account?.id || "",
-      accountName: account?.name || "",
-      selectedAccountId: account?.id || "",
-      selectedAccountName: account?.name || "",
+      accountId,
+      accountName,
+      selectedAccountId: accountId,
+      selectedAccountName: accountName,
       currency: account?.currencyCode || "",
       brandReviewStatus: account?.brandReviewStatus || "",
       accountReviewStatus: account?.accountReviewStatus || null,

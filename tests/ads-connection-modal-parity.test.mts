@@ -5,6 +5,7 @@ import test from "node:test";
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 const internalSettings = readFileSync(new URL("../app/dashboard/ads/AdsConnectionSettings.tsx", import.meta.url), "utf8");
 const externalSettings = readFileSync(new URL("../app/dashboard/ads/ExternalAdsConnectionSettings.tsx", import.meta.url), "utf8");
+const openaiSettings = readFileSync(new URL("../app/dashboard/ads/OpenaiAdsConnectionSettings.tsx", import.meta.url), "utf8");
 const connectionStyles = readFileSync(new URL("../app/dashboard/ads/AdsConnectionSettings.module.css", import.meta.url), "utf8");
 const adsStyles = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 const drawer = readFileSync(new URL("../app/dashboard/SettingsDrawer.tsx", import.meta.url), "utf8");
@@ -24,8 +25,12 @@ test("les sept modales iNrADS suivent le même cycle sans fermer le panneau", ()
   assert.match(client, /openChannelConfiguration\(nextConnectionChannel\.id\)/);
   assert.match(internalSettings, /<ChannelSettingsHeader[\s\S]*previous=\{previous\}[\s\S]*next=\{next\}/);
   assert.match(externalSettings, /<ChannelSettingsHeader[\s\S]*previous=\{previous\}[\s\S]*next=\{next\}/);
+  assert.match(openaiSettings, /<ChannelSettingsHeader[\s\S]*previous=\{\{ name: previous\.name[\s\S]*next=\{\{ name: next\.name/);
   assert.match(internalSettings, /keepMounted/);
   assert.match(externalSettings, /keepMounted/);
+  assert.match(openaiSettings, /keepMounted/);
+  assert.match(openaiSettings, /Étape 1 : Votre connexion/);
+  assert.match(openaiSettings, /Étape 2 : Compte annonceur/);
   assert.match(drawer, /keepMounted \|\| isOpen/);
 });
 
@@ -83,6 +88,7 @@ test("le studio affiche le canal choisi dans le titre de création", () => {
     tiktok: "TikTok",
     pinterest: "Pinterest",
     x: "X",
+    openai: "ChatGPT",
   })) {
     assert.match(client, new RegExp(`${channel}: "${label}"`));
   }

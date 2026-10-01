@@ -55,6 +55,9 @@ test("seules les campagnes fournisseur identifiées sont gérables", () => {
   assert.equal(canManageRemoteAdsCampaign(base), true);
   assert.equal(canManageRemoteAdsCampaign({ ...base, status: "publishing" }), false);
   assert.equal(canRecoverInterruptedAdsCampaign({ ...base, status: "publishing" }), true);
+  assert.equal(canRecoverInterruptedAdsCampaign({ ...base, provider: "openai", status: "publishing" }), true);
+  assert.equal(canRecoverInterruptedAdsCampaign({ ...base, provider: "openai", status: "paused" }), false);
+  assert.equal(canManageRemoteAdsCampaign({ ...base, provider: "openai", status: "paused", provider_resources: { campaignId: "chatgpt-campaign" } }), false);
   assert.equal(canRecoverInterruptedAdsCampaign(base), false);
   assert.equal(canManageRemoteAdsCampaign({ ...base, status: "draft" }), false);
   assert.equal(canManageRemoteAdsCampaign({ ...base, provider_resources: {} }), false);
@@ -116,8 +119,12 @@ test("l’archivage distant exige une confirmation dédiée exacte", () => {
 
 test("la route verrouille les mutations, expire les verrous interrompus et supprime d'abord chez le fournisseur", () => {
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/lifecycle/route.ts", import.meta.url), "utf8");
+  const interruptedRecoveryIndex = route.indexOf('if (data.status === "publishing")');
+  const genericManagementIndex = route.indexOf("if (!localCleanupOnly && !canManageRemoteAdsCampaign(data))");
   assert.match(route, /adsRequestOriginAllowed\(request\)/);
   assert.match(route, /requirePremiumAdsUser\(\)/);
+  assert.ok(interruptedRecoveryIndex >= 0 && genericManagementIndex > interruptedRecoveryIndex,
+    "la récupération d’une publication interrompue doit précéder l’autorisation de gestion générique");
   assert.match(route, /inrcyLifecycleClaim: \{[\s\S]*?claimedAt,[\s\S]*?previousStatus: campaign\.status,[\s\S]*?operation: request\.action/);
   assert.match(route, /const staleAfterMs = \(maxDuration \+ 120\) \* 1_000/);
   assert.match(route, /operation === "reconcile" && stableStatus \? stableStatus : "needs_review"/);

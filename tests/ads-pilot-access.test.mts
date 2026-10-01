@@ -21,7 +21,7 @@ const adsCallbackSource = readFileSync(
   "utf8",
 );
 
-test("iNr’ADS ouvre Google et Pinterest aux professionnels Premium et conserve le verrou pilote des autres canaux", () => {
+test("iNr’ADS ouvre Google, Pinterest et ChatGPT Ads aux professionnels Premium et conserve le verrou pilote des autres canaux", () => {
   assert.match(dashboardClientSource, /isAdmin=\{isAdmin\}/);
   assert.match(channelsSource, /adsPilotEnabled inrAgentEnabled/);
   assert.match(campaignChoicesSource, /adsComingSoon/);

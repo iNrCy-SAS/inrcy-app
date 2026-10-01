@@ -184,7 +184,8 @@ export function canRecoverInterruptedAdsCampaign(input: {
   provider: unknown;
   status: unknown;
 }): boolean {
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin") && input.status === "publishing";
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin" || input.provider === "openai")
+    && input.status === "publishing";
 }
 
 export function hasRemoteDeleteConfirmation(value: unknown): boolean {

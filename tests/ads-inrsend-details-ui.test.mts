@@ -42,6 +42,13 @@ test("le statut précède les actions dans la ligne du titre sur desktop", () =>
   assert.match(styles, /@media\(max-width:760px\)[\s\S]*?\.headerActions\{[^}]*flex-wrap:wrap/);
 });
 
+test("OpenAI récupère une publication interrompue sans exposer de reprise générique", () => {
+  assert.match(component, /const isInterruptedRemoteOperation = canRecoverInterruptedAdsCampaign\(campaign\)/);
+  assert.match(component, /isInterruptedRemoteOperation \? <button[\s\S]*?runRemoteAction\(campaign, "reconcile"\)[\s\S]*?Contrôler l’opération interrompue/);
+  assert.match(component, /const canToggleRemote = canManageRemote && \(campaign\.status === "active" \|\| campaign\.status === "paused"\)/);
+  assert.match(component, /campaign\.provider === "openai"[\s\S]*?activez-la uniquement depuis Ads Manager ; l’activation depuis iNrSend n’est pas disponible/);
+});
+
 test("la grille Infos utilise quatre colonnes desktop puis deux et une", () => {
   assert.match(styles, /\.detailGrid\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /@media\(max-width:950px\)\{\.detailGrid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);

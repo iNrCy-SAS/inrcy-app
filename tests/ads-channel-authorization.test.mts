@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
-import { adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
+import { ADS_PUBLIC_CHANNELS, adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
 import { isAdsChannelId, isAdsProvider, type AdsChannelId } from "../lib/adsValidation.ts";
 
 function actualFunction(path: string, name: string, scope: Record<string, unknown>) {
@@ -28,8 +28,31 @@ const baseScope = {
   enforceRateLimit: async () => null,
 };
 
+test("a Premium user lists Google, Pinterest and ChatGPT campaigns", async () => {
+  let providerFilter: unknown[] = [];
+  const query = {
+    select() { return this; },
+    eq() { return this; },
+    in(_column: string, values: unknown[]) { providerFilter = values; return this; },
+    order() { return this; },
+    async range() { return { data: [], error: null, count: 0 }; },
+  };
+  const get = actualFunction("app/api/ads/campaigns/route.ts", "GET", {
+    requirePremiumAdsUser: baseScope.requirePremiumAdsUser,
+    isAdsPilotAdmin: async () => false,
+    supabaseAdmin: { from: () => query },
+    ADS_PUBLIC_CHANNELS,
+    CAMPAIGN_PAGE_SIZE: 50,
+    normalizeStoredAdsCampaignDraft: (value: unknown) => value,
+    NextResponse: baseScope.NextResponse,
+  });
+  const result = await get(new Request("https://app.example/api/ads/campaigns"));
+  assert.equal(result.status, 200);
+  assert.deepEqual(providerFilter, ["google", "pinterest", "openai"]);
+});
+
 test("a Premium user cannot trigger private-channel recovery before the channel guard", async () => {
-  for (const provider of ["meta", "linkedin", "tiktok", "x", "openai"] as const) {
+  for (const provider of ["meta", "linkedin", "tiktok", "x"] as const) {
     let recoveries = 0;
     const query = {
       select() { return this; }, eq() { return this; },
@@ -47,7 +70,7 @@ test("a Premium user cannot trigger private-channel recovery before the channel 
 });
 
 test("a public-channel payload cannot overwrite an existing private-channel draft", async () => {
-  for (const provider of ["meta", "linkedin", "tiktok", "x", "openai"] as const) {
+  for (const provider of ["meta", "linkedin", "tiktok", "x"] as const) {
     let writes = 0;
     const query = {
       select() { return this; }, eq() { return this; },

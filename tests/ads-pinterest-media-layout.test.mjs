@@ -38,18 +38,19 @@ const { useState } = require("react");
 const styles = new Proxy({}, { get: (_, key) => String(key) });
 ${parsed.statements.find((entry) => ts.isVariableStatement(entry) && entry.declarationList.declarations[0].name.getText(parsed) === "PINTEREST_STEPPER_LABELS").getText(parsed)}
 function Image({src,alt,className}) { return <img src={src} alt={alt} className={className} style={{position:"absolute",height:"100%",width:"100%",left:0,top:0,right:0,bottom:0}}/>; }
+function LocalMediaUploadChoice({disabled,triggerLabel}) { return <button type="button" disabled={disabled}>{triggerLabel || "Ajouter une image"}</button>; }
 ${component("StudioStepHeader")}
 ${component("CampaignMediaPreview")}
 export function PinterestMediaFixture({shortScreen,compactScreen}) {
   const channelId="pinterest", hasKeywordsStep=false, hasMediaStep=true;
   const step=6, mediaStep=6, analysisStep=1, deliveryStep=7, creationPath="inrcy", busy=null;
-  const stepNames=${stepNamesExpression.getText(parsed)}, displayedStepNames=stepNames, lastStep=stepNames.length-1;
+  const stepNames=${stepNamesExpression.getText(parsed)}, displayedStepNames=stepNames, displayedStepKeys=displayedStepNames, reachedStepKeys=displayedStepKeys, lastStep=stepNames.length-1;
   const channelMeta={label:"Pinterest Ads"}, nativeSettings={channel:"pinterest",intendedPromotionType:"STANDARD_AD",creativeType:"REGULAR"};
   const draft={name:"Cuisine en bois clair et rangements en colonnes",creativeType:"image",creativeUrl:${JSON.stringify(imageUrl)},imageUrl:${JSON.stringify(imageUrl)},mediaStrategy:"image",mediaBrief:"Cuisine en bois clair, cadrage portrait 4:5."};
   const attachedCampaignMediaUrl=draft.imageUrl, nativeMediaUpload=true, googleSearchMedia=false, nativeMediaStrategy="image";
   const campaignMediaUploadBusy=false, campaignMediaUploadError=null, campaignImageInputRef={current:null}, campaignVideoInputRef={current:null};
   const analysisProposalReady=false, planProgress=100, destinationReview={required:false,canContinue:true};
-  const nativeWizardFormat=()=>"image unique", updateDraft=()=>{}, setCampaignMediaStudioOpen=()=>{}, setCampaignMediaLibraryOpen=()=>{}, handleCampaignMediaUpload=()=>{}, setStep=()=>{};
+  const nativeWizardFormat=()=>"image unique", updateDraft=()=>{}, setCampaignMediaStudioOpen=()=>{}, setCampaignMediaLibraryOpen=()=>{}, handleCampaignMediaUpload=()=>{}, navigateToStep=()=>{}, setStep=()=>{};
   return <main className={styles.workspace + " " + styles.studioWorkspace} data-compact={compactScreen||undefined} data-short={shortScreen||undefined} data-stage={step} data-creation-path={creationPath}>
     ${stepper.getText(parsed)}
     ${mediaSection.getText(parsed)}

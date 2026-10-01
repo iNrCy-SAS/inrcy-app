@@ -266,8 +266,8 @@ function externalStatusDisplay(status: ExternalConnectorStatus): { label: string
 
 const EXTERNAL_DISCONNECT_CHANNELS: readonly ExternalChannelId[] = ["linkedin", "pinterest", "tiktok", "x"];
 
-// Every channel can be prepared here. Live publication is enabled only for the
-// deliberately supported connector paths (Meta, Google and classic Pinterest).
+// Every channel can be prepared here. Publication is enabled only for the
+// deliberately supported connector paths; ChatGPT Ads always creates paused resources.
 const CHANNEL_CATALOG: { id: AdsChannelId; label: string; format: string; logo: string; provider?: AdsProvider }[] = [
   { id: "meta", label: "Meta Ads", format: "Facebook · Instagram", logo: "/ads-logos/meta.svg", provider: "meta" },
   { id: "google", label: "Google Ads", format: "Recherche · annonces textuelles", logo: "/ads-logos/google-ads.svg", provider: "google" },
@@ -1459,18 +1459,20 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const refreshOpenaiStatus = useCallback(async () => {
     try {
       const status = await readJson(await fetch("/api/ads/openai/status", { cache: "no-store" })) as {
-        connected?: boolean; accountId?: string; accountName?: string; pausedCreationEnabled?: boolean; readinessMessage?: string;
+        connected?: boolean; status?: ConnectionDisplayStatus; accountId?: string; accountName?: string; pausedCreationEnabled?: boolean; readinessMessage?: string;
       };
-      const accountId = status.connected ? String(status.accountId || "") : "";
+      const accountId = String(status.accountId || "");
+      const connectionStatus: AdsConnectionSnapshot["status"] = status.status === "connected"
+        ? "connected" : status.status === "needs_update" ? "needs_update" : "disconnected";
       setOpenaiAccountReady(status.connected === true && status.pausedCreationEnabled === true && Boolean(accountId));
       setOpenaiReadinessMessage(String(status.readinessMessage || ""));
       setConnectionSnapshots((current) => ({ ...current, openai: {
         ...current.openai,
-        status: accountId ? "connected" : "disconnected",
+        status: connectionStatus,
         accountId,
         accountLabel: accountId ? String(status.accountName || accountId) : "",
       } }));
-      if (accountId) setDraft((current) => current.provider === "openai" && !current.adAccountId
+      if (status.connected === true && accountId) setDraft((current) => current.provider === "openai" && !current.adAccountId
         ? { ...current, adAccountId: accountId } : current);
     } catch {
       // Keep the durable account snapshot visible during a transient check.
@@ -1479,7 +1481,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }, []);
 
   useEffect(() => {
-    if (pilotChannelsEnabled) void refreshOpenaiStatus();
+    if (pilotChannelsEnabled || isAdsPublicChannel("openai")) void refreshOpenaiStatus();
   }, [pilotChannelsEnabled, refreshOpenaiStatus]);
 
   const refreshExternalStatus = useCallback(async (channel: ExternalChannelId, options?: { silent?: boolean }) => {
@@ -3476,7 +3478,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <StudioStepHeader number={budgetStep + 1} label={channelId === "pinterest" ? "BUDGET PINTEREST" : "BUDGET"} title="Votre investissement, en clair." mobileTitle="Votre budget" channel={channelMeta.label} />
         <p className={styles.intro}><span className={styles.studioTitleLong}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</span><span className={styles.studioTitleShort}>Estimation indicative, sans promesse de résultat.</span></p>
         <div className={styles.studioGrid}>
-          <label className={styles.field}>Budget quotidien (€)<input type="number" min={channelId === "openai" ? 15 : 5} max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} />{channelId === "openai" && <small>Ce parcours commence à 15 € ; le minimum réel dépend de la devise et du compte, puis ChatGPT Ads le vérifie à la création.</small>}</label>
+          <label className={styles.field}>{channelId === "openai" ? "Budget quotidien (€)" : "Budget quotidien moyen (€)"}<input type="number" min={channelId === "openai" ? 15 : 5} max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} />{channelId === "openai" && <small>Ce parcours commence à 15 € ; le minimum réel dépend de la devise et du compte, puis ChatGPT Ads le vérifie à la création.</small>}</label>
           <label className={styles.field}>Date de fin<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
           {nativeSettings?.channel === "pinterest" && (nativeSettings.objectiveType === "AWARENESS" || nativeSettings.objectiveType === "CONSIDERATION") && <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings.objectiveType === "AWARENESS" ? "Enchère CPM maximale Pinterest (€)" : "Enchère par clic maximale Pinterest (€)"}<input type="number" min="0.01" max={draft.dailyBudgetEuros} step="0.01" value={draft.pinterestBidEuros ?? 1} onChange={(event) => updateDraft({ pinterestBidEuros: Number(event.target.value) })} /><small>Cette limite explicite est transmise à Pinterest ; elle ne peut pas dépasser votre budget quotidien.</small></label>}
           {nativeSettings?.channel === "linkedin" && <label className={`${styles.field} ${styles.studioWide}`}>Enchère CPC maximale LinkedIn (€)
@@ -3660,10 +3662,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     />
     <OpenaiAdsConnectionSettings
       isOpen={openaiConfiguring && channelId === "openai"}
-      locked={!pilotChannelsEnabled}
+      locked={!pilotChannelsEnabled && !isAdsPublicChannel("openai")}
       previous={{ name: previousConnectionChannel.label, onSelect: () => openChannelConfiguration(previousConnectionChannel.id) }}
       next={{ name: nextConnectionChannel.label, onSelect: () => openChannelConfiguration(nextConnectionChannel.id) }}
-      onClose={() => { setOpenaiConfiguring(false); if (pilotChannelsEnabled) void refreshOpenaiStatus(); }}
+      onClose={() => { setOpenaiConfiguring(false); void refreshOpenaiStatus(); }}
       onConnectionChange={() => void refreshOpenaiStatus()}
       initialConnection={connectionSnapshots.openai}
     />

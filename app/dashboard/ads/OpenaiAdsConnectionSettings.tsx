@@ -214,7 +214,7 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
           <p className={adsStyles.detail}>{locked ? "La configuration ChatGPT Ads sera disponible après validation de ce canal." : connected
             ? status.readinessMessage || (status.publicationEnabled
               ? "Création de campagnes en pause disponible. La diffusion reste soumise à validation dans Ads Manager."
-              : "Connexion reconnue. Le lancement attend encore l’ouverture du canal ou les validations requises.")
+              : "Connexion reconnue. La création en pause n’est pas disponible pour le moment.")
             : status.status === "needs_update" && status.readinessMessage
               ? status.readinessMessage
               : "Créez d’abord un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans l’étape précédente."}</p>

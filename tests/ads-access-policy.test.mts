@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
+import { ADS_PUBLIC_CHANNELS, adsAccessAllowed, isAdsPublicChannel } from "../lib/adsAccessPolicy.ts";
+import { ADS_CHANNELS } from "../lib/adsValidation.ts";
 
-test("Google and Pinterest are available to Premium and Founder, without opening pilot channels", () => {
+test("Google, Pinterest and ChatGPT Ads are available to Premium and Founder, without opening pilot channels", () => {
+  assert.equal(ADS_CHANNELS.length, 7);
+  assert.deepEqual(ADS_PUBLIC_CHANNELS, ["google", "pinterest", "openai"]);
+  assert.deepEqual(ADS_CHANNELS.map(({ id }) => id).filter(isAdsPublicChannel), ["google", "pinterest", "openai"]);
   for (const edition of ["premium", "founder"] as const) {
     assert.equal(adsAccessAllowed(edition, false), true);
-    for (const channel of ["google", "pinterest"] as const) assert.equal(adsAccessAllowed(edition, false, channel), true);
-    for (const channel of ["meta", "linkedin", "tiktok", "x", "openai"] as const) assert.equal(adsAccessAllowed(edition, false, channel), false);
+    for (const channel of ["google", "pinterest", "openai"] as const) assert.equal(adsAccessAllowed(edition, false, channel), true);
+    for (const channel of ["meta", "linkedin", "tiktok", "x"] as const) assert.equal(adsAccessAllowed(edition, false, channel), false);
   }
 });
 

@@ -36,11 +36,11 @@ test("une association connue reste verte avant la liste et pendant un refresh, j
   assert.equal(adsAssociationDisplayReady(true, "", ""), false);
 });
 
-test("la première sélection des six canaux vient du snapshot SSR sans attendre un réseau", () => {
+test("la première sélection des sept canaux vient du snapshot SSR sans attendre un réseau", () => {
   const draftNode = findNode((node) => ts.isVariableDeclaration(node) && node.name.getText(source) === "[draft, setDraft]") as ts.VariableDeclaration;
   const initialize = (draftNode.initializer as ts.CallExpression).arguments[0];
   const compiled = ts.transpileModule(`const initialize = ${initialize.getText(source)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  for (const initialChannel of ["google", "meta", "linkedin", "tiktok", "pinterest", "x"]) {
+  for (const initialChannel of ["google", "meta", "linkedin", "tiktok", "pinterest", "x", "openai"]) {
     const initialConnections = { [initialChannel]: { accountId: "saved", pageId: "page" } };
     const init = new Function("initialChannel", "initialConnections", "newDraft", `${compiled}\nreturn initialize;`)(initialChannel, initialConnections, () => ({ adAccountId: "", pageId: "" }));
     assert.deepEqual(init(), { adAccountId: "saved", pageId: "page" });

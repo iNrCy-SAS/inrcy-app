@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
 import { assessOpenaiAdsAccount, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
 import { saveOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
+import { isAdsChannelPublishEnabled } from "@/lib/adsPublishMode";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       accountReviewStatus: account.accountReviewStatus,
       readiness: assessment.code || "ready_for_paused_creation",
       readinessMessage: assessment.message || "",
-      publicationEnabled: assessment.ready && process.env.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED === "true",
+      publicationEnabled: assessment.ready && isAdsChannelPublishEnabled("openai", "paused", process.env),
       liveDeliveryEnabled: false,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

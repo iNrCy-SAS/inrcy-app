@@ -34,7 +34,7 @@ export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMod
   if (provider === "linkedin") return environment.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true";
   // A ChatGPT Ads account and its billing must be verified before live delivery.
   // The first connector only creates real provider resources in Paused state.
-  if (provider === "openai") return mode === "paused" && environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED === "true";
+  if (provider === "openai") return mode === "paused" && environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED !== "false";
   return provider === "meta" && isAdsPublishModeEnabled(mode, environment);
 }
 

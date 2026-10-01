@@ -92,8 +92,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "La connexion et la publication de ce canal ne sont pas encore disponibles." }, { status: 423 });
   }
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
-  // Approved Google/Pinterest channels have independent kill switches.
-  // Pilot providers keep separate gates and remain restricted to admins.
+  // Approved Google, Pinterest and ChatGPT channels have independent kill switches.
+  // ChatGPT remains paused-only; pilot providers keep separate gates and admin access.
   const publishModeEnabled = isAdsChannelPublishEnabled(draft.provider, mode, process.env);
   if (!publishModeEnabled) {
     return NextResponse.json({ error: pausedDemo
