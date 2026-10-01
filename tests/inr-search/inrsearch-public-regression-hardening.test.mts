@@ -130,16 +130,21 @@ test("public iNrSearch news uses one full stage and ten direct number controls",
   assert.match(block, /newsOrbitModalMedia > video[\s\S]*height:\s*100% !important/);
 });
 
-test("long presentation facts flow without overlapping and news titles keep words whole", () => {
+test("long presentation facts float without overlapping and news titles keep words whole", () => {
   const page = read("app/entreprises/[slug]/page.tsx");
   const css = read("app/entreprises/[slug]/inrSearchPublic.module.css");
-  const marker = "/* Keep the two variable-length identity facts in normal flow.";
+  const marker = "/* Keep the two variable-length identity facts in normal flow while leaving";
   const block = css.slice(css.indexOf(marker));
 
   assert.ok(block.startsWith(marker));
   assert.match(page, /className=\{styles\.presentationFactRail\}/);
   assert.match(block, /\.presentationFactRail\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*overflow-y:\s*auto;/);
+  assert.match(block, /\.presentationFactRail\s*\{[^}]*gap:\s*42px;/);
   assert.match(block, /\.presentationFactRail \.presentationSatellite\[data-kind\]\s*\{[^}]*position:\s*relative !important;/);
+  assert.doesNotMatch(block.split("@media (min-width: 901px) and (prefers-reduced-motion: reduce)")[0], /transform:\s*none !important;|animation:\s*none !important;/);
+  assert.match(css, /@keyframes presentationSatelliteFloat/);
+  assert.match(css, /\.presentationSatellite\[data-kind="strengths"\]\s*\{[^}]*transform:\s*rotate\(-4deg\) !important;/);
+  assert.match(css, /\.presentationSatellite\[data-kind="availability"\]\s*\{[^}]*transform:\s*rotate\(4deg\) !important;/);
   assert.match(block, /\.newsOrbitFocusContent > strong\s*\{[^}]*overflow-wrap:\s*normal;[^}]*word-break:\s*normal;/);
 });
 
