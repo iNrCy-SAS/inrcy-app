@@ -130,13 +130,155 @@ test("overlong copy remains whole and is rejected instead of being clipped to ch
     descriptions: [longDescription],
     channelDraft: drafts.linkedin,
   }, { provider: "linkedin", ...trusted });
-  assert.equal(linkedin.headlines[0].length, 120);
-  assert.equal(linkedin.descriptions[0].length, 220);
+  assert.equal(linkedin.headlines.find((headline) => headline.startsWith("H"))?.length, 120);
+  assert.equal(linkedin.descriptions.find((description) => /^D+$/.test(description))?.length, 220);
   const google = normalizeAdsCampaignPlan({ headlines: [longHeadline], descriptions: [longDescription] }, { provider: "google", ...trusted });
   assert.equal(google.headlines[0], longHeadline);
   assert.equal(google.descriptions[0], longDescription);
   assert.equal(isReviewableAdsCampaignPlan(google, "google"), false);
   assert.equal(google.channelDraft, undefined);
+});
+
+test("LinkedIn keeps useful signals while discarding model-invented geography", () => {
+  const plan = normalizeAdsCampaignPlan({
+    name: "LinkedIn local",
+    offer: "Accompagnement professionnel",
+    keywords: [],
+    targetLocations: ["Arras"],
+    targetAudiences: ["Dirigeants de PME locales"],
+    channelDraft: drafts.linkedin,
+  }, { provider: "linkedin", ...trusted });
+
+  assert.ok(plan.keywords.length > 0);
+  assert.ok(plan.keywords.includes("Dirigeants de PME locales"));
+  assert.ok(plan.keywords.includes("Lyon, France"));
+  assert.equal(plan.keywords.includes("Arras"), false);
+  assert.deepEqual(plan.targetLocations, trusted.locations);
+  assert.ok(plan.keywords.every((signal) => signal.length <= 80));
+});
+
+test("automatic plans fill every generatable studio block without fabricating platform resources", () => {
+  const sparseNativeDrafts = {
+    linkedin: {
+      ...drafts.linkedin,
+      name: "",
+      audience: { locationBriefs: ["Zone inventée"], audienceBrief: "" },
+      creative: { ...drafts.linkedin.creative, introText: "", headline: "", mediaBrief: "" },
+    },
+    tiktok: {
+      ...drafts.tiktok,
+      name: "",
+      audience: { locationBriefs: ["Zone inventée"], audienceBrief: "" },
+      creative: { ...drafts.tiktok.creative, adText: "", videoBrief: "" },
+    },
+    pinterest: {
+      ...drafts.pinterest,
+      name: "",
+      audience: { locationBriefs: ["Zone inventée"], audienceBrief: "" },
+      creative: { ...drafts.pinterest.creative, pinTitle: "", pinDescription: "", visualBrief: "" },
+    },
+    x: {
+      ...drafts.x,
+      name: "",
+      audience: { locationBriefs: ["Zone inventée"], audienceBrief: "" },
+      creative: { ...drafts.x.creative, postText: "", mediaBrief: "" },
+    },
+  } as const;
+  const cases = [
+    { provider: "google", raw: { campaignType: "search" } },
+    { provider: "meta", raw: { campaignType: "meta_traffic" } },
+    ...(["linkedin", "tiktok", "pinterest", "x"] as const).map((provider) => ({
+      provider,
+      raw: { campaignType: "generic", channelDraft: sparseNativeDrafts[provider] },
+    })),
+  ] as const;
+
+  for (const { provider, raw } of cases) {
+    const plan = normalizeAdsCampaignPlan({
+      ...raw,
+      offer: "Accompagnement professionnel",
+      destinationUrl: "https://invented.example/landing",
+      urlExclusions: ["https://invented.example/exclusion"],
+      targetLocations: ["Zone inventée"],
+      imageUrl: "https://invented.example/image.jpg",
+      creativeUrl: "https://invented.example/video.mp4",
+      adAccountId: "invented-account",
+      notEuPoliticalConfirmed: true,
+    }, { provider, ...trusted });
+
+    assert.equal(isReviewableAdsCampaignPlan(plan, provider), true, provider);
+    assert.ok(plan.name, `${provider}: name`);
+    assert.ok(plan.offer, `${provider}: offer`);
+    assert.ok(plan.targetAudiences.length > 0, `${provider}: audience`);
+    assert.ok(plan.primaryText, `${provider}: primary text`);
+    assert.ok(plan.headlines.length > 0, `${provider}: headlines`);
+    assert.ok(plan.descriptions.length > 0, `${provider}: descriptions`);
+    assert.deepEqual(plan.targetLocations, trusted.locations, `${provider}: trusted geo only`);
+    assert.equal(plan.destinationUrl, trusted.destinationUrl, `${provider}: trusted destination only`);
+    assert.deepEqual(plan.urlExclusions, [], `${provider}: no invented URL exclusions`);
+    assert.equal(plan.imageUrl, "", `${provider}: no invented image asset`);
+    assert.equal(plan.creativeUrl, "", `${provider}: no invented creative asset`);
+    assert.equal(Object.hasOwn(plan, "adAccountId"), false, `${provider}: no account resource`);
+    assert.equal(Object.hasOwn(plan, "notEuPoliticalConfirmed"), false, `${provider}: no compliance attestation`);
+
+    if (provider === "google") {
+      assert.equal(plan.mediaStrategy, "search_text");
+      assert.equal(plan.mediaBrief, "");
+      assert.ok(plan.headlines.length >= 6);
+      assert.ok(plan.descriptions.length >= 3);
+      assert.ok(plan.keywords.length >= 6);
+    } else if (provider === "pinterest") {
+      assert.deepEqual(plan.keywords, []);
+      assert.ok(plan.mediaBrief);
+    } else {
+      assert.ok(plan.keywords.length > 0, `${provider}: human-readable signals`);
+      assert.ok(plan.mediaBrief, `${provider}: media brief`);
+    }
+
+    if (plan.channelDraft) {
+      assert.equal("externalRefs" in plan.channelDraft, false, `${provider}: no native external refs`);
+      assert.ok(plan.channelDraft.audience.audienceBrief, `${provider}: native audience`);
+      assert.equal(plan.name, plan.channelDraft.name, `${provider}: native name projection`);
+      assert.equal(plan.targetAudiences[0], plan.channelDraft.audience.audienceBrief, `${provider}: native audience projection`);
+      assert.equal(plan.channelDraft.audience.locationBriefs.includes("Zone inventée"), false, `${provider}: no native invented geo`);
+      assert.equal(plan.channelDraft.creative.destinationUrl, trusted.destinationUrl, `${provider}: native trusted destination`);
+      switch (plan.channelDraft.channel) {
+        case "linkedin":
+          assert.equal(plan.primaryText, plan.channelDraft.creative.introText);
+          assert.equal(plan.headlines[0], plan.channelDraft.creative.headline);
+          assert.equal(plan.mediaBrief, plan.channelDraft.creative.mediaBrief);
+          break;
+        case "tiktok":
+          assert.equal(plan.primaryText, plan.channelDraft.creative.adText);
+          assert.equal(plan.mediaBrief, plan.channelDraft.creative.videoBrief);
+          break;
+        case "pinterest":
+          assert.equal(plan.primaryText, plan.channelDraft.creative.pinDescription);
+          assert.equal(plan.headlines[0], plan.channelDraft.creative.pinTitle);
+          assert.equal(plan.mediaBrief, plan.channelDraft.creative.visualBrief);
+          break;
+        case "x":
+          assert.equal(plan.primaryText, plan.channelDraft.creative.postText);
+          assert.equal(plan.mediaBrief, plan.channelDraft.creative.mediaBrief);
+          assert.match(plan.channelDraft.creative.mediaBrief, /Non requis/);
+          break;
+      }
+    }
+
+    const withoutTrustedResources = normalizeAdsCampaignPlan({
+      ...raw,
+      offer: "Accompagnement professionnel",
+      destinationUrl: "https://invented.example/landing",
+      targetLocations: ["Zone inventée"],
+    }, {
+      provider,
+      companyName: trusted.companyName,
+      audiences: trusted.audiences,
+      services: trusted.services,
+    });
+    assert.equal(withoutTrustedResources.destinationUrl, "", `${provider}: no unverified destination fallback`);
+    assert.deepEqual(withoutTrustedResources.targetLocations, [], `${provider}: no unverified geo fallback`);
+  }
 });
 
 test("Pinterest automatic plans retain local service areas without widening to a country", () => {

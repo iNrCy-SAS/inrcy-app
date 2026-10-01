@@ -164,9 +164,9 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     const viewActionRaw = m.actions.find((a) => a.variant === "view");
     const viewAction = localizeViewAction(
       (m.key === "site_inrcy" && viewActionRaw)
-        ? { ...viewActionRaw, href: normalizeExternalHref(blockDrivenViewHref || siteInrcySavedUrl) || "#" }
+        ? { ...viewActionRaw, href: normalizeExternalHref(siteInrcySavedUrl) || blockDrivenViewHref || "#" }
         : (m.key === "site_web" && viewActionRaw)
-          ? { ...viewActionRaw, href: normalizeExternalHref(blockDrivenViewHref || siteWebSavedUrl) || "#" }
+          ? { ...viewActionRaw, href: normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#" }
           : (m.key === "instagram" && viewActionRaw)
             ? { ...viewActionRaw, href: normalizeExternalHref(instagramUrl) || "#" }
             : (m.key === "linkedin" && viewActionRaw)
@@ -230,9 +230,9 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         };
 
     const specialViewHref = m.key === "site_inrcy"
-      ? (blockDrivenViewHref || normalizeExternalHref(siteInrcySavedUrl) || "#")
+      ? (normalizeExternalHref(siteInrcySavedUrl) || blockDrivenViewHref || "#")
         : m.key === "site_web"
-          ? (blockDrivenViewHref || normalizeExternalHref(siteWebSavedUrl) || "#")
+          ? (normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#")
           : m.key === "instagram"
           ? (normalizeExternalHref(instagramUrl) || "#")
           : m.key === "linkedin"

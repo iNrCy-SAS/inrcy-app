@@ -7,6 +7,7 @@ import styles from "../dashboard.module.css";
 import stepStyles from "./ChannelPanelSteps.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 
 const inputStyle = {
   width: "100%",
@@ -32,7 +33,7 @@ export default function TiktokPanel(props: any) {
     tiktokLoading,
     connectTiktok,
     disconnectTiktok,
-    saveTiktokProfileUrl,
+    onUrlDirtyChange,
   } = props;
 
   return (
@@ -82,25 +83,18 @@ export default function TiktokPanel(props: any) {
             </div>
 
             <div className={stepStyles.actionRow}>
-              <input
-                className={`${stepStyles.control} ${stepStyles.wideControl}`}
+              <EditableChannelUrlField
+                channel="tiktok"
                 value={tiktokProfileUrl}
-                onChange={(event) => setTiktokProfileUrl(event.target.value)}
+                onSaved={setTiktokProfileUrl}
+                onDirtyChange={onUrlDirtyChange}
+                ariaLabel={i18nT("lien_du_compte_890d040b")}
                 placeholder="https://www.tiktok.com/@moncompte"
-                style={inputStyle}
+                viewLabel={i18nT("voir_le_compte_1cbd7501")}
+                disabled={!tiktokConnected || tiktokLoading}
+                inputClassName={`${stepStyles.control} ${stepStyles.wideControl}`}
+                inputStyle={inputStyle}
               />
-
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveTiktokProfileUrl?.()} disabled={tiktokLoading}>
-                {tiktokLoading ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <a
-                href={tiktokProfileUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                className={`${styles.actionBtn} ${styles.viewBtn}`}
-                style={{ pointerEvents: tiktokProfileUrl ? "auto" : "none", opacity: tiktokProfileUrl ? 1 : 0.5 }}
-              >
-                {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
             </div>
 
             {tiktokProfileUrlNotice ? <StatusMessage variant="success">{tiktokProfileUrlNotice}</StatusMessage> : null}

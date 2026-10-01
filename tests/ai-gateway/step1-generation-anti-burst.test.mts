@@ -82,6 +82,9 @@ test("the intent panel deduplicates identical media and generation errors", () =
   const panel = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
-  assert.match(panel, /new Set\(\[imgError\.trim\(\), genError\.trim\(\)\]/);
+  assert.match(
+    panel,
+    /new Set\([\s\S]*pdfAttachmentError\.trim\(\),[\s\S]*imgError\.trim\(\),[\s\S]*genError\.trim\(\)/,
+  );
   assert.match(panel, /visibleErrors\.map/);
 });

@@ -45,7 +45,20 @@ function nextPeriodLimit(args: {
   );
 }
 
-test("les plafonds produit conservent 70 images et reportent les secondes selon le forfait", () => {
+test("les plafonds produit conservent le report pour tous les forfaits", () => {
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(AI_MEDIA_MONTHLY_LIMITS).map(([edition, limits]) => [
+        edition,
+        { image: limits.image, video: limits.video },
+      ]),
+    ),
+    {
+      standard: { image: 25, video: 48 },
+      premium: { image: 50, video: 144 },
+      founder: { image: 50, video: 144 },
+    },
+  );
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
     standard: { image: 70, video: 168 },
     premium: { image: 70, video: 480 },
@@ -105,12 +118,12 @@ test("les credits inutilises se cumulent puis s'arretent exactement au plafond",
   });
   assert.equal(premiumImages, 70);
 
-  let standardVideos = 48;
+  let standardVideos = AI_MEDIA_MONTHLY_LIMITS.standard.video;
   for (const expected of [96, 144, 168, 168]) {
     standardVideos = nextPeriodLimit({
       previousLimit: standardVideos,
       previousUsed: 0,
-      monthlyRecharge: 48,
+      monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.video,
       cap: 168,
     });
     assert.equal(standardVideos, expected);
@@ -148,9 +161,9 @@ test("plusieurs mois sans connexion sont credites sans depasser la cagnotte", ()
   );
   assert.equal(
     nextPeriodLimit({
-      previousLimit: 48,
+      previousLimit: AI_MEDIA_MONTHLY_LIMITS.standard.video,
       previousUsed: 16,
-      monthlyRecharge: 48,
+      monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.standard.video,
       elapsedMonths: 2,
       cap: 168,
     }),

@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "Aggiungi contenuto multimediale",
+  "local_upload_dialog_title": "Aggiungi contenuto multimediale",
+  "local_upload_dialog_description": "Scegli prima il tipo di file. Immagini e video restano separati.",
+  "local_upload_image": "Immagini",
+  "local_upload_images_detail": "Selezione multipla · fino a {count} immagine/i",
+  "local_upload_video": "Video",
+  "local_upload_video_detail": "Selezione singola · un solo video",
+  "local_upload_close": "Chiudi la scelta del contenuto",
+  "local_upload_unavailable": "Non disponibile con le impostazioni attuali",
   "ai_generator_free_team_consent": "Autorizzo, per questa creazione, l’animazione delle persone raffigurate e l’invio dei riferimenti al servizio di generazione video.",
   "ai_generator_free_mode_label": "Modalità di creazione",
   "ai_generator_free_mode_free": "Libera",

@@ -7,11 +7,14 @@ import { spawnSync } from "child_process";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import type { AiPreferredEngine } from "@/lib/aiEnginePreference";
 import type { MailAttachmentRef } from "@/lib/mailAttachmentRefs";
+import { hasBoosterPdfSignature } from "@/lib/boosterPdfAttachmentPolicy";
 
 const DEFAULT_MAX_FILES = 4;
 const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_TOTAL_CHARS = 6500;
 const DEFAULT_MAX_CHARS_PER_FILE = 2200;
+const PDF_MAX_DECOMPRESSED_STREAM_BYTES = 2 * 1024 * 1024;
+const PDF_MAX_STREAMS = 64;
 
 type BuildAttachmentAiContextOptions = {
   userId?: string | null;
@@ -149,18 +152,32 @@ function decodePdfHex(hexRaw: string) {
   return bytes.toString("utf8");
 }
 
-function extractPdfStrings(pdfSource: string) {
+function extractPdfStrings(
+  pdfSource: string,
+  maxChars = DEFAULT_MAX_CHARS_PER_FILE,
+) {
   const snippets: string[] = [];
+  let capturedChars = 0;
   const literalRe = /\((?:\\.|[^\\)]){2,}\)/g;
   for (const match of pdfSource.matchAll(literalRe)) {
     const decoded = decodePdfLiteral(match[0].slice(1, -1));
-    if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) snippets.push(decoded);
+    if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) {
+      snippets.push(decoded);
+      capturedChars += decoded.length;
+      if (capturedChars >= maxChars) break;
+    }
   }
 
   const hexRe = /<([0-9A-Fa-f\s]{6,})>/g;
-  for (const match of pdfSource.matchAll(hexRe)) {
-    const decoded = decodePdfHex(match[1] || "");
-    if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) snippets.push(decoded);
+  if (capturedChars < maxChars) {
+    for (const match of pdfSource.matchAll(hexRe)) {
+      const decoded = decodePdfHex(match[1] || "");
+      if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) {
+        snippets.push(decoded);
+        capturedChars += decoded.length;
+        if (capturedChars >= maxChars) break;
+      }
+    }
   }
 
   const seen = new Set<string>();
@@ -174,15 +191,23 @@ function extractPdfStrings(pdfSource: string) {
       return true;
     });
 
-  return unique.join("\n");
+  return unique.join("\n").slice(0, maxChars);
 }
 
-function extractPdfText(buffer: Buffer) {
+export function extractPdfTextForAi(
+  buffer: Buffer,
+  maxChars = DEFAULT_MAX_CHARS_PER_FILE,
+) {
+  const safeMaxChars = Math.max(1, Math.min(maxChars, 20_000));
   const source = buffer.toString("latin1");
-  const pieces: string[] = [extractPdfStrings(source)];
+  const pieces: string[] = [extractPdfStrings(source, safeMaxChars)];
+  let remainingChars = Math.max(0, safeMaxChars - pieces[0].length);
+  let streamCount = 0;
 
   const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
   for (const match of source.matchAll(streamRe)) {
+    if (remainingChars <= 0 || streamCount >= PDF_MAX_STREAMS) break;
+    streamCount += 1;
     const streamRaw = match[1] || "";
     if (!streamRaw) continue;
     const matchIndex = typeof match.index === "number" ? match.index : 0;
@@ -191,19 +216,41 @@ function extractPdfText(buffer: Buffer) {
     const candidates: Buffer[] = [];
 
     if (/FlateDecode/i.test(before)) {
-      try { candidates.push(inflateSync(streamBuffer)); } catch {}
-      try { candidates.push(inflateRawSync(streamBuffer)); } catch {}
+      try {
+        candidates.push(
+          inflateSync(streamBuffer, {
+            maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES,
+          }),
+        );
+      } catch {}
+      try {
+        candidates.push(
+          inflateRawSync(streamBuffer, {
+            maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES,
+          }),
+        );
+      } catch {}
     } else {
       candidates.push(streamBuffer);
     }
 
     for (const candidate of candidates) {
-      const text = extractPdfStrings(candidate.toString("latin1"));
-      if (text) pieces.push(text);
+      const text = extractPdfStrings(
+        candidate.toString("latin1"),
+        remainingChars,
+      );
+      if (text) {
+        pieces.push(text);
+        remainingChars = Math.max(0, remainingChars - text.length);
+      }
+      if (remainingChars <= 0) break;
     }
   }
 
-  return normalizeExtractedText(pieces.filter(Boolean).join("\n"));
+  return normalizeExtractedText(
+    pieces.filter(Boolean).join("\n"),
+    safeMaxChars,
+  );
 }
 
 function extractZipEntry(buffer: Buffer, wanted: Set<string>) {
@@ -417,7 +464,7 @@ function extractAttachmentText(buffer: Buffer, name: string, mimeType: string, m
   let text = "";
 
   if (lowerMime === "application/pdf" || lowerName.endsWith(".pdf")) {
-    text = extractPdfText(buffer);
+    text = extractPdfTextForAi(buffer, maxCharsPerFile);
   } else if (lowerMime.includes("wordprocessingml.document") || lowerName.endsWith(".docx")) {
     text = extractDocxText(buffer);
   } else if (canReadAsText(mimeType, name)) {
@@ -460,6 +507,17 @@ async function analyseOneAttachment(
     }
 
     const resolvedMime = clean(mimeType || data.type || "application/octet-stream", 120).toLowerCase();
+    const isPdf = resolvedMime === "application/pdf" || name.toLowerCase().endsWith(".pdf");
+    if (isPdf && !hasBoosterPdfSignature(buffer)) {
+      return {
+        name,
+        mimeType: resolvedMime,
+        size: actualSize,
+        status: "error",
+        text: "",
+        note: "signature PDF invalide",
+      };
+    }
     const text = extractAttachmentText(buffer, name, resolvedMime, options.maxCharsPerFile);
     if (text) {
       return { name, mimeType: resolvedMime, size: actualSize, status: "analysed", text };
@@ -500,6 +558,19 @@ async function analyseOneAttachment(
  * et transmis aux générateurs de contenus.
  */
 export async function analyseAiMemoryReferenceDocument(
+  supabase: any,
+  ref: MailAttachmentRef,
+  options: {
+    userId: string;
+    engine: AiPreferredEngine;
+    maxFileBytes?: number;
+    maxCharsPerFile?: number;
+  },
+): Promise<AttachmentExtract> {
+  return await analyseStoredAiAttachment(supabase, ref, options);
+}
+
+export async function analyseStoredAiAttachment(
   supabase: any,
   ref: MailAttachmentRef,
   options: {

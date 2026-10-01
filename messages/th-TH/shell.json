@@ -580,5 +580,14 @@
   "ai_report_sending": "กำลังส่ง...",
   "ai_report_send": "ส่ง",
   "ai_report_button_title": "รายงานเนื้อหาที่สร้างขึ้นที่ไม่เหมาะสม",
-  "ai_report_button_label": "รายงาน"
+  "ai_report_button_label": "รายงาน",
+  "channel_url_edit": "แก้ไข",
+  "channel_url_saved": "บันทึกลิงก์แล้ว",
+  "channel_url_required": "กรุณากรอกลิงก์สาธารณะ",
+  "channel_url_invalid": "ลิงก์นี้ไม่ถูกต้อง",
+  "channel_url_protocol_invalid": "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://",
+  "channel_url_credentials_forbidden": "ลิงก์ต้องไม่มีชื่อผู้ใช้หรือรหัสผ่าน",
+  "channel_url_wrong_platform": "ลิงก์นี้ไม่ตรงกับช่องทางนี้",
+  "channel_url_save_failed": "ไม่สามารถบันทึกลิงก์นี้ได้ในขณะนี้",
+  "channel_url_change_required": "แก้ไขลิงก์ก่อนบันทึก"
 }

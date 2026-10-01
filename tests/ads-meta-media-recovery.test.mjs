@@ -55,4 +55,6 @@ test("le pack Meta ne déclare prêt qu’un visuel dont les dimensions et le ra
   assert.match(client, /Feed 4:5 à vérifier/);
   assert.match(client, /step === mediaStep && channelId === "meta" && !livePublisherMediaReady/);
   assert.match(client, /Pack média obligatoire/);
+  assert.doesNotMatch(client, /if \(dx < 0 && current === mediaStep && channelId === "meta" && !livePublisherMediaReady\) return current/);
+  assert.doesNotMatch(client, /disabled=\{busy === "plan"[^}]*step === mediaStep && channelId === "meta"/);
 });

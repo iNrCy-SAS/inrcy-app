@@ -20,7 +20,10 @@ test("stage 1 generation protections remain active", () => {
   assert.match(generationRoute, /BOOSTER_GENERATION_BURST_LIMIT = 20/);
   assert.match(generationPolicy, /generic 429[\s\S]*must never trigger an immediate second user request/i);
   assert.match(generationPolicy, /return \[502, 503, 504\]\.includes\(status\)/);
-  assert.match(intentPanel, /new Set\(\[imgError\.trim\(\), genError\.trim\(\)\]/);
+  assert.match(
+    intentPanel,
+    /new Set\(\s*\[\s*pdfAttachmentError\.trim\(\),\s*imgError\.trim\(\),\s*genError\.trim\(\)\s*\]\.filter/,
+  );
 });
 
 test("stage 2 validates videos with channel-specific policies", () => {

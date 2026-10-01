@@ -580,5 +580,14 @@
   "vous_selectionnez_ensuite_la_bonne_14661ff2": "Vous sélectionnez ensuite la bonne",
   "widget_actus_13beb3e6": "Widget « Actus »",
   "wird_geladen_17fac8ea": "Wird geladen…",
-  "your_business_generator_df29b041": "Your business generator"
+  "your_business_generator_df29b041": "Your business generator",
+  "channel_url_edit": "Modifier",
+  "channel_url_saved": "Lien enregistré.",
+  "channel_url_required": "Renseignez un lien public.",
+  "channel_url_invalid": "Ce lien n’est pas valide.",
+  "channel_url_protocol_invalid": "Le lien doit commencer par http:// ou https://.",
+  "channel_url_credentials_forbidden": "Le lien ne doit pas contenir d’identifiant ni de mot de passe.",
+  "channel_url_wrong_platform": "Ce lien ne correspond pas à ce canal.",
+  "channel_url_save_failed": "Impossible d’enregistrer ce lien pour le moment.",
+  "channel_url_change_required": "Modifiez réellement le lien avant de l’enregistrer."
 }

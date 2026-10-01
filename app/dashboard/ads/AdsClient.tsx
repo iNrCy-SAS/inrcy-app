@@ -9,6 +9,7 @@ import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard"
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
 import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
 import MediaSubjectVoiceButton from "@/app/dashboard/_components/MediaSubjectVoiceButton";
+import LocalMediaUploadChoice from "@/app/dashboard/_components/LocalMediaUploadChoice";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "@/app/dashboard/_components/MediaLibraryPickerModal";
@@ -63,6 +64,7 @@ import { preparePinterestTargetingTransition } from "@/lib/adsPinterestTargeting
 import { adsDraftHasKeywordsStep, adsDraftHasMediaStep, adsDraftValidationStep } from "@/lib/adsDraftNavigation";
 import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { AdsPublicationPhase } from "@/lib/adsPublicationProgress";
+import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "@/lib/adsLaunchReadiness";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import {
   adsConnectionDisplay,
@@ -205,7 +207,10 @@ type LinkedInAdsPreflightResponse = {
   selected?: {
     campaignGroup?: LinkedInCampaignGroupOption | null;
     organization?: LinkedInOrganizationOption | null;
+    verifiedGeoUrns?: string[];
+    verifiedGeoTargets?: LinkedInGeoTargetOption[];
     pricing?: { currency: string; bidMin: number; bidMax: number; dailyBudgetMin: number; dailyBudgetDefault: number | null } | null;
+    bidAmount?: number | null;
   };
   blockers?: string[];
   error?: string;
@@ -1149,6 +1154,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [linkedInPreflightError, setLinkedInPreflightError] = useState("");
   const [linkedInGeoQuery, setLinkedInGeoQuery] = useState("");
   const linkedInPreflightCache = useRef(new Map<string, LinkedInAdsPreflightResponse>());
+  const linkedInAutomaticLoadKey = useRef("");
+  const linkedInResourcesLoader = useRef<(force?: boolean, geoQueryOverride?: string) => Promise<void>>(async () => undefined);
   const externalAccountsRequest = useRef(0);
   const externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>({
     linkedin: { accounts: [], choice: initialConnections.linkedin.accountId, loaded: false, failed: false },
@@ -1830,18 +1837,85 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     return data;
   }
 
-  async function loadLinkedInResources(force = false) {
+  function applyLinkedInProviderDefaults(data: LinkedInAdsPreflightResponse) {
+    const selected = data.selected;
+    if (!selected) return;
+    const verifiedGeoUrns = new Set(selected.verifiedGeoUrns || []);
+    const verifiedGeoTargets = (selected.verifiedGeoTargets || [])
+      .filter((target) => verifiedGeoUrns.has(target.urn))
+      .map((target) => ({ urn: target.urn, name: target.name }));
+    const suggestedBid = Number(selected.bidAmount || 0);
+    const pricing = selected.pricing;
+    const hasProviderDefault = Boolean(
+      selected.campaignGroup || selected.organization || verifiedGeoTargets.length
+      || (pricing && Number.isFinite(suggestedBid) && suggestedBid > 0),
+    );
+    if (!hasProviderDefault) return;
+    const providerPatch = (current: AdsCampaignInput): Partial<AdsCampaignInput> => {
+      const patch: Partial<AdsCampaignInput> = {};
+      if (current.provider !== "linkedin") return patch;
+      if (!current.linkedinCampaignGroupId && selected.campaignGroup
+          && linkedInCampaignGroupIsCompatible(selected.campaignGroup)) {
+        patch.linkedinCampaignGroupId = selected.campaignGroup.id;
+      }
+      if (!current.linkedinOrganizationUrn && selected.organization) {
+        patch.linkedinOrganizationUrn = selected.organization.urn;
+      }
+      if (!(current.linkedinGeoTargets || []).length && verifiedGeoTargets.length) {
+        patch.linkedinGeoTargets = verifiedGeoTargets;
+      }
+      const currentBid = Number(current.linkedinBidEuros || 0);
+      if (pricing && Number.isFinite(suggestedBid) && suggestedBid > 0
+          && (!Number.isFinite(currentBid) || currentBid < pricing.bidMin
+            || currentBid > pricing.bidMax || currentBid > current.dailyBudgetEuros)) {
+        patch.linkedinBidEuros = suggestedBid;
+      }
+      return patch;
+    };
+    if (!Object.keys(providerPatch(draft)).length) return;
+    setDraft((current) => {
+      const patch = providerPatch(current);
+      return Object.keys(patch).length ? applyDraftEdit(current, patch) : current;
+    });
+    setDirty(true);
+  }
+
+  async function loadLinkedInResources(force = false, geoQueryOverride?: string) {
     if (linkedInPreflightLoad === "loading") return;
     setLinkedInPreflightLoad("loading");
     setLinkedInPreflightError("");
     try {
-      await fetchLinkedInPreflight(undefined, force);
+      const data = await fetchLinkedInPreflight(geoQueryOverride, force);
+      applyLinkedInProviderDefaults(data);
       setLinkedInPreflightLoad("ready");
     } catch (error) {
       setLinkedInPreflightLoad("error");
       setLinkedInPreflightError(error instanceof Error ? error.message : "Ressources LinkedIn Ads indisponibles.");
     }
   }
+
+  linkedInResourcesLoader.current = loadLinkedInResources;
+  const linkedInAutomaticGeoQuery = (draft.targetLocations[0] || "").trim();
+  const linkedInAutomaticLocale = draft.channelSettings?.channel === "linkedin"
+    ? `${draft.channelSettings.locale.language}_${draft.channelSettings.locale.country}` : "fr_FR";
+  useEffect(() => {
+    const selectedAccountId = externalStatuses.linkedin.selectedAccountId;
+    if (!creating || channelId !== "linkedin" || !externalStatuses.linkedin.connected || !selectedAccountId) return;
+    if (linkedInPreflightLoad === "loading") return;
+    const key = [selectedAccountId, linkedInAutomaticGeoQuery, draft.dailyBudgetEuros, linkedInAutomaticLocale].join(":");
+    if (linkedInAutomaticLoadKey.current === key) return;
+    linkedInAutomaticLoadKey.current = key;
+    void linkedInResourcesLoader.current(false, linkedInAutomaticGeoQuery);
+  }, [
+    channelId,
+    creating,
+    draft.dailyBudgetEuros,
+    externalStatuses.linkedin.connected,
+    externalStatuses.linkedin.selectedAccountId,
+    linkedInAutomaticGeoQuery,
+    linkedInAutomaticLocale,
+    linkedInPreflightLoad,
+  ]);
 
   function updateNativeSettings(next: AdsChannelWizardSettings) {
     if (next.channel !== channelId) return;
@@ -2372,6 +2446,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setLinkedInPreflightLoad("idle");
     setLinkedInPreflightError("");
     setLinkedInGeoQuery("");
+    linkedInAutomaticLoadKey.current = "";
     setMetaMediaSlot(null);
     setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setConfirmedSpend(false);
@@ -2715,6 +2790,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setLinkedInPreflightLoad("idle");
     setLinkedInPreflightError("");
     setLinkedInGeoQuery(campaign.draft.targetLocations[0] || "");
+    linkedInAutomaticLoadKey.current = "";
     setCampaignMediaStudioOpen(false);
     setCampaignMediaLibraryOpen(false);
     setBusy(null);
@@ -2881,6 +2957,48 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   );
   const linkedInComplianceReady = draft.linkedinPoliticalIntentConfirmed === true
     && draft.linkedinTargetingNoticeAcknowledged === true;
+  const incompleteLaunchSteps = adsIncompleteLaunchSteps({
+    draft,
+    steps: {
+      foundations: foundationsStep + 1,
+      targeting: targetingStep + 1,
+      keywords: keywordsStep + 1,
+      creative: creativeStep + 1,
+      media: mediaStep >= 0 ? mediaStep + 1 : null,
+      delivery: deliveryStep + 1,
+      budget: budgetStep + 1,
+      validation: validationStep + 1,
+    },
+    accountReady: reviewAccountReady,
+    destinationReady: destinationReview.valid && (!destinationReview.required || destinationReview.confirmed),
+    mediaReady: livePublisherMediaReady,
+  });
+  const incompleteLaunchMessage = adsIncompleteLaunchMessage(incompleteLaunchSteps);
+  const launchUnavailableReason = !isAdsDraftAccountChannel(channelId)
+    ? `La publication ${channelMeta.label} n’est pas encore disponible. Le brouillon reste enregistrable.`
+    : !channelPublishingEnabled
+      ? `Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`
+      : connectorConfigurationIssue
+        ? connectorConfigurationIssue
+        : !liveFormatAvailable
+          ? `Le format choisi ne peut pas encore être lancé automatiquement sur ${channelMeta.label}.`
+          : !livePublisherConversionReady
+            ? "Le connecteur de lancement nécessite une destination vers votre site web."
+            : !metaLiveObjectiveSupported
+              ? "Choisissez l’objectif Trafic vers le site web à l’étape Fondations."
+              : !metaLiveGoalSupported
+                ? "Choisissez la visite d’une page clé à l’étape Diffusion."
+                : !metaLivePlacementsSupported
+                  ? "Choisissez un placement Meta compatible à l’étape Diffusion."
+                  : !metaLiveCreativeSupported
+                    ? "Choisissez le format image à l’étape Créations."
+                    : !metaLiveCtaSupported
+                      ? "Choisissez l’appel à l’action « En savoir plus » à l’étape Créations."
+                      : !livePublisherMediaReady
+                        ? "Ajoutez un média conforme dans l’étape Médias."
+                        : "";
+  const launchBlockingMessage = incompleteLaunchMessage || launchUnavailableReason;
+  const launchBlocked = Boolean(launchBlockingMessage);
 
   return <main className={styles.page}>
     <div className={styles.shell}>
@@ -2977,7 +3095,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </div>
 
       <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; if (dx < 0 && current === mediaStep && channelId === "meta" && !livePublisherMediaReady) return current; if (dx < 0 && current === deliveryStep && !destinationReview.canContinue) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
+      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
       <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && (channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name)}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
@@ -3045,14 +3163,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           </>}
           {nativeSettings?.channel === "linkedin" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`} data-linkedin-provider-resources="true">
             <legend>Compte, groupe et Page LinkedIn</legend>
-            <p>Chargez une seule fois les ressources du compte associé, puis choisissez-les explicitement. Vos choix restent enregistrés dans le brouillon et ne changent pas lorsque vous passez d’une étape à l’autre.</p>
+            <p>Les ressources du compte associé sont vérifiées automatiquement. Lorsqu’un seul groupe compatible ou une seule Page autorisée est disponible, iNr’ADS les présélectionne sans inventer d’identifiant.</p>
             <div className={styles.studioControlOptions}>
-              <button type="button" className={styles.secondaryButton} disabled={linkedInPreflightLoad === "loading" || !externalStatuses.linkedin.connected || !externalStatuses.linkedin.selectedAccountId} onClick={() => void loadLinkedInResources(linkedInPreflightLoad === "ready")}>
-                {linkedInPreflightLoad === "loading" ? "Vérification LinkedIn…" : linkedInPreflightLoad === "ready" ? "Actualiser les ressources" : "Charger les ressources LinkedIn"}
-              </button>
               <span>{externalStatuses.linkedin.selectedAccountId
                 ? `${externalStatuses.linkedin.selectedAccountName || "Compte LinkedIn Ads"} · ID ${externalStatuses.linkedin.selectedAccountId}`
                 : "Aucun compte LinkedIn Ads associé"}</span>
+              {linkedInPreflightLoad === "loading" && <small role="status">Vérification automatique des ressources LinkedIn…</small>}
+              {linkedInPreflightLoad === "error" && <button type="button" className={styles.secondaryButton} disabled={!externalStatuses.linkedin.connected || !externalStatuses.linkedin.selectedAccountId} onClick={() => void loadLinkedInResources(true)}>
+                Actualiser
+              </button>}
             </div>
             {linkedInPreflightLoad === "error" && <p className={styles.campaignMediaError} role="alert">{linkedInPreflightError}</p>}
             {linkedInPreflight && <div className={styles.studioControlOptions}>
@@ -3253,8 +3372,22 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         {(nativeSettings === null || nativeMediaUpload) && channelId !== "meta" && <div className={styles.campaignMediaWorkspace}>
           <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{googleSearchMedia ? attachedCampaignMediaUrl ? "Image conservée dans iNrCy" : "Aucun média à fournir pour Google Search" : attachedCampaignMediaUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{channelId === "openai" ? "Image obligatoire" : nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
           {!googleSearchMedia && <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
-            {nativeMediaStrategy !== "video" && <button type="button" onClick={() => campaignImageInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▧</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une image"}</button>}
-            {nativeMediaStrategy !== "image" && !googleSearchMedia && channelId !== "openai" && <button type="button" onClick={() => campaignVideoInputRef.current?.click()} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▶</span>{campaignMediaUploadBusy ? "Ajout en cours…" : "Ajouter une vidéo"}</button>}
+            <LocalMediaUploadChoice
+              disabled={campaignMediaUploadBusy}
+              triggerLabel={campaignMediaUploadBusy ? "Ajout en cours…" : undefined}
+              image={{
+                onSelect: () => campaignImageInputRef.current?.click(),
+                hidden: nativeMediaStrategy === "video",
+                detail: "Sélection unique · image compatible avec le format publicitaire choisi",
+                maxSelection: 1,
+              }}
+              video={{
+                onSelect: () => campaignVideoInputRef.current?.click(),
+                hidden: nativeMediaStrategy === "image" || channelId === "openai",
+                detail: "Sélection unique · une seule vidéo",
+              }}
+              testId="ads-local-media-choice"
+            />
             <button type="button" className={styles.campaignMediaGenerate} onClick={() => setCampaignMediaStudioOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">✦</span> Générer</button>
             <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
           </div>}
@@ -3364,8 +3497,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-political-confirmation="true"><input type="checkbox" checked={draft.linkedinPoliticalIntentConfirmed === true} onChange={(event) => updateDraft({ linkedinPoliticalIntentConfirmed: event.target.checked })} /><span><strong>Déclaration politique LinkedIn obligatoire</strong>Je confirme qu’il ne s’agit pas de publicité politique. Aucune annonce de cette campagne ne constitue une publicité politique au regard du droit des pays ciblés, notamment du droit de l’Union européenne pour les publicités ciblant l’UE. Je respecte les politiques LinkedIn et les exigences réglementaires applicables. La campagne sera déclarée <b>NOT_POLITICAL</b>.</span></label>
             <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-targeting-notice="true"><input type="checkbox" checked={draft.linkedinTargetingNoticeAcknowledged === true} onChange={(event) => updateDraft({ linkedinTargetingNoticeAcknowledged: event.target.checked })} /><span><strong>Avis LinkedIn contre la discrimination</strong>Je reconnais que les outils publicitaires LinkedIn ne doivent pas être utilisés pour discriminer selon des caractéristiques personnelles telles que le genre, l’âge, l’origine, la race ou l’appartenance ethnique. <a href="https://www.linkedin.com/legal/ads-policy" target="_blank" rel="noreferrer">Consulter les règles LinkedIn ↗</a></span></label>
           </>}
-          <button type="button" className={styles.primaryButton} disabled={busy !== null || (channelId === "openai" && (!channelPublishingEnabled || !livePublisherMediaReady || !liveFormatAvailable || !livePublisherConversionReady || Boolean(connectorConfigurationIssue))) || (channelId === "linkedin" && (!linkedInSelectionsReady || !linkedInComplianceReady || !linkedInLiveFormatSupported || !livePublisherConversionReady || !livePublisherMediaReady))} onClick={() => void openLaunchDialog()}>{busy === "demo" ? demoDialog ? "Création en cours…" : "Vérification du compte…" : channelId === "openai" ? "Créer en pause sur ChatGPT Ads" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
-          <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : !dirty && savedId ? "Brouillon enregistré" : "Enregistrer en brouillon"}</button>
+          <div className={styles.studioFinalActionButtons}>
+            <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : !dirty && savedId ? "Brouillon enregistré" : "Enregistrer en brouillon"}</button>
+            <div className={styles.studioLaunchGuard} data-blocked={launchBlocked || undefined} data-tooltip={launchBlocked ? launchBlockingMessage : undefined} title={launchBlocked ? launchBlockingMessage : undefined} tabIndex={launchBlocked ? 0 : undefined} aria-label={launchBlocked ? launchBlockingMessage : undefined}>
+              <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked} onClick={() => void openLaunchDialog()}>{busy === "demo" ? demoDialog ? "Création en cours…" : "Vérification du compte…" : channelId === "openai" ? "Créer en pause sur ChatGPT Ads" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
+              {launchBlocked && <span className={styles.studioLaunchWarning} aria-hidden="true">⚠</span>}
+            </div>
+          </div>
         </div>
       </section>
       {creationPath !== "choice" && <div className={styles.wizardNavigation}>
@@ -3374,13 +3512,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         {step < lastStep ? <div className={styles.wizardNextGroup}>
           {step === mediaStep && channelId === "meta" && !livePublisherMediaReady && <div className={styles.wizardMediaRequirement} role="status">
             <strong>Pack média obligatoire</strong>
-            <span>{knownMetaMediaInvalid ? "Remplacez le visuel non conforme avant de continuer." : "Ajoutez chaque format demandé par les placements sélectionnés."}</span>
+            <span>{knownMetaMediaInvalid ? "Remplacez le visuel non conforme avant le lancement." : "Ajoutez chaque format demandé avant le lancement."}</span>
           </div>}
           {step === deliveryStep && destinationReview.required && <label className={styles.wizardRequiredCheck}>
             <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
-            <span><strong>Validation obligatoire</strong>Je confirme ce lien</span>
+            <span><strong>À confirmer avant lancement</strong>Je confirme ce lien</span>
           </label>}
-          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100) || (step === mediaStep && channelId === "meta" && !livePublisherMediaReady) || (step === deliveryStep && !destinationReview.canContinue)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
         </div> : <button type="button" className={styles.back} onClick={() => void confirmCampaignExit()}>Revenir au cockpit</button>}
       </div>}
       </div>

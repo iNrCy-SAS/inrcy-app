@@ -113,12 +113,13 @@ test("Pinterest sépare le format du fichier média et conserve tout le cadrage"
   assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview video\{[^}]*object-fit:contain/);
 });
 
-test("saving a Pinterest proposal revalidates the persisted advertiser server-side", () => {
+test("saving a Pinterest proposal stays local and defers live advertiser checks to publication", () => {
   const route = readFileSync(path.join(root, "app/api/ads/campaigns/route.ts"), "utf8");
-  assert.match(route, /readPinterestAdsIntegration\(user\.activeUserId\)/);
-  assert.match(route, /integration\.resource_id !== draft\.adAccountId/);
-  assert.match(route, /listPinterestAdsAccounts\(user\.activeUserId, integration\)/);
+  const publishRoute = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
+  assert.doesNotMatch(route, /readPinterestAdsIntegration|listPinterestAdsAccounts|listAdsAccounts|listMetaPages|listLinkedInAdsAccounts/);
+  assert.match(route, /Saving is deliberately local/);
   assert.match(route, /draft\.provider === "pinterest"/);
+  assert.match(publishRoute, /readPinterestAdsIntegration|listPinterestAdsAccounts/);
 });
 
 test("Pinterest environment checks cover the dedicated Ads callback and credential pairing", () => {

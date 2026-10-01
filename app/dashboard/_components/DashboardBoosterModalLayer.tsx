@@ -271,8 +271,11 @@ export default function DashboardBoosterModalLayer({
   }, [mode, publishDraftHeaderState.draftMessage]);
 
   const { confirmExit: confirmPublishExit } = useUnsavedExitGuard({
-    active: mode === "publish",
-    shouldBlock: mode === "publish" && publishHasUnsavedChanges,
+    active: mode === "publish" && !publishEditorOverlayOpen,
+    shouldBlock:
+      mode === "publish" &&
+      !publishEditorOverlayOpen &&
+      publishHasUnsavedChanges,
     onConfirmExit: closePublishModal,
     eyebrow: i18nT("publication_en_cours_58f34b8e"),
     title: i18nT("quitter_la_publication_509848c0"),

@@ -365,6 +365,7 @@ export type GenerateSharedBoosterPostsArgs = {
   hiddenAngle?: BoosterHiddenAngle;
   imagesForAI?: BoosterAiImage[];
   mediaContext?: string;
+  documentContext?: string;
   extraInstructions?: string;
   mediaType?: "images" | "video";
   forceNonBlocking?: boolean;
@@ -1042,6 +1043,7 @@ async function generateVersions(args: {
   generationProfile: NormalizedAiGenerationProfile;
   recentPublications?: BoosterRecentPublication[];
   mediaContext?: string;
+  documentContext?: string;
   extraInstructions?: string;
   hiddenAngle?: BoosterHiddenAngle;
   imagesForAI?: BoosterAiImage[];
@@ -1066,6 +1068,7 @@ async function generateVersions(args: {
     imageCount: args.generationProfile.request.media.count || args.imagesForAI?.length || 0,
     mediaContext:
       args.mediaContext || args.generationProfile.request.media.context,
+    documentContext: args.documentContext,
     extraInstructions: args.extraInstructions,
   });
 
@@ -1293,6 +1296,7 @@ async function repairChannelsOnce(args: {
   hiddenAngle?: BoosterHiddenAngle;
   imagesForAI?: BoosterAiImage[];
   mediaContext?: string;
+  documentContext?: string;
   extraInstructions?: string;
   languageCode: string;
   aiFeature: AiGenerationFeature;
@@ -1325,6 +1329,7 @@ async function repairChannelsOnce(args: {
     deadlineAt: args.deadlineAt,
     mode: "repair",
     mediaContext: args.mediaContext,
+    documentContext: args.documentContext,
     extraInstructions: [
       args.extraInstructions,
       buildSingleRepairInstructions({
@@ -1722,6 +1727,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
           hiddenAngle: operationHiddenAngle,
           imagesForAI: preparedMedia.imagesForWriter,
           mediaContext: preparedMedia.writerContext,
+          documentContext: args.documentContext,
           extraInstructions,
           aiFeature,
           accountId: args.accountId,
@@ -1843,6 +1849,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
             hiddenAngle: operationHiddenAngle,
             imagesForAI: preparedMedia.imagesForWriter,
             mediaContext: preparedMedia.writerContext,
+            documentContext: args.documentContext,
             extraInstructions,
             languageCode,
             aiFeature,

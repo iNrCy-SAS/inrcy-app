@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
-import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, requirePremiumAdsUser } from "@/lib/adsServer";
-import { isAdsProvider, isAdsChannelId, normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
-import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
-import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
-import { listXAdsAccounts, readXAdsIntegration, verifySelectedXAdsAccount } from "@/lib/adsXServer";
-import { readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
+import {
+  adsBadOriginResponse,
+  adsPilotOnlyResponse,
+  adsRequestOriginAllowed,
+  isAdsChannelUserAllowed,
+  isAdsPilotAdmin,
+  requirePremiumAdsUser,
+} from "@/lib/adsServer";
+import {
+  isAdsChannelId,
+  isAdsProvider,
+  normalizeStoredAdsCampaignDraft,
+  parseAdsCampaignInput,
+} from "@/lib/adsValidation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ADS_CAMPAIGN_ID_PATTERN, canMutateAdsDraft } from "./[id]/trackingPolicy";
-import { isAdsPilotAdmin, isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 
 const CAMPAIGN_PAGE_SIZE = 50;
 
@@ -57,64 +64,19 @@ export async function POST(request: Request) {
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
 
   try {
-    if (isAdsProvider(draft.provider) && draft.adAccountId) {
-      const accounts = await listAdsAccounts(user.activeUserId, draft.provider);
-      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
-      if (!selectedAccount) return NextResponse.json({ error: "Ce compte publicitaire EUR n’est pas accessible via la connexion active." }, { status: 403 });
-    }
-    if (draft.provider === "pinterest" && draft.adAccountId) {
-      const integration = await readPinterestAdsIntegration(user.activeUserId);
-      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
-        return NextResponse.json({ error: "Ce compte Pinterest Ads n’est plus celui associé à votre canal. Vérifiez la connexion avant d’enregistrer le brouillon." }, { status: 409 });
-      }
-      const accounts = await listPinterestAdsAccounts(user.activeUserId, integration);
-      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId && account.currency === "EUR");
-      if (!selectedAccount) {
-        return NextResponse.json({ error: "Le compte Pinterest Ads EUR associé n’est plus accessible." }, { status: 403 });
-      }
-    }
-    if (draft.provider === "linkedin" && draft.adAccountId) {
-      const integration = await readLinkedInAdsIntegration(user.activeUserId);
-      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
-        return NextResponse.json({ error: "Ce compte LinkedIn Ads n’est plus celui associé au canal. Vérifiez la connexion avant d’enregistrer le brouillon." }, { status: 409 });
-      }
-      const accounts = await listLinkedInAdsAccounts(user.activeUserId, integration);
-      const selectedAccount = accounts.find((account) => account.id === draft.adAccountId
-        && account.currency === "EUR" && account.canManageCampaigns === true);
-      if (!selectedAccount) {
-        return NextResponse.json({ error: "Le compte LinkedIn Ads EUR associé n’est plus accessible avec un rôle de gestion des campagnes." }, { status: 403 });
-      }
-    }
-    if (draft.provider === "x" && draft.adAccountId) {
-      const integration = await readXAdsIntegration(user.activeUserId);
-      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
-        return NextResponse.json({ error: "Ce compte X Ads n’est plus celui associé au canal. Vérifiez la connexion avant d’enregistrer le brouillon." }, { status: 409 });
-      }
-      const accounts = await listXAdsAccounts(user.activeUserId, integration);
-      const account = accounts.find((entry) => entry.id === draft.adAccountId);
-      if (!account) {
-        return NextResponse.json({ error: "Le compte X Ads associé n’est plus accessible." }, { status: 403 });
-      }
-      const verified = await verifySelectedXAdsAccount(user.activeUserId, integration, account);
-      if (verified.eligibleToAssociate !== true) {
-        return NextResponse.json({ error: "Le compte X Ads doit rester accepté, en euros, avec un rôle Administrateur ou Ad Manager vérifié." }, { status: 403 });
-      }
-    }
-    if (draft.provider === "openai" && draft.adAccountId) {
-      const integration = await readOpenaiAdsIntegration(user.activeUserId);
-      if (integration?.status !== "connected" || integration.resource_id !== draft.adAccountId) {
-        return NextResponse.json({ error: "Le compte ChatGPT Ads du brouillon n’est plus celui associé au canal." }, { status: 409 });
-      }
-    }
-    if (draft.provider === "meta" && draft.pageId) {
-      const pages = await listMetaPages(user.activeUserId);
-      if (!pages.some((page) => page.id === draft.pageId)) {
-        return NextResponse.json({ error: "Cette Page Facebook n’est pas accessible via la connexion active." }, { status: 403 });
-      }
-    }
+    // Saving is deliberately local and must keep working when OAuth or a
+    // provider API is temporarily unavailable. Account, Page and provider
+    // resources are re-read immediately before every remote publication in
+    // the dedicated publish route; a saved identifier is never proof of
+    // ownership or permission.
 
-    // This association does not grant publication: X drafts remain local only.
-    const adAccountId = isAdsProvider(draft.provider) || draft.provider === "pinterest" || draft.provider === "linkedin" || draft.provider === "x" || draft.provider === "openai"
+    // Keep the user's selected advertiser with the editable proposal. The
+    // publisher still treats it as unverified until its fresh preflight.
+    const adAccountId = isAdsProvider(draft.provider)
+      || draft.provider === "pinterest"
+      || draft.provider === "linkedin"
+      || draft.provider === "x"
+      || draft.provider === "openai"
       ? draft.adAccountId : "";
 
     const payload = {

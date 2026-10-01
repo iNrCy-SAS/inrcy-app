@@ -12,8 +12,10 @@ import {
   buildLinkedInAdsBudgetPricingPath,
   buildLinkedInAdsCampaignGroupsPath,
   buildLinkedInAdsGeoSearchPath,
+  buildLinkedInAdsGeoUrnsPath,
   buildLinkedInAdsImagePath,
   buildLinkedInAdsLocalesPath,
+  linkedInAdsCampaignGroupIsCompatible,
   linkedInAdsPreflightBlockers,
   normalizeLinkedInAdsAudienceCount,
   normalizeLinkedInAdsBudgetPricing,
@@ -21,6 +23,8 @@ import {
   normalizeLinkedInAdsImage,
   normalizeLinkedInAdsLocales,
   normalizeLinkedInAdsTargetingEntities,
+  recommendedLinkedInAdsBid,
+  selectUnambiguousLinkedInAdsGeoTarget,
   type LinkedInAdsCampaignGroup,
   type LinkedInAdsImageEvidence,
 } from "./adsLinkedInPreflightPolicy.ts";
@@ -131,10 +135,15 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const country = /^[A-Z]{2}$/.test(input.country || "") ? input.country! : "FR";
   const geoQuery = text(input.geoQuery);
   const hasOrganizationRead = scopes.includes("r_organization_admin") || scopes.includes("rw_organization_admin");
-  const [groupsPayload, localesPayload, geosPayload, organizations, imagePayload] = await Promise.all([
+  const requestedGeoUrns = Array.isArray(input.geoUrns)
+    ? [...new Set(input.geoUrns.filter((urn) => /^urn:li:geo:\d{1,25}$/.test(urn)))] : [];
+  const [groupsPayload, localesPayload, geosPayload, selectedGeosPayload, organizations, imagePayload] = await Promise.all([
     linkedInAdsRead(token, buildLinkedInAdsCampaignGroupsPath(account.id)),
     linkedInAdsRead(token, buildLinkedInAdsLocalesPath()),
     geoQuery.length >= 2 ? linkedInAdsRead(token, buildLinkedInAdsGeoSearchPath(geoQuery, language, country)) : Promise.resolve({ elements: [] }),
+    requestedGeoUrns.length
+      ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country))
+      : Promise.resolve({ elements: [] }),
     hasOrganizationRead ? listOrganizationAccess(token) : Promise.resolve([]),
     input.imageUrn ? linkedInAdsRead(token, buildLinkedInAdsImagePath(input.imageUrn)) : Promise.resolve(null),
   ]);
@@ -142,25 +151,33 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const campaignGroups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
   const geoSuggestions = normalizeLinkedInAdsTargetingEntities(geosPayload);
-  if (!campaignGroups || !supportedLocales || !geoSuggestions) {
+  const selectedGeoTargets = normalizeLinkedInAdsTargetingEntities(selectedGeosPayload);
+  if (!campaignGroups || !supportedLocales || !geoSuggestions || !selectedGeoTargets) {
     throw new LinkedInAdsConnectionError("Ressources LinkedIn Ads incohérentes.", "provider_invalid_response");
   }
+  const compatibleCampaignGroups = campaignGroups.filter(linkedInAdsCampaignGroupIsCompatible);
   const selectedGroup: LinkedInAdsCampaignGroup | null = input.campaignGroupId
-    ? campaignGroups.find((item) => item.id === input.campaignGroupId) || null : null;
+    ? campaignGroups.find((item) => item.id === input.campaignGroupId) || null
+    : compatibleCampaignGroups.length === 1 ? compatibleCampaignGroups[0] : null;
   const selectedOrganization = input.organizationUrn
-    ? organizations.find((item) => item.urn === input.organizationUrn) || null : null;
+    ? organizations.find((item) => item.urn === input.organizationUrn) || null
+    : organizations.length === 1 ? organizations[0] : null;
   const image: LinkedInAdsImageEvidence | null = input.imageUrn && imagePayload
     ? normalizeLinkedInAdsImage(imagePayload, input.imageUrn) : null;
   if (input.imageUrn && !image) {
     throw new LinkedInAdsConnectionError("Le média LinkedIn ne peut pas être vérifié.", "image_invalid", 422);
   }
-  const requestedGeoUrns = Array.isArray(input.geoUrns)
-    ? [...new Set(input.geoUrns.filter((urn) => /^urn:li:geo:\d{1,25}$/.test(urn)))] : [];
-  const suggestedGeoUrns = new Set(geoSuggestions.map((item) => item.urn));
-  const verifiedGeoUrns = requestedGeoUrns.filter((urn) => suggestedGeoUrns.has(urn));
+  const requestedGeoUrnSet = new Set(requestedGeoUrns);
+  const automaticGeoTarget = requestedGeoUrns.length === 0
+    ? selectUnambiguousLinkedInAdsGeoTarget(geoSuggestions, geoQuery)
+    : null;
+  const verifiedGeoTargets = requestedGeoUrns.length
+    ? selectedGeoTargets.filter((item) => requestedGeoUrnSet.has(item.urn))
+    : automaticGeoTarget ? [automaticGeoTarget] : [];
+  const verifiedGeoUrns = verifiedGeoTargets.map((item) => item.urn);
   const localeSupported = supportedLocales.some((item) => item.language === language && item.country === country);
   const dailyBudget = Number.isFinite(input.dailyBudget) && Number(input.dailyBudget) > 0 ? Number(input.dailyBudget) : null;
-  const bidAmount = Number.isFinite(input.bidAmount) && Number(input.bidAmount) > 0 ? Number(input.bidAmount) : null;
+  const requestedBidAmount = Number.isFinite(input.bidAmount) && Number(input.bidAmount) > 0 ? Number(input.bidAmount) : null;
   const [audiencePayload, pricingPayload] = verifiedGeoUrns.length && localeSupported
     ? await Promise.all([
       linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country)),
@@ -173,6 +190,7 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     : [null, null];
   const audienceCount = audiencePayload ? normalizeLinkedInAdsAudienceCount(audiencePayload) : null;
   const pricing = pricingPayload ? normalizeLinkedInAdsBudgetPricing(pricingPayload) : null;
+  const bidAmount = recommendedLinkedInAdsBid(pricing, requestedBidAmount, dailyBudget);
   const developmentAccountMapped = allowedDevelopmentAccountIds().has(account.id);
   const blockers = linkedInAdsPreflightBlockers({
     scopes,
@@ -209,6 +227,7 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
       organization: selectedOrganization,
       image,
       verifiedGeoUrns,
+      verifiedGeoTargets,
       locale: { language, country, supported: localeSupported },
       audienceCount,
       pricing,

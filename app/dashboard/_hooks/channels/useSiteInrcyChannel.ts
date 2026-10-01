@@ -19,12 +19,10 @@ type PatchChannelConnectionLocally = (
 
 type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 
-type NormalizeSiteUrl = (input: string) => { normalizedUrl: string; hostname: string } | null;
 type ExtractDomain = (input: string) => string;
 type FetchWidgetToken = (domain: string, source: "inrcy_site" | "site_web") => Promise<string>;
 
 type UseSiteInrcyChannelOptions = {
-  normalizeSiteUrl: NormalizeSiteUrl;
   extractDomain: ExtractDomain;
   fetchWidgetToken: FetchWidgetToken;
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -59,7 +57,6 @@ const syncSitePresenceState = async () => {
 };
 
 export function useSiteInrcyChannel({
-  normalizeSiteUrl,
   extractDomain,
   fetchWidgetToken,
   patchChannelConnectionLocally,
@@ -479,54 +476,51 @@ export function useSiteInrcyChannel({
     }, 2500);
   }, [siteInrcySettingsText, updateSiteInrcySettings]);
 
+  const applySiteInrcyPublicUrlSaved = useCallback((url: string) => {
+    setSiteInrcyUrl(url);
+    setSiteInrcySavedUrl(url);
+    const statsConnected = Boolean(url && (siteInrcyGa4Connected || siteInrcyGscConnected));
+    patchChannelConnectionLocally("site_inrcy", {
+      connected: statsConnected,
+      accountConnected: true,
+      configured: true,
+      statsConnected,
+      connectionStatus: statsConnected ? "connected" : "disconnected",
+      resourceId: url,
+      resourceLabel: url,
+      resourceUrl: url,
+    });
+    void triggerChannelRefresh("site_inrcy");
+    void syncSitePresenceState();
+  }, [patchChannelConnectionLocally, siteInrcyGa4Connected, siteInrcyGscConnected, triggerChannelRefresh]);
+
   const saveSiteInrcyUrl = useCallback(async () => {
     if (siteInrcyOwnership === "none") return;
     if (siteInrcySavedUrl.trim()) return;
 
     const rawUrl = siteInrcyUrl.trim();
-    const nextNormalized = rawUrl ? normalizeSiteUrl(rawUrl) : null;
-
-    if (rawUrl && !nextNormalized) {
+    if (!rawUrl) {
       setSiteInrcySettingsError("Renseigne un vrai lien de site (ex: https://monsite.fr) avant d'enregistrer.");
       return;
     }
 
-    const valueToSave = nextNormalized?.normalizedUrl ?? "";
-
-    const supabase = createClient();
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("inrcy_site_configs")
-      .upsert({ user_id: resolveActiveBrowserUserId(user.id), site_url: valueToSave }, { onConflict: "user_id" });
-    if (error) {
-      setSiteInrcySettingsError(getSimpleFrenchErrorMessage(error));
+    const response = await fetch("/api/integrations/channel-public-url", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "site_inrcy", url: rawUrl }),
+    }).catch(() => null);
+    const payload = await response?.json().catch(() => ({}));
+    if (!response?.ok || payload?.ok === false) {
+      setSiteInrcySettingsError(String(payload?.error || "Impossible d’enregistrer ce lien pour le moment."));
       return;
     }
 
+    const savedUrl = String(payload?.url || rawUrl);
     setSiteInrcySettingsError(null);
-    setSiteInrcyUrl(valueToSave);
-    setSiteInrcySavedUrl(valueToSave);
-    setSiteInrcyUrlNotice(valueToSave ? "✅ Lien du site enregistré" : null);
-    const statsConnected = Boolean(valueToSave && (siteInrcyGa4Connected || siteInrcyGscConnected));
-    patchChannelConnectionLocally("site_inrcy", {
-      connected: statsConnected,
-      accountConnected: Boolean(valueToSave),
-      configured: Boolean(valueToSave),
-      statsConnected,
-      connectionStatus: statsConnected ? "connected" : "disconnected",
-      resourceId: valueToSave || null,
-      resourceLabel: valueToSave || null,
-      resourceUrl: valueToSave || null,
-    }, { clearData: !valueToSave });
-    triggerChannelRefresh("site_inrcy");
-    await syncSitePresenceState();
-    if (valueToSave) {
-      window.setTimeout(() => setSiteInrcyUrlNotice(null), 2500);
-    }
-  }, [normalizeSiteUrl, patchChannelConnectionLocally, siteInrcyGa4Connected, siteInrcyGscConnected, siteInrcyOwnership, siteInrcySavedUrl, siteInrcyUrl, triggerChannelRefresh]);
+    applySiteInrcyPublicUrlSaved(savedUrl);
+    setSiteInrcyUrlNotice("✅ Lien du site enregistré");
+    window.setTimeout(() => setSiteInrcyUrlNotice(null), 2500);
+  }, [applySiteInrcyPublicUrlSaved, siteInrcyOwnership, siteInrcySavedUrl, siteInrcyUrl]);
 
   const deleteSiteInrcyUrl = useCallback(async () => {
     if (siteInrcyOwnership === "none") return;
@@ -705,6 +699,7 @@ export function useSiteInrcyChannel({
     deactivateSiteInrcyTracking,
     disconnectSiteInrcyGa4,
     disconnectSiteInrcyGsc,
+    applySiteInrcyPublicUrlSaved,
     saveSiteInrcyUrl,
     deleteSiteInrcyUrl,
     saveSiteInrcyActusWidgetSettings,

@@ -52,6 +52,8 @@ test("le menu iNr’ADS lit uniquement les brouillons et les rouvre sans dupliqu
   assert.match(route, /requestedStatus !== null && requestedStatus !== "draft"/);
   assert.match(route, /query = query\.eq\("status", "draft"\)/);
   assert.doesNotMatch(route, /from\("send_items"\)/);
+  assert.doesNotMatch(route, /listAdsAccounts|listMetaPages|listPinterestAdsAccounts|listLinkedInAdsAccounts/);
+  assert.match(route, /provider API is temporarily unavailable/);
 });
 
 test("iNr’Send expose une vue ADS Brouillons et un accès direct au studio", () => {

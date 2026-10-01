@@ -138,6 +138,7 @@ import {
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import MediaSubjectVoiceButton from "../_components/MediaSubjectVoiceButton";
+import LocalMediaUploadChoice from "../_components/LocalMediaUploadChoice";
 import styles from "./agent.module.css";
 import dashboardStyles from "../dashboard.module.css";
 import { useAgentResponsiveUi } from "./_hooks/useAgentResponsiveUi";
@@ -8018,8 +8019,21 @@ export default function AgentClient() {
                 id="agent-publish-media-image"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
+                multiple
                 onChange={(event) => {
-                  void uploadPublishMedia(event.currentTarget.files?.[0]);
+                  const remaining = Math.max(
+                    0,
+                    publishImageMaxCount - publishImageCount,
+                  );
+                  const files = Array.from(event.currentTarget.files || []).slice(
+                    0,
+                    remaining,
+                  );
+                  void (async () => {
+                    for (const file of files) {
+                      await uploadPublishMedia(file);
+                    }
+                  })();
                   event.currentTarget.value = "";
                 }}
                 disabled={
@@ -8053,42 +8067,35 @@ export default function AgentClient() {
                 }
               />
               <div className={styles.publishMediaActionButtons}>
-                <label
-                  htmlFor={
-                    publishImageLimitReached
-                      ? undefined
-                      : "agent-publish-media-image"
-                  }
-                  aria-disabled={
-                    publishMediaUploadState === "saving" ||
-                    publishImageLimitReached
-                  }
-                  title={
-                    publishImageLimitReached
-                      ? i18nT("maximum_de_value_images_atteint_af483c3f", {
-                          value0: publishImageMaxCount,
-                        })
-                      : i18nT("add_image_to_publication")
-                  }
-                  onClick={(event) => {
-                    if (publishImageLimitReached) event.preventDefault();
+                <LocalMediaUploadChoice
+                  disabled={publishMediaUploadState === "saving"}
+                  triggerIcon={<span aria-hidden>＋</span>}
+                  image={{
+                    onSelect: () =>
+                      document.getElementById("agent-publish-media-image")?.click(),
+                    disabled:
+                      publishImageLimitReached || activePreviewChannel === "youtube",
+                    disabledReason:
+                      activePreviewChannel === "youtube"
+                        ? i18nT("youtube_requires_video")
+                        : publishImageLimitReached
+                          ? i18nT("maximum_de_value_images_atteint_af483c3f", {
+                              value0: publishImageMaxCount,
+                            })
+                          : undefined,
+                    detail: INR_MEDIA_IMAGE_FORMATS_LABEL,
+                    maxSelection: Math.max(
+                      0,
+                      publishImageMaxCount - publishImageCount,
+                    ),
                   }}
-                >
-                  <span aria-hidden>🖼️</span>
-                  <strong>{i18nT("ajouter_une_image_762947a7")}</strong>
-                  <small>
-                    {publishImageLimitReached
-                      ? i18nT("maximum_de_value_images_atteint_af483c3f", {
-                          value0: publishImageMaxCount,
-                        })
-                      : INR_MEDIA_IMAGE_FORMATS_LABEL}
-                  </small>
-                </label>
-                <label htmlFor="agent-publish-media-video">
-                  <span aria-hidden>🎬</span>
-                  <strong>{i18nT("ajouter_une_video_741020e4")}</strong>
-                  <small>{INR_MEDIA_VIDEO_FORMATS_LABEL}</small>
-                </label>
+                  video={{
+                    onSelect: () =>
+                      document.getElementById("agent-publish-media-video")?.click(),
+                    detail: INR_MEDIA_VIDEO_FORMATS_LABEL,
+                  }}
+                  testId="agent-local-media-choice"
+                />
                 <button
                   type="button"
                   onClick={() => setPublishMediaLibraryPickerOpen(true)}

@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "Media toevoegen",
+  "local_upload_dialog_title": "Media toevoegen",
+  "local_upload_dialog_description": "Kies eerst het bestandstype. Afbeeldingen en video’s blijven gescheiden.",
+  "local_upload_image": "Afbeeldingen",
+  "local_upload_images_detail": "Meervoudige selectie · maximaal {count} afbeelding(en)",
+  "local_upload_video": "Video",
+  "local_upload_video_detail": "Enkele selectie · slechts één video",
+  "local_upload_close": "Mediakeuze sluiten",
+  "local_upload_unavailable": "Niet beschikbaar met de huidige instellingen",
   "ai_generator_free_team_consent": "Ik geef voor deze creatie toestemming om de afgebeelde personen te animeren en de referenties naar de dienst voor videogeneratie te sturen.",
   "ai_generator_free_mode_label": "Creatiemodus",
   "ai_generator_free_mode_free": "Vrij",

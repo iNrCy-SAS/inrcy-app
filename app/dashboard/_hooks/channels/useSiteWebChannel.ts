@@ -18,12 +18,10 @@ type PatchChannelConnectionLocally = (
 
 type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 
-type NormalizeSiteUrl = (input: string) => { normalizedUrl: string; hostname: string } | null;
 type ExtractDomain = (input: string) => string;
 type FetchWidgetToken = (domain: string, source: "inrcy_site" | "site_web") => Promise<string>;
 
 type UseSiteWebChannelOptions = {
-  normalizeSiteUrl: NormalizeSiteUrl;
   extractDomain: ExtractDomain;
   fetchWidgetToken: FetchWidgetToken;
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -58,7 +56,6 @@ const syncSitePresenceState = async () => {
 };
 
 export function useSiteWebChannel({
-  normalizeSiteUrl,
   extractDomain,
   fetchWidgetToken,
   patchChannelConnectionLocally,
@@ -227,51 +224,62 @@ export function useSiteWebChannel({
     }, 2500);
   }, [siteWebSettingsText, updateSiteWebSettings]);
 
+  const applySiteWebPublicUrlSaved = useCallback((url: string) => {
+    setSiteWebUrl(url);
+    setSiteWebSavedUrl(url);
+    setSiteWebSettingsText((currentText) => {
+      try {
+        const current = currentText.trim() ? JSON.parse(currentText) : {};
+        const next = current && typeof current === "object" ? { ...current } : {};
+        next.url = url;
+        next.domain = new URL(url).hostname;
+        return JSON.stringify(next, null, 2);
+      } catch {
+        return currentText;
+      }
+    });
+
+    const statsConnected = Boolean(url && (siteWebGa4Connected || siteWebGscConnected));
+    patchChannelConnectionLocally("site_web", {
+      connected: statsConnected,
+      accountConnected: true,
+      configured: true,
+      statsConnected,
+      connectionStatus: statsConnected ? "connected" : "disconnected",
+      resourceId: url,
+      resourceLabel: url,
+      resourceUrl: url,
+    });
+    void triggerChannelRefresh("site_web");
+    void syncSitePresenceState();
+  }, [patchChannelConnectionLocally, siteWebGa4Connected, siteWebGscConnected, triggerChannelRefresh]);
+
   const saveSiteWebUrl = useCallback(async () => {
     if (siteWebSavedUrl.trim()) return;
 
-    let parsed: any;
-    try {
-      parsed = siteWebSettingsText?.trim() ? JSON.parse(siteWebSettingsText) : {};
-    } catch {
-      setSiteWebSettingsError("JSON invalide. Vérifiez la syntaxe (guillemets, virgules, accolades…).");
-      return;
-    }
-
     const rawUrl = siteWebUrl.trim();
-    const nextNormalized = rawUrl ? normalizeSiteUrl(rawUrl) : null;
-
-    if (rawUrl && !nextNormalized) {
+    if (!rawUrl) {
       setSiteWebSettingsError("Renseigne un vrai lien de site (ex: https://monsite.fr) avant d'enregistrer.");
       return;
     }
 
-    const valueToSave = nextNormalized?.normalizedUrl ?? "";
-    parsed.url = valueToSave;
-    if (nextNormalized?.hostname) parsed.domain = nextNormalized.hostname;
-    else delete parsed.domain;
-
-    await updateSiteWebSettings(parsed);
-    setSiteWebUrl(valueToSave);
-    setSiteWebSavedUrl(valueToSave);
-    const statsConnected = Boolean(valueToSave && (siteWebGa4Connected || siteWebGscConnected));
-    patchChannelConnectionLocally("site_web", {
-      connected: statsConnected,
-      accountConnected: Boolean(valueToSave),
-      configured: Boolean(valueToSave),
-      statsConnected,
-      connectionStatus: statsConnected ? "connected" : "disconnected",
-      resourceId: valueToSave || null,
-      resourceLabel: valueToSave || null,
-      resourceUrl: valueToSave || null,
-    }, { clearData: !valueToSave });
-    triggerChannelRefresh("site_web");
-    await syncSitePresenceState();
-    setSiteWebUrlNotice(valueToSave ? "✅ Lien du site enregistré" : null);
-    if (valueToSave) {
-      window.setTimeout(() => setSiteWebUrlNotice(null), 2500);
+    const response = await fetch("/api/integrations/channel-public-url", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "site_web", url: rawUrl }),
+    }).catch(() => null);
+    const payload = await response?.json().catch(() => ({}));
+    if (!response?.ok || payload?.ok === false) {
+      setSiteWebSettingsError(String(payload?.error || "Impossible d’enregistrer ce lien pour le moment."));
+      return;
     }
-  }, [normalizeSiteUrl, patchChannelConnectionLocally, siteWebGa4Connected, siteWebGscConnected, siteWebSavedUrl, siteWebSettingsText, siteWebUrl, triggerChannelRefresh, updateSiteWebSettings]);
+
+    const savedUrl = String(payload?.url || rawUrl);
+    setSiteWebSettingsError(null);
+    applySiteWebPublicUrlSaved(savedUrl);
+    setSiteWebUrlNotice("✅ Lien du site enregistré");
+    window.setTimeout(() => setSiteWebUrlNotice(null), 2500);
+  }, [applySiteWebPublicUrlSaved, siteWebSavedUrl, siteWebUrl]);
 
   const deleteSiteWebUrl = useCallback(async () => {
     if (!siteWebSavedUrl.trim()) return;
@@ -531,6 +539,7 @@ export function useSiteWebChannel({
     siteWebGscConnected,
     setSiteWebGscConnected,
     updateSiteWebSettings,
+    applySiteWebPublicUrlSaved,
     saveSiteWebUrl,
     deleteSiteWebUrl,
     resetSiteWebAll,

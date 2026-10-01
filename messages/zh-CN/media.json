@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "添加媒体",
+  "local_upload_dialog_title": "添加媒体",
+  "local_upload_dialog_description": "请先选择文件类型。图片和视频将分开选择。",
+  "local_upload_image": "图片",
+  "local_upload_images_detail": "可多选 · 最多 {count} 张图片",
+  "local_upload_video": "视频",
+  "local_upload_video_detail": "单选 · 仅一个视频",
+  "local_upload_close": "关闭媒体选择",
+  "local_upload_unavailable": "当前设置下不可用",
   "ai_generator_free_team_consent": "我授权在本次创作中为所提供的人物制作动画，并将参考素材发送至视频生成服务。",
   "ai_generator_free_mode_label": "创作模式",
   "ai_generator_free_mode_free": "自由",

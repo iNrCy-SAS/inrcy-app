@@ -1,0 +1,126 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import {
+  adsIncompleteLaunchMessage,
+  adsIncompleteLaunchSteps,
+  type AdsLaunchStepMap,
+} from "../lib/adsLaunchReadiness.ts";
+import type { AdsCampaignInput } from "../lib/adsValidation.ts";
+
+const steps: AdsLaunchStepMap = {
+  foundations: 3,
+  targeting: 4,
+  keywords: 5,
+  creative: 6,
+  media: 7,
+  delivery: 8,
+  budget: 9,
+  validation: 10,
+};
+
+function campaign(provider: AdsCampaignInput["provider"]): AdsCampaignInput {
+  return {
+    provider,
+    creationMode: "inrcy",
+    campaignType: provider === "google" ? "search" : provider === "meta" ? "meta_traffic" : "generic",
+    objective: provider === "meta" ? "website_traffic" : "leads",
+    conversionGoal: provider === "meta" ? "website_visit" : "quote_request",
+    conversionLocation: "website",
+    bidStrategy: "maximize_clicks",
+    adAccountId: "123456789",
+    accountCurrency: "EUR",
+    name: "Campagne de test",
+    offer: "Une offre claire",
+    dailyBudgetEuros: 30,
+    pinterestBidEuros: 1,
+    endDate: "2026-10-20",
+    destinationUrl: "https://example.com",
+    urlExpansion: false,
+    urlExclusions: [],
+    targetLocations: ["France"],
+    targetAudiences: ["Professionnels"],
+    languages: ["fr"],
+    googleSearchPartners: false,
+    googleDisplayExpansion: false,
+    metaAudienceExpansion: true,
+    metaPlacements: ["facebook_feed"],
+    trackingParameters: "",
+    primaryText: "Un message publicitaire suffisamment précis.",
+    imageUrl: "https://example.com/image.jpg",
+    metaCreativeAssets: { feedImageUrl: "https://example.com/image.jpg", storyReelImageUrl: "" },
+    creativeUrl: "https://example.com/image.jpg",
+    creativeType: "image",
+    mediaStrategy: provider === "google" ? "search_text" : "image",
+    mediaBrief: "Visuel publicitaire",
+    callToAction: "En savoir plus",
+    pageId: "987654321",
+    headlines: ["Titre un", "Titre deux", "Titre trois"],
+    descriptions: ["Description un", "Description deux"],
+    keywords: ["mot clé"],
+    negativeKeywords: [],
+    noSpecialCategoryConfirmed: true,
+    notEuPoliticalConfirmed: true,
+  };
+}
+
+test("LinkedIn signale chaque étape réellement incomplète sans empêcher un brouillon", () => {
+  const draft = campaign("linkedin");
+  draft.linkedinCampaignGroupId = "";
+  draft.linkedinOrganizationUrn = "";
+  draft.linkedinGeoTargets = [];
+  draft.linkedinBidEuros = undefined;
+  draft.linkedinPoliticalIntentConfirmed = false;
+  draft.linkedinTargetingNoticeAcknowledged = false;
+
+  assert.deepEqual(adsIncompleteLaunchSteps({
+    draft,
+    steps,
+    accountReady: true,
+    destinationReady: true,
+    mediaReady: false,
+    now: Date.parse("2026-10-01T12:00:00Z"),
+  }), [3, 4, 7, 9, 10]);
+});
+
+test("Meta rattache les champs manquants à leurs étapes du studio", () => {
+  const draft = campaign("meta");
+  draft.targetLocations = [];
+  draft.primaryText = "";
+  draft.callToAction = "";
+  draft.metaPlacements = [];
+  draft.noSpecialCategoryConfirmed = false;
+
+  assert.deepEqual(adsIncompleteLaunchSteps({
+    draft,
+    steps,
+    accountReady: true,
+    destinationReady: true,
+    mediaReady: false,
+    now: Date.parse("2026-10-01T12:00:00Z"),
+  }), [4, 6, 7, 8, 10]);
+});
+
+test("le message de survol donne les numéros des étapes", () => {
+  assert.equal(
+    adsIncompleteLaunchMessage([3, 4, 9]),
+    "Informations manquantes : complétez les étapes 3, 4 et 9 avant de lancer la campagne.",
+  );
+  assert.equal(
+    adsIncompleteLaunchMessage([7]),
+    "Informations manquantes : complétez l’étape 7 avant de lancer la campagne.",
+  );
+});
+
+test("le studio garde la navigation et le brouillon disponibles, puis avertit seulement au lancement", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
+
+  assert.doesNotMatch(client, /if \(dx < 0 && current === deliveryStep && !destinationReview\.canContinue\) return current/);
+  assert.doesNotMatch(client, /disabled=\{busy === "plan"[^}]*destinationReview\.canContinue/);
+  assert.match(client, /studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard/);
+  assert.match(client, /disabled=\{busy !== null \|\| launchBlocked\}/);
+  assert.match(client, /studioLaunchWarning[\s\S]*?⚠/);
+  assert.match(css, /\.studioLaunchWarning\{[^}]*#ffd760/);
+});

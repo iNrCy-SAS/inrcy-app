@@ -459,22 +459,25 @@ test("Booster garde le même ordre d'actions en haut et dans Médias", () => {
 
   const topActions = sourceSection(
     intentPanel,
-    "onClick={onPickImagesClick}",
+    "<LocalMediaUploadChoice",
     "{videoPreviewUrl && videoFile ? ("
   );
   const lowerActions = sourceSection(
     mediaPanel,
-    "onClick={onPickImagesClick}",
+    "<LocalMediaUploadChoice",
     "{imgError ? ("
   );
   const sharedOrderedTokens = [
-    "ajouter_une_video",
+    "onSelect: onPickImagesClick",
+    "onSelect: onPickVideoClick",
     "onGenerateMedia",
     "onOpenMediaLibrary",
     "onTakePhotoClick",
   ];
-  assertOrdered(topActions, ["ajouter_des_images", ...sharedOrderedTokens]);
-  assertOrdered(lowerActions, ["ajouter_une_image", ...sharedOrderedTokens]);
+  assertOrdered(topActions, sharedOrderedTokens);
+  assertOrdered(lowerActions, sharedOrderedTokens);
+  assert.match(topActions, /testId="booster-generation-local-media-choice"/);
+  assert.match(lowerActions, /testId="booster-publication-local-media-choice"/);
   assert.equal(
     (topActions.match(/ai_generator_generate_media/g) || []).length >= 1,
     true

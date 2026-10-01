@@ -33,6 +33,45 @@ export type AiMemoryReferenceDocument = {
   createdAt: string;
 };
 
+export type AiMemoryReferenceDocumentStorage = {
+  usedBytes: number;
+  limitBytes: number;
+  remainingBytes: number;
+  percent: number;
+  status: "available" | "near" | "reached";
+};
+
+const AI_MEMORY_REFERENCE_DOCUMENT_NEAR_LIMIT_RATIO = 0.8;
+
+/**
+ * Mirrors the total-size calculation enforced by the Documents API. Keeping
+ * this derived value beside the shared limit prevents the UI from presenting
+ * a quota that differs from the backend rule.
+ */
+export function getAiMemoryReferenceDocumentStorage(
+  documents: readonly Pick<AiMemoryReferenceDocument, "size">[],
+): AiMemoryReferenceDocumentStorage {
+  const usedBytes = documents.reduce(
+    (total, document) => total + Math.max(0, Number(document.size) || 0),
+    0,
+  );
+  const limitBytes = AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES;
+  const ratio = limitBytes > 0 ? usedBytes / limitBytes : 0;
+
+  return {
+    usedBytes,
+    limitBytes,
+    remainingBytes: Math.max(0, limitBytes - usedBytes),
+    percent: Math.min(100, Math.max(0, Math.round(ratio * 100))),
+    status:
+      usedBytes >= limitBytes
+        ? "reached"
+        : ratio >= AI_MEMORY_REFERENCE_DOCUMENT_NEAR_LIMIT_RATIO
+          ? "near"
+          : "available",
+  };
+}
+
 export type AiMemory = {
   schemaVersion: typeof AI_MEMORY_SCHEMA_VERSION;
   detailedDescription: string;

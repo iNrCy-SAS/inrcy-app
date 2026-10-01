@@ -580,5 +580,14 @@
   "ai_report_sending": "Invio…",
   "ai_report_send": "Invia",
   "ai_report_button_title": "Segnala contenuti generati inappropriati",
-  "ai_report_button_label": "Rapporto"
+  "ai_report_button_label": "Rapporto",
+  "channel_url_edit": "Modifica",
+  "channel_url_saved": "Link salvato.",
+  "channel_url_required": "Inserisci un link pubblico.",
+  "channel_url_invalid": "Questo link non è valido.",
+  "channel_url_protocol_invalid": "Il link deve iniziare con http:// o https://.",
+  "channel_url_credentials_forbidden": "Il link non deve contenere nome utente o password.",
+  "channel_url_wrong_platform": "Questo link non corrisponde a questo canale.",
+  "channel_url_save_failed": "Impossibile salvare questo link al momento.",
+  "channel_url_change_required": "Modifica il link prima di salvarlo."
 }

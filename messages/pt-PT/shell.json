@@ -580,5 +580,14 @@
   "ai_report_sending": "A enviar…",
   "ai_report_send": "Enviar",
   "ai_report_button_title": "Denunciar conteúdo gerado inapropriado",
-  "ai_report_button_label": "Relatório"
+  "ai_report_button_label": "Relatório",
+  "channel_url_edit": "Modificar",
+  "channel_url_saved": "Ligação guardada.",
+  "channel_url_required": "Introduza uma ligação pública.",
+  "channel_url_invalid": "Esta ligação não é válida.",
+  "channel_url_protocol_invalid": "A ligação deve começar por http:// ou https://.",
+  "channel_url_credentials_forbidden": "A ligação não deve conter nome de utilizador ou palavra-passe.",
+  "channel_url_wrong_platform": "Esta ligação não corresponde a este canal.",
+  "channel_url_save_failed": "Não é possível guardar esta ligação agora.",
+  "channel_url_change_required": "Altere a ligação antes de a guardar."
 }

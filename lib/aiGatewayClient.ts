@@ -57,6 +57,7 @@ import {
   type AiGenerationFallbackReason,
   type AiGenerationTransport,
 } from "@/lib/aiGenerationFallback";
+import { resolveModelTemperature } from "@/lib/aiModelCapabilities";
 
 export type { AiGenerationFeature, AiOperationBudget } from "@/lib/aiGatewayPolicy";
 
@@ -437,6 +438,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
   target: AiJsonExecutionTarget;
 }): Promise<T> {
   const { opts, target, hasImages, temperature } = args;
+  const requestTemperature = resolveModelTemperature(target.requestModel, temperature);
   const reasoning = resolveAiMediaEditorialReasoning(opts.feature, target.requestModel);
   const effectiveSystemPrompt = buildEffectiveSystemPrompt(opts, target.jsonMode);
   const structuredFormat = buildStructuredFormat(opts, target.jsonMode);
@@ -477,7 +479,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
         model: target.requestModel,
         max_output_tokens: args.policyMaxOutputTokens,
         ...(reasoning ? { reasoning } : {}),
-        ...(temperature === undefined ? {} : { temperature }),
+        ...(requestTemperature === undefined ? {} : { temperature: requestTemperature }),
         ...(target.transport === "openai_direct" ? { store: false } : {}),
         ...(structuredFormat
           ? {

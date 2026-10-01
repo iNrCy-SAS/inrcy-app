@@ -48,12 +48,20 @@ test("un brouillon LinkedIn historique sans confirmations reste non confirmé à
   assert.equal(parsed.draft?.linkedinTargetingNoticeAcknowledged, false);
 });
 
-test("le groupe et la Page sont des choix explicites persistés, jamais le premier élément choisi silencieusement", () => {
+test("les seules ressources LinkedIn vérifiées sont présélectionnées sans masquer les choix manuels", () => {
   assert.match(client, /data-linkedin-provider-resources="true"/);
   assert.match(client, /Sélectionnez un groupe vérifié/);
   assert.match(client, /Sélectionnez une Page autorisée/);
   assert.match(client, /linkedinCampaignGroupId: event\.target\.value/);
   assert.match(client, /linkedinOrganizationUrn: event\.target\.value/);
+  assert.match(client, /function applyLinkedInProviderDefaults/);
+  assert.match(client, /selected\.campaignGroup/);
+  assert.match(client, /selected\.organization/);
+  assert.match(client, /selected\.verifiedGeoTargets/);
+  assert.match(client, /selected\.bidAmount/);
+  assert.match(client, /linkedInAutomaticLoadKey/);
+  assert.match(client, /Vérification automatique des ressources LinkedIn/);
+  assert.doesNotMatch(client, /Charger les ressources LinkedIn/);
   assert.match(client, /CONTENT_ADMINISTRATOR/);
   assert.match(client, /Administrateur de contenu/);
   for (const field of [

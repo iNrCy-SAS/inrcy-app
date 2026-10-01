@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "Medien hinzufügen",
+  "local_upload_dialog_title": "Medien hinzufügen",
+  "local_upload_dialog_description": "Wählen Sie zuerst den Dateityp. Bilder und Videos bleiben getrennt.",
+  "local_upload_image": "Bilder",
+  "local_upload_images_detail": "Mehrfachauswahl · bis zu {count} Bild(er)",
+  "local_upload_video": "Video",
+  "local_upload_video_detail": "Einzelauswahl · nur ein Video",
+  "local_upload_close": "Medienauswahl schließen",
+  "local_upload_unavailable": "Mit den aktuellen Einstellungen nicht verfügbar",
   "ai_generator_free_team_consent": "Ich gestatte für diese Erstellung die Animation der abgebildeten Personen und die Übermittlung der Referenzen an den Videogenerierungsdienst.",
   "ai_generator_free_mode_label": "Erstellungsmodus",
   "ai_generator_free_mode_free": "Frei",

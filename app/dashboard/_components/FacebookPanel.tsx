@@ -12,6 +12,7 @@ import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 
 export default function FacebookPanel(props: any) {
   const i18nT = useTranslations("shell");
@@ -33,6 +34,7 @@ export default function FacebookPanel(props: any) {
     saveFacebookPage,
     fbPagesError,
     facebookUrl,
+    setFacebookUrl,
     facebookUrlNotice,
     facebookUrlError,
     disconnectFacebookPage,
@@ -47,6 +49,7 @@ export default function FacebookPanel(props: any) {
     facebookPublicationPreferencesError,
     updateFacebookPublicationPreferences,
     saveFacebookPublicationPreferences,
+    onUrlDirtyChange,
   } = props;
 
   const responsiveActionsRow = {
@@ -281,12 +284,16 @@ export default function FacebookPanel(props: any) {
             {fbPagesError && <StatusMessage variant="error">{fbPagesError}</StatusMessage>}
             {facebookPageConnected || facebookUrl ? (
               <div className={styles.facebookConfigResourceRow}>
-                <input
+                <EditableChannelUrlField
+                  channel="facebook"
                   value={facebookUrl}
-                  readOnly
-                  aria-label={i18nT("lien_de_la_page_1f9f4b87")}
+                  onSaved={setFacebookUrl}
+                  onDirtyChange={onUrlDirtyChange}
+                  ariaLabel={i18nT("lien_de_la_page_1f9f4b87")}
                   placeholder="Lien récupéré automatiquement"
-                  style={{
+                  viewLabel={i18nT("voir_la_page_82561348")}
+                  disabled={!facebookPageConnected}
+                  inputStyle={{
                     flex: "1 1 280px",
                     minWidth: 0,
                     borderRadius: 12,
@@ -299,15 +306,6 @@ export default function FacebookPanel(props: any) {
                     opacity: facebookUrl ? 1 : 0.8,
                   }}
                 />
-                <a
-                  href={facebookUrl || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${styles.actionBtn} ${styles.viewBtn}`}
-                  style={{ pointerEvents: facebookUrl ? "auto" : "none", opacity: facebookUrl ? 1 : 0.5 }}
-                >
-                  {i18nT("voir_la_page_82561348")}{" "}
-                </a>
               </div>
             ) : null}
             {facebookUrlNotice && <StatusMessage variant="success">{facebookUrlNotice}</StatusMessage>}

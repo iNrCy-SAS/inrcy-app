@@ -104,8 +104,9 @@ test("Pinterest derives its account URL for settings, the immediate balance and 
   assert.match(settings, /status\?live=1/);
   assert.match(
     settings,
-    /setProfileLinkDraft\(settings\.publicProfileUrl \|\| settings\.profileUrl \|\| ""\)/,
+    /value=\{settings\.publicProfileUrl \|\| settings\.profileUrl\}/,
   );
+  assert.match(settings, /onSaved=\{\(url\) => \{[\s\S]*?publicProfileUrl: url, profileUrl: url/);
   assert.match(publishModal, /status\?live=1/g);
   assert.match(publishModal, /recoveredPinterestHref/);
   assert.match(publishModal, /channelLinks = Object\.fromEntries/);

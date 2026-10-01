@@ -13,6 +13,12 @@ import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { buildBoosterGenerationRequest } from "@/lib/boosterGenerationTransportClient";
 import {
+  BOOSTER_PDF_STORAGE_BUCKET,
+  BOOSTER_PDF_STORAGE_FOLDER,
+  validateBoosterPdfAttachmentMetadata,
+  type BoosterPdfAttachmentRef,
+} from "@/lib/boosterPdfAttachmentPolicy";
+import {
   createBoosterGenerationRequestId,
   isBoosterGenerationTransportLoss,
   recoverBoosterGenerationResult,
@@ -474,6 +480,8 @@ export default function PublishModal({
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
   const [publicationInstruction, setPublicationInstruction] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfAttachmentError, setPdfAttachmentError] = useState("");
   const [theme, setTheme] = useState<ThemeKey>("");
   const [contentStyle, setContentStyle] = useState<StyleKey>("equilibre");
   const [creationMode, setCreationMode] =
@@ -777,6 +785,7 @@ export default function PublishModal({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const videoPickerTargetChannelRef = useRef<ChannelKey | null>(null);
   const [cameraCaptureOpen, setCameraCaptureOpen] = useState(false);
   const [cameraCaptureScope, setCameraCaptureScope] = useState<
@@ -2538,6 +2547,7 @@ export default function PublishModal({
       Boolean(
         idea.trim() ||
           publicationInstruction.trim() ||
+          pdfFile ||
           theme ||
           contentStyle !== "equilibre" ||
           hasWrittenChannelContent,
@@ -2545,6 +2555,7 @@ export default function PublishModal({
     [
       idea,
       publicationInstruction,
+      pdfFile,
       theme,
       contentStyle,
       hasWrittenChannelContent,
@@ -3056,6 +3067,10 @@ export default function PublishModal({
           postsByChannel: nextPostsByChannel,
         });
 
+        // Le PDF sert uniquement de contexte à la génération courante. Il n'est
+        // jamais sérialisé dans un brouillon ni réutilisé entre deux brouillons.
+        setPdfFile(null);
+        setPdfAttachmentError("");
         setIdea(nextIdea);
         setPublicationInstruction(nextPublicationInstruction);
         setTheme(nextTheme);
@@ -3220,9 +3235,11 @@ export default function PublishModal({
 
   const hasUnsavedChanges = useMemo(
     () =>
-      hasDraftablePublicationContent &&
-      currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot,
+      Boolean(pdfFile) ||
+      (hasDraftablePublicationContent &&
+        currentPublicationDraftSnapshot !== lastPublicationDraftSnapshot),
     [
+      pdfFile,
       hasDraftablePublicationContent,
       currentPublicationDraftSnapshot,
       lastPublicationDraftSnapshot,
@@ -3384,6 +3401,9 @@ export default function PublishModal({
   const clearAiCreationWork = () => {
     setIdea("");
     setPublicationInstruction("");
+    setPdfFile(null);
+    setPdfAttachmentError("");
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
     setTheme("");
     setContentStyle("equilibre");
     setGenError("");
@@ -3494,6 +3514,27 @@ export default function PublishModal({
     }
   };
 
+  const onPdfChange = (files: FileList | null) => {
+    const file = files?.[0] || null;
+    if (!file) return;
+
+    const validation = validateBoosterPdfAttachmentMetadata(file);
+    if (!validation.ok) {
+      setPdfAttachmentError(validation.message);
+      return;
+    }
+
+    setPdfFile(file);
+    setPdfAttachmentError("");
+    setGenError("");
+  };
+
+  const removePdfAttachment = () => {
+    setPdfFile(null);
+    setPdfAttachmentError("");
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+  };
+
   const onGenerate = async () => {
     if (generating) return;
     setGenError("");
@@ -3550,6 +3591,7 @@ export default function PublishModal({
     });
     const shouldUsePersistentMediaWorkspaceForAi =
       shouldPrepareMediaForAi && unifiedMediaConsumptionClientAvailable;
+    let temporaryPdfReference: BoosterPdfAttachmentRef | null = null;
     resetGenerationProgress();
     setGenerating(true);
     setGenerationProgressPhase(
@@ -3560,10 +3602,58 @@ export default function PublishModal({
     setDuplicateFeedback(null);
 
     try {
-      // L'upload et l'analyse enrichissent la rédaction mais ne sont jamais un
-      // verrou global. Une seule enveloppe de 12 s couvre la dernière course
-      // upload + captures ; ensuite la phrase, le profil et la configuration IA
-      // partent immédiatement, pendant que le média continue en arrière-plan.
+      if (pdfFile) {
+        setGenerationProgressPhase(
+          "media_security",
+          i18nT("progress_media_preparation"),
+          10,
+        );
+        const pdfSupabase = createClient();
+        const { data: authData, error: authError } =
+          await pdfSupabase.auth.getUser();
+        const storageUserId = authData?.user?.id
+          ? resolveActiveBrowserUserId(authData.user.id)
+          : "";
+        if (authError || !storageUserId) {
+          throw new Error(
+            "Votre session ne permet pas de préparer ce PDF. Reconnectez-vous puis réessayez.",
+          );
+        }
+        const safeName = pdfFile.name
+          .replace(/[^a-zA-Z0-9._-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 120) || "document.pdf";
+        const uniqueId =
+          typeof globalThis.crypto?.randomUUID === "function"
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        const storagePath = `${storageUserId}/${BOOSTER_PDF_STORAGE_FOLDER}/${uniqueId}-${safeName}`;
+        const { error: uploadError } = await pdfSupabase.storage
+          .from(BOOSTER_PDF_STORAGE_BUCKET)
+          .upload(storagePath, pdfFile, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: "application/pdf",
+          });
+        if (uploadError) {
+          throw new Error(
+            uploadError.message ||
+              "Impossible de préparer ce PDF pour l'analyse IA.",
+          );
+        }
+        temporaryPdfReference = {
+          bucket: BOOSTER_PDF_STORAGE_BUCKET,
+          path: storagePath,
+          name: pdfFile.name,
+          type: "application/pdf",
+          size: pdfFile.size,
+        };
+      }
+
+      // Le PDF explicitement demandé est déjà sécurisé ci-dessus. Les médias
+      // visuels restent des enrichissements optionnels : une seule enveloppe de
+      // 12 s couvre la dernière course upload + captures, puis la rédaction part
+      // sans attendre davantage leur préparation.
       const mediaPreparationDeadlineAt =
         Date.now() + BOOSTER_VIDEO_AI_PREPARATION_GRACE_MS;
       let mediaFallbackNotice = "";
@@ -3799,6 +3889,7 @@ export default function PublishModal({
           Boolean(readyMediaWorkspaceId),
         idea: trimmed,
         publicationInstruction: publicationInstruction.trim(),
+        documentForAI: temporaryPdfReference,
         theme,
         style: contentStyle,
         aiPreferredEngine: selectedAiPreferredEngine,
@@ -4013,6 +4104,11 @@ export default function PublishModal({
       }
       const versions = json?.versions || {};
       setPostsByChannel(sanitizePostsForEditor(versions, ctaDefaults));
+      // Le document source a été consommé par cette génération. On libère le
+      // File local pour qu'un brouillon enregistré ensuite soit réellement net.
+      setPdfFile(null);
+      setPdfAttachmentError("");
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
       setContentWorkspaceOpen(true);
       if (selectedForGeneration.length) {
         setSynchronizedActiveChannel(selectedForGeneration[0]);
@@ -4077,6 +4173,25 @@ export default function PublishModal({
         ),
       );
     } finally {
+      if (temporaryPdfReference) {
+        try {
+          const cleanupSupabase = createClient();
+          const { error: cleanupError } = await cleanupSupabase.storage
+            .from(temporaryPdfReference.bucket)
+            .remove([temporaryPdfReference.path]);
+          if (cleanupError) {
+            console.warn(
+              "[booster-generate] temporary PDF cleanup skipped",
+              cleanupError,
+            );
+          }
+        } catch (cleanupError) {
+          console.warn(
+            "[booster-generate] temporary PDF cleanup failed",
+            cleanupError,
+          );
+        }
+      }
       clearGenerationTimers();
       setGenerating(false);
       resetGenerationProgress();
@@ -6235,7 +6350,9 @@ export default function PublishModal({
         }
       }
       setLastPublicationDraftSnapshot(currentPublicationDraftSnapshot);
-      onUnsavedChange?.(false);
+      // Le PDF reste volontairement local jusqu'à la prochaine génération et
+      // n'est pas inclus dans le brouillon durable.
+      onUnsavedChange?.(Boolean(pdfFile));
       setDraftMessage(i18nT("brouillon_enregistre_5b3c3ae3"));
       return savedDraftId || null;
     } catch (e) {
@@ -7578,6 +7695,7 @@ export default function PublishModal({
         open={aiConfigurationOpen}
         isMobile={isMobile}
         drawerHeight={aiDrawerHeight}
+        presentation="workspace"
         onClose={() => setAiConfigurationOpen(false)}
       />
 
@@ -7808,7 +7926,7 @@ export default function PublishModal({
         }
         selectedChannelCount={selectedChannels.length}
         error={creationModeError}
-        showReset={hasDraftablePublicationContent}
+        showReset={hasDraftablePublicationContent || Boolean(pdfFile)}
         onSelectMode={(mode) => {
           void onSelectCreationMode(mode);
         }}
@@ -7830,8 +7948,10 @@ export default function PublishModal({
             setPublicationInstruction={setPublicationInstruction}
             fileInputRef={fileInputRef}
             videoInputRef={videoInputRef}
+            pdfInputRef={pdfInputRef}
             onImagesChange={onImagesChange}
             onVideoChange={onVideoChange}
+            onPdfChange={onPdfChange}
             onPickImagesClick={() => {
               pendingDirectMediaDestinationRef.current = { kind: "generation" };
               onPickImagesClick();
@@ -7848,6 +7968,9 @@ export default function PublishModal({
             videoFile={videoFile}
             videoPreviewUrl={videoPreviewUrl}
             videoDurationSeconds={videoDurationSeconds}
+            pdfFile={pdfFile}
+            pdfAttachmentError={pdfAttachmentError}
+            onRemovePdf={removePdfAttachment}
             onRetouchVideo={() =>
               void openInrStudioVideoRetoucher(activeImageChannel)
             }

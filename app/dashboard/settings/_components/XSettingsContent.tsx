@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ConnectionPill from "../../_components/ConnectionPill";
+import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
 import StatusMessage from "../../_components/StatusMessage";
 import styles from "../../dashboard.module.css";
 import ChannelSettingsStep from "./ChannelSettingsStep";
@@ -65,7 +66,11 @@ function emitDashboardUpdate(state: XSettingsState) {
   }));
 }
 
-export default function XSettingsContent() {
+export default function XSettingsContent({
+  onUnsavedChange,
+}: {
+  onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+}) {
   const mountedRef = useRef(true);
   const [connection, setConnection] = useState<XSettingsState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
@@ -207,16 +212,6 @@ export default function XSettingsContent() {
               </button>
             ) : (
               <>
-                {connection.profileUrl ? (
-                  <a
-                    href={connection.profileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`${styles.actionBtn} ${styles.viewBtn}`}
-                  >
-                    Voir le profil
-                  </a>
-                ) : null}
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.secondaryBtn}`}
@@ -237,6 +232,43 @@ export default function XSettingsContent() {
             )}
           </div>
         </div>
+
+        {connection.connected ? (
+          <div className={guideStyles.inlineSection}>
+            <label className={guideStyles.fieldLabel} htmlFor="x-profile-url">
+              Lien public du profil X
+            </label>
+            <EditableChannelUrlField
+              id="x-profile-url"
+              channel="x"
+              value={connection.profileUrl}
+              onSaved={(url) => {
+                const next = { ...connection, profileUrl: url };
+                setConnection(next);
+                emitDashboardUpdate(next);
+                setNotice("Lien public X enregistré.");
+                setError(null);
+              }}
+              onDirtyChange={onUnsavedChange}
+              ariaLabel="Lien public du profil X"
+              placeholder="https://x.com/moncompte"
+              viewLabel="Voir le profil"
+              disabled={loading || busy}
+              inputClassName={guideStyles.control}
+              inputStyle={{
+                width: "100%",
+                minWidth: 0,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(15,23,42,0.65)",
+                colorScheme: "dark",
+                padding: "10px 12px",
+                color: "white",
+                outline: "none",
+              }}
+            />
+          </div>
+        ) : null}
       </ChannelSettingsStep>
 
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}

@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "เพิ่มสื่อ",
+  "local_upload_dialog_title": "เพิ่มสื่อ",
+  "local_upload_dialog_description": "เลือกประเภทไฟล์ก่อน รูปภาพและวิดีโอจะถูกแยกออกจากกัน",
+  "local_upload_image": "รูปภาพ",
+  "local_upload_images_detail": "เลือกได้หลายไฟล์ · สูงสุด {count} รูป",
+  "local_upload_video": "วิดีโอ",
+  "local_upload_video_detail": "เลือกได้ครั้งละหนึ่งไฟล์ · วิดีโอเดียว",
+  "local_upload_close": "ปิดตัวเลือกสื่อ",
+  "local_upload_unavailable": "ไม่พร้อมใช้งานกับการตั้งค่าปัจจุบัน",
   "ai_generator_free_team_consent": "ฉันอนุญาตให้สร้างภาพเคลื่อนไหวของบุคคลที่ปรากฏและส่งสื่ออ้างอิงไปยังบริการสร้างวิดีโอสำหรับการสร้างครั้งนี้",
   "ai_generator_free_mode_label": "โหมดการสร้าง",
   "ai_generator_free_mode_free": "อิสระ",

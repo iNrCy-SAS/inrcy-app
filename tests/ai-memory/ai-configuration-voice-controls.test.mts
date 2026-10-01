@@ -87,7 +87,8 @@ test("Configuration IA keeps text-only menu entries and exposes its yellow monog
   assert.match(businessDnaPage, /mobileBare: true/);
   assert.match(businessDnaPage, /mobileIcon: \(/);
   assert.doesNotMatch(profilePage, /AiConfigurationIcon|\bicon:/);
-  assert.doesNotMatch(configurationDrawer, /AiConfigurationIcon/);
+  assert.match(configurationDrawer, /<AiConfigurationIcon/);
+  assert.match(configurationDrawer, /presentation\?: "drawer" \| "workspace"/);
   assert.match(configurationDrawer, /<h2[\s\S]*?\{i18nT\("configuration_ia_f620c8d8"\)\}/);
   assert.match(icon, />\s*IA\s*<\/span>/);
   assert.match(icon, /color: "#fde68a"/);

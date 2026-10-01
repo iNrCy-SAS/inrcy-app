@@ -1,0 +1,58 @@
+.field {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, auto);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+}
+
+.input[readonly] {
+  cursor: default;
+}
+
+.input[data-editing="true"] {
+  border-color: rgba(96, 165, 250, 0.82) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16);
+}
+
+.message {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.error {
+  color: #fecaca;
+}
+
+.success {
+  color: #a7f3d0;
+}
+
+@media (max-width: 720px) {
+  .field {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .input {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 420px) {
+  .field {
+    grid-template-columns: 1fr;
+  }
+
+  .input,
+  .message {
+    grid-column: 1;
+  }
+}

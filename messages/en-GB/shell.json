@@ -580,5 +580,14 @@
   "ai_report_sending": "Sending…",
   "ai_report_send": "Send",
   "ai_report_button_title": "Report inappropriate generated content",
-  "ai_report_button_label": "Report"
+  "ai_report_button_label": "Report",
+  "channel_url_edit": "Edit",
+  "channel_url_saved": "Link saved.",
+  "channel_url_required": "Enter a public link.",
+  "channel_url_invalid": "This link is not valid.",
+  "channel_url_protocol_invalid": "The link must start with http:// or https://.",
+  "channel_url_credentials_forbidden": "The link must not contain a username or password.",
+  "channel_url_wrong_platform": "This link does not match this channel.",
+  "channel_url_save_failed": "This link cannot be saved right now.",
+  "channel_url_change_required": "Change the link before saving it."
 }

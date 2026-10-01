@@ -580,5 +580,14 @@
   "ai_report_sending": "Verzenden…",
   "ai_report_send": "Verzenden",
   "ai_report_button_title": "Rapporteer ongepast gegenereerde inhoud",
-  "ai_report_button_label": "Rapporteer"
+  "ai_report_button_label": "Rapporteer",
+  "channel_url_edit": "Wijzigen",
+  "channel_url_saved": "Link opgeslagen.",
+  "channel_url_required": "Voer een openbare link in.",
+  "channel_url_invalid": "Deze link is ongeldig.",
+  "channel_url_protocol_invalid": "De link moet beginnen met http:// of https://.",
+  "channel_url_credentials_forbidden": "De link mag geen gebruikersnaam of wachtwoord bevatten.",
+  "channel_url_wrong_platform": "Deze link hoort niet bij dit kanaal.",
+  "channel_url_save_failed": "Deze link kan momenteel niet worden opgeslagen.",
+  "channel_url_change_required": "Wijzig de link voordat u deze opslaat."
 }

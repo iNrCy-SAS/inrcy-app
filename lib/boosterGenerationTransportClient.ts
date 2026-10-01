@@ -1,3 +1,5 @@
+import type { BoosterPdfAttachmentRef } from "./boosterPdfAttachmentPolicy.ts";
+
 type BoosterBinaryImagePayload = {
   name?: string;
   type?: string;
@@ -10,6 +12,7 @@ type BoosterGenerationPayload = Record<string, unknown> & {
   videoForAI?: (Record<string, unknown> & {
     visualFrames?: BoosterBinaryImagePayload[];
   }) | null;
+  documentForAI?: BoosterPdfAttachmentRef | null;
 };
 
 export type BoosterGenerationRequestTransport = "json" | "multipart";

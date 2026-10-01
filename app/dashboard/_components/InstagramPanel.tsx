@@ -8,6 +8,7 @@ import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 import {
   DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
   type InstagramPublicationPlacement,
@@ -32,6 +33,7 @@ export default function InstagramPanel(props: any) {
     saveInstagramProfile,
     igAccountsError,
     instagramUrl,
+    setInstagramUrl,
     instagramUrlNotice,
     instagramUrlError,
     disconnectInstagramProfile,
@@ -46,6 +48,7 @@ export default function InstagramPanel(props: any) {
     instagramPublicationPreferencesError,
     updateInstagramPublicationPreferences,
     saveInstagramPublicationPreferences,
+    onUrlDirtyChange,
   } = props;
 
   const startStandard = () => {
@@ -278,25 +281,20 @@ export default function InstagramPanel(props: any) {
             ) : null}
             {instagramConnected || instagramUrl ? (
               <div style={responsiveActionsRow}>
-                <input
+                <EditableChannelUrlField
+                  channel="instagram"
                   value={instagramUrl}
-                  readOnly
-                  aria-label={i18nT("lien_du_compte_890d040b")}
+                  onSaved={setInstagramUrl}
+                  onDirtyChange={onUrlDirtyChange}
+                  ariaLabel={i18nT("lien_du_compte_890d040b")}
                   placeholder="Lien récupéré automatiquement"
-                  style={{
+                  viewLabel={i18nT("voir_le_compte_1cbd7501")}
+                  disabled={!instagramConnected}
+                  inputStyle={{
                     ...singleFieldStyle,
                     opacity: instagramUrl ? 1 : 0.8,
                   }}
                 />
-                <a
-                  href={instagramUrl || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${styles.actionBtn} ${styles.viewBtn}`}
-                  style={{ pointerEvents: instagramUrl ? "auto" : "none", opacity: instagramUrl ? 1 : 0.5 }}
-                >
-                  {i18nT("voir_le_compte_1cbd7501")}{" "}
-                </a>
               </div>
             ) : null}
             {instagramUrlNotice && <StatusMessage variant="success">{instagramUrlNotice}</StatusMessage>}

@@ -3,6 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import {
+  AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
+  getAiMemoryReferenceDocumentStorage,
+} from "../../lib/aiMemory.ts";
+
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
 
@@ -52,6 +57,10 @@ test("the Documents tab uses the signed resumable transport and supports explici
   assert.match(ui, /analysisConsent: true/);
   assert.match(ui, /method: "DELETE"/);
   assert.match(ui, /memory\.referenceDocuments\.map/);
+  assert.match(ui, /getAiMemoryReferenceDocumentStorage\(memory\.referenceDocuments\)/);
+  assert.match(ui, /role="progressbar"/);
+  assert.match(ui, /documentStorage\.status === "near"/);
+  assert.match(ui, /documentStorage\.status === "reached"/);
   assert.match(
     policy,
     /UNIVERSAL_MEDIA_STANDARD_UPLOAD_MAX_BYTES = 6 \* 1024 \* 1024/,
@@ -66,6 +75,32 @@ test("the Documents tab uses the signed resumable transport and supports explici
   );
   assert.doesNotMatch(genericIntent, /mediaType|image|video/);
   assert.doesNotMatch(ui, /\.uploadToSignedUrl\(/);
+});
+
+test("the Documents storage meter derives its usage from the shared backend quota", () => {
+  const megabyte = 1024 * 1024;
+  const available = getAiMemoryReferenceDocumentStorage([
+    { size: 12 * megabyte },
+    { size: null },
+    { size: -1 },
+  ]);
+  assert.equal(available.usedBytes, 12 * megabyte);
+  assert.equal(available.limitBytes, AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES);
+  assert.equal(available.remainingBytes, 38 * megabyte);
+  assert.equal(available.percent, 24);
+  assert.equal(available.status, "available");
+
+  const near = getAiMemoryReferenceDocumentStorage([{ size: 40 * megabyte }]);
+  assert.equal(near.percent, 80);
+  assert.equal(near.status, "near");
+
+  const reached = getAiMemoryReferenceDocumentStorage([
+    { size: 30 * megabyte },
+    { size: 20 * megabyte },
+  ]);
+  assert.equal(reached.remainingBytes, 0);
+  assert.equal(reached.percent, 100);
+  assert.equal(reached.status, "reached");
 });
 
 test("the document consent description stays on a distinct readable line", () => {

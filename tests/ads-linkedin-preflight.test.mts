@@ -6,6 +6,7 @@ import {
   buildLinkedInAdsBudgetPricingPath,
   buildLinkedInAdsGeoSearchPath,
   buildLinkedInAdsGeoUrnsPath,
+  linkedInAdsCampaignGroupIsCompatible,
   linkedInAdsPreflightBlockers,
   normalizeLinkedInAdsAudienceCount,
   normalizeLinkedInAdsBudgetPricing,
@@ -13,6 +14,8 @@ import {
   normalizeLinkedInAdsImage,
   normalizeLinkedInAdsLocales,
   normalizeLinkedInAdsTargetingEntities,
+  recommendedLinkedInAdsBid,
+  selectUnambiguousLinkedInAdsGeoTarget,
 } from "../lib/adsLinkedInPreflightPolicy.ts";
 
 const group = {
@@ -63,6 +66,37 @@ test("LinkedIn preflight builds Bing-geo, audience and pricing read paths", () =
   assert.match(pricingPath, /dailyBudget=\(amount:25\.00,currencyCode:EUR\)/);
 });
 
+test("LinkedIn preflight auto-selects only unambiguous provider resources", () => {
+  assert.equal(linkedInAdsCampaignGroupIsCompatible(group), true);
+  assert.equal(linkedInAdsCampaignGroupIsCompatible({
+    ...group, objectiveType: "LEAD_GENERATION",
+  }), false);
+  const arras = {
+    urn: "urn:li:geo:1001",
+    name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  const armentieres = {
+    urn: "urn:li:geo:1002",
+    name: "Armentières, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  assert.deepEqual(selectUnambiguousLinkedInAdsGeoTarget([arras, armentieres], "Arras"), arras);
+  assert.equal(selectUnambiguousLinkedInAdsGeoTarget([arras, { ...arras, urn: "urn:li:geo:1003" }], "Arras"), null);
+  assert.equal(selectUnambiguousLinkedInAdsGeoTarget([arras], "Hauts-de-France"), null);
+});
+
+test("LinkedIn preflight chooses a CPC only from verified provider bounds", () => {
+  const pricing = { currency: "EUR", bidMin: 1.501, bidMax: 25, dailyBudgetMin: 10, dailyBudgetDefault: 25 };
+  assert.equal(recommendedLinkedInAdsBid(pricing, 2.5), 2.5);
+  assert.equal(recommendedLinkedInAdsBid(pricing, 1), 1.51);
+  assert.equal(recommendedLinkedInAdsBid(pricing, null), 1.51);
+  assert.equal(recommendedLinkedInAdsBid(pricing, 20, 10), 1.51);
+  assert.equal(recommendedLinkedInAdsBid(pricing, null, 1), null);
+  assert.equal(recommendedLinkedInAdsBid({ ...pricing, bidMin: 2, bidMax: 1 }, null), null);
+  assert.equal(recommendedLinkedInAdsBid(null, 2.5), null);
+});
+
 test("LinkedIn preflight requires audience >= 300 and provider pricing evidence", () => {
   assert.equal(normalizeLinkedInAdsAudienceCount({ elements: [{ total: 299, active: 0 }] }), 299);
   const pricing = normalizeLinkedInAdsBudgetPricing({ elements: [{
@@ -111,4 +145,9 @@ test("LinkedIn resource preflight remains GET-only while publication is isolated
   assert.match(server, /publicationEnabled:\s*false/);
   assert.doesNotMatch(server, /method:\s*["']POST["']/);
   assert.match(server, /LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS/);
+  assert.match(server, /compatibleCampaignGroups\.length === 1/);
+  assert.match(server, /organizations\.length === 1/);
+  assert.match(server, /selectUnambiguousLinkedInAdsGeoTarget/);
+  assert.match(server, /buildLinkedInAdsGeoUrnsPath/);
+  assert.match(server, /recommendedLinkedInAdsBid/);
 });

@@ -8,6 +8,7 @@ import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 
 const inputStyle = {
   flex: "1 1 260px",
@@ -35,14 +36,9 @@ export default function LinkedinPanel(props: any) {
     setLinkedinProfileUrl,
     linkedinOrganizationUrl,
     setLinkedinOrganizationUrl,
-    saveLinkedinProfileUrl,
-    saveLinkedinOrganizationUrl,
     linkedinUrlNotice,
     linkedinUrlError,
-    setLinkedinUrlNotice,
     linkedinAccountBusy,
-    linkedinProfileUrlBusy,
-    linkedinOrganizationUrlBusy,
     linkedinOrganizations = [],
     linkedinOrganizationsLoading,
     linkedinOrganizationsPhase = "idle",
@@ -56,9 +52,20 @@ export default function LinkedinPanel(props: any) {
     updateLinkedinShareToPersonalProfile,
     loadLinkedinOrganizations,
     selectLinkedinOrganization,
+    onUrlDirtyChange,
   } = props;
 
   const [linkedinPendingOrganizationId, setLinkedinPendingOrganizationId] = useState(linkedinSelectedOrganizationId || "");
+  const [profileUrlDirty, setProfileUrlDirty] = useState(false);
+  const [organizationUrlDirty, setOrganizationUrlDirty] = useState(false);
+
+  useEffect(() => {
+    onUrlDirtyChange?.(profileUrlDirty || organizationUrlDirty);
+  }, [onUrlDirtyChange, organizationUrlDirty, profileUrlDirty]);
+
+  useEffect(() => {
+    return () => onUrlDirtyChange?.(false);
+  }, [onUrlDirtyChange]);
 
   useEffect(() => {
     if (!linkedinOrganizationPickerOpen) {
@@ -125,30 +132,17 @@ export default function LinkedinPanel(props: any) {
               {i18nT("page_entreprise_a6ed751d")}{" "}</button>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <input
+              <EditableChannelUrlField
+                channel="linkedin"
+                target="profile"
                 value={linkedinProfileUrl}
-                onChange={(event) => {
-                  setLinkedinUrlNotice(null);
-                  setLinkedinProfileUrl(event.target.value);
-                }}
-                aria-label="Lien du profil personnel LinkedIn"
+                onSaved={setLinkedinProfileUrl}
+                onDirtyChange={setProfileUrlDirty}
+                ariaLabel="Lien du profil personnel LinkedIn"
                 placeholder="Lien du profil personnel LinkedIn"
-                style={{ ...inputStyle, opacity: linkedinProfileUrl ? 1 : 0.8 }}
+                viewLabel="Voir le profil"
+                inputStyle={{ ...inputStyle, opacity: linkedinProfileUrl ? 1 : 0.8 }}
               />
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveLinkedinProfileUrl()} disabled={linkedinProfileUrlBusy}>
-                {linkedinProfileUrlBusy ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <a
-                href={linkedinProfileUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!linkedinProfileUrl}
-                tabIndex={linkedinProfileUrl ? undefined : -1}
-                className={`${styles.actionBtn} ${styles.viewBtn}`}
-                style={{ pointerEvents: linkedinProfileUrl ? "auto" : "none", opacity: linkedinProfileUrl ? 1 : 0.5 }}
-              >
-                Voir le profil
-              </a>
             </div>
           </div>
         </section>
@@ -182,30 +176,17 @@ export default function LinkedinPanel(props: any) {
             </button>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <input
+              <EditableChannelUrlField
+                channel="linkedin"
+                target="profile"
                 value={linkedinProfileUrl}
-                onChange={(event) => {
-                  setLinkedinUrlNotice(null);
-                  setLinkedinProfileUrl(event.target.value);
-                }}
-                aria-label="Lien du profil personnel LinkedIn"
+                onSaved={setLinkedinProfileUrl}
+                onDirtyChange={setProfileUrlDirty}
+                ariaLabel="Lien du profil personnel LinkedIn"
                 placeholder="Lien du profil personnel LinkedIn"
-                style={{ ...inputStyle, opacity: linkedinProfileUrl ? 1 : 0.8 }}
+                viewLabel="Voir le profil"
+                inputStyle={{ ...inputStyle, opacity: linkedinProfileUrl ? 1 : 0.8 }}
               />
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveLinkedinProfileUrl()} disabled={linkedinProfileUrlBusy}>
-                {linkedinProfileUrlBusy ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <a
-                href={linkedinProfileUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!linkedinProfileUrl}
-                tabIndex={linkedinProfileUrl ? undefined : -1}
-                className={`${styles.actionBtn} ${styles.viewBtn}`}
-                style={{ pointerEvents: linkedinProfileUrl ? "auto" : "none", opacity: linkedinProfileUrl ? 1 : 0.5 }}
-              >
-                Voir le profil
-              </a>
             </div>
           </div>
         </section>
@@ -318,30 +299,18 @@ export default function LinkedinPanel(props: any) {
             ) : null}
 
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <input
+              <EditableChannelUrlField
+                channel="linkedin"
+                target="organization"
                 value={linkedinOrganizationUrl}
-                onChange={(event) => {
-                  setLinkedinUrlNotice(null);
-                  setLinkedinOrganizationUrl(event.target.value);
-                }}
-                aria-label="Lien de la page entreprise LinkedIn"
+                onSaved={setLinkedinOrganizationUrl}
+                onDirtyChange={setOrganizationUrlDirty}
+                ariaLabel="Lien de la page entreprise LinkedIn"
                 placeholder="Lien de la page entreprise LinkedIn"
-                style={{ ...inputStyle, opacity: linkedinOrganizationUrl ? 1 : 0.8 }}
+                viewLabel="Voir la page"
+                disabled={!hasCompanyPage}
+                inputStyle={{ ...inputStyle, opacity: linkedinOrganizationUrl ? 1 : 0.8 }}
               />
-              <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveLinkedinOrganizationUrl()} disabled={linkedinOrganizationUrlBusy || !hasCompanyPage}>
-                {linkedinOrganizationUrlBusy ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <a
-                href={linkedinOrganizationUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!linkedinOrganizationUrl}
-                tabIndex={linkedinOrganizationUrl ? undefined : -1}
-                className={`${styles.actionBtn} ${styles.viewBtn}`}
-                style={{ pointerEvents: linkedinOrganizationUrl ? "auto" : "none", opacity: linkedinOrganizationUrl ? 1 : 0.5 }}
-              >
-                Voir la page
-              </a>
             </div>
           </div>
         </section>

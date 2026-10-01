@@ -26,6 +26,7 @@ import {
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
   EMPTY_AI_BUSINESS_KNOWLEDGE,
   EMPTY_AI_MEMORY,
+  getAiMemoryReferenceDocumentStorage,
   getAiWorkspaceCompletionScore,
   mergeAiBusinessDnaAnalysis,
   normalizeAiBusinessKnowledge,
@@ -285,6 +286,22 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
     includePremium: strategyEnabled,
   });
+  const documentStorage = useMemo(
+    () => getAiMemoryReferenceDocumentStorage(memory.referenceDocuments),
+    [memory.referenceDocuments],
+  );
+  const documentStorageUsedMb = documentStorage.usedBytes / (1024 * 1024);
+  const documentStorageLimitMb = documentStorage.limitBytes / (1024 * 1024);
+  const documentStorageLabel = t("documentsStorageUsage", {
+    used: Number(documentStorageUsedMb.toFixed(1)),
+    limit: Number(documentStorageLimitMb.toFixed(0)),
+  });
+  const documentStorageStatusLabel =
+    documentStorage.status === "reached"
+      ? t("documentsStorageReached")
+      : documentStorage.status === "near"
+        ? t("documentsStorageNear")
+        : t("documentsStorageAvailable");
   const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
   const hasWorkspaceChanges = memoryDirty || profileDirty || activityDirty;
   const workspaceDraftSignature = useMemo(
@@ -1797,6 +1814,48 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   )}
                 />
 
+                <div
+                  style={{
+                    ...documentsStorageStyle,
+                    ...(documentStorage.status === "reached"
+                      ? documentsStorageReachedStyle
+                      : documentStorage.status === "near"
+                        ? documentsStorageNearStyle
+                        : null),
+                  }}
+                >
+                  <span style={documentsStorageHeadingStyle}>
+                    <span style={documentsStorageCopyStyle}>
+                      <strong>{t("documentsStorageTitle")}</strong>
+                      <small>{documentStorageStatusLabel}</small>
+                    </span>
+                    <strong style={documentsStorageValueStyle}>{documentStorageLabel}</strong>
+                  </span>
+                  <span
+                    role="progressbar"
+                    aria-label={t("documentsStorageTitle")}
+                    aria-valuemin={0}
+                    aria-valuemax={documentStorage.limitBytes}
+                    aria-valuenow={Math.min(documentStorage.usedBytes, documentStorage.limitBytes)}
+                    aria-valuetext={`${documentStorageLabel} · ${documentStorageStatusLabel}`}
+                    style={documentsStorageTrackStyle}
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        ...documentsStorageFillStyle,
+                        width: `${documentStorage.percent}%`,
+                        background:
+                          documentStorage.status === "reached"
+                            ? "linear-gradient(90deg, #f97316, #ef4444)"
+                            : documentStorage.status === "near"
+                              ? "linear-gradient(90deg, #facc15, #f97316)"
+                              : documentsStorageFillStyle.background,
+                      }}
+                    />
+                  </span>
+                </div>
+
                 <label style={documentsConsentStyle}>
                   <input
                     type="checkbox"
@@ -1840,6 +1899,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     disabled={
                       !documentAnalysisConsent ||
                       documentUploadState !== "idle" ||
+                      documentStorage.status === "reached" ||
                       memory.referenceDocuments.length >=
                         AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
                     }
@@ -1850,6 +1910,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                       opacity:
                         !documentAnalysisConsent ||
                         documentUploadState !== "idle" ||
+                        documentStorage.status === "reached" ||
                         memory.referenceDocuments.length >=
                           AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
                           ? 0.58
@@ -2509,6 +2570,14 @@ const newsItemCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTem
 const newsItemNumberStyle: CSSProperties = { width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.20), rgba(124,58,237,.18))", color: "#a5f3fc", fontSize: 12, fontWeight: 950, boxShadow: "0 8px 20px rgba(14,165,233,.10)" };
 const documentsCardStyle: CSSProperties = { border: "1px solid rgba(167,139,250,.28)", background: "radial-gradient(circle at 100% 0, rgba(56,189,248,.11), transparent 34%), linear-gradient(145deg, rgba(17,24,58,.76), rgba(45,23,72,.68))" };
 const documentsCountStyle: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 10px", borderRadius: 999, border: "1px solid rgba(167,139,250,.30)", background: "rgba(124,58,237,.13)", color: "#ddd6fe", fontSize: 10.5, fontWeight: 900, whiteSpace: "nowrap" };
+const documentsStorageStyle: CSSProperties = { display: "grid", gap: 9, padding: "12px 13px", borderRadius: 15, border: "1px solid rgba(56,189,248,.24)", background: "linear-gradient(115deg, rgba(8,47,73,.34), rgba(30,41,90,.36))", color: "white", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025)" };
+const documentsStorageNearStyle: CSSProperties = { borderColor: "rgba(250,204,21,.42)", background: "linear-gradient(115deg, rgba(113,63,18,.25), rgba(49,46,129,.30))" };
+const documentsStorageReachedStyle: CSSProperties = { borderColor: "rgba(248,113,113,.48)", background: "linear-gradient(115deg, rgba(127,29,29,.27), rgba(76,29,149,.25))" };
+const documentsStorageHeadingStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 14px" };
+const documentsStorageCopyStyle: CSSProperties = { display: "grid", gap: 2, minWidth: 0, fontSize: 12, lineHeight: 1.35 };
+const documentsStorageValueStyle: CSSProperties = { color: "#e0f2fe", fontSize: 12, fontWeight: 950, whiteSpace: "nowrap" };
+const documentsStorageTrackStyle: CSSProperties = { display: "block", width: "100%", height: 7, overflow: "hidden", borderRadius: 999, background: "rgba(2,6,23,.56)", boxShadow: "inset 0 1px 3px rgba(0,0,0,.36)" };
+const documentsStorageFillStyle: CSSProperties = { display: "block", minWidth: 0, height: "100%", borderRadius: "inherit", background: "linear-gradient(90deg, #22d3ee, #8b5cf6)", transition: "width 240ms ease" };
 const documentsConsentStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "start", gap: 11, padding: 13, borderRadius: 15, border: "1px solid rgba(56,189,248,.22)", background: "rgba(8,47,73,.26)", color: "white", cursor: "pointer" };
 const documentsConsentCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 5 };
 const documentsConsentTitleStyle: CSSProperties = { display: "block", lineHeight: 1.35 };

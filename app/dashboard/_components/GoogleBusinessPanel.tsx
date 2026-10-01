@@ -9,6 +9,7 @@ import stepStyles from "./ChannelPanelSteps.module.css";
 import ConnectionPill from "./ConnectionPill";
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 import StatusMessage from "./StatusMessage";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 
 export default function GoogleBusinessPanel(props: any) {
   const i18nT = useTranslations("shell");
@@ -32,12 +33,14 @@ export default function GoogleBusinessPanel(props: any) {
     saveGmbLocation,
     gmbListError,
     gmbUrl,
+    setGmbUrl,
     gmbUrlNotice,
     gmbUrlError,
     disconnectGmbBusiness,
     gmbAccountBusy,
     gmbLocationBusy,
     gmbLocationAction,
+    onUrlDirtyChange,
   } = props;
 
   const gmbNeedsUpdate = gmbConnectionStatus === "needs_update" && (gmbConnected || gmbAccountConnected);
@@ -239,24 +242,18 @@ export default function GoogleBusinessPanel(props: any) {
             <div className={stepStyles.subsectionHeader}>
               <h4 className={stepStyles.subsectionTitle}>{i18nT("lien_de_la_page_1f9f4b87")}</h4>
             </div>
-            <div className={stepStyles.actionRow}>
-              <input
-                className={`${styles.channelConfigField} ${stepStyles.control} ${stepStyles.wideControl}`}
-                value={gmbUrl}
-                readOnly
-                placeholder={gmbConfigured ? "Lien récupéré automatiquement" : "Sélectionne un établissement pour générer le lien"}
-                style={{ opacity: gmbUrl ? 1 : 0.8 }}
-              />
-
-              <a
-                href={gmbUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                className={`${styles.actionBtn} ${styles.viewBtn}`}
-                style={{ pointerEvents: gmbUrl ? "auto" : "none", opacity: gmbUrl ? 1 : 0.5 }}
-              >
-                {i18nT("voir_la_page_82561348")}{" "}</a>
-            </div>
+            <EditableChannelUrlField
+              channel="gmb"
+              value={gmbUrl}
+              onSaved={setGmbUrl}
+              onDirtyChange={onUrlDirtyChange}
+              ariaLabel={i18nT("lien_de_la_page_1f9f4b87")}
+              placeholder={gmbConfigured ? "Lien récupéré automatiquement" : "Sélectionne un établissement pour générer le lien"}
+              viewLabel={i18nT("voir_la_page_82561348")}
+              disabled={!gmbConfigured}
+              inputClassName={`${styles.channelConfigField} ${stepStyles.control} ${stepStyles.wideControl}`}
+              inputStyle={{ opacity: gmbUrl ? 1 : 0.8 }}
+            />
 
             {gmbUrlNotice && <StatusMessage variant="success">{gmbUrlNotice}</StatusMessage>}
             {gmbUrlError && <StatusMessage variant="error">{gmbUrlError}</StatusMessage>}

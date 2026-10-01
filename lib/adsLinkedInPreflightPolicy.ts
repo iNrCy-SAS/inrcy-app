@@ -33,6 +33,64 @@ export type LinkedInAdsBudgetPricing = {
   dailyBudgetDefault: number | null;
 };
 
+/**
+ * A campaign group can only be proposed automatically when it already matches
+ * the sole live LinkedIn campaign shape supported by iNr'ADS. The provider ID
+ * always comes from LinkedIn; this helper never manufactures a resource.
+ */
+export function linkedInAdsCampaignGroupIsCompatible(
+  group: Pick<LinkedInAdsCampaignGroup, "objectiveType" | "allowedCampaignTypes">,
+): boolean {
+  return (!group.objectiveType || group.objectiveType === "WEBSITE_VISIT")
+    && (!group.allowedCampaignTypes.length || group.allowedCampaignTypes.includes("SPONSORED_UPDATES"));
+}
+
+function normalizedLinkedInGeoLabel(value: string): string {
+  return value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[’']/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Returns a provider-supplied geo only when exactly one suggestion names the
+ * requested place. A city may be followed by its region/country in LinkedIn's
+ * label, but a mere fuzzy/substring match is deliberately rejected.
+ */
+export function selectUnambiguousLinkedInAdsGeoTarget(
+  suggestions: LinkedInAdsTargetingEntity[],
+  requestedLocation: string,
+): LinkedInAdsTargetingEntity | null {
+  const requested = normalizedLinkedInGeoLabel(requestedLocation);
+  if (!requested) return null;
+  const matches = suggestions.filter((suggestion) => {
+    const label = normalizedLinkedInGeoLabel(suggestion.name);
+    const leadingPlace = normalizedLinkedInGeoLabel(suggestion.name.split(/[,·|—(]/, 1)[0] || "");
+    return label === requested || leadingPlace === requested;
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/** Choose a positive, cent-safe CPC from LinkedIn's verified pricing bounds. */
+export function recommendedLinkedInAdsBid(
+  pricing: LinkedInAdsBudgetPricing | null,
+  requestedBid: number | null,
+  dailyBudget: number | null = null,
+): number | null {
+  if (!pricing) return null;
+  const maximumBid = dailyBudget !== null && Number.isFinite(dailyBudget) && dailyBudget > 0
+    ? Math.min(pricing.bidMax, dailyBudget) : pricing.bidMax;
+  if (requestedBid !== null && Number.isFinite(requestedBid)
+    && requestedBid > 0 && requestedBid >= pricing.bidMin && requestedBid <= maximumBid) {
+    return requestedBid;
+  }
+  const minimumPositiveBid = Math.max(0.01, Math.ceil(pricing.bidMin * 100) / 100);
+  return minimumPositiveBid <= maximumBid ? minimumPositiveBid : null;
+}
+
 const GROUP_ID = /^\d{1,25}$/;
 const GROUP_URN = /^urn:li:sponsoredCampaignGroup:(\d{1,25})$/;
 const ACCOUNT_URN = /^urn:li:sponsoredAccount:(\d{1,25})$/;

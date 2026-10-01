@@ -16,6 +16,7 @@ import MediaLibraryPickerModal, {
 import MediaOptimizerModal, {
   type MediaOptimizerItem,
 } from "@/app/dashboard/_components/MediaOptimizerModal";
+import LocalMediaUploadChoice from "@/app/dashboard/_components/LocalMediaUploadChoice";
 import RichSiteContentEditor from "@/app/dashboard/booster/publier/components/RichSiteContentEditor";
 import {
   buildPreferredCtaPatch,
@@ -2859,14 +2860,24 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 <div style={{ display: "grid", gap: 12 }}>
                                   {detailsEditMode ? (
                                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                                      <label htmlFor={publicationEditFileInputId} className={styles.btnAttach}>
-                                        {i18nT("ajouter_des_images_e2d04cfb")}{" "}</label>
-                                      <button
-                                        type="button"
+                                      <LocalMediaUploadChoice
                                         className={styles.btnAttach}
-                                        onClick={() => document.getElementById(publicationVideoInputId)?.click()}
-                                      >
-                                        {i18nT("ajouter_remplacer_la_video_a495d0ec")}{" "}</button>
+                                        image={{
+                                          onSelect: () =>
+                                            document.getElementById(publicationEditFileInputId)?.click(),
+                                          disabled: activePublicationEditAssets.length >= 5,
+                                          disabledReason: "5 images maximum",
+                                          maxSelection: Math.max(
+                                            0,
+                                            5 - activePublicationEditAssets.length,
+                                          ),
+                                        }}
+                                        video={{
+                                          onSelect: () =>
+                                            document.getElementById(publicationVideoInputId)?.click(),
+                                        }}
+                                        testId="mailbox-video-publication-local-media-choice"
+                                      />
                                       {publicationMediaGeneratorButton}
                                       <button
                                         type="button"
@@ -3016,13 +3027,24 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 </div>
                                 <div style={{ display: "grid", gap: 12 }}>
                                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                                  <label htmlFor={publicationEditFileInputId} className={styles.btnAttach}>{i18nT("ajouter_des_images_e2d04cfb")}</label>
-                                  <button
-                                    type="button"
+                                  <LocalMediaUploadChoice
                                     className={styles.btnAttach}
-                                    onClick={() => document.getElementById(publicationVideoInputId)?.click()}
-                                  >
-                                    {i18nT("ajouter_une_video_47903bae")}{" "}</button>
+                                    image={{
+                                      onSelect: () =>
+                                        document.getElementById(publicationEditFileInputId)?.click(),
+                                      disabled: activePublicationEditAssets.length >= 5,
+                                      disabledReason: "5 images maximum",
+                                      maxSelection: Math.max(
+                                        0,
+                                        5 - activePublicationEditAssets.length,
+                                      ),
+                                    }}
+                                    video={{
+                                      onSelect: () =>
+                                        document.getElementById(publicationVideoInputId)?.click(),
+                                    }}
+                                    testId="mailbox-image-publication-local-media-choice"
+                                  />
                                   {publicationMediaGeneratorButton}
                                   <button
                                     type="button"

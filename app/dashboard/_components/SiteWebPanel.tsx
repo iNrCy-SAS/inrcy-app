@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 
@@ -10,6 +11,7 @@ import StatusMessage from "./StatusMessage";
 import SiteActusWidgetCode from "./SiteActusWidgetCode";
 import ActusWidgetControls from "./ActusWidgetControls";
 import SaveIcon from "./SaveIcon";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 import panelStyles from "./SiteSettingsPanels.module.css";
 
 export default function SiteWebPanel(props: any) {
@@ -18,6 +20,7 @@ export default function SiteWebPanel(props: any) {
     hasSiteWebUrl,
     siteWebUrl,
     setSiteWebUrl,
+    applySiteWebPublicUrlSaved,
     saveSiteWebUrl,
     deleteSiteWebUrl,
     siteWebUrlBusy,
@@ -55,7 +58,20 @@ export default function SiteWebPanel(props: any) {
     saveSiteWebActusWidgetSettings,
     siteWebSettingsError,
     resetSiteWebAll,
+    onUrlDirtyChange,
   } = props;
+
+  const [editableUrlDirty, setEditableUrlDirty] = useState(false);
+  const creationUrlDirty = !hasSiteWebUrl &&
+    String(siteWebUrl || "") !== String(siteWebSavedUrl || "");
+
+  useEffect(() => {
+    onUrlDirtyChange?.(creationUrlDirty || editableUrlDirty);
+  }, [creationUrlDirty, editableUrlDirty, onUrlDirtyChange]);
+
+  useEffect(() => {
+    return () => onUrlDirtyChange?.(false);
+  }, [onUrlDirtyChange]);
 
   return (
     <div className={panelStyles.panel}>
@@ -67,41 +83,53 @@ export default function SiteWebPanel(props: any) {
         <div className={styles.blockSub}>
           {i18nT("le_bouton_f97378f8")}{" "}<strong>{i18nT("voir_le_site_5bf01317")}</strong> {" "}{i18nT("de_la_bulle_utilisera_ce_lien_f51f1013")}{" "}</div>
 
+        {hasSiteWebUrl ? (
+          <>
+            <EditableChannelUrlField
+              channel="site_web"
+              value={siteWebSavedUrl}
+              onSaved={applySiteWebPublicUrlSaved}
+              onDirtyChange={setEditableUrlDirty}
+              ariaLabel={i18nT("lien_du_site_760c2d8a")}
+              placeholder="https://votre-site.fr"
+              viewLabel={i18nT("voir_le_site_5bf01317")}
+              inputClassName={panelStyles.textInput}
+              actionClassName={panelStyles.compactAction}
+            />
+            <div className={panelStyles.cardActions}>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.disconnectBtn} ${panelStyles.compactAction}`}
+                onClick={() => void deleteSiteWebUrl()}
+                disabled={siteWebUrlBusy}
+                title={i18nT("supprimer_le_lien_c9d6952c")}
+                aria-label={i18nT("supprimer_le_lien_c9d6952c")}
+                aria-busy={siteWebUrlBusy}
+              >
+                {siteWebUrlBusy ? "…" : i18nT("supprimer_le_lien_c9d6952c")}
+              </button>
+            </div>
+          </>
+        ) : (
         <div className={panelStyles.urlRow}>
           <input
             value={siteWebUrl}
             onChange={(e) => setSiteWebUrl(e.target.value)}
-            disabled={hasSiteWebUrl}
             placeholder="https://votre-site.fr"
-            title={hasSiteWebUrl ? "Supprimez d'abord le lien enregistré pour en saisir un nouveau." : undefined}
             className={panelStyles.textInput}
           />
 
-          {hasSiteWebUrl ? (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.disconnectBtn} ${panelStyles.compactAction}`}
-              onClick={() => void deleteSiteWebUrl()}
-              disabled={siteWebUrlBusy}
-              title={i18nT("supprimer_le_lien_c9d6952c")}
-              aria-label={i18nT("supprimer_le_lien_c9d6952c")}
-              aria-busy={siteWebUrlBusy}
-            >
-              {siteWebUrlBusy ? "…" : i18nT("supprimer_le_lien_c9d6952c")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.connectBtn} ${panelStyles.compactAction} ${panelStyles.saveAction}`}
-              onClick={() => void saveSiteWebUrl()}
-              disabled={siteWebUrlBusy}
-              title={siteWebUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
-              aria-label={siteWebUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
-              aria-busy={siteWebUrlBusy}
-            >
-              {siteWebUrlBusy ? <span aria-hidden>…</span> : <><SaveIcon />{i18nT("enregistrer_f7c8bcd8")}</>}
-            </button>
-          )}
+          <button
+            type="button"
+            className={`${styles.actionBtn} ${styles.connectBtn} ${panelStyles.compactAction} ${panelStyles.saveAction}`}
+            onClick={() => void saveSiteWebUrl()}
+            disabled={siteWebUrlBusy}
+            title={siteWebUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
+            aria-label={siteWebUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
+            aria-busy={siteWebUrlBusy}
+          >
+            {siteWebUrlBusy ? <span aria-hidden>…</span> : <><SaveIcon />{i18nT("enregistrer_f7c8bcd8")}</>}
+          </button>
 
           <a
             href={draftSiteWebUrlMeta?.normalizedUrl || "#"}
@@ -114,6 +142,7 @@ export default function SiteWebPanel(props: any) {
           >
             {i18nT("voir_le_site_5bf01317")}{" "}</a>
         </div>
+        )}
         {siteWebUrlNotice && <StatusMessage variant="success">{siteWebUrlNotice}</StatusMessage>}
       </section>
       <section className={panelStyles.card}>

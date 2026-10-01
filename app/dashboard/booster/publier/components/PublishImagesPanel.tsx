@@ -5,6 +5,7 @@ import {
   getBoosterImageSequenceTargetRatio,
 } from "@/lib/boosterImageDecision";
 import { ChannelImageAdapterCardsPanel } from "@/app/dashboard/_components/ChannelImageAdapterTool";
+import LocalMediaUploadChoice from "@/app/dashboard/_components/LocalMediaUploadChoice";
 import PublishVideoAdapterPanel from "./PublishVideoAdapterPanel";
 import type { VideoVariantPreparationState } from "../usePublishVideoController";
 import {
@@ -445,48 +446,34 @@ export default function PublishImagesPanel({
           marginBottom: 14,
         }}
       >
-        <button
-          type="button"
+        <LocalMediaUploadChoice
           className={styles.secondaryBtn}
-          onClick={onPickImagesClick}
-          disabled={pickImagesDisabled}
-          aria-label={i18nT("ajouter_une_image_a_la_publication_c382ed8d")}
-          title={
-            imagesLimitReached
+          image={{
+            onSelect: onPickImagesClick,
+            disabled: pickImagesDisabled,
+            disabledReason: imagesLimitReached
               ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
-              : i18nT("media_add_image_details", {
-                  limits: getLocalizedBoosterImageLimits(runtimeT),
-                  formats: getLocalizedBoosterImageFormats(runtimeT),
-                })
-          }
-          style={{
-            opacity: pickImagesDisabled ? 0.48 : 1,
-            filter: pickImagesDisabled ? "grayscale(1)" : undefined,
-            cursor: pickImagesDisabled ? "not-allowed" : "pointer",
+              : undefined,
+            detail: i18nT("media_add_image_details", {
+              limits: getLocalizedBoosterImageLimits(runtimeT),
+              formats: getLocalizedBoosterImageFormats(runtimeT),
+            }),
+            maxSelection: Math.max(0, BOOSTER_MAX_IMAGE_COUNT - images.length),
           }}
-        >
-          {i18nT("ajouter_une_image_c297ad3e")}{" "}</button>
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          onClick={onPickVideoClick}
-          disabled={pickVideoDisabled}
-          title={
-            pickVideoDisabled
+          video={{
+            onSelect: onPickVideoClick,
+            disabled: pickVideoDisabled,
+            disabledReason: pickVideoDisabled
               ? i18nT("media_max_one_video")
-              : i18nT("media_video_details", {
-                  limits: getLocalizedBoosterVideoLimits(runtimeT),
-                  formats: getLocalizedBoosterVideoFormats(runtimeT),
-                  duration: getLocalizedBoosterRecommendedVideoDuration(runtimeT),
-                })
-          }
-          style={{
-            opacity: pickVideoDisabled ? 0.48 : 1,
-            filter: pickVideoDisabled ? "grayscale(1)" : undefined,
-            cursor: pickVideoDisabled ? "not-allowed" : "pointer",
+              : undefined,
+            detail: i18nT("media_video_details", {
+              limits: getLocalizedBoosterVideoLimits(runtimeT),
+              formats: getLocalizedBoosterVideoFormats(runtimeT),
+              duration: getLocalizedBoosterRecommendedVideoDuration(runtimeT),
+            }),
           }}
-        >
-          {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
+          testId="booster-publication-local-media-choice"
+        />
         <button
           type="button"
           className={styles.secondaryBtn}

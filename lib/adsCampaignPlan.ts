@@ -28,6 +28,7 @@ import {
 } from "./adsValidation.ts";
 import { normalizePinterestAutomaticLocations } from "./adsPinterestLocations.ts";
 import {
+  ADS_PLAN_COPY_LIMITS,
   ADS_PLAN_EDITORIAL_INSTRUCTIONS,
   ADS_PLAN_STRATEGY_INSTRUCTIONS,
   adsCopyList,
@@ -213,10 +214,30 @@ function buildPlannedAdsChannelDraft(
   const budget = record(raw.budget);
   const audience = record(raw.audience);
   const creative = record(raw.creative);
+  const safeBrand = clean(plan.brand, 120) || clean(context.companyName, 120);
+  const safeOffer = clean(plan.offer, 500) || firstText(context.services, 8, 500);
+  const safeSubject = safeOffer || safeBrand;
+  const safeName = clean(raw.name, 100)
+    || clean(plan.name, 100)
+    || (safeSubject ? clean(`${safeSubject} · ${channel}`, 100) : "");
+  const safeAudienceBrief = clean(audience.audienceBrief, 500)
+    || list(plan.targetAudiences, 8, 160).join(" ; ")
+    || list(context.audiences, 8, 160).join(" ; ")
+    || (safeSubject ? clean(`Personnes intéressées par ${safeSubject}`, 500) : "");
+  const safePrimaryText = clean(plan.primaryText, 600)
+    || firstText(plan.descriptions, 4, 600)
+    || firstText(plan.headlines, 15, 600)
+    || (safeSubject ? clean(`Découvrez ${safeSubject}.`, 600) : "");
+  const safeHeadline = firstText(plan.headlines, 15, 200)
+    || clean(safeOffer || safeBrand || safeName, 200);
+  const safeMediaBrief = clean(plan.mediaBrief, 1_000)
+    || (safeSubject
+      ? clean(`À créer : une représentation fidèle de ${safeSubject}, sans ajouter de preuve non vérifiée.`, 1_000)
+      : "");
   const base = {
     schemaVersion: 1 as const,
     channel,
-    name: adsCopyText(raw.name) || adsCopyText(plan.name),
+    name: adsCopyText(raw.name) || adsCopyText(plan.name) || safeName,
     budget: {
       amount: finiteNumber(budget.amount),
       currency: enumToken(budget.currency),
@@ -227,48 +248,55 @@ function buildPlannedAdsChannelDraft(
       locationBriefs: list(context.locations, 20, 120),
       audienceBrief: adsCopyText(audience.audienceBrief)
         || list(plan.targetAudiences, 8, 160).join(" ; ")
-        || list(context.audiences, 8, 160).join(" ; "),
+        || list(context.audiences, 8, 160).join(" ; ")
+        || safeAudienceBrief,
     },
   };
   const destinationUrl = httpsUrl(context.destinationUrl);
   let draft: AdsChannelDraft;
   switch (channel) {
-    case "linkedin":
+    case "linkedin": {
+      const objectiveType = enumToken(raw.objectiveType);
+      const format = enumToken(raw.format);
       draft = {
         ...base,
         channel,
-        objectiveType: enumToken(raw.objectiveType),
-        format: enumToken(raw.format),
+        objectiveType,
+        format,
         locale: {
           country: clean(record(raw.locale).country, 2).toUpperCase(),
           language: clean(record(raw.locale).language, 2).toLowerCase(),
         },
         creative: {
-          introText: adsCopyText(creative.introText) || adsCopyText(plan.primaryText),
-          headline: adsCopyText(creative.headline) || firstText(plan.headlines, 15, 200),
-          mediaBrief: adsCopyText(creative.mediaBrief) || adsCopyText(plan.mediaBrief),
+          introText: adsCopyText(creative.introText) || adsCopyText(plan.primaryText) || safePrimaryText,
+          headline: adsCopyText(creative.headline) || firstText(plan.headlines, 15, 200) || safeHeadline,
+          mediaBrief: adsCopyText(creative.mediaBrief) || adsCopyText(plan.mediaBrief)
+            || (format === "TEXT_AD" ? "Non requis : le format LinkedIn Text Ad est textuel." : safeMediaBrief),
           destinationUrl,
           leadFormBrief: adsCopyText(creative.leadFormBrief),
         },
       } as LinkedInAdsDraft;
       break;
-    case "tiktok":
+    }
+    case "tiktok": {
+      const objectiveType = enumToken(raw.objectiveType);
       draft = {
         ...base,
         channel,
-        objectiveType: enumToken(raw.objectiveType),
+        objectiveType,
         format: enumToken(raw.format, "lower"),
         destinationKind: enumToken(raw.destinationKind, "lower"),
         placementIntent: enumToken(raw.placementIntent, "lower"),
         optimizationIntent: enumToken(raw.optimizationIntent, "lower"),
         creative: {
-          adText: adsCopyText(creative.adText) || adsCopyText(plan.primaryText),
-          videoBrief: adsCopyText(creative.videoBrief) || adsCopyText(plan.mediaBrief),
+          adText: adsCopyText(creative.adText) || adsCopyText(plan.primaryText) || clean(safePrimaryText, 100),
+          videoBrief: adsCopyText(creative.videoBrief) || adsCopyText(plan.mediaBrief) || safeMediaBrief,
           destinationUrl,
           conversionEventBrief: adsCopyText(creative.conversionEventBrief),
         },
       } as TikTokAdsDraft;
       break;
+    }
     case "pinterest":
     {
       const planObjective = enumToken(plan.objective, "lower");
@@ -303,31 +331,42 @@ function buildPlannedAdsChannelDraft(
         creativeType: creativeType || undefined,
         conversionEvent: enumToken(raw.conversionEvent) || inferredConversionEvent || undefined,
         creative: {
-          pinTitle: adsCopyText(creative.pinTitle) || firstText(plan.headlines, 15, 100),
+          pinTitle: adsCopyText(creative.pinTitle) || firstText(plan.headlines, 15, 100) || clean(safeHeadline, 100),
           pinDescription: adsCopyText(creative.pinDescription)
             || adsCopyText(plan.primaryText)
-            || firstText(plan.descriptions, 4, 800),
-          visualBrief: adsCopyText(creative.visualBrief) || adsCopyText(plan.mediaBrief),
+            || firstText(plan.descriptions, 4, 800)
+            || clean(safePrimaryText, 800),
+          visualBrief: adsCopyText(creative.visualBrief) || adsCopyText(plan.mediaBrief) || safeMediaBrief,
           destinationUrl,
         },
       } as PinterestAdsDraft;
       break;
     }
-    case "x":
+    case "x": {
+      const format = enumToken(raw.format, "lower");
+      const targetingMode = enumToken(raw.targetingMode, "lower");
+      const keywordSignals = list([
+        ...list(raw.keywords, 20, 80),
+        ...list(plan.keywords, 20, 80),
+        ...list(context.services, 8, 80),
+        safeOffer,
+      ], 20, 80);
       draft = {
         ...base,
         channel,
         objective: enumToken(raw.objective, "lower"),
-        format: enumToken(raw.format, "lower"),
-        targetingMode: enumToken(raw.targetingMode, "lower"),
-        keywords: list(raw.keywords, 20, 80),
+        format,
+        targetingMode,
+        keywords: targetingMode === "keywords" ? keywordSignals : [],
         creative: {
-          postText: adsCopyText(creative.postText) || adsCopyText(plan.primaryText),
-          mediaBrief: adsCopyText(creative.mediaBrief) || adsCopyText(plan.mediaBrief),
+          postText: adsCopyText(creative.postText) || adsCopyText(plan.primaryText) || clean(safePrimaryText, 257),
+          mediaBrief: adsCopyText(creative.mediaBrief) || adsCopyText(plan.mediaBrief)
+            || (format === "text" ? "Non requis : ce format X est une publication textuelle sans média." : safeMediaBrief),
           destinationUrl,
         },
       } as XAdsDraft;
       break;
+    }
   }
   return draft;
 }
@@ -513,7 +552,7 @@ ${ADS_PLAN_STRATEGY_INSTRUCTIONS}
 rationale utilise un français métier : « image unique », « visites du site », « maximisation des clics ». Aucun nom de champ ou code API tel que REGULAR, website_traffic, CONSIDERATION ou maximize_clicks dans l’explication destinée au professionnel.
 ${channel === "pinterest" ? "Une campagne Pinterest prépare ici une seule épingle : headlines contient exactement [channelDraft.creative.pinTitle] et descriptions contient exactement [channelDraft.creative.pinDescription]. primaryText est exactement pinDescription. Ne fournis pas une liste de variantes dont seule la première serait publiée." : ""}
 
-Les champs principaux du studio doivent refléter exactement le même choix que channelDraft. Respecte les longueurs du canal, pas les limites Google de 30/90 : LinkedIn headlines 200/descriptions 300, TikTok 100/100, Pinterest 100/800, X 280/280. primaryText respecte aussi la limite du studio : LinkedIn 300, TikTok 100, Pinterest 800, X 280 caractères. Fournis un primaryText et une description exploitables, des idées de média détaillées et une audience argumentée. Les mots-clés ne sont utiles que si le ciblage/format les justifie. Si des données indispensables manquent, laisse-les vides ; n’invente pas pour compléter le JSON.`;
+Les champs principaux du studio doivent refléter exactement le même choix que channelDraft. Respecte les longueurs du canal, pas les limites Google de 30/90 : LinkedIn headlines 200/descriptions 300, TikTok 100/100, Pinterest 100/800, X 280/280. primaryText respecte aussi la limite du studio : LinkedIn 300, TikTok 100, Pinterest 800, X 280 caractères. Remplis tous les champs humains que le contexte permet de rédiger : nom, offre, audience, signaux utiles, message, titre, description et direction média. Les mots-clés ne sont utiles que si le ciblage/format les justifie. Seules les ressources qui exigent une preuve externe restent vides : URL absente du contexte, média ou asset existant, identifiant/URN de plateforme, zone vérifiée absente, ressource de compte et attestation de conformité. Pour un format textuel sans média, décris explicitement le média comme non requis au lieu d’inventer un asset.`;
 }
 
 function defaultMediaStrategy(provider: AdsChannelId): AdsMediaStrategy {
@@ -565,12 +604,12 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     ? { ...context, locations: normalizePinterestAutomaticLocations(trustedLocations, context.country) }
     : { ...context, locations: trustedLocations };
   const channelDraft = normalizePlannedAdsChannelDraft(raw.channelDraft, planContext, raw);
-  const rawKeywords = list(raw.keywords, 20, 80);
   const automaticPinterestTargeting = context.provider === "pinterest" && (
     (channelDraft?.channel === "pinterest" && channelDraft.targetingMode === "automatic")
     || enumToken(record(raw.channelDraft).targetingMode, "lower") === "automatic"
   );
   const native = plannedCopy(channelDraft);
+  const copyLimits = ADS_PLAN_COPY_LIMITS[context.provider];
   const campaignType = context.provider === "openai" ? "generic" : oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
   const objective = context.provider === "openai" ? "website_traffic" : oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, context.provider === "meta" ? "website_traffic" : "leads");
   const conversionGoal = context.provider === "openai" ? "website_visit" : oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, context.provider === "meta" ? "website_visit" : "quote_request");
@@ -579,22 +618,44 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
   const rawMediaStrategy = context.provider === "openai" ? "image" : native.strategy || oneOf(ADS_MEDIA_STRATEGIES, raw.mediaStrategy, defaultMediaStrategy(context.provider));
   const mediaStrategy = mediaStrategyForCampaignType(context.provider, campaignType, rawMediaStrategy);
   const rawCreativeType = raw.creativeType === "video" ? "video" as const : "image" as const;
-  const fallbackOffer = context.services?.[0] || "";
+  const brand = adsCopyText(raw.brand) || adsCopyText(context.companyName);
+  const offer = adsCopyText(raw.offer) || firstText(context.services, 8, 500);
+  const subject = offer || brand || "l’offre présentée";
+  const channelLabel: Record<AdsChannelId, string> = {
+    google: "Google Ads",
+    meta: "Meta Ads",
+    linkedin: "LinkedIn Ads",
+    tiktok: "TikTok Ads",
+    pinterest: "Pinterest Ads",
+    x: "X Ads",
+    openai: "ChatGPT Ads",
+  };
+  const name = channelDraft?.name
+    || adsCopyText(raw.name)
+    || `${Array.from(subject).length <= 70 ? subject : brand || "Campagne"} · ${channelLabel[context.provider]}`;
   const requestedMetaPlacements = enumList(ADS_META_PLACEMENTS, raw.metaPlacements, 8);
   const metaPlacements: AdsMetaPlacement[] = context.provider === "meta"
     ? requestedMetaPlacements.length ? requestedMetaPlacements : ["facebook_feed", "instagram_feed", "stories", "reels"]
     : requestedMetaPlacements;
-  const headlines = context.provider === "openai"
-    ? adsCopyList(raw.headlines, 1)
-    : context.provider === "pinterest"
-    ? adsCopyList(native.headline ? [native.headline] : raw.headlines, 1)
-    : adsCopyList(raw.headlines, 15);
-  const descriptions = context.provider === "openai"
-    ? adsCopyList(raw.descriptions, 1)
-    : context.provider === "pinterest"
-    ? adsCopyList(native.description ? [native.description] : raw.descriptions, 1)
-    : adsCopyList(raw.descriptions, 4);
-  const offer = adsCopyText(raw.offer) || adsCopyText(fallbackOffer);
+
+  // A model can suggest readable copy and audience hypotheses, but it cannot
+  // verify a geographic target. Only the trusted request context reaches the UI.
+  const targetLocations = context.provider === "pinterest"
+    ? normalizePinterestAutomaticLocations(trustedLocations, context.country)
+    : trustedLocations;
+  const rawTargetAudiences = list(raw.targetAudiences, 20, 160);
+  const nativeAudienceBrief = channelDraft?.audience.audienceBrief || "";
+  let targetAudiences = list(isPlannedAdsChannel(context.provider)
+    ? [nativeAudienceBrief, ...rawTargetAudiences, ...list(context.audiences, 20, 160)]
+    : [...rawTargetAudiences, ...list(context.audiences, 20, 160)], 20, 160);
+  if (targetAudiences.length === 0) {
+    targetAudiences = ["Personnes intéressées par l’offre présentée"];
+  }
+
+  const withinLimit = (candidate: string, maximum: number, fallback: string) =>
+    Array.from(candidate).length <= maximum ? candidate : fallback;
+  const rawDescriptions = adsCopyList(raw.descriptions, 4);
+  const rawHeadlines = adsCopyList(raw.headlines, 15);
   const fallbackActions: Record<AdsConversionGoal, string> = {
     quote_request: "Demander un devis", lead_form: "Nous contacter", phone_call: "Nous appeler",
     website_visit: "En savoir plus", purchase: "Découvrir l’offre", message: "Nous écrire",
@@ -602,31 +663,118 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
   };
   const callToAction = context.provider === "openai" ? "" : adsCopyText(raw.callToAction)
     || (context.provider === "meta" ? "En savoir plus" : fallbackActions[conversionGoal]);
-  const primaryText = (context.provider === "pinterest" ? native.primaryText : "") || adsCopyText(raw.primaryText) || native.primaryText
-    || (context.provider === "openai" ? descriptions[0] || "" : "")
-    || (context.provider === "google" ? descriptions.join(" ") || [offer, callToAction].filter(Boolean).join(". ") : "");
+
+  const joinedDescriptions = rawDescriptions.join(" ");
+  const genericPrimary = withinLimit(`Découvrez ${subject}.`, copyLimits.primary, "Découvrez notre offre.");
+  const primaryText = channelDraft
+    ? native.primaryText
+    : adsCopyText(raw.primaryText)
+      || (context.provider === "openai" ? rawDescriptions[0] || "" : "")
+      || (context.provider === "google" && joinedDescriptions ? joinedDescriptions : "")
+      || rawDescriptions[0]
+      || rawHeadlines[0]
+      || genericPrimary;
+
+  const fallbackHeadline = withinLimit(native.headline || offer || brand || name, copyLimits.headline, "Découvrir notre offre");
+  const googleHeadlineCandidates = [
+    offer,
+    brand,
+    withinLimit(`Découvrir ${subject}`, copyLimits.headline, "Découvrir notre offre"),
+    "Informations sur l’offre",
+    withinLimit(`Contacter ${brand || "notre équipe"}`, copyLimits.headline, "Contacter notre équipe"),
+    targetLocations[0]
+      ? withinLimit(`Service à ${targetLocations[0]}`, copyLimits.headline, "Voir les services")
+      : "Voir les services",
+    "Parler de votre projet",
+    "En savoir plus",
+  ].filter((candidate) => candidate && Array.from(candidate).length <= copyLimits.headline);
+  const headlines = context.provider === "openai"
+    ? adsCopyList(rawHeadlines.length ? rawHeadlines : [fallbackHeadline], 1)
+    : context.provider === "pinterest" && channelDraft
+      ? adsCopyList([native.headline], 1)
+      : channelDraft
+        ? adsCopyList([native.headline, ...rawHeadlines], 15)
+        : context.provider === "google"
+          ? rawHeadlines.length >= 6
+            ? rawHeadlines
+            : adsCopyList([...rawHeadlines, ...googleHeadlineCandidates], 15)
+          : rawHeadlines.length ? rawHeadlines : [fallbackHeadline];
+
+  const safeSubjectDescription = withinLimit(`Découvrez ${subject}.`, copyLimits.description, "Découvrez notre offre.");
+  const fallbackDescriptions = [
+    native.description,
+    withinLimit(primaryText, copyLimits.description, safeSubjectDescription),
+    safeSubjectDescription,
+    "Retrouvez les informations utiles sur notre offre.",
+    "Contactez notre équipe pour en savoir plus.",
+  ].filter((candidate) => candidate && Array.from(candidate).length <= copyLimits.description);
+  const descriptions = context.provider === "openai"
+    ? primaryText ? [primaryText] : []
+    : context.provider === "pinterest" && channelDraft
+      ? adsCopyList([native.description], 1)
+      : channelDraft
+        ? adsCopyList([native.description, ...rawDescriptions], 4)
+        : context.provider === "google"
+          ? rawDescriptions.length >= 3
+            ? rawDescriptions
+            : adsCopyList([...rawDescriptions, ...fallbackDescriptions], 4)
+          : rawDescriptions.length ? rawDescriptions : adsCopyList(fallbackDescriptions, 1);
+
+  const rawKeywords = list(raw.keywords, 20, 80);
+  const nativeKeywordSignals = channelDraft?.channel === "x" ? list(channelDraft.keywords, 20, 80) : [];
+  const generalSignalFallbacks = list([
+    ...nativeKeywordSignals,
+    ...targetAudiences,
+    ...targetLocations,
+    ...list(context.services, 8, 80),
+    offer,
+  ], 20, 80);
+  const googleSignalFallbacks = list([
+    ...list(context.services, 8, 80),
+    offer,
+    `service ${subject}`,
+    `professionnel ${subject}`,
+    `informations ${subject}`,
+    `contact ${subject}`,
+    targetLocations[0] ? `${targetLocations[0]} ${subject}` : `découvrir ${subject}`,
+  ], 20, 80);
+  const keywords = automaticPinterestTargeting
+    || context.provider === "openai" ? []
+    : context.provider === "google"
+      ? rawKeywords.length >= 6
+        ? rawKeywords
+        : list([...rawKeywords, ...googleSignalFallbacks], 20, 80)
+      : rawKeywords.length || nativeKeywordSignals.length
+        ? list([...nativeKeywordSignals, ...rawKeywords], 20, 80)
+        : generalSignalFallbacks;
+
+  const mediaBrief = campaignType === "search"
+    ? ""
+    : (channelDraft ? native.mediaBrief : adsCopyText(raw.mediaBrief))
+      || adsCopyText(raw.mediaBrief)
+      || native.mediaBrief
+      || (context.provider === "meta"
+        ? "À créer : une présentation fidèle de l’offre, déclinée en Feed 4:5 et Story/Reel 9:16, sans preuve non vérifiée."
+        : "À créer : une représentation fidèle de l’offre, sans ajouter de preuve non vérifiée.");
+  const rationale = cleanRationale(raw.rationale)
+    || cleanRationale(`Cette proposition met en avant ${subject} auprès du public décrit. Les paramètres et ressources de la plateforme restent à vérifier avant toute diffusion.`);
 
   return {
-    brand: adsCopyText(raw.brand) || adsCopyText(context.companyName),
-    name: adsCopyText(raw.name) || channelDraft?.name || "",
+    brand,
+    name,
     campaignType,
     objective,
     conversionGoal,
     conversionLocation,
     bidStrategy,
     offer,
-    destinationUrl: httpsUrl(raw.destinationUrl) || httpsUrl(context.destinationUrl),
+    // URLs, exclusions and assets are resources, not creative suggestions.
+    // The planning model can never make them trusted by returning valid syntax.
+    destinationUrl: httpsUrl(context.destinationUrl),
     urlExpansion: raw.urlExpansion !== false,
-    urlExclusions: list(raw.urlExclusions, 20, 300).filter((url) => Boolean(httpsUrl(url))),
-    targetLocations: context.provider === "pinterest"
-      ? normalizePinterestAutomaticLocations(
-        trustedLocations,
-        context.country,
-      )
-      : trustedLocations,
-    targetAudiences: list(raw.targetAudiences, 20, 160).length
-      ? list(raw.targetAudiences, 20, 160)
-      : list(context.audiences, 20, 160),
+    urlExclusions: [],
+    targetLocations,
+    targetAudiences,
     languages: list(raw.languages, 10, 40).length ? list(raw.languages, 10, 40) : ["fr"],
     googleSearchPartners: raw.googleSearchPartners === true,
     googleDisplayExpansion: raw.googleDisplayExpansion === true,
@@ -640,18 +788,17 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     creativeUrl: "",
     creativeType: context.provider === "openai" ? "image" : creativeTypeForStrategy(mediaStrategy, rawCreativeType),
     mediaStrategy,
-    mediaBrief: adsCopyText(raw.mediaBrief) || native.mediaBrief,
+    mediaBrief,
     callToAction,
-    headlines: headlines.length ? headlines : native.headline ? [native.headline] : [],
-    descriptions: context.provider === "openai" && primaryText ? [primaryText]
-      : descriptions.length ? descriptions : native.description ? [native.description] : [],
+    headlines,
+    descriptions,
     // Performance+ targeting uses the Pin and trusted locations. Keeping
     // model-suggested keywords here would make an otherwise live-compatible
     // Pinterest plan fail the publisher preflight. Manual targeting modes keep
     // their planning signals unchanged for later provider-side resolution.
-    keywords: automaticPinterestTargeting || context.provider === "openai" ? [] : rawKeywords,
+    keywords,
     negativeKeywords: context.provider === "openai" ? [] : list(raw.negativeKeywords, 40, 80),
-    rationale: cleanRationale(raw.rationale),
+    rationale,
     ...(channelDraft ? { channelDraft } : {}),
   };
 }

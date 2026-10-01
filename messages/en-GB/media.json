@@ -1,4 +1,13 @@
 {
+  "local_upload_trigger": "Add media",
+  "local_upload_dialog_title": "Add media",
+  "local_upload_dialog_description": "Choose the file type first. Images and videos remain separate.",
+  "local_upload_image": "Images",
+  "local_upload_images_detail": "Multiple selection · up to {count} image(s)",
+  "local_upload_video": "Video",
+  "local_upload_video_detail": "Single selection · one video only",
+  "local_upload_close": "Close media choice",
+  "local_upload_unavailable": "Unavailable with the current settings",
   "ai_generator_free_team_consent": "For this generation, I authorise animating the people shown and sending the references to the video generation service.",
   "ai_generator_free_mode_label": "Creation mode",
   "ai_generator_free_mode_free": "Free",

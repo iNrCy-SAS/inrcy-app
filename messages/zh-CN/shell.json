@@ -580,5 +580,14 @@
   "ai_report_sending": "正在发送...",
   "ai_report_send": "发送",
   "ai_report_button_title": "报告生成的不当内容",
-  "ai_report_button_label": "报告"
+  "ai_report_button_label": "报告",
+  "channel_url_edit": "修改",
+  "channel_url_saved": "链接已保存。",
+  "channel_url_required": "请输入公开链接。",
+  "channel_url_invalid": "此链接无效。",
+  "channel_url_protocol_invalid": "链接必须以 http:// 或 https:// 开头。",
+  "channel_url_credentials_forbidden": "链接不能包含用户名或密码。",
+  "channel_url_wrong_platform": "此链接与该渠道不匹配。",
+  "channel_url_save_failed": "目前无法保存此链接。",
+  "channel_url_change_required": "请先修改链接再保存。"
 }

@@ -283,7 +283,7 @@ export default function DashboardSettingsDrawerContent({
       ) : null}
       {shouldKeepPanel("x") && xAccessEnabled ? (
         <MemorizedPanel active={panel === "x"}>
-          <XSettingsContent />
+          <XSettingsContent onUnsavedChange={panel === "x" ? onUnsavedChange : undefined} />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("inr_search") && inrSearchAccessEnabled ? (
@@ -299,37 +299,58 @@ export default function DashboardSettingsDrawerContent({
 
       {shouldKeepPanel("site_inrcy") ? (
         <MemorizedPanel active={panel === "site_inrcy"}>
-          <SiteInrcyPanelBlock panel="site_inrcy" panelProps={siteInrcyPanelProps} />
+          <SiteInrcyPanelBlock
+            panel="site_inrcy"
+            panelProps={{ ...siteInrcyPanelProps, onUrlDirtyChange: panel === "site_inrcy" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("site_web") ? (
         <MemorizedPanel active={panel === "site_web"}>
-          <SiteWebPanelBlock panel="site_web" panelProps={siteWebPanelProps} />
+          <SiteWebPanelBlock
+            panel="site_web"
+            panelProps={{ ...siteWebPanelProps, onUrlDirtyChange: panel === "site_web" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("instagram") ? (
         <MemorizedPanel active={panel === "instagram"}>
-          <InstagramPanelBlock panel="instagram" panelProps={instagramPanelProps} />
+          <InstagramPanelBlock
+            panel="instagram"
+            panelProps={{ ...instagramPanelProps, onUrlDirtyChange: panel === "instagram" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("linkedin") ? (
         <MemorizedPanel active={panel === "linkedin"}>
-          <LinkedinPanelBlock panel="linkedin" panelProps={linkedinPanelProps} />
+          <LinkedinPanelBlock
+            panel="linkedin"
+            panelProps={{ ...linkedinPanelProps, onUrlDirtyChange: panel === "linkedin" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("gmb") ? (
         <MemorizedPanel active={panel === "gmb"}>
-          <GmbPanelBlock panel="gmb" panelProps={gmbPanelProps} />
+          <GmbPanelBlock
+            panel="gmb"
+            panelProps={{ ...gmbPanelProps, onUrlDirtyChange: panel === "gmb" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("facebook") ? (
         <MemorizedPanel active={panel === "facebook"}>
-          <FacebookPanelBlock panel="facebook" panelProps={facebookPanelProps} />
+          <FacebookPanelBlock
+            panel="facebook"
+            panelProps={{ ...facebookPanelProps, onUrlDirtyChange: panel === "facebook" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
       {shouldKeepPanel("tiktok") ? (
         <MemorizedPanel active={panel === "tiktok"}>
-          <TiktokPanelBlock panel="tiktok" panelProps={tiktokPanelProps} />
+          <TiktokPanelBlock
+            panel="tiktok"
+            panelProps={{ ...tiktokPanelProps, onUrlDirtyChange: panel === "tiktok" ? onUnsavedChange : undefined }}
+          />
         </MemorizedPanel>
       ) : null}
     </div>

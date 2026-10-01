@@ -30,6 +30,9 @@ export async function computeSitePresenceRows(userId: string): Promise<SitePrese
     supabaseAdmin.from('pro_tools_configs').select('settings').eq('user_id', userId).maybeSingle(),
   ]);
 
+  const readError = profileRes.error || inrcyCfgRes.error || proCfgRes.error;
+  if (readError) throw readError;
+
   const profile = asRecord(profileRes.data);
   const inrcyCfg = asRecord(inrcyCfgRes.data);
   const inrcySettings = asRecord(inrcyCfg.settings);
@@ -70,7 +73,7 @@ export async function computeSitePresenceRows(userId: string): Promise<SitePrese
 export async function syncSitePresenceIntegrations(userId: string) {
   const rows = await computeSitePresenceRows(userId);
   for (const row of rows) {
-    await supabaseAdmin.from('integrations').upsert({
+    const { error } = await supabaseAdmin.from('integrations').upsert({
       user_id: userId,
       provider: row.provider,
       source: row.source,
@@ -82,6 +85,7 @@ export async function syncSitePresenceIntegrations(userId: string) {
       meta: row.meta,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,provider,source,product' });
+    if (error) throw error;
   }
   return rows;
 }

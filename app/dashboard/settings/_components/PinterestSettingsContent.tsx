@@ -18,6 +18,7 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 
 import styles from "../../dashboard.module.css";
 import ConnectionPill from "../../_components/ConnectionPill";
+import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
 import StatusMessage from "../../_components/StatusMessage";
 import ChannelSettingsStep from "./ChannelSettingsStep";
 import guideStyles from "./ChannelSettingsSteps.module.css";
@@ -332,14 +333,13 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
   const [editingBoardName, setEditingBoardName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [profileLinkDraft, setProfileLinkDraft] = useState("");
-  const [savingProfileLink, setSavingProfileLink] = useState(false);
+  const [profileLinkDirty, setProfileLinkDirty] = useState(false);
 
   const editingBoard = editingBoardId ? settings.boards.find((board) => board.id === editingBoardId) : null;
   const hasUnsavedChanges = Boolean(
     newBoardName.trim() ||
       (editingBoard && editingBoardName.trim() !== editingBoard.name) ||
-      profileLinkDraft !== (settings.publicProfileUrl || settings.profileUrl || ""),
+      profileLinkDirty,
   );
 
   useEffect(() => {
@@ -393,10 +393,6 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
     pendingDashboardUpdateRef.current = false;
     emitDashboardUpdate(settings);
   }, [settings]);
-
-  useEffect(() => {
-    setProfileLinkDraft(settings.publicProfileUrl || settings.profileUrl || "");
-  }, [settings.profileUrl, settings.publicProfileUrl]);
 
   const connectPinterest = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -705,43 +701,6 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
     }
   }, []);
 
-  const savePublicProfileUrl = useCallback(async () => {
-    setSavingProfileLink(true);
-    setNotice(null);
-    setError(null);
-    try {
-      const response = await fetch("/api/integrations/pinterest/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicProfileUrl: profileLinkDraft }),
-      });
-      const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json?.ok) {
-        throw new Error(String(json?.error || "Enregistrement du lien Pinterest impossible."));
-      }
-      if (!mountedRef.current) return;
-      const publicProfileUrl = String(json.publicProfileUrl || "");
-      pendingDashboardUpdateRef.current = true;
-      setSettings((current) => {
-        const next = {
-          ...current,
-          publicProfileUrl,
-          profileUrl: publicProfileUrl || current.profileUrl,
-        };
-        cachePinterestSettings(next);
-        return next;
-      });
-      setProfileLinkDraft(publicProfileUrl);
-      setNotice(publicProfileUrl ? "Lien public Pinterest enregistré." : "Lien public Pinterest supprimé.");
-    } catch (err) {
-      if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : "Enregistrement du lien Pinterest impossible.");
-      }
-    } finally {
-      if (mountedRef.current) setSavingProfileLink(false);
-    }
-  }, [profileLinkDraft]);
-
   const disconnectPinterest = useCallback(async () => {
     setSyncing(true);
     setNotice(null);
@@ -868,40 +827,29 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
             <label className={guideStyles.fieldLabel} htmlFor="pinterest-profile-url">
               {i18nT("lien_public_de_votre_profil_pinterest_40c8dbbe")}{" "}</label>
             <div className={guideStyles.actionRow}>
-              <input
+              <EditableChannelUrlField
                 id="pinterest-profile-url"
-                className={guideStyles.control}
-                style={inputStyle}
-                value={profileLinkDraft}
-                onChange={(event) => setProfileLinkDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void savePublicProfileUrl();
-                  }
+                channel="pinterest"
+                value={settings.publicProfileUrl || settings.profileUrl}
+                onSaved={(url) => {
+                  pendingDashboardUpdateRef.current = true;
+                  setSettings((current) => {
+                    const next = { ...current, publicProfileUrl: url, profileUrl: url };
+                    cachePinterestSettings(next);
+                    return next;
+                  });
+                  setNotice("Lien public Pinterest enregistré.");
+                  setError(null);
                 }}
+                onDirtyChange={setProfileLinkDirty}
+                ariaLabel={i18nT("lien_public_de_votre_profil_pinterest_40c8dbbe")}
                 placeholder="https://www.pinterest.fr/votre-profil/"
-                disabled={savingProfileLink || loading}
-                inputMode="url"
-                autoComplete="url"
+                viewLabel={i18nT("voir_le_compte_1cbd7501")}
+                disabled={loading || syncing}
+                inputClassName={guideStyles.control}
+                inputStyle={inputStyle}
+                actionClassName={styles.pinterestConfigActionBtn}
               />
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.connectBtn}`}
-                onClick={() => void savePublicProfileUrl()}
-                disabled={savingProfileLink || loading}
-              >
-                {savingProfileLink ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_le_lien_147106ab")}
-              </button>
-              {settings.profileUrl ? (
-                <a
-                  href={settings.profileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`${styles.actionBtn} ${styles.pinterestConfigActionBtn} ${styles.viewBtn}`}
-                >
-                  {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
-              ) : null}
             </div>
           </div>
         ) : null}

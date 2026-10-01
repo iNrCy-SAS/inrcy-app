@@ -27,7 +27,10 @@ test("X configuration owns status, OAuth start and disconnect actions", () => {
 
   assert.match(routing, /\| "x"/);
   assert.match(drawer, /shouldKeepPanel\("x"\) && xAccessEnabled/);
-  assert.match(drawer, /<MemorizedPanel active=\{panel === "x"\}>[\s\S]*?<XSettingsContent \/>/);
+  assert.match(
+    drawer,
+    /<MemorizedPanel active=\{panel === "x"\}>[\s\S]*?<XSettingsContent onUnsavedChange=\{panel === "x" \? onUnsavedChange : undefined\} \/>/,
+  );
   assert.match(panel, /fetch\("\/api\/integrations\/x\/status"/);
   assert.match(panel, /\/api\/integrations\/x\/start\?returnTo=/);
   assert.match(panel, /fetch\("\/api\/integrations\/x\/disconnect", \{ method: "POST" \}\)/);

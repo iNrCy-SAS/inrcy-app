@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../../dashboard.module.css";
 import { createClient } from "@/lib/supabaseClient";
 import ConnectionPill from "../../_components/ConnectionPill";
+import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
 import GoogleOAuthConsentBanner from "../../_components/GoogleOAuthConsentBanner";
 import StatusMessage from "../../_components/StatusMessage";
 import ChannelSettingsStep from "./ChannelSettingsStep";
@@ -206,6 +207,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [channelUrlDraftDirty, setChannelUrlDraftDirty] = useState(false);
   const patchSettings = useCallback((patch: Partial<YoutubeShortsSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
   }, []);
@@ -247,9 +249,10 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
   useEffect(() => {
     if (!loading && settingsBaselineRef.current) {
-      onUnsavedChange?.(JSON.stringify(settings) !== settingsBaselineRef.current);
+      const settingsDirty = JSON.stringify(settings) !== settingsBaselineRef.current;
+      onUnsavedChange?.(settingsDirty || channelUrlDraftDirty);
     }
-  }, [loading, onUnsavedChange, settings]);
+  }, [channelUrlDraftDirty, loading, onUnsavedChange, settings]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -403,25 +406,30 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
             {i18nT("lien_de_la_chaine_815204fe")}
           </label>
           <div className={guideStyles.actionRow}>
-            <input
+            <EditableChannelUrlField
               id="youtube-channel-url"
+              channel="youtube_shorts"
               value={settings.channelUrl}
-              onChange={(event) => patchSettings({ channelUrl: event.target.value })}
+              onSaved={(url) => {
+                const nextSettings = { ...settings, channelUrl: url };
+                try {
+                  const savedBaseline = JSON.parse(settingsBaselineRef.current) as YoutubeShortsSettings;
+                  settingsBaselineRef.current = JSON.stringify({ ...savedBaseline, channelUrl: url });
+                } catch {
+                  // Keep the existing baseline fail-closed: unrelated settings
+                  // must never be considered saved by a URL-only mutation.
+                }
+                setSettings(nextSettings);
+                emitDashboardUpdate(nextSettings);
+              }}
+              onDirtyChange={setChannelUrlDraftDirty}
+              ariaLabel={i18nT("lien_de_la_chaine_815204fe")}
               placeholder="https://www.youtube.com/@monentreprise"
-              className={guideStyles.control}
-              style={inputStyle}
+              viewLabel={i18nT("voir_la_chaine_3c999e92")}
+              disabled={!connected || saving || loading}
+              inputClassName={guideStyles.control}
+              inputStyle={inputStyle}
             />
-            <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveSettings()} disabled={saving || loading}>
-              {saving ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
-            </button>
-            <a
-              href={settings.channelUrl || "#"}
-              target="_blank"
-              rel="noreferrer"
-              className={`${styles.actionBtn} ${styles.viewBtn}`}
-              style={{ pointerEvents: settings.channelUrl ? "auto" : "none", opacity: settings.channelUrl ? 1 : 0.5 }}
-            >
-              {i18nT("voir_la_chaine_3c999e92")}{" "}</a>
           </div>
         </div>
       </ChannelSettingsStep>

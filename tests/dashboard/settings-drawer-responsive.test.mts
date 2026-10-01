@@ -33,12 +33,15 @@ test("configuration headers keep the close action compact and accessible on resp
 test("Google Business stacks controls on phones instead of clipping its establishment selector", () => {
   const panel = read("app/dashboard/_components/GoogleBusinessPanel.tsx");
   const stepCss = read("app/dashboard/_components/ChannelPanelSteps.module.css");
+  const editableFieldCss = read("app/dashboard/_components/EditableChannelUrlField.module.css");
 
   assert.match(panel, /className=\{`\$\{stepStyles\.panel\} \$\{stepStyles\.googlePanel\}`\}/);
-  assert.ok((panel.match(/className=\{stepStyles\.actionRow\}/g) || []).length >= 3);
+  assert.ok((panel.match(/className=\{stepStyles\.actionRow\}/g) || []).length >= 2);
+  assert.match(panel, /<EditableChannelUrlField[\s\S]*?channel="gmb"/);
   assert.match(panel, /styles\.selectReadable[\s\S]*?stepStyles\.control[\s\S]*?stepStyles\.wideControl/);
   assert.match(stepCss, /@media \(max-width: 720px\)[\s\S]*?\.actionRow[\s\S]*?flex-wrap: wrap;/);
   assert.match(stepCss, /\.wideControl[\s\S]*?flex: 1 1 320px;/);
+  assert.match(editableFieldCss, /@media \(max-width: 720px\)[\s\S]*?grid-template-columns: 1fr 1fr;[\s\S]*?grid-column: 1 \/ -1;/);
 });
 
 test("Pinterest keeps reconnect and disconnect balanced on a 393px viewport", () => {

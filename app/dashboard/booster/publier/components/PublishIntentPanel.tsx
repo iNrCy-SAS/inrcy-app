@@ -12,7 +12,12 @@ import {
   getAiEngineOption,
   type AiPreferredEngine,
 } from "@/lib/aiEnginePreference";
+import {
+  BOOSTER_PDF_ACCEPT,
+  BOOSTER_PDF_MAX_BYTES,
+} from "@/lib/boosterPdfAttachmentPolicy";
 import AiEngineInfoModal from "../../../_components/AiEngineInfoModal";
+import LocalMediaUploadChoice from "../../../_components/LocalMediaUploadChoice";
 import MediaSubjectVoiceButton from "../../../_components/MediaSubjectVoiceButton";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
@@ -41,6 +46,12 @@ function formatVideoSeconds(seconds: number | null) {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+function formatAttachmentSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
 type VoiceTarget = "idea" | "instruction";
 
 const THEME_PLACEHOLDER_KEYS: Record<ThemeKey, string> = {
@@ -65,8 +76,10 @@ type PublishIntentPanelProps = {
   setPublicationInstruction: Dispatch<SetStateAction<string>>;
   fileInputRef: MutableRefObject<HTMLInputElement | null>;
   videoInputRef: MutableRefObject<HTMLInputElement | null>;
+  pdfInputRef: MutableRefObject<HTMLInputElement | null>;
   onImagesChange: (files: FileList | null) => void;
   onVideoChange: (files: FileList | null) => void;
+  onPdfChange: (files: FileList | null) => void;
   onPickImagesClick: () => void;
   onPickVideoClick: () => void;
   onGenerateMedia: () => void;
@@ -77,6 +90,9 @@ type PublishIntentPanelProps = {
   videoFile: File | null;
   videoPreviewUrl: string;
   videoDurationSeconds: number | null;
+  pdfFile: File | null;
+  pdfAttachmentError: string;
+  onRemovePdf: () => void;
   onRetouchVideo: () => void;
   removeVideo: () => void;
   removeImage: (index: number) => void;
@@ -114,8 +130,10 @@ export default function PublishIntentPanel({
   setPublicationInstruction,
   fileInputRef,
   videoInputRef,
+  pdfInputRef,
   onImagesChange,
   onVideoChange,
+  onPdfChange,
   onPickImagesClick,
   onPickVideoClick,
   onGenerateMedia,
@@ -126,6 +144,9 @@ export default function PublishIntentPanel({
   videoFile,
   videoPreviewUrl,
   videoDurationSeconds,
+  pdfFile,
+  pdfAttachmentError,
+  onRemovePdf,
   onRetouchVideo,
   removeVideo,
   removeImage,
@@ -163,7 +184,11 @@ export default function PublishIntentPanel({
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
   const selectedAiEngineOption = getAiEngineOption(aiPreferredEngine);
   const visibleErrors = Array.from(
-    new Set([imgError.trim(), genError.trim()].filter(Boolean)),
+    new Set(
+      [pdfAttachmentError.trim(), imgError.trim(), genError.trim()].filter(
+        Boolean,
+      ),
+    ),
   );
 
   useEffect(() => {
@@ -371,6 +396,116 @@ export default function PublishIntentPanel({
           )}
         </div>
         <input
+          ref={pdfInputRef}
+          type="file"
+          accept={BOOSTER_PDF_ACCEPT}
+          style={{ display: "none" }}
+          onChange={(event) => {
+            onPdfChange(event.target.files);
+            event.currentTarget.value = "";
+          }}
+        />
+        <div
+          data-testid="booster-pdf-context-control"
+          style={{
+            display: "grid",
+            gap: 8,
+            minWidth: 0,
+            padding: isMobile ? "8px 10px" : "10px 12px",
+            borderRadius: 14,
+            border: "1px solid rgba(76,195,255,0.20)",
+            background: "rgba(76,195,255,0.055)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              disabled={generationDisabled}
+              onClick={() => pdfInputRef.current?.click()}
+              style={{
+                minHeight: isMobile ? 32 : 34,
+                padding: isMobile ? "6px 9px" : "7px 12px",
+                fontSize: isMobile ? 11 : 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {i18nT("add_pdf_attachment")}
+            </button>
+            <span style={{ fontSize: 10.5, lineHeight: 1.35, opacity: 0.7 }}>
+              {i18nT("pdf_attachment_help", {
+                size: Math.round(BOOSTER_PDF_MAX_BYTES / (1024 * 1024)),
+              })}
+            </span>
+          </div>
+          {pdfFile ? (
+            <div
+              data-testid="booster-selected-pdf"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                minWidth: 0,
+                padding: "8px 10px",
+                borderRadius: 11,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(2,6,23,0.28)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  flex: "0 0 auto",
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: 0.5,
+                  color: "#7dd3fc",
+                }}
+              >
+                PDF
+              </span>
+              <span style={{ display: "grid", minWidth: 0, flex: "1 1 auto" }}>
+                <strong
+                  title={pdfFile.name}
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontSize: 11.5,
+                  }}
+                >
+                  {pdfFile.name}
+                </strong>
+                <span style={{ fontSize: 10, opacity: 0.64 }}>
+                  {formatAttachmentSize(pdfFile.size)}
+                </span>
+              </span>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                disabled={generationDisabled}
+                onClick={onRemovePdf}
+                aria-label={`${i18nT("remove_pdf_attachment")} ${pdfFile.name}`}
+                style={{
+                  flex: "0 0 auto",
+                  minHeight: 28,
+                  padding: "4px 8px",
+                  fontSize: 10.5,
+                }}
+              >
+                {i18nT("remove_pdf_attachment")}
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <input
           ref={fileInputRef}
           type="file"
           accept={BOOSTER_IMAGE_ACCEPT}
@@ -411,54 +546,43 @@ export default function PublishIntentPanel({
               flexWrap: "wrap",
             }}
           >
-            <button
-              type="button"
+            <LocalMediaUploadChoice
               className={styles.secondaryBtn}
-              onClick={onPickImagesClick}
-              disabled={pickImagesDisabled}
-              title={
-                hasVideoMedia
-                  ? i18nT("generation_images_blocked_by_video")
-                  : imagesLimitReached
-                    ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT })
-                    : `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`
-              }
               style={{
                 flex: "0 0 auto",
                 minHeight: isMobile ? 32 : 34,
                 padding: isMobile ? "6px 9px" : "7px 12px",
                 fontSize: isMobile ? 11 : 12,
                 whiteSpace: "nowrap",
-                opacity: pickImagesDisabled ? 0.48 : 1,
-                filter: pickImagesDisabled ? "grayscale(1)" : undefined,
-                cursor: pickImagesDisabled ? "not-allowed" : "pointer",
               }}
-            >
-              {i18nT("ajouter_des_images_79088d11")}{" "}</button>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={onPickVideoClick}
-              disabled={pickVideoDisabled}
-              title={
-                hasImages
+              image={{
+                onSelect: onPickImagesClick,
+                disabled: pickImagesDisabled,
+                disabledReason: hasVideoMedia
+                  ? i18nT("generation_images_blocked_by_video")
+                  : imagesLimitReached
+                    ? i18nT("generation_images_limit", {
+                        count: BOOSTER_MAX_IMAGE_COUNT,
+                      })
+                    : undefined,
+                detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`,
+                maxSelection: Math.max(
+                  0,
+                  BOOSTER_MAX_IMAGE_COUNT - images.length,
+                ),
+              }}
+              video={{
+                onSelect: onPickVideoClick,
+                disabled: pickVideoDisabled,
+                disabledReason: hasImages
                   ? i18nT("generation_video_blocked_by_images")
                   : pickVideoDisabled
                     ? i18nT("generation_video_limit")
-                    : `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
-              }
-              style={{
-                flex: "0 0 auto",
-                minHeight: isMobile ? 32 : 34,
-                padding: isMobile ? "6px 9px" : "7px 12px",
-                fontSize: isMobile ? 11 : 12,
-                whiteSpace: "nowrap",
-                opacity: pickVideoDisabled ? 0.48 : 1,
-                filter: pickVideoDisabled ? "grayscale(1)" : undefined,
-                cursor: pickVideoDisabled ? "not-allowed" : "pointer",
+                    : undefined,
+                detail: `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`,
               }}
-            >
-              {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
+              testId="booster-generation-local-media-choice"
+            />
             <button
               type="button"
               className={styles.secondaryBtn}

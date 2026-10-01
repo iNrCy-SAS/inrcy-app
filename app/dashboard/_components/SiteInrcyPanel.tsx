@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 
@@ -10,6 +11,7 @@ import StatusMessage from "./StatusMessage";
 import SiteActusWidgetCode from "./SiteActusWidgetCode";
 import ActusWidgetControls from "./ActusWidgetControls";
 import SaveIcon from "./SaveIcon";
+import EditableChannelUrlField from "./EditableChannelUrlField";
 import panelStyles from "./SiteSettingsPanels.module.css";
 
 export default function SiteInrcyPanel(props: any) {
@@ -20,6 +22,7 @@ export default function SiteInrcyPanel(props: any) {
     hasSiteInrcyUrl,
     siteInrcyUrl,
     setSiteInrcyUrl,
+    applySiteInrcyPublicUrlSaved,
     saveSiteInrcyUrl,
     deleteSiteInrcyUrl,
     siteInrcyUrlBusy,
@@ -57,7 +60,20 @@ export default function SiteInrcyPanel(props: any) {
     saveSiteInrcyActusWidgetSettings,
     siteInrcySettingsError,
     resetSiteInrcyAll,
+    onUrlDirtyChange,
   } = props;
+
+  const [editableUrlDirty, setEditableUrlDirty] = useState(false);
+  const creationUrlDirty = !hasSiteInrcyUrl &&
+    String(siteInrcyUrl || "") !== String(siteInrcySavedUrl || "");
+
+  useEffect(() => {
+    onUrlDirtyChange?.(creationUrlDirty || editableUrlDirty);
+  }, [creationUrlDirty, editableUrlDirty, onUrlDirtyChange]);
+
+  useEffect(() => {
+    return () => onUrlDirtyChange?.(false);
+  }, [onUrlDirtyChange]);
 
   return (
     <div className={panelStyles.panel}>
@@ -75,47 +91,61 @@ export default function SiteInrcyPanel(props: any) {
           </p>
         )}
 
+        {hasSiteInrcyUrl ? (
+          <>
+            <EditableChannelUrlField
+              channel="site_inrcy"
+              value={siteInrcySavedUrl}
+              onSaved={applySiteInrcyPublicUrlSaved}
+              onDirtyChange={setEditableUrlDirty}
+              ariaLabel={i18nT("lien_du_site_760c2d8a")}
+              placeholder="https://..."
+              viewLabel={i18nT("voir_le_site_5bf01317")}
+              disabled={siteInrcyOwnership === "none"}
+              inputClassName={panelStyles.textInput}
+              actionClassName={panelStyles.compactAction}
+            />
+            <div className={panelStyles.cardActions}>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${styles.disconnectBtn} ${panelStyles.compactAction}`}
+                onClick={() => void deleteSiteInrcyUrl()}
+                disabled={siteInrcyOwnership === "none" || siteInrcyUrlBusy}
+                title={i18nT("supprimer_le_lien_c9d6952c")}
+                aria-label={i18nT("supprimer_le_lien_c9d6952c")}
+                aria-busy={siteInrcyUrlBusy}
+              >
+                {siteInrcyUrlBusy ? "…" : i18nT("supprimer_le_lien_c9d6952c")}
+              </button>
+            </div>
+          </>
+        ) : (
         <div className={panelStyles.urlRow}>
           <input
             value={siteInrcyUrl}
             onChange={(e) => setSiteInrcyUrl(e.target.value)}
-            disabled={siteInrcyOwnership === "none" || hasSiteInrcyUrl}
+            disabled={siteInrcyOwnership === "none"}
             placeholder="https://..."
-            title={hasSiteInrcyUrl ? "Supprimez d'abord le lien enregistré pour en saisir un nouveau." : undefined}
             className={panelStyles.textInput}
           />
 
-          {hasSiteInrcyUrl ? (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.disconnectBtn} ${panelStyles.compactAction}`}
-              onClick={() => void deleteSiteInrcyUrl()}
-              disabled={siteInrcyOwnership === "none" || siteInrcyUrlBusy}
-              title={i18nT("supprimer_le_lien_c9d6952c")}
-              aria-label={i18nT("supprimer_le_lien_c9d6952c")}
-              aria-busy={siteInrcyUrlBusy}
-            >
-              {siteInrcyUrlBusy ? "…" : i18nT("supprimer_le_lien_c9d6952c")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${styles.connectBtn} ${panelStyles.compactAction} ${panelStyles.saveAction}`}
-              onClick={() => void saveSiteInrcyUrl()}
-              disabled={siteInrcyOwnership === "none" || siteInrcyUrlBusy}
-              title={
-                siteInrcyOwnership === "none"
-                  ? "Aucun site iNrCy associé"
-                  : siteInrcyUrlBusy
-                    ? "Enregistrement en cours"
-                    : "Enregistrer le lien"
-              }
-              aria-label={siteInrcyUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
-              aria-busy={siteInrcyUrlBusy}
-            >
-              {siteInrcyUrlBusy ? <span aria-hidden>…</span> : <><SaveIcon />{i18nT("enregistrer_f7c8bcd8")}</>}
-            </button>
-          )}
+          <button
+            type="button"
+            className={`${styles.actionBtn} ${styles.connectBtn} ${panelStyles.compactAction} ${panelStyles.saveAction}`}
+            onClick={() => void saveSiteInrcyUrl()}
+            disabled={siteInrcyOwnership === "none" || siteInrcyUrlBusy}
+            title={
+              siteInrcyOwnership === "none"
+                ? "Aucun site iNrCy associé"
+                : siteInrcyUrlBusy
+                  ? "Enregistrement en cours"
+                  : "Enregistrer le lien"
+            }
+            aria-label={siteInrcyUrlBusy ? "Enregistrement en cours" : "Enregistrer le lien"}
+            aria-busy={siteInrcyUrlBusy}
+          >
+            {siteInrcyUrlBusy ? <span aria-hidden>…</span> : <><SaveIcon />{i18nT("enregistrer_f7c8bcd8")}</>}
+          </button>
 
           <a
             href={draftSiteInrcyUrlMeta?.normalizedUrl || "#"}
@@ -128,6 +158,7 @@ export default function SiteInrcyPanel(props: any) {
           >
             {i18nT("voir_le_site_5bf01317")}{" "}</a>
         </div>
+        )}
         {siteInrcyUrlNotice && <StatusMessage variant="success">{siteInrcyUrlNotice}</StatusMessage>}
       </section>
       <section className={panelStyles.card}>

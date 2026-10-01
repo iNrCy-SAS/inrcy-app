@@ -254,8 +254,12 @@ test("les validations bloquantes restent près des actions, les descriptions ali
 
   assert.doesNotMatch(destinationReview, /type="checkbox"/);
   assert.match(navigation, /wizardNextGroup[\s\S]*?wizardRequiredCheck[\s\S]*?Je confirme ce lien[\s\S]*?Suivant →/);
-  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?Lancer la campagne[\s\S]*?Enregistrer en brouillon/);
+  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard[\s\S]*?Lancer la campagne/);
+  assert.match(finalActions, /data-tooltip=\{launchBlocked \? launchBlockingMessage : undefined\}/);
+  assert.match(finalActions, /studioLaunchWarning[\s\S]*?⚠/);
   assert.match(css, /\.googleAdCopyField\{[^}]*align-self:start;align-content:start/);
+  assert.match(css, /\.studioFinalActions \.studioRequiredCheck\{[^}]*width:100%;max-width:none/);
+  assert.match(css, /\.studioLaunchGuard\[data-blocked\]::after\{content:attr\(data-tooltip\)/);
 });
 
 test("le connecteur Search n'ajoute plus de ciblage linguistique manuel mais garde les exclusions", () => {

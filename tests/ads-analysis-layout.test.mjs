@@ -88,6 +88,8 @@ test("desktop analysis frames the centered proposal with three phases on each si
         const canvas = document.querySelector(".adsGenerationCanvas").getBoundingClientRect();
         const leftRadar = document.querySelector(".adsGenerationSatelliteLeft").getBoundingClientRect();
         const rightRadar = document.querySelector(".adsGenerationSatelliteRight").getBoundingClientRect();
+        const centralRadar = getComputedStyle(document.querySelector(".adsGenerationRadar"));
+        const satelliteRadar = getComputedStyle(document.querySelector(".adsGenerationSatelliteLeft"));
         const centralSweep = getComputedStyle(document.querySelector(".adsGenerationRadarSweep"));
         return {
           groupCenter: (first.left + last.right) / 2,
@@ -101,6 +103,8 @@ test("desktop analysis frames the centered proposal with three phases on each si
           canvas: { top: canvas.top, bottom: canvas.bottom, left: canvas.left, right: canvas.right },
           leftRadar: { top: leftRadar.top, bottom: leftRadar.bottom, left: leftRadar.left, right: leftRadar.right },
           rightRadar: { top: rightRadar.top, bottom: rightRadar.bottom, left: rightRadar.left, right: rightRadar.right },
+          centralRadarBackground: centralRadar.backgroundImage,
+          satelliteRadarBackground: satelliteRadar.backgroundImage,
           centralSweepRunning: centralSweep.animationPlayState === "running",
         };
       });
@@ -115,6 +119,8 @@ test("desktop analysis frames the centered proposal with three phases on each si
       assert.ok(layout.cardScrollHeight <= layout.cardClientHeight + 1, `${width}×${height}: ${JSON.stringify(layout)}`);
       assert.ok(layout.leftRadar.left >= layout.canvas.left && layout.leftRadar.bottom < layout.phases[0].top, JSON.stringify(layout));
       assert.ok(layout.rightRadar.right <= layout.canvas.right && layout.rightRadar.top > layout.phases[5].bottom, JSON.stringify(layout));
+      assert.equal(layout.centralRadarBackground, "none", JSON.stringify(layout));
+      assert.match(layout.satelliteRadarBackground, /linear-gradient/, JSON.stringify(layout));
       assert.ok(layout.leftRadar.top < layout.rightRadar.top && layout.centralSweepRunning, JSON.stringify(layout));
       } finally {
         await page.close();
