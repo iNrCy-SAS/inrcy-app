@@ -123,7 +123,15 @@ test("iNrSend replacement follows the same native destination and text-fallback 
     source,
     /const pinterestNativeMessage = buildBoosterNativeDestinationMessage\(/,
   );
-  assert.match(source, /description = \[pinterestNativeMessage, tagLine\]/);
+  assert.match(source, /if \(pinterestNativeMessage\.length > 500\)/);
+  assert.match(
+    source,
+    /const descriptionWithTags = \[pinterestNativeMessage, tagLine\]\s*\.filter\(Boolean\)\s*\.join\("\\n\\n"\)/,
+  );
+  assert.match(
+    source,
+    /const description = descriptionWithTags\.length <= 500\s*\? descriptionWithTags\s*:\s*pinterestNativeMessage/,
+  );
 });
 
 test("Facebook Story never receives the automatic image CTA and reports the API limitation", () => {

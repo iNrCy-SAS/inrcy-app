@@ -74,7 +74,19 @@ test("TikTok, YouTube and Pinterest append optional parts with paragraph separat
   assert.match(publishRoute, /const description = \[canonMessage, tagLine\][\s\S]*?\.join\("\\n\\n"\)/);
   assert.match(publishRoute, /\[canonMessage, tiktokHashtagLine\][\s\S]*?\.join\("\\n\\n"\)/);
   assert.match(publishRoute, /const pinterestContent = stripSiteTextFormattingPreserveLayout\(/);
-  assert.match(publishRoute, /\[description, optionalPart\]\.filter\(Boolean\)\.join\("\\n\\n"\)/);
+  assert.match(
+    publishRoute,
+    /const pinterestRequiredDescription = \[pinterestContent, pinterestCta\]\s*\.filter\(Boolean\)\s*\.join\("\\n\\n"\)/,
+  );
+  assert.match(publishRoute, /if \(pinterestRequiredDescription\.length > 500\)/);
+  assert.match(
+    publishRoute,
+    /const descriptionWithTags = \[pinterestRequiredDescription, pinterestTagLine\]\s*\.filter\(Boolean\)\s*\.join\("\\n\\n"\)/,
+  );
+  assert.match(
+    publishRoute,
+    /const description = descriptionWithTags\.length <= 500\s*\? descriptionWithTags\s*:\s*pinterestRequiredDescription/,
+  );
 });
 
 test("Google Business keeps paragraph breaks while applying its compliance filter", () => {
