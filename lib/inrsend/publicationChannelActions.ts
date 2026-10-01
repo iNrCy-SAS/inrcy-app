@@ -2452,10 +2452,15 @@ async function replaceChannelDelivery(params: {
       pinterestNativeMessage,
       8,
     );
-    const description = [pinterestNativeMessage, tagLine]
+    if (pinterestNativeMessage.length > 500) {
+      throw new Error("Le texte et le CTA Pinterest dépassent 500 caractères. Raccourcissez le contenu avant de republier.");
+    }
+    const descriptionWithTags = [pinterestNativeMessage, tagLine]
       .filter(Boolean)
-      .join("\n\n")
-      .slice(0, 500);
+      .join("\n\n");
+    const description = descriptionWithTags.length <= 500
+      ? descriptionWithTags
+      : pinterestNativeMessage;
     const link =
       getBoosterCtaDestinationUrlForChannel("pinterest", nextPost, {
         websiteUrl,

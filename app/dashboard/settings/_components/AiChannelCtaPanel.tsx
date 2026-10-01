@@ -11,7 +11,7 @@ import {
   type AiCtaChannel,
   type AiCtaChoice,
 } from "@/lib/aiChannelCtaPreferences";
-import { getSupportedPreferredCtasForChannel } from "@/lib/boosterCtaPreferences";
+import { getSupportedPreferredCtasForChannel, normalizeCtaPhone } from "@/lib/boosterCtaPreferences";
 import styles from "./AiChannelCtaPanel.module.css";
 
 type Props = {
@@ -44,6 +44,9 @@ const COPY = {
     notConfigured: "Sans CTA",
     native: "Bouton cliquable quand le canal le permet",
     text: "Invitation ajoutée au texte du canal",
+    callText: "« Appeler : numéro » sera ajouté au texte, sans bouton natif.",
+    googleCall: "Google affiche un bouton Appeler avec le numéro vérifié de votre fiche, pas avec un numéro saisi uniquement ici.",
+    storyCall: "Les Stories Facebook et Instagram n’affichent pas ce texte.",
     noLinks: "Les liens de légende ne sont pas cliquables sur ce canal.",
     preview: "APERÇU DU CTA",
     settings: "RÉGLAGES DU CTA",
@@ -83,6 +86,9 @@ const COPY = {
     notConfigured: "No CTA",
     native: "Clickable button where supported",
     text: "Invitation added to the channel text",
+    callText: "“Call: phone number” is added to the text, without a native button.",
+    googleCall: "Google shows a Call button using your verified Business Profile number, not a number entered only here.",
+    storyCall: "Facebook and Instagram Stories do not display this text.",
     noLinks: "Caption links are not clickable on this channel.",
     preview: "CTA PREVIEW",
     settings: "CTA SETTINGS",
@@ -178,6 +184,27 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const automaticDestination = selected?.choice === "custom" ? "" : needsUrl
     ? automaticWebsite(activeChannel, destinations)
     : destinations?.phone || "";
+  const callPreviewPhone = selected?.choice === "appeler"
+    ? normalizeCtaPhone(selected.phone) || normalizeCtaPhone(destinations?.phone)
+    : "";
+  const previewLabel = selected ? selected.label || copy[selected.choice] : "";
+  const previewText = selected?.choice === "appeler" && activeChannel !== "gmb" &&
+    callPreviewPhone && !previewLabel.includes(callPreviewPhone)
+    ? `${previewLabel} : ${callPreviewPhone}`
+    : previewLabel;
+  let capabilityText = "";
+  if (selected) {
+    if (!complete) capabilityText = copy.missingDestination;
+    else if (selected.choice === "appeler") {
+      capabilityText = activeChannel === "gmb"
+        ? copy.native
+        : `${copy.callText}${activeChannel === "facebook" || activeChannel === "instagram" ? ` ${copy.storyCall}` : ""}`;
+    } else if (activeChannel === "instagram" || activeChannel === "tiktok") {
+      capabilityText = copy.noLinks;
+    } else {
+      capabilityText = NATIVE_CTA_CHANNELS.has(activeChannel) ? copy.native : copy.text;
+    }
+  }
 
   const update = (channel: AiCtaChannel, patch: Partial<AiChannelCtaConfig> | null) => {
     const next = { ...value };
@@ -364,10 +391,13 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
                   ) : null}
                 </div>
               ) : <p className={styles.settingsEmpty}>{copy.settingsEmpty}</p>}
-              {selected && (needsUrl || needsPhone) ? (
+              {selected && (needsUrl || needsPhone) && !(activeChannel === "gmb" && selected.choice === "appeler") ? (
                 <p className={styles.destination}>
                   {automaticDestination ? `${copy.automatic} : ${automaticDestination}` : copy.missingDestination}
                 </p>
+              ) : null}
+              {activeChannel === "gmb" && selected?.choice === "appeler" ? (
+                <p className={styles.destination}>{copy.googleCall}</p>
               ) : null}
           </div>
         </article>
@@ -379,8 +409,10 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
           {selected ? (
             <div className={styles.previewCanvas}>
               <span className={styles.previewAura} aria-hidden>✦</span>
-              <span className={`${styles.previewText} ${complete ? "" : styles.previewTextPending}`}>{selected.label || copy[selected.choice]}</span>
-              {needsUrl || needsPhone ? (
+              <span className={`${styles.previewText} ${complete ? "" : styles.previewTextPending}`}>
+                {previewText}
+              </span>
+              {(needsUrl || needsPhone) && selected.choice !== "appeler" ? (
                 <span className={styles.previewTarget}>
                   {copy.previewDestination} · {selected.url || selected.phone || automaticDestination || "—"}
                 </span>
@@ -394,11 +426,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
             </div>
           )}
           {selected ? (
-            <p className={styles.capability}>
-              {!complete ? copy.missingDestination :
-                activeChannel === "instagram" || activeChannel === "tiktok" ? copy.noLinks :
-                  NATIVE_CTA_CHANNELS.has(activeChannel) ? copy.native : copy.text}
-            </p>
+            <p className={styles.capability}>{capabilityText}</p>
           ) : null}
         </aside>
         </div>

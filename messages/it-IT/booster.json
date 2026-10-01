@@ -584,7 +584,7 @@
   "cta_help_none": "Non verrà aggiunto alcun pulsante alla fine del testo.",
   "cta_help_gmb_website": "Verrà utilizzato un vero pulsante Profilo dell’attività su Google quando è disponibile l’URL di un sito.",
   "cta_help_website": "Il link del sito verrà aggiunto correttamente alla fine del contenuto. L’URL viene compilato automaticamente quando disponibile.",
-  "cta_help_gmb_call": "Verrà utilizzato un vero pulsante Chiama quando è disponibile un numero.",
+  "cta_help_gmb_call": "Google usa un pulsante Chiama collegato al numero verificato della scheda, non a un numero inserito solo qui.",
   "cta_help_call": "Verrà aggiunta una frase di invito all’azione naturale con il numero, se disponibile.",
   "cta_help_message": "Verrà aggiunta una frase naturale come «Inviaci un messaggio privato».",
   "cta_help_gmb_custom": "Link o testo personalizzato. Usalo solo se il pulsante automatico non è adatto.",

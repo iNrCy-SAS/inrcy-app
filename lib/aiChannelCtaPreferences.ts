@@ -44,16 +44,16 @@ const CHOICE_MODES: Record<AiCtaChoice, AiChannelCtaConfig["mode"]> = {
 // Keep this pure so account migration works in the browser and in Node's
 // standalone setup checks. These are the CTA-capable modes of boosterCta.ts.
 const MODES_BY_CHANNEL: Record<AiCtaChannel, readonly AiChannelCtaConfig["mode"][]> = {
-  inrcy_site: ["website", "custom"],
-  site_web: ["website", "custom"],
+  inrcy_site: ["website", "call", "custom"],
+  site_web: ["website", "call", "custom"],
   gmb: ["website", "call", "custom"],
-  facebook: ["website", "message", "custom"],
-  instagram: ["message"],
-  linkedin: ["website", "custom"],
+  facebook: ["website", "call", "message", "custom"],
+  instagram: ["call", "message"],
+  linkedin: ["website", "call", "custom"],
   x: ["call", "message"],
-  tiktok: ["message"],
-  youtube_shorts: ["website", "custom"],
-  pinterest: ["website", "custom"],
+  tiktok: ["call", "message"],
+  youtube_shorts: ["website", "call", "custom"],
+  pinterest: ["website", "call", "custom"],
 };
 
 function cleanText(value: unknown, maxLength: number) {
@@ -77,7 +77,8 @@ function normalizeCtaWebsiteUrl(value: unknown) {
 
 function normalizeCtaPhone(value: unknown) {
   const phone = cleanText(value, 48).replace(/[^\d+().\-\s]/g, "").trim();
-  return phone.replace(/\D/g, "").length >= 6 ? phone : "";
+  const digitCount = phone.replace(/\D/g, "").length;
+  return digitCount >= 8 && digitCount <= 15 ? phone : "";
 }
 
 function resolveChoice(entry: Record<string, unknown>): AiCtaChoice | null {

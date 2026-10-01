@@ -584,7 +584,7 @@
   "cta_help_none": "文本末尾不会添加任何按钮。",
   "cta_help_gmb_website": "当站点 URL 可用时，将使用真正的 Google Business 按钮。",
   "cta_help_website": "站点链接将整齐地添加在内容的末尾。 URL 可用时会自动预先填充。",
-  "cta_help_gmb_call": "如果有可用号码，将使用真正的呼叫按钮。",
+  "cta_help_gmb_call": "Google 的呼叫按钮使用商家资料中已验证的电话号码，而不是仅在此处填写的号码。",
   "cta_help_call": "如果可用，将在号码中添加自然呼叫短语。",
   "cta_help_message": "自然的短语，例如“给我们发送私人消息”。 » 将被添加。",
   "cta_help_gmb_custom": "自定义链接或文本。仅当自动按钮不适合时才使用。",

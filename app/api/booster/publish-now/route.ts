@@ -83,6 +83,7 @@ import {
   buildCtaTextForChannel,
   getBoosterCtaDestinationUrlForChannel,
   getBoosterGmbCallToAction,
+  getCtaMode,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
 import {
@@ -4451,6 +4452,13 @@ async function publishNowHandler(req: Request) {
         }
 
         if (ch === "facebook") {
+          if (facebookPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call") {
+            const facebookUserError =
+              "Le CTA « Appeler : numéro » ne peut pas être affiché dans une Story Facebook. Choisissez un autre format ou retirez ce CTA.";
+            await setDelivery(ch, { status: "failed", error: facebookUserError });
+            results[ch] = { ok: false, error: facebookUserError };
+            continue;
+          }
           const fb = asRecord(fbRow);
           const pageId = String(fb["resource_id"] ?? "");
           const pageTokenRaw = String(fb["access_token_enc"] ?? "");
@@ -4739,6 +4747,13 @@ async function publishNowHandler(req: Request) {
         }
 
         if (ch === "instagram") {
+          if (instagramPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call") {
+            const instagramUserError =
+              "Le CTA « Appeler : numéro » ne peut pas être affiché dans une Story Instagram. Choisissez un autre format ou retirez ce CTA.";
+            await setDelivery(ch, { status: "failed", error: instagramUserError });
+            results[ch] = { ok: false, error: instagramUserError };
+            continue;
+          }
           const ig = asRecord(igRow);
           const igUserId = String(ig["resource_id"] ?? "");
           const igTokenRaw = String(ig["access_token_enc"] ?? "");
@@ -6015,11 +6030,20 @@ async function publishNowHandler(req: Request) {
             canonMessage,
             8,
           );
+          if (canonMessage.length > 2200) {
+            const tiktokUserError =
+              "La légende TikTok, CTA compris, dépasse 2 200 caractères. Raccourcissez le contenu pour conserver le numéro choisi.";
+            await setDelivery(ch, { status: "failed", error: tiktokUserError });
+            results[ch] = { ok: false, error: tiktokUserError };
+            continue;
+          }
+          const tiktokCaptionWithTags = [canonMessage, tiktokHashtagLine]
+            .filter(Boolean)
+            .join("\n\n");
           const tiktokTitle =
-            [canonMessage, tiktokHashtagLine]
-              .filter(Boolean)
-              .join("\n\n")
-              .slice(0, 2200) ||
+            (tiktokCaptionWithTags.length <= 2200
+              ? tiktokCaptionWithTags
+              : canonMessage) ||
             channelPost.content ||
             channelPost.title ||
             "Publication iNrCy";
@@ -6318,12 +6342,22 @@ async function publishNowHandler(req: Request) {
             [pinterestContent, pinterestCta].filter(Boolean).join("\n\n"),
             8,
           );
-          let description = pinterestContent;
-          for (const optionalPart of [pinterestCta, pinterestTagLine]) {
-            if (!optionalPart) continue;
-            const candidate = [description, optionalPart].filter(Boolean).join("\n\n");
-            if (candidate.length <= 500) description = candidate;
+          const pinterestRequiredDescription = [pinterestContent, pinterestCta]
+            .filter(Boolean)
+            .join("\n\n");
+          if (pinterestRequiredDescription.length > 500) {
+            const pinterestUserError =
+              "Le texte et le CTA Pinterest dépassent 500 caractères. Raccourcissez le contenu pour conserver le numéro ou le lien choisi.";
+            await setDelivery(ch, { status: "failed", error: pinterestUserError });
+            results[ch] = { ok: false, error: pinterestUserError };
+            continue;
           }
+          const descriptionWithTags = [pinterestRequiredDescription, pinterestTagLine]
+            .filter(Boolean)
+            .join("\n\n");
+          const description = descriptionWithTags.length <= 500
+            ? descriptionWithTags
+            : pinterestRequiredDescription;
           const pinterestLink =
             getBoosterCtaDestinationUrlForChannel(
               "pinterest",

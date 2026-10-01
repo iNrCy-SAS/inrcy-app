@@ -30,6 +30,8 @@ import {
   snapshotScheduledPublicationWorkspace,
 } from "@/lib/scheduledPublicationMediaSnapshot";
 import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
+import type { BoosterCtaMode } from "@/lib/boosterCta";
+import { normalizeCtaPhone, normalizeCtaWebsiteUrl } from "@/lib/boosterCtaPreferences";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -53,6 +55,9 @@ type BoosterPost = {
   content: string;
   cta: string;
   hashtags: string[];
+  ctaMode?: BoosterCtaMode;
+  ctaUrl?: string;
+  ctaPhone?: string;
 };
 
 const ACTION_SELECT =
@@ -423,7 +428,21 @@ function normalizePost(raw: unknown, fallback?: BoosterPost): BoosterPost {
   const hashtags = cleanHashtags(record.hashtags).length
     ? cleanHashtags(record.hashtags)
     : fallback?.hashtags || [];
-  return { title, content, cta, hashtags };
+  const rawCtaMode = cleanText(record.ctaMode ?? record.cta_mode ?? fallback?.ctaMode ?? "", 24);
+  const ctaMode = ["none", "website", "call", "message", "custom"].includes(rawCtaMode)
+    ? (rawCtaMode as BoosterCtaMode)
+    : undefined;
+  const ctaUrl = normalizeCtaWebsiteUrl(record.ctaUrl ?? record.cta_url ?? fallback?.ctaUrl);
+  const ctaPhone = normalizeCtaPhone(record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone);
+  return {
+    title,
+    content,
+    cta,
+    hashtags,
+    ...(ctaMode ? { ctaMode } : {}),
+    ...(ctaUrl ? { ctaUrl } : {}),
+    ...(ctaPhone ? { ctaPhone } : {}),
+  };
 }
 
 function ensurePublishablePost(
@@ -437,6 +456,9 @@ function ensurePublishablePost(
     content: post.content || post.title || fallback,
     cta: post.cta,
     hashtags: post.hashtags,
+    ...(post.ctaMode ? { ctaMode: post.ctaMode } : {}),
+    ...(post.ctaUrl ? { ctaUrl: post.ctaUrl } : {}),
+    ...(post.ctaPhone ? { ctaPhone: post.ctaPhone } : {}),
   };
 }
 

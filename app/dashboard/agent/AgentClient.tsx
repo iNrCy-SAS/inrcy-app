@@ -112,6 +112,7 @@ import {
   type ChannelPost as BoosterChannelPost,
 } from "../booster/publier/publishModal.shared";
 import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
+import { buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
@@ -7528,6 +7529,16 @@ export default function AgentClient() {
                         ctaChoice
                       )}
                     </small>
+                    {ctaMode === "call" && displayKey !== "gmb" && getCtaPhone(currentPost, { phone: publishCtaDefaults?.phone || "" }) && (
+                      <small className={styles.publishCtaHelp}>
+                        <strong>
+                          {buildCtaTextForChannel(displayKey, currentPost, {
+                            websiteUrl: activeWebsiteUrl,
+                            phone: publishCtaDefaults?.phone || "",
+                          })}
+                        </strong>
+                      </small>
+                    )}
                     {ctaMode === "website" && activeWebsiteUrl && (
                       <small className={styles.publishCtaHelp}>
                         {i18nT("valeur_par_defaut_disponible_depuis_26881dec")}{" "}

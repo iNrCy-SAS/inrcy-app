@@ -10,17 +10,17 @@ function read(path: string) {
 test("each publication channel has an explicit CTA capability policy", () => {
   const cta = read("lib/boosterCta.ts");
 
-  assert.match(cta, /inrcy_site: \["none", "website", "custom"\]/);
-  assert.match(cta, /site_web: \["none", "website", "custom"\]/);
+  assert.match(cta, /inrcy_site: \["none", "website", "call", "custom"\]/);
+  assert.match(cta, /site_web: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /inr_search: \["none"\]/);
   assert.match(cta, /gmb: \["none", "website", "call", "custom"\]/);
-  assert.match(cta, /facebook: \["none", "website", "message", "custom"\]/);
-  assert.match(cta, /instagram: \["none", "message"\]/);
-  assert.match(cta, /linkedin: \["none", "website", "custom"\]/);
+  assert.match(cta, /facebook: \["none", "website", "call", "message", "custom"\]/);
+  assert.match(cta, /instagram: \["none", "call", "message"\]/);
+  assert.match(cta, /linkedin: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /x: \["none", "call", "message"\]/);
-  assert.match(cta, /tiktok: \["none", "message"\]/);
-  assert.match(cta, /youtube_shorts: \["none", "website", "custom"\]/);
-  assert.match(cta, /pinterest: \["none", "website", "custom"\]/);
+  assert.match(cta, /tiktok: \["none", "call", "message"\]/);
+  assert.match(cta, /youtube_shorts: \["none", "website", "call", "custom"\]/);
+  assert.match(cta, /pinterest: \["none", "website", "call", "custom"\]/);
 });
 
 test("all CTA editors filter their choices with the shared channel policy", () => {
@@ -78,6 +78,37 @@ test("the final publisher transforms incompatible CTAs and fails closed", () => 
     inrSend,
     /normalizePublicHttpUrl\(nextPost\.ctaUrl\) \|\|/,
   );
+});
+
+test("Pinterest never drops or cuts an Appeler CTA to fit its description limit", () => {
+  const publishNow = read("app/api/booster/publish-now/route.ts");
+  const inrSend = read("lib/inrsend/publicationChannelActions.ts");
+
+  assert.match(publishNow, /pinterestRequiredDescription\.length > 500[\s\S]*?Raccourcissez le contenu/);
+  assert.match(publishNow, /descriptionWithTags\.length <= 500[\s\S]*?: pinterestRequiredDescription/);
+  assert.match(inrSend, /pinterestNativeMessage\.length > 500[\s\S]*?Raccourcissez le contenu/);
+  assert.doesNotMatch(inrSend, /pinterestNativeMessage, tagLine\][\s\S]*?\.slice\(0, 500\)/);
+});
+
+test("Instagram and TikTok never truncate the selected phone CTA", () => {
+  const cta = read("lib/boosterCta.ts");
+  const publishNow = read("app/api/booster/publish-now/route.ts");
+
+  assert.match(cta, /base\.length > 2200[\s\S]*?Raccourcissez le contenu/);
+  assert.doesNotMatch(cta, /captionWithTags[\s\S]*?\.slice\(0, 2200\)/);
+  assert.match(publishNow, /canonMessage\.length > 2200[\s\S]*?Raccourcissez le contenu/);
+  assert.doesNotMatch(publishNow, /tiktokCaptionWithTags[\s\S]*?\.slice\(0, 2200\)/);
+});
+
+test("Appeler includes the number in copy and is never promised on Stories", () => {
+  const cta = read("lib/boosterCta.ts");
+  const publishNow = read("app/api/booster/publish-now/route.ts");
+  const aiSettings = read("app/dashboard/settings/_components/AiChannelCtaPanel.tsx");
+
+  assert.ok(cta.includes('return phone ? joinCtaLabelAndValue(label, phone, "Appelez-nous") : ""'));
+  assert.ok(aiSettings.includes('`${previewLabel} : ${callPreviewPhone}`'));
+  assert.ok(publishNow.includes('facebookPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call"'));
+  assert.ok(publishNow.includes('instagramPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call"'));
 });
 
 test("website defaults keep Site web and Site iNrCy as distinct sources", () => {

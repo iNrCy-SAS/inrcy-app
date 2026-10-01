@@ -584,7 +584,7 @@
   "cta_help_none": "Am Ende des Textes wird keine Schaltfläche hinzugefügt.",
   "cta_help_gmb_website": "Eine echte Google-Business-Schaltfläche wird verwendet, wenn eine Website-URL verfügbar ist.",
   "cta_help_website": "Der Website-Link wird passend am Ende des Inhalts eingefügt. Die URL wird automatisch vorausgefüllt, wenn sie verfügbar ist.",
-  "cta_help_gmb_call": "Eine echte Anrufen-Schaltfläche wird verwendet, wenn eine Telefonnummer verfügbar ist.",
+  "cta_help_gmb_call": "Google nutzt eine Anrufen-Schaltfläche mit der bestätigten Nummer des Unternehmensprofils, nicht mit einer nur hier eingetragenen Nummer.",
   "cta_help_call": "Ein natürlicher Handlungsaufruf mit der Telefonnummer wird hinzugefügt, sofern sie verfügbar ist.",
   "cta_help_message": "Ein natürlicher Satz wie „Sende uns eine private Nachricht.“ wird hinzugefügt.",
   "cta_help_gmb_custom": "Benutzerdefinierter Link oder Text. Nur verwenden, wenn die automatische Schaltfläche nicht geeignet ist.",

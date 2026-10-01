@@ -47,25 +47,26 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   BoosterChannelKey,
   readonly BoosterCtaMode[]
 > = {
-  inrcy_site: ["none", "website", "custom"],
-  site_web: ["none", "website", "custom"],
+  inrcy_site: ["none", "website", "call", "custom"],
+  site_web: ["none", "website", "call", "custom"],
   // Les actualités iNr'Search n'exposent pas encore de CTA par publication.
   inr_search: ["none"],
   // Google Business propose de vrais boutons URL ou Appeler, mais aucun bouton MP.
   gmb: ["none", "website", "call", "custom"],
-  // Les publications Facebook acceptent les liens dans le contenu et l'appel au MP.
-  facebook: ["none", "website", "message", "custom"],
+  // Hors Google Business, Appeler + numéro est une invitation textuelle,
+  // jamais un bouton natif créé par l'API du réseau.
+  facebook: ["none", "website", "call", "message", "custom"],
   // Instagram et TikTok ne rendent pas les URL de légende cliquables via nos API.
-  instagram: ["none", "message"],
-  linkedin: ["none", "website", "custom"],
+  instagram: ["none", "call", "message"],
+  linkedin: ["none", "website", "call", "custom"],
   // X n'expose pas de bouton natif et notre intégration refuse toute URL.
   // Seules les invitations textuelles sans lien restent proposées.
   x: ["none", "call", "message"],
-  tiktok: ["none", "message"],
+  tiktok: ["none", "call", "message"],
   // Les liens sont placés dans la description YouTube.
-  youtube_shorts: ["none", "website", "custom"],
+  youtube_shorts: ["none", "website", "call", "custom"],
   // Pinterest expose un lien de destination natif sur l'épingle.
-  pinterest: ["none", "website", "custom"],
+  pinterest: ["none", "website", "call", "custom"],
 };
 
 export function getSupportedBoosterCtaModesForChannel(
@@ -100,10 +101,12 @@ function ensureUrl(input: string) {
 }
 
 function normalizePhone(input: string) {
-  return String(input || "")
+  const phone = String(input || "")
     .trim()
     .replace(/[^\d+]/g, "")
     .slice(0, 24);
+  const digitCount = phone.replace(/\D/g, "").length;
+  return digitCount >= 8 && digitCount <= 15 ? phone : "";
 }
 
 export function inferLegacyCtaMode(text: string): BoosterCtaMode {
@@ -429,8 +432,12 @@ export function buildBoosterHashtagLine(
 export function buildBoosterInstagramCaption(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
   const normalizedPost = normalizeBoosterInstagramPostHashtags(post || {}, 8);
   const base = buildBoosterMessage("instagram", normalizedPost, context);
+  if (base.length > 2200) {
+    throw new Error("La légende Instagram, CTA compris, dépasse 2 200 caractères. Raccourcissez le contenu pour conserver le numéro choisi.");
+  }
   const tagLine = buildBoosterHashtagLine(normalizedPost, base, 8);
-  return (tagLine ? `${base}\n\n${tagLine}` : base).trim().slice(0, 2200);
+  const captionWithTags = tagLine ? `${base}\n\n${tagLine}` : base;
+  return captionWithTags.length <= 2200 ? captionWithTags.trim() : base.trim();
 }
 
 /** Texte exact envoyé à X, CTA et hashtags inclus. */

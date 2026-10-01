@@ -1,4 +1,5 @@
 import { renderBoosterSiteContentHtml } from "@/lib/boosterFormatting";
+import { parseBoosterArticleCallCta } from "@/lib/boosterArticleCallCta";
 import {
   buildStableEmbedActusMediaUrl,
   extractEmbedActusStorageReference,
@@ -251,7 +252,12 @@ function renderArticleCta(article: Record<string, unknown>) {
   const raw = String(article.cta ?? "").trim();
   if (!raw) return "";
   const urlMatch = raw.match(/https?:\/\/[^\s<>"']+/i);
-  if (!urlMatch) return "";
+  if (!urlMatch) {
+    const call = parseBoosterArticleCallCta(raw);
+    return call
+      ? `<a class="newsCta" href="${safeAttr(call.href)}">${escapeHtml(`${call.label} : ${call.phone}`)}</a>`
+      : "";
+  }
   const candidate = urlMatch[0].replace(/[),.;!?]+$/g, "");
   try {
     const url = new URL(candidate);

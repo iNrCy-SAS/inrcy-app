@@ -106,6 +106,38 @@ test("a mixed schedule keeps five image channels and five video channels intact"
   assert.deepEqual(request.body.imagesByChannel, imagesByChannel);
 });
 
+test("iNrAgent scheduling preserves a structured Appeler CTA through execution", () => {
+  assert.ok(agentScheduleRoute.includes("ctaMode?: BoosterCtaMode"));
+  assert.ok(agentScheduleRoute.includes("const ctaPhone = normalizeCtaPhone(record.ctaPhone"));
+  assert.ok(agentScheduleRoute.includes("...(post.ctaPhone ? { ctaPhone: post.ctaPhone } : {})"));
+  assert.ok(agentExecuteRoute.includes("record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone"));
+
+  const post = {
+    title: "Un service à découvrir",
+    content: "Appelez-nous pour en savoir plus.",
+    cta: "Appeler",
+    ctaMode: "call",
+    ctaPhone: "06 12 34 56 78",
+    hashtags: [],
+  };
+  const request = buildScheduledPublicationRequest({
+    id: "schedule-call-cta",
+    automation_key: "publish",
+    channels: ["instagram"],
+    payload: {
+      kind: "manual_publish_schedule",
+      publishPayload: {
+        channels: ["instagram"],
+        post,
+        postByChannel: { instagram: post },
+      },
+    },
+  });
+  assert.ok(request);
+  const scheduledPosts = request.body.postByChannel as Record<string, unknown>;
+  assert.deepEqual(scheduledPosts.instagram, post);
+});
+
 test("a durable 202 is processing, persists its publication id and is not retried", () => {
   const result = interpretScheduledPublicationResponse({
     httpStatus: 202,

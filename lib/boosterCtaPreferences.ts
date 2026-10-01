@@ -246,9 +246,11 @@ export function normalizeCtaWebsiteUrl(value: unknown) {
 }
 
 export function normalizeCtaPhone(value: unknown) {
-  return cleanText(value, 48)
+  const phone = cleanText(value, 48)
     .replace(/[^\d+().\-\s]/g, "")
     .trim();
+  const digitCount = phone.replace(/\D/g, "").length;
+  return digitCount >= 8 && digitCount <= 15 ? phone : "";
 }
 
 export function getPreferredWebsiteUrlForChannel(

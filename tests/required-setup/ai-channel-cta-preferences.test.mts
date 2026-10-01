@@ -24,12 +24,28 @@ test("only explicit complete CTAs survive normalization", () => {
     x: { mode: "message", label: "Écrivez-nous" },
     pinterest: { mode: "website", label: "Voir", url: "" },
   });
-  assert.deepEqual(Object.keys(normalized).sort(), ["gmb", "pinterest", "x"]);
+  assert.deepEqual(Object.keys(normalized).sort(), ["facebook", "gmb", "pinterest", "x"]);
+  assert.equal(normalized.facebook?.phone, "+33 6 12 34 56 78");
   assert.equal(normalized.gmb?.url, "https://example.com/");
   assert.equal(normalized.x?.label, "Écrivez-nous");
-  assert.equal(countConfiguredAiChannelCtas(normalized), 3);
+  assert.equal(countConfiguredAiChannelCtas(normalized), 4);
   assert.equal(isAiChannelCtaComplete("pinterest", normalized.pinterest, null), false);
   assert.equal(isAiChannelCtaComplete("pinterest", normalized.pinterest, { preferredWebsiteUrl: "https://example.com" }), true);
+});
+
+test("Appeler remains selectable with a phone on every CTA-capable channel", () => {
+  const entries = Object.fromEntries(AI_CTA_CHANNELS.map(({ key }) => [
+    key,
+    { choice: "appeler", mode: "call", label: "Appeler", phone: "+33 6 12 34 56 78" },
+  ]));
+  const normalized = normalizeAiChannelCtaMap(entries);
+  assert.equal(countConfiguredAiChannelCtas(normalized), AI_CTA_CHANNELS.length);
+  for (const { key } of AI_CTA_CHANNELS) {
+    assert.equal(normalized[key]?.choice, "appeler", key);
+    assert.equal(normalized[key]?.phone, "+33 6 12 34 56 78", key);
+    assert.equal(isAiChannelCtaComplete(key, normalized[key], null), true, key);
+  }
+  assert.equal(Object.hasOwn(normalizeAiChannelCtaMap({ inr_search: entries.gmb }), "inr_search"), false);
 });
 
 test("automatic site and call choices remain configured but need a real destination", () => {

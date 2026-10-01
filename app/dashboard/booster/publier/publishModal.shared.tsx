@@ -1371,8 +1371,8 @@ export function getCtaModeHelp(
       : "Le lien du site sera ajouté proprement à la fin du contenu. L’URL du site est préremplie automatiquement quand elle est disponible.";
   if (mode === "call")
     return channel === "gmb"
-      ? "Un vrai bouton Appeler sera utilisé si un numéro est disponible."
-      : "Une phrase d’appel naturelle sera ajoutée avec le numéro si disponible.";
+      ? "Google utilise un vrai bouton Appeler lié au numéro vérifié de la fiche, pas à un numéro saisi uniquement ici."
+      : "Le texte « Appeler : votre numéro » sera ajouté à la publication si le numéro est disponible.";
   if (mode === "message")
     return "Une phrase naturelle du type “Envoyez-nous un message privé.” sera ajoutée.";
   return channel === "gmb"

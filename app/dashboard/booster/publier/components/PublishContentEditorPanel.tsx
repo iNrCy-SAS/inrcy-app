@@ -10,7 +10,7 @@ import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
 import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
-import { buildBoosterXPostText } from "@/lib/boosterCta";
+import { buildBoosterXPostText, buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import { getXPostTextMetrics } from "@/lib/xChannel";
 import {
   getBoosterXForbiddenUrlFields,
@@ -1353,6 +1353,21 @@ export default function PublishContentEditorPanel({
                           ctaChoice,
                         )}
                       </div>
+                      {ctaMode === "call" && activeCard !== "gmb" && getCtaPhone(currentPost, { phone: ctaDefaults?.phone || "" }) ? (
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            marginTop: 8,
+                            color: "rgba(255,255,255,0.9)",
+                          }}
+                        >
+                          {buildCtaTextForChannel(activeCard, currentPost, {
+                            websiteUrl: activeWebsiteUrl,
+                            phone: ctaDefaults?.phone || "",
+                          })}
+                        </div>
+                      ) : null}
                       {ctaMode === "website" && activeWebsiteUrl ? (
                         <div
                           style={{

@@ -584,7 +584,7 @@
   "cta_help_none": "Não será adicionado qualquer botão no final do texto.",
   "cta_help_gmb_website": "Será utilizado um verdadeiro botão do Perfil de Empresa no Google quando estiver disponível um URL do site.",
   "cta_help_website": "A ligação do site será adicionada corretamente no final do conteúdo. O URL é preenchido automaticamente quando está disponível.",
-  "cta_help_gmb_call": "Será utilizado um verdadeiro botão Ligar quando estiver disponível um número.",
+  "cta_help_gmb_call": "O Google usa um botão Ligar ligado ao número verificado do Perfil de Empresa, não a um número introduzido apenas aqui.",
   "cta_help_call": "Será adicionada uma frase natural de apelo à ação com o número, se estiver disponível.",
   "cta_help_message": "Será adicionada uma frase natural como «Envie-nos uma mensagem privada».",
   "cta_help_gmb_custom": "Ligação ou texto personalizado. Utilize apenas se o botão automático não for adequado.",

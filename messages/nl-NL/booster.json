@@ -584,7 +584,7 @@
   "cta_help_none": "Er wordt geen knop aan het einde van de tekst toegevoegd.",
   "cta_help_gmb_website": "Er wordt een echte Google-bedrijfsprofiel-knop gebruikt wanneer een website-URL beschikbaar is.",
   "cta_help_website": "De websitelink wordt netjes aan het einde van de inhoud toegevoegd. De URL wordt automatisch ingevuld wanneer die beschikbaar is.",
-  "cta_help_gmb_call": "Er wordt een echte Bel-knop gebruikt wanneer een telefoonnummer beschikbaar is.",
+  "cta_help_gmb_call": "Google gebruikt een Bel-knop met het geverifieerde nummer van het bedrijfsprofiel, niet met een nummer dat alleen hier is ingevuld.",
   "cta_help_call": "Er wordt een natuurlijke oproep tot actie met het telefoonnummer toegevoegd, indien beschikbaar.",
   "cta_help_message": "Er wordt een natuurlijke zin toegevoegd, zoals ‘Stuur ons een privébericht.’",
   "cta_help_gmb_custom": "Aangepaste link of tekst. Gebruik dit alleen als de automatische knop niet geschikt is.",
