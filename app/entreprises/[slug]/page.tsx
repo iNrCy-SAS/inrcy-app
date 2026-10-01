@@ -941,6 +941,40 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
     actionKey: string;
     kind: string;
   }>;
+  const hasStrengthFact = facts.some((fact) => fact.kind === "strengths");
+  const hasAvailabilityFact = facts.some((fact) => fact.kind === "availability");
+
+  const renderPresentationFact = (fact: (typeof facts)[number], index: number) => {
+    const body = (
+      <>
+        <span className={styles.presentationFactIcon}><Icon name={fact.icon} /></span>
+        <span className={styles.presentationFactText}>
+          <small>{fact.label}</small>
+          <strong>{fact.value}</strong>
+        </span>
+      </>
+    );
+
+    return fact.href ? (
+      <a
+        className={styles.presentationSatellite}
+        data-slot={String(index)}
+        data-kind={fact.kind}
+        href={fact.href}
+        key={fact.label}
+        target={fact.href.startsWith("http") ? "_blank" : undefined}
+        rel={fact.href.startsWith("http") ? "noreferrer" : undefined}
+        data-inrsearch-action={fact.actionKey || undefined}
+        data-inrsearch-target={fact.actionKey ? fact.href : undefined}
+      >
+        {body}
+      </a>
+    ) : (
+      <article className={styles.presentationSatellite} data-slot={String(index)} data-kind={fact.kind} key={fact.label}>
+        {body}
+      </article>
+    );
+  };
 
   return (
     <>
@@ -1080,36 +1114,25 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
                 </div>
 
                 <div className={styles.presentationFactOrbit} aria-label={i18nT("informations_principales_48373a61")}>
-                  {facts.map((fact, index) => {
-                    const body = (
-                      <>
-                        <span className={styles.presentationFactIcon}><Icon name={fact.icon} /></span>
-                        <span className={styles.presentationFactText}>
-                          <small>{fact.label}</small>
-                          <strong>{fact.value}</strong>
-                        </span>
-                      </>
-                    );
-                    return fact.href ? (
-                      <a
-                        className={styles.presentationSatellite}
-                        data-slot={String(index)}
-                        data-kind={fact.kind}
-                        href={fact.href}
-                        key={fact.label}
-                        target={fact.href.startsWith("http") ? "_blank" : undefined}
-                        rel={fact.href.startsWith("http") ? "noreferrer" : undefined}
-                        data-inrsearch-action={fact.actionKey || undefined}
-                        data-inrsearch-target={fact.actionKey ? fact.href : undefined}
-                      >
-                        {body}
-                      </a>
-                    ) : (
-                      <article className={styles.presentationSatellite} data-slot={String(index)} data-kind={fact.kind} key={fact.label}>
-                        {body}
-                      </article>
-                    );
-                  })}
+                  {facts.map((fact, index) =>
+                    fact.kind === "strengths" || fact.kind === "availability"
+                      ? null
+                      : renderPresentationFact(fact, index),
+                  )}
+                  {hasStrengthFact || hasAvailabilityFact ? (
+                    <div
+                      className={styles.presentationFactRail}
+                      data-rail-layout={hasStrengthFact
+                        ? hasAvailabilityFact ? "stacked" : "strengths"
+                        : "availability"}
+                    >
+                      {facts.map((fact, index) =>
+                        fact.kind === "strengths" || fact.kind === "availability"
+                          ? renderPresentationFact(fact, index)
+                          : null,
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

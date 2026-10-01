@@ -130,6 +130,19 @@ test("public iNrSearch news uses one full stage and ten direct number controls",
   assert.match(block, /newsOrbitModalMedia > video[\s\S]*height:\s*100% !important/);
 });
 
+test("long presentation facts flow without overlapping and news titles keep words whole", () => {
+  const page = read("app/entreprises/[slug]/page.tsx");
+  const css = read("app/entreprises/[slug]/inrSearchPublic.module.css");
+  const marker = "/* Keep the two variable-length identity facts in normal flow.";
+  const block = css.slice(css.indexOf(marker));
+
+  assert.ok(block.startsWith(marker));
+  assert.match(page, /className=\{styles\.presentationFactRail\}/);
+  assert.match(block, /\.presentationFactRail\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*overflow-y:\s*auto;/);
+  assert.match(block, /\.presentationFactRail \.presentationSatellite\[data-kind\]\s*\{[^}]*position:\s*relative !important;/);
+  assert.match(block, /\.newsOrbitFocusContent > strong\s*\{[^}]*overflow-wrap:\s*normal;[^}]*word-break:\s*normal;/);
+});
+
 test("successful iNrSearch deliveries have a durable text and media recovery path", () => {
   const publishRoute = read("app/api/booster/publish-now/route.ts");
   const publicData = read("lib/inrSearchPublic.ts");

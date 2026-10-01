@@ -13547,3 +13547,68 @@
     aspect-ratio: auto;
   }
 }
+
+/* Keep the two variable-length identity facts in normal flow. The rail only
+   scrolls when their combined content exceeds the available orbit height. */
+.presentationFactRail { display: contents; }
+
+@media (min-width: 901px) {
+  .presentationFactRail {
+    position: absolute;
+    left: -8%;
+    top: 24%;
+    bottom: 8%;
+    width: clamp(205px, 16vw, 255px);
+    min-height: 0;
+    padding: 5px 7px 5px 4px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(121, 195, 255, .35) transparent;
+    pointer-events: auto;
+  }
+
+  .presentationFactRail[data-rail-layout="strengths"] { top: 45%; }
+  .presentationFactRail[data-rail-layout="availability"] {
+    top: auto;
+    max-height: 65%;
+  }
+
+  .presentationFactRail .presentationSatellite[data-kind] {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    flex: 0 0 auto;
+    overflow: visible !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+/* Headlines wrap between words, not through a word such as
+   “autoconsommation”. The smaller scale still leaves room for long titles. */
+.newsOrbitFocusContent > strong {
+  max-width: 100%;
+  font-size: clamp(24px, 2.15vw, 38px);
+  line-height: 1.08;
+  letter-spacing: -.045em;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+@media (min-width: 901px) {
+  .newsOrbitFocusContent {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 164, 124, .3) transparent;
+  }
+}
