@@ -36,7 +36,9 @@ import { metaPlacementsNeedInstagramIdentity } from "@/lib/adsMetaPlacement";
 import {
   adsMediaStrategyAfterAttachment,
   assessMetaCreativeAssetReadiness,
+  CHATGPT_ADS_MAX_IMAGE_BYTES,
   CHATGPT_ADS_IMAGE_REQUIREMENTS,
+  CHATGPT_ADS_MIN_IMAGE_SIDE_PX,
   chatgptAdsImageSubjectPrompt,
   GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
   googleSearchImageSubjectPrompt,
@@ -97,7 +99,6 @@ type AdsConfigAction = "disconnect" | "save-account" | "clear-account" | "save-p
 type CampaignCreationPath = "choice" | AdsCreationMode;
 type CampaignBusyAction = "save" | "plan" | "publish" | "demo" | null;
 type CampaignMediaUploadKind = "image" | "video";
-const OPENAI_ADS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 function isMediaLibraryContentReference(value: string): boolean {
   try {
@@ -2020,12 +2021,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         setCampaignMediaUploadError("ChatGPT Ads accepte ici uniquement une image JPG ou PNG.");
         return;
       }
-      if (item.size_bytes && item.size_bytes > OPENAI_ADS_MAX_IMAGE_BYTES) {
+      if (item.size_bytes && item.size_bytes > CHATGPT_ADS_MAX_IMAGE_BYTES) {
         setCampaignMediaUploadError("L’image ChatGPT Ads ne doit pas dépasser 20 Mo.");
         return;
       }
-      if (item.width && item.height && (item.width !== item.height || item.width < 256)) {
-        setCampaignMediaUploadError("Choisissez une image carrée d’au moins 256 × 256 pixels pour ChatGPT Ads.");
+      if (item.width && item.height && (item.width !== item.height || item.width < CHATGPT_ADS_MIN_IMAGE_SIDE_PX)) {
+        setCampaignMediaUploadError(`Choisissez une image carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels pour ChatGPT Ads.`);
         return;
       }
     }
@@ -2089,12 +2090,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     try {
       let openaiDimensions: { width: number; height: number } | null = null;
       if (channelId === "openai") {
-        if (expectedType !== "image" || !["image/jpeg", "image/png"].includes(file.type) || file.size > OPENAI_ADS_MAX_IMAGE_BYTES) {
+        if (expectedType !== "image" || !["image/jpeg", "image/png"].includes(file.type) || file.size > CHATGPT_ADS_MAX_IMAGE_BYTES) {
           throw new Error("ChatGPT Ads demande un JPG ou PNG carré de 20 Mo maximum.");
         }
         openaiDimensions = await uploadedImageDimensions(file);
-        if (openaiDimensions.width !== openaiDimensions.height || openaiDimensions.width < 256) {
-          throw new Error("Choisissez une image carrée d’au moins 256 × 256 pixels pour ChatGPT Ads.");
+        if (openaiDimensions.width !== openaiDimensions.height || openaiDimensions.width < CHATGPT_ADS_MIN_IMAGE_SIDE_PX) {
+          throw new Error(`Choisissez une image carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels pour ChatGPT Ads.`);
         }
       }
       const uploaded = await uploadFileToMediaLibrary(file, {
@@ -3364,7 +3365,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
       {hasMediaStep && <section hidden={step !== mediaStep} data-channel={channelId} data-media-step="true" className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioDedicatedMediaCard} ${channelId === "pinterest" ? styles.studioPureMediaCard : ""}`}>
         <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? "PUR MÉDIA" : channelId === "linkedin" ? "MÉDIA LINKEDIN" : channelId === "openai" ? "IMAGE CHATGPT" : "MÉDIAS"} title={channelId === "pinterest" ? "Votre média, visible en entier." : channelId === "linkedin" ? "Votre image sponsorisée, visible en entier." : channelId === "openai" ? "Votre image, visible en entier." : "Vos médias, visibles en entier."} mobileTitle={channelId === "pinterest" || channelId === "linkedin" || channelId === "openai" ? "Votre média" : "Vos médias"} channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Ajoutez l’image de votre Pin et vérifiez son aperçu complet." : channelId === "linkedin" ? "Importez, générez ou choisissez l’image unique de votre Sponsored Content. L’aperçu conserve le cadrage complet et le fichier sera réimporté sous la Page sélectionnée avant la création." : channelId === "openai" ? "Choisissez ou créez une image JPG ou PNG carrée d’au moins 256 × 256 pixels. Le fichier sera vérifié avant la création en pause de la carte ChatGPT." : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Ajoutez l’image de votre Pin et vérifiez son aperçu complet." : channelId === "linkedin" ? "Importez, générez ou choisissez l’image unique de votre Sponsored Content. L’aperçu conserve le cadrage complet et le fichier sera réimporté sous la Page sélectionnée avant la création." : channelId === "openai" ? `Choisissez ou créez une image JPG ou PNG carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels. Le fichier sera vérifié avant la création en pause de la carte ChatGPT.` : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
         <div className={styles.studioGrid}>
           {nativeSettings ? <div className={styles.field}><span>{nativeSettings.channel === "pinterest" ? "Média attendu" : "Format prévu"} : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads ; aucun fichier isolé n’est requis ici." : nativeSettings.channel === "pinterest" ? "Le fichier et ses droits seront vérifiés avant toute publication." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : channelId === "openai" ? <div className={styles.field}><span>Carte ChatGPT avec image carrée</span><small>Ajoutez une image nette et représentative de votre offre. Elle accompagne un titre, un texte court et votre lien.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
           {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && channelId !== "openai" && <details className={styles.campaignExternalMedia}><summary>Utiliser un lien externe</summary><label className={styles.field}>Lien HTTPS du média<input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label></details>}
@@ -3754,7 +3755,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           ? "Choisissez un JPG ou PNG carré de votre médiathèque iNrCy. Une image valide est obligatoire pour la carte ChatGPT."
         : "Choisissez une image ou une vidéo déjà disponible dans votre médiathèque iNrCy. Elle sera immédiatement associée à cette campagne."}
       accept={googleSearchMedia || channelId === "meta" || channelId === "openai" ? "image" : "all"}
-      maxImageBytes={channelId === "openai" ? OPENAI_ADS_MAX_IMAGE_BYTES : undefined}
+      maxImageBytes={channelId === "openai" ? CHATGPT_ADS_MAX_IMAGE_BYTES : undefined}
       multiple={false}
       maxSelection={1}
       confirmLabel="Ajouter à la campagne"

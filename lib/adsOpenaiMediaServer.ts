@@ -1,6 +1,7 @@
 import "server-only";
 
 import sharp from "sharp";
+import { CHATGPT_ADS_MAX_IMAGE_BYTES, CHATGPT_ADS_MIN_IMAGE_SIDE_PX } from "./adsCampaignMediaPolicy.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
 import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
 import { supabaseAdmin } from "./supabaseAdmin.ts";
@@ -19,8 +20,6 @@ function publicHttpsUrl(value: string): boolean {
   }
 }
 
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-
 /** OpenAI fetches a signed copy; inspect the owned image before any provider mutation. */
 export async function resolveOpenaiAdsImageUrl(userId: string, value: string): Promise<{ imageUrl: string; mediaStableId: string }> {
   const source = value.trim();
@@ -38,14 +37,14 @@ export async function resolveOpenaiAdsImageUrl(userId: string, value: string): P
   if (error || !data || data.is_active === false || data.media_type !== "image") {
     throw new Error("L’image ChatGPT Ads choisie n’est plus disponible dans votre médiathèque.");
   }
-  if (Number(data.size_bytes || 0) > MAX_IMAGE_BYTES) {
+  if (Number(data.size_bytes || 0) > CHATGPT_ADS_MAX_IMAGE_BYTES) {
     throw new Error("L’image ChatGPT Ads dépasse 20 Mo. Choisissez un fichier plus léger.");
   }
   const bucket = String(data.bucket_name || "");
   const storagePath = String(data.storage_path || "");
   if (!bucket || !storagePath) throw new Error("Le fichier de l’image ChatGPT Ads est introuvable.");
   const downloaded = await supabaseAdmin.storage.from(bucket).download(storagePath);
-  if (downloaded.error || !downloaded.data || downloaded.data.size > MAX_IMAGE_BYTES) {
+  if (downloaded.error || !downloaded.data || downloaded.data.size > CHATGPT_ADS_MAX_IMAGE_BYTES) {
     throw new Error("L’image ChatGPT Ads ne peut pas être vérifiée pour le moment.");
   }
   try {
@@ -53,8 +52,8 @@ export async function resolveOpenaiAdsImageUrl(userId: string, value: string): P
       failOn: "error", limitInputPixels: 40_000_000,
     }).metadata();
     if ((metadata.format !== "jpeg" && metadata.format !== "png") || !metadata.width || !metadata.height
-      || metadata.width !== metadata.height || metadata.width < 640) {
-      throw new Error("ChatGPT Ads demande une image JPG ou PNG carrée d’au moins 640 × 640 pixels.");
+      || metadata.width !== metadata.height || metadata.width < CHATGPT_ADS_MIN_IMAGE_SIDE_PX) {
+      throw new Error(`ChatGPT Ads demande une image JPG ou PNG carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels.`);
     }
   } catch (cause) {
     if (cause instanceof Error && cause.message.startsWith("ChatGPT Ads demande")) throw cause;

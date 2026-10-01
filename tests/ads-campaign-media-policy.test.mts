@@ -6,7 +6,9 @@ import {
   adsMediaKindForPlan,
   adsMediaFormatForPlan,
   adsMediaStrategyAfterAttachment,
+  CHATGPT_ADS_MAX_IMAGE_BYTES,
   CHATGPT_ADS_IMAGE_REQUIREMENTS,
+  CHATGPT_ADS_MIN_IMAGE_SIDE_PX,
   chatgptAdsImagePrompt,
   GOOGLE_SEARCH_IMAGE_REQUIREMENTS,
   googleSearchImagePrompt,
@@ -54,6 +56,8 @@ test("le format Pinterest n’altère ni les autres canaux ni les vidéos", () =
 });
 
 test("ChatGPT Ads prépare un JPG carré et un brief visuel fidèle au commerce local", () => {
+  assert.equal(CHATGPT_ADS_MIN_IMAGE_SIDE_PX, 640);
+  assert.equal(CHATGPT_ADS_MAX_IMAGE_BYTES, 20 * 1024 * 1024);
   const format = adsMediaFormatForPlan({ provider: "openai", campaignType: "generic" }, "image");
   assert.equal(format, "square");
   assert.equal(AI_MEDIA_FORMAT_SPECS[format].width, AI_MEDIA_FORMAT_SPECS[format].height);

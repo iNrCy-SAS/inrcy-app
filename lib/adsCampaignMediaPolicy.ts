@@ -56,6 +56,9 @@ export const PINTEREST_ADS_IMAGE_SPEC = {
   height: 1_350,
 } as const;
 
+export const CHATGPT_ADS_MIN_IMAGE_SIDE_PX = 640;
+export const CHATGPT_ADS_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
 export const CHATGPT_ADS_IMAGE_REQUIREMENTS = [
   "Crée une seule image publicitaire carrée 1:1, nette et lisible sur mobile.",
   "Illustre fidèlement l’offre réelle et la page de destination, sans inventer de réalisation, de résultat garanti ni d’approbation par ChatGPT ou OpenAI.",
