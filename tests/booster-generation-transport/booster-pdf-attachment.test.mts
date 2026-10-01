@@ -131,6 +131,10 @@ test("la route vérifie la référence Storage puis propage un contexte PDF born
     join(root, "lib/aiAttachmentContext.ts"),
     "utf8",
   );
+  const pdfExtraction = readFileSync(
+    join(root, "lib/pdfTextExtraction.ts"),
+    "utf8",
+  );
   const generation = readFileSync(
     join(root, "lib/boosterPublishGeneration.ts"),
     "utf8",
@@ -146,7 +150,7 @@ test("la route vérifie la référence Storage puis propage un contexte PDF born
   assert.doesNotMatch(route, /<source_pdf>/);
   assert.match(attachmentContext, /hasBoosterPdfSignature\(buffer\)/);
   assert.match(
-    attachmentContext,
+    pdfExtraction,
     /maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES/,
   );
   assert.match(generation, /documentContext: args\.documentContext/);

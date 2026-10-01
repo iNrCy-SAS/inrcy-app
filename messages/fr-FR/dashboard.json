@@ -475,7 +475,7 @@
     "documentsUploading": "Envoi…",
     "documentsAnalysing": "Lecture…",
     "documentsEmpty": "Aucun document ajouté. Une brochure, un catalogue ou une présentation peut aider l’IA à mieux connaître votre entreprise.",
-    "documentsLimitReached": "La limite de 6 documents est atteinte.",
+    "documentsLimitReached": "La limite de {limit} documents est atteinte.",
     "documentsSizeError": "Chaque document ne doit pas dépasser 20 Mo.",
     "documentsTotalSizeError": "L’espace Documents iNrADN est limité à 50 Mo au total.",
     "documentsUploadError": "Le document n’a pas pu être envoyé.",

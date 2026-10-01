@@ -141,31 +141,100 @@ async function loadMemory(accountId: string) {
   };
 }
 
-async function persistDocuments(
-  accountId: string,
-  documents: AiMemoryReferenceDocument[],
-  completionScore: number,
-) {
-  const current = await loadMemory(accountId);
-  const memory = normalizeAiMemory(
-    { ...current.memory, referenceDocuments: documents },
+type AtomicDocumentMutationStatus =
+  | "inserted"
+  | "exists"
+  | "conflict_path"
+  | "limit_items"
+  | "limit_bytes"
+  | "removed"
+  | "not_found";
+
+type AtomicDocumentMutation = {
+  status: AtomicDocumentMutationStatus;
+  memory: ReturnType<typeof normalizeAiMemory>;
+  document: AiMemoryReferenceDocument | null;
+};
+
+function parseAtomicDocumentMutation(data: unknown): AtomicDocumentMutation {
+  const raw = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  const status = cleanText(raw?.result_status, 40) as AtomicDocumentMutationStatus;
+  if (
+    !raw ||
+    ![
+      "inserted",
+      "exists",
+      "conflict_path",
+      "limit_items",
+      "limit_bytes",
+      "removed",
+      "not_found",
+    ].includes(status)
+  ) {
+    throw new Error("Invalid atomic reference-document result");
+  }
+
+  const memory = normalizeAiMemory(raw.result_memory, { includePremium: true });
+  const document = normalizeAiMemory(
+    { referenceDocuments: raw.result_document ? [raw.result_document] : [] },
     { includePremium: true },
-  );
-  const { error } = await supabaseAdmin.from("business_ai_memories").upsert(
+  ).referenceDocuments[0] || null;
+  return { status, memory, document };
+}
+
+function isDefinitiveAtomicMutationFailure(error: unknown) {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? cleanText((error as { code?: unknown }).code, 20).toUpperCase()
+      : "";
+  return /^[0-9A-Z]{5}$/.test(code) || /^PGRST[0-9]+$/.test(code);
+}
+
+async function addDocumentAtomically(
+  accountId: string,
+  document: AiMemoryReferenceDocument,
+) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "inrcy_add_ai_memory_reference_document",
     {
-      account_id: accountId,
-      schema_version: 1,
-      memory,
-      completion_score: Number.isFinite(completionScore)
-        ? completionScore
-        : current.completionScore,
-      updated_at: new Date().toISOString(),
+      p_account_id: accountId,
+      p_document: document,
+      p_max_items: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+      p_max_total_bytes: AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
     },
-    { onConflict: "account_id" },
   );
   if (error) throw error;
-  await invalidateBoosterGenerationContext(accountId, "professional");
-  return memory;
+  return parseAtomicDocumentMutation(data);
+}
+
+async function removeDocumentAtomically(accountId: string, documentId: string) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "inrcy_remove_ai_memory_reference_document",
+    {
+      p_account_id: accountId,
+      p_document_id: documentId,
+    },
+  );
+  if (error) throw error;
+  return parseAtomicDocumentMutation(data);
+}
+
+async function cleanupUploadedDocument(
+  accountId: string,
+  storagePath: string,
+  reason: string,
+) {
+  try {
+    const { error } = await supabaseAdmin.storage.from(BUCKET).remove([storagePath]);
+    if (error) throw error;
+  } catch (error) {
+    console.warn("[ai-memory/documents] uploaded object cleanup failed", {
+      accountId,
+      path: storagePath,
+      reason,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function POST(request: Request) {
@@ -176,9 +245,8 @@ export async function POST(request: Request) {
   const action = cleanText(body?.action, 30);
 
   try {
-    const current = await loadMemory(activeUserId);
-
     if (action === "prepare") {
+      const current = await loadMemory(activeUserId);
       const name = cleanText(body?.name, 180);
       const suppliedMimeType = cleanText(body?.mimeType, 140).toLowerCase();
       const mimeType = canonicalDocumentMimeType(name);
@@ -203,7 +271,9 @@ export async function POST(request: Request) {
       }
       if (current.memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS) {
         return NextResponse.json(
-          { error: "Vous pouvez conserver jusqu’à 6 documents dans iNrADN." },
+          {
+            error: `Vous pouvez conserver jusqu’à ${AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS} documents dans iNrADN.`,
+          },
           { status: 409 },
         );
       }
@@ -234,6 +304,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "finalize") {
+      const current = await loadMemory(activeUserId);
       // Consent is explicit and mandatory: image bytes can be temporarily sent
       // to the configured AI engine for visual reading. Textual formats are
       // extracted locally, but use the same clear opt-in workflow.
@@ -254,10 +325,13 @@ export async function POST(request: Request) {
       const mimeType = canonicalDocumentMimeType(name);
       const storagePath = cleanText(body?.storagePath, 1_000);
       const declaredSize = Number(body?.size || 0);
+      const expectedPathPrefix = `users/${activeUserId}/ai-memory-documents/${id}-`;
       if (
         !id ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ||
         !name ||
         !ownedPath(activeUserId, storagePath) ||
+        !storagePath.startsWith(expectedPathPrefix) ||
         !isAllowedFile(name, suppliedMimeType || mimeType) ||
         !Number.isFinite(declaredSize) ||
         declaredSize <= 0 ||
@@ -265,21 +339,44 @@ export async function POST(request: Request) {
       ) {
         return NextResponse.json({ error: "Document invalide ou non autorisé." }, { status: 400 });
       }
-      if (current.memory.referenceDocuments.some((document) => document.id === id)) {
+      const existingDocument = current.memory.referenceDocuments.find(
+        (document) => document.id === id,
+      );
+      if (existingDocument) {
+        if (existingDocument.bucket !== BUCKET || existingDocument.path !== storagePath) {
+          await cleanupUploadedDocument(activeUserId, storagePath, "document_id_conflict");
+          return NextResponse.json(
+            { error: "Cet identifiant de document est déjà utilisé." },
+            { status: 409 },
+          );
+        }
         return NextResponse.json({
           ok: true,
           memory: current.memory,
           documents: current.memory.referenceDocuments,
         });
       }
-      if (current.memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS) {
+      const pathOwner = current.memory.referenceDocuments.find(
+        (document) => document.bucket === BUCKET && document.path === storagePath,
+      );
+      if (pathOwner) {
+        // Never remove this object: another stored document still owns it.
         return NextResponse.json(
-          { error: "Vous pouvez conserver jusqu’à 6 documents dans iNrADN." },
+          { error: "Ce fichier est déjà associé à un autre document." },
+          { status: 409 },
+        );
+      }
+      if (current.memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS) {
+        await cleanupUploadedDocument(activeUserId, storagePath, "item_limit_precheck");
+        return NextResponse.json(
+          {
+            error: `Vous pouvez conserver jusqu’à ${AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS} documents dans iNrADN.`,
+          },
           { status: 409 },
         );
       }
       if (exceedsReferenceDocumentsQuota(current.memory.referenceDocuments, declaredSize)) {
-        await supabaseAdmin.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+        await cleanupUploadedDocument(activeUserId, storagePath, "byte_limit_precheck");
         return NextResponse.json(
           { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
           { status: 413 },
@@ -309,8 +406,21 @@ export async function POST(request: Request) {
           maxCharsPerFile: AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS,
         },
       );
-      if (analysis.status === "ignored") {
-        await supabaseAdmin.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+      const isPdf = mimeType === "application/pdf" || fileExtension(name) === "pdf";
+      if (
+        analysis.status === "ignored" ||
+        analysis.status === "error" ||
+        (isPdf && analysis.status !== "analysed")
+      ) {
+        // Another finalize request for the same prepared object may already
+        // have committed while this analysis was running. Never delete here:
+        // keep the object available for an idempotent retry / deferred GC.
+        console.warn("[ai-memory/documents] analysis rejected; object retained", {
+          accountId: activeUserId,
+          path: storagePath,
+          status: analysis.status,
+          note: analysis.note || "",
+        });
         return NextResponse.json(
           { error: analysis.note || "Ce document n’a pas pu être analysé." },
           { status: 422 },
@@ -319,7 +429,7 @@ export async function POST(request: Request) {
 
       const analysedSize = Math.max(0, Number(analysis.size) || declaredSize);
       if (exceedsReferenceDocumentsQuota(current.memory.referenceDocuments, analysedSize)) {
-        await supabaseAdmin.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+        await cleanupUploadedDocument(activeUserId, storagePath, "byte_limit_after_analysis");
         return NextResponse.json(
           { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
           { status: 413 },
@@ -333,12 +443,7 @@ export async function POST(request: Request) {
         path: storagePath,
         mimeType: analysis.mimeType || mimeType,
         size: analysedSize,
-        status:
-          analysis.status === "analysed"
-            ? "analysed"
-            : analysis.status === "error"
-              ? "error"
-              : "metadata_only",
+        status: analysis.status === "analysed" ? "analysed" : "metadata_only",
         extractedText: cleanText(
           analysis.text,
           AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS,
@@ -346,16 +451,78 @@ export async function POST(request: Request) {
         note: cleanText(analysis.note, 320),
         createdAt: new Date().toISOString(),
       };
-      const documents = [...current.memory.referenceDocuments, document].slice(
-        0,
-        AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
-      );
-      const memory = await persistDocuments(
-        activeUserId,
-        documents,
-        current.completionScore,
-      );
-      return NextResponse.json({ ok: true, document, memory, documents: memory.referenceDocuments });
+      let mutation: AtomicDocumentMutation;
+      try {
+        mutation = await addDocumentAtomically(activeUserId, document);
+      } catch (error) {
+        if (isDefinitiveAtomicMutationFailure(error)) {
+          await cleanupUploadedDocument(activeUserId, storagePath, "atomic_write_rejected");
+        } else {
+          // A timeout/network error may hide a committed transaction. Keeping
+          // the object is safer than deleting a blob the database may reference;
+          // the same id/path can be retried idempotently.
+          console.warn("[ai-memory/documents] atomic write outcome uncertain", {
+            accountId: activeUserId,
+            path: storagePath,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+        throw error;
+      }
+      if (mutation.status === "limit_items") {
+        await cleanupUploadedDocument(activeUserId, storagePath, "item_limit_atomic");
+        return NextResponse.json(
+          {
+            error: `Vous pouvez conserver jusqu’à ${AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS} documents dans iNrADN.`,
+          },
+          { status: 409 },
+        );
+      }
+      if (mutation.status === "limit_bytes") {
+        await cleanupUploadedDocument(activeUserId, storagePath, "byte_limit_atomic");
+        return NextResponse.json(
+          { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
+          { status: 413 },
+        );
+      }
+      if (mutation.status === "conflict_path") {
+        // The candidate path is already referenced. Cleaning it here would
+        // break the existing document, so the object must remain untouched.
+        return NextResponse.json(
+          { error: "Ce fichier est déjà associé à un autre document." },
+          { status: 409 },
+        );
+      }
+      if (mutation.status !== "inserted" && mutation.status !== "exists") {
+        throw new Error(`Unexpected atomic document status: ${mutation.status}`);
+      }
+
+      const persistedDocument =
+        mutation.document ||
+        mutation.memory.referenceDocuments.find((item) => item.id === document.id) ||
+        null;
+      if (!persistedDocument) {
+        throw new Error("Atomic document write returned no document");
+      }
+      if (
+        persistedDocument.id !== document.id ||
+        persistedDocument.bucket !== BUCKET ||
+        persistedDocument.path !== storagePath
+      ) {
+        await cleanupUploadedDocument(activeUserId, storagePath, "document_id_conflict_atomic");
+        return NextResponse.json(
+          { error: "Cet identifiant de document est déjà utilisé." },
+          { status: 409 },
+        );
+      }
+
+      await invalidateBoosterGenerationContext(activeUserId, "professional");
+      return NextResponse.json({
+        ok: true,
+        document: persistedDocument,
+        memory: mutation.memory,
+        documents: mutation.memory.referenceDocuments,
+      });
     }
 
     return NextResponse.json({ error: "Action de document inconnue." }, { status: 400 });
@@ -390,19 +557,36 @@ export async function DELETE(request: Request) {
     ) {
       return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
     }
-    const documents = current.memory.referenceDocuments.filter((item) => item.id !== id);
-    const memory = await persistDocuments(activeUserId, documents, current.completionScore);
+    const mutation = await removeDocumentAtomically(activeUserId, id);
+    if (mutation.status === "not_found") {
+      return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
+    }
+    if (mutation.status !== "removed") {
+      throw new Error(`Unexpected atomic document status: ${mutation.status}`);
+    }
+    const removedDocument = mutation.document || document;
+    if (
+      !ALLOWED_DOCUMENT_BUCKETS.has(removedDocument.bucket) ||
+      !ownedPath(activeUserId, removedDocument.path)
+    ) {
+      throw new Error("Atomic document deletion returned an invalid storage reference");
+    }
     const { error: storageError } = await supabaseAdmin.storage
-      .from(document.bucket)
-      .remove([document.path]);
+      .from(removedDocument.bucket)
+      .remove([removedDocument.path]);
     if (storageError) {
       console.warn("[ai-memory/documents] orphan cleanup deferred", {
         accountId: activeUserId,
-        path: document.path,
+        path: removedDocument.path,
         message: storageError.message,
       });
     }
-    return NextResponse.json({ ok: true, memory, documents: memory.referenceDocuments });
+    await invalidateBoosterGenerationContext(activeUserId, "professional");
+    return NextResponse.json({
+      ok: true,
+      memory: mutation.memory,
+      documents: mutation.memory.referenceDocuments,
+    });
   } catch (error) {
     console.error("[ai-memory/documents] delete failed", {
       accountId: activeUserId,

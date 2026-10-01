@@ -1,5 +1,5 @@
 import "server-only";
-import { inflateRawSync, inflateSync } from "zlib";
+import { inflateRawSync } from "node:zlib";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -8,13 +8,14 @@ import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import type { AiPreferredEngine } from "@/lib/aiEnginePreference";
 import type { MailAttachmentRef } from "@/lib/mailAttachmentRefs";
 import { hasBoosterPdfSignature } from "@/lib/boosterPdfAttachmentPolicy";
+import { extractPdfTextForAi } from "@/lib/pdfTextExtraction";
+
+export { extractPdfTextForAi } from "@/lib/pdfTextExtraction";
 
 const DEFAULT_MAX_FILES = 4;
 const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_TOTAL_CHARS = 6500;
 const DEFAULT_MAX_CHARS_PER_FILE = 2200;
-const PDF_MAX_DECOMPRESSED_STREAM_BYTES = 2 * 1024 * 1024;
-const PDF_MAX_STREAMS = 64;
 
 type BuildAttachmentAiContextOptions = {
   userId?: string | null;
@@ -100,157 +101,6 @@ function decodeXmlEntities(value: string) {
     .replace(/&#39;/gi, "'")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
-}
-
-function decodePdfLiteral(raw: string) {
-  let out = "";
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    if (ch !== "\\") {
-      out += ch;
-      continue;
-    }
-    const next = raw[i + 1];
-    if (!next) continue;
-    i += 1;
-    if (next === "n") out += "\n";
-    else if (next === "r") out += "\n";
-    else if (next === "t") out += "\t";
-    else if (next === "b" || next === "f") out += " ";
-    else if (next === "(" || next === ")" || next === "\\") out += next;
-    else if (/[0-7]/.test(next)) {
-      let oct = next;
-      for (let j = 0; j < 2 && /[0-7]/.test(raw[i + 1] || ""); j += 1) {
-        oct += raw[i + 1];
-        i += 1;
-      }
-      out += String.fromCharCode(parseInt(oct, 8));
-    } else {
-      out += next;
-    }
-  }
-  return out;
-}
-
-function decodePdfHex(hexRaw: string) {
-  const hex = hexRaw.replace(/\s+/g, "");
-  if (hex.length < 4 || hex.length % 2 !== 0) return "";
-  const bytes = Buffer.from(hex, "hex");
-  if (!bytes.length) return "";
-
-  const hasUtf16Marker = bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff;
-  const hasManyNulls = bytes.slice(0, Math.min(bytes.length, 24)).some((b, index) => index % 2 === 0 && b === 0);
-  if (hasUtf16Marker || hasManyNulls) {
-    const start = hasUtf16Marker ? 2 : 0;
-    let out = "";
-    for (let i = start; i + 1 < bytes.length; i += 2) {
-      out += String.fromCharCode((bytes[i] << 8) + bytes[i + 1]);
-    }
-    return out;
-  }
-
-  return bytes.toString("utf8");
-}
-
-function extractPdfStrings(
-  pdfSource: string,
-  maxChars = DEFAULT_MAX_CHARS_PER_FILE,
-) {
-  const snippets: string[] = [];
-  let capturedChars = 0;
-  const literalRe = /\((?:\\.|[^\\)]){2,}\)/g;
-  for (const match of pdfSource.matchAll(literalRe)) {
-    const decoded = decodePdfLiteral(match[0].slice(1, -1));
-    if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) {
-      snippets.push(decoded);
-      capturedChars += decoded.length;
-      if (capturedChars >= maxChars) break;
-    }
-  }
-
-  const hexRe = /<([0-9A-Fa-f\s]{6,})>/g;
-  if (capturedChars < maxChars) {
-    for (const match of pdfSource.matchAll(hexRe)) {
-      const decoded = decodePdfHex(match[1] || "");
-      if (/[A-Za-zÀ-ÿ0-9]/.test(decoded)) {
-        snippets.push(decoded);
-        capturedChars += decoded.length;
-        if (capturedChars >= maxChars) break;
-      }
-    }
-  }
-
-  const seen = new Set<string>();
-  const unique = snippets
-    .map((v) => v.replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim())
-    .filter((v) => v.length >= 3 && /[A-Za-zÀ-ÿ]/.test(v))
-    .filter((v) => {
-      const key = v.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-  return unique.join("\n").slice(0, maxChars);
-}
-
-export function extractPdfTextForAi(
-  buffer: Buffer,
-  maxChars = DEFAULT_MAX_CHARS_PER_FILE,
-) {
-  const safeMaxChars = Math.max(1, Math.min(maxChars, 20_000));
-  const source = buffer.toString("latin1");
-  const pieces: string[] = [extractPdfStrings(source, safeMaxChars)];
-  let remainingChars = Math.max(0, safeMaxChars - pieces[0].length);
-  let streamCount = 0;
-
-  const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  for (const match of source.matchAll(streamRe)) {
-    if (remainingChars <= 0 || streamCount >= PDF_MAX_STREAMS) break;
-    streamCount += 1;
-    const streamRaw = match[1] || "";
-    if (!streamRaw) continue;
-    const matchIndex = typeof match.index === "number" ? match.index : 0;
-    const before = source.slice(Math.max(0, matchIndex - 420), matchIndex);
-    const streamBuffer = Buffer.from(streamRaw, "latin1");
-    const candidates: Buffer[] = [];
-
-    if (/FlateDecode/i.test(before)) {
-      try {
-        candidates.push(
-          inflateSync(streamBuffer, {
-            maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES,
-          }),
-        );
-      } catch {}
-      try {
-        candidates.push(
-          inflateRawSync(streamBuffer, {
-            maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES,
-          }),
-        );
-      } catch {}
-    } else {
-      candidates.push(streamBuffer);
-    }
-
-    for (const candidate of candidates) {
-      const text = extractPdfStrings(
-        candidate.toString("latin1"),
-        remainingChars,
-      );
-      if (text) {
-        pieces.push(text);
-        remainingChars = Math.max(0, remainingChars - text.length);
-      }
-      if (remainingChars <= 0) break;
-    }
-  }
-
-  return normalizeExtractedText(
-    pieces.filter(Boolean).join("\n"),
-    safeMaxChars,
-  );
 }
 
 function extractZipEntry(buffer: Buffer, wanted: Set<string>) {
@@ -499,6 +349,21 @@ async function analyseOneAttachment(
       return { name, mimeType, size: declaredSize, status: "error", text: "", note: "fichier impossible à lire" };
     }
 
+    // Supabase exposes the Blob size before arrayBuffer(). Use it to avoid
+    // materialising an oversized attachment in the Node.js heap when possible.
+    const downloadedSize =
+      typeof data.size === "number" && Number.isFinite(data.size) ? data.size : null;
+    if (downloadedSize && downloadedSize > options.maxFileBytes) {
+      return {
+        name,
+        mimeType: mimeType || data.type || "application/octet-stream",
+        size: downloadedSize,
+        status: "metadata_only",
+        text: "",
+        note: "fichier trop volumineux pour analyse IA",
+      };
+    }
+
     const arrayBuffer = await data.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const actualSize = buffer.length || declaredSize;
@@ -521,6 +386,17 @@ async function analyseOneAttachment(
     const text = extractAttachmentText(buffer, name, resolvedMime, options.maxCharsPerFile);
     if (text) {
       return { name, mimeType: resolvedMime, size: actualSize, status: "analysed", text };
+    }
+
+    if (isPdf) {
+      return {
+        name,
+        mimeType: resolvedMime,
+        size: actualSize,
+        status: "error",
+        text: "",
+        note: "PDF sans texte extractible (document scanné, protégé ou encodage non pris en charge). OCR non disponible.",
+      };
     }
 
     if (visualState.used < DEFAULT_MAX_VISUAL_FILES && isImageAttachment(name, resolvedMime)) {

@@ -164,7 +164,7 @@ test("media can be added after generation without clearing channel content", () 
   assert.doesNotMatch(imageSource, /setPostsByChannel\(/);
   assert.doesNotMatch(imageSource, /setContentWorkspaceOpen/);
 
-  assert.match(intentPanel, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
+  assert.doesNotMatch(intentPanel, /getLocalizedBoosterMediaOptimization/);
   assert.match(imagePanel, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
 });
 

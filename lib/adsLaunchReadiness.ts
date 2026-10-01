@@ -21,6 +21,13 @@ type AdsLaunchReadinessInput = {
 };
 
 const remotelyLaunchableChannels = new Set(["google", "meta", "linkedin", "pinterest"]);
+const linkedInGeoUrn = /^urn:li:geo:\d{1,25}$/;
+
+function hasVerifiedLinkedInGeoTarget(draft: AdsCampaignInput) {
+  return (draft.linkedinGeoTargets || []).some((target) => (
+    linkedInGeoUrn.test(String(target.urn || "")) && String(target.name || "").trim().length > 0
+  ));
+}
 
 function hasValidBudgetAndEndDate(draft: AdsCampaignInput, now: number) {
   const budget = Number(draft.dailyBudgetEuros);
@@ -77,7 +84,7 @@ export function adsIncompleteLaunchSteps({
 
   if (draft.provider === "linkedin") {
     if (!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) add(steps.foundations);
-    if (!draft.linkedinGeoTargets?.length) add(steps.targeting);
+    if (!hasVerifiedLinkedInGeoTarget(draft)) add(steps.targeting);
     if (!draft.primaryText.trim() || !draft.headlines[0]?.trim()) add(steps.creative);
     if (!mediaReady) add(steps.media);
     const bid = Number(draft.linkedinBidEuros);
@@ -96,10 +103,19 @@ export function adsIncompleteLaunchSteps({
   return [...incomplete].sort((left, right) => left - right);
 }
 
-export function adsIncompleteLaunchMessage(stepNumbers: readonly number[]) {
+export function adsIncompleteLaunchMessage(
+  stepNumbers: readonly number[],
+  provider?: AdsCampaignInput["provider"],
+  targetingStep?: number,
+) {
   if (!stepNumbers.length) return "";
   const label = stepNumbers.length === 1
     ? `l’étape ${stepNumbers[0]}`
     : `les étapes ${stepNumbers.slice(0, -1).join(", ")} et ${stepNumbers.at(-1)}`;
-  return `Informations manquantes : complétez ${label} avant de lancer la campagne.`;
+  const linkedInGeoDetail = provider === "linkedin"
+    && typeof targetingStep === "number"
+    && stepNumbers.includes(targetingStep)
+    ? " Sélectionnez au moins une zone exacte vérifiée par LinkedIn ; le libellé affiché dans le brief ne suffit pas."
+    : "";
+  return `Informations manquantes : complétez ${label} avant de lancer la campagne.${linkedInGeoDetail}`;
 }

@@ -504,6 +504,7 @@ export default function DashboardBoosterModalLayer({
           moduleLabel={i18nT("module_booster_0eb9581c")}
           titleOnLeftOnMobile
           hideModuleLabelOnMobile
+          wideOnDesktop
           onClose={requestClosePublishModal}
           headerHidden={publishEditorOverlayOpen}
           headerStatus={

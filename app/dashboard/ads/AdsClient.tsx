@@ -61,7 +61,13 @@ import {
 } from "@/lib/adsChannelWizardSettings";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import { preparePinterestTargetingTransition } from "@/lib/adsPinterestTargetingTransition";
-import { adsDraftHasKeywordsStep, adsDraftHasMediaStep, adsDraftValidationStep } from "@/lib/adsDraftNavigation";
+import {
+  adsDraftHasKeywordsStep,
+  adsDraftHasMediaStep,
+  adsDraftStepKeys,
+  adsDraftValidationStep,
+  type AdsDraftStepKey,
+} from "@/lib/adsDraftNavigation";
 import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { AdsPublicationPhase } from "@/lib/adsPublicationProgress";
 import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "@/lib/adsLaunchReadiness";
@@ -1176,6 +1182,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [configuring, setConfiguring] = useState(initialConnection !== null && isAdsProvider(initialChannel));
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState(0);
+  const [reachedStepKeys, setReachedStepKeys] = useState<AdsDraftStepKey[]>(["project"]);
   const [creationPath, setCreationPath] = useState<CampaignCreationPath>("choice");
   const [analysisSetupOpen, setAnalysisSetupOpen] = useState(false);
   const [analysisMode, setAnalysisMode] = useState<AdsCampaignAnalysisMode>("free");
@@ -1227,6 +1234,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     : ["Votre projet", "Analyse iNrCy", "Fondations", "Ciblage", ...(hasKeywordsStep ? [keywordStepName] : []), "Créations", ...(hasMediaStep ? [mediaStepName] : []), "Diffusion", "Budget", "Validation"];
   const stepNames = creationPath === "inrcy" ? inrcyStepNames : manualStepNames;
   const displayedStepNames = creationPath === "choice" && analysisSetupOpen ? inrcyStepNames : stepNames;
+  const manualStepKeys = adsDraftStepKeys({ ...draft, creationMode: "manual" });
+  const inrcyStepKeys = adsDraftStepKeys({ ...draft, creationMode: "inrcy" });
+  const stepKeys = creationPath === "inrcy" ? inrcyStepKeys : manualStepKeys;
+  const displayedStepKeys = creationPath === "choice" && analysisSetupOpen ? inrcyStepKeys : stepKeys;
   const lastStep = stepNames.length - 1;
   const foundationsStep = creationPath === "inrcy" ? 2 : 1;
   const targetingStep = foundationsStep + 1;
@@ -1238,6 +1249,29 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const budgetStep = deliveryStep + 1;
   const validationStep = budgetStep + 1;
   const analysisStep = creationPath === "inrcy" ? 1 : -1;
+
+  function navigateToStep(nextStep: number) {
+    const boundedStep = Math.max(0, Math.min(lastStep, nextStep));
+    setStep(boundedStep);
+    const currentKey = stepKeys[step];
+    const reachedKey = stepKeys[boundedStep];
+    const visitedKeys = [currentKey, reachedKey].filter((key): key is AdsDraftStepKey => Boolean(key));
+    if (visitedKeys.length > 0) {
+      setReachedStepKeys((current) => {
+        const next = [...current];
+        for (const key of visitedKeys) {
+          if (!next.includes(key)) next.push(key);
+        }
+        return next;
+      });
+    }
+  }
+
+  function resetStepProgress(nextStep: number, availableStepKeys: AdsDraftStepKey[] = stepKeys) {
+    const boundedStep = Math.max(0, Math.min(availableStepKeys.length - 1, nextStep));
+    setStep(boundedStep);
+    setReachedStepKeys(availableStepKeys.slice(0, boundedStep + 1));
+  }
 
   function stopPlanProgress() {
     if (planProgressTimer.current) {
@@ -2249,7 +2283,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setConfirmedDestinationUrl("");
     setCreationPath("manual");
     updateDraft({ creationMode: "manual" });
-    setStep(1);
+    resetStepProgress(1, manualStepKeys);
   }
 
   function applyCampaignPlan(plan: AdsCampaignPlan) {
@@ -2405,6 +2439,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAnalysisMode("free");
     setGuidedAnalysisObjective("");
     setAnalysisSetupOpen(true);
+    resetStepProgress(0, inrcyStepKeys);
   }
 
   function beginAssistedAnalysis() {
@@ -2412,7 +2447,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAnalysisSetupOpen(false);
     setCreationPath("inrcy");
     updateDraft({ creationMode: "inrcy" });
-    setStep(1);
+    resetStepProgress(1, inrcyStepKeys);
     void generateCampaignPlan();
   }
 
@@ -2454,7 +2489,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setAnalysisSetupOpen(false);
     setAnalysisMode("free");
     setGuidedAnalysisObjective("");
-    setStep(0);
+    resetStepProgress(0, manualStepKeys);
     setCreating(true);
   }
 
@@ -2799,7 +2834,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     setCreationPath(nextPath);
     setPlanProgress(nextPath === "inrcy" ? 100 : 0);
     setNotice("");
-    setStep(adsDraftValidationStep(campaign.draft));
+    const reopenedStepKeys = adsDraftStepKeys(campaign.draft);
+    resetStepProgress(adsDraftValidationStep(campaign.draft), reopenedStepKeys);
     setCreating(true);
   }
 
@@ -2973,7 +3009,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     destinationReady: destinationReview.valid && (!destinationReview.required || destinationReview.confirmed),
     mediaReady: livePublisherMediaReady,
   });
-  const incompleteLaunchMessage = adsIncompleteLaunchMessage(incompleteLaunchSteps);
+  const incompleteLaunchMessage = adsIncompleteLaunchMessage(
+    incompleteLaunchSteps,
+    draft.provider,
+    targetingStep + 1,
+  );
   const launchUnavailableReason = !isAdsDraftAccountChannel(channelId)
     ? `La publication ${channelMeta.label} n’est pas encore disponible. Le brouillon reste enregistrable.`
     : !channelPublishingEnabled
@@ -3095,8 +3135,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </div>
 
       <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
-      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) setStep((current) => { if (dx < 0 && creationPath === "inrcy" && current === analysisStep && planProgress !== 100) return current; return Math.max(0, Math.min(lastStep, current + (dx < 0 ? 1 : -1))); }); }}>
-      <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={index > step || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}><span>{index + 1}</span>{!compactScreen && (channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name)}</button>)}</nav>
+      <div ref={studioWorkspaceRef} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) { const nextStep = step + (dx < 0 ? 1 : -1); if (dx < 0 && creationPath === "inrcy" && step === analysisStep && planProgress !== 100) return; navigateToStep(nextStep); } }}>
+      <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => <button type="button" key={name} disabled={(index !== step && !reachedStepKeys.includes(displayedStepKeys[index])) || busy === "plan"} aria-label={`${index + 1}. ${name}`} aria-current={step === index ? "step" : undefined} onClick={() => navigateToStep(index)}><span>{index + 1}</span>{!compactScreen && (channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name)}</button>)}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
           <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment créer ?"} mobileTitle={analysisSetupOpen ? "Quel cap choisir ?" : "Comment créer ?"} channel="Sans diffusion" />
@@ -3288,7 +3328,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? "MOTS-CLÉS" : channelId === "pinterest" ? "DÉCOUVERTE PINTEREST" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : channelId === "pinterest" ? "Comment votre idée doit être découverte." : "Les signaux qui orientent votre audience."} mobileTitle={channelId === "google" ? "Vos mots-clés" : channelId === "pinterest" ? "Votre découverte" : "Vos signaux"} channel={channelMeta.label} />
         <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : channelId === "meta" ? "Ajoutez les intérêts, besoins et angles qui aident à orienter votre audience Meta." : `Détaillez les ${nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" ? "mots-clés" : "signaux"} prévus pour ${channelMeta.label}. Les valeurs exactes seront confirmées dans le compte Ads.`}</p>
         <div className={styles.studioGrid}>
-          {channelId === "google" ? <TagField wide label={draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : "Mots-clés recherchés"} helper="Saisissez une expression, puis Entrée. Le micro ajoute vos mots-clés dictés." values={draft.keywords} onChange={(keywords) => updateDraft({ keywords })} placeholder="Ex. installation panneaux solaires" maxItems={20} maxItemLength={80} /> : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>La découverte est préparée automatiquement</strong><p>L’IA remplit le profil prioritaire, les zones, le titre, la description et le brief visuel. Pinterest utilise ensuite le contenu du Pin pour optimiser l’audience ; aucun ID d’intérêt ou d’audience n’est inventé.</p>{draft.keywords.length > 0 && <><p role="alert">{draft.keywords.length} signal{draft.keywords.length > 1 ? "aux manuels restent" : " manuel reste"} enregistré{draft.keywords.length > 1 ? "s" : ""}. Retirez-les pour lancer cette campagne en ciblage automatique.</p><button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button></>}</aside> : <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings?.channel === "linkedin" ? `Pistes : ${nativeBriefTerm(nativeSettings.targetingFacet)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "audiences" ? "Audiences Pinterest à retrouver dans le compte" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "interests" ? "Centres d’intérêt Pinterest à vérifier" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><textarea rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie" /></label>}
+          {channelId === "google" ? <TagField wide label={draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : "Mots-clés recherchés"} helper="Saisissez une expression, puis Entrée. Le micro ajoute vos mots-clés dictés." values={draft.keywords} onChange={(keywords) => updateDraft({ keywords })} placeholder="Ex. installation panneaux solaires" maxItems={20} maxItemLength={80} /> : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>La découverte est préparée automatiquement</strong><p>L’IA remplit le profil prioritaire, les zones, le titre, la description et le brief visuel. Pinterest utilise ensuite le contenu du Pin pour optimiser l’audience ; aucun ID d’intérêt ou d’audience n’est inventé.</p>{draft.keywords.length > 0 && <><p role="alert">{draft.keywords.length} signal{draft.keywords.length > 1 ? "aux manuels restent" : " manuel reste"} enregistré{draft.keywords.length > 1 ? "s" : ""}. Retirez-les pour lancer cette campagne en ciblage automatique.</p><button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button></>}</aside> : <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings?.channel === "linkedin" ? `Pistes : ${nativeBriefTerm(nativeSettings.targetingFacet)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "audiences" ? "Audiences Pinterest à retrouver dans le compte" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "interests" ? "Centres d’intérêt Pinterest à vérifier" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie" /></label>}
           {nativeSettings && !(nativeSettings.channel === "pinterest" && nativeSettings.targetingMode === "automatic") && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Des pistes, pas des identifiants publicitaires</strong><p>Ces idées restent dans votre brouillon. iNr’ADS ne les convertit pas automatiquement en audiences ou mots-clés de la plateforme ; vérifiez leur disponibilité avant une création réelle.</p></aside>}
           {channelId === "google" && <TagField wide label="Mots-clés à exclure" helper="Écartez les recherches non pertinentes ; ajoutez-les aussi à la voix." values={draft.negativeKeywords} onChange={(negativeKeywords) => updateDraft({ negativeKeywords })} placeholder="Ex. emploi" maxItems={40} maxItemLength={80} />}
           {channelId === "meta" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Un signal, pas une contrainte rigide</strong><p>iNrCy les combine à vos zones, à votre offre et au comportement observé par Meta. Vous gardez le contrôle sur les audiences définies à l’étape précédente.</p></aside>}
@@ -3426,7 +3466,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           {nativeSettings?.channel === "linkedin" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{nativeSettings.objectiveType === "LEAD_GENERATION" ? "Formulaire LinkedIn à préparer" : nativeSettings.objectiveType === "WEBSITE_CONVERSION" ? "Mesure du site à confirmer" : "Destination de l’annonce"}</strong><p>{nativeSettings.objectiveType === "LEAD_GENERATION" ? "Le formulaire de prospects doit appartenir à l’organisation et sera choisi dans le compte LinkedIn Ads." : nativeSettings.objectiveType === "WEBSITE_CONVERSION" ? "La conversion et l’Insight Tag devront être vérifiés dans le compte LinkedIn Ads." : "Le lien et l’action voulue restent une intention tant qu’aucune création publicitaire n’a été vérifiée."}</p></aside>}
           {nativeSettings?.channel === "x" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Mesure X à confirmer</strong><p>{nativeSettings.objective === "website_conversions" ? "Une source de conversion X valide devra être reliée au compte publicitaire." : "Les résultats réels ne seront visibles qu’après création et validation dans X Ads."}</p></aside>}
           {channelId === "google" && <label className={`${styles.check} ${styles.studioWide}`}><input type="checkbox" checked={draft.urlExpansion} onChange={(event) => updateDraft({ urlExpansion: event.target.checked })} />Autoriser l’utilisation de pages pertinentes de mon site lorsque le format de campagne le permet.</label>}
-          {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Pages à exclure <small>Une URL HTTPS par ligne, optionnel</small><textarea rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder="https://votresite.fr/mentions-legales" /></label>}
+          {channelId === "google" && <label className={`${styles.field} ${styles.studioWide}`}>Pages à exclure <small>Une URL HTTPS par ligne, optionnel</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder="https://votresite.fr/mentions-legales" /></label>}
           {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Réseaux Google</legend><p>Choisissez les surfaces envisagées. Le budget reste défini à l’étape suivante.</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />Partenaires du Réseau de Recherche</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />Extension Display lorsque pertinente</label></div></fieldset>}
         </div>
       </section>
@@ -3507,7 +3547,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         </div>
       </section>
       {creationPath !== "choice" && <div className={styles.wizardNavigation}>
-        <button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); setStep(0); return; } setStep((current) => current - 1); }}>← Précédent</button>
+        <button type="button" className={styles.back} disabled={step === 0 || busy === "plan"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); resetStepProgress(0, inrcyStepKeys); return; } navigateToStep(step - 1); }}>← Précédent</button>
         <span>{step + 1} / {stepNames.length}</span>
         {step < lastStep ? <div className={styles.wizardNextGroup}>
           {step === mediaStep && channelId === "meta" && !livePublisherMediaReady && <div className={styles.wizardMediaRequirement} role="status">
@@ -3518,7 +3558,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
             <span><strong>À confirmer avant lancement</strong>Je confirme ce lien</span>
           </label>}
-          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => setStep((current) => current + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => navigateToStep(step + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
         </div> : <button type="button" className={styles.back} onClick={() => void confirmCampaignExit()}>Revenir au cockpit</button>}
       </div>}
       </div>

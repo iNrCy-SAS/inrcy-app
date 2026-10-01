@@ -1,14 +1,30 @@
 import { NextResponse } from "next/server";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
 import { LinkedInAdsConnectionError } from "@/lib/adsLinkedInServer";
-import { runLinkedInAdsPreflight, type LinkedInAdsPreflightInput } from "@/lib/adsLinkedInPreflightServer";
+import {
+  LinkedInAdsPreflightProviderError,
+  runLinkedInAdsPreflight,
+  type LinkedInAdsPreflightInput,
+} from "@/lib/adsLinkedInPreflightServer";
+import { log } from "@/lib/observability/logger";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
 function failure(error: unknown) {
   const known = error instanceof LinkedInAdsConnectionError ? error : null;
+  const providerFailure = error instanceof LinkedInAdsPreflightProviderError ? error : null;
+  const status = known?.status || 503;
+  const code = known?.code || "preflight_failed";
+  const writeLog = status >= 500 ? log.error : log.warn;
+  writeLog("linkedin_ads_preflight_failed", {
+    provider: "linkedin",
+    operation: providerFailure?.operation || "preflight",
+    provider_status: providerFailure?.providerStatus ?? undefined,
+    code,
+    status_code: status,
+  });
   return NextResponse.json(
-    { error: known?.message || "Contrôle préalable LinkedIn Ads indisponible.", code: known?.code || "preflight_failed" },
-    { status: known?.status || 503, headers: { "Cache-Control": "no-store" } },
+    { error: known?.message || "Contrôle préalable LinkedIn Ads indisponible.", code },
+    { status, headers: { "Cache-Control": "no-store" } },
   );
 }
 

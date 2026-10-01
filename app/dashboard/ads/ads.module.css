@@ -796,6 +796,9 @@
 .googleAdCopyPagination button{min-width:32px;min-height:30px;border:1px solid #86baf080;border-radius:9px;color:#e8f5ff;background:#1b5b9480;font:inherit;cursor:pointer}
 .googleAdCopyPagination button:disabled{opacity:.4;cursor:not-allowed}
 .studioWorkspace .studioCard .field .campaignTextarea{display:block;min-height:40px;max-height:none;overflow:hidden;resize:none;line-height:1.45;white-space:pre-wrap;overflow-wrap:break-word}
+.studioWorkspace .studioCard .field .studioAdaptiveContentTextarea{overflow-y:auto}
+.studioWorkspace[data-compact] .studioCard .field .studioAdaptiveContentTextarea{max-height:150px}
+.studioWorkspace[data-short] .studioCard .field .studioAdaptiveContentTextarea{max-height:115px}
 .studioWorkspace .studioCard .voiceTextarea .campaignTextarea{min-height:56px;padding-bottom:12px!important}
 .studioWorkspace .studioCard .googleAdCopyRow .campaignTextarea{min-height:34px;max-height:none;font-size:12px;line-height:1.45}
 .copyLengthError,.studioGrid .field .copyLengthError,.googleAdCopyRow>span[data-invalid]{color:#ffbfd0!important}
@@ -880,6 +883,14 @@
   .studioWorkspace .studioReviewGrid>div{min-height:82px;padding:11px}
   .studioWorkspace .studioReadiness{margin:11px 0;padding:11px 14px}
   .studioWorkspace .studioFinalActions,.studioWorkspace .studioFinalCheck{margin-top:12px!important}
+}
+
+/* Sparse desktop stages should use their free vertical canvas before adding an
+   inner scrollbar. The cap remains the safety fallback for unusually long
+   lists, and compact/short layouts keep the smaller limits above. */
+@media(min-width:1000px) and (min-height:760px){
+  .studioWorkspace .studioKeywordsCard .field .studioAdaptiveContentTextarea{min-height:clamp(180px,32vh,360px);max-height:min(44vh,420px)}
+  .studioWorkspace .studioDeliveryCard .field .studioAdaptiveContentTextarea{min-height:clamp(96px,16vh,170px);max-height:min(28vh,260px)}
 }
 
 /* On wide screens the six analysis signals frame the narrative instead of

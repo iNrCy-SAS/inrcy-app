@@ -45,7 +45,7 @@ const lastCssDeclaration = (
   property: string,
 ) => cssDeclarations(source, selector, property).at(-1)!;
 
-test("Booster explains the 300 Mo source ceiling and the automatic optimization thresholds", () => {
+test("Booster keeps media limits by the media controls without repeating them above the intention fields", () => {
   const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
   const intent = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
@@ -59,7 +59,7 @@ test("Booster explains the 300 Mo source ceiling and the automatic optimization 
     /Jusqu’à \$\{BOOSTER_MAX_IMAGE_COUNT\} images ou 1 vidéo \(\$\{MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL\} max\) · médias optimisés si nécessaire : format adapté et\/ou poids ramené à \$\{BOOSTER_MAX_IMAGE_MB_LABEL\}\/image ou \$\{BOOSTER_MAX_VIDEO_MB_LABEL\}\/vidéo\./,
   );
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
-  assert.match(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
+  assert.doesNotMatch(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
   assert.match(media, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
 });
 

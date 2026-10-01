@@ -1,7 +1,20 @@
 import type { AdsCampaignInput } from "@/lib/adsValidation";
 
-type AdsDraftMediaShape = Pick<AdsCampaignInput, "provider" | "campaignType">
-  & Partial<Pick<AdsCampaignInput, "channelSettings">>;
+type AdsDraftNavigationShape = Pick<AdsCampaignInput, "provider" | "campaignType">
+  & Partial<Pick<AdsCampaignInput, "channelSettings" | "creationMode">>;
+
+export type AdsDraftStepKey =
+  | "project"
+  | "analysis"
+  | "foundations"
+  | "targeting"
+  | "keywords"
+  | "creative"
+  | "pinterest_format"
+  | "media"
+  | "delivery"
+  | "budget"
+  | "validation";
 
 /**
  * Whether the selected platform format needs a dedicated media workspace.
@@ -10,7 +23,7 @@ type AdsDraftMediaShape = Pick<AdsCampaignInput, "provider" | "campaignType">
  * this studio that do not carry a visual asset. LinkedIn text ads still use an
  * image/logo, while catalog campaigns keep a media-source step for their feed.
  */
-export function adsDraftHasMediaStep(draft: AdsDraftMediaShape): boolean {
+export function adsDraftHasMediaStep(draft: AdsDraftNavigationShape): boolean {
   if (draft.provider === "google" && draft.campaignType === "search") return false;
   return !(draft.provider === "x"
     && draft.channelSettings?.channel === "x"
@@ -22,6 +35,48 @@ export function adsDraftHasKeywordsStep(draft: Pick<AdsCampaignInput, "provider"
   if (draft.provider === "openai") return false;
   if (draft.provider !== "pinterest") return true;
   return draft.channelSettings?.channel === "pinterest" && draft.channelSettings.targetingMode !== "automatic";
+}
+
+/**
+ * Stable semantic identities for the current wizard structure.
+ *
+ * The visible indices can move when a format inserts Media or a Pinterest
+ * targeting mode inserts Discovery. Tracking these keys keeps only genuinely
+ * visited steps unlocked across that structural edit.
+ */
+export function adsDraftStepKeys(draft: AdsDraftNavigationShape): AdsDraftStepKey[] {
+  const analysis: AdsDraftStepKey[] = draft.creationMode === "inrcy" ? ["analysis"] : [];
+  const keywords: AdsDraftStepKey[] = adsDraftHasKeywordsStep(draft) ? ["keywords"] : [];
+  const media: AdsDraftStepKey[] = adsDraftHasMediaStep(draft) ? ["media"] : [];
+
+  if (draft.provider === "pinterest") {
+    return [
+      "project",
+      ...analysis,
+      "foundations",
+      "targeting",
+      ...keywords,
+      "creative",
+      "pinterest_format",
+      ...media,
+      "delivery",
+      "budget",
+      "validation",
+    ];
+  }
+
+  return [
+    "project",
+    ...analysis,
+    "foundations",
+    "targeting",
+    ...keywords,
+    "creative",
+    ...media,
+    "delivery",
+    "budget",
+    "validation",
+  ];
 }
 
 /**
@@ -37,9 +92,5 @@ export function adsDraftValidationStep(
   draft: Pick<AdsCampaignInput, "provider" | "campaignType" | "creationMode">
     & Partial<Pick<AdsCampaignInput, "channelSettings">>,
 ): number {
-  const assistedAnalysisStep = draft.creationMode === "inrcy" ? 1 : 0;
-  const mediaStep = adsDraftHasMediaStep(draft) ? 1 : 0;
-  const pinterestPureMediaStep = draft.provider === "pinterest" ? 1 : 0;
-  const skippedDiscoveryStep = adsDraftHasKeywordsStep(draft) ? 0 : 1;
-  return 7 + assistedAnalysisStep + mediaStep + pinterestPureMediaStep - skippedDiscoveryStep;
+  return adsDraftStepKeys(draft).length - 1;
 }

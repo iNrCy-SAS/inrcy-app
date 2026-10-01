@@ -5725,6 +5725,14 @@
   --inrcy-modal-inner-max-width: min(1400px, 100%);
 }
 
+/* Les workflows qui l'activent exploitent la surface d'un vrai écran de bureau.
+   Les autres workflows et les formats tablette/mobile conservent leur largeur actuelle. */
+@media (min-width: 1181px) and (hover: hover) and (pointer: fine) {
+  .fullscreenModalInnerWideDesktop {
+    max-width: none !important;
+  }
+}
+
 @media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {
   .fullscreenModalOverlay {
     --inrcy-modal-overlay-padding: max(2px, var(--inrcy-safe-area-top))
@@ -7226,19 +7234,101 @@
 }
 
 .publishScheduleButton {
-  min-height: 52px;
-  padding: 0 18px;
-  font-size: 15px;
-  font-weight: 800;
+  min-height: 48px;
+  padding: 0 17px;
+  font-size: 14px;
+  font-weight: 850;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #ecfeff;
+  border-color: rgba(34, 211, 238, 0.42);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.15), transparent 30%),
+    linear-gradient(135deg, rgba(8, 145, 178, 0.30), rgba(79, 70, 229, 0.24));
+  box-shadow:
+    0 10px 24px rgba(2, 8, 23, 0.24),
+    0 0 0 1px rgba(125, 211, 252, 0.08) inset;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
 }
 
 .publishConfirmButton {
-  min-height: 52px;
-  padding: 0 24px;
-  font-size: 16px;
-  font-weight: 800;
+  min-height: 48px;
+  padding: 0 22px;
+  font-size: 15px;
+  font-weight: 900;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
+  border-color: rgba(147, 197, 253, 0.72);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.32), transparent 30%),
+    linear-gradient(112deg, #168cff 0%, #5b5df7 48%, #a63ee8 100%);
+  box-shadow:
+    0 14px 32px rgba(37, 99, 235, 0.30),
+    0 0 25px rgba(139, 92, 246, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.16) inset;
+  text-shadow: 0 1px 7px rgba(2, 6, 23, 0.42);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.publishActionIcon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 1em;
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.publishScheduleButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.68);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.20), transparent 30%),
+    linear-gradient(135deg, rgba(8, 145, 178, 0.42), rgba(79, 70, 229, 0.34));
+  box-shadow:
+    0 13px 28px rgba(2, 8, 23, 0.28),
+    0 0 20px rgba(34, 211, 238, 0.14),
+    0 0 0 1px rgba(125, 211, 252, 0.12) inset;
+}
+
+.publishConfirmButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(191, 219, 254, 0.9);
+  filter: saturate(1.08) brightness(1.05);
+  box-shadow:
+    0 17px 36px rgba(37, 99, 235, 0.38),
+    0 0 32px rgba(168, 85, 247, 0.30),
+    0 0 0 1px rgba(255, 255, 255, 0.20) inset;
+}
+
+.publishScheduleButton:focus-visible,
+.publishConfirmButton:focus-visible {
+  outline: 3px solid rgba(186, 230, 253, 0.88);
+  outline-offset: 3px;
+}
+
+.publishScheduleButton:disabled,
+.publishConfirmButton:disabled {
+  transform: none;
+  filter: grayscale(0.32) saturate(0.58);
+  box-shadow: 0 6px 14px rgba(2, 8, 23, 0.18);
 }
 
 .publishProgressBox {

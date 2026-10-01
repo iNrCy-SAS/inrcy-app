@@ -475,7 +475,7 @@
     "documentsUploading": "Uploaden…",
     "documentsAnalysing": "Lezen…",
     "documentsEmpty": "Nog geen document toegevoegd. Een brochure, catalogus of presentatie kan de AI helpen je bedrijf beter te begrijpen.",
-    "documentsLimitReached": "De limiet van 6 documenten is bereikt.",
+    "documentsLimitReached": "De limiet van {limit} documenten is bereikt.",
     "documentsSizeError": "Elk document mag maximaal 20 MB groot zijn.",
     "documentsTotalSizeError": "De opslag voor iNrADN-documenten is beperkt tot 50 MB in totaal.",
     "documentsUploadError": "Het document kon niet worden geüpload.",

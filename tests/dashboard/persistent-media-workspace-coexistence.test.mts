@@ -273,10 +273,10 @@ test("a full publication reset remains the one atomic global-clear path", () => 
   assert.match(reset, /clearPersistentWorkspaceMedia\(\)/);
 });
 
-test("publication promises 5 + 1 while generation promises images OR video", () => {
+test("publication keeps its media guidance without duplicating it in the intent panel", () => {
   assert.match(shared, /BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL/);
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
-  assert.match(intentPanel, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
+  assert.doesNotMatch(intentPanel, /getLocalizedBoosterMediaOptimization/);
   assert.match(imagesPanel, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
 });
 

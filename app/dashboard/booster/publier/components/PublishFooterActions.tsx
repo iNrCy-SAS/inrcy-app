@@ -65,7 +65,8 @@ export default function PublishFooterActions({
                 cursor: draftSaving || voiceBusy ? "wait" : "pointer",
               }}
             >
-              {i18nT("programmer_ad97007f")}{" "}</button>
+              <span>{i18nT("programmer_ad97007f")}</span>
+            </button>
             <button
               type="button"
               className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}
@@ -76,7 +77,11 @@ export default function PublishFooterActions({
                 cursor: draftSaving || voiceBusy ? "wait" : "pointer",
               }}
             >
-              {i18nT("verifier_et_publier_8f73de05")}{" "}</button>
+              <span className={styles.publishActionIcon} aria-hidden="true">
+                🚀
+              </span>
+              <span>{i18nT("verifier_et_publier_8f73de05")}</span>
+            </button>
           </div>
         )}
       </div>

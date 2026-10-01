@@ -475,7 +475,7 @@
     "documentsUploading": "Subiendo…",
     "documentsAnalysing": "Leyendo…",
     "documentsEmpty": "Todavía no se ha añadido ningún documento.",
-    "documentsLimitReached": "Se ha alcanzado el límite de 6 documentos.",
+    "documentsLimitReached": "Se ha alcanzado el límite de {limit} documentos.",
     "documentsSizeError": "Cada documento no debe superar los 20 MB.",
     "documentsTotalSizeError": "El almacenamiento de Documentos iNrADN está limitado a 50 MB en total.",
     "documentsUploadError": "No se pudo subir el documento.",

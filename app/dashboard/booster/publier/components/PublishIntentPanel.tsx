@@ -25,7 +25,6 @@ import {
   BOOSTER_VIDEO_ACCEPT,
   getLocalizedBoosterImageFormats,
   getLocalizedBoosterImageLimits,
-  getLocalizedBoosterMediaOptimization,
   getLocalizedBoosterRecommendedVideoDuration,
   getLocalizedBoosterSelectedMediaSummary,
   getLocalizedBoosterVideoFormats,
@@ -310,8 +309,7 @@ export default function PublishIntentPanel({
         className={styles.subtitle}
         style={{ marginBottom: 10, maxWidth: "none", whiteSpace: "normal" }}
       >
-        {i18nT("decrivez_le_sujet_de_cette_publication_d6313015")}{" "}{" "}
-        <strong>{getLocalizedBoosterMediaOptimization("generation", runtimeT)}</strong>
+        {i18nT("decrivez_le_sujet_de_cette_publication_d6313015")}
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         <div
@@ -965,21 +963,27 @@ export default function PublishIntentPanel({
             {generationNotice}
           </div>
         ) : null}
-        <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
+        <div style={{ display: "grid", gap: 8 }}>
           <div
+            data-testid="booster-ai-generation-actions"
             style={{
-              display: "grid",
-              gap: isMobile ? 5 : 0,
-              width: isMobile ? "100%" : "fit-content",
-              maxWidth: "100%",
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "flex-end",
+              gap: isMobile ? 8 : 10,
+              flexWrap: "wrap",
+              width: "100%",
               minWidth: 0,
             }}
           >
             <div
               style={{
-                display: isMobile ? "grid" : "inline-flex",
-                alignItems: isMobile ? "stretch" : "center",
-                gap: isMobile ? 5 : 7,
+                display: "grid",
+                gap: 5,
+                flex: isMobile ? "1 1 100%" : "0 1 280px",
+                width: isMobile ? "100%" : 280,
+                maxWidth: "100%",
+                minWidth: isMobile ? 0 : 220,
                 color: "rgba(255,255,255,0.84)",
                 fontSize: 12,
                 fontWeight: 850,
@@ -1027,7 +1031,7 @@ export default function PublishIntentPanel({
                 }
                 disabled={generationDisabled}
                 style={{
-                  width: isMobile ? "100%" : 280,
+                  width: "100%",
                   maxWidth: "100%",
                   minHeight: 34,
                   borderRadius: 10,
@@ -1056,13 +1060,17 @@ export default function PublishIntentPanel({
                 ))}
               </select>
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
               className={`${styles.primaryBtn} ${styles.aiGenerateBtn}`}
               onClick={onGenerate}
               disabled={generationDisabled}
+              style={{
+                flex: isMobile ? "1 1 100%" : "0 0 auto",
+                width: isMobile ? "100%" : "auto",
+                minHeight: 34,
+                whiteSpace: "nowrap",
+              }}
             >
               {generating
                 ? i18nT("generation_avec_value_0ba06089", { value0: selectedAiEngineOption.shortLabel })

@@ -475,7 +475,7 @@
     "documentsUploading": "Caricamento…",
     "documentsAnalysing": "Lettura…",
     "documentsEmpty": "Nessun documento aggiunto. Una brochure, un catalogo o una presentazione può aiutare l’IA a conoscere meglio la tua attività.",
-    "documentsLimitReached": "È stato raggiunto il limite di 6 documenti.",
+    "documentsLimitReached": "È stato raggiunto il limite di {limit} documenti.",
     "documentsSizeError": "Ogni documento non deve superare 20 MB.",
     "documentsTotalSizeError": "Lo spazio Documenti iNrADN è limitato a 50 MB totali.",
     "documentsUploadError": "Impossibile caricare il documento.",

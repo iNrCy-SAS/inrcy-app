@@ -475,7 +475,7 @@
     "documentsUploading": "กำลังอัปโหลด…",
     "documentsAnalysing": "กำลังอ่าน…",
     "documentsEmpty": "ยังไม่มีเอกสาร คุณสามารถเพิ่มโบรชัวร์ แค็ตตาล็อก หรืองานนำเสนอเพื่อช่วยให้ AI เข้าใจธุรกิจของคุณได้ดียิ่งขึ้น",
-    "documentsLimitReached": "ถึงขีดจำกัด 6 เอกสารแล้ว",
+    "documentsLimitReached": "ถึงขีดจำกัด {limit} เอกสารแล้ว",
     "documentsSizeError": "แต่ละเอกสารต้องมีขนาดไม่เกิน 20 MB",
     "documentsTotalSizeError": "พื้นที่เอกสาร iNrADN จำกัดรวมไว้ที่ 50 MB",
     "documentsUploadError": "ไม่สามารถอัปโหลดเอกสารได้",

@@ -506,6 +506,7 @@ export default function FideliserPage() {
           onClose={requestCloseActiveModal}
           titleOnLeftOnMobile
           hideModuleLabelOnMobile
+          wideOnDesktop
           headerStatus={workflowDraftMessage ? <span style={{ fontSize: 12, fontWeight: 800 }}>{workflowDraftMessage}</span> : null}
           headerStatusMobileHidden
           headerActions={

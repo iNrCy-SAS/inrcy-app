@@ -475,7 +475,7 @@
     "documentsUploading": "Uploading…",
     "documentsAnalysing": "Reading…",
     "documentsEmpty": "No document added yet. A brochure, catalogue or presentation can help AI understand your business.",
-    "documentsLimitReached": "The 6-document limit has been reached.",
+    "documentsLimitReached": "The {limit}-document limit has been reached.",
     "documentsSizeError": "Each document must not exceed 20 MB.",
     "documentsTotalSizeError": "iNrADN Documents storage is limited to 50 MB in total.",
     "documentsUploadError": "The document could not be uploaded.",

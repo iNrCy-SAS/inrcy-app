@@ -17,6 +17,7 @@ export default function BaseModal({
   titleOnLeftOnMobile = false,
   hideModuleLabelOnMobile = false,
   compact = false,
+  wideOnDesktop = false,
   maxWidth,
   children,
 }: {
@@ -30,6 +31,7 @@ export default function BaseModal({
   titleOnLeftOnMobile?: boolean;
   hideModuleLabelOnMobile?: boolean;
   compact?: boolean;
+  wideOnDesktop?: boolean;
   maxWidth?: number | string;
   children: React.ReactNode;
 }) {
@@ -227,7 +229,12 @@ export default function BaseModal({
           }}
         >
           <div
-            className={styles.fullscreenModalInner}
+            className={[
+              styles.fullscreenModalInner,
+              wideOnDesktop ? styles.fullscreenModalInnerWideDesktop : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{
               maxWidth: compact ? "100%" : "var(--inrcy-modal-inner-max-width, min(1400px, 100%))",
               margin: "0 auto",

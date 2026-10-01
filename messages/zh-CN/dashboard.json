@@ -475,7 +475,7 @@
     "documentsUploading": "正在上传…",
     "documentsAnalysing": "正在读取…",
     "documentsEmpty": "尚未添加文档。添加宣传册、产品目录或演示文稿，可以帮助 AI 更好地了解您的业务。",
-    "documentsLimitReached": "已达到 6 个文档的上限。",
+    "documentsLimitReached": "已达到 {limit} 个文档的上限。",
     "documentsSizeError": "每个文档不得超过 20 MB。",
     "documentsTotalSizeError": "iNrADN 文档存储总量限制为 50 MB。",
     "documentsUploadError": "无法上传文档。",

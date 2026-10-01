@@ -284,6 +284,12 @@ export async function PUT(req: Request) {
       differentiators: businessKnowledge.strengths,
     }, { includePremium: true });
   }
+  // Reference documents are server-owned. Never trust a full-form payload for
+  // this collection: a stale tab must not delete or resurrect stored objects.
+  memory = normalizeAiMemory(
+    { ...memory, referenceDocuments: currentMemory.referenceDocuments },
+    { includePremium: true },
+  );
   memory = sanitizeProfessionalIdentityValue(memory, companyName);
 
   if (hasBusinessKnowledge) {

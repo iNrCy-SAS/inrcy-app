@@ -1,6 +1,7 @@
 import "server-only";
 
 import { linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
+import { log } from "./observability/logger.ts";
 import {
   LinkedInAdsConnectionError,
   linkedInAdsAuthorization,
@@ -51,6 +52,31 @@ type OrganizationAccess = {
   role: "ADMINISTRATOR" | "DIRECT_SPONSORED_CONTENT_POSTER" | "CONTENT_ADMINISTRATOR";
 };
 
+export type LinkedInAdsPreflightOperation =
+  | "campaign_groups"
+  | "interface_locales"
+  | "geo_typeahead_localized"
+  | "geo_typeahead_default_locale"
+  | "geo_urn_resolution"
+  | "organization_access"
+  | "image"
+  | "audience_count"
+  | "budget_pricing";
+
+/** Provider details are deliberately limited to safe, low-cardinality diagnostics. */
+export class LinkedInAdsPreflightProviderError extends LinkedInAdsConnectionError {
+  constructor(
+    message: string,
+    code: string,
+    status: number,
+    readonly operation: LinkedInAdsPreflightOperation,
+    readonly providerStatus: number | null,
+  ) {
+    super(message, code, status);
+    this.name = "LinkedInAdsPreflightProviderError";
+  }
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : {};
@@ -65,7 +91,57 @@ function allowedDevelopmentAccountIds(): Set<string> {
     .split(/[\s,]+/).map((value) => value.trim()).filter((value) => /^\d{1,25}$/.test(value)));
 }
 
-async function linkedInAdsRead(accessToken: string, path: string): Promise<Record<string, unknown>> {
+function rejectedOperationCode(operation: LinkedInAdsPreflightOperation): string {
+  return operation === "geo_typeahead_localized" || operation === "geo_typeahead_default_locale"
+    ? "preflight_geo_typeahead_rejected"
+    : `preflight_${operation}_rejected`;
+}
+
+function providerHttpError(
+  operation: LinkedInAdsPreflightOperation,
+  providerStatus: number,
+): LinkedInAdsPreflightProviderError {
+  if (providerStatus === 401 || providerStatus === 403) {
+    return new LinkedInAdsPreflightProviderError(
+      "LinkedIn refuse ce contrôle préalable. Reconnectez le canal et vérifiez les scopes et rôles.",
+      "preflight_access_denied",
+      403,
+      operation,
+      providerStatus,
+    );
+  }
+  if (providerStatus === 400) {
+    return new LinkedInAdsPreflightProviderError(
+      "LinkedIn Ads a refusé une lecture du contrôle préalable.",
+      rejectedOperationCode(operation),
+      502,
+      operation,
+      providerStatus,
+    );
+  }
+  if (providerStatus === 429) {
+    return new LinkedInAdsPreflightProviderError(
+      "LinkedIn Ads limite temporairement les contrôles préalables.",
+      "preflight_provider_rate_limited",
+      503,
+      operation,
+      providerStatus,
+    );
+  }
+  return new LinkedInAdsPreflightProviderError(
+    "Le contrôle préalable LinkedIn Ads est indisponible.",
+    "provider_unavailable",
+    providerStatus >= 500 ? 503 : 502,
+    operation,
+    providerStatus,
+  );
+}
+
+async function linkedInAdsRead(
+  accessToken: string,
+  path: string,
+  operation: LinkedInAdsPreflightOperation,
+): Promise<Record<string, unknown>> {
   let response: Response;
   try {
     response = await fetch(`${LINKEDIN_REST_ORIGIN}${path}`, {
@@ -79,22 +155,56 @@ async function linkedInAdsRead(accessToken: string, path: string): Promise<Recor
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new LinkedInAdsConnectionError("LinkedIn Ads n’a pas répondu au contrôle préalable.", "provider_unavailable");
-  }
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const denied = response.status === 401 || response.status === 403;
-    throw new LinkedInAdsConnectionError(
-      denied ? "LinkedIn refuse ce contrôle préalable. Reconnectez le canal et vérifiez les scopes et rôles."
-        : "Le contrôle préalable LinkedIn Ads est indisponible.",
-      denied ? "preflight_access_denied" : "provider_unavailable",
-      denied ? 403 : 503,
+    throw new LinkedInAdsPreflightProviderError(
+      "LinkedIn Ads n’a pas répondu au contrôle préalable.",
+      "provider_unavailable",
+      503,
+      operation,
+      null,
     );
   }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw providerHttpError(operation, response.status);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new LinkedInAdsConnectionError("Réponse de préflight LinkedIn Ads invalide.", "provider_invalid_response");
+    throw new LinkedInAdsPreflightProviderError(
+      "Réponse de préflight LinkedIn Ads invalide.",
+      "provider_invalid_response",
+      502,
+      operation,
+      response.status,
+    );
   }
   return payload as Record<string, unknown>;
+}
+
+async function readLinkedInAdsGeoSuggestions(input: {
+  accessToken: string;
+  accountId: string;
+  query: string;
+  language: string;
+  country: string;
+}): Promise<Record<string, unknown>> {
+  try {
+    return await linkedInAdsRead(input.accessToken, buildLinkedInAdsGeoSearchPath({
+      query: input.query,
+      accountId: input.accountId,
+      language: input.language,
+      country: input.country,
+    }), "geo_typeahead_localized");
+  } catch (error) {
+    if (!(error instanceof LinkedInAdsPreflightProviderError)
+      || error.operation !== "geo_typeahead_localized" || error.providerStatus !== 400) throw error;
+    log.warn("linkedin_ads_preflight_geo_locale_fallback", {
+      provider: "linkedin",
+      operation: error.operation,
+      provider_status: error.providerStatus,
+      fallback_operation: "geo_typeahead_default_locale",
+    });
+    return linkedInAdsRead(input.accessToken, buildLinkedInAdsGeoSearchPath({
+      query: input.query,
+      accountId: input.accountId,
+    }), "geo_typeahead_default_locale");
+  }
 }
 
 function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | null {
@@ -114,7 +224,11 @@ function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | n
 }
 
 async function listOrganizationAccess(accessToken: string): Promise<OrganizationAccess[]> {
-  const payload = await linkedInAdsRead(accessToken, "/rest/organizationAcls?q=roleAssignee&state=APPROVED&count=500&start=0");
+  const payload = await linkedInAdsRead(
+    accessToken,
+    "/rest/organizationAcls?q=roleAssignee&state=APPROVED&count=500&start=0",
+    "organization_access",
+  );
   const organizations = normalizeOrganizationAccess(payload);
   if (!organizations) throw new LinkedInAdsConnectionError("Rôles de Page LinkedIn invalides.", "provider_invalid_response");
   return organizations;
@@ -138,14 +252,16 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const requestedGeoUrns = Array.isArray(input.geoUrns)
     ? [...new Set(input.geoUrns.filter((urn) => /^urn:li:geo:\d{1,25}$/.test(urn)))] : [];
   const [groupsPayload, localesPayload, geosPayload, selectedGeosPayload, organizations, imagePayload] = await Promise.all([
-    linkedInAdsRead(token, buildLinkedInAdsCampaignGroupsPath(account.id)),
-    linkedInAdsRead(token, buildLinkedInAdsLocalesPath()),
-    geoQuery.length >= 2 ? linkedInAdsRead(token, buildLinkedInAdsGeoSearchPath(geoQuery, language, country)) : Promise.resolve({ elements: [] }),
+    linkedInAdsRead(token, buildLinkedInAdsCampaignGroupsPath(account.id), "campaign_groups"),
+    linkedInAdsRead(token, buildLinkedInAdsLocalesPath(), "interface_locales"),
+    geoQuery.length >= 2 ? readLinkedInAdsGeoSuggestions({
+      accessToken: token, accountId: account.id, query: geoQuery, language, country,
+    }) : Promise.resolve({ elements: [] }),
     requestedGeoUrns.length
-      ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country))
+      ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country), "geo_urn_resolution")
       : Promise.resolve({ elements: [] }),
     hasOrganizationRead ? listOrganizationAccess(token) : Promise.resolve([]),
-    input.imageUrn ? linkedInAdsRead(token, buildLinkedInAdsImagePath(input.imageUrn)) : Promise.resolve(null),
+    input.imageUrn ? linkedInAdsRead(token, buildLinkedInAdsImagePath(input.imageUrn), "image") : Promise.resolve(null),
   ]);
 
   const campaignGroups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
@@ -180,11 +296,11 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const requestedBidAmount = Number.isFinite(input.bidAmount) && Number(input.bidAmount) > 0 ? Number(input.bidAmount) : null;
   const [audiencePayload, pricingPayload] = verifiedGeoUrns.length && localeSupported
     ? await Promise.all([
-      linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country)),
+      linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country), "audience_count"),
       dailyBudget !== null
         ? linkedInAdsRead(token, buildLinkedInAdsBudgetPricingPath({
           accountId: account.id, geoUrns: verifiedGeoUrns, language, country, dailyBudget,
-        }))
+        }), "budget_pricing")
         : Promise.resolve(null),
     ])
     : [null, null];

@@ -84,6 +84,31 @@ test("LinkedIn signale chaque étape réellement incomplète sans empêcher un b
   }), [3, 4, 7, 9, 10]);
 });
 
+test("LinkedIn exige une zone exacte fournie par son API, pas seulement un libellé du brief", () => {
+  const draft = campaign("linkedin");
+  draft.linkedinCampaignGroupId = "456";
+  draft.linkedinOrganizationUrn = "urn:li:organization:789";
+  draft.linkedinBidEuros = 2.5;
+  draft.linkedinPoliticalIntentConfirmed = true;
+  draft.linkedinTargetingNoticeAcknowledged = true;
+  draft.linkedinGeoTargets = [{ urn: "", name: "Arras" }];
+
+  const readiness = (linkedinGeoTargets: AdsCampaignInput["linkedinGeoTargets"]) => {
+    draft.linkedinGeoTargets = linkedinGeoTargets;
+    return adsIncompleteLaunchSteps({
+      draft,
+      steps,
+      accountReady: true,
+      destinationReady: true,
+      mediaReady: true,
+      now: Date.parse("2026-10-01T12:00:00Z"),
+    });
+  };
+
+  assert.deepEqual(readiness([{ urn: "", name: "Arras" }]), [4]);
+  assert.deepEqual(readiness([{ urn: "urn:li:geo:123456", name: "Arras, Hauts-de-France, France" }]), []);
+});
+
 test("Meta rattache les champs manquants à leurs étapes du studio", () => {
   const draft = campaign("meta");
   draft.targetLocations = [];
@@ -111,6 +136,18 @@ test("le message de survol donne les numéros des étapes", () => {
     adsIncompleteLaunchMessage([7]),
     "Informations manquantes : complétez l’étape 7 avant de lancer la campagne.",
   );
+  assert.equal(
+    adsIncompleteLaunchMessage([4], "linkedin", 4),
+    "Informations manquantes : complétez l’étape 4 avant de lancer la campagne. Sélectionnez au moins une zone exacte vérifiée par LinkedIn ; le libellé affiché dans le brief ne suffit pas.",
+  );
+  assert.equal(
+    adsIncompleteLaunchMessage([4], "meta", 4),
+    "Informations manquantes : complétez l’étape 4 avant de lancer la campagne.",
+  );
+  assert.equal(
+    adsIncompleteLaunchMessage([3], "linkedin", 3),
+    "Informations manquantes : complétez l’étape 3 avant de lancer la campagne. Sélectionnez au moins une zone exacte vérifiée par LinkedIn ; le libellé affiché dans le brief ne suffit pas.",
+  );
 });
 
 test("le studio garde la navigation et le brouillon disponibles, puis avertit seulement au lancement", () => {
@@ -120,6 +157,7 @@ test("le studio garde la navigation et le brouillon disponibles, puis avertit se
   assert.doesNotMatch(client, /if \(dx < 0 && current === deliveryStep && !destinationReview\.canContinue\) return current/);
   assert.doesNotMatch(client, /disabled=\{busy === "plan"[^}]*destinationReview\.canContinue/);
   assert.match(client, /studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard/);
+  assert.match(client, /adsIncompleteLaunchMessage\([\s\S]*?incompleteLaunchSteps,[\s\S]*?draft\.provider,[\s\S]*?targetingStep \+ 1/);
   assert.match(client, /disabled=\{busy !== null \|\| launchBlocked\}/);
   assert.match(client, /studioLaunchWarning[\s\S]*?⚠/);
   assert.match(css, /\.studioLaunchWarning\{[^}]*#ffd760/);

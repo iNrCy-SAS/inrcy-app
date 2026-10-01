@@ -216,17 +216,29 @@ export function buildLinkedInAdsCampaignGroupsPath(accountId: string): string {
   return `/rest/adAccounts/${accountId}/adCampaignGroups?q=search&search=(status:(values:List(ACTIVE,DRAFT,PAUSED)))&sortOrder=DESCENDING&pageSize=100`;
 }
 
-export function buildLinkedInAdsGeoSearchPath(query: string, language: string, country: string): string {
-  const normalizedQuery = query.trim();
-  if (normalizedQuery.length < 2 || normalizedQuery.length > 80 || !/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)) {
+/** Builds LinkedIn's account-scoped Bing Geo typeahead; locale is optional for the guarded 400 fallback. */
+export function buildLinkedInAdsGeoSearchPath(input: {
+  query: string;
+  accountId: string;
+  language?: string;
+  country?: string;
+}): string {
+  const normalizedQuery = input.query.trim();
+  const hasLocale = input.language !== undefined || input.country !== undefined;
+  if (normalizedQuery.length < 2 || normalizedQuery.length > 80 || !isLinkedInAdsAccountId(input.accountId)
+    || (hasLocale && (!/^[a-z]{2}$/.test(input.language || "") || !/^[A-Z]{2}$/.test(input.country || "")))) {
     throw new TypeError("Invalid LinkedIn Ads geo query");
   }
   const params = new URLSearchParams({
     q: "typeahead",
-    queryVersion: "QUERY_USES_URNS",
-    facet: "urn:li:adTargetingFacet:locations",
     query: normalizedQuery,
-    locale: `(language:${language},country:${country})`,
+    facet: "urn:li:adTargetingFacet:locations",
+    queryVersion: "QUERY_USES_URNS",
+    ...(hasLocale ? {
+      "locale.language": input.language!,
+      "locale.country": input.country!,
+    } : {}),
+    lixEntity: `urn:li:sponsoredAccount:${input.accountId}`,
   });
   return `/rest/adTargetingEntities?${params.toString()}`;
 }

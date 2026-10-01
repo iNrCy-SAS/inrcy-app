@@ -110,7 +110,6 @@ test("the generation UI and all its entry points enforce images OR video", () =>
   assert.match(intent, /getGenerationMediaSelectionPolicy\(\{/);
   assert.match(intent, /pickImagesDisabled = generationMediaPolicy\.imagePickerDisabled/);
   assert.match(intent, /pickVideoDisabled = generationMediaPolicy\.videoPickerDisabled/);
-  assert.match(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
 
   const librarySelection = between(
     modal,

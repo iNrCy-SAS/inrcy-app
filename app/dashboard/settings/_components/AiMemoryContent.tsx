@@ -527,7 +527,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         memoryRef.current.referenceDocuments.length,
     );
     if (!remaining) {
-      setDocumentUploadError(t("documentsLimitReached"));
+      setDocumentUploadError(t("documentsLimitReached", {
+        limit: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+      }));
       return;
     }
 
