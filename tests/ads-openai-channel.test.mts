@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
@@ -76,6 +77,17 @@ test("la création ChatGPT refuse les paramètres qui seraient élargis ou déna
 test("le studio ChatGPT garde l’étape image mais évite l’étape mots-clés", () => {
   assert.equal(adsDraftHasKeywordsStep({ provider: "openai" }), false);
   assert.equal(adsDraftHasMediaStep({ provider: "openai", campaignType: "generic" }), true);
+});
+
+test("le studio reflète les formats image et le budget quotidien documentés par ChatGPT Ads", () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const mediaServer = readFileSync(new URL("../lib/adsOpenaiMediaServer.ts", import.meta.url), "utf8");
+  assert.match(client, /\["image\/jpeg", "image\/png", "image\/webp"\]/);
+  assert.match(client, /image\/jpeg,image\/png,image\/webp/);
+  assert.match(mediaServer, /metadata\.format !== "webp"/);
+  assert.match(client, /channelId === "openai" \? "limite quotidienne" : "moyenne planifiée"/);
+  assert.match(client, /limite quotidienne de campagne/);
+  assert.doesNotMatch(client, /Moyenne sur 7 jours|une journée peut atteindre 2 fois|jusqu’à 2×/);
 });
 
 test("un refus HTTP 400 avant création rend le brouillon corrigeable sans autoriser un doublon", () => {

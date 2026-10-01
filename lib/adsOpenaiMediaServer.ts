@@ -51,13 +51,13 @@ export async function resolveOpenaiAdsImageUrl(userId: string, value: string): P
     const metadata = await sharp(Buffer.from(await downloaded.data.arrayBuffer()), {
       failOn: "error", limitInputPixels: 40_000_000,
     }).metadata();
-    if ((metadata.format !== "jpeg" && metadata.format !== "png") || !metadata.width || !metadata.height
+    if ((metadata.format !== "jpeg" && metadata.format !== "png" && metadata.format !== "webp") || !metadata.width || !metadata.height
       || metadata.width !== metadata.height || metadata.width < CHATGPT_ADS_MIN_IMAGE_SIDE_PX) {
-      throw new Error(`ChatGPT Ads demande une image JPG ou PNG carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels.`);
+      throw new Error(`Ce parcours ChatGPT Ads utilise une image JPG, PNG ou WebP carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels.`);
     }
   } catch (cause) {
-    if (cause instanceof Error && cause.message.startsWith("ChatGPT Ads demande")) throw cause;
-    throw new Error("L’image ChatGPT Ads ne peut pas être lue. Choisissez un JPG ou PNG carré valide.");
+    if (cause instanceof Error && cause.message.startsWith("Ce parcours ChatGPT Ads utilise")) throw cause;
+    throw new Error("L’image ChatGPT Ads ne peut pas être lue. Choisissez un JPG, PNG ou WebP carré valide.");
   }
   const signed = await createSafeStorageSignedUrl(
     bucket, storagePath, 60 * 60,

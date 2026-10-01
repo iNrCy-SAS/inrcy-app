@@ -127,6 +127,43 @@ test("Meta rattache les champs manquants à leurs étapes du studio", () => {
   }), [4, 6, 7, 8, 10]);
 });
 
+test("ChatGPT Ads rattache destination, créatif, média et enchère aux bonnes étapes", () => {
+  const draft = campaign("openai");
+  draft.objective = "website_traffic";
+  draft.conversionGoal = "website_visit";
+  draft.bidStrategy = "manual_review";
+  draft.targetLocations = [];
+  draft.headlines = [];
+  draft.primaryText = "";
+  draft.descriptions = [];
+  draft.dailyBudgetEuros = 10;
+  draft.openaiBidEuros = 12;
+
+  assert.deepEqual(adsIncompleteLaunchSteps({
+    draft,
+    steps,
+    accountReady: true,
+    destinationReady: false,
+    mediaReady: false,
+    now: Date.parse("2026-10-01T12:00:00Z"),
+  }), [4, 6, 7, 8, 9]);
+
+  draft.targetLocations = ["Lille"];
+  draft.headlines = ["Diagnostic local"];
+  draft.primaryText = "Découvrez notre diagnostic local.";
+  draft.descriptions = [draft.primaryText];
+  draft.dailyBudgetEuros = 15;
+  draft.openaiBidEuros = 1.5;
+  assert.deepEqual(adsIncompleteLaunchSteps({
+    draft,
+    steps,
+    accountReady: true,
+    destinationReady: true,
+    mediaReady: true,
+    now: Date.parse("2026-10-01T12:00:00Z"),
+  }), []);
+});
+
 test("le message de survol donne les numéros des étapes", () => {
   assert.equal(
     adsIncompleteLaunchMessage([3, 4, 9]),

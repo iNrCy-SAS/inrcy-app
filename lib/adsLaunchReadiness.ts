@@ -20,7 +20,7 @@ type AdsLaunchReadinessInput = {
   now?: number;
 };
 
-const remotelyLaunchableChannels = new Set(["google", "meta", "linkedin", "pinterest"]);
+const remotelyLaunchableChannels = new Set(["google", "meta", "linkedin", "pinterest", "openai"]);
 const linkedInGeoUrn = /^urn:li:geo:\d{1,25}$/;
 
 function hasVerifiedLinkedInGeoTarget(draft: AdsCampaignInput) {
@@ -98,6 +98,19 @@ export function adsIncompleteLaunchSteps({
     if (!mediaReady) add(steps.media);
     const bid = Number(draft.pinterestBidEuros);
     if (!Number.isFinite(bid) || bid < 0.01 || bid > Number(draft.dailyBudgetEuros)) add(steps.budget);
+  }
+
+  if (draft.provider === "openai") {
+    if (!draft.targetLocations.length) add(steps.targeting);
+    const title = draft.headlines[0]?.trim() || "";
+    const body = draft.primaryText.trim();
+    if (draft.headlines.length !== 1 || title.length < 3 || title.length > 50
+      || !body || body.length > 100) add(steps.creative);
+    if (!mediaReady) add(steps.media);
+    const budget = Number(draft.dailyBudgetEuros);
+    const bid = Number(draft.openaiBidEuros);
+    if (!Number.isFinite(budget) || budget < 15
+      || !Number.isFinite(bid) || bid < 0.01 || bid > budget) add(steps.budget);
   }
 
   return [...incomplete].sort((left, right) => left - right);
