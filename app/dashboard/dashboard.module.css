@@ -10109,6 +10109,17 @@
     overflow-y: visible !important;
   }
 
+  /* Le bilan Booster est volontairement borné à la hauteur disponible au-dessus
+     de la navigation mobile. Il doit conserver son propre scroll : sinon la
+     règle générique ci-dessus laisse son contenu déborder hors de la carte,
+     alors que le fond s'arrête à max-height. */
+  .publishResultScrollCard {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .mobileViewport :global(section[data-business-dna-channel-analysis]) {
     overflow-x: clip !important;
     overflow-y: visible !important;
