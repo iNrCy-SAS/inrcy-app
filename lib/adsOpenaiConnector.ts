@@ -90,6 +90,30 @@ export type ActivateOpenaiAdsCampaignOptions = OpenaiAdsConnectorOptions & {
   onProgress?: (progress: OpenaiAdsPublishProgress) => Promise<void>;
 };
 
+export type OpenaiAdsCampaignState = {
+  campaignId: string;
+  adGroupId: string;
+  adId: string;
+  campaignStatus: "active" | "paused";
+  adGroupStatus: "active" | "paused";
+  adStatus: "active" | "paused";
+  reviewStatus: string;
+};
+
+export type ReadOpenaiAdsCampaignStateOptions = OpenaiAdsConnectorOptions & {
+  progress: OpenaiAdsPublishProgress;
+  expectedAccountId: string;
+};
+
+export type SetOpenaiAdsCampaignPausedOptions = OpenaiAdsConnectorOptions & {
+  progress: OpenaiAdsPublishProgress;
+  expectedAccountId: string;
+  paused: boolean;
+  /** Required at runtime whenever paused=false; ignored for a safe pause. */
+  billingConfirmed?: boolean;
+  onProgress?: (progress: OpenaiAdsPublishProgress) => Promise<void>;
+};
+
 export class OpenaiAdsPublishError extends Error {
   readonly code: string;
   readonly progress: OpenaiAdsPublishProgress | null;
@@ -458,6 +482,64 @@ export async function createPausedOpenaiAdsCampaign(options: CreatePausedOpenaiA
   }
 }
 
+async function readOpenaiAdsCampaignStateWithPolicy(
+  options: ReadOpenaiAdsCampaignStateOptions,
+  requireAccountReady: boolean,
+): Promise<OpenaiAdsCampaignState> {
+  const key = apiKey(options.apiKey);
+  const progress = options.progress;
+  if (!isOpenaiAdsPublishProgress(progress) || !progress.campaignId || !progress.adGroupId || !progress.adId ||
+    progress.accountId !== options.expectedAccountId) fail("PROGRESS_MISMATCH", "Les identifiants ChatGPT Ads sont incomplets.");
+  const fetchImpl = options.fetchImpl || fetch;
+  const account = await verifyOpenaiAdsAccount({ apiKey: key, expectedAccountId: progress.accountId, fetchImpl });
+  // Identity is mandatory for every lifecycle action. Readiness is intentionally
+  // enforced only before activation: an account becoming inactive or entering
+  // review must never prevent an emergency pause of its campaign.
+  if (requireAccountReady) assertAccountReady(account);
+  const [campaign, adGroup, ad] = await Promise.all([
+    apiRequest(key, `/campaigns/${progress.campaignId}`, "GET", fetchImpl),
+    apiRequest(key, `/ad_groups/${progress.adGroupId}`, "GET", fetchImpl),
+    apiRequest(key, `/ads/${progress.adId}`, "GET", fetchImpl),
+  ]);
+  const campaignStatus = clean(campaign.status);
+  const adGroupStatus = clean(adGroup.status);
+  const adStatus = clean(ad.status);
+  if (resourceId(campaign.id, "cmpn_") !== progress.campaignId ||
+    resourceId(adGroup.id, "adgrp_") !== progress.adGroupId ||
+    resourceId(ad.id, "ad_") !== progress.adId ||
+    (clean(adGroup.campaign_id) && clean(adGroup.campaign_id) !== progress.campaignId) ||
+    (clean(ad.ad_group_id) && clean(ad.ad_group_id) !== progress.adGroupId) ||
+    !["paused", "active"].includes(campaignStatus) ||
+    !["paused", "active"].includes(adGroupStatus) ||
+    !["paused", "active"].includes(adStatus)) {
+    fail("PROVIDER_STATE_MISMATCH", "Les ressources ChatGPT Ads ont changé ou leur état n’est pas gérable.");
+  }
+  return {
+    campaignId: progress.campaignId,
+    adGroupId: progress.adGroupId,
+    adId: progress.adId,
+    campaignStatus: campaignStatus as OpenaiAdsCampaignState["campaignStatus"],
+    adGroupStatus: adGroupStatus as OpenaiAdsCampaignState["adGroupStatus"],
+    adStatus: adStatus as OpenaiAdsCampaignState["adStatus"],
+    reviewStatus: clean(ad.review_status),
+  };
+}
+
+/**
+ * Reads the three remote resources after validating the advertiser identity
+ * and persisted parent links. It deliberately does not require a currently
+ * active/approved account so pause and read-only reconciliation remain usable.
+ */
+export async function readOpenaiAdsCampaignState(
+  options: ReadOpenaiAdsCampaignStateOptions,
+): Promise<OpenaiAdsCampaignState> {
+  return readOpenaiAdsCampaignStateWithPolicy(options, false);
+}
+
+export function openaiAdsReviewAllowsActivation(reviewStatus: unknown): boolean {
+  return typeof reviewStatus === "string" && ["approved", "in_review"].includes(reviewStatus.trim());
+}
+
 /**
  * Deliberately separate from creation. GET /ad_account does not expose a
  * documented billing-ready field. The caller must independently confirm
@@ -470,40 +552,116 @@ export async function activateOpenaiAdsCampaign(options: ActivateOpenaiAdsCampai
     progress.accountId !== options.expectedAccountId) fail("PROGRESS_MISMATCH", "Les identifiants ChatGPT Ads sont incomplets.");
   if (!options.billingConfirmed) fail("BILLING_UNCONFIRMED", "Vérifiez la facturation dans Ads Manager avant d’activer cette campagne.");
   const fetchImpl = options.fetchImpl || fetch;
-  const account = await verifyOpenaiAdsAccount({ apiKey: key, expectedAccountId: progress.accountId, fetchImpl });
-  assertAccountReady(account);
-  const [campaign, adGroup, ad] = await Promise.all([
-    apiRequest(key, `/campaigns/${progress.campaignId}`, "GET", fetchImpl),
-    apiRequest(key, `/ad_groups/${progress.adGroupId}`, "GET", fetchImpl),
-    apiRequest(key, `/ads/${progress.adId}`, "GET", fetchImpl),
-  ]);
-  if (clean(ad.review_status) !== "approved" ||
-    (clean(adGroup.campaign_id) && clean(adGroup.campaign_id) !== progress.campaignId) ||
-    (clean(ad.ad_group_id) && clean(ad.ad_group_id) !== progress.adGroupId) ||
-    !["paused", "active"].includes(clean(campaign.status)) ||
-    !["paused", "active"].includes(clean(adGroup.status)) || !["paused", "active"].includes(clean(ad.status))) {
-    fail("REVIEW_OR_STATE_BLOCKED", "L’annonce ChatGPT Ads n’est pas encore validée ou ses ressources ont changé.");
+  const state = await readOpenaiAdsCampaignStateWithPolicy({
+    apiKey: key,
+    progress,
+    expectedAccountId: options.expectedAccountId,
+    fetchImpl,
+  }, true);
+  if (!openaiAdsReviewAllowsActivation(state.reviewStatus)) {
+    fail("REVIEW_OR_STATE_BLOCKED", "L’annonce ChatGPT Ads a été refusée, sa revue est inconnue ou ses ressources ont changé.");
   }
+  let mutationStarted = false;
   const save = async (stage: OpenaiAdsPublishProgress["stage"]) => {
     progress.stage = stage;
     await options.onProgress?.({ ...progress });
   };
-  if (clean(ad.status) === "paused") {
-    const activated = await apiRequest(key, `/ads/${progress.adId}/activate`, "POST", fetchImpl);
-    if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation de l’annonce.");
+  try {
+    if (state.adStatus === "paused") {
+      mutationStarted = true;
+      const activated = await apiRequest(key, `/ads/${progress.adId}/activate`, "POST", fetchImpl);
+      if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation de l’annonce.");
+    }
+    await save("ad_activated");
+    if (state.adGroupStatus === "paused") {
+      mutationStarted = true;
+      const activated = await apiRequest(key, `/ad_groups/${progress.adGroupId}/activate`, "POST", fetchImpl);
+      if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation du groupe d’annonces.");
+    }
+    await save("ad_group_activated");
+    if (state.campaignStatus === "paused") {
+      mutationStarted = true;
+      const activated = await apiRequest(key, `/campaigns/${progress.campaignId}/activate`, "POST", fetchImpl);
+      if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation de la campagne.");
+    }
+    await save("active");
+    return progress;
+  } catch (error) {
+    if (error instanceof OpenaiAdsPublishError) {
+      throw new OpenaiAdsPublishError(
+        error.code,
+        error.message,
+        progress,
+        mutationStarted || error.mutationStarted,
+        error.httpStatus,
+      );
+    }
+    throw new OpenaiAdsPublishError(
+      "LOCAL_FAILURE",
+      "L’activation ChatGPT Ads n’a pas pu être confirmée. Vérifiez Ads Manager.",
+      progress,
+      mutationStarted,
+    );
   }
-  await save("ad_activated");
-  if (clean(adGroup.status) === "paused") {
-    const activated = await apiRequest(key, `/ad_groups/${progress.adGroupId}/activate`, "POST", fetchImpl);
-    if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation du groupe d’annonces.");
+}
+
+/**
+ * Pausing the parent campaign first stops delivery without leaving a window in
+ * which a child can serve. Resuming delegates to the reviewed child → group →
+ * campaign activation sequence above, with the campaign still activated last.
+ */
+export async function setOpenaiAdsCampaignPaused(
+  options: SetOpenaiAdsCampaignPausedOptions,
+): Promise<OpenaiAdsPublishProgress> {
+  if (!options.paused) return activateOpenaiAdsCampaign({
+    ...options,
+    billingConfirmed: options.billingConfirmed === true,
+  });
+  const key = apiKey(options.apiKey);
+  const progress = options.progress;
+  const fetchImpl = options.fetchImpl || fetch;
+  const state = await readOpenaiAdsCampaignState({
+    apiKey: key,
+    progress,
+    expectedAccountId: options.expectedAccountId,
+    fetchImpl,
+  });
+  let mutationStarted = false;
+  try {
+    if (state.campaignStatus === "active") {
+      // The response may be lost after the provider applied the mutation. From
+      // this point onward the lifecycle route must never restore a local
+      // `active` status solely because a subsequent confirmation read failed.
+      mutationStarted = true;
+      const paused = await apiRequest(key, `/campaigns/${state.campaignId}/pause`, "POST", fetchImpl);
+      if (clean(paused.status) !== "paused") {
+        fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé la mise en pause de la campagne.");
+      }
+    }
+    const confirmed = await apiRequest(key, `/campaigns/${state.campaignId}`, "GET", fetchImpl);
+    if (resourceId(confirmed.id, "cmpn_") !== state.campaignId || clean(confirmed.status) !== "paused") {
+      fail("PROVIDER_STATE_MISMATCH", "La campagne ChatGPT Ads n’est pas confirmée en pause.");
+    }
+    progress.stage = "paused";
+    await options.onProgress?.({ ...progress });
+    return progress;
+  } catch (error) {
+    if (error instanceof OpenaiAdsPublishError) {
+      throw new OpenaiAdsPublishError(
+        error.code,
+        error.message,
+        progress,
+        mutationStarted || error.mutationStarted,
+        error.httpStatus,
+      );
+    }
+    throw new OpenaiAdsPublishError(
+      "LOCAL_FAILURE",
+      "La mise en pause ChatGPT Ads n’a pas pu être confirmée. Vérifiez Ads Manager.",
+      progress,
+      mutationStarted,
+    );
   }
-  await save("ad_group_activated");
-  if (clean(campaign.status) === "paused") {
-    const activated = await apiRequest(key, `/campaigns/${progress.campaignId}/activate`, "POST", fetchImpl);
-    if (clean(activated.status) !== "active") fail("PROVIDER_STATE_MISMATCH", "ChatGPT Ads n’a pas confirmé l’activation de la campagne.");
-  }
-  await save("active");
-  return progress;
 }
 
 export async function previewOpenaiAdsAd(options: OpenaiAdsConnectorOptions & { adId: string }): Promise<Json> {

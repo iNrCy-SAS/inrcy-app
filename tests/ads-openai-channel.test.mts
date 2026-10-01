@@ -34,17 +34,44 @@ const chatgptDraft = {
   creativeUrl: "https://example.com/carte.jpg",
 };
 
-test("ChatGPT Ads est ouvert aux comptes Premium et Founder, avec création réelle en pause uniquement", () => {
+test("ChatGPT Ads est ouvert aux comptes Premium et Founder, avec des gardes indépendantes Active et En pause", () => {
   assert.equal(adsAccessAllowed("premium", false, "openai"), true);
   assert.equal(adsAccessAllowed("founder", false, "openai"), true);
   assert.equal(adsAccessAllowed("standard", false, "openai"), false);
   assert.equal(adsAccessAllowed("standard", true, "openai"), true);
-  const gate = { INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED: "true" };
+  const gate = {
+    INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED: "true",
+    INRCY_OPENAI_ADS_LIVE_PUBLISH_ENABLED: "true",
+  };
   assert.equal(isAdsChannelPublishEnabled("openai", "paused", gate), true);
-  assert.equal(isAdsChannelPublishEnabled("openai", "live", gate), false);
+  assert.equal(isAdsChannelPublishEnabled("openai", "live", gate), true);
   assert.equal(isAdsChannelPublishEnabled("openai", "demo_paused", gate), false);
+  assert.equal(isAdsChannelPublishEnabled("openai", "live", {}), true);
+  assert.equal(isAdsChannelPublishEnabled("openai", "live", { INRCY_ADS_LIVE_PUBLISH_ENABLED: "true" }), true);
+  assert.equal(isAdsChannelPublishEnabled("openai", "live", { INRCY_OPENAI_ADS_LIVE_PUBLISH_ENABLED: "false" }), false);
   assert.equal(isAdsChannelPublishEnabled("openai", "paused", {}), true);
   assert.equal(isAdsChannelPublishEnabled("openai", "paused", { INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED: "false" }), false);
+});
+
+test("le lancement Active ChatGPT Ads exige facturation confirmée, crée en pause puis active la campagne en dernier", () => {
+  const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
+  const connector = readFileSync(new URL("../lib/adsOpenaiConnector.ts", import.meta.url), "utf8");
+  const migration = readFileSync(
+    new URL("../supabase/migrations/20261001223234_enable_chatgpt_ads_live_campaigns.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(route, /body\?\.billingConfirmed !== true/);
+  assert.match(route, /OPENAI_ADS_BILLING_CONFIRMATION_REQUIRED/);
+  assert.ok(route.indexOf("createPausedOpenaiAdsCampaign") < route.indexOf("activateOpenaiAdsCampaign({"));
+  assert.match(route, /billingConfirmed: body\?\.billingConfirmed === true/);
+  assert.ok(connector.indexOf("`/ads/${progress.adId}/activate`")
+    < connector.indexOf("`/ad_groups/${progress.adGroupId}/activate`"));
+  assert.ok(connector.indexOf("`/ad_groups/${progress.adGroupId}/activate`")
+    < connector.indexOf("`/campaigns/${progress.campaignId}/activate`"));
+  assert.match(connector, /openaiAdsReviewAllowsActivation\(state\.reviewStatus\)/);
+  assert.match(migration, /'openai'::text/);
+  assert.doesNotMatch(migration, /provider = 'openai' and status in/);
+  assert.match(migration, /status = 'draft' and ad_account_id = ''/);
 });
 
 test("la carte ChatGPT validée garde sa zone locale, son texte entier et son enchère", () => {

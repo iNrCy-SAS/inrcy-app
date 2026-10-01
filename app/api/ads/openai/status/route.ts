@@ -56,6 +56,8 @@ export async function GET() {
     const assessment = account ? assessOpenaiAdsAccount(account) : null;
     const pausedCreationEnabled = Boolean(connected && !refreshError && assessment?.ready
       && isAdsChannelPublishEnabled("openai", "paused", process.env));
+    const liveDeliveryEnabled = Boolean(connected && !refreshError && assessment?.ready
+      && isAdsChannelPublishEnabled("openai", "live", process.env));
     const accountId = account?.id || integration?.resource_id || "";
     const accountName = account?.name || integration?.resource_label || "";
     return NextResponse.json({
@@ -69,12 +71,13 @@ export async function GET() {
       currency: account?.currencyCode || "",
       brandReviewStatus: account?.brandReviewStatus || "",
       accountReviewStatus: account?.accountReviewStatus || null,
-      readiness: refreshError ? "verification_unavailable" : assessment?.code || (connected ? "ready_for_paused_creation" : "not_connected"),
+      readiness: refreshError ? "verification_unavailable" : assessment?.code
+        || (connected ? (liveDeliveryEnabled ? "ready_for_live_creation" : "ready_for_paused_creation") : "not_connected"),
       readinessMessage: refreshError || assessment?.message || "",
       proposalEnabled: true,
-      publicationEnabled: pausedCreationEnabled,
+      publicationEnabled: pausedCreationEnabled || liveDeliveryEnabled,
       pausedCreationEnabled,
-      liveDeliveryEnabled: false,
+      liveDeliveryEnabled,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Statut ChatGPT Ads indisponible.", code: "storage_unavailable" },

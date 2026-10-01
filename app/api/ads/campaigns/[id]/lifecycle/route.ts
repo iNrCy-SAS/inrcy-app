@@ -13,6 +13,7 @@ import {
   hasRemoteArchiveConfirmation,
   hasCompleteInitialPublishResources,
   hasLocalRecoveryDiscardConfirmation,
+  hasOpenaiRemoteResumeConfirmation,
   hasProviderCampaignIdentifier,
   hasRemoteDeleteConfirmation,
   parseAdsCampaignLifecycleRequest,
@@ -49,6 +50,15 @@ import { LinkedInAdsPublishError, publishLinkedInAdsCampaign } from "@/lib/adsLi
 import { linkedInAdsHasAccessMode } from "@/lib/adsLinkedInPolicy";
 import { linkedInAdsAuthorization, listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import type { LinkedInAdsPublishProgress } from "@/lib/adsLinkedInPublisherCore";
+import {
+  OpenaiAdsPublishError,
+  openaiAdsReviewAllowsActivation,
+  readOpenaiAdsCampaignState,
+  setOpenaiAdsCampaignPaused,
+  verifyOpenaiAdsAccount,
+  type OpenaiAdsPublishProgress,
+} from "@/lib/adsOpenaiConnector";
+import { readChatgptAdsApiKey, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
 import { parseAdsCampaignInput } from "@/lib/adsValidation";
 import { isAdsChannelPublishEnabled } from "@/lib/adsPublishMode";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -80,7 +90,7 @@ type RemoteActionResult = {
 
 type RemoteCampaignRow = {
   id: string;
-  provider: "google" | "meta" | "pinterest" | "linkedin";
+  provider: "google" | "meta" | "pinterest" | "linkedin" | "openai";
   ad_account_id: string;
   name: string;
   daily_budget_cents: number;
@@ -239,8 +249,11 @@ function messageFrom(error: unknown): string {
     : "La plateforme publicitaire n’a pas pu terminer cette action.").slice(0, 1_000);
 }
 
-function remoteMayHaveChanged(error: unknown, provider: "google" | "meta" | "pinterest" | "linkedin"): boolean {
+function remoteMayHaveChanged(error: unknown, provider: "google" | "meta" | "pinterest" | "linkedin" | "openai"): boolean {
   if (error instanceof AdsLifecyclePersistenceError) return true;
+  if (provider === "openai") {
+    return error instanceof OpenaiAdsPublishError ? error.mutationStarted : true;
+  }
   if (provider === "linkedin") {
     if (error instanceof LinkedInAdsPublishError) return !error.retrySafe;
     return error instanceof LinkedInAdsLifecycleError ? error.remoteMayHaveChanged : true;
@@ -320,6 +333,9 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
   if (operation === "delete" && campaign.provider === "pinterest") {
     return { response: NextResponse.json({ error: "Archivez cette campagne depuis Pinterest Ads Manager. iNrSend ne supprime pas automatiquement une campagne Pinterest." }, { status: 409 }) };
   }
+  if (operation === "delete" && campaign.provider === "openai") {
+    return { response: NextResponse.json({ error: "Archivez ou supprimez cette campagne depuis ChatGPT Ads Manager. iNrSend ne supprime pas automatiquement une campagne ChatGPT Ads." }, { status: 409 }) };
+  }
 
   const draft = record(campaign.draft);
   const draftAccountId = String(draft.adAccountId || "").replace(/^act_/, "").replace(/-/g, "");
@@ -358,6 +374,28 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
         return { response: NextResponse.json({ error: "Ce compte Pinterest Ads n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 }) };
       }
       return { id, user, campaign, account: { ...account, loginCustomerId: undefined }, localCleanupOnly: false as const };
+    }
+    if (campaign.provider === "openai") {
+      const connection = await readOpenaiAdsIntegration(user.activeUserId);
+      if (connection?.status !== "connected" || connection.resource_id !== campaign.ad_account_id) {
+        return { response: NextResponse.json({ error: "Reconnectez le compte ChatGPT Ads associé avant de gérer cette campagne." }, { status: 409 }) };
+      }
+      const openaiApiKey = await readChatgptAdsApiKey(user.activeUserId);
+      if (!openaiApiKey) {
+        return { response: NextResponse.json({ error: "La clé Advertiser API ChatGPT Ads est absente ou illisible. Reconnectez le compte." }, { status: 409 }) };
+      }
+      const account = await verifyOpenaiAdsAccount({
+        apiKey: openaiApiKey,
+        expectedAccountId: campaign.ad_account_id,
+      });
+      return {
+        id,
+        user,
+        campaign,
+        account: { ...account, loginCustomerId: undefined },
+        openaiApiKey,
+        localCleanupOnly: false as const,
+      };
     }
     const connection = await readAdsIntegration(user.activeUserId, campaign.provider);
     if (connection?.status !== "connected") {
@@ -437,6 +475,7 @@ async function executeRemoteAction(input: {
   campaign: RemoteCampaignRow;
   claimedAt: string;
   loginCustomerId?: string;
+  openaiApiKey?: string;
 }): Promise<RemoteActionResult> {
   const { request, userId, campaign } = input;
   const recovery = request.action === "reconcile" ? lifecycleRecovery(campaign.provider_resources) : null;
@@ -447,6 +486,52 @@ async function executeRemoteAction(input: {
     throw new Error(hasProviderCampaignIdentifier(campaign)
       ? "La création initiale est incomplète sur la plateforme. Supprimez la campagne distante depuis iNrSend ou contrôlez-la dans le compte publicitaire."
       : "Aucun identifiant de campagne distante n’a été enregistré. Contrôlez le compte publicitaire puis utilisez le nettoyage local explicite.");
+  }
+  if (campaign.provider === "openai") {
+    if (!input.openaiApiKey) throw new Error("La connexion ChatGPT Ads doit être rétablie avant de gérer cette campagne.");
+    if (request.action === "update" || recovery?.operation === "update") {
+      throw new Error("Modifiez les réglages avancés de cette campagne directement dans ChatGPT Ads Manager.");
+    }
+    if (request.action === "archive" || recovery?.operation === "archive") {
+      throw new Error("L’archivage ChatGPT Ads doit être réalisé depuis Ads Manager.");
+    }
+    const progress = withoutLifecycleMetadata(campaign.provider_resources) as OpenaiAdsPublishProgress;
+    const common = {
+      apiKey: input.openaiApiKey,
+      progress,
+      expectedAccountId: campaign.ad_account_id,
+    };
+    if (request.action === "reconcile") {
+      const state = await readOpenaiAdsCampaignState(common);
+      if (state.campaignStatus === "active" && (state.adGroupStatus !== "active" || state.adStatus !== "active")) {
+        throw new Error("La hiérarchie ChatGPT Ads est incohérente : contrôlez la campagne dans Ads Manager avant toute reprise.");
+      }
+      if (state.campaignStatus === "active" && !openaiAdsReviewAllowsActivation(state.reviewStatus)) {
+        throw new Error("La campagne ChatGPT Ads est active mais la revue de son annonce est refusée ou inconnue. Contrôlez-la dans Ads Manager.");
+      }
+      return {
+        providerResources: {
+          ...progress,
+          stage: state.campaignStatus,
+          lifecycleState: state.campaignStatus,
+          lifecycleUpdatedAt: new Date().toISOString(),
+        },
+        status: state.campaignStatus,
+      };
+    }
+    const result = await setOpenaiAdsCampaignPaused({
+      ...common,
+      paused: request.action !== "resume",
+      billingConfirmed: request.action === "resume",
+    });
+    return {
+      providerResources: {
+        ...result,
+        lifecycleState: request.action === "resume" ? "active" : "paused",
+        lifecycleUpdatedAt: new Date().toISOString(),
+      },
+      status: request.action === "resume" ? "active" : "paused",
+    };
   }
   if (campaign.provider === "linkedin") {
     if (request.action === "reconcile" && recovery?.operation === "initial_publish") {
@@ -640,6 +725,9 @@ async function executeRemoteAction(input: {
     };
   }
 
+  if (campaign.provider !== "meta") {
+    throw new Error("Ce fournisseur ne dispose d’aucun adaptateur de cycle de vie iNrSend.");
+  }
   const common = {
     adAccountId: campaign.ad_account_id,
     resources: campaign.provider_resources,
@@ -741,6 +829,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       ? "Cette ancienne démo en pause ne peut pas être activée depuis iNrSend."
       : "Seule une campagne réelle en pause peut être reprise." }, { status: 409 });
   }
+  if (campaign.provider === "openai" && parsed.request.action === "resume" && !hasOpenaiRemoteResumeConfirmation(body)) {
+    return NextResponse.json({
+      code: "OPENAI_ADS_RESUME_CONFIRMATION_REQUIRED",
+      error: "Confirmez que la facturation ChatGPT Ads est configurée et que vous souhaitez reprendre la diffusion payante.",
+    }, { status: 400 });
+  }
   if (parsed.request.action === "update" && campaign.provider === "pinterest") {
     return NextResponse.json({ error: "Modifiez les réglages avancés de cette campagne directement dans Pinterest Ads Manager." }, { status: 409 });
   }
@@ -763,6 +857,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   // read their existing initial-publish state here. Keep pause, deletion and
   // read-only reconciliation available while a channel is disabled.
   const publishMode = effectiveRequest.action === "resume"
+    && !(campaign.provider === "openai" && parsed.request.action === "reconcile")
     ? "live"
     : campaign.provider === "linkedin" && effectiveRequest.action === "initial_publish"
       ? effectiveRequest.mode || "live"
@@ -783,6 +878,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       campaign,
       claimedAt: claimed.claimedAt,
       loginCustomerId: account.loginCustomerId,
+      openaiApiKey: "openaiApiKey" in authorized ? authorized.openaiApiKey : undefined,
     });
     providerResources = remote.providerResources;
     const appliedChanges = parsed.request.action === "update" ? parsed.request.changes : remote.reconciledChanges || {};
@@ -878,12 +974,14 @@ export async function DELETE(request: Request, context: RouteContext) {
         lifecycleState: result.state,
         lifecycleUpdatedAt: new Date().toISOString(),
       };
-    } else {
+    } else if (campaign.provider === "meta") {
       const result = await deleteMetaAdsCampaign(user.activeUserId, {
         adAccountId: campaign.ad_account_id,
         resources: campaign.provider_resources,
       });
       providerResources = { ...result.resources, lifecycleState: "deleted", lifecycleUpdatedAt: new Date().toISOString() };
+    } else {
+      throw new Error("La suppression distante de ce fournisseur n’est pas disponible depuis iNrSend.");
     }
 
     const { data, error } = await supabaseAdmin.from("ads_campaigns").delete()

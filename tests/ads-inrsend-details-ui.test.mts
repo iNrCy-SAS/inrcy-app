@@ -42,11 +42,17 @@ test("le statut précède les actions dans la ligne du titre sur desktop", () =>
   assert.match(styles, /@media\(max-width:760px\)[\s\S]*?\.headerActions\{[^}]*flex-wrap:wrap/);
 });
 
-test("OpenAI récupère une publication interrompue sans exposer de reprise générique", () => {
+test("ChatGPT Ads récupère une interruption et confirme explicitement toute reprise payante", () => {
   assert.match(component, /const isInterruptedRemoteOperation = canRecoverInterruptedAdsCampaign\(campaign\)/);
   assert.match(component, /isInterruptedRemoteOperation \? <button[\s\S]*?runRemoteAction\(campaign, "reconcile"\)[\s\S]*?Contrôler l’opération interrompue/);
   assert.match(component, /const canToggleRemote = canManageRemote && \(campaign\.status === "active" \|\| campaign\.status === "paused"\)/);
-  assert.match(component, /campaign\.provider === "openai"[\s\S]*?activez-la uniquement depuis Ads Manager ; l’activation depuis iNrSend n’est pas disponible/);
+  assert.match(component, /campaign\.provider === "openai" \? setResumeId\(campaign\.id\)/);
+  assert.match(component, /ADS_OPENAI_REMOTE_RESUME_CONFIRMATION/);
+  assert.match(component, /billingConfirmed: true/);
+  assert.match(component, /Activer la diffusion payante ChatGPT Ads/);
+  assert.match(component, /peut générer des dépenses selon son budget/);
+  assert.doesNotMatch(component, /l’activation depuis iNrSend n’est pas disponible/);
+  assert.match(component, /const canDeleteRemote = canManageRemote && \(campaign\.provider === "google" \|\| campaign\.provider === "meta"\)/);
 });
 
 test("la grille Infos utilise quatre colonnes desktop puis deux et une", () => {

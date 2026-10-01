@@ -32,9 +32,15 @@ export function isAdsChannelPublishEnabled(provider: string, mode: AdsPublishMod
   if (provider === "google") return environment.INRCY_GOOGLE_ADS_PUBLISH_ENABLED !== "false";
   if (provider === "pinterest") return environment.INRCY_PINTEREST_ADS_PUBLISH_ENABLED !== "false";
   if (provider === "linkedin") return environment.INRCY_LINKEDIN_ADS_PUBLISH_ENABLED === "true";
-  // A ChatGPT Ads account and its billing must be verified before live delivery.
-  // The first connector only creates real provider resources in Paused state.
-  if (provider === "openai") return mode === "paused" && environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED !== "false";
+  // ChatGPT Ads always creates the complete hierarchy in Paused state first.
+  // Live activation has its own emergency kill switch and an additional billing
+  // confirmation at the route boundary; the paused path remains independently
+  // reversible. A missing switch does not block the approved Premium rollout.
+  if (provider === "openai") {
+    if (mode === "live") return environment.INRCY_OPENAI_ADS_LIVE_PUBLISH_ENABLED !== "false";
+    if (mode === "paused") return environment.INRCY_OPENAI_ADS_PAUSED_PUBLISH_ENABLED !== "false";
+    return false;
+  }
   return provider === "meta" && isAdsPublishModeEnabled(mode, environment);
 }
 

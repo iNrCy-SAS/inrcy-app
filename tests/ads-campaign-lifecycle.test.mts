@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION,
+  ADS_OPENAI_REMOTE_RESUME_CONFIRMATION,
   ADS_REMOTE_ARCHIVE_CONFIRMATION,
   ADS_REMOTE_DELETE_CONFIRMATION,
   canDiscardInterruptedInitialPublish,
@@ -10,6 +11,7 @@ import {
   canRecoverInterruptedAdsCampaign,
   hasCompleteInitialPublishResources,
   hasLocalRecoveryDiscardConfirmation,
+  hasOpenaiRemoteResumeConfirmation,
   hasRemoteArchiveConfirmation,
   hasRemoteDeleteConfirmation,
   parseAdsCampaignLifecycleRequest,
@@ -66,6 +68,44 @@ test("seules les campagnes fournisseur identifiées sont gérables", () => {
   assert.equal(canManageRemoteAdsCampaign({ provider: "pinterest", status: "paused", provider_resources: { campaignId: "123456" } }), true);
 });
 
+test("ChatGPT Ads exige toute la hiérarchie distante avant d’autoriser pause et reprise", () => {
+  const openai = {
+    provider: "openai",
+    ad_account_id: "adacct_12345678",
+    status: "paused",
+    provider_resources: {
+      operationId: "campaign_12345678",
+      requestFingerprint: "a".repeat(64),
+      accountId: "adacct_12345678",
+      locations: [{ id: "geo_123", name: "Arras" }],
+      campaignId: "cmpn_123",
+      adGroupId: "adgrp_123",
+      imageFileId: "file_123",
+      adId: "ad_123",
+      stage: "paused",
+    },
+  };
+  assert.equal(hasCompleteInitialPublishResources(openai), true);
+  assert.equal(canManageRemoteAdsCampaign(openai), true);
+  assert.equal(canManageRemoteAdsCampaign({
+    ...openai,
+    status: "needs_review",
+    provider_resources: {
+      ...openai.provider_resources,
+      stage: "ad_created",
+      inrcyLifecycleRecovery: { operation: "initial_publish", mode: "paused" },
+    },
+  }), true, "une hiérarchie complète interrompue doit rester réconciliable en lecture seule");
+  assert.equal(canManageRemoteAdsCampaign({
+    ...openai,
+    provider_resources: { ...openai.provider_resources, adGroupId: undefined },
+  }), false);
+  assert.equal(hasCompleteInitialPublishResources({
+    ...openai,
+    provider_resources: { ...openai.provider_resources, accountId: "adacct_other" },
+  }), false);
+});
+
 test("une création initiale n’est complète qu’avec toute la hiérarchie requise", () => {
   const google = {
     provider: "google", ad_account_id: "1234567890", provider_resources: {
@@ -117,6 +157,18 @@ test("l’archivage distant exige une confirmation dédiée exacte", () => {
   assert.equal(hasRemoteArchiveConfirmation({ confirmation: ADS_REMOTE_DELETE_CONFIRMATION }), false);
 });
 
+test("la reprise ChatGPT Ads exige confirmation de facturation et phrase exacte", () => {
+  assert.equal(hasOpenaiRemoteResumeConfirmation({
+    confirmation: ADS_OPENAI_REMOTE_RESUME_CONFIRMATION,
+    billingConfirmed: true,
+  }), true);
+  assert.equal(hasOpenaiRemoteResumeConfirmation({
+    confirmation: ADS_OPENAI_REMOTE_RESUME_CONFIRMATION,
+    billingConfirmed: false,
+  }), false);
+  assert.equal(hasOpenaiRemoteResumeConfirmation({ confirmation: "RESUME", billingConfirmed: true }), false);
+});
+
 test("la route verrouille les mutations, expire les verrous interrompus et supprime d'abord chez le fournisseur", () => {
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/lifecycle/route.ts", import.meta.url), "utf8");
   const interruptedRecoveryIndex = route.indexOf('if (data.status === "publishing")');
@@ -136,6 +188,18 @@ test("la route verrouille les mutations, expire les verrous interrompus et suppr
   assert.match(route, /hasLocalRecoveryDiscardConfirmation\(body\)/);
   assert.match(route, /hasRemoteArchiveConfirmation\(body\)/);
   assert.match(route, /await archiveLinkedInAdsCampaign\(/);
+  assert.match(route, /readOpenaiAdsCampaignState\(common\)/);
+  assert.match(route, /state\.campaignStatus === "active" && !openaiAdsReviewAllowsActivation\(state\.reviewStatus\)/);
+  assert.match(route, /revue de son annonce est refusée ou inconnue/);
+  assert.match(route, /setOpenaiAdsCampaignPaused\(\{/);
+  assert.match(route, /hasOpenaiRemoteResumeConfirmation\(body\)/);
+  assert.match(route, /OPENAI_ADS_RESUME_CONFIRMATION_REQUIRED/);
+  const openaiBranch = route.indexOf('if (campaign.provider === "openai")', route.indexOf("async function executeRemoteAction"));
+  const metaFallback = route.indexOf("const common = {", route.indexOf('if (campaign.provider === "google")'));
+  assert.ok(openaiBranch >= 0 && metaFallback > openaiBranch, "OpenAI doit être traité avant le fallback Meta");
+  assert.match(route, /operation === "delete" && campaign\.provider === "openai"/);
+  assert.match(route, /else if \(campaign\.provider === "meta"\) \{[\s\S]*?deleteMetaAdsCampaign/);
+  assert.match(route, /La suppression distante de ce fournisseur n’est pas disponible depuis iNrSend/);
   assert.match(route, /parseAdsCampaignInput\(campaign\.draft, \{ purpose: "publish" \}\)/);
   assert.match(route, /parsedDraft\.draft\.provider !== "linkedin"/);
   assert.match(route, /parsedDraft\.draft\.adAccountId !== campaign\.ad_account_id/);

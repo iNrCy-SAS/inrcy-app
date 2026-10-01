@@ -267,7 +267,7 @@ function externalStatusDisplay(status: ExternalConnectorStatus): { label: string
 const EXTERNAL_DISCONNECT_CHANNELS: readonly ExternalChannelId[] = ["linkedin", "pinterest", "tiktok", "x"];
 
 // Every channel can be prepared here. Publication is enabled only for the
-// deliberately supported connector paths; ChatGPT Ads always creates paused resources.
+// deliberately supported connector paths and the readiness returned by each platform.
 const CHANNEL_CATALOG: { id: AdsChannelId; label: string; format: string; logo: string; provider?: AdsProvider }[] = [
   { id: "meta", label: "Meta Ads", format: "Facebook · Instagram", logo: "/ads-logos/meta.svg", provider: "meta" },
   { id: "google", label: "Google Ads", format: "Recherche · annonces textuelles", logo: "/ads-logos/google-ads.svg", provider: "google" },
@@ -1103,7 +1103,7 @@ function campaignPromise(channel: AdsChannelId) {
   return "Une campagne claire donne à votre expertise la place qu’elle mérite auprès des personnes prêtes à vous découvrir.";
 }
 
-export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, livePublishingEnabled, googlePublishingEnabled, pinterestPublishingEnabled, openaiPausedPublishingEnabled, pilotChannelsEnabled }: {
+export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, livePublishingEnabled, googlePublishingEnabled, pinterestPublishingEnabled, pilotChannelsEnabled }: {
   initialChannel: AdsChannelId;
   initialEditCampaignId: string;
   initialConnections: AdsConnectionSnapshots;
@@ -1112,7 +1112,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   livePublishingEnabled: boolean;
   googlePublishingEnabled: boolean;
   pinterestPublishingEnabled: boolean;
-  openaiPausedPublishingEnabled: boolean;
   pilotChannelsEnabled: boolean;
 }) {
   const router = useRouter();
@@ -1149,7 +1148,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [externalConfiguring, setExternalConfiguring] = useState(initialConnection !== null && isExternalChannel(initialChannel));
   const [openaiConfiguring, setOpenaiConfiguring] = useState(false);
   const [openaiAccountReady, setOpenaiAccountReady] = useState(false);
+  const [openaiLiveReady, setOpenaiLiveReady] = useState(false);
   const [openaiReadinessMessage, setOpenaiReadinessMessage] = useState("");
+  const [openaiLiveReadinessMessage, setOpenaiLiveReadinessMessage] = useState("");
   const [externalAccounts, setExternalAccounts] = useState<ExternalAdsAccount[]>([]);
   const [externalAccountChoice, setExternalAccountChoice] = useState(initialConnections[initialChannel].accountId);
   const [externalAccountsLoading, setExternalAccountsLoading] = useState(false);
@@ -1423,7 +1424,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     ? linkedInPublishingEnabled
     : channelId === "google" ? googlePublishingEnabled
       : channelId === "pinterest" ? pinterestPublishingEnabled
-        : channelId === "openai" ? openaiPausedPublishingEnabled && openaiAccountReady : livePublishingEnabled;
+        : channelId === "openai" ? openaiLiveReady || openaiAccountReady : livePublishingEnabled;
   const reviewAccountReady = isAdsProvider(channelId)
     ? Boolean(connected && configuredAdvertiserAccount && (channelId !== "meta" || (
       configuredMetaPage
@@ -1459,13 +1460,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const refreshOpenaiStatus = useCallback(async () => {
     try {
       const status = await readJson(await fetch("/api/ads/openai/status", { cache: "no-store" })) as {
-        connected?: boolean; status?: ConnectionDisplayStatus; accountId?: string; accountName?: string; pausedCreationEnabled?: boolean; readinessMessage?: string;
+        connected?: boolean; status?: ConnectionDisplayStatus; accountId?: string; accountName?: string;
+        pausedCreationEnabled?: boolean; liveDeliveryEnabled?: boolean;
+        readinessMessage?: string; liveReadinessMessage?: string;
       };
       const accountId = String(status.accountId || "");
       const connectionStatus: AdsConnectionSnapshot["status"] = status.status === "connected"
         ? "connected" : status.status === "needs_update" ? "needs_update" : "disconnected";
       setOpenaiAccountReady(status.connected === true && status.pausedCreationEnabled === true && Boolean(accountId));
+      setOpenaiLiveReady(status.connected === true && status.liveDeliveryEnabled === true && Boolean(accountId));
       setOpenaiReadinessMessage(String(status.readinessMessage || ""));
+      setOpenaiLiveReadinessMessage(String(status.liveReadinessMessage || status.readinessMessage || ""));
       setConnectionSnapshots((current) => ({ ...current, openai: {
         ...current.openai,
         status: connectionStatus,
@@ -1477,6 +1482,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     } catch {
       // Keep the durable account snapshot visible during a transient check.
       setOpenaiAccountReady(false);
+      setOpenaiLiveReady(false);
     }
   }, []);
 
@@ -2608,15 +2614,21 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (channelId === "openai") {
         const connection = await readJson(await fetch("/api/ads/openai/status", { cache: "no-store" })) as {
           connected?: boolean; accountId?: string; accountName?: string;
-          pausedCreationEnabled?: boolean; readinessMessage?: string;
+          pausedCreationEnabled?: boolean; liveDeliveryEnabled?: boolean;
+          readinessMessage?: string; liveReadinessMessage?: string;
         };
         accountId = String(connection.accountId || "");
-        if (!connection.connected || !accountId || connection.pausedCreationEnabled !== true) {
-          throw new Error(connection.readinessMessage || "ChatGPT Ads attend une clé API valide et un compte approuvé avant la création en pause.");
+        const pausedReady = connection.connected === true && Boolean(accountId) && connection.pausedCreationEnabled === true;
+        const liveReady = connection.connected === true && Boolean(accountId) && connection.liveDeliveryEnabled === true;
+        if (!pausedReady && !liveReady) {
+          throw new Error(connection.liveReadinessMessage || connection.readinessMessage || "ChatGPT Ads attend une clé Advertiser API valide et un compte approuvé avant toute création.");
         }
         accountName = String(connection.accountName || accountId);
-        launchStatus = "paused";
-        setOpenaiAccountReady(true);
+        launchStatus = liveReady ? "active" : "paused";
+        setOpenaiAccountReady(pausedReady);
+        setOpenaiLiveReady(liveReady);
+        setOpenaiReadinessMessage(String(connection.readinessMessage || ""));
+        setOpenaiLiveReadinessMessage(String(connection.liveReadinessMessage || connection.readinessMessage || ""));
         setConnectionSnapshots((current) => ({ ...current, openai: {
           ...current.openai, status: "connected", accountId, accountLabel: accountName,
         } }));
@@ -2731,7 +2743,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         channelId,
         pageId,
         launchStatus,
-        details: { campaignName: draft.name, channelLabel: channelMeta.label, accountName, accountId },
+        details: {
+          campaignName: draft.name,
+          channelLabel: channelMeta.label,
+          accountName,
+          accountId,
+          dailyBudgetEuros: draft.dailyBudgetEuros,
+          endDate: draft.endDate,
+        },
       });
     } catch (error) {
       if (channelId === "linkedin") {
@@ -2754,6 +2773,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       }
       if (!channelPublishingEnabled) {
         throw new Error(`Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`);
+      }
+      if (confirmation.channelId === "openai" && confirmation.launchStatus === "active" && !openaiLiveReady) {
+        throw new Error(openaiLiveReadinessMessage || "Ce compte ChatGPT Ads n’est pas encore autorisé à lancer une diffusion active.");
+      }
+      if (confirmation.channelId === "openai" && confirmation.launchStatus === "paused" && !openaiAccountReady) {
+        throw new Error(openaiReadinessMessage || "Ce compte ChatGPT Ads n’est pas encore autorisé à créer une campagne en pause.");
       }
       const campaignDraft: AdsCampaignInput = {
         ...draft,
@@ -2781,6 +2806,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         body: JSON.stringify({
           mode: paused ? "paused" : "live",
           confirmation: paused ? ADS_PAUSED_PUBLISH_CONFIRMATION : ADS_LIVE_PUBLISH_CONFIRMATION,
+          ...(confirmation.channelId === "openai" && !paused && confirmedSpend ? { billingConfirmed: true } : {}),
         }),
       }));
       const expectedStatus = paused ? "paused" : "active";
@@ -3367,7 +3393,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
       {hasMediaStep && <section hidden={step !== mediaStep} data-channel={channelId} data-media-step="true" className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioDedicatedMediaCard} ${channelId === "pinterest" ? styles.studioPureMediaCard : ""}`}>
         <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? "PUR MÉDIA" : channelId === "linkedin" ? "MÉDIA LINKEDIN" : channelId === "openai" ? "IMAGE CHATGPT" : "MÉDIAS"} title={channelId === "pinterest" ? "Votre média, visible en entier." : channelId === "linkedin" ? "Votre image sponsorisée, visible en entier." : channelId === "openai" ? "Votre image, visible en entier." : "Vos médias, visibles en entier."} mobileTitle={channelId === "pinterest" || channelId === "linkedin" || channelId === "openai" ? "Votre média" : "Vos médias"} channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Ajoutez l’image de votre Pin et vérifiez son aperçu complet." : channelId === "linkedin" ? "Importez, générez ou choisissez l’image unique de votre Sponsored Content. L’aperçu conserve le cadrage complet et le fichier sera réimporté sous la Page sélectionnée avant la création." : channelId === "openai" ? `Choisissez ou créez une image JPG, PNG ou WebP carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels. Le fichier sera vérifié avant la création en pause de la carte ChatGPT.` : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Ajoutez l’image de votre Pin et vérifiez son aperçu complet." : channelId === "linkedin" ? "Importez, générez ou choisissez l’image unique de votre Sponsored Content. L’aperçu conserve le cadrage complet et le fichier sera réimporté sous la Page sélectionnée avant la création." : channelId === "openai" ? `Choisissez ou créez une image JPG, PNG ou WebP carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels. Le fichier sera vérifié avant la création de la carte ChatGPT.` : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
         <div className={styles.studioGrid}>
           {nativeSettings ? <div className={styles.field}><span>{nativeSettings.channel === "pinterest" ? "Média attendu" : "Format prévu"} : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads ; aucun fichier isolé n’est requis ici." : nativeSettings.channel === "pinterest" ? "Le fichier et ses droits seront vérifiés avant toute publication." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : channelId === "openai" ? <div className={styles.field}><span>Carte ChatGPT avec image carrée</span><small>Ajoutez une image nette et représentative de votre offre. Elle accompagne un titre, un texte court et votre lien.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
           {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && channelId !== "openai" && <details className={styles.campaignExternalMedia}><summary>Utiliser un lien externe</summary><label className={styles.field}>Lien HTTPS du média<input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label></details>}
@@ -3494,10 +3520,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <div className={styles.studioBudgetForecastCard}><span>Budget quotidien</span><strong>{Number(draft.dailyBudgetEuros || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong><small>{channelId === "openai" ? "limite quotidienne" : "moyenne planifiée"}</small></div>
           <div className={styles.studioBudgetForecastCard}><span>Durée prévue</span><strong>{estimatedCampaignDays ? `${estimatedCampaignDays} j` : "—"}</strong><small>jusqu’à la date de fin</small></div>
           <div className={styles.studioBudgetForecastCard}><span>Enveloppe estimée</span><strong>{Number.isFinite(estimate) ? estimate.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}</strong><small>budget × durée</small></div>
-          {nativeSettings ? <div className={styles.studioBudgetForecastCard}><span>Statut au lancement</span><strong>Active / Paused</strong><small>choisi dans la validation finale</small></div> : channelId === "openai" ? <div className={styles.studioBudgetForecastCard}><span>Création sur ChatGPT Ads</span><strong>En pause</strong><small>aucune diffusion immédiate</small></div> : <div className={styles.studioBudgetForecastCard}><span>Optimisation</span><strong>{BID_STRATEGY_OPTIONS.find((option) => option.value === draft.bidStrategy)?.label || "À définir"}</strong><small>pilotée par la plateforme</small></div>}
+          {nativeSettings || channelId === "openai" ? <div className={styles.studioBudgetForecastCard}><span>Statut au lancement</span><strong>Active / En pause</strong><small>choisi dans la validation finale</small></div> : <div className={styles.studioBudgetForecastCard}><span>Optimisation</span><strong>{BID_STRATEGY_OPTIONS.find((option) => option.value === draft.bidStrategy)?.label || "À définir"}</strong><small>pilotée par la plateforme</small></div>}
         </div>
-        {channelId === "openai" && <p className={styles.studioBudgetMobileSummary}>Projection indicative : {Number.isFinite(estimate) ? estimate.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"} sur {estimatedCampaignDays ? `${estimatedCampaignDays} jours` : "la durée choisie"}, avec un plafond de {Number.isFinite(draft.dailyBudgetEuros) ? draft.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"} par jour. Création en pause, sans dépense immédiate.</p>}
-        <div className={styles.studioBudgetPanel}><div><span>À retenir</span><strong>Vous gardez la main.</strong></div><p>{channelId === "google" ? "Google Ads gère la facturation. Son budget quotidien est une moyenne : la dépense peut varier d’un jour à l’autre." : channelId === "meta" ? "Meta gère la facturation. Cette projection est indicative ; vérifiez les règles de dépense de votre compte avant toute diffusion." : channelId === "pinterest" ? "Pinterest gère directement la facturation. Le choix Active ou Paused sera confirmé dans la modale finale avant toute création." : channelId === "openai" ? "ChatGPT Ads applique ce montant comme limite quotidienne de campagne. Le minimum et les limites d’enchère dépendent du compte. La carte est créée en pause, sans diffusion, puis soumise aux contrôles du compte et du contenu dans Ads Manager." : "Aucune dépense n’est engagée tant que ce canal reste en préparation."}</p></div>
+        {channelId === "openai" && <p className={styles.studioBudgetMobileSummary}>Projection indicative : {Number.isFinite(estimate) ? estimate.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"} sur {estimatedCampaignDays ? `${estimatedCampaignDays} jours` : "la durée choisie"}, avec une limite de {Number.isFinite(draft.dailyBudgetEuros) ? draft.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"} par jour. Le statut Active ou En pause sera confirmé avant la création.</p>}
+        <div className={styles.studioBudgetPanel}><div><span>À retenir</span><strong>Vous gardez la main.</strong></div><p>{channelId === "google" ? "Google Ads gère la facturation. Son budget quotidien est une moyenne : la dépense peut varier d’un jour à l’autre." : channelId === "meta" ? "Meta gère la facturation. Cette projection est indicative ; vérifiez les règles de dépense de votre compte avant toute diffusion." : channelId === "pinterest" ? "Pinterest gère directement la facturation. Le choix Active ou Paused sera confirmé dans la modale finale avant toute création." : channelId === "openai" ? "ChatGPT Ads applique ce montant comme limite quotidienne de campagne. Le choix Active ou En pause et la facturation seront confirmés dans la modale finale. En statut Active, une dépense peut démarrer après la revue de l’annonce par ChatGPT Ads." : "Aucune dépense n’est engagée tant que ce canal reste en préparation."}</p></div>
       </section>
 
       <section hidden={step !== validationStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioValidationCard}`}>
@@ -3532,7 +3558,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Complétez les ressources LinkedIn vérifiées</strong>Sélectionnez explicitement le groupe de campagnes, la Page organisation, au moins une zone LinkedIn exacte et une enchère CPC. Le brouillon reste enregistrable sans aucun appel de création.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>{`Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "iNr’ADS prépare tous les réglages nécessaires à ce type de campagne. La publication automatisée disponible aujourd’hui est la campagne Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Le lancement LinkedIn disponible utilise l’objectif Visites du site, une publication sponsorisée et une image unique. Vos autres choix restent entièrement enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez une image unique, visible en entier dans l’étape Médias, avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button>}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
         </>)}
-        {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? "Création réelle en pause" : "À compléter pour ChatGPT Ads"}</strong>{!livePublisherMediaReady ? "Ajoutez une image JPG, PNG ou WebP carrée à l’étape Médias. " : ""}{connectorConfigurationIssue ? `${connectorConfigurationIssue} ` : ""}{!channelPublishingEnabled ? `${openaiReadinessMessage || "La clé Advertiser API et la revue du compte sont requises."} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? "Ce format ou cet objectif n’est pas encore pris en charge. " : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? "La carte sera créée en pause et soumise aux contrôles d’Ads Manager." : "Le brouillon reste enregistrable."}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
+        {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Prête pour un lancement Active ou En pause" : "Création réelle en pause disponible" : "À compléter pour ChatGPT Ads"}</strong>{!livePublisherMediaReady ? "Ajoutez une image JPG, PNG ou WebP carrée à l’étape Médias. " : ""}{connectorConfigurationIssue ? `${connectorConfigurationIssue} ` : ""}{!channelPublishingEnabled ? `${openaiReadinessMessage || "La clé Advertiser API et la revue du compte sont requises."} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? "Ce format ou cet objectif n’est pas encore pris en charge. " : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Vous choisirez le statut final ; une campagne Active pourra diffuser seulement après la revue de l’annonce par ChatGPT Ads." : `La carte peut être créée sans diffusion. ${openaiLiveReadinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}` : "Le brouillon reste enregistrable."}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
           {channelId === "meta" && livePublishingEnabled && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} onChange={(event) => updateDraft({ noSpecialCategoryConfirmed: event.target.checked })} /><span><strong>Obligatoire avant création sur Meta</strong>Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</span></label>}
           {channelId === "google" && googlePublishingEnabled && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} onChange={(event) => updateDraft({ notEuPoliticalConfirmed: event.target.checked })} /><span><strong>Obligatoire avant création sur Google Ads</strong>Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</span></label>}
@@ -3543,7 +3569,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <div className={styles.studioFinalActionButtons}>
             <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : !dirty && savedId ? "Brouillon enregistré" : "Enregistrer en brouillon"}</button>
             <div className={styles.studioLaunchGuard} data-blocked={launchBlocked || undefined} data-tooltip={launchBlocked ? launchBlockingMessage : undefined} title={launchBlocked ? launchBlockingMessage : undefined} tabIndex={launchBlocked ? 0 : undefined} aria-label={launchBlocked ? launchBlockingMessage : undefined}>
-              <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked} onClick={() => void openLaunchDialog()}>{busy === "demo" ? demoDialog ? "Création en cours…" : "Vérification du compte…" : channelId === "openai" ? "Créer en pause sur ChatGPT Ads" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
+              <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked} onClick={() => void openLaunchDialog()}>{busy === "demo" ? demoDialog ? "Création en cours…" : "Vérification du compte…" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
               {launchBlocked && <span className={styles.studioLaunchWarning} aria-hidden="true">⚠</span>}
             </div>
           </div>
@@ -3576,11 +3602,16 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       activeEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
           && selectedLinkedInCampaignGroup?.status === "ACTIVE")
-        : demoDialog.channelId === "openai" ? false : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+        : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
       pausedEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns)
-        : demoDialog.channelId === "openai" ? openaiPausedPublishingEnabled && openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
-      declarationLabel={demoDialog.launchStatus === "active"
+        : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+      activeDisabledReason={demoDialog.channelId === "openai"
+        ? openaiLiveReadinessMessage || "La diffusion Active n’est pas encore autorisée pour ce compte ChatGPT Ads."
+        : undefined}
+      declarationLabel={demoDialog.channelId === "openai" && demoDialog.launchStatus === "active"
+        ? `Je confirme que la facturation est configurée et validée dans ChatGPT Ads Manager. J’autorise le lancement en statut Active avec une limite de ${demoDialog.details.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} par jour et je comprends qu’une dépense peut démarrer après la validation de l’annonce par ChatGPT Ads.`
+        : demoDialog.launchStatus === "active"
         ? `Je valide le compte, la campagne et la facturation directe par ${demoDialog.details.channelLabel}, et je confirme le lancement en statut Active.`
         : `Je valide le compte et la création de cette campagne sur ${demoDialog.details.channelLabel} en statut Paused, sans diffusion.`}
       declarationChecked={confirmedSpend}

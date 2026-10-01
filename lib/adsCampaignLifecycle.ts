@@ -1,6 +1,7 @@
 export const ADS_REMOTE_DELETE_CONFIRMATION = "DELETE_REMOTE_AD_CAMPAIGN";
 export const ADS_REMOTE_ARCHIVE_CONFIRMATION = "ARCHIVE_REMOTE_AD_CAMPAIGN";
 export const ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION = "DISCARD_INTERRUPTED_AD_CAMPAIGN_LOCAL_RECORD";
+export const ADS_OPENAI_REMOTE_RESUME_CONFIRMATION = "RESUME_CHATGPT_ADS_WITH_BILLING_CONFIRMED";
 
 export type AdsCampaignLifecycleAction = "update" | "pause" | "resume" | "archive" | "reconcile";
 
@@ -113,11 +114,20 @@ function lifecycleRecoveryOperation(resources: unknown): string | null {
   return typeof recovery?.operation === "string" ? recovery.operation : null;
 }
 
+function openaiResourceId(value: unknown, prefix: "adacct_" | "cmpn_" | "adgrp_" | "file_" | "ad_"): boolean {
+  return typeof value === "string"
+    && value.startsWith(prefix)
+    && value.length > prefix.length
+    && value.length <= 120
+    && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
 export function hasProviderCampaignIdentifier(input: RemoteCampaignIdentity): boolean {
   const resources = isRecord(input.provider_resources) ? input.provider_resources : {};
   const value = input.provider === "google" ? resources.campaignResourceName
     : input.provider === "meta" || input.provider === "pinterest" ? resources.campaignId
-      : input.provider === "linkedin" ? resources.campaignUrn ?? resources.campaignId : undefined;
+      : input.provider === "linkedin" ? resources.campaignUrn ?? resources.campaignId
+        : input.provider === "openai" ? resources.campaignId : undefined;
   // Any persisted value is treated as a possible remote identity here. A
   // malformed ID must be inspected, never downgraded to a safe local-only
   // cleanup merely because its type is unexpected.
@@ -127,6 +137,20 @@ export function hasProviderCampaignIdentifier(input: RemoteCampaignIdentity): bo
 
 export function hasCompleteInitialPublishResources(input: RemoteCampaignIdentity): boolean {
   const resources = isRecord(input.provider_resources) ? input.provider_resources : {};
+  if (input.provider === "openai") {
+    const accountId = typeof input.ad_account_id === "string" ? input.ad_account_id.trim() : "";
+    return openaiResourceId(accountId, "adacct_")
+      && resources.accountId === accountId
+      && openaiResourceId(resources.campaignId, "cmpn_")
+      && openaiResourceId(resources.adGroupId, "adgrp_")
+      && openaiResourceId(resources.imageFileId, "file_")
+      && openaiResourceId(resources.adId, "ad_")
+      && typeof resources.operationId === "string" && /^[A-Za-z0-9_-]{8,120}$/.test(resources.operationId)
+      && typeof resources.requestFingerprint === "string" && /^[a-f0-9]{64}$/.test(resources.requestFingerprint)
+      && Array.isArray(resources.locations) && resources.locations.length > 0
+      && resources.locations.every((entry) => isRecord(entry) && nonEmptyString(entry.id) && nonEmptyString(entry.name))
+      && ["ad_created", "paused", "ad_activated", "ad_group_activated", "active"].includes(String(resources.stage || ""));
+  }
   const accountId = typeof input.ad_account_id === "string" ? input.ad_account_id.replace(/^act_/, "").replace(/-/g, "") : "";
   if (!/^\d{5,30}$/.test(accountId)) return false;
   if (input.provider === "google") {
@@ -161,7 +185,7 @@ export function hasCompleteInitialPublishResources(input: RemoteCampaignIdentity
 }
 
 export function canDiscardInterruptedInitialPublish(input: RemoteCampaignIdentity): boolean {
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin")
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin" || input.provider === "openai")
     && input.status === "needs_review"
     && lifecycleRecoveryOperation(input.provider_resources) === "initial_publish"
     && !hasProviderCampaignIdentifier(input);
@@ -175,9 +199,10 @@ export function canManageRemoteAdsCampaign(input: {
 }): boolean {
   const linkedInInitialRecovery = input.provider === "linkedin" && input.status === "needs_review"
     && lifecycleRecoveryOperation(input.provider_resources) === "initial_publish";
-  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin")
+  const openaiResourcesComplete = input.provider === "openai" && hasCompleteInitialPublishResources(input);
+  return (input.provider === "google" || input.provider === "meta" || input.provider === "pinterest" || input.provider === "linkedin" || input.provider === "openai")
     && (input.status === "active" || input.status === "paused" || input.status === "demo_paused" || input.status === "needs_review")
-    && (hasProviderCampaignIdentifier(input) || linkedInInitialRecovery);
+    && (openaiResourcesComplete || (input.provider !== "openai" && (hasProviderCampaignIdentifier(input) || linkedInInitialRecovery)));
 }
 
 export function canRecoverInterruptedAdsCampaign(input: {
@@ -198,4 +223,10 @@ export function hasRemoteArchiveConfirmation(value: unknown): boolean {
 
 export function hasLocalRecoveryDiscardConfirmation(value: unknown): boolean {
   return isRecord(value) && value.confirmation === ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION;
+}
+
+export function hasOpenaiRemoteResumeConfirmation(value: unknown): boolean {
+  return isRecord(value)
+    && value.confirmation === ADS_OPENAI_REMOTE_RESUME_CONFIRMATION
+    && value.billingConfirmed === true;
 }

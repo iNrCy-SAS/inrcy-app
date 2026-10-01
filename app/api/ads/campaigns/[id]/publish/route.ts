@@ -12,7 +12,7 @@ import { isAdsDraftAccountChannel, parseAdsCampaignInput } from "@/lib/adsValida
 import { hasAdsPublishConfirmation, isAdsChannelPublishEnabled, openaiDraftRetrySafe, parseAdsPublishMode, unsupportedAdsConnectorReason } from "@/lib/adsPublishMode";
 import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
-import { assessOpenaiAdsAccount, createPausedOpenaiAdsCampaign, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
+import { activateOpenaiAdsCampaign, assessOpenaiAdsAccount, createPausedOpenaiAdsCampaign, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
 import { readChatgptAdsApiKey, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
 import { resolveOpenaiAdsImageUrl } from "@/lib/adsOpenaiMediaServer";
 
@@ -56,7 +56,11 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!adsRequestOriginAllowed(request)) return adsBadOriginResponse();
   const { user, errorResponse } = await requirePremiumAdsUser();
   if (errorResponse || !user) return errorResponse;
-  const body = await request.json().catch(() => null) as { confirmation?: unknown; mode?: unknown } | null;
+  const body = await request.json().catch(() => null) as {
+    confirmation?: unknown;
+    mode?: unknown;
+    billingConfirmed?: unknown;
+  } | null;
   const mode = parseAdsPublishMode(body?.mode);
   const pausedDemo = mode === "demo_paused";
   const pausedLaunch = mode === "paused";
@@ -93,7 +97,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, draft.provider))) return adsPilotOnlyResponse();
   // Approved Google, Pinterest and ChatGPT channels have independent kill switches.
-  // ChatGPT remains paused-only; pilot providers keep separate gates and admin access.
+  // Pilot providers keep separate gates and admin access.
   const publishModeEnabled = isAdsChannelPublishEnabled(draft.provider, mode, process.env);
   if (!publishModeEnabled) {
     return NextResponse.json({ error: pausedDemo
@@ -139,8 +143,11 @@ export async function POST(request: Request, { params }: RouteContext) {
         return NextResponse.json({ error: "Le compte LinkedIn Ads est On hold ou non servable. Choisissez En pause ou réactivez le compte dans Campaign Manager." }, { status: 409 });
       }
     } else if (draft.provider === "openai") {
-      if (mode !== "paused") {
-        return NextResponse.json({ error: "ChatGPT Ads crée actuellement les campagnes en pause uniquement." }, { status: 423 });
+      if (!createPaused && body?.billingConfirmed !== true) {
+        return NextResponse.json({
+          error: "Confirmez que la facturation du compte ChatGPT Ads est configurée avant d’activer la campagne.",
+          code: "OPENAI_ADS_BILLING_CONFIRMATION_REQUIRED",
+        }, { status: 400 });
       }
       const connection = await readOpenaiAdsIntegration(user.activeUserId);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -242,30 +249,40 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   try {
     const resources = draft.provider === "openai"
-      ? await createPausedOpenaiAdsCampaign({
-        apiKey: openaiApiKey,
-        request: {
-          operationId: id,
+      ? await (async () => {
+        const pausedResources = await createPausedOpenaiAdsCampaign({
+          apiKey: openaiApiKey,
+          request: {
+            operationId: id,
+            expectedAccountId: draft.adAccountId,
+            campaignName: draft.name,
+            biddingType: "clicks",
+            budget: { dailySpendLimitMicros: Math.round(draft.dailyBudgetEuros * 1_000_000) },
+            targetLocations: draft.targetLocations,
+            countryCode: "FR",
+            endTime: openaiEndTime,
+            adGroupName: `${draft.name} · groupe`,
+            contextHints: [draft.offer].filter(Boolean),
+            maxBidMicros: Math.round(Number(draft.openaiBidEuros || 0) * 1_000_000),
+            adName: `${draft.name} · carte`,
+            title: draft.headlines[0],
+            body: draft.primaryText,
+            destinationUrl: draft.destinationUrl,
+            imageUrl: openaiImage?.imageUrl || "",
+            mediaStableId: openaiImage?.mediaStableId || "",
+          },
+          onProgress: async (step) => { await persistProgress({ ...step }); },
+          onProviderMutationStart: () => { openaiProviderMutationStarted = true; },
+        });
+        if (createPaused) return pausedResources;
+        return activateOpenaiAdsCampaign({
+          apiKey: openaiApiKey,
+          progress: pausedResources,
           expectedAccountId: draft.adAccountId,
-          campaignName: draft.name,
-          biddingType: "clicks",
-          budget: { dailySpendLimitMicros: Math.round(draft.dailyBudgetEuros * 1_000_000) },
-          targetLocations: draft.targetLocations,
-          countryCode: "FR",
-          endTime: openaiEndTime,
-          adGroupName: `${draft.name} · groupe`,
-          contextHints: [draft.offer].filter(Boolean),
-          maxBidMicros: Math.round(Number(draft.openaiBidEuros || 0) * 1_000_000),
-          adName: `${draft.name} · carte`,
-          title: draft.headlines[0],
-          body: draft.primaryText,
-          destinationUrl: draft.destinationUrl,
-          imageUrl: openaiImage?.imageUrl || "",
-          mediaStableId: openaiImage?.mediaStableId || "",
-        },
-        onProgress: async (step) => { await persistProgress({ ...step }); },
-        onProviderMutationStart: () => { openaiProviderMutationStarted = true; },
-      })
+          billingConfirmed: body?.billingConfirmed === true,
+          onProgress: async (step) => { await persistProgress({ ...step }); },
+        });
+      })()
       : draft.provider === "meta"
       ? await publishMetaAdsCampaign(user.activeUserId, draft, persistProgress, {
         activate: !createPaused,

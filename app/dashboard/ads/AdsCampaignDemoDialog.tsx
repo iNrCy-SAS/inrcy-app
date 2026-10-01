@@ -11,6 +11,8 @@ export type AdsCampaignDemoDialogDetails = {
   channelLabel: string;
   accountName: string;
   accountId: string;
+  dailyBudgetEuros: number;
+  endDate: string;
 };
 
 export type AdsCampaignLaunchStatus = "active" | "paused";
@@ -25,6 +27,7 @@ type Props = {
   launchStatus: AdsCampaignLaunchStatus;
   activeEnabled: boolean;
   pausedEnabled: boolean;
+  activeDisabledReason?: string;
   onDeclarationChange: (checked: boolean) => void;
   onLaunchStatusChange: (status: AdsCampaignLaunchStatus) => void;
   onCancel: () => void;
@@ -32,7 +35,7 @@ type Props = {
   onReturnHome: () => void;
 };
 
-export default function AdsCampaignDemoDialog({ mode, details, busy, publicationPhase, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
+export default function AdsCampaignDemoDialog({ mode, details, busy, publicationPhase, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, activeDisabledReason, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const declarationRef = useRef<HTMLInputElement>(null);
@@ -130,13 +133,14 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, publication
             <div><dt>Campagne</dt><dd>{details.campaignName}</dd></div>
             <div><dt>Canal</dt><dd>{details.channelLabel}</dd></div>
             <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
+            <div><dt>Budget autorisé</dt><dd>{details.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} / jour<small>Jusqu’au {new Date(`${details.endDate}T12:00:00`).toLocaleDateString("fr-FR")}</small></dd></div>
             {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "En pause · aucune diffusion"}</dd></div>}
           </dl>
           {mode === "confirm" && <fieldset className={styles.statusChoice}>
             <legend>Statut au lancement</legend>
             <label data-selected={launchStatus === "active" || undefined} data-disabled={!activeEnabled || undefined}>
               <input type="radio" name="ads-launch-status" value="active" checked={launchStatus === "active"} disabled={busy || !activeEnabled} onChange={() => onLaunchStatusChange("active")} />
-              <span><strong>Active</strong><small>La campagne pourra être diffusée dès qu’elle aura été validée par la plateforme.</small></span>
+              <span><strong>Active</strong><small>{activeEnabled ? "La campagne pourra être diffusée et engager des dépenses dès qu’elle aura été validée par la plateforme." : activeDisabledReason || "Ce compte n’est pas encore autorisé à lancer une diffusion active."}</small></span>
             </label>
             <label data-selected={launchStatus === "paused" || undefined} data-disabled={!pausedEnabled || undefined}>
               <input type="radio" name="ads-launch-status" value="paused" checked={launchStatus === "paused"} disabled={busy || !pausedEnabled} onChange={() => onLaunchStatusChange("paused")} />

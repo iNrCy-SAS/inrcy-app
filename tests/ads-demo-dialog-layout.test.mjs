@@ -28,6 +28,7 @@ function fixture({ mode = "confirm", launchStatus = "active", channel = "Google 
     details: {
       campaignName: "iNrCy – Search – Essai 21 j – Gain de temps multicanal – Pros locaux",
       channelLabel: channel, accountName: "iNrCy — Compte publicitaire professionnel", accountId: "6547075545",
+      dailyBudgetEuros: 15, endDate: "2026-10-30",
     },
     declarationLabel: `Je valide le compte, la campagne et la facturation directe par ${channel}, et je confirme le lancement en statut ${launchStatus === "active" ? "Active" : "En pause"}.`,
     declarationChecked: true,

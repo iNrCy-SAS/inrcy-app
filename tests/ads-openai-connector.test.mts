@@ -6,7 +6,10 @@ import {
   createPausedOpenaiAdsCampaign,
   isOpenaiAdsPublishProgress,
   OpenaiAdsPublishError,
+  openaiAdsReviewAllowsActivation,
+  readOpenaiAdsCampaignState,
   resolveOpenaiAdsLocations,
+  setOpenaiAdsCampaignPaused,
   verifyOpenaiAdsAccount,
   type OpenaiAdsPublishRequest,
 } from "../lib/adsOpenaiConnector.ts";
@@ -40,9 +43,13 @@ function mockAdsApi(options: {
   locationResults?: unknown[];
   account?: Record<string, unknown>;
   reviewStatus?: string;
+  resourceStatus?: "active" | "paused";
   onCall?: (call: Call) => Response | undefined;
 } = {}) {
   const calls: Call[] = [];
+  let campaignStatus = options.resourceStatus || "paused";
+  let adGroupStatus = options.resourceStatus || "paused";
+  let adStatus = options.resourceStatus || "paused";
   const fetchImpl = (async (input: string | URL, init: RequestInit = {}) => {
     const call: Call = {
       url: new URL(String(input)),
@@ -64,11 +71,14 @@ function mockAdsApi(options: {
     if (path === "/ad_groups" && call.init.method === "POST") return json({ id: "adgrp_123", status: "paused" });
     if (path === "/upload") return json({ file_id: "file_123" });
     if (path === "/ads" && call.init.method === "POST") return json({ id: "ad_123", status: "paused" });
-    if (path === "/campaigns/cmpn_123" && call.init.method === "GET") return json({ id: "cmpn_123", status: "paused" });
+    if (path === "/campaigns/cmpn_123" && call.init.method === "GET") return json({ id: "cmpn_123", status: campaignStatus });
     // The published OpenAPI response schemas do not require parent IDs here.
-    if (path === "/ad_groups/adgrp_123" && call.init.method === "GET") return json({ id: "adgrp_123", status: "paused" });
-    if (path === "/ads/ad_123" && call.init.method === "GET") return json({ id: "ad_123", status: "paused", review_status: options.reviewStatus || "in_review" });
-    if (/^\/(ads\/ad_123|ad_groups\/adgrp_123|campaigns\/cmpn_123)\/activate$/.test(path)) return json({ status: "active" });
+    if (path === "/ad_groups/adgrp_123" && call.init.method === "GET") return json({ id: "adgrp_123", status: adGroupStatus });
+    if (path === "/ads/ad_123" && call.init.method === "GET") return json({ id: "ad_123", status: adStatus, review_status: options.reviewStatus || "in_review" });
+    if (path === "/ads/ad_123/activate") { adStatus = "active"; return json({ status: "active" }); }
+    if (path === "/ad_groups/adgrp_123/activate") { adGroupStatus = "active"; return json({ status: "active" }); }
+    if (path === "/campaigns/cmpn_123/activate") { campaignStatus = "active"; return json({ status: "active" }); }
+    if (path === "/campaigns/cmpn_123/pause") { campaignStatus = "paused"; return json({ status: "paused" }); }
     return json({ error: { code: "unexpected_call" } }, 404);
   }) as typeof fetch;
   return { calls, fetchImpl };
@@ -235,7 +245,7 @@ test("une nouvelle URL signée du même média permet la reprise", async () => {
   );
 });
 
-test("activation distincte : facturation confirmée et revue créative approuvée obligatoires", async () => {
+test("activation distincte : facturation confirmée, revue recevable et campagne activée en dernier", async () => {
   const creationApi = mockAdsApi();
   const progress = await createPausedOpenaiAdsCampaign({ apiKey: "secret", request: baseRequest, fetchImpl: creationApi.fetchImpl });
   const blocked = mockAdsApi();
@@ -244,15 +254,151 @@ test("activation distincte : facturation confirmée et revue créative approuvé
     (error: unknown) => error instanceof OpenaiAdsPublishError && error.code === "BILLING_UNCONFIRMED",
   );
   assert.equal(blocked.calls.length, 0);
+  const rejected = mockAdsApi({ reviewStatus: "rejected" });
   await assert.rejects(
-    activateOpenaiAdsCampaign({ apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true, fetchImpl: blocked.fetchImpl }),
+    activateOpenaiAdsCampaign({ apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true, fetchImpl: rejected.fetchImpl }),
     (error: unknown) => error instanceof OpenaiAdsPublishError && error.code === "REVIEW_OR_STATE_BLOCKED",
   );
-  assert.equal(blocked.calls.some((call) => call.init.method === "POST"), false);
-  const approved = mockAdsApi({ reviewStatus: "approved" });
-  const active = await activateOpenaiAdsCampaign({ apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true, fetchImpl: approved.fetchImpl });
+  assert.equal(rejected.calls.some((call) => call.init.method === "POST"), false);
+  const inReview = mockAdsApi();
+  const active = await activateOpenaiAdsCampaign({ apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true, fetchImpl: inReview.fetchImpl });
   assert.equal(active.stage, "active");
-  assert.deepEqual(approved.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname), [
+  assert.deepEqual(inReview.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname), [
     "/v1/ads/ad_123/activate", "/v1/ad_groups/adgrp_123/activate", "/v1/campaigns/cmpn_123/activate",
   ]);
+  assert.equal(openaiAdsReviewAllowsActivation("approved"), true);
+  assert.equal(openaiAdsReviewAllowsActivation("in_review"), true);
+  assert.equal(openaiAdsReviewAllowsActivation("rejected"), false);
+  assert.equal(openaiAdsReviewAllowsActivation(""), false);
+});
+
+test("un compte repassé inactif ou en revue reste lisible et peut être mis en pause d’urgence", async () => {
+  const creation = mockAdsApi();
+  const progress = await createPausedOpenaiAdsCampaign({
+    apiKey: "secret", request: baseRequest, fetchImpl: creation.fetchImpl,
+  });
+  const noLongerReady = mockAdsApi({
+    resourceStatus: "active",
+    reviewStatus: "approved",
+    account: { status: "paused", review: { status: "in_review" } },
+  });
+  const paused = await setOpenaiAdsCampaignPaused({
+    apiKey: "secret", progress, expectedAccountId: "adacct_123", paused: true,
+    fetchImpl: noLongerReady.fetchImpl,
+  });
+  assert.equal(paused.stage, "paused");
+  assert.deepEqual(
+    noLongerReady.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname),
+    ["/v1/campaigns/cmpn_123/pause"],
+  );
+  const activation = mockAdsApi({
+    resourceStatus: "paused",
+    reviewStatus: "approved",
+    account: { status: "paused", review: { status: "in_review" } },
+  });
+  await assert.rejects(
+    activateOpenaiAdsCampaign({
+      apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true,
+      fetchImpl: activation.fetchImpl,
+    }),
+    (error: unknown) => error instanceof OpenaiAdsPublishError && error.code === "ACCOUNT_NOT_ACTIVE" && !error.mutationStarted,
+  );
+  assert.equal(activation.calls.some((call) => call.init.method === "POST"), false);
+});
+
+test("une réponse perdue pendant l’activation impose une resynchronisation distante", async () => {
+  const creation = mockAdsApi();
+  const progress = await createPausedOpenaiAdsCampaign({
+    apiKey: "secret", request: baseRequest, fetchImpl: creation.fetchImpl,
+  });
+  const uncertain = mockAdsApi({
+    reviewStatus: "approved",
+    onCall: (call) => {
+      if (call.url.pathname === "/v1/campaigns/cmpn_123/activate") throw new Error("lost response");
+      return undefined;
+    },
+  });
+  await assert.rejects(
+    activateOpenaiAdsCampaign({
+      apiKey: "secret", progress, expectedAccountId: "adacct_123", billingConfirmed: true,
+      fetchImpl: uncertain.fetchImpl,
+    }),
+    (error: unknown) => error instanceof OpenaiAdsPublishError && error.code === "NETWORK_UNCERTAIN" &&
+      error.mutationStarted && error.progress?.campaignId === "cmpn_123",
+  );
+  assert.deepEqual(
+    uncertain.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname),
+    ["/v1/ads/ad_123/activate", "/v1/ad_groups/adgrp_123/activate", "/v1/campaigns/cmpn_123/activate"],
+  );
+});
+
+test("le cycle de vie relit les ressources, met le parent en pause puis confirme l’état distant", async () => {
+  const creation = mockAdsApi();
+  const progress = await createPausedOpenaiAdsCampaign({
+    apiKey: "secret", request: baseRequest, fetchImpl: creation.fetchImpl,
+  });
+  const activeApi = mockAdsApi({ resourceStatus: "active", reviewStatus: "approved" });
+  const state = await readOpenaiAdsCampaignState({
+    apiKey: "secret", progress, expectedAccountId: "adacct_123", fetchImpl: activeApi.fetchImpl,
+  });
+  assert.equal(state.campaignStatus, "active");
+  assert.equal(state.reviewStatus, "approved");
+  const paused = await setOpenaiAdsCampaignPaused({
+    apiKey: "secret", progress, expectedAccountId: "adacct_123", paused: true,
+    fetchImpl: activeApi.fetchImpl,
+  });
+  assert.equal(paused.stage, "paused");
+  const mutations = activeApi.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname);
+  assert.deepEqual(mutations, ["/v1/campaigns/cmpn_123/pause"]);
+  const campaignReads = activeApi.calls.filter((call) =>
+    call.init.method === "GET" && call.url.pathname === "/v1/campaigns/cmpn_123");
+  assert.equal(campaignReads.length, 3, "lecture initiale, préflight pause et confirmation après mutation");
+});
+
+test("un échec de confirmation après le POST pause reste marqué comme mutation distante", async () => {
+  const creation = mockAdsApi();
+  const progress = await createPausedOpenaiAdsCampaign({
+    apiKey: "secret", request: baseRequest, fetchImpl: creation.fetchImpl,
+  });
+  let campaignReads = 0;
+  const activeApi = mockAdsApi({
+    resourceStatus: "active",
+    reviewStatus: "approved",
+    onCall: (call) => {
+      if (call.url.pathname === "/v1/campaigns/cmpn_123" && call.init.method === "GET") {
+        campaignReads += 1;
+        if (campaignReads === 2) return json({ error: { code: "confirmation_unavailable" } }, 503);
+      }
+      return undefined;
+    },
+  });
+  await assert.rejects(
+    setOpenaiAdsCampaignPaused({
+      apiKey: "secret", progress, expectedAccountId: "adacct_123", paused: true,
+      fetchImpl: activeApi.fetchImpl,
+    }),
+    (error: unknown) => error instanceof OpenaiAdsPublishError &&
+      error.code === "confirmation_unavailable" && error.httpStatus === 503 &&
+      error.mutationStarted && error.progress?.campaignId === "cmpn_123",
+  );
+  assert.deepEqual(
+    activeApi.calls.filter((call) => call.init.method === "POST").map((call) => call.url.pathname),
+    ["/v1/campaigns/cmpn_123/pause"],
+  );
+});
+
+test("la reprise lifecycle reste fail-closed si un appel non typé omet la confirmation de facturation", async () => {
+  const creation = mockAdsApi();
+  const progress = await createPausedOpenaiAdsCampaign({
+    apiKey: "secret", request: baseRequest, fetchImpl: creation.fetchImpl,
+  });
+  const resumed = mockAdsApi({ reviewStatus: "approved" });
+  await assert.rejects(
+    setOpenaiAdsCampaignPaused({
+      apiKey: "secret", progress, expectedAccountId: "adacct_123", paused: false,
+      billingConfirmed: false, fetchImpl: resumed.fetchImpl,
+    }),
+    (error: unknown) => error instanceof OpenaiAdsPublishError && error.code === "BILLING_UNCONFIRMED",
+  );
+  assert.equal(resumed.calls.length, 0);
 });

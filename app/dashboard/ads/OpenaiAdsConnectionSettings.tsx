@@ -22,6 +22,9 @@ type Status = {
   readiness: string;
   readinessMessage: string;
   publicationEnabled: boolean;
+  pausedCreationEnabled?: boolean;
+  liveDeliveryEnabled?: boolean;
+  liveReadinessMessage?: string;
   error?: string;
 };
 
@@ -154,6 +157,8 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
   }
 
   const connected = !locked && status.connected;
+  const pausedCreationEnabled = status.pausedCreationEnabled === true;
+  const liveDeliveryEnabled = status.liveDeliveryEnabled === true;
   const connectionDisplayStatus = locked ? "disconnected" : status.status === "needs_update" ? "needs_update" : connected ? "connected" : "disconnected";
   const accountUrl = /^adacct_[A-Za-z0-9_-]+$/.test(status.accountId)
     ? `https://ads.openai.com/settings?act=${encodeURIComponent(status.accountId)}`
@@ -212,9 +217,11 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
             <div className={adsStyles.resourceActions}>{locked ? <button type="button" className={`${dashboardStyles.actionBtn} ${adsStyles.lockedAction}`} disabled>Ouvrir Ads Manager</button> : <a className={`${dashboardStyles.actionBtn} ${adsStyles.viewAccount}`} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir Ads Manager <span aria-hidden="true">↗</span></a>}</div>
           </div>
           <p className={adsStyles.detail}>{locked ? "La configuration ChatGPT Ads sera disponible après validation de ce canal." : connected
-            ? status.readinessMessage || (status.publicationEnabled
-              ? "Création de campagnes en pause disponible. La diffusion reste soumise à validation dans Ads Manager."
-              : "Connexion reconnue. La création en pause n’est pas disponible pour le moment.")
+            ? liveDeliveryEnabled
+              ? "Compte prêt : vous pourrez choisir Active ou En pause lors de la validation finale. Une campagne Active ne diffuse qu’après la revue de l’annonce par ChatGPT Ads."
+              : pausedCreationEnabled
+                ? `Création de campagnes en pause disponible. ${status.liveReadinessMessage || status.readinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}`
+                : status.readinessMessage || "Connexion reconnue. La création de campagne n’est pas disponible pour le moment."
             : status.status === "needs_update" && status.readinessMessage
               ? status.readinessMessage
               : "Créez d’abord un compte annonceur dans Ads Manager, puis collez sa clé publicitaire dans l’étape précédente."}</p>
@@ -222,7 +229,9 @@ export default function OpenaiAdsConnectionSettings({ isOpen, locked = false, pr
       </section>
 
       {!locked && error && <p className={adsStyles.inlineError} role="alert">{error} <button type="button" className={styles.retry} onClick={() => void refresh()}>Réessayer</button></p>}
-      {!locked && <p className={adsStyles.footnote}>Les campagnes créées via iNr’ADS sont envoyées <strong>en pause</strong>. Aucune diffusion ni dépense ne démarre sans une activation ultérieure explicite.</p>}
+      {!locked && <p className={adsStyles.footnote}>{liveDeliveryEnabled
+        ? <>Le statut <strong>Active</strong> ou <strong>En pause</strong> est choisi à la validation finale. En statut Active, une dépense peut démarrer uniquement après votre confirmation explicite et la revue de l’annonce par ChatGPT Ads.</>
+        : <>La création <strong>en pause</strong> reste disponible sans diffusion ni dépense. Le statut Active sera proposé dès que le compte remplira toutes les conditions de lancement.</>}</p>}
       <div className={adsStyles.footer}>
         <button type="button" className={adsStyles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>
         <span className={adsStyles.progress}>Étape {step + 1} / 2</span>

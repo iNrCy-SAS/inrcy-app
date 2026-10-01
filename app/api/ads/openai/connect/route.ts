@@ -23,6 +23,10 @@ export async function POST(request: Request) {
     const account = await verifyOpenaiAdsAccount({ apiKey: adsApiKey });
     await saveOpenaiAdsIntegration(user.activeUserId, adsApiKey, account);
     const assessment = assessOpenaiAdsAccount(account);
+    const pausedCreationEnabled = assessment.ready
+      && isAdsChannelPublishEnabled("openai", "paused", process.env);
+    const liveDeliveryEnabled = assessment.ready
+      && isAdsChannelPublishEnabled("openai", "live", process.env);
     return NextResponse.json({
       connected: true,
       accountId: account.id,
@@ -30,10 +34,11 @@ export async function POST(request: Request) {
       currency: account.currencyCode,
       brandReviewStatus: account.brandReviewStatus,
       accountReviewStatus: account.accountReviewStatus,
-      readiness: assessment.code || "ready_for_paused_creation",
+      readiness: assessment.code || (liveDeliveryEnabled ? "ready_for_live_creation" : "ready_for_paused_creation"),
       readinessMessage: assessment.message || "",
-      publicationEnabled: assessment.ready && isAdsChannelPublishEnabled("openai", "paused", process.env),
-      liveDeliveryEnabled: false,
+      publicationEnabled: pausedCreationEnabled || liveDeliveryEnabled,
+      pausedCreationEnabled,
+      liveDeliveryEnabled,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof OpenaiAdsPublishError) {

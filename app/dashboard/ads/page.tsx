@@ -32,6 +32,5 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
     livePublishingEnabled={process.env.INRCY_ADS_LIVE_PUBLISH_ENABLED === "true"}
     googlePublishingEnabled={isAdsChannelPublishEnabled("google", "live", process.env)}
     pinterestPublishingEnabled={isAdsChannelPublishEnabled("pinterest", "live", process.env)}
-    openaiPausedPublishingEnabled={isAdsChannelPublishEnabled("openai", "paused", process.env)}
   />;
 }
