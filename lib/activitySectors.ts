@@ -12,6 +12,7 @@ export const ACTIVITY_SECTOR_OPTIONS = [
   { value: 'artisan_btp', label: 'BTP' },
   { value: 'commerce_boutique', label: 'Commerce / Boutique' },
   { value: 'communication', label: 'Communication' },
+  { value: 'culture_creation', label: 'Arts / Culture / Création' },
   { value: 'education_enfance', label: 'Éducation / Enfance' },
   { value: 'economie_sociale_solidaire', label: 'Économie sociale & solidaire (ESS)' },
   { value: 'formation_enseignement', label: 'Formation & Enseignement' },
@@ -64,6 +65,7 @@ export function inferSectorCategoryFromProfession(input?: string | null): Activi
   if (/(panneaux solaires|solaire|photovoltaïque|photovoltaique|pompe à chaleur|pompe a chaleur|\bpac\b|domotique|maison connectée|maison connectee|poêle|poele|cheminée|cheminee|insert|borne de recharge|bornes de recharge|irve|véhicule électrique|vehicule electrique)/.test(value)) return 'energie_habitat';
   if (/(pompes funèbres|pompes funebres|funéraire|funeraire|obsèques|obseques|marbrerie funéraire|marbrerie funeraire|sépulture|sepulture|fleurissement sépulture|fleurissement sepulture|contrat obsèques|contrat obseques)/.test(value)) return 'funeraire';
   if (/(ébéniste|ebeniste|ferronnier d’art|ferronnier d'art|ferronnerie d’art|ferronnerie d'art|céramiste|ceramiste|couturier|couture|retouches|tapissier décorateur|tapissier decorateur|artisanat d’art|artisanat d'art|métiers d’art|metiers d'art)/.test(value)) return 'metiers_art';
+  if (/(écrivain|ecrivain|écrivaine|ecrivaine|auteur|auteure|autrice|romancier|romancière|romanciere|artiste|peintre artistique|peinture artistique|plasticien|illustrat|sculpt|musicien|musicienne|interprète musical|interprete musical|chanteur|chanteuse|compositeur|compositrice)/.test(value)) return 'culture_creation';
   if (/(paysag|piscin|jardin|élag|elag|clôture|cloture|portail|arrosage|espace vert|espaces verts|terrassement paysager)/.test(value)) return 'exterieur_jardin';
   if (/(métallurgie|metallurgie|usinage|chaudronnerie|plasturgie|fabrication industrielle|maintenance industrielle|mécanique industrielle|mecanique industrielle|soudure industrielle|traitement de surface|industrie|industriel)/.test(value)) return 'industrie';
   if (/(auto[- ]?école|auto[- ]?ecole|école de conduite|ecole de conduite|moto[- ]?école|moto[- ]?ecole|bateau[- ]?école|bateau[- ]?ecole|permis bateau|permis moto|permis poids lourd|permis remorque|formation poids lourd|formation transport|formation au code|formation code de la route|code de la route|stage de récupération de points|stage de recuperation de points|récupération de points|recuperation de points|sécurité routière|securite routiere|conduite accompagnée|conduite accompagnee|conduite supervisée|conduite supervisee)/.test(value)) return 'formation_enseignement';
@@ -86,7 +88,7 @@ export function inferSectorCategoryFromProfession(input?: string | null): Activi
   if (/(communication|community manager|social media|attaché de presse|attache de presse|branding|studio créa|studio crea|graphiste|seo|sea|marketing digital|content manager)/.test(value)) return 'communication';
   if (/(juridique|avocat|notaire|juriste|huissier|commissaire de justice|cabinet juridique|droit)/.test(value)) return 'juridique';
   if (/(finance|courtage financier|gestion de patrimoine|patrimoine|cgp|conseiller financier|audit financier|daf|expert financier|trésorerie|tresorerie)/.test(value)) return 'finance';
-  if (/(dj|photograph|vidéaste|videaste|wedding|événement|evenement|salle de réception|salle de reception|location matériel|location materiel|traiteur évènement|traiteur evenement|magicien|magie|illusionniste|prestidigitateur|close[- ]?up)/.test(value)) return 'evenementiel';
+  if (/(dj|disc[- ]?jockey|photograph|vidéaste|videaste|wedding|événement|evenement|salle de réception|salle de reception|location matériel|location materiel|traiteur évènement|traiteur evenement|magicien|magie|illusionniste|prestidigitateur|close[- ]?up)/.test(value)) return 'evenementiel';
   if (/(animal|vétér|veter|toilett|écurie|ecurie|éleveur|élevage|elevage|pension canine|pension féline|pension feline|maréchal|marechal)/.test(value)) return 'animalier';
   if (/(transport|taxi|vtc|chauffeur|ambulance|ambulancier|livraison|coursier|messagerie|fret|marchandises|logistique|demenagement)/.test(value)) return 'transport';
   if (/(sécurité|securite|gardiennage|incendie|télésurveillance|telesurveillance|vidéosurveillance|videosurveillance|contrôle d’accès|controle d'acces|agent de sécurité|agent de securite)/.test(value)) return 'securite';

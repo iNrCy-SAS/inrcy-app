@@ -9,6 +9,7 @@ import {
   normalizeInrAgentMonthDays,
 } from "@/lib/inrAgentMonthSchedule";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
@@ -614,11 +615,25 @@ export async function POST(req: Request) {
 
   const rows = (Array.isArray(automationRows) ? automationRows : []) as AutomationRow[];
   const results: CronRunResult[] = [];
+  const activeAccountIds = await getActiveSubscriptionAccountIds(
+    rows.map((row) => row.user_id),
+    now.getTime(),
+  );
   const editionsByAccount = await getDashboardEditionsForAccountIds(
     rows.map((row) => row.user_id),
   );
 
   for (const row of rows) {
+    if (!activeAccountIds.has(row.user_id)) {
+      results.push({
+        userId: row.user_id,
+        automationKey: row.automation_key,
+        status: "skipped",
+        reason: "subscription_inactive",
+        nextRunAt: row.next_run_at,
+      });
+      continue;
+    }
     if (
       editionsByAccount.get(row.user_id) === "standard" &&
       !isStandardAgentAutomationKey(row.automation_key)

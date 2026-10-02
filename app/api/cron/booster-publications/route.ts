@@ -16,6 +16,8 @@ import {
   completeAsyncPublicationPreparationLease,
   failPreparingAsyncPublicationChannels,
   finalizeAsyncPublicationIfReady,
+  isAsyncPublicationMarkedSubscriptionInactive,
+  terminateAsyncPublicationForInactiveSubscription,
   updateAsyncChannelEvent,
   updateAsyncPublicationJobEvent,
 } from "@/lib/boosterAsyncPublication";
@@ -132,6 +134,12 @@ function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)
     : {};
+}
+
+async function isSubscriptionInactiveDispatchResponse(response: Response) {
+  if (response.status !== 403) return false;
+  const body = asRecord(await response.clone().json().catch(() => null));
+  return body.code === "subscription_inactive";
 }
 
 function uniqueBoundedIds(rows: AsyncEventCandidateRow[], limit: number) {
@@ -400,6 +408,26 @@ async function exhaustPreparationJob(job: AsyncPreparationJob) {
 }
 
 async function dispatchPreparationJob(job: AsyncPreparationJob, appOrigin: string) {
+  try {
+    if (
+      await isAsyncPublicationMarkedSubscriptionInactive({
+        userId: job.userId,
+        publicationId: job.id,
+      })
+    ) {
+      await terminateAsyncPublicationForInactiveSubscription({
+        userId: job.userId,
+        publicationId: job.id,
+      });
+      return;
+    }
+  } catch (error) {
+    console.warn("[booster-async-cron] preparation cancellation check failed", {
+      publicationId: job.id,
+      message: error instanceof Error ? error.message : String(error || ""),
+    });
+    return;
+  }
   const waitingForWorkspaceMedia =
     job.lastPreparationError === "workspace_media_processing" ||
     job.lastPreparationError === "workspace_media_not_ready";
@@ -430,6 +458,13 @@ async function dispatchPreparationJob(job: AsyncPreparationJob, appOrigin: strin
       ),
       cache: "no-store",
     });
+    if (await isSubscriptionInactiveDispatchResponse(response)) {
+      await terminateAsyncPublicationForInactiveSubscription({
+        userId: job.userId,
+        publicationId: job.id,
+      });
+      return;
+    }
     if (!response.ok) {
       throw new Error(`preparation_dispatch_http_${response.status}`);
     }
@@ -445,6 +480,27 @@ async function dispatchPreparationJob(job: AsyncPreparationJob, appOrigin: strin
 }
 
 async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
+  try {
+    if (
+      await isAsyncPublicationMarkedSubscriptionInactive({
+        userId: job.userId,
+        publicationId: job.publicationId,
+      })
+    ) {
+      await terminateAsyncPublicationForInactiveSubscription({
+        userId: job.userId,
+        publicationId: job.publicationId,
+      });
+      return;
+    }
+  } catch (error) {
+    console.warn("[booster-async-cron] channel cancellation check failed", {
+      publicationId: job.publicationId,
+      channel: job.channel,
+      message: error instanceof Error ? error.message : String(error || ""),
+    });
+    return;
+  }
   if (
     (job.instagramVideoContinuation &&
       job.instagramVideoNextPollAt > Date.now()) ||
@@ -560,6 +616,13 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
       }),
       cache: "no-store",
     });
+    if (await isSubscriptionInactiveDispatchResponse(response)) {
+      await terminateAsyncPublicationForInactiveSubscription({
+        userId: job.userId,
+        publicationId: job.publicationId,
+      });
+      return;
+    }
     if (response.status === 425) {
       const nowMs = Date.now();
       const retryAfterMs = parseBoosterDispatchRetryAfterMs(
@@ -718,7 +781,12 @@ export async function GET(request: Request) {
 
   // Full transport payloads are fetched by primary key only after the compact
   // queue rows pass status, staleness and continuation scheduling checks.
-  const [channelRowsQuery, preparationRowsQuery, finalizationCandidatesQuery] =
+  const [
+    channelRowsQuery,
+    preparationRowsQuery,
+    finalizationCandidatesQuery,
+    markedParentsQuery,
+  ] =
     await Promise.all([
       loadExactAsyncEventRows({
         eventType: BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
@@ -748,12 +816,22 @@ export async function GET(request: Request) {
             })
             .limit(ASYNC_FINALIZATION_CANDIDATE_LIMIT)
         : Promise.resolve({ data: [], error: null }),
+      supabaseAdmin
+        .from("app_events")
+        .select(ASYNC_FINALIZATION_CANDIDATE_COLUMNS)
+        .eq("type", BOOSTER_ASYNC_JOB_EVENT_TYPE)
+        .not("payload->>subscriptionInactiveAt", "is", null)
+        .order("created_at", {
+          ascending: sweepPlan.finalizationAscending,
+        })
+        .limit(ASYNC_FINALIZATION_CANDIDATE_LIMIT),
     ]);
 
   const exactQueryError = [
     channelRowsQuery.error,
     preparationRowsQuery.error,
     finalizationCandidatesQuery.error,
+    markedParentsQuery.error,
   ].find(Boolean);
   if (exactQueryError) {
     return NextResponse.json(
@@ -839,6 +917,18 @@ export async function GET(request: Request) {
     ...preparationJobs.map((job) => `${job.userId}:${job.id}`),
     ...dispatchJobs.map((job) => `${job.userId}:${job.publicationId}`),
   ]);
+  const markedJobs = (
+    (markedParentsQuery.data || []) as AsyncEventCandidateRow[]
+  )
+    .filter((row) => row.id && row.user_id)
+    .filter((row) => !parentsAlreadyWorking.has(candidateKey(row)))
+    .map((row) => ({
+      id: String(row.id),
+      userId: String(row.user_id),
+    }));
+  for (const job of markedJobs) {
+    parentsAlreadyWorking.add(`${job.userId}:${job.id}`);
+  }
   const finalizationJobs = (
     (finalizationCandidatesQuery.data || []) as AsyncEventCandidateRow[]
   )
@@ -855,6 +945,7 @@ export async function GET(request: Request) {
   if (
     dispatchJobs.length ||
     preparationJobs.length ||
+    markedJobs.length ||
     finalizationJobs.length
   ) {
     const appOrigin = getAppOriginFromRequest(request);
@@ -864,6 +955,12 @@ export async function GET(request: Request) {
           dispatchPreparationJob(job, appOrigin),
         ),
         ...dispatchJobs.map((job) => dispatchChannelJob(job, appOrigin)),
+        ...markedJobs.map((job) =>
+          terminateAsyncPublicationForInactiveSubscription({
+            userId: job.userId,
+            publicationId: job.id,
+          }),
+        ),
         ...finalizationJobs.map((job) =>
           finalizeAsyncPublicationIfReady({
             userId: job.userId,
@@ -880,6 +977,7 @@ export async function GET(request: Request) {
     preparationsRecovered: recoveredPreparationJobs.length,
     queued: queuedDispatchJobs.length,
     recovered: recoveredDispatchJobs.length,
+    cancellationsRetried: markedJobs.length,
     finalizationsChecked: finalizationJobs.length,
     recoverySweep: sweepPlan.runRecoverySweep,
     finalizationSweep: sweepPlan.runFinalizationSweep,

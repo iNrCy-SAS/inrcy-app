@@ -29,7 +29,25 @@ const JOB_ALIASES: Partial<
       "webmaster",
     ],
   },
+  culture_creation: {
+    ecrivain_auteur: [
+      "écrivain", "écrivaine", "ecrivain", "ecrivaine", "auteur", "auteure", "autrice",
+      "romancier", "romancière", "romanciere",
+    ],
+    artiste: ["artiste", "artiste plasticien", "plasticienne", "créateur artistique"],
+    artiste_peintre: [
+      "peintre artiste", "peintre d'art", "peinture artistique", "plasticien peintre",
+    ],
+    musicien_interprete: [
+      "musicien", "musicienne", "instrumentiste", "interprète musical", "interprete musical",
+    ],
+    chanteur: ["chanteur", "chanteuse", "artiste vocal"],
+    compositeur: ["compositeur", "compositrice", "composition musicale"],
+    illustrateur: ["illustrateur", "illustratrice", "illustration artistique"],
+    sculpteur: ["sculpteur", "sculptrice", "sculpture artistique"],
+  },
   evenementiel: {
+    dj: ["disc jockey", "disc-jockey", "animation musicale DJ"],
     magicien: [
       "magie",
       "illusionniste",
@@ -277,6 +295,11 @@ function tokenMatches(queryToken: string, candidateToken: string) {
   const normalizedQuery = normalizeToken(queryToken);
   const normalizedCandidate = normalizeToken(candidateToken);
 
+  // Les prépositions d'un seul caractère (à, d', etc.) ne sont pas des métiers.
+  if (normalizedQuery.length < 2 || normalizedCandidate.length < 2) {
+    return normalizedQuery === normalizedCandidate;
+  }
+
   if (
     normalizedCandidate.startsWith(normalizedQuery) ||
     normalizedQuery.startsWith(normalizedCandidate)
@@ -289,7 +312,7 @@ function tokenMatches(queryToken: string, candidateToken: string) {
   }
 
   const tolerance =
-    Math.max(normalizedQuery.length, normalizedCandidate.length) >= 8 ? 2 : 1;
+    Math.max(normalizedQuery.length, normalizedCandidate.length) >= 10 ? 2 : 1;
   return editDistance(normalizedQuery, normalizedCandidate) <= tolerance;
 }
 
@@ -359,12 +382,18 @@ export function searchActivityJobs(
     }
   }
 
-  return ranked
-    .sort(
+  const sorted = ranked.sort(
       (a, b) =>
         a.score - b.score ||
         a.jobLabel.localeCompare(b.jobLabel, "fr", { sensitivity: "base" }),
-    )
+    );
+  const bestScore = sorted[0]?.score;
+  const strongMatchCutoff = bestScore !== undefined && bestScore <= 4
+    ? bestScore + 20
+    : Number.POSITIVE_INFINITY;
+
+  return sorted
+    .filter((result) => result.score <= strongMatchCutoff)
     .slice(0, Math.max(1, limit))
     .map(({ score: _score, ...result }) => result);
 }

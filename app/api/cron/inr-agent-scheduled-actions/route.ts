@@ -6,6 +6,7 @@ import {
 } from "@/lib/inrAgentScheduledPublication";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
@@ -839,11 +840,38 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
 
   const rows = (Array.isArray(data) ? data : []) as ScheduledActionCronRow[];
   const results: ExecutionResult[] = [];
+  const activeAccountIds = await getActiveSubscriptionAccountIds(
+    rows.map((row) => row.user_id),
+    Date.parse(nowIso),
+  );
   const editionsByAccount = await getDashboardEditionsForAccountIds(
     rows.map((row) => row.user_id),
   );
 
   for (const row of rows) {
+    if (!activeAccountIds.has(row.user_id)) {
+      if (!args.dryRun) {
+        const { error: inactiveError } = await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .update({
+            status: "failed",
+            last_error: "Non envoyée : période d’essai expirée ou abonnement inactif. Réactivez votre abonnement puis relancez cette action manuellement.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("user_id", row.user_id)
+          .eq("status", "scheduled");
+        if (inactiveError) throw inactiveError;
+      }
+      results.push({
+        ok: true,
+        status: "skipped",
+        scheduledActionId: row.id,
+        targetTool: String(row.target_tool || "agent"),
+        detail: args.dryRun ? "subscription_inactive_dry_run" : "subscription_inactive",
+      });
+      continue;
+    }
     if (
       editionsByAccount.get(row.user_id) === "standard" &&
       !isStandardAgentActionDescriptor(row)

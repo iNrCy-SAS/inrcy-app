@@ -36,6 +36,7 @@ const SECTOR_RECOMMENDATIONS: Record<
   artisan_btp: { avgBasket: 1800, conversionRate: 20 },
   commerce_boutique: { avgBasket: 65, conversionRate: 30 },
   communication: { avgBasket: 950, conversionRate: 20 },
+  culture_creation: DEFAULT_GENERATOR_SETTINGS,
   education_enfance: { avgBasket: 350, conversionRate: 25 },
   economie_sociale_solidaire: { avgBasket: 150, conversionRate: 20 },
   formation_enseignement: { avgBasket: 700, conversionRate: 22 },

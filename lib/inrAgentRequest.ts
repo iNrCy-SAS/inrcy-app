@@ -5,6 +5,7 @@ import { isAuthorizedCronRequest, getCronUserIdFromRequest } from "@/lib/cronAut
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 
 export type InrAgentResolvedRequest = {
   supabase: any;
@@ -27,6 +28,21 @@ export async function resolveInrAgentActionRequest(request: Request): Promise<In
   const cronUserId = isAuthorizedCronRequest(request) ? getCronUserIdFromRequest(request, body) : "";
 
   if (cronUserId) {
+    let subscriptionErrorResponse: NextResponse | null = null;
+    try {
+      const activeAccountIds = await getActiveSubscriptionAccountIds([cronUserId]);
+      if (!activeAccountIds.has(cronUserId)) {
+        subscriptionErrorResponse = jsonUserFacingError(
+          "Période d’essai expirée ou abonnement inactif.",
+          { status: 403, code: "subscription_inactive" },
+        );
+      }
+    } catch {
+      subscriptionErrorResponse = jsonUserFacingError(
+        "Vérification de l’abonnement indisponible.",
+        { status: 503, code: "subscription_check_unavailable" },
+      );
+    }
     return {
       supabase: supabaseAdmin,
       user: { id: cronUserId },
@@ -34,7 +50,7 @@ export async function resolveInrAgentActionRequest(request: Request): Promise<In
       authUserId: cronUserId,
       body,
       isCron: true,
-      errorResponse: null,
+      errorResponse: subscriptionErrorResponse,
     };
   }
 

@@ -180,6 +180,19 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
       createur_sites_internet: { label: 'Créateur de sites internet', services: ['Site vitrine', 'Refonte site', 'Landing page', 'Référencement local', 'Maintenance site', 'Hébergement', 'Optimisation mobile', 'Accompagnement contenu'] },
     },
   },
+  culture_creation: {
+    label: 'Arts / Culture / Création',
+    jobs: {
+      ecrivain_auteur: { label: 'Écrivain / Auteur', services: ['Livres et ouvrages', 'Rencontre d’auteur', 'Séance de dédicace', 'Lecture publique', 'Atelier d’écriture', 'Intervention culturelle', 'Conférence', 'Projet éditorial'] },
+      artiste: { label: 'Artiste / Créateur', services: ['Œuvres originales', 'Portfolio', 'Exposition', 'Commande artistique', 'Collaboration créative', 'Atelier découverte', 'Rencontre avec l’artiste', 'Projet culturel'] },
+      artiste_peintre: { label: 'Artiste peintre', services: ['Tableaux originaux', 'Peinture sur commande', 'Portrait artistique', 'Exposition', 'Vente d’œuvres', 'Série artistique', 'Atelier peinture', 'Portfolio'] },
+      musicien_interprete: { label: 'Musicien / Interprète', services: ['Concert', 'Prestation musicale', 'Répertoire musical', 'Session d’enregistrement', 'Accompagnement musical', 'Événement culturel', 'Collaboration artistique', 'Projet musical'] },
+      chanteur: { label: 'Chanteur / Chanteuse', services: ['Concert', 'Prestation vocale', 'Répertoire', 'Cérémonie', 'Animation musicale', 'Enregistrement studio', 'Collaboration musicale', 'Projet scénique'] },
+      compositeur: { label: 'Compositeur / Compositrice', services: ['Composition originale', 'Musique à l’image', 'Habillage sonore', 'Arrangement musical', 'Bande originale', 'Création sur commande', 'Collaboration artistique', 'Projet musical'] },
+      illustrateur: { label: 'Illustrateur / Illustratrice', services: ['Illustration éditoriale', 'Illustration jeunesse', 'Couverture de livre', 'Portrait illustré', 'Affiche', 'Commande personnalisée', 'Portfolio', 'Collaboration créative'] },
+      sculpteur: { label: 'Sculpteur / Sculptrice', services: ['Sculpture originale', 'Pièce sur commande', 'Installation artistique', 'Exposition', 'Œuvre monumentale', 'Petite série', 'Portfolio', 'Collaboration artistique'] },
+    },
+  },
   education_enfance: {
     label: 'Éducation / Enfance',
     jobs: {
@@ -478,6 +491,8 @@ const FORMATION_ENSEIGNEMENT_JOB_ALIASES: Record<string, string> = {
 };
 
 const EVENEMENTIEL_JOB_ALIASES: Record<string, string> = {
+  'disc jockey': 'dj',
+  'animation musicale dj': 'dj',
   'magie': 'magicien',
   'magie close up': 'magicien',
   'spectacle de magie': 'magicien',
@@ -485,6 +500,35 @@ const EVENEMENTIEL_JOB_ALIASES: Record<string, string> = {
   'illusionniste': 'magicien',
   'prestidigitateur': 'magicien',
   'magicien professionnel': 'magicien',
+};
+
+const CULTURE_CREATION_JOB_ALIASES: Record<string, string> = {
+  'ecrivain': 'ecrivain_auteur',
+  'ecrivaine': 'ecrivain_auteur',
+  'auteur': 'ecrivain_auteur',
+  'auteure': 'ecrivain_auteur',
+  'autrice': 'ecrivain_auteur',
+  'romancier': 'ecrivain_auteur',
+  'romanciere': 'ecrivain_auteur',
+  'artiste': 'artiste',
+  'artiste plasticien': 'artiste',
+  'plasticienne': 'artiste',
+  'peintre artiste': 'artiste_peintre',
+  'peintre d art': 'artiste_peintre',
+  'peinture artistique': 'artiste_peintre',
+  'plasticien peintre': 'artiste_peintre',
+  'musicien': 'musicien_interprete',
+  'musicienne': 'musicien_interprete',
+  'instrumentiste': 'musicien_interprete',
+  'interprete musical': 'musicien_interprete',
+  'chanteur': 'chanteur',
+  'chanteuse': 'chanteur',
+  'compositeur': 'compositeur',
+  'compositrice': 'compositeur',
+  'illustrateur': 'illustrateur',
+  'illustratrice': 'illustrateur',
+  'sculpteur': 'sculpteur',
+  'sculptrice': 'sculpteur',
 };
 
 const PLATEFORMES_NUMERIQUES_JOB_ALIASES: Record<string, string> = {
@@ -596,6 +640,9 @@ export function findJobValueByLabel(sector: string, label: string) {
   }
   if (sector === 'evenementiel') {
     return EVENEMENTIEL_JOB_ALIASES[normalized] || '';
+  }
+  if (sector === 'culture_creation') {
+    return CULTURE_CREATION_JOB_ALIASES[normalized] || '';
   }
   if (sector === 'plateformes_numeriques') {
     return PLATEFORMES_NUMERIQUES_JOB_ALIASES[normalized] || '';

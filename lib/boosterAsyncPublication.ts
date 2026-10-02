@@ -483,6 +483,21 @@ async function loadAsyncPublicationParent(params: {
   return (data || null) as AppEventParentRow | null;
 }
 
+export async function isAsyncPublicationMarkedSubscriptionInactive(params: {
+  userId: string;
+  publicationId: string;
+}) {
+  const { data, error } = await supabaseAdmin
+    .from("app_events")
+    .select("id")
+    .eq("id", params.publicationId)
+    .eq("user_id", params.userId)
+    .not("payload->>subscriptionInactiveAt", "is", null)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 async function loadAsyncChannelStates(params: {
   userId: string;
   descriptor: AsyncJobDescriptor;
@@ -1003,6 +1018,13 @@ async function finalizeClaimedAsyncPublication(params: {
   const completedAt = new Date().toISOString();
   const finalPayload = {
     ...finalPayloadBase,
+    ...(cleanString(params.parentPayload.subscriptionInactiveAt)
+      ? {
+          subscriptionInactiveAt: cleanString(
+            params.parentPayload.subscriptionInactiveAt,
+          ),
+        }
+      : {}),
     publication_id: params.publicationId,
     attemptedChannels: params.descriptor.selected,
     channels: aggregate.summary.successChannels,
@@ -1137,6 +1159,96 @@ export async function finalizeAsyncPublicationIfReady(params: {
     });
     throw error;
   }
+}
+
+export async function terminateAsyncPublicationForInactiveSubscription(params: {
+  userId: string;
+  publicationId: string;
+}) {
+  const parent = await loadAsyncPublicationParent(params);
+  if (!parent) throw new Error("async_publication_parent_missing");
+  if (String(parent.type || "") !== BOOSTER_ASYNC_JOB_EVENT_TYPE) {
+    if (cleanString(asRecord(parent.payload).subscriptionInactiveAt)) {
+      // Finalization can commit the parent before its best-effort technical
+      // cleanup. Remove any orphaned children so the cron cannot rediscover
+      // the old work forever after a transient cleanup failure.
+      const { error: cleanupError } = await supabaseAdmin
+        .from("app_events")
+        .delete()
+        .eq("user_id", params.userId)
+        .eq("type", BOOSTER_ASYNC_CHANNEL_EVENT_TYPE)
+        .eq("payload->>publication_id", params.publicationId);
+      if (cleanupError) throw cleanupError;
+    }
+    return { finalized: true, alreadyTerminal: true };
+  }
+
+  const parentPayload = asRecord(parent.payload);
+  // This marker is written first and never cleared while the parent is a job.
+  // A partial channel update can therefore be resumed after subscription
+  // reactivation without dispatching a formerly blocked publication.
+  const subscriptionInactiveAt =
+    cleanString(parentPayload.subscriptionInactiveAt) || new Date().toISOString();
+  const marked = await updateAsyncPublicationJobEvent({
+    ...params,
+    patch: { subscriptionInactiveAt },
+  });
+  if (!marked) {
+    const current = await loadAsyncPublicationParent(params);
+    if (current && current.type !== BOOSTER_ASYNC_JOB_EVENT_TYPE) {
+      return { finalized: true, alreadyTerminal: true };
+    }
+    throw new Error("async_publication_subscription_marker_missing");
+  }
+
+  const descriptor = readAsyncJobDescriptor(parentPayload);
+  if (!descriptor.valid) throw new Error("async_publication_descriptor_invalid");
+
+  const { data, error } = await supabaseAdmin
+    .from("app_events")
+    .select("id,payload")
+    .eq("user_id", params.userId)
+    .eq("type", BOOSTER_ASYNC_CHANNEL_EVENT_TYPE)
+    .in("id", descriptor.ids);
+  if (error) throw error;
+
+  const now = new Date().toISOString();
+  for (const row of (data || []) as AppEventPayloadRow[]) {
+    const payload = asRecord(row.payload);
+    const persistedStatus = cleanString(payload.status);
+    if (TERMINAL_CHANNEL_STATUSES.has(persistedStatus)) continue;
+
+    // Compare-and-swap the observed status: a concurrent worker that has just
+    // completed a channel must not have its successful result overwritten.
+    const nextPayload = {
+      ...payload,
+      status: "failed",
+      result: {
+        ok: false,
+        code: "subscription_inactive",
+        retryable: false,
+        error: "Publication annulée : abonnement inactif.",
+      },
+      completedAt: now,
+      updatedAt: now,
+    };
+    let query = supabaseAdmin
+      .from("app_events")
+      .update({ payload: nextPayload })
+      .eq("id", row.id)
+      .eq("user_id", params.userId)
+      .eq("type", BOOSTER_ASYNC_CHANNEL_EVENT_TYPE);
+    query = persistedStatus
+      ? query.eq("payload->>status", persistedStatus)
+      : query.is("payload->>status", null);
+    const { error: updateError } = await query;
+    if (updateError) throw updateError;
+  }
+
+  // The existing finalizer commits the parent idempotency key, aggregates any
+  // already completed channels, updates deliveries, and removes technical rows.
+  // If a worker raced a compare-and-swap, the marked-parent cron sweep retries.
+  return finalizeAsyncPublicationIfReady(params);
 }
 
 export async function readAsyncPublicationStatus(params: {

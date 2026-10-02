@@ -9,6 +9,7 @@ import {
   type InrAgentEditorialAutomationRow,
 } from "@/lib/inrAgentEditorialPlanServer";
 import type { InrAgentAutomationSettings } from "@/lib/inrAgentSettings";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -141,6 +142,10 @@ export async function POST(request: Request) {
   const rows = (Array.isArray(automationRows) ? automationRows : []) as Array<
     InrAgentEditorialAutomationRow & { user_id: string }
   >;
+  const activeAccountIds = await getActiveSubscriptionAccountIds(
+    rows.map((row) => row.user_id),
+    now.getTime(),
+  );
   const reconciliations: Array<Record<string, unknown>> = [];
   const enabledRows: Array<{
     userId: string;
@@ -148,6 +153,15 @@ export async function POST(request: Request) {
   }> = [];
   if (!dryRun) {
     for (const row of rows) {
+      if (!activeAccountIds.has(row.user_id)) {
+        reconciliations.push({
+          userId: row.user_id,
+          success: true,
+          planned: 0,
+          reason: "subscription_inactive",
+        });
+        continue;
+      }
       try {
         const activation = await activatePendingInrAgentEditorialSettings({
           supabase: supabaseAdmin,

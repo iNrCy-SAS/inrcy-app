@@ -13,6 +13,7 @@ import { shouldUseRangeGetForStorageDeliveryUrl } from "@/lib/storageUrlSanitiza
 import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import {
   facebookPublishToPage,
   facebookPublishVideoToPage,
@@ -207,7 +208,9 @@ import {
   completeAsyncPublicationPreparationLease,
   failAsyncPublicationPreparationLease,
   finalizeAsyncPublicationIfReady,
+  isAsyncPublicationMarkedSubscriptionInactive,
   materializePreparingAsyncChannelEvent,
+  terminateAsyncPublicationForInactiveSubscription,
   updateAsyncChannelEvent,
   updateAsyncPublicationJobEvent,
 } from "@/lib/boosterAsyncPublication";
@@ -484,9 +487,53 @@ async function publishNowHandler(req: Request) {
         { status: 400 },
       );
 
+    const asyncPublicationId = cleanExecutionIdempotencyKey(
+      body._asyncPublicationId,
+    );
     const internalAsyncRequested = body._asyncChannelDispatch === true;
     const internalAsyncPreparationRequested =
       body._asyncPreparationDispatch === true;
+    const asyncWorkerPublicationId =
+      internalAsyncRequested || internalAsyncPreparationRequested
+        ? asyncPublicationId
+        : "";
+    // Scheduled and async workers have no browser session, so the proxy's
+    // expired-trial gate cannot protect the final network dispatch. Mark an
+    // existing async job terminal before returning: it must not resume later.
+    if (cronUserId) {
+      try {
+        const alreadyStopped = asyncWorkerPublicationId &&
+          await isAsyncPublicationMarkedSubscriptionInactive({
+            userId,
+            publicationId: asyncWorkerPublicationId,
+          });
+        if (alreadyStopped) {
+          return NextResponse.json(
+            { ok: false, code: "subscription_inactive", retryable: false, error: "Publication interrompue : période d’essai expirée ou abonnement inactif." },
+            { status: 403 },
+          );
+        }
+        const activeAccountIds = await getActiveSubscriptionAccountIds([userId]);
+        if (!activeAccountIds.has(userId)) {
+          if (asyncWorkerPublicationId) {
+            await terminateAsyncPublicationForInactiveSubscription({
+              userId,
+              publicationId: asyncWorkerPublicationId,
+            });
+          }
+          return NextResponse.json(
+            { ok: false, code: "subscription_inactive", retryable: false, error: "Publication interrompue : période d’essai expirée ou abonnement inactif." },
+            { status: 403 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { ok: false, code: "subscription_check_unavailable", retryable: true, error: "Vérification de l’abonnement indisponible." },
+          { status: 503 },
+        );
+      }
+    }
+
     const internalAsyncDispatch =
       internalAsyncRequested && Boolean(cronUserId) && isAuthorizedCronRequest(req);
     const internalAsyncPreparationDispatch =
@@ -504,9 +551,6 @@ async function publishNowHandler(req: Request) {
         { status: 401 },
       );
     }
-    const asyncPublicationId = cleanExecutionIdempotencyKey(
-      body._asyncPublicationId,
-    );
     const asyncChannelEventId = cleanExecutionIdempotencyKey(
       body._asyncChannelEventId,
     );
