@@ -59,3 +59,14 @@ test("l'analyse équilibre son contenu dans le viewport desktop sans créer de s
   assert.match(pageSource, /align-content: space-between !important/);
   assert.match(pageSource, /\[data-business-dna-analysis-orb\][\s\S]*?height: 270px !important/);
 });
+
+test("le score ADN conserve une ligne réservée au-dessus du dessin", () => {
+  const scoreStart = source.indexOf('<div data-dna-score-summary');
+  const orbStart = source.indexOf('<div data-business-dna-analysis-orb');
+  const scoreStyleStart = source.indexOf("const analysisScoreBubbleStyle");
+  const scoreStyleEnd = source.indexOf("const analysisScoreHelpStyle", scoreStyleStart);
+
+  assert.ok(scoreStart >= 0 && scoreStart < orbStart);
+  assert.match(source.slice(scoreStyleStart, scoreStyleEnd), /position: "relative"/);
+  assert.doesNotMatch(source.slice(scoreStyleStart, scoreStyleEnd), /position: "absolute"/);
+});
