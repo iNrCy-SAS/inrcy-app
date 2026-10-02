@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -95,6 +95,11 @@ export default function BusinessDnaPage() {
   const initialTab = requestedTab && BUSINESS_DNA_TABS.has(requestedTab)
     ? requestedTab
     : "analysis";
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AiMemoryWorkspaceTab>(initialTab);
+
+  useEffect(() => {
+    setActiveWorkspaceTab(initialTab);
+  }, [initialTab]);
 
   const syncTabInAddressBar = useCallback((tab: AiMemoryWorkspaceTab) => {
     const url = new URL(window.location.href);
@@ -103,9 +108,15 @@ export default function BusinessDnaPage() {
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
+  const handleTabChange = useCallback((tab: AiMemoryWorkspaceTab) => {
+    setActiveWorkspaceTab(tab);
+    syncTabInAddressBar(tab);
+  }, [syncTabInAddressBar]);
+
   return (
     <main
       data-business-dna-page
+      data-analysis-viewport={activeWorkspaceTab === "analysis" ? "locked" : undefined}
       data-disable-pull-refresh={voiceBusy ? "true" : undefined}
       style={dashboardWorkspacePageStyle}
     >
@@ -150,7 +161,7 @@ export default function BusinessDnaPage() {
           edition={edition}
           initialTab={initialTab}
           profileLabel={copy.userMenu.profile}
-          onTabChange={syncTabInAddressBar}
+          onTabChange={handleTabChange}
           onProfileSaved={() => {
             markProfileCompleted();
             void checkProfile();
@@ -163,6 +174,54 @@ export default function BusinessDnaPage() {
           onVoiceBusyChange={setVoiceBusy}
         />
       </section>
+
+      <style jsx global>{`
+        @media (min-width: 721px) and (min-height: 820px) {
+          html:has(main[data-business-dna-page][data-analysis-viewport="locked"]),
+          body:has(main[data-business-dna-page][data-analysis-viewport="locked"]),
+          .inrcy-dashboard-shell:has(main[data-business-dna-page][data-analysis-viewport="locked"]) {
+            height: 100svh !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+          }
+
+          main[data-business-dna-page][data-analysis-viewport="locked"] {
+            height: 100svh !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            display: grid !important;
+            grid-template-rows: auto minmax(0, 1fr);
+            padding-bottom: 14px !important;
+          }
+
+          main[data-business-dna-page][data-analysis-viewport="locked"] > section,
+          main[data-business-dna-page][data-analysis-viewport="locked"] [data-ai-memory-workspace],
+          main[data-business-dna-page][data-analysis-viewport="locked"] [role="tabpanel"] {
+            min-height: 0;
+            display: grid;
+          }
+
+          main[data-business-dna-page][data-analysis-viewport="locked"] [data-ai-memory-workspace] {
+            height: 100%;
+            grid-template-rows: auto minmax(0, 1fr);
+            padding-bottom: 0 !important;
+          }
+
+          main[data-business-dna-page][data-analysis-viewport="locked"] section[data-business-dna-channel-analysis] {
+            height: 100% !important;
+            min-height: 0 !important;
+            align-content: space-between !important;
+            gap: clamp(14px, 1.8vh, 20px) !important;
+            padding: clamp(20px, 2vw, 28px) clamp(14px, 3vw, 34px) clamp(20px, 2.1vw, 28px) !important;
+          }
+
+          main[data-business-dna-page][data-analysis-viewport="locked"] [data-business-dna-analysis-orb] {
+            height: 270px !important;
+            padding-top: 34px !important;
+          }
+
+        }
+      `}</style>
     </main>
   );
 }

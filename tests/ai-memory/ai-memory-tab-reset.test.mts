@@ -17,7 +17,7 @@ test("iNrADN provides a confirmed reset at the bottom of every tab", () => {
   assert.match(ui, /activeTab !== "analysis"/);
 });
 
-test("the analysis tab offers a separate confirmed global iNrADN reset inside its frame", () => {
+test("the analysis tab keeps only the confirmed global iNrADN reset below the monthly quota", () => {
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
 
   const analysis = ui.slice(
@@ -26,9 +26,10 @@ test("the analysis tab offers a separate confirmed global iNrADN reset inside it
   );
   assert.match(analysis, /Réinitialiser votre ADN/);
   assert.match(analysis, /resetCurrentTab\("all"\)/);
-  assert.match(analysis, /Réinitialiser l’analyse/);
+  assert.doesNotMatch(analysis, /Réinitialiser l’analyse/);
+  assert.doesNotMatch(analysis, /analysisPrivacyStyle/);
+  assert.match(analysis, /analysisQuota[\s\S]*Réinitialiser votre ADN/);
   assert.match(ui, /toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers/);
-  assert.match(ui, /analysisGlobalResetActionStyle[^;]*justifyContent: "center"/);
   assert.match(ui, /analysisLandingStyle[^;]*minHeight: "max\(610px, calc\(100svh - 190px\)\)"/);
 });
 

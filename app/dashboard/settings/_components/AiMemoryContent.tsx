@@ -1523,7 +1523,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                 ) : null}
 
-                <div style={analysisActionGroupStyle}>
+                <div data-analysis-action-group style={analysisActionGroupStyle}>
                   <button
                     type="button"
                     disabled={voiceBusy || analyzing || analysisQuota?.remaining === 0}
@@ -1563,7 +1563,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                       })}
                     </span>
                   ) : null}
-                  <span style={analysisPrivacyStyle}>{t("analysisPrivacy")}</span>
+                  <button
+                    type="button"
+                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
+                    onClick={() => void resetCurrentTab("all")}
+                    style={{ ...dangerButtonStyle, minHeight: 42, marginTop: 10 }}
+                  >
+                    Réinitialiser votre ADN
+                  </button>
                 </div>
 
                 {analysisSummary?.analyzedAt ? (
@@ -1579,24 +1586,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                 ) : null}
                 {analysisError ? <div style={analysisErrorStyle}>{analysisError}</div> : null}
-                <div style={analysisGlobalResetActionStyle}>
-                  <button
-                    type="button"
-                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
-                    onClick={() => void resetCurrentTab()}
-                    style={dangerButtonStyle}
-                  >
-                    Réinitialiser l’analyse
-                  </button>
-                  <button
-                    type="button"
-                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
-                    onClick={() => void resetCurrentTab("all")}
-                    style={{ ...dangerButtonStyle, minHeight: 42 }}
-                  >
-                    Réinitialiser votre ADN
-                  </button>
-                </div>
               </section>
             ) : null}
 
@@ -2605,12 +2594,10 @@ const analysisQuotaStyle: CSSProperties = { display: "inline-flex", alignItems: 
 const analysisQuotaDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: "50%", background: "#f472b6", boxShadow: "0 0 10px rgba(244,114,182,.72)" };
 const analysisProgressStyle: CSSProperties = { width: "min(650px, 88%)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 11, padding: "3px 0" };
 const analysisActionGroupStyle: CSSProperties = { display: "grid", justifyItems: "center", gap: 9 };
-const analysisPrivacyStyle: CSSProperties = { maxWidth: 720, color: "rgba(165,243,252,0.58)", fontSize: 10, lineHeight: 1.35 };
 const analysisButtonStyle: CSSProperties = { minHeight: 42, borderRadius: 13, border: "1px solid rgba(103,232,249,0.40)", background: "linear-gradient(105deg, rgba(8,145,178,0.96), rgba(109,40,217,0.96) 58%, rgba(219,39,119,0.92))", color: "white", padding: "9px 18px", fontSize: 12.5, fontWeight: 950, boxShadow: "0 13px 32px rgba(124,58,237,0.24)" };
 const analysisScheduleButtonStyle: CSSProperties = { minHeight: 38, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(115deg, rgba(8,47,79,0.74), rgba(49,32,91,0.76))", color: "rgba(240,249,255,.92)", padding: "8px 15px", fontSize: 11.5, fontWeight: 900, boxShadow: "0 9px 23px rgba(14,116,144,0.12)" };
 const analysisReportStyle: CSSProperties = { display: "grid", gap: 9, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" };
 const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid rgba(248,113,113,0.26)", background: "rgba(127,29,29,0.16)", color: "#fecaca", padding: "9px 11px", fontSize: 11.5, fontWeight: 750 };
-const analysisGlobalResetActionStyle: CSSProperties = { position: "absolute", left: "clamp(14px, 2.6vw, 28px)", right: "clamp(14px, 2.6vw, 28px)", bottom: "clamp(14px, 2.6vw, 28px)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, zIndex: 3 };
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
 const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
 const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
