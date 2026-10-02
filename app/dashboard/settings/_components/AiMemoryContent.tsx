@@ -659,6 +659,71 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
   };
 
+  const resetCurrentTab = async (tabToReset: AiMemoryWorkspaceTab | "all" = activeTab) => {
+    if (voiceBusy || saving || workspaceSaving || documentUploadState !== "idle") return;
+    const isGlobalReset = tabToReset === "all";
+    const confirmed = await confirmInrcy({
+      title: isGlobalReset
+        ? "Réinitialiser votre ADN ?"
+        : `Réinitialiser « ${activeTabDefinition.label} » ?`,
+      message: isGlobalReset
+        ? "Cette action efface toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers. Elle est définitive."
+        : "Cette action efface uniquement les informations de cet onglet. Elle est définitive.",
+      confirmLabel: isGlobalReset ? "Réinitialiser tout l’ADN" : "Réinitialiser",
+      variant: "danger",
+    });
+    if (!confirmed) return;
+
+    setWorkspaceError("");
+    setError("");
+    try {
+      const response = await fetch("/api/ai-memory/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        cache: "no-store",
+        body: JSON.stringify({ tab: tabToReset }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(apiErrorMessage(payload, t("saveError")));
+
+      if (isGlobalReset || activeTab === "profile" || activeTab === "activity") {
+        // A global reset and embedded forms own data outside this component.
+        // Rehydrate every panel from the server to avoid retaining a stale draft.
+        window.location.reload();
+        return;
+      }
+      if (activeTab === "analysis") {
+        setAnalysisSummary(null);
+        setAnalysisError("");
+      } else {
+        const nextMemory = normalizeAiMemory(payload.memory, { includePremium: true });
+        const nextBusinessKnowledge = (() => {
+          const current = businessKnowledgeRef.current;
+          if (activeTab === "audience") return { ...current, customerTypes: [] };
+          if (activeTab === "local") return {
+            ...current,
+            interventionZones: [],
+            weeklySchedule: EMPTY_AI_BUSINESS_KNOWLEDGE.weeklySchedule,
+          };
+          if (activeTab === "identity") return { ...current, strengths: [] };
+          return current;
+        })();
+        updateMemory(nextMemory);
+        updateBusinessKnowledge(nextBusinessKnowledge);
+        savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
+        setSaved(true);
+        setAutoSaveState("idle");
+        onUnsavedChange?.(false);
+      }
+      await invalidateBoosterGenerationContextClient("professional");
+    } catch (resetError) {
+      setWorkspaceError(
+        resetError instanceof Error ? resetError.message : t("saveError"),
+      );
+    }
+  };
+
   const setRichDescription = (next: { text: string; html: string }) => {
     setSaved(false);
     setError("");
@@ -1514,6 +1579,24 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                 ) : null}
                 {analysisError ? <div style={analysisErrorStyle}>{analysisError}</div> : null}
+                <div style={analysisGlobalResetActionStyle}>
+                  <button
+                    type="button"
+                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
+                    onClick={() => void resetCurrentTab()}
+                    style={dangerButtonStyle}
+                  >
+                    Réinitialiser l’analyse
+                  </button>
+                  <button
+                    type="button"
+                    disabled={voiceBusy || analyzing || saving || workspaceSaving}
+                    onClick={() => void resetCurrentTab("all")}
+                    style={{ ...dangerButtonStyle, minHeight: 42 }}
+                  >
+                    Réinitialiser votre ADN
+                  </button>
+                </div>
               </section>
             ) : null}
 
@@ -2060,6 +2143,22 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             ) : null}
       </div>
 
+      {!loading && loaded && activeTab !== "analysis" ? (
+        <div data-ai-memory-tab-reset style={tabResetActionStyle}>
+          <button
+            type="button"
+            disabled={voiceBusy || saving || workspaceSaving || documentUploadState !== "idle"}
+            onClick={() => void resetCurrentTab()}
+            style={{
+              ...dangerButtonStyle,
+              opacity: voiceBusy || saving || workspaceSaving || documentUploadState !== "idle" ? 0.58 : 1,
+            }}
+          >
+            Réinitialiser
+          </button>
+        </div>
+      ) : null}
+
       {workspaceError ? <div style={errorStyle}>{workspaceError}</div> : null}
       {activeTabRequiresAiMemory && error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
@@ -2479,7 +2578,7 @@ function PremiumTextarea({
 
 const pageStyle: CSSProperties = { display: "grid", gap: 11, width: "100%", maxWidth: "none", margin: 0, paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))" };
 const cardStyle: CSSProperties = { display: "grid", gap: 18, padding: "clamp(14px, 2.2vw, 22px)", borderRadius: 20, border: "1px solid rgba(125,211,252,0.17)", background: "linear-gradient(145deg, rgba(11,27,52,0.82), rgba(31,23,58,0.70))", boxShadow: "0 16px 44px rgba(0,0,0,0.18)", minWidth: 0 };
-const analysisLandingStyle: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden", width: "100%", height: "auto", minHeight: "clamp(610px, calc(100svh - 245px), 780px)", boxSizing: "border-box", display: "grid", justifyItems: "center", alignContent: "center", gap: "clamp(15px, 1.8vh, 22px)", padding: "clamp(28px, 3vw, 40px) clamp(14px, 3vw, 34px) clamp(32px, 3.4vw, 46px)", borderRadius: 22, border: "1px solid rgba(125,211,252,0.20)", background: "radial-gradient(circle at 50% 28%, rgba(79,70,229,0.22), transparent 31%), radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 28%), radial-gradient(circle at 88% 86%, rgba(236,72,153,0.10), transparent 29%), linear-gradient(145deg, rgba(5,18,39,0.96), rgba(24,11,48,0.93))", boxShadow: "0 24px 68px rgba(0,0,0,0.24)", textAlign: "center" };
+const analysisLandingStyle: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden", width: "100%", height: "auto", minHeight: "max(610px, calc(100svh - 190px))", boxSizing: "border-box", display: "grid", justifyItems: "center", alignContent: "center", gap: "clamp(15px, 1.8vh, 22px)", padding: "clamp(28px, 3vw, 40px) clamp(14px, 3vw, 34px) clamp(32px, 3.4vw, 46px)", borderRadius: 22, border: "1px solid rgba(125,211,252,0.20)", background: "radial-gradient(circle at 50% 28%, rgba(79,70,229,0.22), transparent 31%), radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 28%), radial-gradient(circle at 88% 86%, rgba(236,72,153,0.10), transparent 29%), linear-gradient(145deg, rgba(5,18,39,0.96), rgba(24,11,48,0.93))", boxShadow: "0 24px 68px rgba(0,0,0,0.24)", textAlign: "center" };
 const analysisOrbStageStyle: CSSProperties = { position: "relative", width: "min(530px, 92vw)", height: 300, boxSizing: "border-box", paddingTop: 42, display: "grid", placeItems: "center", perspective: 760 };
 const analysisScoreBubbleStyle: CSSProperties = { position: "absolute", zIndex: 8, top: 6, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 34, maxWidth: "calc(100% - 24px)", padding: "7px 9px 7px 13px", borderRadius: 999, border: "1px solid rgba(125,211,252,.30)", background: "linear-gradient(115deg, rgba(3,20,48,.96), rgba(45,25,91,.96) 58%, rgba(91,22,72,.94))", boxShadow: "0 12px 30px rgba(0,0,0,.30), 0 0 25px rgba(124,58,237,.20)", color: "rgba(226,232,240,.82)", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", letterSpacing: ".01em" };
 const analysisScoreHelpStyle: CSSProperties = { position: "relative", width: 19, height: 19, display: "inline-grid", placeItems: "center", borderRadius: "50%", border: "1px solid rgba(165,243,252,.38)", background: "rgba(56,189,248,.12)", color: "#a5f3fc", fontSize: 10.5, fontWeight: 950, lineHeight: 1, cursor: "help", outline: "none", boxShadow: "0 0 12px rgba(56,189,248,.18)" };
@@ -2511,6 +2610,7 @@ const analysisButtonStyle: CSSProperties = { minHeight: 42, borderRadius: 13, bo
 const analysisScheduleButtonStyle: CSSProperties = { minHeight: 38, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(115deg, rgba(8,47,79,0.74), rgba(49,32,91,0.76))", color: "rgba(240,249,255,.92)", padding: "8px 15px", fontSize: 11.5, fontWeight: 900, boxShadow: "0 9px 23px rgba(14,116,144,0.12)" };
 const analysisReportStyle: CSSProperties = { display: "grid", gap: 9, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" };
 const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid rgba(248,113,113,0.26)", background: "rgba(127,29,29,0.16)", color: "#fecaca", padding: "9px 11px", fontSize: 11.5, fontWeight: 750 };
+const analysisGlobalResetActionStyle: CSSProperties = { position: "absolute", left: "clamp(14px, 2.6vw, 28px)", right: "clamp(14px, 2.6vw, 28px)", bottom: "clamp(14px, 2.6vw, 28px)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, zIndex: 3 };
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
 const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
 const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
@@ -2525,6 +2625,7 @@ const mobileTabPositionStyle: CSSProperties = { color: "rgba(186,230,253,.72)", 
 const mobileTabProgressTrackStyle: CSSProperties = { gridColumn: "1 / -1", height: 3, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,.08)" };
 const mobileTabProgressValueStyle: CSSProperties = { display: "block", height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", transition: "width .2s ease" };
 const tabPanelStyle: CSSProperties = { minWidth: 0 };
+const tabResetActionStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", paddingTop: 12 };
 const sectionStackStyle: CSSProperties = { display: "grid", gap: 15, minWidth: 0 };
 const hiddenWorkspaceTabStyle: CSSProperties = { display: "none" };
 const sectionHeadingRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: 12 };

@@ -20,12 +20,12 @@ test("l'analyse iNrADN grandit au lieu de masquer son haut ou son bas", () => {
   assert.match(analysisStyle, /height: "auto"/);
   assert.match(
     analysisStyle,
-    /minHeight: "clamp\(610px, calc\(100svh - 245px\), 780px\)"/,
+    /minHeight: "max\(610px, calc\(100svh - 190px\)\)"/,
   );
   assert.match(analysisStyle, /boxSizing: "border-box"/);
   assert.doesNotMatch(
     analysisStyle,
-    /height: "clamp\(610px, calc\(100svh - 245px\), 780px\)"/,
+    /780px/,
   );
 });
 
