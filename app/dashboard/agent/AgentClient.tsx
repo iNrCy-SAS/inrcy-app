@@ -9460,9 +9460,6 @@ export default function AgentClient() {
                         <p>{i18nT("publication_ideas_help_reactivation")}</p>
                         <p>{i18nT("publication_ideas_help_fallback")}</p>
                         <p>{i18nT("publication_ideas_hint")}</p>
-                        <p>{i18nT("source_des_idees_value_75f522cb", {
-                          value0: agentSourceLabel(settingsConfig.source, runtimeT),
-                        })}</p>
                       </div>
                     </details>
                     <span className={styles.publicationIdeasCount}>

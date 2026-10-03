@@ -60,7 +60,10 @@ export async function GET(req: Request) {
   return NextResponse.redirect(target, {
     status: 302,
     headers: {
-      "cache-control": "public, max-age=300, stale-while-revalidate=3600",
+      // The signing helper may reuse a URL for up to 80% of its one-hour life.
+      // Keep this redirect in the browser only and never serve it stale: even
+      // at maximum reuse, the URL retains at least seven minutes of validity.
+      "cache-control": "private, max-age=300, must-revalidate",
       "x-robots-tag": "noindex, nofollow",
     },
   });

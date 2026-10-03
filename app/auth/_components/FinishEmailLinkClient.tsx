@@ -15,6 +15,7 @@ import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
 import { readAuthEmailLinkParams } from "@/lib/authEmailLinks";
 import { evaluatePassword } from "@/lib/passwordPolicy";
+import { coalescePasswordLinkPrepare } from "@/lib/authPasswordPrepare";
 import AuthLanguageSelector from "./AuthLanguageSelector";
 
 type Mode = "invite" | "reset";
@@ -41,9 +42,33 @@ type FinishPasswordResponse = {
   continuation_available?: boolean;
 };
 
+function prepareEmailLink(input: { mode: Mode; type: string; tokenHash: string; email: string | null }) {
+  const key = `${input.mode}:${input.type}:${input.tokenHash}:${input.email || ""}`;
+  return coalescePasswordLinkPrepare(key, () => fetch("/api/auth/finish-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      phase: "prepare",
+      mode: input.mode,
+      type: input.type,
+      token_hash: input.tokenHash,
+      email: input.email,
+    }),
+  }).then(async (response) => ({
+    ok: response.ok,
+    status: response.status,
+    payload: (await response.json().catch(() => null)) as FinishPasswordResponse | null,
+  })));
+}
+
 function normalizeEmail(value?: string | null) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized || null;
+}
+
+function isValidResendEmail(value: string | null) {
+  return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 
 function readSessionContinuation(value?: Partial<SessionContinuation> | null) {
@@ -120,7 +145,8 @@ export default function FinishEmailLinkClient({
   const rawType = searchParams.get("type");
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
-  const accountEmail = expectedEmail || sessionEmail;
+  const accountEmail = sessionEmail;
+  const resendEmail = isValidResendEmail(expectedEmail) ? expectedEmail : sessionEmail;
   const requestedNextPath = safeContinuePath(searchParams.get("next") || "/dashboard", "/dashboard");
   const nextPath = requestedNextPath.startsWith("/set-password") ? "/dashboard" : requestedNextPath;
   const sessionSourceRequested = allowSessionFallback || searchParams.get("source") === "session";
@@ -158,7 +184,24 @@ export default function FinishEmailLinkClient({
   useEffect(() => {
     let cancelled = false;
 
+    setReady(false);
+    setLinkRejected(false);
+    setAccountUnavailable(false);
+    setMessage(null);
+    setResendInfo(null);
+    setResendError(null);
+    setContinuation(null);
+    setServerContinuationAvailable(false);
+    setSessionEmail(null);
+
     const prepareCredential = async () => {
+      if (hasIncomingLinkError && !tokenHash) {
+        setLinkRejected(true);
+        setMessage(t("linkInvalid"));
+        setReady(true);
+        return;
+      }
+
       let browserContinuation: SessionContinuation | null = null;
       let serverCanResume = false;
       const { data, error } = await supabase.auth
@@ -172,7 +215,7 @@ export default function FinishEmailLinkClient({
       if (!error && currentUser) {
         setActiveBrowserUserId(currentUser.id);
 
-        if (expectedEmail && currentEmail && currentEmail !== expectedEmail) {
+        if (!tokenHash && expectedEmail && currentEmail && currentEmail !== expectedEmail) {
           window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail));
           return;
         }
@@ -180,8 +223,9 @@ export default function FinishEmailLinkClient({
         // A session is a valid continuation only when the route explicitly
         // requests it (legacy links/PKCE) or when it belongs to the email named
         // by the link. An unrelated open account can never consume the link.
-        const canReuseCurrentSession =
-          sessionSourceRequested || Boolean(expectedEmail && currentEmail === expectedEmail);
+        const canReuseCurrentSession = !tokenHash && (
+          sessionSourceRequested || Boolean(expectedEmail && currentEmail === expectedEmail)
+        );
 
         if (canReuseCurrentSession) {
           const { data: sessionData } = await supabase.auth
@@ -195,29 +239,57 @@ export default function FinishEmailLinkClient({
         }
       }
 
-      try {
-        const statusUrl = new URL("/api/auth/finish-password", window.location.origin);
-        statusUrl.searchParams.set("mode", mode);
-        if (expectedEmail) statusUrl.searchParams.set("email", expectedEmail);
-        const statusResponse = await fetch(statusUrl.toString(), {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        const statusPayload = (await statusResponse.json().catch(() => null)) as
-          | FinishPasswordResponse
-          | null;
-        serverCanResume = Boolean(statusResponse.ok && statusPayload?.continuation_available);
-        if (serverCanResume) setServerContinuationAvailable(true);
-      } catch {
-        serverCanResume = false;
+      if (!browserContinuation) {
+        try {
+          let result: { ok: boolean; status: number; payload: FinishPasswordResponse | null };
+          if (tokenHash) {
+            result = await prepareEmailLink({ mode, type, tokenHash, email: expectedEmail });
+          } else {
+            const statusUrl = new URL("/api/auth/finish-password", window.location.origin);
+            statusUrl.searchParams.set("mode", mode);
+            if (expectedEmail) statusUrl.searchParams.set("email", expectedEmail);
+            const response = await fetch(statusUrl.toString(), {
+              cache: "no-store",
+              credentials: "same-origin",
+            });
+            result = {
+              ok: response.ok,
+              status: response.status,
+              payload: (await response.json().catch(() => null)) as FinishPasswordResponse | null,
+            };
+          }
+          if (cancelled) return;
+          serverCanResume = Boolean(result.ok && result.payload?.continuation_available);
+          if (serverCanResume) {
+            const verifiedLinkEmail = normalizeEmail(result.payload?.email);
+            if (tokenHash && currentEmail && verifiedLinkEmail && currentEmail !== verifiedLinkEmail) {
+              window.location.replace(buildSwitchAccountUrl(currentEmail, verifiedLinkEmail));
+              return;
+            }
+            setServerContinuationAvailable(true);
+            setSessionEmail(verifiedLinkEmail);
+          } else if (!result.ok && result.status >= 500) {
+            setMessage(t("finishFailed"));
+          } else if (tokenHash || hasIncomingLinkError || sessionSourceRequested || result.payload?.code === "session_failed") {
+            setLinkRejected(true);
+            setMessage(result.payload?.code === "account_mismatch" ? t("accountMismatch") : t("linkInvalid"));
+          }
+        } catch {
+          if (cancelled) return;
+          setMessage(t("finishFailed"));
+        }
       }
 
-      if (hasIncomingLinkError && !browserContinuation && !serverCanResume) {
+      if (cancelled) return;
+      if (!browserContinuation && !serverCanResume && !tokenHash && hasIncomingLinkError) {
         setLinkRejected(true);
         setMessage(t("linkInvalid"));
-      } else if (sessionSourceRequested && !tokenHash && !browserContinuation && !serverCanResume) {
+      } else if (!browserContinuation && !serverCanResume && !tokenHash && sessionSourceRequested) {
         setLinkRejected(true);
         setMessage(t("sessionFailed"));
+      } else if (!browserContinuation && !serverCanResume && !tokenHash && !hasIncomingLinkError && !sessionSourceRequested) {
+        setLinkRejected(true);
+        setMessage(t("linkIncomplete"));
       }
 
       setReady(true);
@@ -236,6 +308,7 @@ export default function FinishEmailLinkClient({
     supabase,
     t,
     tokenHash,
+    type,
   ]);
 
   useEffect(() => {
@@ -282,7 +355,7 @@ export default function FinishEmailLinkClient({
   }
 
   async function onResendLink() {
-    if (!accountEmail || resendLoading || resendCooldown > 0) return;
+    if (!isValidResendEmail(resendEmail) || resendLoading || resendCooldown > 0) return;
 
     setResendLoading(true);
     setResendError(null);
@@ -292,7 +365,7 @@ export default function FinishEmailLinkClient({
       const res = await fetch("/api/auth/resend-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: accountEmail, mode, language: appLanguage }),
+        body: JSON.stringify({ email: resendEmail, mode, language: appLanguage }),
       });
       await res.json().catch(() => null);
 
@@ -301,11 +374,7 @@ export default function FinishEmailLinkClient({
         return;
       }
 
-      setResendInfo(
-        isInvite
-          ? t("resendInviteSuccess", { email: accountEmail })
-          : t("resendResetSuccess", { email: accountEmail }),
-      );
+      setResendInfo(t("resendRequestReceived"));
       setResendCooldown(30);
     } catch {
       setResendError(t("sendFailed"));
@@ -404,6 +473,7 @@ export default function FinishEmailLinkClient({
       // Une connexion contrôlée rend l’opération idempotente côté utilisateur.
       if (await recoverAlreadyCommittedPassword()) return;
       setLinkRejected(true);
+      setServerContinuationAvailable(false);
     }
 
     if (
@@ -411,11 +481,13 @@ export default function FinishEmailLinkClient({
       ["link_incomplete", "session_failed", "password_save_failed"].includes(payload?.code || "")
     ) {
       setLinkRejected(true);
+      setServerContinuationAvailable(false);
     }
 
     if (payload?.code === "account_unavailable") {
       setAccountUnavailable(true);
       setLinkRejected(true);
+      setServerContinuationAvailable(false);
     }
 
     setMessage(res.status === 429 ? t("resendRateLimited") : getFinishErrorMessage(payload?.code));
@@ -433,7 +505,7 @@ export default function FinishEmailLinkClient({
       return;
     }
 
-    if (!continuation && !tokenHash && !serverContinuationAvailable) {
+    if (!continuation && !serverContinuationAvailable) {
       setMessage(sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"));
       return;
     }
@@ -457,7 +529,7 @@ export default function FinishEmailLinkClient({
 
   const confirmTouched = confirm.length > 0;
   const confirmOk = confirmTouched && password === confirm;
-  const hasCredential = Boolean(serverContinuationAvailable || continuation || tokenHash);
+  const hasCredential = Boolean(serverContinuationAvailable || continuation);
   const canSubmit =
     ready &&
     !loading &&
@@ -465,8 +537,8 @@ export default function FinishEmailLinkClient({
     hasCredential &&
     strength.isAcceptable &&
     password === confirm;
-  const canResend =
-    !accountUnavailable && Boolean(accountEmail) && (linkRejected || !hasCredential);
+  const canResend = ready && !accountUnavailable && linkRejected && !hasCredential && isValidResendEmail(resendEmail);
+  const showExpired = ready && linkRejected && !hasCredential;
   const title = isInvite ? t("inviteTitle") : t("resetTitle");
   const body = isInvite ? t("inviteBody") : t("resetBody");
 
@@ -477,24 +549,28 @@ export default function FinishEmailLinkClient({
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300">
           {isInvite ? t("inviteEyebrow") : t("resetEyebrow")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold text-white">{title}</h1>
-        <p className="mt-4 text-sm leading-6 text-slate-200">{body}</p>
+        <h1 className="mt-3 text-3xl font-semibold text-white">{showExpired ? t("linkExpiredTitle") : title}</h1>
+        <p className="mt-4 text-sm leading-6 text-slate-200">{showExpired ? t("linkInvalid") : body}</p>
         {accountEmail ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">
             {t("expectedAccount")} <strong>{accountEmail}</strong>
           </p>
         ) : null}
 
-        {ready && !hasCredential && !message ? (
+        {!ready ? (
+          <p data-testid="auth-link-loading" className="mt-5 text-sm text-slate-200">{t("verifying")}</p>
+        ) : null}
+
+        {ready && !hasCredential ? (
           <p
             data-testid="auth-link-error"
             className="mt-5 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
           >
-            {sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete")}
+            {message || (sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"))}
           </p>
         ) : null}
 
-        <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+        {ready && hasCredential ? <form onSubmit={handleSubmit} className="mt-7 space-y-4">
           <div className="relative">
             <input
               className="w-full rounded-2xl border border-white/10 bg-white/95 px-4 py-3 pr-12 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-300"
@@ -582,28 +658,6 @@ export default function FinishEmailLinkClient({
             </div>
           ) : null}
 
-          {canResend ? (
-            <div className="space-y-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3">
-              <div className="text-sm text-cyan-50">
-                {isInvite ? t("needInviteLink") : t("needResetLink")}
-              </div>
-              <button
-                type="button"
-                onClick={onResendLink}
-                disabled={resendLoading || resendCooldown > 0}
-                className="inline-flex w-full items-center justify-center rounded-xl border border-cyan-200/30 bg-white/10 px-4 py-2 text-sm font-medium text-cyan-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {resendLoading
-                  ? t("sending")
-                  : resendCooldown > 0
-                  ? t("resendIn", { seconds: resendCooldown })
-                  : t("sendNewLink")}
-              </button>
-              {resendInfo ? <div className="text-sm text-emerald-200">{resendInfo}</div> : null}
-              {resendError ? <div className="text-sm text-rose-200">{resendError}</div> : null}
-            </div>
-          ) : null}
-
           {success ? (
             <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
               {success}
@@ -631,7 +685,39 @@ export default function FinishEmailLinkClient({
               {t("backToLogin")}
             </Link>
           </div>
-        </form>
+        </form> : null}
+
+        {canResend ? (
+          <div className="mt-7 space-y-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3">
+            <div className="text-sm text-cyan-50">
+              {isInvite ? t("needInviteLink") : t("needResetLink")}
+            </div>
+            <button
+              data-testid="auth-resend-link"
+              type="button"
+              onClick={onResendLink}
+              disabled={resendLoading || resendCooldown > 0}
+              className="inline-flex w-full items-center justify-center rounded-xl border border-cyan-200/30 bg-white/10 px-4 py-2 text-sm font-medium text-cyan-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resendLoading
+                ? t("sending")
+                : resendCooldown > 0
+                ? t("resendIn", { seconds: resendCooldown })
+                : t("sendNewLink")}
+            </button>
+            {resendInfo ? <div className="text-sm text-emerald-200">{resendInfo}</div> : null}
+            {resendError ? <div className="text-sm text-rose-200">{resendError}</div> : null}
+          </div>
+        ) : null}
+
+        {ready && !hasCredential ? (
+          <Link
+            href={`/login?lang=${appLanguage}`}
+            className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5"
+          >
+            {t("backToLogin")}
+          </Link>
+        ) : null}
       </div>
     </main>
   );

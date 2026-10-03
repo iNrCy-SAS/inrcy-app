@@ -34,8 +34,7 @@ export async function POST(request: Request) {
     .update({ dashboard_setup_intro_seen_at: new Date().toISOString() })
     .eq("id", accountId)
     .is("dashboard_setup_intro_seen_at", null)
-    .select("id")
-    .maybeSingle();
+    .select("id");
 
   if (error) {
     console.error("[dashboard/setup-intro] claim failed", { accountId, code: error.code });
@@ -43,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { accountId, show: Boolean(data) },
+    { accountId, show: Array.isArray(data) && data.length > 0 },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

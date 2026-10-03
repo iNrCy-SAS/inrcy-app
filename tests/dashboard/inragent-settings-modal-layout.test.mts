@@ -35,28 +35,20 @@ test("les réglages iNrAgent exploitent une disposition desktop large et équili
   );
 });
 
-test("les onglets Publier sont intégrés au header et passent sur une ligne dédiée en responsive", () => {
-  const headerStart =
-    client.match(/<header\r?\n\s+className=\{styles\.settingsModalHeader\}/)
-      ?.index ?? -1;
-  const tabsStart = client.indexOf("className={styles.settingsPublishTabs}", headerStart);
-  const headerEnd = client.indexOf("</header>", headerStart);
-
-  assert.ok(headerStart >= 0);
-  assert.ok(tabsStart > headerStart);
-  assert.ok(tabsStart < headerEnd);
-  assert.match(client, /aria-current=\{[\s\S]*?settingsPublishTab === "settings"/);
+test("les idées Publier ont leur raccourci et leur espace distincts des réglages", () => {
+  assert.match(client, /className=\{styles\.ideasActionButton\}/);
+  assert.match(client, /setSettingsKey\(null\);\s*setPublicationIdeasDraft\(configs\.publish\.publicationIdeas\);\s*setPublicationIdeasOpen\(true\)/);
+  assert.match(client, /publicationIdeasOpen \? styles\.publicationIdeasWorkspace : ""/);
+  assert.match(client, /display: publicationIdeasOpen \? "none" : undefined/);
+  assert.match(client, /\{publicationIdeasOpen \? \(\s*<section className=\{styles\.publicationIdeasPanel\}>/);
+  assert.doesNotMatch(client, /className=\{styles\.settingsPublishTabs\}/);
   assert.match(
     styles,
-    /\.settingsModalHeader\[data-has-tabs="true"\] \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\)/,
+    /\.settingsModal\.automationSettingsModal\.publicationIdeasWorkspace \{[\s\S]*?width: min\(1500px, calc\(100vw - 32px\)\)/,
   );
   assert.match(
     styles,
-    /@media \(max-width: 980px\) \{[\s\S]*?grid-template-areas:[\s\S]*?"tabs tabs"/,
-  );
-  assert.match(
-    styles,
-    /\.automationSettingsModal \.settingsModalHeader\[data-has-tabs="true"\] \{[\s\S]*?"tabs tabs"[\s\S]*?\.settingsPublishTabs \{[\s\S]*?grid-area: tabs;[\s\S]*?width: 100%/,
+    /@media \(max-width: 760px\) \{[\s\S]*?\.settingsModal\.automationSettingsModal\.publicationIdeasWorkspace \{[\s\S]*?width: min\(100%, 430px\)/,
   );
 });
 

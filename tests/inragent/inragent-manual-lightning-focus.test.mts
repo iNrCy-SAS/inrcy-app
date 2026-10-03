@@ -12,7 +12,7 @@ const route = readFileSync(new URL(
 test("un éclair tire à parts égales entre une idée disponible et l'iNr'ADN", () => {
   assert.equal(chooseInrAgentInstantFocusMode(3, 0), "saved_idea");
   assert.equal(chooseInrAgentInstantFocusMode(3, 1), "business_dna");
-  assert.match(route, /chooseInrAgentInstantFocusMode\(availableIdeas\.length, randomInt\(2\)\)/);
+  assert.match(route, /chooseInrAgentInstantFocusMode\(availableIdeaRows\.length, randomInt\(2\)\)/);
   assert.match(route, /const focusMode = isCron\s*\? "saved_idea"/);
 });
 
@@ -30,7 +30,8 @@ test("le brouillon éclair n'a aucune programmation implicite", () => {
 });
 
 test("une idée instantanée n'est réservée que si tirée et libérée sur échec", () => {
-  assert.match(route, /if \(focusMode === "saved_idea"\) \{\s*while \(availableIdeas\.length\)/);
+  assert.match(route, /if \(focusMode === "saved_idea"\) \{\s*const claimedFocus = await claimFirstAvailableInrAgentIdea\(/);
+  assert.match(route, /claim: \(ideaText\) => claimInrAgentPublicationIdea\(/);
   assert.match(route, /reservedInstantIdea = true/);
   assert.match(route, /finally \{[\s\S]*?if \(reservedInstantIdea && instantActionId\) \{\s*await releaseInrAgentPublicationIdea/);
 });

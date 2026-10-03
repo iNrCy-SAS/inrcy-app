@@ -23,7 +23,9 @@ import {
   PASSWORD_FINISH_CONTINUATION_TTL_SECONDS,
   PASSWORD_FINISH_COOKIE,
   openPasswordFinishContinuation,
+  passwordLinkFingerprint,
   sealPasswordFinishContinuation,
+  type PasswordFinishContinuation,
   type PasswordFinishSession,
 } from "@/lib/authPasswordContinuation";
 import {
@@ -37,6 +39,7 @@ export const runtime = "nodejs";
 type FinishMode = "invite" | "reset";
 
 type Body = {
+  phase?: "prepare";
   mode?: FinishMode;
   token_hash?: string;
   type?: string;
@@ -136,6 +139,7 @@ function attachContinuationCookie(
     userId: string;
     email: string | null;
     session: PasswordFinishSession;
+    linkFingerprint?: string | null;
   },
 ) {
   response.cookies.set({
@@ -184,6 +188,49 @@ function isExpectedExpiredOtpError(error: unknown) {
   );
 }
 
+function isRejectedSessionError(error: unknown) {
+  const code = String(passwordWriteErrorCode(error) || "").toLowerCase();
+  const status = error && typeof error === "object"
+    ? Number((error as { status?: unknown }).status)
+    : 0;
+  return [400, 401, 403].includes(status) ||
+    ["refresh_token_not_found", "refresh_token_already_used", "session_not_found", "invalid_refresh_token"].includes(code);
+}
+
+type ContinuationValidation =
+  | { state: "valid"; user: User; session: Session }
+  | { state: "invalid" }
+  | { state: "unavailable" };
+
+async function validateSealedContinuation(
+  continuation: PasswordFinishContinuation,
+): Promise<ContinuationValidation> {
+  const auth = buildAuthClient();
+  const { data, error } = await auth.auth.setSession(continuation.session);
+  if (error || !data.session) {
+    return { state: isRejectedSessionError(error) || !error ? "invalid" : "unavailable" };
+  }
+
+  const { data: userData, error: userError } = await auth.auth.getUser();
+  if (userError || !userData.user) {
+    return { state: isRejectedSessionError(userError) || !userError ? "invalid" : "unavailable" };
+  }
+
+  const verifiedEmail = normalizeEmail(userData.user.email);
+  if (userData.user.id !== continuation.userId ||
+      (continuation.email && verifiedEmail !== normalizeEmail(continuation.email))) {
+    return { state: "invalid" };
+  }
+
+  const { data: latestSessionData } = await auth.auth.getSession();
+
+  return {
+    state: "valid",
+    user: userData.user,
+    session: latestSessionData.session || data.session,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const mode = readMode(req.nextUrl.searchParams.get("mode"));
   const expectedEmail = normalizeEmail(req.nextUrl.searchParams.get("email"));
@@ -194,8 +241,28 @@ export async function GET(req: NextRequest) {
     mode,
     email: expectedEmail,
   });
-  const response = json({ continuation_available: Boolean(continuation) });
-  return sealedValue && !continuation ? clearContinuationCookie(response) : response;
+  if (!continuation) {
+    const response = json({ continuation_available: false });
+    return sealedValue ? clearContinuationCookie(response) : response;
+  }
+
+  const validation = await validateSealedContinuation(continuation);
+  if (validation.state === "unavailable") {
+    return json({ continuation_available: false, code: "session_check_failed" }, 503);
+  }
+  if (validation.state === "invalid") {
+    return clearContinuationCookie(json({ continuation_available: false }));
+  }
+
+  const response = json({
+    continuation_available: true,
+    email: normalizeEmail(validation.user.email),
+  });
+  const refreshed = sessionPayload(validation.session);
+  return refreshed ? attachContinuationCookie(response, {
+    ...continuation,
+    session: refreshed,
+  }) : response;
 }
 
 export async function POST(req: NextRequest) {
@@ -224,7 +291,88 @@ export async function POST(req: NextRequest) {
     const sealedContinuation = openPasswordFinishContinuation(sealedCookieValue, {
       mode,
       email: expectedEmail,
+      ...(body?.phase === "prepare" ? { tokenHash } : {}),
     });
+
+    if (body?.phase === "prepare") {
+      if (!tokenHash || !isPlausibleTokenHash(tokenHash)) {
+        return json({ code: "link_incomplete" }, 400);
+      }
+
+      if (sealedContinuation) {
+        const validation = await validateSealedContinuation(sealedContinuation);
+        if (validation.state === "valid") {
+          const refreshed = sessionPayload(validation.session);
+          const response = json({
+            ok: true,
+            continuation_available: true,
+            email: normalizeEmail(validation.user.email),
+          });
+          return refreshed ? attachContinuationCookie(response, {
+            ...sealedContinuation,
+            session: refreshed,
+          }) : response;
+        }
+        if (validation.state === "unavailable") {
+          return json({ code: "session_check_failed" }, 503);
+        }
+      }
+
+      const limited = await enforceRateLimit({
+        name: "auth_finish_password_prepare",
+        identifier: `${getClientIp(req)}:${expectedEmail || "unknown"}`,
+        limit: 8,
+        window: "15 m",
+        failClosed: false,
+      });
+      if (limited) return limited;
+
+      const auth = buildAuthClient();
+      const { data, error } = await auth.auth.verifyOtp({
+        type: expectedType,
+        token_hash: tokenHash,
+      });
+      if (error) {
+        const expired = isExpectedExpiredOtpError(error);
+        log[expired ? "info" : "warn"]("auth_password_link_rejected", {
+          route: "/api/auth/finish-password",
+          stage: "prepare_otp",
+          mode,
+          error_code: passwordWriteErrorCode(error),
+          handled: expired,
+        });
+        return json({
+          code: expired || isRejectedSessionError(error) ? "auth_link_invalid" : "verification_unavailable",
+        }, expired || isRejectedSessionError(error) ? 400 : 503);
+      }
+
+      const verifiedEmail = normalizeEmail(data.user?.email);
+      const verifiedSession = sessionPayload(data.session);
+      if (!data.user || !verifiedSession) {
+        return json({ code: "session_failed" }, 401);
+      }
+      if (expectedEmail && verifiedEmail !== expectedEmail) {
+        log.warn("auth_password_account_mismatch", {
+          route: "/api/auth/finish-password",
+          stage: "prepare_otp",
+          mode,
+          user_id: data.user.id,
+        });
+        return json({ code: "account_mismatch" }, 403);
+      }
+
+      return attachContinuationCookie(json({
+        ok: true,
+        continuation_available: true,
+        email: verifiedEmail,
+      }), {
+        mode,
+        userId: data.user.id,
+        email: verifiedEmail,
+        session: verifiedSession,
+        linkFingerprint: passwordLinkFingerprint(tokenHash),
+      });
+    }
     // The encrypted HttpOnly continuation is authoritative. The body variant
     // remains accepted for legacy PKCE/session links, but failed writes never
     // expose session tokens back to browser JavaScript.
@@ -464,6 +612,8 @@ export async function POST(req: NextRequest) {
           userId,
           email: verifiedEmail || expectedEmail,
           session: continuationPayload,
+          linkFingerprint: sealedContinuation?.linkFingerprint ||
+            (tokenHash ? passwordLinkFingerprint(tokenHash) : null),
         });
       }
 

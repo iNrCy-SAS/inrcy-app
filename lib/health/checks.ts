@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 import { stripeGet } from "@/lib/stripeRest";
 import { buildMediaPipelineCertificationSnapshot } from "@/lib/mediaPipelineCertification";
+import { verifySmtpWithHandshakeRetry } from "@/lib/health/smtpRetryPolicy";
 import {
   assertTxSmtpCircuitClosed,
   clearTxSmtpCircuit,
@@ -266,27 +267,33 @@ async function checkSmtp(): Promise<HealthCheckResult> {
       optionalEnv("TX_SMTP_TLS_REJECT_UNAUTHORIZED", isProd ? "true" : "false") !== "false";
     const secure =
       secureEnv === "true" ? true : secureEnv === "false" ? false : port === 465;
+    const identity = { host, port, user, pass, secure };
 
-    await assertTxSmtpCircuitClosed();
-
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-      connectionTimeout: 15_000,
-      greetingTimeout: 15_000,
-      socketTimeout: 20_000,
-      tls: {
-        rejectUnauthorized: tlsRejectUnauthorized,
-      },
-    });
+    await assertTxSmtpCircuitClosed(identity);
 
     try {
-      await transporter.verify();
-      await clearTxSmtpCircuit();
+      await verifySmtpWithHandshakeRetry(async (attempt) => {
+        // The retry is only for the fast, pre-authentication OpenSSL protocol
+        // alert observed from OVH. Bound its second connection to five seconds
+        // so a health cron cannot be held up by an intermittent server.
+        const retryTimeout = attempt === 2 ? 5_000 : 15_000;
+        const transporter = nodemailer.createTransport({
+          host,
+          port,
+          secure,
+          auth: { user, pass },
+          connectionTimeout: retryTimeout,
+          greetingTimeout: retryTimeout,
+          socketTimeout: attempt === 2 ? 5_000 : 20_000,
+          tls: {
+            rejectUnauthorized: tlsRejectUnauthorized,
+          },
+        });
+        await transporter.verify();
+      });
+      await clearTxSmtpCircuit(identity);
     } catch (error) {
-      await openTxSmtpCircuit(error);
+      await openTxSmtpCircuit(error, identity);
       throw error;
     }
   });

@@ -4,6 +4,11 @@ import test from "node:test";
 
 import { buildInrAgentEditorialFocusPlan } from "../../lib/inrAgentEditorialVariation.ts";
 import { wasInrAgentPublicationIdeaPreviouslyGenerated } from "../../lib/inrAgentPublicationIdeaReuse.ts";
+import {
+  claimFirstAvailableInrAgentIdea,
+  inrAgentPublicationIdeaSubjectKey,
+  matchingInrAgentPublicationIdeaRow,
+} from "../../lib/inrAgentPublicationIdeaSelection.ts";
 
 const ideas = [
   "Isolation des combles",
@@ -95,6 +100,68 @@ test("la consommation est atomique avec l'action prête et l'annulation libère 
   assert.match(sql, /Les anciennes actions failed n'ont pas généré de contenu/);
   assert.match(sql, /editorialAttempts'[\s\S]*?then 12 else 8 end/);
   assert.match(sql, /from jsonb_each\(case[\s\S]*?post\.content ->> 'content'/);
+});
+
+test("une idée déjà réservée ne génère pas de faux 406 et une vraie erreur remonte", () => {
+  const claim = readFileSync(new URL(
+    "../../lib/inrAgentPublicationIdeaLifecycle.ts",
+    import.meta.url,
+  ), "utf8");
+  assert.match(claim, /\.eq\("status", "active"\)\s*\.is\("reserved_action_id", null\)\s*\.select\("idea_text"\);/);
+  assert.doesNotMatch(claim, /\.select\("idea_text"\)\s*\.maybeSingle\(\)/);
+  assert.match(claim, /if \(error\?\.code === "23505"\) return false;\s*if \(error\) throw error;\s*if \(Array\.isArray\(data\) && data\.length > 0\) return true;/);
+  assert.match(claim, /\.eq\("reserved_action_id", args\.actionId\)\s*\.limit\(1\);/);
+  assert.match(claim, /if \(lookupError\) throw lookupError;\s*return Array\.isArray\(sameReservation\) && sameReservation\.length > 0;/);
+});
+
+test("une idée multiligne réserve son texte brut et un claim refusé termine sans boucle", async () => {
+  const multilineIdea = "Présenter notre offre\navec un exemple concret.";
+  const secondIdea = "Répondre à une question client.";
+  const rows = [{ idea_text: multilineIdea }, { idea_text: secondIdea }];
+  const normalizedFocus = focusFor("multiline", [multilineIdea]);
+  assert.equal(normalizedFocus.subject, "Présenter notre offre avec un exemple concret.");
+  assert.equal(inrAgentPublicationIdeaSubjectKey(multilineIdea), normalizedFocus.subject);
+  assert.equal(matchingInrAgentPublicationIdeaRow(rows, normalizedFocus.subject), rows[0]);
+
+  const refusedClaims: string[] = [];
+  const refused = await claimFirstAvailableInrAgentIdea({
+    rows,
+    buildFocus: (available) => focusFor("multiline", available),
+    claim: async (ideaText) => { refusedClaims.push(ideaText); return false; },
+  });
+  assert.equal(refused, null);
+  assert.deepEqual(refusedClaims, [multilineIdea, secondIdea]);
+
+  let unmatchedFocusAttempts = 0;
+  const unmatched = await claimFirstAvailableInrAgentIdea({
+    rows,
+    buildFocus: () => {
+      unmatchedFocusAttempts += 1;
+      return { source: "professional_idea", subject: "Sujet absent de la liste" };
+    },
+    claim: async () => { throw new Error("Aucun claim ne doit partir sans ligne correspondante"); },
+  });
+  assert.equal(unmatched, null);
+  assert.equal(unmatchedFocusAttempts, rows.length);
+
+  const acceptedClaims: string[] = [];
+  const accepted = await claimFirstAvailableInrAgentIdea({
+    rows,
+    buildFocus: (available) => focusFor("multiline", available),
+    claim: async (ideaText) => { acceptedClaims.push(ideaText); return ideaText === multilineIdea; },
+  });
+  assert.deepEqual(acceptedClaims, [multilineIdea]);
+  assert.equal(accepted?.subject, multilineIdea);
+
+  const route = readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8");
+  const planner = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
+  assert.match(route, /claimFirstAvailableInrAgentIdea\(\{/);
+  assert.match(route, /runtimeFocus = \{ \.\.\.runtimeFocus, subject: ideaRow\.idea_text \}/);
+  assert.match(planner, /claimedIdeaBySlotKey\.set\(slot\.slotKey, ideaText\)/);
+  assert.match(planner, /ideaText: claimedIdeaText/);
+  const sql = readFileSync(new URL("../../supabase/migrations/20261003140451_inr_agent_publication_idea_lifecycle.sql", import.meta.url), "utf8");
+  assert.match(sql, /new\.status not in \('pending_validation', 'prepared', 'pending'\)/);
+  assert.match(sql, /idea_text = v_idea/);
 });
 
 test("une ancienne action peut régénérer sa propre idée même si une nouvelle action l'a réutilisée", () => {

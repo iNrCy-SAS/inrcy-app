@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { log } from "@/lib/observability/logger";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import {
   hasKnownInrcyAccountForEmail,
@@ -54,14 +54,15 @@ async function resolveRequestLanguage(req: Request, body: Body | null) {
   return appLanguageFromLocale(locale);
 }
 
-function successMessage(mode: ResendMode, email: string) {
-  return mode === "invite"
-    ? `Un nouveau lien d’accès vient d’être envoyé à ${email}.`
-    : `Un nouveau lien de réinitialisation vient d’être envoyé à ${email}.`;
+function genericSuccessMessage() {
+  return "Si ce compte existe, un nouveau lien sera envoyé à cette adresse.";
 }
 
-function genericInviteMessage(email: string) {
-  return `Si un accès iNrCy existe pour ${email}, un nouveau lien vient d’être envoyé.`;
+function sendFailed() {
+  return NextResponse.json(
+    { error: "Impossible d’envoyer un nouveau lien pour le moment. Veuillez réessayer ou contacter le support." },
+    { status: 503 },
+  );
 }
 
 export async function POST(req: Request) {
@@ -96,18 +97,16 @@ export async function POST(req: Request) {
       });
 
       if (error) {
-        return NextResponse.json(
-          { error: getSimpleFrenchErrorMessage(error, "Impossible d’envoyer un nouveau lien pour le moment.") },
-          { status: 400 },
-        );
+        log.warn("auth_resend_link_failed", { mode, error_code: error.code || "unknown" });
+        return sendFailed();
       }
 
-      return NextResponse.json({ ok: true, message: successMessage(mode, email) });
+      return NextResponse.json({ ok: true, message: genericSuccessMessage() });
     }
 
     const canResendInvite = await hasKnownInrcyAccountForEmail(email);
     if (!canResendInvite) {
-      return NextResponse.json({ ok: true, message: genericInviteMessage(email) });
+      return NextResponse.json({ ok: true, message: genericSuccessMessage() });
     }
 
     const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
@@ -116,7 +115,7 @@ export async function POST(req: Request) {
     });
 
     if (!inviteResult.error) {
-      return NextResponse.json({ ok: true, message: successMessage(mode, email) });
+      return NextResponse.json({ ok: true, message: genericSuccessMessage() });
     }
 
     if (isExistingAuthUserError(inviteResult.error)) {
@@ -127,19 +126,28 @@ export async function POST(req: Request) {
       if (!recoveryResult.error) {
         return NextResponse.json({
           ok: true,
-          message: `Un nouveau lien pour définir votre mot de passe vient d’être envoyé à ${email}.`,
+          message: genericSuccessMessage(),
         });
       }
+      log.warn("auth_resend_link_failed", {
+        mode,
+        stage: "recovery_fallback",
+        error_code: recoveryResult.error.code || "unknown",
+      });
     }
 
-    return NextResponse.json(
-      { error: getSimpleFrenchErrorMessage(inviteResult.error, "Impossible d’envoyer un nouveau lien pour le moment.") },
-      { status: 400 },
-    );
+    log.warn("auth_resend_link_failed", {
+      mode,
+      stage: "invite",
+      error_code: inviteResult.error.code || "unknown",
+    });
+    return sendFailed();
   } catch (error) {
-    return NextResponse.json(
-      { error: getSimpleFrenchErrorMessage(error, "Impossible d’envoyer un nouveau lien pour le moment.") },
-      { status: 500 },
-    );
+    log.error("auth_resend_link_exception", {
+      error_code: error && typeof error === "object" && "code" in error
+        ? String(error.code)
+        : "unknown",
+    });
+    return sendFailed();
   }
 }

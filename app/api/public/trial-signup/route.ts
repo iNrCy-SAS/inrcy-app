@@ -712,7 +712,7 @@ export async function POST(req: Request) {
       trial_days: trialDays,
       trial_end_at: end.toISOString(),
       booking_token: bookingToken,
-      message: "Invitation envoyée. Le professionnel peut créer son mot de passe depuis l'email reçu.",
+      message: "Invitation prise en charge. Le lien de création du mot de passe est en cours d'acheminement ; sa réception reste à confirmer.",
     });
   } catch (error: unknown) {
     const errorCode = getSignupFailureErrorCode(error);

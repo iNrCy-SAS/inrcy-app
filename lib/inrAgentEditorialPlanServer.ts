@@ -21,6 +21,10 @@ import {
   releaseInrAgentPublicationIdea,
 } from "@/lib/inrAgentPublicationIdeaLifecycle";
 import { wasInrAgentPublicationIdeaPreviouslyGenerated } from "@/lib/inrAgentPublicationIdeaReuse";
+import {
+  inrAgentPublicationIdeaSubjectKey,
+  matchingInrAgentPublicationIdeaRow,
+} from "@/lib/inrAgentPublicationIdeaSelection";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import {
   inrAgentEditorialRetryDecision,
@@ -652,7 +656,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     userId: args.userId,
     publicationIdeas: configuredIdeas,
   });
-  const ideaByText = new Map(ideaRows.map((idea) => [idea.idea_text, idea]));
+  const ideaForFocus = (subject: string) => matchingInrAgentPublicationIdeaRow(ideaRows, subject);
 
   // Les idées du pro sont traitées avant tout le reste. Les créneaux qui ne
   // reçoivent pas une idée manuelle obtiennent une combinaison équilibrée
@@ -690,7 +694,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
       existingFocusBySlotKey.set(slotKey, focus);
       continue;
     }
-    const idea = ideaByText.get(focus.subject);
+    const idea = ideaForFocus(focus.subject);
     if (idea?.status === "used" && idea.used_action_id === row.id) {
       existingFocusBySlotKey.set(slotKey, focus);
       continue;
@@ -699,7 +703,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
       await claimInrAgentPublicationIdea({
         supabase: args.supabase,
         userId: args.userId,
-        ideaText: focus.subject,
+        ideaText: idea.idea_text,
         actionId: row.id,
       })) {
       idea.reserved_action_id = row.id;
@@ -742,7 +746,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
         Boolean(cleanText(asRecord(row.metadata).editorialPreviouslyGeneratedIdea, 500)))
       .map((row) => normalizeInrAgentEditorialFocus(rowEditorialPlan(row).focus))
       .filter((focus) => focus?.source === "professional_idea" &&
-        ideaByText.get(focus.subject)?.status === "active")
+        ideaForFocus(focus.subject)?.status === "active")
       .map((focus) => focus!.subject),
     historicalSubjects: [
       ...publishedHistory,
@@ -757,6 +761,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     seed: `${args.userId}:inr-agent-editorial`,
   });
   const claimedDuringPlan = new Set<string>();
+  const claimedIdeaBySlotKey = new Map<string, string>();
   for (const slot of plan) {
     if (slot.focus.source !== "professional_idea") continue;
     const existingRow = existingBySlot.get(slot.slotKey);
@@ -765,10 +770,10 @@ export async function reconcileInrAgentEditorialPlan(args: {
     const originallyReserved = existingFocusBySlotKey.has(slot.slotKey);
     if (originallyReserved) continue;
 
-    const candidates = [
-      slot.focus.subject,
-      ...availableIdeas.filter((idea) => idea !== slot.focus.subject),
-    ];
+    const preferredIdea = ideaForFocus(slot.focus.subject)?.idea_text;
+    const candidates = preferredIdea && availableIdeas.includes(preferredIdea)
+      ? [preferredIdea, ...availableIdeas.filter((idea) => idea !== preferredIdea)]
+      : availableIdeas;
     let claimed = false;
     for (const ideaText of candidates) {
       if (claimedDuringPlan.has(ideaText)) continue;
@@ -779,8 +784,9 @@ export async function reconcileInrAgentEditorialPlan(args: {
         actionId,
       }))) continue;
       claimedDuringPlan.add(ideaText);
+      claimedIdeaBySlotKey.set(slot.slotKey, ideaText);
       claimed = true;
-      if (ideaText !== slot.focus.subject) {
+      if (inrAgentPublicationIdeaSubjectKey(ideaText) !== slot.focus.subject) {
         slot.focus = buildInrAgentEditorialFocusPlan({
           slots: [slot],
           business: generationContext.business,
@@ -860,13 +866,14 @@ export async function reconcileInrAgentEditorialPlan(args: {
       .upsert(rowsToInsert, { onConflict: "id", ignoreDuplicates: true });
     if (error) {
       for (const slot of plan) {
-        if (!claimedDuringPlan.has(slot.focus.subject)) continue;
+        const claimedIdeaText = claimedIdeaBySlotKey.get(slot.slotKey);
+        if (!claimedIdeaText) continue;
         await releaseInrAgentPublicationIdea({
           supabase: args.supabase,
           userId: args.userId,
           actionId: existingBySlot.get(slot.slotKey)?.id ||
             inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch),
-          ideaText: slot.focus.subject,
+          ideaText: claimedIdeaText,
         });
       }
       throw error;
@@ -874,7 +881,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     const claimedNewSlots = plan.filter((slot) =>
       !existingBySlot.has(slot.slotKey) &&
       slot.focus.source === "professional_idea" &&
-      claimedDuringPlan.has(slot.focus.subject),
+      claimedIdeaBySlotKey.has(slot.slotKey),
     );
     if (claimedNewSlots.length) {
       const { data: persistedRows, error: verifyError } = await args.supabase
@@ -896,11 +903,13 @@ export async function reconcileInrAgentEditorialPlan(args: {
             )
           : null;
         if (persistedFocus?.subject !== slot.focus.subject) {
+          const claimedIdeaText = claimedIdeaBySlotKey.get(slot.slotKey);
+          if (!claimedIdeaText) continue;
           await releaseInrAgentPublicationIdea({
             supabase: args.supabase,
             userId: args.userId,
             actionId,
-            ideaText: slot.focus.subject,
+            ideaText: claimedIdeaText,
           });
         }
       }

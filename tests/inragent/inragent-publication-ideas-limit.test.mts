@@ -81,7 +81,7 @@ test("the UI adds fields progressively and the publication prompt consumes non-e
   assert.match(agentClient, /publicationIdeasAddButton/);
   assert.match(
     agentClient,
-    /appendInrAgentPublicationIdeaSlot\(\s*settingsConfig\.publicationIdeas/,
+    /setPublicationIdeasDraft\(appendInrAgentPublicationIdeaSlot\(publicationIdeasDraft\)\)/,
   );
   assert.match(
     agentClient,
@@ -118,7 +118,10 @@ test("every publication idea field reuses the shared application microphone", ()
     /maxLength=\{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH\}/,
   );
   assert.match(ideasUi, /onBusyChange=\{\(busy\)/);
-  assert.match(ideasUi, /readOnly=\{settingsPublicationIdeaVoiceBusy\}/);
+  assert.match(
+    ideasUi,
+    /readOnly=\{settingsPublicationIdeaVoiceBusy \|\| publicationIdeasSaveState === "saving"\}/,
+  );
   assert.match(
     agentStyles,
     /\.publicationIdeaTextareaWrap\s*\{[\s\S]*?position:\s*relative/,

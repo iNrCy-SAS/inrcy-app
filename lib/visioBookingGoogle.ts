@@ -8,6 +8,7 @@ import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
+import { createScopedTokenCache } from "@/lib/visioGoogleTokenScope";
 import {
   discardAwaitingVisioBookingInternalAlertIntent,
   ensureVisioBookingInternalAlert,
@@ -124,6 +125,7 @@ import type { VisioBookingClaims } from "@/lib/visioBookingToken";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_ACCESS_TOKEN_CACHE_MAX_MS = 30_000;
 const INTEGRATION_SOURCE = "internal_staff";
 const INTEGRATION_PRODUCT = "visio_booking";
 const PRIVATE_BOOKING_KEY = "inrcyBooking";
@@ -374,9 +376,9 @@ async function refreshGoogleAccessToken(row: GoogleIntegrationRow) {
     throw new Error(`visio_google_refresh_failed:${payload.error || response.status}`);
   }
 
-  const expiresAt = new Date(
-    Date.now() + Math.max(60, Number(payload.expires_in || 3600)) * 1_000,
-  ).toISOString();
+  const expiresAtMs =
+    Date.now() + Math.max(60, Number(payload.expires_in || 3600)) * 1_000;
+  const expiresAt = new Date(expiresAtMs).toISOString();
   const { error } = await supabaseAdmin
     .from("integrations")
     .update({
@@ -388,17 +390,29 @@ async function refreshGoogleAccessToken(row: GoogleIntegrationRow) {
     .eq("id", row.id)
     .eq("user_id", row.user_id);
   if (error) throw new Error(`visio_google_token_store_failed:${error.message}`);
-  return payload.access_token;
+  return {
+    value: payload.access_token,
+    validUntilMs: Math.min(expiresAtMs - 60_000, Date.now() + GOOGLE_ACCESS_TOKEN_CACHE_MAX_MS),
+  };
 }
 
-async function getGoogleAccessToken(forceRefresh = false) {
+async function loadGoogleAccessToken(forceRefresh: boolean) {
   const row = await readGoogleIntegration();
   const accessToken = tryDecryptToken(row.access_token_enc);
   const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   if (!forceRefresh && accessToken && expiresAt > Date.now() + 60_000) {
-    return accessToken;
+    return {
+      value: accessToken,
+      validUntilMs: Math.min(expiresAt - 60_000, Date.now() + GOOGLE_ACCESS_TOKEN_CACHE_MAX_MS),
+    };
   }
   return refreshGoogleAccessToken(row);
+}
+
+const googleAccessTokenCache = createScopedTokenCache(loadGoogleAccessToken);
+
+async function getGoogleAccessToken(forceRefresh = false) {
+  return googleAccessTokenCache.get(forceRefresh);
 }
 
 async function googleCalendarRequest<T>(
@@ -1293,11 +1307,21 @@ async function acquireTeamCalendarMutationLock(): Promise<TeamCalendarSyncLock> 
   }
 }
 
-export async function syncVisioTeamCalendarsToShared(input?: {
+type VisioTeamCalendarSyncInput = {
   now?: Date;
   pastDays?: number;
   futureDays?: number;
-}): Promise<VisioTeamCalendarSyncResult> {
+};
+
+export async function syncVisioTeamCalendarsToShared(
+  input?: VisioTeamCalendarSyncInput,
+): Promise<VisioTeamCalendarSyncResult> {
+  return googleAccessTokenCache.run(() => performVisioTeamCalendarSync(input));
+}
+
+async function performVisioTeamCalendarSync(
+  input?: VisioTeamCalendarSyncInput,
+): Promise<VisioTeamCalendarSyncResult> {
   const startedAt = new Date();
   const now = input?.now || startedAt;
   const pastDays = Math.min(
@@ -1338,8 +1362,18 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     return result;
   }
 
+  console.info("[visio-team-calendar-sync][start]", {
+    rangeDays: pastDays + futureDays,
+    elapsedMs: Date.now() - startedAt.getTime(),
+  });
   try {
     const sharedEvents = await listVisioSharedCalendarEvents(timeMin, timeMax);
+    console.info("[visio-team-calendar-sync][stage]", {
+      stage: "shared_snapshot_loaded",
+      elapsedMs: Date.now() - startedAt.getTime(),
+      sharedEvents: sharedEvents.length,
+      token: googleAccessTokenCache.stats(),
+    });
     const sharedCalendarId = getVisioSharedCalendarId();
 
     // `signup_cancelled` was a visible pink compatibility state. It is no
@@ -1668,6 +1702,15 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
       }
     }
+    console.info("[visio-team-calendar-sync][stage]", {
+      stage: "member_snapshots_loaded",
+      elapsedMs: Date.now() - startedAt.getTime(),
+      memberEvents: [...sourceEventsByMemberId.values()].reduce(
+        (total, events) => total + events.length,
+        0,
+      ),
+      token: googleAccessTokenCache.stats(),
+    });
 
     // A booking can exist in the organizer calendar, the assigned member's
     // private calendar and the shared team calendar. Index all snapshots
@@ -2155,6 +2198,13 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
         }
       }
+      console.info("[visio-team-calendar-sync][stage]", {
+        stage: "member_reconciled",
+        memberId: member.id,
+        elapsedMs: Date.now() - startedAt.getTime(),
+        scanned: result.scanned,
+        token: googleAccessTokenCache.stats(),
+      });
     }
 
     // Stable replicas were already present in the paginated member listings.
@@ -2296,6 +2346,16 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     result.finishedAt = new Date().toISOString();
     return result;
   } finally {
+    console.info("[visio-team-calendar-sync][complete]", {
+      elapsedMs: Date.now() - startedAt.getTime(),
+      completed: Boolean(result.finishedAt),
+      scanned: result.scanned,
+      created: result.created,
+      updated: result.updated,
+      cancelled: result.cancelled,
+      errors: result.errors.length,
+      token: googleAccessTokenCache.stats(),
+    });
     await syncLock.release().catch(() => undefined);
   }
 }

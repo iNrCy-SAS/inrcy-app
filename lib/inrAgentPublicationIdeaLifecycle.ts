@@ -2,6 +2,7 @@ import "server-only";
 
 import { normalizeInrAgentPublicationIdeas } from "@/lib/inrAgentSettings";
 import { isTerminalInrAgentEditorialFailure } from "@/lib/inrAgentEditorialRetryPolicy";
+import { inrAgentPublicationIdeaSubjectKey } from "@/lib/inrAgentPublicationIdeaSelection";
 
 type SupabaseLike = any;
 
@@ -52,13 +53,14 @@ export async function claimInrAgentPublicationIdea(args: {
     .eq("idea_text", args.ideaText)
     .eq("status", "active")
     .is("reserved_action_id", null)
-    .select("idea_text")
-    .maybeSingle();
+    .select("idea_text");
+  // Un échec de la condition atomique renvoie [] ; demander un objet unique
+  // transforme ce cas normal en 406/PGRST116 dans les logs PostgREST.
   // Un même créneau ne peut réserver qu'une idée, même si deux planificateurs
   // concurrents ont calculé des candidats différents.
   if (error?.code === "23505") return false;
   if (error) throw error;
-  if (data) return true;
+  if (Array.isArray(data) && data.length > 0) return true;
   const { data: sameReservation, error: lookupError } = await args.supabase
     .from("inr_agent_publication_ideas")
     .select("idea_text")
@@ -66,9 +68,9 @@ export async function claimInrAgentPublicationIdea(args: {
     .eq("idea_text", args.ideaText)
     .eq("status", "active")
     .eq("reserved_action_id", args.actionId)
-    .maybeSingle();
+    .limit(1);
   if (lookupError) throw lookupError;
-  return Boolean(sameReservation);
+  return Array.isArray(sameReservation) && sameReservation.length > 0;
 }
 
 export async function releaseInrAgentPublicationIdea(args: {
@@ -128,7 +130,8 @@ export async function releaseAbandonedInrAgentPublicationIdeas(args: {
           error: metadata.editorialLastError || action.last_error,
           retryReason: metadata.editorialRetryReason,
         }));
-    if (!action || action.status === "cancelled" || terminalFailure || focus?.subject !== row.idea_text) {
+    if (!action || action.status === "cancelled" || terminalFailure ||
+      inrAgentPublicationIdeaSubjectKey(focus?.subject) !== inrAgentPublicationIdeaSubjectKey(row.idea_text)) {
       await releaseInrAgentPublicationIdea({ ...args, actionId, ideaText: row.idea_text });
     }
   }

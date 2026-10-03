@@ -63,7 +63,10 @@ test("the first dashboard arrival claims one durable account-scoped setup alert"
   assert.match(route, /body\?\.accountId !== accountId/);
   assert.match(route, /supabaseAdmin[\s\S]*?\.from\("inrcy_accounts"\)/);
   assert.match(route, /\.is\("dashboard_setup_intro_seen_at", null\)/);
-  assert.match(route, /show: Boolean\(data\)/);
+  assert.match(route, /\.select\("id"\);/);
+  assert.doesNotMatch(route, /\.select\("id"\)\s*\.maybeSingle\(\)/);
+  assert.match(route, /if \(error\) \{[\s\S]*?claim failed/);
+  assert.match(route, /show: Array\.isArray\(data\) && data\.length > 0/);
   assert.match(migration, /add column if not exists dashboard_setup_intro_seen_at timestamptz/);
   assert.match(migration, /default timestamptz '2026-09-28 08:24:04\+00'/);
   assert.match(migration, /alter column dashboard_setup_intro_seen_at drop default/);

@@ -66,3 +66,17 @@ test("missing Storage objects are negatively cached to stop repeated signing war
   assert.match(storageSource, /rememberMissingObject\(bucket, path\);/);
   assert.match(embedMediaSource, /status === 404[\s\S]*s-maxage=3600/);
 });
+
+test("embed media redirects expire before their signed Storage URLs", () => {
+  const signedTtlSeconds = 60 * 60;
+  const signingCacheSeconds = Math.min(signedTtlSeconds - 30, Math.floor(signedTtlSeconds * 0.8));
+  const redirectCacheSeconds = 300;
+
+  assert.match(embedMediaSource, /createSafeStorageSignedUrl\([\s\S]*?60 \* 60,/);
+  assert.match(storageSource, /Math\.min\(ttlSeconds - 30, Math\.floor\(ttlSeconds \* 0\.8\)\)/);
+  assert.match(embedMediaSource, /"cache-control": "private, max-age=300, must-revalidate"/);
+  assert.ok(
+    signingCacheSeconds + redirectCacheSeconds <= signedTtlSeconds - 300,
+    "the oldest reused signed URL must retain at least five minutes of validity",
+  );
+});

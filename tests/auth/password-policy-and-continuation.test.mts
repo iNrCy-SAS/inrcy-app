@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   openPasswordFinishContinuation,
+  passwordLinkFingerprint,
   sealPasswordFinishContinuation,
 } from "../../lib/authPasswordContinuation.ts";
 import { evaluatePassword } from "../../lib/passwordPolicy.ts";
@@ -65,5 +66,55 @@ test("password continuation is encrypted, account-bound and tamper resistant", (
       secret,
     ),
     null,
+  );
+});
+
+test("a prepared invite survives reload for only the same one-time link", () => {
+  const secret = "test-only-service-role-secret-with-enough-entropy";
+  const tokenHash = "a".repeat(64);
+  const continuation = {
+    mode: "invite" as const,
+    userId: "00000000-1111-2222-3333-444444444444",
+    email: "person@example.com",
+    session: {
+      access_token: "access-token-long-enough-for-the-test",
+      refresh_token: "short-refresh",
+    },
+    linkFingerprint: passwordLinkFingerprint(tokenHash),
+  };
+  const sealed = sealPasswordFinishContinuation(continuation, secret);
+
+  assert.doesNotMatch(sealed, /access-token|short-refresh|person@example\.com|a{64}/);
+  assert.deepEqual(
+    openPasswordFinishContinuation(sealed, {
+      mode: "invite",
+      email: "person@example.com",
+      tokenHash,
+    }, secret),
+    continuation,
+  );
+  assert.equal(
+    openPasswordFinishContinuation(sealed, {
+      mode: "invite",
+      email: "person@example.com",
+      tokenHash: "b".repeat(64),
+    }, secret),
+    null,
+  );
+
+  const oldCookie = sealPasswordFinishContinuation({
+    mode: continuation.mode,
+    userId: continuation.userId,
+    email: continuation.email,
+    session: continuation.session,
+  }, secret);
+  assert.equal(
+    openPasswordFinishContinuation(oldCookie, {
+      mode: "invite",
+      email: "person@example.com",
+      tokenHash,
+    }, secret),
+    null,
+    "a legacy cookie must not authorize a different token link",
   );
 });

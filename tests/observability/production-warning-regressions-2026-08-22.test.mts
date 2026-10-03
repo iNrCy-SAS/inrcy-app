@@ -53,6 +53,7 @@ test("les URL Storage privées passent toutes par le service de signature proté
 test("un refus SMTP ouvre un coupe-circuit lié aux identifiants", () => {
   const circuit = read("lib/txSmtpCircuit.ts");
   const mailer = read("lib/txMailer.ts");
+  const healthChecks = read("lib/health/checks.ts");
   const reminders = read("app/api/cron/calendar-reminders/route.ts");
 
   assert.match(circuit, /DEFAULT_AUTH_BACKOFF_SECONDS = 60 \* 60/);
@@ -62,6 +63,10 @@ test("un refus SMTP ouvre un coupe-circuit lié aux identifiants", () => {
   assert.match(circuit, /TX_SMTP_AUTH_BACKOFF/);
   assert.match(mailer, /await assertTxSmtpCircuitClosed\(identity\)/);
   assert.match(mailer, /await openTxSmtpCircuit\(error, identity\)/);
+  assert.match(healthChecks, /const identity = \{ host, port, user, pass, secure \}/);
+  assert.match(healthChecks, /await assertTxSmtpCircuitClosed\(identity\)/);
+  assert.match(healthChecks, /await clearTxSmtpCircuit\(identity\)/);
+  assert.match(healthChecks, /await openTxSmtpCircuit\(error, identity\)/);
   assert.match(reminders, /isTxSmtpCircuitOpenError\(mailError\)/);
   assert.match(reminders, /\? console\.info/);
 });

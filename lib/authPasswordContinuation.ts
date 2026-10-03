@@ -25,6 +25,7 @@ export type PasswordFinishContinuation = {
   userId: string;
   email: string | null;
   session: PasswordFinishSession;
+  linkFingerprint?: string | null;
 };
 
 type SealedPayload = PasswordFinishContinuation & {
@@ -65,6 +66,9 @@ function isValidPayload(value: unknown): value is SealedPayload {
     typeof payload.userId === "string" &&
     payload.userId.length >= 8 &&
     (payload.email === null || typeof payload.email === "string") &&
+    (payload.linkFingerprint === undefined ||
+      payload.linkFingerprint === null ||
+      (typeof payload.linkFingerprint === "string" && /^[a-f0-9]{64}$/.test(payload.linkFingerprint))) &&
     typeof payload.expiresAt === "number" &&
     Number.isFinite(payload.expiresAt) &&
     payload.expiresAt > Date.now() &&
@@ -73,6 +77,10 @@ function isValidPayload(value: unknown): value is SealedPayload {
     // tokens. Integrity comes from AES-GCM, then Supabase validates the token.
     isPlausibleToken(payload.session?.refresh_token, 6)
   );
+}
+
+export function passwordLinkFingerprint(tokenHash: string) {
+  return createHash("sha256").update(tokenHash, "utf8").digest("hex");
 }
 
 export function sealPasswordFinishContinuation(
@@ -97,7 +105,7 @@ export function sealPasswordFinishContinuation(
 
 export function openPasswordFinishContinuation(
   sealed: string | null | undefined,
-  expected: { mode: PasswordFinishMode; email?: string | null },
+  expected: { mode: PasswordFinishMode; email?: string | null; tokenHash?: string | null },
   secret?: string,
 ): PasswordFinishContinuation | null {
   try {
@@ -120,12 +128,16 @@ export function openPasswordFinishContinuation(
     const expectedEmail = String(expected.email || "").trim().toLowerCase();
     const payloadEmail = String(payload.email || "").trim().toLowerCase();
     if (expectedEmail && payloadEmail !== expectedEmail) return null;
+    if (expected.tokenHash && payload.linkFingerprint !== passwordLinkFingerprint(expected.tokenHash)) {
+      return null;
+    }
 
     return {
       mode: payload.mode,
       userId: payload.userId,
       email: payload.email,
       session: payload.session,
+      ...(payload.linkFingerprint ? { linkFingerprint: payload.linkFingerprint } : {}),
     };
   } catch {
     return null;

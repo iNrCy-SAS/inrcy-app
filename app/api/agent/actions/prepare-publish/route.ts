@@ -78,6 +78,10 @@ import {
 import { chooseInrAgentInstantFocusMode } from "@/lib/inrAgentInstantFocusMode";
 import { wasInrAgentPublicationIdeaPreviouslyGenerated } from "@/lib/inrAgentPublicationIdeaReuse";
 import {
+  claimFirstAvailableInrAgentIdea,
+  matchingInrAgentPublicationIdeaRow,
+} from "@/lib/inrAgentPublicationIdeaSelection";
+import {
   claimInrAgentPublicationIdea,
   loadInrAgentPublicationIdeas,
   releaseAbandonedInrAgentPublicationIdeas,
@@ -2198,17 +2202,22 @@ export async function POST(request: Request) {
     })[0]?.focus || null;
   let runtimeFocus = editorialTarget?.plan.focus || null;
   if (editorialTarget && runtimeFocus?.source === "professional_idea") {
-    const ideaRow = ideaRows.find((row) => row.idea_text === runtimeFocus?.subject);
-    const reserved = wasInrAgentPublicationIdeaPreviouslyGenerated({
+    const ideaRow = matchingInrAgentPublicationIdeaRow(ideaRows, runtimeFocus.subject);
+    const previouslyGenerated = wasInrAgentPublicationIdeaPreviouslyGenerated({
       payload: editorialTarget.payload,
       metadata: editorialTarget.metadata,
       ideaText: runtimeFocus.subject,
-    }) ||
+    }) || (ideaRow && wasInrAgentPublicationIdeaPreviouslyGenerated({
+      payload: editorialTarget.payload,
+      metadata: editorialTarget.metadata,
+      ideaText: ideaRow.idea_text,
+    }));
+    const reserved = previouslyGenerated ||
       (ideaRow?.status === "used" && ideaRow.used_action_id === editorialTarget.id) ||
       (ideaRow?.status === "active" && await claimInrAgentPublicationIdea({
       supabase: supabaseAdmin,
       userId,
-      ideaText: runtimeFocus.subject,
+      ideaText: ideaRow?.idea_text || runtimeFocus.subject,
       actionId: editorialTarget.id,
       }));
     if (!reserved) {
@@ -2217,31 +2226,30 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+    if (ideaRow) runtimeFocus = { ...runtimeFocus, subject: ideaRow.idea_text };
   }
   if (!editorialTarget && instantActionId) {
-    let availableIdeas = ideaRows
-      .filter((row) => row.status === "active" && !row.reserved_action_id)
-      .map((row) => row.idea_text);
+    const availableIdeaRows = ideaRows
+      .filter((row) => row.status === "active" && !row.reserved_action_id);
     // Les lancements automatiques sans créneau conservent leur priorité
     // historique aux idées ; seul le bouton éclair effectue ce tirage 50/50.
     const focusMode = isCron
       ? "saved_idea"
-      : chooseInrAgentInstantFocusMode(availableIdeas.length, randomInt(2));
+      : chooseInrAgentInstantFocusMode(availableIdeaRows.length, randomInt(2));
     if (focusMode === "saved_idea") {
-      while (availableIdeas.length) {
-        const candidate = buildInstantFocus(availableIdeas);
-        if (candidate?.source !== "professional_idea") break;
-        if (await claimInrAgentPublicationIdea({
+      const claimedFocus = await claimFirstAvailableInrAgentIdea({
+        rows: availableIdeaRows,
+        buildFocus: buildInstantFocus,
+        claim: (ideaText) => claimInrAgentPublicationIdea({
           supabase: supabaseAdmin,
           userId,
-          ideaText: candidate.subject,
+          ideaText,
           actionId: instantActionId,
-        })) {
-          runtimeFocus = candidate;
-          reservedInstantIdea = true;
-          break;
-        }
-        availableIdeas = availableIdeas.filter((ideaText) => ideaText !== candidate.subject);
+        }),
+      });
+      if (claimedFocus) {
+        runtimeFocus = claimedFocus;
+        reservedInstantIdea = true;
       }
     }
     runtimeFocus ||= buildInstantFocus([]);
