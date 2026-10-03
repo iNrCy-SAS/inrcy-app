@@ -435,11 +435,14 @@ export function useAgentAutomationController({
         action?: AgentPreparedAction;
         error?: string;
         detail?: string;
+        code?: string;
       } | null;
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-            payload?.error ||
+            (payload?.code === "INR_AGENT_IDEA_UNAVAILABLE"
+              ? i18nT("publication_idea_unavailable")
+              : payload?.error) ||
               payload?.detail ||
               i18nT("agent_publication_prepare_failed"),
         );

@@ -24,15 +24,20 @@ export function isInrAgentEditorialQuotaLimitError(value: unknown) {
   );
 }
 
+function maxAttemptsFor(error: unknown, retryReason?: unknown) {
+  return isInrAgentEditorialQuotaLimitError(error) ||
+    normalizedError(retryReason) === "quota"
+    ? INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS
+    : INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS;
+}
+
 export function inrAgentEditorialRetryDecision(args: {
   error: unknown;
   attempts: number;
   nowMs: number;
 }) {
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
-  const maxAttempts = quotaLimited
-    ? INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS
-    : INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS;
+  const maxAttempts = maxAttemptsFor(args.error);
   const retry = Math.max(0, args.attempts) < maxAttempts;
   const delayMs = quotaLimited
     ? INR_AGENT_EDITORIAL_QUOTA_RETRY_DELAY_MS
@@ -54,13 +59,24 @@ export function shouldRecoverInrAgentEditorialFailure(args: {
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
   const retryReason = normalizedError(args.retryReason);
   const transientFailure = retryReason === "transient_error";
-  const maxAttempts = quotaLimited || retryReason === "quota"
-    ? INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS
-    : INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS;
+  const maxAttempts = maxAttemptsFor(args.error, args.retryReason);
   return (
     args.status === "failed" &&
     args.editorialState === "failed" &&
     Math.max(0, args.attempts) < maxAttempts &&
     (quotaLimited || retryReason === "quota" || transientFailure)
   );
+}
+
+/** Failed rows below the retry limit still own their idea until a retry succeeds or stops. */
+export function isTerminalInrAgentEditorialFailure(args: {
+  status: string;
+  editorialState: string;
+  attempts: number;
+  error: unknown;
+  retryReason?: unknown;
+}) {
+  return args.status === "failed" &&
+    args.editorialState === "failed" &&
+    Math.max(0, args.attempts) >= maxAttemptsFor(args.error, args.retryReason);
 }

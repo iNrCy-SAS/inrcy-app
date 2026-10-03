@@ -74,6 +74,7 @@ function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; 
       isAdmin: false, isCron: true, automaticMediaKind: "image", requestedImageCount: 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },
       editorialTarget: { id: "slot-1", metadata: structuredClone(metadata), plan: { criteriaSignature: "criteria-1", scheduledFor: "2026-10-05T10:00:00Z", sequence: 1, channels: ["facebook"], theme: "realisations" } },
+      instantActionId: null, reservedInstantIdea: false,
       studioMediaPreferences: defaultPreferences, idea: "Cuisine : présenter le plan puis les finitions", agentTheme: "realisations", boosterTheme: "realisation",
       runtimeFocus: { focusKey: "focus-1" }, business: {}, profile: {}, businessProfession: {}, recentPublications: [], earlierEditorialAngles: [], ctaDefaults: {}, agentTone: "professional",
       prefersExistingVideo: false, instantMediaMix: null, youtubeDisabledForImage: false, channels: ["facebook"], autoDisabledChannels: [],
@@ -118,6 +119,8 @@ function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; 
         return { versions: { facebook: { title: "Notre cuisine", content: "Découvrez les détails de notre cuisine.", cta: "Contactez-nous", hashtags: [] } }, recoveredChannels: [] };
       },
       applySafePreferredCta: ({ post }: { post: unknown }) => post,
+      hasUsefulContent: (post: { title?: string; content?: string; cta?: string } | undefined) =>
+        Boolean(post?.title?.trim() || post?.content?.trim() || post?.cta?.trim()),
       boosterToAgentChannel: { facebook: "facebook" }, inrAgentChannelToBoosterPublishChannel: (channel: string) => channel,
       buildPreviewText: () => "Aperçu", themeLabels: { realisations: "Réalisations" }, buildSummary: () => "Trois images",
       requiresManualValidation: () => true, getExecutionPolicy: () => "manual", getInitialStatus: () => "pending_validation",
@@ -194,14 +197,14 @@ test("un quota média épuisé après une première image reste une attente quot
   assert.equal(h.credits.rolledBack, 1); assert.equal(h.textCalls.length, 0);
 });
 
-function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean } = {}) {
+function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean; priorAttempts?: number; error?: string } = {}) {
   const serverFile = "lib/inrAgentEditorialPlanServer.ts";
   const ast = ts.createSourceFile(serverFile, readFileSync(new URL(`../../${serverFile}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
   const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "prepareNextInrAgentEditorialSlot");
   assert.ok(declaration);
   const code = ts.transpileModule(declaration.getText(ast).replace(/^export\s+/, ""), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const snapshot = { signature: "snapshot-1", idea: "Cuisine", existingAssets: [], theme: "realisations" };
-  let row: RecordValue = { id: "slot-1", status: "draft", payload: {}, metadata: { editorialPlan: true, editorialState: "queued" } };
+  let row: RecordValue = { id: "slot-1", status: "draft", payload: {}, metadata: { editorialPlan: true, editorialState: "queued", editorialAttempts: options.priorAttempts || 0 } };
   const patches: RecordValue[] = [];
   const supabase = {
     from(table: string) {
@@ -236,7 +239,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
     fetch: async () => {
       row.metadata = { ...(row.metadata as RecordValue), editorialMediaGeneration: snapshot };
       if (options.concurrentCompletion) row.status = "pending_validation";
-      return { ok: false, status: 503, text: async () => JSON.stringify({ error: "Préparation temporairement indisponible" }) };
+      return { ok: false, status: 503, text: async () => JSON.stringify({ error: options.error || "Préparation temporairement indisponible" }) };
     },
   };
   const execute = new Function(...Object.keys(scope), `${code}\nreturn prepareNextInrAgentEditorialSlot;`)(...Object.values(scope));
@@ -260,4 +263,20 @@ test("le coordinateur n'écrase ni un snapshot illisible ni une action terminée
   const completed = retryCoordinatorHarness({ concurrentCompletion: true });
   assert.equal((await completed.run()).status, "contended");
   assert.equal(completed.patches.length, 1); assert.equal(completed.row.status, "pending_validation");
+});
+
+test("le coordinateur marque uniquement l'échec sans retry comme terminal pour l'idée", async () => {
+  const retry = retryCoordinatorHarness({ priorAttempts: 6 });
+  assert.equal((await retry.run()).status, "retry");
+  assert.equal((retry.row.metadata as RecordValue).editorialIdeaReservationTerminal, false);
+
+  const terminal = retryCoordinatorHarness({ priorAttempts: 7 });
+  assert.equal((await terminal.run()).status, "failed");
+  assert.equal(terminal.row.status, "failed");
+  assert.equal((terminal.row.metadata as RecordValue).editorialIdeaReservationTerminal, true);
+  assert.equal((terminal.row.metadata as RecordValue).editorialNextRetryAt, null);
+
+  const quota = retryCoordinatorHarness({ priorAttempts: 7, error: "Quota IA atteint" });
+  assert.equal((await quota.run()).status, "retry");
+  assert.equal((quota.row.metadata as RecordValue).editorialIdeaReservationTerminal, false);
 });

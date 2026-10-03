@@ -407,7 +407,7 @@ export type ScheduleListItem = {
   contentReady?: boolean;
   editable: boolean;
   removable: boolean;
-  source: "automatic" | "manual" | "editorial";
+  source: "automatic" | "manual" | "editorial" | "history";
 };
 
 export type ConnectedChannelMap = Partial<Record<ChannelKey, boolean>>;

@@ -14,11 +14,24 @@ import {
   buildInrAgentEditorialFocusPlan,
   normalizeInrAgentEditorialFocus,
 } from "@/lib/inrAgentEditorialVariation";
+import {
+  claimInrAgentPublicationIdea,
+  loadInrAgentPublicationIdeas,
+  releaseAbandonedInrAgentPublicationIdeas,
+  releaseInrAgentPublicationIdea,
+} from "@/lib/inrAgentPublicationIdeaLifecycle";
+import { wasInrAgentPublicationIdeaPreviouslyGenerated } from "@/lib/inrAgentPublicationIdeaReuse";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import {
   inrAgentEditorialRetryDecision,
+  isTerminalInrAgentEditorialFailure,
   shouldRecoverInrAgentEditorialFailure,
 } from "@/lib/inrAgentEditorialRetryPolicy";
+import {
+  deterministicEditorialActionId,
+  editorialPlanEpoch,
+  shouldReplaceTerminalEditorialRow,
+} from "@/lib/inrAgentEditorialRecoveryPolicy";
 import {
   automationSettingsToDbRow,
   normalizeInrAgentPublicationIdeas,
@@ -76,11 +89,13 @@ type EditorialActionRow = {
   target_channels?: unknown[] | null;
   payload: JsonRecord | null;
   metadata: JsonRecord | null;
+  refused_at?: string | null;
+  created_at?: string | null;
   updated_at?: string | null;
 };
 
 const EDITORIAL_ACTION_SELECT =
-  "id,status,title,preview_text,scheduled_for,validation_required,execution_policy,target_channels,image_assets,payload,metadata,created_at,updated_at";
+  "id,status,title,preview_text,scheduled_for,validation_required,execution_policy,target_channels,image_assets,payload,metadata,refused_at,created_at,updated_at";
 const EDITORIAL_MUTABLE_STATUSES = new Set([
   "draft",
   "executing",
@@ -133,12 +148,17 @@ export function inrAgentAutomationFromEditorialRow(
   });
 }
 
-export function inrAgentEditorialActionId(userId: string, slotKey: string) {
-  const hex = createHash("sha256")
-    .update(`inrcy:editorial-plan:v${INR_AGENT_EDITORIAL_PLAN_VERSION}:${userId}:${slotKey}`)
-    .digest("hex")
-    .slice(0, 32);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+export function inrAgentEditorialActionId(
+  userId: string,
+  slotKey: string,
+  planEpoch?: string | null,
+) {
+  return deterministicEditorialActionId({
+    version: INR_AGENT_EDITORIAL_PLAN_VERSION,
+    userId,
+    slotKey,
+    planEpoch,
+  });
 }
 
 function editorialPlanPayload(
@@ -177,7 +197,9 @@ function editorialSubjectHistory(rows: EditorialActionRow[]) {
     const plan = rowEditorialPlan(row);
     const focus = normalizeInrAgentEditorialFocus(plan.focus);
     subjects.push(
-      cleanText(focus?.subject, 600),
+      focus?.source === "professional_idea" && !isSuccessfullyPreparedEditorialRow(row)
+        ? ""
+        : cleanText(focus?.subject, 600),
       cleanText(payload.idea, 1_000),
       cleanText(row.title, 280),
       cleanText(row.preview_text, 600),
@@ -244,6 +266,25 @@ function isGeneratedEditorialRow(row: EditorialActionRow) {
   );
 }
 
+function isSuccessfullyPreparedEditorialRow(row: EditorialActionRow) {
+  const plan = rowEditorialPlan(row);
+  const metadata = asRecord(row.metadata);
+  return cleanText(plan.state, 40) === "ready" ||
+    cleanText(metadata.editorialState, 40) === "ready" ||
+    Boolean(cleanText(metadata.editorialGeneratedAt, 80));
+}
+
+function isTerminalEditorialFailureRow(row: EditorialActionRow) {
+  const metadata = asRecord(row.metadata);
+  return isTerminalInrAgentEditorialFailure({
+    status: row.status,
+    editorialState: cleanText(metadata.editorialState, 40),
+    attempts: Number(metadata.editorialAttempts) || 0,
+    error: metadata.editorialLastError,
+    retryReason: metadata.editorialRetryReason,
+  });
+}
+
 function missingGeneratedEditorialChannels(
   row: EditorialActionRow,
   plannedChannels: readonly InrAgentChannel[],
@@ -270,6 +311,7 @@ function isMutableEditorialRow(row: EditorialActionRow) {
   return (
     EDITORIAL_MUTABLE_STATUSES.has(row.status) ||
     (row.status === "cancelled" &&
+      !row.refused_at &&
       cleanText(metadata.editorialCancelReason, 80) ===
         "automation_disabled") ||
     (row.status === "scheduled" &&
@@ -584,11 +626,33 @@ export async function reconcileInrAgentEditorialPlan(args: {
   const editorialRows = existing.filter(
     (row) => asRecord(row.metadata).editorialPlan === true,
   );
+  const planEpoch = editorialPlanEpoch(args.automation.metadata);
+  // An explicit refusal/cancellation predating a genuinely new planning epoch
+  // remains untouched. It only stops occupying the new epoch's slot key.
   const existingBySlot = new Map(
     editorialRows
+      .filter((row) => !shouldReplaceTerminalEditorialRow(row, planEpoch))
+      .sort((left, right) =>
+        (Date.parse(left.created_at || "") || 0) -
+        (Date.parse(right.created_at || "") || 0),
+      )
       .map((row) => [cleanText(rowEditorialPlan(row).slotKey, 240), row] as const)
       .filter(([slotKey]) => Boolean(slotKey)),
   );
+
+  const configuredIdeas = normalizeInrAgentPublicationIdeas(
+    args.automation.metadata?.publicationIdeas,
+  ).filter(Boolean);
+  await releaseAbandonedInrAgentPublicationIdeas({
+    supabase: args.supabase,
+    userId: args.userId,
+  });
+  const ideaRows = await loadInrAgentPublicationIdeas({
+    supabase: args.supabase,
+    userId: args.userId,
+    publicationIdeas: configuredIdeas,
+  });
+  const ideaByText = new Map(ideaRows.map((idea) => [idea.idea_text, idea]));
 
   // Les idées du pro sont traitées avant tout le reste. Les créneaux qui ne
   // reçoivent pas une idée manuelle obtiennent une combinaison équilibrée
@@ -598,7 +662,55 @@ export async function reconcileInrAgentEditorialPlan(args: {
   const existingFocusBySlotKey = new Map<string, unknown>();
   for (const [slotKey, row] of existingBySlot) {
     const focus = normalizeInrAgentEditorialFocus(rowEditorialPlan(row).focus);
-    if (focus) existingFocusBySlotKey.set(slotKey, focus);
+    if (!focus) continue;
+    if (isTerminalEditorialFailureRow(row)) {
+      const plannedSlot = basePlan.find((slot) => slot.slotKey === slotKey);
+      const priorPlan = rowEditorialPlan(row);
+      if (plannedSlot &&
+        cleanText(priorPlan.criteriaSignature, 2_000) === plannedSlot.criteriaSignature &&
+        cleanText(priorPlan.scheduleSignature, 2_000) === plannedSlot.scheduleSignature) {
+        // Le créneau échoué reste visible, mais ne retient plus son idée.
+        existingFocusBySlotKey.set(slotKey, focus);
+      }
+      continue;
+    }
+    if (focus.source !== "professional_idea") {
+      existingFocusBySlotKey.set(slotKey, focus);
+      continue;
+    }
+    if (isSuccessfullyPreparedEditorialRow(row)) {
+      existingFocusBySlotKey.set(slotKey, focus);
+      continue;
+    }
+    if (wasInrAgentPublicationIdeaPreviouslyGenerated({
+      payload: row.payload,
+      metadata: row.metadata,
+      ideaText: focus.subject,
+    })) {
+      existingFocusBySlotKey.set(slotKey, focus);
+      continue;
+    }
+    const idea = ideaByText.get(focus.subject);
+    if (idea?.status === "used" && idea.used_action_id === row.id) {
+      existingFocusBySlotKey.set(slotKey, focus);
+      continue;
+    }
+    if (idea?.status === "active" &&
+      await claimInrAgentPublicationIdea({
+        supabase: args.supabase,
+        userId: args.userId,
+        ideaText: focus.subject,
+        actionId: row.id,
+      })) {
+      idea.reserved_action_id = row.id;
+      existingFocusBySlotKey.set(slotKey, focus);
+    } else {
+      await releaseInrAgentPublicationIdea({
+        supabase: args.supabase,
+        userId: args.userId,
+        actionId: row.id,
+      });
+    }
   }
   const [generationContext, publishedHistory] = await Promise.all([
     getBoosterGenerationContext({
@@ -615,13 +727,23 @@ export async function reconcileInrAgentEditorialPlan(args: {
       userId: args.userId,
     }),
   ]);
+  const availableIdeas = ideaRows
+    .filter((idea) => idea.status === "active" && !idea.reserved_action_id)
+    .map((idea) => idea.idea_text);
   const plan = buildInrAgentEditorialFocusPlan({
     slots: basePlan,
     business: generationContext.business,
     profile: generationContext.profile,
-    publicationIdeas: normalizeInrAgentPublicationIdeas(
-      args.automation.metadata?.publicationIdeas,
-    ),
+    publicationIdeas: availableIdeas,
+    allowPreviouslyCoveredPublicationIdeas: true,
+    reusableExistingManualIdeas: editorialRows
+      .filter((row) => isSuccessfullyPreparedEditorialRow(row) ||
+        isTerminalEditorialFailureRow(row) ||
+        Boolean(cleanText(asRecord(row.metadata).editorialPreviouslyGeneratedIdea, 500)))
+      .map((row) => normalizeInrAgentEditorialFocus(rowEditorialPlan(row).focus))
+      .filter((focus) => focus?.source === "professional_idea" &&
+        ideaByText.get(focus.subject)?.status === "active")
+      .map((focus) => focus!.subject),
     historicalSubjects: [
       ...publishedHistory,
       ...generationContext.recentPublications.flatMap((publication) => [
@@ -634,6 +756,52 @@ export async function reconcileInrAgentEditorialPlan(args: {
     existingFocusBySlotKey,
     seed: `${args.userId}:inr-agent-editorial`,
   });
+  const claimedDuringPlan = new Set<string>();
+  for (const slot of plan) {
+    if (slot.focus.source !== "professional_idea") continue;
+    const existingRow = existingBySlot.get(slot.slotKey);
+    if (existingRow && isSuccessfullyPreparedEditorialRow(existingRow)) continue;
+    const actionId = existingRow?.id || inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch);
+    const originallyReserved = existingFocusBySlotKey.has(slot.slotKey);
+    if (originallyReserved) continue;
+
+    const candidates = [
+      slot.focus.subject,
+      ...availableIdeas.filter((idea) => idea !== slot.focus.subject),
+    ];
+    let claimed = false;
+    for (const ideaText of candidates) {
+      if (claimedDuringPlan.has(ideaText)) continue;
+      if (!(await claimInrAgentPublicationIdea({
+        supabase: args.supabase,
+        userId: args.userId,
+        ideaText,
+        actionId,
+      }))) continue;
+      claimedDuringPlan.add(ideaText);
+      claimed = true;
+      if (ideaText !== slot.focus.subject) {
+        slot.focus = buildInrAgentEditorialFocusPlan({
+          slots: [slot],
+          business: generationContext.business,
+          profile: generationContext.profile,
+          publicationIdeas: [ideaText],
+          allowPreviouslyCoveredPublicationIdeas: true,
+          seed: `${args.userId}:inr-agent-editorial`,
+        })[0].focus;
+      }
+      break;
+    }
+    if (!claimed) {
+      slot.focus = buildInrAgentEditorialFocusPlan({
+        slots: [slot],
+        business: generationContext.business,
+        profile: generationContext.profile,
+        publicationIdeas: [],
+        seed: `${args.userId}:inr-agent-editorial`,
+      })[0].focus;
+    }
+  }
   const desiredSlotKeys = new Set(plan.map((slot) => slot.slotKey));
 
   const rowsToInsert = plan
@@ -641,7 +809,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     .map((slot) => {
       const editorialPlan = editorialPlanPayload(slot, args.timezone);
       return {
-        id: inrAgentEditorialActionId(args.userId, slot.slotKey),
+        id: inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch),
         user_id: args.userId,
         automation_key: "publish",
         action_type: "publication",
@@ -674,6 +842,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
         metadata: {
           editorialPlan: true,
           editorialPlanVersion: INR_AGENT_EDITORIAL_PLAN_VERSION,
+          editorialPlanEpoch: planEpoch,
           editorialState: "queued",
           editorialAttempts: 0,
           editorialNextRetryAt: null,
@@ -689,7 +858,53 @@ export async function reconcileInrAgentEditorialPlan(args: {
     const { error } = await args.supabase
       .from("inr_agent_actions")
       .upsert(rowsToInsert, { onConflict: "id", ignoreDuplicates: true });
-    if (error) throw error;
+    if (error) {
+      for (const slot of plan) {
+        if (!claimedDuringPlan.has(slot.focus.subject)) continue;
+        await releaseInrAgentPublicationIdea({
+          supabase: args.supabase,
+          userId: args.userId,
+          actionId: existingBySlot.get(slot.slotKey)?.id ||
+            inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch),
+          ideaText: slot.focus.subject,
+        });
+      }
+      throw error;
+    }
+    const claimedNewSlots = plan.filter((slot) =>
+      !existingBySlot.has(slot.slotKey) &&
+      slot.focus.source === "professional_idea" &&
+      claimedDuringPlan.has(slot.focus.subject),
+    );
+    if (claimedNewSlots.length) {
+      const { data: persistedRows, error: verifyError } = await args.supabase
+        .from("inr_agent_actions")
+        .select("id,payload")
+        .eq("user_id", args.userId)
+        .in("id", claimedNewSlots.map((slot) =>
+          inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch),
+        ));
+      if (verifyError) throw verifyError;
+      const persistedById = new Map((Array.isArray(persistedRows) ? persistedRows : [])
+        .map((row) => [String(row.id), row]));
+      for (const slot of claimedNewSlots) {
+        const actionId = inrAgentEditorialActionId(args.userId, slot.slotKey, planEpoch);
+        const persisted = persistedById.get(actionId);
+        const persistedFocus = persisted
+          ? normalizeInrAgentEditorialFocus(
+              asRecord(asRecord(persisted.payload).editorialPlan).focus,
+            )
+          : null;
+        if (persistedFocus?.subject !== slot.focus.subject) {
+          await releaseInrAgentPublicationIdea({
+            supabase: args.supabase,
+            userId: args.userId,
+            actionId,
+            ideaText: slot.focus.subject,
+          });
+        }
+      }
+    }
   }
 
   const desiredValidationRequired = validationRequiredForMode(
@@ -719,13 +934,22 @@ export async function reconcileInrAgentEditorialPlan(args: {
       cleanText(currentPlan.scheduleSignature, 2_000) !==
         slot.scheduleSignature;
     if (!criteriaChanged) {
+      // Un échec définitif reste historique : ni réparation de canal ni
+      // récupération automatique ne doivent relancer ce même créneau.
+      if (isTerminalEditorialFailureRow(row)) continue;
       const rowMetadata = asRecord(row.metadata);
       const missingEditorialFocus =
         !normalizeInrAgentEditorialFocus(currentPlan.focus) &&
         Boolean(slot.focus) &&
         row.status !== "executing" &&
         !isGeneratedEditorialRow(row);
-      if (missingEditorialFocus) {
+      const currentFocus = normalizeInrAgentEditorialFocus(currentPlan.focus);
+      const reassignedEditorialFocus =
+        Boolean(currentFocus && slot.focus &&
+          currentFocus.focusKey !== slot.focus.focusKey) &&
+        row.status !== "executing" &&
+        !isGeneratedEditorialRow(row);
+      if (missingEditorialFocus || reassignedEditorialFocus) {
         const currentState = cleanText(currentPlan.state, 40);
         const state =
           currentState === "generating" || currentState === "failed"
@@ -753,6 +977,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
       }
       const reactivating =
         row.status === "cancelled" &&
+        !row.refused_at &&
         cleanText(rowMetadata.editorialCancelReason, 80) ===
           "automation_disabled";
       if (reactivating) {
@@ -869,6 +1094,14 @@ export async function reconcileInrAgentEditorialPlan(args: {
               "Une publication iNr’Agent incomplète est régénérée avant validation.",
           });
         const editorialPlan = editorialPlanPayload(slot, args.timezone);
+        const previousFocus = normalizeInrAgentEditorialFocus(asRecord(row.payload).editorialFocus) ||
+          normalizeInrAgentEditorialFocus(rowEditorialPlan(row).focus);
+        const previouslyGeneratedIdea = previousFocus?.source === "professional_idea" &&
+          wasInrAgentPublicationIdeaPreviouslyGenerated({
+            payload: row.payload,
+            metadata: row.metadata,
+            ideaText: previousFocus.subject,
+          }) ? previousFocus.subject : null;
         const { error } = await args.supabase
           .from("inr_agent_actions")
           .update({
@@ -899,6 +1132,8 @@ export async function reconcileInrAgentEditorialPlan(args: {
               editorialAttempts: 0,
               editorialNextRetryAt: null,
               editorialLastError: null,
+              editorialGeneratedAt: null,
+              editorialPreviouslyGeneratedIdea: previouslyGeneratedIdea,
               editorialChannelRepairAt: nowIso,
               editorialChannelRepairMissing: missingChannels,
               automationFrequency: args.automation.frequency,
@@ -992,6 +1227,8 @@ export async function reconcileInrAgentEditorialPlan(args: {
           editorialAttempts: 0,
           editorialNextRetryAt: null,
           editorialLastError: null,
+          editorialGeneratedAt: null,
+          editorialPreviouslyGeneratedIdea: null,
           editorialReplannedAt: nowIso,
           automationFrequency: args.automation.frequency,
         },
@@ -1038,7 +1275,14 @@ export async function reconcileInrAgentEditorialPlan(args: {
       })
       .eq("id", row.id)
       .eq("user_id", args.userId);
-    if (!error) cancelled += 1;
+    if (!error) {
+      await releaseInrAgentPublicationIdea({
+        supabase: args.supabase,
+        userId: args.userId,
+        actionId: row.id,
+      });
+      cancelled += 1;
+    }
   }
 
   return {
@@ -1267,6 +1511,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
     editorialAttempts: attempts,
     editorialLastAttemptAt: claimedAt,
     editorialNextRetryAt: null,
+    editorialIdeaReservationTerminal: false,
   };
   const { data: claimed, error: claimError } = await args.supabase
     .from("inr_agent_actions")
@@ -1337,6 +1582,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
           ...asRecord(latest.data.metadata),
           editorialState: retry ? "retry" : "failed",
           editorialNextRetryAt: retryAt,
+          editorialIdeaReservationTerminal: !retry,
           editorialLastError: message,
           editorialLastErrorAt: new Date().toISOString(),
           editorialRetryReason: isQuotaLimited ? "quota" : "transient_error",

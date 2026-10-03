@@ -55,7 +55,7 @@ test("le planning iNrAgent est un agenda mensuel avec un carrousel par date", ()
     /scheduleFilterKey\(item\) === "stats" \|\| item\.source === "manual"/
   );
   assert.match(modal, /<svg\s+viewBox="0 0 24 24"/);
-  assert.match(modal, /item\.statusKey === "cancelled"/);
+  assert.doesNotMatch(modal, /if \(item\.statusKey === "cancelled"\) return/);
   assert.match(modal, /item\.statusKey === "refused"/);
   assert.match(scheduleModalSource, /scheduleHeaderPeriodControls/);
   assert.match(scheduleModalSource, /scheduleCalendarCardControls/);
@@ -329,7 +329,7 @@ test("les fréquences 1 à 3 fois par semaine ou par mois traversent tout le con
   assert.match(cron, /scheduleSlots/);
 });
 
-test("le compteur du planning exclut les actions passées et hors mois", () => {
+test("le compteur du planning conserve deux mois d'historique et exclut les autres mois", () => {
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
   const scheduleModalSource = modal.slice(
     modal.indexOf("export function AgentScheduleModal"),
@@ -337,7 +337,8 @@ test("le compteur du planning exclut les actions passées et hors mois", () => {
   );
 
   assert.match(scheduleModalSource, /const visibleMonthItems = useMemo/);
-  assert.match(scheduleModalSource, /date\.getTime\(\) >= nowTimestamp/);
+  assert.match(scheduleModalSource, /date\.getFullYear\(\) \* 12 \+ date\.getMonth\(\) >= historyStartMonth/);
+  assert.match(scheduleModalSource, /agentPublicationHistoryWindow\(new Date\(nowTimestamp\)\)/);
   assert.match(scheduleModalSource, /setNowTimestamp\(Date\.now\(\)\)/);
   assert.match(scheduleModalSource, /date\.getMonth\(\) === month/);
   assert.match(scheduleModalSource, /const filterCounts = useMemo/);

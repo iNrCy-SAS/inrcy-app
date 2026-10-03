@@ -40,6 +40,7 @@ export default function DashboardAgentPlanningModal({
     connectedChannelsLoadState,
     loadState,
     actions,
+    historyPublications,
     scheduledActions,
     actionsLoadState,
   } = useAgentRuntimeData({ standardMode });
@@ -47,6 +48,7 @@ export default function DashboardAgentPlanningModal({
     () =>
       buildAgentScheduleItems({
         actions,
+        historyPublications,
         scheduledActions,
         visibleAutomations,
         configs,
@@ -56,6 +58,7 @@ export default function DashboardAgentPlanningModal({
       }),
     [
       actions,
+      historyPublications,
       agentConnectedChannels,
       configs,
       locale,

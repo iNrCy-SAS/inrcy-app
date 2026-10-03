@@ -9299,3 +9299,71 @@
     outline-offset: 2px;
   }
 }
+
+/* Recommandations et états : du texte à lire, distinct des vrais boutons d'action. */
+.statsWorkspace[data-stats-view="global"] .allStatsToolBadge,
+.actionPill,
+.effort,
+.lectureBusinessEffortPlaceholder {
+  --stats-information-accent: rgba(125, 211, 252, 0.8);
+  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 5px;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100%;
+  padding: 1px 0 1px 9px !important;
+  border: 0 !important;
+  border-left: 2px solid var(--stats-information-accent) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(226, 232, 240, 0.92) !important;
+  font-weight: 800 !important;
+  line-height: 1.2;
+  letter-spacing: 0.015em;
+  text-align: left !important;
+  text-shadow: none !important;
+  cursor: default !important;
+}
+
+.actionPill.action_booster {
+  --stats-information-accent: rgba(125, 211, 252, 0.85);
+}
+
+.actionPill.action_propulser {
+  --stats-information-accent: rgba(216, 180, 254, 0.85);
+}
+
+.actionPill.action_fideliser,
+.actionPill.action_mail_simple,
+.effort.effort_faible {
+  --stats-information-accent: rgba(110, 231, 183, 0.85);
+}
+
+.actionPill.action_connexion,
+.statsWorkspace[data-stats-view="global"] .allStatsToolBadgeConnect {
+  --stats-information-accent: rgba(253, 186, 116, 0.9);
+  color: rgba(255, 237, 213, 0.94) !important;
+}
+
+.effort.effort_moyen {
+  --stats-information-accent: rgba(125, 211, 252, 0.85);
+}
+
+.effort.effort_structurant {
+  --stats-information-accent: rgba(253, 186, 116, 0.85);
+}
+
+.lectureBusinessEffortPlaceholder {
+  --stats-information-accent: rgba(148, 163, 184, 0.7);
+}
+
+.actionPill.actionPillPremiumLocked,
+.statsWorkspace[data-stats-view="global"] .allStatsToolBadge.actionPillPremiumLocked {
+  --stats-information-accent: rgba(148, 163, 184, 0.8);
+  color: rgba(226, 232, 240, 0.8) !important;
+}

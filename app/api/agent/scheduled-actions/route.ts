@@ -7,6 +7,7 @@ import {
 import { INR_AGENT_AUTOMATION_KEYS, type InrAgentAutomationKey } from "@/lib/inrAgentSettings";
 import { INR_AGENT_ACTION_TYPES, INR_AGENT_TARGET_TOOLS, type InrAgentActionType, type InrAgentTargetTool } from "@/lib/inrAgentActions";
 import { requireUser } from "@/lib/requireUser";
+import { agentPublicationHistoryWindow } from "@/lib/inrAgentPublicationHistory";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { findSimilarScheduledPublication } from "@/lib/scheduledPublicationDedupe";
 import { findSimilarScheduledCampaign } from "@/lib/scheduledCampaignDedupe";
@@ -179,10 +180,37 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Lecture des actions programmées impossible" }, { status: 500 });
   }
 
-  const visibleRows = Array.isArray(data)
+  // A recency cap must not hide dated publications from the planning.
+  const planningRows: NonNullable<typeof data> = [];
+  const planningFrom = agentPublicationHistoryWindow().from;
+  for (let offset = 0; ; offset += 500) {
+    const page = await supabaseAdmin
+      .from("inr_agent_scheduled_actions")
+      .select(SCHEDULED_ACTION_SELECT)
+      .eq("user_id", activeUserId)
+      .in("status", VISIBLE_SCHEDULED_STATUSES)
+      .gte("scheduled_at", planningFrom)
+      .order("scheduled_at", { ascending: true })
+      .range(offset, offset + 499);
+    if (page.error) {
+      console.warn("[inr-agent-scheduled-actions] planning read failed", page.error);
+      return NextResponse.json({ error: "Lecture du planning programmé impossible" }, { status: 500 });
+    }
+    const batch = page.data || [];
+    planningRows.push(...batch);
+    if (batch.length < 500) break;
+  }
+
+  const mergedRows = Array.from(new Map(
+    [...planningRows, ...(data || [])].map((row) => [row.id, row]),
+  ).values()).sort((left, right) =>
+    Date.parse(String(right.updated_at || "")) - Date.parse(String(left.updated_at || "")),
+  );
+
+  const visibleRows = Array.isArray(mergedRows)
     ? standardMode
-      ? filterStandardAgentItems(data)
-      : data
+      ? filterStandardAgentItems(mergedRows)
+      : mergedRows
     : [];
   const scheduledActions = visibleRows.map((row) =>
     scheduledActionForResponse(row, request.url),

@@ -75,8 +75,16 @@ import {
   normalizeInrAgentEditorialFocus,
   type InrAgentEditorialFocus,
 } from "@/lib/inrAgentEditorialVariation";
+import { chooseInrAgentInstantFocusMode } from "@/lib/inrAgentInstantFocusMode";
+import { wasInrAgentPublicationIdeaPreviouslyGenerated } from "@/lib/inrAgentPublicationIdeaReuse";
+import {
+  claimInrAgentPublicationIdea,
+  loadInrAgentPublicationIdeas,
+  releaseAbandonedInrAgentPublicationIdeas,
+  releaseInrAgentPublicationIdea,
+} from "@/lib/inrAgentPublicationIdeaLifecycle";
 import { inrAgentPublicationMediaAt } from "@/lib/inrAgentEditorialMediaPolicy";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
 export const maxDuration = 800;
@@ -2151,11 +2159,25 @@ export async function POST(request: Request) {
   const publicationIdeas = normalizeInrAgentPublicationIdeas(
     automation.metadata?.publicationIdeas
   ).filter(Boolean);
-  // Chaque action garde le focus prévu dans son plan. Pour une préparation
-  // manuelle (sans créneau), on applique exactement la même règle : idées du
-  // pro non encore traitées, puis combinaison iNr'ADN équilibrée.
-  const runtimeFocus =
-    editorialTarget?.plan.focus ||
+  await releaseAbandonedInrAgentPublicationIdeas({ supabase: supabaseAdmin, userId });
+  const ideaRows = await loadInrAgentPublicationIdeas({
+    supabase: supabaseAdmin,
+    userId,
+    publicationIdeas,
+  });
+  const instantActionId = editorialTarget ? null : randomUUID();
+  let reservedInstantIdea = false;
+  const historicalSubjects = [
+    ...recentPublications.flatMap((publication) => [
+      publication.title,
+      publication.idea,
+      publication.content,
+    ]),
+    ...earlierEditorialAngles,
+  ];
+  // Chaque action planifiée garde le focus de son créneau. Un éclair manuel
+  // tire soit une idée disponible, soit un sujet libre guidé par l'iNr'ADN.
+  const buildInstantFocus = (availableIdeas: string[]) =>
     buildInrAgentEditorialFocusPlan({
       slots: [
         {
@@ -2169,18 +2191,61 @@ export async function POST(request: Request) {
       ],
       business,
       profile,
-      publicationIdeas,
-      historicalSubjects: [
-        ...recentPublications.flatMap((publication) => [
-          publication.title,
-          publication.idea,
-          publication.content,
-        ]),
-        ...earlierEditorialAngles,
-      ],
+      publicationIdeas: availableIdeas,
+      allowPreviouslyCoveredPublicationIdeas: true,
+      historicalSubjects,
       seed: `${userId}:inr-agent-instant`,
-    })[0]?.focus ||
-    null;
+    })[0]?.focus || null;
+  let runtimeFocus = editorialTarget?.plan.focus || null;
+  if (editorialTarget && runtimeFocus?.source === "professional_idea") {
+    const ideaRow = ideaRows.find((row) => row.idea_text === runtimeFocus?.subject);
+    const reserved = wasInrAgentPublicationIdeaPreviouslyGenerated({
+      payload: editorialTarget.payload,
+      metadata: editorialTarget.metadata,
+      ideaText: runtimeFocus.subject,
+    }) ||
+      (ideaRow?.status === "used" && ideaRow.used_action_id === editorialTarget.id) ||
+      (ideaRow?.status === "active" && await claimInrAgentPublicationIdea({
+      supabase: supabaseAdmin,
+      userId,
+      ideaText: runtimeFocus.subject,
+      actionId: editorialTarget.id,
+      }));
+    if (!reserved) {
+      return NextResponse.json(
+        { error: "Cette idée n’est plus disponible pour ce créneau. Le planning va la remplacer.", code: "INR_AGENT_IDEA_UNAVAILABLE" },
+        { status: 409 },
+      );
+    }
+  }
+  if (!editorialTarget && instantActionId) {
+    let availableIdeas = ideaRows
+      .filter((row) => row.status === "active" && !row.reserved_action_id)
+      .map((row) => row.idea_text);
+    // Les lancements automatiques sans créneau conservent leur priorité
+    // historique aux idées ; seul le bouton éclair effectue ce tirage 50/50.
+    const focusMode = isCron
+      ? "saved_idea"
+      : chooseInrAgentInstantFocusMode(availableIdeas.length, randomInt(2));
+    if (focusMode === "saved_idea") {
+      while (availableIdeas.length) {
+        const candidate = buildInstantFocus(availableIdeas);
+        if (candidate?.source !== "professional_idea") break;
+        if (await claimInrAgentPublicationIdea({
+          supabase: supabaseAdmin,
+          userId,
+          ideaText: candidate.subject,
+          actionId: instantActionId,
+        })) {
+          runtimeFocus = candidate;
+          reservedInstantIdea = true;
+          break;
+        }
+        availableIdeas = availableIdeas.filter((ideaText) => ideaText !== candidate.subject);
+      }
+    }
+    runtimeFocus ||= buildInstantFocus([]);
+  }
   const baseIdea = buildAgentIdea({
     business,
     profile,
@@ -2208,7 +2273,12 @@ export async function POST(request: Request) {
           horizonDays: automation.planningHorizonDays, idempotencyKey: editorialTarget.id,
         })
       : await reserveAiCredits({ supabase, userId: quotaAccountId, action: "booster", credits: actionCredits });
-    if (quota.errorResponse) return quota.errorResponse;
+    if (quota.errorResponse) {
+      if (reservedInstantIdea && instantActionId) {
+        await releaseInrAgentPublicationIdea({ supabase: supabaseAdmin, userId, actionId: instantActionId });
+      }
+      return quota.errorResponse;
+    }
     quotaReservation = quota.reservation;
   }
   try {
@@ -2622,6 +2692,9 @@ export async function POST(request: Request) {
           preserveExplicit: false,
         });
       }
+      if (!channels.some((channel) => hasUsefulContent(versions[channel]))) {
+        throw new Error("inr_agent_publication_generation_empty");
+      }
     } finally {
       aiGenerationMs = Date.now() - aiGenerationStartedAt;
     }
@@ -2735,6 +2808,8 @@ export async function POST(request: Request) {
         editorialPlanVersion: editorialTarget ? 1 : undefined,
         editorialState: editorialTarget ? "ready" : undefined,
         editorialGeneratedAt: editorialTarget ? now : undefined,
+        editorialPreviouslyGeneratedIdea: editorialTarget && runtimeFocus?.source === "professional_idea"
+          ? runtimeFocus.subject : undefined,
         editorialNextRetryAt: editorialTarget ? null : undefined,
         editorialLastError: editorialTarget ? null : undefined,
         editorialPreparedChannels: editorialTarget ? targetChannels : undefined,
@@ -2779,7 +2854,7 @@ export async function POST(request: Request) {
     } else {
       const result = await supabaseAdmin
         .from("inr_agent_actions")
-        .insert({ ...actionValues, created_at: now })
+        .insert({ ...actionValues, id: instantActionId, created_at: now })
         .select(actionSelect)
         .single();
       inserted = result.data;
@@ -2935,6 +3010,9 @@ export async function POST(request: Request) {
   } finally {
     // Toute sortie avant la génération du texte restitue sa réservation.
     if (quotaReservation) await rollbackAiCredits(quotaReservation);
+    if (reservedInstantIdea && instantActionId) {
+      await releaseInrAgentPublicationIdea({ supabase: supabaseAdmin, userId, actionId: instantActionId });
+    }
   }
 }
 function channelMediaAdaptation(

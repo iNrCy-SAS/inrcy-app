@@ -1,4 +1,5 @@
 import { pendingActionStatuses } from "./agent.config";
+import type { AgentPublicationHistoryItem } from "@/lib/inrAgentPublicationHistory";
 import {
   agentActionStatusLabel,
   agentAutomationTitle,
@@ -42,6 +43,7 @@ import { asRecord } from "./agent.utils";
 
 type BuildAgentScheduleItemsArgs = {
   actions: AgentPreparedAction[];
+  historyPublications: AgentPublicationHistoryItem[];
   scheduledActions: AgentScheduledAction[];
   visibleAutomations: Automation[];
   configs: Record<AutomationKey, AutomationConfig>;
@@ -82,6 +84,7 @@ function scheduledMediaKind(
 
 export function buildAgentScheduleItems({
   actions,
+  historyPublications,
   scheduledActions,
   visibleAutomations,
   configs,
@@ -90,12 +93,20 @@ export function buildAgentScheduleItems({
   translate,
 }: BuildAgentScheduleItemsArgs): ScheduleListItem[] {
   const rows: ScheduleListItem[] = [];
+  const historicalActionIds = new Set(historyPublications.map((item) => item.agentActionId).filter(Boolean));
+  const historicalScheduledIds = new Set(historyPublications.map((item) => item.scheduledActionId).filter(Boolean));
   const editorialActions = actions.filter((action) => {
     const editorialPlan = asRecord(action.payload?.editorialPlan);
+    const scheduledExecution = asRecord(action.payload?.scheduledExecution);
+    const linkedScheduledIds = Array.isArray(scheduledExecution?.scheduledActionIds)
+      ? scheduledExecution.scheduledActionIds.map(String)
+      : [];
     return (
       action.automationKey === "publish" &&
       Boolean(editorialPlan) &&
-      !["scheduled", "validated", "completed", "cancelled"].includes(
+      !historicalActionIds.has(action.id) &&
+      !linkedScheduledIds.some((id) => historicalScheduledIds.has(id)) &&
+      !["completed", "cancelled"].includes(
         action.status,
       )
     );
@@ -216,6 +227,7 @@ export function buildAgentScheduleItems({
   for (const action of scheduledActions) {
     if (
       action.source !== "manual" ||
+      historicalScheduledIds.has(action.id) ||
       !["scheduled", "running", "failed"].includes(action.status)
     ) {
       continue;
@@ -262,11 +274,58 @@ export function buildAgentScheduleItems({
       status: agentScheduledStatusLabel(action.status, translate),
       statusKey: action.status,
       automationKey: action.automationKey,
+      preparedActionId: String(asRecord(action.payload)?.sourceActionId || "") || undefined,
       scheduledActionId: action.id,
       scheduledAtIso: action.scheduledAt || action.createdAt,
       editable: action.status !== "running",
       removable: true,
       source: "manual",
+    });
+  }
+
+  const historyStatusLabels: Record<AgentPublicationHistoryItem["status"], string> = {
+    completed: translate("planning_history_succeeded"),
+    partial: translate("planning_history_partial"),
+    failed: translate("echec_0ff45fa6"),
+    refused: translate("action_status_refused"),
+    cancelled: translate("action_status_cancelled"),
+    processing: translate("action_status_executing"),
+  };
+  for (const publication of historyPublications) {
+    const occurredAt = new Date(publication.occurredAt);
+    const dateParts = {
+      date: new Intl.DateTimeFormat(locale, {
+        timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric",
+      }).format(occurredAt),
+      time: new Intl.DateTimeFormat(locale, {
+        timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).format(occurredAt),
+    };
+    const channels = normalizeUiChannels(publication.channels);
+    const channelLabels = channels.map((channel) =>
+      agentScheduleChannelLabel(scheduleChannelLabelFromAutomation("publish", channel), translate),
+    );
+    rows.push({
+      id: publication.id,
+      action: publication.title,
+      themeLabel: agentThemeListLabel(publication.themes, translate, locale) || undefined,
+      contentTitle: publication.contentTitle || undefined,
+      mediaKind: publication.mediaKind || undefined,
+      date: dateParts.date,
+      time: dateParts.time,
+      typeLabel: agentScheduleTypeLabel(scheduleTypeLabelFromAutomation("publish"), translate),
+      channelLabel: channelLabels.join(" · ") || "—",
+      channelLabels,
+      originLabel: translate("inr_agent_88080b90"),
+      status: historyStatusLabels[publication.status],
+      statusKey: publication.status,
+      automationKey: "publish",
+      preparedActionId: publication.agentActionId,
+      scheduledActionId: publication.scheduledActionId,
+      scheduledAtIso: publication.occurredAt,
+      editable: false,
+      removable: false,
+      source: "history",
     });
   }
 

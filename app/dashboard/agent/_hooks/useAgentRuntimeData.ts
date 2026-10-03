@@ -35,6 +35,10 @@ import {
   settingsToConfigs,
 } from "../_lib/agent.settings";
 import { asRecord } from "../_lib/agent.utils";
+import {
+  agentPublicationHistoryWindow,
+  type AgentPublicationHistoryItem,
+} from "@/lib/inrAgentPublicationHistory";
 import type { AutomationConfig, AutomationKey } from "../_lib/agent.types";
 import {
   filterStandardAgentItems,
@@ -298,6 +302,7 @@ export function useAgentRuntimeData({
   const [tableMissing, setTableMissing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [actions, setActions] = useState<AgentPreparedAction[]>([]);
+  const [historyPublications, setHistoryPublications] = useState<AgentPublicationHistoryItem[]>([]);
   const [scheduledActions, setScheduledActions] = useState<
     AgentScheduledAction[]
   >([]);
@@ -454,7 +459,28 @@ export function useAgentRuntimeData({
     );
   }, [agentConnectedChannels, loadState]);
 
-  async function refreshActions(silent = false) {
+  async function refreshPublicationHistory(silent = false) {
+    const { from, to } = agentPublicationHistoryWindow();
+    try {
+      const params = new URLSearchParams({ from, to });
+      const response = await fetch(`/api/agent/publication-history?${params}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => null) as {
+        historyPublications?: AgentPublicationHistoryItem[];
+      } | null;
+      if (!response.ok || !Array.isArray(payload?.historyPublications)) {
+        throw new Error("Lecture de l’historique iNr’Agent impossible.");
+      }
+      setHistoryPublications(payload.historyPublications);
+    } catch {
+      if (!silent) showNotice(i18nT("agent_actions_unavailable"));
+    }
+  }
+
+  async function refreshActions(silent = false, refreshHistory = true) {
+    if (refreshHistory) void refreshPublicationHistory(silent);
     if (!silent) {
       setActionsLoadState((current) =>
         current === "ready" ? current : "loading",
@@ -554,7 +580,7 @@ export function useAgentRuntimeData({
     });
     if (!hasEditorialPreparation) return;
     const interval = window.setInterval(() => {
-      void refreshActions(true);
+      void refreshActions(true, false);
     }, 12_000);
     return () => window.clearInterval(interval);
   }, [actions]);
@@ -578,6 +604,8 @@ export function useAgentRuntimeData({
     setNotice,
     actions,
     setActions,
+    historyPublications,
+    refreshPublicationHistory,
     scheduledActions,
     setScheduledActions,
     scheduledActionsTableMissing,

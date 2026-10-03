@@ -116,10 +116,12 @@ import { buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
+  INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS,
   INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS,
   INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
   appendInrAgentPublicationIdeaSlot,
   inrAgentPublicationIdeaFieldCount,
+  normalizeInrAgentPublicationIdeas,
   normalizeInrAgentStudioMediaPreferencePercent,
   normalizeInrAgentPublicationMediaTypes,
   sanitizeInrAgentSettings,
@@ -568,6 +570,8 @@ export default function AgentClient() {
     setNotice,
     actions,
     setActions,
+    historyPublications,
+    refreshPublicationHistory,
     scheduledActions,
     setScheduledActions,
     setScheduledActionsTableMissing,
@@ -594,6 +598,10 @@ export default function AgentClient() {
   const [publicationIdeaVoiceIndex, setPublicationIdeaVoiceIndex] = useState<
     number | null
   >(null);
+  const [publicationIdeaStates, setPublicationIdeaStates] = useState<
+    Record<string, { status: "active" | "disabled" | "used"; reserved_action_id: string | null }>
+  >({});
+  const [publicationIdeaToggleBusy, setPublicationIdeaToggleBusy] = useState<string | null>(null);
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1100,6 +1108,7 @@ export default function AgentClient() {
   const upcomingScheduleItems = useMemo<ScheduleListItem[]>(() => {
     return buildAgentScheduleItems({
       actions,
+      historyPublications,
       scheduledActions,
       visibleAutomations,
       configs,
@@ -1109,6 +1118,7 @@ export default function AgentClient() {
     });
   }, [
     actions,
+    historyPublications,
     agentConnectedChannels,
     configs,
     i18nT,
@@ -1134,6 +1144,9 @@ export default function AgentClient() {
     ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
     : 0;
   const settingsPublicationIdeaVoiceBusy = publicationIdeaVoiceIndex !== null;
+  const savedPublicationIdeas = normalizeInrAgentPublicationIdeas(
+    agentSettings.automations.publish.metadata?.publicationIdeas,
+  );
   const updateSettingsPublicationIdea = (index: number, nextValue: string) => {
     if (!settingsConfig || settingsAutomation?.key !== "publish") return;
     const publicationIdeas = Array.from(
@@ -1145,6 +1158,15 @@ export default function AgentClient() {
       INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH
     );
     updateConfig("publish", { publicationIdeas });
+  };
+  const resetSettingsPublicationIdeas = () => {
+    if (!settingsConfig || settingsAutomation?.key !== "publish") return;
+    updateConfig("publish", {
+      publicationIdeas: Array.from(
+        { length: INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS },
+        () => "",
+      ),
+    });
   };
   const settingsStudioMediaPreferenceStep = settingsConfig
     ? studioMediaPreferenceStep(settingsConfig.studioMediaPreferencePercent)
@@ -1173,6 +1195,60 @@ export default function AgentClient() {
     setSettingsPublishTab("settings");
     setPublicationIdeaVoiceIndex(null);
   }, [settingsKey]);
+  useEffect(() => {
+    if (settingsKey !== "publish" || settingsPublishTab !== "ideas") return;
+    const controller = new AbortController();
+    void fetch("/api/agent/publication-ideas", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(i18nT("publication_ideas_load_failed"));
+        return response.json() as Promise<{
+          states?: Array<{ idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null }>;
+        }>;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        setPublicationIdeaStates(Object.fromEntries(
+          (payload.states || []).map((state) => [state.idea_text, state]),
+        ));
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) console.warn("[inr-agent] publication idea states", error);
+      });
+    return () => controller.abort();
+  }, [settingsKey, settingsPublishTab, agentSettings.automations.publish.metadata?.publicationIdeas]);
+
+  async function togglePublicationIdea(ideaText: string, active: boolean) {
+    if (publicationIdeaToggleBusy) return;
+    setPublicationIdeaToggleBusy(ideaText);
+    try {
+      const response = await fetch("/api/agent/publication-ideas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaText, active }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        state?: { idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null };
+        error?: string;
+        code?: string;
+      } | null;
+      if (!response.ok || !payload?.state) {
+        throw new Error(payload?.code === "INR_AGENT_IDEA_NOT_SAVED"
+          ? i18nT("publication_idea_not_saved")
+          : payload?.code === "INR_AGENT_IDEA_INVALID"
+            ? i18nT("publication_idea_invalid")
+            : i18nT("publication_idea_update_failed"));
+      }
+      setPublicationIdeaStates((current) => ({
+        ...current,
+        [ideaText]: payload.state!,
+      }));
+      await refreshActions(true);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : i18nT("publication_idea_update_failed"));
+    } finally {
+      setPublicationIdeaToggleBusy(null);
+    }
+  }
   const settingsDisplayedChannels = useMemo(
     () =>
       (settingsAutomation?.availableChannels ?? []).filter(
@@ -1204,6 +1280,22 @@ export default function AgentClient() {
     [selectedAvailableChannels, selectedConfig.channels]
   );
   const isPublishView = selected.key === "publish";
+  const selectedScheduledExecution = asRecord(selectedPreparedAction?.payload?.scheduledExecution);
+  const linkedScheduledActionIds = Array.isArray(selectedScheduledExecution?.scheduledActionIds)
+    ? selectedScheduledExecution.scheduledActionIds.map(String)
+    : [];
+  const displayedPublicationScheduleItem = isPublishView && selectedPreparedAction?.scheduledFor
+    ? upcomingScheduleItems.find((item) =>
+        item.editable && item.scheduledAtIso && item.automationKey === "publish" && (
+          item.source === "editorial" && item.preparedActionId === selectedPreparedAction.id ||
+          item.source === "manual" && (
+            item.scheduledActionId === scheduledEditSession?.scheduledAction.id ||
+            item.preparedActionId === selectedPreparedAction.id ||
+            linkedScheduledActionIds.includes(item.scheduledActionId || "")
+          )
+        ),
+      ) || null
+    : null;
   const preparedChannels = useMemo(
     () =>
       selectedPreparedAction
@@ -1757,10 +1849,11 @@ export default function AgentClient() {
     runtimeT
   );
   const statsStoredCountLabel = `${statsReports.length}/5`;
+  const showFooterDate = !isPublishView || Boolean(selectedPreparedAction?.scheduledFor);
   const footerDateLabel =
     selected.key === "stats"
       ? statsNextRunLabel
-      : hasPreparedAction && selectedPreparedAction
+      : hasPreparedAction && selectedPreparedAction?.scheduledFor
       ? formatActionDate(
           selectedPreparedAction.scheduledFor,
           selectedConfig,
@@ -5245,6 +5338,7 @@ export default function AgentClient() {
                 const openPlanning = () => {
                   setScheduleOpen(true);
                   void refreshScheduledActions(true);
+                  void refreshPublicationHistory(true);
                 };
                 if (
                   !exitScheduledEditSession({
@@ -6763,6 +6857,7 @@ export default function AgentClient() {
                 } ${isCampaignView ? styles.previewMetaCampaign : ""} ${
                   isPublishView ? styles.previewMetaPublish : ""
                 }`}
+                data-has-date={isPublishView ? String(showFooterDate) : undefined}
               >
                 <div className={`${styles.metaItem} ${styles.channelsItem}`}>
                   {!isPublishView && (
@@ -6973,7 +7068,7 @@ export default function AgentClient() {
                     </button>
                   </div>
                 ) : null}
-                <div
+                {showFooterDate ? <div
                   className={`${styles.metaItem} ${styles.dateItem}`}
                   title={i18nT(
                     selected.key === "stats"
@@ -6981,13 +7076,26 @@ export default function AgentClient() {
                       : "scheduled_date"
                   )}
                 >
-                  <span className={styles.metaIcon} aria-hidden>
-                    <CalendarMetaIcon />
-                  </span>
+                  {displayedPublicationScheduleItem ? (
+                    <button
+                      type="button"
+                      className={`${styles.metaIcon} ${styles.dateEditButton}`}
+                      onClick={() => handleScheduleRowReschedule(displayedPublicationScheduleItem)}
+                      disabled={scheduleMutationState === "saving"}
+                      aria-label={i18nT("modifier_la_programmation_2bdd7cdc")}
+                      title={i18nT("modifier_la_programmation_2bdd7cdc")}
+                    >
+                      <CalendarMetaIcon />
+                    </button>
+                  ) : (
+                    <span className={styles.metaIcon} aria-hidden>
+                      <CalendarMetaIcon />
+                    </span>
+                  )}
                   <span>
                     <strong>{footerDateLabel}</strong>
                   </span>
-                </div>
+                </div> : null}
                 {isPublishView && selectedPreparedAction ? (
                   <div
                     className={styles.publishMobileStatus}
@@ -9272,10 +9380,16 @@ export default function AgentClient() {
                       const value =
                         settingsConfig.publicationIdeas[index] || "";
                       const inputId = `publication-idea-${index}`;
+                      const ideaState = publicationIdeaStates[value];
+                      const ideaIsSaved = Boolean(value && savedPublicationIdeas.includes(value));
+                      const ideaIsReserved = ideaState?.status === "active" && Boolean(ideaState.reserved_action_id);
+                      const ideaIsActive = ideaState?.status === "active";
+                      const ideaWasUsed = ideaState?.status === "used";
                       return (
                         <div
                           key={inputId}
                           className={styles.publicationIdeaCard}
+                          data-idea-state={ideaState?.status || "empty"}
                         >
                           <label htmlFor={inputId}>
                             <strong>
@@ -9335,6 +9449,39 @@ export default function AgentClient() {
                               }
                             />
                           </div>
+                          {value.trim() ? (
+                            <div className={styles.publicationIdeaStatusRow}>
+                              <span>
+                                {ideaWasUsed
+                                  ? i18nT("publication_idea_state_used")
+                                  : ideaState?.status === "disabled"
+                                    ? i18nT("publication_idea_state_disabled")
+                                    : ideaIsReserved
+                                      ? i18nT("publication_idea_state_reserved")
+                                      : ideaIsActive
+                                        ? i18nT("publication_idea_state_active")
+                                        : ideaIsSaved
+                                          ? i18nT("publication_idea_state_loading")
+                                          : i18nT("publication_idea_state_unsaved")}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={!ideaIsSaved || !ideaState || Boolean(publicationIdeaToggleBusy) || saveState === "saving"}
+                                onClick={() => void togglePublicationIdea(value, !ideaIsActive)}
+                                aria-label={ideaIsActive
+                                  ? i18nT("publication_idea_disable_aria", { number: index + 1 })
+                                  : ideaWasUsed
+                                    ? i18nT("publication_idea_reuse_aria", { number: index + 1 })
+                                    : i18nT("publication_idea_reactivate_aria", { number: index + 1 })}
+                              >
+                                {ideaIsActive
+                                  ? i18nT("publication_idea_disable")
+                                  : ideaWasUsed
+                                    ? i18nT("publication_idea_reuse")
+                                    : i18nT("publication_idea_reactivate")}
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     }
@@ -9371,6 +9518,7 @@ export default function AgentClient() {
             <footer
               className={styles.settingsModalFooter}
               data-save-only={settingsAutomation.key !== "stats" ? "true" : undefined}
+              data-ideas-tab={settingsAutomation.key === "publish" && settingsPublishTab === "ideas" ? "true" : undefined}
             >
               <p className={styles.modalNote}>
                 {i18nT("source_des_idees_value_75f522cb", {
@@ -9378,6 +9526,24 @@ export default function AgentClient() {
                 })}
               </p>
               <div className={styles.modalActionRow}>
+                {settingsAutomation.key === "publish" && settingsPublishTab === "ideas" ? (
+                  <button
+                    type="button"
+                    className={`${styles.modalAction} ${styles.publicationIdeasResetAction}`}
+                    onClick={resetSettingsPublicationIdeas}
+                    title={i18nT("publication_ideas_reset_hint")}
+                    disabled={
+                      saveState === "saving" ||
+                      loadState === "loading" ||
+                      Boolean(testNowKey) ||
+                      settingsPublicationIdeaVoiceBusy ||
+                      (settingsPublicationIdeaFieldCount === INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS &&
+                        !settingsConfig.publicationIdeas.some((idea) => idea.trim()))
+                    }
+                  >
+                    {i18nT("publication_ideas_reset")}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={`${styles.modalAction} ${styles.settingsSaveAction}`}

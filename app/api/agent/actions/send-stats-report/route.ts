@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsPDF } from "jspdf";
+import { planExecutiveInsightCards, type InsightCardLine } from "@/lib/inrstats/statsReportPdfLayout";
 import { getCronSecret } from "@/lib/cronAuth";
 import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -761,22 +762,8 @@ function drawDarkKpiCard(doc: jsPDF, label: string, value: string, x: number, y:
 
 function normalizeInsightList(items: unknown, fallback: string[]): string[] {
   if (!Array.isArray(items)) return fallback;
-  const cleaned = items.map((item) => cleanText(item, 240)).filter(Boolean);
-  return cleaned.length ? cleaned.slice(0, 5) : fallback;
-}
-
-function addBulletList(doc: jsPDF, items: unknown, x: number, y: number, width: number, color: Rgb = [30, 41, 59]) {
-  const list = Array.isArray(items) ? items.map((item) => cleanText(item, 240)).filter(Boolean) : [];
-  let cursor = y;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.4);
-  setText(doc, color);
-  for (const item of list.slice(0, 5)) {
-    const lines = splitText(doc, `- ${item}`, width);
-    doc.text(lines, x, cursor);
-    cursor += Math.max(6.4, lines.length * 4.6 + 2.4);
-  }
-  return cursor;
+  const cleaned = items.map((item) => cleanText(item, 4000)).filter(Boolean);
+  return cleaned.length ? cleaned : fallback;
 }
 
 function addWrappedText(doc: jsPDF, text: unknown, x: number, y: number, width: number, lineHeight = 4.8) {
@@ -806,13 +793,43 @@ function drawStatusBadge(doc: jsPDF, label: string, x: number, y: number, color:
   doc.text(label.toUpperCase(), x + 7.5, y + 5.5, { maxWidth: 24 });
 }
 
-function drawInsightCard(doc: jsPDF, title: string, items: string[], x: number, y: number, w: number, h: number, accent: Rgb) {
+function drawInsightCard(doc: jsPDF, title: string, lines: InsightCardLine[], continuation: boolean, x: number, y: number, w: number, h: number, accent: Rgb) {
   drawGlassCard(doc, x, y, w, h, { fill: PDF.white, border: [226, 232, 240], radius: 6, accent });
   setText(doc, PDF.slate);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text(title, x + 7, y + 12);
-  addBulletList(doc, items, x + 7, y + 23, w - 14, [51, 65, 85]);
+  doc.text(continuation ? `${title} (suite)` : title, x + 7, y + 12, { maxWidth: w - 14 });
+  setText(doc, [51, 65, 85]);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.4);
+  for (const line of lines) doc.text(line.text, x + 7, y + line.y);
+}
+
+function drawPrioritySection(doc: jsPDF, channels: ChannelReportLine[], automatic: boolean, titleY: number) {
+  drawSectionTitle(doc, automatic ? "Priorités iNr’Agent" : "Priorités recommandées", "Les canaux à suivre en premier dans les prochains jours.", 14, titleY, PDF.cyan);
+  const priorityY = titleY + 13;
+  if (channels.length) {
+    channels.forEach((channel, index) => {
+      const health = getChannelHealth(channel);
+      drawGlassCard(doc, 14 + index * 61, priorityY, 56, 34, { fill: PDF.white, border: [226, 232, 240], radius: 5, accent: health.color });
+      setText(doc, PDF.slate);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.2);
+      doc.text(channel.label, 19 + index * 61, priorityY + 9, { maxWidth: 46 });
+      setText(doc, PDF.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.6);
+      doc.text(`${formatNumber(channel.capturedMonth)} demandes · ${formatNumber(channel.opportunities)} opp.`, 19 + index * 61, priorityY + 19, { maxWidth: 46 });
+      setText(doc, health.color);
+      doc.setFont("helvetica", "bold");
+      doc.text(health.label, 19 + index * 61, priorityY + 28, { maxWidth: 46 });
+    });
+  } else {
+    setText(doc, PDF.muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Aucun canal prioritaire disponible pour le moment.", 14, priorityY + 10);
+  }
 }
 
 function drawChannelCard(doc: jsPDF, channel: ChannelReportLine, note: string, x: number, y: number, w: number, h: number) {
@@ -969,37 +986,44 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   doc.setFontSize(10.2);
   doc.text(splitText(doc, summary, 164).slice(0, 5), 24, 62);
 
-  drawInsightCard(doc, "Points forts", strengths, 14, 104, 56, 86, PDF.green);
-  drawInsightCard(doc, "À surveiller", weaknesses, 77, 104, 56, 86, PDF.orange);
-  drawInsightCard(doc, "Actions", recommendations, 140, 104, 56, 86, PDF.purple);
-
-  drawSectionTitle(doc, options.automatic ? "Priorités iNr’Agent" : "Priorités recommandées", "Les canaux à suivre en premier dans les prochains jours.", 14, 212, PDF.cyan);
-  const priorityY = 225;
-  if (bestChannels.length) {
-    bestChannels.forEach((channel, index) => {
-      const health = getChannelHealth(channel);
-      drawGlassCard(doc, 14 + index * 61, priorityY, 56, 34, { fill: PDF.white, border: [226, 232, 240], radius: 5, accent: health.color });
-      setText(doc, PDF.slate);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.2);
-      doc.text(channel.label, 19 + index * 61, priorityY + 9, { maxWidth: 46 });
-      setText(doc, PDF.muted);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.6);
-      doc.text(`${formatNumber(channel.capturedMonth)} demandes · ${formatNumber(channel.opportunities)} opp.`, 19 + index * 61, priorityY + 19, { maxWidth: 46 });
-      setText(doc, health.color);
-      doc.setFont("helvetica", "bold");
-      doc.text(health.label, 19 + index * 61, priorityY + 28, { maxWidth: 46 });
+  const insightCards = [
+    { title: "Points forts", items: strengths, x: 14, accent: PDF.green },
+    { title: "À surveiller", items: weaknesses, x: 77, accent: PDF.orange },
+    { title: "Actions", items: recommendations, x: 140, accent: PDF.purple },
+  ];
+  const insightPlan = planExecutiveInsightCards(doc, insightCards, 42);
+  insightPlan.pages.forEach((cardPage, pageIndex) => {
+    if (pageIndex > 0) {
+      doc.addPage();
+      page += 1;
+      addSoftBackground(doc, "Synthèse dirigeant (suite)", page, reportLabel);
+      drawSectionTitle(doc, "Points clés (suite)", "Suite des constats et actions du bilan.", 14, 34, PDF.purple);
+    }
+    const cardY = pageIndex === 0 ? 104 : 48;
+    cardPage.columns.forEach((column, index) => {
+      if (pageIndex === 0 || column.lines.length) {
+        const { x, accent } = insightCards[index];
+        drawInsightCard(doc, column.title, column.lines, column.continuation, x, cardY, 56, cardPage.height, accent);
+      }
     });
-  } else {
-    setText(doc, PDF.muted);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Aucun canal prioritaire disponible pour le moment.", 14, priorityY + 10);
-  }
-  addFooter(doc, page, footerLabel);
+    if (insightPlan.prioritiesOnLastPage && pageIndex === insightPlan.pages.length - 1) {
+      drawPrioritySection(doc, bestChannels, options.automatic, cardY + cardPage.height + 18);
+    }
+    if (!insightPlan.prioritiesOnFirstPage || pageIndex > 0) addFooter(doc, page, footerLabel);
+  });
 
-  // Page 3 - channels
+  if (insightPlan.prioritiesOnFirstPage) {
+    drawPrioritySection(doc, bestChannels, options.automatic, 212);
+    addFooter(doc, page, footerLabel);
+  } else if (!insightPlan.prioritiesOnLastPage) {
+    doc.addPage();
+    page += 1;
+    addSoftBackground(doc, "Priorités des canaux", page, reportLabel);
+    drawPrioritySection(doc, bestChannels, options.automatic, 34);
+    addFooter(doc, page, footerLabel);
+  }
+
+  // Channel pages follow the complete executive summary.
   doc.addPage();
   page += 1;
   addSoftBackground(doc, "Analyse par canal", page, reportLabel);
@@ -1026,7 +1050,7 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   }
   addFooter(doc, page, footerLabel);
 
-  // Page 4 - iNrBadge, avec les données mails uniquement en Premium.
+  // iNrBadge, avec les données mails uniquement en Premium.
   doc.addPage();
   page += 1;
   addSoftBackground(doc, standardReport ? "iNrBadge" : "Mails et iNrBadge", page, reportLabel);
@@ -1091,7 +1115,7 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   }
   addFooter(doc, page, footerLabel);
 
-  // Page 5 - action plan
+  // Action plan.
   doc.addPage();
   page += 1;
   addSoftBackground(doc, "Plan d'action", page, reportLabel);

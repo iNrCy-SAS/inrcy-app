@@ -455,6 +455,8 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
   business?: Record<string, unknown> | null;
   profile?: Record<string, unknown> | null;
   publicationIdeas?: unknown;
+  allowPreviouslyCoveredPublicationIdeas?: boolean;
+  reusableExistingManualIdeas?: readonly string[];
   historicalSubjects?: readonly unknown[];
   existingFocusBySlotKey?: ReadonlyMap<string, unknown> | Record<string, unknown>;
   seed?: string;
@@ -517,9 +519,11 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
   const news = listForBusiness(business, memory, [], ["recentNewsItems"], 8);
   const fallbackSubject = inferFallbackSubject(business, profile, memory);
   const manualIdeas = uniqueStrings(cleanList(args.publicationIdeas, 12, 500));
-  const usableManualIdeas = manualIdeas.filter(
-    (idea) => !isInrAgentEditorialIdeaCovered(idea, historicalSubjects),
-  );
+  const usableManualIdeas = args.allowPreviouslyCoveredPublicationIdeas
+    ? manualIdeas
+    : manualIdeas.filter(
+        (idea) => !isInrAgentEditorialIdeaCovered(idea, historicalSubjects),
+      );
 
   const counts = {
     subjects: seedCountsFromHistory(news, historicalSubjects),
@@ -535,6 +539,9 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
   };
   const existingBySlot = new Map<string, InrAgentEditorialFocus>();
   const alreadyAssignedManualIdeas = new Set<string>();
+  const reusableExistingManualIdeas = new Set(
+    (args.reusableExistingManualIdeas || []).map(normalizedKey),
+  );
   const knownFocusKeys = new Set<string>();
 
   for (const slot of args.slots) {
@@ -543,7 +550,8 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
     existingBySlot.set(slot.slotKey, focus);
     knownFocusKeys.add(focus.focusKey);
     accountForFocus(focus, counts);
-    if (focus.source === "professional_idea") {
+    if (focus.source === "professional_idea" &&
+      !reusableExistingManualIdeas.has(normalizedKey(focus.subject))) {
       alreadyAssignedManualIdeas.add(normalizedKey(focus.subject));
     }
   }
@@ -561,8 +569,12 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
     }
 
     const focusSeed = `${args.seed || "inr-agent-editorial"}:${slot.slotKey}:${slot.theme}:${slot.sequence}`;
-    const manualIdea = usableManualIdeas.find(
-      (idea) => !alreadyAssignedManualIdeas.has(normalizedKey(idea)),
+    const manualIdea = chooseLeastUsed(
+      usableManualIdeas.filter(
+        (idea) => !alreadyAssignedManualIdeas.has(normalizedKey(idea)),
+      ),
+      new Map<string, number>(),
+      `${focusSeed}:manual-idea`,
     );
     const angle = chooseLeastUsed(
       angleCandidates(slot.theme),

@@ -38,6 +38,9 @@ import {
   prepareNextInrAgentEditorialSlot,
   reconcileInrAgentEditorialPlan,
 } from "@/lib/inrAgentEditorialPlanServer";
+import {
+  nextEditorialPlanEpoch,
+} from "@/lib/inrAgentEditorialRecoveryPolicy";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -736,19 +739,46 @@ async function saveAgentSettingsHandler(request: Request) {
   const activePublishAutomation = clearDeferredEditorialMetadata(
     currentSettings.automations.publish,
   );
+  const previousPublishEpoch = nextEditorialPlanEpoch({
+    previousMetadata: existingByKey.get("publish")?.metadata,
+    calendarChanged: false,
+    nowIso: now,
+  });
+  const publishCalendarChanged =
+    scheduleSignature(existingByKey.get("publish")) !==
+      automationSignature(requestedPublishAutomation) ||
+    activePublishAutomation.planningHorizonDays !==
+      requestedPublishAutomation.planningHorizonDays ||
+    activeEditorialTimezone !== (settings.timezone || "Europe/Paris");
+  // This epoch only changes when the calendar itself changes. Editing an idea,
+  // copy or tone must not reopen a publication explicitly refused by the pro.
+  const nextPublishEpoch = nextEditorialPlanEpoch({
+    previousMetadata: existingByKey.get("publish")?.metadata,
+    calendarChanged: publishCalendarChanged,
+    nowIso: now,
+    deferredUntil: deferEditorialSettings ? impact.protectedUntil : null,
+  });
+  const requestedPublishWithEpoch = sanitizeInrAgentAutomationSettings("publish", {
+    ...requestedPublishAutomation,
+    metadata: {
+      ...requestedPublishAutomation.metadata,
+      editorialPlanEpoch: nextPublishEpoch,
+    },
+  });
   const persistedPublishAutomation = deferEditorialSettings
     ? sanitizeInrAgentAutomationSettings("publish", {
         ...activePublishAutomation,
         metadata: {
           ...activePublishAutomation.metadata,
-          pendingEditorialSettings: requestedPublishAutomation,
+          editorialPlanEpoch: previousPublishEpoch,
+          pendingEditorialSettings: requestedPublishWithEpoch,
           editorialSettingsEffectiveAt: impact.protectedUntil,
           editorialSettingsDeferredAt: now,
           editorialSettingsActiveTone: activeEditorialTone,
           editorialSettingsActiveTimezone: activeEditorialTimezone,
         },
       })
-    : requestedPublishAutomation;
+    : requestedPublishWithEpoch;
 
   const persistedGlobalEnabled = deferEditorialSettings
     ? Object.entries(settings.automations).some(([key, automation]) =>

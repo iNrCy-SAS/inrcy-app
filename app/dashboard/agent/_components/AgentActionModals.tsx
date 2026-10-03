@@ -1,4 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
+import { agentPublicationHistoryWindow, parisHistoryCalendarParts } from "@/lib/inrAgentPublicationHistory";
 import {
   useEffect,
   useMemo,
@@ -737,6 +738,10 @@ function scheduleFilterKey(item: ScheduleListItem): ScheduleFilterKey {
 }
 
 function scheduleItemLocalDate(item: ScheduleListItem) {
+  if (item.source === "history" && item.scheduledAtIso) {
+    const paris = parisHistoryCalendarParts(item.scheduledAtIso);
+    if (paris) return new Date(paris.year, paris.month - 1, paris.day, paris.hour, paris.minute);
+  }
   const dateParts = item.date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   const timeParts = item.time.match(/^(\d{1,2}):(\d{2})/);
   if (dateParts) {
@@ -766,11 +771,10 @@ function scheduleDayKey(date: Date) {
 function groupScheduleItems(items: ScheduleListItem[]) {
   const groups = new Map<string, ScheduleCalendarGroup>();
   items.forEach((item) => {
-    if (item.statusKey === "cancelled") return;
     const date = scheduleItemLocalDate(item);
     if (!date) return;
     const dayKey = scheduleDayKey(date);
-    const groupKey = [
+    const groupKey = item.source === "history" ? item.id : [
       dayKey,
       item.time,
       item.action,
@@ -851,7 +855,10 @@ export function AgentScheduleModal({
     [items, showCampaigns]
   );
   const initialMonth = useMemo(() => {
-    const now = new Date();
+    const currentParis = parisHistoryCalendarParts(new Date());
+    const now = currentParis
+      ? new Date(currentParis.year, currentParis.month - 1, currentParis.day, currentParis.hour, currentParis.minute)
+      : new Date();
     const datedItems = eligibleItems
       .map(scheduleItemLocalDate)
       .filter((value): value is Date => Boolean(value))
@@ -859,7 +866,7 @@ export function AgentScheduleModal({
     const firstUpcoming = datedItems.find(
       (date) => date.getTime() >= now.getTime() - 86_400_000
     );
-    const anchor = firstUpcoming || datedItems[0] || now;
+    const anchor = firstUpcoming || now;
     return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
   }, [eligibleItems]);
   const [visibleMonth, setVisibleMonth] = useState(initialMonth);
@@ -867,11 +874,13 @@ export function AgentScheduleModal({
   const visibleMonthItems = useMemo(() => {
     const year = visibleMonth.getFullYear();
     const month = visibleMonth.getMonth();
+    const historyStart = parisHistoryCalendarParts(agentPublicationHistoryWindow(new Date(nowTimestamp)).from);
+    const historyStartMonth = historyStart ? historyStart.year * 12 + historyStart.month - 1 : -Infinity;
     return eligibleItems.filter((item) => {
       const date = scheduleItemLocalDate(item);
       return Boolean(
         date &&
-          (date.getTime() >= nowTimestamp || item.statusKey === "refused") &&
+          date.getFullYear() * 12 + date.getMonth() >= historyStartMonth &&
           date.getFullYear() === year &&
           date.getMonth() === month
       );
@@ -958,7 +967,10 @@ export function AgentScheduleModal({
     year: "numeric",
   }).format(visibleMonth);
   const hasCalendarOverflow = calendarModel.days.length > 16;
-  const todayKey = scheduleDayKey(new Date());
+  const currentParis = parisHistoryCalendarParts(new Date());
+  const todayKey = scheduleDayKey(currentParis
+    ? new Date(currentParis.year, currentParis.month - 1, currentParis.day)
+    : new Date());
 
   const scheduleFilters: Array<{
     key: ScheduleFilterKey;
@@ -1015,12 +1027,10 @@ export function AgentScheduleModal({
           <div className={styles.scheduleModalHeaderActions}>
             <div
               className={styles.scheduleSummaryPill}
-              aria-label={i18nT("value_actions_a_venir_11a80df3", {
-                value0: groupedItems.length,
-              })}
+              aria-label={`${groupedItems.length} ${i18nT("planning_month_actions")}`}
             >
               <strong>{groupedItems.length}</strong>
-              <span>{i18nT("actions_a_venir_a611605d")}</span>
+              <span>{i18nT("planning_month_actions")}</span>
             </div>
             <div className={styles.scheduleFilterPopover}>
               <button
@@ -1096,7 +1106,7 @@ export function AgentScheduleModal({
                   <div
                     className={styles.scheduleCalendar}
                     role="list"
-                    aria-label={i18nT("calendrier_des_publications_a_venir")}
+                    aria-label={i18nT("planning_0005027d")}
                     data-overflow={hasCalendarOverflow}
                   >
                     {calendarModel.slots.map((day, slotIndex) => {
@@ -1220,7 +1230,7 @@ export function AgentScheduleModal({
                                   : approvalState === "refused"
                                     ? "planning_status_refused"
                                     : "planning_status_pending";
-                              const renderCalendarActions = () => (
+                              const renderCalendarActions = () => item.source === "history" ? null : (
                                 <>
                                   <button
                                     type="button"
@@ -1350,7 +1360,7 @@ export function AgentScheduleModal({
                                       >
                                         {renderCalendarActions()}
                                       </span>
-                                      <details
+                                      {item.source === "history" ? null : <details
                                         className={
                                           styles.scheduleCalendarCardMobileActions
                                         }
@@ -1366,8 +1376,8 @@ export function AgentScheduleModal({
                                         >
                                           {renderCalendarActions()}
                                         </div>
-                                      </details>
-                                      <span
+                                      </details>}
+                                      {item.source === "history" ? null : <span
                                         className={
                                           styles.scheduleApprovalIndicator
                                         }
@@ -1375,7 +1385,7 @@ export function AgentScheduleModal({
                                         role="img"
                                         aria-label={i18nT(approvalLabelKey)}
                                         title={i18nT(approvalLabelKey)}
-                                      />
+                                      />}
                                     </div>
                                   </div>
                                   <strong
@@ -1436,6 +1446,11 @@ export function AgentScheduleModal({
                                       ) : null}
                                     </div>
                                     <em>{item.originLabel}</em>
+                                    {item.source === "history" ? (
+                                      <strong className={styles.scheduleHistoryStatus} data-status={item.statusKey}>
+                                        {item.status}
+                                      </strong>
+                                    ) : null}
                                   </div>
                                 </article>
                               );

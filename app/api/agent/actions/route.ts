@@ -5,6 +5,7 @@ import {
   summarizeInrAgentActions,
 } from "@/lib/inrAgentActions";
 import { requireUser } from "@/lib/requireUser";
+import { agentPublicationHistoryWindow } from "@/lib/inrAgentPublicationHistory";
 import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { buildStorageContentUrl } from "@/lib/storageContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -1321,10 +1322,36 @@ export async function GET() {
     );
   }
 
-  const visibleRows = Array.isArray(data)
+  // Keep every dated planning action, even when more than 120 newer drafts exist.
+  const planningRows: NonNullable<typeof data> = [];
+  const planningFrom = agentPublicationHistoryWindow().from;
+  for (let offset = 0; ; offset += 500) {
+    const page = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("user_id", activeUserId)
+      .gte("scheduled_for", planningFrom)
+      .order("scheduled_for", { ascending: true })
+      .range(offset, offset + 499);
+    if (page.error) {
+      console.warn("[inr-agent-actions] planning read failed", page.error);
+      return NextResponse.json({ error: "Lecture du planning iNr'Agent impossible" }, { status: 500 });
+    }
+    const batch = page.data || [];
+    planningRows.push(...batch);
+    if (batch.length < 500) break;
+  }
+
+  const mergedRows = Array.from(new Map(
+    [...planningRows, ...(data || [])].map((row) => [row.id, row]),
+  ).values()).sort((left, right) =>
+    Date.parse(String(right.created_at || "")) - Date.parse(String(left.created_at || "")),
+  );
+
+  const visibleRows = Array.isArray(mergedRows)
     ? standardMode
-      ? filterStandardAgentItems(data)
-      : data
+      ? filterStandardAgentItems(mergedRows)
+      : mergedRows
     : [];
   const rawActions = visibleRows.length
     ? visibleRows.map((row) => rowToInrAgentAction(row))

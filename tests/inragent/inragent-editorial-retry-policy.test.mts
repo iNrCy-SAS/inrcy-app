@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   inrAgentEditorialRetryDecision,
   isInrAgentEditorialQuotaLimitError,
+  isTerminalInrAgentEditorialFailure,
   shouldRecoverInrAgentEditorialFailure,
 } from "../../lib/inrAgentEditorialRetryPolicy.ts";
 
@@ -23,6 +24,22 @@ test("la limite de sécurité IA est traitée comme un quota temporaire", () => 
       retryAt: "2026-09-18T18:00:00.000Z",
     },
   );
+});
+
+test("seul l'échec définitif relâche le sujet, y compris après un quota", () => {
+  const transient = {
+    status: "failed", editorialState: "failed", retryReason: "transient_error",
+    error: "Préparation refusée (500).",
+  };
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...transient, attempts: 7 }), false);
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...transient, attempts: 8 }), true);
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...transient, status: "draft", attempts: 8 }), false);
+
+  const quota = { ...transient, retryReason: "quota", error: "Quota IA atteint" };
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...quota, attempts: 8 }), false);
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...quota, attempts: 11 }), false);
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...quota, attempts: 12 }), true);
+  assert.equal(isTerminalInrAgentEditorialFailure({ ...transient, error: "Limite de sécurité IA atteinte", attempts: 8 }), false);
 });
 
 test("un ancien échec terminal de quota est remis dans la file", () => {
