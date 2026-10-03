@@ -43,6 +43,7 @@ export async function loadBoosterCtaDefaults(args: {
   const proSettings = asRecord(asRecord(proCfgRes.data).settings);
   const businessProfile = asRecord(businessRes.data);
   const siteWeb = asRecord(proSettings.site_web);
+  const youtubeDefaults = asRecord(asRecord(proSettings.youtube_shorts).defaults);
   const siteWebUrl = (asString(siteWeb.url) || "").trim();
   const inrcySiteUrl = (asString(inrcyCfg.site_url) || "").trim();
   const preferredWebsiteUrl = siteWebUrl || inrcySiteUrl;
@@ -62,5 +63,6 @@ export async function loadBoosterCtaDefaults(args: {
     ),
     aiLanguage: normalizeBoosterAiLanguage(businessProfile.ai_language),
     channelCtas: normalizeAiChannelCtaMap(businessProfile.ai_channel_ctas),
+    youtubeAutoHashtags: youtubeDefaults.autoHashtags !== false,
   };
 }

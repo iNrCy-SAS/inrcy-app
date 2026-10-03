@@ -70,9 +70,9 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
   buildCtaTextForChannel,
-  buildBoosterXPostText,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
+import { getBoosterPublicationTextPreview } from "@/lib/boosterPublicationTextPreview";
 import { normalizeAiChannelCtaMap } from "@/lib/aiChannelCtaPreferences";
 import {
   X_POST_WEIGHTED_LENGTH_MAX,
@@ -1633,6 +1633,7 @@ export default function PublishModal({
           preferredCta: normalizeBoosterPreferredCta(json?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(json?.aiLanguage),
           channelCtas: normalizeAiChannelCtaMap(json?.channelCtas),
+          youtubeAutoHashtags: json?.youtubeAutoHashtags !== false,
         });
       } catch {
         // ignore
@@ -7067,10 +7068,10 @@ export default function PublishModal({
           : 0;
       const xPostText =
         channel === "x"
-          ? buildBoosterXPostText(post, {
+          ? getBoosterPublicationTextPreview("x", post, {
               websiteUrl: getWebsiteUrlForChannel(channel, ctaDefaults),
               phone: ctaDefaults?.phone || "",
-            })
+            }).text
           : "";
       const xTextMetrics =
         channel === "x" ? getXPostTextMetrics(xPostText) : null;

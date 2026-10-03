@@ -21,16 +21,43 @@ function focusFor(seed: string, publicationIdeas = ideas) {
   })[0].focus;
 }
 
-test("le choix d'idée varie selon le créneau et reste stable pour ses retries", () => {
-  const subjects = new Set<string>();
+test("les idées suivent l'ordre choisi et restent stables pour les retries", () => {
   for (let index = 0; index < 30; index += 1) {
     const slotKey = `slot-${index}`;
     const first = focusFor(slotKey);
     assert.deepEqual(focusFor(slotKey), first);
     assert.equal(first.source, "professional_idea");
-    subjects.add(first.subject);
+    assert.equal(first.subject, ideas[0]);
   }
-  assert.deepEqual([...subjects].sort(), [...ideas].sort());
+  const reordered = [ideas[2], ideas[0], ideas[1]];
+  const plan = buildInrAgentEditorialFocusPlan({
+    slots: [
+      { slotKey: "first", sequence: 1, theme: "conseils" },
+      { slotKey: "second", sequence: 2, theme: "conseils" },
+      { slotKey: "third", sequence: 3, theme: "conseils" },
+    ],
+    publicationIdeas: reordered,
+    allowPreviouslyCoveredPublicationIdeas: true,
+  });
+  assert.deepEqual(plan.map((slot) => slot.focus.subject), reordered);
+});
+
+test("une idée désactivée part en fin de file et sa réactivation ne change pas sa position", () => {
+  const initial = [...ideas];
+  const afterFirstUse = [...initial.slice(1), initial[0]];
+  const afterSecondUse = [...afterFirstUse.slice(1), afterFirstUse[0]];
+  assert.deepEqual(afterFirstUse, [ideas[1], ideas[2], ideas[0]]);
+  assert.deepEqual(afterSecondUse, [ideas[2], ideas[0], ideas[1]]);
+  assert.equal(focusFor("next", afterSecondUse.filter((idea) => idea !== ideas[0])).subject, ideas[2]);
+  assert.equal(focusFor("reactivated", afterSecondUse).subject, ideas[2]);
+  const sql = readFileSync(new URL(
+    "../../supabase/migrations/20261003201545_inr_agent_publication_idea_queue.sql",
+    import.meta.url,
+  ), "utf8");
+  assert.match(sql, /new\.status in \('disabled', 'used'\)/);
+  assert.match(sql, /new\.order_key := nextval/);
+  assert.match(sql, /before update of status on public\.inr_agent_publication_ideas/);
+  assert.match(sql, /inrcy_reorder_inr_agent_publication_ideas/);
 });
 
 test("une idée réactivée peut revenir malgré une publication antérieure", () => {

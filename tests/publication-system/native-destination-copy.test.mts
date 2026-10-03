@@ -31,6 +31,10 @@ function loadModule(
     if (specifier.startsWith(".")) {
       return loadModule(path.resolve(path.dirname(filename), specifier), cache);
     }
+    if (specifier === "twitter-text") {
+      const twitterText = nativeRequire(specifier);
+      return { default: twitterText };
+    }
     return nativeRequire(specifier);
   };
   new Function("module", "exports", "require", code)(
@@ -42,6 +46,7 @@ function loadModule(
 }
 
 const messages = loadModule("lib/boosterCta.ts") as typeof import("../../lib/boosterCta.ts");
+const previews = loadModule("lib/boosterPublicationTextPreview.ts") as typeof import("../../lib/boosterPublicationTextPreview.ts");
 const destinationUrl = "https://example.com/reservation";
 const linkedInPost = {
   title: "Atelier céramique",
@@ -85,6 +90,74 @@ test("Pinterest native CTA retains the label but not the structured Pin link", (
   );
   assert.equal(text, "Réserver une visite");
   assert.doesNotMatch(text, /example\.com/);
+});
+
+test("Pinterest counter follows the sent description, excluding the native link and omitted tags", () => {
+  const result = previews.getBoosterPublicationTextPreview("pinterest", {
+    content: "A".repeat(480),
+    ctaMode: "custom",
+    cta: "Voir le site",
+    ctaUrl: "https://example.com/reservation",
+    hashtags: ["maison"],
+  });
+  assert.equal(result.text, `${"A".repeat(480)}\n\nVoir le site`);
+  assert.equal(result.count, result.text.length);
+  assert.equal(result.hashtagsOmitted, true);
+  assert.ok(result.count <= result.max);
+});
+
+test("TikTok counter excludes tags dropped at the limit", () => {
+  const result = previews.getBoosterPublicationTextPreview("tiktok", {
+    content: "T".repeat(2194),
+    ctaMode: "none",
+    hashtags: ["idee"],
+  });
+  assert.equal(result.count, 2194);
+  assert.equal(result.hashtagsOmitted, true);
+  assert.equal(result.text, "T".repeat(2194));
+});
+
+test("X counter measures the text currently sent to the provider", () => {
+  const post = {
+    title: "Annonce",
+    content: "Un texte concis.",
+    ctaMode: "none",
+    hashtags: ["bonus"],
+  };
+  const result = previews.getBoosterPublicationTextPreview("x", post);
+  assert.equal(result.text, messages.buildBoosterMessage("x", post));
+  assert.doesNotMatch(result.text, /#bonus/);
+});
+
+test("YouTube counter includes its configured automatic hashtag", () => {
+  const post = { content: "Une vidéo utile.", ctaMode: "none" };
+  const automatic = previews.getBoosterPublicationTextPreview("youtube_shorts", post);
+  const disabled = previews.getBoosterPublicationTextPreview(
+    "youtube_shorts", post, undefined, { youtubeAutoHashtags: false },
+  );
+  assert.match(automatic.text, /#iNrCy/);
+  assert.doesNotMatch(disabled.text, /#iNrCy/);
+  assert.equal(automatic.max, 4800);
+});
+
+test("YouTube counter follows the description kept by the upload adapter", () => {
+  const result = previews.getBoosterPublicationTextPreview("youtube_shorts", {
+    content: "Y".repeat(4900), ctaMode: "none",
+  });
+  assert.equal(result.count, 4800);
+  assert.equal(result.text.length, 4800);
+});
+
+test("Instagram counter includes the configured phone and remains renderable above its limit", () => {
+  const context = { phone: "+33123456789" };
+  const result = previews.getBoosterPublicationTextPreview("instagram", {
+    content: "Contactez-nous.", ctaMode: "call", cta: "Appelez-nous",
+  }, context);
+  assert.match(result.text, /\+33\s*1\s*23\s*45\s*67\s*89/);
+  const tooLong = previews.getBoosterPublicationTextPreview("instagram", {
+    content: "I".repeat(2201), ctaMode: "none",
+  });
+  assert.ok(tooLong.count > tooLong.max);
 });
 
 test("Booster sends deduplicated copy to LinkedIn media while text fallback keeps the URL", () => {

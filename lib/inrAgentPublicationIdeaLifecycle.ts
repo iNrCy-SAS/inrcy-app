@@ -10,6 +10,7 @@ export type InrAgentPublicationIdeaRow = {
   status: "active" | "disabled" | "used";
   reserved_action_id: string | null;
   used_action_id: string | null;
+  order_key: number;
 };
 
 export async function loadInrAgentPublicationIdeas(args: {
@@ -30,9 +31,10 @@ export async function loadInrAgentPublicationIdeas(args: {
 
   const { data, error } = await args.supabase
     .from("inr_agent_publication_ideas")
-    .select("idea_text,status,reserved_action_id,used_action_id")
+    .select("idea_text,status,reserved_action_id,used_action_id,order_key")
     .eq("user_id", args.userId)
-    .in("idea_text", ideas);
+    .in("idea_text", ideas)
+    .order("order_key", { ascending: true });
   if (error) throw error;
   return (Array.isArray(data) ? data : []) as InrAgentPublicationIdeaRow[];
 }

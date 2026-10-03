@@ -592,16 +592,20 @@ export default function AgentClient() {
     y: number;
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
-  const [settingsPublishTab, setSettingsPublishTab] = useState<
-    "settings" | "ideas"
-  >("settings");
+  const [publicationIdeasOpen, setPublicationIdeasOpen] = useState(false);
+  const [publicationIdeasDraft, setPublicationIdeasDraft] = useState<string[]>([]);
+  const [publicationIdeasSaveState, setPublicationIdeasSaveState] = useState<
+    "idle" | "saving"
+  >("idle");
   const [publicationIdeaVoiceIndex, setPublicationIdeaVoiceIndex] = useState<
     number | null
   >(null);
   const [publicationIdeaStates, setPublicationIdeaStates] = useState<
-    Record<string, { status: "active" | "disabled" | "used"; reserved_action_id: string | null }>
+    Record<string, { status: "active" | "disabled" | "used"; reserved_action_id: string | null; order_key: number }>
   >({});
   const [publicationIdeaToggleBusy, setPublicationIdeaToggleBusy] = useState<string | null>(null);
+  const [draggedPublicationIdea, setDraggedPublicationIdea] = useState<string | null>(null);
+  const [publicationIdeaDropTarget, setPublicationIdeaDropTarget] = useState<string | null>(null);
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1083,9 +1087,9 @@ export default function AgentClient() {
 
   const settingsAutomation = useMemo(
     () =>
-      visibleAutomations.find((automation) => automation.key === settingsKey) ??
+      visibleAutomations.find((automation) => automation.key === (publicationIdeasOpen ? "publish" : settingsKey)) ??
       null,
-    [settingsKey, visibleAutomations]
+    [publicationIdeasOpen, settingsKey, visibleAutomations]
   );
   const settingsAvailableThemes = useMemo(
     () =>
@@ -1133,41 +1137,99 @@ export default function AgentClient() {
     () => connectedChannelsForAutomation(selected, agentConnectedChannels),
     [agentConnectedChannels, selected]
   );
-  const settingsConfig = settingsKey ? configs[settingsKey] : null;
+  const settingsConfig = settingsAutomation ? configs[settingsAutomation.key] : null;
   const settingsPublicationMediaTypes = normalizeInrAgentPublicationMediaTypes(
     settingsConfig?.publicationMediaTypes,
   );
   const settingsSingleImagePercent = 100
     - (settingsPublicationMediaTypes.video ? 10 : 0)
     - (settingsPublicationMediaTypes.carousel ? 20 : 0);
-  const settingsPublicationIdeaFieldCount = settingsConfig
-    ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
+  const settingsPublicationIdeaFieldCount = publicationIdeasOpen
+    ? inrAgentPublicationIdeaFieldCount(publicationIdeasDraft)
     : 0;
   const settingsPublicationIdeaVoiceBusy = publicationIdeaVoiceIndex !== null;
   const savedPublicationIdeas = normalizeInrAgentPublicationIdeas(
     agentSettings.automations.publish.metadata?.publicationIdeas,
   );
+  const settingsPublicationIdeaEntries = Array.from(
+    { length: settingsPublicationIdeaFieldCount },
+    (_, index) => ({ index, value: publicationIdeasDraft[index] || "" }),
+  ).sort((left, right) => {
+    const leftOrder = publicationIdeaStates[left.value]?.order_key;
+    const rightOrder = publicationIdeaStates[right.value]?.order_key;
+    if (typeof leftOrder === "number" && typeof rightOrder === "number") {
+      return leftOrder - rightOrder || left.index - right.index;
+    }
+    if (typeof leftOrder === "number") return -1;
+    if (typeof rightOrder === "number") return 1;
+    return left.index - right.index;
+  });
+  const savedPublicationIdeaOrder = Array.from(new Set(settingsPublicationIdeaEntries
+    .map((entry) => entry.value)
+    .filter((value) => value.trim() && savedPublicationIdeas.includes(value) && publicationIdeaStates[value])));
   const updateSettingsPublicationIdea = (index: number, nextValue: string) => {
-    if (!settingsConfig || settingsAutomation?.key !== "publish") return;
+    if (!publicationIdeasOpen) return;
     const publicationIdeas = Array.from(
       { length: settingsPublicationIdeaFieldCount },
-      (_, ideaIndex) => settingsConfig.publicationIdeas[ideaIndex] || ""
+      (_, ideaIndex) => publicationIdeasDraft[ideaIndex] || ""
     );
     publicationIdeas[index] = nextValue.slice(
       0,
       INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH
     );
-    updateConfig("publish", { publicationIdeas });
+    setPublicationIdeasDraft(publicationIdeas);
   };
   const resetSettingsPublicationIdeas = () => {
-    if (!settingsConfig || settingsAutomation?.key !== "publish") return;
-    updateConfig("publish", {
-      publicationIdeas: Array.from(
-        { length: INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS },
-        () => "",
-      ),
-    });
+    if (!publicationIdeasOpen) return;
+    setPublicationIdeasDraft(Array.from(
+      { length: INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS },
+      () => "",
+    ));
   };
+  async function savePublicationIdeas() {
+    if (publicationIdeasSaveState === "saving") return;
+    setPublicationIdeasSaveState("saving");
+    try {
+      const response = await fetch("/api/agent/publication-ideas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicationIdeas: publicationIdeasDraft }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        publicationIdeas?: string[];
+        states?: Array<{ idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null; order_key: number }>;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.publicationIdeas || !payload.states) {
+        throw new Error(payload?.error || i18nT("publication_ideas_save_failed"));
+      }
+      const savedIdeas = payload.publicationIdeas;
+      setPublicationIdeasDraft(savedIdeas);
+      setPublicationIdeaStates(Object.fromEntries(
+        payload.states.map((state) => [state.idea_text, state]),
+      ));
+      setAgentSettings((current) => ({
+        ...current,
+        automations: {
+          ...current.automations,
+          publish: {
+            ...current.automations.publish,
+            metadata: { ...current.automations.publish.metadata, publicationIdeas: savedIdeas },
+          },
+        },
+      }));
+      setConfigs((current) => ({
+        ...current,
+        publish: { ...current.publish, publicationIdeas: savedIdeas },
+      }));
+      await refreshActions(true);
+      showNotice(i18nT("publication_ideas_saved"));
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : i18nT("publication_ideas_save_failed"));
+    } finally {
+      setPublicationIdeasSaveState("idle");
+    }
+  }
   const settingsStudioMediaPreferenceStep = settingsConfig
     ? studioMediaPreferenceStep(settingsConfig.studioMediaPreferencePercent)
     : INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT;
@@ -1192,17 +1254,18 @@ export default function AgentClient() {
   );
 
   useEffect(() => {
-    setSettingsPublishTab("settings");
     setPublicationIdeaVoiceIndex(null);
-  }, [settingsKey]);
+    setDraggedPublicationIdea(null);
+    setPublicationIdeaDropTarget(null);
+  }, [settingsKey, publicationIdeasOpen]);
   useEffect(() => {
-    if (settingsKey !== "publish" || settingsPublishTab !== "ideas") return;
+    if (!publicationIdeasOpen) return;
     const controller = new AbortController();
     void fetch("/api/agent/publication-ideas", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(i18nT("publication_ideas_load_failed"));
         return response.json() as Promise<{
-          states?: Array<{ idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null }>;
+          states?: Array<{ idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null; order_key: number }>;
         }>;
       })
       .then((payload) => {
@@ -1215,7 +1278,7 @@ export default function AgentClient() {
         if (!controller.signal.aborted) console.warn("[inr-agent] publication idea states", error);
       });
     return () => controller.abort();
-  }, [settingsKey, settingsPublishTab, agentSettings.automations.publish.metadata?.publicationIdeas]);
+  }, [publicationIdeasOpen, agentSettings.automations.publish.metadata?.publicationIdeas]);
 
   async function togglePublicationIdea(ideaText: string, active: boolean) {
     if (publicationIdeaToggleBusy) return;
@@ -1227,7 +1290,7 @@ export default function AgentClient() {
         body: JSON.stringify({ ideaText, active }),
       });
       const payload = await response.json().catch(() => null) as {
-        state?: { idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null };
+        state?: { idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null; order_key: number };
         error?: string;
         code?: string;
       } | null;
@@ -1248,6 +1311,40 @@ export default function AgentClient() {
     } finally {
       setPublicationIdeaToggleBusy(null);
     }
+  }
+  async function reorderPublicationIdeas(ideaTexts: string[]) {
+    if (publicationIdeaToggleBusy || ideaTexts.length !== savedPublicationIdeaOrder.length) return;
+    setPublicationIdeaToggleBusy("reorder");
+    try {
+      const response = await fetch("/api/agent/publication-ideas", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaTexts }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        states?: Array<{ idea_text: string; status: "active" | "disabled" | "used"; reserved_action_id: string | null; order_key: number }>;
+      } | null;
+      if (!response.ok || !payload?.states) {
+        throw new Error(i18nT("publication_idea_reorder_failed"));
+      }
+      setPublicationIdeaStates(Object.fromEntries(
+        payload.states.map((state) => [state.idea_text, state]),
+      ));
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : i18nT("publication_idea_reorder_failed"));
+    } finally {
+      setPublicationIdeaToggleBusy(null);
+      setDraggedPublicationIdea(null);
+      setPublicationIdeaDropTarget(null);
+    }
+  }
+  function movePublicationIdea(ideaText: string, targetIndex: number) {
+    const sourceIndex = savedPublicationIdeaOrder.indexOf(ideaText);
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= savedPublicationIdeaOrder.length || sourceIndex === targetIndex) return;
+    const nextOrder = [...savedPublicationIdeaOrder];
+    nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, ideaText);
+    void reorderPublicationIdeas(nextOrder);
   }
   const settingsDisplayedChannels = useMemo(
     () =>
@@ -5542,6 +5639,7 @@ export default function AgentClient() {
                 key={automation.key}
                 data-automation={automation.key}
                 data-has-instant-action={hasInstantAction ? "true" : undefined}
+                data-has-ideas-action={automation.key === "publish" ? "true" : undefined}
                 className={`${styles.automationCard} ${
                   selectedCard ? styles.automationCardActive : ""
                 }`}
@@ -5614,11 +5712,34 @@ export default function AgentClient() {
                       <span aria-hidden>⚡</span>
                     </button>
                   ) : null}
+                  {automation.key === "publish" ? (
+                    <button
+                      type="button"
+                      className={styles.ideasActionButton}
+                      onClick={() => {
+                        const openIdeas = () => {
+                          setSettingsKey(null);
+                          setPublicationIdeasDraft(configs.publish.publicationIdeas);
+                          setPublicationIdeasOpen(true);
+                        };
+                        if (!exitScheduledEditSession({ silent: true, onAfterExit: openIdeas })) return;
+                        openIdeas();
+                      }}
+                      disabled={loadState === "loading" || publicationIdeasSaveState === "saving"}
+                      aria-label={i18nT("publication_ideas_open")}
+                      title={i18nT("publication_ideas_open")}
+                    >
+                      <span aria-hidden="true">💡</span>
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={styles.settingsButton}
                     onClick={() => {
-                      const openSettings = () => setSettingsKey(automation.key);
+                      const openSettings = () => {
+                        setPublicationIdeasOpen(false);
+                        setSettingsKey(automation.key);
+                      };
                       if (
                         !exitScheduledEditSession({
                           silent: true,
@@ -8566,74 +8687,43 @@ export default function AgentClient() {
           className={styles.modalBackdrop}
           role="presentation"
           onClick={() => {
-            if (!settingsPublicationIdeaVoiceBusy) setSettingsKey(null);
+            if (!settingsPublicationIdeaVoiceBusy && publicationIdeasSaveState !== "saving") {
+              setSettingsKey(null);
+              setPublicationIdeasOpen(false);
+            }
           }}
         >
           <section
-            className={`${styles.settingsModal} ${styles.automationSettingsModal}`}
+            className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""}`}
             data-automation={settingsAutomation.key}
             role="dialog"
             aria-modal="true"
-            aria-label={agentAutomationSettingsTitle(
-              settingsAutomation.key,
-              runtimeT
-            )}
+            aria-label={publicationIdeasOpen
+              ? i18nT("publication_ideas_title")
+              : agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
             onClick={(event) => event.stopPropagation()}
           >
             <header
               className={styles.settingsModalHeader}
-              data-has-tabs={
-                settingsAutomation.key === "publish" ? "true" : undefined
-              }
             >
               <div className={styles.settingsModalHeading}>
                 <p className={styles.modalEyebrow}>
                   {i18nT("automatisation_598357a3")}
                 </p>
                 <h2>
-                  {agentAutomationSettingsTitle(
-                    settingsAutomation.key,
-                    runtimeT
-                  )}
+                  {publicationIdeasOpen
+                    ? i18nT("publication_ideas_title")
+                    : agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
                 </h2>
-                {settingsConnectedChannelMessage ? (
+                {!publicationIdeasOpen && settingsConnectedChannelMessage ? (
                   <p className={styles.settingsModalChannelWarning}>
                     {settingsConnectedChannelMessage}
                   </p>
                 ) : null}
               </div>
 
-              {settingsAutomation.key === "publish" ? (
-                <nav
-                  className={styles.settingsPublishTabs}
-                  aria-label={i18nT("publish_settings_tabs_aria")}
-                >
-                  <button
-                    type="button"
-                    data-active={settingsPublishTab === "settings"}
-                    disabled={settingsPublicationIdeaVoiceBusy}
-                    aria-current={
-                      settingsPublishTab === "settings" ? "page" : undefined
-                    }
-                    onClick={() => setSettingsPublishTab("settings")}
-                  >
-                    {i18nT("publish_settings_tab_settings")}
-                  </button>
-                  <button
-                    type="button"
-                    data-active={settingsPublishTab === "ideas"}
-                    disabled={settingsPublicationIdeaVoiceBusy}
-                    aria-current={
-                      settingsPublishTab === "ideas" ? "page" : undefined
-                    }
-                    onClick={() => setSettingsPublishTab("ideas")}
-                  >
-                    {i18nT("publish_settings_tab_ideas")}
-                  </button>
-                </nav>
-              ) : null}
-
               <div className={styles.settingsModalHeaderActions}>
+                {!publicationIdeasOpen ? (
                 <label
                   className={styles.settingsHeaderSwitch}
                   data-enabled={settingsConfig.enabled}
@@ -8669,12 +8759,16 @@ export default function AgentClient() {
                     }
                   />
                 </label>
+                ) : null}
 
                 <button
                   type="button"
                   className={styles.modalClose}
-                  disabled={settingsPublicationIdeaVoiceBusy}
-                  onClick={() => setSettingsKey(null)}
+                  disabled={settingsPublicationIdeaVoiceBusy || publicationIdeasSaveState === "saving"}
+                  onClick={() => {
+                    setSettingsKey(null);
+                    setPublicationIdeasOpen(false);
+                  }}
                   aria-label={i18nT("fermer_5ab4ec64")}
                   title={i18nT("fermer_5ab4ec64")}
                 >
@@ -8686,11 +8780,7 @@ export default function AgentClient() {
             <div
               className={styles.settingsModalLayout}
               style={{
-                display:
-                  settingsAutomation.key === "publish" &&
-                  settingsPublishTab === "ideas"
-                    ? "none"
-                    : undefined,
+                display: publicationIdeasOpen ? "none" : undefined,
               }}
             >
               <div
@@ -9356,59 +9446,112 @@ export default function AgentClient() {
               )}
             </div>
 
-            {settingsAutomation.key === "publish" &&
-            settingsPublishTab === "ideas" ? (
+            {publicationIdeasOpen ? (
               <section className={styles.publicationIdeasPanel}>
                 <header>
-                  <div>
-                    <h3>{i18nT("publication_ideas_title")}</h3>
-                    <p>{i18nT("publication_ideas_description")}</p>
+                  <div className={styles.publicationIdeasHeaderActions}>
+                    <details className={styles.publicationIdeasHelp}>
+                      <summary aria-label={i18nT("publication_ideas_help_label")} title={i18nT("publication_ideas_help_label")}>?</summary>
+                      <div className={styles.publicationIdeasHelpContent}>
+                        <strong>{i18nT("publication_ideas_help_label")}</strong>
+                        <p>{i18nT("publication_ideas_description")}</p>
+                        <p>{i18nT("publication_ideas_help_order")}</p>
+                        <p>{i18nT("publication_ideas_help_consumption")}</p>
+                        <p>{i18nT("publication_ideas_help_reactivation")}</p>
+                        <p>{i18nT("publication_ideas_help_fallback")}</p>
+                        <p>{i18nT("publication_ideas_hint")}</p>
+                        <p>{i18nT("source_des_idees_value_75f522cb", {
+                          value0: agentSourceLabel(settingsConfig.source, runtimeT),
+                        })}</p>
+                      </div>
+                    </details>
+                    <span className={styles.publicationIdeasCount}>
+                      {publicationIdeasDraft.filter((idea) => idea.trim()).length}
+                      /{INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS}
+                    </span>
                   </div>
-                  <span>
-                    {
-                      settingsConfig.publicationIdeas.filter((idea) =>
-                        idea.trim()
-                      ).length
-                    }
-                    /{INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS}
-                  </span>
                 </header>
                 <div className={styles.publicationIdeasGrid}>
-                  {Array.from(
-                    { length: settingsPublicationIdeaFieldCount },
-                    (_, index) => {
-                      const value =
-                        settingsConfig.publicationIdeas[index] || "";
+                  {settingsPublicationIdeaEntries.map(
+                    ({ index, value }, visualIndex) => {
                       const inputId = `publication-idea-${index}`;
                       const ideaState = publicationIdeaStates[value];
                       const ideaIsSaved = Boolean(value && savedPublicationIdeas.includes(value));
                       const ideaIsReserved = ideaState?.status === "active" && Boolean(ideaState.reserved_action_id);
                       const ideaIsActive = ideaState?.status === "active";
                       const ideaWasUsed = ideaState?.status === "used";
+                      const queueIndex = savedPublicationIdeaOrder.indexOf(value);
+                      const canReorder = queueIndex >= 0 &&
+                        settingsPublicationIdeaEntries.filter((entry) => entry.value === value).length === 1 &&
+                        !publicationIdeaToggleBusy && publicationIdeasSaveState !== "saving";
                       return (
                         <div
                           key={inputId}
                           className={styles.publicationIdeaCard}
                           data-idea-state={ideaState?.status || "empty"}
+                          data-drop-target={publicationIdeaDropTarget === value || undefined}
+                          draggable={canReorder}
+                          onDragStart={(event) => {
+                            if (!canReorder || (event.target instanceof Element &&
+                              !event.target.closest(`.${styles.publicationIdeaDragHandle}`) &&
+                              event.target.closest("button, textarea, input, label"))) {
+                              event.preventDefault();
+                              return;
+                            }
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", value);
+                            setDraggedPublicationIdea(value);
+                          }}
+                          onDragOver={(event) => {
+                            if (!canReorder || !draggedPublicationIdea || draggedPublicationIdea === value) return;
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                            setPublicationIdeaDropTarget(value);
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            const source = event.dataTransfer.getData("text/plain") || draggedPublicationIdea;
+                            if (canReorder && source && source !== value && savedPublicationIdeaOrder.includes(source)) {
+                              movePublicationIdea(source, queueIndex);
+                            }
+                            setDraggedPublicationIdea(null);
+                            setPublicationIdeaDropTarget(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedPublicationIdea(null);
+                            setPublicationIdeaDropTarget(null);
+                          }}
                         >
-                          <label htmlFor={inputId}>
-                            <strong>
-                              {i18nT("publication_idea_label", {
-                                number: index + 1,
-                              })}
-                            </strong>
-                            <small>
-                              {value.length}/
-                              {INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
-                            </small>
-                          </label>
+                          <div className={styles.publicationIdeaCardHeader}>
+                            <button
+                              type="button"
+                              className={styles.publicationIdeaMoveButton}
+                              disabled={!canReorder || queueIndex === 0}
+                              onClick={() => movePublicationIdea(value, queueIndex - 1)}
+                              aria-label={i18nT("publication_idea_move_previous", { number: visualIndex + 1 })}
+                              title={i18nT("publication_idea_move_previous", { number: visualIndex + 1 })}
+                            >←</button>
+                            <label htmlFor={inputId}>
+                              <strong>{i18nT("publication_idea_label", { number: visualIndex + 1 })}</strong>
+                              <span className={styles.publicationIdeaDragHandle} aria-hidden="true">⠿</span>
+                            </label>
+                            <button
+                              type="button"
+                              className={styles.publicationIdeaMoveButton}
+                              disabled={!canReorder || queueIndex === savedPublicationIdeaOrder.length - 1}
+                              onClick={() => movePublicationIdea(value, queueIndex + 1)}
+                              aria-label={i18nT("publication_idea_move_next", { number: visualIndex + 1 })}
+                              title={i18nT("publication_idea_move_next", { number: visualIndex + 1 })}
+                            >→</button>
+                            <small>{value.length}/{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}</small>
+                          </div>
                           <div className={styles.publicationIdeaTextareaWrap}>
                             <textarea
                               id={inputId}
                               value={value}
                               maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
                               rows={4}
-                              readOnly={settingsPublicationIdeaVoiceBusy}
+                              readOnly={settingsPublicationIdeaVoiceBusy || publicationIdeasSaveState === "saving"}
                               aria-busy={publicationIdeaVoiceIndex === index}
                               placeholder={i18nT(
                                 "publication_idea_placeholder"
@@ -9426,10 +9569,10 @@ export default function AgentClient() {
                               maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
                               mergeMode="paragraph"
                               contextLabel={i18nT("publication_idea_label", {
-                                number: index + 1,
+                                number: visualIndex + 1,
                               })}
                               disabled={
-                                saveState === "saving" ||
+                                publicationIdeasSaveState === "saving" ||
                                 loadState === "loading" ||
                                 Boolean(testNowKey) ||
                                 (publicationIdeaVoiceIndex !== null &&
@@ -9466,13 +9609,13 @@ export default function AgentClient() {
                               </span>
                               <button
                                 type="button"
-                                disabled={!ideaIsSaved || !ideaState || Boolean(publicationIdeaToggleBusy) || saveState === "saving"}
+                                disabled={!ideaIsSaved || !ideaState || Boolean(publicationIdeaToggleBusy) || publicationIdeasSaveState === "saving"}
                                 onClick={() => void togglePublicationIdea(value, !ideaIsActive)}
                                 aria-label={ideaIsActive
-                                  ? i18nT("publication_idea_disable_aria", { number: index + 1 })
+                                  ? i18nT("publication_idea_disable_aria", { number: visualIndex + 1 })
                                   : ideaWasUsed
-                                    ? i18nT("publication_idea_reuse_aria", { number: index + 1 })
-                                    : i18nT("publication_idea_reactivate_aria", { number: index + 1 })}
+                                    ? i18nT("publication_idea_reuse_aria", { number: visualIndex + 1 })
+                                    : i18nT("publication_idea_reactivate_aria", { number: visualIndex + 1 })}
                               >
                                 {ideaIsActive
                                   ? i18nT("publication_idea_disable")
@@ -9492,15 +9635,12 @@ export default function AgentClient() {
                   className={styles.publicationIdeasAddButton}
                   disabled={
                     settingsPublicationIdeaVoiceBusy ||
+                    publicationIdeasSaveState === "saving" ||
                     settingsPublicationIdeaFieldCount >=
                       INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
                   }
                   onClick={() =>
-                    updateConfig("publish", {
-                      publicationIdeas: appendInrAgentPublicationIdeaSlot(
-                        settingsConfig.publicationIdeas
-                      ),
-                    })
+                    setPublicationIdeasDraft(appendInrAgentPublicationIdeaSlot(publicationIdeasDraft))
                   }
                 >
                   <span aria-hidden="true">+</span>
@@ -9509,36 +9649,35 @@ export default function AgentClient() {
                     ? i18nT("publication_ideas_limit_reached")
                     : i18nT("publication_ideas_add")}
                 </button>
-                <p className={styles.publicationIdeasHint}>
-                  {i18nT("publication_ideas_hint")}
-                </p>
               </section>
             ) : null}
 
             <footer
               className={styles.settingsModalFooter}
               data-save-only={settingsAutomation.key !== "stats" ? "true" : undefined}
-              data-ideas-tab={settingsAutomation.key === "publish" && settingsPublishTab === "ideas" ? "true" : undefined}
+              data-ideas-tab={publicationIdeasOpen ? "true" : undefined}
             >
-              <p className={styles.modalNote}>
-                {i18nT("source_des_idees_value_75f522cb", {
-                  value0: agentSourceLabel(settingsConfig.source, runtimeT),
-                })}
-              </p>
+              {publicationIdeasOpen ? null : (
+                <p className={styles.modalNote}>
+                  {i18nT("source_des_idees_value_75f522cb", {
+                    value0: agentSourceLabel(settingsConfig.source, runtimeT),
+                  })}
+                </p>
+              )}
               <div className={styles.modalActionRow}>
-                {settingsAutomation.key === "publish" && settingsPublishTab === "ideas" ? (
+                {publicationIdeasOpen ? (
                   <button
                     type="button"
                     className={`${styles.modalAction} ${styles.publicationIdeasResetAction}`}
                     onClick={resetSettingsPublicationIdeas}
                     title={i18nT("publication_ideas_reset_hint")}
                     disabled={
-                      saveState === "saving" ||
+                      publicationIdeasSaveState === "saving" ||
                       loadState === "loading" ||
                       Boolean(testNowKey) ||
                       settingsPublicationIdeaVoiceBusy ||
                       (settingsPublicationIdeaFieldCount === INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS &&
-                        !settingsConfig.publicationIdeas.some((idea) => idea.trim()))
+                        !publicationIdeasDraft.some((idea) => idea.trim()))
                     }
                   >
                     {i18nT("publication_ideas_reset")}
@@ -9547,20 +9686,22 @@ export default function AgentClient() {
                 <button
                   type="button"
                   className={`${styles.modalAction} ${styles.settingsSaveAction}`}
-                  onClick={saveSettings}
+                  onClick={publicationIdeasOpen ? savePublicationIdeas : saveSettings}
                   disabled={
-                    saveState === "saving" ||
+                    (publicationIdeasOpen ? publicationIdeasSaveState === "saving" : saveState === "saving") ||
                     loadState === "loading" ||
                     Boolean(testNowKey) ||
                     settingsPublicationIdeaVoiceBusy ||
-                    (settingsNoConnectedChannelBlock && settingsConfig.enabled)
+                    (!publicationIdeasOpen && settingsNoConnectedChannelBlock && settingsConfig.enabled)
                   }
                 >
-                  {saveState === "saving"
+                  {(publicationIdeasOpen ? publicationIdeasSaveState === "saving" : saveState === "saving")
                     ? i18nT("enregistrement_9bf1058a")
-                    : i18nT("enregistrer_les_reglages_a47974c5")}
+                    : publicationIdeasOpen
+                      ? i18nT("publication_ideas_save")
+                      : i18nT("enregistrer_les_reglages_a47974c5")}
                 </button>
-                {settingsAutomation.key === "stats" ? (
+                {settingsAutomation.key === "stats" && !publicationIdeasOpen ? (
                   <button
                     type="button"
                     className={`${styles.modalAction} ${styles.modalSecondaryAction}`}

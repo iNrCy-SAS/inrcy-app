@@ -34,16 +34,14 @@ import {
 } from "@/lib/mediaRules";
 import {
   buildBoosterGmbSummary,
-  buildBoosterHashtagLine,
-  buildBoosterInstagramCaption,
-  buildBoosterMessage,
-  buildBoosterXPostText,
   getCtaMode,
   getSupportedBoosterCtaModesForChannel,
   isBoosterCtaLabelCompatibleWithMode,
   isBoosterWhatsAppUrl,
+  type BoosterCtaContext,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
+import { getBoosterPublicationTextPreview } from "@/lib/boosterPublicationTextPreview";
 import {
   BOOSTER_CHANNEL_TITLE_MAX_LENGTH,
   INR_SEARCH_CONTENT_MAX_LENGTH,
@@ -51,7 +49,6 @@ import {
 import {
   X_POST_MAX_IMAGES,
   X_POST_WEIGHTED_LENGTH_MAX,
-  getXPostTextMetrics,
 } from "@/lib/xChannel";
 import {
   getYoutubePublicationTypeForDuration,
@@ -167,6 +164,7 @@ export type BoosterCtaDefaults = {
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
   channelCtas?: AiChannelCtaMap;
+  youtubeAutoHashtags?: boolean;
 };
 
 export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
@@ -1219,7 +1217,11 @@ export type ChannelTextGuidelines = {
   hashtags?: number;
   totalLabel?: string;
   totalMax?: number;
-  totalValue?: (post: ChannelPost) => number;
+  totalValue?: (
+    post: ChannelPost,
+    context?: BoosterCtaContext,
+    options?: { youtubeAutoHashtags?: boolean },
+  ) => number;
 };
 
 export const CHANNEL_TEXT_GUIDELINES: Record<
@@ -1247,7 +1249,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     cta: 80,
     totalLabel: "Résumé final Google Business",
     totalMax: 1498,
-    totalValue: (post) => buildBoosterGmbSummary(post).length,
+    totalValue: (post, context) => buildBoosterGmbSummary(post, context).length,
   },
   facebook: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.facebook,
@@ -1261,7 +1263,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     hashtags: 20,
     totalLabel: "Légende Instagram finale",
     totalMax: 2200,
-    totalValue: (post) => buildInstagramPreviewCaption(post).length,
+    totalValue: (post, context) => buildInstagramPreviewCaption(post, context).length,
   },
   linkedin: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.linkedin,
@@ -1275,8 +1277,8 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     hashtags: 2,
     totalLabel: "Post X final",
     totalMax: X_POST_WEIGHTED_LENGTH_MAX,
-    totalValue: (post) =>
-      getXPostTextMetrics(buildBoosterXPostText(post)).weightedLength,
+    totalValue: (post, context) =>
+      getBoosterPublicationTextPreview("x", post, context).count,
   },
   tiktok: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.tiktok,
@@ -1285,11 +1287,8 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     hashtags: 8,
     totalLabel: "Légende TikTok finale",
     totalMax: 2200,
-    totalValue: (post) => {
-      const body = buildBoosterMessage("tiktok", post);
-      const hashtags = buildBoosterHashtagLine(post, body, 8);
-      return [body, hashtags].filter(Boolean).join("\n\n").length;
-    },
+    totalValue: (post, context) =>
+      getBoosterPublicationTextPreview("tiktok", post, context).count,
   },
   youtube_shorts: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.youtube_shorts,
@@ -1297,12 +1296,10 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     cta: 120,
     hashtags: 8,
     totalLabel: "Légende YouTube finale",
-    totalMax: 2200,
-    totalValue: (post) => {
-      const body = buildBoosterMessage("youtube_shorts", post);
-      const hashtags = buildBoosterHashtagLine(post, body, 8);
-      return [body, hashtags].filter(Boolean).join("\n\n").length;
-    },
+    totalMax: 4800,
+    totalValue: (post, context, options) =>
+      getBoosterPublicationTextPreview("youtube_shorts", post, context, options)
+        .count,
   },
   pinterest: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.pinterest,
@@ -1311,11 +1308,8 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     hashtags: 8,
     totalLabel: "Description Pinterest finale",
     totalMax: 500,
-    totalValue: (post) => {
-      const body = buildBoosterMessage("pinterest", { ...post, title: "" });
-      const hashtags = buildBoosterHashtagLine(post, body, 8);
-      return [body, hashtags].filter(Boolean).join("\n\n").length;
-    },
+    totalValue: (post, context) =>
+      getBoosterPublicationTextPreview("pinterest", post, context).count,
   },
 };
 
@@ -1563,14 +1557,17 @@ export function parseInstagramHashtagsInput(input: string): string[] {
     .slice(0, 20);
 }
 
-export function buildInstagramPreviewCaption(post: ChannelPost) {
+export function buildInstagramPreviewCaption(
+  post: ChannelPost,
+  context?: BoosterCtaContext,
+) {
   const cleanPost = {
     ...post,
     hashtags: Array.isArray(post.hashtags)
       ? post.hashtags.map(normalizeHashtagPreview).filter(Boolean).slice(0, 8)
       : [],
   };
-  return buildBoosterInstagramCaption(cleanPost);
+  return getBoosterPublicationTextPreview("instagram", cleanPost, context).text;
 }
 
 export function getLimitTone(current: number, max: number): LimitTone {

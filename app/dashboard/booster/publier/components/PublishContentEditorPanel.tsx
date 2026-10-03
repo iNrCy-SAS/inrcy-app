@@ -10,8 +10,7 @@ import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
 import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
-import { buildBoosterXPostText, buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
-import { getXPostTextMetrics } from "@/lib/xChannel";
+import { buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import {
   getBoosterXForbiddenUrlFields,
   getBoosterXUrlBlockerMessage,
@@ -1561,22 +1560,8 @@ export default function PublishContentEditorPanel({
                 <div style={{ marginTop: 2 }}>
                   {renderLimitCounter(
                     getLocalizedChannelTotalLabel(activeCard, runtimeT),
-                    activeCard === "x"
-                      ? getXPostTextMetrics(
-                          buildBoosterXPostText(
-                            {
-                              ...getDisplayPost(activeCard),
-                              hashtags: getLiveXHashtags(),
-                            },
-                            {
-                              websiteUrl: getWebsiteUrlForChannel(
-                                activeCard,
-                                ctaDefaults,
-                              ),
-                              phone: ctaDefaults?.phone || "",
-                            },
-                          ),
-                        ).weightedLength
+                    activeCard === "instagram" && activeStoryOnly
+                      ? 0
                       : CHANNEL_TEXT_GUIDELINES[activeCard].totalValue!(
                           activeCard === "instagram"
                             ? {
@@ -1584,6 +1569,17 @@ export default function PublishContentEditorPanel({
                                 hashtags: getLiveInstagramHashtags(),
                               }
                             : getDisplayPost(activeCard),
+                          {
+                            websiteUrl: getWebsiteUrlForChannel(
+                              activeCard,
+                              ctaDefaults,
+                            ),
+                            phone: ctaDefaults?.phone || "",
+                          },
+                          {
+                            youtubeAutoHashtags:
+                              ctaDefaults?.youtubeAutoHashtags !== false,
+                          },
                         ),
                     CHANNEL_TEXT_GUIDELINES[activeCard].totalMax!,
                   )}

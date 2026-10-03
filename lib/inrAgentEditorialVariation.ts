@@ -569,12 +569,10 @@ export function buildInrAgentEditorialFocusPlan<T extends EditorialSlotLike>(arg
     }
 
     const focusSeed = `${args.seed || "inr-agent-editorial"}:${slot.slotKey}:${slot.theme}:${slot.sequence}`;
-    const manualIdea = chooseLeastUsed(
-      usableManualIdeas.filter(
-        (idea) => !alreadyAssignedManualIdeas.has(normalizedKey(idea)),
-      ),
-      new Map<string, number>(),
-      `${focusSeed}:manual-idea`,
+    // Les idees enregistrees forment une file visible dans les reglages.
+    // Seul le sujet ADN continue de varier aleatoirement entre generations.
+    const manualIdea = usableManualIdeas.find(
+      (idea) => !alreadyAssignedManualIdeas.has(normalizedKey(idea)),
     );
     const angle = chooseLeastUsed(
       angleCandidates(slot.theme),

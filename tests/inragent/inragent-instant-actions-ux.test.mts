@@ -42,7 +42,7 @@ test("les modales de réglages n'exécutent plus Publier ou les campagnes, mais 
     modal,
     /data-save-only=\{settingsAutomation\.key !== "stats" \? "true" : undefined\}/,
   );
-  assert.match(modal, /\{settingsAutomation\.key === "stats" \? \(/);
+  assert.match(modal, /\{settingsAutomation\.key === "stats" && !publicationIdeasOpen \? \(/);
   assert.equal(
     (modal.match(/onClick=\{\(\) => testAutomationNow\(settingsAutomation\.key\)\}/g) || [])
       .length,
@@ -79,6 +79,18 @@ test("les trois éclairs préparent une seule action sans sauvegarder ni recalcu
     runFlow,
     /key === "grow" \|\| key === "loyalty"[\s\S]*?prepareCampaignAction\(key\)/,
   );
+});
+
+test("enregistrer les réglages conserve la modale ouverte, y compris après confirmation du planning", () => {
+  const persistStart = controller.indexOf("async function persistSettings");
+  const runStart = controller.indexOf("async function runAutomationNow", persistStart);
+  const saveFlow = controller.slice(persistStart, runStart);
+
+  assert.ok(persistStart >= 0 && runStart > persistStart);
+  assert.match(saveFlow, /async function saveSettings\(\) \{\s*await persistSettings\(\);/);
+  assert.match(saveFlow, /async function confirmEditorialPlanSettings[\s\S]*?await persistSettings\(/);
+  assert.match(saveFlow, /setSaveState\("saved"\)/);
+  assert.doesNotMatch(saveFlow, /setSettingsKey\(null\)/);
 });
 
 test("les libellés instantanés sont disponibles dans tous les catalogues iNrAgent", () => {

@@ -45,6 +45,7 @@ export type BoosterCtaDefaults = {
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
   channelCtas?: AiChannelCtaMap;
+  youtubeAutoHashtags?: boolean;
 };
 
 export type BoosterStructuredCtaPatch = {

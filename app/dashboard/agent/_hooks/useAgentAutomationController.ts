@@ -199,13 +199,11 @@ export function useAgentAutomationController({
 
   async function persistSettings(
     options: {
-      closeModal?: boolean;
       showSuccess?: boolean;
       editorialPlanApplyMode?: EditorialPlanApplyMode;
     } = {},
   ) {
     const {
-      closeModal = true,
       showSuccess = true,
       editorialPlanApplyMode,
     } = options;
@@ -268,7 +266,6 @@ export function useAgentAutomationController({
       await refreshActions(true);
       setSettingsPlanImpact(null);
       setSaveState("saved");
-      if (closeModal) setSettingsKey(null);
       if (showSuccess) showNotice(i18nT("agent_settings_saved"));
       return true;
     } catch (error) {
@@ -343,7 +340,6 @@ export function useAgentAutomationController({
       // depuis sa modale de réglages et doit donc sauvegarder avant l'envoi.
       if (key === "stats") {
         const saved = await persistSettings({
-          closeModal: false,
           showSuccess: false,
         });
         if (!saved) return;
