@@ -749,7 +749,7 @@
   "publish_settings_tab_settings": "Definições",
   "publish_settings_tab_ideas": "Ideias",
   "publication_ideas_title": "Ideias para próximas publicações",
-  "publication_ideas_description": "Adicione os seus temas: o iNrAgent irá alterná-los nas próximas publicações.",
+  "publication_ideas_description": "Adicione os seus temas: o iNrAgent irá alterná-los nas próximas publicações. Uma ideia é desativada após uma geração bem-sucedida.",
   "publication_idea_label": "Ideia {number}",
   "publication_idea_placeholder": "Ex. Apresentar o nosso último trabalho ou responder a uma pergunta de cliente…",
   "publication_ideas_add": "Adicionar uma secção de ideias",

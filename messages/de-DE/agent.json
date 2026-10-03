@@ -749,7 +749,7 @@
   "publish_settings_tab_settings": "Einstellungen",
   "publish_settings_tab_ideas": "Ideen",
   "publication_ideas_title": "Ideen für kommende Beiträge",
-  "publication_ideas_description": "Fügen Sie Themen hinzu: iNrAgent verteilt sie auf kommende Beiträge.",
+  "publication_ideas_description": "Fügen Sie Themen hinzu: iNrAgent verteilt sie auf kommende Beiträge. Eine Idee wird nach einer erfolgreichen Generierung deaktiviert.",
   "publication_idea_label": "Idee {number}",
   "publication_idea_placeholder": "Z. B. unser letztes Projekt vorstellen oder eine Kundenfrage beantworten…",
   "publication_ideas_add": "Ideenrubrik hinzufügen",

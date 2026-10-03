@@ -749,7 +749,7 @@
   "publish_settings_tab_settings": "การตั้งค่า",
   "publish_settings_tab_ideas": "ไอเดีย",
   "publication_ideas_title": "ไอเดียสำหรับโพสต์ถัดไป",
-  "publication_ideas_description": "เพิ่มหัวข้อของคุณ แล้ว iNrAgent จะหมุนเวียนใช้ในโพสต์ถัดไป",
+  "publication_ideas_description": "เพิ่มหัวข้อของคุณ แล้ว iNrAgent จะหมุนเวียนใช้ในโพสต์ถัดไป ไอเดียจะถูกปิดใช้งานหลังจากสร้างเนื้อหาสำเร็จ",
   "publication_idea_label": "ไอเดีย {number}",
   "publication_idea_placeholder": "เช่น นำเสนอผลงานล่าสุดหรือตอบคำถามของลูกค้า…",
   "publication_ideas_add": "เพิ่มหัวข้อไอเดีย",

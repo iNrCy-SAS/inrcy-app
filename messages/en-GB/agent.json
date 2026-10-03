@@ -749,7 +749,7 @@
   "publish_settings_tab_settings": "Settings",
   "publish_settings_tab_ideas": "Ideas",
   "publication_ideas_title": "Ideas for upcoming posts",
-  "publication_ideas_description": "Add your topics: iNrAgent will rotate them through upcoming posts.",
+  "publication_ideas_description": "Add your topics: iNrAgent will rotate them through upcoming posts. An idea is deactivated after a successful generation.",
   "publication_idea_label": "Idea {number}",
   "publication_idea_placeholder": "E.g. Present our latest project or answer a customer question…",
   "publication_ideas_add": "Add an idea section",

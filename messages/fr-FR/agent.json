@@ -749,7 +749,7 @@
   "publish_settings_tab_settings": "Réglages",
   "publish_settings_tab_ideas": "Idées",
   "publication_ideas_title": "Idées pour les prochaines publications",
-  "publication_ideas_description": "Ajoutez vos sujets : iNrAgent les fera tourner dans les prochaines publications.",
+  "publication_ideas_description": "Ajoutez vos sujets : iNrAgent les fera tourner dans les prochaines publications. Une idée se désactive après une génération réussie.",
   "publication_idea_label": "Idée {number}",
   "publication_idea_placeholder": "Ex. Présenter notre dernière réalisation, répondre à une question client…",
   "publication_ideas_add": "Ajouter une rubrique d’idée",
