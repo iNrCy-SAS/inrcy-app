@@ -69,6 +69,7 @@ type AnnualSubscriptionRow = {
   plan: string | null;
   status: string | null;
   monthly_price_eur: number | null;
+  monthly_price_tax_behavior: "inclusive" | "exclusive" | null;
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
   next_renewal_date: string | null;
@@ -468,7 +469,7 @@ export async function GET(req: Request) {
     const { data: annualSubscriptions, error: annualReminderErr } = await supabaseAdmin
       .from("subscriptions")
       .select(
-        "user_id, contact_email, plan, status, monthly_price_eur, stripe_subscription_id, stripe_price_id, next_renewal_date, cancel_requested_at, end_date, last_annual_reminder_marker"
+        "user_id, contact_email, plan, status, monthly_price_eur, monthly_price_tax_behavior, stripe_subscription_id, stripe_price_id, next_renewal_date, cancel_requested_at, end_date, last_annual_reminder_marker"
       )
       .neq("plan", "Trial")
       .eq("status", "active")
@@ -517,9 +518,13 @@ export async function GET(req: Request) {
       const renewalAmount = commercialPrice?.billingCycle === "yearly"
         ? commercialPrice.chargeAmountEur
         : Number(s.monthly_price_eur || 690);
-      const renewalTaxLabel = commercialPrice?.pricingVersion === "international_ht_v2"
+      const renewalTaxLabel = s.monthly_price_tax_behavior === "exclusive"
         ? "HT"
-        : "TTC";
+        : s.monthly_price_tax_behavior === "inclusive"
+          ? "TTC"
+          : commercialPrice?.pricingVersion === "international_ht_v2"
+            ? "HT"
+            : "TTC";
       const amountLabel = `${renewalAmount.toLocaleString("fr-FR", {
         maximumFractionDigits: 2,
       })} € ${renewalTaxLabel}`;

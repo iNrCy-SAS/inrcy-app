@@ -19,7 +19,7 @@ const SUBSCRIPTION_PAGE_SIZE = 500;
 const PROFILE_BATCH_SIZE = 100;
 const WRITE_BATCH_SIZE = 20;
 const SUBSCRIPTION_SELECT =
-  "user_id,contact_email,plan,scheduled_plan,app_edition,status,monthly_price_eur,billing_cycle,billing_provider,stripe_customer_id,stripe_subscription_id,stripe_price_id,last_reminder_at,next_renewal_date,updated_at";
+  "user_id,contact_email,plan,scheduled_plan,app_edition,status,monthly_price_eur,monthly_price_tax_behavior,billing_cycle,billing_provider,stripe_customer_id,stripe_subscription_id,stripe_price_id,last_reminder_at,next_renewal_date,updated_at";
 const PROFILE_SELECT =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone";
 
@@ -144,6 +144,11 @@ async function persistMatch(
   }
   if (snapshot.price_id && stripeIdChanged(row.stripe_price_id, snapshot.price_id)) {
     patch.stripe_price_id = snapshot.price_id;
+  }
+  const priceChanged = Boolean(snapshot.price_id && stripeIdChanged(row.stripe_price_id, snapshot.price_id));
+  const nextTaxBehavior = snapshot.tax_behavior ?? (priceChanged ? null : row.monthly_price_tax_behavior ?? null);
+  if (stringChanged(row.monthly_price_tax_behavior, nextTaxBehavior)) {
+    patch.monthly_price_tax_behavior = nextTaxBehavior;
   }
   if (
     snapshot.amount_eur != null &&

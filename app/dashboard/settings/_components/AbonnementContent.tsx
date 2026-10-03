@@ -66,6 +66,7 @@ type SubData = {
     | "paused"
     | string;
   monthly_price_eur: number | null;
+  monthly_price_tax_behavior?: "inclusive" | "exclusive" | null;
   start_date: string; // YYYY-MM-DD
   trial_start_at?: string | null;
   trial_end_at?: string | null;
@@ -83,7 +84,7 @@ type SubData = {
   founder_offer_enabled?: boolean | null;
 };
 const SUB_SELECT =
-  "plan,scheduled_plan,status,monthly_price_eur,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew,founder_offer_enabled";
+  "plan,scheduled_plan,status,monthly_price_eur,monthly_price_tax_behavior,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew,founder_offer_enabled";
 
 
 function frDate(d: Date, locale: string) {
@@ -360,10 +361,10 @@ useEffect(() => {
     // Source de vérité : subscriptions.monthly_price_eur.
     // Cela s'applique aussi aux abonnements déjà en cours et aux tarifs négociés saisis manuellement.
     // Le tarif du plan ne sert que de secours si la colonne DB est réellement absente/invalide.
-    const monthlyPriceTtc = planNormalized === "Trial"
+    const monthlyPrice = planNormalized === "Trial"
       ? 0
       : storedPrice ?? defaultCommercialOffer?.monthlyPriceEur ?? monthlyPriceTtcFromPlan(planNormalized);
-    const displayedPriceTtc = annualPayment
+    const displayedPrice = annualPayment
       ? planNormalized === "Standard"
         ? pricingVersion === "international_ht_v2"
           ? STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
@@ -372,8 +373,14 @@ useEffect(() => {
           ? pricingVersion === "international_ht_v2"
             ? PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
             : PREMIUM_SUBSCRIPTION_OFFER.yearlyPriceEur
-          : monthlyPriceTtc
-      : monthlyPriceTtc;
+          : monthlyPrice
+      : monthlyPrice;
+    const taxBehavior = sub.monthly_price_tax_behavior === "inclusive" || sub.monthly_price_tax_behavior === "exclusive"
+      ? sub.monthly_price_tax_behavior
+      : planNormalized === "Founder" ? null : usesV2CommercialPricing ? "exclusive" : "inclusive";
+    const taxLabel = taxBehavior
+      ? i18nT(taxBehavior === "exclusive" ? "standard_tax_exclusive_short" : "standard_tax_inclusive_short")
+      : null;
 
     return {
       startLabel: frDate(start, locale),
@@ -384,12 +391,10 @@ useEffect(() => {
       cancelEndLabel: cancelEnd ? frDate(cancelEnd, locale) : null,
       cancellationScheduled,
       monthlyNoticeCancellation,
-      priceLabel: `${displayedPriceTtc} €`,
-      pricePeriodLabel: `${i18nT(
-        usesV2CommercialPricing
-          ? "standard_tax_exclusive_short"
-          : "standard_tax_inclusive_short",
-      )} / ${i18nT(annualPayment ? "standard_per_year" : "standard_per_month")}`,
+      priceLabel: `${displayedPrice} €`,
+      pricePeriodLabel: [taxLabel, i18nT(annualPayment ? "standard_per_year" : "standard_per_month")]
+        .filter(Boolean)
+        .join(" / "),
       annualPayment,
       statusText: isTrialPlan ? i18nT("essai_21_jours_3095df3f") : statusLabel(statusNorm, i18nT),
       hasStripeSub: hasScheduledSubscription,

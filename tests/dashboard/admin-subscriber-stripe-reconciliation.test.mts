@@ -6,6 +6,7 @@ import {
   overlaySubscriptionWithStripe,
   stripeAdminSubscriberSnapshot,
   stripeSubscriptionMonthlyTerms,
+  stripeSubscriptionTaxBehavior,
   type AdminSubscriberReconciliationRecord,
 } from "../../lib/adminSubscriberStripe.ts";
 import {
@@ -27,6 +28,7 @@ function stripeSubscription(input: {
   metadataUserId?: string;
   customerMetadataUserId?: string;
   interval?: "month" | "year";
+  taxBehavior?: "inclusive" | "exclusive" | "unspecified";
 }) {
   const interval = input.interval ?? "month";
   const monthly = input.amountEur ?? 69;
@@ -55,6 +57,7 @@ function stripeSubscription(input: {
             id: `price_${input.id}`,
             currency: "eur",
             billing_scheme: "per_unit",
+            tax_behavior: input.taxBehavior ?? "unspecified",
             unit_amount: monthly * (interval === "year" ? 12 : 1) * 100,
             recurring: { interval, interval_count: 1, usage_type: "licensed" },
           },
@@ -63,6 +66,27 @@ function stripeSubscription(input: {
     },
   };
 }
+
+test("Stripe Price tax behavior distinguishes HT, TTC and unverified subscriptions", () => {
+  assert.equal(stripeSubscriptionTaxBehavior(stripeSubscription({ id: "ht", taxBehavior: "exclusive" })), "exclusive");
+  assert.equal(stripeSubscriptionTaxBehavior(stripeSubscription({ id: "ttc", taxBehavior: "inclusive" })), "inclusive");
+  assert.equal(stripeSubscriptionTaxBehavior(stripeSubscription({ id: "unknown" })), null);
+  const mixed = stripeSubscription({ id: "mixed", taxBehavior: "inclusive" });
+  mixed.items.data.push({
+    quantity: 1,
+    price: {
+      id: "price_exclusive",
+      currency: "eur",
+      billing_scheme: "per_unit",
+      tax_behavior: "exclusive",
+      unit_amount: 5800,
+      recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
+    },
+  });
+  assert.equal(stripeSubscriptionTaxBehavior(mixed), null);
+  assert.equal(stripeSubscriptionTaxBehavior({ ...mixed, items: { ...mixed.items, has_more: true } }), null);
+  assert.equal(stripeAdminSubscriberSnapshot(stripeSubscription({ id: "snapshot", taxBehavior: "exclusive" }))?.tax_behavior, "exclusive");
+});
 
 function localRecord(input: {
   userId: string;

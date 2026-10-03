@@ -3,7 +3,7 @@ import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet, verifyStripeWebhookSignature } from "@/lib/stripeRest";
 import { commercialPriceFromId } from "@/lib/billingCatalog";
-import { stripeSubscriptionMonthlyTerms } from "@/lib/adminSubscriberStripe";
+import { stripeSubscriptionMonthlyTerms, stripeSubscriptionTaxBehavior } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
@@ -57,6 +57,7 @@ type SubscriptionSnapshot = {
   stripe_subscription_id?: string | null;
   stripe_price_id?: string | null;
   monthly_price_eur?: number | null;
+  monthly_price_tax_behavior?: "inclusive" | "exclusive" | null;
   app_edition?: string | null;
   billing_cycle?: string | null;
   billing_provider?: string | null;
@@ -95,7 +96,7 @@ function storedDbPrice(raw: unknown): number | null {
 }
 
 const SUBSCRIPTION_SELECT =
-  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, app_edition, billing_cycle, billing_provider";
+  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, monthly_price_tax_behavior, app_edition, billing_cycle, billing_provider";
 
 function normalizedEmailVariants(email?: string | null) {
   const raw = String(email || "").trim();
@@ -681,6 +682,9 @@ export async function POST(req: Request) {
           ? liveTerms.billingCycle
           : null;
       const existingRow = await resolveSubscriptionRow(userId, customerId, subId);
+      const priceChanged = Boolean(priceId && priceId !== existingRow?.stripe_price_id);
+      const taxBehavior = stripeSubscriptionTaxBehavior(sub)
+        ?? (priceChanged ? null : existingRow?.monthly_price_tax_behavior ?? null);
       const currentStoredPrice = storedDbPrice(existingRow?.monthly_price_eur);
       const stripeStoredPrice =
         liveTerms.amountEur != null &&
@@ -703,6 +707,7 @@ export async function POST(req: Request) {
         stripe_customer_id: customerId || null,
         ...(subId ? { stripe_subscription_id: subId } : {}),
         stripe_price_id: priceId,
+        monthly_price_tax_behavior: taxBehavior,
         ...(billingCycle ? { billing_cycle: billingCycle } : {}),
         ...(commercialPrice && !founderAccount ? { app_edition: commercialPrice.edition } : {}),
         ...(inrcyPlan ? { scheduled_plan: inrcyPlan } : {}),

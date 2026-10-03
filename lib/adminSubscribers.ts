@@ -9,6 +9,7 @@ export type AdminSubscriberSubscriptionRow = {
   plan: string | null;
   status: string | null;
   monthly_price_eur: number | null;
+  monthly_price_tax_behavior?: "inclusive" | "exclusive" | null;
   billing_cycle: string | null;
   billing_provider: string | null;
   stripe_customer_id: string | null;

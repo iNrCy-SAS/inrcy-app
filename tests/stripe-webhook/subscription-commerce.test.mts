@@ -276,6 +276,23 @@ test("le webhook prend le montant Stripe contractuel même en mode test/staging"
   assert.doesNotMatch(webhook, /shouldAutofillPriceFromStripe/);
 });
 
+test("le prix Founder distingue HT et TTC selon la Price Stripe sans modifier le montant", () => {
+  const migration = source("supabase/migrations/20261003185400_subscription_price_tax_behavior.sql");
+  const webhook = source("app/api/stripe/webhook/route.ts");
+  const sync = source("lib/stripeSubscriptionStatusSync.ts");
+  const subscriptionUi = source("app/dashboard/settings/_components/AbonnementContent.tsx");
+
+  assert.match(migration, /monthly_price_tax_behavior/);
+  assert.match(migration, /price_1UDBoLAluLVg8J6jU2ZuAvnQ/);
+  assert.match(migration, /price_1U308bAluLVg8J6jbtaQb1OQ/);
+  assert.doesNotMatch(migration, /set\s+monthly_price_eur\s*=/i);
+  assert.match(webhook, /stripeSubscriptionTaxBehavior\(sub\)/);
+  assert.match(webhook, /monthly_price_tax_behavior: taxBehavior/);
+  assert.match(sync, /monthly_price_tax_behavior/);
+  assert.match(subscriptionUi, /sub\.monthly_price_tax_behavior/);
+  assert.match(subscriptionUi, /planNormalized === "Founder" \? null/);
+});
+
 test("le webhook ignore les événements d'un ancien abonnement sans écrire ni alerter", () => {
   const webhook = source("app/api/stripe/webhook/route.ts");
   assert.match(webhook, /stale_subscription_event_ignored/);

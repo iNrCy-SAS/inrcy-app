@@ -33,6 +33,7 @@ export type StripeAdminSubscriberSnapshot = {
   identity_conflict: boolean;
   status: string;
   amount_eur: number | null;
+  tax_behavior: "inclusive" | "exclusive" | null;
   billing_cycle: string | null;
   next_renewal_date: string | null;
   price_id: string | null;
@@ -187,6 +188,26 @@ export function stripeSubscriptionMonthlyTerms(value: unknown): {
   };
 }
 
+// A mixed or incomplete set of Prices has no single honest HT/TTC label.
+export function stripeSubscriptionTaxBehavior(value: unknown): "inclusive" | "exclusive" | null {
+  const subscription = asObject(value);
+  const items = asObject(subscription?.items);
+  if (!items || items.has_more === true) return null;
+  const data = Array.isArray(items.data) ? items.data : [];
+  let behavior: "inclusive" | "exclusive" | null = null;
+  let recurringCount = 0;
+  for (const rawItem of data) {
+    const price = asObject(asObject(rawItem)?.price);
+    if (!asObject(price?.recurring)) continue;
+    recurringCount += 1;
+    const next = price?.tax_behavior;
+    if (next !== "inclusive" && next !== "exclusive") return null;
+    if (behavior && behavior !== next) return null;
+    behavior = next;
+  }
+  return recurringCount > 0 ? behavior : null;
+}
+
 export function stripeAdminSubscriberSnapshot(
   value: unknown,
 ): StripeAdminSubscriberSnapshot | null {
@@ -231,6 +252,7 @@ export function stripeAdminSubscriberSnapshot(
     identity_conflict: identityConflict,
     status,
     amount_eur: amount.amountEur,
+    tax_behavior: stripeSubscriptionTaxBehavior(subscription),
     billing_cycle: amount.billingCycle,
     next_renewal_date: periodEnd?.slice(0, 10) ?? null,
     price_id: amount.priceId,
@@ -833,6 +855,7 @@ export function overlaySubscriptionWithStripe(
     ...subscription,
     status: snapshot.status,
     monthly_price_eur: snapshot.amount_eur,
+    monthly_price_tax_behavior: snapshot.tax_behavior ?? subscription.monthly_price_tax_behavior ?? null,
     billing_cycle: snapshot.billing_cycle,
     billing_provider: "stripe",
     stripe_customer_id: snapshot.customer_id,
