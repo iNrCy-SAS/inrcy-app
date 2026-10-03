@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { runInNewContext } from "node:vm";
-import { getChannelTone } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
+import { collapseDashboardWebsiteChannels, getChannelTone } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
+import type { DashboardFluxBubbleData } from "../../app/dashboard/_components/DashboardFluxBubble.tsx";
 import {
   DASHBOARD_CHANNEL_POWER_SETUP,
   DASHBOARD_CHANNEL_SETUP,
@@ -17,6 +17,7 @@ const channelsSectionSource = read("../../app/dashboard/_components/DashboardCha
 const helpModalsSource = read("../../app/dashboard/_components/DashboardHelpModals.tsx");
 const heroSource = read("../../app/dashboard/_components/DashboardHero.tsx");
 const dashboardCssSource = read("../../app/dashboard/dashboard.module.css");
+const heroCssSource = read("../../app/dashboard/_components/DashboardHeroPremium.module.css");
 const bubbleAccessSource = read("../../lib/bubbleAccess.ts");
 const adminToolsApiSource = read("../../app/api/admin/tools/route.ts");
 
@@ -64,37 +65,79 @@ test("Site iNrCy reste indépendant du forfait et affiche Non souscrit sans droi
   assert.match(helpModalsSource, /siteNotSubscribed[\s\S]*i18nT\("non_souscrit_fb632cc2"\)/);
 });
 
-test("le compteur Standard ignore les deux bulles commerciales", () => {
+test("les deux offres montrent douze canaux, Mails restant verrouillé en Standard", () => {
   assert.match(
     channelsSectionSource,
-    /const summaryItems = standardMode \? fluxBubbleItems\.filter\(\(item\) => item\.key !== "mails" && item\.key !== "site_inrcy"\) : fluxBubbleItems;/,
+    /const total = fluxBubbleItems\.length;/,
   );
   assert.match(
     channelsSectionSource,
-    /const connected = summaryItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length;/,
+    /const connected = fluxBubbleItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length;/,
   );
-  assert.match(channelsSectionSource, /\{connected\}<small>\/\{summaryItems\.length\}<\/small>/);
-  assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total: summaryItems\.length \}\}/);
+  assert.match(channelsSectionSource, /\{connected\}<small>\/\{total\}<\/small>/);
+  assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total \}\}/);
+  assert.match(dashboardClientSource, /const dashboardChannelItems = useMemo\(\(\) => \{[\s\S]*collapseDashboardWebsiteChannels\(fluxBubbleItems, \{/);
+  assert.match(dashboardClientSource, /<ChannelConnectionsModal[\s\S]*items=\{dashboardChannelItems\}/);
+  assert.match(dashboardClientSource, /<DashboardChannelsSection[\s\S]*fluxBubbleItems=\{dashboardChannelItems\}/);
 
-  // Exercise the exact pure counter expressions without importing the client-side TSX tree.
-  const counters = channelsSectionSource.match(/const summaryItems = [^\r\n]+[\r\n]+\s*const connected = [^\r\n]+/)?.[0];
-  assert.ok(counters, "les deux compteurs dérivent ensemble des canaux réels");
-  const fluxBubbleItems = DASHBOARD_CHANNEL_SETUP.map(({ key }) => ({
+  const buildItems = (standardMode: boolean): DashboardFluxBubbleData[] => DASHBOARD_CHANNEL_SETUP.map(({ key }) => ({
     key,
-    bubbleStatus: key === "x" ? "reconnect" : key === "youtube_shorts" ? "available" : "connected",
+    name: key,
+    description: "",
+    accent: "cyan",
+    logoSrc: "/test.svg",
+    logoAlt: key,
+    bubbleStatus: key === "x" ? "reconnect" : key === "youtube_shorts" || key === "site_web" ? "available" : standardMode && key === "mails" ? "coming" : "connected",
     bubbleStatusText: key === "pinterest" ? "Connexion à réactualiser" : "Connecté",
+    onConfigure: () => {},
   }));
-  const evaluate = (standardMode: boolean) => runInNewContext(
-    `${counters}\n({ connected, total: summaryItems.length });`,
-    { standardMode, fluxBubbleItems, getChannelTone },
-    { timeout: 100 },
-  ) as { connected: number; total: number };
-  const standard = evaluate(true);
-  const premium = evaluate(false);
-  assert.equal(standard.total, 11, "Mails et Site iNrCy ne gonflent pas le dénominateur Standard");
-  assert.equal(standard.connected, 8, "les connexions à actualiser et à reconnecter sont exclues");
-  assert.equal(premium.total, 13, "les deux canaux commerciaux restent comptés en Premium");
-  assert.equal(premium.connected, 10, "les deux connexions commerciales ne sont pas comptées en Standard");
+  const standard = collapseDashboardWebsiteChannels(buildItems(true));
+  const premium = collapseDashboardWebsiteChannels(buildItems(false));
+  assert.equal(standard.length, 12);
+  assert.equal(premium.length, 12);
+  assert.equal(standard.filter((item) => getChannelTone(item) === "connected").length, 8);
+  assert.equal(premium.filter((item) => getChannelTone(item) === "connected").length, 9);
+  assert.equal(standard.find((item) => item.key === "site_web")?.bubbleStatus, "connected", "le site iNrCy connecté valide l'unique canal web");
+  assert.equal(standard.find((item) => item.key === "mails")?.bubbleStatus, "coming", "Mails reste visible mais verrouillé");
+});
+
+test("la bulle web unique conserve les actions du site connecté", () => {
+  const openExternal = () => {};
+  const openInrcy = () => {};
+  const makeSite = (key: "site_web" | "site_inrcy", connected: boolean, onConfigure: () => void): DashboardFluxBubbleData => ({
+    key,
+    name: key === "site_web" ? "Site web" : "Site iNrCy",
+    description: "",
+    accent: "cyan",
+    logoSrc: "/test.svg",
+    logoAlt: "",
+    bubbleStatus: connected ? "connected" : "available",
+    bubbleStatusText: connected ? "Connecté" : "À configurer",
+    onConfigure,
+  });
+  const inrcyOnly = collapseDashboardWebsiteChannels([
+    makeSite("site_web", false, openExternal),
+    makeSite("site_inrcy", true, openInrcy),
+  ]);
+  assert.equal(inrcyOnly.length, 1);
+  assert.equal(inrcyOnly[0].name, "Site web");
+  assert.equal(inrcyOnly[0].bubbleStatus, "connected");
+  assert.equal(inrcyOnly[0].onConfigure, openInrcy);
+
+  const both = collapseDashboardWebsiteChannels([
+    makeSite("site_web", true, openExternal),
+    makeSite("site_inrcy", true, openInrcy),
+  ]);
+  assert.equal(both.length, 1);
+  assert.equal(both[0].onConfigure, openExternal, "le site externe reste prioritaire quand les deux sont connectés");
+
+  const urlOnly = collapseDashboardWebsiteChannels([
+    makeSite("site_web", false, openExternal),
+    makeSite("site_inrcy", false, openInrcy),
+  ], { connectedSite: "site_inrcy", connectedText: "Connecté" });
+  assert.equal(urlOnly[0].bubbleStatus, "connected", "une URL enregistrée valide le canal sans exiger GA4/GSC");
+  assert.equal(urlOnly[0].bubbleStatusText, "Connecté");
+  assert.equal(urlOnly[0].onConfigure, openInrcy);
 });
 
 test("la puissance attribue un pourcentage propre à chacun des onze canaux actifs", () => {
@@ -113,6 +156,8 @@ test("la puissance attribue un pourcentage propre à chacun des onze canaux acti
   assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "mails")?.weight, 7);
   assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "inrbadge")?.weight, 0);
   assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "site_inrcy")?.weight, 0);
+  assert.match(dashboardClientSource, /site_web: hasSiteWebUrl \|\| \(canAccessSiteInrcy && hasSiteInrcyUrl\)/);
+  assert.match(dashboardClientSource, /mails: Boolean\(!isStandardEdition && mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate\)/);
 
   assert.match(
     dashboardClientSource,
@@ -134,6 +179,8 @@ test("le nouveau cockpit ouvre une infobulle par étape et détaille les onze ca
   );
   assert.match(dashboardCssSource, /\.cockpitStageInfoOpen\s*\{[\s\S]*z-index: 30;/);
   assert.match(dashboardCssSource, /\.cockpitInfoPopover\s*\{[\s\S]*z-index: 40;/);
+  assert.match(heroCssSource, /\.heroInfoOpen\s*\{ position: relative; z-index: 5; \}/);
+  assert.match(heroCssSource, /\.cockpitInfoPopover\s*\{[^}]*background: #0d1c3c/);
 });
 
 test("Supabase possède déjà les deux axes indépendants nécessaires", () => {

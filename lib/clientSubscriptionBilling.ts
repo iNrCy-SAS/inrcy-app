@@ -6,6 +6,7 @@ import {
   type NativeSubscriptionPriceLabels,
   type NativeSubscriptionPurchaseResult,
 } from "./nativeBilling.ts";
+import type { NativeSubscriptionPlan } from "./nativeBillingCatalog.ts";
 
 export { NativeBillingNotConfiguredError } from "./nativeBilling.ts";
 
@@ -84,28 +85,36 @@ export type StandardSubscriptionStorePrices = {
   labels: NativeSubscriptionPriceLabels;
 };
 
-export async function loadStandardSubscriptionStorePrices({
+export async function loadSubscriptionStorePrices({
+  plan,
   runtime = currentBrowserRuntime(),
   loadNativePrices = getNativeSubscriptionPriceLabels,
 }: {
+  plan: NativeSubscriptionPlan;
   runtime?: BrowserRuntime | null;
   loadNativePrices?: typeof getNativeSubscriptionPriceLabels;
-} = {}): Promise<StandardSubscriptionStorePrices | null> {
+}): Promise<StandardSubscriptionStorePrices | null> {
   const platform = detectClientBillingPlatform(runtime);
   if (platform === "web") return null;
 
   return {
     platform,
-    labels: await loadNativePrices({ platform, plan: "Standard" }),
+    labels: await loadNativePrices({ platform, plan }),
   };
 }
 
-export async function startStandardSubscriptionCheckout({
+export function loadStandardSubscriptionStorePrices(options: Omit<Parameters<typeof loadSubscriptionStorePrices>[0], "plan"> = {}) {
+  return loadSubscriptionStorePrices({ ...options, plan: "Standard" });
+}
+
+export async function startSubscriptionCheckout({
+  plan,
   billingCycle,
   fallbackError,
   fetchImpl = fetch,
   runtime = currentBrowserRuntime(),
 }: {
+  plan: NativeSubscriptionPlan;
   billingCycle: BillingCycle;
   fallbackError: string;
   fetchImpl?: typeof fetch;
@@ -115,6 +124,7 @@ export async function startStandardSubscriptionCheckout({
   if (platform !== "web") {
     return startNativeSubscriptionPurchase({
       platform,
+      plan,
       billingCycle,
       fallbackError,
       fetchImpl,
@@ -126,7 +136,7 @@ export async function startStandardSubscriptionCheckout({
   const response = await fetchImpl("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan: "Standard", billingCycle }),
+    body: JSON.stringify({ plan, billingCycle }),
   });
   const body = (await response.json().catch(() => null)) as CheckoutResponse | null;
   if (!response.ok) throw new Error(body?.error || fallbackError);
@@ -134,4 +144,8 @@ export async function startStandardSubscriptionCheckout({
 
   runtime.location.assign(body.url);
   return { platform: "web", provider: "stripe" };
+}
+
+export function startStandardSubscriptionCheckout(options: Omit<Parameters<typeof startSubscriptionCheckout>[0], "plan">) {
+  return startSubscriptionCheckout({ ...options, plan: "Standard" });
 }

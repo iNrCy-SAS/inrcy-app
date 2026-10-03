@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet, verifyStripeWebhookSignature } from "@/lib/stripeRest";
-import { optionalEnv } from "@/lib/env";
 import { commercialPriceFromId } from "@/lib/billingCatalog";
 import { stripeSubscriptionMonthlyTerms } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
@@ -83,16 +82,9 @@ function planFromPriceId(priceId: string | null) {
   if (!priceId) return null;
   const commercialPrice = commercialPriceFromId(priceId);
   if (commercialPrice) return commercialPrice.plan;
-  const starter = optionalEnv("STRIPE_PRICE_STARTER_ID");
-  const accel = optionalEnv("STRIPE_PRICE_ACCEL_ID");
-  const speed = optionalEnv("STRIPE_PRICE_SPEED_ID") || optionalEnv("STRIPE_PRICE_FULL_ID");
-  const yearly = optionalEnv("STRIPE_PRICE_YEARLY");
-  const accelYearly = optionalEnv("STRIPE_PRICE_ACCEL_YEARLY_ID");
-  if (starter && priceId === starter) return "Starter";
-  if (yearly && priceId === yearly) return "Starter";
-  if (accel && priceId === accel) return "Accel";
-  if (accelYearly && priceId === accelYearly) return "Accel";
-  if (speed && priceId === speed) return "Speed";
+  // Les anciens Price IDs Stripe restent factures, mais leurs noms commerciaux
+  // (Starter/Accel/Speed) ne doivent jamais etre recrits dans subscriptions.plan.
+  // Pour ces contrats, le plan normalise existant reste la source de verite.
   return null;
 }
 
@@ -688,7 +680,6 @@ export async function POST(req: Request) {
         liveTerms.billingCycle === "monthly" || liveTerms.billingCycle === "yearly"
           ? liveTerms.billingCycle
           : null;
-      const inrcyPlan = planFromPriceId(priceId);
       const existingRow = await resolveSubscriptionRow(userId, customerId, subId);
       const currentStoredPrice = storedDbPrice(existingRow?.monthly_price_eur);
       const stripeStoredPrice =
@@ -699,7 +690,8 @@ export async function POST(req: Request) {
           : null;
       const existingEdition = String(existingRow?.app_edition || "").trim().toLowerCase();
       const founderAccount = existingEdition === "founder";
-      const shouldKeepTrialPlan = stripeStatus === "trialing";
+      const inrcyPlan = founderAccount ? "Founder" : planFromPriceId(priceId);
+      const shouldKeepTrialPlan = stripeStatus === "trialing" && !founderAccount;
       const cancellationTimestamp = cancellationScheduled
         ? existingRow?.cancel_requested_at || new Date().toISOString()
         : null;

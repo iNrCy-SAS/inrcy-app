@@ -123,17 +123,10 @@ function statusLabel(status?: string | null) {
   return match?.label || status || "Sans statut";
 }
 
-function editionLabel(edition?: string | null) {
-  const normalized = String(edition || "").trim().toLowerCase();
-  if (normalized === "standard") return "Standard";
-  if (normalized === "founder") return "Partenaire historique";
-  return "Premium";
-}
-
 function planDisplayLabel(plan?: string | null) {
   const value = String(plan || "").trim();
   if (!value) return "Plan non renseigné";
-  return value.toLowerCase().includes("founder") ? "Offre historique" : value;
+  return value;
 }
 
 function fullName(user: AdminUserRow) {
@@ -395,7 +388,7 @@ export default function AdminUsersClient() {
                         <span className={`${styles.statusPill} ${styles[`status_${subscription?.status || "none"}`] || ""}`}>
                           {statusLabel(subscription?.status)}
                         </span>
-                        <small>{editionLabel(subscription?.app_edition)} · {planDisplayLabel(subscription?.plan)}</small>
+                        <small>{planDisplayLabel(subscription?.plan)}</small>
                       </div>
 
                       <div className={styles.dateStack}>
@@ -427,16 +420,20 @@ export default function AdminUsersClient() {
                           </div>
 
                           <div className={styles.detailBox}>
-                            <span>Édition iNrCy</span>
+                            <span>Plan iNrCy</span>
                             <select
                               className={styles.miniSelect}
-                              value={String(subscription?.app_edition || "standard").toLowerCase()}
+                              value={String(subscription?.plan || "Trial")}
                               disabled={isSaving || !subscription}
-                              onChange={(event) => patchUser(user.user_id, { app_edition: event.target.value }, "Édition iNrCy mise à jour.")}
+                              onChange={(event) => patchUser(user.user_id, { plan: event.target.value }, "Plan iNrCy mis à jour.")}
                             >
-                              <option value="standard">Standard</option>
-                              <option value="premium">Premium</option>
-                              <option value="founder">Partenaire historique · accès total</option>
+                              {subscription?.plan && !["Trial", "Standard", "Premium", "Founder"].includes(subscription.plan) ? (
+                                <option value={subscription.plan}>{subscription.plan} · ancien plan</option>
+                              ) : null}
+                              <option value="Trial">Trial</option>
+                              <option value="Standard">Standard</option>
+                              <option value="Premium">Premium</option>
+                              <option value="Founder">Accès test · droits complets</option>
                             </select>
                           </div>
 

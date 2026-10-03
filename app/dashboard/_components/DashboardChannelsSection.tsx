@@ -31,8 +31,8 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
   const [channelsOpen, setChannelsOpen] = useState(false);
   const locale = useLocale();
   const isFrench = locale.startsWith("fr");
-  const summaryItems = standardMode ? fluxBubbleItems.filter((item) => item.key !== "mails" && item.key !== "site_inrcy") : fluxBubbleItems;
-  const connected = summaryItems.filter((item) => getChannelTone(item) === "connected").length;
+  const connected = fluxBubbleItems.filter((item) => getChannelTone(item) === "connected").length;
+  const total = fluxBubbleItems.length;
 
   return (
     <section className={styles.experience}>
@@ -44,12 +44,12 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
           onClick={() => setChannelsOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={channelsOpen}
-          aria-label={`${isFrench ? "Mes canaux" : "My channels"}, ${connected}/${summaryItems.length} ${isFrench ? "connectés" : "connected"}`}
+          aria-label={`${isFrench ? "Mes canaux" : "My channels"}, ${connected}/${total} ${isFrench ? "connectés" : "connected"}`}
           data-testid="dashboard-channels-hub"
         >
           <span className={styles.hubTiles} aria-hidden="true"><i /><i /><i /><i /></span>
           <strong>{isFrench ? "Mes canaux" : "My channels"}</strong>
-          <span className={styles.hubCount}><i aria-hidden="true" />{connected}<small>/{summaryItems.length}</small></span>
+          <span className={styles.hubCount}><i aria-hidden="true" />{connected}<small>/{total}</small></span>
         </button>
       </div>
       <div id={DASHBOARD_TOOLS_ANCHOR_ID} className={styles.toolsAnchor}>
@@ -59,7 +59,7 @@ export default function DashboardChannelsSection({ fluxBubbleItems, goToModule, 
           <DashboardModulesCard goToModule={goToModule} openPanel={openPanel} onOpenStats={onOpenStats} onOpenBoosterPublish={onOpenBoosterPublish} onOpenBoosterStats={onOpenBoosterStats} adsPilotEnabled inrAgentEnabled={inrAgentEnabled} />
         )}
       </div>
-      {channelsOpen ? <DashboardChannelsModal items={fluxBubbleItems} summary={{ connected, total: summaryItems.length }} onClose={() => setChannelsOpen(false)} onOpenHelp={onOpenChannelsHelp} /> : null}
+      {channelsOpen ? <DashboardChannelsModal items={fluxBubbleItems} summary={{ connected, total }} onClose={() => setChannelsOpen(false)} onOpenHelp={onOpenChannelsHelp} /> : null}
     </section>
   );
 }

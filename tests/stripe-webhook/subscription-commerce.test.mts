@@ -155,16 +155,16 @@ test("un essai s'arrête sans prélèvement avant toute règle de préavis", () 
   );
 });
 
-test("le Checkout reste Standard en libre-service et Premium reste accompagné", () => {
+test("le Checkout propose Standard et Premium en libre-service sans accorder les droits avant le webhook", () => {
   const checkout = source("app/api/billing/checkout/route.ts");
-  const managedSubscriptionUi = source(
-    "app/dashboard/settings/_components/AbonnementContent.tsx",
-  );
-  assert.match(checkout, /configuredStandardPriceId\("monthly", pricingVersion\)/);
-  assert.match(checkout, /configuredStandardPriceId\("yearly", pricingVersion\)/);
+  const subscriptionUi = source("app/dashboard/settings/_components/StandardSubscriptionContent.tsx");
+  assert.match(checkout, /requestedCommercialPlan/);
+  assert.match(checkout, /requestedPlan === "Premium" \? configuredPremiumPriceId : configuredStandardPriceId/);
+  assert.match(checkout, /priceForCycle\("monthly", pricingVersion\)/);
+  assert.match(checkout, /priceForCycle\("yearly", pricingVersion\)/);
   assert.match(checkout, /pricingVersionForAccountCreatedAt\(user\.created_at\)/);
   assert.match(checkout, /metadata\[pricing_version\]/);
-  assert.match(checkout, /PREMIUM_CONTACT_REQUIRED/);
+  assert.doesNotMatch(checkout, /PREMIUM_CONTACT_REQUIRED/);
   assert.match(checkout, /automatic_tax\[enabled\]/);
   assert.match(checkout, /tax_id_collection\[enabled\]/);
   assert.match(checkout, /findLiveStripeSubscription/);
@@ -173,8 +173,10 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
   assert.match(checkout, /async function updateSubscriptionOrThrow/);
   assert.match(checkout, /if \(error\) throw error/);
-  assert.match(managedSubscriptionUi, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
-  assert.doesNotMatch(managedSubscriptionUi, /CHECKOUT_OFFERS/);
+  assert.match(subscriptionUi, /startCheckout\("Premium"\)/);
+  assert.match(subscriptionUi, /previewPremiumUpgrade/);
+  assert.match(subscriptionUi, /changeDowngrade/);
+  assert.doesNotMatch(checkout, /app_edition: requestedPlan\.toLowerCase\(\),\s*stripe_price_id/);
 });
 
 test("le catalogue Stripe reconnaît les huit Price IDs legacy et HT", () => {

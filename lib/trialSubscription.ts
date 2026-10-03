@@ -34,7 +34,7 @@ export async function ensureTrialSubscription(userId: string, adminEmail: string
       {
         user_id: userId,
         plan: "Trial",
-        // L'édition commerciale est indépendante du plan et du cycle Stripe.
+        // Valeur compatible; la base derive les droits du plan Trial.
         app_edition: NEW_ACCOUNT_EDITION,
         status: "trialing",
         monthly_price_eur: 0,

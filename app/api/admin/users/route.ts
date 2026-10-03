@@ -19,7 +19,7 @@ const PROFILE_SELECT_FALLBACK =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone,last_active_at,updated_at";
 
 const ALLOWED_ROLES = new Set(["user", "admin"]);
-const ALLOWED_APP_EDITIONS = new Set(["standard", "premium", "founder"]);
+const ALLOWED_PLANS = new Set(["Trial", "Standard", "Premium", "Founder"]);
 const ALLOWED_SUBSCRIPTION_STATUSES = new Set([
   "trialing",
   "active",
@@ -327,22 +327,37 @@ export async function PATCH(request: NextRequest) {
       updates.subscription_status = subscriptionStatus;
     }
 
-    if (Object.prototype.hasOwnProperty.call(body, "app_edition")) {
-      const appEdition = normalize(body.app_edition);
-      if (!ALLOWED_APP_EDITIONS.has(appEdition)) {
-        return NextResponse.json({ error: "Édition iNrCy invalide." }, { status: 400 });
+    if (Object.prototype.hasOwnProperty.call(body, "plan") ||
+        Object.prototype.hasOwnProperty.call(body, "app_edition")) {
+      // Ancien client admin: l'edition demandee est convertie en plan. La base
+      // derive ensuite app_edition du plan, jamais l'inverse.
+      const legacyEdition = normalize(body.app_edition);
+      const requestedPlan = Object.prototype.hasOwnProperty.call(body, "plan")
+        ? cleanText(body.plan, 40)
+        : legacyEdition === "founder" ? "Founder"
+          : legacyEdition === "premium" ? "Premium"
+            : legacyEdition === "standard" ? "Standard" : "";
+      if (!ALLOWED_PLANS.has(requestedPlan)) {
+        return NextResponse.json({ error: "Plan iNrCy invalide." }, { status: 400 });
       }
 
-      const { error } = await supabaseAdmin
+      const { data: changed, error } = await supabaseAdmin
         .from("subscriptions")
         .update({
-          app_edition: appEdition,
+          plan: requestedPlan,
+          // Compatible avant/apres la migration: le trigger maintient ensuite
+          // cette colonne derivee automatiquement depuis plan.
+          app_edition: requestedPlan === "Founder" ? "founder"
+            : requestedPlan === "Premium" ? "premium" : "standard",
           updated_at: new Date().toISOString(),
         })
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("plan,app_edition")
+        .maybeSingle();
 
       if (error) throw error;
-      updates.app_edition = appEdition;
+      updates.plan = changed?.plan ?? requestedPlan;
+      updates.app_edition = changed?.app_edition ?? null;
     }
 
     if (Object.prototype.hasOwnProperty.call(body, "founder_offer_enabled")) {

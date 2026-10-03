@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import {
   premiumSubscriptionOfferForAccountCreatedAt,
   standardSubscriptionOfferForAccountCreatedAt,
@@ -13,8 +14,9 @@ import {
 } from "@/lib/subscriptionOffers";
 import {
   detectClientBillingPlatform,
+  loadSubscriptionStorePrices,
   loadStandardSubscriptionStorePrices,
-  startStandardSubscriptionCheckout,
+  startSubscriptionCheckout,
   type ClientBillingPlatform,
   type StandardSubscriptionStorePrices,
 } from "@/lib/clientSubscriptionBilling";
@@ -26,6 +28,7 @@ type Props = {
 };
 
 type SubscriptionData = {
+  app_edition?: string | null;
   plan?: string | null;
   scheduled_plan?: string | null;
   status?: string | null;
@@ -43,16 +46,17 @@ type SubscriptionData = {
 };
 
 const SUBSCRIPTION_SELECT =
-  "plan,scheduled_plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew";
+  "app_edition,plan,scheduled_plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew";
 
 const premiumFeatures = [
-  "iNr’Agent complet avec Propulser et Fidéliser",
-  "iNr’Send complet et campagnes mails",
-  "Campagnes ADS Multiplateformes",
-  "iNr’CRM et gestion commerciale",
-  "Agenda et suivi des rendez-vous",
-  "Propulser et Fidéliser",
-];
+  "premium_feature_ai_studio",
+  "premium_feature_agent",
+  "premium_feature_send",
+  "premium_feature_ads",
+  "premium_feature_crm",
+  "premium_feature_calendar",
+  "premium_feature_growth",
+] as const;
 
 function normalizeStatus(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
@@ -101,18 +105,22 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [loading, setLoading] = useState(true);
-  const [busyAction, setBusyAction] = useState<"checkout" | "portal" | "cancel" | "uncancel" | null>(null);
+  const [busyAction, setBusyAction] = useState<"checkout" | "portal" | "cancel" | "uncancel" | "quote" | "change-plan" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [clientBillingPlatform, setClientBillingPlatform] = useState<ClientBillingPlatform | null>(null);
   const [storePrices, setStorePrices] = useState<StandardSubscriptionStorePrices | null>(null);
   const [storePriceError, setStorePriceError] = useState("");
+  const [premiumStorePrices, setPremiumStorePrices] = useState<StandardSubscriptionStorePrices | null>(null);
+  const [premiumStorePriceError, setPremiumStorePriceError] = useState("");
+  const [upgradeQuote, setUpgradeQuote] = useState<{ amountDue: number; currency: string; prorationDate: number } | null>(null);
+  const [downgradeScheduled, setDowngradeScheduled] = useState(false);
 
   const loadSubscription = useCallback(async () => {
     const supabase = createClient();
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
-    if (!authData.user) return;
+    if (!authData.user) return null;
     setAccountCreatedAt(authData.user.created_at ?? null);
     const { data, error: queryError } = await supabase
       .from("subscriptions")
@@ -121,6 +129,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       .maybeSingle();
     if (queryError) throw queryError;
     setSubscription((data as SubscriptionData | null) ?? null);
+    return (data as SubscriptionData | null) ?? null;
   }, []);
 
   useEffect(() => {
@@ -144,6 +153,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setClientBillingPlatform(platform);
     setStorePrices(null);
     setStorePriceError("");
+    setPremiumStorePrices(null);
+    setPremiumStorePriceError("");
 
     if (platform === "web") {
       return () => {
@@ -155,7 +166,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       .then((prices) => {
         if (!active) return;
         if (!prices || prices.platform !== platform) {
-          throw new Error("Les tarifs du magasin sont momentanément indisponibles.");
+          throw new Error(i18nT("premium_store_prices_unavailable"));
         }
         setStorePrices(prices);
       })
@@ -164,14 +175,31 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         setStorePriceError(
           caught instanceof Error
             ? caught.message
-            : "Les tarifs du magasin sont momentanément indisponibles.",
+            : i18nT("premium_store_prices_unavailable"),
+        );
+      });
+
+    void loadSubscriptionStorePrices({ plan: "Premium" })
+      .then((prices) => {
+        if (!active) return;
+        if (!prices || prices.platform !== platform) {
+          throw new Error(i18nT("premium_store_prices_unavailable"));
+        }
+        setPremiumStorePrices(prices);
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setPremiumStorePriceError(
+          caught instanceof Error
+            ? caught.message
+            : i18nT("premium_store_prices_unavailable"),
         );
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [i18nT]);
 
   useEffect(() => {
     if (checkoutState !== "success") return;
@@ -179,7 +207,18 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     let attempts = 0;
     const timer = window.setInterval(() => {
       attempts += 1;
-      void loadSubscription().catch(() => null);
+      void loadSubscription().then((row) => {
+        if (!row || !row.stripe_subscription_id ||
+            !["active", "trialing"].includes(normalizeStatus(row.status))) return;
+        const edition = String(row.app_edition || "").toLowerCase();
+        if (edition !== "standard" && edition !== "premium") return;
+        window.clearInterval(timer);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("checkout");
+        url.searchParams.delete("billing");
+        window.history.replaceState({}, "", url);
+        window.location.reload();
+      }).catch(() => null);
       if (attempts >= 8) window.clearInterval(timer);
     }, 1500);
     return () => window.clearInterval(timer);
@@ -203,6 +242,10 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       ["trialing", ...reusableStatuses].includes(status);
     const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
     return {
+      edition: resolveDashboardEdition({
+        edition: subscription?.app_edition,
+        plan: subscription?.plan,
+      }) === "premium" ? "premium" : "standard",
       status,
       hasStripeSubscription,
       hasNativeSubscription,
@@ -217,6 +260,22 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       presentation: statusPresentation(subscription, i18nT),
     };
   }, [subscription, locale, i18nT]);
+
+  useEffect(() => {
+    if (view.edition !== "premium" || !view.hasStripeSubscription || view.status !== "active") {
+      setDowngradeScheduled(false);
+      return;
+    }
+    let active = true;
+    void fetch("/api/billing/change-plan?target=Standard", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("downgrade_status_unavailable");
+        return response.json() as Promise<{ pendingDowngrade?: boolean }>;
+      })
+      .then((body) => { if (active) setDowngradeScheduled(Boolean(body.pendingDowngrade)); })
+      .catch(() => { if (active) setDowngradeScheduled(false); });
+    return () => { active = false; };
+  }, [view.edition, view.hasStripeSubscription, view.status]);
 
   const standardOffer = useMemo(
     () => standardSubscriptionOfferForAccountCreatedAt(accountCreatedAt),
@@ -241,6 +300,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     isNativeBillingPlatform && storePrices?.platform === clientBillingPlatform ? storePrices : null;
   const storePricesReady =
     clientBillingPlatform === "web" || Boolean(matchingStorePrices);
+  const matchingPremiumStorePrices =
+    isNativeBillingPlatform && premiumStorePrices?.platform === clientBillingPlatform ? premiumStorePrices : null;
+  const premiumStorePricesReady = clientBillingPlatform === "web" || Boolean(matchingPremiumStorePrices);
   const standardMonthlyLabel = clientBillingPlatform === "web"
     ? `${formatEur(standardOffer.monthlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_month")}`
     : matchingStorePrices
@@ -251,8 +313,16 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     : matchingStorePrices
       ? `${matchingStorePrices.labels.yearly} / ${i18nT("standard_per_year")}`
       : "…";
-  const premiumMonthlyLabel = `${formatEur(premiumOffer.monthlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_month")}`;
-  const premiumYearlyLabel = `${formatEur(premiumOffer.yearlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_year")}`;
+  const premiumMonthlyLabel = clientBillingPlatform === "web"
+    ? `${formatEur(premiumOffer.monthlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_month")}`
+    : matchingPremiumStorePrices
+      ? `${matchingPremiumStorePrices.labels.monthly} / ${i18nT("standard_per_month")}`
+      : "…";
+  const premiumYearlyLabel = clientBillingPlatform === "web"
+    ? `${formatEur(premiumOffer.yearlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_year")}`
+    : matchingPremiumStorePrices
+      ? `${matchingPremiumStorePrices.labels.yearly} / ${i18nT("standard_per_year")}`
+      : "…";
 
   async function openPortal() {
     setError("");
@@ -275,12 +345,13 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     }
   }
 
-  async function startCheckout() {
+  async function startCheckout(plan: "Standard" | "Premium" = "Standard") {
     setError("");
     setMessage("");
     setBusyAction("checkout");
     try {
-      const result = await startStandardSubscriptionCheckout({
+      const result = await startSubscriptionCheckout({
+        plan,
         billingCycle,
         fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
       });
@@ -290,6 +361,87 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Le paiement est momentanément indisponible.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function previewPremiumUpgrade() {
+    setError("");
+    setMessage("");
+    setUpgradeQuote(null);
+    setBusyAction("quote");
+    try {
+      const response = await fetch("/api/billing/change-plan?target=Premium", { cache: "no-store" });
+      if (!response.ok) throw new Error(await responseError(response, i18nT("premium_quote_unavailable")));
+      const body = await response.json() as { quote?: { amountDue: number; currency: string; prorationDate: number } };
+      if (!body.quote || body.quote.currency !== "eur") throw new Error(i18nT("premium_quote_unavailable"));
+      setUpgradeQuote(body.quote);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function confirmPremiumUpgrade() {
+    if (!upgradeQuote) return;
+    setError("");
+    setMessage("");
+    setBusyAction("change-plan");
+    try {
+      const response = await fetch("/api/billing/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetPlan: "Premium", prorationDate: upgradeQuote.prorationDate,
+          expectedAmountDue: upgradeQuote.amountDue }),
+      });
+      if (!response.ok) throw new Error(await responseError(response, i18nT("premium_upgrade_failed")));
+      const body = await response.json() as { applied?: boolean; pendingPayment?: boolean; paymentUrl?: string | null };
+      setUpgradeQuote(null);
+      if (body.pendingPayment) {
+        setMessage(i18nT("premium_upgrade_pending_payment"));
+        if (body.paymentUrl) window.location.assign(body.paymentUrl);
+        return;
+      }
+      if (!body.applied) throw new Error(i18nT("premium_upgrade_unconfirmed"));
+      setMessage(i18nT("premium_upgrade_activating"));
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const row = await loadSubscription();
+        if (String(row?.app_edition || "").toLowerCase() === "premium") {
+          window.location.reload();
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      }
+      setMessage(i18nT("premium_upgrade_reload"));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function changeDowngrade(action: "schedule" | "undo") {
+    if (action === "schedule" && !window.confirm(i18nT("premium_downgrade_confirm"))) return;
+    setError("");
+    setMessage("");
+    setBusyAction("change-plan");
+    try {
+      const response = await fetch("/api/billing/change-plan", {
+        method: action === "schedule" ? "POST" : "DELETE",
+        headers: action === "schedule" ? { "Content-Type": "application/json" } : undefined,
+        body: action === "schedule" ? JSON.stringify({ targetPlan: "Standard" }) : undefined,
+      });
+      if (!response.ok) throw new Error(await responseError(response, i18nT("premium_downgrade_failed")));
+      setDowngradeScheduled(action === "schedule");
+      setMessage(action === "schedule"
+        ? i18nT("premium_downgrade_scheduled_message", {
+            date: view.renewalLabel || i18nT("premium_next_renewal_placeholder"),
+          })
+        : i18nT("premium_downgrade_canceled_message"));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
     } finally {
       setBusyAction(null);
     }
@@ -353,6 +505,91 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   };
 
   if (loading) return <div style={{ opacity: 0.78 }}>{i18nT("chargement_de_votre_forfait_0440bffc")}</div>;
+
+  if (view.edition === "premium") return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <section style={{
+        padding: 18, borderRadius: 18, border: "1px solid rgba(180, 99, 255, 0.38)",
+        background: "linear-gradient(145deg, rgba(124, 55, 220, 0.21), rgba(255, 75, 172, 0.12))",
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.7, textTransform: "uppercase", letterSpacing: ".08em" }}>
+          {i18nT("votre_forfait_6d06f631")}
+        </div>
+        <h2 style={{ margin: "5px 0 4px", fontSize: 24 }}>{i18nT("inrcy_premium_4c7d39c1")}</h2>
+        <p style={{ margin: "0 0 13px", color: view.presentation.color, fontSize: 12, fontWeight: 900 }}>
+          {view.presentation.label}
+          {view.renewalLabel ? ` · ${i18nT("premium_next_renewal_label", { date: view.renewalLabel })}` : ""}
+        </p>
+        <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+          {premiumFeatures.map((feature) => (
+            <div key={feature} style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, opacity: 0.88 }}>
+              <span aria-hidden="true" style={{ color: "#8feaff", fontWeight: 950 }}>✓</span>
+              {i18nT(feature)}
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: "0 0 14px", fontSize: 12, opacity: 0.72 }}>
+          {view.billingCycle === "yearly" ? premiumYearlyLabel : premiumMonthlyLabel}
+        </p>
+        {(view.hasStripeSubscription || view.hasNativeSubscription) ? (
+          <button type="button" onClick={openPortal} style={{ ...secondaryButton, width: "100%" }} disabled={busyAction !== null}>
+            {view.needsBillingRecovery ? i18nT("regulariser_mon_paiement_00ae072e") : i18nT("gerer_ma_facturation_dc5027ac")}
+          </button>
+        ) : null}
+        {view.hasNativeSubscription ? (
+          <p style={{ fontSize: 11, opacity: 0.68 }}>
+            {i18nT("native_subscription_managed_by_store", {
+              store: view.billingProvider === "app_store" ? "App Store" : "Google Play",
+            })}
+          </p>
+        ) : null}
+      </section>
+
+      <section style={{
+        padding: 18, borderRadius: 18, border: "1px solid rgba(61, 222, 255, 0.28)",
+        background: "linear-gradient(135deg, rgba(26, 127, 255, 0.12), rgba(61, 223, 255, 0.06))",
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.7, textTransform: "uppercase", letterSpacing: ".08em" }}>
+          {i18nT("autre_forfait_b5347942")}
+        </div>
+        <h2 style={{ margin: "5px 0 4px", fontSize: 24 }}>{i18nT("inrcy_standard_1dd18060")}</h2>
+        <p style={{ margin: "0 0 13px", opacity: 0.76, lineHeight: 1.5 }}>
+          {i18nT("premium_standard_description")}
+        </p>
+        <p style={{ margin: "0 0 14px", fontSize: 12, opacity: 0.72 }}>
+          {i18nT("premium_cycle_preserved_price", {
+            price: view.billingCycle === "yearly" ? standardYearlyLabel : standardMonthlyLabel,
+          })}
+        </p>
+        {downgradeScheduled ? (
+          <>
+            <p style={{ color: "#ffd38f", fontSize: 13 }}>{i18nT("premium_downgrade_scheduled_label", {
+              date: view.renewalLabel || i18nT("premium_next_renewal_placeholder"),
+            })}</p>
+            <button type="button" onClick={() => changeDowngrade("undo")} style={{ ...primaryButton, width: "100%" }} disabled={busyAction !== null}>
+              {i18nT("premium_downgrade_cancel_button")}
+            </button>
+          </>
+        ) : view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled ? (
+          <button type="button" onClick={() => changeDowngrade("schedule")} style={{ ...secondaryButton, width: "100%" }} disabled={busyAction !== null}>
+            {i18nT("premium_downgrade_button")}
+          </button>
+        ) : view.hasNativeSubscription ? (
+          <button type="button" onClick={openPortal} style={{ ...secondaryButton, width: "100%" }} disabled={busyAction !== null}>
+            {i18nT("premium_native_change_button")}
+          </button>
+        ) : (
+          <button type="button" onClick={onOpenContact} style={{ ...secondaryButton, width: "100%" }}>
+            {i18nT("premium_contact_change_button")}
+          </button>
+        )}
+      </section>
+      {checkoutState === "cancel" ? <p style={{ color: "#ffd38f" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
+      {message ? <p style={{ color: "#8ff7d0", margin: 0 }}>{message}</p> : null}
+      {error ? <p style={{ color: "#ff9bbd", margin: 0 }}>{error}</p> : null}
+      <SubscriptionInvoicesPanel />
+    </div>
+  );
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -440,7 +677,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
             </div>
             <button
               type="button"
-              onClick={startCheckout}
+              onClick={() => startCheckout("Standard")}
               style={primaryButton}
               disabled={busyAction !== null || !storePricesReady}
             >
@@ -525,23 +762,83 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           {premiumFeatures.map((feature) => (
             <div key={feature} style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, opacity: 0.86 }}>
               <span aria-hidden="true" style={{ color: "#8feaff", fontWeight: 950 }}>✓</span>
-              {feature}
+              {i18nT(feature)}
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumMonthlyLabel}</span>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumYearlyLabel} · −{formatEur(premiumOffer.annualSavingPercent, locale)} %</span>
-        </div>
+        {view.hasStripeSubscription ? (
+          <p style={{ margin: "0 0 12px", fontSize: 12, opacity: 0.72 }}>
+            {i18nT("premium_cycle_preserved_price", {
+              price: view.billingCycle === "yearly" ? premiumYearlyLabel : premiumMonthlyLabel,
+            })}
+          </p>
+        ) : (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
+            <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumMonthlyLabel}</span>
+            <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumYearlyLabel} · −{formatEur(premiumOffer.annualSavingPercent, locale)} %</span>
+          </div>
+        )}
         {premiumOffer.taxBehavior === "exclusive" ? (
           <p style={{ margin: "-4px 0 12px", fontSize: 11, opacity: 0.68 }}>
             {i18nT("standard_taxes_checkout")}
           </p>
         ) : null}
-        <button type="button" onClick={onOpenContact} style={{ ...primaryButton, width: "100%" }}>
-          {i18nT("nous_contacter_pour_premium_149750a6")}{" "}</button>
-        <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 11, opacity: 0.58 }}>
-          {i18nT("le_passage_a_premium_necessite_une_2e3ad843")}{" "}</p>
+        {view.canStartCheckout ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
+              <button type="button" onClick={() => setBillingCycle("monthly")} disabled={!premiumStorePricesReady}
+                style={{ ...secondaryButton, textAlign: "left", borderColor: billingCycle === "monthly" ? "rgba(221,93,255,.72)" : "rgba(255,255,255,.14)" }}>
+                {premiumMonthlyLabel}
+              </button>
+              <button type="button" onClick={() => setBillingCycle("yearly")} disabled={!premiumStorePricesReady}
+                style={{ ...secondaryButton, textAlign: "left", borderColor: billingCycle === "yearly" ? "rgba(221,93,255,.72)" : "rgba(255,255,255,.14)" }}>
+                {premiumYearlyLabel}
+              </button>
+            </div>
+            <button type="button" onClick={() => startCheckout("Premium")} style={{ ...primaryButton, width: "100%" }}
+              disabled={busyAction !== null || !premiumStorePricesReady}>
+              {busyAction === "checkout" ? i18nT("ouverture_du_paiement_147e6d80") : i18nT("premium_subscribe_button")}
+            </button>
+            {isNativeBillingPlatform && premiumStorePriceError ? (
+              <div style={{ fontSize: 11, color: "#ffb4c9", textAlign: "center" }}>{premiumStorePriceError}</div>
+            ) : null}
+          </div>
+        ) : view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled ? (
+          <div style={{ display: "grid", gap: 9 }}>
+            {!upgradeQuote ? (
+              <button type="button" onClick={previewPremiumUpgrade} style={{ ...primaryButton, width: "100%" }} disabled={busyAction !== null}>
+                {busyAction === "quote" ? i18nT("premium_quote_loading") : i18nT("premium_quote_button")}
+              </button>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+                  {i18nT("premium_quote_amount", {
+                    amount: new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(upgradeQuote.amountDue / 100),
+                  })}{" "}{i18nT("premium_quote_cycle_preserved")}
+                </p>
+                <button type="button" onClick={confirmPremiumUpgrade} style={{ ...primaryButton, width: "100%" }} disabled={busyAction !== null}>
+                  {busyAction === "change-plan" ? i18nT("premium_confirming") : i18nT("premium_confirm_upgrade_button")}
+                </button>
+                <button type="button" onClick={previewPremiumUpgrade} style={{ ...secondaryButton, width: "100%" }} disabled={busyAction !== null}>
+                  {i18nT("premium_refresh_quote")}
+                </button>
+              </>
+            )}
+          </div>
+        ) : view.hasNativeSubscription ? (
+          <button type="button" onClick={openPortal} style={{ ...primaryButton, width: "100%" }} disabled={busyAction !== null}>
+            {i18nT("premium_native_change_button")}
+          </button>
+        ) : (
+          <button type="button" onClick={onOpenContact} style={{ ...secondaryButton, width: "100%" }}>
+            {i18nT("premium_contact_change_button")}
+          </button>
+        )}
+        {view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled ? (
+          <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 11, opacity: 0.65 }}>
+            {i18nT("premium_upgrade_policy")}
+          </p>
+        ) : null}
       </section>
 
       <SubscriptionInvoicesPanel />

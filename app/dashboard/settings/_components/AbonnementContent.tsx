@@ -18,7 +18,7 @@ import {
 import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
 
 
-type InrcyPlan = "Trial" | "Standard" | "Premium" | "Starter" | "Accel" | "Speed";
+type InrcyPlan = "Trial" | "Standard" | "Premium" | "Founder" | "Starter" | "Accel" | "Speed";
 type BillingCycle = "monthly" | "yearly";
 
 function normalizePlan(raw: unknown): InrcyPlan {
@@ -26,6 +26,7 @@ function normalizePlan(raw: unknown): InrcyPlan {
   if (value === "Trial" || /^essai/i.test(value)) return "Trial";
   if (value === "Standard") return "Standard";
   if (value === "Premium") return "Premium";
+  if (value === "Founder") return "Founder";
   if (value === "Starter" || /^d[ée]marrage/i.test(value)) return "Starter";
   if (value === "Accel" || /^acc[ée]l[ée]ration/i.test(value)) return "Accel";
   if (value === "Speed" || /^pleine vitesse/i.test(value)) return "Speed";
@@ -36,6 +37,7 @@ function monthlyPriceTtcFromPlan(plan: unknown) {
   const normalized = normalizePlan(plan);
   if (normalized === "Standard") return STANDARD_SUBSCRIPTION_OFFER.monthlyPriceEur;
   if (normalized === "Premium") return PREMIUM_SUBSCRIPTION_OFFER.monthlyPriceEur;
+  if (normalized === "Founder") return 0;
   if (normalized === "Starter") return 69;
   if (normalized === "Accel") return 149;
   if (normalized === "Speed") return 359;
@@ -46,6 +48,7 @@ function planShortLabel(plan: unknown, i18nT: (key: string) => string) {
   const normalized = normalizePlan(plan);
   if (normalized === "Standard") return "Standard";
   if (normalized === "Premium") return "Premium";
+  if (normalized === "Founder") return "Founder";
   if (normalized === "Starter") return i18nT("partenaire_fondateur_7857c49b");
   if (normalized === "Accel") return i18nT("acceleration_2aa4f284");
   if (normalized === "Speed") return i18nT("pleine_vitesse_e2aad634");
@@ -180,6 +183,7 @@ function planLabel(plan: SubData["plan"], i18nT: (key: string) => string) {
   if (normalized === "Speed") return i18nT("pack_pleine_vitesse_a1aee34b");
   if (normalized === "Standard") return "Standard";
   if (normalized === "Premium") return "Premium";
+  if (normalized === "Founder") return "Founder";
   return i18nT("essai_21j_2cf2287d");
 }
 
@@ -346,7 +350,7 @@ useEffect(() => {
     // on considère l'abonnement comme "programmé" (Stripe subscription existe mais statut = essai).
     const scheduledStart = trialEnd;
 
-    const scheduledPlan = normalizePlan(sub.scheduled_plan || "Starter") as SubData["plan"];
+    const scheduledPlan = normalizePlan(sub.scheduled_plan || sub.plan) as SubData["plan"];
     const storedPriceRaw = sub.monthly_price_eur == null ? null : Number(sub.monthly_price_eur);
     const storedPrice = storedPriceRaw != null && Number.isFinite(storedPriceRaw) && storedPriceRaw >= 0
       ? storedPriceRaw

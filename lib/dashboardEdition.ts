@@ -1,6 +1,7 @@
 export type DashboardEdition = "standard" | "premium" | "founder";
 
 const STANDARD_PLAN_VALUES = new Set([
+  "trial",
   "standard",
   "inrcy standard",
   "inrcy-standard",
@@ -13,6 +14,15 @@ const FOUNDER_PLAN_VALUES = new Set([
   "inrcy-founder",
   "inrcy_founder",
 ]);
+
+const PREMIUM_PLAN_VALUES = new Set([
+  "premium",
+  "inrcy premium",
+  "inrcy-premium",
+  "inrcy_premium",
+]);
+
+const LEGACY_PLAN_VALUES = new Set(["starter", "accel", "speed"]);
 
 const STANDARD_BLOCKED_DASHBOARD_PREFIXES = [
   "/dashboard/ads",
@@ -98,21 +108,22 @@ function pathMatches(pathname: string, candidate: string): boolean {
 }
 
 /**
- * Fail-safe commercial mapping: explicit Standard and Founder plan names keep
- * their matching edition. Every empty or unknown historic value remains Premium.
+ * Le plan commercial est la source des droits. Les anciens libelles restent
+ * toleres uniquement pendant la migration des abonnements historiques.
  */
 export function resolveDashboardEditionFromPlan(plan: unknown): DashboardEdition {
   const normalizedPlan = normalizePlan(plan);
   if (STANDARD_PLAN_VALUES.has(normalizedPlan)) return "standard";
   if (FOUNDER_PLAN_VALUES.has(normalizedPlan)) return "founder";
-  return "premium";
+  if (PREMIUM_PLAN_VALUES.has(normalizedPlan) || LEGACY_PLAN_VALUES.has(normalizedPlan)) return "premium";
+  return "standard";
 }
 
 export function resolveDashboardEditionFromEdition(edition: unknown): DashboardEdition {
   const normalizedEdition = normalizePlan(edition);
-  if (normalizedEdition === "standard") return "standard";
   if (normalizedEdition === "founder") return "founder";
-  return "premium";
+  if (normalizedEdition === "premium") return "premium";
+  return "standard";
 }
 
 export function isStandardDashboardEdition(edition: DashboardEdition): boolean {
@@ -148,8 +159,13 @@ export function resolveDashboardEdition({
     if (override === "standard" || override === "premium" || override === "founder") return override;
   }
 
-  // app_edition est la source officielle. Le fallback sur plan sécurise la
-  // transition avant migration et les anciennes sauvegardes de développement.
+  // Le plan commercial pilote les droits. Avant la normalisation des anciens
+  // forfaits, app_edition conserve leur droit historique comme fallback.
+  const normalizedPlan = normalizePlan(plan);
+  if (STANDARD_PLAN_VALUES.has(normalizedPlan) || FOUNDER_PLAN_VALUES.has(normalizedPlan) ||
+      PREMIUM_PLAN_VALUES.has(normalizedPlan)) {
+    return resolveDashboardEditionFromPlan(plan);
+  }
   if (normalizePlan(edition)) return resolveDashboardEditionFromEdition(edition);
   return resolveDashboardEditionFromPlan(plan);
 }

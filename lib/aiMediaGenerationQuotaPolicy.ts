@@ -32,7 +32,7 @@ export const AI_MEDIA_ROLLOVER_CAPS: Readonly<
   Record<AiMediaEdition, Readonly<Record<AiMediaKind, number>>>
 > = Object.freeze({
   standard: Object.freeze({ image: 70, video: 168 }),
-  premium: Object.freeze({ image: 70, video: 480 }),
+  premium: Object.freeze({ image: 150, video: 480 }),
   founder: Object.freeze({ image: 70, video: 480 }),
 });
 
@@ -52,8 +52,8 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
       videoMaxDurationSeconds: 24,
     }),
     premium: Object.freeze({
-      image: 50,
-      video: 144,
+      image: 70,
+      video: 196,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     }),

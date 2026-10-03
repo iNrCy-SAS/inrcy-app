@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { configuredStandardPriceId } from "@/lib/billingCatalog";
+import { configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { requireUser } from "@/lib/requireUser";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
@@ -53,9 +53,11 @@ function normalizeBillingCycle(value: unknown): BillingCycle {
   return String(value ?? "").trim().toLowerCase() === "yearly" ? "yearly" : "monthly";
 }
 
-function requestedStandardPlan(value: unknown): boolean {
+function requestedCommercialPlan(value: unknown): "Standard" | "Premium" | null {
   const normalized = String(value ?? "Standard").trim().toLowerCase();
-  return normalized === "standard" || normalized === "inrcy standard" || normalized === "inrcy-standard";
+  if (["standard", "inrcy standard", "inrcy-standard"].includes(normalized)) return "Standard";
+  if (["premium", "inrcy premium", "inrcy-premium"].includes(normalized)) return "Premium";
+  return null;
 }
 
 async function updateSubscriptionOrThrow(
@@ -82,26 +84,20 @@ export async function POST(req: Request) {
     const { supabase, user, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
+    const body: unknown = await req.json().catch(() => ({}));
+    const requestedPlan = requestedCommercialPlan((body as { plan?: unknown } | null)?.plan);
+    if (!requestedPlan) {
+      return NextResponse.json({ error: "Forfait inconnu." }, { status: 400 });
+    }
+
     const pricingVersion = pricingVersionForAccountCreatedAt(user.created_at);
-    const monthlyPriceId = configuredStandardPriceId("monthly", pricingVersion);
-    const yearlyPriceId = configuredStandardPriceId("yearly", pricingVersion);
+    const priceForCycle = requestedPlan === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
+    const monthlyPriceId = priceForCycle("monthly", pricingVersion);
+    const yearlyPriceId = priceForCycle("yearly", pricingVersion);
     if (!process.env.STRIPE_SECRET_KEY || !monthlyPriceId || !yearlyPriceId) {
       return NextResponse.json(
         { error: "Le paiement n’est pas disponible pour le moment." },
         { status: 503 },
-      );
-    }
-
-    const body: unknown = await req.json().catch(() => ({}));
-    const requestedPlan = (body as { plan?: unknown } | null)?.plan;
-    if (!requestedStandardPlan(requestedPlan)) {
-      return NextResponse.json(
-        {
-          error: "Le passage à iNrCy Premium nécessite un échange avec notre équipe.",
-          code: "PREMIUM_CONTACT_REQUIRED",
-          redirectTo: "/dashboard?panel=contact",
-        },
-        { status: 403 },
       );
     }
 
@@ -135,7 +131,7 @@ export async function POST(req: Request) {
     const profile = profileData as ProfileRow | null;
     if (!row) {
       return NextResponse.json(
-        { error: "Votre abonnement Standard n’a pas encore été initialisé." },
+        { error: "Votre abonnement n’a pas encore été initialisé." },
         { status: 409 },
       );
     }
@@ -145,7 +141,7 @@ export async function POST(req: Request) {
       plan: row.plan,
       developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
     });
-    if (edition !== "standard") {
+    if (edition === "founder") {
       return NextResponse.json(
         {
           error: "Votre forfait est géré avec l’équipe iNrCy.",
@@ -278,13 +274,13 @@ export async function POST(req: Request) {
     sessionParams.set("cancel_url", `${appUrl}/dashboard?panel=abonnement&checkout=cancel`);
     sessionParams.set("client_reference_id", userId);
     sessionParams.set("metadata[user_id]", userId);
-    sessionParams.set("metadata[plan]", "Standard");
-    sessionParams.set("metadata[app_edition]", "standard");
+    sessionParams.set("metadata[plan]", requestedPlan);
+    sessionParams.set("metadata[app_edition]", requestedPlan.toLowerCase());
     sessionParams.set("metadata[billing_cycle]", billingCycle);
     sessionParams.set("metadata[pricing_version]", pricingVersion);
     sessionParams.set("subscription_data[metadata][user_id]", userId);
-    sessionParams.set("subscription_data[metadata][plan]", "Standard");
-    sessionParams.set("subscription_data[metadata][app_edition]", "standard");
+    sessionParams.set("subscription_data[metadata][plan]", requestedPlan);
+    sessionParams.set("subscription_data[metadata][app_edition]", requestedPlan.toLowerCase());
     sessionParams.set("subscription_data[metadata][billing_cycle]", billingCycle);
     sessionParams.set("subscription_data[metadata][pricing_version]", pricingVersion);
     sessionParams.set(
@@ -310,17 +306,18 @@ export async function POST(req: Request) {
     // nouvelle tentative si une ancienne session Checkout a expiré.
     const checkoutAttemptBucket = Math.floor(Date.now() / (15 * 60 * 1000));
     const session = await stripePost("/checkout/sessions", sessionParams, {
-      idempotencyKey: `checkout-standard-v1-${userId}-${priceId}-${effectiveTrialEndUnix || "immediate"}-${checkoutAttemptBucket}`,
+      idempotencyKey: `checkout-commercial-v2-${userId}-${priceId}-${effectiveTrialEndUnix || "immediate"}-${checkoutAttemptBucket}`,
     });
     if (typeof session?.url !== "string" || !session.url) {
       throw new Error("La page de paiement n’a pas pu être créée.");
     }
 
     await updateSubscriptionOrThrow(userId, {
-      app_edition: "standard",
+      // Le webhook Stripe attribue l'edition seulement lorsque l'abonnement
+      // existe effectivement. Une session Checkout abandonnee ne donne aucun droit.
       stripe_price_id: priceId,
       billing_cycle: billingCycle,
-      scheduled_plan: "Standard",
+      scheduled_plan: requestedPlan,
       contact_email: email,
       updated_at: new Date().toISOString(),
     });

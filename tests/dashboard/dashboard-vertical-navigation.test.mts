@@ -28,7 +28,7 @@ test("le cockpit compact remplace les deux commandes verticales par un hub de ca
   assert.match(channels, /aria-haspopup="dialog"/);
   assert.match(channels, /aria-expanded=\{channelsOpen\}/);
   assert.match(channels, /getChannelTone\(item\) === "connected"/);
-  assert.match(channels, /<small>\/\{summaryItems\.length\}<\/small>/);
+  assert.match(channels, /<small>\/\{total\}<\/small>/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal items=\{fluxBubbleItems\}/);
   assert.match(channels, /onClose=\{\(\) => setChannelsOpen\(false\)\}/);
 });

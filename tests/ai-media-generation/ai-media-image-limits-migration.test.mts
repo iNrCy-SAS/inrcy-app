@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { AI_MEDIA_MONTHLY_LIMITS, AI_MEDIA_ROLLOVER_CAPS } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 
 const migration = readFileSync(new URL("../../supabase/migrations/20260930151303_ai_media_image_limits_25_50.sql", import.meta.url), "utf8");
 const sql = migration.replace(/--[^\n]*/g, "");
@@ -14,9 +13,10 @@ test("image recharge migration changes only plan image limits, never an account 
   assert.match(assignment, /^image_monthly_limit = case edition/);
   assert.doesNotMatch(assignment, /,/);
   assert.doesNotMatch(sql, /ai_media_(?:monthly_usage|generation_jobs|account_limits)|video_monthly_limit\s*=|rollover_cap\s*=/);
-  for (const edition of ["standard", "premium", "founder"] as const) {
-    assert.match(assignment, new RegExp(`when '${edition}' then ${AI_MEDIA_MONTHLY_LIMITS[edition].image}\\b`));
-    assert.equal(AI_MEDIA_ROLLOVER_CAPS[edition].image, 70);
+  // Ce test couvre la migration historique de septembre. La nouvelle limite
+  // Premium (70/150) est verifiee dans le test de sa propre migration.
+  for (const [edition, limit] of [["standard", 25], ["premium", 50], ["founder", 50]] as const) {
+    assert.match(assignment, new RegExp(`when '${edition}' then ${limit}\\b`));
   }
 });
 

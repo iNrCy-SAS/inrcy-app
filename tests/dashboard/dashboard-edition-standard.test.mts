@@ -255,7 +255,7 @@ const loyaltySummaryApiSource = readFileSync(
   "utf8",
 );
 
-test("app_edition pilote officiellement l'interface avec un fallback compatible sur les anciens plans", () => {
+test("plan pilote les droits, avec fallback compatible sur les anciens plans", () => {
   assert.equal(resolveDashboardEditionFromEdition("standard"), "standard");
   assert.equal(resolveDashboardEditionFromEdition("premium"), "premium");
   assert.equal(resolveDashboardEditionFromEdition("founder"), "founder");
@@ -263,13 +263,21 @@ test("app_edition pilote officiellement l'interface avec un fallback compatible 
   assert.equal(hasPremiumDashboardAccess("founder"), true);
   assert.equal(hasPremiumDashboardAccess("standard"), false);
   assert.equal(resolveDashboardEdition({ edition: "standard", plan: "Trial", production: true }), "standard");
-  assert.equal(resolveDashboardEdition({ edition: "premium", plan: "Standard", production: true }), "premium");
+  assert.equal(resolveDashboardEdition({ edition: "premium", plan: "Standard", production: true }), "standard");
+  assert.equal(resolveDashboardEdition({ edition: "standard", plan: "Premium", production: true }), "premium");
+  assert.equal(resolveDashboardEdition({ edition: "standard", plan: "Founder", production: true }), "founder");
+  assert.equal(resolveDashboardEdition({ edition: "founder", plan: "Starter", production: true }), "founder");
 
   assert.equal(resolveDashboardEditionFromPlan("Standard"), "standard");
   assert.equal(resolveDashboardEditionFromPlan("  inrcy-standard  "), "standard");
 
-  for (const historicPlan of ["Trial", "Starter", "Accel", "Speed", "Premium", "", null, undefined, "valeur-inconnue"]) {
+  assert.equal(resolveDashboardEditionFromPlan("Trial"), "standard");
+  assert.equal(resolveDashboardEditionFromPlan("Founder"), "founder");
+  for (const historicPlan of ["Starter", "Accel", "Speed", "Premium"]) {
     assert.equal(resolveDashboardEditionFromPlan(historicPlan), "premium");
+  }
+  for (const unknownPlan of ["", null, undefined, "valeur-inconnue"]) {
+    assert.equal(resolveDashboardEditionFromPlan(unknownPlan), "standard");
   }
 });
 
@@ -363,9 +371,9 @@ test("Standard conserve les vraies bulles de connexion avec Voir et Configurer",
   assert.match(connectionBubbleSource, /item\.viewFallbackLabel \|\| i18nT\("voir_8a754f1f"\)/);
   assert.match(connectionBubbleSource, /item\.configureLabel \|\| i18nT\("configurer_382efbe9"\)/);
   assert.match(connectionBubbleSource, /disabled=\{item\.configureDisabled \|\| configureLoadingVisible\}/);
-  assert.match(channelsSectionSource, /standardMode \? fluxBubbleItems\.filter\(\(item\) => item\.key !== "mails" && item\.key !== "site_inrcy"\) : fluxBubbleItems/);
-  assert.match(channelsSectionSource, /summaryItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length/);
-  assert.match(channelsSectionSource, /summary=\{\{ connected, total: summaryItems\.length \}\}/);
+  assert.match(channelsSectionSource, /fluxBubbleItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length/);
+  assert.match(channelsSectionSource, /const total = fluxBubbleItems\.length/);
+  assert.match(channelsSectionSource, /summary=\{\{ connected, total \}\}/);
 });
 
 test("un canal desactive reste gris tandis qu'un canal a connecter garde son etat disponible", () => {
@@ -917,9 +925,10 @@ test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon ab
   assert.match(settingsDrawerSource, /panel === "abonnement"/);
   assert.match(settingsDrawerSource, /<StandardSubscriptionContent/);
   assert.match(settingsDrawerSource, /<AbonnementContent mode="drawer"/);
+  assert.match(subscriptionContentSource, /premium_feature_ads/);
   assert.match(
-    subscriptionContentSource,
-    /Campagnes ADS Multiplateformes/,
+    readFileSync(new URL("../../messages/fr-FR/settings.json", import.meta.url), "utf8"),
+    /"premium_feature_ads": "Campagnes ADS multiplateformes"/,
   );
 });
 
@@ -942,9 +951,9 @@ test("toute nouvelle inscription officielle reçoit Standard tout en conservant 
   assert.match(editionMigrationSource, /alter column app_edition set default 'standard'/i);
   assert.match(editionMigrationSource, /create table if not exists public\.stripe_webhook_events/i);
 
-  assert.match(adminUsersApiSource, /ALLOWED_APP_EDITIONS/);
-  assert.match(adminUsersApiSource, /"founder"/);
-  assert.match(adminUsersApiSource, /app_edition: appEdition/);
-  assert.match(adminUsersClientSource, /Édition iNrCy/);
-  assert.match(adminUsersClientSource, /app_edition: event\.target\.value/);
+  assert.match(adminUsersApiSource, /ALLOWED_PLANS/);
+  assert.match(adminUsersApiSource, /"Founder"/);
+  assert.match(adminUsersApiSource, /plan: requestedPlan/);
+  assert.match(adminUsersClientSource, /Plan iNrCy/);
+  assert.match(adminUsersClientSource, /plan: event\.target\.value/);
 });

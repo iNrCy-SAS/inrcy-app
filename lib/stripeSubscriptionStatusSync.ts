@@ -1,5 +1,6 @@
 import "server-only";
 
+import { commercialPriceFromId } from "@/lib/billingCatalog";
 import { collectSupabaseKeysetPages } from "@/lib/adminSubscriberPagination";
 import {
   matchAdminSubscribersToStripe,
@@ -18,11 +19,13 @@ const SUBSCRIPTION_PAGE_SIZE = 500;
 const PROFILE_BATCH_SIZE = 100;
 const WRITE_BATCH_SIZE = 20;
 const SUBSCRIPTION_SELECT =
-  "user_id,contact_email,plan,status,monthly_price_eur,billing_cycle,billing_provider,stripe_customer_id,stripe_subscription_id,stripe_price_id,last_reminder_at,next_renewal_date,updated_at";
+  "user_id,contact_email,plan,scheduled_plan,app_edition,status,monthly_price_eur,billing_cycle,billing_provider,stripe_customer_id,stripe_subscription_id,stripe_price_id,last_reminder_at,next_renewal_date,updated_at";
 const PROFILE_SELECT =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone";
 
 type SubscriptionSyncRow = AdminSubscriberSubscriptionRow & {
+  app_edition: string | null;
+  scheduled_plan: string | null;
   updated_at: string | null;
 };
 
@@ -106,6 +109,31 @@ async function persistMatch(
   const patch: Record<string, string | number | null> = {};
   const targetStatus = reconciledStripeSubscriptionStatus(existingStatus, snapshot.status);
   if (targetStatus) patch.status = targetStatus;
+
+  // The webhook is the primary entitlement writer. Reconcile a missed phase
+  // transition only when Stripe's known Price ID, cadence and amount agree.
+  const commercialPrice = commercialPriceFromId(snapshot.price_id);
+  const expectedMonthlyAmount = commercialPrice
+    ? Math.round((commercialPrice.billingCycle === "yearly"
+      ? commercialPrice.chargeAmountEur / 12
+      : commercialPrice.chargeAmountEur) * 100) / 100
+    : null;
+  const safeCommercialPrice = commercialPrice &&
+    snapshot.billing_cycle === commercialPrice.billingCycle &&
+    snapshot.amount_eur != null && expectedMonthlyAmount !== null &&
+    Math.abs(snapshot.amount_eur - expectedMonthlyAmount) < 0.011 &&
+    normalized(row.app_edition) !== "founder" && normalized(row.plan) !== "founder"
+      ? commercialPrice
+      : null;
+  if (safeCommercialPrice) {
+    if (stringChanged(row.app_edition, safeCommercialPrice.edition)) {
+      patch.app_edition = safeCommercialPrice.edition;
+    }
+    if (snapshot.status !== "trialing" && stringChanged(row.plan, safeCommercialPrice.plan)) {
+      patch.plan = safeCommercialPrice.plan;
+    }
+    if (snapshot.status !== "trialing" && row.scheduled_plan) patch.scheduled_plan = null;
+  }
 
   if (stringChanged(row.billing_provider, "stripe")) patch.billing_provider = "stripe";
   if (stripeIdChanged(row.stripe_subscription_id, snapshot.subscription_id)) {

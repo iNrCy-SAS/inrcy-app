@@ -55,13 +55,13 @@ test("les plafonds produit conservent le report pour tous les forfaits", () => {
     ),
     {
       standard: { image: 25, video: 48 },
-      premium: { image: 50, video: 144 },
+      premium: { image: 70, video: 196 },
       founder: { image: 50, video: 144 },
     },
   );
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
     standard: { image: 70, video: 168 },
-    premium: { image: 70, video: 480 },
+    premium: { image: 150, video: 480 },
     founder: { image: 70, video: 480 },
   });
   assert.equal(getAiMediaRolloverCap("standard", "image"), 70);
@@ -107,16 +107,16 @@ test("les credits inutilises se cumulent puis s'arretent exactement au plafond",
     previousLimit: premiumImages,
     previousUsed: 0,
     monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.premium.image,
-    cap: 70,
+    cap: 150,
   });
-  assert.equal(premiumImages, 70);
+  assert.equal(premiumImages, 140);
   premiumImages = nextPeriodLimit({
     previousLimit: premiumImages,
     previousUsed: 0,
     monthlyRecharge: AI_MEDIA_MONTHLY_LIMITS.premium.image,
-    cap: 70,
+    cap: 150,
   });
-  assert.equal(premiumImages, 70);
+  assert.equal(premiumImages, 150);
 
   let standardVideos = AI_MEDIA_MONTHLY_LIMITS.standard.video;
   for (const expected of [96, 144, 168, 168]) {

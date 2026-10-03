@@ -146,7 +146,7 @@ export default function DashboardHero({
   ] as const;
 
   return (
-    <section className={styles.hero}>
+    <section className={`${styles.hero} ${openInfo ? styles.heroInfoOpen : ""}`}>
       <div ref={cockpitRef} className={`${styles.heroLeft} ${styles.cockpitPanel}`}>
         <header className={styles.cockpitSummaryHeader}>
           <strong>

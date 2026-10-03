@@ -82,10 +82,10 @@ test("invoice section is the last standalone subscription block", () => {
 
   assert.equal(
     standardSubscriptionContent.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
-    1,
+    2,
   );
   assert.ok(
-    standardSubscriptionContent.indexOf("<SubscriptionInvoicesPanel />") >
-      standardSubscriptionContent.indexOf("nous_contacter_pour_premium_149750a6"),
+    standardSubscriptionContent.lastIndexOf("<SubscriptionInvoicesPanel />") >
+      standardSubscriptionContent.lastIndexOf("startCheckout(\"Premium\")"),
   );
 });

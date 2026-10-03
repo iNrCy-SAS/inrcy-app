@@ -25,8 +25,8 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
       videoMaxDurationSeconds: 24,
     },
     premium: {
-      image: 50,
-      video: 144,
+      image: 70,
+      video: 196,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     },
@@ -40,8 +40,8 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
 
   assert.equal(getAiMediaMonthlyLimit("standard", "image"), 25);
   assert.equal(getAiMediaMonthlyLimit("standard", "video"), 48);
-  assert.equal(getAiMediaMonthlyLimit("premium", "image"), 50);
-  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 144);
+  assert.equal(getAiMediaMonthlyLimit("premium", "image"), 70);
+  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 196);
   assert.equal(getAiMediaMonthlyLimit("founder", "image"), 50);
   assert.equal(getAiMediaMonthlyLimit("founder", "video"), 144);
   assert.equal(getAiMediaVideoMaxDuration("standard"), 24);
@@ -52,7 +52,7 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
 test("la cagnotte reportable est plafonnee sans modifier les recharges mensuelles", () => {
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
     standard: { image: 70, video: 168 },
-    premium: { image: 70, video: 480 },
+    premium: { image: 150, video: 480 },
     founder: { image: 70, video: 480 },
   });
   assert.equal(getAiMediaRolloverCap("standard", "image"), 70);

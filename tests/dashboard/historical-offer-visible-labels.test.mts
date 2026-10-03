@@ -98,8 +98,8 @@ test("the internal edition value and historical i18n keys remain compatible", ()
   const subscription = read("app/dashboard/settings/_components/AbonnementContent.tsx");
 
   assert.match(edition, /DashboardEdition = "standard" \| "premium" \| "founder"/);
-  assert.match(admin, /<option value="founder">Partenaire historique · accès total<\/option>/);
-  assert.match(account, /i18nT\("partenaire_fondateur_7857c49b"\)/);
+  assert.match(admin, /<option value="Founder">Accès test · droits complets<\/option>/);
+  assert.match(account, /plan === "founder"[\s\S]*?"iNrCy Founder"/);
   assert.match(subscription, /i18nT\("partenaire_fondateur_7857c49b"\)/);
   assert.match(subscription, /i18nT\("offre_partenaire_fondateur_82e34573"\)/);
   assert.match(subscription, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);

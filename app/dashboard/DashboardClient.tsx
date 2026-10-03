@@ -63,6 +63,7 @@ import type { ActusFont, GoogleProduct, GoogleSource, Ownership } from "./dashbo
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
+import { collapseDashboardWebsiteChannels } from "./_components/dashboard-channel-presentation";
 import {
   DASHBOARD_CHANNEL_POWER_SETUP,
   type DashboardSetupChannelKey,
@@ -2072,12 +2073,12 @@ const siteWebProgressCount = (hasSiteWebUrl ? 1 : 0) + (hasSiteWebUrl && siteWeb
 const siteInrcyAllGreen = canAccessSiteInrcy && siteInrcyProgressCount === 3;
 const siteWebAllGreen = siteWebProgressCount === 3;
 
-// Chaque canal alimente désormais sa propre part de puissance. Aucun état de
-// connexion n'est fusionné : les mêmes booléens autoritatifs que les bulles
-// sont seulement projetés dans la jauge du cockpit.
+// Les deux types de sites représentent une seule présence web. Mails ne
+// complète la jauge qu'avec le pack Premium, même si une ancienne connexion
+// reste enregistrée après un retour au pack Standard.
 const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   inrbadge: inrBadgeProfileReady,
-  site_web: siteWebAllGreen,
+  site_web: hasSiteWebUrl || (canAccessSiteInrcy && hasSiteInrcyUrl),
   gmb: Boolean(gmbConnected && gmbConnectionStatus !== "needs_update"),
   inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
   facebook: Boolean(facebookPageConnected && facebookConnectionStatus !== "needs_update"),
@@ -2087,7 +2088,7 @@ const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   youtube_shorts: Boolean(youtubeShortsConnected && !youtubeShortsRequiresUpdate),
   pinterest: Boolean(canAccessPinterest && pinterestConnected && !pinterestRequiresUpdate),
   x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update" && !xRequiresUpdate),
-  mails: Boolean(mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate),
+  mails: Boolean(!isStandardEdition && mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate),
   site_inrcy: siteInrcyAllGreen,
 };
 
@@ -3901,6 +3902,16 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     [fluxBubbleItems, isStandardEdition],
   );
 
+  const dashboardChannelItems = useMemo(() => {
+    const channels = collapseDashboardWebsiteChannels(fluxBubbleItems, {
+      connectedSite: hasSiteWebUrl ? "site_web" : canAccessSiteInrcy && hasSiteInrcyUrl ? "site_inrcy" : null,
+      connectedText: dashboardCopy.status.connected,
+    });
+    return isStandardEdition
+      ? channels.filter((item) => STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
+      : channels;
+  }, [canAccessSiteInrcy, dashboardCopy.status.connected, fluxBubbleItems, hasSiteInrcyUrl, hasSiteWebUrl, isStandardEdition]);
+
   const channelSettingsItemsByKey = useMemo(() => new Map(
     displayedFluxBubbleItems
       .filter((item) => (
@@ -4187,7 +4198,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
       <ChannelConnectionsModal
         isOpen={channelConnectionsOpen}
-        items={displayedFluxBubbleItems}
+        items={dashboardChannelItems}
         businessEssentialsReady={inrBadgeProfileReady}
         onClose={closeChannelConnections}
       />
@@ -4201,7 +4212,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       ) : null}
 
       <DashboardChannelsSection
-        fluxBubbleItems={displayedFluxBubbleItems}
+        fluxBubbleItems={dashboardChannelItems}
         goToModule={goToModule}
         openPanel={openPanel}
         onOpenChannelsHelp={() => setHelpCanauxOpen(true)}

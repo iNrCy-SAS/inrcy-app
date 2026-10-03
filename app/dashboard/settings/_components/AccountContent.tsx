@@ -16,6 +16,7 @@ type Props = {
 };
 
 type AccountSubscriptionSummary = {
+  plan?: string | null;
   status?: string | null;
   trial_end_at?: string | null;
   next_renewal_date?: string | null;
@@ -54,11 +55,16 @@ function accountPlanPresentation(
               ? { label: i18nT("resilie_1ca48fe3"), color: "#ff9bbd" }
               : { label: i18nT("a_verifier_8f5f7255"), color: "#c8d3ef" };
 
+  const plan = String(subscription?.plan ?? "").trim().toLowerCase();
   const label =
-    edition === "standard"
+    plan === "trial"
+      ? "iNrCy Trial"
+      : plan === "founder"
+        ? "iNrCy Founder"
+      : edition === "standard"
       ? i18nT("inrcy_standard_1dd18060")
       : edition === "founder"
-        ? `iNrCy ${i18nT("partenaire_fondateur_7857c49b")}`
+        ? "iNrCy Founder"
         : i18nT("inrcy_premium_4c7d39c1");
   const description =
     edition === "standard"
@@ -130,7 +136,7 @@ export default function AccountContent({
         if (user) {
           const { data: subscriptionData } = await supabase
             .from("subscriptions")
-            .select("status,trial_end_at,next_renewal_date,cancel_requested_at,end_date")
+            .select("plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date")
             .eq("user_id", user.id)
             .maybeSingle();
           setSubscriptionSummary((subscriptionData as AccountSubscriptionSummary | null) ?? null);

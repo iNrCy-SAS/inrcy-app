@@ -37,10 +37,10 @@ export async function POST(req: Request) {
 
     const body = (await req.json().catch(() => ({}))) as { plan?: unknown; billingCycle?: unknown };
     const requestedPlan = String(body.plan || "Standard").trim();
-    if (requestedPlan !== "Standard") {
+    if (requestedPlan !== "Standard" && requestedPlan !== "Premium") {
       return NextResponse.json(
-        { error: "Cette formule mobile doit être activée avec l’équipe iNrCy.", code: "NATIVE_PLAN_CONTACT_REQUIRED" },
-        { status: 403 },
+        { error: "Forfait mobile inconnu.", code: "NATIVE_PLAN_UNKNOWN" },
+        { status: 400 },
       );
     }
 
@@ -55,6 +55,12 @@ export async function POST(req: Request) {
     const row = data as SubscriptionRow | null;
     if (!row) {
       return NextResponse.json({ error: "Votre abonnement n’est pas encore initialisé." }, { status: 409 });
+    }
+    if (String(row.app_edition || "").trim().toLowerCase() === "founder") {
+      return NextResponse.json(
+        { error: "Votre forfait est géré avec l’équipe iNrCy.", code: "MANAGED_SUBSCRIPTION" },
+        { status: 403 },
+      );
     }
 
     const provider = String(row.billing_provider || "").trim().toLowerCase();

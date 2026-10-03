@@ -224,9 +224,9 @@ export default function DashboardSettingsDrawerContent({
         </MemorizedPanel>
       ) : null}
       {panel === "abonnement" && (
-        edition === "standard"
-          ? <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
-          : <AbonnementContent mode="drawer" />
+        edition === "founder"
+          ? <AbonnementContent mode="drawer" />
+          : <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
       )}
       {panel === "legal" && <LegalContent mode="drawer" />}
       {panel === "rgpd" && <RgpdContent mode="drawer" />}
