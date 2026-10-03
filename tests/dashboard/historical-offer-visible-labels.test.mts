@@ -91,7 +91,7 @@ test("UI and API source literals only retain the internal compatibility values",
   assert.deepEqual(violations, []);
 });
 
-test("the internal edition value and historical i18n keys remain compatible", () => {
+test("Founder rights remain while legacy subscription plans are removed", () => {
   const edition = read("lib/dashboardEdition.ts");
   const admin = read("app/dashboard/admin/users/AdminUsersClient.tsx");
   const account = read("app/dashboard/settings/_components/AccountContent.tsx");
@@ -100,7 +100,8 @@ test("the internal edition value and historical i18n keys remain compatible", ()
   assert.match(edition, /DashboardEdition = "standard" \| "premium" \| "founder"/);
   assert.match(admin, /<option value="Founder">Accès test · droits complets<\/option>/);
   assert.match(account, /plan === "founder"[\s\S]*?"iNrCy Founder"/);
-  assert.match(subscription, /i18nT\("partenaire_fondateur_7857c49b"\)/);
-  assert.match(subscription, /i18nT\("offre_partenaire_fondateur_82e34573"\)/);
+  assert.match(subscription, /type InrcyPlan = "Trial" \| "Standard" \| "Premium" \| "Founder";/);
+  assert.match(subscription, /if \(normalized === "Founder"\) return "Founder";/);
+  assert.doesNotMatch(subscription, /"Starter"|"Accel"|"Speed"/);
   assert.match(subscription, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
 });
