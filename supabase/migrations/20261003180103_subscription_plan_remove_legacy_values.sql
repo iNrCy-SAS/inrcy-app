@@ -17,7 +17,7 @@ begin
   ) then
     raise exception 'SUBSCRIPTION_PLAN_LEGACY_ROWS_REMAIN';
   end if;
-  if (select pg_catalog.array_agg(e.enumlabel order by e.enumsortorder)
+  if (select pg_catalog.array_agg(e.enumlabel::text order by e.enumsortorder)
       from pg_catalog.pg_enum e
       where e.enumtypid = 'public.subscription_plan'::regtype)
        is distinct from array['Trial','Starter','Accel','Speed','Standard','Premium','Founder'] then
@@ -33,6 +33,8 @@ begin
   end if;
 
   drop view public.admin_ai_media_quota_overview;
+  -- Le trigger reference les colonnes de plan et bloque leur changement de type.
+  drop trigger trg_sync_subscription_app_edition_from_plan on public.subscriptions;
   alter table public.subscriptions alter column plan drop default;
   alter type public.subscription_plan rename to subscription_plan_legacy;
   create type public.subscription_plan as enum ('Trial', 'Standard', 'Premium', 'Founder');
@@ -47,6 +49,11 @@ begin
     alter column plan set default 'Trial'::public.subscription_plan;
   drop type public.subscription_plan_legacy;
 
+  create trigger trg_sync_subscription_app_edition_from_plan
+  before insert or update of plan, scheduled_plan, requested_plan, app_edition
+  on public.subscriptions
+  for each row execute function public.sync_subscription_app_edition_from_plan();
+
   perform pg_catalog.set_config('search_path', 'public,auth,pg_catalog', true);
   execute 'create view public.admin_ai_media_quota_overview with (security_invoker=true) as '
     || v_view_sql;
@@ -59,7 +66,7 @@ $$;
 
 do $$
 begin
-  if (select pg_catalog.array_agg(e.enumlabel order by e.enumsortorder)
+  if (select pg_catalog.array_agg(e.enumlabel::text order by e.enumsortorder)
       from pg_catalog.pg_enum e
       where e.enumtypid = 'public.subscription_plan'::regtype)
        is distinct from array['Trial','Standard','Premium','Founder'] then
