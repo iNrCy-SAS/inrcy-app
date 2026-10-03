@@ -54,7 +54,7 @@ test("une idée réactivée peut revenir malgré une publication antérieure", (
 
 test("la consommation est atomique avec l'action prête et l'annulation libère la réservation", () => {
   const sql = readFileSync(new URL(
-    "../../supabase/migrations/20261003125200_inr_agent_publication_idea_lifecycle.sql",
+    "../../supabase/migrations/20261003140451_inr_agent_publication_idea_lifecycle.sql",
     import.meta.url,
   ), "utf8");
   assert.match(sql, /after insert or update of status, payload on public\.inr_agent_actions/);
@@ -94,7 +94,7 @@ test("une ancienne action peut régénérer sa propre idée même si une nouvell
 
   const route = readFileSync(new URL("../../app/api/agent/actions/prepare-publish/route.ts", import.meta.url), "utf8");
   const planner = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
-  const sql = readFileSync(new URL("../../supabase/migrations/20261003125200_inr_agent_publication_idea_lifecycle.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../../supabase/migrations/20261003140451_inr_agent_publication_idea_lifecycle.sql", import.meta.url), "utf8");
   assert.match(route, /wasInrAgentPublicationIdeaPreviouslyGenerated\(\{[\s\S]*?editorialTarget\.payload/);
   assert.match(planner, /editorialPreviouslyGeneratedIdea: previouslyGeneratedIdea/);
   assert.match(sql, /old\.metadata ->> 'editorialPreviouslyGeneratedIdea' = v_idea/);
