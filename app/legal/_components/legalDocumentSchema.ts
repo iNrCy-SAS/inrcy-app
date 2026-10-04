@@ -719,7 +719,7 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     },
     {
       "kind": "paragraph",
-      "key": "confidentialite_0601_revision_20260907"
+      "key": "confidentialite_0601_revision_20261004"
     },
     {
       "kind": "heading",
@@ -2213,6 +2213,22 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     },
     {
       "kind": "heading",
+      "key": "confidentialite_0623_ads"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0624_ads_data"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0625_ads_sharing"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0626_ads_control"
+    },
+    {
+      "kind": "heading",
       "key": "confidentialite_0597_11fea964"
     },
     {
@@ -2231,7 +2247,7 @@ export const LEGAL_DOCUMENT_BLOCKS = {
   "cga": [
     {
       "kind": "paragraph",
-      "key": "cga_0436_revision_20260907"
+      "key": "cga_0436_revision_20261004"
     },
     {
       "kind": "heading",
@@ -3567,6 +3583,26 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     {
       "kind": "paragraph",
       "key": "cga_0453_widget"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0454_ads"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0455_ads_scope"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0456_ads_spend"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0457_offer_changes"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0458_offer_changes"
     },
     {
       "kind": "heading",

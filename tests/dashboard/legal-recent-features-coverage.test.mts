@@ -8,7 +8,7 @@ const read = (relativePath: string) => readFileSync(join(root, relativePath), "u
 const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"] as const;
 
 const recentFeatureKeys = [
-  "confidentialite_0601_revision_20260907",
+  "confidentialite_0601_revision_20261004",
   "confidentialite_0602_x",
   "confidentialite_0603_x_oauth",
   "confidentialite_0604_x_data",
@@ -30,7 +30,11 @@ const recentFeatureKeys = [
   "confidentialite_0620_cta_widget",
   "confidentialite_0621_whatsapp",
   "confidentialite_0622_widget",
-  "cga_0436_revision_20260907",
+  "confidentialite_0623_ads",
+  "confidentialite_0624_ads_data",
+  "confidentialite_0625_ads_sharing",
+  "confidentialite_0626_ads_control",
+  "cga_0436_revision_20261004",
   "cga_0437_x",
   "cga_0438_x_authorization",
   "cga_0439_x_duties",
@@ -48,6 +52,11 @@ const recentFeatureKeys = [
   "cga_0451_cta_widget",
   "cga_0452_whatsapp",
   "cga_0453_widget",
+  "cga_0454_ads",
+  "cga_0455_ads_scope",
+  "cga_0456_ads_spend",
+  "cga_0457_offer_changes",
+  "cga_0458_offer_changes",
 ] as const;
 
 test("the legal schema and all nine catalogues cover the recently added features", () => {
@@ -61,11 +70,11 @@ test("the legal schema and all nine catalogues cover the recently added features
     const settings = JSON.parse(read(`messages/${locale}/settings.json`)) as Record<string, string>;
 
     for (const key of recentFeatureKeys) assert.ok(legal[key]?.trim(), `${locale}: ${key}`);
-    assert.ok(publicMessages.derniere_mise_a_jour_07_09_2026_7a4f81d2, locale);
-    assert.ok(publicMessages.version_du_07_09_2026_51f2b1b8, locale);
-    assert.ok(publicMessages.version_juridique_synchronisee_le_07_09_2026_68a90e11, locale);
-    assert.ok(settings.derniere_mise_a_jour_07_09_2026_7a4f81d2, locale);
-    assert.ok(settings.version_du_07_09_2026_51f2b1b8, locale);
+    assert.ok(publicMessages.derniere_mise_a_jour_04_10_2026_7a4f81d2, locale);
+    assert.ok(publicMessages.version_du_04_10_2026_51f2b1b8, locale);
+    assert.ok(publicMessages.version_juridique_synchronisee_le_04_10_2026_68a90e11, locale);
+    assert.ok(settings.derniere_mise_a_jour_04_10_2026_7a4f81d2, locale);
+    assert.ok(settings.version_du_04_10_2026_51f2b1b8, locale);
   }
 });
 
@@ -85,7 +94,17 @@ test("the X disclosure is limited to the exact implemented OAuth scopes", () => 
   assert.match(xDisclosure, /ne demande pas l’accès aux messages privés/);
 });
 
-test("public and in-app legal surfaces point to the 7 September 2026 revision", () => {
+test("the ADS disclosure names the planned platforms without promising approval", () => {
+  const legal = JSON.parse(read("messages/fr-FR/legal.json")) as Record<string, string>;
+  const ads = [legal.confidentialite_0624_ads_data, legal.cga_0455_ads_scope].join(" ");
+  for (const platform of ["Google", "Pinterest", "ChatGPT", "Meta", "LinkedIn", "TikTok", "X"]) {
+    assert.match(ads, new RegExp(`\\b${platform}\\b`));
+  }
+  assert.match(ads, /disponibilité technique/);
+  assert.match(ads, /validation du compte/);
+});
+
+test("public and in-app legal surfaces point to the 4 October 2026 revision", () => {
   const sources = [
     read("app/legal/_components/legalDocs.tsx"),
     read("app/legal/_components/LegalPageShell.tsx"),
@@ -93,8 +112,23 @@ test("public and in-app legal surfaces point to the 7 September 2026 revision", 
     read("app/legal/cga/page.tsx"),
   ].join("\n");
 
-  assert.match(sources, /derniere_mise_a_jour_07_09_2026_7a4f81d2/);
-  assert.match(sources, /version_du_07_09_2026_51f2b1b8/);
-  assert.match(sources, /version_juridique_synchronisee_le_07_09_2026_68a90e11/);
+  assert.match(sources, /derniere_mise_a_jour_04_10_2026_7a4f81d2/);
+  assert.match(sources, /version_du_04_10_2026_51f2b1b8/);
+  assert.match(sources, /version_juridique_synchronisee_le_04_10_2026_68a90e11/);
   assert.doesNotMatch(sources, /derniere_mise_a_jour_(?:08_08|30_06)|version_du_08_08|version_juridique_synchronisee_le_08_08/);
+});
+
+test("public iNrCy contact details use the confirmed phone number", () => {
+  const contact = read("app/dashboard/settings/_components/ContactContent.tsx");
+  const publicDirectory = read("lib/inrSearchPublic.ts");
+
+  assert.match(contact, /PHONE_DISPLAY = "06\.31\.26\.08\.12"/);
+  assert.match(contact, /PHONE_TEL = "\+33631260812"/);
+  assert.match(contact, /WHATSAPP_PHONE = "33631260812"/);
+  assert.match(publicDirectory, /phone: "06 31 26 08 12"/);
+
+  for (const locale of locales) {
+    const legal = JSON.parse(read(`messages/${locale}/legal.json`)) as Record<string, string>;
+    assert.match(legal.mentions_legales_0029_665e243b, /06 31 26 08 12/, locale);
+  }
 });
