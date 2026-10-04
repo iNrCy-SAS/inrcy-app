@@ -84,13 +84,27 @@
 .premiumCard .quotaStat { background: linear-gradient(125deg, rgba(252,132,232,.20), rgba(145,65,196,.22)); border-color: rgba(255,184,238,.4); }
 .premiumCard .quotaStat > span { color: #ffe4fa; }
 .planCard .quotaStat .quotaGain { border-radius: 999px; background: rgba(255,202,237,.18); border: 1px solid rgba(255,206,245,.5); color: #fff; font-size: 12px; font-weight: 900; padding: 5px 8px; white-space: nowrap; }
-.planTools { border-collapse: collapse; width: 100%; margin: 0; font-size: 12px; line-height: 1.4; }
+.planTools { border-collapse: collapse; width: 100%; margin: 14px 0 0; font-size: 12px; line-height: 1.4; }
 .planTools th, .planTools td { padding: 8.5px 0; border-bottom: 1px solid rgba(217,240,255,.2); vertical-align: middle; text-align: left; }
 .planTools th { width: 37%; padding-right: 12px; color: #fff; font-weight: 850; }
 .planTools td { color: #e0f1ff; }
 .premiumCard .planTools th, .premiumCard .planTools td { border-color: rgba(255,213,244,.24); }
 .premiumCard .planTools td { color: #ffe4f6; }
 .planTools tr:last-child th, .planTools tr:last-child td { border-bottom: 0; }
+.planTools .studioRow th, .planTools .studioRow td { padding-top: 13px; padding-bottom: 13px; background: rgba(71,220,250,.12); border-top: 1px solid rgba(206,246,255,.36); border-bottom-color: rgba(206,246,255,.36); }
+.premiumCard .planTools .studioRow th, .premiumCard .planTools .studioRow td { background: rgba(255,172,231,.13); border-color: rgba(255,219,248,.4); }
+.planTools .studioRow th { padding-left: 12px; }
+.planTools .studioRow td { padding-right: 12px; }
+.studioName { display: block; color: #fff; font-size: 16px; font-weight: 900; letter-spacing: -.2px; }
+.studioRow th small { display: block; margin-top: 4px; color: #e4f8ff; font-size: 10px; line-height: 1.4; font-weight: 500; }
+.studioMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.studioMetrics > div { min-width: 0; }
+.studioMetrics strong { display: block; color: #fff; font-size: 26px; font-weight: 900; letter-spacing: -.6px; line-height: 1.1; white-space: nowrap; }
+.studioMetrics strong > span { font-size: 15px; letter-spacing: 0; }
+.studioMetrics > div > span { display: block; margin-top: 4px; color: #e4f8ff; font-size: 10px; line-height: 1.35; }
+.studioMetrics small { display: block; width: fit-content; margin-top: 6px; border-radius: 6px; padding: 3px 5px; color: #fff; background: rgba(255,191,231,.15); font-size: 10px; font-weight: 850; line-height: 1.4; }
+.toolName { display: flex; align-items: baseline; gap: 7px; }
+.toolPlus { flex: 0 0 auto; color: #fff; font-size: 19px; font-weight: 900; line-height: .8; }
 .planFooter { display: grid; gap: 10px; padding-top: 11px; margin-top: auto; }
 .priceBlock { display: grid; align-items: center; gap: 12px; }
 .planCycleSelector { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: stretch; gap: 5px; padding: 5px; border: 1px solid rgba(213,240,255,.4); background: rgba(22,44,113,.16); border-radius: 15px; }
@@ -144,5 +158,8 @@
   .planCard .quotaStat > div { flex-direction: column; align-items: flex-start; gap: 7px; }
   .planCard .quotaStat .quotaGain { margin-top: 0; }
   .planTools th { width: 42%; }
+  .studioMetrics { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .planTools .studioRow th { padding-left: 8px; }
+  .planTools .studioRow td { padding-right: 8px; }
   .planDescription { min-height: auto; }
 }

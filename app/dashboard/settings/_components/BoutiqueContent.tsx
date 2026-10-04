@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import sectionStyles from "./SettingsSections.module.css";
-import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+import DrawerHeaderTabs, { DrawerHeaderActions, DrawerHeaderDetails } from "../../DrawerHeaderTabs";
 import layoutStyles from "./settingsContentLayout.module.css";
 import boutiqueStyles from "./BoutiqueContent.module.css";
 
@@ -204,14 +204,18 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
             <button type="button" aria-pressed={view === "products"} onClick={() => setView("products")}>{i18nT("boutique_05236d3a")}</button>
             <button type="button" aria-pressed={view === "orders"} onClick={() => setView("orders")}>{i18nT("historique_des_commandes_3b9f0e3d")}</button>
           </nav>
-          <div className={boutiqueStyles.balance}>
-            <span>{i18nT("solde_ui_86037358")}</span>
-            <strong>{uiBalance === null ? "…" : uiBalance}</strong>
-            <button type="button" aria-expanded={showUiHelp} aria-label={i18nT("comprendre_les_ui_5d7da596")} onClick={() => setShowUiHelp((v) => !v)}>?</button>
-          </div>
-          <button type="button" className={boutiqueStyles.inertiaLink} onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}>{i18nT("voir_mon_inertie_5f3d5554")}</button>
         </div>
       </DrawerHeaderTabs>
+      <DrawerHeaderDetails>
+        <div className={boutiqueStyles.balance}>
+          <span>{i18nT("solde_ui_86037358")}</span>
+          <strong>{uiBalance === null ? "…" : uiBalance}</strong>
+        </div>
+      </DrawerHeaderDetails>
+      <DrawerHeaderActions>
+        <button type="button" className={boutiqueStyles.inertiaLink} onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}>{i18nT("voir_mon_inertie_5f3d5554")}</button>
+        <button type="button" className={boutiqueStyles.helpButton} aria-expanded={showUiHelp} aria-label={i18nT("comprendre_les_ui_5d7da596")} onClick={() => setShowUiHelp((v) => !v)}>?</button>
+      </DrawerHeaderActions>
       {showUiHelp && <div className={boutiqueStyles.help}>{i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}</div>}
 
       {/* Message d'info (en haut) */}

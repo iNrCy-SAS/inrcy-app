@@ -1,14 +1,74 @@
+.sections,
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.sections { gap: 16px; }
+
+.appearanceRow,
+.section {
+  min-width: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--inrcy-theme-accent-border, rgba(133, 178, 255, .22));
+}
+
+.section:nth-child(2) { border-color: rgba(170, 136, 248, .28); }
+.section:nth-child(3) { border-color: rgba(232, 116, 207, .28); }
+
+.appearanceRow > section > *,
+.locationFields > *,
+.shortcutOrder > *,
+.shortcutChoices > * {
+  min-width: 0;
+}
+
 .locationFields,
-.shortcutOrder {
+.shortcutOrder,
+.shortcutChoices {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
 }
 
-@container settings-content (min-width: 1200px) {
+.footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+@container settings-content (min-width: 480px) {
   .locationFields,
-  .shortcutOrder {
+  .shortcutOrder,
+  .shortcutChoices {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .footer {
+    grid-template-columns: repeat(2, minmax(160px, 220px));
+    justify-content: end;
+  }
+}
+
+@container settings-content (min-width: 900px) {
+  .appearanceRow > section {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .8fr);
+    align-items: center;
+  }
+
+  .locationFields,
+  .shortcutChoices {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .shortcutOrder { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@container settings-content (min-width: 1400px) {
+  .shortcutOrder { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .shortcutChoices { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }

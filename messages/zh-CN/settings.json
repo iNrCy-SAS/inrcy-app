@@ -764,5 +764,7 @@
   "subscription_downgrade_cycle_notice": "Standard：{cycle}。降级将在 {date} 生效，不会改变已付费的周期。",
   "subscription_cycle_monthly": "按月",
   "subscription_cycle_yearly": "按年",
-  "subscription_cycle_saving": "每年节省 {amount}"
+  "subscription_cycle_saving": "每年节省 {amount}",
+  "subscription_studio_image_gain": "比 Standard 多 {count} 张图片",
+  "subscription_studio_video_gain": "比 Standard 多 {count} 秒"
 }

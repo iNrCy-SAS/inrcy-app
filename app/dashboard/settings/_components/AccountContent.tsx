@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabaseClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import styles from "./settingsContentLayout.module.css";
+import accountStyles from "./AccountContent.module.css";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -178,6 +179,8 @@ export default function AccountContent({
 
   const input: React.CSSProperties = {
     width: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(0,0,0,0.22)",
@@ -279,10 +282,10 @@ export default function AccountContent({
 
   return (
     <div className={styles.workspace}>
-    <div className={styles.accountGrid}>
+    <div className={accountStyles.stack}>
       <div style={card}>
         {createdAt ? (
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
             <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>{i18nT("date_de_creation_d5e8d1af")}</div>
             <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.92 }}>{createdAt}</div>
           </div>
@@ -292,7 +295,7 @@ export default function AccountContent({
         <p style={{ margin: "8px 0 0", opacity: 0.8 }}>
           {i18nT("votre_email_de_connexion_est_affiche_84123fc4")}{" "}</p>
 
-        <div className={styles.passwordFields} style={{ marginTop: 12 }}>
+        <div className={accountStyles.passwordFields} style={{ marginTop: 12 }}>
           <div>
             <div style={label}>{i18nT("mail_92379cbb")}</div>
             <input style={{ ...input, opacity: 0.9 }} value={email} readOnly />

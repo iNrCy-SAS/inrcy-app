@@ -6,6 +6,9 @@
   max-width: 100%;
 }
 .headerTabs:empty { display: none; }
+.headerDetails:empty { display: none; }
+.headerDetails { margin-top: 2px; }
+.portaledActions { display: contents; }
 .headerTabs { min-width: 0; grid-column: 2; grid-row: 1; }
 .header:has(.headerTabs:not(:empty)) {
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) !important;

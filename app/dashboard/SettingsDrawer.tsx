@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { DrawerHeaderTabsContext } from "./DrawerHeaderTabs";
+import { DrawerHeaderActionsContext, DrawerHeaderDetailsContext, DrawerHeaderTabsContext } from "./DrawerHeaderTabs";
 import headerTabsStyles from "./DrawerHeaderTabs.module.css";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 
@@ -98,6 +98,8 @@ export default function SettingsDrawer({
   const titleId = useId();
   const dialogRef = useRef<HTMLElement | null>(null);
   const [headerTabsHost, setHeaderTabsHost] = useState<HTMLDivElement | null>(null);
+  const [headerActionsHost, setHeaderActionsHost] = useState<HTMLDivElement | null>(null);
+  const [headerDetailsHost, setHeaderDetailsHost] = useState<HTMLDivElement | null>(null);
   const closeOptionsRef = useRef({ onClose, closeOnEscape });
   // Valeurs stables côté serveur/client au premier rendu : évite les erreurs React #418
   // quand le drawer est ouvert directement depuis une URL sur mobile.
@@ -378,6 +380,7 @@ export default function SettingsDrawer({
                 {title}
               </h2>
             )}
+            <div ref={setHeaderDetailsHost} className={headerTabsStyles.headerDetails} data-dashboard-settings-header-details />
           </div>
 
           <div ref={setHeaderTabsHost} className={headerTabsStyles.headerTabs} data-dashboard-settings-header-tabs />
@@ -400,6 +403,7 @@ export default function SettingsDrawer({
               pointerEvents: "auto",
             }}
           >
+            <div ref={setHeaderActionsHost} className={headerTabsStyles.portaledActions} data-dashboard-settings-header-actions />
             {headerActions}
             <button
               type="button"
@@ -452,7 +456,13 @@ export default function SettingsDrawer({
             scrollPaddingBottom: isResponsive ? 24 : 16,
           }}
         >
-          <DrawerHeaderTabsContext.Provider value={headerTabsHost}>{children}</DrawerHeaderTabsContext.Provider>
+          <DrawerHeaderTabsContext.Provider value={headerTabsHost}>
+            <DrawerHeaderActionsContext.Provider value={headerActionsHost}>
+              <DrawerHeaderDetailsContext.Provider value={headerDetailsHost}>
+                {children}
+              </DrawerHeaderDetailsContext.Provider>
+            </DrawerHeaderActionsContext.Provider>
+          </DrawerHeaderTabsContext.Provider>
         </div>
       </aside>
     </div>

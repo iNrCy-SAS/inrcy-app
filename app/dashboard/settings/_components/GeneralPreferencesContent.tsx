@@ -205,17 +205,16 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
 
   const label: React.CSSProperties = {
     display: "grid",
-    gap: 9,
+    gap: 6,
     minWidth: 0,
     maxWidth: "100%",
-    padding: "12px",
+    padding: "9px",
     borderRadius: 15,
     border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.10))",
     background: "var(--inrcy-theme-settings-field-background, linear-gradient(135deg, rgba(255,255,255,0.060), rgba(255,255,255,0.025)))",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
   };
   const labelTitle: React.CSSProperties = { color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.85))", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
-  const grid2: React.CSSProperties = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", minWidth: 0, maxWidth: "100%" };
   const primaryBtn: React.CSSProperties = {
     border: "1px solid var(--inrcy-theme-accent-border, rgba(255,255,255,0.18))",
     background: "var(--inrcy-theme-cta-background, linear-gradient(135deg, rgba(251,191,36,.35), rgba(97,87,255,.28), rgba(0,200,255,.22)))",
@@ -412,10 +411,12 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
         {loading ? (
           <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.72))", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div className={styles.preferencesGrid}>
-            <AppAppearancePicker />
+          <div className={preferencesStyles.sections}>
+            <div className={preferencesStyles.appearanceRow}>
+              <AppAppearancePicker />
+            </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
+            <div className={preferencesStyles.section}>
               <div style={sectionTitle}>{i18nT("localisation_echanges_clients_548f849b")}</div>
               <div className={preferencesStyles.locationFields}>
                 <label style={label}>
@@ -475,7 +476,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
             </div>
 
 
-            <div style={{ display: "grid", gap: 12 }}>
+            <div className={preferencesStyles.section}>
               <div>
                 <div style={sectionTitle}>{i18nT("raccourcis_mobiles_db886e5d")}</div>
                 <div style={{ marginTop: 6, color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.70))", fontSize: 12.5, lineHeight: 1.5 }}>
@@ -498,7 +499,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                 ))}
               </div>
 
-              <div style={{ ...grid2, alignItems: "stretch" }}>
+              <div className={preferencesStyles.shortcutChoices}>
                 {MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash").map((option) => {
                   const checked = mobileShortcuts.includes(option.id);
                   const disabled = !checked && mobileShortcuts.length >= MOBILE_SHORTCUT_MAX;
@@ -524,7 +525,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
             {error ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-danger-text, rgba(248,113,113,0.95))", fontWeight: 800 }}>{error}</div> : null}
             {saved ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-success-text, rgba(34,197,94,0.95))", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}
 
-            <div className={styles.fullWidth} style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
+            <div className={preferencesStyles.footer}>
               <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
               <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.05))", color: "var(--inrcy-theme-text-primary, white)", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>

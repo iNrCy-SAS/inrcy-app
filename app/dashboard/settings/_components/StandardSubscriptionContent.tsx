@@ -23,7 +23,7 @@ import {
 } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
 import SubscriptionWorkspace from "./SubscriptionWorkspace";
-import { SubscriptionQuotaSummary, SubscriptionPlanFeatures } from "./SubscriptionComparison";
+import { SubscriptionPlanFeatures } from "./SubscriptionComparison";
 import styles from "./settingsContentLayout.module.css";
 
 type Props = {
@@ -644,7 +644,6 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           {view.edition === "standard" ? <span className={styles.currentBadge}>{i18nT("subscription_current_plan")}</span> : null}
         </header>
         <p className={styles.planDescription}><strong>{i18nT("subscription_standard_benefit")}</strong><span>{i18nT("subscription_standard_pitch")}</span></p>
-        <SubscriptionQuotaSummary edition="standard" />
         <SubscriptionPlanFeatures edition="standard" />
         <footer className={styles.planFooter}>
           {priceDetails("Standard")}
@@ -666,7 +665,6 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           {view.edition === "premium" ? <span className={styles.currentBadge}>{i18nT("subscription_current_plan")}</span> : null}
         </header>
         <p className={styles.planDescription}><strong>{i18nT("subscription_premium_benefit")}</strong><span className={styles.standardIncluded}>{i18nT("subscription_standard_plus")}</span></p>
-        <SubscriptionQuotaSummary edition="premium" />
         <SubscriptionPlanFeatures edition="premium" />
         <footer className={styles.planFooter}>
           {priceDetails("Premium")}

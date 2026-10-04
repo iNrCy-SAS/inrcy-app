@@ -764,5 +764,7 @@
   "subscription_downgrade_cycle_notice": "Standard: {cycle}. Der Wechsel wird am {date} wirksam; der bereits bezahlte Zeitraum bleibt unverändert.",
   "subscription_cycle_monthly": "Monatlich",
   "subscription_cycle_yearly": "Jährlich",
-  "subscription_cycle_saving": "{amount} pro Jahr sparen"
+  "subscription_cycle_saving": "{amount} pro Jahr sparen",
+  "subscription_studio_image_gain": "+{count} Bilder gegenüber Standard",
+  "subscription_studio_video_gain": "+{count} s gegenüber Standard"
 }

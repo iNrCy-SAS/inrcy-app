@@ -764,5 +764,7 @@
   "subscription_downgrade_cycle_notice": "Standard: {cycle} การลดระดับจะมีผลในวันที่ {date} โดยไม่เปลี่ยนแปลงช่วงเวลาที่ชำระเงินแล้ว",
   "subscription_cycle_monthly": "รายเดือน",
   "subscription_cycle_yearly": "รายปี",
-  "subscription_cycle_saving": "ประหยัด {amount} / ปี"
+  "subscription_cycle_saving": "ประหยัด {amount} / ปี",
+  "subscription_studio_image_gain": "เพิ่มอีก {count} ภาพจาก Standard",
+  "subscription_studio_video_gain": "เพิ่มอีก {count} วินาทีจาก Standard"
 }

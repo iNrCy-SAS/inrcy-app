@@ -5,7 +5,9 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type FormEvent,
@@ -328,6 +330,8 @@ export default function MediaLibraryClient() {
   const [uploading, setUploading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const fileInputId = useId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -468,7 +472,7 @@ export default function MediaLibraryClient() {
     setFileInputKey((value) => value + 1);
   }
 
-  function onDropFiles(event: DragEvent<HTMLLabelElement>) {
+  function onDropFiles(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     event.stopPropagation();
     setDragActive(false);
@@ -989,7 +993,7 @@ export default function MediaLibraryClient() {
                 {i18nT("les_medias_restent_prives_et_rattaches_384c40f8")}{" "}</p>
             </div>
 
-            <label
+            <div
               className={`${styles.label} ${styles.dropZone} ${dragActive ? styles.dropZoneActive : ""}`}
               onDragEnter={(event) => {
                 event.preventDefault();
@@ -1008,11 +1012,17 @@ export default function MediaLibraryClient() {
               }}
               onDrop={onDropFiles}
             >
-              <span>{i18nT("fichiers_23a9d9fc")}</span>
+              <label id={`${fileInputId}-label`} htmlFor={fileInputId}>
+                {i18nT("fichiers_23a9d9fc")}
+              </label>
               <input
                 key={fileInputKey}
-                className={styles.fileInput}
+                id={fileInputId}
+                ref={fileInputRef}
                 type="file"
+                hidden
+                aria-labelledby={`${fileInputId}-label`}
+                aria-describedby={`${fileInputId}-help`}
                 accept={`image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif,image/tiff,image/bmp,${MEDIA_LIBRARY_VIDEO_ACCEPT}`}
                 multiple
                 disabled={uploading}
@@ -1020,12 +1030,27 @@ export default function MediaLibraryClient() {
                   mergeSelectedFiles(Array.from(event.target.files || []))
                 }
               />
-              <small className={styles.helper}>
+              <button
+                type="button"
+                className={styles.filePickerButton}
+                aria-controls={fileInputId}
+                aria-describedby={`${fileInputId}-help`}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <span className={styles.filePickerPlus} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </span>
+                <span>{i18nT("ai_modifier_from_device")}</span>
+              </button>
+              <small id={`${fileInputId}-help`} className={styles.helper} aria-live="polite">
                 {selectedFiles.length
                   ? i18nT("value_fichier_s_value_image_s_a7f02e95", { value0: selectedFiles.length, value1: selectedStats.images, value2: selectedStats.videos, value3: displayBytes(selectedStats.bytes) })
                   : i18nT("medias_source_jusqu_a_300_mo_19c89ace", { value0: UPLOAD_BATCH_SIZE })}
               </small>
-            </label>
+            </div>
 
             {selectedFiles.length > 0 ? (
               <div className={styles.selectedFilesBox}>

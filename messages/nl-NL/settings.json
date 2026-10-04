@@ -764,5 +764,7 @@
   "subscription_downgrade_cycle_notice": "Standard: {cycle}. De overstap gaat in op {date}; de reeds betaalde periode blijft ongewijzigd.",
   "subscription_cycle_monthly": "Maandelijks",
   "subscription_cycle_yearly": "Jaarlijks",
-  "subscription_cycle_saving": "Bespaar {amount} / jaar"
+  "subscription_cycle_saving": "Bespaar {amount} / jaar",
+  "subscription_studio_image_gain": "+{count} beelden t.o.v. Standard",
+  "subscription_studio_video_gain": "+{count} s t.o.v. Standard"
 }
