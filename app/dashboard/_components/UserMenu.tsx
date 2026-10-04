@@ -44,16 +44,12 @@ export default function UserMenu(props: {
 
   const {
     userEmail,
-    profileIncomplete,
-    activityIncomplete,
     userMenuOpen,
     setUserMenuOpen,
     openPanel,
     handleLogout,
     onNavigate,
   } = props;
-
-  const hasCompletionWarning = profileIncomplete || activityIncomplete;
 
   const closeAndOpen = (panel: OpenPanelName) => {
     setUserMenuOpen(false);
@@ -80,15 +76,6 @@ export default function UserMenu(props: {
           <span className={styles.userMenuHamburgerIcon} />
         </span>
         <span className={styles.userMenuLabel}>{t.userMenu.label}</span>
-        {hasCompletionWarning && (
-          <span
-            className={styles.userMenuWarningTriangle}
-            aria-hidden="true"
-            title={t.userMenu.profileIncomplete}
-          >
-            ⚠️
-          </span>
-        )}
       </button>
 
       {userMenuOpen && (
@@ -112,42 +99,6 @@ export default function UserMenu(props: {
             onClick={() => closeAndOpen("preferences")}
           >
             {t.userMenu.preferences}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
-            onClick={() => closeAndNavigate("/dashboard?action=channels")}
-          >
-            {t.hero.channelOverviewTitle}
-          </button>
-          <button
-            type="button"
-            className={`${styles.userMenuItem} ${hasCompletionWarning ? styles.userMenuItemWithWarning : ""}`}
-            role="menuitem"
-            onClick={() => closeAndOpen("ai_memory")}
-          >
-            <span>{t.userMenu.aiMemory}</span>
-            {hasCompletionWarning && (
-              <span className={styles.menuWarningTriangle} aria-hidden="true">⚠️</span>
-            )}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
-            onClick={() => closeAndOpen("ia")}
-          >
-            {t.userMenu.ai}
-          </button>
-          <button
-            type="button"
-            className={styles.userMenuItem}
-            role="menuitem"
-            data-dashboard-prefetch="/dashboard/generer-media"
-            onClick={() => closeAndNavigate("/dashboard/generer-media")}
-          >
-            {t.userMenu.mediaGenerator}
           </button>
           <button
             type="button"

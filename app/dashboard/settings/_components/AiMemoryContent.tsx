@@ -1,5 +1,7 @@
 "use client";
 
+import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+
 import {
   forwardRef,
   useCallback,
@@ -1258,6 +1260,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
   return (
     <div data-ai-memory-workspace style={pageStyle}>
+      <DrawerHeaderTabs>
       <nav data-ai-memory-desktop-tabs aria-label={t("title")} role="tablist" style={tabListStyle}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
@@ -1308,6 +1311,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           <span aria-hidden>→</span>
         </button>
       </nav>
+      </DrawerHeaderTabs>
 
       <div
         role="tabpanel"

@@ -2834,3 +2834,206 @@
     height:18px;
   }
 }
+
+/* Le document reste à la taille de l'écran. Sur les écrans étroits,
+   l'import et la galerie défilent ensemble sous l'en-tête et les compteurs. */
+.page{
+  box-sizing:border-box;
+  height:100dvh;
+  min-height:0;
+  max-height:100dvh;
+  overflow:hidden;
+}
+
+.wrap{
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  display:grid;
+  grid-template-rows:auto auto minmax(0, 1fr);
+}
+
+@media (max-width:1180px){
+  .grid{
+    height:100%;
+    min-width:0;
+    min-height:0;
+    grid-template-columns:minmax(0, 1fr);
+    grid-auto-rows:max-content;
+    align-content:start;
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-gutter:stable;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .heroCard,
+  .metricsGrid{
+    margin-bottom:0;
+  }
+
+  .card::after{
+    /* La carte d'import laisse son contenu visible sur mobile : son halo
+       déporté de 10% créait à lui seul un débordement horizontal. */
+    right:0;
+  }
+}
+
+@media (max-width:1100px){
+  .page{
+    height:var(--inrcy-mobile-content-height, calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, 50px)));
+    max-height:var(--inrcy-mobile-content-height, calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, 50px)));
+  }
+}
+
+/* Palette iNrCy : chaque zone garde sa couleur et ses champs contrastés. */
+.heroCard{
+  border-color:rgba(137,226,255,.56);
+  background:
+    radial-gradient(ellipse at 7% 0%, rgba(72,231,255,.35), transparent 48%),
+    radial-gradient(ellipse at 96% 8%, rgba(255,126,216,.27), transparent 46%),
+    linear-gradient(115deg, #155877 0%, #434397 52%, #703b83 100%);
+  box-shadow:0 12px 32px rgba(39,143,231,.20), inset 0 1px 0 rgba(255,255,255,.21);
+}
+
+.heroIcon{
+  border-color:rgba(186,245,255,.52);
+  background:linear-gradient(135deg, #149bc1, #8456d7);
+  box-shadow:0 0 28px rgba(76,221,255,.32), inset 0 1px 0 rgba(255,255,255,.24);
+}
+
+.subtitle,
+.cardHeader p,
+.libraryHeader p{
+  color:#e0edff;
+}
+
+.metricCard{
+  color:#fff;
+  border-color:rgba(163,232,255,.46);
+  background:linear-gradient(120deg, #126a86, #245794);
+  box-shadow:0 8px 24px rgba(31,178,215,.15), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.metricCard:nth-child(2){
+  border-color:rgba(211,174,255,.52);
+  background:linear-gradient(120deg, #7045aa, #49449d);
+  box-shadow:0 8px 24px rgba(146,82,235,.18), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.metricCard:nth-child(3){
+  border-color:rgba(255,179,227,.50);
+  background:linear-gradient(120deg, #984776, #713d88);
+  box-shadow:0 8px 24px rgba(227,84,169,.15), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.metricCard:nth-child(4){
+  border-color:rgba(255,222,146,.50);
+  background:linear-gradient(120deg, #88602c, #79503d);
+  box-shadow:0 8px 24px rgba(225,161,54,.14), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.metricLabel,
+.metricSub{
+  color:#edf5ff;
+}
+
+.metricValue,
+.metricValueSmall{
+  color:#fff;
+  text-shadow:0 2px 16px rgba(255,255,255,.14);
+}
+
+.card{
+  --media-control-background:#123e60;
+  --media-control-border:rgba(123,220,246,.52);
+  border-color:rgba(91,222,250,.57);
+  background:
+    radial-gradient(ellipse at 4% 0%, rgba(60,219,246,.24), transparent 48%),
+    linear-gradient(155deg, #115e79, #1c3d75);
+  box-shadow:0 14px 34px rgba(37,171,217,.16), inset 0 1px 0 rgba(191,248,255,.20);
+}
+
+.libraryCard{
+  --media-control-background:#342861;
+  --media-control-border:rgba(201,173,255,.50);
+  border-color:rgba(189,152,255,.56);
+  background:
+    radial-gradient(ellipse at 96% 0%, rgba(209,116,244,.24), transparent 48%),
+    linear-gradient(145deg, #563a90, #342f68);
+  box-shadow:0 14px 34px rgba(143,78,227,.18), inset 0 1px 0 rgba(235,211,255,.18);
+}
+
+.cardHeader::after{
+  background:linear-gradient(90deg, rgba(143,242,255,.72), rgba(143,242,255,.08));
+}
+
+.libraryHeader::after{
+  background:linear-gradient(90deg, rgba(229,191,255,.76), rgba(229,191,255,.08));
+}
+
+.input,
+.select,
+.fileInput{
+  background:var(--media-control-background, #213757);
+  border-color:var(--media-control-border, rgba(165,203,255,.45));
+  color:#fff;
+  box-shadow:inset 0 1px 3px rgba(1,9,34,.18);
+  color-scheme:dark;
+}
+
+.input::placeholder,
+.helper{
+  color:#c9e9f8;
+}
+
+.dropZone{
+  background:linear-gradient(130deg, rgba(71,200,231,.18), rgba(80,131,234,.17));
+  border-color:rgba(146,244,255,.73);
+}
+
+.filters,
+.bulkToolbar{
+  background:rgba(100,77,165,.33);
+  border-color:rgba(211,179,255,.27);
+}
+
+.mediaListHead{
+  color:#e0d4ff;
+  background:linear-gradient(180deg, #46357a, rgba(62,46,109,.94));
+}
+
+.mediaRow{
+  background:linear-gradient(115deg, rgba(64,60,117,.96), rgba(49,41,89,.97));
+  border-color:rgba(191,169,248,.34);
+  box-shadow:0 6px 16px rgba(28,17,72,.15), inset 0 1px 0 rgba(227,212,255,.07);
+}
+
+.mediaRowMain span,
+.mediaRowMeta{
+  color:#e0dcf2;
+}
+
+.mediaRowPill{
+  background:rgba(113,164,249,.21);
+  border-color:rgba(166,221,255,.43);
+}
+
+.primaryButton{
+  background:linear-gradient(110deg, #128ba9, #426ddd);
+  border-color:rgba(169,242,255,.51);
+  box-shadow:0 8px 22px rgba(31,155,216,.24), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.applyButton{
+  background:linear-gradient(110deg, #8150c7, #654fbd);
+  border-color:rgba(230,198,255,.49);
+  box-shadow:0 8px 20px rgba(136,80,214,.22), inset 0 1px 0 rgba(255,255,255,.15);
+}
+
+.emptyState{
+  background:linear-gradient(145deg, rgba(118,83,177,.38), rgba(70,68,130,.32));
+  border-color:rgba(204,178,255,.34);
+}

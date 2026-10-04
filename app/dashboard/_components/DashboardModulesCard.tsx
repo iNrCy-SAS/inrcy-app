@@ -19,6 +19,7 @@ import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
 import AdsChannelInfoModal from "./AdsChannelInfoModal";
+import StudioIcon from "./StudioIcon";
 
 const DashboardAgentPlanningModal = dynamic(
   () => import("../agent/_components/DashboardAgentPlanningModal"),
@@ -102,13 +103,13 @@ function SettingsIcon() {
 type ToolGlyphKind = "mail" | "stats" | "ads" | "megaphone" | "sparkles" | "image" | "planning" | "dna" | "document" | "people" | "trophy";
 
 function ToolGlyph({ kind }: { kind: ToolGlyphKind }) {
+  if (kind === "sparkles") return <StudioIcon />;
   return (
     <svg viewBox="0 0 48 48" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       {kind === "mail" ? <><rect x="7" y="12" width="34" height="25" rx="5" /><path d="m8 15 16 12 16-12M8 35l10-10m22 10L30 25" /></> : null}
       {kind === "stats" ? <><rect x="7" y="28" width="7" height="13" rx="2" fill="currentColor" stroke="none" /><rect x="21" y="19" width="7" height="22" rx="2" fill="currentColor" stroke="none" /><rect x="35" y="7" width="7" height="34" rx="2" fill="currentColor" stroke="none" /></> : null}
       {kind === "ads" ? <><circle cx="21" cy="27" r="15" /><circle cx="21" cy="27" r="8" /><path d="m21 27 18-18m-1-5v7h7M9 8V4m-2 2h4" /></> : null}
       {kind === "megaphone" ? <><path d="M28 9 15 17H8v15h7l13 8V9Z" fill="currentColor" fillOpacity=".3" /><path d="m15 32 4 11h-7L8 32m25-15 6-3m-6 18 6 3m-5-11h8M28 16c7 1 7 15 0 16" /></> : null}
-      {kind === "sparkles" ? <><path d="m24 6 4.7 13.3L42 24l-13.3 4.7L24 42l-4.7-13.3L6 24l13.3-4.7L24 6Z" fill="currentColor" /><path d="m39 5 1.3 3.7L44 10l-3.7 1.3L39 15l-1.3-3.7L34 10l3.7-1.3L39 5ZM8 34l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z" fill="currentColor" stroke="none" /></> : null}
       {kind === "image" ? <><rect x="6" y="8" width="36" height="32" rx="5" fill="currentColor" fillOpacity=".12" /><circle cx="16" cy="18" r="3" /><path d="m8 36 11-12 7 7 7-9 8 14" fill="currentColor" fillOpacity=".3" /></> : null}
       {kind === "planning" ? <><rect x="6" y="9" width="36" height="33" rx="5" /><path d="M15 5v9M33 5v9M6 20h36M15 28h5m7 0h5m-17 7h5m7 0h5" /></> : null}
       {kind === "dna" ? <><path d="M14 5c0 16 20 21 20 38M34 5c0 16-20 21-20 38M16 10h16M19 16h10M18 33h12M15 39h18" /><path d="m20 23 8 5m0-5-8 5" opacity=".5" /></> : null}

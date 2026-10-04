@@ -925,11 +925,13 @@ test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon ab
   assert.match(settingsDrawerSource, /panel === "abonnement"/);
   assert.match(settingsDrawerSource, /<StandardSubscriptionContent/);
   assert.match(settingsDrawerSource, /<AbonnementContent mode="drawer"/);
-  assert.match(subscriptionContentSource, /premium_feature_ads/);
+  assert.match(subscriptionContentSource, /<SubscriptionPlanFeatures edition="premium"/);
   assert.match(
-    readFileSync(new URL("../../messages/fr-FR/settings.json", import.meta.url), "utf8"),
-    /"premium_feature_ads": "Campagnes ADS multiplateformes"/,
+    readFileSync(new URL("../../app/dashboard/settings/_components/SubscriptionComparison.tsx", import.meta.url), "utf8"),
+    /\["ADS", t\("subscription_multichannel_ads"\)\]/,
   );
+  const settingsCatalogue = JSON.parse(readFileSync(new URL("../../messages/fr-FR/settings.json", import.meta.url), "utf8"));
+  assert.equal(settingsCatalogue.subscription_multichannel_ads, "Publicités multiplateformes");
 });
 
 test("toute nouvelle inscription officielle reçoit Standard tout en conservant le cycle d'essai", () => {

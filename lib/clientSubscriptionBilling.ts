@@ -28,10 +28,12 @@ type BrowserRuntime = {
 type CheckoutResponse = {
   error?: string;
   url?: string;
+  recoveredSubscription?: boolean;
+  nextAction?: "change_plan" | "reload";
 };
 
 export type SubscriptionCheckoutResult =
-  | { platform: "web"; provider: "stripe" }
+  | { platform: "web"; provider: "stripe"; recoveredSubscription?: boolean; nextAction?: "change_plan" | "reload" }
   | NativeSubscriptionPurchaseResult;
 
 export class NativeBillingRequiredError extends Error {
@@ -140,6 +142,9 @@ export async function startSubscriptionCheckout({
   });
   const body = (await response.json().catch(() => null)) as CheckoutResponse | null;
   if (!response.ok) throw new Error(body?.error || fallbackError);
+  if (body?.recoveredSubscription && (body.nextAction === "change_plan" || body.nextAction === "reload")) {
+    return { platform: "web", provider: "stripe", recoveredSubscription: true, nextAction: body.nextAction };
+  }
   if (!body?.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
 
   runtime.location.assign(body.url);

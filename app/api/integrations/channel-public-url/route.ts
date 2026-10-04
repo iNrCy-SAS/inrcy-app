@@ -22,7 +22,7 @@ type IntegrationUrlMapping = {
   metaKey: string;
 };
 
-export const CHANNEL_PUBLIC_URL_INTEGRATION_MAPPINGS: Partial<
+const CHANNEL_PUBLIC_URL_INTEGRATION_MAPPINGS: Partial<
   Record<EditableChannelPublicUrlChannel, IntegrationUrlMapping>
 > = {
   gmb: { provider: "google", source: "gmb", product: "gmb", metaKey: "url" },

@@ -68,7 +68,7 @@ test("all dashboard catalogues expose the new AI configuration labels", () => {
   }
 });
 
-test("Configuration IA keeps text-only menu entries and exposes its yellow monogram in the ADN mobile header", () => {
+test("Configuration IA moves to mobile shortcuts and keeps its yellow monogram in the ADN mobile header", () => {
   const menu = read("app/dashboard/_components/UserMenu.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
   const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
@@ -77,19 +77,17 @@ test("Configuration IA keeps text-only menu entries and exposes its yellow monog
   const icon = read("app/dashboard/_components/AiConfigurationIcon.tsx");
 
   assert.doesNotMatch(menu, /AiConfigurationIcon/);
-  assert.match(menu, /onClick=\{\(\) => closeAndOpen\("ia"\)\}[\s\S]*?\{t\.userMenu\.ai\}/);
-  const mobileConfigurationEntry = mobileMenu.slice(
-    mobileMenu.indexOf("label={t.userMenu.ai}"),
-    mobileMenu.indexOf("label={t.userMenu.aiMemory}"),
-  );
-  assert.doesNotMatch(mobileConfigurationEntry, /AiConfigurationIcon|\bicon=/);
+  assert.doesNotMatch(menu, /closeAndOpen\("ia"\)/);
+  assert.doesNotMatch(mobileMenu, /label=\{t\.userMenu\.ai\}/);
+  assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "ai_configuration", href: "\/dashboard\/configuration-ia"/);
+  assert.match(mobileMenu, /<AiConfigurationIcon size=\{24\}/);
   assert.match(businessDnaPage, /<AiConfigurationIcon/);
   assert.match(businessDnaPage, /mobileBare: true/);
   assert.match(businessDnaPage, /mobileIcon: \(/);
   assert.doesNotMatch(profilePage, /AiConfigurationIcon|\bicon:/);
   assert.match(configurationDrawer, /<AiConfigurationIcon/);
   assert.match(configurationDrawer, /presentation\?: "drawer" \| "workspace"/);
-  assert.match(configurationDrawer, /<h2[\s\S]*?\{i18nT\("configuration_ia_f620c8d8"\)\}/);
+  assert.match(configurationDrawer, /<h2[\s\S]*?\{isMobile \? i18nT\("configuration_ia_f620c8d8"\) : settingsT\("votre_signature_ia_329379e6"\)\}/);
   assert.match(icon, />\s*IA\s*<\/span>/);
   assert.match(icon, /color: "#fde68a"/);
   assert.match(icon, /fontWeight: 950/);

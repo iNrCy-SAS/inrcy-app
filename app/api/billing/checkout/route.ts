@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
+import { commercialPriceFromId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { requireUser } from "@/lib/requireUser";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
@@ -10,6 +10,8 @@ import {
 } from "@/lib/subscriptionOffers";
 import { computeTrialDatesFromStartDate, getTrialDays } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
+import { findLiveStripeSubscriptions, inspectComplimentaryCheckout } from "@/lib/stripeCheckoutPreflight";
 
 export const runtime = "nodejs";
 
@@ -24,15 +26,12 @@ type SubscriptionRow = {
   trial_end_at?: string | null;
   contact_email?: string | null;
   billing_provider?: string | null;
+  native_product_id?: string | null;
 };
 
 type ProfileRow = {
   admin_email?: string | null;
   contact_email?: string | null;
-};
-
-type StripeSubscriptionList = {
-  data?: Array<{ id?: string | null; status?: string | null }>;
 };
 
 const STRIPE_MIN_TRIAL_SECONDS = 2 * 24 * 60 * 60;
@@ -72,11 +71,9 @@ async function updateSubscriptionOrThrow(
 }
 
 async function findLiveStripeSubscription(customerId: string) {
-  const query = new URLSearchParams({ customer: customerId, status: "all", limit: "100" });
-  const response = (await stripeGet(`/subscriptions?${query.toString()}`)) as StripeSubscriptionList;
-  return (response.data ?? []).find((subscription) =>
-    STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(normalizeStatus(subscription.status)),
-  ) ?? null;
+  const subscriptions = await findLiveStripeSubscriptions(customerId, stripeGet);
+  if (subscriptions.length > 1) throw new Error("stripe_checkout_identity_ambiguous");
+  return subscriptions[0] ?? null;
 }
 
 export async function POST(req: Request) {
@@ -113,7 +110,7 @@ export async function POST(req: Request) {
         supabase
           .from("subscriptions")
           .select(
-            "stripe_customer_id, stripe_subscription_id, status, app_edition, plan, start_date, trial_start_at, trial_end_at, contact_email, billing_provider",
+            "stripe_customer_id, stripe_subscription_id, status, app_edition, plan, start_date, trial_start_at, trial_end_at, contact_email, billing_provider, native_product_id",
           )
           .eq("user_id", userId)
           .maybeSingle(),
@@ -169,7 +166,7 @@ export async function POST(req: Request) {
 
     const localSubscriptionIsLive =
       STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(currentStatus) &&
-      (Boolean(row.stripe_subscription_id) || currentStatus !== "trialing");
+      !canStartSubscriptionCheckout(row, requestedPlan);
     if (localSubscriptionIsLive) {
       return NextResponse.json(
         {
@@ -191,7 +188,62 @@ export async function POST(req: Request) {
     }
 
     let customerId = row.stripe_customer_id?.trim() || null;
-    if (customerId) {
+    const complimentaryUpgrade = currentStatus === "active" && canStartSubscriptionCheckout(row, requestedPlan);
+    if (complimentaryUpgrade) {
+      let preflight;
+      try {
+        preflight = await inspectComplimentaryCheckout({
+          userId,
+          customerId,
+          emails: [user.email, profile?.admin_email, profile?.contact_email, row.contact_email],
+          get: stripeGet,
+          hasOtherOwner: async (customerIds, subscriptionIds) => {
+            const queries = [supabaseAdmin.from("subscriptions").select("user_id")
+              .neq("user_id", userId).in("stripe_customer_id", customerIds).limit(1)];
+            if (subscriptionIds.length) queries.push(supabaseAdmin.from("subscriptions").select("user_id")
+              .neq("user_id", userId).in("stripe_subscription_id", subscriptionIds).limit(1));
+            const results = await Promise.all(queries);
+            for (const result of results) if (result.error) throw result.error;
+            return results.some((result) => Boolean(result.data?.length));
+          },
+        });
+      } catch {
+        return NextResponse.json({
+          error: "Votre facturation n’a pas pu être vérifiée. Aucun nouveau paiement n’a été créé. Réessayez dans quelques minutes.",
+          code: "BILLING_VERIFICATION_REQUIRED",
+        }, { status: 409 });
+      }
+      customerId = preflight.customerId;
+      const recovered = preflight.existingSubscription;
+      if (recovered) {
+        // Only restore the missing billing link. Entitlements still belong to
+        // Stripe webhooks, and a paid upgrade still requires its proration quote.
+        let update = supabaseAdmin.from("subscriptions").update({
+          stripe_customer_id: recovered.customerId,
+          stripe_subscription_id: recovered.id,
+          billing_provider: "stripe",
+          status: recovered.status,
+          updated_at: new Date().toISOString(),
+        }).eq("user_id", userId).eq("status", row.status ?? "");
+        update = row.stripe_subscription_id == null
+          ? update.is("stripe_subscription_id", null) : update.eq("stripe_subscription_id", row.stripe_subscription_id);
+        update = row.stripe_customer_id == null
+          ? update.is("stripe_customer_id", null) : update.eq("stripe_customer_id", row.stripe_customer_id);
+        update = row.billing_provider == null
+          ? update.is("billing_provider", null) : update.eq("billing_provider", row.billing_provider);
+        const { data: linked, error: linkError } = await update.select("user_id").maybeSingle();
+        if (linkError) throw linkError;
+        if (!linked) return NextResponse.json({ error: "Votre abonnement a changé. Rechargez la page avant de réessayer." }, { status: 409 });
+        return NextResponse.json({
+          recoveredSubscription: true,
+          nextAction: recovered.status === "active" && commercialPriceFromId(recovered.priceId)?.plan === "Standard"
+            ? "change_plan" : "reload",
+        });
+      }
+      if (customerId && customerId !== row.stripe_customer_id) {
+        await updateSubscriptionOrThrow(userId, { stripe_customer_id: customerId, billing_provider: "stripe", updated_at: new Date().toISOString() });
+      }
+    } else if (customerId) {
       const existingStripeSubscription = await findLiveStripeSubscription(customerId);
       if (existingStripeSubscription?.id) {
         await updateSubscriptionOrThrow(userId, {

@@ -1,6 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import sectionStyles from "./SettingsSections.module.css";
+import layoutStyles from "./settingsContentLayout.module.css";
+import DrawerHeaderTabs from "../../DrawerHeaderTabs";
 
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -33,6 +36,7 @@ const PREMIUM_INERTIA_ACTION_KEYS = new Set([
 
 export default function InertiaContent({ edition = "premium", snapshot, onOpenBoutique }: Props) {
   const i18nT = useTranslations("settings");
+  const [view, setView] = useState<"overview" | "history">("overview");
   const [uiBalance, setUiBalance] = useState<number>(0);
   const [events, setEvents] = useState<LoyaltyEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -152,7 +156,14 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
   }, []);
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
+    <div className={layoutStyles.workspace}>
+      <DrawerHeaderTabs>
+        <nav className={layoutStyles.navigation} aria-label={i18nT("inertie_0c1116ac")}>
+          <button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}>{i18nT("unites_d_apos_inertie_a9f73b8d")}</button>
+          <button type="button" aria-pressed={view === "history"} onClick={() => setView("history")}>{i18nT("historique_34f3a06a")}</button>
+        </nav>
+      </DrawerHeaderTabs>
+      {view === "overview" && <div className={sectionStyles.split}>
       <div
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
@@ -352,8 +363,10 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         <div style={{ marginTop: 10, color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
           {i18nT("reinitialisation_automatique_chaque_lundi_f27eba74")}{" "}</div>
       </div>
+      </div>}
 
-      <div
+      {view === "history" && <div className={sectionStyles.split}><div
+        className={sectionStyles.fullWidth}
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(15,23,42,0.40)",
@@ -420,7 +433,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
             })}
           </div>
         )}
-      </div>
+      </div></div>}
     </div>
   );
 }

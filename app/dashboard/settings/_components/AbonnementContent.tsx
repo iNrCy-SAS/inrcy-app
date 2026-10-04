@@ -15,7 +15,9 @@ import {
   STANDARD_SUBSCRIPTION_OFFER,
   STANDARD_SUBSCRIPTION_OFFER_V2,
 } from "@/lib/subscriptionOffers";
-import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
+import SubscriptionWorkspace from "./SubscriptionWorkspace";
+import { SubscriptionQuotaSummary } from "./SubscriptionComparison";
+import styles from "./settingsContentLayout.module.css";
 
 
 type InrcyPlan = "Trial" | "Standard" | "Premium" | "Founder";
@@ -576,7 +578,8 @@ useEffect(() => {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <SubscriptionWorkspace>
+    <div className={styles.legacyGrid}>
       <style>{`
         .datesGrid {
           display: grid;
@@ -599,7 +602,7 @@ useEffect(() => {
         }
       `}</style>
 
-      <div style={{ ...card, ...shell, padding: 18 }}>
+      <div className={styles.legacySummary} style={{ ...card, ...shell, padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PACK</div>
@@ -620,7 +623,7 @@ useEffect(() => {
         </div>
       </div>
 
-      <div style={card}>
+      <div className={styles.legacySummary} style={card}>
         <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("dates_842b7b5d")}</h2>
 
         <div
@@ -663,7 +666,7 @@ useEffect(() => {
         </div>
       </div>
 
-      <div style={card}>
+      <div className={styles.legacyActions} style={card}>
         <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("modifier_resilier_36d44555")}</h2>
 
         {sub.stripe_customer_id ? (
@@ -880,7 +883,8 @@ useEffect(() => {
         ) : null}
       </div>
 
-      <SubscriptionInvoicesPanel />
+      <div className={styles.legacySummary}><SubscriptionQuotaSummary edition={computed.planNormalized === "Founder" ? "founder" : computed.planNormalized === "Premium" ? "premium" : "standard"} /></div>
     </div>
+    </SubscriptionWorkspace>
   );
 }

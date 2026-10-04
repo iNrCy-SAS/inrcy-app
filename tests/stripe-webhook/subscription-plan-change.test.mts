@@ -96,7 +96,7 @@ test("only the account's own active downgrade schedule can be cancelled", () => 
 
 test("Premium video quota patch is scoped to Premium and preserves Founder/data", () => {
   const sql = source("supabase/migrations/20261003163341_ai_media_premium_video_196_seconds.sql");
-  const policy = source("lib/aiMediaGenerationQuotaPolicy.ts");
+  const policy = source("lib/aiMediaPlanLimits.ts");
   const billingSync = source("lib/stripeSubscriptionStatusSync.ts");
   assert.match(sql, /update public\.ai_media_plan_limits\s+set video_monthly_limit = 196/i);
   assert.match(sql, /where edition = 'premium'/i);

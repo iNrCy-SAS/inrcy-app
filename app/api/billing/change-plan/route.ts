@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { commercialPriceFromId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
 import { requireUser } from "@/lib/requireUser";
 import { stripeGet, stripePost } from "@/lib/stripeRest";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
+import type { BillingCycle } from "@/lib/subscriptionOffers";
 import {
   downgradeScheduleParams,
   isInrcyDowngradeSchedule,
   parsePlanChangeQuote,
+  previewRecurringPeriodEnd,
   scheduledStandardPriceId,
   singleCommercialItem,
   stripeObjectId,
@@ -120,26 +123,42 @@ async function loadContext() {
   } as const;
 }
 
-function targetPriceId(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan) {
+function requestedBillingCycle(value: unknown, fallback: BillingCycle): BillingCycle {
+  if (value === undefined || value === null) return fallback;
+  if (value === "monthly" || value === "yearly") return value;
+  throw new PlanChangeError("INVALID_BILLING_CYCLE", "Choisissez une facturation mensuelle ou annuelle.", 400);
+}
+
+function targetPriceId(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle = context.item.billingCycle) {
   const configured = target === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
-  const priceId = configured(context.item.billingCycle, context.current.pricingVersion);
+  const priceId = configured(billingCycle, context.current.pricingVersion);
   if (!priceId) throw new PlanChangeError("TARGET_PRICE_UNAVAILABLE", "Ce tarif n’est pas disponible pour le moment.", 503);
   return priceId;
 }
 
-async function previewUpgrade(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, prorationDate: number) {
+async function previewChange(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle: BillingCycle, prorationDate: number) {
+  const priceId = targetPriceId(context, target, billingCycle);
+  const billingCycleChanged = billingCycle !== context.item.billingCycle;
   const params = new URLSearchParams();
   params.set("customer", context.customerId);
   params.set("subscription", context.subscriptionId);
   params.set("subscription_details[items][0][id]", context.item.id);
-  params.set("subscription_details[items][0][price]", targetPriceId(context, "Premium"));
+  params.set("subscription_details[items][0][price]", priceId);
+  params.set("subscription_details[proration_behavior]", "always_invoice");
   params.set("subscription_details[proration_date]", String(prorationDate));
+  if (billingCycleChanged) params.set("subscription_details[billing_cycle_anchor]", "now");
   const invoice = await stripePost("/invoices/create_preview", params);
   const quote = parsePlanChangeQuote(invoice, prorationDate);
   if (!quote || quote.currency !== "eur") {
     throw new PlanChangeError("QUOTE_UNAVAILABLE", "Le montant du prorata n’a pas pu être calculé.", 503);
   }
-  return quote;
+  const renewal = billingCycleChanged
+    ? previewRecurringPeriodEnd(invoice, priceId, prorationDate)
+    : context.periodEndUnix;
+  if (!renewal) throw new PlanChangeError("QUOTE_UNAVAILABLE", "La nouvelle date de renouvellement n’a pas pu être calculée.", 503);
+  return { ...quote, targetPlan: target, billingCycle, targetPriceId: priceId,
+    currentPriceId: context.item.priceId, billingCycleChanged,
+    renewalAt: new Date(renewal * 1000).toISOString() };
 }
 
 async function assertLastInvoicePaid(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
@@ -153,35 +172,48 @@ async function assertLastInvoicePaid(context: Exclude<Awaited<ReturnType<typeof 
 
 function ownDowngrade(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
   if (!context.schedule || !isInrcyDowngradeSchedule(context.schedule, context.userId)) return false;
-  const standardPriceId = targetPriceId(context, "Standard");
-  return scheduledStandardPriceId(context.schedule) === standardPriceId;
+  const scheduled = commercialPriceFromId(scheduledStandardPriceId(context.schedule));
+  return scheduled?.edition === "standard" && scheduled.pricingVersion === context.current.pricingVersion;
 }
 
 export async function GET(req: Request) {
   try {
     const context = await loadContext();
     if ("errorResponse" in context) return context.errorResponse;
-    const target = new URL(req.url).searchParams.get("target");
+    const query = new URL(req.url).searchParams;
+    const target = query.get("target");
     if (target !== "Standard" && target !== "Premium") {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const pendingDowngrade = ownDowngrade(context);
+    const scheduledCycle = target === "Standard" && pendingDowngrade
+      ? commercialPriceFromId(scheduledStandardPriceId(context.schedule))?.billingCycle
+      : undefined;
+    const billingCycle = requestedBillingCycle(query.get("billingCycle"), scheduledCycle ?? context.item.billingCycle);
+    const priceId = targetPriceId(context, target, billingCycle);
+    const common = { currentPlan: context.current.plan, currentBillingCycle: context.item.billingCycle,
+      targetPlan: target, billingCycle, targetPriceId: priceId };
     if (context.scheduleId && !pendingDowngrade) {
       throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
     }
-    if (target.toLowerCase() === context.current.edition) {
-      return result({ currentPlan: context.current.plan, pendingDowngrade,
+    if (priceId === context.item.priceId) {
+      return result({ ...common, changeType: "unchanged", pendingDowngrade,
         renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
-    if (target === "Standard") {
-      return result({ currentPlan: context.current.plan, pendingDowngrade,
-        renewalAt: new Date(context.periodEndUnix * 1000).toISOString(),
-        targetPriceId: targetPriceId(context, "Standard") });
+    if (target === "Standard" && context.current.edition === "premium") {
+      if (pendingDowngrade && scheduledStandardPriceId(context.schedule) !== priceId) {
+        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre cadence.");
+      }
+      return result({ ...common, changeType: "scheduled", pendingDowngrade,
+        renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
+    }
+    if (context.scheduleId) throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
+    if (context.subscription.collection_method !== "charge_automatically") {
+      throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
     }
     await assertLastInvoicePaid(context);
-    const quote = await previewUpgrade(context, Math.floor(Date.now() / 1000));
-    return result({ currentPlan: context.current.plan, quote,
-      renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
+    const quote = await previewChange(context, target, billingCycle, Math.floor(Date.now() / 1000));
+    return result({ ...common, changeType: "immediate", quote, renewalAt: quote.renewalAt });
   } catch (error) {
     return failure(error);
   }
@@ -196,11 +228,13 @@ export async function POST(req: Request) {
     if (target !== "Standard" && target !== "Premium") {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
-    if (target.toLowerCase() === context.current.edition) {
-      throw new PlanChangeError("ALREADY_ON_PLAN", `Vous êtes déjà sur l’offre ${target}.`);
+    const billingCycle = requestedBillingCycle(body.billingCycle, context.item.billingCycle);
+    const priceId = targetPriceId(context, target, billingCycle);
+    if (priceId === context.item.priceId) {
+      throw new PlanChangeError("ALREADY_ON_PLAN", `Vous êtes déjà sur l’offre ${target} avec cette cadence de facturation.`);
     }
 
-    if (target === "Premium") {
+    if (target !== "Standard" || context.current.edition !== "premium") {
       if (context.scheduleId) {
         throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
       }
@@ -208,6 +242,11 @@ export async function POST(req: Request) {
         throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
       }
       await assertLastInvoicePaid(context);
+      // The explicit selector must confirm the exact quoted source and target prices.
+      // Omitted cadence preserves compatibility with already-open clients.
+      if (body.billingCycle != null && (body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId)) {
+        throw new PlanChangeError("QUOTE_CHANGED", "Le forfait ou la cadence a changé. Vérifiez le nouveau devis avant de confirmer.");
+      }
       const prorationDate = Number(body.prorationDate);
       const expectedAmountDue = Number(body.expectedAmountDue);
       const now = Math.floor(Date.now() / 1000);
@@ -215,33 +254,39 @@ export async function POST(req: Request) {
           !Number.isSafeInteger(expectedAmountDue) || expectedAmountDue < 0) {
         throw new PlanChangeError("QUOTE_EXPIRED", "Le calcul du prorata a expiré. Actualisez le montant.");
       }
-      const quote = await previewUpgrade(context, prorationDate);
+      const quote = await previewChange(context, target, billingCycle, prorationDate);
       if (quote.amountDue !== expectedAmountDue) {
         throw new PlanChangeError("QUOTE_CHANGED", "Le montant a changé. Vérifiez le nouveau prorata avant de confirmer.");
       }
       const params = new URLSearchParams();
       params.set("items[0][id]", context.item.id);
-      params.set("items[0][price]", targetPriceId(context, "Premium"));
+      params.set("items[0][price]", priceId);
       params.set("payment_behavior", "pending_if_incomplete");
       params.set("proration_behavior", "always_invoice");
       params.set("proration_date", String(prorationDate));
+      if (billingCycle !== context.item.billingCycle) params.set("billing_cycle_anchor", "now");
       params.set("expand[]", "latest_invoice");
       const updated = record(await stripePost(
         `/subscriptions/${encodeURIComponent(context.subscriptionId)}`,
         params,
-        { idempotencyKey: `inrcy-upgrade-premium-${context.subscriptionId}-${prorationDate}` },
+        { idempotencyKey: `inrcy-plan-change-${context.subscriptionId}-${context.item.priceId}-${priceId}-${billingCycle}-${prorationDate}` },
       ));
       const applied = !updated.pending_update &&
-        singleCommercialItem(updated)?.priceId === targetPriceId(context, "Premium");
+        singleCommercialItem(updated)?.priceId === priceId;
       const hostedInvoiceUrl = record(updated.latest_invoice).hosted_invoice_url;
       const paymentUrl = typeof hostedInvoiceUrl === "string" &&
         (() => { try { return new URL(hostedInvoiceUrl).protocol === "https:"; } catch { return false; } })()
           ? hostedInvoiceUrl
           : null;
-      return result({ applied, pendingPayment: Boolean(updated.pending_update), paymentUrl });
+      const renewal = applied ? stripeSubscriptionPeriodEndUnix(updated) : null;
+      return result({ applied, pendingPayment: Boolean(updated.pending_update), paymentUrl,
+        targetPlan: target, billingCycle, renewalAt: renewal ? new Date(renewal * 1000).toISOString() : null });
     }
 
     if (ownDowngrade(context)) {
+      if (body.billingCycle != null && scheduledStandardPriceId(context.schedule) !== priceId) {
+        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre cadence.");
+      }
       return result({ scheduled: true, renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
     if (context.scheduleId) {
@@ -249,7 +294,9 @@ export async function POST(req: Request) {
     }
     const createParams = new URLSearchParams({ from_subscription: context.subscriptionId });
     const created = record(await stripePost("/subscription_schedules", createParams, {
-      idempotencyKey: `inrcy-downgrade-schedule-${context.subscriptionId}-${context.periodEndUnix}`,
+      // A released schedule cannot be reused: each new intention gets its own key.
+      // Stripe permits only one attached schedule; competing creations fail closed.
+      idempotencyKey: `inrcy-downgrade-schedule-${context.subscriptionId}-${priceId}-${billingCycle}-${randomUUID()}`,
     }));
     const createdId = stripeObjectId(created);
     if (!createdId || stripeObjectId(created.subscription) !== context.subscriptionId) {
@@ -258,7 +305,7 @@ export async function POST(req: Request) {
     const scheduleParams = downgradeScheduleParams({
       schedule: created,
       currentPriceId: context.item.priceId,
-      nextPriceId: targetPriceId(context, "Standard"),
+      nextPriceId: priceId,
       periodEndUnix: context.periodEndUnix,
       userId: context.userId,
     });
@@ -268,7 +315,7 @@ export async function POST(req: Request) {
     }
     try {
       await stripePost(`/subscription_schedules/${encodeURIComponent(createdId)}`, scheduleParams, {
-        idempotencyKey: `inrcy-downgrade-update-${createdId}-${context.periodEndUnix}`,
+        idempotencyKey: `inrcy-downgrade-update-${createdId}-${priceId}-${billingCycle}-${context.periodEndUnix}`,
       });
     } catch (error) {
       await stripePost(`/subscription_schedules/${encodeURIComponent(createdId)}/release`, new URLSearchParams())

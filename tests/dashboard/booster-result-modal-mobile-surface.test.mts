@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
+const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8").replace(/\r\n/g, "\n");
 
 const resultModal = read(
   "app/dashboard/_components/PublishExecutionResultModal.tsx",

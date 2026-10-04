@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-const read = (file) => readFileSync(resolve(process.cwd(), file), "utf8");
+const read = (file) => readFileSync(resolve(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
 
 function assertAuthorizedDynamicWorkerImport(source, authorizationGuard, imports) {
   const handler = source.slice(source.indexOf("export async function POST"));

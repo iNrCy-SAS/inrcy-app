@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import sectionStyles from "./SettingsSections.module.css";
 
 
 import React from "react";
@@ -148,8 +149,8 @@ export default function NotificationsSettingsContent() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div style={{ ...CARD_STYLE, background: "linear-gradient(90deg, rgba(56,189,248,0.16), rgba(167,139,250,0.12), rgba(244,114,182,0.10))" }}>
+    <div className={sectionStyles.cards}>
+      <div className={sectionStyles.fullWidth} style={{ ...CARD_STYLE, background: "linear-gradient(90deg, rgba(56,189,248,0.16), rgba(167,139,250,0.12), rgba(244,114,182,0.10))" }}>
         <div style={{ fontSize: 16, fontWeight: 950, color: "rgba(255,255,255,0.95)" }}>{i18nT("notifications_inrcy_d6daa4eb")}</div>
         <div style={{ marginTop: 6, color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 1.6 }}>
           {i18nT("votre_cloche_vous_aide_a_ne_c5bf2ccf")}{" "}<b>{i18nT("une_vague_toutes_les_48_h_36e58c43")}</b>{i18nT("vous_pouvez_aussi_recevoir_le_meme_609f0245")}{" "}</div>
@@ -202,7 +203,7 @@ export default function NotificationsSettingsContent() {
       />
 
       {(saving || notice || error) && (
-        <div style={{ ...CARD_STYLE, color: error ? "#fca5a5" : "rgba(255,255,255,0.88)", fontSize: 13 }}>
+        <div className={sectionStyles.fullWidth} style={{ ...CARD_STYLE, color: error ? "#fca5a5" : "rgba(255,255,255,0.88)", fontSize: 13 }}>
           {saving ? i18nT("enregistrement_e7d5f232") : error || notice}
         </div>
       )}

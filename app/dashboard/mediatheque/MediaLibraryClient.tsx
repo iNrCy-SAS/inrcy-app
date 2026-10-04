@@ -902,7 +902,7 @@ export default function MediaLibraryClient() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-media-library-page="true">
       <div className={styles.wrap}>
         <section className={styles.heroCard}>
           <div className={styles.heroIcon} aria-hidden="true">
@@ -981,7 +981,7 @@ export default function MediaLibraryClient() {
           </article>
         </section>
 
-        <div className={styles.grid}>
+        <div className={styles.grid} data-media-library-content="true">
           <form className={styles.card} onSubmit={onSubmit}>
             <div className={styles.cardHeader}>
               <h2>{i18nT("importer_dans_ma_mediatheque_3f45cbb6")}</h2>

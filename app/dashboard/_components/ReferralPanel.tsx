@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useEffect } from "react";
 import styles from "../dashboard.module.css";
+import sectionStyles from "../settings/_components/SettingsSections.module.css";
 
 type ReferralPanelProps = {
   referralName: string;
@@ -58,6 +59,7 @@ export default function ReferralPanel({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div
+        className={sectionStyles.split}
         style={{
           border: "1px solid rgba(96,165,250,0.22)",
           background:
@@ -98,7 +100,7 @@ export default function ReferralPanel({
           }}
         />
 
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: 18, position: "relative", zIndex: 1 }}>
           <div style={{ display: "grid", gap: 8, maxWidth: 560 }}>
             <div
               style={{
@@ -166,7 +168,7 @@ export default function ReferralPanel({
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" }}>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))" }}>
             <input
               value={referralName}
               onChange={(e) => onReferralNameChange(e.target.value)}

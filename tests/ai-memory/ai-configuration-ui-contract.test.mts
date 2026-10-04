@@ -23,7 +23,11 @@ test("content-length menus are opaque and portaled above neighbouring cards", ()
   assert.match(configuration, /position: "fixed"/);
   assert.match(configuration, /zIndex: 10000/);
   assert.match(configuration, /background: "#090f25"/);
-  assert.match(configuration, /background: "#171d38"/);
+  assert.match(configuration, /background: "var\(--ai-control-background, #171d38\)"/);
+  const palette = read("app/dashboard/settings/_components/AiConfigurationContent.module.css");
+  const backgrounds = [...palette.matchAll(/--ai-control-background:\s*([^;]+);/g)];
+  assert.ok(backgrounds.length > 0);
+  for (const [, background] of backgrounds) assert.match(background, /^#[\da-f]{6}$/i, "controls retain opaque backgrounds");
 });
 
 test("two liked examples are distinct, persisted and laid out above full-width instructions", () => {

@@ -53,6 +53,22 @@ export function parsePlanChangeQuote(invoice: unknown, prorationDate: number): P
   return { amountDue, currency, prorationDate };
 }
 
+/** Read the new recurring period from Stripe, never estimate it with local date arithmetic. */
+export function previewRecurringPeriodEnd(invoice: unknown, targetPriceId: string, prorationDate: number): number | null {
+  const lines = record(record(invoice).lines);
+  if (!Array.isArray(lines.data) || lines.has_more === true) return null;
+  const ends = new Set<number>();
+  for (const value of lines.data) {
+    const line = record(value);
+    const details = record(record(line.parent).subscription_item_details);
+    if (line.proration === true || details.proration === true) continue;
+    const priceId = stripeObjectId(line.price) || stripeObjectId(record(record(line.pricing).price_details).price);
+    const end = record(line.period).end;
+    if (priceId === targetPriceId && typeof end === "number" && Number.isSafeInteger(end) && end > prorationDate) ends.add(end);
+  }
+  return ends.size === 1 ? [...ends][0] : null;
+}
+
 export const INRcy_DOWNGRADE_SCHEDULE_TAG = "premium_to_standard_at_period_end";
 
 export function isInrcyDowngradeSchedule(schedule: unknown, userId: string): boolean {

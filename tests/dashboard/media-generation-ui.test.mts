@@ -413,13 +413,11 @@ test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () 
   assert.doesNotMatch(studio, /heroTop|heroBottom|ai_studio_quota_badge/);
   assert.doesNotMatch(studioStyles, /\.heroTop|\.heroBottom|\.sideCard/);
   assert.doesNotMatch(edition, /dashboard\/generer-media/);
-  for (const source of [desktopMenu, mobileMenu]) {
-    assert.ok(source.includes("/dashboard/generer-media"));
-  }
+  assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "media_studio", href: "\/dashboard\/generer-media"/);
   assert.equal(existsSync("lib/dashboardRequiredSetupAccess.ts"), false);
   assert.equal(existsSync("app/dashboard/generer-media/layout.tsx"), false);
-  assert.match(desktopMenu, /mediaGenerator/);
-  assert.match(mobileMenu, /mediaGenerator/);
+  assert.doesNotMatch(desktopMenu, /closeAndNavigate\("\/dashboard\/generer-media"\)/);
+  assert.doesNotMatch(mobileMenu, /label=\{t\.userMenu\.mediaGenerator\}/);
   assert.equal(
     dashboardFr.userMenu.mediaGenerator,
     "Studio Médias",

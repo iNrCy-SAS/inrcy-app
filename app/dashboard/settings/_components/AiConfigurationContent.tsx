@@ -1,5 +1,8 @@
 "use client";
 
+import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+import colorStyles from "./AiConfigurationContent.module.css";
+
 import { useTranslations } from "next-intl";
 
 
@@ -50,6 +53,7 @@ type Props = {
   onOpenAiMemory?: () => void;
   onSaved?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  onVoiceBusyChange?: (busy: boolean) => void;
   hideAiMemoryShortcut?: boolean;
   workspaceMode?: boolean;
 };
@@ -373,8 +377,9 @@ const instructionPanelStyle: React.CSSProperties = {
   minWidth: 0,
   padding: 14,
   borderRadius: 14,
-  border: "1px solid rgba(125,211,252,0.13)",
-  background: "#101831",
+  border: "1px solid var(--ai-section-border, rgba(125,211,252,0.40))",
+  background: "var(--ai-section-background, #152544)",
+  boxShadow: "var(--ai-section-shadow, none)",
 };
 const voiceFieldHeadingStyle: React.CSSProperties = {
   display: "flex",
@@ -438,6 +443,7 @@ export default function AiConfigurationContent({
   onOpenAiMemory,
   onSaved,
   onUnsavedChange,
+  onVoiceBusyChange,
   hideAiMemoryShortcut = false,
   workspaceMode = false,
 }: Props) {
@@ -461,6 +467,7 @@ export default function AiConfigurationContent({
   const voiceTargetRef = useRef<AiConfigurationVoiceTarget | null>(null);
   const selectedEngineOption = getAiEngineOption(form.preferredEngine);
   const voiceBusy = voiceTarget !== null;
+  useEffect(() => { onVoiceBusyChange?.(voiceBusy); }, [onVoiceBusyChange, voiceBusy]);
 
   useEffect(() => {
     if (loading) {
@@ -501,10 +508,9 @@ export default function AiConfigurationContent({
     overflow: "visible",
     display: "grid",
     gap: workspaceMode ? 16 : 18,
-    border: "1px solid rgba(125,211,252,0.16)",
-    background:
-      "linear-gradient(145deg, rgba(14,31,58,0.7), rgba(35,25,64,0.54))",
-    boxShadow: "0 16px 42px rgba(0,0,0,0.18)",
+    border: "1px solid var(--ai-section-border, rgba(125,211,252,0.50))",
+    background: "var(--ai-section-background, linear-gradient(145deg, #175779, #203970))",
+    boxShadow: "var(--ai-section-shadow, 0 16px 42px rgba(0,0,0,0.18))",
   }), [card, workspaceMode]);
 
   const configurationHeader: React.CSSProperties = {
@@ -512,7 +518,7 @@ export default function AiConfigurationContent({
     alignItems: "center",
     gap: 11,
     paddingBottom: workspaceMode ? 12 : 12,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    borderBottom: "1px solid rgba(var(--ai-section-accent, 125,211,252),0.34)",
   };
 
   const configurationBubble: React.CSSProperties = {
@@ -522,9 +528,10 @@ export default function AiConfigurationContent({
     display: "grid",
     placeItems: "center",
     borderRadius: 11,
-    border: "1px solid rgba(251,191,36,0.34)",
-    background: "rgba(251,191,36,0.13)",
-    color: "#fde68a",
+    border: "1px solid rgba(var(--ai-section-accent, 125,211,252),0.90)",
+    background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent), rgb(var(--ai-section-accent, 125,211,252))",
+    color: "#10233e",
+    boxShadow: "0 0 18px rgba(var(--ai-section-accent, 125,211,252),0.26), inset 0 1px 0 rgba(255,255,255,0.60)",
     fontWeight: 950,
   };
 
@@ -545,16 +552,15 @@ export default function AiConfigurationContent({
     fontSize: 15,
     lineHeight: 1.35,
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "#171d38",
+    border: "1px solid rgba(var(--ai-section-accent, 125,211,252),0.52)",
+    background: "var(--ai-control-background, #171d38)",
     padding: workspaceMode ? "8px 10px" : "10px 12px",
     color: "white",
-    outline: "none",
   }), [workspaceMode]);
 
   const label: React.CSSProperties = { display: "grid", gap: workspaceMode ? 5 : 8, minWidth: 0, maxWidth: "100%" };
   const labelTitle: React.CSSProperties = { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
-  const hint: React.CSSProperties = { color: "rgba(255,255,255,0.65)", fontSize: workspaceMode ? 11 : 12, lineHeight: 1.35 };
+  const hint: React.CSSProperties = { color: "rgba(255,255,255,0.86)", fontSize: workspaceMode ? 11 : 12, lineHeight: 1.35 };
   const grid2: React.CSSProperties = { display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", minWidth: 0, maxWidth: "100%" };
   const primaryBtn: React.CSSProperties = {
     border: "1px solid rgba(255,255,255,0.18)",
@@ -823,6 +829,7 @@ export default function AiConfigurationContent({
 
   return (
     <div
+      className={colorStyles.configuration}
       data-ai-configuration-workspace={workspaceMode ? "true" : "false"}
       aria-busy={voiceBusy}
       style={{ display: "grid", gap: workspaceMode ? 13 : 16, minWidth: 0, maxWidth: "100%", overflow: "visible" }}
@@ -874,6 +881,7 @@ export default function AiConfigurationContent({
         </button>
       ) : null}
 
+      <DrawerHeaderTabs>
       <nav
         aria-label={configurationT("tabsLabel")}
         role="tablist"
@@ -925,6 +933,7 @@ export default function AiConfigurationContent({
           <span>{configurationT("tabInstructions")}</span>
         </button>
       </nav>
+      </DrawerHeaderTabs>
 
       <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
@@ -1236,7 +1245,7 @@ export default function AiConfigurationContent({
                 </div>
 
                 <div data-instruction-examples style={instructionExamplesGridStyle}>
-                  <div style={{ ...label, ...instructionPanelStyle }}>
+                  <div data-ai-instruction-tone="cyan" style={{ ...label, ...instructionPanelStyle }}>
                     <span style={voiceFieldHeadingStyle}>
                       <label htmlFor={`${voiceFieldIdPrefix}-liked-1`} style={labelTitle}>
                         {configurationT("likedContent1Label")}
@@ -1269,7 +1278,7 @@ export default function AiConfigurationContent({
                     <span style={hint}>{configurationT("likedContentHint")}</span>
                   </div>
 
-                  <div style={{ ...label, ...instructionPanelStyle }}>
+                  <div data-ai-instruction-tone="violet" style={{ ...label, ...instructionPanelStyle }}>
                     <span style={voiceFieldHeadingStyle}>
                       <label htmlFor={`${voiceFieldIdPrefix}-liked-2`} style={labelTitle}>
                         {configurationT("likedContent2Label")}
@@ -1313,7 +1322,7 @@ export default function AiConfigurationContent({
                     gap: 12,
                   }}
                 >
-                  <div style={{ ...label, ...instructionPanelStyle }}>
+                  <div data-ai-instruction-tone="pink" style={{ ...label, ...instructionPanelStyle }}>
                     <span style={voiceFieldHeadingStyle}>
                       <label htmlFor={`${voiceFieldIdPrefix}-instructions`} style={labelTitle}>
                         {configurationT("customInstructionsLabel")}
@@ -1348,7 +1357,7 @@ export default function AiConfigurationContent({
                     <span style={hint}>{configurationT("customInstructionsHint")}</span>
                   </div>
 
-                  <div style={{ ...label, ...instructionPanelStyle }}>
+                  <div data-ai-instruction-tone="amber" style={{ ...label, ...instructionPanelStyle }}>
                     <span style={voiceFieldHeadingStyle}>
                       <label htmlFor={`${voiceFieldIdPrefix}-forbidden-instructions`} style={labelTitle}>
                         {configurationT("forbiddenInstructionsLabel")}

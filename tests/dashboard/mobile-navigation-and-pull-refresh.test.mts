@@ -54,9 +54,9 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
   assert.match(navigation, /modal:publish/);
   assert.match(navigation, /publishLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
-  assert.match(navigation, /panel:ia/);
-  assert.match(navigation, /channelConnectionsHref = "\/dashboard\?action=channels"/);
-  assert.match(navigation, /label=\{t\.hero\.channelOverviewTitle\}/);
+  assert.match(navigation, /resolveHrefDestination\(option\.href\)/);
+  assert.match(navigation, /onClick=\{\(\) => navigate\(option\.href\)\}/);
+  assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "channels", href: "\/dashboard\?action=channels"/);
   assert.match(navigation, /resolveHrefDestination\("\/dashboard\/mediatheque"\)/);
   assert.match(navigation, /data-disable-pull-refresh/);
   assert.match(navigation, /requestDashboardToolWarmup/);
@@ -72,7 +72,7 @@ test("the responsive hamburger keeps profile inside Business DNA and a regular m
   assert.doesNotMatch(navigation, /label=\{t\.userMenu\.activity\}/);
   assert.match(
     navigation,
-    /label=\{t\.userMenu\.aiMemory\}[\s\S]*?warning=\{profileIncomplete \|\| activityIncomplete\}/,
+    /id === "business_dna" && hasMenuWarning/,
   );
   assert.doesNotMatch(navigation, /\bwide\??:/);
   assert.doesNotMatch(navigationStyles, /\.menuItemWide\b/);

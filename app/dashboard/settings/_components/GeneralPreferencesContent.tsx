@@ -1,6 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import styles from "./settingsContentLayout.module.css";
+import preferencesStyles from "./PreferencesContent.module.css";
 
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -161,9 +163,9 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     minWidth: 0,
     boxSizing: "border-box",
     padding: "clamp(12px, 3.6vw, 16px)",
-    borderRadius: 16,
-    border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.10))",
-    background: "var(--inrcy-theme-settings-card-background, rgba(255,255,255,0.045))",
+    borderRadius: 22,
+    border: "1px solid var(--inrcy-theme-accent-border, rgba(133,178,255,0.25))",
+    background: "linear-gradient(135deg, rgba(39,142,224,0.10), rgba(151,69,220,0.09)), var(--inrcy-theme-settings-card-background, rgba(255,255,255,0.045))",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
   }), []);
@@ -173,7 +175,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     position: "relative",
     overflow: "hidden",
     border: "1px solid var(--inrcy-theme-accent-border, rgba(56,189,248,0.22))",
-    background: "var(--inrcy-theme-settings-hero-background, linear-gradient(135deg, rgba(56,189,248,0.16), rgba(97,87,255,0.14), rgba(251,191,36,0.12)))",
+    background: "linear-gradient(115deg, rgba(24,153,223,0.30), rgba(120,65,232,0.28), rgba(220,65,168,0.24)), var(--inrcy-theme-settings-hero-background, rgba(25,43,77,0.6))",
     boxShadow: "var(--inrcy-theme-shadow, 0 20px 60px rgba(0,0,0,0.22)), inset 0 1px 0 rgba(255,255,255,0.10)",
   }), [card]);
 
@@ -385,8 +387,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
   };
 
   return (
-    <div style={{ display: "grid", gap: 16, minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
-      <div style={heroCard}>
+    <div className={styles.workspace} style={{ display: "grid", gap: 16 }}>
+      {mode === "page" && <div style={heroCard}>
         <div
           aria-hidden
           style={{
@@ -404,18 +406,18 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
           {i18nT("preferences_generales_9266b474")}{" "}</div>
         <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.78))", fontSize: 13, lineHeight: 1.55, maxWidth: 620, overflowWrap: "break-word" }}>
           {i18nT("reglez_les_parametres_globaux_de_vos_1396fb07")}{" "}</div>
-      </div>
+      </div>}
 
       <div style={card}>
         {loading ? (
           <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.72))", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: 18 }}>
+          <div className={styles.preferencesGrid}>
             <AppAppearancePicker />
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={sectionTitle}>{i18nT("localisation_echanges_clients_548f849b")}</div>
-              <div style={grid2}>
+              <div className={preferencesStyles.locationFields}>
                 <label style={label}>
                   <span style={labelTitle}>{i18nT("langue_clients_c45957b4")}</span>
                   <select style={input} value={form.clientLanguage} onChange={(e) => setClientLanguage(e.target.value as ClientLanguage)}>
@@ -480,9 +482,11 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                   {i18nT("choisissez_jusqu_a_9d086004")}{" "}{MOBILE_SHORTCUT_MAX} {" "}{i18nT("outils_pour_le_bloc_839a3e2f")}{" "}<strong>{i18nT("raccourcis_0e0d6404")}</strong> {" "}{i18nT("du_menu_mobile_le_choix_est_6892ed72")}{" "}</div>
               </div>
 
-              <div style={{ display: "grid", gap: 8 }}>
+              <p style={{ margin: 0, color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.76))", fontSize: 12, lineHeight: 1.5 }}>{i18nT("mobile_fixed_tools_description")}</p>
+
+              <div className={preferencesStyles.shortcutOrder}>
                 {mobileShortcuts.map((id, index) => (
-                  <div key={id} style={{ ...label, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div key={id} style={{ ...label, padding: "7px 9px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <span style={{ ...labelTitle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {index + 1}. {getMobileShortcutLabel(id, t.locale)}
                     </span>
@@ -513,14 +517,14 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                 })}
               </div>
 
-              <div style={{ color: mobileShortcuts.length >= MOBILE_SHORTCUT_MAX ? "rgba(180,118,0,0.95)" : "var(--inrcy-theme-text-muted, rgba(255,255,255,0.64))", fontSize: 12, fontWeight: 800 }}>
+              <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.86))", fontSize: 12, fontWeight: 800 }}>
                 {mobileShortcuts.length} / {MOBILE_SHORTCUT_MAX} {" "}{i18nT("raccourcis_selectionnes_14f4e07e")}{" "}</div>
             </div>
 
-            {error ? <div style={{ color: "var(--inrcy-theme-danger-text, rgba(248,113,113,0.95))", fontWeight: 800 }}>{error}</div> : null}
-            {saved ? <div style={{ color: "var(--inrcy-theme-success-text, rgba(34,197,94,0.95))", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}
+            {error ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-danger-text, rgba(248,113,113,0.95))", fontWeight: 800 }}>{error}</div> : null}
+            {saved ? <div className={styles.fullWidth} style={{ color: "var(--inrcy-theme-success-text, rgba(34,197,94,0.95))", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}
 
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
+            <div className={styles.fullWidth} style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
               <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
               <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.05))", color: "var(--inrcy-theme-text-primary, white)", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>

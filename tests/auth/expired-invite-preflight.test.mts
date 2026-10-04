@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { coalescePasswordLinkPrepare } from "../../lib/authPasswordPrepare.ts";
 
-const read = (path: string) => readFileSync(path, "utf8");
+const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 test("invite OTP is checked before any password form or write", () => {
   const route = read("app/api/auth/finish-password/route.ts");

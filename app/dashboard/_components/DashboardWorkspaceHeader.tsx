@@ -18,6 +18,7 @@ type Props = {
   mobileTitle?: ReactNode;
   subtitle: string;
   status?: ReactNode;
+  navigation?: ReactNode;
   actions: WorkspaceHeaderAction[];
   responsiveTwoRow?: boolean;
 };
@@ -29,12 +30,14 @@ export default function DashboardWorkspaceHeader({
   mobileTitle,
   subtitle,
   status,
+  navigation,
   actions,
   responsiveTwoRow = false,
 }: Props) {
   return (
     <header
       data-dashboard-workspace-header
+      data-has-header-navigation={navigation ? "true" : undefined}
       data-responsive-two-row={responsiveTwoRow ? "true" : undefined}
       style={headerStyle}
     >
@@ -53,6 +56,8 @@ export default function DashboardWorkspaceHeader({
           <span data-dashboard-workspace-subtitle style={subtitleStyle}>{subtitle}</span>
         </span>
       </div>
+
+      {navigation ? <div data-dashboard-workspace-navigation>{navigation}</div> : null}
 
       <nav aria-label={title} style={actionsStyle}>
         {status}
@@ -84,6 +89,22 @@ export default function DashboardWorkspaceHeader({
       </nav>
 
       <style jsx>{`
+        header[data-has-header-navigation="true"] {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+        }
+        [data-dashboard-workspace-navigation] { min-width: 0; }
+        @media (max-width: 1100px) {
+          header[data-has-header-navigation="true"] [data-dashboard-workspace-navigation] {
+            grid-column: 1 / -1;
+            grid-row: 2;
+          }
+          header[data-has-header-navigation="true"] { grid-template-columns: minmax(0, 1fr) auto; }
+          header[data-has-header-navigation="true"] > nav { grid-column: 2; grid-row: 1; }
+        }
+        @media (max-width: 820px) {
+          header[data-has-header-navigation="true"] [data-dashboard-workspace-subtitle] { display: none; }
+        }
         header[data-dashboard-workspace-header] [data-dashboard-workspace-action-icon] {
           display: none;
         }

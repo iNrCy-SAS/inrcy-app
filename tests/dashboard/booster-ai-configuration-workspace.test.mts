@@ -47,10 +47,12 @@ test("the full-screen workspace explicitly returns to the mounted Booster contex
   assert.match(workspace, /onConfirmExit: onClose/);
   assert.match(workspace, /onUnsavedChange=\{setHasUnsavedChanges\}/);
   assert.match(workspace, /onSaved=\{\(\) => \{[\s\S]*?setHasUnsavedChanges\(false\);[\s\S]*?onClose\(\)/);
-  assert.doesNotMatch(workspace, /router\.(?:push|replace)|window\.location/);
+  assert.match(workspace, /openBusinessDna = \(\) => void requestNavigation/);
+  assert.match(workspace, /router\.push\("\/dashboard\/adn-entreprise"\)/);
+  assert.match(workspace, /onClick: openBusinessDna,[\s\S]*?disabled: voiceBusy/);
 });
 
-test("the workspace is modal, keyboard-contained and leaves shared drawers unchanged", () => {
+test("AI configuration surfaces are modal and keep the page stationary", () => {
   assert.match(configurationSurface, /presentation = "drawer"/);
   assert.match(configurationSurface, /presentation === "workspace"/);
   assert.match(configurationSurface, /previousFocusRef\.current\?\.focus/);
@@ -60,8 +62,18 @@ test("the workspace is modal, keyboard-contained and leaves shared drawers uncha
   assert.match(configurationSurface, /event\.stopPropagation\(\)/);
   assert.match(configurationSurface, /event\.key !== "Tab"/);
   assert.match(configurationSurface, /getFocusableElements\(workspace\)/);
-  assert.match(configurationSurface, /MOBILE_DOCK_HEIGHT/);
-  assert.match(configurationSurface, /min\(560px, 92vw\)/);
+  const sharedSurface = configurationSurface.slice(
+    configurationSurface.indexOf("function PublishAiConfigurationSideDrawer"),
+    configurationSurface.indexOf("export default function PublishAiConfigurationDrawer"),
+  );
+  assert.match(sharedSurface, /createPortal\(/);
+  assert.match(sharedSurface, /document\.documentElement\.style\.overflow = "hidden"/);
+  assert.match(sharedSurface, /previousFocus\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(sharedSurface, /window\.visualViewport\?\.height/);
+  assert.match(sharedSurface, /data-ai-configuration-fullscreen-header[\s\S]*?flex: "0 0 auto"/);
+  assert.match(sharedSurface, /data-ai-configuration-fullscreen-scroll[\s\S]*?minHeight: 0[\s\S]*?overflowY: "auto"/);
+  assert.match(sharedSurface, /<AiConfigurationContent[\s\S]*?workspaceMode/);
+  assert.doesNotMatch(sharedSurface, /MOBILE_DOCK_HEIGHT|min\(560px, 92vw\)/);
 });
 
 test("every Booster catalogue exposes the explicit return label", () => {

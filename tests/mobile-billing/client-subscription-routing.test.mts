@@ -7,7 +7,18 @@ import {
   detectClientBillingPlatform,
   loadStandardSubscriptionStorePrices,
   startStandardSubscriptionCheckout,
+  startSubscriptionCheckout,
 } from "../../lib/clientSubscriptionBilling.ts";
+
+test("a recovered Stripe subscription resumes its plan change without opening a second checkout", async () => {
+  const browser = runtime();
+  const result = await startSubscriptionCheckout({
+    plan: "Premium", billingCycle: "monthly", fallbackError: "Erreur", runtime: browser.value,
+    fetchImpl: (async () => ({ ok: true, json: async () => ({ recoveredSubscription: true, nextAction: "change_plan" }) }) as Response) as typeof fetch,
+  });
+  assert.deepEqual(result, { platform: "web", provider: "stripe", recoveredSubscription: true, nextAction: "change_plan" });
+  assert.deepEqual(browser.assigned, []);
+});
 
 function runtime(platform?: "ios" | "android") {
   const assigned: string[] = [];

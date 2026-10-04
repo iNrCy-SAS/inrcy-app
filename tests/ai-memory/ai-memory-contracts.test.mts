@@ -71,7 +71,8 @@ test("profile is embedded in Business DNA while AI settings remains a dedicated 
   const profile = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
   const configuration = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
 
-  assert.match(menu, /closeAndOpen\("ai_memory"\)/);
+  assert.doesNotMatch(menu, /closeAndOpen\("ai_memory"\)/);
+  assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "business_dna", href: "\/dashboard\/adn-entreprise"/);
   assert.doesNotMatch(drawer, /panel === "ai_memory"/);
   assert.match(routing, /name === "ai_memory" \|\| name === "ia"/);
   assert.match(routing, /"\/dashboard\/adn-entreprise"/);

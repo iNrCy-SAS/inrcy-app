@@ -1,0 +1,68 @@
+.configuration {
+  --ai-section-accent: 100, 214, 255;
+  --ai-control-background: #0c203b;
+}
+
+.configuration :is([data-ai-section], [data-ai-instruction-tone]) {
+  --ai-section-border: rgba(var(--ai-section-accent), 0.70);
+  --ai-section-background:
+    radial-gradient(ellipse at 0 0, rgba(var(--ai-section-accent), 0.18), transparent 66%),
+    radial-gradient(ellipse at 100% 100%, rgba(var(--ai-section-accent), 0.10), transparent 60%),
+    linear-gradient(130deg, var(--ai-section-top), var(--ai-section-bottom));
+  --ai-section-shadow:
+    inset 0 1px 0 rgba(236, 249, 255, 0.25),
+    inset 0 -1px 0 rgba(var(--ai-section-accent), 0.20),
+    0 0 24px rgba(var(--ai-section-accent), 0.13),
+    0 12px 28px rgba(0, 7, 27, 0.20);
+  color: #f7fbff;
+}
+
+.configuration [data-ai-section="foundation"],
+.configuration [data-ai-instruction-tone="cyan"] {
+  --ai-section-accent: 75, 226, 255;
+  --ai-section-top: #105f81;
+  --ai-section-bottom: #203d78;
+  --ai-control-background: #092c45;
+}
+
+.configuration [data-ai-section="style"],
+.configuration [data-ai-instruction-tone="violet"] {
+  --ai-section-accent: 199, 162, 255;
+  --ai-section-top: #643ca9;
+  --ai-section-bottom: #393378;
+  --ai-control-background: #281941;
+}
+
+.configuration [data-ai-section="voice"],
+.configuration [data-ai-instruction-tone="pink"] {
+  --ai-section-accent: 255, 157, 212;
+  --ai-section-top: #87316e;
+  --ai-section-bottom: #533068;
+  --ai-control-background: #35172f;
+}
+
+.configuration [data-ai-section="goals"],
+.configuration [data-ai-instruction-tone="amber"] {
+  --ai-section-accent: 255, 212, 109;
+  --ai-section-top: #78501d;
+  --ai-section-bottom: #554426;
+  --ai-control-background: #302616;
+}
+
+.configuration [data-ai-section="instructions"] {
+  --ai-section-accent: 163, 186, 255;
+  --ai-section-top: #253c71;
+  --ai-section-bottom: #252750;
+  --ai-control-background: #14223f;
+}
+
+.configuration :is(select, input, textarea, [role="combobox"]):focus-visible {
+  outline: 2px solid rgb(var(--ai-section-accent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(var(--ai-section-accent), 0.16);
+}
+
+.configuration :is(input, textarea)::placeholder {
+  color: #c1cede;
+  opacity: 0.80;
+}

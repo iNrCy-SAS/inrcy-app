@@ -1,0 +1,102 @@
+.cards,
+.split {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cards > *,
+.split > * {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.cards > div:not(:empty),
+.split > div:not(:empty),
+.products > div:not(:empty) {
+  color: #f4f8ff;
+  border: 1px solid rgba(104, 187, 255, 0.32) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(ellipse at 0 0, rgba(0, 202, 255, 0.22), transparent 75%),
+    linear-gradient(135deg, rgba(18, 64, 117, 0.72), rgba(30, 28, 78, 0.78)) !important;
+  box-shadow: inset 0 1px 0 rgba(218, 239, 255, 0.13), 0 14px 36px rgba(1, 7, 30, 0.16);
+}
+
+.cards > div:nth-child(3n):not(:empty),
+.split > div:nth-child(2n):not(:empty),
+.products > div:nth-child(2n):not(:empty) {
+  border-color: rgba(192, 142, 255, 0.38) !important;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(217, 70, 239, 0.25), transparent 70%),
+    linear-gradient(135deg, rgba(68, 36, 129, 0.80), rgba(31, 40, 92, 0.84)) !important;
+}
+
+.cards > div:nth-child(4n):not(:empty),
+.products > div:nth-child(3n):not(:empty) {
+  border-color: rgba(245, 135, 199, 0.35) !important;
+  background:
+    radial-gradient(ellipse at 0 0, rgba(244, 72, 162, 0.25), transparent 70%),
+    linear-gradient(135deg, rgba(84, 33, 94, 0.78), rgba(38, 32, 83, 0.84)) !important;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.products {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: stretch;
+}
+
+.documentChoices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.documentChoices > button {
+  min-height: clamp(110px, 18vh, 180px);
+  padding: 24px !important;
+  font-size: clamp(15px, 1.35vw, 21px);
+  line-height: 1.4;
+  border-radius: 24px !important;
+  border-color: rgba(114, 231, 255, .45) !important;
+  background: linear-gradient(135deg, #087aa7, #164781) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 12px 28px rgba(3,19,67,.2);
+}
+
+.documentChoices > button:nth-child(2) {
+  border-color: rgba(195,163,255,.5) !important;
+  background: linear-gradient(135deg, #7546ba, #3d3588) !important;
+}
+
+.documentChoices > button:nth-child(3) {
+  border-color: rgba(255,164,220,.5) !important;
+  background: linear-gradient(135deg, #a54095, #633484) !important;
+}
+
+.documentChoices > button:focus-visible {
+  outline: 3px solid #a5f3fc;
+  outline-offset: 4px;
+}
+
+@media (max-width: 650px) {
+  .documentChoices { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 960px) {
+  .cards,
+  .split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

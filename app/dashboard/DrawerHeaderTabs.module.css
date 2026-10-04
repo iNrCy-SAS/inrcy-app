@@ -1,0 +1,21 @@
+.portaled { min-width: 0; width: 100%; }
+.portaled > nav, .portaled > [role="tablist"] {
+  position: relative !important;
+  top: auto !important;
+  margin: 0 auto !important;
+  max-width: 100%;
+}
+.headerTabs:empty { display: none; }
+.headerTabs { min-width: 0; grid-column: 2; grid-row: 1; }
+.header:has(.headerTabs:not(:empty)) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) !important;
+  padding-top: max(10px, var(--inrcy-safe-area-top, 0px)) !important;
+  padding-bottom: 10px !important;
+}
+.header:has(.headerTabs:not(:empty)) .headerTitle { grid-column: 1 !important; grid-row: 1; }
+.header:has(.headerTabs:not(:empty)) .headerActions { grid-column: 3 !important; grid-row: 1; justify-self: end; }
+@media (max-width: 1100px) {
+  .header:has(.headerTabs:not(:empty)) { grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px !important; }
+  .header:has(.headerTabs:not(:empty)) .headerActions { grid-column: 2 !important; }
+  .headerTabs { grid-column: 1 / -1; grid-row: 2; }
+}

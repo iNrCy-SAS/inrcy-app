@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
+import styles from "./settingsContentLayout.module.css";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -82,7 +83,7 @@ function accountPlanPresentation(
       : subscription?.cancel_requested_at && accessEnd
         ? `${i18nT("votre_acces_restera_actif_jusqu_au_1da564dd")} ${accessEnd}`
         : renewal
-          ? `${i18nT("renouvellement_annuel_ffcc422c")}: ${renewal}`
+          ? `${i18nT("prochaine_echeance_97d55f4d")} ${renewal}`
           : null;
 
   return { label, description, detail, statusView };
@@ -166,10 +167,11 @@ export default function AccountContent({
   );
 
   const card: React.CSSProperties = {
-    padding: 16,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.045)",
+    padding: 22,
+    borderRadius: 22,
+    border: "1px solid rgba(86,204,251,0.35)",
+    background: "linear-gradient(145deg, rgba(13,91,136,0.7), rgba(29,47,105,0.68))",
+    boxShadow: "inset 0 1px 0 rgba(146,228,255,0.18), 0 12px 34px rgba(17,96,162,0.10)",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
   };
@@ -276,7 +278,8 @@ export default function AccountContent({
   if (loading) return <div style={{ opacity: 0.85 }}>{i18nT("chargement_01cba1df")}</div>;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className={styles.workspace}>
+    <div className={styles.accountGrid}>
       <div style={card}>
         {createdAt ? (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
@@ -289,7 +292,7 @@ export default function AccountContent({
         <p style={{ margin: "8px 0 0", opacity: 0.8 }}>
           {i18nT("votre_email_de_connexion_est_affiche_84123fc4")}{" "}</p>
 
-        <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+        <div className={styles.passwordFields} style={{ marginTop: 12 }}>
           <div>
             <div style={label}>{i18nT("mail_92379cbb")}</div>
             <input style={{ ...input, opacity: 0.9 }} value={email} readOnly />
@@ -332,7 +335,7 @@ export default function AccountContent({
             />
           </div>
 
-          <div style={{ display: "grid", gap: 6, opacity: 0.9 }}>
+          <div className={styles.fullWidth} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6, opacity: 0.9 }}>
             <Rule ok={strength.rules.minLen} label={i18nT("8_caracteres_85066a4b")} />
             <Rule ok={strength.rules.hasLetter} label={i18nT("1_lettre_2147bd0b")} />
             <Rule ok={strength.rules.hasNumber} label={i18nT("1_chiffre_6d6bd070")} />
@@ -340,19 +343,19 @@ export default function AccountContent({
             <Rule ok={strength.rules.hasSymbol} label={i18nT("1_symbole_412b784c")} />
           </div>
 
-          <button type="button" onClick={onChangePassword} style={primaryBtn} disabled={!canSubmit}>
+          <button className={styles.fullWidth} type="button" onClick={onChangePassword} style={primaryBtn} disabled={!canSubmit}>
             {i18nT("modifier_le_mot_de_passe_b6eec6a6")}{" "}</button>
 
-          {msg ? <div style={{ marginTop: 6, opacity: 0.9 }}>⚠️ {msg}</div> : null}
-          {ok ? <div style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
+          {msg ? <div className={styles.fullWidth} style={{ marginTop: 6, opacity: 0.9 }}>⚠️ {msg}</div> : null}
+          {ok ? <div className={styles.fullWidth} style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
         </div>
       </div>
       <div
         style={{
           ...card,
-          border: "1px solid rgba(69, 205, 255, 0.28)",
+          border: "1px solid rgba(218, 134, 253, 0.4)",
           background:
-            "linear-gradient(135deg, rgba(33, 132, 190, 0.16), rgba(98, 72, 191, 0.12), rgba(255,255,255,0.035))",
+            "linear-gradient(140deg, rgba(94, 47, 160, 0.76), rgba(135, 44, 143, 0.6), rgba(61, 37, 108, 0.72))",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
@@ -393,6 +396,7 @@ export default function AccountContent({
             {i18nT("voir_mon_abonnement_d5b2da25")}{" "}</a>
         )}
       </div>
+    </div>
     </div>
   );
 }

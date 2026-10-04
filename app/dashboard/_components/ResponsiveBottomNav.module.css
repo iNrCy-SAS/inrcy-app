@@ -588,21 +588,17 @@
     display: block;
   }
 
-  .shortcutIconText {
-    font-size: 18px;
-    line-height: 1;
-    font-weight: 950;
-    background: linear-gradient(105deg, #38bdf8, #a78bfa, #f472b6, #fb923c);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .shortcutItem[data-mobile-shortcut="media_studio"] .shortcutIconSlot {
+    color: #fff;
+    background: radial-gradient(circle at 20% 15%, #487fff, #1938eb);
+    border-color: #70abff;
   }
 
   .shortcutLabel {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
     font-size: 10.5px;
     font-weight: 900;
   }

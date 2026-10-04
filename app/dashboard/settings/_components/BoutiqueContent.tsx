@@ -1,6 +1,10 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import sectionStyles from "./SettingsSections.module.css";
+import DrawerHeaderTabs from "../../DrawerHeaderTabs";
+import layoutStyles from "./settingsContentLayout.module.css";
+import boutiqueStyles from "./BoutiqueContent.module.css";
 
 
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -43,6 +47,7 @@ function statusLabel(s: OrderRow["status"], i18nT: (key: string) => string) {
 }
 
 export default function BoutiqueContent({ onOpenInertia }: Props) {
+  const [view, setView] = useState<"products" | "orders">("products");
   const i18nT = useTranslations("settings");
   const locale = useLocale();
   const router = useRouter();
@@ -192,73 +197,22 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.14)",
-          background:
-            "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(56,189,248,0.10) 50%, rgba(15,23,42,0.55))",
-          borderRadius: 18,
-          padding: 14,
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ color: "rgba(255,255,255,0.94)", fontWeight: 950, fontSize: 16 }}>{i18nT("solde_ui_86037358")}</div>
-              <button
-                type="button"
-                onClick={() => setShowUiHelp((v) => !v)}
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.92)",
-                  fontWeight: 900,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                aria-label={i18nT("comprendre_les_ui_5d7da596")}
-              >
-                ?
-              </button>
-            </div>
-            <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13, marginTop: 6 }}>
-              {i18nT("commandez_en_28b396c4")}{" "}<b>€</b> {" "}{i18nT("ttc_ou_utilisez_vos_3603baf6")}{" "}<b>UI</b> {" "}{i18nT("pour_reduire_le_prix_ab807fed")}{" "}</div>
-            {showUiHelp ? (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 34,
-                  left: 0,
-                  zIndex: 3,
-                  width: "min(320px, calc(100vw - 80px))",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(9,15,34,0.96)",
-                  boxShadow: "0 18px 40px rgba(0,0,0,0.35)",
-                  padding: 12,
-                  color: "rgba(255,255,255,0.86)",
-                  fontSize: 12.5,
-                  lineHeight: 1.5,
-                }}
-              >
-                {i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}{" "}</div>
-            ) : null}
+    <div className={layoutStyles.workspace} style={{ display: "grid", gap: 14 }}>
+      <DrawerHeaderTabs>
+        <div className={boutiqueStyles.headerTools}>
+          <nav className={layoutStyles.navigation} aria-label={i18nT("boutique_05236d3a")}>
+            <button type="button" aria-pressed={view === "products"} onClick={() => setView("products")}>{i18nT("boutique_05236d3a")}</button>
+            <button type="button" aria-pressed={view === "orders"} onClick={() => setView("orders")}>{i18nT("historique_des_commandes_3b9f0e3d")}</button>
+          </nav>
+          <div className={boutiqueStyles.balance}>
+            <span>{i18nT("solde_ui_86037358")}</span>
+            <strong>{uiBalance === null ? "…" : uiBalance}</strong>
+            <button type="button" aria-expanded={showUiHelp} aria-label={i18nT("comprendre_les_ui_5d7da596")} onClick={() => setShowUiHelp((v) => !v)}>?</button>
           </div>
-
-          <div style={{ textAlign: "right", minWidth: 140 }}>
-            <div style={{ color: "rgba(255,255,255,0.96)", fontWeight: 950, fontSize: 22 }}>
-              {uiBalance === null ? "…" : uiBalance}
-            </div>
-          </div>
+          <button type="button" className={boutiqueStyles.inertiaLink} onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}>{i18nT("voir_mon_inertie_5f3d5554")}</button>
         </div>
-      </div>
+      </DrawerHeaderTabs>
+      {showUiHelp && <div className={boutiqueStyles.help}>{i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}</div>}
 
       {/* Message d'info (en haut) */}
       <div
@@ -290,47 +244,8 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
         </div>
       ) : null}
 
-      {/* Aller-retour vers Mon inertie */}
-      <button
-        type="button"
-        onClick={() => (onOpenInertia ? onOpenInertia() : router.push("/dashboard?panel=inertie"))}
-        style={{
-          border: "1px solid rgba(255,255,255,0.14)",
-          background: "rgba(15,23,42,0.45)",
-          borderRadius: 18,
-          padding: 14,
-          textAlign: "left",
-          cursor: "pointer",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>{i18nT("voir_mon_inertie_5f3d5554")}</div>
-            <div style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 6 }}>
-              {i18nT("historique_turbo_ui_et_boosts_de_0834da43")}{" "}</div>
-          </div>
-
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.16)",
-              background: "rgba(15,23,42,0.55)",
-              color: "rgba(255,255,255,0.9)",
-              fontWeight: 850,
-              fontSize: 13,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {i18nT("ouvrir_7fd29c03")}{" "}</div>
-        </div>
-      </button>
-
       {/* Produits */}
-      <div style={{ display: "grid", gap: 10 }}>
+      {view === "products" && <div className={`${sectionStyles.products} ${boutiqueStyles.products}`} style={{ display: "grid", gap: 14 }}>
         {products.map((p) => (
           <div
             key={p.key}
@@ -418,10 +333,10 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Historique des commandes */}
-      <div
+      {view === "orders" && <div
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(15,23,42,0.45)",
@@ -541,7 +456,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
 
         <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.4 }}>
           {i18nT("les_commandes_passent_en_c2192eda")}{" "}<b>{i18nT("traitee_ed7d5868")}</b> {" "}{i18nT("quand_l_equipe_inrcy_les_valide_49628885")}{" "}</div>
-      </div>
+      </div>}
     </div>
   );
 }

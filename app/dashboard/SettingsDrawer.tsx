@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { DrawerHeaderTabsContext } from "./DrawerHeaderTabs";
+import headerTabsStyles from "./DrawerHeaderTabs.module.css";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 
 type Props = {
   title: string;
   isOpen: boolean;
   onClose: () => void;
-  /** Présentation latérale historique ou grand dialogue central. */
+  /** Disposition du bandeau. Toutes les présentations occupent le plein écran. */
   presentation?: "drawer" | "centered";
   /** Contenu visuel optionnel remplaçant le titre standard du bandeau. */
   headerContent?: React.ReactNode;
@@ -29,8 +31,54 @@ type Props = {
 
 const RESPONSIVE_BREAKPOINT = 1100;
 const PHONE_BREAKPOINT = 640;
-const MOBILE_BOTTOM_NAV_HEIGHT =
-  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))";
+
+function isVisibleElement(element: HTMLElement) {
+  return element.getClientRects().length > 0
+    && !element.closest('[inert], [aria-hidden="true"]')
+    && getComputedStyle(element).visibility !== "hidden";
+}
+
+function dialogStackOrder(element: HTMLElement) {
+  const order: number[] = [];
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.zIndex !== "auto" || style.position === "fixed" || style.isolation === "isolate" || style.transform !== "none") {
+      order.unshift(Number.parseInt(style.zIndex, 10) || 0);
+    }
+  }
+  return order;
+}
+
+function isTopmostDialog(dialog: HTMLElement) {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'))
+    .filter(isVisibleElement);
+  const top = dialogs.sort((left, right) => {
+    const leftOrder = dialogStackOrder(left);
+    const rightOrder = dialogStackOrder(right);
+    for (let index = 0; index < Math.max(leftOrder.length, rightOrder.length); index += 1) {
+      const difference = (leftOrder[index] || 0) - (rightOrder[index] || 0);
+      if (difference) return difference;
+    }
+    return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+  }).at(-1);
+  return top === dialog;
+}
+
+function getFocusRoots(dialog: HTMLElement) {
+  const portals = Array.from(dialog.querySelectorAll<HTMLElement>("[aria-controls]"))
+    .flatMap((control) => (control.getAttribute("aria-controls") || "").split(/\s+/))
+    .map((id) => document.getElementById(id))
+    .filter((element): element is HTMLElement => Boolean(element && isVisibleElement(element)));
+  return [dialog, ...portals];
+}
+
+function getFocusableElements(roots: HTMLElement[]) {
+  const selector = 'button, input, select, textarea, a[href], [tabindex], [contenteditable="true"]';
+  return Array.from(new Set(roots.flatMap((root) => [root, ...root.querySelectorAll<HTMLElement>(selector)])))
+    .filter((element) => !element.matches(":disabled")
+      && (element.tabIndex >= 0 || element.isContentEditable)
+      && isVisibleElement(element));
+}
 
 export default function SettingsDrawer({
   title,
@@ -48,6 +96,9 @@ export default function SettingsDrawer({
 }: Props) {
   const t = useDashboardI18n();
   const titleId = useId();
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const [headerTabsHost, setHeaderTabsHost] = useState<HTMLDivElement | null>(null);
+  const closeOptionsRef = useRef({ onClose, closeOnEscape });
   // Valeurs stables côté serveur/client au premier rendu : évite les erreurs React #418
   // quand le drawer est ouvert directement depuis une URL sur mobile.
   const [portalReady, setPortalReady] = useState(false);
@@ -58,6 +109,10 @@ export default function SettingsDrawer({
   const isResponsive = viewportWidth <= RESPONSIVE_BREAKPOINT;
   const isPhone = viewportWidth <= PHONE_BREAKPOINT;
   const isCentered = presentation === "centered";
+
+  useEffect(() => {
+    closeOptionsRef.current = { onClose, closeOnEscape };
+  }, [onClose, closeOnEscape]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -91,37 +146,78 @@ export default function SettingsDrawer({
     };
   }, []);
 
-  const responsiveDrawerHeight = useMemo(() => {
-    const visibleViewportHeight = viewportHeight ? `${viewportHeight}px` : "100svh";
-    return `calc(${visibleViewportHeight} - ${MOBILE_BOTTOM_NAV_HEIGHT})`;
-  }, [viewportHeight]);
-
-  const centeredDrawerHeight = viewportHeight ? `${viewportHeight}px` : "100dvh";
-  const drawerHeight = isCentered
-    ? centeredDrawerHeight
-    : isResponsive
-      ? responsiveDrawerHeight
-      : "100%";
+  const drawerHeight = viewportHeight ? `${viewportHeight}px` : "100dvh";
 
   useEffect(() => {
     if (!isOpen) return;
 
     const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    const previousRootOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (closeOnEscape && event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
-      window.removeEventListener("keydown", onKeyDown);
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.documentElement.style.overscrollBehavior = previousRootOverscroll;
     };
-  }, [closeOnEscape, isOpen, onClose]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!isOpen || !portalReady || !dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusDialog = () => dialog.focus({ preventScroll: true });
+    if (isTopmostDialog(dialog) && !dialog.contains(document.activeElement)) focusDialog();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isTopmostDialog(dialog)) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (event.key === "Escape") {
+        // An open select/popover handles Escape before the enclosing settings window.
+        if (target?.closest('[role="listbox"], [role="menu"], [aria-expanded="true"]')) return;
+        if (closeOptionsRef.current.closeOnEscape) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeOptionsRef.current.onClose();
+        }
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const roots = getFocusRoots(dialog);
+      const focusable = getFocusableElements(roots);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      const active = document.activeElement;
+      if (!first || !last) {
+        event.preventDefault();
+        focusDialog();
+      } else if (!roots.some((root) => root.contains(active)) || active === dialog
+        || (event.shiftKey ? active === first : active === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+      }
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (!isTopmostDialog(dialog)) return;
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && !getFocusRoots(dialog).some((root) => root.contains(target))) focusDialog();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocusIn);
+      const active = document.activeElement;
+      // Avoid stealing focus from a different window opened during this close.
+      if (previousFocus?.isConnected && (active === document.body || !active?.isConnected
+        || getFocusRoots(dialog).some((root) => root.contains(active)))) {
+        previousFocus.focus({ preventScroll: true });
+      }
+    };
+  }, [hasBeenOpened, isOpen, portalReady]);
 
   if (!hasBeenOpened || !portalReady) return null;
 
@@ -131,18 +227,18 @@ export default function SettingsDrawer({
       onClick={closeOnBackdrop ? onClose : undefined}
       style={{
         position: "fixed",
-        top: isCentered || isResponsive ? viewportOffsetTop : 0,
+        top: viewportOffsetTop,
         left: 0,
         right: 0,
         bottom: "auto",
         width: "100%",
         height: drawerHeight,
-        maxHeight: isCentered ? undefined : drawerHeight,
+        maxHeight: drawerHeight,
         background: "var(--inrcy-theme-drawer-backdrop, rgba(0,0,0,0.55))",
         zIndex: 2147483001,
         display: isOpen ? "flex" : "none",
         alignItems: "stretch",
-        justifyContent: isPhone ? "stretch" : isCentered ? "center" : "flex-end",
+        justifyContent: "stretch",
         overflow: "hidden",
         isolation: "isolate",
         pointerEvents: "auto",
@@ -151,29 +247,25 @@ export default function SettingsDrawer({
       }}
     >
       <aside
+        ref={dialogRef}
         data-dashboard-settings-drawer="true"
-        data-dashboard-settings-modal={isCentered ? "true" : undefined}
+        data-dashboard-settings-modal="true"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: isCentered
-            ? "100%"
-            : isPhone
-            ? "100%"
-            : "min(560px, 92%)",
-          maxWidth: isCentered ? undefined : "100%",
+          width: "100%",
+          maxWidth: "100%",
           height: "100%",
-          maxHeight: isCentered ? undefined : "100%",
+          maxHeight: "100%",
           minHeight: 0,
           boxSizing: "border-box",
-          background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
+          background: "radial-gradient(ellipse at 0% 0%, rgba(0,190,255,0.25), transparent 60%), radial-gradient(ellipse at 100% 10%, rgba(161,72,255,0.27), transparent 60%), radial-gradient(ellipse at 75% 100%, rgba(239,68,170,0.17), transparent 65%), color-mix(in srgb, var(--inrcy-theme-drawer-background, #081226) 82%, #175bbc)",
           color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.92))",
           border: 0,
-          borderLeft: isPhone || isCentered
-            ? 0
-            : "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
+          borderLeft: 0,
           borderRight: 0,
           borderRadius: 0,
           boxShadow: "none",
@@ -192,6 +284,7 @@ export default function SettingsDrawer({
       >
         <div
           data-dashboard-settings-drawer-header="true"
+          className={headerTabsStyles.header}
           style={{
             display: "grid",
             gridTemplateColumns: isCentered && !isResponsive
@@ -207,9 +300,10 @@ export default function SettingsDrawer({
               ? "max(9px, var(--inrcy-safe-area-top)) max(10px, var(--inrcy-safe-area-right)) 9px max(10px, var(--inrcy-safe-area-left))"
               : isCentered
                 ? "10px 14px"
-                : 16,
-            borderBottom: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
-            background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
+                : "18px clamp(16px, 2.4vw, 44px)",
+            borderBottom: "1px solid rgba(124,169,255,0.25)",
+            background: "linear-gradient(110deg, rgba(14,165,233,0.22), rgba(93,79,240,0.14) 45%, rgba(218,67,187,0.20)), var(--inrcy-theme-drawer-background, #081226)",
+            boxShadow: "0 8px 30px rgba(3,8,30,0.18)",
             ...headerStyle,
           }}
         >
@@ -236,6 +330,7 @@ export default function SettingsDrawer({
           ) : null}
 
           <div
+            className={headerTabsStyles.headerTitle}
             style={{
               minWidth: 0,
               width: "100%",
@@ -270,7 +365,7 @@ export default function SettingsDrawer({
                 style={{
                   margin: 0,
                   color: "var(--inrcy-theme-text-primary, white)",
-                  fontSize: "clamp(16px, 4.3vw, 18px)",
+                  fontSize: "clamp(18px, 2vw, 26px)",
                   fontWeight: 800,
                   minWidth: 0,
                   maxWidth: "100%",
@@ -285,8 +380,11 @@ export default function SettingsDrawer({
             )}
           </div>
 
+          <div ref={setHeaderTabsHost} className={headerTabsStyles.headerTabs} data-dashboard-settings-header-tabs />
+
           {/* Zone actions (ex: ?) + Fermer avec gap */}
           <div
+            className={headerTabsStyles.headerActions}
             style={{
               display: "flex",
               alignItems: "center",
@@ -310,7 +408,7 @@ export default function SettingsDrawer({
               title={t.drawer.close}
               style={{
                 border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))",
-                background: "var(--inrcy-theme-surface-soft, transparent)",
+                background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.07))",
                 color: "var(--inrcy-theme-text-primary, white)",
                 display: "inline-grid",
                 placeItems: "center",
@@ -318,7 +416,7 @@ export default function SettingsDrawer({
                 minWidth: isResponsive ? 40 : undefined,
                 height: isResponsive ? 40 : undefined,
                 minHeight: isResponsive ? 40 : isCentered ? 38 : undefined,
-                borderRadius: isResponsive ? 12 : isCentered ? 999 : 10,
+                borderRadius: isResponsive ? 12 : 999,
                 padding: isResponsive ? 0 : isCentered ? "8px 14px" : "8px 10px",
                 fontSize: isResponsive ? 24 : undefined,
                 lineHeight: 1,
@@ -350,11 +448,11 @@ export default function SettingsDrawer({
             boxSizing: "border-box",
             padding: isPhone
               ? "12px max(12px, var(--inrcy-safe-area-right)) max(24px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left))"
-              : "12px 16px 16px",
+              : isCentered ? "12px 16px 16px" : "clamp(16px, 2.4vw, 36px) clamp(16px, 2.4vw, 44px)",
             scrollPaddingBottom: isResponsive ? 24 : 16,
           }}
         >
-          {children}
+          <DrawerHeaderTabsContext.Provider value={headerTabsHost}>{children}</DrawerHeaderTabsContext.Provider>
         </div>
       </aside>
     </div>

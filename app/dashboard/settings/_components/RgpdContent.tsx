@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import sectionStyles from "./SettingsSections.module.css";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -114,8 +115,8 @@ export default function RgpdContent({ mode = "page" }: Props) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div style={card}>
+    <div className={sectionStyles.cards}>
+      <div className={sectionStyles.fullWidth} style={card}>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("mes_donnees_rgpd_735ed1cb")}</h3>
         <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
           {i18nT("telecharger_vos_donnees_gerer_vos_cookies_2af2d2a2")}{" "}</p>

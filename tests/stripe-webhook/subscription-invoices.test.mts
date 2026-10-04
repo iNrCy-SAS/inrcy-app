@@ -46,46 +46,43 @@ test("invoice UI references keys available in every settings catalogue", () => {
   }
 });
 
-test("invoice section stays visible when no Stripe subscription is linked", () => {
+test("invoice tab remains available when no Stripe subscription is linked", () => {
   const abonnementContent = read(
     "app/dashboard/settings/_components/AbonnementContent.tsx",
   );
   const standardSubscriptionContent = read(
     "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
   );
+  const workspace = read("app/dashboard/settings/_components/SubscriptionWorkspace.tsx");
 
-  assert.match(abonnementContent, /<SubscriptionInvoicesPanel \/>/);
-  assert.match(standardSubscriptionContent, /<SubscriptionInvoicesPanel \/>/);
-  assert.doesNotMatch(abonnementContent, /stripe_subscription_id \? <SubscriptionInvoicesPanel/);
+  assert.match(abonnementContent, /<SubscriptionWorkspace/);
+  assert.match(standardSubscriptionContent, /<SubscriptionWorkspace/);
+  assert.match(workspace, /\["overview", "invoices"\]/);
+  assert.match(workspace, /<SubscriptionInvoicesPanel \/>/);
+  assert.doesNotMatch(abonnementContent, /stripe_subscription_id \? <SubscriptionWorkspace/);
   assert.doesNotMatch(
     standardSubscriptionContent,
-    /hasStripeSubscription \? <SubscriptionInvoicesPanel/,
+    /hasStripeSubscription \? <SubscriptionWorkspace/,
   );
+  assert.doesNotMatch(workspace, /stripe_subscription_id|hasStripeSubscription/);
 });
 
-test("invoice section is the last standalone subscription block", () => {
+test("the invoice tab renders one shared invoice section alongside billing management", () => {
   const abonnementContent = read(
     "app/dashboard/settings/_components/AbonnementContent.tsx",
   );
   const standardSubscriptionContent = read(
     "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
   );
+  const workspace = read("app/dashboard/settings/_components/SubscriptionWorkspace.tsx");
 
   assert.equal(
-    abonnementContent.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
+    workspace.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
     1,
   );
-  assert.ok(
-    abonnementContent.indexOf("<SubscriptionInvoicesPanel />") >
-      abonnementContent.lastIndexOf("programmer_ma_resiliation_d074ca2d"),
-  );
-
-  assert.equal(
-    standardSubscriptionContent.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
-    2,
-  );
-  assert.ok(
-    standardSubscriptionContent.lastIndexOf("<SubscriptionInvoicesPanel />") >
-      standardSubscriptionContent.lastIndexOf("startCheckout(\"Premium\")"),
-  );
+  assert.doesNotMatch(abonnementContent, /<SubscriptionInvoicesPanel/);
+  assert.doesNotMatch(standardSubscriptionContent, /<SubscriptionInvoicesPanel/);
+  assert.match(workspace, /hidden=\{view !== "invoices"\}/);
+  assert.match(workspace, /\{management\}<SubscriptionInvoicesPanel \/>/);
+  assert.match(standardSubscriptionContent, /<SubscriptionWorkspace\b[^>]*\bmanagement=\{management\}/);
 });

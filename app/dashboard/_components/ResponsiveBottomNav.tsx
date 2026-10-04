@@ -7,6 +7,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./ResponsiveBottomNav.module.css";
+import experienceStyles from "./DashboardExperience.module.css";
+import AiConfigurationIcon, { AI_CONFIGURATION_BUBBLE_STYLE } from "./AiConfigurationIcon";
+import StudioIcon from "./StudioIcon";
 import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { useDashboardLanguage } from "../_hooks/useDashboardLanguage";
@@ -20,7 +23,7 @@ import EstablishmentMenu from "./EstablishmentMenu";
 import {
   DEFAULT_MOBILE_SHORTCUTS,
   MOBILE_SHORTCUTS_EVENT,
-  MOBILE_SHORTCUT_OPTIONS,
+  getDisplayedMobileShortcuts,
   getMobileShortcutLabel,
   getMobileShortcutOption,
   loadMobileShortcutsPreference,
@@ -52,14 +55,6 @@ type DashboardPanelName =
   | "notifications";
 
 const MOBILE_QUERY = "(max-width: 1100px)";
-const STANDARD_MOBILE_SHORTCUTS: readonly MobileShortcutId[] = [
-  "agent",
-  "inrsend",
-  "stats",
-  "reputation",
-];
-
-
 type SearchParamsReader = {
   entries: () => IterableIterator<[string, string]>;
 };
@@ -206,14 +201,12 @@ function ResponsiveBottomNavMobile() {
   const [shortcuts, setShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const [isAdmin, setIsAdmin] = useState(false);
   const displayedShortcuts = useMemo(
-    () => (standardMode ? [...STANDARD_MOBILE_SHORTCUTS] : shortcuts.filter((id) => id !== "cash")),
+    () => getDisplayedMobileShortcuts(shortcuts, standardMode),
     [shortcuts, standardMode],
   );
   const availableShortcutOptions = useMemo(
-    () => standardMode
-      ? MOBILE_SHORTCUT_OPTIONS.filter((option) => STANDARD_MOBILE_SHORTCUTS.includes(option.id))
-      : MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash"),
-    [standardMode],
+    () => displayedShortcuts.map(getMobileShortcutOption),
+    [displayedShortcuts],
   );
 
   useEffect(() => {
@@ -492,10 +485,6 @@ function ResponsiveBottomNavMobile() {
   const hasMenuWarning = profileIncomplete || activityIncomplete;
   const publishActionKey = resolveHrefDestination("/dashboard?action=publish").key;
   const mediaActionKey = resolveHrefDestination("/dashboard/mediatheque").key;
-  const mediaGeneratorHref = "/dashboard/generer-media";
-  const mediaGeneratorActionKey = resolveHrefDestination(mediaGeneratorHref).key;
-  const channelConnectionsHref = "/dashboard?action=channels";
-  const channelConnectionsActionKey = resolveHrefDestination(channelConnectionsHref).key;
   const cashActionKey = resolveHrefDestination("/dashboard?action=cash").key;
   const gpsActionKey = resolveHrefDestination("/dashboard/gps").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
@@ -536,13 +525,19 @@ function ResponsiveBottomNavMobile() {
                       className={styles.shortcutItem}
                       type="button"
                       role="menuitem"
+                      data-mobile-shortcut={id}
+                      title={label}
                       aria-busy={shortcutLoadingVisible || undefined}
                       aria-disabled={shortcutLoadingVisible || undefined}
                       onClick={() => navigate(option.href)}
                     >
-                      <span className={styles.shortcutIconSlot} aria-hidden="true">
-                        {option.iconSrc ? <img src={option.iconSrc} alt="" className={styles.shortcutIconImage} loading="eager" decoding="async" /> : <span className={styles.shortcutIconText}>{option.iconText}</span>}
+                      <span className={styles.shortcutIconSlot} style={id === "ai_configuration" ? AI_CONFIGURATION_BUBBLE_STYLE : undefined} aria-hidden="true">
+                        {option.iconSrc ? <img src={option.iconSrc} alt="" className={styles.shortcutIconImage} loading="eager" decoding="async" /> : null}
+                        {id === "channels" ? <span className={experienceStyles.hubTiles}><i /><i /><i /><i /></span> : null}
+                        {id === "ai_configuration" ? <AiConfigurationIcon size={24} style={{ fontSize: AI_CONFIGURATION_BUBBLE_STYLE.fontSize }} /> : null}
+                        {id === "media_studio" ? <StudioIcon className={styles.shortcutIconImage} /> : null}
                         {id === "agent" && pendingInrAgentCount > 0 ? <span className={styles.shortcutBadge}>{pendingLabel}</span> : null}
+                        {id === "business_dna" && hasMenuWarning ? <span className={styles.warning} aria-hidden="true">⚠️</span> : null}
                       </span>
                       <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
                     </button>
@@ -570,27 +565,6 @@ function ResponsiveBottomNavMobile() {
                   label={t.userMenu.preferences}
                   loading={isVisible("panel:preferences")}
                   onClick={() => openDashboardPanel("preferences")}
-                />
-                <MobileMenuActionButton
-                  label={t.hero.channelOverviewTitle}
-                  loading={isVisible(channelConnectionsActionKey)}
-                  onClick={() => navigate(channelConnectionsHref)}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.aiMemory}
-                  loading={isVisible("panel:ai_memory")}
-                  onClick={() => openDashboardPanel("ai_memory")}
-                  warning={profileIncomplete || activityIncomplete}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.ai}
-                  loading={isVisible("panel:ia")}
-                  onClick={() => openDashboardPanel("ia")}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.mediaGenerator}
-                  loading={isVisible(mediaGeneratorActionKey)}
-                  onClick={() => navigate(mediaGeneratorHref)}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.media}

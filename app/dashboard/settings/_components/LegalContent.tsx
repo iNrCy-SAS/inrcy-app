@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import sectionStyles from "./SettingsSections.module.css";
 
 
 import { useState } from "react";
@@ -62,16 +63,16 @@ export default function LegalContent({ mode = "page" }: Props) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div style={{ ...card, ...shell, padding: 18 }}>
+    <div className={sectionStyles.split}>
+      <div className={sectionStyles.fullWidth} style={{ ...card, ...shell, padding: 18 }}>
         <h2 style={titleAccent}>{i18nT("informations_legales_4d326a77")}</h2>
         <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
           {i18nT("retrouvez_ici_la_politique_de_confidentialite_631d7d46")}{" "}</p>
       </div>
 
-      <div style={card}>
+      <div className={sectionStyles.fullWidth} style={card}>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("documents_687c8286")}</h3>
-        <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+        <div className={sectionStyles.documentChoices} style={{ marginTop: 14 }}>
           <button type="button" onClick={() => setOpenDoc("confidentialite")} style={primaryBtn}>
             {i18nT("politique_de_confidentialite_42b0e51e")}{" "}</button>
           <button type="button" onClick={() => setOpenDoc("mentions-legales")} style={btn}>
