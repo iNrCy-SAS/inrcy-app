@@ -560,6 +560,84 @@ test("deux offsets équivalents ne simulent pas une modification manuelle", () =
     teamCalendarAutomationSnapshot(first),
     teamCalendarAutomationSnapshot(normalizedByGoogle),
   );
+  assert.equal(
+    teamCalendarMirrorContentSignature(first),
+    teamCalendarMirrorContentSignature(normalizedByGoogle),
+  );
+});
+
+test("un miroir normalisé par Google conserve sa signature de contenu", () => {
+  const desired = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      start: {
+        dateTime: "2026-09-08T11:00:00+02:00",
+        timeZone: "Europe/Paris",
+      },
+      end: {
+        dateTime: "2026-09-08T12:00:00+02:00",
+        timeZone: "Europe/Paris",
+      },
+    }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm-google-normalized",
+    fingerprint: "unchanged-source",
+  });
+  const googleResponse: TeamCalendarEvent = {
+    ...desired,
+    start: { dateTime: "2026-09-08T09:00:00.000Z" },
+    end: { dateTime: "2026-09-08T10:00:00.000Z", timeZone: "UTC" },
+    reminders: { useDefault: false },
+    visibility: undefined,
+    transparency: undefined,
+  };
+
+  assert.equal(
+    teamCalendarMirrorContentSignature(googleResponse),
+    teamCalendarMirrorContentSignature(desired),
+  );
+});
+
+test("la signature du miroir distingue les déplacements et les journées entières", () => {
+  const timed = sourceEvent();
+  for (const changed of [
+    sourceEvent({ start: { dateTime: "2026-09-08T09:15:00Z" } }),
+    sourceEvent({ end: { dateTime: "2026-09-08T10:15:00Z" } }),
+    sourceEvent({ start: { date: "2026-09-08" } }),
+  ]) {
+    assert.notEqual(
+      teamCalendarMirrorContentSignature(timed),
+      teamCalendarMirrorContentSignature(changed),
+    );
+  }
+
+  const allDay = sourceEvent({
+    start: { date: "2026-09-08" },
+    end: { date: "2026-09-09" },
+  });
+  assert.notEqual(
+    teamCalendarMirrorContentSignature(allDay),
+    teamCalendarMirrorContentSignature({
+      ...allDay,
+      start: { date: "2026-09-09" },
+      end: { date: "2026-09-10" },
+    }),
+  );
+});
+
+test("la signature du miroir conserve le fuseau des horaires sans offset", () => {
+  const paris = sourceEvent({
+    start: { dateTime: "2026-09-08T09:00:00", timeZone: "Europe/Paris" },
+    end: { dateTime: "2026-09-08T10:00:00", timeZone: "Europe/Paris" },
+  });
+  const london = sourceEvent({
+    start: { dateTime: "2026-09-08T09:00:00", timeZone: "Europe/London" },
+    end: { dateTime: "2026-09-08T10:00:00", timeZone: "Europe/London" },
+  });
+  assert.notEqual(
+    teamCalendarMirrorContentSignature(paris),
+    teamCalendarMirrorContentSignature(london),
+  );
 });
 
 test("une modification manuelle d'un miroir le détache définitivement", () => {

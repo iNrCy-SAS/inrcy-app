@@ -352,14 +352,6 @@ export function shouldMirrorTeamCalendarEvent(input: {
 
 export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
   const properties = event.extendedProperties?.private || {};
-  const normalizedDate = (date: TeamCalendarDate | undefined) =>
-    date
-      ? {
-          dateTime: String(date.dateTime || "").trim(),
-          date: String(date.date || "").trim(),
-          timeZone: String(date.timeZone || "").trim(),
-        }
-      : null;
   const reminders = event.reminders
     ? {
         useDefault: event.reminders.useDefault ?? null,
@@ -387,8 +379,8 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     colorId: event.colorId || "",
     visibility: event.visibility || "default",
     transparency: event.transparency || "opaque",
-    start: normalizedDate(event.start),
-    end: normalizedDate(event.end),
+    start: comparableCalendarDate(event.start),
+    end: comparableCalendarDate(event.end),
     reminders,
     mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
     sourceCalendarId: properties.sourceCalendarId || "",

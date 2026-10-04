@@ -10,6 +10,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { createScopedTokenCache } from "@/lib/visioGoogleTokenScope";
 import {
+  calendarEventMutationTarget,
+  createScopedCalendarEventCache,
+} from "@/lib/visioCalendarEventScope";
+import {
   discardAwaitingVisioBookingInternalAlertIntent,
   ensureVisioBookingInternalAlert,
   listAwaitingVisioBookingInternalAlertIntents,
@@ -410,6 +414,7 @@ async function loadGoogleAccessToken(forceRefresh: boolean) {
 }
 
 const googleAccessTokenCache = createScopedTokenCache(loadGoogleAccessToken);
+const googleCalendarEventCache = createScopedCalendarEventCache<GoogleCalendarEvent>();
 
 async function getGoogleAccessToken(forceRefresh = false) {
   return googleAccessTokenCache.get(forceRefresh);
@@ -421,6 +426,13 @@ async function googleCalendarRequest<T>(
   retryUnauthorized = true,
   transientAttempt = 0,
 ): Promise<T> {
+  const mutation = calendarEventMutationTarget(path, init?.method, init?.body);
+  if (mutation?.eventId) {
+    googleCalendarEventCache.invalidate(mutation.calendarId, mutation.eventId);
+    if (mutation.resultCalendarId !== mutation.calendarId) {
+      googleCalendarEventCache.invalidate(mutation.resultCalendarId, mutation.eventId);
+    }
+  }
   const accessToken = await getGoogleAccessToken(false);
   const response = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
     ...init,
@@ -466,7 +478,11 @@ async function googleCalendarRequest<T>(
       `visio_google_api_failed:${response.status}:${reason ? `${reason}:` : ""}${detail.slice(0, 240)}`,
     );
   }
-  return (await response.json()) as T;
+  const payload = await response.json();
+  if (mutation && payload && typeof payload.id === "string") {
+    googleCalendarEventCache.remember(mutation.resultCalendarId, payload);
+  }
+  return payload as T;
 }
 
 export async function createVisioGoogleCalendarWatch(input: {
@@ -538,6 +554,9 @@ async function listGoogleCalendarEvents(input: {
     );
     pageToken = String(payload.nextPageToken || "");
   } while (pageToken);
+  for (const event of events) {
+    googleCalendarEventCache.remember(input.calendarId, event);
+  }
   return events;
 }
 
@@ -1316,7 +1335,9 @@ type VisioTeamCalendarSyncInput = {
 export async function syncVisioTeamCalendarsToShared(
   input?: VisioTeamCalendarSyncInput,
 ): Promise<VisioTeamCalendarSyncResult> {
-  return googleAccessTokenCache.run(() => performVisioTeamCalendarSync(input));
+  return googleCalendarEventCache.run(() =>
+    googleAccessTokenCache.run(() => performVisioTeamCalendarSync(input)),
+  );
 }
 
 async function performVisioTeamCalendarSync(
@@ -1373,6 +1394,7 @@ async function performVisioTeamCalendarSync(
       elapsedMs: Date.now() - startedAt.getTime(),
       sharedEvents: sharedEvents.length,
       token: googleAccessTokenCache.stats(),
+      events: googleCalendarEventCache.stats(),
     });
     const sharedCalendarId = getVisioSharedCalendarId();
 
@@ -1710,6 +1732,7 @@ async function performVisioTeamCalendarSync(
         0,
       ),
       token: googleAccessTokenCache.stats(),
+      events: googleCalendarEventCache.stats(),
     });
 
     // A booking can exist in the organizer calendar, the assigned member's
@@ -2204,6 +2227,7 @@ async function performVisioTeamCalendarSync(
         elapsedMs: Date.now() - startedAt.getTime(),
         scanned: result.scanned,
         token: googleAccessTokenCache.stats(),
+        events: googleCalendarEventCache.stats(),
       });
     }
 
@@ -2355,6 +2379,7 @@ async function performVisioTeamCalendarSync(
       cancelled: result.cancelled,
       errors: result.errors.length,
       token: googleAccessTokenCache.stats(),
+      events: googleCalendarEventCache.stats(),
     });
     await syncLock.release().catch(() => undefined);
   }
@@ -2582,21 +2607,28 @@ function confirmationFromEvent(
   };
 }
 
-async function getCalendarEvent(calendarId: string, eventId: string) {
-  try {
-    return await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(calendarId)}/events/${encodeURIComponent(eventId)}`,
-    );
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message.startsWith("visio_google_api_failed:404:") ||
-        error.message.startsWith("visio_google_api_failed:410:"))
-    ) {
-      return null;
+async function getCalendarEvent(
+  calendarId: string,
+  eventId: string,
+  options?: { fresh?: boolean },
+) {
+  if (options?.fresh) googleCalendarEventCache.invalidate(calendarId, eventId);
+  return googleCalendarEventCache.get(calendarId, eventId, async () => {
+    try {
+      return await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.startsWith("visio_google_api_failed:404:") ||
+          error.message.startsWith("visio_google_api_failed:410:"))
+      ) {
+        return null;
+      }
+      throw error;
     }
-    throw error;
-  }
+  });
 }
 
 export type PendingSignupCalendarReminderResult = {
@@ -3100,7 +3132,8 @@ async function waitForMeetConference(
     if (delayMs) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    const refreshed = await getCalendarEvent(calendarId, eventId);
+    // Conference creation finishes asynchronously at Google, outside our writes.
+    const refreshed = await getCalendarEvent(calendarId, eventId, { fresh: true });
     if (!refreshed || refreshed.status === "cancelled") {
       throw new Error("visio_booking_cancelled");
     }

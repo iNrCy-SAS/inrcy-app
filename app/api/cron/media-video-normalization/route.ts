@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { repairPendingVideoNormalizationQueue } from "@/lib/mediaVideoNormalizationQueue";
-import { processVideoNormalizationJobs } from "@/lib/mediaVideoNormalizationWorker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,16 +26,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
+  const startedAt = Date.now();
+  const requestId = req.headers.get("x-vercel-id");
+  let stage = "queue_import";
+  console.info("[media-pipeline] video normalization cron entered", { requestId });
+
   try {
+    const { repairPendingVideoNormalizationQueue } = await import(
+      "@/lib/mediaVideoNormalizationQueue"
+    );
+    stage = "worker_import";
+    const { processVideoNormalizationJobs } = await import(
+      "@/lib/mediaVideoNormalizationWorker"
+    );
+    console.info("[media-pipeline] video normalization worker_loaded", {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+    });
+    stage = "queue_repair";
     const repaired = await repairPendingVideoNormalizationQueue({ limit: 10 });
+    stage = "worker_execution";
     const processed = await processVideoNormalizationJobs({ limit: 1 });
+    stage = "response";
+    console.info("[media-pipeline] video normalization completed", {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+    });
     return NextResponse.json({
       success: true,
       repaired,
       processed,
     });
   } catch (error) {
-    console.error("[media-pipeline] video normalization cron failed", error);
+    console.error(
+      "[media-pipeline] video normalization cron failed",
+      {
+        requestId,
+        stage,
+        reason: error instanceof Error ? error.name : typeof error,
+        elapsedMs: Date.now() - startedAt,
+      },
+      error,
+    );
     return NextResponse.json(
       {
         success: false,
