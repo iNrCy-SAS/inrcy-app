@@ -163,3 +163,9 @@
   .planTools .studioRow td { padding-right: 8px; }
   .planDescription { min-height: auto; }
 }
+
+@media (max-width: 360px) {
+  .studioName { font-size: 14px; letter-spacing: -.4px; white-space: nowrap; }
+  .planTools .studioRow th { padding-left: 6px; }
+  .planTools .studioRow td { padding-right: 6px; }
+}

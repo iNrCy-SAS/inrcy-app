@@ -670,3 +670,14 @@
     color: #fff;
   }
 }
+
+@media (max-width: 360px) {
+  .menuItem { min-height: 48px; }
+  .menuItemText {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+  }
+}
