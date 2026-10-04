@@ -17,11 +17,10 @@ export function SubscriptionPlanFeatures({ edition }: { edition: "standard" | "p
     ["iNr’Send", t("subscription_history")],
   ] : [
     ["iNr’Agent", t("subscription_campaign_automation")],
-    ["iNr’Send", t("subscription_email_campaigns")],
     ["ADS", t("subscription_multichannel_ads")],
     ["iNr’CRM", t("subscription_customer_management")],
     ["iNr’Calendar", t("subscription_appointments")],
-    ["Propulser · Fidéliser", t("subscription_growth")],
+    ["Propulser · Fidéliser", `${t("subscription_email_campaigns")} · ${t("subscription_growth")}`],
   ];
   return <table className={styles.planTools} aria-label={t(edition === "standard" ? "subscription_standard_tools" : "subscription_premium_tools")}><tbody>
     <tr className={styles.studioRow}>
