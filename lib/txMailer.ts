@@ -2,6 +2,7 @@ import "server-only";
 
 import nodemailer from "nodemailer";
 import { optionalEnv, requireEnv } from "@/lib/env";
+import { createSmtpHandshakeRetryGuard, withSmtpHandshakeRetry } from "@/lib/health/smtpRetryPolicy";
 import {
   assertTxSmtpCircuitClosed,
   clearTxSmtpCircuit,
@@ -102,36 +103,47 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
 
   await assertTxSmtpCircuitClosed(identity);
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.pass },
-    // Timeouts help surface network issues quickly instead of hanging.
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-    socketTimeout: 20_000,
-    tls: {
-      rejectUnauthorized: config.tlsRejectUnauthorized,
-    },
-  });
-
   try {
-    const delivery = await transporter.sendMail({
-      from: config.from,
-      to: mail.to,
-      subject: mail.subject,
-      text: mail.text,
-      html: mail.html,
-      messageId: mail.messageId,
-      attachments: (mail.attachments || []).map((attachment) => ({
-        filename: attachment.filename || "piece-jointe",
-        content: attachment.content,
-        contentType: attachment.mimeType || "application/octet-stream",
-        cid: attachment.inline ? attachment.cid : undefined,
-        contentDisposition: attachment.inline ? "inline" : "attachment",
-      })),
-    });
+    const retryGuard = createSmtpHandshakeRetryGuard();
+    const delivery = await withSmtpHandshakeRetry(async (attempt) => {
+      // Only a fast TLS alert at CONN can reach the second attempt. Nothing
+      // has been authenticated or delivered; never retry an ambiguous send.
+      const handshakeTimeout = attempt === 2 ? 5_000 : 15_000;
+      const transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: { user: config.user, pass: config.pass },
+        connectionTimeout: handshakeTimeout,
+        greetingTimeout: handshakeTimeout,
+        socketTimeout: 20_000,
+        transactionLog: true,
+        logger: retryGuard.logger,
+        tls: {
+          rejectUnauthorized: config.tlsRejectUnauthorized,
+        },
+      });
+
+      try {
+        return await transporter.sendMail({
+          from: config.from,
+          to: mail.to,
+          subject: mail.subject,
+          text: mail.text,
+          html: mail.html,
+          messageId: mail.messageId,
+          attachments: (mail.attachments || []).map((attachment) => ({
+            filename: attachment.filename || "piece-jointe",
+            content: attachment.content,
+            contentType: attachment.mimeType || "application/octet-stream",
+            cid: attachment.inline ? attachment.cid : undefined,
+            contentDisposition: attachment.inline ? "inline" : "attachment",
+          })),
+        });
+      } finally {
+        transporter.close();
+      }
+    }, { canRetry: retryGuard.canRetry });
     await clearTxSmtpCircuit(identity);
     return delivery;
   } catch (error) {

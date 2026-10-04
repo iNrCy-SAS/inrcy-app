@@ -15,6 +15,10 @@ import {
 } from "../../lib/aiMediaVideoProviderContract.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
 import type { AiMediaPromptBuilderArgs } from "../../lib/aiMediaPromptShared.ts";
+import { AiJsonResponseNormalizationError, normalizeAiJsonResponseBeforeValidation, type AiJsonResponseNormalizer } from "../../lib/aiJsonResponseNormalization.ts";
+import { assertAiJsonMatchesSchema } from "../../lib/aiJsonSchemaValidation.ts";
+import * as aiGatewayResponse from "../../lib/aiGatewayResponse.ts";
+import type { AiGenerateJsonOptions } from "../../lib/aiGatewayClient.ts";
 
 const profile = {
   business: {
@@ -54,11 +58,15 @@ function transpileModule(relative: string, modules: Map<string, unknown>) {
   return record.exports;
 }
 
-function loadPlan(response: unknown) {
-  const calls: Array<{ system: string; input: string; responseSchema: unknown }> = [];
+function loadPlan(response: unknown, generate?: (input: AiGenerateJsonOptions) => Promise<unknown>) {
+  const calls: Array<{ system: string; input: string; responseSchema: { schema: Record<string, unknown> }; normalizeResponseBeforeValidation?: AiJsonResponseNormalizer }> = [];
   const exports = transpileModule("../../lib/aiMediaFreeGenerationPlan.ts", new Map<string, unknown>([
     ["server-only", {}],
-    ["@/lib/aiGatewayClient", { aiGenerateJSON: async (input: { system: string; input: string; responseSchema: unknown }) => { calls.push(input); return response; } }],
+    ["@/lib/aiGatewayClient", { aiGenerateJSON: async (input: typeof calls[number]) => {
+      calls.push(input);
+      if (generate) return generate(input as AiGenerateJsonOptions);
+      return normalizeAiJsonResponseBeforeValidation(response as Record<string, unknown>, input.normalizeResponseBeforeValidation);
+    } }],
     ["@/lib/aiEnginePreference", { getAiEngineOption: () => ({ model: "test-planner" }) }],
     ["@/lib/aiMediaGenerationContracts", contracts],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount }],
@@ -71,6 +79,62 @@ function loadPlan(response: unknown) {
     prepareAiMediaFreeCreativePlan: typeof import("../../lib/aiMediaFreeGenerationPlan.ts").prepareAiMediaFreeCreativePlan;
     writeAiMediaFreeNarration: typeof import("../../lib/aiMediaFreeGenerationPlan.ts").writeAiMediaFreeNarration;
   };
+}
+
+/** Execute the real Gateway fallback orchestration with in-memory provider responses. */
+function loadDialogueGateway(responses: unknown[]) {
+  const calls: Array<{ model: string; deadlineAt: number; timeoutMs: number }> = [];
+  const engines = { getAiEngineOption: (engine: string) => ({ model: `${engine}/test`, jsonMode: "strict", shortLabel: engine }) };
+  const config = {
+    cleanAiGatewayEnv: (value: unknown) => String(value || "").trim(),
+    normalizeGatewayModelId: (value: unknown) => String(value || "").trim(),
+    getAiGatewayCredential: () => "test-only-credential",
+    normalizeAiGatewayBaseUrl: () => "https://example.invalid/v1",
+  };
+  const fallback = transpileModule("../../lib/aiGenerationFallback.ts", new Map<string, unknown>([
+    ["server-only", {}], ["@/lib/aiEnginePreference", engines], ["@/lib/aiGatewayConfig", config],
+  ]));
+  const client = transpileModule("../../lib/aiGatewayClient.ts", new Map<string, unknown>([
+    ["server-only", {}],
+    ["./aiGatewayReasoning.ts", { resolveAiMediaEditorialReasoning: () => undefined }],
+    ["@/lib/aiGatewayConfig", config],
+    ["@/lib/aiEnginePreference", engines],
+    ["@/lib/aiGatewayPolicy", {
+      getAiFeaturePolicy: () => ({ maxOutputTokens: 2_000, maxTimeoutMs: 30_000, maxInputChars: 72_000, maxImages: 5, maxImageDataChars: 1_000_000, defaultOperationMaxDurationMs: 31_000 }),
+      assertAllowedAiGatewayModel: () => undefined,
+      reserveAiOperationBudget: () => undefined,
+      AiOperationDeadlineExceededError: Error,
+    }],
+    ["@/lib/aiGatewayAccountGuard", {
+      reserveAiGatewayAccountAttempt: async () => null,
+      rollbackAiGatewayAccountAttempt: async () => undefined,
+      commitAiGatewayAccountAttempt: async () => undefined,
+      recordAiGatewayAccountFailure: async () => undefined,
+    }],
+    ["@/lib/aiGatewayEconomics", {
+      estimateInputTokensWithImages: () => 20,
+      estimateAiGatewayCostMicroUsd: () => 0,
+      resolveAiGatewayGuardPricing: () => ({ source: "test" }),
+    }],
+    ["@/lib/aiGatewayResponse", aiGatewayResponse],
+    ["@/lib/aiJsonSchemaValidation", { assertAiJsonMatchesSchema }],
+    ["@/lib/aiJsonResponseNormalization", { normalizeAiJsonResponseBeforeValidation }],
+    ["@/lib/aiGatewayOperationTelemetry", { recordAiGatewayOperationCall: () => undefined }],
+    ["@/lib/aiGenerationFallback", {
+      ...fallback,
+      getOpenAiDirectFallbackCredential: () => "",
+      resolveGatewayFallbackRouting: () => ({ model: "google/test", engine: "google", jsonMode: "strict" }),
+    }],
+    ["@/lib/aiModelCapabilities", { resolveModelTemperature: () => undefined }],
+    ["@/lib/observability/fetch", { fetchWithRetry: async (_url: string, init: { body: string; deadlineAt: number; timeoutMs: number }) => {
+      const { model } = JSON.parse(init.body);
+      const response = responses[calls.length];
+      calls.push({ model, deadlineAt: init.deadlineAt, timeoutMs: init.timeoutMs });
+      assert.ok(response, "Aucun appel supplémentaire n'est autorisé après les réponses prévues.");
+      return Response.json({ output_text: JSON.stringify(response), usage: { input_tokens: 20, output_tokens: 40, total_tokens: 60 } });
+    } }],
+  ]));
+  return { calls, generate: client.aiGenerateJSON as (input: AiGenerateJsonOptions) => Promise<unknown> };
 }
 
 test("les prompts libres préservent le brief complet et le format sans importer les réglages guidés", () => {
@@ -300,14 +364,65 @@ test("le dialogue Libre conserve une citation même courte et située après 2 0
   assert.match(freePrompts.buildAiMediaFreeVideoScenePrompt(provider, 1, 8), /no speech in this shot/);
 });
 
-test("un dialogue Libre absent, trop long ou trop nombreux est rejeté sans substituer un texte guidé", async () => {
-  for (const scenes of [[{ visualBrief: "La baleine sourit.", spokenLine: "" }], [{ visualBrief: "La baleine parle.", spokenLine: "mot ".repeat(15) }]]) {
+test("un dialogue IA absent ou trop long est une sortie fournisseur invalide, pas une demande utilisateur invalide", async () => {
+  for (const spokenLine of ["", " \n\t ", "mot ".repeat(15), "a".repeat(91), 123]) {
+    const scenes = [{ visualBrief: "La baleine parle.", spokenLine }];
     const runtime = loadPlan({ direction: "Court film animé.", scenes });
-    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), contracts.AiMediaRequestValidationError);
+    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), (error: unknown) => {
+      assert.ok(error instanceof AiJsonResponseNormalizationError);
+      assert.equal(error.code, "ai_gateway_invalid_output");
+      assert.ok(!(error instanceof contracts.AiMediaRequestValidationError));
+      return true;
+    });
   }
+});
+
+test("les citations trop longues ou trop nombreuses restent rejetées avant tout appel IA", async () => {
   for (const freePrompt of ['Il dit « Bonjour ! ». Elle répond « Salut ! ».', `Il dit « ${"mot ".repeat(15)} ».`]) {
     const runtime = loadPlan({});
     await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters", freePrompt }), profile }), contracts.AiMediaRequestValidationError);
     assert.equal(runtime.calls.length, 0);
   }
+});
+
+test("le schéma des voix exige des paroles générées mais autorise le silence après une citation", async () => {
+  const response = { direction: "Court film animé.", scenes: [{ visualBrief: "La baleine parle.", spokenLine: "  Bonjour,   petit nuage !  " }] };
+  const runtime = loadPlan(response);
+  const input = request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+  assert.equal(plan.scenes[0]!.spokenLine, "Bonjour, petit nuage !");
+  assert.throws(() => assertAiJsonMatchesSchema({ ...response, scenes: [{ ...response.scenes[0], spokenLine: "" }] }, runtime.calls[0]!.responseSchema.schema));
+
+  const exact = loadPlan({ direction: "Court film animé.", scenes: [
+    { visualBrief: "La baleine parle.", spokenLine: "Une phrase fournisseur incorrecte. ".repeat(6) },
+    { visualBrief: "Le nuage sourit.", spokenLine: "Une réplique non demandée." },
+  ] });
+  const exactInput = request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters", freePrompt: 'La baleine dit « Bonjour ! » puis sourit.' });
+  const exactPlan = await exact.prepareAiMediaFreeCreativePlan({ accountId: "test", request: exactInput, profile });
+  assert.deepEqual(exactPlan.scenes.map((scene) => scene.spokenLine), ["Bonjour !", ""]);
+  assert.doesNotThrow(() => assertAiJsonMatchesSchema({ direction: exactPlan.subline, scenes: exactPlan.scenes.map(({ visualBrief, spokenLine }) => ({ visualBrief, spokenLine })) }, exact.calls[0]!.responseSchema.schema));
+});
+
+test("une voix IA vide est récupérée par le secours Gateway dans la même deadline", async () => {
+  const gateway = loadDialogueGateway([
+    { direction: "Court film animé.", scenes: [{ visualBrief: "La baleine parle.", spokenLine: "" }] },
+    { direction: "Court film animé.", scenes: [{ visualBrief: "La baleine parle.", spokenLine: "Bonjour, petit nuage !" }] },
+  ]);
+  const runtime = loadPlan(null, gateway.generate);
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile });
+  assert.equal(plan.scenes[0]!.spokenLine, "Bonjour, petit nuage !");
+  assert.equal(runtime.calls.length, 1);
+  assert.equal(gateway.calls.length, 2);
+  assert.notEqual(gateway.calls[0]!.model, gateway.calls[1]!.model);
+  assert.equal(gateway.calls[0]!.deadlineAt, gateway.calls[1]!.deadlineAt);
+  assert.ok(gateway.calls.every((call) => call.timeoutMs <= 30_000));
+});
+
+test("deux réponses IA invalides épuisent les secours sans boucle ni erreur de demande utilisateur", async () => {
+  const badResponse = { direction: "Court film animé.", scenes: [{ visualBrief: "La baleine parle.", spokenLine: "" }] };
+  const gateway = loadDialogueGateway([badResponse, badResponse]);
+  const runtime = loadPlan(null, gateway.generate);
+  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), AiJsonResponseNormalizationError);
+  assert.equal(runtime.calls.length, 1);
+  assert.equal(gateway.calls.length, 2);
 });

@@ -85,6 +85,21 @@ export async function prepareAiMediaFreeCreativePlan(args: {
       references: args.request.inspirationImages.map(({ role, usage }) => ({ role, usage })),
       company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null,
     }),
+    // Validate generated dialogue inside the Gateway attempt so an invalid
+    // provider response can use the existing bounded fallback chain. Quoted
+    // user dialogue was validated above and remains authoritative.
+    normalizeResponseBeforeValidation: nativeDialogue ? (output) => ({
+      ...output,
+      scenes: Array.isArray(output.scenes) ? output.scenes.map((value, index) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const scene = value as Record<string, unknown>;
+        const spokenLine = exactDialogue.length
+          ? exactDialogue[index] || ""
+          : cleaned(scene.spokenLine);
+        if (!exactDialogue.length) validateAiMediaFreeDialogueLine(spokenLine);
+        return { ...scene, spokenLine };
+      }) : output.scenes,
+    }) : undefined,
     responseSchema: {
       name: "inrcy_free_film_direction", strict: true,
       schema: {
@@ -96,7 +111,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
               type: "object", additionalProperties: false,
               properties: {
                 visualBrief: { type: "string", minLength: 3, maxLength: 300 },
-                spokenLine: { type: "string", maxLength: 90 },
+                spokenLine: { type: "string", minLength: exactDialogue.length ? 0 : 1, maxLength: 90 },
               },
               required: ["visualBrief", "spokenLine"],
             } : { type: "string", minLength: 3, maxLength: 300 } },

@@ -6,13 +6,14 @@ import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
+import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
 
 type ReservationCall = {
   accountId: string; actorAuthUserId: string; requestKey: string;
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number;
 };
 
-function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; quotaReached?: boolean; maximumDuration?: number } = {}) {
+function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string }> = [];
   const completionCalls: unknown[] = [];
@@ -63,6 +64,7 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
     ["@/lib/aiMediaGenerationServer", {
       generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string }) => {
         generationCalls.push(args);
+        if (options.providerError) throw options.providerError;
         if (options.providerFails) throw new Error("ai_image_provider_output_invalid");
         return { item, soundtrack: null, model: "mock-provider", videoEngineResult: null,
           promptVersion: "mock-prompt", promptSha256: "mock-hash", pipelineTimingsMs: {} };
@@ -210,6 +212,16 @@ test("un échec fournisseur Libre libère une seule réservation et ne débite a
   assert.equal(response.status, 502);
   assert.equal(route.reservationCalls.length, 1);
   assert.equal(route.generationCalls.length, 1);
+  assert.equal(route.failureCalls.length, 1);
+  assert.equal(route.completionCalls.length, 0);
+});
+
+test("des voix IA invalides après les secours renvoient une erreur fournisseur et libèrent le quota vidéo", async () => {
+  const route = loadRoute({ providerError: new AiJsonResponseNormalizationError("normalizer_failed") });
+  const response = await route.post(body({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }));
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).code, "AI_MEDIA_GENERATION_FAILED");
+  assert.equal(route.reservationCalls[0]!.quotaAmount, 8);
   assert.equal(route.failureCalls.length, 1);
   assert.equal(route.completionCalls.length, 0);
 });

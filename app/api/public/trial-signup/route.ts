@@ -621,12 +621,14 @@ export async function POST(req: Request) {
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 
     let attributionPersisted = false;
+    let persistedAttributionEventId = payload.attribution.eventId;
     await persistSignupAttribution({
       userId,
       attribution: payload.attribution,
       browserMatch: payload.browserMatch,
-    }).then(() => {
+    }).then((persisted) => {
       attributionPersisted = true;
+      persistedAttributionEventId = persisted.eventId;
     }).catch((error: unknown) => {
       console.error(
         "[trial-signup][attribution]",
@@ -640,7 +642,7 @@ export async function POST(req: Request) {
       const leadEventId = buildMetaConversionEventId(
         "Lead",
         userId,
-        payload.attribution.eventId,
+        persistedAttributionEventId,
       );
       await processMetaConversionEvents({ eventId: leadEventId, limit: 1 })
         .catch((error: unknown) => {
