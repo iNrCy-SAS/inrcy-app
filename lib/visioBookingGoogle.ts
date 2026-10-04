@@ -1411,8 +1411,8 @@ async function performVisioTeamCalendarSync(
         continue;
       }
       try {
-        await cancelManagedPendingSignupEverywhere({ canonical: event });
-        result.cancelled += 1;
+        const changed = await cancelManagedPendingSignupEverywhere({ canonical: event });
+        if (changed) result.cancelled += 1;
       } catch (error) {
         result.errors.push({
           memberId: "shared",
@@ -1895,7 +1895,7 @@ async function performVisioTeamCalendarSync(
               currentStatus === "signup_pending" ||
               currentStatus === "signup_cancelled"
             ) {
-              await cancelManagedPendingSignupEverywhere({
+              const changed = await cancelManagedPendingSignupEverywhere({
                 canonical: deletedReplicaCanonical,
                 replicaEventId: event.id,
               });
@@ -1906,8 +1906,8 @@ async function performVisioTeamCalendarSync(
               fullySyncedManagedCanonicalIds.add(
                 deletedReplicaCanonical.id,
               );
-              result.reconciliation.replicaFanouts += 1;
-              result.cancelled += 1;
+              if (changed) result.reconciliation.replicaFanouts += 1;
+              result[changed ? "cancelled" : "unchanged"] += 1;
               continue;
             }
             const isAlreadyCancelled =
@@ -4443,15 +4443,15 @@ async function reconcileManagedCalendarReplica(
       replicaStatus === "signup_pending" ||
       replicaStatus === "signup_cancelled"
     ) {
-      await cancelManagedPendingSignupEverywhere({
+      const changed = await cancelManagedPendingSignupEverywhere({
         canonical,
         canonicalEventId,
         replicaEventId: replica.id,
       });
       managedCanonicalById.set(canonicalEventId, canonical || null);
       fullySyncedManagedCanonicalIds.add(canonicalEventId);
-      reconciliation.replicaFanouts += 1;
-      return "cancelled" as const;
+      if (changed) reconciliation.replicaFanouts += 1;
+      return changed ? "cancelled" as const : "unchanged" as const;
     }
     const restored = await restoreManagedCanonicalFromReplica({
       replica,
@@ -4634,18 +4634,26 @@ async function cancelCalendarEventWithoutUpdates(
   calendarId: string,
   eventId: string,
 ) {
+  // Google keeps cancelled replicas in showDeleted listings. Replaying a
+  // tombstone must not PATCH the same four cancelled events on every cron or
+  // for every member. During a full sync this reads the current invocation's
+  // snapshot/write response; absent ids still receive a real lookup, since
+  // absence from a date window is not proof that an event was deleted.
+  const existing = await getCalendarEvent(calendarId, eventId);
+  if (!existing || existing.status === "cancelled") return false;
   try {
     await patchCalendarEventWithoutUpdates(calendarId, eventId, {
       attendees: [],
       status: "cancelled",
     });
+    return true;
   } catch (error) {
     if (
       error instanceof Error &&
       (error.message.startsWith("visio_google_api_failed:404:") ||
         error.message.startsWith("visio_google_api_failed:410:"))
     ) {
-      return;
+      return false;
     }
     throw error;
   }
@@ -4664,7 +4672,7 @@ async function cancelManagedPendingSignupEverywhere(input: {
       (input.canonical ? calendarReplicaEventId(input.canonical) : ""),
   ).trim();
 
-  const removals: Promise<void>[] = [];
+  const removals: Promise<boolean>[] = [];
   if (canonicalEventId) {
     removals.push(
       cancelCalendarEventWithoutUpdates(
@@ -4680,8 +4688,9 @@ async function cancelManagedPendingSignupEverywhere(input: {
       );
     }
   }
-  await Promise.all(removals);
+  const changed = (await Promise.all(removals)).some(Boolean);
   if (input.canonical) input.canonical.status = "cancelled";
+  return changed;
 }
 
 async function cancelDuplicateAppointmentMirrors(

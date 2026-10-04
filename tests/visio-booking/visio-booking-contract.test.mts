@@ -445,11 +445,11 @@ test("supprimer une inscription jaune la retire partout sans flux rose", () => {
   );
   assert.match(
     teamSync,
-    /deletedReplicaCanonical[\s\S]*?currentStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?result\.cancelled \+= 1/,
+    /deletedReplicaCanonical[\s\S]*?currentStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?result\[changed \? "cancelled" : "unchanged"\] \+= 1/,
   );
   assert.match(
     replicaReconciliation,
-    /replicaStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?return "cancelled" as const/,
+    /replicaStatus === "signup_pending"[\s\S]*?cancelManagedPendingSignupEverywhere[\s\S]*?return changed \? "cancelled" as const : "unchanged" as const/,
   );
   assert.match(
     teamSync,
