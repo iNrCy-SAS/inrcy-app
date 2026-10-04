@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as planChange from "../../lib/subscriptionPlanChange.ts";
 import * as subscriptionPeriods from "../../lib/stripeSubscription.ts";
+import * as subscriptionOffers from "../../lib/subscriptionOffers.ts";
 
 type Plan = "Standard" | "Premium";
 type Cycle = "monthly" | "yearly";
@@ -20,6 +21,7 @@ function fixture(options: {
   authenticated?: boolean; row?: ObjectRow; subscription?: ObjectRow; invoiceStatus?: string;
   schedule?: ObjectRow; missingRenewal?: boolean; previewAmount?: number; secondPreviewAmount?: number;
   statefulSchedules?: boolean;
+  targetPricesMissing?: boolean; previewTaxStatus?: string | null; createdPhase?: ObjectRow;
 } = {}) {
   const now = Math.floor(Date.now() / 1000);
   const plan = options.plan ?? "Standard";
@@ -40,6 +42,7 @@ function fixture(options: {
   const live = {
     id: "sub_account", customer: "cus_account", metadata: { user_id: "user_1" }, status: "active",
     collection_method: "charge_automatically", latest_invoice: "in_paid",
+    automatic_tax: { enabled: true },
     items: { data: [item(currentPrice, cycle)], has_more: false },
     ...(options.schedule ? { schedule: "sched_existing" } : {}), ...options.subscription,
   };
@@ -58,9 +61,10 @@ function fixture(options: {
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/billingCatalog", {
       commercialPriceFromId: (id: string) => catalog.get(id) ?? null,
-      configuredPremiumPriceId: (cycle: Cycle, version: Version) => price("Premium", cycle, version),
-      configuredStandardPriceId: (cycle: Cycle, version: Version) => price("Standard", cycle, version),
+      configuredPremiumPriceId: (cycle: Cycle, version: Version) => options.targetPricesMissing ? "" : price("Premium", cycle, version),
+      configuredStandardPriceId: (cycle: Cycle, version: Version) => options.targetPricesMissing ? "" : price("Standard", cycle, version),
     }],
+    ["@/lib/subscriptionOffers", subscriptionOffers],
     ["@/lib/subscriptionPlanChange", planChange],
     ["@/lib/stripeSubscription", subscriptionPeriods],
     ["@/lib/requireUser", { requireUser: async () => {
@@ -93,6 +97,7 @@ function fixture(options: {
           return {
             amount_due: previewCount > 1 ? options.secondPreviewAmount ?? options.previewAmount ?? 1234 : options.previewAmount ?? 1234,
             currency: "eur",
+            automatic_tax: { enabled: true, status: options.previewTaxStatus === undefined ? "complete" : options.previewTaxStatus },
             lines: { has_more: false, data: options.missingRenewal ? [] : [
               { pricing: { price_details: { price: targetId } }, parent: { subscription_item_details: { proration: false } }, period: { start: now, end } },
             ] },
@@ -134,7 +139,7 @@ function fixture(options: {
           return schedule;
         }
         if (path === "/subscription_schedules") return {
-          id: "sched_new", subscription: "sub_account", phases: [{ start_date: now - 1000, end_date: periodEnd, items: [{ price: currentPrice, quantity: 1 }] }],
+          id: "sched_new", subscription: "sub_account", phases: [{ start_date: now - 1000, end_date: periodEnd, items: [{ price: currentPrice, quantity: 1 }], ...options.createdPhase }],
         };
         if (path === "/subscription_schedules/sched_new" || path.endsWith("/release")) return {};
         throw new Error(`Unexpected mutation: ${path}`);
@@ -159,6 +164,11 @@ const confirmation = (quote: ObjectRow) => ({
   expectedAmountDue: quote.amountDue, expectedTargetPriceId: quote.targetPriceId, expectedCurrentPriceId: quote.currentPriceId,
 });
 
+const downgradeConfirmation = (route: ReturnType<typeof fixture>, billingCycle: Cycle) => ({
+  targetPlan: "Standard", billingCycle, expectedCurrentPriceId: route.currentPrice,
+  expectedTargetPriceId: price("Standard", billingCycle, "international_ht_v2"),
+});
+
 for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
   for (const [plan, cycle, target, targetCycle] of [
     ["Standard", "monthly", "Standard", "yearly"], ["Standard", "yearly", "Standard", "monthly"],
@@ -170,10 +180,12 @@ for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
     const preview = await route.get(target, targetCycle);
     assert.equal(preview.status, 200);
     const { quote } = await preview.json();
-    assert.equal(quote.targetPriceId, price(target, targetCycle, version));
+    assert.equal(quote.targetPriceId, price(target, targetCycle, "international_ht_v2"));
     assert.equal(quote.currentPriceId, route.currentPrice);
     assert.equal(quote.billingCycleChanged, cycle !== targetCycle);
     assert.ok(Number.isFinite(Date.parse(quote.renewalAt)));
+    assert.deepEqual(route.posts.map(({ path }) => path), ["/invoices/create_preview"]);
+    assert.equal(route.executions(), 0, "a quote must never change the paid contract");
     const response = await route.post(confirmation(quote));
     assert.equal(response.status, 200);
     const body = await response.json();
@@ -191,6 +203,8 @@ for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
     assert.equal(secondPreview.params.get("subscription_details[proration_behavior]"), "always_invoice");
     assert.equal(secondPreview.params.get("subscription_details[billing_cycle_anchor]"), cycle !== targetCycle ? "now" : null);
     assert.equal(secondPreview.params.get("subscription_details[proration_date]"), String(quote.prorationDate));
+    assert.equal(secondPreview.params.get("automatic_tax[enabled]"), "true");
+    assert.equal([...update.params.keys()].some((key) => /automatic_tax|tax_rates|discount/.test(key)), false);
     assert.ok(update.idempotencyKey?.includes(quote.targetPriceId));
     assert.ok(update.idempotencyKey?.includes(targetCycle));
     assert.equal(route.posts.some((call) => /checkout|customers/.test(call.path)), false);
@@ -207,12 +221,119 @@ test("same plan and same cadence is unchanged; an invalid cadence fails closed",
 });
 
 test("older clients omitting cadence keep the existing yearly cycle", async () => {
-  const route = fixture({ cycle: "yearly" });
+  const route = fixture({ cycle: "yearly", version: "international_ht_v2" });
   const { quote } = await (await route.get("Premium")).json();
   assert.equal(quote.billingCycle, "yearly");
   const response = await route.post({ targetPlan: "Premium", prorationDate: quote.prorationDate, expectedAmountDue: quote.amountDue });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).applied, true);
+});
+
+test("reading or resubmitting an unchanged legacy plan never migrates its price or taxes", async () => {
+  const route = fixture({ targetPricesMissing: true, subscription: { automatic_tax: { enabled: false } } });
+  const body = await (await route.get("Standard", "monthly")).json();
+  assert.equal(body.changeType, "unchanged");
+  assert.equal(body.targetPriceId, route.currentPrice);
+  assert.equal((await (await route.post({ targetPlan: "Standard", billingCycle: "monthly" })).json()).code, "ALREADY_ON_PLAN");
+  assert.equal(route.posts.length, 0);
+});
+
+test("missing current commercial prices never falls back to a legacy offer", async () => {
+  const route = fixture({ targetPricesMissing: true });
+  assert.equal((await (await route.get("Premium", "monthly")).json()).code, "TARGET_PRICE_UNAVAILABLE");
+  assert.equal((await (await route.post({ targetPlan: "Premium", billingCycle: "monthly" })).json()).code, "TARGET_PRICE_UNAVAILABLE");
+  assert.equal(route.posts.length, 0);
+});
+
+test("a cross-version zero-euro credit still requires both exact price IDs, even without cadence", async () => {
+  const route = fixture({ cycle: "yearly", previewAmount: 0 });
+  const { quote } = await (await route.get("Premium")).json();
+  const originalClient = { targetPlan: "Premium", prorationDate: quote.prorationDate, expectedAmountDue: 0 };
+  for (const ids of [
+    {}, { expectedTargetPriceId: quote.targetPriceId }, { expectedCurrentPriceId: quote.currentPriceId },
+    { expectedTargetPriceId: price("Premium", "yearly", "legacy_ttc_v1"), expectedCurrentPriceId: quote.currentPriceId },
+  ]) {
+    assert.equal((await (await route.post({ ...originalClient, ...ids })).json()).code, "QUOTE_CHANGED");
+    assert.equal(route.executions(), 0);
+  }
+  assert.equal(route.posts.length, 1, "rejected confirmations must not issue another Stripe preview or update");
+  assert.equal((await route.post({ ...confirmation(quote), billingCycle: undefined })).status, 200);
+});
+
+test("new legacy downgrades require confirmation of the V2 destination before creating any schedule", async () => {
+  const route = fixture({ plan: "Premium" });
+  const preview = await (await route.get("Standard", "yearly")).json();
+  assert.equal(preview.currentPriceId, route.currentPrice);
+  assert.equal(preview.targetPriceId, price("Standard", "yearly", "international_ht_v2"));
+  for (const body of [
+    { targetPlan: "Standard" }, { targetPlan: "Standard", billingCycle: "yearly" },
+    { ...downgradeConfirmation(route, "yearly"), expectedTargetPriceId: price("Standard", "yearly", "legacy_ttc_v1") },
+  ]) assert.equal((await (await route.post(body)).json()).code, "QUOTE_CHANGED");
+  assert.equal(route.posts.length, 0);
+});
+
+test("an exclusive-tax change cannot silently enable or omit tax on incompatible contracts", async () => {
+  for (const version of ["legacy_ttc_v1", "international_ht_v2"] as const) {
+    for (const automaticTax of [undefined, { enabled: false }]) {
+      const route = fixture({ version, subscription: { automatic_tax: automaticTax } });
+      assert.equal((await (await route.get("Premium", "yearly")).json()).code, "TAX_CONFIGURATION_REQUIRED");
+      assert.equal((await (await route.post({ targetPlan: "Premium", billingCycle: "yearly" })).json()).code, "TAX_CONFIGURATION_REQUIRED");
+      assert.equal(route.posts.length, 0);
+      const downgrade = fixture({ plan: "Premium", version, subscription: { automatic_tax: automaticTax } });
+      assert.equal((await (await downgrade.get("Standard", "yearly")).json()).code, "TAX_CONFIGURATION_REQUIRED");
+      assert.equal((await (await downgrade.post(downgradeConfirmation(downgrade, "yearly"))).json()).code, "TAX_CONFIGURATION_REQUIRED");
+      assert.equal(downgrade.posts.length, 0);
+    }
+  }
+});
+
+test("an incomplete tax calculation cannot become a payable quote", async () => {
+  for (const previewTaxStatus of [null, "failed", "requires_location_inputs"]) {
+    const route = fixture({ previewTaxStatus });
+    assert.equal((await (await route.get("Premium", "yearly")).json()).code, "QUOTE_UNAVAILABLE");
+    assert.equal(route.executions(), 0);
+    assert.deepEqual(route.posts.map(({ path }) => path), ["/invoices/create_preview"]);
+  }
+});
+
+test("immediate price updates leave existing subscription discounts and taxes untouched", async () => {
+  const route = fixture({ subscription: { discounts: [{ id: "di_existing" }] } });
+  const { quote } = await (await route.get("Premium", "monthly")).json();
+  assert.equal((await route.post(confirmation(quote))).status, 200);
+  for (const call of route.posts) {
+    assert.equal([...call.params.keys()].some((key) => /discount|tax_rates/.test(key)), false);
+  }
+  assert.equal(route.posts.at(-1)!.params.has("automatic_tax[enabled]"), false);
+});
+
+test("downgrades refuse custom discounts or manual taxes without removing them or attaching a schedule", async () => {
+  for (const subscription of [
+    { discounts: [{ id: "di_existing" }] }, { discount: { id: "di_old" } },
+    { default_tax_rates: ["txr_manual"] },
+    { items: { data: [{ id: "si_current", quantity: 1, current_period_end: Math.floor(Date.now() / 1000) + 86_400,
+      price: { id: price("Premium", "monthly", "legacy_ttc_v1"), recurring: { interval: "month", interval_count: 1 } }, discounts: [{ id: "di_item" }] }] } },
+  ]) {
+    const route = fixture({ plan: "Premium", subscription });
+    assert.equal((await (await route.get("Standard", "yearly")).json()).code, "SCHEDULE_UNSUPPORTED");
+    assert.equal((await (await route.post(downgradeConfirmation(route, "yearly"))).json()).code, "SCHEDULE_UNSUPPORTED");
+    assert.equal(route.posts.length, 0);
+  }
+});
+
+test("a discount discovered on the newly created phase releases the schedule without overwriting it", async () => {
+  const route = fixture({ plan: "Premium", createdPhase: { items: [{ price: price("Premium", "monthly", "legacy_ttc_v1"), quantity: 1, discounts: [{ id: "di_item" }] }] } });
+  assert.equal((await (await route.post(downgradeConfirmation(route, "yearly"))).json()).code, "SCHEDULE_UNSUPPORTED");
+  assert.deepEqual(route.posts.map(({ path }) => path), ["/subscription_schedules", "/subscription_schedules/sched_new/release"]);
+});
+
+test("historical schedules remain readable and cancellable without current prices or enabled tax", async () => {
+  const scheduledPrice = price("Standard", "yearly", "legacy_ttc_v1");
+  const schedule = { status: "active", metadata: { inrcy_plan_change: planChange.INRcy_DOWNGRADE_SCHEDULE_TAG, inrcy_user_id: "user_1" }, phases: [{}, { items: [{ price: scheduledPrice }] }] };
+  const route = fixture({ plan: "Premium", schedule, targetPricesMissing: true, subscription: { automatic_tax: { enabled: false } } });
+  assert.equal((await (await route.get("Standard")).json()).targetPriceId, scheduledPrice);
+  assert.equal((await route.post({ targetPlan: "Standard" })).status, 200);
+  assert.equal((await route.delete()).status, 200);
+  assert.deepEqual(route.posts.map(({ path }) => path), ["/subscription_schedules/sched_existing/release"]);
 });
 
 test("confirmed prices, amount and quote age must still match before any payment", async () => {
@@ -290,24 +411,28 @@ test("Premium downgrade preserves the paid period and starts the chosen cadence 
   const preview = await (await route.get("Standard", "yearly")).json();
   assert.equal(preview.changeType, "scheduled");
   assert.equal(preview.renewalAt, new Date(route.periodEnd * 1000).toISOString());
-  assert.equal((await route.post({ targetPlan: "Standard", billingCycle: "yearly" })).status, 200);
+  assert.equal((await route.post(downgradeConfirmation(route, "yearly"))).status, 200);
   const update = route.posts.find((call) => call.path === "/subscription_schedules/sched_new")!;
   assert.equal(update.params.get("phases[0][items][0][price]"), route.currentPrice);
   assert.equal(update.params.get("phases[0][end_date]"), String(route.periodEnd));
-  assert.equal(update.params.get("phases[1][items][0][price]"), price("Standard", "yearly", "legacy_ttc_v1"));
+  assert.equal(update.params.get("phases[1][items][0][price]"), price("Standard", "yearly", "international_ht_v2"));
   assert.equal(update.params.get("phases[1][proration_behavior]"), "none");
+  assert.equal(update.params.get("phases[0][automatic_tax][enabled]"), "true");
+  assert.equal(update.params.get("phases[1][automatic_tax][enabled]"), "true");
   assert.equal(route.posts.some((call) => call.path.includes("invoices") || call.path === "/subscriptions/sub_account"), false);
 });
 
-test("a scheduled downgrade with different cadence is recognized, protected and cancellable", async () => {
-  const schedule = { status: "active", metadata: { inrcy_plan_change: planChange.INRcy_DOWNGRADE_SCHEDULE_TAG, inrcy_user_id: "user_1" }, phases: [{}, { items: [{ price: price("Standard", "yearly", "legacy_ttc_v1") }] }] };
+for (const scheduledVersion of ["legacy_ttc_v1", "international_ht_v2"] as const) test(`${scheduledVersion}: a scheduled downgrade is read at its exact agreed price and remains cancellable`, async () => {
+  const scheduledPrice = price("Standard", "yearly", scheduledVersion);
+  const schedule = { status: "active", metadata: { inrcy_plan_change: planChange.INRcy_DOWNGRADE_SCHEDULE_TAG, inrcy_user_id: "user_1" }, phases: [{}, { items: [{ price: scheduledPrice }] }] };
   const route = fixture({ plan: "Premium", schedule });
-  assert.equal((await (await route.get("Standard", "yearly")).json()).pendingDowngrade, true);
+  assert.equal((await route.get("Standard", "yearly")).status, scheduledVersion === "international_ht_v2" ? 200 : 409);
   const legacyPreview = await (await route.get("Standard")).json();
   assert.equal(legacyPreview.pendingDowngrade, true);
   assert.equal(legacyPreview.billingCycle, "yearly");
+  assert.equal(legacyPreview.targetPriceId, scheduledPrice);
   assert.equal((await route.post({ targetPlan: "Standard" })).status, 200);
-  assert.equal((await route.post({ targetPlan: "Standard", billingCycle: "yearly" })).status, 200);
+  assert.equal((await route.post({ targetPlan: "Standard", billingCycle: "yearly" })).status, scheduledVersion === "international_ht_v2" ? 200 : 409);
   assert.equal((await route.post({ targetPlan: "Standard", billingCycle: "monthly" })).status, 409);
   assert.equal((await route.delete()).status, 200);
   assert.deepEqual(route.posts.map(({ path }) => path), ["/subscription_schedules/sched_existing/release"]);
@@ -316,9 +441,9 @@ test("a scheduled downgrade with different cadence is recognized, protected and 
 for (const nextCycle of ["monthly", "yearly"] as const) {
   test(`cancel then recreate a downgrade with ${nextCycle} does not reuse the released Stripe schedule`, async () => {
     const route = fixture({ plan: "Premium", statefulSchedules: true });
-    assert.equal((await route.post({ targetPlan: "Standard", billingCycle: "yearly" })).status, 200);
+    assert.equal((await route.post(downgradeConfirmation(route, "yearly"))).status, 200);
     assert.equal((await route.delete()).status, 200);
-    assert.equal((await route.post({ targetPlan: "Standard", billingCycle: nextCycle })).status, 200);
+    assert.equal((await route.post(downgradeConfirmation(route, nextCycle))).status, 200);
     assert.equal(route.scheduleExecutions(), 2);
     const creationKeys = route.posts.filter(({ path }) => path === "/subscription_schedules").map(({ idempotencyKey }) => idempotencyKey);
     assert.equal(new Set(creationKeys).size, 2);
@@ -328,8 +453,8 @@ for (const nextCycle of ["monthly", "yearly"] as const) {
 test("concurrent downgrade confirmations can attach only one schedule and create no invoice", async () => {
   const route = fixture({ plan: "Premium", statefulSchedules: true });
   const responses = await Promise.all([
-    route.post({ targetPlan: "Standard", billingCycle: "yearly" }),
-    route.post({ targetPlan: "Standard", billingCycle: "monthly" }),
+    route.post(downgradeConfirmation(route, "yearly")),
+    route.post(downgradeConfirmation(route, "monthly")),
   ]);
   assert.ok(responses.some(({ status }) => status === 200));
   assert.equal(route.scheduleExecutions(), 1);

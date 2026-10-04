@@ -30,10 +30,12 @@ type CheckoutResponse = {
   url?: string;
   recoveredSubscription?: boolean;
   nextAction?: "change_plan" | "reload";
+  trialEndAt?: string;
+  trialExtended?: boolean;
 };
 
 export type SubscriptionCheckoutResult =
-  | { platform: "web"; provider: "stripe"; recoveredSubscription?: boolean; nextAction?: "change_plan" | "reload" }
+  | { platform: "web"; provider: "stripe"; recoveredSubscription?: boolean; nextAction?: "change_plan" | "reload"; checkoutCancelled?: boolean }
   | NativeSubscriptionPurchaseResult;
 
 export class NativeBillingRequiredError extends Error {
@@ -113,12 +115,14 @@ export async function startSubscriptionCheckout({
   plan,
   billingCycle,
   fallbackError,
+  confirmTrialExtension,
   fetchImpl = fetch,
   runtime = currentBrowserRuntime(),
 }: {
   plan: NativeSubscriptionPlan;
   billingCycle: BillingCycle;
   fallbackError: string;
+  confirmTrialExtension?: (trialEndAt: string) => boolean;
   fetchImpl?: typeof fetch;
   runtime?: BrowserRuntime | null;
 }): Promise<SubscriptionCheckoutResult> {
@@ -146,6 +150,14 @@ export async function startSubscriptionCheckout({
     return { platform: "web", provider: "stripe", recoveredSubscription: true, nextAction: body.nextAction };
   }
   if (!body?.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
+  if (body.trialExtended) {
+    if (!body.trialEndAt || !Number.isFinite(Date.parse(body.trialEndAt)) || !confirmTrialExtension) {
+      throw new Error(fallbackError);
+    }
+    if (!confirmTrialExtension(body.trialEndAt)) {
+      return { platform: "web", provider: "stripe", checkoutCancelled: true };
+    }
+  }
 
   runtime.location.assign(body.url);
   return { platform: "web", provider: "stripe" };

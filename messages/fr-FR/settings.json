@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Forfait sélectionné",
+  "subscription_trial_choose_plan": "Choisir ce forfait",
+  "subscription_trial_change_notice": "Aucun débit maintenant. La fin de votre essai est conservée : {date}.",
+  "subscription_trial_extension_confirm": "Stripe impose au moins 48 heures d’essai avant le premier paiement. Si vous confirmez votre souscription sur Stripe, votre essai sera prolongé jusqu’au {date}, sans débit avant cette date. Continuer vers Stripe ?",
   "premium_feature_ai_studio": "Quotas IA iNr’Studio : 70 images / mois et 196 secondes de vidéo / mois",
   "premium_feature_agent": "iNr’Agent complet avec Propulser et Fidéliser",
   "premium_feature_send": "iNr’Send complet et campagnes mails",
@@ -632,6 +636,7 @@
   "utiliser_fideliser_af919842": "Utiliser Fidéliser",
   "utiliser_propulser_c4b4b56d": "Utiliser Propulser",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Utilisez vos UI pour économiser jusqu’à",
+  "boutique_ui_savings_percent": "Avec vos UI, économisez environ {percent} sur le prix en euros.",
   "value_est_maintenant_le_tableau_par_309d14f4": "« {value0} » est maintenant le tableau par défaut.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

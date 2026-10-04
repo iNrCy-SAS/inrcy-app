@@ -4,6 +4,7 @@ import styles from "./adminOrders.module.css";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
+import { boutiqueOrderTotals, boutiqueStoredTaxLabel, formatStoredBoutiqueAmounts } from "@/lib/boutique/orderAmounts";
 
 type OrderStatus = "pending" | "processed";
 type OrderMethod = "EUR" | "UI";
@@ -18,6 +19,7 @@ type BoutiqueOrderRow = {
   product_name: string;
   method: OrderMethod;
   amount_eur: number | null;
+  amount_eur_tax_behavior: "exclusive" | "inclusive" | null;
   amount_ui: number | null;
   status: OrderStatus;
 };
@@ -40,7 +42,7 @@ function csvCell(value: unknown) {
 }
 
 function downloadCsv(rows: BoutiqueOrderRow[]) {
-  const headers = ["Date", "Produit", "Clé produit", "Méthode", "Montant €", "Montant UI", "Statut", "Compte", "Admin", "User ID"];
+  const headers = ["Date", "Produit", "Clé produit", "Méthode", "Montant €", "Base montant €", "Montant UI", "Statut", "Compte", "Admin", "User ID"];
   const body = rows.map((row) =>
     [
       fmtDate(row.created_at),
@@ -48,6 +50,7 @@ function downloadCsv(rows: BoutiqueOrderRow[]) {
       row.product_key,
       row.method,
       row.amount_eur ?? "",
+      row.amount_eur === null ? "" : boutiqueStoredTaxLabel(row.amount_eur_tax_behavior),
       row.amount_ui ?? "",
       statusLabel(row.status),
       row.account_email ?? "",
@@ -143,9 +146,7 @@ export default function AdminOrdersClient() {
   const metrics = useMemo(() => {
     const pending = rows.filter((r) => r.status === "pending").length;
     const processed = rows.filter((r) => r.status === "processed").length;
-    const totalEur = rows.reduce((sum, row) => sum + (row.method === "EUR" ? row.amount_eur || 0 : 0), 0);
-    const totalUi = rows.reduce((sum, row) => sum + (row.method === "UI" ? row.amount_ui || 0 : 0), 0);
-    return { pending, processed, total: rows.length, totalEur, totalUi };
+    return { pending, processed, total: rows.length, ...boutiqueOrderTotals(rows) };
   }, [rows]);
 
   return (
@@ -184,13 +185,15 @@ export default function AdminOrdersClient() {
             <small className={styles.metricSub}>Sur la vue affichée</small>
           </article>
           <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>Montant €</span>
-            <strong className={styles.metricValue}>{metrics.totalEur.toFixed(0)} €</strong>
-            <small className={styles.metricSub}>Paiements euros</small>
+            <span className={styles.metricLabel}>Montant HT</span>
+            <strong className={styles.metricValue}>{metrics.eurHt.toLocaleString("fr-FR")} € HT</strong>
+            <small className={styles.metricSub}>Euros seuls et offres euros + UI</small>
+            {metrics.eurTtc > 0 ? <small className={styles.metricSub}>{metrics.eurTtc.toLocaleString("fr-FR")} € TTC, séparés du total HT</small> : null}
+            {metrics.eurUnclassified > 0 ? <small className={styles.metricSub}>{metrics.eurUnclassified.toLocaleString("fr-FR")} € historiques, base non renseignée</small> : null}
           </article>
           <article className={styles.metricCard}>
             <span className={styles.metricLabel}>Montant UI</span>
-            <strong className={styles.metricValue}>{metrics.totalUi.toFixed(0)} UI</strong>
+            <strong className={styles.metricValue}>{metrics.ui.toFixed(0)} UI</strong>
             <small className={styles.metricSub}>{metrics.total} ligne(s) chargée(s)</small>
           </article>
         </section>
@@ -273,7 +276,7 @@ export default function AdminOrdersClient() {
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const amount = row.method === "EUR" ? `${row.amount_eur ?? "—"} €` : `${row.amount_ui ?? "—"} UI`;
+                    const amount = formatStoredBoutiqueAmounts(row);
                     const processing = savingId === row.id;
                     return (
                       <tr key={row.id}>

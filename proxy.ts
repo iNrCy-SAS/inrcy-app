@@ -20,6 +20,7 @@ import {
   type AppLocale,
 } from "./i18n/config";
 import { isPublicEmbedPath } from "./lib/actusWidgetEmbed";
+import { CHECKOUT_RETURN_HEADER, checkoutReturnQuery } from "./lib/checkoutReturnRouting";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -515,6 +516,8 @@ export async function proxy(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
+  // Overwrite any inbound hint. Only allowlisted URL context reaches the layout.
+  requestHeaders.set(CHECKOUT_RETURN_HEADER, checkoutReturnQuery(req.nextUrl.searchParams));
 
   let explicitlyRequestedLocale: AppLocale | null = null;
   for (const parameter of APP_LOCALE_QUERY_PARAMS) {
@@ -753,7 +756,7 @@ export async function proxy(req: NextRequest) {
       if (!isAllowedSubscription(currentSubscriptionGate)) {
         const url = req.nextUrl.clone();
         url.pathname = "/compte-bloque";
-        url.search = "";
+        url.search = checkoutReturnQuery(req.nextUrl.searchParams);
         const out = NextResponse.redirect(url, 307);
         return applyResponseHeaders(out);
       }

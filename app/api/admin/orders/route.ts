@@ -8,7 +8,7 @@ type OrderStatus = "pending" | "processed";
 type OrderMethod = "EUR" | "UI";
 
 const ORDER_SELECT =
-  "id,created_at,user_id,account_email,admin_email,product_key,product_name,method,amount_eur,amount_ui,status";
+  "id,created_at,user_id,account_email,admin_email,product_key,product_name,method,amount_eur,amount_eur_tax_behavior,amount_ui,status";
 
 function cleanSearch(value: string | null) {
   return String(value || "")

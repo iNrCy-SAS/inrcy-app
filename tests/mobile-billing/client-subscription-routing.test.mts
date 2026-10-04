@@ -20,6 +20,36 @@ test("a recovered Stripe subscription resumes its plan change without opening a 
   assert.deepEqual(browser.assigned, []);
 });
 
+for (const accepted of [true, false]) {
+  test(`technical trial extension displays the actual date before Stripe and respects confirmation=${accepted}`, async () => {
+    const browser = runtime();
+    const trialEndAt = "2030-01-03T18:02:00.000Z";
+    let confirmed = false;
+    const result = await startSubscriptionCheckout({
+      plan: "Premium", billingCycle: "yearly", fallbackError: "Erreur", runtime: browser.value,
+      confirmTrialExtension: (date) => {
+        assert.equal(date, trialEndAt);
+        assert.deepEqual(browser.assigned, [], "the date is shown before leaving the application");
+        confirmed = true;
+        return accepted;
+      },
+      fetchImpl: (async () => Response.json({ url: "https://checkout.stripe.com/test", trialExtended: true, trialEndAt })) as typeof fetch,
+    });
+    assert.equal(confirmed, true);
+    assert.deepEqual(browser.assigned, accepted ? ["https://checkout.stripe.com/test"] : []);
+    if (!accepted) assert.deepEqual(result, { platform: "web", provider: "stripe", checkoutCancelled: true });
+  });
+}
+
+test("an extension without a valid date and explicit confirmation cannot silently open Stripe", async () => {
+  const browser = runtime();
+  await assert.rejects(startSubscriptionCheckout({
+    plan: "Standard", billingCycle: "monthly", fallbackError: "Trial verification required", runtime: browser.value,
+    fetchImpl: (async () => Response.json({ url: "https://checkout.stripe.com/test", trialExtended: true })) as typeof fetch,
+  }), /Trial verification required/);
+  assert.deepEqual(browser.assigned, []);
+});
+
 function runtime(platform?: "ios" | "android") {
   const assigned: string[] = [];
   return {

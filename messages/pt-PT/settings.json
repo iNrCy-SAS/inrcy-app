@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Plano selecionado",
+  "subscription_trial_choose_plan": "Escolher este plano",
+  "subscription_trial_change_notice": "Sem cobranças agora. O fim do período de teste mantém-se: {date}.",
+  "subscription_trial_extension_confirm": "O Stripe exige pelo menos 48 horas de teste antes do primeiro pagamento. Se confirmar a subscrição no Stripe, o período de teste será prolongado até {date}, sem cobranças antes dessa data. Continuar para o Stripe?",
   "premium_feature_ai_studio": "Quotas de IA iNr’Studio: 70 imagens/mês e 196 segundos de vídeo/mês",
   "premium_feature_agent": "iNr’Agent completo com Promover e Fidelizar",
   "premium_feature_send": "iNr’Send completo e campanhas de email",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "Usar Fidelizar",
   "utiliser_propulser_c4b4b56d": "Usar Impulsionar",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Utilize a sua interface de utilizador para poupar até",
+  "boutique_ui_savings_percent": "Com as suas UI, poupe aproximadamente {percent} no preço em euros.",
   "value_est_maintenant_le_tableau_par_309d14f4": "\" {value0} \" é agora a tabela predefinida.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

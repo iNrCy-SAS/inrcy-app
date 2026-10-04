@@ -6,11 +6,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
+import { isCheckoutReturnSynchronized, parseCheckoutReturnTarget } from "@/lib/subscriptionCheckoutReturn";
+import { canPreviewSubscriptionPlanChange, currentSubscriptionBillingPlan } from "@/lib/subscriptionPlanChangePolicy";
 import {
-  premiumSubscriptionOfferForAccountCreatedAt,
-  standardSubscriptionOfferForAccountCreatedAt,
+  currentSubscriptionOffer,
+  annualSubscriptionSavingRate,
   type BillingCycle,
 } from "@/lib/subscriptionOffers";
 import {
@@ -57,6 +58,8 @@ type BillingChangeQuote = {
   targetPriceId: string;
   currentPriceId: string;
   billingCycleChanged: boolean;
+  trialChange?: boolean;
+  trialEndUnix?: number;
   renewalAt?: number | string | null;
 };
 
@@ -108,8 +111,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get("checkout");
+  const checkoutPlan = searchParams.get("checkout_plan");
+  const checkoutBilling = searchParams.get("billing");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
-  const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [billingCycles, setBillingCycles] = useState<Record<"Standard" | "Premium", BillingCycle>>({ Standard: "monthly", Premium: "monthly" });
   const billingCycleInitialized = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -130,7 +134,6 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) return null;
-    setAccountCreatedAt(authData.user.created_at ?? null);
     const { data, error: queryError } = await supabase
       .from("subscriptions")
       .select(SUBSCRIPTION_SELECT)
@@ -138,7 +141,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       .maybeSingle();
     if (queryError) throw queryError;
     if (!billingCycleInitialized.current && data) {
-      const activePlan = resolveDashboardEdition({ edition: data.app_edition, plan: data.plan }) === "premium" ? "Premium" : "Standard";
+      const activePlan = currentSubscriptionBillingPlan(data) === "Premium" ? "Premium" : "Standard";
       setBillingCycles((cycles) => ({ ...cycles, [activePlan]: data.billing_cycle === "yearly" ? "yearly" : "monthly" }));
       billingCycleInitialized.current = true;
     }
@@ -218,25 +221,28 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   useEffect(() => {
     if (checkoutState !== "success") return;
     setMessage(i18nT("paiement_enregistre_la_synchronisation_de_votre_d53f480e"));
+    const target = parseCheckoutReturnTarget(new URLSearchParams({
+      checkout_plan: checkoutPlan ?? "", billing: checkoutBilling ?? "",
+    }));
     let attempts = 0;
+    let stopped = false;
     const timer = window.setInterval(() => {
       attempts += 1;
       void loadSubscription().then((row) => {
-        if (!row || !row.stripe_subscription_id ||
-            !["active", "trialing"].includes(normalizeStatus(row.status))) return;
-        const edition = String(row.app_edition || "").toLowerCase();
-        if (edition !== "standard" && edition !== "premium") return;
+        if (stopped || !isCheckoutReturnSynchronized(row, target)) return;
+        stopped = true;
         window.clearInterval(timer);
         const url = new URL(window.location.href);
         url.searchParams.delete("checkout");
         url.searchParams.delete("billing");
+        url.searchParams.delete("checkout_plan");
         window.history.replaceState({}, "", url);
         window.location.reload();
       }).catch(() => null);
-      if (attempts >= 8) window.clearInterval(timer);
+      if (attempts >= 20) window.clearInterval(timer);
     }, 1500);
-    return () => window.clearInterval(timer);
-  }, [checkoutState, loadSubscription]);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [checkoutState, checkoutPlan, checkoutBilling, loadSubscription]);
 
   const view = useMemo(() => {
     const status = normalizeStatus(subscription?.status);
@@ -254,10 +260,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     const canStartPremiumCheckout = canStartSubscriptionCheckout(subscription, "Premium");
     const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
     return {
-      edition: resolveDashboardEdition({
-        edition: subscription?.app_edition,
-        plan: subscription?.plan,
-      }) === "premium" ? "premium" : "standard",
+      edition: currentSubscriptionBillingPlan(subscription) === "Premium" ? "premium" : "standard",
       status,
       hasStripeSubscription,
       hasNativeSubscription,
@@ -296,14 +299,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     return () => { active = false; };
   }, [view.edition, view.hasStripeSubscription, view.status]);
 
-  const standardOffer = useMemo(
-    () => standardSubscriptionOfferForAccountCreatedAt(accountCreatedAt),
-    [accountCreatedAt],
-  );
-  const premiumOffer = useMemo(
-    () => premiumSubscriptionOfferForAccountCreatedAt(accountCreatedAt),
-    [accountCreatedAt],
-  );
+  const standardOffer = currentSubscriptionOffer("Standard");
+  const premiumOffer = currentSubscriptionOffer("Premium");
   const standardTaxLabel = i18nT(
     standardOffer.taxBehavior === "exclusive"
       ? "standard_tax_exclusive_short"
@@ -373,6 +370,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         plan,
         billingCycle: billingCycles[plan],
         fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
+        confirmTrialExtension: (trialEndAt) => window.confirm(i18nT("subscription_trial_extension_confirm", {
+          date: new Date(trialEndAt).toLocaleString(locale, { dateStyle: "long", timeStyle: "short" }),
+        })),
       });
       if (result.platform === "web" && result.recoveredSubscription) {
         await loadSubscription();
@@ -405,6 +405,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         || body.quote.billingCycle !== billingCycle || !body.quote.targetPriceId || !body.quote.currentPriceId) {
         throw new Error(i18nT("premium_quote_unavailable"));
       }
+      if (body.quote.trialChange && (body.quote.amountDue !== 0 || !Number.isSafeInteger(body.quote.trialEndUnix))) {
+        throw new Error(i18nT("premium_quote_unavailable"));
+      }
       setUpgradeQuote(body.quote);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
@@ -428,6 +431,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetPlan: upgradeQuote.targetPlan, billingCycle: upgradeQuote.billingCycle,
           prorationDate: upgradeQuote.prorationDate, expectedAmountDue: upgradeQuote.amountDue,
+          ...(upgradeQuote.trialChange ? { trialChange: true, expectedTrialEndUnix: upgradeQuote.trialEndUnix } : {}),
           expectedTargetPriceId: upgradeQuote.targetPriceId, expectedCurrentPriceId: upgradeQuote.currentPriceId }),
       });
       if (!response.ok) throw new Error(await responseError(response, i18nT("subscription_change_failed")));
@@ -442,8 +446,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       setMessage(i18nT("subscription_change_activating"));
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const row = await loadSubscription();
-        if (String(row?.app_edition || "").toLowerCase() === upgradeQuote.targetPlan.toLowerCase()
-          && row?.billing_cycle === upgradeQuote.billingCycle) {
+        if (isCheckoutReturnSynchronized(row, { plan: upgradeQuote.targetPlan, billingCycle: upgradeQuote.billingCycle })
+          && row?.stripe_price_id === upgradeQuote.targetPriceId) {
           window.location.reload();
           return;
         }
@@ -459,18 +463,31 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
   async function changeDowngrade(action: "schedule" | "undo") {
     const billingCycle = billingCycles.Standard;
-    if (action === "schedule" && !window.confirm(`${i18nT("premium_downgrade_confirm")} ${i18nT("subscription_downgrade_cycle_notice", {
-      cycle: i18nT(billingCycle === "yearly" ? "subscription_yearly" : "subscription_monthly"),
-      date: view.renewalLabel || i18nT("premium_next_renewal_placeholder"),
-    })}`)) return;
     setError("");
     setMessage("");
     setBusyAction("change-plan");
     try {
+      let expectedTargetPriceId: string | undefined;
+      let expectedCurrentPriceId: string | undefined;
+      if (action === "schedule") {
+        const previewResponse = await fetch(`/api/billing/change-plan?target=Standard&billingCycle=${billingCycle}`, { cache: "no-store" });
+        if (!previewResponse.ok) throw new Error(await responseError(previewResponse, i18nT("premium_downgrade_failed")));
+        const preview = await previewResponse.json() as { changeType?: string; targetPlan?: string; billingCycle?: BillingCycle; targetPriceId?: string; currentPriceId?: string; renewalAt?: string };
+        if (preview.changeType !== "scheduled" || preview.targetPlan !== "Standard" || preview.billingCycle !== billingCycle
+          || !preview.targetPriceId || !preview.currentPriceId || !formatDate(preview.renewalAt, locale)) {
+          throw new Error(i18nT("premium_quote_unavailable"));
+        }
+        expectedTargetPriceId = preview.targetPriceId;
+        expectedCurrentPriceId = preview.currentPriceId;
+        if (!window.confirm(`${i18nT("premium_downgrade_confirm")} ${i18nT("subscription_downgrade_cycle_notice", {
+          cycle: `${i18nT(billingCycle === "yearly" ? "subscription_yearly" : "subscription_monthly")} · ${billingCycle === "yearly" ? standardYearlyLabel : standardMonthlyLabel}`,
+          date: formatDate(preview.renewalAt, locale)!,
+        })}`)) return;
+      }
       const response = await fetch("/api/billing/change-plan", {
         method: action === "schedule" ? "POST" : "DELETE",
         headers: action === "schedule" ? { "Content-Type": "application/json" } : undefined,
-        body: action === "schedule" ? JSON.stringify({ targetPlan: "Standard", billingCycle }) : undefined,
+        body: action === "schedule" ? JSON.stringify({ targetPlan: "Standard", billingCycle, expectedTargetPriceId, expectedCurrentPriceId }) : undefined,
       });
       if (!response.ok) throw new Error(await responseError(response, i18nT("premium_downgrade_failed")));
       const body = await response.json() as { renewalAt?: string | null };
@@ -478,7 +495,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       setScheduledDowngrade(action === "schedule" ? { billingCycle, renewalAt: body.renewalAt } : null);
       setMessage(action === "schedule"
         ? i18nT("premium_downgrade_scheduled_message", {
-            date: view.renewalLabel || i18nT("premium_next_renewal_placeholder"),
+            date: formatDate(body.renewalAt, locale) || view.renewalLabel || i18nT("premium_next_renewal_placeholder"),
           })
         : i18nT("premium_downgrade_canceled_message"));
     } catch (caught) {
@@ -550,15 +567,15 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const currentStandardWithoutBilling = view.edition === "standard" && view.status === "active" && !view.hasStripeSubscription && !view.hasNativeSubscription;
   const cycleOptions = (plan: "Standard" | "Premium") => {
     const offer = plan === "Standard" ? standardOffer : premiumOffer;
-    const savings = Math.max(0, Math.round((offer.monthlyPriceEur * 12 - offer.yearlyPriceEur) * 100) / 100);
-    const savingsAmount = `${formatEur(savings, locale)} € ${plan === "Standard" ? standardTaxLabel : premiumTaxLabel}`;
+    const savingRate = annualSubscriptionSavingRate(offer);
+    const savingPercent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(savingRate);
     return <div className={styles.planCycleSelector} role="group" aria-label={`iNrCy ${plan} · ${i18nT("choisissez_votre_rythme_de_facturation_aca0763d")}`}>
       {(["monthly", "yearly"] as const).map((cycle) => <button key={cycle} type="button" aria-pressed={billingCycles[plan] === cycle} onClick={() => {
         setBillingCycles((cycles) => ({ ...cycles, [plan]: cycle }));
         setUpgradeQuote((quote) => quote?.targetPlan === plan ? null : quote);
       }} disabled={busyAction !== null}>
         <span>{i18nT(cycle === "monthly" ? "subscription_cycle_monthly" : "subscription_cycle_yearly")}</span>
-        {cycle === "yearly" && clientBillingPlatform === "web" && savings > 0 ? <small className={styles.savingsPill}>{i18nT("subscription_cycle_saving", { amount: savingsAmount })}</small> : null}
+        {cycle === "yearly" && clientBillingPlatform === "web" && savingRate > 0 ? <small className={styles.savingsPill}>≈ −{savingPercent}</small> : null}
       </button>)}
     </div>;
   };
@@ -572,7 +589,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     {view.cancellationScheduled && view.billingCycle === "monthly" && view.renewalLabel ? <p>{i18nT("derniere_mensualite_prevue_le_f3d69894")} <strong>{view.renewalLabel}</strong>.</p> : null}
     {(view.hasStripeSubscription || view.hasNativeSubscription) ? <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>{view.needsBillingRecovery ? i18nT("regulariser_mon_paiement_00ae072e") : i18nT("gerer_ma_facturation_dc5027ac")}</button> : null}
     {view.hasNativeSubscription ? <p className={styles.finePrint}>{i18nT("native_subscription_managed_by_store", { store: view.billingProvider === "app_store" ? "App Store" : "Google Play" })}</p> : null}
-    {view.edition === "standard" && view.hasStripeSubscription && !view.needsBillingRecovery ? <>
+    {(view.edition === "standard" || view.status === "trialing") && view.hasStripeSubscription && !view.needsBillingRecovery ? <>
       <button type="button" onClick={() => updateCancellation(view.cancellationScheduled ? "uncancel" : "cancel")} style={secondaryButton} disabled={busyAction !== null}>{view.cancellationScheduled ? i18nT("annuler_ma_resiliation_902e43a0") : i18nT("programmer_ma_resiliation_d074ca2d")}</button>
       {!view.cancellationScheduled ? <p className={styles.finePrint}>{i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}</p> : null}
     </> : null}
@@ -604,15 +621,19 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     const isCurrentPlan = targetPlan.toLowerCase() === view.edition;
     return <>
       {!quote ? <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={() => previewPremiumUpgrade(targetPlan)} disabled={busyAction !== null}>
-        {busyAction === "quote" ? i18nT("premium_quote_loading") : isCurrentPlan ? i18nT("subscription_change_cycle") : i18nT("subscription_upgrade")} <span aria-hidden="true">→</span>
+        {busyAction === "quote" ? i18nT("premium_quote_loading") : isCurrentPlan ? i18nT("subscription_change_cycle") : view.status === "trialing" ? i18nT("subscription_trial_choose_plan") : i18nT("subscription_upgrade")} <span aria-hidden="true">→</span>
       </button> : <div className={styles.quoteConfirmation}>
         <p>{i18nT("premium_quote_amount", { amount: new Intl.NumberFormat(locale, { style: "currency", currency: quote.currency }).format(quote.amountDue / 100) })}</p>
-        <p>{i18nT(quote.billingCycleChanged ? "subscription_quote_cycle_changed" : "subscription_quote_cycle_preserved")}</p>
-        {quote.renewalAt ? <p>{i18nT("premium_next_renewal_label", { date: formatDate(String(quote.renewalAt), locale) || "—" })}</p> : null}
+        {quote.trialChange ? <p>{i18nT("subscription_trial_change_notice", { date: formatDate(String(quote.renewalAt), locale) || view.trialEndLabel || "—" })}</p> : <>
+          <p>{i18nT(quote.billingCycleChanged ? "subscription_quote_cycle_changed" : "subscription_quote_cycle_preserved")}</p>
+          {quote.renewalAt ? <p>{i18nT("premium_next_renewal_label", { date: formatDate(String(quote.renewalAt), locale) || "—" })}</p> : null}
+        </>}
         <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={confirmPremiumUpgrade} disabled={busyAction !== null}>{busyAction === "change-plan" ? i18nT("premium_confirming") : i18nT("subscription_confirm_change")}</button>
         <button type="button" className={styles.quoteRefresh} onClick={() => previewPremiumUpgrade(targetPlan)} disabled={busyAction !== null}>{i18nT("premium_refresh_quote")}</button>
       </div>}
-      <p className={styles.finePrint}>{i18nT("subscription_change_quote_notice")}</p>
+      {!quote?.trialChange ? <p className={styles.finePrint}>{view.status === "trialing"
+        ? i18nT("subscription_trial_change_notice", { date: view.trialEndLabel || "—" })
+        : i18nT("subscription_change_quote_notice")}</p> : null}
     </>;
   };
   const priceDetails = (plan: "Standard" | "Premium") => {
@@ -627,7 +648,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       {cycleOptions(plan)}
     </div>;
   };
-  const canChangePaidPlan = view.hasStripeSubscription && view.status === "active" && !view.cancellationScheduled;
+  const canPreviewPlanChange = (plan: "Standard" | "Premium") => canPreviewSubscriptionPlanChange(subscription, plan, billingCycles[plan]);
   const selectedCycleDiffers = (plan: "Standard" | "Premium") => billingCycles[plan] !== (view.billingCycle === "yearly" ? "yearly" : "monthly");
 
   return <SubscriptionWorkspace management={management} notice={<div role="status" aria-live="polite">
@@ -641,7 +662,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       <section className={`${styles.planCard} ${styles.standardCard}`}>
         <header className={styles.planHeader}>
           <div><span className={styles.planEyebrow}>{i18nT("subscription_standard_eyebrow")}</span><h2>iNrCy Standard</h2></div>
-          {view.edition === "standard" ? <span className={styles.currentBadge}>{i18nT("subscription_current_plan")}</span> : null}
+          {view.edition === "standard" ? <span className={styles.currentBadge}>{i18nT(view.status === "trialing" && view.hasStripeSubscription ? "subscription_selected_plan" : "subscription_current_plan")}</span> : null}
         </header>
         <p className={styles.planDescription}><strong>{i18nT("subscription_standard_benefit")}</strong><span>{i18nT("subscription_standard_pitch")}</span></p>
         <SubscriptionPlanFeatures edition="standard" />
@@ -650,8 +671,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           {currentStandardWithoutBilling ? <p className={styles.accessNotice}>{i18nT("subscription_access_unchanged")}</p> : null}
           {view.canStartCheckout ? <>
             <button type="button" className={styles.standardCta} onClick={() => startCheckout("Standard")} disabled={busyAction !== null || !storePricesReady}>{busyAction === "checkout" ? i18nT("ouverture_du_paiement_147e6d80") : i18nT("standard_subscribe_price", { price: billingCycles.Standard === "yearly" ? standardYearlyLabel : standardMonthlyLabel })} <span aria-hidden="true">→</span></button>
-            <p className={styles.finePrint}>{i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}</p>
-          </> : view.edition === "standard" && canChangePaidPlan && selectedCycleDiffers("Standard") ? renderPlanChange("Standard")
+            {view.status === "trialing" ? <p className={styles.finePrint}>{i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}</p> : null}
+          </> : canPreviewPlanChange("Standard") ? renderPlanChange("Standard")
           : view.needsBillingRecovery && view.edition === "standard" ? <button type="button" className={styles.standardCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("regulariser_mon_paiement_00ae072e")}</button>
           : view.edition === "standard" && view.hasNativeSubscription && selectedCycleDiffers("Standard") ? <button type="button" className={styles.standardCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
           : view.edition === "premium" ? <p className={styles.includedNotice}>{i18nT("subscription_included_premium")}</p> : null}
@@ -662,7 +683,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       <section className={`${styles.planCard} ${styles.premiumCard}`}>
         <header className={styles.planHeader}>
           <div><span className={styles.planEyebrow}>{i18nT("subscription_premium_eyebrow")}</span><h2>iNrCy Premium</h2></div>
-          {view.edition === "premium" ? <span className={styles.currentBadge}>{i18nT("subscription_current_plan")}</span> : null}
+          {view.edition === "premium" ? <span className={styles.currentBadge}>{i18nT(view.status === "trialing" && view.hasStripeSubscription ? "subscription_selected_plan" : "subscription_current_plan")}</span> : null}
         </header>
         <p className={styles.planDescription}><strong>{i18nT("subscription_premium_benefit")}</strong><span className={styles.standardIncluded}>{i18nT("subscription_standard_plus")}</span></p>
         <SubscriptionPlanFeatures edition="premium" />
@@ -670,8 +691,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           {priceDetails("Premium")}
           {view.canStartPremiumCheckout ? <>
             <button type="button" className={styles.premiumCta} onClick={() => startCheckout("Premium")} disabled={busyAction !== null || !premiumStorePricesReady}>{busyAction === "checkout" ? i18nT("ouverture_du_paiement_147e6d80") : i18nT("subscription_subscribe_premium")} <span aria-hidden="true">→</span></button>
+            {view.status === "trialing" ? <p className={styles.finePrint}>{i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}</p> : null}
             {isNativeBillingPlatform && premiumStorePriceError ? <p className={styles.finePrint} style={{ color: "#ffe1e8" }}>{premiumStorePriceError}</p> : null}
-          </> : canChangePaidPlan && (view.edition !== "premium" || selectedCycleDiffers("Premium")) ? renderPlanChange("Premium")
+          </> : canPreviewPlanChange("Premium") ? renderPlanChange("Premium")
           : view.hasNativeSubscription && (view.edition !== "premium" || selectedCycleDiffers("Premium")) ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
           : view.needsBillingRecovery && view.edition === "premium" ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("regulariser_mon_paiement_00ae072e")}</button>
           : view.edition === "premium" ? null

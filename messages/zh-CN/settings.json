@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "已选套餐",
+  "subscription_trial_choose_plan": "选择此套餐",
+  "subscription_trial_change_notice": "现在不扣款。试用结束日期保持不变：{date}。",
+  "subscription_trial_extension_confirm": "Stripe 要求首次付款前至少有 48 小时的试用期。如果您在 Stripe 确认订阅，试用期将延长至 {date}，在此之前不会扣款。继续前往 Stripe？",
   "premium_feature_ai_studio": "iNr’Studio AI 配额：每月 70 张图片和 196 秒视频",
   "premium_feature_agent": "完整 iNr’Agent，包含推广与客户维护工具",
   "premium_feature_send": "完整 iNr’Send 和邮件营销活动",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "使用忠诚度",
   "utiliser_propulser_c4b4b56d": "使用推进",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "使用您的 UI 最多可保存",
+  "boutique_ui_savings_percent": "使用您的 UI，可在欧元价格上节省约 {percent}。",
   "value_est_maintenant_le_tableau_par_309d14f4": "« {value0} » 是默认的画面维护。",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

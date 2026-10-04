@@ -57,6 +57,20 @@ export const PREMIUM_SUBSCRIPTION_OFFER_V2: SubscriptionOffer = {
   taxBehavior: "exclusive",
 };
 
+/** Offers available for a new purchase or an explicitly requested plan change.
+ * Existing contracts remain identified by their actual Stripe price, not this constant.
+ */
+export const CURRENT_COMMERCIAL_PRICING_VERSION: PricingVersion = "international_ht_v2";
+
+export function currentSubscriptionOffer(plan: "Standard" | "Premium"): SubscriptionOffer {
+  return plan === "Premium" ? PREMIUM_SUBSCRIPTION_OFFER_V2 : STANDARD_SUBSCRIPTION_OFFER_V2;
+}
+
+export function annualSubscriptionSavingRate(offer: SubscriptionOffer): number {
+  const monthlyTotal = offer.monthlyPriceEur * 12;
+  return monthlyTotal > 0 ? Math.max(0, 1 - offer.yearlyPriceEur / monthlyTotal) : 0;
+}
+
 export function pricingVersionForAccountCreatedAt(
   accountCreatedAt: unknown,
   cutoverAt: unknown = process.env.NEXT_PUBLIC_INRCY_PRICING_V2_CUTOVER_AT,

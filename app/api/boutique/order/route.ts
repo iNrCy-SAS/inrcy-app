@@ -3,7 +3,7 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
-import { findBoutiqueProduct } from "@/lib/boutique/products";
+import { BOUTIQUE_PRICE_TAX_BEHAVIOR, boutiqueOrderAmounts, boutiqueOrderPriceLabel, findBoutiqueProduct } from "@/lib/boutique/products";
 import { optionalEnv } from "@/lib/env";
 
 // Ensure this route runs on the Node.js runtime (SMTP requires TCP sockets).
@@ -21,6 +21,7 @@ type BoutiqueOrderInsert = {
   product_name: string;
   method: "EUR" | "UI";
   amount_eur: number | null;
+  amount_eur_tax_behavior: "exclusive";
   amount_ui: number | null;
   status: string;
   idempotency_key: string | null;
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
   }
 
   // Insert order row first (safety/audit). Use service role to avoid any RLS friction.
+  const orderAmounts = boutiqueOrderAmounts(product, method);
   const insertPayload: BoutiqueOrderInsert = {
     user_id: activeUserId,
     account_email: user.email ?? null,
@@ -109,8 +111,9 @@ export async function POST(req: Request) {
     product_key: product.key,
     product_name: product.title,
     method,
-    amount_eur: method === "EUR" ? product.priceEur : null,
-    amount_ui: method === "UI" ? product.priceUi : null,
+    amount_eur: orderAmounts.amountEurHt,
+    amount_eur_tax_behavior: BOUTIQUE_PRICE_TAX_BEHAVIOR,
+    amount_ui: orderAmounts.amountUi,
     status: "pending",
     idempotency_key: idempotencyKey || null,
   };
@@ -137,7 +140,7 @@ export async function POST(req: Request) {
     `Commande : #${orderId}`,
     `Produit : ${product.title} (${product.key})`,
     `Mode : ${method === "EUR" ? "€" : "UI"}`,
-    `Prix : ${method === "EUR" ? `${product.priceEur} €` : `${product.priceUi} UI`}`,
+    `Prix : ${boutiqueOrderPriceLabel(product, method)}`,
     ``,
     `Compte :`,
     `- Email compte (auth) : ${user.email ?? "(non disponible)"}`,

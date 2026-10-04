@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Piano selezionato",
+  "subscription_trial_choose_plan": "Scegli questo piano",
+  "subscription_trial_change_notice": "Nessun addebito ora. La data di fine prova rimane invariata: {date}.",
+  "subscription_trial_extension_confirm": "Stripe richiede almeno 48 ore di prova prima del primo pagamento. Se confermi l’abbonamento su Stripe, la prova verrà estesa fino al {date}, senza addebiti prima di tale data. Continuare su Stripe?",
   "premium_feature_ai_studio": "Quote IA iNr’Studio: 70 immagini/mese e 196 secondi di video/mese",
   "premium_feature_agent": "iNr’Agent completo con Promuovi e Fidelizza",
   "premium_feature_send": "iNr’Send completo e campagne email",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "Usa Fidelizza",
   "utiliser_propulser_c4b4b56d": "Usa Promuovi",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Utilizza la tua interfaccia utente per salvare fino a",
+  "boutique_ui_savings_percent": "Con le tue UI, risparmia circa il {percent} sul prezzo in euro.",
   "value_est_maintenant_le_tableau_par_309d14f4": "\" {value0} \" è ora la tabella predefinita.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

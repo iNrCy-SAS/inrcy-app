@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Gewählter Tarif",
+  "subscription_trial_choose_plan": "Diesen Tarif wählen",
+  "subscription_trial_change_notice": "Jetzt keine Abbuchung. Das Ende Ihrer Testphase bleibt unverändert: {date}.",
+  "subscription_trial_extension_confirm": "Stripe verlangt mindestens 48 Stunden Testzeit vor der ersten Zahlung. Wenn Sie Ihr Abonnement bei Stripe bestätigen, wird Ihre Testphase bis zum {date} verlängert. Vorher erfolgt keine Abbuchung. Weiter zu Stripe?",
   "premium_feature_ai_studio": "iNr’Studio-KI-Kontingente: 70 Bilder/Monat und 196 Videosekunden/Monat",
   "premium_feature_agent": "Vollständiger iNr’Agent mit Bewerben und Binden",
   "premium_feature_send": "Vollständiges iNr’Send und E-Mail-Kampagnen",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "Kundenbindung nutzen",
   "utiliser_propulser_c4b4b56d": "Wachstum nutzen",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Verwenden Sie Ihre Benutzeroberfläche, um bis zu",
+  "boutique_ui_savings_percent": "Mit Ihren UI sparen Sie etwa {percent} beim Europreis.",
   "value_est_maintenant_le_tableau_par_309d14f4": "„ {value0} “ ist jetzt die Standardtabelle.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

@@ -25,5 +25,5 @@ export function canStartSubscriptionCheckout(
   if (status === "trialing") return true;
   // A complimentary Standard account has access, but no paid contract to amend.
   // The server still checks Stripe before creating its first paid subscription.
-  return status === "active" && edition === "standard" && targetPlan === "Premium";
+  return status === "active" && edition === "standard" && (targetPlan === "Standard" || targetPlan === "Premium");
 }

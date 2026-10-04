@@ -28,6 +28,7 @@ import DashboardPersistentImageCache from "./_components/DashboardPersistentImag
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardIntlProvider from "./_components/DashboardIntlProvider";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
+import { CHECKOUT_RETURN_HEADER, blockedCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
 import {
   APP_LOCALE_REQUEST_HEADER,
   normalizeAppLocale,
@@ -104,7 +105,8 @@ export default async function DashboardLayout({
     .maybeSingle();
 
   if (!hasDashboardAccess(subscription)) {
-    redirect("/compte-bloque");
+    const requestHeaders = await headers();
+    redirect(blockedCheckoutReturnUrl(requestHeaders.get(CHECKOUT_RETURN_HEADER) || ""));
   }
 
   const dashboardEdition = resolveDashboardEdition({

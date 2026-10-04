@@ -56,9 +56,9 @@ function fixture(options: {
   return { input, paths, ownerChecks };
 }
 
-test("complimentary active Standard may start Premium but cannot buy Standard again", () => {
+test("complimentary active Standard may voluntarily subscribe to either commercial offer", () => {
   assert.equal(canStartSubscriptionCheckout(freeStandard, "Premium"), true);
-  assert.equal(canStartSubscriptionCheckout(freeStandard, "Standard"), false);
+  assert.equal(canStartSubscriptionCheckout(freeStandard, "Standard"), true);
   assert.equal(canStartSubscriptionCheckout({ ...freeStandard, app_edition: "premium", plan: "Premium" }, "Premium"), false);
 });
 

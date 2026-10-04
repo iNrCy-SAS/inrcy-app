@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import BlockedBillingActions from "./BlockedBillingActions";
+import { checkoutReturnQuery, dashboardCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
 
 export const dynamic = "force-dynamic";
 
@@ -176,7 +177,14 @@ function copyForStatus(rawStatus: unknown, i18nT: (_key: string) => string): Blo
   };
 }
 
-export default async function BlockedAccountPage() {
+export default async function BlockedAccountPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const checkoutQuery = checkoutReturnQuery({ get: (key) => {
+    const value = params?.[key];
+    return typeof value === "string" ? value : null;
+  } });
   const i18nT = await getTranslations("public");
   const locale = await getLocale();
   const supabase = await createSupabaseServer();
@@ -198,10 +206,10 @@ export default async function BlockedAccountPage() {
   const status = getEffectiveStatus(subscription);
 
   if (hasDashboardAccess(subscription)) {
-    redirect("/dashboard");
+    redirect(dashboardCheckoutReturnUrl(checkoutQuery));
   }
 
-  const copy = copyForStatus(status, i18nT);
+  const copy = copyForStatus(checkoutQuery ? "incomplete" : status, i18nT);
   const edition = resolveDashboardEdition({
     edition: subscription?.app_edition,
     plan: subscription?.plan,
@@ -242,7 +250,7 @@ export default async function BlockedAccountPage() {
                   edition={edition}
                   hasStripeCustomer={Boolean(subscription?.stripe_customer_id)}
                   contactHref={contactHref}
-                  accountCreatedAt={user.created_at ?? null}
+                  checkoutPending={Boolean(checkoutQuery)}
                 />
 
                 <form action="/api/auth/sign-out" method="post">

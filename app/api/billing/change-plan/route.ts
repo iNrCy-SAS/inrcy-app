@@ -4,7 +4,7 @@ import { commercialPriceFromId, configuredPremiumPriceId, configuredStandardPric
 import { requireUser } from "@/lib/requireUser";
 import { stripeGet, stripePost } from "@/lib/stripeRest";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
-import type { BillingCycle } from "@/lib/subscriptionOffers";
+import { CURRENT_COMMERCIAL_PRICING_VERSION, type BillingCycle } from "@/lib/subscriptionOffers";
 import {
   downgradeScheduleParams,
   isInrcyDowngradeSchedule,
@@ -90,11 +90,15 @@ async function loadContext() {
   if (typeof metadataUserId === "string" && metadataUserId && metadataUserId !== user.id) {
     throw new PlanChangeError("STRIPE_IDENTITY_MISMATCH", "L’abonnement Stripe ne correspond pas à ce compte.");
   }
-  if (subscription.status !== "active") {
+  if (subscription.status !== "active" && subscription.status !== "trialing") {
     throw new PlanChangeError("SUBSCRIPTION_NOT_ACTIVE", "Le changement de forfait sera disponible une fois l’abonnement actif.");
   }
   if (subscription.cancel_at || subscription.cancel_at_period_end === true || subscription.pending_update) {
     throw new PlanChangeError("SUBSCRIPTION_CHANGE_PENDING", "Une modification de facturation est déjà en cours.");
+  }
+  const trialEndUnix = subscription.status === "trialing" ? Number(subscription.trial_end) : null;
+  if (trialEndUnix !== null && (!Number.isSafeInteger(trialEndUnix) || trialEndUnix <= Math.floor(Date.now() / 1000) + 60)) {
+    throw new PlanChangeError("TRIAL_ENDING", "La période d’essai se termine. Actualisez votre abonnement avant de changer de forfait.");
   }
   const item = singleCommercialItem(subscription);
   const current = item ? commercialPriceFromId(item.priceId) : null;
@@ -120,6 +124,7 @@ async function loadContext() {
     periodEndUnix,
     scheduleId,
     schedule,
+    trialEndUnix,
   } as const;
 }
 
@@ -131,9 +136,26 @@ function requestedBillingCycle(value: unknown, fallback: BillingCycle): BillingC
 
 function targetPriceId(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle = context.item.billingCycle) {
   const configured = target === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
-  const priceId = configured(billingCycle, context.current.pricingVersion);
+  const priceId = configured(billingCycle, CURRENT_COMMERCIAL_PRICING_VERSION);
   if (!priceId) throw new PlanChangeError("TARGET_PRICE_UNAVAILABLE", "Ce tarif n’est pas disponible pour le moment.", 503);
   return priceId;
+}
+
+function assertCompatibleTax(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
+  // Pending updates cannot also enable Stripe Tax. Never move a contract to an
+  // exclusive-tax offer while silently retaining disabled tax calculation.
+  if (record(context.subscription.automatic_tax).enabled !== true) {
+    throw new PlanChangeError("TAX_CONFIGURATION_REQUIRED", "La configuration fiscale de cet abonnement doit être vérifiée avec l’équipe iNrCy avant de passer au tarif HT.");
+  }
+}
+
+function assertSchedulableTerms(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
+  const rawItems = record(context.subscription.items).data;
+  const rawItem = Array.isArray(rawItems) ? record(rawItems[0]) : {};
+  if ([context.subscription.discounts, rawItem.discounts, context.subscription.default_tax_rates, rawItem.tax_rates]
+    .some((value) => Array.isArray(value) && value.length > 0) || stripeObjectId(context.subscription.discount) || stripeObjectId(rawItem.discount)) {
+    throw new PlanChangeError("SCHEDULE_UNSUPPORTED", "Les remises ou taxes spécifiques de ce contrat doivent être conservées avec l’équipe iNrCy.");
+  }
 }
 
 async function previewChange(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle: BillingCycle, prorationDate: number) {
@@ -146,8 +168,13 @@ async function previewChange(context: Exclude<Awaited<ReturnType<typeof loadCont
   params.set("subscription_details[items][0][price]", priceId);
   params.set("subscription_details[proration_behavior]", "always_invoice");
   params.set("subscription_details[proration_date]", String(prorationDate));
+  params.set("automatic_tax[enabled]", "true");
   if (billingCycleChanged) params.set("subscription_details[billing_cycle_anchor]", "now");
   const invoice = await stripePost("/invoices/create_preview", params);
+  const tax = record(record(invoice).automatic_tax);
+  if (tax.enabled !== true || tax.status !== "complete") {
+    throw new PlanChangeError("QUOTE_UNAVAILABLE", "Les taxes du nouveau devis n’ont pas pu être calculées.", 503);
+  }
   const quote = parsePlanChangeQuote(invoice, prorationDate);
   if (!quote || quote.currency !== "eur") {
     throw new PlanChangeError("QUOTE_UNAVAILABLE", "Le montant du prorata n’a pas pu être calculé.", 503);
@@ -173,7 +200,22 @@ async function assertLastInvoicePaid(context: Exclude<Awaited<ReturnType<typeof 
 function ownDowngrade(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>) {
   if (!context.schedule || !isInrcyDowngradeSchedule(context.schedule, context.userId)) return false;
   const scheduled = commercialPriceFromId(scheduledStandardPriceId(context.schedule));
-  return scheduled?.edition === "standard" && scheduled.pricingVersion === context.current.pricingVersion;
+  return scheduled?.edition === "standard";
+}
+
+function trialChangeQuote(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle: BillingCycle, quotedAt: number) {
+  if (context.scheduleId) throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
+  if (context.subscription.collection_method !== "charge_automatically") {
+    throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
+  }
+  assertCompatibleTax(context);
+  if (context.trialEndUnix === null) throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai a changé. Actualisez le devis.");
+  // This is the amount payable now, not the upcoming invoice at trial end.
+  // No invoice preview with an immediate billing anchor may shorten the trial.
+  return { amountDue: 0, currency: "eur", prorationDate: quotedAt, targetPlan: target,
+    billingCycle, targetPriceId: targetPriceId(context, target, billingCycle), currentPriceId: context.item.priceId,
+    billingCycleChanged: billingCycle !== context.item.billingCycle,
+    renewalAt: new Date(context.trialEndUnix * 1000).toISOString(), trialEndUnix: context.trialEndUnix, trialChange: true };
 }
 
 export async function GET(req: Request) {
@@ -186,23 +228,37 @@ export async function GET(req: Request) {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const pendingDowngrade = ownDowngrade(context);
+    const scheduledPriceId = pendingDowngrade ? scheduledStandardPriceId(context.schedule) : null;
     const scheduledCycle = target === "Standard" && pendingDowngrade
       ? commercialPriceFromId(scheduledStandardPriceId(context.schedule))?.billingCycle
       : undefined;
     const billingCycle = requestedBillingCycle(query.get("billingCycle"), scheduledCycle ?? context.item.billingCycle);
-    const priceId = targetPriceId(context, target, billingCycle);
-    const common = { currentPlan: context.current.plan, currentBillingCycle: context.item.billingCycle,
+    const unchanged = target === context.current.plan && billingCycle === context.item.billingCycle;
+    // A status read must report the offer already agreed for a scheduled change,
+    // including historical prices, rather than replace it with today's catalogue.
+    const priceId = target === "Standard" && scheduledPriceId && !query.has("billingCycle")
+      ? scheduledPriceId
+      : unchanged ? context.item.priceId : targetPriceId(context, target, billingCycle);
+    const common = { currentPlan: context.current.plan, currentBillingCycle: context.item.billingCycle, currentPriceId: context.item.priceId,
       targetPlan: target, billingCycle, targetPriceId: priceId };
     if (context.scheduleId && !pendingDowngrade) {
       throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
     }
-    if (priceId === context.item.priceId) {
+    if (unchanged) {
       return result({ ...common, changeType: "unchanged", pendingDowngrade,
         renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
+    if (context.trialEndUnix !== null) {
+      const quote = trialChangeQuote(context, target, billingCycle, Math.floor(Date.now() / 1000));
+      return result({ ...common, changeType: "trial", quote, renewalAt: quote.renewalAt });
+    }
     if (target === "Standard" && context.current.edition === "premium") {
       if (pendingDowngrade && scheduledStandardPriceId(context.schedule) !== priceId) {
-        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre cadence.");
+        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre offre ou cadence.");
+      }
+      if (!pendingDowngrade) {
+        assertCompatibleTax(context);
+        assertSchedulableTerms(context);
       }
       return result({ ...common, changeType: "scheduled", pendingDowngrade,
         renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
@@ -211,6 +267,7 @@ export async function GET(req: Request) {
     if (context.subscription.collection_method !== "charge_automatically") {
       throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
     }
+    assertCompatibleTax(context);
     await assertLastInvoicePaid(context);
     const quote = await previewChange(context, target, billingCycle, Math.floor(Date.now() / 1000));
     return result({ ...common, changeType: "immediate", quote, renewalAt: quote.renewalAt });
@@ -229,9 +286,47 @@ export async function POST(req: Request) {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const billingCycle = requestedBillingCycle(body.billingCycle, context.item.billingCycle);
-    const priceId = targetPriceId(context, target, billingCycle);
-    if (priceId === context.item.priceId) {
+    if (context.trialEndUnix === null && (body.trialChange === true || body.expectedTrialEndUnix != null)) {
+      throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai a changé. Actualisez le devis avant de confirmer.");
+    }
+    if (target === context.current.plan && billingCycle === context.item.billingCycle) {
       throw new PlanChangeError("ALREADY_ON_PLAN", `Vous êtes déjà sur l’offre ${target} avec cette cadence de facturation.`);
+    }
+    if (context.trialEndUnix === null && target === "Standard" && context.current.edition === "premium" && ownDowngrade(context) && body.billingCycle == null) {
+      return result({ scheduled: true, renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
+    }
+    const priceId = targetPriceId(context, target, billingCycle);
+    const pricingVersionChanged = context.current.pricingVersion !== CURRENT_COMMERCIAL_PRICING_VERSION;
+
+    if (context.trialEndUnix !== null) {
+      const quotedAt = Number(body.prorationDate);
+      const now = Math.floor(Date.now() / 1000);
+      if (!Number.isSafeInteger(quotedAt) || quotedAt > now || quotedAt < now - 600) {
+        throw new PlanChangeError("QUOTE_EXPIRED", "Le devis a expiré. Actualisez le forfait et la date de fin d’essai.");
+      }
+      const quote = trialChangeQuote(context, target, billingCycle, quotedAt);
+      if (body.trialChange !== true || body.expectedAmountDue !== 0 || body.expectedTrialEndUnix !== quote.trialEndUnix ||
+          body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId) {
+        throw new PlanChangeError("QUOTE_CHANGED", "Le forfait, la cadence ou la fin d’essai a changé. Vérifiez le nouveau devis avant de confirmer.");
+      }
+      const params = new URLSearchParams();
+      params.set("items[0][id]", context.item.id);
+      params.set("items[0][price]", priceId);
+      params.set("proration_behavior", "none");
+      // Explicitly retain the first charge date even when the interval changes.
+      // Never use `now`, always_invoice, or a second Checkout subscription here.
+      params.set("trial_end", String(context.trialEndUnix));
+      params.set("payment_behavior", "error_if_incomplete");
+      const updated = record(await stripePost(`/subscriptions/${encodeURIComponent(context.subscriptionId)}`, params, {
+        idempotencyKey: `inrcy-trial-change-${context.subscriptionId}-${context.item.priceId}-${priceId}-${context.trialEndUnix}-${quotedAt}`,
+      }));
+      const applied = stripeObjectId(updated) === context.subscriptionId &&
+        stripeObjectId(updated.customer) === context.customerId && updated.status === "trialing" &&
+        Number(updated.trial_end) === context.trialEndUnix && !updated.pending_update &&
+        singleCommercialItem(updated)?.priceId === priceId;
+      if (!applied) throw new PlanChangeError("TRIAL_CHANGE_UNCONFIRMED", "La modification doit être vérifiée. Actualisez votre abonnement avant de réessayer.", 503);
+      return result({ applied: true, pendingPayment: false, paymentUrl: null, targetPlan: target,
+        billingCycle, renewalAt: quote.renewalAt, trialEndUnix: quote.trialEndUnix, trialChange: true });
     }
 
     if (target !== "Standard" || context.current.edition !== "premium") {
@@ -241,10 +336,12 @@ export async function POST(req: Request) {
       if (context.subscription.collection_method !== "charge_automatically") {
         throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
       }
+      assertCompatibleTax(context);
       await assertLastInvoicePaid(context);
       // The explicit selector must confirm the exact quoted source and target prices.
-      // Omitted cadence preserves compatibility with already-open clients.
-      if (body.billingCycle != null && (body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId)) {
+      // Legacy clients may omit cadence only within the same pricing version;
+      // an equal immediate credit must not authorize a different future tariff.
+      if ((body.billingCycle != null || pricingVersionChanged) && (body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId)) {
         throw new PlanChangeError("QUOTE_CHANGED", "Le forfait ou la cadence a changé. Vérifiez le nouveau devis avant de confirmer.");
       }
       const prorationDate = Number(body.prorationDate);
@@ -285,13 +382,18 @@ export async function POST(req: Request) {
 
     if (ownDowngrade(context)) {
       if (body.billingCycle != null && scheduledStandardPriceId(context.schedule) !== priceId) {
-        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre cadence.");
+        throw new PlanChangeError("SCHEDULE_MANAGED", "Annulez le changement programmé avant de choisir une autre offre ou cadence.");
       }
       return result({ scheduled: true, renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
     if (context.scheduleId) {
       throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
     }
+    if (pricingVersionChanged && (body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId)) {
+      throw new PlanChangeError("QUOTE_CHANGED", "Le tarif de destination a changé. Vérifiez la nouvelle offre avant de confirmer.");
+    }
+    assertCompatibleTax(context);
+    assertSchedulableTerms(context);
     const createParams = new URLSearchParams({ from_subscription: context.subscriptionId });
     const created = record(await stripePost("/subscription_schedules", createParams, {
       // A released schedule cannot be reused: each new intention gets its own key.
@@ -302,7 +404,11 @@ export async function POST(req: Request) {
     if (!createdId || stripeObjectId(created.subscription) !== context.subscriptionId) {
       throw new PlanChangeError("SCHEDULE_CREATION_FAILED", "Le changement à échéance n’a pas pu être programmé.", 503);
     }
-    const scheduleParams = downgradeScheduleParams({
+    const createdPhases = created.phases;
+    const createdPhase = Array.isArray(createdPhases) ? record(createdPhases[0]) : {};
+    const createdItems = createdPhase.items;
+    const createdItem = Array.isArray(createdItems) ? record(createdItems[0]) : {};
+    const scheduleParams = Array.isArray(createdItem.discounts) && createdItem.discounts.length > 0 ? null : downgradeScheduleParams({
       schedule: created,
       currentPriceId: context.item.priceId,
       nextPriceId: priceId,
@@ -313,6 +419,9 @@ export async function POST(req: Request) {
       await stripePost(`/subscription_schedules/${encodeURIComponent(createdId)}/release`, new URLSearchParams());
       throw new PlanChangeError("SCHEDULE_UNSUPPORTED", "Ce contrat doit être modifié avec l’équipe iNrCy.");
     }
+    // Preserve the already-enabled calculation on both the paid and next phase.
+    scheduleParams.set("phases[0][automatic_tax][enabled]", "true");
+    scheduleParams.set("phases[1][automatic_tax][enabled]", "true");
     try {
       await stripePost(`/subscription_schedules/${encodeURIComponent(createdId)}`, scheduleParams, {
         idempotencyKey: `inrcy-downgrade-update-${createdId}-${priceId}-${billingCycle}-${context.periodEndUnix}`,

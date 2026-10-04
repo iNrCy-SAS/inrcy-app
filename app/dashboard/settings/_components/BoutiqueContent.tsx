@@ -14,7 +14,7 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { BOUTIQUE_PRODUCTS, type BoutiqueProduct } from "@/lib/boutique/products";
+import { BOUTIQUE_PRODUCTS, boutiqueOrderPriceLabel, boutiqueSavingsPercent, type BoutiqueProduct } from "@/lib/boutique/products";
 
 type Props = {
   mode?: "drawer" | "page";
@@ -50,6 +50,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
   const [view, setView] = useState<"products" | "orders">("products");
   const i18nT = useTranslations("settings");
   const locale = useLocale();
+  const taxLabel = i18nT("standard_tax_exclusive_short");
   const router = useRouter();
   const [uiBalance, setUiBalance] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -141,7 +142,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
   const placeOrder = async (p: BoutiqueProduct, method: Method) => {
     setNotice("");
 
-    const priceLabel = method === "EUR" ? `${p.priceEur} €` : `${p.comboEur} € + ${p.priceUi} UI`;
+    const priceLabel = boutiqueOrderPriceLabel(p, method, locale, taxLabel);
     const ok = await confirmInrcy({
       title: i18nT("confirmer_la_commande_f529f5af"),
       message: i18nT("produit_value_mode_value_prix_value_f8904050", { value0: p.title, value1: method === "EUR" ? "€" : "UI", value2: priceLabel }),
@@ -289,7 +290,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
 
               <div style={{ textAlign: "right", maxWidth: 180 }}>
                 <div style={{ color: "rgba(255,255,255,0.58)", fontSize: 12, lineHeight: 1.35 }}>
-                  {i18nT("utilisez_vos_ui_pour_economiser_jusqu_0103209f")}{" "}{p.priceEur - p.comboEur} €.
+                  {i18nT("boutique_ui_savings_percent", { percent: new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(boutiqueSavingsPercent(p) / 100) })}
                 </div>
               </div>
             </div>
@@ -311,7 +312,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
                   cursor: sendingKey !== null ? "not-allowed" : "pointer",
                 }}
               >
-                {sendingKey === `${p.key}:EUR` ? i18nT("envoi_a625611f") : `${p.priceEur} €`}
+                {sendingKey === `${p.key}:EUR` ? i18nT("envoi_a625611f") : boutiqueOrderPriceLabel(p, "EUR", locale, taxLabel)}
               </button>
 
               <button
@@ -332,7 +333,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
                   opacity: canOrderUi(p) ? 1 : 0.45,
                 }}
               >
-                {sendingKey === `${p.key}:UI` ? i18nT("envoi_a625611f") : i18nT("value_value_ui_d6b7212e", { value0: p.comboEur, value1: p.priceUi })}
+                {sendingKey === `${p.key}:UI` ? i18nT("envoi_a625611f") : boutiqueOrderPriceLabel(p, "UI", locale, taxLabel)}
               </button>
             </div>
           </div>

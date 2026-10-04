@@ -6,17 +6,33 @@
   min-width: 0;
 }
 
-.sections { gap: 16px; }
+.sections {
+  gap: 16px;
+  align-items: stretch;
+}
 
 .appearanceRow,
 .section {
+  container: preference-panel / inline-size;
   min-width: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--inrcy-theme-accent-border, rgba(133, 178, 255, .22));
+  align-self: stretch;
+  align-content: start;
+  padding: 18px;
+  border: 1px solid var(--inrcy-theme-accent-border, rgba(91, 201, 252, .28));
+  border-radius: 19px;
+  background: linear-gradient(145deg, rgba(18, 142, 206, .18), rgba(51, 82, 175, .12));
+  box-shadow: inset 0 1px 0 rgba(164, 230, 255, .12);
 }
 
-.section:nth-child(2) { border-color: rgba(170, 136, 248, .28); }
-.section:nth-child(3) { border-color: rgba(232, 116, 207, .28); }
+.section:nth-child(2) {
+  border-color: rgba(170, 136, 248, .28);
+  background: linear-gradient(145deg, rgba(111, 68, 225, .19), rgba(116, 49, 180, .1));
+}
+
+.section:nth-child(3) {
+  border-color: rgba(232, 116, 207, .28);
+  background: linear-gradient(145deg, rgba(191, 57, 161, .17), rgba(118, 55, 177, .1));
+}
 
 .appearanceRow > section > *,
 .locationFields > *,
@@ -36,39 +52,27 @@
 
 .footer {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
 }
 
-@container settings-content (min-width: 480px) {
+@container preference-panel (min-width: 360px) {
   .locationFields,
   .shortcutOrder,
   .shortcutChoices {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
+@container settings-content (min-width: 480px) {
   .footer {
     grid-template-columns: repeat(2, minmax(160px, 220px));
     justify-content: end;
   }
 }
 
-@container settings-content (min-width: 900px) {
-  .appearanceRow > section {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .8fr);
-    align-items: center;
-  }
-
-  .locationFields,
-  .shortcutChoices {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .shortcutOrder { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@container settings-content (min-width: 1400px) {
-  .shortcutOrder { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .shortcutChoices { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@container settings-content (min-width: 1000px) {
+  .sections { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

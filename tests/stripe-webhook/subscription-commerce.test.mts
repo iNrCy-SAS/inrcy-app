@@ -7,6 +7,9 @@ import {
   PREMIUM_SUBSCRIPTION_OFFER_V2,
   STANDARD_SUBSCRIPTION_OFFER,
   STANDARD_SUBSCRIPTION_OFFER_V2,
+  CURRENT_COMMERCIAL_PRICING_VERSION,
+  currentSubscriptionOffer,
+  annualSubscriptionSavingRate,
   pricingVersionForAccountCreatedAt,
 } from "../../lib/subscriptionOffers.ts";
 import {
@@ -65,7 +68,7 @@ test("les offres historiques restent intactes et les offres HT v2 sont versionn�
   assert.equal(PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur, 1168);
 });
 
-test("la cohorte tarifaire est figée par la création du compte et échoue vers le legacy", () => {
+test("la cohorte historique reste reconnaissable sans piloter les nouvelles offres", () => {
   const cutover = "2026-09-08T08:00:00.000Z";
   assert.equal(
     pricingVersionForAccountCreatedAt("2026-09-08T07:59:59.999Z", cutover),
@@ -77,6 +80,31 @@ test("la cohorte tarifaire est figée par la création du compte et échoue vers
   );
   assert.equal(pricingVersionForAccountCreatedAt(null, cutover), "legacy_ttc_v1");
   assert.equal(pricingVersionForAccountCreatedAt("2026-09-09T00:00:00Z", null), "legacy_ttc_v1");
+});
+
+test("les offres commerciales actuelles utilisent HT v2 sans modifier les constantes historiques", () => {
+  assert.equal(CURRENT_COMMERCIAL_PRICING_VERSION, "international_ht_v2");
+  assert.equal(currentSubscriptionOffer("Standard"), STANDARD_SUBSCRIPTION_OFFER_V2);
+  assert.equal(currentSubscriptionOffer("Premium"), PREMIUM_SUBSCRIPTION_OFFER_V2);
+  for (const plan of ["Standard", "Premium"] as const) {
+    const offer = currentSubscriptionOffer(plan);
+    assert.equal(offer.taxBehavior, "exclusive");
+    assert.equal(offer.pricingVersion, CURRENT_COMMERCIAL_PRICING_VERSION);
+    assert.equal(offer.monthlyPriceEur * 12 - offer.yearlyPriceEur, plan === "Standard" ? 68 : 128);
+  }
+  assert.equal(STANDARD_SUBSCRIPTION_OFFER.monthlyPriceEur, 69);
+  assert.equal(PREMIUM_SUBSCRIPTION_OFFER.monthlyPriceEur, 129);
+});
+
+test("la remise annuelle arrondie provient des prix réellement facturés", () => {
+  const standardRate = annualSubscriptionSavingRate(currentSubscriptionOffer("Standard"));
+  const premiumRate = annualSubscriptionSavingRate(currentSubscriptionOffer("Premium"));
+  assert.ok(Math.abs(standardRate - 68 / 696) < 1e-12);
+  assert.ok(Math.abs(premiumRate - 128 / 1296) < 1e-12);
+  const percentage = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 0 });
+  assert.equal(percentage.format(standardRate), percentage.format(0.1));
+  assert.equal(percentage.format(premiumRate), percentage.format(0.1));
+  assert.equal(annualSubscriptionSavingRate({ ...STANDARD_SUBSCRIPTION_OFFER_V2, monthlyPriceEur: 0, yearlyPriceEur: 0 }), 0);
 });
 
 test("la date de renouvellement Stripe Basil vient des postes d'abonnement", () => {
@@ -162,14 +190,14 @@ test("le Checkout propose Standard et Premium en libre-service sans accorder les
   assert.match(checkout, /requestedPlan === "Premium" \? configuredPremiumPriceId : configuredStandardPriceId/);
   assert.match(checkout, /priceForCycle\("monthly", pricingVersion\)/);
   assert.match(checkout, /priceForCycle\("yearly", pricingVersion\)/);
-  assert.match(checkout, /pricingVersionForAccountCreatedAt\(user\.created_at\)/);
+  assert.match(checkout, /const pricingVersion = CURRENT_COMMERCIAL_PRICING_VERSION/);
   assert.match(checkout, /metadata\[pricing_version\]/);
   assert.doesNotMatch(checkout, /PREMIUM_CONTACT_REQUIRED/);
   assert.match(checkout, /automatic_tax\[enabled\]/);
   assert.match(checkout, /tax_id_collection\[enabled\]/);
   assert.match(checkout, /findLiveStripeSubscription/);
-  assert.match(checkout, /checkoutAttemptBucket/);
-  assert.match(checkout, /15 \* 60 \* 1000/);
+  assert.match(checkout, /withStripeCheckoutGuard\(userId/);
+  assert.match(checkout, /guard\.resolveSession/);
   assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
   assert.match(checkout, /async function updateSubscriptionOrThrow/);
   assert.match(checkout, /if \(error\) throw error/);

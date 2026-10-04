@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "แพ็กเกจที่เลือก",
+  "subscription_trial_choose_plan": "เลือกแพ็กเกจนี้",
+  "subscription_trial_change_notice": "ไม่มีการเรียกเก็บเงินในตอนนี้ วันสิ้นสุดการทดลองใช้ยังคงเป็น {date}",
+  "subscription_trial_extension_confirm": "Stripe กำหนดให้มีช่วงทดลองใช้อย่างน้อย 48 ชั่วโมงก่อนการชำระเงินครั้งแรก หากคุณยืนยันการสมัครใน Stripe ช่วงทดลองใช้จะขยายถึง {date} โดยจะไม่มีการเรียกเก็บเงินก่อนวันดังกล่าว ต้องการไปยัง Stripe หรือไม่?",
   "premium_feature_ai_studio": "โควตา AI iNr’Studio: 70 ภาพ/เดือน และวิดีโอ 196 วินาที/เดือน",
   "premium_feature_agent": "iNr’Agent เต็มรูปแบบ พร้อมเครื่องมือโปรโมตและรักษาลูกค้า",
   "premium_feature_send": "iNr’Send เต็มรูปแบบและแคมเปญอีเมล",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "ใช้ความภักดี",
   "utiliser_propulser_c4b4b56d": "ใช้ขับเคลื่อน",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "ใช้ UI ของคุณเพื่อประหยัดได้ถึง",
+  "boutique_ui_savings_percent": "ใช้ UI ของคุณเพื่อลดราคาในสกุลยูโรประมาณ {percent}",
   "value_est_maintenant_le_tableau_par_309d14f4": "“{value0}” เป็นอาร์เรย์เริ่มต้นแล้ว",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + UI {value1}",

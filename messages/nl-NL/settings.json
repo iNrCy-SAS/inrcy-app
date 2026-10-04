@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Gekozen abonnement",
+  "subscription_trial_choose_plan": "Kies dit abonnement",
+  "subscription_trial_change_notice": "Nu geen afschrijving. Uw proefperiode eindigt nog steeds op {date}.",
+  "subscription_trial_extension_confirm": "Stripe vereist minstens 48 uur proefperiode vóór de eerste betaling. Als u uw abonnement bij Stripe bevestigt, wordt uw proefperiode verlengd tot {date}, zonder eerdere afschrijving. Doorgaan naar Stripe?",
   "premium_feature_ai_studio": "iNr’Studio AI-limieten: 70 afbeeldingen/maand en 196 videoseconden/maand",
   "premium_feature_agent": "Volledige iNr’Agent met Promoten en Binden",
   "premium_feature_send": "Volledige iNr’Send en e-mailcampagnes",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "Klantenbinding gebruiken",
   "utiliser_propulser_c4b4b56d": "Groei gebruiken",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Gebruik je gebruikersinterface om op te slaan tot",
+  "boutique_ui_savings_percent": "Bespaar met je UI ongeveer {percent} op de prijs in euro's.",
   "value_est_maintenant_le_tableau_par_309d14f4": "\" {value0} \" is nu de standaardtabel.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UI",

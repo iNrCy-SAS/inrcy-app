@@ -1,4 +1,8 @@
 {
+  "subscription_selected_plan": "Selected plan",
+  "subscription_trial_choose_plan": "Choose this plan",
+  "subscription_trial_change_notice": "No charge now. Your trial end stays unchanged: {date}.",
+  "subscription_trial_extension_confirm": "Stripe requires at least 48 hours of trial before the first payment. If you confirm your subscription on Stripe, your trial will be extended until {date}, with no charge before then. Continue to Stripe?",
   "premium_feature_ai_studio": "iNr’Studio AI quotas: 70 images/month and 196 seconds of video/month",
   "premium_feature_agent": "Full iNr’Agent with Promote and Retain",
   "premium_feature_send": "Full iNr’Send and email campaigns",
@@ -630,6 +634,7 @@
   "utiliser_fideliser_af919842": "Use Retain",
   "utiliser_propulser_c4b4b56d": "Use Grow",
   "utilisez_vos_ui_pour_economiser_jusqu_0103209f": "Use your UIs to save up to",
+  "boutique_ui_savings_percent": "Use your UI to save approximately {percent} on the euro price.",
   "value_est_maintenant_le_tableau_par_309d14f4": "\" {value0} \" is now the default plan.",
   "value_t12_00_00_2df8425f": "{value0}T12:00:00",
   "value_value_ui_d6b7212e": "{value0} € + {value1} UIs",
