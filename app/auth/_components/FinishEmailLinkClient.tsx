@@ -15,7 +15,6 @@ import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
 import { readAuthEmailLinkParams } from "@/lib/authEmailLinks";
 import { evaluatePassword } from "@/lib/passwordPolicy";
-import { coalescePasswordLinkPrepare } from "@/lib/authPasswordPrepare";
 import AuthLanguageSelector from "./AuthLanguageSelector";
 
 type Mode = "invite" | "reset";
@@ -42,26 +41,6 @@ type FinishPasswordResponse = {
   continuation_available?: boolean;
 };
 
-function prepareEmailLink(input: { mode: Mode; type: string; tokenHash: string; email: string | null }) {
-  const key = `${input.mode}:${input.type}:${input.tokenHash}:${input.email || ""}`;
-  return coalescePasswordLinkPrepare(key, () => fetch("/api/auth/finish-password", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({
-      phase: "prepare",
-      mode: input.mode,
-      type: input.type,
-      token_hash: input.tokenHash,
-      email: input.email,
-    }),
-  }).then(async (response) => ({
-    ok: response.ok,
-    status: response.status,
-    payload: (await response.json().catch(() => null)) as FinishPasswordResponse | null,
-  })));
-}
-
 function normalizeEmail(value?: string | null) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized || null;
@@ -69,6 +48,10 @@ function normalizeEmail(value?: string | null) {
 
 function isValidResendEmail(value: string | null) {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
+}
+
+function isPlausibleTokenHash(value: string) {
+  return /^[a-zA-Z0-9_-]{32,256}$/.test(value);
 }
 
 function readSessionContinuation(value?: Partial<SessionContinuation> | null) {
@@ -148,7 +131,8 @@ export default function FinishEmailLinkClient({
   const rawType = searchParams.get("type");
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
-  const accountEmail = sessionEmail;
+  const validTokenHash = isPlausibleTokenHash(tokenHash);
+  const accountEmail = sessionEmail || (validTokenHash ? expectedEmail : null);
   const resendEmail = isValidResendEmail(expectedEmail)
     ? expectedEmail
     : mode === "invite"
@@ -209,6 +193,12 @@ export default function FinishEmailLinkClient({
         setReady(true);
         return;
       }
+      if (tokenHash && !validTokenHash) {
+        setLinkRejected(true);
+        setMessage(t("linkIncomplete"));
+        setReady(true);
+        return;
+      }
 
       let browserContinuation: SessionContinuation | null = null;
       let serverCanResume = false;
@@ -250,38 +240,37 @@ export default function FinishEmailLinkClient({
         }
       }
 
+      if (tokenHash) {
+        // Email security scanners may open and execute this page. A link is
+        // single-use, so leave verification and password writing together in
+        // the final user-initiated POST.
+        setReady(true);
+        return;
+      }
+
       if (!browserContinuation) {
         try {
-          let result: { ok: boolean; status: number; payload: FinishPasswordResponse | null };
-          if (tokenHash) {
-            result = await prepareEmailLink({ mode, type, tokenHash, email: expectedEmail });
-          } else {
-            const statusUrl = new URL("/api/auth/finish-password", window.location.origin);
-            statusUrl.searchParams.set("mode", mode);
-            if (expectedEmail) statusUrl.searchParams.set("email", expectedEmail);
-            const response = await fetch(statusUrl.toString(), {
-              cache: "no-store",
-              credentials: "same-origin",
-            });
-            result = {
-              ok: response.ok,
-              status: response.status,
-              payload: (await response.json().catch(() => null)) as FinishPasswordResponse | null,
-            };
-          }
+          const statusUrl = new URL("/api/auth/finish-password", window.location.origin);
+          statusUrl.searchParams.set("mode", mode);
+          if (expectedEmail) statusUrl.searchParams.set("email", expectedEmail);
+          const response = await fetch(statusUrl.toString(), {
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+          const result = {
+            ok: response.ok,
+            status: response.status,
+            payload: (await response.json().catch(() => null)) as FinishPasswordResponse | null,
+          };
           if (cancelled) return;
           serverCanResume = Boolean(result.ok && result.payload?.continuation_available);
           if (serverCanResume) {
             const verifiedLinkEmail = normalizeEmail(result.payload?.email);
-            if (tokenHash && currentEmail && verifiedLinkEmail && currentEmail !== verifiedLinkEmail) {
-              window.location.replace(buildSwitchAccountUrl(currentEmail, verifiedLinkEmail));
-              return;
-            }
             setServerContinuationAvailable(true);
             setSessionEmail(verifiedLinkEmail);
           } else if (!result.ok && result.status >= 500) {
             setMessage(t("finishFailed"));
-          } else if (tokenHash || hasIncomingLinkError || sessionSourceRequested || result.payload?.code === "session_failed") {
+          } else if (hasIncomingLinkError || sessionSourceRequested || result.payload?.code === "session_failed") {
             setLinkRejected(true);
             setMessage(result.payload?.code === "account_mismatch" ? t("accountMismatch") : t("linkInvalid"));
           }
@@ -320,6 +309,7 @@ export default function FinishEmailLinkClient({
     t,
     tokenHash,
     type,
+    validTokenHash,
   ]);
 
   useEffect(() => {
@@ -518,7 +508,7 @@ export default function FinishEmailLinkClient({
       return;
     }
 
-    if (!continuation && !serverContinuationAvailable) {
+    if (!continuation && !serverContinuationAvailable && !pendingTokenHash) {
       setMessage(sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"));
       return;
     }
@@ -542,7 +532,8 @@ export default function FinishEmailLinkClient({
 
   const confirmTouched = confirm.length > 0;
   const confirmOk = confirmTouched && password === confirm;
-  const hasCredential = Boolean(serverContinuationAvailable || continuation);
+  const pendingTokenHash = ready && validTokenHash && !linkRejected && !accountUnavailable;
+  const hasCredential = Boolean(serverContinuationAvailable || continuation || pendingTokenHash);
   const canSubmit =
     ready &&
     !loading &&

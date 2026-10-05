@@ -1,25 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { coalescePasswordLinkPrepare } from "../../lib/authPasswordPrepare.ts";
 
 const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
-test("invite OTP is checked before any password form or write", () => {
+test("email-link GET and page load never consume an OTP", () => {
   const route = read("app/api/auth/finish-password/route.ts");
   const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
   const getBlock = route.slice(route.indexOf("export async function GET"), route.indexOf("export async function POST"));
   const postBlock = route.slice(route.indexOf("export async function POST"));
+  const pageLoad = client.slice(client.indexOf("const prepareCredential = async () => {"), client.indexOf("void prepareCredential();"));
 
   assert.doesNotMatch(getBlock, /verifyOtp/, "GET must never consume the one-time link");
-  assert.ok(postBlock.indexOf('body?.phase === "prepare"') < postBlock.indexOf("evaluatePassword(password)"));
-  assert.match(postBlock, /if \(sealedContinuation\) \{[\s\S]*validateSealedContinuation\(sealedContinuation\)/);
-  assert.match(postBlock, /stage: "prepare_otp"/);
-  assert.match(postBlock, /linkFingerprint: passwordLinkFingerprint\(tokenHash\)/);
-  assert.match(client, /coalescePasswordLinkPrepare\(key,/);
+  assert.doesNotMatch(pageLoad, /prepareEmailLink|verifyOtp|method: "POST"/, "mounting the page must not consume the token");
+  assert.match(pageLoad, /if \(tokenHash\) \{[\s\S]*setReady\(true\);\s*return;/);
   assert.ok(client.indexOf("if (hasIncomingLinkError && !tokenHash)") < client.indexOf("supabase.auth\n        .getUser()"));
+  assert.match(client, /const pendingTokenHash = ready && validTokenHash && !linkRejected && !accountUnavailable/);
   assert.match(client, /ready && hasCredential \? <form/);
-  assert.doesNotMatch(client, /const hasCredential = Boolean\([^\n]*tokenHash/);
+  assert.ok(postBlock.indexOf("evaluatePassword(password)") < postBlock.indexOf("const { data, error: verifyError } = await supabaseAuth.auth.verifyOtp("), "a rejected password must not consume the token");
   assert.match(client, /showExpired \? t\("linkExpiredTitle"\)/);
   assert.match(client, /data-testid="auth-resend-link"/);
   assert.match(client, /const showResend = ready && !accountUnavailable && linkRejected && !hasCredential &&/);
@@ -30,36 +28,18 @@ test("invite OTP is checked before any password form or write", () => {
 test("a browser signed in as another account switches before consuming the one-time link", () => {
   const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
   const switchGuard = client.indexOf("if (expectedEmail && currentEmail && currentEmail !== expectedEmail)");
-  const prepareLink = client.indexOf("result = await prepareEmailLink(");
+  const pendingToken = client.indexOf("if (tokenHash) {\n        // Email security scanners");
 
   assert.ok(switchGuard >= 0, "the expected address must be checked even when a token is present");
-  assert.ok(prepareLink > switchGuard, "account switching must precede one-time OTP verification");
-  assert.match(client.slice(switchGuard, prepareLink), /window\.location\.replace\(buildSwitchAccountUrl\(currentEmail, expectedEmail\)\);\s*return;/);
+  assert.ok(pendingToken > switchGuard, "account switching must precede the token-ready state");
+  assert.match(client.slice(switchGuard, pendingToken), /window\.location\.replace\(buildSwitchAccountUrl\(currentEmail, expectedEmail\)\);\s*return;/);
 });
 
-test("StrictMode double mount verifies one-time OTP once, then releases the request", async () => {
-  let calls = 0;
-  let complete!: (value: string) => void;
-  const first = coalescePasswordLinkPrepare("invite:strict-mode-token", () => {
-    calls += 1;
-    return new Promise<string>((resolve) => { complete = resolve; });
-  });
-  const second = coalescePasswordLinkPrepare("invite:strict-mode-token", async () => {
-    calls += 1;
-    return "unexpected second verification";
-  });
-
-  assert.equal(calls, 1);
-  assert.strictEqual(first, second);
-  complete("verified");
-  assert.deepEqual(await Promise.all([first, second]), ["verified", "verified"]);
-
-  const afterCompletion = await coalescePasswordLinkPrepare("invite:strict-mode-token", async () => {
-    calls += 1;
-    return "sealed continuation checked by the server";
-  });
-  assert.equal(afterCompletion, "sealed continuation checked by the server");
-  assert.equal(calls, 2);
+test("the final submit sends the token with the password or reuses a verified continuation", () => {
+  const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
+  assert.match(client, /if \(!continuation && !serverContinuationAvailable && !pendingTokenHash\)/);
+  assert.match(client, /token_hash: credential \|\| continueOnServer \? undefined : tokenHash/);
+  assert.match(client, /await submitPassword\(continuation, true, serverContinuationAvailable\)/);
 });
 
 test("successful resend responses cannot reveal whether an invitee exists", () => {

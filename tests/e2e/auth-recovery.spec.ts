@@ -1,6 +1,74 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('auth recovery flows', () => {
+  for (const { mode, type, path, button } of [
+    { mode: 'invite', type: 'invite', path: '/auth/finish-invite', button: 'Créer mon mot de passe' },
+    { mode: 'reset', type: 'recovery', path: '/auth/finish-reset', button: 'Réinitialiser mon mot de passe' },
+  ] as const) {
+    test(`${mode} link is consumed only when the final password form is submitted`, async ({ page }) => {
+      const tokenHash = 'a'.repeat(64);
+      const requests: Array<Record<string, unknown>> = [];
+      await page.route('**/api/auth/finish-password', async (route) => {
+        requests.push(route.request().postDataJSON());
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, user_id: 'verified-user', email: 'invitee@example.com' }),
+        });
+      });
+      await page.goto(`${path}?token_hash=${tokenHash}&type=${type}&email=invitee%40example.com&lang=fr`, {
+        waitUntil: 'domcontentloaded',
+      });
+
+      const passwordInputs = page.locator('input[autocomplete="new-password"]');
+      await expect(passwordInputs).toHaveCount(2, { timeout: 30_000 });
+      expect(requests).toHaveLength(0);
+      await page.getByRole('dialog', { name: 'Consentement cookies' }).getByRole('button', { name: 'Refuser' }).click();
+      await passwordInputs.nth(0).fill('SecurePass9!');
+      await passwordInputs.nth(1).fill('SecurePass9!');
+      await page.getByRole('button', { name: button }).click();
+
+      await expect.poll(() => requests.length).toBe(1);
+      expect(requests[0]).toMatchObject({
+        mode,
+        type,
+        token_hash: tokenHash,
+        email: 'invitee@example.com',
+        password: 'SecurePass9!',
+      });
+      expect(requests[0]).not.toHaveProperty('phase');
+      await expect(page).toHaveURL(/\/login\?lang=fr/, { timeout: 15_000 });
+    });
+  }
+
+  test('expired OTP is reported after final submit, without consuming it on page load', async ({ page }) => {
+    const requests: Array<Record<string, unknown>> = [];
+    await page.route('**/api/auth/finish-password', async (route) => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'auth_link_invalid' }),
+      });
+    });
+    await page.goto(`/auth/finish-invite?token_hash=${'b'.repeat(64)}&type=invite&email=invitee%40example.com&lang=fr`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    const passwordInputs = page.locator('input[autocomplete="new-password"]');
+    await expect(passwordInputs).toHaveCount(2, { timeout: 30_000 });
+    expect(requests).toHaveLength(0);
+    await page.getByRole('dialog', { name: 'Consentement cookies' }).getByRole('button', { name: 'Refuser' }).click();
+    await passwordInputs.nth(0).fill('SecurePass9!');
+    await passwordInputs.nth(1).fill('SecurePass9!');
+    await page.getByRole('button', { name: 'Créer mon mot de passe' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    await expect(page.getByRole('heading', { name: 'Lien expiré' })).toBeVisible();
+    await expect(page.getByTestId('auth-resend-link')).toBeVisible();
+    await expect(passwordInputs).toHaveCount(0);
+  });
+
   test('forgot-password link is visible on login page', async ({ page }) => {
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
