@@ -219,7 +219,7 @@ test("la période d'essai démarre à l'inscription, sans attendre le mot de pas
   const signup = read("app/api/public/trial-signup/route.ts");
   const trial = read("lib/trialSubscription.ts");
 
-  assert.match(signup, /ensureTrialSubscription\(userId, payload\.email\)/);
+  assert.match(signup, /ensureTrialSubscription\(userId,\s*payload\.email,\s*signedTrialDays\)/);
   assert.match(trial, /const \{ start, end \} = computeTrialWindowFromNow\(trialDays\)/);
   assert.match(trial, /trial_start_at:\s*start\.toISOString\(\)/);
   assert.match(trial, /trial_end_at:\s*end\.toISOString\(\)/);
