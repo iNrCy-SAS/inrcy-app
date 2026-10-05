@@ -9,6 +9,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
+import { recoverInterruptedPublicInviteSignupForUser } from "@/lib/interruptedInviteSignupRecoveryServer";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
@@ -537,6 +538,41 @@ export async function POST(req: NextRequest) {
         { code: "account_mismatch", error: "Ce lien ne correspond pas au compte attendu." },
         403,
       ));
+    }
+
+    // Resending an invite to an existing Auth identity can yield a recovery
+    // link, so both link modes must repair the same unfinished public signup.
+    try {
+      const recovery = await recoverInterruptedPublicInviteSignupForUser(authUser);
+      if (recovery === "recovered") {
+        log.info("auth_invite_signup_recovered", {
+          route: "/api/auth/finish-password",
+          mode,
+          user_id: userId,
+        });
+      }
+    } catch (error) {
+      log.error("auth_invite_signup_recovery_failed", {
+        route: "/api/auth/finish-password",
+        mode,
+        user_id: userId,
+        error_code: passwordWriteErrorCode(error),
+      });
+      const continuationPayload = sessionPayload(session);
+      const response = json({
+        code: "provision_retryable",
+        error: "La préparation du compte a échoué temporairement. Vous pouvez réessayer sans nouveau lien.",
+        retryable: Boolean(continuationPayload),
+        continuation_available: Boolean(continuationPayload),
+      }, 503);
+      return continuationPayload ? attachContinuationCookie(response, {
+        mode,
+        userId,
+        email: verifiedEmail || expectedEmail,
+        session: continuationPayload,
+        linkFingerprint: sealedContinuation?.linkFingerprint ||
+          (tokenHash ? passwordLinkFingerprint(tokenHash) : null),
+      }) : response;
     }
 
     const passwordWrite = await writeVerifiedPassword({

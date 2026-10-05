@@ -1,9 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export { isExistingAuthUserError } from "@/lib/supabaseAuthErrorPolicy";
 
-export async function hasKnownInrcyAccountForEmail(rawEmail: unknown) {
+export async function findKnownInrcyAccountUserIdsForEmail(rawEmail: unknown) {
   const email = String(rawEmail || "").trim().toLowerCase();
-  if (!email) return false;
+  if (!email) return [];
 
   const [profileByAdmin, profileByContact, subscriptionByContact] =
     await Promise.all([
@@ -33,6 +33,14 @@ export async function hasKnownInrcyAccountForEmail(rawEmail: unknown) {
     throw errors[0];
   }
 
-  return [profileByAdmin.data, profileByContact.data, subscriptionByContact.data]
-    .some((rows) => Array.isArray(rows) && rows.length > 0);
+  return [...new Set(
+    [profileByAdmin.data, profileByContact.data, subscriptionByContact.data]
+      .flatMap((rows) => rows || [])
+      .map((row) => String(row.user_id || "").trim())
+      .filter(Boolean),
+  )];
+}
+
+export async function hasKnownInrcyAccountForEmail(rawEmail: unknown) {
+  return (await findKnownInrcyAccountUserIdsForEmail(rawEmail)).length > 0;
 }

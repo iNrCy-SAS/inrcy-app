@@ -23,8 +23,7 @@ export function computeTrialDatesFromStartDate(startDate: string, trialDays = ge
   return { trialStartAt: start.toISOString(), trialEndAt: end.toISOString() };
 }
 
-export async function ensureTrialSubscription(userId: string, adminEmail: string) {
-  const trialDays = getTrialDays();
+export async function ensureTrialSubscription(userId: string, adminEmail: string, trialDays = getTrialDays()) {
   const { start, end } = computeTrialWindowFromNow(trialDays);
   const nowIso = new Date().toISOString();
 

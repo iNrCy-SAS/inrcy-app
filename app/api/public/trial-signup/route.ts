@@ -20,7 +20,12 @@ import {
   type SignupFailureStage,
 } from "@/lib/signupFailureAlertPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { ensureTrialSubscription } from "@/lib/trialSubscription";
+import { ensureTrialSubscription, getTrialDays } from "@/lib/trialSubscription";
+import { markPublicSignupTrialCompleted } from "@/lib/signupTrialCompletion";
+import {
+  createSignupRecoveryProof,
+  SIGNUP_RECOVERY_METADATA_KEY,
+} from "@/lib/signupRecoveryProof";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import { createVisioBookingToken } from "@/lib/visioBookingToken";
@@ -533,6 +538,12 @@ export async function POST(req: Request) {
       phone: payload.phone,
       consent: payload.consent,
     });
+    const signedTrialDays = getTrialDays();
+    const signupRecoveryProof = createSignupRecoveryProof(
+      signupFormSnapshot,
+      expectedSecret,
+      { issuedAt: new Date().toISOString(), trialDays: signedTrialDays },
+    );
 
     stage = "auth_invitation";
     const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(payload.email, {
@@ -545,6 +556,7 @@ export async function POST(req: Request) {
         app_language: payload.language,
         app_locale: payload.locale,
         [SIGNUP_FORM_METADATA_KEY]: signupFormSnapshot,
+        [SIGNUP_RECOVERY_METADATA_KEY]: signupRecoveryProof,
         [SIGNUP_ATTRIBUTION_METADATA_KEY]: payload.attribution,
       },
       redirectTo: inviteRedirectUrl,
@@ -618,7 +630,8 @@ export async function POST(req: Request) {
     stage = "welcome_notifications";
     await seedWelcomeNotifications(userId);
     stage = "trial_subscription";
-    const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
+    const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email, signedTrialDays);
+    await markPublicSignupTrialCompleted(userId);
 
     let attributionPersisted = false;
     let persistedAttributionEventId = payload.attribution.eventId;

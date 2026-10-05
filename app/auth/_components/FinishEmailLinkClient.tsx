@@ -339,6 +339,7 @@ export default function FinishEmailLinkClient({
       case "password_policy_mismatch":
         return t("passwordPolicyMismatch");
       case "password_save_retryable":
+      case "provision_retryable":
         return t("retryWithoutNewLink");
       case "invalid_action":
         return t("invalidAction");

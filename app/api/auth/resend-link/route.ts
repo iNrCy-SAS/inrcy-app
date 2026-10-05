@@ -5,8 +5,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { log } from "@/lib/observability/logger";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import { hasEligibleInrcyAuthUser } from "@/lib/authInviteResendEligibility";
 import {
-  hasKnownInrcyAccountForEmail,
+  findKnownInrcyAccountUserIdsForEmail,
   isExistingAuthUserError,
 } from "@/lib/supabaseAuthBusinessErrors";
 import {
@@ -104,13 +105,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, message: genericSuccessMessage() });
     }
 
-    const canResendInvite = await hasKnownInrcyAccountForEmail(email);
-    if (!canResendInvite) {
+    const inviteLimited = await enforceRateLimit({
+      name: "auth_resend_link_invite_ip",
+      identifier: getClientIp(req),
+      limit: 12,
+      window: "15 m",
+      failClosed: true,
+    });
+    if (inviteLimited) return inviteLimited;
+
+    const knownUserIds = await findKnownInrcyAccountUserIdsForEmail(email);
+    const eligibleUser = await hasEligibleInrcyAuthUser(
+      email,
+      knownUserIds,
+      (userId) => supabaseAdmin.auth.admin.getUserById(userId),
+      (params) => supabaseAdmin.auth.admin.listUsers(params),
+    );
+    if (!eligibleUser) {
       return NextResponse.json({ ok: true, message: genericSuccessMessage() });
     }
 
     const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { app_language: language },
+      // Supabase can update user_metadata on a repeated invitation. Keep the
+      // original signup proof and form snapshot intact for interrupted signups.
+      data: { ...(eligibleUser.user_metadata || {}), app_language: language },
       redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-invite", language),
     });
 
