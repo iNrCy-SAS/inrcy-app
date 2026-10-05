@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
         return json({ code: "account_mismatch" }, 403);
       }
 
-      return attachContinuationCookie(json({
+      const response = attachContinuationCookie(json({
         ok: true,
         continuation_available: true,
         email: verifiedEmail,
@@ -372,6 +372,12 @@ export async function POST(req: NextRequest) {
         session: verifiedSession,
         linkFingerprint: passwordLinkFingerprint(tokenHash),
       });
+      log.info("auth_password_link_prepared", {
+        route: "/api/auth/finish-password",
+        mode,
+        user_id: data.user.id,
+      });
+      return response;
     }
     // The encrypted HttpOnly continuation is authoritative. The body variant
     // remains accepted for legacy PKCE/session links, but failed writes never
@@ -685,6 +691,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    log.info("auth_password_finish_succeeded", {
+      route: "/api/auth/finish-password",
+      mode,
+      user_id: userId,
+      credential_source: credentialSource,
+    });
     const response = clearContinuationCookie(json({
       ok: true,
       user_id: userId,

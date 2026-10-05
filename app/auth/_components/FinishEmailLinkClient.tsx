@@ -122,6 +122,7 @@ export default function FinishEmailLinkClient({
   );
   const appLanguage = appLanguageFromLocale(recoveredLocale || currentLocale);
   const t = useTranslations("auth.password");
+  const loginT = useTranslations("auth.login");
 
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -133,8 +134,10 @@ export default function FinishEmailLinkClient({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendInfo, setResendInfo] = useState<string | null>(null);
+  const [resendRequestedEmail, setResendRequestedEmail] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendEmailInput, setResendEmailInput] = useState("");
   const [linkRejected, setLinkRejected] = useState(false);
   const [accountUnavailable, setAccountUnavailable] = useState(false);
   const [continuation, setContinuation] = useState<SessionContinuation | null>(null);
@@ -146,7 +149,11 @@ export default function FinishEmailLinkClient({
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
   const accountEmail = sessionEmail;
-  const resendEmail = isValidResendEmail(expectedEmail) ? expectedEmail : sessionEmail;
+  const resendEmail = isValidResendEmail(expectedEmail)
+    ? expectedEmail
+    : mode === "invite"
+      ? normalizeEmail(resendEmailInput)
+      : sessionEmail;
   const requestedNextPath = safeContinuePath(searchParams.get("next") || "/dashboard", "/dashboard");
   const nextPath = requestedNextPath.startsWith("/set-password") ? "/dashboard" : requestedNextPath;
   const sessionSourceRequested = allowSessionFallback || searchParams.get("source") === "session";
@@ -189,6 +196,7 @@ export default function FinishEmailLinkClient({
     setAccountUnavailable(false);
     setMessage(null);
     setResendInfo(null);
+    setResendRequestedEmail(null);
     setResendError(null);
     setContinuation(null);
     setServerContinuationAvailable(false);
@@ -215,7 +223,10 @@ export default function FinishEmailLinkClient({
       if (!error && currentUser) {
         setActiveBrowserUserId(currentUser.id);
 
-        if (!tokenHash && expectedEmail && currentEmail && currentEmail !== expectedEmail) {
+        // Switch before verifying an invite/recovery token. Verification is a
+        // one-time operation: consuming it in the wrong browser session would
+        // leave the account-switch screen with an already-used link.
+        if (expectedEmail && currentEmail && currentEmail !== expectedEmail) {
           window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail));
           return;
         }
@@ -360,6 +371,7 @@ export default function FinishEmailLinkClient({
     setResendLoading(true);
     setResendError(null);
     setResendInfo(null);
+    setResendRequestedEmail(null);
 
     try {
       const res = await fetch("/api/auth/resend-link", {
@@ -375,6 +387,7 @@ export default function FinishEmailLinkClient({
       }
 
       setResendInfo(t("resendRequestReceived"));
+      setResendRequestedEmail(resendEmail);
       setResendCooldown(30);
     } catch {
       setResendError(t("sendFailed"));
@@ -537,9 +550,14 @@ export default function FinishEmailLinkClient({
     hasCredential &&
     strength.isAcceptable &&
     password === confirm;
-  const canResend = ready && !accountUnavailable && linkRejected && !hasCredential && isValidResendEmail(resendEmail);
-  const showExpired = ready && linkRejected && !hasCredential;
-  const title = isInvite ? t("inviteTitle") : t("resetTitle");
+  const showResend = ready && !accountUnavailable && linkRejected && !hasCredential &&
+    (isInvite || isValidResendEmail(resendEmail));
+  const canResend = showResend && isValidResendEmail(resendEmail);
+  const inviteResendRequested = isInvite && Boolean(resendInfo);
+  const showExpired = ready && linkRejected && !hasCredential && !inviteResendRequested;
+  const title = inviteResendRequested
+    ? t("inviteResendTitle")
+    : isInvite ? t("inviteTitle") : t("resetTitle");
   const body = isInvite ? t("inviteBody") : t("resetBody");
 
   return (
@@ -550,7 +568,9 @@ export default function FinishEmailLinkClient({
           {isInvite ? t("inviteEyebrow") : t("resetEyebrow")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold text-white">{showExpired ? t("linkExpiredTitle") : title}</h1>
-        <p className="mt-4 text-sm leading-6 text-slate-200">{showExpired ? t("linkInvalid") : body}</p>
+        <p className="mt-4 text-sm leading-6 text-slate-200">
+          {inviteResendRequested ? t("resendRequestReceived") : showExpired ? t("linkInvalid") : body}
+        </p>
         {accountEmail ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">
             {t("expectedAccount")} <strong>{accountEmail}</strong>
@@ -561,13 +581,22 @@ export default function FinishEmailLinkClient({
           <p data-testid="auth-link-loading" className="mt-5 text-sm text-slate-200">{t("verifying")}</p>
         ) : null}
 
-        {ready && !hasCredential ? (
+        {ready && !hasCredential && !inviteResendRequested ? (
           <p
             data-testid="auth-link-error"
             className="mt-5 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
           >
             {message || (sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"))}
           </p>
+        ) : null}
+
+        {inviteResendRequested ? (
+          <div data-testid="auth-resend-success" className="mt-5 rounded-2xl border border-emerald-300/40 bg-emerald-400/10 px-4 py-3 text-sm leading-6 text-emerald-100">
+            {t("inviteResendGuidance")}
+            {resendRequestedEmail ? (
+              <p className="mt-2">{t("resendAddressUsed")}{" : "}<strong>{resendRequestedEmail}</strong></p>
+            ) : null}
+          </div>
         ) : null}
 
         {ready && hasCredential ? <form onSubmit={handleSubmit} className="mt-7 space-y-4">
@@ -687,16 +716,29 @@ export default function FinishEmailLinkClient({
           </div>
         </form> : null}
 
-        {canResend ? (
+        {showResend ? (
           <div className="mt-7 space-y-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3">
             <div className="text-sm text-cyan-50">
               {isInvite ? t("needInviteLink") : t("needResetLink")}
             </div>
+            {isInvite && !isValidResendEmail(expectedEmail) ? (
+              <label className="block text-sm text-cyan-50">
+                <span className="mb-1 block">{loginT("emailPlaceholder")}</span>
+                <input
+                  data-testid="auth-resend-email"
+                  type="email"
+                  autoComplete="email"
+                  value={resendEmailInput}
+                  onChange={(event) => setResendEmailInput(event.target.value)}
+                  className="w-full rounded-xl border border-cyan-200/30 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                />
+              </label>
+            ) : null}
             <button
               data-testid="auth-resend-link"
               type="button"
               onClick={onResendLink}
-              disabled={resendLoading || resendCooldown > 0}
+              disabled={!canResend || resendLoading || resendCooldown > 0}
               className="inline-flex w-full items-center justify-center rounded-xl border border-cyan-200/30 bg-white/10 px-4 py-2 text-sm font-medium text-cyan-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resendLoading
@@ -705,7 +747,7 @@ export default function FinishEmailLinkClient({
                 ? t("resendIn", { seconds: resendCooldown })
                 : t("sendNewLink")}
             </button>
-            {resendInfo ? <div className="text-sm text-emerald-200">{resendInfo}</div> : null}
+            {resendInfo && !isInvite ? <div className="text-sm text-emerald-200">{resendInfo}</div> : null}
             {resendError ? <div className="text-sm text-rose-200">{resendError}</div> : null}
           </div>
         ) : null}

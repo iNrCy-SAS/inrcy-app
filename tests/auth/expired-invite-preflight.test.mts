@@ -22,7 +22,19 @@ test("invite OTP is checked before any password form or write", () => {
   assert.doesNotMatch(client, /const hasCredential = Boolean\([^\n]*tokenHash/);
   assert.match(client, /showExpired \? t\("linkExpiredTitle"\)/);
   assert.match(client, /data-testid="auth-resend-link"/);
-  assert.match(client, /const canResend = ready && !accountUnavailable && linkRejected && !hasCredential && isValidResendEmail\(resendEmail\)/);
+  assert.match(client, /const showResend = ready && !accountUnavailable && linkRejected && !hasCredential &&/);
+  assert.match(client, /const canResend = showResend && isValidResendEmail\(resendEmail\)/);
+  assert.match(client, /data-testid="auth-resend-email"/);
+});
+
+test("a browser signed in as another account switches before consuming the one-time link", () => {
+  const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
+  const switchGuard = client.indexOf("if (expectedEmail && currentEmail && currentEmail !== expectedEmail)");
+  const prepareLink = client.indexOf("result = await prepareEmailLink(");
+
+  assert.ok(switchGuard >= 0, "the expected address must be checked even when a token is present");
+  assert.ok(prepareLink > switchGuard, "account switching must precede one-time OTP verification");
+  assert.match(client.slice(switchGuard, prepareLink), /window\.location\.replace\(buildSwitchAccountUrl\(currentEmail, expectedEmail\)\);\s*return;/);
 });
 
 test("StrictMode double mount verifies one-time OTP once, then releases the request", async () => {
@@ -66,5 +78,8 @@ test("expired-link and generic resend messages exist in each supported locale", 
     const auth = JSON.parse(read(`messages/${locale}/auth.json`));
     assert.equal(typeof auth.password.linkExpiredTitle, "string", locale);
     assert.equal(typeof auth.password.resendRequestReceived, "string", locale);
+    assert.equal(typeof auth.password.inviteResendTitle, "string", locale);
+    assert.equal(typeof auth.password.inviteResendGuidance, "string", locale);
+    assert.equal(typeof auth.password.resendAddressUsed, "string", locale);
   }
 });
