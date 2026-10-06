@@ -28,6 +28,7 @@ export const ADS_CHANNELS = [
 
 export const ADS_OAUTH_PROVIDERS = ["meta", "google"] as const;
 export const ADS_DRAFT_ACCOUNT_CHANNELS = ["meta", "google", "linkedin", "pinterest", "openai"] as const;
+export const ADS_LINKEDIN_SIGNAL_MAX_LENGTH = 300;
 
 export type AdsChannelId = (typeof ADS_CHANNELS)[number]["id"];
 export type AdsProvider = (typeof ADS_OAUTH_PROVIDERS)[number];
@@ -549,7 +550,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const descriptionLimit = provider === "linkedin" ? 300 : provider === "pinterest" ? 800 : provider === "openai" ? 100 : provider === "x" ? 280 : provider === "tiktok" ? 100 : 90;
   const headlines = textList(raw.headlines, 15, headlineLimit);
   const descriptions = textList(raw.descriptions, 4, descriptionLimit);
-  const keywords = textList(raw.keywords, 20, 80);
+  const keywords = textList(raw.keywords, 20, provider === "linkedin" ? ADS_LINKEDIN_SIGNAL_MAX_LENGTH : 80);
   const negativeKeywords = textList(raw.negativeKeywords, 40, 80);
   if (!headlines || !descriptions || !keywords || !negativeKeywords) {
     return { draft: null, error: "Vérifiez le nombre et la longueur des titres, descriptions et mots-clés." };

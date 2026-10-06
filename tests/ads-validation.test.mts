@@ -74,6 +74,16 @@ test("iNr’ADS rejette les données longues au lieu de les tronquer avant publi
   assert.equal(parseAdsCampaignInput({ ...googleDraft, descriptions: ["x".repeat(91), ...googleDraft.descriptions] }).draft, null);
 });
 
+test("les pistes LinkedIn longues restent entières dans le brouillon, sans élargir les mots-clés Google", () => {
+  const signal = "Professionnels souhaitant centraliser leur communication digitale et publier sur plusieurs canaux depuis un même espace.";
+  assert.ok(signal.length > 80 && signal.length < 300);
+  const linkedin = parseAdsCampaignInput({ ...metaDraft, provider: "linkedin", adAccountId: "", keywords: [signal] }, { purpose: "draft" });
+  assert.equal(linkedin.error, null);
+  assert.deepEqual(linkedin.draft?.keywords, [signal]);
+  assert.equal(parseAdsCampaignInput({ ...googleDraft, keywords: [signal] }, { purpose: "draft" }).draft, null);
+  assert.equal(parseAdsCampaignInput({ ...metaDraft, provider: "linkedin", adAccountId: "", keywords: ["x".repeat(301)] }, { purpose: "draft" }).draft, null);
+});
+
 test("iNr’ADS exige des liens HTTPS et une date de fin bornée", () => {
   assert.equal(parseAdsCampaignInput({ ...metaDraft, destinationUrl: "http://example.com" }).draft, null);
   assert.equal(parseAdsCampaignInput({ ...metaDraft, endDate: "2099-01-01" }).draft, null);

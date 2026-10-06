@@ -6,6 +6,7 @@ import * as linkedInPreflightPolicy from "../lib/adsLinkedInPreflightPolicy.ts";
 import {
   buildLinkedInAdsAudienceCountPath,
   buildLinkedInAdsBudgetPricingPath,
+  buildLinkedInAdsGeoSearchMinimalPath,
   buildLinkedInAdsGeoSearchPath,
   buildLinkedInAdsGeoUrnsPath,
   linkedInAdsCampaignGroupIsCompatible,
@@ -13,6 +14,7 @@ import {
   normalizeLinkedInAdsAudienceCount,
   normalizeLinkedInAdsBudgetPricing,
   normalizeLinkedInAdsCampaignGroup,
+  normalizeLinkedInAdsGeoQueries,
   normalizeLinkedInAdsImage,
   normalizeLinkedInAdsLocales,
   normalizeLinkedInAdsTargetingEntities,
@@ -74,6 +76,13 @@ test("LinkedIn preflight builds Bing-geo, audience and pricing read paths", () =
   assert.equal(fallbackGeoParams.has("locale.language"), false);
   assert.equal(fallbackGeoParams.has("locale.country"), false);
   assert.equal(fallbackGeoParams.has("locale"), false);
+  const minimalGeoParams = new URL(buildLinkedInAdsGeoSearchMinimalPath("Arras"), "https://api.linkedin.com").searchParams;
+  assert.deepEqual(Object.fromEntries(minimalGeoParams), {
+    q: "typeahead",
+    facet: "urn:li:adTargetingFacet:locations",
+    query: "Arras",
+  });
+  assert.throws(() => buildLinkedInAdsGeoSearchMinimalPath("A"), /Invalid LinkedIn Ads geo query/);
   assert.throws(() => buildLinkedInAdsGeoSearchPath({
     query: "France", accountId: "not-an-account", language: "fr", country: "FR",
   }), /Invalid LinkedIn Ads geo query/);
@@ -83,16 +92,36 @@ test("LinkedIn preflight builds Bing-geo, audience and pricing read paths", () =
   const exactGeoPath = buildLinkedInAdsGeoUrnsPath(["urn:li:geo:105015875"], "fr", "FR");
   assert.match(exactGeoPath, /adTargetingEntities\?q=urns/);
   assert.match(exactGeoPath, /queryVersion=QUERY_USES_URNS/);
-  assert.match(exactGeoPath, /urns=List%28urn%3Ali%3Ageo%3A105015875%29/);
+  assert.match(exactGeoPath, /urns=List\(urn%3Ali%3Ageo%3A105015875\)/);
+  assert.match(exactGeoPath, /locale=\(language:fr,country:FR\)/);
+  assert.match(buildLinkedInAdsGeoUrnsPath(["urn:li:geo:1001", "urn:li:geo:1002"], "fr", "FR"),
+    /urns=List\(urn%3Ali%3Ageo%3A1001,urn%3Ali%3Ageo%3A1002\)/);
   const audiencePath = buildLinkedInAdsAudienceCountPath(["urn:li:geo:105015875"], "fr", "FR");
   assert.match(audiencePath, /audienceCounts\?q=targetingCriteriaV2/);
   assert.match(audiencePath, /urn%3Ali%3Ageo%3A105015875/);
+  const multiAudiencePath = buildLinkedInAdsAudienceCountPath(["urn:li:geo:1001", "urn:li:geo:1002"], "fr", "FR");
+  assert.match(multiAudiencePath, /urn%3Ali%3Ageo%3A1001,urn%3Ali%3Ageo%3A1002/);
   const pricingPath = buildLinkedInAdsBudgetPricingPath({
     accountId: "123", geoUrns: ["urn:li:geo:105015875"], language: "fr", country: "FR", dailyBudget: 25,
   });
   assert.match(pricingPath, /adBudgetPricing\?account=urn%3Ali%3AsponsoredAccount%3A123/);
   assert.match(pricingPath, /bidType=CPC/);
   assert.match(pricingPath, /dailyBudget=\(amount:25\.00,currencyCode:EUR\)/);
+  const multiPricingPath = buildLinkedInAdsBudgetPricingPath({
+    accountId: "123", geoUrns: ["urn:li:geo:1001", "urn:li:geo:1002"],
+    language: "fr", country: "FR", dailyBudget: 25,
+  });
+  assert.match(multiPricingPath, /urn%3Ali%3Ageo%3A1001,urn%3Ali%3Ageo%3A1002/);
+});
+
+test("LinkedIn preflight accepts up to eight distinct place queries", () => {
+  assert.deepEqual(normalizeLinkedInAdsGeoQueries([" Arras ", "arras", "Lille"]), ["Arras", "Lille"]);
+  assert.deepEqual(normalizeLinkedInAdsGeoQueries([]), []);
+  assert.throws(() => normalizeLinkedInAdsGeoQueries(["A"]), /Invalid LinkedIn Ads geo query/);
+  assert.throws(() => normalizeLinkedInAdsGeoQueries(Array.from({ length: 9 }, (_, index) => `Ville ${index}`)),
+    /Too many LinkedIn Ads geo queries/);
+  const route = readFileSync("app/api/ads/linkedin/preflight/route.ts", "utf8");
+  assert.match(route, /normalizeLinkedInAdsGeoQueries\(params\.getAll\("geo"\)\)/);
 });
 
 test("LinkedIn preflight auto-selects only unambiguous provider resources", () => {
@@ -117,10 +146,17 @@ test("LinkedIn preflight auto-selects only unambiguous provider resources", () =
 
 type RuntimePreflightResult = {
   geoSuggestions: Array<{ urn: string; name: string; facetUrn: string }>;
+  geoResolutions: Array<{
+    query: string;
+    suggestions: Array<{ urn: string; name: string; facetUrn: string }>;
+    autoSelectedUrn: string | null;
+    status: "ok" | "provider_rejected";
+  }>;
   selected: {
     verifiedGeoUrns: string[];
     verifiedGeoTargets: Array<{ urn: string; name: string; facetUrn: string }>;
   };
+  blockers: string[];
 };
 
 type RuntimePreflightFailure = Error & {
@@ -128,6 +164,8 @@ type RuntimePreflightFailure = Error & {
   status: number;
   operation: string;
   providerStatus: number | null;
+  providerCode: number | null;
+  providerRequestId: string | null;
 };
 
 const preflightRuntimeSource = ts.transpileModule(
@@ -292,13 +330,70 @@ test("LinkedIn geo preflight never retries authentication or provider availabili
   }
 });
 
-test("LinkedIn geo preflight maps a rejected fallback to a safe operation-specific error", async () => {
+test("LinkedIn geo preflight uses the documented minimum after both scoped reads return 400", async () => {
+  const requests: URL[] = [];
+  const providerGeo = {
+    urn: "urn:li:geo:1001",
+    name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      requests.push(request);
+      return requests.length <= 2
+        ? Response.json({}, { status: 400 })
+        : Response.json({ elements: [providerGeo] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const result = await runtime.run("owner", { geoQuery: "Arras", language: "fr", country: "FR" });
+  assert.equal(requests.length, 3);
+  assert.deepEqual(Object.fromEntries(requests[2].searchParams), {
+    q: "typeahead", facet: "urn:li:adTargetingFacet:locations", query: "Arras",
+  });
+  assert.deepEqual(result.geoSuggestions, [providerGeo]);
+  assert.deepEqual(result.selected.verifiedGeoTargets, [providerGeo]);
+  assert.deepEqual(result.selected.verifiedGeoUrns, [providerGeo.urn]);
+  assert.deepEqual(runtime.logs.map((entry) => entry.message), [
+    "linkedin_ads_preflight_geo_locale_fallback",
+    "linkedin_ads_preflight_geo_minimal_fallback",
+  ]);
+});
+
+test("LinkedIn geo preflight keeps ambiguous minimal suggestions unselected", async () => {
+  const arras = {
+    urn: "urn:li:geo:1001", name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
   let typeaheadReads = 0;
   const fetchImpl: typeof fetch = async (input) => {
     const request = new URL(String(input));
     if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
       typeaheadReads++;
-      return Response.json({ message: "do not expose provider details" }, { status: 400 });
+      return typeaheadReads <= 2 ? Response.json({}, { status: 400 })
+        : Response.json({ elements: [arras, { ...arras, urn: "urn:li:geo:1002" }] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const result = await runtime.run("owner", { geoQuery: "Arras", language: "fr", country: "FR" });
+  assert.equal(typeaheadReads, 3);
+  assert.equal(result.geoSuggestions.length, 2);
+  assert.deepEqual(result.selected.verifiedGeoTargets, []);
+  assert.deepEqual(result.selected.verifiedGeoUrns, []);
+});
+
+test("LinkedIn geo preflight maps three rejected reads to a safe operation-specific error", async () => {
+  let typeaheadReads = 0;
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      typeaheadReads++;
+      return Response.json({ code: 123, message: "do not expose provider details or tokens" }, {
+        status: 400, headers: { "x-li-uuid": "xreq12345" },
+      });
     }
     return nonGeoPreflightResponse(request);
   };
@@ -309,13 +404,159 @@ test("LinkedIn geo preflight maps a rejected fallback to a safe operation-specif
       const failure = error as RuntimePreflightFailure;
       assert.equal(failure.code, "preflight_geo_typeahead_rejected");
       assert.equal(failure.status, 502);
-      assert.equal(failure.operation, "geo_typeahead_default_locale");
+      assert.equal(failure.operation, "geo_typeahead_minimal");
       assert.equal(failure.providerStatus, 400);
+      assert.equal(failure.providerCode, 123);
+      assert.equal(failure.providerRequestId, "xreq12345");
       assert.doesNotMatch(failure.message, /provider details|Arras|token/i);
       return true;
     },
   );
-  assert.equal(typeaheadReads, 2);
+  assert.equal(typeaheadReads, 3);
+});
+
+test("LinkedIn preflight resolves two places independently and combines verified URNs", async () => {
+  const arras = {
+    urn: "urn:li:geo:1001", name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  const lille = { ...arras, urn: "urn:li:geo:1002", name: "Lille, Hauts-de-France, France" };
+  const requests: URL[] = [];
+  let arrasReads = 0;
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    requests.push(request);
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      if (request.searchParams.get("query") === "Arras") {
+        arrasReads++;
+        return arrasReads <= 2 ? Response.json({}, { status: 400 }) : Response.json({ elements: [arras] });
+      }
+      assert.equal(request.searchParams.get("query"), "Lille");
+      return Response.json({ elements: [lille] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const result = await runtime.run("owner", {
+    geoQueries: ["Arras", "Lille", "arras"], language: "fr", country: "FR",
+  });
+  assert.equal(arrasReads, 3);
+  assert.equal(requests.filter((request) => request.searchParams.get("query") === "Lille").length, 1);
+  assert.deepEqual(result.geoSuggestions, [arras, lille]);
+  assert.deepEqual(result.geoResolutions.map((resolution) => [resolution.query, resolution.autoSelectedUrn]), [
+    ["Arras", arras.urn], ["Lille", lille.urn],
+  ]);
+  assert.deepEqual(result.selected.verifiedGeoUrns, [arras.urn, lille.urn]);
+  const audienceRequest = requests.find((request) => request.pathname === "/rest/audienceCounts");
+  assert.ok(audienceRequest);
+  assert.match(audienceRequest.href, /urn%3Ali%3Ageo%3A1001/);
+  assert.match(audienceRequest.href, /urn%3Ali%3Ageo%3A1002/);
+  assert.equal(result.blockers.includes("unresolved_geo_queries"), false);
+});
+
+test("LinkedIn preflight leaves one ambiguous place pending while keeping another verified", async () => {
+  const arras = {
+    urn: "urn:li:geo:1001", name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  const lille = { ...arras, urn: "urn:li:geo:1003", name: "Lille, Hauts-de-France, France" };
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      return request.searchParams.get("query") === "Arras"
+        ? Response.json({ elements: [arras, { ...arras, urn: "urn:li:geo:1002" }] })
+        : Response.json({ elements: [lille] });
+    }
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "urns") {
+      return Response.json({ elements: [arras] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const input = { geoQueries: ["Arras", "Lille"], language: "fr", country: "FR" };
+  const pending = await runtime.run("owner", input);
+  assert.deepEqual(pending.selected.verifiedGeoUrns, [lille.urn]);
+  assert.equal(pending.geoResolutions[0].autoSelectedUrn, null);
+  assert.equal(pending.geoResolutions[0].suggestions.length, 2);
+  assert.ok(pending.blockers.includes("unresolved_geo_queries"));
+  const chosen = await runtime.run("owner", { ...input, geoUrns: [arras.urn] });
+  assert.deepEqual(chosen.selected.verifiedGeoUrns, [arras.urn, lille.urn]);
+  assert.equal(chosen.blockers.includes("unresolved_geo_queries"), false);
+});
+
+test("LinkedIn preflight blocks a chosen URN missing from its exact re-resolution", async () => {
+  const arras = {
+    urn: "urn:li:geo:1001", name: "Arras, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      return Response.json({ elements: [arras] });
+    }
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "urns") {
+      return Response.json({ elements: [] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const result = await runtime.run("owner", {
+    geoQueries: ["Arras"], geoUrns: [arras.urn], language: "fr", country: "FR",
+  });
+  assert.ok(result.blockers.includes("selected_geo_unverified"));
+});
+
+test("LinkedIn preflight preserves a valid place when another is rejected by every typeahead form", async () => {
+  const lille = {
+    urn: "urn:li:geo:1002", name: "Lille, Hauts-de-France, France",
+    facetUrn: "urn:li:adTargetingFacet:locations",
+  };
+  let arrasReads = 0;
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      if (request.searchParams.get("query") === "Arras") {
+        arrasReads++;
+        return Response.json({ code: 123 }, { status: 400 });
+      }
+      return Response.json({ elements: [lille] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  const result = await runtime.run("owner", {
+    geoQueries: ["Arras", "Lille"], language: "fr", country: "FR",
+  });
+  assert.equal(arrasReads, 3);
+  assert.deepEqual(result.selected.verifiedGeoUrns, [lille.urn]);
+  assert.deepEqual(result.geoResolutions.map((resolution) => [resolution.query, resolution.status]), [
+    ["Arras", "provider_rejected"], ["Lille", "ok"],
+  ]);
+  assert.deepEqual(result.geoResolutions[0].suggestions, []);
+  assert.ok(result.blockers.includes("geo_query_provider_rejected"));
+  assert.ok(result.blockers.includes("unresolved_geo_queries"));
+  assert.ok(runtime.logs.some((entry) => entry.message === "linkedin_ads_preflight_geo_partial_rejected"));
+});
+
+test("LinkedIn preflight still fails globally on a provider rate limit among place queries", async () => {
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      return request.searchParams.get("query") === "Arras"
+        ? Response.json({ elements: [] }) : Response.json({}, { status: 429 });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const runtime = loadPreflightRuntime(fetchImpl);
+  await assert.rejects(
+    runtime.run("owner", { geoQueries: ["Arras", "Lille"], language: "fr", country: "FR" }),
+    (error: unknown) => {
+      const failure = error as RuntimePreflightFailure;
+      assert.equal(failure.code, "preflight_provider_rate_limited");
+      assert.equal(failure.providerStatus, 429);
+      return true;
+    },
+  );
 });
 
 test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggestions selectable", () => {
@@ -324,8 +565,9 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
   assert.match(client, /\.filter\(\(target\) => verifiedGeoUrns\.has\(target\.urn\)\)/);
   assert.match(
     client,
-    /if \(!\(current\.linkedinGeoTargets \|\| \[\]\)\.length && verifiedGeoTargets\.length\) \{\s*patch\.linkedinGeoTargets = verifiedGeoTargets/,
+    /const addedGeoTargets = verifiedGeoTargets\.filter\(\(target\) => !currentGeoUrns\.has\(target\.urn\)\)/,
   );
+  assert.match(client, /patch\.linkedinGeoTargets = \[\.\.\.currentGeoTargets, \.\.\.addedGeoTargets\]/);
   assert.match(client, /const data = await fetchLinkedInPreflight[\s\S]{0,240}applyLinkedInProviderDefaults\(data\)/);
   assert.match(
     client,
@@ -403,5 +645,7 @@ test("LinkedIn resource preflight remains GET-only while publication is isolated
   assert.match(route, /LinkedInAdsPreflightProviderError/);
   assert.match(route, /linkedin_ads_preflight_failed/);
   assert.match(route, /provider_status: providerFailure\?\.providerStatus/);
+  assert.match(route, /provider_code: providerFailure\?\.providerCode/);
+  assert.match(route, /provider_request_id: providerFailure\?\.providerRequestId/);
   assert.doesNotMatch(route, /providerFailure\?\.message|JSON\.stringify\(error\)/);
 });
