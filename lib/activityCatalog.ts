@@ -26,6 +26,8 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   agriculture_producteurs: {
     label: 'Agriculture / Producteurs locaux',
     jobs: {
+      agriculteur: { label: 'Agriculteur', services: ['Production agricole', 'Produits de la ferme', 'Vente directe', 'Marchés locaux', 'Commande de récolte', 'Retrait à la ferme', 'Visite de l’exploitation', 'Offre de saison'] },
+      arboriculteur: { label: 'Arboriculteur', services: ['Fruits de saison', 'Vente au verger', 'Paniers de fruits', 'Cueillette', 'Commande de récolte', 'Marchés locaux', 'Conseils de conservation', 'Offre de saison'] },
       ferme_producteur_local: { label: 'Ferme / producteur local', services: ['Vente directe', 'Produits de saison', 'Panier local', 'Visite ferme', 'Marchés locaux', 'Commande groupée', 'Retrait ferme', 'Offre découverte'] },
       maraicher: { label: 'Maraîcher', services: ['Légumes de saison', 'Paniers légumes', 'Vente à la ferme', 'Marché local', 'Commande semaine', 'Production locale', 'Conseils conservation', 'Offre saisonnière'] },
       apiculteur: { label: 'Apiculteur', services: ['Miel local', 'Produits de la ruche', 'Vente directe', 'Coffret cadeau', 'Marchés locaux', 'Visite découverte', 'Commande entreprise', 'Offre saisonnière'] },
@@ -157,12 +159,16 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
       bijouterie: { label: 'Bijouterie', services: ['Bijoux', 'Montres', 'Réparation bijou', 'Création personnalisée', 'Gravure', 'Conseil cadeau', 'Entretien', 'Commande spéciale'] },
       boulangerie: { label: 'Boulangerie / Pâtisserie', services: ['Pain du jour', 'Pâtisseries', 'Commande spéciale', 'Pièces montées', 'Snacking', 'Traiteur sucré / salé', 'Livraison', 'Formules entreprise'] },
       boutique_mode: { label: 'Boutique mode', services: ['Nouvelle collection', 'Conseil style', 'Essayage', 'Retouches', 'Accessoires', 'Sélection saisonnière', 'Carte cadeau', 'Privatisation boutique'] },
+      boutique_cafe_the: { label: 'Boutique de café et thé', services: ['Cafés en grains', 'Café moulu', 'Thés et infusions', 'Conseil dégustation', 'Accessoires de préparation', 'Coffrets découverte', 'Commande de café', 'Carte cadeau'] },
       caviste: { label: 'Caviste', services: ['Conseil vin', 'Sélection bouteilles', 'Coffrets cadeau', 'Dégustation', 'Accords mets vins', 'Commande spéciale', 'Événement cave', 'Livraison locale'] },
       epicerie: { label: 'Épicerie / Commerce alimentaire', services: ['Produits frais', 'Paniers du moment', 'Produits locaux', 'Commande spéciale', 'Livraison', 'Click & collect', 'Coffrets cadeau', 'Événements dégustation'] },
       fleuriste: { label: 'Fleuriste', services: ['Bouquets', 'Compositions florales', 'Mariage', 'Deuil', 'Livraison fleurs', 'Abonnement floral', 'Décoration événement', 'Conseil entretien fleurs'] },
+      friperie: { label: 'Friperie / vêtements de seconde main', services: ['Vêtements de seconde main', 'Sélection vintage', 'Nouveaux arrivages', 'Conseil style', 'Essayage', 'Dépôt-vente', 'Accessoires de seconde main', 'Carte cadeau'] },
       librairie: { label: 'Librairie / Papeterie', services: ['Sélection livres', 'Commande ouvrage', 'Papeterie', 'Cadeaux', 'Animations / dédicaces', 'Listes scolaires', 'Conseil lecture', 'Réservation'] },
       magasin_meubles: { label: 'Magasin de meubles', services: ['Mobilier salon', 'Mobilier chambre', 'Conseil aménagement', 'Commande meuble', 'Livraison', 'Montage', 'Showroom', 'Projet sur mesure'] },
+      magasin_vetements: { label: 'Magasin de vêtements', services: ['Prêt-à-porter femme', 'Prêt-à-porter homme', 'Mode enfant', 'Nouvelles collections', 'Conseil taille et style', 'Essayage', 'Accessoires', 'Carte cadeau'] },
       opticien: { label: 'Opticien', services: ['Lunettes de vue', 'Lunettes solaires', 'Ajustement monture', 'Lentilles', 'Contrôle visuel', 'Devis mutuelle', 'Entretien lunettes', 'Conseil équipement'] },
+      torrefacteur: { label: 'Torréfacteur', services: ['Café fraîchement torréfié', 'Cafés en grains', 'Mouture sur mesure', 'Dégustation de café', 'Sélection des origines', 'Abonnement café', 'Vente aux professionnels', 'Conseil extraction'] },
     },
   },
 
@@ -464,6 +470,42 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     },
   },};
 
+const AGRICULTURE_PRODUCTEURS_JOB_ALIASES: Record<string, string> = {
+  'agricultrice': 'agriculteur',
+  'exploitant agricole': 'agriculteur',
+  'exploitante agricole': 'agriculteur',
+  'exploitation agricole': 'agriculteur',
+  'producteur de cereales': 'agriculteur',
+  'cerealier': 'agriculteur',
+  'arboricultrice': 'arboriculteur',
+  'arboriculture fruitiere': 'arboriculteur',
+  'fruiticulteur': 'arboriculteur',
+  'producteur de fruits': 'arboriculteur',
+  'productrice de fruits': 'arboriculteur',
+  'verger': 'arboriculteur',
+};
+
+const COMMERCE_BOUTIQUE_JOB_ALIASES: Record<string, string> = {
+  'boutique de vetements': 'magasin_vetements',
+  'boutique de pret a porter': 'magasin_vetements',
+  'boutique pret a porter': 'magasin_vetements',
+  'magasin de pret a porter': 'magasin_vetements',
+  'pret a porter': 'magasin_vetements',
+  'commerce d habillement': 'magasin_vetements',
+  'magasin de mode': 'magasin_vetements',
+  'vetements de seconde main': 'friperie',
+  'friperie': 'friperie',
+  'boutique de seconde main': 'friperie',
+  'depot vente de vetements': 'friperie',
+  'boutique vintage': 'friperie',
+  'brulerie': 'torrefacteur',
+  'artisan torrefacteur': 'torrefacteur',
+  'torrefaction de cafe': 'torrefacteur',
+  'boutique de cafe': 'boutique_cafe_the',
+  'magasin de cafe et the': 'boutique_cafe_the',
+  'comptoir de cafe et the': 'boutique_cafe_the',
+};
+
 const FORMATION_ENSEIGNEMENT_JOB_ALIASES: Record<string, string> = {
   'auto ecole': 'auto_ecole',
   'ecole de conduite': 'auto_ecole',
@@ -635,8 +677,14 @@ export function findJobValueByLabel(sector: string, label: string) {
   for (const [value, job] of Object.entries(pack.jobs)) {
     if (normalizeJobLabel(job.label) === normalized) return value;
   }
+  if (sector === 'agriculture_producteurs') {
+    return AGRICULTURE_PRODUCTEURS_JOB_ALIASES[normalized] || '';
+  }
   if (sector === 'formation_enseignement') {
     return FORMATION_ENSEIGNEMENT_JOB_ALIASES[normalized] || '';
+  }
+  if (sector === 'commerce_boutique') {
+    return COMMERCE_BOUTIQUE_JOB_ALIASES[normalized] || '';
   }
   if (sector === 'evenementiel') {
     return EVENEMENTIEL_JOB_ALIASES[normalized] || '';

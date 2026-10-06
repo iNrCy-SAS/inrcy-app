@@ -11,6 +11,24 @@ export type ActivityJobSearchResult = {
 const JOB_ALIASES: Partial<
   Record<ActivitySectorCategory, Record<string, string[]>>
 > = {
+  agriculture_producteurs: {
+    agriculteur: [
+      "agricultrice",
+      "exploitant agricole",
+      "exploitante agricole",
+      "exploitation agricole",
+      "producteur de céréales",
+      "céréalier",
+    ],
+    arboriculteur: [
+      "arboricultrice",
+      "arboriculture fruitière",
+      "fruiticulteur",
+      "producteur de fruits",
+      "productrice de fruits",
+      "verger",
+    ],
+  },
   communication: {
     agence_communication: [
       "agence com",
@@ -28,6 +46,23 @@ const JOB_ALIASES: Partial<
       "createur site web",
       "webmaster",
     ],
+  },
+  commerce_boutique: {
+    magasin_vetements: [
+      "boutique de vêtements",
+      "boutique de prêt-à-porter",
+      "magasin de prêt-à-porter",
+      "prêt-à-porter",
+      "commerce d'habillement",
+    ],
+    friperie: [
+      "vêtements de seconde main",
+      "boutique de seconde main",
+      "dépôt-vente de vêtements",
+      "boutique vintage",
+    ],
+    torrefacteur: ["brûlerie", "artisan torréfacteur", "torréfaction de café"],
+    boutique_cafe_the: ["boutique de café", "magasin de café et thé", "comptoir de café et thé"],
   },
   culture_creation: {
     ecrivain_auteur: [
