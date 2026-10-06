@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 import {
   ADS_LIVE_PUBLISH_CONFIRMATION,
   ADS_PAUSED_DEMO_CONFIRMATION,
@@ -235,14 +236,43 @@ test("le connecteur Search vérifie les zones saisies avant toute mutation", () 
   assert.match(route, /preparedTargetLocations: preparedGoogleTargetLocations/);
 });
 
-test("la validation finale impose la déclaration et un statut disponible avant l'enregistrement local", () => {
+test("la confirmation finale impose la déclaration, un statut disponible et la validation avant de réenregistrer ou publier", async () => {
   const dialog = readFileSync(new URL("../app/dashboard/ads/AdsCampaignDemoDialog.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   assert.match(dialog, /checked=\{declarationChecked\}/);
   assert.match(dialog, /disabled=\{busy \|\| !declarationChecked \|\| \(launchStatus === "active" \? !activeEnabled : !pausedEnabled\)\}/);
   assert.match(dialog, /Statut au lancement/);
-  assert.match(client, /parseAdsCampaignInput\(campaignDraft, \{ purpose: "publish" \}\)/);
-  assert.ok(client.indexOf('parseAdsCampaignInput(campaignDraft, { purpose: "publish" })') < client.indexOf('const saved = await readJson(await fetch("/api/ads/campaigns"'));
+  const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const findHandler = (node: ts.Node): ts.FunctionDeclaration | undefined => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "confirmCampaignLaunch") return node;
+    return ts.forEachChild(node, findHandler);
+  };
+  const handler = findHandler(source);
+  assert.ok(handler);
+  const confirmSource = handler.getText(source);
+  const validation = confirmSource.indexOf('parseAdsCampaignInput(campaignDraft, { purpose: "publish" })');
+  const save = confirmSource.indexOf('const saved = await readJson(await fetch("/api/ads/campaigns"');
+  assert.ok(validation >= 0 && save > validation, "the final confirmation validates before its own local save");
+
+  const calls: string[] = [];
+  const noop = () => {};
+  const scope = {
+    demoDialog: { mode: "confirm", channelId: "google", launchStatus: "active", details: { accountId: "123456" } },
+    busy: null, demoSubmissionRef: { current: false }, channelId: "google", creating: true,
+    step: 10, validationStep: 10, channelPublishingEnabled: true, draft: { pageId: "" },
+    setPublicationPhase: noop, setBusy: noop, setNotice: noop, setDemoDialog: noop,
+    parseAdsCampaignInput: (_draft: unknown, options: { purpose: string }) => {
+      assert.equal(options.purpose, "publish");
+      calls.push("validation");
+      return { draft: null, error: "Campagne invalide" };
+    },
+    fetch: async () => { calls.push("network"); throw new Error("validation must stop every request"); },
+    readJson: async (value: unknown) => value,
+  };
+  const compiled = ts.transpileModule(confirmSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  const confirm = new Function(...Object.keys(scope), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(scope));
+  await confirm();
+  assert.deepEqual(calls, ["validation"], "invalid drafts must not be saved or published after confirmation");
 });
 
 test("les validations bloquantes restent près des actions, les descriptions alignées avec les titres", () => {

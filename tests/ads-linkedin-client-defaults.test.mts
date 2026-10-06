@@ -4,6 +4,8 @@ import type { LinkedInWizardSettings } from "../lib/adsChannelWizardSettings.ts"
 import {
   linkedInAdsAutomaticPreflightKey,
   linkedInAdsContextualGeoDefaults,
+  linkedInAdsLaunchBlockers,
+  linkedInAdsLaunchBlockerMessage,
   linkedInAdsVerifiedBidDefault,
 } from "../lib/adsLinkedInClientDefaults.ts";
 
@@ -139,4 +141,23 @@ test("LinkedIn CPC default uses only a cent-safe suggestion inside verified prov
   assert.equal(linkedInAdsVerifiedBidDefault({ ...input, pricing: { ...pricing, bidMin: -1 } }), null);
   assert.equal(linkedInAdsVerifiedBidDefault({ ...input, pricing: { ...pricing, bidMin: 1.5 }, suggestedBid: 1 }), null);
   assert.equal(linkedInAdsVerifiedBidDefault({ ...input, pricing: { ...pricing, bidMin: 1.5 }, suggestedBid: 1.5 }), 1.5);
+});
+
+test("LinkedIn confirmation filters only the later image upload and ACTIVE-only constraints", () => {
+  const blockers = ["available_image_required", "account_not_serving", "campaign_group_not_active"];
+  assert.deepEqual(linkedInAdsLaunchBlockers(blockers, "ACTIVE"), ["account_not_serving", "campaign_group_not_active"]);
+  assert.deepEqual(linkedInAdsLaunchBlockers(blockers, "PAUSED"), []);
+  assert.deepEqual(linkedInAdsLaunchBlockers(undefined, "PAUSED"), ["preflight_required"]);
+  for (const blocker of [
+    "unsupported_locale", "audience_count_required", "audience_too_small", "selected_geo_unverified",
+    "unresolved_geo_queries", "geo_query_provider_rejected", "budget_pricing_required", "bid_out_of_range",
+    "daily_budget_too_low", "image_owner_mismatch", "organization_required", "campaign_group_required",
+    "account_manage_access_unverified", "missing_scope:rw_ads", "development_account_mapping_required",
+  ]) {
+    assert.deepEqual(linkedInAdsLaunchBlockers([...blockers, blocker], "PAUSED"), [blocker], blocker);
+    assert.ok(linkedInAdsLaunchBlockerMessage([blocker]).length > 20, blocker);
+  }
+  assert.match(linkedInAdsLaunchBlockerMessage(["audience_too_small"]), /300 membres/);
+  assert.match(linkedInAdsLaunchBlockerMessage(["unsupported_locale"]), /langue et le pays/);
+  assert.match(linkedInAdsLaunchBlockerMessage(["new_unknown_blocker"]), /vérification LinkedIn n’est pas complète/);
 });

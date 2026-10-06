@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
 import * as policy from "../lib/adsLinkedInPreflightPolicy.ts";
+import * as geoResolution from "../lib/adsLinkedInGeoResolution.ts";
 import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 
 type PreflightResult = {
@@ -46,6 +47,7 @@ function loadPreflight(fetchImpl: typeof fetch) {
       listLinkedInAdsAccounts: async () => [account],
     }],
     ["./adsLinkedInPreflightPolicy.ts", policy],
+    ["./adsLinkedInGeoResolution.ts", geoResolution],
     ["./adsLinkedInClientDefaults.ts", { linkedInAdsContextualGeoDefaults }],
     ["./observability/logger.ts", { log: {
       warn: (message: string, context: Record<string, unknown>) => logs.push({ message, context }),
@@ -110,7 +112,7 @@ test("a partial LinkedIn geo re-resolution keeps valid URNs but blocks launch", 
   }]);
 });
 
-test("a malformed LinkedIn geo resolver envelope reports the exact read", async () => {
+test("a malformed LinkedIn geo resolver cannot verify a selection without fresh matching suggestions", async () => {
   const fetchImpl: typeof fetch = async (input) => {
     const request = new URL(String(input));
     if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "urns") {
@@ -119,13 +121,22 @@ test("a malformed LinkedIn geo resolver envelope reports the exact read", async 
     return providerResponse(request);
   };
   const runtime = loadPreflight(fetchImpl);
-  await assert.rejects(runtime.run("owner", { geoUrns: [arras.urn] }), (error: unknown) => {
-    const failure = error as PreflightFailure;
-    assert.equal(failure.code, "provider_invalid_response");
-    assert.equal(failure.operation, "geo_urn_resolution");
-    assert.match(failure.message, /Zones LinkedIn Ads/);
-    return true;
+  const result = await runtime.run("owner", { geoUrns: [arras.urn] });
+  assert.deepEqual(result.selected.verifiedGeoUrns, []);
+  assert.ok(result.blockers.includes("selected_geo_unverified"));
+  assert.equal(result.readyForRemoteDraft, false);
+});
+
+test("fresh typeahead verifies exactly the selected URNs when urn metadata is missing", async () => {
+  const runtime = loadPreflight(async (input) => {
+    const request = new URL(String(input));
+    if (request.searchParams.get("q") === "urns") return Response.json({ elements: [{ urn: arras.urn }] });
+    return providerResponse(request);
   });
+  const result = await runtime.run("owner", { geoQueries: ["Arras", "Lille"], geoUrns: [arras.urn, lille.urn] });
+  assert.deepEqual(result.selected.verifiedGeoUrns, [arras.urn, lille.urn]);
+  assert.ok(!result.blockers.includes("selected_geo_unverified"));
+  assert.equal(runtime.logs.length, 0);
 });
 
 test("malformed LinkedIn campaign groups and locales report their own reads", async () => {

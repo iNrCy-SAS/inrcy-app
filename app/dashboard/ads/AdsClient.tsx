@@ -75,7 +75,7 @@ import { adsDestinationReviewState } from "@/lib/adsDestination";
 import type { AdsPublicationPhase } from "@/lib/adsPublicationProgress";
 import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "@/lib/adsLaunchReadiness";
 import { buildLinkedInGeoQueries, linkedInGeoQueryKey } from "@/lib/adsLinkedInGeoQueries";
-import { linkedInAdsAutomaticPreflightKey, linkedInAdsContextualGeoDefaults, linkedInAdsVerifiedBidDefault } from "@/lib/adsLinkedInClientDefaults";
+import { linkedInAdsAutomaticPreflightKey, linkedInAdsContextualGeoDefaults, linkedInAdsLaunchBlockerMessage, linkedInAdsLaunchBlockers, linkedInAdsLaunchPreflightKey, linkedInAdsVerifiedBidDefault } from "@/lib/adsLinkedInClientDefaults";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import {
   adsConnectionDisplay,
@@ -1869,30 +1869,31 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     geoQueryOverride?: string,
     force = false,
     accountIdOverride?: string,
+    preflightDraft: AdsCampaignInput = draft,
   ): Promise<LinkedInAdsPreflightResponse> {
-    const selectedAccountId = accountIdOverride || externalStatuses.linkedin.selectedAccountId || draft.adAccountId;
+    const selectedAccountId = accountIdOverride || externalStatuses.linkedin.selectedAccountId || preflightDraft.adAccountId;
     if (!selectedAccountId) {
       throw new Error("Associez d’abord un compte LinkedIn Ads dans la configuration du canal.");
     }
-    const settings = draft.channelSettings?.channel === "linkedin" ? draft.channelSettings : null;
-    const { queries: geoQueries, manualOnly } = buildLinkedInGeoQueries(draft.targetLocations, geoQueryOverride);
+    const settings = preflightDraft.channelSettings?.channel === "linkedin" ? preflightDraft.channelSettings : null;
+    const { queries: geoQueries, manualOnly } = buildLinkedInGeoQueries(preflightDraft.targetLocations, geoQueryOverride);
     const params = new URLSearchParams({
       language: settings?.locale.language || "fr",
       country: settings?.locale.country || "FR",
-      dailyBudget: Number(draft.dailyBudgetEuros || 0).toFixed(2),
-      politicalIntentConfirmed: String(draft.linkedinPoliticalIntentConfirmed === true),
-      targetingNoticeAcknowledged: String(draft.linkedinTargetingNoticeAcknowledged === true),
+      dailyBudget: Number(preflightDraft.dailyBudgetEuros || 0).toFixed(2),
+      politicalIntentConfirmed: String(preflightDraft.linkedinPoliticalIntentConfirmed === true),
+      targetingNoticeAcknowledged: String(preflightDraft.linkedinTargetingNoticeAcknowledged === true),
     });
     for (const query of geoQueries) params.append("geo", query);
-    if (draft.linkedinCampaignGroupId) params.set("campaignGroupId", draft.linkedinCampaignGroupId);
-    if (draft.linkedinOrganizationUrn) params.set("organizationUrn", draft.linkedinOrganizationUrn);
-    if (draft.linkedinBidEuros && draft.linkedinBidEuros > 0) params.set("bidAmount", draft.linkedinBidEuros.toFixed(2));
-    for (const target of draft.linkedinGeoTargets || []) params.append("geoUrn", target.urn);
+    if (preflightDraft.linkedinCampaignGroupId) params.set("campaignGroupId", preflightDraft.linkedinCampaignGroupId);
+    if (preflightDraft.linkedinOrganizationUrn) params.set("organizationUrn", preflightDraft.linkedinOrganizationUrn);
+    if (preflightDraft.linkedinBidEuros && preflightDraft.linkedinBidEuros > 0) params.set("bidAmount", preflightDraft.linkedinBidEuros.toFixed(2));
+    for (const target of preflightDraft.linkedinGeoTargets || []) params.append("geoUrn", target.urn);
 
     const showResponse = (data: LinkedInAdsPreflightResponse) => {
       setLinkedInPreflight((current) => {
         if (!manualOnly) return data;
-        const briefQueries = new Set(draft.targetLocations.map(linkedInGeoQueryKey));
+        const briefQueries = new Set(preflightDraft.targetLocations.map(linkedInGeoQueryKey));
         const kept = (current?.geoResolutions || []).filter((entry) => briefQueries.has(linkedInGeoQueryKey(entry.query)));
         const merged = new Map(kept.map((entry) => [linkedInGeoQueryKey(entry.query), entry]));
         for (const entry of data.geoResolutions || []) merged.set(linkedInGeoQueryKey(entry.query), entry);
@@ -1916,15 +1917,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     return data;
   }
 
-  function applyLinkedInProviderDefaults(data: LinkedInAdsPreflightResponse) {
+  function applyLinkedInProviderDefaults(data: LinkedInAdsPreflightResponse, baseDraft: AdsCampaignInput = draft): AdsCampaignInput {
     const selected = data.selected;
-    if (!selected) return;
+    if (!selected) return baseDraft;
     const verifiedGeoUrns = new Set(selected.verifiedGeoUrns || []);
     const verifiedGeoTargets = (selected.verifiedGeoTargets || [])
       .filter((target) => verifiedGeoUrns.has(target.urn))
       .map((target) => ({ urn: target.urn, name: target.name }));
     const proposedGeoTargets = linkedInAdsContextualGeoDefaults({
-      targetLocations: draft.targetLocations,
+      targetLocations: baseDraft.targetLocations,
       verifiedGeoTargets: verifiedGeoTargets.filter((target) => !linkedInGeoDismissedUrns.current.has(target.urn)),
       geoResolutions: data.geoResolutions || [],
     });
@@ -1934,7 +1935,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       selected.campaignGroup || selected.organization || proposedGeoTargets.length
       || (pricing && suggestedBid !== null && Number.isFinite(suggestedBid) && suggestedBid > 0),
     );
-    if (!hasProviderDefault) return;
+    if (!hasProviderDefault) return baseDraft;
     const providerPatch = (current: AdsCampaignInput): Partial<AdsCampaignInput> => {
       const patch: Partial<AdsCampaignInput> = {};
       if (current.provider !== "linkedin") return patch;
@@ -1962,13 +1963,16 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (bidDefault !== null) patch.linkedinBidEuros = bidDefault;
       return patch;
     };
-    if (!Object.keys(providerPatch(draft)).length) return;
+    const patch = providerPatch(baseDraft);
+    if (!Object.keys(patch).length) return baseDraft;
+    const updatedDraft = applyDraftEdit(baseDraft, patch);
     setDraft((current) => {
       const patch = providerPatch(current);
       return Object.keys(patch).length ? applyDraftEdit(current, patch) : current;
     });
     setDirty(true);
     setConfirmedSpend(false);
+    return updatedDraft;
   }
 
   async function loadLinkedInResources(force = false, geoQueryOverride?: string) {
@@ -2613,10 +2617,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return;
     }
     if (busy !== null || demoSubmissionRef.current || demoDialog) return;
-    if (channelId === "linkedin" && (!linkedInSelectionsReady || !linkedInComplianceReady)) {
-      setNotice(!linkedInSelectionsReady
-        ? linkedInReadinessDetails
-        : "Confirmez la déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire avant la validation finale.");
+    if (channelId === "linkedin" && !linkedInComplianceReady) {
+      setNotice("Confirmez la déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire avant la validation finale.");
       return;
     }
     if (!channelPublishingEnabled) {
@@ -2659,6 +2661,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       let accountName = "";
       let pageId = "";
       let launchStatus: AdsCampaignLaunchStatus = "active";
+      let launchDraft = draft;
       if (channelId === "openai") {
         const connection = await readJson(await fetch("/api/ads/openai/status", { cache: "no-store" })) as {
           connected?: boolean; accountId?: string; accountName?: string;
@@ -2733,10 +2736,23 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         } }));
         setLinkedInPreflightLoad("loading");
         setLinkedInPreflightError("");
-        const preflight = await fetchLinkedInPreflight(undefined, true, accountId);
+        let preflight: LinkedInAdsPreflightResponse | null = null;
+        // React state still contains the previous render during this async call.
+        // Recheck defaults with the effective draft, including newly selected zones.
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          preflight = await fetchLinkedInPreflight(undefined, true, accountId, launchDraft);
+          const updatedDraft = applyLinkedInProviderDefaults(preflight, launchDraft);
+          const defaultsChanged = linkedInAdsLaunchPreflightKey(updatedDraft) !== linkedInAdsLaunchPreflightKey(launchDraft);
+          launchDraft = updatedDraft;
+          if (!defaultsChanged) break;
+          if (attempt === 2) throw new Error("Les réglages LinkedIn viennent de changer. Contrôlez les valeurs actualisées puis relancez la vérification.");
+        }
+        if (!preflight || preflight.account?.id !== accountId) {
+          throw new Error("LinkedIn n’a pas confirmé le compte associé à cette campagne. Réessayez la vérification.");
+        }
         setLinkedInPreflightLoad("ready");
-        const group = (preflight.campaignGroups || []).find((candidate) => candidate.id === draft.linkedinCampaignGroupId);
-        const organization = (preflight.organizations || []).find((candidate) => candidate.urn === draft.linkedinOrganizationUrn);
+        const group = (preflight.campaignGroups || []).find((candidate) => candidate.id === launchDraft.linkedinCampaignGroupId);
+        const organization = (preflight.organizations || []).find((candidate) => candidate.urn === launchDraft.linkedinOrganizationUrn);
         if (!group || !linkedInCampaignGroupIsCompatible(group)) {
           throw new Error("Le groupe de campagnes LinkedIn choisi n’est plus accessible ou compatible. Rechargez les ressources et choisissez-le de nouveau.");
         }
@@ -2746,7 +2762,34 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         // Active remains the default only when LinkedIn can actually serve and
         // the selected parent group is ACTIVE. A safe PAUSED creation remains
         // selectable for manageable On hold/DRAFT/PAUSED resources.
-        if (connection.selectedAccountCanServe !== true || group.status !== "ACTIVE") launchStatus = "paused";
+        if (preflight.account.canServeCampaigns !== true || group.status !== "ACTIVE") launchStatus = "paused";
+        const blockers = linkedInAdsLaunchBlockers(preflight.blockers, launchStatus === "active" ? "ACTIVE" : "PAUSED");
+        if (blockers.length) throw new Error(linkedInAdsLaunchBlockerMessage(blockers));
+        launchDraft = {
+          ...launchDraft,
+          provider: "linkedin",
+          adAccountId: accountId,
+          accountCurrency: "EUR",
+          linkedinGeoTargets: normalizeLinkedInGeoTargets(launchDraft.linkedinGeoTargets ?? []) || [],
+        };
+        const validated = parseAdsCampaignInput(launchDraft, { purpose: "publish" });
+        if (!validated.draft) throw new Error(validated.error || "Vérifiez la campagne LinkedIn avant de la lancer.");
+        const saved = await readJson(await fetch("/api/ads/campaigns", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...launchDraft, ...(savedId ? { id: savedId } : {}) }),
+        }));
+        const campaignId = String((saved.campaign as { id?: string } | undefined)?.id || "");
+        if (!campaignId) throw new Error("Le brouillon LinkedIn n’a pas pu être confirmé. Aucune campagne n’a été créée sur la plateforme.");
+        setDraft(launchDraft);
+        setSavedId(campaignId);
+        setDirty(false);
+        // Run the publisher's own resource/media checks without creating anything
+        // on LinkedIn, before asking the professional to confirm a paid launch.
+        const publicationCheck = await readJson(await fetch(`/api/ads/campaigns/${encodeURIComponent(campaignId)}/preflight?mode=${launchStatus === "active" ? "live" : "paused"}`, { cache: "no-store" }));
+        const selectedGeoCount = new Set((launchDraft.linkedinGeoTargets || []).map((target) => target.urn)).size;
+        if (publicationCheck.ready !== true || publicationCheck.verifiedGeoCount !== selectedGeoCount) {
+          throw new Error("LinkedIn n’a pas confirmé toutes les ressources et l’image de la campagne. Le brouillon est conservé ; réessayez la vérification.");
+        }
       } else {
         if (channelId !== provider) {
           throw new Error("Le canal de cette campagne a changé. Revenez sur son canal avant de la lancer.");
@@ -2792,12 +2835,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         pageId,
         launchStatus,
         details: {
-          campaignName: draft.name,
+          campaignName: launchDraft.name,
           channelLabel: channelMeta.label,
           accountName,
           accountId,
-          dailyBudgetEuros: draft.dailyBudgetEuros,
-          endDate: draft.endDate,
+          dailyBudgetEuros: launchDraft.dailyBudgetEuros,
+          endDate: launchDraft.endDate,
         },
       });
     } catch (error) {
@@ -3100,7 +3143,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     && linkedInBidPricing
     && !linkedInBudgetBelowProviderMinimum
     && !linkedInBidOutsideVerifiedRange
-    && !linkedInPreflight.blockers?.some((blocker) => ["unresolved_geo_queries", "geo_query_provider_rejected", "selected_geo_unverified", "too_many_geo_targets", "budget_pricing_required", "bid_out_of_range"].includes(blocker))
+    && !linkedInPreflight.blockers?.some((blocker) => ["unresolved_geo_queries", "geo_query_provider_rejected", "selected_geo_unverified", "too_many_geo_targets", "budget_pricing_required"].includes(blocker))
     && draft.linkedinBidEuros
     && draft.linkedinBidEuros > 0,
   );
@@ -3136,7 +3179,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return `Augmentez le budget quotidien à au moins ${linkedInBidPricing.dailyBudgetMin.toLocaleString("fr-FR")} € à l’étape Budget.`;
     }
     if (!draft.linkedinBidEuros || draft.linkedinBidEuros <= 0) return "Renseignez une enchère CPC positive à l’étape Budget.";
-    if (linkedInBidOutsideVerifiedRange || linkedInPreflight.blockers?.includes("bid_out_of_range")) {
+    if (linkedInBidOutsideVerifiedRange) {
       return "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Corrigez-la à l’étape Budget.";
     }
     return "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.";
@@ -3762,10 +3805,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       launchStatus={demoDialog.launchStatus}
       activeEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
-          && selectedLinkedInCampaignGroup?.status === "ACTIVE")
+          && selectedLinkedInCampaignGroup?.status === "ACTIVE"
+          && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "ACTIVE").length)
         : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
       pausedEnabled={demoDialog.channelId === "linkedin"
-        ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns)
+        ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns
+          && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "PAUSED").length)
         : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
       activeDisabledReason={demoDialog.channelId === "openai"
         ? openaiLiveReadinessMessage || "La diffusion Active n’est pas encore autorisée pour ce compte ChatGPT Ads."

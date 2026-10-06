@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
 import * as linkedInPreflightPolicy from "../lib/adsLinkedInPreflightPolicy.ts";
+import * as geoResolution from "../lib/adsLinkedInGeoResolution.ts";
 import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 import {
   buildLinkedInAdsAudienceCountPath,
@@ -218,6 +219,7 @@ function loadPreflightRuntime(fetchImpl: typeof fetch) {
       listLinkedInAdsAccounts: async () => [account],
     }],
     ["./adsLinkedInPreflightPolicy.ts", linkedInPreflightPolicy],
+    ["./adsLinkedInGeoResolution.ts", geoResolution],
     ["./adsLinkedInClientDefaults.ts", { linkedInAdsContextualGeoDefaults }],
     ["./observability/logger.ts", {
       log: {
@@ -517,7 +519,7 @@ test("LinkedIn preflight completes an ambiguous city from the other verified cit
   assert.equal(result.blockers.includes("unresolved_geo_queries"), false);
 });
 
-test("LinkedIn preflight blocks a chosen URN missing from its exact re-resolution", async () => {
+test("LinkedIn preflight verifies a chosen URN through an exact fresh typeahead match", async () => {
   const arras = {
     urn: "urn:li:geo:1001", name: "Arras, Hauts-de-France, France",
     facetUrn: "urn:li:adTargetingFacet:locations",
@@ -536,7 +538,8 @@ test("LinkedIn preflight blocks a chosen URN missing from its exact re-resolutio
   const result = await runtime.run("owner", {
     geoQueries: ["Arras"], geoUrns: [arras.urn], language: "fr", country: "FR",
   });
-  assert.ok(result.blockers.includes("selected_geo_unverified"));
+  assert.ok(!result.blockers.includes("selected_geo_unverified"));
+  assert.deepEqual(result.selected.verifiedGeoUrns, [arras.urn]);
 });
 
 test("LinkedIn preflight preserves a valid place when another is rejected by every typeahead form", async () => {
@@ -596,7 +599,7 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
   const client = readFileSync("app/dashboard/ads/AdsClient.tsx", "utf8");
   assert.match(client, /const verifiedGeoUrns = new Set\(selected\.verifiedGeoUrns \|\| \[\]\)/);
   assert.match(client, /\.filter\(\(target\) => verifiedGeoUrns\.has\(target\.urn\)\)/);
-  assert.match(client, /linkedInAdsContextualGeoDefaults\(\{[\s\S]*targetLocations: draft\.targetLocations,[\s\S]*verifiedGeoTargets: verifiedGeoTargets\.filter\(\(target\) => !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)\),[\s\S]*geoResolutions: data\.geoResolutions \|\| \[\]/);
+  assert.match(client, /linkedInAdsContextualGeoDefaults\(\{[\s\S]*targetLocations: baseDraft\.targetLocations,[\s\S]*verifiedGeoTargets: verifiedGeoTargets\.filter\(\(target\) => !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)\),[\s\S]*geoResolutions: data\.geoResolutions \|\| \[\]/);
   assert.match(
     client,
     /const addedGeoTargets = proposedGeoTargets\.filter\(\(target\) =>[\s\S]*!currentGeoUrns\.has\(target\.urn\) && !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)/,
@@ -608,7 +611,7 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
     /type="checkbox" checked=\{selected\}[\s\S]{0,700}\{ urn: target\.urn, name: target\.name \}/,
   );
   assert.match(client, /params\.append\("geoUrn", target\.urn\)/);
-  assert.match(client, /fetchLinkedInPreflight\(undefined, true, accountId\)/);
+  assert.match(client, /fetchLinkedInPreflight\(undefined, true, accountId, launchDraft\)/);
 });
 
 test("LinkedIn preflight chooses a CPC only from verified provider bounds", () => {
