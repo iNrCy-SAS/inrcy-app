@@ -5,6 +5,7 @@ import ts from "typescript";
 import * as policy from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as geoResolution from "../lib/adsLinkedInGeoResolution.ts";
 import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
+import { log } from "../lib/observability/logger.ts";
 
 type PreflightResult = {
   selected: { verifiedGeoUrns: string[] };
@@ -137,6 +138,103 @@ test("fresh typeahead verifies exactly the selected URNs when urn metadata is mi
   assert.deepEqual(result.selected.verifiedGeoUrns, [arras.urn, lille.urn]);
   assert.ok(!result.blockers.includes("selected_geo_unverified"));
   assert.equal(runtime.logs.length, 0);
+});
+
+test("all seven saved locations remain verified when the urns finder describes them as profileLocations", async (t) => {
+  const info = t.mock.method(log, "info", () => {});
+  const targets = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes"]
+    .map((name, index) => ({ ...arras, urn: `urn:li:geo:${100000001 + index}`, name: `${name}, Hauts-de-France, France` }));
+  const requests: URL[] = [];
+  const runtime = loadPreflight(async (input, init) => {
+    assert.equal(init?.method || "GET", "GET");
+    const request = new URL(String(input));
+    requests.push(request);
+    if (request.searchParams.get("q") === "urns") return Response.json({ elements: targets.map((target) => ({
+      ...target, facetUrn: "urn:li:adTargetingFacet:profileLocations",
+    })) });
+    if (request.searchParams.get("q") === "typeahead") return Response.json({ elements: targets.filter((target) =>
+      target.name.split(",")[0] === request.searchParams.get("query")) });
+    return providerResponse(request);
+  });
+  const expectedUrns = targets.map(({ urn }) => urn);
+  const result = await runtime.run("owner", {
+    geoQueries: targets.map(({ name }) => name.split(",")[0]), geoUrns: expectedUrns,
+    language: "fr", country: "FR",
+  });
+  assert.deepEqual(result.selected.verifiedGeoUrns, expectedUrns);
+  assert.ok(!result.blockers.includes("selected_geo_unverified"));
+  assert.ok(!result.blockers.includes("unresolved_geo_queries"));
+  assert.equal(requests.filter((request) => request.searchParams.get("q") === "typeahead").length, 7);
+  assert.equal(runtime.logs.length, 0);
+  assert.equal(info.mock.calls.length, 1);
+  assert.deepEqual(info.mock.calls[0].arguments, ["linkedin_ads_geo_profile_locations_confirmed", {
+    provider: "linkedin", profile_count: 7, requested_count: 7, verified_count: 7, fallback_query_count: 0,
+  }]);
+});
+
+test("direct locations evidence survives duplicate profileLocations rows and normalized whitespace", async () => {
+  const profile = { ...arras, facetUrn: " urn:li:adTargetingFacet:profileLocations " };
+  const location = { ...arras, urn: ` ${arras.urn} `, facetUrn: ` ${arras.facetUrn} ` };
+  for (const elements of [[profile, location], [location, profile], [location]]) {
+    assert.deepEqual(await geoResolution.resolveLinkedInAdsGeoTargets({
+      targets: [arras], language: "fr", country: "FR", resolvedPayload: { elements },
+      read: async () => assert.fail("Valid direct locations evidence needs no typeahead"),
+    }), [arras]);
+  }
+});
+
+test("profileLocations alone never verifies a target without a fresh locations response for its exact geographic URN", async (t) => {
+  const warn = t.mock.method(log, "warn", () => {});
+  const profile = { ...arras, facetUrn: "urn:li:adTargetingFacet:profileLocations" };
+  for (const suggestions of [
+    [], [profile], [{ ...arras, urn: lille.urn }],
+    [{ ...arras, urn: "urn:li:organization:1001" }],
+    [{ ...arras, facetUrn: "urn:li:adTargetingFacet:industries" }],
+  ]) {
+    const requests: URL[] = [];
+    const result = await geoResolution.resolveLinkedInAdsGeoTargets({
+      targets: [arras], language: "fr", country: "FR", resolvedPayload: { elements: [profile] },
+      freshSuggestions: suggestions,
+      read: async (path) => {
+        const request = new URL(path, "https://api.linkedin.com");
+        requests.push(request);
+        assert.equal(request.searchParams.get("facet"), arras.facetUrn);
+        return { elements: suggestions };
+      },
+    });
+    assert.deepEqual(result, []);
+    assert.equal(requests.length, 1);
+  }
+  assert.equal(warn.mock.calls.length, 5);
+  for (const [index, call] of warn.mock.calls.entries()) assert.deepEqual(call.arguments, ["linkedin_ads_geo_resolution_empty", {
+    provider: "linkedin", requested_count: 1, verified_count: 0, contradicted_count: 0,
+    urn_response_shape: "elements",
+    urn_facet_counts: { locations: 0, profile_locations: 1, other: 0, missing: 0, malformed_row: 0 },
+    fresh_suggestion_count: index === 0 ? 0 : 1,
+    fallback_query_count: 1,
+  }]);
+});
+
+test("a genuine incompatible facet still vetoes exact suggestions and diagnostics never contain provider values", async (t) => {
+  const warn = t.mock.method(log, "warn", () => {});
+  for (const facetUrn of [" urn:li:adTargetingFacet:industries ", "Bearer private-provider-value"]) {
+    const result = await geoResolution.resolveLinkedInAdsGeoTargets({
+      targets: [arras], language: "fr", country: "FR", freshSuggestions: [arras],
+      resolvedPayload: { elements: [{ ...arras, name: "private-company-name", facetUrn }] },
+      read: async () => assert.fail("A contradictory facet cannot be rescued by another query"),
+    });
+    assert.deepEqual(result, []);
+  }
+  assert.equal(warn.mock.calls.length, 2);
+  for (const call of warn.mock.calls) {
+    assert.deepEqual(call.arguments, ["linkedin_ads_geo_resolution_empty", {
+      provider: "linkedin", requested_count: 1, verified_count: 0, contradicted_count: 1,
+      urn_response_shape: "elements",
+      urn_facet_counts: { locations: 0, profile_locations: 0, other: 1, missing: 0, malformed_row: 0 },
+      fresh_suggestion_count: 1, fallback_query_count: 0,
+    }]);
+    assert.doesNotMatch(JSON.stringify(call.arguments), /private|Bearer|urn:li|Arras/);
+  }
 });
 
 test("malformed LinkedIn campaign groups and locales report their own reads", async () => {
