@@ -49,7 +49,8 @@ test("le widget Actus propose un composant React et Next.js auto-redimensionné"
     /loading="eager"\s+fetchPriority="high"\s+referrerPolicy="strict-origin-when-cross-origin"/,
   );
   assert.doesNotMatch(component, /loading="lazy"/);
-  assert.match(component, /scrolling="no"/);
+  assert.doesNotMatch(component, /scrolling="no"/);
+  assert.match(embed, /overflow-x:hidden;overflow-y:auto/);
   assert.match(embed, /source:'inrcy-embed'/);
   assert.match(component, /window\.removeEventListener\("message", onMessage\)/);
   assert.match(component, /<section id="actualites"/);

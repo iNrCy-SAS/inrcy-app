@@ -76,7 +76,7 @@ const buildHtmlSnippet = (config: GeneratedActusWidgetConfig) => {
   const { iframeId, initialHeight, publicAppOrigin, src } = buildEmbedDefinition(config);
   const htmlSrc = escapeHtmlAttribute(src);
 
-  return `<iframe id="${iframeId}" src="${htmlSrc}" width="100%" height="${initialHeight}" style="border:0;width:100%;max-width:100%;overflow:hidden;border-radius:24px;background:transparent;display:block;" loading="eager" fetchpriority="high" referrerpolicy="strict-origin-when-cross-origin" scrolling="no" title="Actualités iNrCy"></iframe>
+  return `<iframe id="${iframeId}" src="${htmlSrc}" width="100%" height="${initialHeight}" style="border:0;width:100%;max-width:100%;border-radius:24px;background:transparent;display:block;" loading="eager" fetchpriority="high" referrerpolicy="strict-origin-when-cross-origin" title="Actualités iNrCy"></iframe>
 <script>
 (function(){
   var iframe=document.getElementById("${iframeId}");
@@ -85,7 +85,7 @@ const buildHtmlSnippet = (config: GeneratedActusWidgetConfig) => {
   var ready=false;
   function applyHeight(value){ var h=parseInt(value,10); if(!h||h<140)return; if(Math.abs(h-lastHeight)<2)return; lastHeight=h; iframe.style.height=h+"px"; iframe.setAttribute("height",String(h)); }
   function send(type){ if(!iframe.contentWindow)return; iframe.contentWindow.postMessage({source:"inrcy-host",type:type,frameId:"${iframeId}"},"${publicAppOrigin}"); }
-  function onMessage(event){ if(event.origin!=="${publicAppOrigin}")return; if(event.source!==iframe.contentWindow)return; var data=event.data||{}; if(data.frameId!=="${iframeId}")return; if(data.source&&data.source!=="inrcy-embed")return; if(data.type==="inrcy:embed-ready"){ ready=true; applyHeight(data.height); send("inrcy:embed-init"); return; } if(data.type!=="inrcy:embed-resize")return; applyHeight(data.height); }
+  function onMessage(event){ if(event.origin!=="${publicAppOrigin}")return; if(event.source!==iframe.contentWindow)return; var data=event.data||{}; if(data.frameId!=="${iframeId}")return; if(data.source){if(data.source!=="inrcy-embed")return;} if(data.type==="inrcy:embed-ready"){ ready=true; applyHeight(data.height); return; } if(data.type!=="inrcy:embed-resize")return; applyHeight(data.height); }
   window.addEventListener("message",onMessage,false);
   iframe.addEventListener("load",function(){ send("inrcy:embed-init"); });
   setTimeout(function(){ send("inrcy:embed-ping"); },120);
@@ -147,7 +147,6 @@ export default function InrcyActus() {
       if (data.type === "inrcy:embed-ready") {
         ready = true;
         applyHeight(data.height);
-        send("inrcy:embed-init");
         return;
       }
       if (data.type === "inrcy:embed-resize") applyHeight(data.height);
@@ -184,7 +183,6 @@ export default function InrcyActus() {
           width: "100%",
           maxWidth: "100%",
           minHeight: 140,
-          overflow: "hidden",
           borderRadius: 24,
           background: "transparent",
           display: "block",
@@ -192,7 +190,6 @@ export default function InrcyActus() {
         loading="eager"
         fetchPriority="high"
         referrerPolicy="strict-origin-when-cross-origin"
-        scrolling="no"
         title="Actualités iNrCy"
       />
     </section>
