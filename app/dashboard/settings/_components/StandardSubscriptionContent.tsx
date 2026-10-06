@@ -3,7 +3,8 @@
 import { useLocale, useTranslations } from "next-intl";
 
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
@@ -59,6 +60,7 @@ type BillingChangeQuote = {
   currentPriceId: string;
   billingCycleChanged: boolean;
   trialChange?: boolean;
+  activation?: "now" | "trial_end";
   trialEndUnix?: number;
   renewalAt?: number | string | null;
 };
@@ -128,6 +130,14 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const [upgradeQuote, setUpgradeQuote] = useState<BillingChangeQuote | null>(null);
   const [downgradeScheduled, setDowngradeScheduled] = useState(false);
   const [scheduledDowngrade, setScheduledDowngrade] = useState<{ billingCycle: BillingCycle; renewalAt?: string | null } | null>(null);
+  const [premiumActivationOpen, setPremiumActivationOpen] = useState(false);
+  const premiumActivationTitleId = useId();
+  const premiumActivationFirstChoice = useRef<HTMLButtonElement>(null);
+  const premiumActivationOpener = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (premiumActivationOpen) premiumActivationFirstChoice.current?.focus();
+  }, [premiumActivationOpen]);
 
   const loadSubscription = useCallback(async () => {
     const supabase = createClient();
@@ -361,7 +371,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     }
   }
 
-  async function startCheckout(plan: "Standard" | "Premium" = "Standard") {
+  async function startCheckout(plan: "Standard" | "Premium" = "Standard", premiumActivation?: "now" | "trial_end") {
     setError("");
     setMessage("");
     setBusyAction("checkout");
@@ -369,6 +379,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       const result = await startSubscriptionCheckout({
         plan,
         billingCycle: billingCycles[plan],
+        premiumActivation,
         fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
         confirmTrialExtension: (trialEndAt) => window.confirm(i18nT("subscription_trial_extension_confirm", {
           date: new Date(trialEndAt).toLocaleString(locale, { dateStyle: "long", timeStyle: "short" }),
@@ -391,21 +402,24 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     }
   }
 
-  async function previewPremiumUpgrade(targetPlan: "Standard" | "Premium" = "Premium") {
+  async function previewPremiumUpgrade(targetPlan: "Standard" | "Premium" = "Premium", activation?: "now" | "trial_end") {
     const billingCycle = billingCycles[targetPlan];
     setError("");
     setMessage("");
     setUpgradeQuote(null);
     setBusyAction("quote");
     try {
-      const response = await fetch(`/api/billing/change-plan?target=${targetPlan}&billingCycle=${billingCycle}`, { cache: "no-store" });
+      const response = await fetch(`/api/billing/change-plan?target=${targetPlan}&billingCycle=${billingCycle}${activation ? `&activation=${activation}` : ""}`, { cache: "no-store" });
       if (!response.ok) throw new Error(await responseError(response, i18nT("premium_quote_unavailable")));
       const body = await response.json() as { quote?: BillingChangeQuote };
       if (!body.quote || body.quote.currency !== "eur" || body.quote.targetPlan !== targetPlan
         || body.quote.billingCycle !== billingCycle || !body.quote.targetPriceId || !body.quote.currentPriceId) {
         throw new Error(i18nT("premium_quote_unavailable"));
       }
-      if (body.quote.trialChange && (body.quote.amountDue !== 0 || !Number.isSafeInteger(body.quote.trialEndUnix))) {
+      if (body.quote.trialChange &&
+        (!Number.isSafeInteger(body.quote.trialEndUnix) ||
+          (body.quote.activation !== "now" && body.quote.amountDue !== 0) ||
+          (activation === "now" && body.quote.activation !== "now"))) {
         throw new Error(i18nT("premium_quote_unavailable"));
       }
       setUpgradeQuote(body.quote);
@@ -432,6 +446,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         body: JSON.stringify({ targetPlan: upgradeQuote.targetPlan, billingCycle: upgradeQuote.billingCycle,
           prorationDate: upgradeQuote.prorationDate, expectedAmountDue: upgradeQuote.amountDue,
           ...(upgradeQuote.trialChange ? { trialChange: true, expectedTrialEndUnix: upgradeQuote.trialEndUnix } : {}),
+          ...(upgradeQuote.activation === "now" ? { activation: "now" } : {}),
           expectedTargetPriceId: upgradeQuote.targetPriceId, expectedCurrentPriceId: upgradeQuote.currentPriceId }),
       });
       if (!response.ok) throw new Error(await responseError(response, i18nT("subscription_change_failed")));
@@ -459,6 +474,23 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function openPremiumActivationChoice(event: React.MouseEvent<HTMLButtonElement>) {
+    premiumActivationOpener.current = event.currentTarget;
+    setUpgradeQuote(null);
+    setPremiumActivationOpen(true);
+  }
+
+  function closePremiumActivationChoice() {
+    setPremiumActivationOpen(false);
+    premiumActivationOpener.current?.focus();
+  }
+
+  function selectPremiumActivation(activation: "now" | "trial_end") {
+    closePremiumActivationChoice();
+    if (view.canStartPremiumCheckout) void startCheckout("Premium", activation);
+    else void previewPremiumUpgrade("Premium", activation);
   }
 
   async function changeDowngrade(action: "schedule" | "undo") {
@@ -616,22 +648,32 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     </div> : null}
   </section>;
 
-  const renderPlanChange = (targetPlan: "Standard" | "Premium") => {
+  const renderPlanChange = (targetPlan: "Standard" | "Premium", activateSelectedPremium = false) => {
     const quote = upgradeQuote?.targetPlan === targetPlan ? upgradeQuote : null;
     const isCurrentPlan = targetPlan.toLowerCase() === view.edition;
     return <>
-      {!quote ? <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={() => previewPremiumUpgrade(targetPlan)} disabled={busyAction !== null}>
-        {busyAction === "quote" ? i18nT("premium_quote_loading") : isCurrentPlan ? i18nT("subscription_change_cycle") : view.status === "trialing" ? i18nT("subscription_trial_choose_plan") : i18nT("subscription_upgrade")} <span aria-hidden="true">→</span>
+      {!quote ? <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={(event) => {
+        if (activateSelectedPremium) void previewPremiumUpgrade("Premium", "now");
+        else if (targetPlan === "Premium" && view.status === "trialing" && clientBillingPlatform === "web") openPremiumActivationChoice(event);
+        else void previewPremiumUpgrade(targetPlan);
+      }} disabled={busyAction !== null}>
+        {busyAction === "quote" ? i18nT("premium_quote_loading") : activateSelectedPremium ? i18nT("premium_activation_now_title") : isCurrentPlan ? i18nT("subscription_change_cycle") : view.status === "trialing" ? i18nT("subscription_trial_choose_plan") : i18nT("subscription_upgrade")} <span aria-hidden="true">→</span>
       </button> : <div className={styles.quoteConfirmation}>
         <p>{i18nT("premium_quote_amount", { amount: new Intl.NumberFormat(locale, { style: "currency", currency: quote.currency }).format(quote.amountDue / 100) })}</p>
-        {quote.trialChange ? <p>{i18nT("subscription_trial_change_notice", { date: formatDate(String(quote.renewalAt), locale) || view.trialEndLabel || "—" })}</p> : <>
+        {quote.trialChange ? <p>{quote.activation === "now"
+          ? i18nT("premium_activation_now_quote_notice")
+          : i18nT("subscription_trial_change_notice", { date: formatDate(String(quote.renewalAt), locale) || view.trialEndLabel || "—" })}</p> : <>
           <p>{i18nT(quote.billingCycleChanged ? "subscription_quote_cycle_changed" : "subscription_quote_cycle_preserved")}</p>
           {quote.renewalAt ? <p>{i18nT("premium_next_renewal_label", { date: formatDate(String(quote.renewalAt), locale) || "—" })}</p> : null}
         </>}
         <button type="button" className={targetPlan === "Premium" ? styles.premiumCta : styles.standardCta} onClick={confirmPremiumUpgrade} disabled={busyAction !== null}>{busyAction === "change-plan" ? i18nT("premium_confirming") : i18nT("subscription_confirm_change")}</button>
-        <button type="button" className={styles.quoteRefresh} onClick={() => previewPremiumUpgrade(targetPlan)} disabled={busyAction !== null}>{i18nT("premium_refresh_quote")}</button>
+        <button type="button" className={styles.quoteRefresh} onClick={() => previewPremiumUpgrade(targetPlan, quote.activation)} disabled={busyAction !== null}>{i18nT("premium_refresh_quote")}</button>
       </div>}
-      {!quote?.trialChange ? <p className={styles.finePrint}>{view.status === "trialing"
+      {!quote?.trialChange ? <p className={styles.finePrint}>{activateSelectedPremium
+        ? i18nT("subscription_trial_change_notice", { date: view.trialEndLabel || "—" })
+        : view.status === "trialing" && targetPlan === "Premium"
+        ? i18nT("premium_activation_choice_hint")
+        : view.status === "trialing"
         ? i18nT("subscription_trial_change_notice", { date: view.trialEndLabel || "—" })
         : i18nT("subscription_change_quote_notice")}</p> : null}
     </>;
@@ -651,7 +693,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const canPreviewPlanChange = (plan: "Standard" | "Premium") => canPreviewSubscriptionPlanChange(subscription, plan, billingCycles[plan]);
   const selectedCycleDiffers = (plan: "Standard" | "Premium") => billingCycles[plan] !== (view.billingCycle === "yearly" ? "yearly" : "monthly");
 
-  return <SubscriptionWorkspace management={management} notice={<div role="status" aria-live="polite">
+  return <><SubscriptionWorkspace management={management} notice={<div role="status" aria-live="polite">
     {checkoutState === "cancel" ? <p style={{ color: "#ffd38f", margin: "0 0 12px" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
     {message ? <p style={{ color: "#8ff7d0", margin: "0 0 12px" }}>{message}</p> : null}
     {error ? <p style={{ color: "#ff9bbd", margin: "0 0 12px" }}>{error}</p> : null}
@@ -690,10 +732,15 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         <footer className={styles.planFooter}>
           {priceDetails("Premium")}
           {view.canStartPremiumCheckout ? <>
-            <button type="button" className={styles.premiumCta} onClick={() => startCheckout("Premium")} disabled={busyAction !== null || !premiumStorePricesReady}>{busyAction === "checkout" ? i18nT("ouverture_du_paiement_147e6d80") : i18nT("subscription_subscribe_premium")} <span aria-hidden="true">→</span></button>
-            {view.status === "trialing" ? <p className={styles.finePrint}>{i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}</p> : null}
+            <button type="button" className={styles.premiumCta} onClick={(event) => {
+              if (view.status === "trialing" && clientBillingPlatform === "web") openPremiumActivationChoice(event);
+              else void startCheckout("Premium");
+            }} disabled={busyAction !== null || !premiumStorePricesReady}>{busyAction === "checkout" ? i18nT("ouverture_du_paiement_147e6d80") : i18nT("subscription_subscribe_premium")} <span aria-hidden="true">→</span></button>
+            {view.status === "trialing" ? <p className={styles.finePrint}>{i18nT("premium_activation_choice_hint")}</p> : null}
             {isNativeBillingPlatform && premiumStorePriceError ? <p className={styles.finePrint} style={{ color: "#ffe1e8" }}>{premiumStorePriceError}</p> : null}
           </> : canPreviewPlanChange("Premium") ? renderPlanChange("Premium")
+          : view.status === "trialing" && view.hasStripeSubscription && view.edition === "premium" && clientBillingPlatform === "web"
+            ? renderPlanChange("Premium", true)
           : view.hasNativeSubscription && (view.edition !== "premium" || selectedCycleDiffers("Premium")) ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
           : view.needsBillingRecovery && view.edition === "premium" ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("regulariser_mon_paiement_00ae072e")}</button>
           : view.edition === "premium" ? null
@@ -702,5 +749,39 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       </section>
     </div>
     <p className={styles.quotaNote}>{i18nT("subscription_quota_note")}{clientBillingPlatform === "web" && premiumOffer.taxBehavior === "exclusive" ? ` ${i18nT("standard_taxes_checkout")}` : ""}</p>
-  </SubscriptionWorkspace>;
+  </SubscriptionWorkspace>{premiumActivationOpen && typeof document !== "undefined" ? createPortal(
+    <div className={styles.premiumActivationOverlay} onMouseDown={(event) => {
+      if (event.target === event.currentTarget) closePremiumActivationChoice();
+    }}>
+      <section className={styles.premiumActivationDialog} role="dialog" aria-modal="true" aria-labelledby={premiumActivationTitleId}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") closePremiumActivationChoice();
+          if (event.key !== "Tab") return;
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+          const first = buttons[0];
+          const last = buttons[buttons.length - 1];
+          if ((event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first)?.focus();
+          }
+        }}>
+        <div className={styles.premiumActivationHeader}>
+          <div><span>iNrCy Premium</span><h2 id={premiumActivationTitleId}>{i18nT("premium_activation_choice_title")}</h2></div>
+          <button type="button" className={styles.premiumActivationClose} onClick={closePremiumActivationChoice} aria-label={i18nT("premium_activation_close")}>×</button>
+        </div>
+        <p className={styles.premiumActivationIntro}>{i18nT("premium_activation_choice_intro", { date: view.trialEndLabel || "—" })}</p>
+        <p className={styles.premiumActivationPrice}>{billingCycles.Premium === "yearly" ? premiumYearlyLabel : premiumMonthlyLabel}</p>
+        <div className={styles.premiumActivationOptions}>
+          <button ref={premiumActivationFirstChoice} type="button" className={styles.premiumActivationOption} onClick={() => selectPremiumActivation("now")}>
+            <strong>{i18nT("premium_activation_now_title")}</strong>
+            <span>{i18nT("premium_activation_now_description")}</span>
+          </button>
+          <button type="button" className={styles.premiumActivationOption} onClick={() => selectPremiumActivation("trial_end")}>
+            <strong>{i18nT("premium_activation_later_title")}</strong>
+            <span>{i18nT("premium_activation_later_description", { date: view.trialEndLabel || "—" })}</span>
+          </button>
+        </div>
+        <p className={styles.premiumActivationFootnote}>{i18nT("premium_activation_footnote")}</p>
+      </section>
+    </div>, document.body) : null}</>;
 }

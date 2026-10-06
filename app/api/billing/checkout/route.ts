@@ -91,6 +91,11 @@ export async function POST(req: Request) {
     if (!requestedPlan) {
       return NextResponse.json({ error: "Forfait inconnu." }, { status: 400 });
     }
+    const premiumActivation = (body as { premiumActivation?: unknown } | null)?.premiumActivation;
+    if (premiumActivation !== undefined &&
+      (requestedPlan !== "Premium" || (premiumActivation !== "now" && premiumActivation !== "trial_end"))) {
+      return NextResponse.json({ error: "Choix d’activation Premium invalide." }, { status: 400 });
+    }
 
     const pricingVersion = CURRENT_COMMERCIAL_PRICING_VERSION;
     const priceForCycle = requestedPlan === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
@@ -156,6 +161,9 @@ export async function POST(req: Request) {
       }
 
       const currentStatus = normalizeStatus(row.status);
+      if (premiumActivation !== undefined && currentStatus !== "trialing") {
+        return NextResponse.json({ error: "Votre essai a changé. Rechargez la page avant de choisir la date d’activation Premium." }, { status: 409 });
+      }
       const billingProvider = normalizeStatus(row.billing_provider);
       const nativeSubscriptionIsLive =
         (billingProvider === "app_store" || billingProvider === "play_store") &&
@@ -315,7 +323,8 @@ export async function POST(req: Request) {
         currentStatus === "trialing" &&
         Number.isFinite(rawTrialEndUnix) &&
         rawTrialEndUnix > nowUnix;
-      const effectiveTrialEndUnix = trialIsStillOpen
+      const immediatePremiumFromTrial = requestedPlan === "Premium" && trialIsStillOpen && premiumActivation === "now";
+      const effectiveTrialEndUnix = trialIsStillOpen && !immediatePremiumFromTrial
         ? Math.max(rawTrialEndUnix, nowUnix + STRIPE_MIN_TRIAL_SECONDS + STRIPE_TRIAL_MARGIN_SECONDS)
         : null;
       const technicalTrialExtension =
@@ -348,7 +357,9 @@ export async function POST(req: Request) {
       sessionParams.set("subscription_data[metadata][pricing_version]", pricingVersion);
       sessionParams.set(
         "subscription_data[metadata][trial_behavior]",
-        effectiveTrialEndUnix
+        immediatePremiumFromTrial
+          ? "start_now_from_trial"
+          : effectiveTrialEndUnix
           ? technicalTrialExtension
             ? "technical_minimum_extension"
             : "keep_trial_end"
@@ -369,7 +380,7 @@ export async function POST(req: Request) {
       const session = await guard.resolveSession({
         customerId: checkoutCustomerId,
         params: sessionParams,
-        trialSourceEndUnix: trialIsStillOpen ? rawTrialEndUnix : null,
+        trialSourceEndUnix: trialIsStillOpen && !immediatePremiumFromTrial ? rawTrialEndUnix : null,
         get: stripeGet,
         post: stripePost,
         isCommercialPrice: (candidate) => Boolean(commercialPriceFromId(candidate)),
