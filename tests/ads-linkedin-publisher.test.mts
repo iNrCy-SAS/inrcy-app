@@ -413,13 +413,47 @@ test("initial publication rechecks seven profileLocations URNs through fresh exa
   assert.ok(runtime.requests.every((request) => request.method === "GET"));
 });
 
-test("initial publisher rejects unverified, substituted or contradictory geography before any provider mutation", async () => {
+test("initial publication accepts the live seven-URN 28-row response without discarding locations or re-searching", async () => {
+  const geoTargets = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes"]
+    .map((name, index) => ({ urn: `urn:li:geo:${100000001 + index}`, name, facetUrn: selectedGeo.facetUrn }));
+  const runtime = recoveryRuntime("ACTIVE", {
+    geoTargets,
+    resourcePayloads: {
+      geos: { elements: geoTargets.flatMap((target) => [
+        { ...target, facetUrn: "urn:li:adTargetingFacet:opaqueVariantA" },
+        { ...target, facetUrn: "urn:li:adTargetingFacet:profileLocations" },
+        target,
+        { ...target, facetUrn: "urn:li:adTargetingFacet:opaqueVariantB" },
+      ]) },
+    },
+  });
+  const expectedUrns = geoTargets.map(({ urn }) => urn);
+  assert.deepEqual((await runtime.evidence()).geoUrns, expectedUrns);
+  assert.equal(runtime.requests.filter((request) => request.query.includes("q=typeahead")).length, 0);
+  for (const request of runtime.requests.filter((request) => ["/rest/audienceCounts", "/rest/adBudgetPricing"].includes(request.path))) {
+    for (const urn of expectedUrns) assert.ok(decodeURIComponent(request.query).includes(urn), `${request.path} omitted ${urn}`);
+  }
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+});
+
+test("initial publication accepts fresh locations evidence even when the generic resolver only describes other facets", async () => {
+  const runtime = recoveryRuntime("ACTIVE", { resourcePayloads: {
+    geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:opaqueVariant" }] },
+    typeahead: { elements: [selectedGeo] },
+  } });
+  assert.deepEqual((await runtime.evidence()).geoUrns, [selectedGeo.urn]);
+  assert.equal(runtime.requests.filter((request) => request.query.includes("q=typeahead")).length, 1);
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+});
+
+test("initial publisher rejects unverified, substituted or non-location geography before any provider mutation", async () => {
   const cases = [
     { geos: { elements: [] }, typeahead: { elements: [] } },
     { geos: { elements: [] }, typeahead: { elements: [{ ...selectedGeo, urn: "urn:li:geo:999999" }] } },
     { geos: { elements: [{ urn: selectedGeo.urn }] }, typeahead: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:titles" }] } },
-    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:titles" }] }, typeahead: { elements: [selectedGeo] } },
-    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:industries" }] }, typeahead: { elements: [selectedGeo] } },
+    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:titles" }] }, typeahead: { elements: [] } },
+    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:industries" }] }, typeahead: { elements: [{ ...selectedGeo, urn: "urn:li:geo:999999" }] } },
+    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:opaqueVariant" }] }, typeahead: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:industries" }] } },
     { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:profileLocations" }] }, typeahead: { elements: [] } },
     { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:profileLocations" }] }, typeahead: { elements: [{ ...selectedGeo, urn: "urn:li:geo:999999" }] } },
     { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:profileLocations" }] }, typeahead: { elements: [{ ...selectedGeo, urn: "urn:li:organization:105015875" }] } },
