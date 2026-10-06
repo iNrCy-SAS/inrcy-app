@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveLinkedInAdsGeoTargets } from "./adsLinkedInGeoResolution.ts";
 
 import { linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
 import { linkedInAdsContextualGeoDefaults } from "./adsLinkedInClientDefaults.ts";
@@ -302,14 +303,6 @@ function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | n
   return [...found.values()];
 }
 
-/** An unusable row must not make other selected locations disappear. It remains unverified. */
-function normalizeResolvedGeoTargets(payload: unknown): LinkedInAdsTargetingEntity[] | null {
-  const elements = record(payload).elements;
-  if (!Array.isArray(elements) || elements.length > 100) return null;
-  return elements.flatMap((element) =>
-    normalizeLinkedInAdsTargetingEntities({ elements: [element] }) || []);
-}
-
 async function listOrganizationAccess(accessToken: string): Promise<OrganizationAccess[]> {
   const payload = await linkedInAdsRead(
     accessToken,
@@ -356,15 +349,11 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
 
   const campaignGroups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
-  const selectedGeoTargets = normalizeResolvedGeoTargets(selectedGeosPayload);
   if (!campaignGroups) throw new LinkedInAdsPreflightProviderError(
     "Groupes de campagnes LinkedIn Ads incohérents.", "provider_invalid_response", 502, "campaign_groups", 200,
   );
   if (!supportedLocales) throw new LinkedInAdsPreflightProviderError(
     "Langues LinkedIn Ads incohérentes.", "provider_invalid_response", 502, "interface_locales", 200,
-  );
-  if (!selectedGeoTargets) throw new LinkedInAdsPreflightProviderError(
-    "Zones LinkedIn Ads incohérentes.", "provider_invalid_response", 502, "geo_urn_resolution", 200,
   );
   const geoSuggestionGroups: LinkedInAdsTargetingEntity[][] = [];
   for (const read of geoReads) {
@@ -378,6 +367,14 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   }
   const geoSuggestions = [...new Map(geoSuggestionGroups.flat()
     .map((target) => [target.urn, target] as const)).values()];
+  const selectedGeoTargets = await resolveLinkedInAdsGeoTargets({
+    targets: requestedGeoUrns.map((urn) => ({ urn, name: geoSuggestions.find((target) => target.urn === urn)?.name || "" })),
+    language,
+    country,
+    resolvedPayload: selectedGeosPayload,
+    freshSuggestions: geoSuggestions,
+    read: (path) => linkedInAdsRead(token, path, "geo_urn_resolution"),
+  });
   const compatibleCampaignGroups = campaignGroups.filter(linkedInAdsCampaignGroupIsCompatible);
   const selectedGroup: LinkedInAdsCampaignGroup | null = input.campaignGroupId
     ? campaignGroups.find((item) => item.id === input.campaignGroupId) || null

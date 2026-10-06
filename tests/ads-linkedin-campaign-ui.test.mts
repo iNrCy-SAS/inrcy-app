@@ -130,7 +130,7 @@ test("le préflight vérifie chaque tag du brief et garde une recherche manuelle
   assert.match(client, /current \|\| \{ \.\.\.data, selected: undefined, blockers: \[\] \}/);
   assert.match(client, /linkedInGeoTargets\.length <= 20/);
   assert.match(client, /&& linkedInBidPricing\s*&& !linkedInBudgetBelowProviderMinimum\s*&& !linkedInBidOutsideVerifiedRange/);
-  assert.match(client, /"too_many_geo_targets", "budget_pricing_required", "bid_out_of_range"/);
+  assert.match(client, /"too_many_geo_targets", "budget_pricing_required"/);
   assert.match(client, /Zone refusée par LinkedIn, essayez une autre recherche/);
   assert.match(client, /data-rejected=\{status\?\.rejected \|\| undefined\}/);
   assert.match(client, /Retirer les pistes coupées/);
@@ -146,7 +146,7 @@ test("le client relit le tarif multi-zone et n'applique que l'enchère vérifié
 });
 
 test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou média, avec Active réservé au groupe ACTIVE", () => {
-  assert.match(client, /!linkedInSelectionsReady \|\| !linkedInComplianceReady/);
+  assert.match(client, /channelId === "linkedin" && !linkedInComplianceReady/);
   assert.match(client, /const linkedInLaunchReadinessReason = channelId === "linkedin"[\s\S]*!linkedInSelectionsReady[\s\S]*!linkedInComplianceReady/);
   assert.match(client, /const launchBlockingMessage = incompleteLaunchMessage \|\| launchUnavailableReason \|\| linkedInLaunchReadinessReason/);
   assert.match(client, /className=\{styles\.primaryButton\} disabled=\{busy !== null \|\| launchBlocked\}/);

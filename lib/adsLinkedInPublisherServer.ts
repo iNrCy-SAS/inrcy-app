@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveLinkedInAdsGeoTargets } from "./adsLinkedInGeoResolution.ts";
 
 import sharp from "sharp";
 import type { AdsCampaignInput } from "./adsValidation.ts";
@@ -18,7 +19,6 @@ import {
   buildLinkedInAdsAudienceCountPath,
   buildLinkedInAdsBudgetPricingPath,
   buildLinkedInAdsCampaignGroupsPath,
-  buildLinkedInAdsGeoUrnsPath,
   buildLinkedInAdsImagePath,
   buildLinkedInAdsLocalesPath,
   linkedInAdsPreflightBlockers,
@@ -27,7 +27,6 @@ import {
   normalizeLinkedInAdsCampaignGroups,
   normalizeLinkedInAdsImage,
   normalizeLinkedInAdsLocales,
-  normalizeLinkedInAdsTargetingEntities,
   type LinkedInAdsCampaignGroup,
   type LinkedInAdsImageEvidence,
 } from "./adsLinkedInPreflightPolicy.ts";
@@ -333,19 +332,23 @@ async function collectPublicationEvidence(
   if (!settings || !/^\d{1,25}$/.test(groupId) || !ORGANIZATION_URN.test(organizationUrn) || !geoTargets.length) {
     throw new Error("Les sélections LinkedIn (groupe, Page et zones) sont incomplètes.");
   }
-  const [groupsPayload, organizationsPayload, localesPayload, verifiedGeoPayload] = await Promise.all([
+  const [groupsPayload, organizationsPayload, localesPayload, verifiedGeos] = await Promise.all([
     linkedInRead(token, buildLinkedInAdsCampaignGroupsPath(account.id), fetchImpl, sleep),
     linkedInRead(token, "/rest/organizationAcls?q=roleAssignee&state=APPROVED&count=500&start=0", fetchImpl, sleep),
     linkedInRead(token, buildLinkedInAdsLocalesPath(), fetchImpl, sleep),
-    linkedInRead(token, buildLinkedInAdsGeoUrnsPath(geoTargets.map((target) => target.urn), settings.locale.language, settings.locale.country), fetchImpl, sleep),
+    resolveLinkedInAdsGeoTargets({
+      targets: geoTargets,
+      language: settings.locale.language,
+      country: settings.locale.country,
+      read: (path) => linkedInRead(token, path, fetchImpl, sleep),
+    }),
   ]);
   const groups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const organizations = normalizeOrganizationAccess(organizationsPayload);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
-  const verifiedGeos = normalizeLinkedInAdsTargetingEntities(verifiedGeoPayload);
-  if (!groups || !organizations || !supportedLocales || !verifiedGeos) {
-    throw new LinkedInAdsConnectionError("Les ressources LinkedIn Ads relues sont incohérentes.", "provider_invalid_response");
-  }
+  if (!groups) throw new LinkedInAdsConnectionError("Les groupes de campagnes renvoyés par LinkedIn ne peuvent pas être vérifiés.", "campaign_groups_invalid_response");
+  if (!organizations) throw new LinkedInAdsConnectionError("Les autorisations de Page renvoyées par LinkedIn ne peuvent pas être vérifiées.", "organization_access_invalid_response");
+  if (!supportedLocales) throw new LinkedInAdsConnectionError("Les langues renvoyées par LinkedIn ne peuvent pas être vérifiées.", "interface_locales_invalid_response");
   const campaignGroup = groups.find((item) => item.id === groupId) || null;
   const organization = organizations.find((item) => item.urn === organizationUrn) || null;
   if (!campaignGroup || !organization) throw new Error("Le groupe de campagnes ou la Page LinkedIn n’est plus accessible.");
@@ -518,6 +521,26 @@ function hasProviderResource(progress: LinkedInAdsPublishProgress): boolean {
  * freshly revalidated resources. Every provider identifier is persisted before
  * the next create call. A pending/uncertain create is never replayed blindly.
  */
+/** Runs the publisher's initial checks without any provider or database mutation. */
+export async function checkLinkedInAdsPublication(
+  userId: string,
+  draft: AdsCampaignInput,
+  options: { activate?: boolean } = {},
+): Promise<{ ready: true; verifiedGeoCount: number }> {
+  try {
+    if (draft.provider !== "linkedin") throw new LinkedInAdsConnectionError("Ce brouillon n’est pas une campagne LinkedIn Ads.", "invalid_provider", 422);
+    await readCampaignImage(userId, draft);
+    const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+    const evidence = await collectPublicationEvidence(userId, draft, options.activate === false ? "PAUSED" : "ACTIVE", fetch, sleep, Date.now);
+    return { ready: true, verifiedGeoCount: evidence.geoUrns.length };
+  } catch (error) {
+    if (error instanceof LinkedInAdsConnectionError) throw error;
+    const message = error instanceof Error && /^(Le |La |Les |L’|Une |Pour |LinkedIn |iNrCy )/.test(error.message)
+      ? error.message : "Le contrôle LinkedIn est temporairement indisponible.";
+    throw new LinkedInAdsConnectionError(message, "publication_preflight_failed", 422);
+  }
+}
+
 export async function publishLinkedInAdsCampaign(
   userId: string,
   draft: AdsCampaignInput,

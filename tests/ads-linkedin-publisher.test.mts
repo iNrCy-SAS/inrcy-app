@@ -7,6 +7,7 @@ import * as linkedInPolicy from "../lib/adsLinkedInPolicy.ts";
 import * as linkedInPreflight from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as linkedInPublish from "../lib/adsLinkedInPublish.ts";
 import * as linkedInCore from "../lib/adsLinkedInPublisherCore.ts";
+import * as linkedInGeoResolution from "../lib/adsLinkedInGeoResolution.ts";
 import { isAdsChannelPublishEnabled } from "../lib/adsPublishMode.ts";
 
 import {
@@ -191,9 +192,14 @@ type RuntimePublisher = (
     fetchImpl: typeof fetch; now: () => number; sleep: (milliseconds: number) => Promise<void>;
   },
 ) => Promise<LinkedInAdsPublishProgress>;
+type RuntimeEvidence = (
+  userId: string, draft: AdsCampaignInput, target: "ACTIVE" | "PAUSED", fetchImpl: typeof fetch,
+  sleep: (milliseconds: number) => Promise<void>, now: () => number,
+) => Promise<{ geoUrns: string[] }>;
 
 const runtimeSource = ts.transpileModule(
-  readFileSync(new URL("../lib/adsLinkedInPublisherServer.ts", import.meta.url), "utf8"),
+  readFileSync(new URL("../lib/adsLinkedInPublisherServer.ts", import.meta.url), "utf8")
+    + "\nexport { collectPublicationEvidence };",
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } },
 ).outputText;
 const recoveryNow = Date.parse("2026-09-30T10:00:00Z");
@@ -210,10 +216,12 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
   remoteStatus?: string; campaign?: Record<string, unknown>; creative?: Record<string, unknown>;
   timeoutAfterFinalMutation?: boolean; failReads?: boolean; canServe?: boolean;
   scopes?: string; mappedAccount?: string;
+  geoTargets?: Array<{ urn: string; name: string }>;
+  resourcePayloads?: { groups?: unknown; organizations?: unknown; locales?: unknown; geos?: unknown; typeahead?: unknown };
 } = {}) {
   let remoteStatus = options.remoteStatus || "DRAFT";
   let mediaReads = 0;
-  const requests: Array<{ method: string; path: string; body?: string }> = [];
+  const requests: Array<{ method: string; path: string; query: string; body?: string }> = [];
   const account = {
     id: "558357276", name: "Compte test", currency: "EUR", country: "FR", status: "ACTIVE", type: "BUSINESS",
     productType: "", servingStatuses: ["RUNNABLE"], test: false, permissions: ["CAMPAIGN_MANAGER"],
@@ -226,6 +234,7 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
     ["./adsLinkedInPreflightPolicy.ts", linkedInPreflight],
     ["./adsLinkedInPublish.ts", linkedInPublish],
     ["./adsLinkedInPublisherCore.ts", linkedInCore],
+    ["./adsLinkedInGeoResolution.ts", linkedInGeoResolution],
     ["./adsLinkedInServer.ts", {
       LinkedInAdsConnectionError: class extends Error {},
       readLinkedInAdsIntegration: async () => ({ status: "connected", resource_id: account.id }),
@@ -248,7 +257,7 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
       storage: { from: () => ({ download: async () => ({ data: new Blob(["fixture"], { type: "image/png" }) }) }) },
     } }],
   ]);
-  const loaded = { exports: {} as { publishLinkedInAdsCampaign: RuntimePublisher } };
+  const loaded = { exports: {} as { publishLinkedInAdsCampaign: RuntimePublisher; collectPublicationEvidence: RuntimeEvidence } };
   new Function("module", "exports", "require", "process", runtimeSource)(
     loaded, loaded.exports,
     (specifier: string) => {
@@ -261,7 +270,7 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
   const fetchImpl: typeof fetch = async (url, init) => {
     const request = new URL(String(url));
     const method = init?.method || "GET";
-    requests.push({ method, path: request.pathname, body: typeof init?.body === "string" ? init.body : undefined });
+    requests.push({ method, path: request.pathname, query: request.search, body: typeof init?.body === "string" ? init.body : undefined });
     assert.equal(request.origin, "https://api.linkedin.com");
     if (method !== "GET") {
       assert.equal(method, "POST", "Recovery must not upload or delete resources");
@@ -281,17 +290,20 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
       id: "urn:li:sponsoredCreative:3003", campaign: "urn:li:sponsoredCampaign:1001",
       content: { reference: "urn:li:share:2002" }, intendedStatus: "ACTIVE", ...options.creative,
     });
-    if (request.pathname.endsWith("/adCampaignGroups")) return Response.json({ elements: [{
+    if (request.pathname.endsWith("/adCampaignGroups")) return Response.json(options.resourcePayloads?.groups ?? { elements: [{
       id: 456, account: `urn:li:sponsoredAccount:${account.id}`, status: "ACTIVE", objectiveType: "WEBSITE_VISIT",
       allowedCampaignTypes: ["SPONSORED_UPDATES"], runSchedule: { start: recoveryNow - 60_000 },
     }] });
-    if (request.pathname === "/rest/organizationAcls") return Response.json({ elements: [{
+    if (request.pathname === "/rest/organizationAcls") return Response.json(options.resourcePayloads?.organizations ?? { elements: [{
       state: "APPROVED", role: "CONTENT_ADMINISTRATOR", organization: "urn:li:organization:789",
     }] });
-    if (request.pathname === "/rest/adTargetingEntities") return Response.json({ elements: request.searchParams.get("q") === "urns"
-      ? [{ urn: "urn:li:geo:105015875", name: "France", facetUrn: "urn:li:adTargetingFacet:locations" }]
-      : [{ urn: "urn:li:locale:fr_FR" }],
-    });
+    if (request.pathname === "/rest/adTargetingEntities") {
+      if (request.searchParams.get("q") === "urns") return Response.json(options.resourcePayloads?.geos ?? { elements: [
+        { urn: "urn:li:geo:105015875", name: "France", facetUrn: "urn:li:adTargetingFacet:locations" },
+      ] });
+      if (request.searchParams.get("q") === "typeahead") return Response.json(options.resourcePayloads?.typeahead ?? { elements: [] });
+      return Response.json(options.resourcePayloads?.locales ?? { elements: [{ urn: "urn:li:locale:fr_FR" }] });
+    }
     if (request.pathname === "/rest/audienceCounts") return Response.json({ elements: [{ total: 1000 }] });
     if (request.pathname === "/rest/adBudgetPricing") return Response.json({ elements: [{
       bidLimits: { min: { amount: "1", currencyCode: "EUR" }, max: { amount: "25", currencyCode: "EUR" } },
@@ -310,11 +322,12 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
     creativeUrl: "/api/media-library/items/00000000-0000-4000-8000-000000000001/content?token=test",
     channelSettings: { channel: "linkedin", objectiveType: "WEBSITE_VISIT", format: "STANDARD_UPDATE", locale: { language: "fr", country: "FR" } },
     linkedinCampaignGroupId: "456", linkedinOrganizationUrn: "urn:li:organization:789",
-    linkedinGeoTargets: [{ urn: "urn:li:geo:105015875", name: "France" }], linkedinBidEuros: 2.5,
+    linkedinGeoTargets: options.geoTargets ?? [{ urn: "urn:li:geo:105015875", name: "France" }], linkedinBidEuros: 2.5,
     linkedinPoliticalIntentConfirmed: true, linkedinTargetingNoticeAcknowledged: true,
   } as AdsCampaignInput;
   return {
     requests, mediaReads: () => mediaReads,
+    evidence: () => loaded.exports.collectPublicationEvidence("owner", draft, target, fetchImpl, async () => {}, () => recoveryNow),
     run: (checkpoint: LinkedInAdsPublishProgress, persist: (value: LinkedInAdsPublishProgress) => Promise<void>) =>
       loaded.exports.publishLinkedInAdsCampaign("owner", draft, persist, {
         operationKey, activate: target === "ACTIVE", initialProgress: checkpoint, fetchImpl,
@@ -322,6 +335,95 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
       }),
   };
 }
+
+const selectedGeo = {
+  urn: "urn:li:geo:105015875", name: "France", facetUrn: "urn:li:adTargetingFacet:locations",
+};
+
+test("initial publication evidence keeps a selected verified location when an unrelated provider row is malformed", async () => {
+  const runtime = recoveryRuntime("ACTIVE", { resourcePayloads: {
+    geos: { elements: [
+      selectedGeo,
+      { urn: "urn:li:geo:999999", name: "Unrelated incomplete row" },
+      { urn: "urn:li:geo:888888", name: "Unrelated facet", facetUrn: "urn:li:adTargetingFacet:titles" },
+    ] },
+  } });
+  assert.deepEqual((await runtime.evidence()).geoUrns, [selectedGeo.urn]);
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+  assert.equal(runtime.requests.filter((request) => request.query.includes("q=typeahead")).length, 0);
+  assert.ok(runtime.requests.some((request) => request.path === "/rest/audienceCounts"));
+  assert.ok(runtime.requests.some((request) => request.path === "/rest/adBudgetPricing"));
+});
+
+test("initial publication evidence resolves incomplete urns results only through fresh typeahead evidence for that same URN", async () => {
+  for (const geos of [
+    { elements: [] },
+    { elements: [{ urn: selectedGeo.urn }] },
+    { results: {} },
+  ]) {
+    const runtime = recoveryRuntime("ACTIVE", { resourcePayloads: {
+      geos, typeahead: { elements: [selectedGeo] },
+      organizations: { elements: [{ state: "APPROVED", role: "ADMINISTRATOR", organizationTarget: "urn:li:organization:789" }] },
+    } });
+    assert.deepEqual((await runtime.evidence()).geoUrns, [selectedGeo.urn]);
+    const searches = runtime.requests.filter((request) => request.query.includes("q=typeahead"));
+    assert.equal(searches.length, 1);
+    assert.equal(new URLSearchParams(searches[0].query).get("query"), "France");
+    assert.ok(runtime.requests.every((request) => request.method === "GET"));
+  }
+});
+
+test("initial publication evidence preserves all seven selected URNs while completing only incomplete provider metadata", async () => {
+  const geoTargets = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes"]
+    .map((name, index) => ({ urn: `urn:li:geo:${100000001 + index}`, name, facetUrn: selectedGeo.facetUrn }));
+  const runtime = recoveryRuntime("ACTIVE", {
+    geoTargets,
+    resourcePayloads: {
+      geos: { elements: [...geoTargets.slice(0, 4), ...geoTargets.slice(4).map(({ urn }) => ({ urn }))] },
+      typeahead: { elements: geoTargets },
+    },
+  });
+  const expectedUrns = geoTargets.map(({ urn }) => urn);
+  assert.deepEqual((await runtime.evidence()).geoUrns, expectedUrns);
+  assert.equal(runtime.requests.filter((request) => request.query.includes("q=typeahead")).length, 3);
+  for (const request of runtime.requests.filter((request) => ["/rest/audienceCounts", "/rest/adBudgetPricing"].includes(request.path))) {
+    for (const urn of expectedUrns) assert.ok(decodeURIComponent(request.query).includes(urn), `${request.path} omitted ${urn}`);
+  }
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+});
+
+test("initial publisher rejects unverified, substituted or contradictory geography before any provider mutation", async () => {
+  const cases = [
+    { geos: { elements: [] }, typeahead: { elements: [] } },
+    { geos: { elements: [] }, typeahead: { elements: [{ ...selectedGeo, urn: "urn:li:geo:999999" }] } },
+    { geos: { elements: [{ urn: selectedGeo.urn }] }, typeahead: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:titles" }] } },
+    { geos: { elements: [{ ...selectedGeo, facetUrn: "urn:li:adTargetingFacet:titles" }] }, typeahead: { elements: [selectedGeo] } },
+  ];
+  for (const resourcePayloads of cases) {
+    const runtime = recoveryRuntime("ACTIVE", { resourcePayloads });
+    await assert.rejects(runtime.run(progress({ targetStatus: "ACTIVE" }), async () => {
+      assert.fail("No checkpoint may be written before all resource evidence is valid");
+    }), /zone LinkedIn.*vérifiable/);
+    assert.ok(runtime.requests.length > 0);
+    assert.ok(runtime.requests.every((request) => request.method === "GET"), JSON.stringify(resourcePayloads));
+    assert.equal(runtime.requests.some((request) => request.path === "/rest/audienceCounts"), false);
+  }
+});
+
+test("initial publisher identifies malformed group, Page authorization and locale responses separately before mutation", async () => {
+  const cases = [
+    { resourcePayloads: { groups: { elements: [{ id: "invalid" }] } }, message: /groupes de campagnes renvoyés par LinkedIn/ },
+    { resourcePayloads: { organizations: { elements: [{ state: "APPROVED", role: "ADMINISTRATOR", organization: "invalid" }] } }, message: /autorisations de Page renvoyées par LinkedIn/ },
+    { resourcePayloads: { locales: { elements: [{ urn: "invalid" }] } }, message: /langues renvoyées par LinkedIn/ },
+  ];
+  for (const { resourcePayloads, message } of cases) {
+    const runtime = recoveryRuntime("ACTIVE", { resourcePayloads });
+    await assert.rejects(runtime.run(progress({ targetStatus: "ACTIVE" }), async () => {
+      assert.fail("Invalid resources cannot persist a successful preflight");
+    }), message);
+    assert.ok(runtime.requests.every((request) => request.method === "GET"));
+  }
+});
 
 for (const target of ["ACTIVE", "PAUSED"] as const) {
   test(`${target}: response timeout after final mutation reconciles without another mutation`, async () => {
