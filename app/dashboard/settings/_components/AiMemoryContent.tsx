@@ -137,6 +137,7 @@ type WorkspaceSaveOptions = {
   aiMemoryDraft?: {
     memory: AiMemory;
     businessKnowledge: AiBusinessKnowledge;
+    profession?: unknown;
   };
 };
 
@@ -764,6 +765,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     draft: {
       memory?: AiMemory;
       businessKnowledge?: AiBusinessKnowledge;
+      profession?: unknown;
     } = {},
   ): Promise<{ ok: boolean; message?: string }> => {
     if (saving || !loaded || voiceTargetRef.current) return { ok: false };
@@ -783,7 +785,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
-        body: JSON.stringify({ memory: synchronizedMemory, businessKnowledge: draftBusinessKnowledge }),
+        body: JSON.stringify({
+          memory: synchronizedMemory,
+          businessKnowledge: draftBusinessKnowledge,
+          ...(draft.profession ? { activityProfessionSuggestion: draft.profession } : {}),
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       const nextQuota = parseAnalysisQuota(payload.quota);
@@ -912,6 +918,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           const result = await saveAiMemory({
             memory: nextMemory,
             businessKnowledge: nextBusinessKnowledge,
+            profession: options.aiMemoryDraft?.profession,
           });
           if (!result.ok) {
             setWorkspaceError(result.message || t("saveError"));
@@ -1155,6 +1162,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         aiMemoryDraft: {
           memory: merged.memory,
           businessKnowledge: merged.businessKnowledge,
+          profession: suggestion.profession,
         },
       });
       if (!analysisSaved) {

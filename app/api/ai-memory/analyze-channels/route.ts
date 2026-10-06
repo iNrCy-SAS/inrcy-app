@@ -47,6 +47,11 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord, asString } from "@/lib/tsSafe";
 import {
+  buildBusinessDnaProfessionCatalog,
+  buildMissingBusinessDnaProfession,
+  resolveBusinessDnaProfessionSuggestion,
+} from "@/lib/businessDnaActivityAutofill";
+import {
   INTERNAL_PRODUCT_COMPANY_NAMES,
   resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
@@ -78,6 +83,17 @@ const ANALYSIS_RESPONSE_SCHEMA = {
     type: "object",
     additionalProperties: false,
     properties: {
+      professionSuggestion: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          sectorCategory: { type: "string", maxLength: 60 },
+          job: { type: "string", maxLength: 80 },
+          sourceQuote: { type: "string", maxLength: 160 },
+          confidence: { type: "string", enum: ["high", "uncertain"] },
+        },
+        required: ["sectorCategory", "job", "sourceQuote", "confidence"],
+      },
       businessKnowledge: {
         type: "object",
         additionalProperties: false,
@@ -154,7 +170,7 @@ const ANALYSIS_RESPONSE_SCHEMA = {
         ],
       },
     },
-    required: ["businessKnowledge", "memory"],
+    required: ["professionSuggestion", "businessKnowledge", "memory"],
     $defs: {
       timeSlot: {
         type: "object",
@@ -453,6 +469,8 @@ Règles absolues :
 - évite les doublons, les synonymes artificiellement multipliés et les formulations publicitaires creuses ;
 - sépare les faits des recommandations : les faits d’entreprise doivent être prouvés par les sources ; les rubriques de stratégie, besoins, objections, vocabulaire et calendrier peuvent contenir une synthèse ou une recommandation professionnelle raisonnable ancrée dans les services, les clients et les thèmes observés, sans créer de fait commercial ;
 - si un fait dur n’est pas suffisamment étayé, renvoie une chaîne vide ou une liste vide ;
+- professionSuggestion : choisis le couple sectorCategory/job exact du CATALOGUE_METIERS seulement si les sources prouvent clairement le métier principal de cette entreprise ; copie dans sourceQuote un court extrait littéral d’une source analysée qui le démontre, et indique high uniquement si le métier est sans ambiguïté ; sinon laisse les trois chaînes vides et confidence=uncertain ; n’utilise jamais le nom d’un outil iNrCy comme métier ;
+- les prestations proposées dans businessKnowledge.services doivent correspondre aux activités réellement attestées dans les sources et au métier identifié ; ne recopie pas automatiquement toutes les prestations possibles du catalogue ;
 - produis les textes dans la langue « ${language} » ;
 - customerTypes ne peut contenir que particuliers, professionnels et/ou collectivites ;
 - weeklySchedule doit reprendre uniquement des horaires explicitement visibles ; laisse tous les jours fermés et notes vide si aucun horaire fiable n’est fourni ;
@@ -475,6 +493,8 @@ Objectifs de profondeur par rubrique, seulement dans la limite des sources :
 Réponds uniquement selon le schéma JSON demandé.`;
     const identityIntroduction = "IDENTITE_CANONIQUE (profil du professionnel, prioritaire sur toutes les sources) :\n";
     const sourceIntroduction = "Voici les sources professionnelles lues avec l’autorisation du compte :\n";
+    const professionCatalogIntroduction = "CATALOGUE_METIERS (identifiants sectorCategory/job et libellés, pour classifier le métier seulement) :\n";
+    const professionCatalog = buildBusinessDnaProfessionCatalog();
     const finalInstruction = "\n\nConstruis une proposition d’enrichissement dense et utile. Passe silencieusement en revue chaque propriété du schéma avant de répondre : développe toutes les rubriques que les sources permettent de renseigner, conserve une granularité concrète et supprime les répétitions. recentNewsItems doit contenir jusqu’à quatre actualités autonomes, factuelles et issues uniquement des publications datées des 30 derniers jours, quel que soit leur thème.";
     const contextIntroduction = "Voici les informations déjà validées. Elles servent à éviter les répétitions, mais ne doivent pas être considérées comme une preuve supplémentaire :\n";
     // Les moteurs prompt-only reçoivent aussi le schéma JSON dans leur message
@@ -495,14 +515,17 @@ Réponds uniquement selon le schéma JSON demandé.`;
           identityContextJson.length -
           contextIntroduction.length -
           existingContextJson.length -
+           professionCatalogIntroduction.length -
+           professionCatalog.length -
           sourceIntroduction.length -
           finalInstruction.length,
       ),
     );
     const sourcePayload = buildBusinessDnaAnalysisSourcePayload(sources, sourcePayloadBudget);
-    const input = `${identityIntroduction}${identityContextJson}\n\n${contextIntroduction}${existingContextJson}\n\n${sourceIntroduction}${JSON.stringify(sourcePayload)}${finalInstruction}`;
+    const input = `${identityIntroduction}${identityContextJson}\n\n${contextIntroduction}${existingContextJson}\n\n${professionCatalogIntroduction}${professionCatalog}\n\n${sourceIntroduction}${JSON.stringify(sourcePayload)}${finalInstruction}`;
 
     const generated = await aiGenerateJSON<{
+      professionSuggestion?: unknown;
       businessKnowledge?: unknown;
       memory?: unknown;
     }>({
@@ -522,6 +545,10 @@ Réponds uniquement selon le schéma JSON demandé.`;
       businessKnowledge: normalizeAiBusinessKnowledge(generated.businessKnowledge),
       memory: normalizeAiMemory(generated.memory, { includePremium: strategyEnabled }),
     }, companyName);
+    let suggestedProfession = resolveBusinessDnaProfessionSuggestion(
+      generated.professionSuggestion,
+      sources,
+    );
     const depthGaps = getBusinessDnaAnalysisDepthGaps(
       primaryDraft.businessKnowledge,
       primaryDraft.memory,
@@ -551,6 +578,8 @@ Réponds uniquement selon le schéma JSON demandé.`;
               completionSystem.length -
               identityIntroduction.length -
               identityContextJson.length -
+               professionCatalogIntroduction.length -
+               professionCatalog.length -
               completionIntroduction.length -
               completionSourceIntroduction.length -
               completionFinalInstruction.length -
@@ -562,6 +591,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
           completionSourceBudget,
         );
         const rawSupplement = await aiGenerateJSON<{
+          professionSuggestion?: unknown;
           businessKnowledge?: unknown;
           memory?: unknown;
         }>({
@@ -574,8 +604,12 @@ Réponds uniquement selon le schéma JSON demandé.`;
           timeoutMs: 45_000,
           responseSchema: ANALYSIS_RESPONSE_SCHEMA,
           system: completionSystem,
-          input: `${identityIntroduction}${identityContextJson}\n\n${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
+          input: `${identityIntroduction}${identityContextJson}\n\n${professionCatalogIntroduction}${professionCatalog}\n\n${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
         });
+        suggestedProfession ||= resolveBusinessDnaProfessionSuggestion(
+          rawSupplement.professionSuggestion,
+          sources,
+        );
         const supplement = sanitizeProfessionalIdentityValue(rawSupplement, companyName);
         completedDraft = sanitizeProfessionalIdentityValue(
           mergeBusinessDnaAnalysisDrafts(primaryDraft, supplement, {
@@ -614,7 +648,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
         supabase
           .from("business_profiles")
           .select(
-            "business_description,services,intervention_zones,opening_days,opening_hours,strengths,customer_typologies",
+            "sector,business_description,services,intervention_zones,opening_days,opening_hours,strengths,customer_typologies",
           )
           .eq("user_id", activeUserId)
           .order("updated_at", { ascending: false })
@@ -669,6 +703,22 @@ Réponds uniquement selon le schéma JSON demandé.`;
         );
       if (businessError) throw businessError;
 
+      // The profile may have been edited while the AI was working. A compare-
+      // and-set update fills only the same empty sector we just read.
+      const priorSector = latestBusinessResult.data?.sector ?? null;
+      const inferredSector = buildMissingBusinessDnaProfession(priorSector, suggestedProfession);
+      if (inferredSector) {
+        let professionUpdate = supabase
+          .from("business_profiles")
+          .update({ sector: inferredSector })
+          .eq("user_id", activeUserId);
+        professionUpdate = priorSector === null
+          ? professionUpdate.is("sector", null)
+          : professionUpdate.eq("sector", priorSector);
+        const { error: professionError } = await professionUpdate;
+        if (professionError) throw professionError;
+      }
+
       const completionScore = getAiWorkspaceCompletionScore(
         merged.memory,
         merged.businessKnowledge,
@@ -719,6 +769,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
         suggestion: {
           businessKnowledge: suggestedBusinessKnowledge,
           memory: suggestedMemory,
+          profession: suggestedProfession,
         },
       },
       { headers: { "Cache-Control": "no-store" } },
