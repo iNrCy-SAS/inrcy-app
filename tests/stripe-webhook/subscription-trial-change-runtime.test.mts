@@ -15,7 +15,7 @@ const output = ts.transpileModule(readFileSync(new URL("../../app/api/billing/ch
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscription?: Row; row?: Row; returned?: Row; updateFails?: boolean } = {}) {
+function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscription?: Row; row?: Row; returned?: Row; preview?: Row; invoice?: Row; updateFails?: boolean } = {}) {
   const now = Math.floor(Date.now() / 1000);
   const trialEnd = now + 5 * 86_400;
   const currentPlan = options.plan ?? "Standard";
@@ -53,15 +53,25 @@ function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscr
       stripeGet: async (path: string) => {
         gets.push(path);
         if (path === "/subscriptions/sub_trial") return structuredClone(live);
+        if (path === "/invoices/in_zero_trial") return { status: "paid", ...options.invoice };
         if (path === "/subscription_schedules/sched_other") return { id: "sched_other", status: "active", metadata: {} };
         throw new Error(`Unexpected Stripe read: ${path}`);
       },
       stripePost: async (path: string, body: URLSearchParams, config?: { idempotencyKey?: string }) => {
         const params = new URLSearchParams(body);
         posts.push({ path, params, idempotencyKey: config?.idempotencyKey });
+        if (path === "/invoices/create_preview") {
+          const priceId = params.get("subscription_details[items][0][price]")!;
+          return { amount_due: 12960, currency: "eur", automatic_tax: { enabled: true, status: "complete" },
+            lines: { data: [{ price: { id: priceId }, period: { end: now + 31 * 86_400 } }], has_more: false },
+            ...options.preview };
+        }
         if (path !== "/subscriptions/sub_trial") throw new Error(`Unexpected billing mutation: ${path}`);
         if (options.updateFails) throw new Error("Simulated transport failure");
-        return { ...live, items: { data: [item(params.get("items[0][price]")!)] }, ...options.returned };
+        const immediate = params.get("trial_end") === "now";
+        return { ...live, ...(immediate ? { status: "active", trial_end: now,
+          latest_invoice: { status: "open", hosted_invoice_url: "https://pay.stripe.test/invoice" } } : {}),
+          items: { data: [item(params.get("items[0][price]")!)] }, ...options.returned };
       },
     }],
   ]);
@@ -71,7 +81,7 @@ function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscr
     return modules.get(name);
   }, { error() {} }, { env: { STRIPE_SECRET_KEY: "not-a-real-key" } });
   return { posts, gets, now, trialEnd, currentPrice, live,
-    get: (target: Plan, cycle: Cycle) => runtime.exports.GET(new Request(`https://example.invalid/api/billing/change-plan?target=${target}&billingCycle=${cycle}`)),
+    get: (target: Plan, cycle: Cycle, activation?: "now" | "trial_end") => runtime.exports.GET(new Request(`https://example.invalid/api/billing/change-plan?target=${target}&billingCycle=${cycle}${activation ? `&activation=${activation}` : ""}`)),
     post: (body: unknown) => runtime.exports.POST(new Request("https://example.invalid/api/billing/change-plan", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     })),
@@ -114,6 +124,85 @@ for (const legacy of [false, true]) for (const plan of ["Standard", "Premium"] a
     });
   }
 }
+
+for (const plan of ["Standard", "Premium"] as const) for (const cycle of ["monthly", "yearly"] as const) {
+  test(`linked trial ${plan}/${cycle} can start Premium now after an exact taxed invoice preview`, async () => {
+    const route = fixture({ plan, cycle });
+    const response = await route.get("Premium", cycle, "now");
+    assert.equal(response.status, 200);
+    const { changeType, quote } = await response.json();
+    assert.equal(changeType, "trial_immediate");
+    assert.equal(quote.activation, "now");
+    assert.equal(quote.trialChange, true);
+    assert.equal(quote.amountDue, 12960);
+    assert.equal(quote.trialEndUnix, route.trialEnd);
+    assert.equal(route.posts.length, 1);
+    assert.equal(route.posts[0].path, "/invoices/create_preview");
+    assert.equal(route.posts[0].params.get("subscription_details[trial_end]"), "now");
+    assert.equal(route.posts[0].params.get("subscription_details[items][0][price]"), price("Premium", cycle));
+    assert.equal(route.posts[0].params.get("automatic_tax[enabled]"), "true");
+    const applied = await route.post({ ...confirmation(quote), activation: "now" });
+    assert.equal(applied.status, 200);
+    assert.deepEqual(await applied.json(), { applied: true, pendingPayment: true,
+      paymentUrl: "https://pay.stripe.test/invoice", targetPlan: "Premium", billingCycle: cycle,
+      renewalAt: quote.renewalAt, trialChange: true, activation: "now" });
+    assert.equal(route.posts.length, 3);
+    assert.equal(route.posts[1].path, "/invoices/create_preview", "quote is rechecked immediately before mutation");
+    assert.equal(route.posts[2].path, "/subscriptions/sub_trial");
+    assert.deepEqual(Object.fromEntries(route.posts[2].params), {
+      "items[0][id]": "si_trial", "items[0][price]": price("Premium", cycle),
+      trial_end: "now", proration_behavior: "always_invoice", proration_date: String(quote.prorationDate),
+      payment_behavior: "error_if_incomplete", "expand[]": "latest_invoice",
+    });
+    assert.ok(route.posts[2].idempotencyKey?.includes(String(route.trialEnd)));
+  });
+}
+
+test("immediate trial activation is never offered for Standard", async () => {
+  const route = fixture();
+  assert.equal((await (await route.get("Standard", "monthly", "now")).json()).code, "INVALID_ACTIVATION");
+  assert.equal((await (await route.post({ targetPlan: "Standard", activation: "now" })).json()).code, "INVALID_ACTIVATION");
+  assert.equal(route.posts.length, 0);
+});
+
+test("an explicit trial activation choice cannot silently become an ordinary paid change after trial end", async () => {
+  const route = fixture();
+  route.live.status = "active";
+  assert.equal((await (await route.get("Premium", "monthly", "trial_end")).json()).code, "QUOTE_CHANGED");
+  assert.equal((await (await route.get("Premium", "monthly", "now")).json()).code, "QUOTE_CHANGED");
+  assert.equal((await (await route.post({ targetPlan: "Premium", activation: "trial_end" })).json()).code, "QUOTE_CHANGED");
+  assert.equal(route.posts.length, 0);
+});
+
+for (const [name, patch, code] of [
+  ["amount", { expectedAmountDue: 1 }, "QUOTE_CHANGED"],
+  ["trial end", { expectedTrialEndUnix: 1 }, "QUOTE_CHANGED"],
+  ["source price", { expectedCurrentPriceId: "price_other" }, "QUOTE_CHANGED"],
+  ["target price", { expectedTargetPriceId: "price_other" }, "QUOTE_CHANGED"],
+  ["expired quote", { prorationDate: 1 }, "QUOTE_EXPIRED"],
+] as const) test(`immediate activation rejects a changed ${name} before subscription update`, async () => {
+  const route = fixture();
+  const { quote } = await (await route.get("Premium", "monthly", "now")).json();
+  assert.equal((await (await route.post({ ...confirmation(quote), activation: "now", ...patch })).json()).code, code);
+  assert.equal(route.posts.filter(({ path }) => path === "/subscriptions/sub_trial").length, 0);
+});
+
+test("immediate activation refuses an unpaid trial invoice and an incomplete tax preview", async () => {
+  const unpaid = fixture({ invoice: { status: "open" } });
+  assert.equal((await (await unpaid.get("Premium", "monthly", "now")).json()).code, "UNPAID_INVOICE");
+  assert.equal(unpaid.posts.length, 0);
+  const untaxed = fixture({ preview: { automatic_tax: { enabled: true, status: "requires_location_inputs" } } });
+  assert.equal((await (await untaxed.get("Premium", "monthly", "now")).json()).code, "QUOTE_UNAVAILABLE");
+  assert.equal(untaxed.posts.filter(({ path }) => path === "/subscriptions/sub_trial").length, 0);
+});
+
+test("immediate activation does not claim success if Stripe leaves the trial active", async () => {
+  const route = fixture({ returned: { status: "trialing" } });
+  const { quote } = await (await route.get("Premium", "monthly", "now")).json();
+  const response = await route.post({ ...confirmation(quote), activation: "now" });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, "TRIAL_CHANGE_UNCONFIRMED");
+});
 
 test("unchanged trial preserves its current historical offer without repricing or writing", async () => {
   const route = fixture({ legacy: true });

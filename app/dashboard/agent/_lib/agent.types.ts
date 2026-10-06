@@ -400,6 +400,7 @@ export type ScheduleListItem = {
   originLabel: string;
   status: string;
   statusKey?: string;
+  approvalState?: "approved" | "pending" | "refused";
   automationKey?: AutomationKey | null;
   scheduledActionId?: string | null;
   preparedActionId?: string | null;

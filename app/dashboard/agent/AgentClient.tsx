@@ -317,6 +317,7 @@ import {
   computeNextOccurrence,
 } from "./_lib/agent.schedule";
 import { buildAgentScheduleItems } from "./_lib/agent.schedule-items";
+import { publicationValidationState } from "./_lib/agent.publication-validation";
 import {
   hasPublicationSchedulePassed,
   nextPublicationVisibilityRefreshDelay,
@@ -360,8 +361,6 @@ const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
   ...UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
   ...UNIVERSAL_MEDIA_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
-
-type PublicationValidationState = "pending" | "validated" | "refused";
 
 type StudioMediaPreferenceStep =
   (typeof INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS)[number];
@@ -413,21 +412,6 @@ function isRobotPlannedPublication(
       action.scheduledFor &&
       asRecord(action.payload?.editorialPlan)
   );
-}
-
-function publicationValidationState(
-  action: AgentPreparedAction | null
-): PublicationValidationState {
-  if (action?.status === "refused") return "refused";
-  if (
-    action?.validatedAt ||
-    action?.status === "validated" ||
-    action?.status === "scheduled" ||
-    action?.status === "completed"
-  ) {
-    return "validated";
-  }
-  return "pending";
 }
 
 function isPublicationCarouselAction(
@@ -5434,8 +5418,8 @@ export default function AgentClient() {
               onClick={() => {
                 const openPlanning = () => {
                   setScheduleOpen(true);
+                  void refreshActions(true);
                   void refreshScheduledActions(true);
-                  void refreshPublicationHistory(true);
                 };
                 if (
                   !exitScheduledEditSession({

@@ -134,6 +134,14 @@ function requestedBillingCycle(value: unknown, fallback: BillingCycle): BillingC
   throw new PlanChangeError("INVALID_BILLING_CYCLE", "Choisissez une facturation mensuelle ou annuelle.", 400);
 }
 
+type TrialActivation = "now" | "trial_end";
+
+function requestedTrialActivation(value: unknown): TrialActivation {
+  if (value === undefined || value === null || value === "trial_end") return "trial_end";
+  if (value === "now") return "now";
+  throw new PlanChangeError("INVALID_ACTIVATION", "Choisissez une date d’activation valide.", 400);
+}
+
 function targetPriceId(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, target: Plan, billingCycle = context.item.billingCycle) {
   const configured = target === "Premium" ? configuredPremiumPriceId : configuredStandardPriceId;
   const priceId = configured(billingCycle, CURRENT_COMMERCIAL_PRICING_VERSION);
@@ -218,6 +226,40 @@ function trialChangeQuote(context: Exclude<Awaited<ReturnType<typeof loadContext
     renewalAt: new Date(context.trialEndUnix * 1000).toISOString(), trialEndUnix: context.trialEndUnix, trialChange: true };
 }
 
+async function previewTrialImmediate(context: Exclude<Awaited<ReturnType<typeof loadContext>>, { errorResponse: NextResponse }>, billingCycle: BillingCycle, quotedAt: number) {
+  if (context.scheduleId) throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
+  if (context.subscription.collection_method !== "charge_automatically") {
+    throw new PlanChangeError("MANUAL_COLLECTION", "Ce mode de paiement doit être modifié avec l’équipe iNrCy.");
+  }
+  assertCompatibleTax(context);
+  if (context.trialEndUnix === null) throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai a changé. Actualisez le devis.");
+  await assertLastInvoicePaid(context);
+  const priceId = targetPriceId(context, "Premium", billingCycle);
+  const params = new URLSearchParams();
+  params.set("customer", context.customerId);
+  params.set("subscription", context.subscriptionId);
+  params.set("subscription_details[items][0][id]", context.item.id);
+  params.set("subscription_details[items][0][price]", priceId);
+  params.set("subscription_details[trial_end]", "now");
+  params.set("subscription_details[proration_behavior]", "always_invoice");
+  params.set("subscription_details[proration_date]", String(quotedAt));
+  params.set("automatic_tax[enabled]", "true");
+  const invoice = await stripePost("/invoices/create_preview", params);
+  const tax = record(record(invoice).automatic_tax);
+  if (tax.enabled !== true || tax.status !== "complete") {
+    throw new PlanChangeError("QUOTE_UNAVAILABLE", "Les taxes du nouveau devis n’ont pas pu être calculées.", 503);
+  }
+  const amount = parsePlanChangeQuote(invoice, quotedAt);
+  const renewal = previewRecurringPeriodEnd(invoice, priceId, quotedAt);
+  if (!amount || amount.currency !== "eur" || !renewal) {
+    throw new PlanChangeError("QUOTE_UNAVAILABLE", "Le montant ou la date de renouvellement n’a pas pu être calculé.", 503);
+  }
+  return { ...amount, targetPlan: "Premium" as const, billingCycle, targetPriceId: priceId,
+    currentPriceId: context.item.priceId, billingCycleChanged: billingCycle !== context.item.billingCycle,
+    renewalAt: new Date(renewal * 1000).toISOString(), trialEndUnix: context.trialEndUnix,
+    trialChange: true, activation: "now" as const };
+}
+
 export async function GET(req: Request) {
   try {
     const context = await loadContext();
@@ -233,6 +275,13 @@ export async function GET(req: Request) {
       ? commercialPriceFromId(scheduledStandardPriceId(context.schedule))?.billingCycle
       : undefined;
     const billingCycle = requestedBillingCycle(query.get("billingCycle"), scheduledCycle ?? context.item.billingCycle);
+    const activation = requestedTrialActivation(query.get("activation"));
+    if (query.has("activation") && context.trialEndUnix === null) {
+      throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai est terminée. Actualisez votre abonnement avant de confirmer.");
+    }
+    if (activation === "now" && (target !== "Premium" || context.trialEndUnix === null)) {
+      throw new PlanChangeError("INVALID_ACTIVATION", "L’activation immédiate est réservée à Premium pendant l’essai.", 400);
+    }
     const unchanged = target === context.current.plan && billingCycle === context.item.billingCycle;
     // A status read must report the offer already agreed for a scheduled change,
     // including historical prices, rather than replace it with today's catalogue.
@@ -244,11 +293,15 @@ export async function GET(req: Request) {
     if (context.scheduleId && !pendingDowngrade) {
       throw new PlanChangeError("SCHEDULE_MANAGED", "Une modification d’abonnement existe déjà dans Stripe.");
     }
-    if (unchanged) {
+    if (unchanged && activation !== "now") {
       return result({ ...common, changeType: "unchanged", pendingDowngrade,
         renewalAt: new Date(context.periodEndUnix * 1000).toISOString() });
     }
     if (context.trialEndUnix !== null) {
+      if (activation === "now") {
+        const quote = await previewTrialImmediate(context, billingCycle, Math.floor(Date.now() / 1000));
+        return result({ ...common, changeType: "trial_immediate", quote, renewalAt: quote.renewalAt });
+      }
       const quote = trialChangeQuote(context, target, billingCycle, Math.floor(Date.now() / 1000));
       return result({ ...common, changeType: "trial", quote, renewalAt: quote.renewalAt });
     }
@@ -286,10 +339,17 @@ export async function POST(req: Request) {
       throw new PlanChangeError("INVALID_TARGET", "Forfait inconnu.", 400);
     }
     const billingCycle = requestedBillingCycle(body.billingCycle, context.item.billingCycle);
+    const activation = requestedTrialActivation(body.activation);
+    if (body.activation != null && context.trialEndUnix === null) {
+      throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai est terminée. Actualisez votre abonnement avant de confirmer.");
+    }
+    if (activation === "now" && (target !== "Premium" || context.trialEndUnix === null)) {
+      throw new PlanChangeError("INVALID_ACTIVATION", "L’activation immédiate est réservée à Premium pendant l’essai.", 400);
+    }
     if (context.trialEndUnix === null && (body.trialChange === true || body.expectedTrialEndUnix != null)) {
       throw new PlanChangeError("QUOTE_CHANGED", "La période d’essai a changé. Actualisez le devis avant de confirmer.");
     }
-    if (target === context.current.plan && billingCycle === context.item.billingCycle) {
+    if (target === context.current.plan && billingCycle === context.item.billingCycle && activation !== "now") {
       throw new PlanChangeError("ALREADY_ON_PLAN", `Vous êtes déjà sur l’offre ${target} avec cette cadence de facturation.`);
     }
     if (context.trialEndUnix === null && target === "Standard" && context.current.edition === "premium" && ownDowngrade(context) && body.billingCycle == null) {
@@ -303,6 +363,36 @@ export async function POST(req: Request) {
       const now = Math.floor(Date.now() / 1000);
       if (!Number.isSafeInteger(quotedAt) || quotedAt > now || quotedAt < now - 600) {
         throw new PlanChangeError("QUOTE_EXPIRED", "Le devis a expiré. Actualisez le forfait et la date de fin d’essai.");
+      }
+      if (activation === "now") {
+        const quote = await previewTrialImmediate(context, billingCycle, quotedAt);
+        if (body.trialChange !== true || body.expectedAmountDue !== quote.amountDue ||
+            body.expectedTrialEndUnix !== quote.trialEndUnix ||
+            body.expectedTargetPriceId !== priceId || body.expectedCurrentPriceId !== context.item.priceId) {
+          throw new PlanChangeError("QUOTE_CHANGED", "Le montant, le forfait ou la fin d’essai a changé. Vérifiez le nouveau devis avant de confirmer.");
+        }
+        const params = new URLSearchParams();
+        params.set("items[0][id]", context.item.id);
+        params.set("items[0][price]", priceId);
+        params.set("trial_end", "now");
+        params.set("proration_behavior", "always_invoice");
+        params.set("proration_date", String(quotedAt));
+        params.set("payment_behavior", "error_if_incomplete");
+        params.set("expand[]", "latest_invoice");
+        const updated = record(await stripePost(`/subscriptions/${encodeURIComponent(context.subscriptionId)}`, params, {
+          idempotencyKey: `inrcy-trial-start-now-${context.subscriptionId}-${context.item.priceId}-${priceId}-${context.trialEndUnix}-${quotedAt}`,
+        }));
+        const applied = stripeObjectId(updated) === context.subscriptionId &&
+          stripeObjectId(updated.customer) === context.customerId && updated.status === "active" &&
+          !updated.pending_update && singleCommercialItem(updated)?.priceId === priceId;
+        if (!applied) throw new PlanChangeError("TRIAL_CHANGE_UNCONFIRMED", "L’activation doit être vérifiée. Actualisez votre abonnement avant de réessayer.", 503);
+        const invoice = record(updated.latest_invoice);
+        const hostedInvoiceUrl = invoice.hosted_invoice_url;
+        const paymentUrl = typeof hostedInvoiceUrl === "string" &&
+          (() => { try { return new URL(hostedInvoiceUrl).protocol === "https:"; } catch { return false; } })()
+            ? hostedInvoiceUrl : null;
+        return result({ applied: true, pendingPayment: invoice.status === "open", paymentUrl,
+          targetPlan: target, billingCycle, renewalAt: quote.renewalAt, trialChange: true, activation: "now" });
       }
       const quote = trialChangeQuote(context, target, billingCycle, quotedAt);
       if (body.trialChange !== true || body.expectedAmountDue !== 0 || body.expectedTrialEndUnix !== quote.trialEndUnix ||

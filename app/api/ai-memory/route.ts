@@ -13,6 +13,9 @@ import {
 } from "@/lib/aiMemory";
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import {
+  buildMissingBusinessDnaProfession,
+} from "@/lib/businessDnaActivityAutofill";
+import {
   findJobValueByLabel,
   getServicesForSectorAndJob,
   isValidJobForSector,
@@ -311,6 +314,27 @@ export async function PUT(req: Request) {
       );
     if (businessError) {
       return jsonUserFacingError(businessError, { status: 500 });
+    }
+
+    const previousSector = currentBusinessResult.data?.sector ?? null;
+    const inferredSector = buildMissingBusinessDnaProfession(
+      previousSector,
+      input.activityProfessionSuggestion,
+    );
+    if (inferredSector) {
+      // Analysis can finish after a manual edit. Never replace a profession
+      // that changed between the initial read and this conditional update.
+      let professionUpdate = supabase
+        .from("business_profiles")
+        .update({ sector: inferredSector })
+        .eq("user_id", activeUserId);
+      professionUpdate = previousSector === null
+        ? professionUpdate.is("sector", null)
+        : professionUpdate.eq("sector", previousSector);
+      const { error: professionError } = await professionUpdate;
+      if (professionError) {
+        return jsonUserFacingError(professionError, { status: 500 });
+      }
     }
   }
 

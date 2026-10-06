@@ -95,7 +95,7 @@ test("le planning iNrAgent est un agenda mensuel avec un carrousel par date", ()
   assert.match(finalScheduleStyles, /width:\s*min\(1680px,/);
   assert.match(finalScheduleStyles, /height:\s*min\(94dvh, 1040px\)/);
   assert.match(finalScheduleStyles, /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(finalScheduleStyles, /grid-auto-rows:\s*160px/);
+  assert.match(finalScheduleStyles, /grid-auto-rows:\s*minmax\(220px,\s*max-content\)/);
   assert.match(finalScheduleStyles, /\.scheduleDayCarouselControls\s*\{/);
   assert.match(
     finalScheduleStyles,

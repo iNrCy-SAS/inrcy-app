@@ -122,8 +122,8 @@ function fixture(options: { createdAt?: string | null; row?: Row; missingPrice?:
     },
   }, { STRIPE_SECRET_KEY: "test-placeholder-not-a-real-key" });
   return { posts, writes, catalog, guardedSessions,
-    post: (plan: Plan, billingCycle: Cycle) => route.POST(new Request("https://app.example.invalid/api/billing/checkout", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan, billingCycle }),
+    post: (plan: Plan, billingCycle: Cycle, premiumActivation?: "now" | "trial_end") => route.POST(new Request("https://app.example.invalid/api/billing/checkout", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan, billingCycle, ...(premiumActivation ? { premiumActivation } : {}) }),
     })) as Promise<Response>,
   };
 }
@@ -168,6 +168,50 @@ for (const plan of ["Standard", "Premium"] as const) {
     });
   }
 }
+
+test("a trial professional can explicitly start Premium now without a Stripe trial or premature local entitlement", async () => {
+  const originalEnd = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const run = fixture({ row: { status: "trialing", plan: "Trial", trial_end_at: new Date(originalEnd * 1000).toISOString() } });
+  const response = await run.post("Premium", "monthly", "now");
+  assert.equal(response.status, 200);
+  assert.equal(run.posts.length, 1);
+  assert.equal(run.posts[0].params.get("subscription_data[trial_end]"), null);
+  assert.equal(run.posts[0].params.get("subscription_data[metadata][trial_behavior]"), "start_now_from_trial");
+  assert.equal(run.guardedSessions[0].trialSourceEndUnix, null);
+  assert.equal((await response.json()).trialExtended, undefined);
+  assert.ok(run.writes.every((patch) => !("status" in patch) && !("app_edition" in patch) && !("plan" in patch)));
+});
+
+test("a trial professional can explicitly preserve the trial before Premium starts", async () => {
+  const originalEnd = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const run = fixture({ row: { status: "trialing", plan: "Trial", trial_end_at: new Date(originalEnd * 1000).toISOString() } });
+  assert.equal((await run.post("Premium", "yearly", "trial_end")).status, 200);
+  assert.equal(Number(run.posts[0].params.get("subscription_data[trial_end]")), originalEnd);
+  assert.equal(run.guardedSessions[0].trialSourceEndUnix, originalEnd);
+});
+
+test("the activation choice is accepted only for Premium during an active trial", async () => {
+  const standardTrial = fixture({ row: { status: "trialing", plan: "Trial", trial_end_at: new Date(Date.now() + 7 * 86400_000).toISOString() } });
+  assert.equal((await standardTrial.post("Standard", "monthly", "now")).status, 400);
+  assert.deepEqual(standardTrial.posts, []);
+  const expiredTrial = fixture({ row: { status: "trial_expired", plan: "Trial" } });
+  assert.equal((await expiredTrial.post("Premium", "monthly", "now")).status, 409);
+  assert.deepEqual(expiredTrial.posts, []);
+});
+
+test("the web client sends the chosen Premium activation to checkout", async () => {
+  const run = fixture({ row: { status: "trialing", plan: "Trial", trial_end_at: new Date(Date.now() + 7 * 86400_000).toISOString() } });
+  const result = await startSubscriptionCheckout({
+    plan: "Premium", billingCycle: "monthly", premiumActivation: "now", fallbackError: "Checkout unavailable",
+    runtime: { location: { assign: () => {} } },
+    fetchImpl: async (_input, init) => {
+      assert.deepEqual(JSON.parse(String(init?.body)), { plan: "Premium", billingCycle: "monthly", premiumActivation: "now" });
+      return run.post("Premium", "monthly", "now");
+    },
+  });
+  assert.deepEqual(result, { platform: "web", provider: "stripe" });
+  assert.equal(run.posts[0].params.get("subscription_data[trial_end]"), null);
+});
 
 for (const plan of ["Standard", "Premium"] as const) {
   for (const cycle of ["monthly", "yearly"] as const) {

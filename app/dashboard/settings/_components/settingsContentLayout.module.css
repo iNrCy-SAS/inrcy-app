@@ -129,6 +129,22 @@
 .quoteRefresh { border: 1px solid rgba(255,218,251,.42); background: rgba(255,255,255,.09); color: #fff; border-radius: 10px; padding: 8px 10px; font-weight: 750; cursor: pointer; }
 .quotaNote { margin: 12px 0 0; color: var(--inrcy-theme-text-secondary, #bdc7dc); font-size: 11px; line-height: 1.45; }
 
+.premiumActivationOverlay { position: fixed; inset: 0; z-index: 2147483646; display: grid; place-items: center; padding: 16px; background: rgba(3, 9, 32, .78); backdrop-filter: blur(8px); }
+.premiumActivationDialog { width: min(590px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: clamp(20px, 4vw, 30px); border: 1px solid rgba(246, 172, 248, .5); border-radius: 24px; color: #fff; background: radial-gradient(circle at 100% 0%, rgba(178, 55, 179, .4), transparent 48%), linear-gradient(145deg, #102e58, #222052 65%, #3b205a); box-shadow: 0 30px 90px rgba(0, 0, 0, .48); }
+.premiumActivationHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.premiumActivationHeader span { color: #f9c6f2; font-size: 11px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.premiumActivationHeader h2 { margin: 5px 0 0; font-size: clamp(24px, 4vw, 31px); line-height: 1.13; }
+.premiumActivationClose { flex: 0 0 auto; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.28); border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font-size: 25px; cursor: pointer; }
+.premiumActivationIntro { margin: 16px 0 0; color: #e0eafb; font-size: 14px; line-height: 1.5; }
+.premiumActivationPrice { width: fit-content; margin: 16px 0 0; padding: 7px 11px; border: 1px solid rgba(255,212,248,.36); border-radius: 999px; background: rgba(244,126,220,.13); font-size: 13px; font-weight: 850; }
+.premiumActivationOptions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.premiumActivationOption { display: grid; align-content: start; gap: 10px; min-height: 150px; padding: 18px; border: 1px solid rgba(255,255,255,.32); border-radius: 16px; background: linear-gradient(145deg, rgba(36,137,222,.3), rgba(169,71,211,.23)); color: #fff; text-align: left; cursor: pointer; transition: border-color .15s, transform .15s, background .15s; }
+.premiumActivationOption:hover { transform: translateY(-2px); border-color: #fff; background: linear-gradient(145deg, rgba(36,137,222,.46), rgba(214,77,187,.37)); }
+.premiumActivationOption strong { font-size: 17px; line-height: 1.25; }
+.premiumActivationOption span { color: #e6eafb; font-size: 12px; line-height: 1.5; }
+.premiumActivationFootnote { margin: 16px 0 0; color: #bfcbe4; font-size: 11px; line-height: 1.5; }
+.premiumActivationClose:focus-visible, .premiumActivationOption:focus-visible { outline: 3px solid #cff6ff; outline-offset: 3px; }
+
 .preferencesGrid > :nth-child(-n+3) { padding: 18px; border-radius: 19px; border: 1px solid rgba(91, 201, 252, .28); background: linear-gradient(145deg, rgba(18, 142, 206, .18), rgba(51, 82, 175, .12)); box-shadow: inset 0 1px 0 rgba(164, 230, 255, .12); }
 .preferencesGrid > :nth-child(2) { border-color: rgba(170, 136, 248, .28); background: linear-gradient(145deg, rgba(111, 68, 225, .19), rgba(116, 49, 180, .1)); }
 .preferencesGrid > :nth-child(3) { border-color: rgba(232, 116, 207, .28); background: linear-gradient(145deg, rgba(191, 57, 161, .17), rgba(118, 55, 177, .1)); }
@@ -151,6 +167,8 @@
 }
 
 @media (max-width: 520px) {
+  .premiumActivationOptions { grid-template-columns: minmax(0, 1fr); }
+  .premiumActivationOption { min-height: 110px; }
   .navigation { width: 100%; }
   .navigation button { flex: 1 1 auto; padding: 9px 12px; }
   .planCard { padding: 18px; border-radius: 21px; }

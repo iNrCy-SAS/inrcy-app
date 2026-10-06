@@ -114,6 +114,7 @@ export function loadStandardSubscriptionStorePrices(options: Omit<Parameters<typ
 export async function startSubscriptionCheckout({
   plan,
   billingCycle,
+  premiumActivation,
   fallbackError,
   confirmTrialExtension,
   fetchImpl = fetch,
@@ -121,6 +122,7 @@ export async function startSubscriptionCheckout({
 }: {
   plan: NativeSubscriptionPlan;
   billingCycle: BillingCycle;
+  premiumActivation?: "now" | "trial_end";
   fallbackError: string;
   confirmTrialExtension?: (trialEndAt: string) => boolean;
   fetchImpl?: typeof fetch;
@@ -142,7 +144,7 @@ export async function startSubscriptionCheckout({
   const response = await fetchImpl("/api/billing/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan, billingCycle }),
+    body: JSON.stringify({ plan, billingCycle, ...(premiumActivation ? { premiumActivation } : {}) }),
   });
   const body = (await response.json().catch(() => null)) as CheckoutResponse | null;
   if (!response.ok) throw new Error(body?.error || fallbackError);

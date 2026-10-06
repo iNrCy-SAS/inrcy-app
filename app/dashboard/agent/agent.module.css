@@ -19056,6 +19056,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .scheduleModal .scheduleSection {
+  min-width: 0;
   min-height: 0;
   height: 100%;
   display: grid !important;
@@ -19064,6 +19065,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .scheduleCalendarShell {
+  min-width: 0;
   min-height: 0;
   height: 100%;
   display: grid;
@@ -19072,36 +19074,34 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .scheduleCalendarViewport {
   box-sizing: border-box;
+  min-width: 0;
   min-height: 0;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: hidden;
-}
-
-.scheduleCalendarViewport[data-overflow="true"] {
-  overflow-y: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .scheduleCalendar {
   box-sizing: border-box;
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  min-width: 1080px;
+  height: auto;
+  min-height: 100%;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 160px;
+  grid-template-rows: none;
+  grid-auto-rows: minmax(220px, max-content);
   align-content: start;
-}
-
-.scheduleCalendar[data-overflow="true"] {
-  height: calc(100% + 169px);
 }
 
 .scheduleDayCell,
 .scheduleDayEmpty {
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 220px;
   max-height: none;
+}
+
+.scheduleDayCell {
+  grid-template-rows: auto minmax(min-content, 1fr);
 }
 
 .scheduleDayEmpty {
@@ -19197,35 +19197,26 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .scheduleDayActions {
-  min-height: 0;
+  min-height: min-content;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-auto-rows: minmax(0, 1fr);
-  overflow: hidden;
+  grid-auto-rows: auto;
+  overflow: visible;
 }
 
 .scheduleDayActions > .scheduleCalendarCard {
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 150px;
   max-height: none;
 }
 
 .scheduleCalendarCard {
   position: relative;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  /*
-   * Cette carte vit dans une cellule compacte de la grille 4 × 4. Les
-   * anciennes règles du planning lui donnaient une rangée extensible avant
-   * les métadonnées : le thème, le titre et les badges pouvaient alors se
-   * chevaucher. Chaque niveau a désormais sa propre rangée stable.
-   */
-  grid-template-rows: 20px 17px minmax(22px, 1fr) 18px 11px;
-  align-items: stretch;
-  align-content: stretch;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
   padding: 8px 10px;
   text-align: center;
   overflow: visible;
@@ -19259,12 +19250,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .scheduleCalendarCardTopline {
-  grid-row: 1;
   position: relative;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 5px;
   overflow: visible;
 }
 
@@ -19313,10 +19304,10 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 .scheduleCalendarCardTopline > .scheduleCalendarCardType {
-  position: absolute;
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 138px);
+  position: static;
+  transform: none;
+  flex: 1 1 auto;
+  max-width: none;
   min-width: 0;
   align-self: center;
   color: var(--schedule-card-type-color, rgba(224, 242, 254, 0.92));
@@ -19326,13 +19317,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   line-height: 12px;
   text-align: center;
   text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .scheduleCalendarCard > .scheduleCalendarCardTheme {
-  grid-row: 2;
   align-self: center;
   min-width: 0;
   display: block;
@@ -19341,36 +19330,38 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   font-size: 12px;
   font-weight: 950;
   line-height: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
   text-transform: capitalize;
 }
 
 .scheduleCalendarCardTitle {
-  grid-row: 3;
   align-self: center;
   min-width: 0;
-  display: -webkit-box;
+  display: block;
   margin: 0;
   color: rgba(224, 242, 254, 0.84);
   font-size: 10px;
   font-weight: 780;
   line-height: 1.24;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  -webkit-line-clamp: unset;
 }
 
 .scheduleCalendarCardMeta {
-  display: contents;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .scheduleCalendarMetaBadges {
-  grid-row: 4;
-  justify-self: center;
   width: 100%;
   min-width: 0;
   display: flex;
@@ -19387,14 +19378,16 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .scheduleCalendarCardMeta > small,
 .scheduleCalendarCardMeta > em {
-  grid-row: 5;
-  justify-self: center;
   min-width: 0;
   width: auto;
   max-width: 100%;
   margin: 0;
   align-self: center;
   text-align: center;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .scheduleCalendarCardMeta > em {
@@ -19403,10 +19396,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   font-size: 9px;
   font-style: normal;
   font-weight: 800;
-  line-height: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
 }
 
 .scheduleCalendarChannels {
@@ -19436,7 +19426,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .scheduleCalendarViewport:has(.scheduleCalendarChannels[open]),
 .scheduleCalendar:has(.scheduleCalendarChannels[open]) {
   z-index: 72;
-  overflow: visible !important;
+}
+
+.scheduleCalendarViewport:has(.scheduleCalendarChannels[open]) {
+  overflow: auto !important;
+}
+
+.scheduleCalendar:has(.scheduleCalendarChannels[open]) {
+  padding-bottom: 160px;
 }
 
 .scheduleCalendarMediaBadge {
@@ -19541,12 +19538,17 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 @media (min-width: 761px) and (max-width: 1100px) {
   .scheduleCalendar {
+    min-width: 780px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: none;
   }
 }
 
 @media (max-width: 760px) {
+  .modalBackdrop:has(.scheduleModal) {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
   /* On mobile, every scheduled day remains reachable; the 4 × 4 desktop
    * viewport must not crop the rest of the monthly list. */
   .scheduleCalendarViewport {
@@ -19554,6 +19556,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .scheduleCalendar {
+    min-width: 0;
+    height: auto;
+    min-height: 0;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
     grid-auto-rows: auto;

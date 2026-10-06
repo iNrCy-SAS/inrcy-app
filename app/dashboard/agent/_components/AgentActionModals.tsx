@@ -783,6 +783,7 @@ function groupScheduleItems(items: ScheduleListItem[]) {
       item.source,
       item.automationKey || "",
       item.statusKey || item.status,
+      item.approvalState || "",
     ].join("|");
     const existing = groups.get(groupKey);
     if (existing) {
@@ -806,6 +807,7 @@ function groupScheduleItems(items: ScheduleListItem[]) {
 
 function scheduleApprovalState(item: ScheduleListItem) {
   if (item.statusKey === "refused") return "refused";
+  if (item.approvalState) return item.approvalState;
   if (scheduleFilterKey(item) === "stats" || item.source === "manual") {
     return "approved";
   }
@@ -1377,15 +1379,15 @@ export function AgentScheduleModal({
                                           {renderCalendarActions()}
                                         </div>
                                       </details>}
-                                      {item.source === "history" ? null : <span
-                                        className={
-                                          styles.scheduleApprovalIndicator
-                                        }
-                                        data-state={approvalState}
-                                        role="img"
-                                        aria-label={i18nT(approvalLabelKey)}
-                                        title={i18nT(approvalLabelKey)}
-                                      />}
+                                      {item.source !== "history" || item.approvalState ? (
+                                        <span
+                                          className={styles.scheduleApprovalIndicator}
+                                          data-state={approvalState}
+                                          role="img"
+                                          aria-label={i18nT(approvalLabelKey)}
+                                          title={i18nT(approvalLabelKey)}
+                                        />
+                                      ) : null}
                                     </div>
                                   </div>
                                   <strong
