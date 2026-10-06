@@ -97,6 +97,9 @@ test("a partial LinkedIn geo re-resolution keeps valid URNs but blocks launch", 
     if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "urns") {
       return Response.json({ elements: [arras, { ...lille, facetUrn: "urn:li:adTargetingFacet:titles" }] });
     }
+    if (request.searchParams.get("q") === "typeahead" && request.searchParams.get("query") === "Lille") {
+      return Response.json({ elements: [] });
+    }
     return providerResponse(request);
   };
   const runtime = loadPreflight(fetchImpl);
@@ -167,8 +170,36 @@ test("all seven saved locations remain verified when the urns finder describes t
   assert.equal(requests.filter((request) => request.searchParams.get("q") === "typeahead").length, 7);
   assert.equal(runtime.logs.length, 0);
   assert.equal(info.mock.calls.length, 1);
-  assert.deepEqual(info.mock.calls[0].arguments, ["linkedin_ads_geo_profile_locations_confirmed", {
-    provider: "linkedin", profile_count: 7, requested_count: 7, verified_count: 7, fallback_query_count: 0,
+  assert.deepEqual(info.mock.calls[0].arguments, ["linkedin_ads_geo_resolution_verified", {
+    provider: "linkedin", requested_count: 7, verified_count: 7, urn_row_count: 7, ignored_non_location_count: 7,
+    urn_facet_counts: { locations: 0, profile_locations: 7, other: 0, missing: 0, malformed_row: 0 },
+    fallback_query_count: 0,
+  }]);
+});
+
+test("the live 28-row multi-facet response verifies seven exact locations without any typeahead", async (t) => {
+  const info = t.mock.method(log, "info", () => {});
+  const targets = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes"]
+    .map((name, index) => ({ ...arras, urn: `urn:li:geo:${100000001 + index}`, name: `${name}, Hauts-de-France, France` }));
+  // Production diagnostics identified two additional representations per URN,
+  // without logging their raw facet names. Keep those names opaque in this fixture.
+  const elements = targets.flatMap((target) => [
+    target,
+    { ...target, facetUrn: "urn:li:adTargetingFacet:profileLocations" },
+    { ...target, facetUrn: "urn:li:adTargetingFacet:opaqueVariantA" },
+    { ...target, facetUrn: "urn:li:adTargetingFacet:opaqueVariantB" },
+  ]);
+  for (const rows of [elements, [...elements].reverse()]) {
+    assert.deepEqual(await geoResolution.resolveLinkedInAdsGeoTargets({
+      targets, language: "fr", country: "FR", resolvedPayload: { elements: rows },
+      read: async () => assert.fail("All seven locations are already proven by the urns response"),
+    }), targets);
+  }
+  assert.equal(info.mock.calls.length, 2);
+  for (const call of info.mock.calls) assert.deepEqual(call.arguments, ["linkedin_ads_geo_resolution_verified", {
+    provider: "linkedin", requested_count: 7, verified_count: 7, urn_row_count: 28, ignored_non_location_count: 21,
+    urn_facet_counts: { locations: 7, profile_locations: 7, other: 14, missing: 0, malformed_row: 0 },
+    fallback_query_count: 0,
   }]);
 });
 
@@ -207,7 +238,7 @@ test("profileLocations alone never verifies a target without a fresh locations r
   }
   assert.equal(warn.mock.calls.length, 5);
   for (const [index, call] of warn.mock.calls.entries()) assert.deepEqual(call.arguments, ["linkedin_ads_geo_resolution_empty", {
-    provider: "linkedin", requested_count: 1, verified_count: 0, contradicted_count: 0,
+    provider: "linkedin", requested_count: 1, verified_count: 0, ignored_non_location_count: 1,
     urn_response_shape: "elements",
     urn_facet_counts: { locations: 0, profile_locations: 1, other: 0, missing: 0, malformed_row: 0 },
     fresh_suggestion_count: index === 0 ? 0 : 1,
@@ -215,25 +246,36 @@ test("profileLocations alone never verifies a target without a fresh locations r
   }]);
 });
 
-test("a genuine incompatible facet still vetoes exact suggestions and diagnostics never contain provider values", async (t) => {
+test("other facets alone never prove locations and diagnostics never contain provider values", async (t) => {
   const warn = t.mock.method(log, "warn", () => {});
   for (const facetUrn of [" urn:li:adTargetingFacet:industries ", "Bearer private-provider-value"]) {
     const result = await geoResolution.resolveLinkedInAdsGeoTargets({
-      targets: [arras], language: "fr", country: "FR", freshSuggestions: [arras],
+      targets: [arras], language: "fr", country: "FR",
       resolvedPayload: { elements: [{ ...arras, name: "private-company-name", facetUrn }] },
-      read: async () => assert.fail("A contradictory facet cannot be rescued by another query"),
+      read: async () => ({ elements: [] }),
     });
     assert.deepEqual(result, []);
   }
   assert.equal(warn.mock.calls.length, 2);
   for (const call of warn.mock.calls) {
     assert.deepEqual(call.arguments, ["linkedin_ads_geo_resolution_empty", {
-      provider: "linkedin", requested_count: 1, verified_count: 0, contradicted_count: 1,
+      provider: "linkedin", requested_count: 1, verified_count: 0, ignored_non_location_count: 1,
       urn_response_shape: "elements",
       urn_facet_counts: { locations: 0, profile_locations: 0, other: 1, missing: 0, malformed_row: 0 },
-      fresh_suggestion_count: 1, fallback_query_count: 0,
+      fresh_suggestion_count: 0, fallback_query_count: 1,
     }]);
     assert.doesNotMatch(JSON.stringify(call.arguments), /private|Bearer|urn:li|Arras/);
+  }
+});
+
+test("non-location representations cannot veto fresh exact locations suggestions", async (t) => {
+  t.mock.method(log, "info", () => {});
+  for (const facetUrn of ["urn:li:adTargetingFacet:industries", "urn:li:adTargetingFacet:opaqueVariant"]) {
+    assert.deepEqual(await geoResolution.resolveLinkedInAdsGeoTargets({
+      targets: [arras], language: "fr", country: "FR", freshSuggestions: [arras],
+      resolvedPayload: { elements: [{ ...arras, facetUrn }] },
+      read: async () => assert.fail("A fresh exact locations suggestion already proves this URN"),
+    }), [arras]);
   }
 });
 
