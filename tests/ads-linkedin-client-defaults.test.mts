@@ -76,19 +76,21 @@ test("LinkedIn contextual defaults resolve only exact provider places in a verif
   const lilleBelgium = { urn: "urn:li:geo:5", name: "Lille, Flemish Region, Belgium" };
   const cambraiFrance = { urn: "urn:li:geo:6", name: "Cambrai, Hauts-de-France, France" };
   const cambraiAustralia = { urn: "urn:li:geo:7", name: "Cambrai, South Australia, Australia" };
+  const saintOmer = { urn: "urn:li:geo:12", name: "St. Omer, Hauts-de-France, France" };
   const result = linkedInAdsContextualGeoDefaults({
-    targetLocations: ["Arras", "Lille", "Cambrai", "Harnes"],
+    targetLocations: ["Arras", "Lille", "Cambrai", "Harnes", "Saint-Omer"],
     verifiedGeoTargets,
     geoResolutions: [
       { query: "Arras", suggestions: [arras, { urn: "urn:li:geo:8", name: "Arras-sur-Rhône, France" }] },
       { query: "Lille", suggestions: [lilleBelgium, lilleFrance, { urn: "urn:li:geo:9", name: "Greater Lille Metropolitan Area, France" }] },
       { query: "Cambrai", suggestions: [cambraiAustralia, cambraiFrance] },
+      { query: "Saint-Omer", suggestions: [saintOmer] },
       { query: "Harnes", suggestions: [{ urn: "urn:li:geo:10", name: "Harnes, Hauts-de-France, France" }], status: "provider_rejected" },
       { query: "Douai", suggestions: [{ urn: "urn:li:geo:11", name: "Douai, Hauts-de-France, France" }] },
     ],
   });
   assert.deepEqual(result.map((target) => target.urn), [
-    "urn:li:geo:1", "urn:li:geo:2", "urn:li:geo:3", "urn:li:geo:4", "urn:li:geo:6",
+    "urn:li:geo:1", "urn:li:geo:2", "urn:li:geo:3", "urn:li:geo:4", "urn:li:geo:6", "urn:li:geo:12",
   ]);
 });
 

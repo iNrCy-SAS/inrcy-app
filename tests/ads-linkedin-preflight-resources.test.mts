@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
 import * as policy from "../lib/adsLinkedInPreflightPolicy.ts";
+import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 
 type PreflightResult = {
   selected: { verifiedGeoUrns: string[] };
@@ -45,6 +46,7 @@ function loadPreflight(fetchImpl: typeof fetch) {
       listLinkedInAdsAccounts: async () => [account],
     }],
     ["./adsLinkedInPreflightPolicy.ts", policy],
+    ["./adsLinkedInClientDefaults.ts", { linkedInAdsContextualGeoDefaults }],
     ["./observability/logger.ts", { log: {
       warn: (message: string, context: Record<string, unknown>) => logs.push({ message, context }),
       error: (message: string, context: Record<string, unknown>) => logs.push({ message, context }),
