@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseAdsCampaignInput } from "../lib/adsValidation.ts";
+import { buildLinkedInGeoQueries } from "../lib/adsLinkedInGeoQueries.ts";
 
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 
@@ -91,6 +92,38 @@ test("les zones LinkedIn conservent ensemble leur libellé et leur URN vérifié
 
   const labelOnly = parseAdsCampaignInput(linkedInDraft({ linkedinGeoTargets: [{ name: "France" }] }), { purpose: "draft" });
   assert.match(labelOnly.error || "", /zones LinkedIn sélectionnées sont invalides/);
+});
+
+test("le préflight vérifie chaque tag du brief et garde une recherche manuelle avec huit zones", () => {
+  const eight = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes", "Lens"];
+  assert.deepEqual(buildLinkedInGeoQueries(["Arras", " arras ", "Lille"]).queries, ["Arras", "Lille"]);
+  assert.deepEqual(buildLinkedInGeoQueries(eight), { queries: eight, manualOnly: false });
+  assert.deepEqual(buildLinkedInGeoQueries(eight, "Douai"), { queries: ["Douai"], manualOnly: true });
+  assert.deepEqual(buildLinkedInGeoQueries(eight.slice(0, 7), "Douai"), {
+    queries: ["Douai"], manualOnly: true,
+  });
+  assert.deepEqual(buildLinkedInGeoQueries(eight, "Arras"), { queries: ["Arras"], manualOnly: true });
+  assert.throws(() => buildLinkedInGeoQueries([...eight, "Douai"]), /huit zones/);
+  assert.match(client, /for \(const query of geoQueries\) params\.append\("geo", query\)/);
+  assert.match(client, /\? \[\.\.\.linkedInGeoTargets, \{ urn: target\.urn, name: target\.name \}\]/);
+  assert.match(client, /draft\.targetLocations\.every\(\(label\) => linkedInBriefGeoStatus\(label\)\.verified\)/);
+  assert.match(client, /if \(!geoQueryOverride\) applyLinkedInProviderDefaults\(data\)/);
+  assert.match(client, /current \|\| \{ \.\.\.data, selected: undefined, blockers: \[\] \}/);
+  assert.match(client, /linkedInGeoTargets\.length <= 20/);
+  assert.match(client, /&& linkedInBidPricing\s*&& !linkedInBudgetBelowProviderMinimum\s*&& !linkedInBidOutsideVerifiedRange/);
+  assert.match(client, /"too_many_geo_targets", "budget_pricing_required", "bid_out_of_range"/);
+  assert.match(client, /Zone refusée par LinkedIn, essayez une autre recherche/);
+  assert.match(client, /data-rejected=\{status\?\.rejected \|\| undefined\}/);
+  assert.match(client, /Retirer les pistes coupées/);
+  assert.match(client, /keywords: draft\.keywords\.filter\(\(signal\) => !isPossiblyTruncatedLinkedInSignal\(signal\)\)/);
+});
+
+test("le client relit le tarif multi-zone et n'applique que l'enchère vérifiée", () => {
+  assert.match(client, /linkedInAdsAutomaticPreflightKey\(\s*externalStatuses\.linkedin\.selectedAccountId,\s*draft/);
+  assert.match(client, /linkedInAutomaticLoadKey\.current === linkedInAutomaticLoadSignature/);
+  assert.match(client, /linkedInResourcesLoader\.current\(false\)/);
+  assert.match(client, /linkedInAdsVerifiedBidDefault\(\{[\s\S]*currentBid: current\.linkedinBidEuros,[\s\S]*suggestedBid,[\s\S]*pricing: pricing \|\| null,[\s\S]*dailyBudget: current\.dailyBudgetEuros/);
+  assert.match(client, /LinkedIn n’a pas confirmé les bornes d’enchère pour ces zones/);
 });
 
 test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou média, avec Active réservé au groupe ACTIVE", () => {

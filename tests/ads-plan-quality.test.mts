@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { adsCopyList, adsCopyLooksIncomplete, adsPlanGeographyConflicts, adsPlanQualityRepairInstructions, adsPlanRepairDetails, canRepairAdsPlanQuality, selectAdsPlanLocations } from "../lib/adsPlanQuality.ts";
-import { normalizeAdsCampaignPlan, assessAdsCampaignPlanReview, presentAdsCampaignRationale } from "../lib/adsCampaignPlan.ts";
+import { normalizeAdsCampaignPlan, assessAdsCampaignPlanReview, isPossiblyTruncatedLinkedInSignal, presentAdsCampaignRationale } from "../lib/adsCampaignPlan.ts";
 import { generateAdsCampaignWithFallback } from "../lib/adsCampaignIntelligence.ts";
 
 const context = {
@@ -59,6 +59,25 @@ test("saved rationale renders platform enums as business language without alteri
   const rationale = "Un format REGULAR avec objectif website_traffic et maximize_clicks pour Arras.";
   assert.equal(presentAdsCampaignRationale(rationale), "Un format image unique avec objectif visites du site et maximisation des clics pour Arras.");
   assert.equal(presentAdsCampaignRationale("REGULARITY : campagne locale à Arras."), "REGULARITY : campagne locale à Arras.");
+});
+
+test("LinkedIn keeps complete targeting ideas beyond 80 characters without cutting a word", () => {
+  const complete = "Professionnels souhaitant centraliser leur communication digitale et publier sur plusieurs canaux depuis un même espace.";
+  const overlong = "Professionnels qui souhaitent centraliser leur communication et organiser leurs publications. ".repeat(5).trim();
+  assert.ok(complete.length > 80 && complete.length < 300);
+  assert.ok(overlong.length > 300);
+  const plan = normalizeAdsCampaignPlan({ keywords: [complete, overlong] }, { ...context, provider: "linkedin" });
+  assert.deepEqual(plan.keywords, [complete]);
+  assert.equal(plan.keywords.some((signal) => signal === overlong.slice(0, 300)), false);
+  assert.equal(isPossiblyTruncatedLinkedInSignal(complete), false);
+  for (const fragment of [
+    "Professionnels recherchant un moyen de centraliser leur communication digitale, ",
+    "Professionnels souhaitant centraliser leur communication digitale et publier sur",
+    "Essai gratuit de 21 jours sans engagement pour tester iNrCy, une plateforme de p",
+  ]) {
+    assert.equal(fragment.length, 80);
+    assert.equal(isPossiblyTruncatedLinkedInSignal(fragment), true);
+  }
 });
 
 test("Google fills a missing main message from complete copy without adding commercial claims", () => {

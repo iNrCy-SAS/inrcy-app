@@ -33,6 +33,23 @@ export type LinkedInAdsBudgetPricing = {
   dailyBudgetDefault: number | null;
 };
 
+export const LINKEDIN_ADS_MAX_GEO_QUERIES = 8;
+
+/** Preserve the first spelling while avoiding duplicate provider searches. */
+export function normalizeLinkedInAdsGeoQueries(values: string[]): string[] {
+  const queries = new Map<string, string>();
+  for (const value of values) {
+    if (typeof value !== "string") throw new TypeError("Invalid LinkedIn Ads geo query");
+    const query = value.trim();
+    if (!query) continue;
+    if (query.length < 2 || query.length > 80) throw new TypeError("Invalid LinkedIn Ads geo query");
+    const key = query.toLocaleLowerCase("fr-FR");
+    if (!queries.has(key)) queries.set(key, query);
+    if (queries.size > LINKEDIN_ADS_MAX_GEO_QUERIES) throw new TypeError("Too many LinkedIn Ads geo queries");
+  }
+  return [...queries.values()];
+}
+
 /**
  * A campaign group can only be proposed automatically when it already matches
  * the sole live LinkedIn campaign shape supported by iNr'ADS. The provider ID
@@ -243,6 +260,20 @@ export function buildLinkedInAdsGeoSearchPath(input: {
   return `/rest/adTargetingEntities?${params.toString()}`;
 }
 
+/** LinkedIn's documented typeahead minimum, used only after scoped 400 responses. */
+export function buildLinkedInAdsGeoSearchMinimalPath(query: string): string {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 2 || normalizedQuery.length > 80) {
+    throw new TypeError("Invalid LinkedIn Ads geo query");
+  }
+  const params = new URLSearchParams({
+    q: "typeahead",
+    facet: "urn:li:adTargetingFacet:locations",
+    query: normalizedQuery,
+  });
+  return `/rest/adTargetingEntities?${params.toString()}`;
+}
+
 /** Re-resolves chosen Bing geo URNs instead of trusting a prior typeahead row. */
 export function buildLinkedInAdsGeoUrnsPath(geoUrns: string[], language: string, country: string): string {
   const urns = [...new Set(geoUrns)];
@@ -250,13 +281,10 @@ export function buildLinkedInAdsGeoUrnsPath(geoUrns: string[], language: string,
     || !/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)) {
     throw new TypeError("Invalid LinkedIn Ads geo URNs");
   }
-  const params = new URLSearchParams({
-    q: "urns",
-    queryVersion: "QUERY_USES_URNS",
-    urns: `List(${urns.join(",")})`,
-    locale: `(language:${language},country:${country})`,
-  });
-  return `/rest/adTargetingEntities?${params.toString()}`;
+  // REST.li keeps the List/locale delimiters literal and encodes each URN inside the list.
+  return "/rest/adTargetingEntities?q=urns&queryVersion=QUERY_USES_URNS"
+    + `&urns=List(${urns.map(encodeURIComponent).join(",")})`
+    + `&locale=(language:${language},country:${country})`;
 }
 
 export function buildLinkedInAdsLocalesPath(): string {

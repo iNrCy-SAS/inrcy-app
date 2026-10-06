@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
 import { LinkedInAdsConnectionError } from "@/lib/adsLinkedInServer";
+import { normalizeLinkedInAdsGeoQueries } from "@/lib/adsLinkedInPreflightPolicy";
 import {
   LinkedInAdsPreflightProviderError,
   runLinkedInAdsPreflight,
@@ -19,6 +20,8 @@ function failure(error: unknown) {
     provider: "linkedin",
     operation: providerFailure?.operation || "preflight",
     provider_status: providerFailure?.providerStatus ?? undefined,
+    provider_code: providerFailure?.providerCode ?? undefined,
+    provider_request_id: providerFailure?.providerRequestId ?? undefined,
     code,
     status_code: status,
   });
@@ -38,7 +41,7 @@ function optionalMoney(value: string | null): number | undefined {
 
 function preflightInput(url: URL): LinkedInAdsPreflightInput {
   const params = url.searchParams;
-  const geoQuery = (params.get("geo") || "").trim();
+  const geoQueries = normalizeLinkedInAdsGeoQueries(params.getAll("geo"));
   const language = params.get("language") || "fr";
   const country = params.get("country") || "FR";
   const campaignGroupId = params.get("campaignGroupId") || undefined;
@@ -46,8 +49,7 @@ function preflightInput(url: URL): LinkedInAdsPreflightInput {
   const imageUrn = params.get("imageUrn") || undefined;
   const geoUrns = [...params.getAll("geoUrn"), ...(params.get("geoUrns") || "").split(",")]
     .map((value) => value.trim()).filter(Boolean);
-  if ((geoQuery && (geoQuery.length < 2 || geoQuery.length > 80))
-    || !/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)
+  if (!/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)
     || (campaignGroupId && !/^\d{1,25}$/.test(campaignGroupId))
     || (organizationUrn && !/^urn:li:organization:\d{1,25}$/.test(organizationUrn))
     || (imageUrn && !/^urn:li:image:[A-Za-z0-9_-]{3,200}$/.test(imageUrn))
@@ -55,7 +57,7 @@ function preflightInput(url: URL): LinkedInAdsPreflightInput {
     throw new TypeError("invalid_preflight_input");
   }
   return {
-    ...(geoQuery ? { geoQuery } : {}), language, country,
+    geoQueries, language, country,
     ...(campaignGroupId ? { campaignGroupId } : {}),
     ...(organizationUrn ? { organizationUrn } : {}),
     ...(imageUrn ? { imageUrn } : {}),

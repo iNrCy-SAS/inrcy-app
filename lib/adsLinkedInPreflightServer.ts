@@ -12,12 +12,14 @@ import {
   buildLinkedInAdsAudienceCountPath,
   buildLinkedInAdsBudgetPricingPath,
   buildLinkedInAdsCampaignGroupsPath,
+  buildLinkedInAdsGeoSearchMinimalPath,
   buildLinkedInAdsGeoSearchPath,
   buildLinkedInAdsGeoUrnsPath,
   buildLinkedInAdsImagePath,
   buildLinkedInAdsLocalesPath,
   linkedInAdsCampaignGroupIsCompatible,
   linkedInAdsPreflightBlockers,
+  normalizeLinkedInAdsGeoQueries,
   normalizeLinkedInAdsAudienceCount,
   normalizeLinkedInAdsBudgetPricing,
   normalizeLinkedInAdsCampaignGroups,
@@ -28,6 +30,7 @@ import {
   selectUnambiguousLinkedInAdsGeoTarget,
   type LinkedInAdsCampaignGroup,
   type LinkedInAdsImageEvidence,
+  type LinkedInAdsTargetingEntity,
 } from "./adsLinkedInPreflightPolicy.ts";
 
 const LINKEDIN_REST_ORIGIN = "https://api.linkedin.com";
@@ -35,6 +38,7 @@ const ORGANIZATION_URN = /^urn:li:organization:\d{1,25}$/;
 
 export type LinkedInAdsPreflightInput = {
   geoQuery?: string;
+  geoQueries?: string[];
   language?: string;
   country?: string;
   campaignGroupId?: string;
@@ -57,13 +61,14 @@ export type LinkedInAdsPreflightOperation =
   | "interface_locales"
   | "geo_typeahead_localized"
   | "geo_typeahead_default_locale"
+  | "geo_typeahead_minimal"
   | "geo_urn_resolution"
   | "organization_access"
   | "image"
   | "audience_count"
   | "budget_pricing";
 
-/** Provider details are deliberately limited to safe, low-cardinality diagnostics. */
+/** Provider details are limited to a numeric code and a bounded request ID. */
 export class LinkedInAdsPreflightProviderError extends LinkedInAdsConnectionError {
   constructor(
     message: string,
@@ -71,6 +76,8 @@ export class LinkedInAdsPreflightProviderError extends LinkedInAdsConnectionErro
     status: number,
     readonly operation: LinkedInAdsPreflightOperation,
     readonly providerStatus: number | null,
+    readonly providerCode: number | null = null,
+    readonly providerRequestId: string | null = null,
   ) {
     super(message, code, status);
     this.name = "LinkedInAdsPreflightProviderError";
@@ -93,14 +100,27 @@ function allowedDevelopmentAccountIds(): Set<string> {
 
 function rejectedOperationCode(operation: LinkedInAdsPreflightOperation): string {
   return operation === "geo_typeahead_localized" || operation === "geo_typeahead_default_locale"
+    || operation === "geo_typeahead_minimal"
     ? "preflight_geo_typeahead_rejected"
     : `preflight_${operation}_rejected`;
+}
+
+function providerDiagnostic(payload: unknown, headers: Headers) {
+  const rawCode = record(payload).code;
+  const providerCode = typeof rawCode === "number" && Number.isSafeInteger(rawCode)
+    && rawCode >= 0 && rawCode <= 999_999 ? rawCode : null;
+  const rawRequestId = headers.get("x-li-uuid") || headers.get("x-li-request-id") || "";
+  const providerRequestId = /^[A-Za-z0-9+/_=-]{8,128}$/.test(rawRequestId) ? rawRequestId : null;
+  return { providerCode, providerRequestId };
 }
 
 function providerHttpError(
   operation: LinkedInAdsPreflightOperation,
   providerStatus: number,
+  payload: unknown,
+  headers: Headers,
 ): LinkedInAdsPreflightProviderError {
+  const { providerCode, providerRequestId } = providerDiagnostic(payload, headers);
   if (providerStatus === 401 || providerStatus === 403) {
     return new LinkedInAdsPreflightProviderError(
       "LinkedIn refuse ce contrôle préalable. Reconnectez le canal et vérifiez les scopes et rôles.",
@@ -108,6 +128,8 @@ function providerHttpError(
       403,
       operation,
       providerStatus,
+      providerCode,
+      providerRequestId,
     );
   }
   if (providerStatus === 400) {
@@ -117,6 +139,8 @@ function providerHttpError(
       502,
       operation,
       providerStatus,
+      providerCode,
+      providerRequestId,
     );
   }
   if (providerStatus === 429) {
@@ -126,6 +150,8 @@ function providerHttpError(
       503,
       operation,
       providerStatus,
+      providerCode,
+      providerRequestId,
     );
   }
   return new LinkedInAdsPreflightProviderError(
@@ -134,6 +160,8 @@ function providerHttpError(
     providerStatus >= 500 ? 503 : 502,
     operation,
     providerStatus,
+    providerCode,
+    providerRequestId,
   );
 }
 
@@ -164,7 +192,7 @@ async function linkedInAdsRead(
     );
   }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw providerHttpError(operation, response.status);
+  if (!response.ok) throw providerHttpError(operation, response.status, payload, response.headers);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new LinkedInAdsPreflightProviderError(
       "Réponse de préflight LinkedIn Ads invalide.",
@@ -200,11 +228,61 @@ async function readLinkedInAdsGeoSuggestions(input: {
       provider_status: error.providerStatus,
       fallback_operation: "geo_typeahead_default_locale",
     });
-    return linkedInAdsRead(input.accessToken, buildLinkedInAdsGeoSearchPath({
-      query: input.query,
-      accountId: input.accountId,
-    }), "geo_typeahead_default_locale");
   }
+  try {
+    return await linkedInAdsRead(input.accessToken, buildLinkedInAdsGeoSearchPath({
+      query: input.query, accountId: input.accountId,
+    }), "geo_typeahead_default_locale");
+  } catch (error) {
+    if (!(error instanceof LinkedInAdsPreflightProviderError)
+      || error.operation !== "geo_typeahead_default_locale" || error.providerStatus !== 400) throw error;
+    log.warn("linkedin_ads_preflight_geo_minimal_fallback", {
+      provider: "linkedin",
+      operation: error.operation,
+      provider_status: error.providerStatus,
+      fallback_operation: "geo_typeahead_minimal",
+    });
+  }
+  return linkedInAdsRead(input.accessToken, buildLinkedInAdsGeoSearchMinimalPath(input.query), "geo_typeahead_minimal");
+}
+
+type LinkedInAdsGeoSuggestionRead =
+  | { payload: Record<string, unknown>; rejected: false }
+  | { error: LinkedInAdsPreflightProviderError; rejected: true };
+
+async function readLinkedInAdsGeoSuggestionGroups(input: {
+  accessToken: string;
+  accountId: string;
+  queries: string[];
+  language: string;
+  country: string;
+}): Promise<LinkedInAdsGeoSuggestionRead[]> {
+  const results: LinkedInAdsGeoSuggestionRead[] = [];
+  // Bound provider concurrency while preserving the query order for per-zone resolution.
+  for (let index = 0; index < input.queries.length; index += 4) {
+    const batch = await Promise.all(input.queries.slice(index, index + 4).map(async (query): Promise<LinkedInAdsGeoSuggestionRead> => {
+      try {
+        return { payload: await readLinkedInAdsGeoSuggestions({ ...input, query }), rejected: false };
+      } catch (error) {
+        if (error instanceof LinkedInAdsPreflightProviderError
+          && error.operation === "geo_typeahead_minimal" && error.providerStatus === 400) {
+          return { error, rejected: true };
+        }
+        throw error;
+      }
+    }));
+    results.push(...batch);
+  }
+  const rejected = results.filter((result): result is Extract<LinkedInAdsGeoSuggestionRead, { rejected: true }> =>
+    result.rejected);
+  if (rejected.length === results.length && rejected.length) throw rejected[0].error;
+  if (rejected.length) log.warn("linkedin_ads_preflight_geo_partial_rejected", {
+    provider: "linkedin",
+    operation: "geo_typeahead_minimal",
+    rejected_count: rejected.length,
+    successful_count: results.length - rejected.length,
+  });
+  return results;
 }
 
 function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | null {
@@ -247,16 +325,19 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
 
   const language = /^[a-z]{2}$/.test(input.language || "") ? input.language! : "fr";
   const country = /^[A-Z]{2}$/.test(input.country || "") ? input.country! : "FR";
-  const geoQuery = text(input.geoQuery);
+  const geoQueries = normalizeLinkedInAdsGeoQueries([
+    ...(Array.isArray(input.geoQueries) ? input.geoQueries : []),
+    ...(input.geoQuery ? [input.geoQuery] : []),
+  ]);
   const hasOrganizationRead = scopes.includes("r_organization_admin") || scopes.includes("rw_organization_admin");
   const requestedGeoUrns = Array.isArray(input.geoUrns)
     ? [...new Set(input.geoUrns.filter((urn) => /^urn:li:geo:\d{1,25}$/.test(urn)))] : [];
-  const [groupsPayload, localesPayload, geosPayload, selectedGeosPayload, organizations, imagePayload] = await Promise.all([
+  const [groupsPayload, localesPayload, geoReads, selectedGeosPayload, organizations, imagePayload] = await Promise.all([
     linkedInAdsRead(token, buildLinkedInAdsCampaignGroupsPath(account.id), "campaign_groups"),
     linkedInAdsRead(token, buildLinkedInAdsLocalesPath(), "interface_locales"),
-    geoQuery.length >= 2 ? readLinkedInAdsGeoSuggestions({
-      accessToken: token, accountId: account.id, query: geoQuery, language, country,
-    }) : Promise.resolve({ elements: [] }),
+    readLinkedInAdsGeoSuggestionGroups({
+      accessToken: token, accountId: account.id, queries: geoQueries, language, country,
+    }),
     requestedGeoUrns.length
       ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country), "geo_urn_resolution")
       : Promise.resolve({ elements: [] }),
@@ -266,11 +347,22 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
 
   const campaignGroups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
-  const geoSuggestions = normalizeLinkedInAdsTargetingEntities(geosPayload);
   const selectedGeoTargets = normalizeLinkedInAdsTargetingEntities(selectedGeosPayload);
-  if (!campaignGroups || !supportedLocales || !geoSuggestions || !selectedGeoTargets) {
+  if (!campaignGroups || !supportedLocales || !selectedGeoTargets) {
     throw new LinkedInAdsConnectionError("Ressources LinkedIn Ads incohérentes.", "provider_invalid_response");
   }
+  const geoSuggestionGroups: LinkedInAdsTargetingEntity[][] = [];
+  for (const read of geoReads) {
+    if (read.rejected) {
+      geoSuggestionGroups.push([]);
+      continue;
+    }
+    const suggestions = normalizeLinkedInAdsTargetingEntities(read.payload);
+    if (!suggestions) throw new LinkedInAdsConnectionError("Zones LinkedIn Ads incohérentes.", "provider_invalid_response");
+    geoSuggestionGroups.push(suggestions);
+  }
+  const geoSuggestions = [...new Map(geoSuggestionGroups.flat()
+    .map((target) => [target.urn, target] as const)).values()];
   const compatibleCampaignGroups = campaignGroups.filter(linkedInAdsCampaignGroupIsCompatible);
   const selectedGroup: LinkedInAdsCampaignGroup | null = input.campaignGroupId
     ? campaignGroups.find((item) => item.id === input.campaignGroupId) || null
@@ -284,17 +376,30 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     throw new LinkedInAdsConnectionError("Le média LinkedIn ne peut pas être vérifié.", "image_invalid", 422);
   }
   const requestedGeoUrnSet = new Set(requestedGeoUrns);
-  const automaticGeoTarget = requestedGeoUrns.length === 0
-    ? selectUnambiguousLinkedInAdsGeoTarget(geoSuggestions, geoQuery)
-    : null;
-  const verifiedGeoTargets = requestedGeoUrns.length
-    ? selectedGeoTargets.filter((item) => requestedGeoUrnSet.has(item.urn))
-    : automaticGeoTarget ? [automaticGeoTarget] : [];
+  const explicitGeoTargets = selectedGeoTargets.filter((item) => requestedGeoUrnSet.has(item.urn));
+  const automaticGeoTargets: LinkedInAdsTargetingEntity[] = [];
+  const geoResolutions = geoQueries.map((query, index) => {
+    const suggestions = geoSuggestionGroups[index];
+    const status = geoReads[index].rejected ? "provider_rejected" as const : "ok" as const;
+    const chosenFromSuggestions = suggestions.find((item) => requestedGeoUrnSet.has(item.urn));
+    const automatic = status === "ok" && !chosenFromSuggestions
+      ? selectUnambiguousLinkedInAdsGeoTarget(suggestions, query) : null;
+    if (automatic) automaticGeoTargets.push(automatic);
+    return { query, suggestions, autoSelectedUrn: automatic?.urn || null, status };
+  });
+  const verifiedGeoTargets = [...new Map([...explicitGeoTargets, ...automaticGeoTargets]
+    .map((target) => [target.urn, target] as const)).values()];
   const verifiedGeoUrns = verifiedGeoTargets.map((item) => item.urn);
+  const verifiedGeoUrnSet = new Set(verifiedGeoUrns);
+  const resolvedExplicitGeoUrns = new Set(explicitGeoTargets.map((item) => item.urn));
+  const selectedGeoUnverified = requestedGeoUrns.some((urn) => !resolvedExplicitGeoUrns.has(urn));
+  const unresolvedGeoQueries = geoResolutions.some(({ suggestions, autoSelectedUrn }) =>
+    !autoSelectedUrn && !suggestions.some((item) => verifiedGeoUrnSet.has(item.urn)));
+  const tooManyGeoTargets = verifiedGeoUrns.length > 20;
   const localeSupported = supportedLocales.some((item) => item.language === language && item.country === country);
   const dailyBudget = Number.isFinite(input.dailyBudget) && Number(input.dailyBudget) > 0 ? Number(input.dailyBudget) : null;
   const requestedBidAmount = Number.isFinite(input.bidAmount) && Number(input.bidAmount) > 0 ? Number(input.bidAmount) : null;
-  const [audiencePayload, pricingPayload] = verifiedGeoUrns.length && localeSupported
+  const [audiencePayload, pricingPayload] = verifiedGeoUrns.length && !tooManyGeoTargets && localeSupported
     ? await Promise.all([
       linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country), "audience_count"),
       dailyBudget !== null
@@ -327,6 +432,10 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     targetingNoticeAcknowledged: input.targetingNoticeAcknowledged === true,
   });
   if (!developmentAccountMapped) blockers.unshift("development_account_mapping_required");
+  if (selectedGeoUnverified) blockers.push("selected_geo_unverified");
+  if (unresolvedGeoQueries) blockers.push("unresolved_geo_queries");
+  if (geoResolutions.some((resolution) => resolution.status === "provider_rejected")) blockers.push("geo_query_provider_rejected");
+  if (tooManyGeoTargets) blockers.push("too_many_geo_targets");
 
   return {
     checkedAt: new Date().toISOString(),
@@ -338,6 +447,7 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     organizations,
     supportedLocales,
     geoSuggestions,
+    geoResolutions,
     selected: {
       campaignGroup: selectedGroup,
       organization: selectedOrganization,

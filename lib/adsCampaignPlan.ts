@@ -14,6 +14,7 @@ import {
   ADS_CAMPAIGN_TYPES,
   ADS_CONVERSION_LOCATIONS,
   ADS_CONVERSION_GOALS,
+  ADS_LINKEDIN_SIGNAL_MAX_LENGTH,
   ADS_MEDIA_STRATEGIES,
   ADS_META_PLACEMENTS,
   defaultAdsCampaignType,
@@ -32,6 +33,7 @@ import {
   ADS_PLAN_EDITORIAL_INSTRUCTIONS,
   ADS_PLAN_STRATEGY_INSTRUCTIONS,
   adsCopyList,
+  adsCopyLooksIncomplete,
   adsCopyText,
   adsPlanCopyIssues,
   adsPlanStrategyIssues,
@@ -135,6 +137,28 @@ function list(value: unknown, maxItems: number, maxItemLength: number) {
     const item = clean(value, maxItemLength);
     const key = item.toLocaleLowerCase();
     if (!item || seen.has(key)) continue;
+    seen.add(key);
+    items.push(item);
+    if (items.length >= maxItems) break;
+  }
+  return items;
+}
+
+export function isPossiblyTruncatedLinkedInSignal(value: string): boolean {
+  const text = adsCopyText(value);
+  return text.length >= 79 && text.length <= 80
+    && (adsCopyLooksIncomplete(text) || /(?:^|\s)\p{L}$/u.test(text));
+}
+
+function completeLinkedInSignals(value: unknown, maxItems: number, maxItemLength: number) {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(/\r?\n/) : [];
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const value of raw) {
+    const item = adsCopyText(value);
+    const key = item.toLocaleLowerCase("fr-FR");
+    if (!item || item.length > maxItemLength || adsCopyLooksIncomplete(item)
+      || isPossiblyTruncatedLinkedInSignal(item) || seen.has(key)) continue;
     seen.add(key);
     items.push(item);
     if (items.length >= maxItems) break;
@@ -528,7 +552,7 @@ export function pinterestAdsCampaignPlanResponseSchema(): {
 /** An explicit native brief lets the strategist reason beyond Google/Meta. */
 export function plannedAdsChannelPlanPrompt(channel: PlannedAdsChannel): string {
   const channelInstructions: Record<PlannedAdsChannel, string> = {
-    linkedin: `LinkedIn Ads : cible une audience professionnelle justifiée par l’activité. channelDraft.objectiveType = BRAND_AWARENESS | WEBSITE_VISIT | ENGAGEMENT | VIDEO_VIEW | LEAD_GENERATION | WEBSITE_CONVERSION. channelDraft.format = STANDARD_UPDATE | SINGLE_VIDEO | CAROUSEL | TEXT_AD | LEAD_GENERATION_FORM_SPONSORED_CONTENT ; VIDEO_VIEW exige SINGLE_VIDEO et LEAD_GENERATION exige LEAD_GENERATION_FORM_SPONSORED_CONTENT. channelDraft.locale = {country:"FR",language:"fr"} seulement si ces paramètres conviennent aux zones et à la langue connues. channelDraft.creative = {introText,headline,mediaBrief,destinationUrl,leadFormBrief}. introText : accroche et argument professionnel concrets (300 caractères au plus) ; headline : 200 caractères au plus. Pour LEAD_GENERATION, décris le formulaire et son intérêt dans leadFormBrief.`,
+    linkedin: `LinkedIn Ads : cible une audience professionnelle justifiée par l’activité. channelDraft.objectiveType = BRAND_AWARENESS | WEBSITE_VISIT | ENGAGEMENT | VIDEO_VIEW | LEAD_GENERATION | WEBSITE_CONVERSION. channelDraft.format = STANDARD_UPDATE | SINGLE_VIDEO | CAROUSEL | TEXT_AD | LEAD_GENERATION_FORM_SPONSORED_CONTENT ; VIDEO_VIEW exige SINGLE_VIDEO et LEAD_GENERATION exige LEAD_GENERATION_FORM_SPONSORED_CONTENT. channelDraft.locale = {country:"FR",language:"fr"} seulement si ces paramètres conviennent aux zones et à la langue connues. channelDraft.creative = {introText,headline,mediaBrief,destinationUrl,leadFormBrief}. introText : accroche et argument professionnel concrets (300 caractères au plus) ; headline : 200 caractères au plus. Pour LEAD_GENERATION, décris le formulaire et son intérêt dans leadFormBrief. Dans keywords, propose seulement des pistes de ciblage professionnel lisibles, sans identifiant publicitaire : chaque entrée doit être une expression complète de 300 caractères maximum, sans phrase ni mot coupé.`,
     tiktok: `TikTok Ads : ne propose que la voie vidéo préparée dans l’application. channelDraft.objectiveType = REACH | VIDEO_VIEWS | TRAFFIC | WEB_CONVERSIONS | LEAD_GENERATION | ENGAGEMENT ; format="video" ; destinationKind="website" | "instant_form" | "profile" ; placementIntent="automatic" | "tiktok_only" ; optimizationIntent="reach" | "views" | "clicks" | "conversions" | "leads" | "engagement". channelDraft.creative = {adText,videoBrief,destinationUrl,conversionEventBrief}. adText : 100 caractères au plus. videoBrief : scène verticale, déroulé, démonstration et appel à l’action réalistes ; aucun média existant ne doit être supposé. Pour WEB_CONVERSIONS, nomme l’action observable dans conversionEventBrief sans prétendre qu’un Pixel existe.`,
     pinterest: `Pinterest Ads : fonde l’idée créative sur une recherche d’inspiration plausible pour cette activité. Remplis explicitement tout le channelDraft Pinterest ; un plan racine générique sans brief natif est invalide. channelDraft.objectiveType = AWARENESS | CONSIDERATION | VIDEO_COMPLETION | SALES | LEADS ; intendedPromotionType="STANDARD_AD" | "CATALOG" ; targetingMode="automatic" | "interests" | "keywords" | "audiences". Utilise automatic pour le parcours publiable actuel et retourne alors obligatoirement keywords=[] : ce mode s’appuie sur le contenu du Pin et les zones fiables, pas sur des mots-clés proposés par le moteur. Pour le ciblage géographique, targetLocations et channelDraft.audience.locationBriefs conservent les zones locales sélectionnées dans le contexte. Ne remplace jamais une ville ou une région par le pays du siège. Leur disponibilité sera vérifiée auprès de Pinterest avant publication. interests, keywords et audiences restent des intentions de brouillon tant que leurs identifiants Pinterest n’ont pas été résolus ; pour ces trois modes manuels seulement, conserve les signaux utiles dans keywords. Choisis CATALOG uniquement avec CONSIDERATION ou SALES, et seulement si des produits et un catalogue sont attestés ; LEADS reste STANDARD_AD. Sinon choisis STANDARD_AD. Pour STANDARD_AD, creativeType=REGULAR | VIDEO | MAX_VIDEO | CAROUSEL ; VIDEO_COMPLETION requiert VIDEO ou MAX_VIDEO. Pour CATALOG, mets creativeType à null. Pour SALES, conversionEvent=CHECKOUT | ADD_TO_CART ; pour LEADS, SIGNUP | LEAD ; sinon mets conversionEvent à null. Sans preferredDestinationUrl HTTPS fiable, choisis AWARENESS (ou VIDEO_COMPLETION avec une vraie stratégie vidéo), jamais CONSIDERATION, SALES ou LEADS. Pour le parcours publiable actuel, privilégie STANDARD_AD + REGULAR avec AWARENESS ou CONSIDERATION ; les autres combinaisons restent révisables et enregistrables en brouillon. channelDraft.creative = {pinTitle,pinDescription,visualBrief,destinationUrl}. pinTitle : 100 caractères au plus ; pinDescription : 800 caractères au plus ; visualBrief décrit le format visuel, la scène et la preuve vérifiée, pas un Pin déjà publié. Le budget est une hypothèse quotidienne explicite ; le statut de lancement Active ou Paused, la date de fin, l’enchère MAX_BID, le billable_event et placement_group=ALL sont contrôlés dans les étapes finales et ne doivent pas être inventés dans channelDraft.`,
     x: `X Ads : distingue conversation pertinente et publicité intrusive. channelDraft.objective = reach | video_views | website_traffic | website_conversions | engagement ; format=text | image | video ; video_views requiert video ; targetingMode=broad | keywords | interests | follower_lookalikes ; keywords est une liste courte, concrète, uniquement si targetingMode=keywords. channelDraft.creative = {postText,mediaBrief,destinationUrl}. postText : un vrai texte de publication de 280 caractères maximum, en comptant chaque URL pour 23 caractères. mediaBrief décrit le visuel/vidéo nécessaire quand format n’est pas text. Ne prétends jamais qu’un post publicitaire, un financement ou un événement de conversion existe déjà.`,
@@ -643,11 +667,19 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
   const targetLocations = context.provider === "pinterest"
     ? normalizePinterestAutomaticLocations(trustedLocations, context.country)
     : trustedLocations;
-  const rawTargetAudiences = list(raw.targetAudiences, 20, 160);
+  const rawTargetAudiences = context.provider === "linkedin"
+    ? completeLinkedInSignals(raw.targetAudiences, 20, 160)
+    : list(raw.targetAudiences, 20, 160);
   const nativeAudienceBrief = channelDraft?.audience.audienceBrief || "";
-  let targetAudiences = list(isPlannedAdsChannel(context.provider)
-    ? [nativeAudienceBrief, ...rawTargetAudiences, ...list(context.audiences, 20, 160)]
-    : [...rawTargetAudiences, ...list(context.audiences, 20, 160)], 20, 160);
+  const contextAudiences = context.provider === "linkedin"
+    ? completeLinkedInSignals(context.audiences, 20, 160)
+    : list(context.audiences, 20, 160);
+  const audienceCandidates = isPlannedAdsChannel(context.provider)
+    ? [nativeAudienceBrief, ...rawTargetAudiences, ...contextAudiences]
+    : [...rawTargetAudiences, ...contextAudiences];
+  let targetAudiences = context.provider === "linkedin"
+    ? completeLinkedInSignals(audienceCandidates, 20, 160)
+    : list(audienceCandidates, 20, 160);
   if (targetAudiences.length === 0) {
     targetAudiences = ["Personnes intéressées par l’offre présentée"];
   }
@@ -720,15 +752,23 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
             : adsCopyList([...rawDescriptions, ...fallbackDescriptions], 4)
           : rawDescriptions.length ? rawDescriptions : adsCopyList(fallbackDescriptions, 1);
 
-  const rawKeywords = list(raw.keywords, 20, 80);
+  const rawKeywords = context.provider === "linkedin"
+    ? completeLinkedInSignals(raw.keywords, 20, ADS_LINKEDIN_SIGNAL_MAX_LENGTH)
+    : list(raw.keywords, 20, 80);
   const nativeKeywordSignals = channelDraft?.channel === "x" ? list(channelDraft.keywords, 20, 80) : [];
-  const generalSignalFallbacks = list([
+  const contextServices = context.provider === "linkedin"
+    ? completeLinkedInSignals(context.services, 8, ADS_LINKEDIN_SIGNAL_MAX_LENGTH)
+    : list(context.services, 8, 80);
+  const generalSignalCandidates = [
     ...nativeKeywordSignals,
     ...targetAudiences,
     ...targetLocations,
-    ...list(context.services, 8, 80),
+    ...contextServices,
     offer,
-  ], 20, 80);
+  ];
+  const generalSignalFallbacks = context.provider === "linkedin"
+    ? completeLinkedInSignals(generalSignalCandidates, 20, ADS_LINKEDIN_SIGNAL_MAX_LENGTH)
+    : list(generalSignalCandidates, 20, 80);
   const googleSignalFallbacks = list([
     ...list(context.services, 8, 80),
     offer,
@@ -744,6 +784,8 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
       ? rawKeywords.length >= 6
         ? rawKeywords
         : list([...rawKeywords, ...googleSignalFallbacks], 20, 80)
+      : context.provider === "linkedin"
+        ? rawKeywords.length ? rawKeywords : generalSignalFallbacks
       : rawKeywords.length || nativeKeywordSignals.length
         ? list([...nativeKeywordSignals, ...rawKeywords], 20, 80)
         : generalSignalFallbacks;
