@@ -301,6 +301,14 @@ function normalizeOrganizationAccess(payload: unknown): OrganizationAccess[] | n
   return [...found.values()];
 }
 
+/** An unusable row must not make other selected locations disappear. It remains unverified. */
+function normalizeResolvedGeoTargets(payload: unknown): LinkedInAdsTargetingEntity[] | null {
+  const elements = record(payload).elements;
+  if (!Array.isArray(elements) || elements.length > 100) return null;
+  return elements.flatMap((element) =>
+    normalizeLinkedInAdsTargetingEntities({ elements: [element] }) || []);
+}
+
 async function listOrganizationAccess(accessToken: string): Promise<OrganizationAccess[]> {
   const payload = await linkedInAdsRead(
     accessToken,
@@ -347,10 +355,16 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
 
   const campaignGroups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
-  const selectedGeoTargets = normalizeLinkedInAdsTargetingEntities(selectedGeosPayload);
-  if (!campaignGroups || !supportedLocales || !selectedGeoTargets) {
-    throw new LinkedInAdsConnectionError("Ressources LinkedIn Ads incohérentes.", "provider_invalid_response");
-  }
+  const selectedGeoTargets = normalizeResolvedGeoTargets(selectedGeosPayload);
+  if (!campaignGroups) throw new LinkedInAdsPreflightProviderError(
+    "Groupes de campagnes LinkedIn Ads incohérents.", "provider_invalid_response", 502, "campaign_groups", 200,
+  );
+  if (!supportedLocales) throw new LinkedInAdsPreflightProviderError(
+    "Langues LinkedIn Ads incohérentes.", "provider_invalid_response", 502, "interface_locales", 200,
+  );
+  if (!selectedGeoTargets) throw new LinkedInAdsPreflightProviderError(
+    "Zones LinkedIn Ads incohérentes.", "provider_invalid_response", 502, "geo_urn_resolution", 200,
+  );
   const geoSuggestionGroups: LinkedInAdsTargetingEntity[][] = [];
   for (const read of geoReads) {
     if (read.rejected) {
@@ -393,6 +407,12 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const verifiedGeoUrnSet = new Set(verifiedGeoUrns);
   const resolvedExplicitGeoUrns = new Set(explicitGeoTargets.map((item) => item.urn));
   const selectedGeoUnverified = requestedGeoUrns.some((urn) => !resolvedExplicitGeoUrns.has(urn));
+  if (selectedGeoUnverified) log.warn("linkedin_ads_preflight_geo_urn_unverified", {
+    provider: "linkedin",
+    operation: "geo_urn_resolution",
+    requested_count: requestedGeoUrns.length,
+    verified_count: resolvedExplicitGeoUrns.size,
+  });
   const unresolvedGeoQueries = geoResolutions.some(({ suggestions, autoSelectedUrn }) =>
     !autoSelectedUrn && !suggestions.some((item) => verifiedGeoUrnSet.has(item.urn)));
   const tooManyGeoTargets = verifiedGeoUrns.length > 20;

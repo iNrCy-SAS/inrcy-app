@@ -563,15 +563,16 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
   const client = readFileSync("app/dashboard/ads/AdsClient.tsx", "utf8");
   assert.match(client, /const verifiedGeoUrns = new Set\(selected\.verifiedGeoUrns \|\| \[\]\)/);
   assert.match(client, /\.filter\(\(target\) => verifiedGeoUrns\.has\(target\.urn\)\)/);
+  assert.match(client, /linkedInAdsContextualGeoDefaults\(\{[\s\S]*targetLocations: draft\.targetLocations,[\s\S]*verifiedGeoTargets: verifiedGeoTargets\.filter\(\(target\) => !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)\),[\s\S]*geoResolutions: data\.geoResolutions \|\| \[\]/);
   assert.match(
     client,
-    /const addedGeoTargets = verifiedGeoTargets\.filter\(\(target\) => !currentGeoUrns\.has\(target\.urn\)\)/,
+    /const addedGeoTargets = proposedGeoTargets\.filter\(\(target\) =>[\s\S]*!currentGeoUrns\.has\(target\.urn\) && !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)/,
   );
   assert.match(client, /patch\.linkedinGeoTargets = \[\.\.\.currentGeoTargets, \.\.\.addedGeoTargets\]/);
   assert.match(client, /const data = await fetchLinkedInPreflight[\s\S]{0,240}applyLinkedInProviderDefaults\(data\)/);
   assert.match(
     client,
-    /type="checkbox" checked=\{selected\}[\s\S]{0,500}\{ urn: target\.urn, name: target\.name \}/,
+    /type="checkbox" checked=\{selected\}[\s\S]{0,700}\{ urn: target\.urn, name: target\.name \}/,
   );
   assert.match(client, /params\.append\("geoUrn", target\.urn\)/);
   assert.match(client, /fetchLinkedInPreflight\(undefined, true, accountId\)/);

@@ -10,6 +10,61 @@ function distinctSorted(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
 }
 
+type LinkedInGeoOption = { urn: string; name: string };
+type LinkedInGeoResolution = {
+  query: string;
+  suggestions: readonly LinkedInGeoOption[];
+  status?: "ok" | "provider_rejected";
+};
+
+function normalizedGeoLabel(value: string): string {
+  return value.normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[’']/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function geoAreaKey(name: string): string | null {
+  const parts = name.split(",").map(normalizedGeoLabel);
+  if (parts.length < 3 || !parts.at(-2) || !parts.at(-1)) return null;
+  return `${parts.at(-2)}|${parts.at(-1)}`;
+}
+
+/**
+ * LinkedIn's own verified choices establish the region and country. Only then
+ * may an exact city suggestion from LinkedIn be proposed for that same area.
+ * The newly proposed URN still needs the next provider preflight to verify it.
+ */
+export function linkedInAdsContextualGeoDefaults(input: {
+  targetLocations: readonly string[];
+  verifiedGeoTargets: readonly LinkedInGeoOption[];
+  geoResolutions: readonly LinkedInGeoResolution[];
+}): LinkedInGeoOption[] {
+  const { targetLocations, verifiedGeoTargets, geoResolutions } = input;
+  const providerTargets = new Map(verifiedGeoTargets.map((target) => [target.urn, target]));
+  const areaKeys = verifiedGeoTargets.map((target) => geoAreaKey(target.name)).filter((area): area is string => Boolean(area));
+  const contextArea = areaKeys.length >= 2 && new Set(areaKeys).size === 1 ? areaKeys[0] : null;
+  if (!contextArea) return [...providerTargets.values()];
+
+  const briefKeys = new Set(targetLocations.map(normalizedGeoLabel));
+  for (const resolution of geoResolutions) {
+    const query = normalizedGeoLabel(resolution.query);
+    if (!query || !briefKeys.has(query) || resolution.status === "provider_rejected") continue;
+    const matches = resolution.suggestions.filter((target) => {
+      const label = normalizedGeoLabel(target.name);
+      const leadingPlace = normalizedGeoLabel(target.name.split(",", 1)[0] || "");
+      return /^urn:li:geo:\d{1,25}$/.test(target.urn)
+        && (label === query || leadingPlace === query)
+        && geoAreaKey(target.name) === contextArea;
+    });
+    if (matches.length === 1) providerTargets.set(matches[0].urn, matches[0]);
+  }
+  return [...providerTargets.values()];
+}
+
 /** Only inputs affecting geo resolution or pricing belong in this key. */
 export function linkedInAdsAutomaticPreflightKey(accountId: string, draft: AutomaticPreflightDraft): string {
   const locale = draft.channelSettings?.channel === "linkedin"

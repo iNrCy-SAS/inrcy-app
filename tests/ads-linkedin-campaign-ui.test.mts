@@ -128,6 +128,9 @@ test("le client relit le tarif multi-zone et n'applique que l'enchère vérifié
 
 test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou média, avec Active réservé au groupe ACTIVE", () => {
   assert.match(client, /!linkedInSelectionsReady \|\| !linkedInComplianceReady/);
+  assert.match(client, /const linkedInLaunchReadinessReason = channelId === "linkedin"[\s\S]*!linkedInSelectionsReady[\s\S]*!linkedInComplianceReady/);
+  assert.match(client, /const launchBlockingMessage = incompleteLaunchMessage \|\| launchUnavailableReason \|\| linkedInLaunchReadinessReason/);
+  assert.match(client, /className=\{styles\.primaryButton\} disabled=\{busy !== null \|\| launchBlocked\}/);
   assert.match(client, /channelId === "linkedin"[\s\S]*attachedCampaignMediaUrl[\s\S]*draft\.creativeType === "image"[\s\S]*draft\.mediaStrategy === "image"/);
   assert.match(client, /activeEnabled=\{demoDialog\.channelId === "linkedin"[\s\S]*canServeCampaigns[\s\S]*status === "ACTIVE"/);
   assert.match(client, /pausedEnabled=\{demoDialog\.channelId === "linkedin"[\s\S]*canManageCampaigns/);
@@ -135,4 +138,11 @@ test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou méd
   assert.match(client, /Média LinkedIn/);
   assert.match(client, /title\.length > \(channelId === "pinterest" \? 100 : 200\)/);
   assert.match(client, /caractères maximum par titre ; reformulez tout dépassement/);
+});
+
+test("un décochage manuel LinkedIn reste respecté pendant les nouveaux préflights", () => {
+  assert.match(client, /const linkedInGeoDismissedUrns = useRef\(new Set<string>\(\)\)/);
+  assert.match(client, /if \(event\.target\.checked\) linkedInGeoDismissedUrns\.current\.delete\(target\.urn\)/);
+  assert.match(client, /else linkedInGeoDismissedUrns\.current\.add\(target\.urn\)/);
+  assert.match(client, /!linkedInGeoDismissedUrns\.current\.has\(target\.urn\)/);
 });
