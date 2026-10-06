@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
 import * as linkedInPreflightPolicy from "../lib/adsLinkedInPreflightPolicy.ts";
+import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 import {
   buildLinkedInAdsAudienceCountPath,
   buildLinkedInAdsBudgetPricingPath,
@@ -140,6 +141,10 @@ test("LinkedIn preflight auto-selects only unambiguous provider resources", () =
     facetUrn: "urn:li:adTargetingFacet:locations",
   };
   assert.deepEqual(selectUnambiguousLinkedInAdsGeoTarget([arras, armentieres], "Arras"), arras);
+  assert.deepEqual(selectUnambiguousLinkedInAdsGeoTarget([arras], "Arras, Hauts-de-France"), arras);
+  assert.deepEqual(selectUnambiguousLinkedInAdsGeoTarget([{
+    ...arras, name: "St. Omer, Hauts-de-France, France",
+  }], "Saint-Omer"), { ...arras, name: "St. Omer, Hauts-de-France, France" });
   assert.equal(selectUnambiguousLinkedInAdsGeoTarget([arras, { ...arras, urn: "urn:li:geo:1003" }], "Arras"), null);
   assert.equal(selectUnambiguousLinkedInAdsGeoTarget([arras], "Hauts-de-France"), null);
 });
@@ -213,6 +218,7 @@ function loadPreflightRuntime(fetchImpl: typeof fetch) {
       listLinkedInAdsAccounts: async () => [account],
     }],
     ["./adsLinkedInPreflightPolicy.ts", linkedInPreflightPolicy],
+    ["./adsLinkedInClientDefaults.ts", { linkedInAdsContextualGeoDefaults }],
     ["./observability/logger.ts", {
       log: {
         warn: (message: string, context: Record<string, unknown>) => logs.push({ message, context }),
@@ -482,6 +488,33 @@ test("LinkedIn preflight leaves one ambiguous place pending while keeping anothe
   const chosen = await runtime.run("owner", { ...input, geoUrns: [arras.urn] });
   assert.deepEqual(chosen.selected.verifiedGeoUrns, [arras.urn, lille.urn]);
   assert.equal(chosen.blockers.includes("unresolved_geo_queries"), false);
+});
+
+test("LinkedIn preflight completes an ambiguous city from the other verified cities' region", async () => {
+  const location = (urn: string, name: string) => ({
+    urn, name, facetUrn: "urn:li:adTargetingFacet:locations",
+  });
+  const arras = location("urn:li:geo:1001", "Arras, Hauts-de-France, France");
+  const arrasCanada = location("urn:li:geo:1002", "Arras, British Columbia, Canada");
+  const lille = location("urn:li:geo:1003", "Lille, Hauts-de-France, France");
+  const stOmer = location("urn:li:geo:1004", "St. Omer, Hauts-de-France, France");
+  const fetchImpl: typeof fetch = async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname === "/rest/adTargetingEntities" && request.searchParams.get("q") === "typeahead") {
+      const query = request.searchParams.get("query");
+      return Response.json({ elements: query === "Arras" ? [arrasCanada, arras]
+        : query === "Lille" ? [lille] : query === "Saint-Omer" ? [stOmer] : [] });
+    }
+    return nonGeoPreflightResponse(request);
+  };
+  const result = await loadPreflightRuntime(fetchImpl).run("owner", {
+    geoQueries: ["Arras", "Lille", "Saint-Omer"], language: "fr", country: "FR",
+  });
+  assert.deepEqual(result.selected.verifiedGeoUrns, [lille.urn, stOmer.urn, arras.urn]);
+  assert.deepEqual(result.geoResolutions.map((resolution) => resolution.autoSelectedUrn), [
+    arras.urn, lille.urn, stOmer.urn,
+  ]);
+  assert.equal(result.blockers.includes("unresolved_geo_queries"), false);
 });
 
 test("LinkedIn preflight blocks a chosen URN missing from its exact re-resolution", async () => {

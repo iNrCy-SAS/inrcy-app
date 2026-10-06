@@ -62,14 +62,25 @@ export function linkedInAdsCampaignGroupIsCompatible(
     && (!group.allowedCampaignTypes.length || group.allowedCampaignTypes.includes("SPONSORED_UPDATES"));
 }
 
-function normalizedLinkedInGeoLabel(value: string): string {
+export function normalizedLinkedInGeoLabel(value: string): string {
   return value.normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("fr-FR")
     .replace(/[’']/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .replace(/\bst\b/g, "saint")
+    .replace(/\bste\b/g, "sainte");
+}
+
+/** A location brief may include a region/country, while LinkedIn names the city first. */
+export function linkedInAdsGeoNameMatchesQuery(name: string, requestedLocation: string): boolean {
+  const requestedParts = requestedLocation.split(",").map(normalizedLinkedInGeoLabel).filter(Boolean);
+  const nameParts = name.split(/[,·|—(]/).map(normalizedLinkedInGeoLabel).filter(Boolean);
+  if (!requestedParts.length || !nameParts.length) return false;
+  if (nameParts[0] !== requestedParts[0]) return false;
+  return requestedParts.slice(1).every((part) => nameParts.slice(1).includes(part));
 }
 
 /**
@@ -81,13 +92,8 @@ export function selectUnambiguousLinkedInAdsGeoTarget(
   suggestions: LinkedInAdsTargetingEntity[],
   requestedLocation: string,
 ): LinkedInAdsTargetingEntity | null {
-  const requested = normalizedLinkedInGeoLabel(requestedLocation);
-  if (!requested) return null;
-  const matches = suggestions.filter((suggestion) => {
-    const label = normalizedLinkedInGeoLabel(suggestion.name);
-    const leadingPlace = normalizedLinkedInGeoLabel(suggestion.name.split(/[,·|—(]/, 1)[0] || "");
-    return label === requested || leadingPlace === requested;
-  });
+  const matches = suggestions.filter((suggestion) =>
+    linkedInAdsGeoNameMatchesQuery(suggestion.name, requestedLocation));
   return matches.length === 1 ? matches[0] : null;
 }
 

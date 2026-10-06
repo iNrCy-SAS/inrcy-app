@@ -1,6 +1,7 @@
 import "server-only";
 
 import { linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
+import { linkedInAdsContextualGeoDefaults } from "./adsLinkedInClientDefaults.ts";
 import { log } from "./observability/logger.ts";
 import {
   LinkedInAdsConnectionError,
@@ -401,6 +402,27 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     if (automatic) automaticGeoTargets.push(automatic);
     return { query, suggestions, autoSelectedUrn: automatic?.urn || null, status };
   });
+  // LinkedIn can return homonymous cities in several countries. Resolve an
+  // otherwise ambiguous city when the other verified locations establish one
+  // common region and country; every chosen URN still comes from LinkedIn.
+  const contextualGeoUrns = new Set(linkedInAdsContextualGeoDefaults({
+    targetLocations: geoQueries,
+    verifiedGeoTargets: [...explicitGeoTargets, ...automaticGeoTargets],
+    geoResolutions,
+  }).map((target) => target.urn));
+  const alreadyVerifiedGeoUrns = new Set([...explicitGeoTargets, ...automaticGeoTargets].map((target) => target.urn));
+  for (const suggestion of geoSuggestions) {
+    if (contextualGeoUrns.has(suggestion.urn) && !alreadyVerifiedGeoUrns.has(suggestion.urn)) {
+      automaticGeoTargets.push(suggestion);
+      alreadyVerifiedGeoUrns.add(suggestion.urn);
+    }
+  }
+  for (const resolution of geoResolutions) {
+    if (resolution.autoSelectedUrn || resolution.status === "provider_rejected") continue;
+    const selected = resolution.suggestions.filter((target) =>
+      automaticGeoTargets.some((automatic) => automatic.urn === target.urn));
+    if (selected.length === 1) resolution.autoSelectedUrn = selected[0].urn;
+  }
   const verifiedGeoTargets = [...new Map([...explicitGeoTargets, ...automaticGeoTargets]
     .map((target) => [target.urn, target] as const)).values()];
   const verifiedGeoUrns = verifiedGeoTargets.map((item) => item.urn);

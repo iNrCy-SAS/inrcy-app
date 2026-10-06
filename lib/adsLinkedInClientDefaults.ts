@@ -1,5 +1,6 @@
 import type { AdsCampaignInput } from "./adsValidation.ts";
 import type { LinkedInAdsBudgetPricing } from "./adsLinkedInPreflightPolicy.ts";
+import { linkedInAdsGeoNameMatchesQuery, normalizedLinkedInGeoLabel } from "./adsLinkedInPreflightPolicy.ts";
 
 type AutomaticPreflightDraft = Pick<
   AdsCampaignInput,
@@ -17,18 +18,8 @@ type LinkedInGeoResolution = {
   status?: "ok" | "provider_rejected";
 };
 
-function normalizedGeoLabel(value: string): string {
-  return value.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("fr-FR")
-    .replace(/[’']/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
 function geoAreaKey(name: string): string | null {
-  const parts = name.split(",").map(normalizedGeoLabel);
+  const parts = name.split(",").map(normalizedLinkedInGeoLabel);
   if (parts.length < 3 || !parts.at(-2) || !parts.at(-1)) return null;
   return `${parts.at(-2)}|${parts.at(-1)}`;
 }
@@ -49,15 +40,13 @@ export function linkedInAdsContextualGeoDefaults(input: {
   const contextArea = areaKeys.length >= 2 && new Set(areaKeys).size === 1 ? areaKeys[0] : null;
   if (!contextArea) return [...providerTargets.values()];
 
-  const briefKeys = new Set(targetLocations.map(normalizedGeoLabel));
+  const briefKeys = new Set(targetLocations.map(normalizedLinkedInGeoLabel));
   for (const resolution of geoResolutions) {
-    const query = normalizedGeoLabel(resolution.query);
+    const query = normalizedLinkedInGeoLabel(resolution.query);
     if (!query || !briefKeys.has(query) || resolution.status === "provider_rejected") continue;
     const matches = resolution.suggestions.filter((target) => {
-      const label = normalizedGeoLabel(target.name);
-      const leadingPlace = normalizedGeoLabel(target.name.split(",", 1)[0] || "");
       return /^urn:li:geo:\d{1,25}$/.test(target.urn)
-        && (label === query || leadingPlace === query)
+        && linkedInAdsGeoNameMatchesQuery(target.name, resolution.query)
         && geoAreaKey(target.name) === contextArea;
     });
     if (matches.length === 1) providerTargets.set(matches[0].urn, matches[0]);
