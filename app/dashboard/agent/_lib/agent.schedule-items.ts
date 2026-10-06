@@ -1,4 +1,5 @@
 import { pendingActionStatuses } from "./agent.config";
+import { publicationValidationState } from "./agent.publication-validation";
 import type { AgentPublicationHistoryItem } from "@/lib/inrAgentPublicationHistory";
 import {
   agentActionStatusLabel,
@@ -93,6 +94,7 @@ export function buildAgentScheduleItems({
   translate,
 }: BuildAgentScheduleItemsArgs): ScheduleListItem[] {
   const rows: ScheduleListItem[] = [];
+  const actionsById = new Map(actions.map((action) => [action.id, action]));
   const historicalActionIds = new Set(historyPublications.map((item) => item.agentActionId).filter(Boolean));
   const historicalScheduledIds = new Set(historyPublications.map((item) => item.scheduledActionId).filter(Boolean));
   const editorialActions = actions.filter((action) => {
@@ -194,6 +196,7 @@ export function buildAgentScheduleItems({
     );
     const contentTitle = scheduledContentTitle(action, channels);
     const mediaKind = scheduledMediaKind(action, channels);
+    const validationState = publicationValidationState(action);
     rows.push({
       id: `editorial-${action.id}`,
       action: action.title || agentAutomationTitle("publish", translate),
@@ -214,6 +217,8 @@ export function buildAgentScheduleItems({
         action.status === "draft" || action.status === "executing"
           ? "running"
           : action.status,
+      approvalState:
+        validationState === "validated" ? "approved" : validationState,
       automationKey: "publish",
       preparedActionId: action.id,
       scheduledAtIso: scheduledFor,
@@ -292,6 +297,16 @@ export function buildAgentScheduleItems({
     processing: translate("action_status_executing"),
   };
   for (const publication of historyPublications) {
+    const historyAction = publication.agentActionId
+      ? actionsById.get(publication.agentActionId)
+      : null;
+    const validationState = publication.status === "refused"
+      ? "refused"
+      : historyAction
+        ? publicationValidationState(historyAction)
+        : ["completed", "partial", "processing"].includes(publication.status)
+          ? "validated"
+          : "pending";
     const occurredAt = new Date(publication.occurredAt);
     const dateParts = {
       date: new Intl.DateTimeFormat(locale, {
@@ -319,6 +334,12 @@ export function buildAgentScheduleItems({
       originLabel: translate("inr_agent_88080b90"),
       status: historyStatusLabels[publication.status],
       statusKey: publication.status,
+      approvalState:
+        validationState === "validated"
+          ? "approved"
+          : validationState === "refused"
+            ? "refused"
+            : undefined,
       automationKey: "publish",
       preparedActionId: publication.agentActionId,
       scheduledActionId: publication.scheduledActionId,
