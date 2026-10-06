@@ -3,6 +3,7 @@ import test from "node:test";
 import type { LinkedInWizardSettings } from "../lib/adsChannelWizardSettings.ts";
 import {
   linkedInAdsAutomaticPreflightKey,
+  linkedInAdsContextualGeoDefaults,
   linkedInAdsVerifiedBidDefault,
 } from "../lib/adsLinkedInClientDefaults.ts";
 
@@ -63,6 +64,58 @@ test("Applying the provider CPC does not schedule another automatic preflight", 
   assert.equal(suggested, 1.5);
   const withProviderBid = { ...draft, linkedinBidEuros: suggested ?? undefined };
   assert.equal(linkedInAdsAutomaticPreflightKey("123", withProviderBid), before);
+});
+
+test("LinkedIn contextual defaults resolve only exact provider places in a verified common area", () => {
+  const verifiedGeoTargets = [
+    { urn: "urn:li:geo:1", name: "Valenciennes, Hauts-de-France, France" },
+    { urn: "urn:li:geo:2", name: "Sallaumines, Hauts-de-France, France" },
+  ];
+  const arras = { urn: "urn:li:geo:3", name: "Arras, Hauts-de-France, France" };
+  const lilleFrance = { urn: "urn:li:geo:4", name: "Lille, Hauts-de-France, France" };
+  const lilleBelgium = { urn: "urn:li:geo:5", name: "Lille, Flemish Region, Belgium" };
+  const cambraiFrance = { urn: "urn:li:geo:6", name: "Cambrai, Hauts-de-France, France" };
+  const cambraiAustralia = { urn: "urn:li:geo:7", name: "Cambrai, South Australia, Australia" };
+  const result = linkedInAdsContextualGeoDefaults({
+    targetLocations: ["Arras", "Lille", "Cambrai", "Harnes"],
+    verifiedGeoTargets,
+    geoResolutions: [
+      { query: "Arras", suggestions: [arras, { urn: "urn:li:geo:8", name: "Arras-sur-Rhône, France" }] },
+      { query: "Lille", suggestions: [lilleBelgium, lilleFrance, { urn: "urn:li:geo:9", name: "Greater Lille Metropolitan Area, France" }] },
+      { query: "Cambrai", suggestions: [cambraiAustralia, cambraiFrance] },
+      { query: "Harnes", suggestions: [{ urn: "urn:li:geo:10", name: "Harnes, Hauts-de-France, France" }], status: "provider_rejected" },
+      { query: "Douai", suggestions: [{ urn: "urn:li:geo:11", name: "Douai, Hauts-de-France, France" }] },
+    ],
+  });
+  assert.deepEqual(result.map((target) => target.urn), [
+    "urn:li:geo:1", "urn:li:geo:2", "urn:li:geo:3", "urn:li:geo:4", "urn:li:geo:6",
+  ]);
+});
+
+test("LinkedIn contextual defaults leave ambiguous or unsupported areas for manual selection", () => {
+  const verifiedGeoTargets = [
+    { urn: "urn:li:geo:1", name: "Valenciennes, Hauts-de-France, France" },
+    { urn: "urn:li:geo:2", name: "Sallaumines, Hauts-de-France, France" },
+  ];
+  const ambiguous = [
+    { urn: "urn:li:geo:3", name: "Lille, Hauts-de-France, France" },
+    { urn: "urn:li:geo:4", name: "Lille, Hauts-de-France, France" },
+  ];
+  const input = {
+    targetLocations: ["Lille"],
+    verifiedGeoTargets,
+    geoResolutions: [{ query: "Lille", suggestions: ambiguous }],
+  };
+  assert.deepEqual(linkedInAdsContextualGeoDefaults(input), verifiedGeoTargets);
+  assert.deepEqual(linkedInAdsContextualGeoDefaults({
+    ...input, verifiedGeoTargets: [verifiedGeoTargets[0]],
+  }), [verifiedGeoTargets[0]]);
+  assert.deepEqual(linkedInAdsContextualGeoDefaults({
+    ...input, verifiedGeoTargets: [verifiedGeoTargets[0], { urn: "urn:li:geo:5", name: "Bruges, Flemish Region, Belgium" }],
+  }), [verifiedGeoTargets[0], { urn: "urn:li:geo:5", name: "Bruges, Flemish Region, Belgium" }]);
+  assert.deepEqual(linkedInAdsContextualGeoDefaults({
+    ...input, geoResolutions: [{ query: "Lille", suggestions: [{ urn: "urn:li:geo:invalid", name: "Lille, Hauts-de-France, France" }] }],
+  }), verifiedGeoTargets);
 });
 
 test("LinkedIn CPC default uses only a cent-safe suggestion inside verified provider and budget bounds", () => {
