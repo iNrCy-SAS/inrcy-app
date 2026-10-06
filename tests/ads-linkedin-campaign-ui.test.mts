@@ -106,7 +106,10 @@ test("le préflight vérifie chaque tag du brief et garde une recherche manuelle
   assert.throws(() => buildLinkedInGeoQueries([...eight, "Douai"]), /huit zones/);
   assert.match(client, /for \(const query of geoQueries\) params\.append\("geo", query\)/);
   assert.match(client, /\? \[\.\.\.linkedInGeoTargets, \{ urn: target\.urn, name: target\.name \}\]/);
-  assert.match(client, /draft\.targetLocations\.every\(\(label\) => linkedInBriefGeoStatus\(label\)\.verified\)/);
+  assert.match(client, /draft\.targetLocations\.filter\(\(label\) => !linkedInBriefGeoStatus\(label\)\.verified\)/);
+  assert.match(client, /linkedInMissingGeoLocations\.length === 0/);
+  assert.match(client, /linkedInMissingGeoLocations\.map\(\(label\) => `« \$\{label\} »`\)/);
+  assert.match(client, /Voir les zones à compléter/);
   assert.match(client, /if \(!geoQueryOverride\) applyLinkedInProviderDefaults\(data\)/);
   assert.match(client, /current \|\| \{ \.\.\.data, selected: undefined, blockers: \[\] \}/);
   assert.match(client, /linkedInGeoTargets\.length <= 20/);
