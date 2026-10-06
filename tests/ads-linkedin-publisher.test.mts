@@ -425,6 +425,39 @@ test("initial publisher identifies malformed group, Page authorization and local
   }
 });
 
+test("publication readiness rejects incompatible group dates before uploading or creating anything", async () => {
+  for (const runSchedule of [
+    { start: recoveryNow - 60_000, end: Date.parse("2026-10-05T23:59:59Z") },
+    { start: recoveryNow - 86_400_000, end: recoveryNow - 1 },
+    { start: Date.parse("2026-10-11T00:00:00Z") },
+    { start: recoveryNow - 60_000, end: recoveryNow + 60_000 },
+  ]) {
+    for (const target of ["ACTIVE", "PAUSED"] as const) {
+      const runtime = recoveryRuntime(target, { resourcePayloads: { groups: { elements: [{
+        id: 456, account: "urn:li:sponsoredAccount:558357276", status: "ACTIVE", objectiveType: "WEBSITE_VISIT",
+        allowedCampaignTypes: ["SPONSORED_UPDATES"], runSchedule,
+      }] } } });
+      await assert.rejects(runtime.evidence(), /dates de la campagne.*groupe LinkedIn/);
+      await assert.rejects(runtime.run(progress({ targetStatus: target }), async () => {
+        assert.fail("Incompatible group dates cannot persist successful publication evidence");
+      }), /dates de la campagne.*groupe LinkedIn/);
+      assert.ok(runtime.requests.every((request) => request.method === "GET"));
+      assert.equal(runtime.requests.some((request) => request.path === "/rest/images"), false);
+      assert.equal(runtime.requests.some((request) => request.path === "/rest/audienceCounts"), false);
+    }
+  }
+});
+
+test("publication readiness accepts a future group start and an end equal to the campaign end", async () => {
+  const runtime = recoveryRuntime("ACTIVE", { resourcePayloads: { groups: { elements: [{
+    id: 456, account: "urn:li:sponsoredAccount:558357276", status: "ACTIVE", objectiveType: "WEBSITE_VISIT",
+    allowedCampaignTypes: ["SPONSORED_UPDATES"],
+    runSchedule: { start: Date.parse("2026-10-03T10:00:00Z"), end: Date.parse("2026-10-10T23:59:59Z") },
+  }] } } });
+  assert.deepEqual((await runtime.evidence()).geoUrns, [selectedGeo.urn]);
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+});
+
 for (const target of ["ACTIVE", "PAUSED"] as const) {
   test(`${target}: response timeout after final mutation reconciles without another mutation`, async () => {
     const runtime = recoveryRuntime(target, { timeoutAfterFinalMutation: true });

@@ -167,6 +167,26 @@ function safeTime(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+/** Shared by read-only publication checks and the final request serializer. */
+export function linkedInAdsCampaignScheduleIssues(input: {
+  startAtMs: unknown;
+  endAtMs?: unknown;
+  groupSchedule: unknown;
+  nowMs: number;
+}): AdsDraftIssue[] {
+  const { startAtMs, endAtMs, nowMs } = input;
+  const groupSchedule = record(input.groupSchedule);
+  const issues: AdsDraftIssue[] = [];
+  issue(issues, "invalid_schedule", "choices.startAtMs",
+    !safeTime(startAtMs) || !safeTime(nowMs) || startAtMs < nowMs + 60_000
+      || (groupSchedule.start !== undefined && (!safeTime(groupSchedule.start) || startAtMs < groupSchedule.start))
+      || (safeTime(groupSchedule.end) && startAtMs >= groupSchedule.end));
+  issue(issues, "invalid_schedule", "choices.endAtMs",
+    endAtMs !== undefined && (!safeTime(endAtMs) || !safeTime(startAtMs) || endAtMs <= startAtMs
+      || (safeTime(groupSchedule.end) && endAtMs > groupSchedule.end)));
+  return issues;
+}
+
 function publicHttpsUrl(value: unknown): boolean {
   try {
     const url = new URL(string(value));
@@ -273,14 +293,7 @@ export function prepareLinkedInAdsDraftCampaign(
     choices.discriminationNoticeAcknowledged !== true);
   const startAtMs = choices.startAtMs;
   const endAtMs = choices.endAtMs;
-  const groupSchedule = record(group.runSchedule);
-  issue(issues, "invalid_schedule", "choices.startAtMs",
-    !safeTime(startAtMs) || !safeTime(nowMs) || startAtMs < nowMs + 60_000
-      || (groupSchedule.start !== undefined && (!safeTime(groupSchedule.start) || startAtMs < groupSchedule.start))
-      || (safeTime(groupSchedule.end) && startAtMs >= groupSchedule.end));
-  issue(issues, "invalid_schedule", "choices.endAtMs",
-    endAtMs !== undefined && (!safeTime(endAtMs) || !safeTime(startAtMs) || endAtMs <= startAtMs
-      || (safeTime(groupSchedule.end) && endAtMs > groupSchedule.end)));
+  issues.push(...linkedInAdsCampaignScheduleIssues({ startAtMs, endAtMs, groupSchedule: group.runSchedule, nowMs }));
 
   if (issues.length > 0) return { readyForDraftCreate: false, publicationReady: false, request: null, issues };
 

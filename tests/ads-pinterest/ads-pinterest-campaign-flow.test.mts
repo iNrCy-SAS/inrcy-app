@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import ts from "typescript";
 
 import { parseAdsCampaignInput } from "../../lib/adsValidation.ts";
 
@@ -135,8 +136,34 @@ test("Pinterest environment checks cover the dedicated Ads callback and credenti
 test("the final existing modal adds Active by default and Paused as the alternative", () => {
   const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
   const dialog = readFileSync(path.join(root, "app/dashboard/ads/AdsCampaignDemoDialog.tsx"), "utf8");
-  assert.match(client, /let launchStatus: AdsCampaignLaunchStatus = "active"/);
-  assert.match(client, /if \(connection\.selectedAccountCanServe !== true \|\| group\.status !== "ACTIVE"\) launchStatus = "paused"/);
+  const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const findHandler = (node: ts.Node): ts.FunctionDeclaration | undefined => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "openLaunchDialog") return node;
+    return ts.forEachChild(node, findHandler);
+  };
+  const handler = findHandler(source);
+  assert.ok(handler);
+  assert.match(handler.getText(source), /let launchStatus: AdsCampaignLaunchStatus = "active"/);
+  const findGuard = (node: ts.Node): ts.IfStatement | undefined => {
+    if (ts.isIfStatement(node) && ts.isExpressionStatement(node.thenStatement)
+      && ts.isBinaryExpression(node.thenStatement.expression)
+      && node.thenStatement.expression.left.getText(source) === "launchStatus"
+      && node.thenStatement.expression.right.getText(source) === '"paused"') return node;
+    return ts.forEachChild(node, findGuard);
+  };
+  const pausedGuard = findGuard(handler);
+  assert.ok(pausedGuard, "the final handler must preserve a safe PAUSED alternative");
+  const chooseStatus = new Function("preflight", "connection", "group", `let launchStatus = "active"; ${pausedGuard.getText(source)}; return launchStatus;`);
+  for (const canServeCampaigns of [true, false, undefined]) {
+    for (const status of ["ACTIVE", "DRAFT", "PAUSED"]) {
+      assert.equal(chooseStatus(
+        { account: { canServeCampaigns } },
+        { selectedAccountCanServe: canServeCampaigns !== true },
+        { status },
+      ), canServeCampaigns === true && status === "ACTIVE" ? "active" : "paused",
+      `the fresh resource response controls ${status}, never the older account response`);
+    }
+  }
   assert.match(client, /setDemoDialog\(\{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
   assert.match(client, /"Lancer la campagne"/);
   assert.match(client, /"Enregistrer en brouillon"/);

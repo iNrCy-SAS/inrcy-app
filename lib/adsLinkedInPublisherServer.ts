@@ -32,6 +32,7 @@ import {
 } from "./adsLinkedInPreflightPolicy.ts";
 import {
   buildLinkedInAdsFinalizationSteps,
+  linkedInAdsCampaignScheduleIssues,
   prepareLinkedInAdsDarkPost,
   prepareLinkedInAdsDraftCampaign,
   prepareLinkedInAdsDraftCreative,
@@ -258,6 +259,13 @@ function campaignEndAtMs(endDate: string): number {
   return end;
 }
 
+function publicationSchedule(draft: AdsCampaignInput, group: LinkedInAdsCampaignGroup, nowMs: number) {
+  return {
+    startAtMs: Math.max(nowMs + 5 * 60_000, group.runSchedule.start || 0),
+    endAtMs: campaignEndAtMs(draft.endDate),
+  };
+}
+
 function providerDraft(
   draft: AdsCampaignInput,
   evidence: PublicationEvidence,
@@ -357,6 +365,15 @@ async function collectPublicationEvidence(
   }
   if (targetStatus === "ACTIVE" && campaignGroup.status !== "ACTIVE") {
     throw new Error("Le groupe de campagnes LinkedIn doit être actif avant un lancement Active. iNrCy ne l’active jamais sans votre choix explicite.");
+  }
+  const scheduleNow = now();
+  if (linkedInAdsCampaignScheduleIssues({
+    ...publicationSchedule(draft, campaignGroup, scheduleNow), groupSchedule: campaignGroup.runSchedule, nowMs: scheduleNow,
+  }).length) {
+    throw new LinkedInAdsConnectionError(
+      "Les dates de la campagne ne sont pas compatibles avec celles du groupe LinkedIn. Choisissez une fin comprise dans la période du groupe, ou un autre groupe disponible.",
+      "campaign_schedule_invalid", 422,
+    );
   }
   const requestedGeoUrns = new Set(geoTargets.map((target) => target.urn));
   const everyGeoMatches = verifiedGeos.every((geo) =>
@@ -516,11 +533,6 @@ function hasProviderResource(progress: LinkedInAdsPublishProgress): boolean {
   return Boolean(progress.imageUrn || progress.campaignUrn || progress.postUrn || progress.creativeUrn);
 }
 
-/**
- * Creates an image Sponsored Content campaign using only Development-mapped,
- * freshly revalidated resources. Every provider identifier is persisted before
- * the next create call. A pending/uncertain create is never replayed blindly.
- */
 /** Runs the publisher's initial checks without any provider or database mutation. */
 export async function checkLinkedInAdsPublication(
   userId: string,
@@ -541,6 +553,11 @@ export async function checkLinkedInAdsPublication(
   }
 }
 
+/**
+ * Creates an image Sponsored Content campaign using only Development-mapped,
+ * freshly revalidated resources. Every provider identifier is persisted before
+ * the next create call. A pending/uncertain create is never replayed blindly.
+ */
 export async function publishLinkedInAdsCampaign(
   userId: string,
   draft: AdsCampaignInput,
@@ -708,12 +725,9 @@ export async function publishLinkedInAdsCampaign(
     evidence = await collectPublicationEvidence(userId, draft, targetStatus, fetchImpl, sleep, now, imageUrn);
     if (!evidence.image || evidence.image.status !== "AVAILABLE") throw new Error("L’image LinkedIn n’est pas disponible.");
     const linkedInDraft = providerDraft(draft, evidence, imageUrn);
-    const endAtMs = campaignEndAtMs(draft.endDate);
-    const groupStart = evidence.campaignGroup.runSchedule.start || 0;
     const choices: LinkedInAdsDraftCampaignChoices = {
       bidAmount: Number(draft.linkedinBidEuros).toFixed(2),
-      startAtMs: Math.max(now() + 5 * 60_000, groupStart),
-      endAtMs,
+      ...publicationSchedule(draft, evidence.campaignGroup, now()),
       politicalIntentConfirmed: draft.linkedinPoliticalIntentConfirmed === true,
       discriminationNoticeAcknowledged: draft.linkedinTargetingNoticeAcknowledged === true,
     };
