@@ -187,6 +187,22 @@ export function adsAccountCanBeAssociated(account: AdsAccount): boolean {
 
 const clean = (value: unknown) => String(value ?? "").trim();
 
+/** Keep one selected LinkedIn location per URN; provider verification runs separately. */
+export function normalizeLinkedInGeoTargets(value: unknown): Array<{ urn: string; name: string }> | null {
+  if (!Array.isArray(value) || value.length > 40) return null;
+  const targets = new Map<string, { urn: string; name: string }>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const row = entry as Record<string, unknown>;
+    const urn = clean(row.urn);
+    const name = clean(row.name);
+    if (!/^urn:li:geo:\d{1,25}$/.test(urn) || name.length < 1 || name.length > 160) return null;
+    if (!targets.has(urn)) targets.set(urn, { urn, name });
+    if (targets.size > 20) return null;
+  }
+  return [...targets.values()];
+}
+
 function textList(value: unknown, maxItems: number, maxLength: number): string[] | null {
   const list = Array.isArray(value) ? value : String(value ?? "").split("\n");
   const items = list.map((item) => clean(item)).filter(Boolean);
@@ -463,16 +479,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   }
   const linkedinCampaignGroupId = clean(raw.linkedinCampaignGroupId);
   const linkedinOrganizationUrn = clean(raw.linkedinOrganizationUrn);
-  const linkedinGeoTargets = Array.isArray(raw.linkedinGeoTargets)
-    ? raw.linkedinGeoTargets.map((value) => {
-      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-      const row = value as Record<string, unknown>;
-      if (Object.keys(row).some((key) => key !== "urn" && key !== "name")) return null;
-      const urn = clean(row.urn);
-      const name = clean(row.name);
-      return /^urn:li:geo:\d{1,25}$/.test(urn) && name.length >= 1 && name.length <= 160 ? { urn, name } : null;
-    })
-    : [];
+  const linkedinGeoTargets = normalizeLinkedInGeoTargets(raw.linkedinGeoTargets ?? []);
   const linkedinBidEuros = raw.linkedinBidEuros == null ? undefined : Number(raw.linkedinBidEuros);
   const linkedinPoliticalIntentConfirmed = raw.linkedinPoliticalIntentConfirmed === true;
   const linkedinTargetingNoticeAcknowledged = raw.linkedinTargetingNoticeAcknowledged === true;
@@ -483,8 +490,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (linkedinOrganizationUrn && !/^urn:li:organization:\d{1,25}$/.test(linkedinOrganizationUrn)) {
       return { draft: null, error: "La Page LinkedIn sélectionnée est invalide." };
     }
-    if (linkedinGeoTargets.some((target) => target === null) || linkedinGeoTargets.length > 20
-      || new Set(linkedinGeoTargets.map((target) => target?.urn)).size !== linkedinGeoTargets.length) {
+    if (linkedinGeoTargets === null) {
       return { draft: null, error: "Les zones LinkedIn sélectionnées sont invalides." };
     }
     if (linkedinBidEuros !== undefined && (!Number.isFinite(linkedinBidEuros) || linkedinBidEuros <= 0
@@ -624,7 +630,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!linkedinTargetingNoticeAcknowledged) {
       return { draft: null, error: "Acceptez la notice LinkedIn relative au ciblage non discriminatoire." };
     }
-    if (!linkedinGeoTargets.length) return { draft: null, error: "Sélectionnez au moins une zone géographique LinkedIn vérifiée." };
+    if (!linkedinGeoTargets?.length) return { draft: null, error: "Sélectionnez au moins une zone géographique LinkedIn vérifiée." };
     if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
       return { draft: null, error: "Ajoutez une image unique à la campagne LinkedIn." };
     }
@@ -673,7 +679,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       openaiBidEuros,
       linkedinCampaignGroupId,
       linkedinOrganizationUrn,
-      linkedinGeoTargets: linkedinGeoTargets.filter((target): target is { urn: string; name: string } => target !== null),
+      linkedinGeoTargets: linkedinGeoTargets || [],
       linkedinBidEuros,
       linkedinPoliticalIntentConfirmed,
       linkedinTargetingNoticeAcknowledged,

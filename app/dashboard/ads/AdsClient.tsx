@@ -20,6 +20,7 @@ import {
   defaultAdsCampaignType,
   isAdsDraftAccountChannel,
   isAdsProvider,
+  normalizeLinkedInGeoTargets,
   parseAdsCampaignInput,
   type AdsAccount,
   type AdsCampaignInput,
@@ -1944,12 +1945,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (!current.linkedinOrganizationUrn && selected.organization) {
         patch.linkedinOrganizationUrn = selected.organization.urn;
       }
-      const currentGeoTargets = current.linkedinGeoTargets || [];
+      const currentGeoTargets = normalizeLinkedInGeoTargets(current.linkedinGeoTargets ?? []) || [];
       const currentGeoUrns = new Set(currentGeoTargets.map((target) => target.urn));
       const addedGeoTargets = proposedGeoTargets.filter((target) =>
         !currentGeoUrns.has(target.urn) && !linkedInGeoDismissedUrns.current.has(target.urn));
-      if (addedGeoTargets.length && currentGeoTargets.length + addedGeoTargets.length <= 20) {
-        patch.linkedinGeoTargets = [...currentGeoTargets, ...addedGeoTargets];
+      const nextGeoTargets = normalizeLinkedInGeoTargets([...currentGeoTargets, ...addedGeoTargets]);
+      if (nextGeoTargets && (addedGeoTargets.length || currentGeoTargets.length !== (current.linkedinGeoTargets || []).length)) {
+        patch.linkedinGeoTargets = nextGeoTargets;
       }
       const bidDefault = linkedInAdsVerifiedBidDefault({
         currentBid: current.linkedinBidEuros,
@@ -2832,6 +2834,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         adAccountId: confirmation.details.accountId,
         accountCurrency: "EUR",
         pageId: confirmation.channelId === "meta" ? confirmation.pageId : draft.pageId,
+        ...(confirmation.channelId === "linkedin"
+          ? { linkedinGeoTargets: normalizeLinkedInGeoTargets(draft.linkedinGeoTargets ?? []) || [] }
+          : {}),
       };
       const validated = parseAdsCampaignInput(campaignDraft, { purpose: "publish" });
       if (!validated.draft) throw new Error(validated.error || "Vérifiez la campagne avant de la lancer.");
@@ -3059,7 +3064,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const selectedLinkedInOrganization = linkedInOrganizations.find((organization) => organization.urn === draft.linkedinOrganizationUrn)
     || (preflightSelectedLinkedInOrganization?.urn === draft.linkedinOrganizationUrn
       ? preflightSelectedLinkedInOrganization : null);
-  const linkedInGeoTargets = draft.linkedinGeoTargets || [];
+  const linkedInGeoTargets = normalizeLinkedInGeoTargets(draft.linkedinGeoTargets ?? []) || [];
   const linkedInVerifiedGeoUrns = new Set(linkedInPreflight?.selected?.verifiedGeoUrns || []);
   const linkedInGeoResolutions = linkedInPreflight?.geoResolutions || [];
   const linkedInBriefGeoStatus = (label: string) => {
@@ -3466,7 +3471,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                       else linkedInGeoDismissedUrns.current.add(target.urn);
                       updateDraft({
                         linkedinGeoTargets: event.target.checked
-                          ? [...linkedInGeoTargets, { urn: target.urn, name: target.name }]
+                          ? normalizeLinkedInGeoTargets([...linkedInGeoTargets, { urn: target.urn, name: target.name }]) || linkedInGeoTargets
                           : linkedInGeoTargets.filter((item) => item.urn !== target.urn),
                       });
                     }} />

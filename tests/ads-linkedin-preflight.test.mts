@@ -601,7 +601,7 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
     client,
     /const addedGeoTargets = proposedGeoTargets\.filter\(\(target\) =>[\s\S]*!currentGeoUrns\.has\(target\.urn\) && !linkedInGeoDismissedUrns\.current\.has\(target\.urn\)/,
   );
-  assert.match(client, /patch\.linkedinGeoTargets = \[\.\.\.currentGeoTargets, \.\.\.addedGeoTargets\]/);
+  assert.match(client, /const nextGeoTargets = normalizeLinkedInGeoTargets\(\[\.\.\.currentGeoTargets, \.\.\.addedGeoTargets\]\)/);
   assert.match(client, /const data = await fetchLinkedInPreflight[\s\S]{0,240}applyLinkedInProviderDefaults\(data\)/);
   assert.match(
     client,

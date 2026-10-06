@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { parseAdsCampaignInput } from "../lib/adsValidation.ts";
+import { normalizeLinkedInGeoTargets, parseAdsCampaignInput } from "../lib/adsValidation.ts";
 import { buildLinkedInGeoQueries } from "../lib/adsLinkedInGeoQueries.ts";
 
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
@@ -94,6 +94,22 @@ test("les zones LinkedIn conservent ensemble leur libellé et leur URN vérifié
   assert.match(labelOnly.error || "", /zones LinkedIn sélectionnées sont invalides/);
 });
 
+test("plusieurs recherches d'une même zone LinkedIn ne bloquent pas le lancement", () => {
+  const arras = { urn: "urn:li:geo:104609892", name: "Arras, Hauts-de-France, France" };
+  const lille = { urn: "urn:li:geo:100323840", name: "Lille, Hauts-de-France, France" };
+  const selected = [arras, lille, { ...arras, source: "Arras" }];
+  assert.deepEqual(normalizeLinkedInGeoTargets(selected), [arras, lille]);
+
+  const parsed = parseAdsCampaignInput(linkedInDraft({ linkedinGeoTargets: selected }), { purpose: "draft" });
+  assert.equal(parsed.error, null);
+  assert.deepEqual(parsed.draft?.linkedinGeoTargets, [arras, lille]);
+
+  const malformed = parseAdsCampaignInput(linkedInDraft({
+    linkedinGeoTargets: [...selected, { urn: "Arras", name: "Arras" }],
+  }), { purpose: "draft" });
+  assert.match(malformed.error || "", /zones LinkedIn sélectionnées sont invalides/);
+});
+
 test("le préflight vérifie chaque tag du brief et garde une recherche manuelle avec huit zones", () => {
   const eight = ["Arras", "Lille", "Valenciennes", "Saint-Omer", "Cambrai", "Sallaumines", "Harnes", "Lens"];
   assert.deepEqual(buildLinkedInGeoQueries(["Arras", " arras ", "Lille"]).queries, ["Arras", "Lille"]);
@@ -105,7 +121,7 @@ test("le préflight vérifie chaque tag du brief et garde une recherche manuelle
   assert.deepEqual(buildLinkedInGeoQueries(eight, "Arras"), { queries: ["Arras"], manualOnly: true });
   assert.throws(() => buildLinkedInGeoQueries([...eight, "Douai"]), /huit zones/);
   assert.match(client, /for \(const query of geoQueries\) params\.append\("geo", query\)/);
-  assert.match(client, /\? \[\.\.\.linkedInGeoTargets, \{ urn: target\.urn, name: target\.name \}\]/);
+  assert.match(client, /\? normalizeLinkedInGeoTargets\(\[\.\.\.linkedInGeoTargets, \{ urn: target\.urn, name: target\.name \}\]\)/);
   assert.match(client, /draft\.targetLocations\.filter\(\(label\) => !linkedInBriefGeoStatus\(label\)\.verified\)/);
   assert.match(client, /linkedInMissingGeoLocations\.length === 0/);
   assert.match(client, /linkedInMissingGeoLocations\.map\(\(label\) => `« \$\{label\} »`\)/);
