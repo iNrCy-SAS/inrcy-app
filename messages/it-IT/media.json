@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "Immagine recuperata",
+  "image_recovery_notice": "È stata creata una copia utilizzabile da un file incompleto. Controlla l’anteprima: i dettagli mancanti non sono stati ripristinati.",
+  "image_recovery_failed": "Immagine illeggibile. Sostituiscila o usa Modifica media in iNrStudio.",
   "local_upload_trigger": "Aggiungi contenuto multimediale",
   "local_upload_dialog_title": "Aggiungi contenuto multimediale",
   "local_upload_dialog_description": "Scegli prima il tipo di file. Immagini e video restano separati.",

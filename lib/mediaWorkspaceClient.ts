@@ -30,6 +30,12 @@ export type MediaWorkspaceMediaSummary = {
   publicUrl?: string | null;
   previewUrl?: string | null;
   canonicalUrl?: string | null;
+  imageRecovery?: {
+    kind: "truncated_jpeg";
+    version: 1;
+    requiresReview: true;
+  } | null;
+  requiresCanonical?: boolean;
   fileName: string;
   clientMediaKey?: string;
   mimeType: string;

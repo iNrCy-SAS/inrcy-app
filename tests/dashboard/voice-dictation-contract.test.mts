@@ -653,7 +653,7 @@ test("Booster verrouille le canal et les actions tant qu'un champ vocal est acti
     "publier et planifier doivent refuser une transcription en cours",
   );
   assert.match(publishFooter, /voiceBusy\?: boolean/);
-  assert.match(publishFooter, /disabled=\{draftSaving \|\| voiceBusy\}/);
+  assert.match(publishFooter, /disabled=\{draftSaving \|\| voiceBusy \|\| Boolean\(mediaPreparationIssue\)\}/);
 });
 
 test("les libellés des nouveaux usages vocaux existent dans toutes les langues", () => {

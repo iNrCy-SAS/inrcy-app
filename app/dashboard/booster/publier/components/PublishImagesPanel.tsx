@@ -8,6 +8,7 @@ import { ChannelImageAdapterCardsPanel } from "@/app/dashboard/_components/Chann
 import LocalMediaUploadChoice from "@/app/dashboard/_components/LocalMediaUploadChoice";
 import PublishVideoAdapterPanel from "./PublishVideoAdapterPanel";
 import type { VideoVariantPreparationState } from "../usePublishVideoController";
+import type { PublishImagePreparationItem } from "../publishImageRecovery";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
   BOOSTER_IMAGE_ACCEPT,
@@ -99,6 +100,8 @@ type PublishImagesPanelProps = {
   openVideoRetoucher: (channel: ChannelKey) => void;
   removeVideo: () => void;
   imgError: string;
+  imagePreparationItems?: readonly PublishImagePreparationItem[];
+  imagePreparationError?: string;
   showMediaOptimizerAction?: boolean;
   onOpenMediaOptimizer?: () => void;
   selectedChannels: ChannelKey[];
@@ -153,6 +156,8 @@ export default function PublishImagesPanel({
   openVideoRetoucher,
   removeVideo,
   imgError,
+  imagePreparationItems = [],
+  imagePreparationError = "",
   showMediaOptimizerAction = false,
   onOpenMediaOptimizer,
   selectedChannels,
@@ -571,6 +576,37 @@ export default function PublishImagesPanel({
             >
               {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
           ) : null}
+        </div>
+      ) : null}
+
+      {imagePreparationItems.some((item) => item.status === "failed") ? (
+        <div role="alert" style={{ marginBottom: 10, padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(248,113,113,0.42)", background: "rgba(248,113,113,0.12)", color: "#fecaca", fontSize: 13, lineHeight: 1.45 }}>
+          <strong>Une image n’a pas pu être préparée pour la publication.</strong>
+          <div>Vous pouvez créer une nouvelle version depuis « Modifier Média » ou remplacer l’image.</div>
+          {imagePreparationItems.filter((item) => item.status === "failed").map((item) => (
+            <button key={item.imageKey} type="button" className={styles.secondaryBtn} onClick={() => openImageModifier(activeImageChannel, item.imageKey)} style={{ marginTop: 8, marginRight: 8 }}>
+              Modifier Média · image {item.position + 1}
+            </button>
+          ))}
+        </div>
+      ) : imagePreparationError && imagePreparationItems.some((item) => item.status === "pending") ? (
+        <div role="alert" style={{ marginBottom: 10, padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(248,113,113,0.42)", background: "rgba(248,113,113,0.12)", color: "#fecaca", fontSize: 13, lineHeight: 1.45 }}>
+          {imagePreparationError} Ouvrez « Modifier Média » ou remplacez l’image si le contrôle ne peut pas aboutir.
+          {imagePreparationItems.filter((item) => item.status === "pending").map((item) => (
+            <button key={item.imageKey} type="button" className={styles.secondaryBtn} onClick={() => openImageModifier(activeImageChannel, item.imageKey)} style={{ marginTop: 8, marginRight: 8 }}>
+              Modifier Média · image {item.position + 1}
+            </button>
+          ))}
+        </div>
+      ) : imagePreparationItems.some((item) => item.status === "pending") ? (
+        <div role="status" style={{ marginBottom: 10, padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(96,165,250,0.36)", background: "rgba(59,130,246,0.10)", color: "#dbeafe", fontSize: 13, lineHeight: 1.45 }}>
+          Vérification des images en cours. Leur aperçu sera contrôlé avant la publication.
+        </div>
+      ) : null}
+
+      {imagePreparationItems.some((item) => item.status === "ready" && item.recovered) ? (
+        <div role="status" style={{ marginBottom: 10, padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(251,191,36,0.42)", background: "rgba(251,191,36,0.10)", color: "#fde68a", fontSize: 13, lineHeight: 1.45 }}>
+          <strong>JPEG récupéré automatiquement.</strong> Une partie du fichier reçu était incomplète. Vérifiez le rendu réparé dans l’aperçu habituel ci-dessous avant de publier.
         </div>
       ) : null}
 

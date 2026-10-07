@@ -249,6 +249,7 @@ import {
   type MetaPrimaryPublicationPlacement,
 } from "@/lib/metaPublicationTargets";
 import {
+  buildWorkspaceMediaClientKey,
   loadMediaPublicationWorkspace,
   type MediaWorkspaceMediaSummary,
 } from "@/lib/mediaWorkspaceClient";
@@ -265,6 +266,11 @@ import {
   getGenerationMediaSelectionError,
   getGenerationMediaSelectionPolicy,
 } from "./generationMediaSelection";
+import {
+  isCompleteMediaLibraryDownload,
+  remapRestoredChannelImageEditors,
+  resolvePublishImagePreparation,
+} from "./publishImageRecovery";
 
 import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCaptureModal";
 import MediaLibraryPickerModal, {
@@ -800,6 +806,11 @@ export default function PublishModal({
   const [preparedWorkspaceMedia, setPreparedWorkspaceMedia] = useState<
     readonly MediaWorkspaceMediaSummary[]
   >([]);
+  const [recoveredPreviewErrors, setRecoveredPreviewErrors] = useState<
+    Record<string, boolean>
+  >({});
+  const [restoredClientMediaKeysByImageKey, setRestoredClientMediaKeysByImageKey] =
+    useState<Record<string, string>>({});
   const [publicationMediaType, setPublicationMediaType] =
     useState<PublicationMediaType>("images");
   const [channelMediaModes, setChannelMediaModes] = useState<
@@ -1828,7 +1839,29 @@ export default function PublishModal({
 
   const handlePreparedWorkspaceMedia = useCallback(
     (preparedMedia: readonly MediaWorkspaceMediaSummary[]) => {
-      setPreparedWorkspaceMedia([...preparedMedia]);
+      setPreparedWorkspaceMedia((current) =>
+        preparedMedia.map((item) => {
+          const previous = current.find((entry) => entry.mediaId === item.mediaId);
+          return previous
+            ? {
+                ...previous,
+                ...item,
+                previewUrl: item.previewUrl === undefined
+                  ? previous.previewUrl
+                  : item.previewUrl,
+                canonicalUrl: item.canonicalUrl === undefined
+                  ? previous.canonicalUrl
+                  : item.canonicalUrl,
+                imageRecovery: item.imageRecovery === undefined
+                  ? previous.imageRecovery
+                  : item.imageRecovery,
+                requiresCanonical: item.requiresCanonical === undefined
+                  ? previous.requiresCanonical
+                  : item.requiresCanonical,
+              }
+            : item;
+        }),
+      );
       const preparedVideos = preparedMedia.filter(
         (item) => item.mediaType === "video",
       );
@@ -1848,31 +1881,50 @@ export default function PublishModal({
         (item) =>
           item.mediaType === "image" &&
           item.processingStatus === "ready" &&
-          Boolean(item.previewUrl),
+          Boolean(item.previewUrl || item.canonicalUrl),
       );
       if (!preparedImages.length) return;
 
       for (const item of preparedImages) {
         if (item.position < 0 || item.position >= images.length) continue;
-        const previewUrl = String(item.previewUrl || "");
+        const recovered =
+          item.imageRecovery?.kind === "truncated_jpeg" &&
+          item.requiresCanonical === true;
+        const previewUrl = String(item.previewUrl || item.canonicalUrl || "");
         const expectedImageKey = makeImageKey(images[item.position]);
-        if (!previewUrl) continue;
+        if (!previewUrl || (recovered && !item.canonicalUrl)) continue;
 
         void preloadPreparedImagePreview(previewUrl).then((loaded) => {
           const currentFile = imagesRef.current[item.position];
           if (
-            !loaded ||
             !currentFile ||
             makeImageKey(currentFile) !== expectedImageKey
           ) {
             return;
+          }
+          if (!loaded) {
+            if (recovered) {
+              setRecoveredPreviewErrors((current) => ({
+                ...current,
+                [expectedImageKey]: true,
+              }));
+            }
+            return;
+          }
+          if (recovered) {
+            setRecoveredPreviewErrors((current) => {
+              if (!current[expectedImageKey]) return current;
+              const next = { ...current };
+              delete next[expectedImageKey];
+              return next;
+            });
           }
           setImagePreviews((current) => {
             const previous = current[item.position];
             // Un aperçu blob local décodable reste le plus rapide et le plus
             // fiable pendant la session. Le serveur remplace uniquement les
             // placeholders des formats que le navigateur ne sait pas lire.
-            if (previous?.startsWith("blob:") || previous === previewUrl) {
+            if ((!recovered && previous?.startsWith("blob:")) || previous === previewUrl) {
               return current;
             }
             const next = current.slice();
@@ -1907,10 +1959,12 @@ export default function PublishModal({
     clientWorkspaceKey: mediaWorkspaceClientKey,
     mediaStates: persistentMediaStates,
     synchronizing: persistentMediaSynchronizing,
+    imagePreparationError,
     adoptWorkspace: adoptMediaWorkspace,
     syncImages: syncPersistentWorkspaceImages,
     syncVideo: syncPersistentWorkspaceVideo,
     prepareAiMedia: startPersistentAiMediaPreparation,
+    preparePublicationMedia: startPersistentPublicationMediaPreparation,
     preparePublicationVariants: prewarmPersistentMediaWorkspace,
     clearWorkspaceMedia: clearPersistentWorkspaceMedia,
     linkDraft: linkPersistentWorkspaceDraft,
@@ -1921,6 +1975,9 @@ export default function PublishModal({
   } = usePersistentMediaWorkspace({
     draftId: publicationDraftIdParam,
     creationMode,
+    eagerImagePreparation:
+      isUnifiedMediaConsumptionClientEnabled() &&
+      isLegacyMediaTransportCutoverClientEnabled(),
     selectedChannels,
     imageSettingsByChannel: channelImageEditors as Record<string, unknown>,
     onError: setImgError,
@@ -2391,6 +2448,8 @@ export default function PublishModal({
       metadataByIndex?: readonly Record<string, unknown>[],
     ) => {
       if (!persistentMediaWorkspaceEnabled) return;
+      setRestoredClientMediaKeysByImageKey({});
+      setRecoveredPreviewErrors({});
       await syncPersistentWorkspaceImages(nextImages, metadataByIndex);
     },
     [
@@ -2456,6 +2515,95 @@ export default function PublishModal({
     restorePublishScroll,
     syncPersistentWorkspaceImages: syncActiveImagesToPersistentWorkspace,
   });
+
+  useEffect(() => {
+    if (!mediaPipelineCutoverEnabled ||
+        !mediaWorkspaceId ||
+        !loadedPublicationDraftId ||
+        !images.length ||
+        Object.values(persistentMediaStates).some(
+          (state) => state.mediaType === "image",
+        )) {
+      return;
+    }
+    // Un brouillon rétablit ses fichiers sans refaire l'upload. Relire et
+    // préparer ses sources permet d'afficher le même contrôle avant publication.
+    void startPersistentPublicationMediaPreparation().catch((error) => {
+      setImgError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de vérifier les images de ce brouillon.",
+      );
+    });
+  }, [
+    images.length,
+    loadedPublicationDraftId,
+    mediaPipelineCutoverEnabled,
+    mediaWorkspaceId,
+    persistentMediaStates,
+    startPersistentPublicationMediaPreparation,
+  ]);
+
+  const imagePreparationItems = useMemo(() => {
+    const clientMediaKeys = mediaWorkspaceClientKey
+      ? images.map((file) =>
+          restoredClientMediaKeysByImageKey[makeImageKey(file)] ||
+          buildWorkspaceMediaClientKey(mediaWorkspaceClientKey, file),
+        )
+      : [];
+    const resolved = resolvePublishImagePreparation({
+      imageKeys,
+      clientMediaKeys,
+      mediaStates: persistentMediaStates,
+      preparedMedia: preparedWorkspaceMedia,
+    });
+    return resolved.map((item) => {
+      if (!item.recovered || item.status !== "ready") return item;
+      if (recoveredPreviewErrors[item.imageKey]) {
+        return { ...item, status: "failed" as const };
+      }
+      return previewByKey[item.imageKey] === item.previewUrl
+        ? item
+        : { ...item, status: "pending" as const };
+    });
+  }, [
+    imageKeys,
+    images,
+    mediaWorkspaceClientKey,
+    restoredClientMediaKeysByImageKey,
+    persistentMediaStates,
+    preparedWorkspaceMedia,
+    previewByKey,
+    recoveredPreviewErrors,
+  ]);
+
+  const getImagePreparationIssue = (channelsToReview: readonly ChannelKey[]) => {
+    if (!mediaPipelineCutoverEnabled) return "";
+    const requiredKeys = new Set(
+      channelsToReview
+        .filter((channel) => resolveChannelMediaMode(channel) === "images")
+        .flatMap((channel) => channelImageEditors[channel]?.imageKeys || []),
+    );
+    const requiredItems = imagePreparationItems.filter((item) =>
+      requiredKeys.has(item.imageKey),
+    );
+    if ([...requiredKeys].some((key) => !requiredItems.some((item) => item.imageKey === key))) {
+      return "Une image sélectionnée n’est plus disponible. Réattribuez les images à ce canal avant de publier.";
+    }
+    if (persistentMediaSynchronizing && requiredItems.length) {
+      return "Envoi des images en cours. Leur contrôle commencera dès que l’upload sera terminé.";
+    }
+    if (requiredItems.some((item) => item.status === "failed")) {
+      return "Une image n’a pas pu être préparée. Utilisez « Modifier Média » pour créer une nouvelle version ou remplacez-la.";
+    }
+    if (requiredItems.some((item) => item.status === "pending")) {
+      return imagePreparationError ||
+        "Vérification des images en cours. La publication sera disponible après le contrôle de leur aperçu.";
+    }
+    return "";
+  };
+
+  const publishImagePreparationIssue = getImagePreparationIssue(selectedChannels);
 
   const selectedForGeneration = useMemo(() => {
     return CHANNEL_KEYS.filter((channel) => channels[channel] && connected[channel]);
@@ -2878,6 +3026,8 @@ export default function PublishModal({
               name: media.fileName,
               type: media.mimeType,
               size: media.sizeBytes,
+              clientMediaKey: media.clientMediaKey,
+              requiresCanonical: media.requiresCanonical === true,
               lastModified:
                 Number.isFinite(lastModified) && lastModified > 0
                   ? lastModified
@@ -2974,8 +3124,18 @@ export default function PublishModal({
             ([channel, settings]) => [channel, settings?.adaptationMode],
           ),
         ) as Partial<Record<ChannelKey, VideoAdaptationMode>>;
-        const { restoredFiles, restoredPreviews, restoredMeta } =
+        const {
+          restoredFiles,
+          restoredPreviews,
+          restoredMeta,
+          restoredClientMediaKeysByImageKey,
+          restoredImageKeyRemap,
+        } =
           await restorePublicationDraftImages(imageDrafts, payload.imageInteractionsByKey);
+        const restoredEditors = remapRestoredChannelImageEditors(
+          nextEditors,
+          restoredImageKeyRemap,
+        );
         const restoredVideo = videoDraft
           ? await restorePublicationDraftVideo(videoDraft)
           : {
@@ -3121,6 +3281,8 @@ export default function PublishModal({
         );
         setImages(restoredFiles);
         setImagePreviews(restoredPreviews);
+        setRestoredClientMediaKeysByImageKey(restoredClientMediaKeysByImageKey);
+        setRecoveredPreviewErrors({});
         setVideoFile(restoredVideo.file);
         setVideoAiContextRef(restoredVideo.file ? nextVideoAiContextRef : null);
         setVideoPreviewUrl(restoredVideo.previewUrl);
@@ -3141,7 +3303,7 @@ export default function PublishModal({
         );
         setUseImagesForAI(nextUseImagesForAI);
         setImageMetaByKey(restoredMeta);
-        setChannelImageEditors(nextEditors);
+        setChannelImageEditors(restoredEditors);
         setLoadedPublicationDraftId(publicationDraftIdParam);
         setDraftMessage(i18nT("brouillon_charge_f9b9174c"));
 
@@ -3203,7 +3365,7 @@ export default function PublishModal({
             videoTransformedVariants: restoredVideo.transformedVariants,
             videoAiContextRef: nextVideoAiContextRef,
             useImagesForAI: nextUseImagesForAI,
-            imageSettingsByChannel: nextEditors,
+            imageSettingsByChannel: restoredEditors,
           }),
         );
         onUnsavedChange?.(false);
@@ -4464,6 +4626,7 @@ export default function PublishModal({
 
     const retryDelaysMs = [0, 400, 1_100, 2_400] as const;
     let blob: Blob | null = null;
+    let incompleteDownload = false;
 
     // L'URL acceptée est stable et recrée une signature Storage à chaque
     // tentative. Sur mobile, une perte réseau après la génération ne doit donc
@@ -4478,11 +4641,21 @@ export default function PublishModal({
           credentials: "same-origin",
           cache: "no-store",
         });
-        if (!response.ok) {
+        if (!response.ok || response.status === 206 ||
+            response.headers.has("Content-Range")) {
+          if (response.status === 206 || response.headers.has("Content-Range")) {
+            incompleteDownload = true;
+          }
           continue;
         }
         const downloaded = await response.blob();
-        if (!downloaded.size) {
+        if (!isCompleteMediaLibraryDownload({
+          status: response.status,
+          contentRange: response.headers.get("Content-Range"),
+          downloadedBytes: downloaded.size,
+          expectedBytes: item.size_bytes,
+        })) {
+          incompleteDownload = true;
           continue;
         }
         blob = downloaded;
@@ -4495,7 +4668,9 @@ export default function PublishModal({
 
     if (!blob) {
       throw new Error(
-        "Le média est bien enregistré dans la Médiathèque, mais le réseau n’a pas permis de l’insérer. Réessayez sans le régénérer."
+        incompleteDownload
+          ? "Le fichier reçu depuis la Médiathèque est incomplet. Réessayez son insertion sans le régénérer."
+          : "Le média est bien enregistré dans la Médiathèque, mais le réseau n’a pas permis de l’insérer. Réessayez sans le régénérer."
       );
     }
     const mimeType =
@@ -5274,6 +5449,11 @@ export default function PublishModal({
 
     if (!publishTargetChannels.length) {
       setPublishError(i18nT("selectionnez_au_moins_1_canal_ccf98c0c"));
+      return;
+    }
+    const imagePreparationIssue = getImagePreparationIssue(publishTargetChannels);
+    if (imagePreparationIssue) {
+      setPublishError(imagePreparationIssue);
       return;
     }
 
@@ -6378,6 +6558,11 @@ export default function PublishModal({
 
   const openSchedulePublicationModal = () => {
     if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
+    const imagePreparationIssue = getImagePreparationIssue(selectedChannels);
+    if (imagePreparationIssue) {
+      setPublishError(imagePreparationIssue);
+      return;
+    }
     const preparedPostsByChannel = buildPreparedPostsByChannel();
     setPublishError("");
     setScheduleError("");
@@ -6442,6 +6627,16 @@ export default function PublishModal({
 
     if (!requestedChannelsToSchedule.length) {
       setScheduleError(i18nT("schedule_select_channel_error"));
+      return;
+    }
+
+    const imagePreparationIssue = getImagePreparationIssue([
+      ...requestedChannelsToSchedule,
+      ...immediateChannels,
+    ]);
+    if (imagePreparationIssue) {
+      setScheduleError(imagePreparationIssue);
+      setPublishError(imagePreparationIssue);
       return;
     }
 
@@ -6966,6 +7161,11 @@ export default function PublishModal({
 
   const onPublish = async () => {
     if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
+    const imagePreparationIssue = getImagePreparationIssue(selectedChannels);
+    if (imagePreparationIssue) {
+      setPublishError(imagePreparationIssue);
+      return;
+    }
     const preparedPostsByChannel = buildPreparedPostsByChannel();
     setPublishError("");
     setDraftMessage("");
@@ -7545,11 +7745,37 @@ export default function PublishModal({
   ) => {
     const sourceFile = images.find((file) => makeImageKey(file) === imageKey);
     const sourceUrl = previewByKey[imageKey] || null;
-    if (!sourceFile && !sourceUrl) {
+    const recoveredImage = imagePreparationItems.find(
+      (item) =>
+        item.imageKey === imageKey &&
+        item.recovered &&
+        Boolean(item.canonicalUrl),
+    );
+    if (!sourceFile && !sourceUrl && !recoveredImage?.canonicalUrl) {
       setImgError("Cette image n’est plus disponible pour cette action.");
       return;
     }
     try {
+      let studioFile = sourceFile || null;
+      if (recoveredImage) {
+        const response = await fetch(recoveredImage.canonicalUrl, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok || response.status === 206 ||
+            response.headers.has("Content-Range")) {
+          throw new Error("La version réparée de cette image n’est plus disponible. Réessayez après avoir actualisé la page.");
+        }
+        const repairedBlob = await response.blob();
+        if (!repairedBlob.size) {
+          throw new Error("La version réparée de cette image est incomplète. Réessayez après avoir actualisé la page.");
+        }
+        studioFile = new File(
+          [repairedBlob],
+          sourceFile?.name?.replace(/\.jpe?g$/i, "-reparee.jpg") || "image-reparee.jpg",
+          { type: repairedBlob.type || "image/jpeg", lastModified: Date.now() },
+        );
+      }
       const draftState = await preparePublicationDraftForStudio();
       if (!draftState) return;
       const { href } = await createInrStudioHandoff({
@@ -7557,10 +7783,10 @@ export default function PublishModal({
         origin: "booster-publish",
         returnHref: draftState.returnHref,
         source: {
-          file: sourceFile || null,
-          url: sourceUrl,
-          name: sourceFile?.name || "image-booster",
-          mimeType: sourceFile?.type || "image/jpeg",
+          file: studioFile,
+          url: recoveredImage?.canonicalUrl || sourceUrl,
+          name: studioFile?.name || "image-booster",
+          mimeType: studioFile?.type || "image/jpeg",
         },
         context: {
           channel,
@@ -8111,6 +8337,10 @@ export default function PublishModal({
               }
               removeVideo={removeVideo}
               imgError={imgError}
+              imagePreparationItems={
+                mediaPipelineCutoverEnabled ? imagePreparationItems : []
+              }
+              imagePreparationError={imagePreparationError}
               showMediaOptimizerAction={false}
               onOpenMediaOptimizer={openMediaOptimizer}
               selectedChannels={selectedChannels}
@@ -8189,6 +8419,11 @@ export default function PublishModal({
             publishProgressPhaseTotal={PUBLICATION_PROGRESS_STAGES.length}
             publishProgressPhaseLabel={publishProgressPhaseLabel}
             publishError={publishError}
+            mediaPreparationIssue={publishImagePreparationIssue}
+            mediaPreparationFailed={
+              Boolean(imagePreparationError) ||
+              imagePreparationItems.some((item) => item.status === "failed")
+            }
             onPublish={onPublish}
             onSchedule={openSchedulePublicationModal}
           />

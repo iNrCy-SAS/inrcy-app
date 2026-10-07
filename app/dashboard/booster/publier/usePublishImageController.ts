@@ -67,6 +67,7 @@ import {
 import { extendBoosterChannelImageSelectionForGlobalAdd } from "@/lib/boosterChannelImageSelection";
 import { hasImageOverlay, normalizeImageOverlay } from "@/lib/imageOverlay";
 import { normalizeImageInteractions, withMediaImageInteractions, type ImageInteractions } from "@/lib/imageInteractions";
+import { isCompleteMediaLibraryDownload } from "./publishImageRecovery";
 
 function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
   const safeName = String(file.name || "Image")
@@ -937,6 +938,8 @@ export default function usePublishImageController({
     const restoredFiles: File[] = [];
     const restoredPreviews: string[] = [];
     const restoredMeta: Record<string, ImageMeta> = {};
+    const restoredClientMediaKeysByImageKey: Record<string, string> = {};
+    const restoredImageKeyRemap: Record<string, string> = {};
 
     for (const image of imageDrafts) {
       const publicUrl = String(image?.publicUrl || image?.url || "").trim();
@@ -945,27 +948,48 @@ export default function usePublishImageController({
       if (!source) continue;
       try {
         const response = await fetch(source);
-        if (!response.ok) continue;
+        if (!response.ok || response.status !== 200 || response.headers.has("Content-Range")) continue;
         const blob = await response.blob();
+        const expectedBytes = image?.requiresCanonical ? null : image?.size;
+        if (!isCompleteMediaLibraryDownload({
+          status: response.status,
+          contentRange: response.headers.get("Content-Range"),
+          downloadedBytes: blob.size,
+          expectedBytes,
+        })) continue;
         const name = String(image?.name || "image.jpg");
         const type = String(image?.type || blob.type || "image/jpeg");
         const lastModified = Number(image?.lastModified || Date.now());
         const file = new File([blob], name, { type, lastModified });
         const key = makeImageKey(file);
+        const originalSize = Number(image?.size);
+        const originalKey = Number.isFinite(originalSize) && originalSize > 0
+          ? `${name}__${originalSize}__${lastModified}`
+          : key;
+        if (originalKey !== key) restoredImageKeyRemap[originalKey] = key;
         const presentation = await buildLocalImagePresentation(file, i18nT("image_preview_prepared_server"));
         restoredFiles.push(file);
         restoredPreviews.push(presentation.preview);
+        const clientMediaKey = String(image?.clientMediaKey || "").trim();
+        if (clientMediaKey) restoredClientMediaKeysByImageKey[key] = clientMediaKey;
         restoredMeta[key] = withMediaImageInteractions(presentation.meta, {
           ...image,
           image_interactions: normalizeImageInteractions(image?.image_interactions)
-            || normalizeImageInteractions(interactionsByKey?.[key]),
+            || normalizeImageInteractions(interactionsByKey?.[key])
+            || normalizeImageInteractions(interactionsByKey?.[originalKey]),
         });
       } catch {
         // Une ancienne image de brouillon peut ne plus être disponible : on recharge le reste du brouillon.
       }
     }
 
-    return { restoredFiles, restoredPreviews, restoredMeta };
+    return {
+      restoredFiles,
+      restoredPreviews,
+      restoredMeta,
+      restoredClientMediaKeysByImageKey,
+      restoredImageKeyRemap,
+    };
   }
 
   const updateChannelTransform = (

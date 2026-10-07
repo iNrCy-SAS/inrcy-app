@@ -8,6 +8,7 @@ import {
   isImageNormalizationEnabled,
 } from "@/lib/mediaImageNormalizationPolicy";
 import { loadNormalizationRepairCandidates } from "@/lib/mediaNormalizationRepairQueue";
+import { claimLegacyTruncatedJpegReplay, persistOwnedImageMediaUpdate } from "@/lib/mediaImageRecoveryPolicy";
 
 type EnqueueImageNormalizationParams = {
   mediaId: string;
@@ -64,26 +65,20 @@ async function persistPreparationMission(params: {
     );
   }
 
-  const currentMedia = await supabaseAdmin
-    .from("pro_media_library")
-    .select("media_metadata")
-    .eq("id", params.mediaId)
-    .eq("user_id", params.accountId)
-    .maybeSingle();
-  if (currentMedia.error) throw currentMedia.error;
   operations.push(
-    supabaseAdmin
-      .from("pro_media_library")
-      .update({
+    persistOwnedImageMediaUpdate({
+      supabase: supabaseAdmin,
+      accountId: params.accountId,
+      mediaId: params.mediaId,
+      buildPatch: (currentMedia) => ({
         media_metadata: {
-          ...asRecord(currentMedia.data?.media_metadata),
+          ...asRecord(currentMedia.media_metadata),
           pipeline_mission: params.mission,
           preparation_scope: params.mission,
           preparation_required_outputs: [...requiredOutputs],
         },
-      })
-      .eq("id", params.mediaId)
-      .eq("user_id", params.accountId),
+      }),
+    }).then(() => ({ error: null })),
   );
 
   const results = await Promise.all(operations);
@@ -180,4 +175,22 @@ export async function repairPendingImageNormalizationQueue(params?: {
     queued,
     failed,
   };
+}
+
+/** Reopens only an owned workspace's historical, deterministic JPEG failure. */
+export async function retryLegacyTruncatedJpegNormalization(params: {
+  accountId: string;
+  mediaId: string;
+  workspaceId: string;
+}) {
+  if (!isImageNormalizationEnabled()) return false;
+  const claimed = await claimLegacyTruncatedJpegReplay({
+    ...params,
+    supabase: supabaseAdmin,
+  });
+  if (!claimed) return false;
+  // The claim leaves a durable publication intent. If this enqueue fails, the
+  // existing requested-normalization repair picks it up without another replay.
+  await enqueueImageNormalization({ ...params, mission: "publication_preparation" });
+  return true;
 }

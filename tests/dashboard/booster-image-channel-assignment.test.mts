@@ -308,7 +308,9 @@ test("visible media order is the publish order and supports drag-and-drop", () =
   assert.match(imagesPanel, /onModify: \(\) => openImageModifier\(activeImageChannel, key\)/);
   assert.match(publishModal, /openInrStudioImageTool = async \(/);
   assert.match(publishModal, /tab: "modify" \| "retouch"/);
-  assert.match(publishModal, /source: \{[\s\S]*?file: sourceFile \|\| null,[\s\S]*?url: sourceUrl/);
+  assert.match(publishModal, /let studioFile = sourceFile \|\| null/);
+  assert.match(publishModal, /if \(recoveredImage\) \{[\s\S]*?fetch\(recoveredImage\.canonicalUrl/);
+  assert.match(publishModal, /source: \{[\s\S]*?file: studioFile,[\s\S]*?url: recoveredImage\?\.canonicalUrl \|\| sourceUrl/);
   assert.match(publishModal, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
   assert.doesNotMatch(publishModal, /sidebarItems=\{/);
   assert.match(imagesPanel, /removeImage\(imageKeys\.indexOf\(key\)\)/);

@@ -4,6 +4,11 @@ import bmp from "bmp-js";
 import heicConvert from "heic-convert";
 import sharp, { type Sharp } from "sharp";
 import {
+  assertImageFullyDecodes,
+  recoverTruncatedJpeg,
+  type ImageSourceRecovery,
+} from "./mediaImageRecovery.ts";
+import {
   IMAGE_AI_PREVIEW_JPEG_QUALITY,
   IMAGE_AI_PREVIEW_MAX_SIDE,
   IMAGE_CANONICAL_JPEG_QUALITY,
@@ -45,6 +50,8 @@ export type NormalizedImageBundle = {
     pages: number;
     orientation: number | null;
     decoder: "sharp" | "heic-convert" | "bmp-js";
+    recovery?: ImageSourceRecovery;
+    requiresCanonical?: true;
   };
   variants: Record<ImageNormalizationPurpose, NormalizedImageVariant>;
 };
@@ -382,6 +389,43 @@ async function normalizeImageInput(params: {
   try {
     return await normalizeWithSharp(params.input, "sharp", params.purposes);
   } catch (sharpError) {
+    const recovered = await recoverTruncatedJpeg(params.input, sharpError);
+    if (recovered) {
+      try {
+        const normalized = await normalizeWithSharp(recovered.buffer, "sharp", params.purposes);
+        const oriented = getOrientedDimensions(recovered.metadata);
+        const recovery: ImageSourceRecovery = {
+          kind: "truncated_jpeg",
+          version: 1,
+          requiresReview: true,
+        };
+        // The scratch PNG is already oriented. Persist the original JPEG's
+        // provenance so recovery cannot attest its damaged bytes as safe.
+        normalized.source = {
+          ...normalized.source,
+          ...oriented,
+          format: "jpeg",
+          orientation: recovered.metadata.orientation || null,
+          recovery,
+          requiresCanonical: true,
+        };
+        for (const variant of Object.values(normalized.variants)) {
+          await assertImageFullyDecodes(variant.buffer, variant.width, variant.height);
+          variant.metadata = {
+            ...variant.metadata,
+            source_width: oriented.width,
+            source_height: oriented.height,
+            source_format: "jpeg",
+            source_orientation: recovered.metadata.orientation || null,
+            source_recovery: recovery,
+            source_requires_canonical: true,
+          };
+        }
+        return normalized;
+      } catch (cause) {
+        throw new Error("image_recovery_failed", { cause });
+      }
+    }
     if (isHeicMimeOrName(params.mimeType, params.originalFileName || "")) {
       const converted = await convertHeicSource(params.input);
       return await normalizeWithSharp(

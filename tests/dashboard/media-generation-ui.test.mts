@@ -77,7 +77,9 @@ test("Booster délègue les actions média à iNrStudio et réinsère le résult
   assert.match(publishModal, /createInrStudioHandoff\(\{/);
   assert.match(publishModal, /tab: "generate"[\s\S]*?origin: "booster-publish"/);
   assert.match(publishModal, /openInrStudioImageTool = async \([\s\S]*?tab: "modify" \| "retouch"/);
-  assert.match(publishModal, /source: \{[\s\S]*?file: sourceFile \|\| null,[\s\S]*?url: sourceUrl/);
+  assert.match(publishModal, /let studioFile = sourceFile \|\| null/);
+  assert.match(publishModal, /if \(recoveredImage\) \{[\s\S]*?fetch\(recoveredImage\.canonicalUrl/);
+  assert.match(publishModal, /source: \{[\s\S]*?file: studioFile,[\s\S]*?url: recoveredImage\?\.canonicalUrl \|\| sourceUrl/);
   assert.match(publishModal, /context: \{[\s\S]*?channel,[\s\S]*?imageKey,/);
   assert.match(
     publishModal,

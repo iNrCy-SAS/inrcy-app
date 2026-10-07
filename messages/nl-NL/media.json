@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "Afbeelding hersteld",
+  "image_recovery_notice": "Van een onvolledig bestand is een bruikbare kopie gemaakt. Controleer het voorbeeld; ontbrekende details zijn niet hersteld.",
+  "image_recovery_failed": "Onleesbare afbeelding. Vervang deze of gebruik Media bewerken in iNrStudio.",
   "local_upload_trigger": "Media toevoegen",
   "local_upload_dialog_title": "Media toevoegen",
   "local_upload_dialog_description": "Kies eerst het bestandstype. Afbeeldingen en video’s blijven gescheiden.",

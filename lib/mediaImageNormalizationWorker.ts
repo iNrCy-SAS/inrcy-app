@@ -7,6 +7,11 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { normalizeImageSourcePurposes } from "@/lib/mediaImageNormalizer";
 import {
+  getImageRecoveryFailure,
+  mergeCompletedImageNormalizationMetadata,
+  persistOwnedImageMediaUpdate,
+} from "@/lib/mediaImageRecoveryPolicy";
+import {
   BOOSTER_IMAGE_PREPARATION_PURPOSES,
   type BoosterPreparationMission,
 } from "@/lib/boosterMediaPipelineMissions";
@@ -137,6 +142,10 @@ function requiredImagePurposes(job: ClaimedImageJob) {
 
 function classifyWorkerError(error: unknown) {
   if (error instanceof ImageNormalizationError) return error;
+  const recoveryFailure = getImageRecoveryFailure(error);
+  if (recoveryFailure) {
+    return new ImageNormalizationError(recoveryFailure.code, recoveryFailure.message, false);
+  }
   const message = compactMessage(error).toLowerCase();
   const terminal =
     message.includes("unsupported image") ||
@@ -150,7 +159,9 @@ function classifyWorkerError(error: unknown) {
 
   return new ImageNormalizationError(
     terminal ? "image_decode_failed" : "image_worker_temporary_failure",
-    compactMessage(error),
+    terminal
+      ? "Cette image est illisible ou son format n’est pas pris en charge. Réimportez le fichier original complet ou exportez une nouvelle copie JPEG ou PNG."
+      : compactMessage(error),
     !terminal,
   );
 }
@@ -284,9 +295,10 @@ async function markVariantsProcessing(job: ClaimedImageJob, variants: VariantRow
 async function downloadSourceToTemp(media: MediaRow, jobId: string) {
   // `loadMedia` scopes the registry row to job.account_id before this point.
   // Keep the Storage allow-list just as strict: only the account-owned upload
-  // workspace or the account-owned output of the AI media studio may be read.
+  // workspace, its image library or the AI media studio output may be read.
   const allowedPrefixes = [
     `users/${media.user_id}/workspace-source/`,
+    `users/${media.user_id}/image/`,
     `users/${media.user_id}/ai-generated/image/`,
   ];
   if (
@@ -526,7 +538,7 @@ async function markJobFailure(params: {
         progress: 0,
         available_at: retryable ? availableAt : now.toISOString(),
         error_code: normalized.code,
-        error_message: normalized.message,
+        error_message: compactMessage(params.error),
         completed_at: retryable ? null : now.toISOString(),
         locked_at: null,
         lock_expires_at: null,
@@ -666,9 +678,6 @@ async function processClaimedImageJob(
     }
 
     const completedAt = new Date().toISOString();
-    const existingMetadata = asRecord(media.media_metadata);
-    const previousNormalization = asRecord(existingMetadata.image_normalization);
-    const previousVariants = asRecord(previousNormalization.variants);
     const mediaPatch: Record<string, unknown> = {
       width: normalized.source.width,
       height: normalized.source.height,
@@ -686,17 +695,6 @@ async function processClaimedImageJob(
       processing_error_message: null,
       processing_completed_at: completedAt,
       pipeline_version: IMAGE_NORMALIZATION_PIPELINE_VERSION,
-      media_metadata: {
-        ...existingMetadata,
-        image_normalization: {
-          ...previousNormalization,
-          version: IMAGE_NORMALIZATION_PIPELINE_VERSION,
-          source: normalized.source,
-          variants: { ...previousVariants, ...outputs },
-          last_mission: mission || "legacy_full_normalization",
-          completed_at: completedAt,
-        },
-      },
     };
     if (canonical) {
       Object.assign(mediaPatch, {
@@ -707,12 +705,30 @@ async function processClaimedImageJob(
       });
     }
 
-    const mediaUpdate = await supabaseAdmin
-      .from("pro_media_library")
-      .update(mediaPatch)
-      .eq("id", job.media_id)
-      .eq("user_id", job.account_id);
-    if (mediaUpdate.error) throw mediaUpdate.error;
+    const completedMetadata = await persistOwnedImageMediaUpdate({
+      supabase: supabaseAdmin,
+      accountId: job.account_id,
+      mediaId: job.media_id,
+      buildPatch: (current) => {
+        const metadata = mergeCompletedImageNormalizationMetadata({
+          metadata: current.media_metadata,
+          source: normalized.source,
+          variants: outputs,
+          sourceDecoded: pendingVariants.length > 0,
+          pipelineVersion: IMAGE_NORMALIZATION_PIPELINE_VERSION,
+          mission: mission || "legacy_full_normalization",
+          completedAt,
+        });
+        const source = asRecord(asRecord(metadata.image_normalization).source);
+        return {
+          ...mediaPatch,
+          width: source.width || normalized.source.width,
+          height: source.height || normalized.source.height,
+          publication_status: current.publication_status === "ready" ? "ready" : mediaPatch.publication_status,
+          media_metadata: metadata,
+        };
+      },
+    });
 
     const jobUpdate = await supabaseAdmin
       .from("media_processing_jobs")
@@ -724,7 +740,7 @@ async function processClaimedImageJob(
           pipelineMission: mission || "legacy_full_normalization",
           sourceSha256: downloaded.sha256,
           sourceSizeBytes: downloaded.sizeBytes,
-          source: normalized.source,
+          source: asRecord(asRecord(completedMetadata.image_normalization).source),
           variants: outputs,
         },
         error_code: null,

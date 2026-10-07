@@ -4,6 +4,12 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeImageThumbnailBuffer } from "@/lib/mediaImageNormalizer";
+import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
+import {
+  imageSourceRequiresCanonical,
+  isCompleteSourcePreviewDownload,
+  persistImageSourcePreviewMetadata,
+} from "@/lib/mediaImageRecoveryPolicy";
 import {
   buildImageNormalizationStoragePath,
   getImageNormalizationSignature,
@@ -96,6 +102,7 @@ async function ensureThumbnailVariant(params: {
 
 async function createSourceThumbnail(params: {
   accountId: string;
+  workspaceId: string;
   media: {
     id: string;
     bucket_name: string;
@@ -106,6 +113,34 @@ async function createSourceThumbnail(params: {
     media_metadata: Record<string, unknown> | null;
   };
 }) {
+  const loadCanonical = async () => {
+    const ready = await supabaseAdmin.from("media_variants")
+      .select("bucket_name,storage_path,mime_type,size_bytes")
+      .eq("account_id", params.accountId).eq("media_id", params.media.id)
+      .is("workspace_id", null).is("channel", null)
+      .eq("purpose", "canonical").eq("signature", getImageNormalizationSignature("canonical"))
+      .eq("status", "ready").maybeSingle();
+    if (ready.error) throw ready.error;
+    return ready.data?.bucket_name && ready.data?.storage_path ? ready.data : null;
+  };
+  const queueCanonical = async () => {
+    await enqueueImageNormalization({
+      accountId: params.accountId,
+      mediaId: params.media.id,
+      workspaceId: params.workspaceId,
+      mission: "publication_preparation",
+    });
+  };
+  let readSource = params.media;
+  const proof = asRecord(asRecord(asRecord(params.media.media_metadata).image_normalization).source);
+  if (imageSourceRequiresCanonical(proof)) {
+    const canonical = await loadCanonical();
+    if (!canonical) {
+      await queueCanonical();
+      return { mediaId: params.media.id, reused: false, pendingCanonical: true };
+    }
+    readSource = { ...params.media, ...canonical };
+  }
   const variant = await ensureThumbnailVariant({
     accountId: params.accountId,
     mediaId: params.media.id,
@@ -118,30 +153,35 @@ async function createSourceThumbnail(params: {
     return { mediaId: params.media.id, reused: true };
   }
 
-  const sourceSize = Number(params.media.size_bytes || 0);
+  const sourceSize = Number(readSource.size_bytes || 0);
   if (!sourceSize || sourceSize > SOURCE_PREVIEW_MAX_BYTES) {
     throw new Error("source_preview_size_invalid");
   }
 
   const signedUrl = await createSafeStorageSignedUrl(
-    params.media.bucket_name,
-    params.media.storage_path,
+    readSource.bucket_name,
+    readSource.storage_path,
     300,
   );
   if (!signedUrl) throw new Error("URL source indisponible pour la miniature.");
 
   const response = await fetch(signedUrl, { cache: "no-store" });
-  if (!response.ok) {
+  if (response.status !== 200 || response.headers.has("content-range")) {
     throw new Error(`source_preview_download_failed:${response.status}`);
   }
   const sourceBuffer = Buffer.from(await response.arrayBuffer());
-  if (!sourceBuffer.length || sourceBuffer.length > SOURCE_PREVIEW_MAX_BYTES) {
+  if (!isCompleteSourcePreviewDownload({
+    status: response.status,
+    contentRange: response.headers.get("content-range"),
+    expectedBytes: sourceSize,
+    actualBytes: sourceBuffer.length,
+  }) || sourceBuffer.length > SOURCE_PREVIEW_MAX_BYTES) {
     throw new Error("source_preview_download_invalid");
   }
 
   const normalized = await normalizeImageThumbnailBuffer({
     buffer: sourceBuffer,
-    mimeType: params.media.mime_type || "application/octet-stream",
+    mimeType: readSource.mime_type || "application/octet-stream",
     originalFileName: params.media.original_file_name,
   });
   const thumbnail = normalized.thumbnail;
@@ -166,6 +206,17 @@ async function createSourceThumbnail(params: {
   if (uploaded.error) throw uploaded.error;
 
   const readyAt = new Date().toISOString();
+  // Persist recovery provenance before exposing a recovered thumbnail as ready.
+  const metadata = await persistImageSourcePreviewMetadata({
+    supabase: supabaseAdmin,
+    accountId: params.accountId,
+    mediaId: params.media.id,
+    source: normalized.source,
+    thumbnail: {
+      version: 1, bucket, storage_path: storagePath,
+      width: thumbnail.width, height: thumbnail.height, completed_at: readyAt,
+    },
+  });
   const updatedVariant = await supabaseAdmin
     .from("media_variants")
     .update({
@@ -197,27 +248,10 @@ async function createSourceThumbnail(params: {
     .eq("media_id", params.media.id);
   if (updatedVariant.error) throw updatedVariant.error;
 
-  const existingMetadata = asRecord(params.media.media_metadata);
-  const updatedMedia = await supabaseAdmin
-    .from("pro_media_library")
-    .update({
-      width: normalized.source.width,
-      height: normalized.source.height,
-      media_metadata: {
-        ...existingMetadata,
-        source_interface_thumbnail: {
-          version: 1,
-          bucket,
-          storage_path: storagePath,
-          width: thumbnail.width,
-          height: thumbnail.height,
-          completed_at: readyAt,
-        },
-      },
-    })
-    .eq("id", params.media.id)
-    .eq("user_id", params.accountId);
-  if (updatedMedia.error) throw updatedMedia.error;
+  const updatedProof = asRecord(asRecord(metadata.image_normalization).source);
+  if (imageSourceRequiresCanonical(updatedProof) && !(await loadCanonical())) {
+    await queueCanonical();
+  }
 
   return { mediaId: params.media.id, reused: false };
 }
@@ -288,6 +322,7 @@ export async function POST(request: Request) {
       results.push(
         await createSourceThumbnail({
           accountId: activeUserId,
+          workspaceId,
           media,
         }),
       );

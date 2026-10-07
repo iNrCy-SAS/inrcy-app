@@ -18,6 +18,8 @@ type PublishFooterActionsProps = {
   publishProgressPhaseTotal?: number;
   publishProgressPhaseLabel?: string;
   publishError: string;
+  mediaPreparationIssue?: string;
+  mediaPreparationFailed?: boolean;
   onPublish: () => void;
   onSchedule: () => void;
 };
@@ -35,6 +37,8 @@ export default function PublishFooterActions({
   publishProgressPhaseTotal,
   publishProgressPhaseLabel,
   publishError,
+  mediaPreparationIssue = "",
+  mediaPreparationFailed = false,
   onPublish,
   onSchedule,
 }: PublishFooterActionsProps) {
@@ -59,10 +63,10 @@ export default function PublishFooterActions({
               type="button"
               className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}
               onClick={onSchedule}
-              disabled={draftSaving || voiceBusy}
+              disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}
               style={{
-                opacity: draftSaving || voiceBusy ? 0.64 : 1,
-                cursor: draftSaving || voiceBusy ? "wait" : "pointer",
+                opacity: draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,
+                cursor: draftSaving || voiceBusy || mediaPreparationIssue ? "wait" : "pointer",
               }}
             >
               <span>{i18nT("programmer_ad97007f")}</span>
@@ -71,10 +75,10 @@ export default function PublishFooterActions({
               type="button"
               className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}
               onClick={onPublish}
-              disabled={draftSaving || voiceBusy}
+              disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}
               style={{
-                opacity: draftSaving || voiceBusy ? 0.64 : 1,
-                cursor: draftSaving || voiceBusy ? "wait" : "pointer",
+                opacity: draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,
+                cursor: draftSaving || voiceBusy || mediaPreparationIssue ? "wait" : "pointer",
               }}
             >
               <span className={styles.publishActionIcon} aria-hidden="true">
@@ -85,6 +89,11 @@ export default function PublishFooterActions({
           </div>
         )}
       </div>
+      {mediaPreparationIssue ? (
+        <div role={mediaPreparationFailed ? "alert" : "status"} style={{ marginTop: 8, textAlign: "right", color: mediaPreparationFailed ? "#fecaca" : "#fde68a", fontSize: 12 }}>
+          {mediaPreparationIssue}
+        </div>
+      ) : null}
       {publishError ? <StatusMessage variant="error" style={{marginTop:0,textAlign:'right',maxWidth:520,justifySelf:'end'}}>{publishError}</StatusMessage> : null}
     </div>
   );

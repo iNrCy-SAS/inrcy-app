@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "Image récupérée",
+  "image_recovery_notice": "Une copie utilisable a été créée à partir d’un fichier incomplet. Vérifiez l’aperçu ; les détails manquants ne sont pas restaurés.",
+  "image_recovery_failed": "Image illisible. Remplacez-la ou utilisez Modifier Média dans iNrStudio.",
   "local_upload_trigger": "Ajouter un média",
   "local_upload_dialog_title": "Ajouter un média",
   "local_upload_dialog_description": "Choisissez d’abord le type de fichier. Les images et les vidéos restent séparées.",

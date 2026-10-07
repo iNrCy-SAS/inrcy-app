@@ -7,6 +7,8 @@ import {
   probeStorageObject,
 } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getMediaImageRecoverySummary } from "@/lib/mediaImageRecoverySummary";
+import { getImageNormalizationSignature } from "@/lib/mediaImageNormalizationPolicy";
 
 export const runtime = "nodejs";
 
@@ -68,20 +70,32 @@ export async function GET(
   const id = String(rawId || "").trim();
   const token = request.nextUrl.searchParams.get("token") || "";
   const downloadRequested = request.nextUrl.searchParams.get("download") === "1";
+  const recoveredPreviewRequested = request.nextUrl.searchParams.get("variant") === "canonical";
 
   if (!id || !verifyMediaLibraryContentToken(id, token)) return notFound();
 
   const { data: row, error } = await supabaseAdmin
     .from("pro_media_library")
-    .select("id,user_id,bucket_name,storage_path,mime_type,media_type,title,original_file_name,is_active")
+    .select("id,user_id,bucket_name,storage_path,mime_type,media_type,title,original_file_name,is_active,media_metadata")
     .eq("id", id)
     .eq("user_id", activeUserId)
     .maybeSingle();
 
   if (error || !row || row.is_active === false) return notFound();
 
-  const bucket = String(row.bucket_name || "inrcy-pro-media").trim();
-  const storagePath = String(row.storage_path || "").trim();
+  let bucket = String(row.bucket_name || "inrcy-pro-media").trim();
+  let storagePath = String(row.storage_path || "").trim();
+  if (recoveredPreviewRequested) {
+    if (row.media_type !== "image" || !getMediaImageRecoverySummary(row.media_metadata).requiresCanonical) return notFound();
+    const variant = await supabaseAdmin.from("media_variants")
+      .select("bucket_name,storage_path")
+      .eq("account_id", activeUserId).eq("media_id", id)
+      .eq("purpose", "canonical").eq("signature", getImageNormalizationSignature("canonical"))
+      .eq("status", "ready").maybeSingle();
+    if (variant.error || !variant.data) return notFound();
+    bucket = String(variant.data.bucket_name || "");
+    storagePath = String(variant.data.storage_path || "");
+  }
   if (!bucket || !storagePath) return notFound();
 
   const probe = await probeStorageObject(bucket, storagePath);
@@ -92,7 +106,7 @@ export async function GET(
     );
   }
   if (probe === "missing") {
-    await supabaseAdmin
+    if (!recoveredPreviewRequested) await supabaseAdmin
       .from("pro_media_library")
       .update({ is_active: false })
       .eq("id", id)

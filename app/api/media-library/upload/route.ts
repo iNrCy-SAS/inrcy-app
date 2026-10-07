@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { sanitizeClientMediaMetadata } from "@/lib/mediaClientMetadata";
+import { verifyMediaLibraryStoredUpload } from "@/lib/mediaStoredUploadIntegrity";
+import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { processImageNormalizationJobsForMedia } from "@/lib/mediaImageNormalizationWorker";
 import { createSignedUploadUrlWithRetry } from "@/lib/supabaseStorageUpload";
 import { INR_MEDIA_UPLOAD_BATCH_SIZE } from "@/lib/mediaRules";
 import {
@@ -16,6 +20,7 @@ import {
 } from "@/lib/mediaUploadPolicy";
 
 export const runtime = "nodejs";
+export const maxDuration = 1_800;
 
 const BUCKET = "inrcy-pro-media";
 const MAX_FILES = INR_MEDIA_UPLOAD_BATCH_SIZE;
@@ -96,7 +101,7 @@ function cleanMediaMetadata(raw: unknown) {
   try {
     const serialized = JSON.stringify(raw);
     if (serialized.length > 12_000) return {};
-    return JSON.parse(serialized) as Record<string, unknown>;
+    return sanitizeClientMediaMetadata(JSON.parse(serialized));
   } catch {
     return {};
   }
@@ -283,6 +288,7 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
         ? "tus"
         : "signed";
     const mediaMetadata = cleanMediaMetadata(upload.media_metadata);
+    let retainUnverifiedUpload = false;
 
     try {
       assertAllowedFile(originalName, mimeType, sizeBytes);
@@ -292,6 +298,18 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
 
       const mediaType = mediaTypeFromFile(originalName, mimeType);
       if (!mediaType) throw new Error("Format non autorisé.");
+      // An unavailable Storage read is not evidence that the uploaded object
+      // is defective. Keep it intact so finalization can be retried.
+      retainUnverifiedUpload = true;
+      if (!await verifyMediaLibraryStoredUpload({
+        storage: supabaseAdmin.storage,
+        bucket: BUCKET,
+        storagePath,
+        expectedSize: sizeBytes,
+      })) {
+        throw new Error("Le transfert de ce fichier est incomplet. Ajoutez-le de nouveau pour reprendre l’envoi.");
+      }
+      retainUnverifiedUpload = false;
 
       const safeIndex = String(index + 1).padStart(3, "0");
       const title =
@@ -337,6 +355,28 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
 
       const contentUrl = buildMediaLibraryContentUrl(String(insert.data?.id || ""));
 
+      // Start the same durable image check used by Booster at library import.
+      // A decoding failure must retain the original so the user can replace it
+      // or use it as an iNrStudio reference; it must not undo a completed upload.
+      if (mediaType === "image" && insert.data?.id) {
+        try {
+          const queued = await enqueueImageNormalization({
+            accountId: userId,
+            mediaId: String(insert.data.id),
+            mission: "publication_preparation",
+          });
+          if (queued.enabled) await processImageNormalizationJobsForMedia({
+            accountId: userId,
+            mediaIds: [String(insert.data.id)],
+          });
+        } catch (processingError) {
+          console.warn("[media-library] image check deferred to durable worker", {
+            mediaId: insert.data.id,
+            error: processingError instanceof Error ? processingError.message : "image_check_deferred",
+          });
+        }
+      }
+
       results.push({
         ok: true,
         id: insert.data?.id,
@@ -353,7 +393,7 @@ async function insertMediaRows(userId: string, body: Record<string, unknown>) {
         signed_url: contentUrl,
       });
     } catch (error: any) {
-      if (storagePath && isOwnedStoragePath(userId, storagePath)) {
+      if (!retainUnverifiedUpload && storagePath && isOwnedStoragePath(userId, storagePath)) {
         await supabaseAdmin.storage
           .from(BUCKET)
           .remove([storagePath])
