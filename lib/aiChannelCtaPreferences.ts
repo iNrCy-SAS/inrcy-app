@@ -11,7 +11,7 @@ export const AI_CTA_CHANNELS = [
   { key: "linkedin", label: "LinkedIn" },
   { key: "x", label: "X" },
   { key: "tiktok", label: "TikTok" },
-  { key: "youtube_shorts", label: "YouTube Shorts" },
+  { key: "youtube_shorts", label: "YouTube" },
   { key: "pinterest", label: "Pinterest" },
 ] as const satisfies ReadonlyArray<{ key: BoosterChannelKey; label: string }>;
 

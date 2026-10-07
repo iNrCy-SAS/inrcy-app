@@ -7,7 +7,8 @@ import {
   isBoosterMediaPipelineMission,
   type BoosterMediaPipelineMission,
 } from "@/lib/boosterMediaPipelineMissions";
-import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { enqueueImageNormalization, retryLegacyTruncatedJpegNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { getMediaImageRecoverySummary } from "@/lib/mediaImageRecoverySummary";
 import { enqueueVideoNormalization } from "@/lib/mediaVideoNormalizationQueue";
 import { processImageNormalizationJobsForMedia } from "@/lib/mediaImageNormalizationWorker";
 import { processVideoNormalizationJobsForMedia } from "@/lib/mediaVideoNormalizationWorker";
@@ -28,6 +29,8 @@ type PreparationMission = Exclude<
 >;
 
 type WorkspaceMedia = {
+  requiresCanonical?: true;
+  imageRecovery?: { kind: "truncated_jpeg"; version: 1; requiresReview: true };
   mediaId: string;
   mediaType: "image" | "video";
   position: number;
@@ -127,6 +130,7 @@ async function loadOwnedWorkspaceMedia(params: {
       width: Number(item?.width || 0) || null,
       height: Number(item?.height || 0) || null,
       durationSeconds: Number(item?.duration_seconds || 0) || null,
+      ...getMediaImageRecoverySummary(item?.media_metadata),
       mediaMetadata:
         item?.media_metadata &&
         typeof item.media_metadata === "object" &&
@@ -149,6 +153,7 @@ async function resetFailuresFromAnotherMission(params: {
 }) {
   const mediaIds = params.media
     .filter((item) => {
+      if (["image_recovery_failed", "image_recovery_source_too_large"].includes(item.processingErrorCode || "")) return false;
       const previousMission = cleanText(
         item.mediaMetadata.pipeline_mission,
         "",
@@ -610,6 +615,18 @@ export async function POST(request: Request) {
           "workspace_not_found",
         );
       }
+    }
+
+    let recoveredLegacyCount = 0;
+    for (const item of graph.media) {
+      if (item.mediaType === "image" && item.processingStatus === "failed_terminal" &&
+        await retryLegacyTruncatedJpegNormalization({ accountId: activeUserId, mediaId: item.mediaId, workspaceId })) {
+        recoveredLegacyCount += 1;
+      }
+    }
+    if (recoveredLegacyCount) {
+      graph = await loadOwnedWorkspaceMedia({ workspaceId, accountId: activeUserId });
+      if (!graph) return jsonError("Espace média introuvable.", 404, "workspace_not_found");
     }
 
     if (

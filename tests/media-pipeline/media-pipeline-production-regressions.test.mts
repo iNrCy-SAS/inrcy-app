@@ -99,8 +99,9 @@ test("les aperçus locaux restent affichés pendant la préparation serveur", as
   assert.match(source, /const imagesRef = useRef<File\[\]>\(\[\]\)/);
   assert.match(
     source,
-    /if \(previous\?\.startsWith\("blob:"\) \|\| previous === previewUrl\)/,
+    /if \(\(!recovered && previous\?\.startsWith\("blob:"\)\) \|\| previous === previewUrl\)/,
   );
+  assert.match(source, /const recovered =\s*item\.imageRecovery\?\.kind === "truncated_jpeg"/);
   assert.match(source, /makeImageKey\(currentFile\) !== expectedImageKey/);
 });
 

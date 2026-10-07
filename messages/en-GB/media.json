@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "Image recovered",
+  "image_recovery_notice": "A usable copy was created from an incomplete file. Check the preview; missing details have not been restored.",
+  "image_recovery_failed": "Unreadable image. Replace it or use Edit Media in iNrStudio.",
   "local_upload_trigger": "Add media",
   "local_upload_dialog_title": "Add media",
   "local_upload_dialog_description": "Choose the file type first. Images and videos remain separate.",

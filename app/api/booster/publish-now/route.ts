@@ -1215,7 +1215,10 @@ async function publishNowHandler(req: Request) {
           setPreflightFailure(channel, {
             code: "workspace_media_preparation_failed",
             error:
-              "La préparation serveur du média a échoué. Retirez-le puis ajoutez-le de nouveau.",
+              expectedMode === "images"
+                ? workspacePreparationState?.terminalImageError ||
+                  "Une image n’a pas pu être préparée pour la publication. Vérifiez son aperçu dans Modifier Média (iNrStudio) ou réimportez le fichier original complet."
+                : "Le média n’a pas pu être préparé pour la publication. Vérifiez le fichier source et son aperçu avant de réessayer.",
             retryable: false,
           });
           return;

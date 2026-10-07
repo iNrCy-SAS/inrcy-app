@@ -1,7 +1,8 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { enqueueImageNormalization, retryLegacyTruncatedJpegNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { getImageRecoveryFailure, imageSourceRequiresCanonical } from "@/lib/mediaImageRecoveryPolicy";
 import { getImageNormalizationSignature } from "@/lib/mediaImageNormalizationPolicy";
 import { processImageNormalizationJobsForMedia } from "@/lib/mediaImageNormalizationWorker";
 import { INR_MEDIA_IMAGE_MAX_BYTES, INR_MEDIA_VIDEO_PUBLISH_MAX_BYTES } from "@/lib/mediaRules";
@@ -29,6 +30,7 @@ type WorkspacePublicationMedia = {
   uploadStatus: string;
   processingStatus: string;
   publicationStatus: string;
+  processingErrorCode: string;
   bucket: string;
   storagePath: string;
   fileName: string;
@@ -91,6 +93,7 @@ function isDirectPublicationImage(media: WorkspacePublicationMedia) {
   const normalization = asRecord(media.mediaMetadata.image_normalization);
   const proof = asRecord(normalization.source);
   if (proof.probeProvenance !== "server_sharp") return false;
+  if (imageSourceRequiresCanonical(proof)) return false;
   const format = String(proof.format || "").trim().toLowerCase();
   const formatMatchesMime =
     (mimeType === "image/jpeg" && ["jpeg", "jpg"].includes(format)) ||
@@ -131,7 +134,7 @@ async function loadOwnedWorkspaceMedia(params: {
   const result = await supabaseAdmin
     .from("publication_workspace_media")
     .select(
-      "media_id,pro_media_library!inner(id,user_id,media_type,upload_status,processing_status,publication_status,bucket_name,storage_path,original_file_name,mime_type,detected_mime_type,size_bytes,width,height,duration_seconds,media_metadata)",
+      "media_id,pro_media_library!inner(id,user_id,media_type,upload_status,processing_status,publication_status,processing_error_code,bucket_name,storage_path,original_file_name,mime_type,detected_mime_type,size_bytes,width,height,duration_seconds,media_metadata)",
     )
     .eq("workspace_id", params.workspaceId)
     .eq("pro_media_library.user_id", params.accountId)
@@ -148,6 +151,7 @@ async function loadOwnedWorkspaceMedia(params: {
       uploadStatus: String(item?.upload_status || "pending"),
       processingStatus: String(item?.processing_status || "not_requested"),
       publicationStatus: String(item?.publication_status || "not_requested"),
+      processingErrorCode: String(item?.processing_error_code || ""),
       bucket: String(item?.bucket_name || ""),
       storagePath: String(item?.storage_path || ""),
       fileName: String(item?.original_file_name || "media-inrcy"),
@@ -250,6 +254,9 @@ async function resetFailuresFromAnotherMission(params: {
 }) {
   const mediaIds = params.media
     .filter((item) => {
+      if (item.mediaType === "image" && getImageRecoveryFailure({ code: item.processingErrorCode })) {
+        return false;
+      }
       const previousMission = String(
         item.mediaMetadata.pipeline_mission || "",
       ).trim();
@@ -415,9 +422,23 @@ export async function prepareWorkspaceMediaForPublication(params: {
   const requestedMediaTypes = params.mediaTypes?.length
     ? new Set(params.mediaTypes)
     : null;
-  const media = (await loadOwnedWorkspaceMedia(params)).filter(
+  let media = (await loadOwnedWorkspaceMedia(params)).filter(
     (item) => !requestedMediaTypes || requestedMediaTypes.has(item.mediaType),
   );
+  let legacyJpegReplayed = false;
+  for (const item of media) {
+    if (item.mediaType !== "image" || item.processingStatus !== "failed_terminal") continue;
+    legacyJpegReplayed = (await retryLegacyTruncatedJpegNormalization({
+      accountId: params.accountId,
+      workspaceId: params.workspaceId,
+      mediaId: item.mediaId,
+    })) || legacyJpegReplayed;
+  }
+  if (legacyJpegReplayed) {
+    media = (await loadOwnedWorkspaceMedia(params)).filter(
+      (item) => !requestedMediaTypes || requestedMediaTypes.has(item.mediaType),
+    );
+  }
   await resetFailuresFromAnotherMission({
     accountId: params.accountId,
     media,
@@ -615,6 +636,10 @@ export async function prepareWorkspaceMediaForPublication(params: {
           !refreshedVideoThumbnailMediaIds.has(item.mediaId),
       )
     : [];
+  const terminalImageError = refreshedMedia
+    .filter((item) => terminalImageMediaIds.includes(item.mediaId))
+    .map((item) => getImageRecoveryFailure({ code: item.processingErrorCode })?.message)
+    .find(Boolean) || null;
   return {
     mediaCount: refreshedMedia.length,
     queuedMediaIds: pendingMediaIds,
@@ -623,6 +648,7 @@ export async function prepareWorkspaceMediaForPublication(params: {
     pendingVideoMediaIds,
     terminalMediaIds,
     terminalImageMediaIds,
+    terminalImageError,
     terminalVideoMediaIds,
     pendingVideoThumbnailMediaIds: videoThumbnailMissingMedia
       .filter((item) => !isTerminalFailure(item))

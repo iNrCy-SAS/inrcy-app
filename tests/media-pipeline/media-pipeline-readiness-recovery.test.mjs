@@ -21,7 +21,7 @@ test("le polling de statut ne régénère pas des URLs signées à chaque passag
   assert.match(client, /includeUrls\?: boolean/);
   assert.match(client, /includeUrls: params\.includeUrls === false \? "0" : "1"/);
   assert.match(route, /const includeUrls = url\.searchParams\.get\("includeUrls"\) !== "0"/);
-  assert.match(route, /includeUrls && bucket && storagePath/);
+  assert.match(route, /includeUrls && !recovery.requiresCanonical && bucket && storagePath/);
   assert.match(hook, /includeUrls: false/);
 });
 

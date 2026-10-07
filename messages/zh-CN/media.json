@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "图片已恢复",
+  "image_recovery_notice": "已从不完整文件创建可用副本。请检查预览；缺失的细节并未恢复。",
+  "image_recovery_failed": "图片无法读取。请替换图片或在 iNrStudio 中使用修改媒体。",
   "local_upload_trigger": "添加媒体",
   "local_upload_dialog_title": "添加媒体",
   "local_upload_dialog_description": "请先选择文件类型。图片和视频将分开选择。",

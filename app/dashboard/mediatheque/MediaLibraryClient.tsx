@@ -63,6 +63,10 @@ type MediaItem = {
   last_used_at: string | null;
   created_at: string;
   signed_url: string | null;
+  preview_url?: string | null;
+  imageRecovery?: { kind: "truncated_jpeg" };
+  processing_status?: string;
+  processing_error_message?: string | null;
   original_file_name?: string | null;
   media_metadata?: Record<string, unknown> | null;
   optimization?: {
@@ -372,7 +376,7 @@ export default function MediaLibraryClient() {
   const hasRunningOptimization = items.some((item) =>
     ["queued", "processing", "retry_wait"].includes(
       String(item.optimization?.status || ""),
-    ),
+    ) || (item.media_type === "image" && ["queued", "processing", "failed_retryable"].includes(String(item.processing_status || ""))),
   );
 
   const loadItems = useCallback(async (options?: { silent?: boolean }) => {
@@ -1290,7 +1294,7 @@ export default function MediaLibraryClient() {
                           />
                         ) : item.signed_url ? (
                           <img
-                            src={item.signed_url}
+                            src={item.preview_url || item.signed_url}
                             alt={item.title || i18nT("media_default_alt")}
                             className={styles.mediaRowThumb}
                             loading="lazy"
@@ -1303,6 +1307,11 @@ export default function MediaLibraryClient() {
                       <div className={styles.mediaRowMain}>
                         <strong>{item.title || i18nT("media_sans_titre_e77f1871")}</strong>
                         <span>{tagsToText(item.tags) || i18nT("aucun_tag_b6d9425d")}</span>
+                        {item.imageRecovery ? (
+                          <span className={styles.optimizationBadge} title={i18nT("image_recovery_notice")}>{i18nT("image_recovery_badge")}</span>
+                        ) : item.media_type === "image" && item.processing_status === "failed_terminal" ? (
+                          <span className={styles.optimizationBadge} role="status">{item.processing_error_message || i18nT("image_recovery_failed")}</span>
+                        ) : null}
                         {mediaNeedsOptimization(item) ? (
                           <div className={styles.mediaRowOptimizationActions}>
                             <span className={styles.optimizationBadge}>
@@ -1533,7 +1542,7 @@ export default function MediaLibraryClient() {
                 />
               ) : (
                 <img
-                  src={previewItem.signed_url || ""}
+                  src={previewItem.preview_url || previewItem.signed_url || ""}
                   alt={previewItem.title || i18nT("media_default_alt")}
                   className={styles.previewMedia}
                 />

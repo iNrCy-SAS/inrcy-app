@@ -1,4 +1,7 @@
 {
+  "image_recovery_badge": "Bild wiederhergestellt",
+  "image_recovery_notice": "Aus einer unvollständigen Datei wurde eine nutzbare Kopie erstellt. Prüfen Sie die Vorschau; fehlende Details wurden nicht wiederhergestellt.",
+  "image_recovery_failed": "Bild nicht lesbar. Ersetzen Sie es oder bearbeiten Sie es in iNrStudio.",
   "local_upload_trigger": "Medien hinzufügen",
   "local_upload_dialog_title": "Medien hinzufügen",
   "local_upload_dialog_description": "Wählen Sie zuerst den Dateityp. Bilder und Videos bleiben getrennt.",

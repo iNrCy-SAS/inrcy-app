@@ -18,6 +18,7 @@ export const RESERVED_MEDIA_PIPELINE_METADATA_KEYS = new Set([
   "probeProvenance",
   "processing_status",
   "publication_status",
+  "jpeg_recovery_replay",
 ]);
 
 export function sanitizeClientMediaMetadata(

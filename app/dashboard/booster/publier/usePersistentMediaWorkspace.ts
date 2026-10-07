@@ -51,6 +51,7 @@ export type PersistentWorkspaceMediaState = {
 type UsePersistentMediaWorkspaceParams = {
   draftId?: string | null;
   creationMode: BoosterCreationMode | null;
+  eagerImagePreparation?: boolean;
   selectedChannels: readonly string[];
   imageSettingsByChannel?: Record<string, unknown>;
   onError?: (message: string) => void;
@@ -96,6 +97,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 export default function usePersistentMediaWorkspace({
   draftId,
   creationMode,
+  eagerImagePreparation = false,
   selectedChannels,
   imageSettingsByChannel,
   onError,
@@ -109,6 +111,7 @@ export default function usePersistentMediaWorkspace({
     Record<string, PersistentWorkspaceMediaState>
   >({});
   const [synchronizing, setSynchronizing] = useState(false);
+  const [imagePreparationError, setImagePreparationError] = useState("");
   const [clientWorkspaceKey, setClientWorkspaceKey] = useState("");
   const mediaStatesRef = useRef<Record<string, PersistentWorkspaceMediaState>>({});
   const referenceRef = useRef<MediaWorkspaceReference | null>(null);
@@ -152,6 +155,7 @@ export default function usePersistentMediaWorkspace({
     missionReadyRef.current.ai_preparation = false;
     missionReadyRef.current.publication_preparation = false;
     activePreparationRef.current = {};
+    setImagePreparationError("");
   }, []);
 
   const refreshActiveTaskAggregate = useCallback(() => {
@@ -578,12 +582,44 @@ export default function usePersistentMediaWorkspace({
 
       const operationVersion = operationVersionRef.current;
       const task: Promise<MediaWorkspacePreparationResult> = (async () => {
+        const refreshedReadyImageIds = new Set<string>();
+        const refreshReadyImagePreviews = async (
+          media: readonly MediaWorkspaceMediaSummary[],
+        ) => {
+          const newReadyImages = media.filter(
+            (item) =>
+              item.mediaType === "image" &&
+              item.processingStatus === "ready" &&
+              !refreshedReadyImageIds.has(item.mediaId),
+          );
+          if (!newReadyImages.length) return;
+          try {
+            const snapshot = await refreshPreparedMedia(
+              workspace.workspaceId,
+              operationVersion,
+            );
+            for (const item of snapshot.media) {
+              if (
+                item.mediaType === "image" &&
+                item.processingStatus === "ready" &&
+                (item.previewUrl || item.canonicalUrl)
+              ) {
+                refreshedReadyImageIds.add(item.mediaId);
+              }
+            }
+          } catch {
+            // La prochaine lecture de mission retentera l'aperçu signé.
+          }
+        };
         let result = await prepareMediaPublicationWorkspace({
           workspaceId: workspace.workspaceId,
           mission,
           dispatchWorker: true,
         });
         onPreparedMediaRef.current?.(result.media);
+        if (result.status !== "ready") {
+          await refreshReadyImagePreviews(result.media);
+        }
         const deadlineAt = Date.now() + MEDIA_PREPARATION_MAX_WAIT_MS;
 
         // The first request only commits and kicks durable work. Keep one
@@ -603,6 +639,9 @@ export default function usePersistentMediaWorkspace({
               dispatchWorker: false,
             });
             onPreparedMediaRef.current?.(result.media);
+            if (result.status !== "ready") {
+              await refreshReadyImagePreviews(result.media);
+            }
           } catch (error) {
             if (!isMediaWorkspacePollingRetryableError(error)) throw error;
             // A transient status read never cancels the already durable worker.
@@ -672,6 +711,43 @@ export default function usePersistentMediaWorkspace({
     async () => await runPreparationMission("publication_preparation"),
     [runPreparationMission],
   );
+
+  useEffect(() => {
+    if (!enabled || !eagerImagePreparation) return;
+    const imageStates = Object.values(mediaStates).filter(
+      (item) => item.mediaType === "image",
+    );
+    if (!imageStates.length ||
+        imageStates.some((item) => item.status !== "ready") ||
+        missionReadyRef.current.publication_preparation ||
+        activePreparationRef.current.publication_preparation) {
+      return;
+    }
+
+    // La normalisation et le premier contrôle serveur commencent dès la fin
+    // de l'upload, pendant que le pro prépare son texte et sa prévisualisation.
+    // Cette mission ne génère aucun contenu IA et ne publie rien.
+    void preparePublicationMedia()
+      .then((result) => {
+        const failedImage = result.media.find(
+          (item) =>
+            item.mediaType === "image" &&
+            (item.processingStatus === "failed_terminal" ||
+              item.uploadStatus === "failed"),
+        );
+        if (failedImage) {
+          setImagePreparationError(
+            "Une image n’a pas pu être préparée. Ouvrez « Modifier Média » pour créer une nouvelle version ou remplacez-la.",
+          );
+        }
+      })
+      .catch((error) => {
+        console.warn("[media-pipeline] early image preparation failed", error);
+        setImagePreparationError(
+          "La préparation de l’image a échoué. Réessayez en remplaçant l’image ou utilisez « Modifier Média ».",
+        );
+      });
+  }, [eagerImagePreparation, enabled, mediaStates, preparePublicationMedia]);
 
   const preparePublicationVariants = useCallback(
     async (settings?: PublicationPreparationSettings) => {
@@ -1085,6 +1161,7 @@ export default function usePersistentMediaWorkspace({
       reference?.clientWorkspaceKey || clientWorkspaceKey || null,
     mediaStates,
     synchronizing,
+    imagePreparationError,
     ensureWorkspace,
     adoptWorkspace,
     syncImages,

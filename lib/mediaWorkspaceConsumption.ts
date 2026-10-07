@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getMediaImageInteractions, normalizeImageInteractions, type ImageInteractions } from "@/lib/imageInteractions";
 import sharp from "sharp";
 import { normalizeImageBuffer } from "@/lib/mediaImageNormalizer";
+import { imageSourceRequiresCanonical } from "@/lib/mediaImageRecoveryPolicy";
 import {
   IMAGE_NORMALIZATION_PIPELINE_VERSION,
   IMAGE_NORMALIZATION_PURPOSES,
@@ -266,6 +267,7 @@ function canUseDirectWorkspaceImageSource(media: WorkspaceMediaRow) {
   const normalization = asObject(media.mediaMetadata.image_normalization);
   const metadata = asObject(normalization.source);
   if (metadata.probeProvenance !== "server_sharp") return false;
+  if (imageSourceRequiresCanonical(metadata)) return false;
   const serverFormat = cleanText(metadata.format).toLowerCase();
   const formatMatchesMime =
     (mimeType === "image/jpeg" && ["jpeg", "jpg"].includes(serverFormat)) ||
@@ -1059,6 +1061,14 @@ async function sourceImageToProviderSafeDataUrl(params: {
   accountId: string;
   media: WorkspaceMediaRow;
 }) {
+  const source = asObject(asObject(params.media.mediaMetadata.image_normalization).source);
+  if (imageSourceRequiresCanonical(source)) {
+    throw new MediaWorkspaceConsumptionError(
+      "La copie récupérée de cette image n’est pas disponible pour l’analyse. Relancez sa préparation depuis le bloc Médias.",
+      "workspace_ai_recovered_variant_unavailable",
+      409,
+    );
+  }
   const sourceBuffer = await downloadWorkspaceImageSource(params);
   const rendered = await sharp(sourceBuffer, {
     failOn: "error",

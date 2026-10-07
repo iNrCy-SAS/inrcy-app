@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getMediaImageRecoverySummary } from "@/lib/mediaImageRecoverySummary";
 import {
   createSafeStorageSignedUrl,
   probeStorageObject,
@@ -243,7 +244,7 @@ export async function GET(request: Request) {
     const mediaResult = await supabaseAdmin
       .from("publication_workspace_media")
       .select(
-        "position,media_id,pro_media_library!inner(id,user_id,media_type,upload_status,upload_progress,upload_error_code,original_deleted_at,bucket_name,storage_path,original_file_name,client_media_key,mime_type,size_bytes,width,height,duration_seconds,processing_status,processing_progress,processing_error_code,processing_error_message,publication_status)",
+        "position,media_id,pro_media_library!inner(id,user_id,media_type,upload_status,upload_progress,upload_error_code,original_deleted_at,bucket_name,storage_path,original_file_name,client_media_key,mime_type,size_bytes,width,height,duration_seconds,processing_status,processing_progress,processing_error_code,processing_error_message,publication_status,media_metadata)",
       )
       .eq("workspace_id", workspaceId)
       .eq("pro_media_library.user_id", activeUserId)
@@ -282,8 +283,9 @@ export async function GET(request: Request) {
           : row.pro_media_library;
         const bucket = String(item?.bucket_name || "");
         const storagePath = String(item?.storage_path || "");
+        const recovery = getMediaImageRecoverySummary(item?.media_metadata);
         const publicUrl =
-          includeUrls && bucket && storagePath
+          includeUrls && !recovery.requiresCanonical && bucket && storagePath
             ? await signWorkspaceSource({
                 accountId: activeUserId,
                 mediaId: String(row.media_id || item?.id || ""),
@@ -341,9 +343,10 @@ export async function GET(request: Request) {
           publicationStatus: String(item?.publication_status || "not_requested"),
           bucket,
           storagePath,
-          publicUrl,
+          publicUrl: recovery.requiresCanonical ? canonicalUrl : publicUrl,
           previewUrl,
           canonicalUrl,
+          ...recovery,
           fileName: String(item?.original_file_name || "media-inrcy"),
           clientMediaKey: String(item?.client_media_key || ""),
           mimeType: String(item?.mime_type || "application/octet-stream"),

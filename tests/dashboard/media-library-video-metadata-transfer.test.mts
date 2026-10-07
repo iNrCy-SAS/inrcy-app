@@ -62,7 +62,9 @@ test("Booster transmet les infos pour un média optimisé ou déjà compatible",
 
   assert.match(publishModal, /transferredMetadata: videos\[0\] \|\| null/);
   assert.match(publishModal, /buildTransferredBoosterVideoMetadata/);
-  assert.match(publishModal, /setPreparedWorkspaceMedia\(\[\.\.\.preparedMedia\]\)/);
+  assert.match(publishModal, /setPreparedWorkspaceMedia\(\(current\) =>\s*preparedMedia\.map\(/);
+  assert.match(publishModal, /previewUrl: item\.previewUrl === undefined\s*\? previous\.previewUrl/);
+  assert.match(publishModal, /canonicalUrl: item\.canonicalUrl === undefined\s*\? previous\.canonicalUrl/);
   assert.match(publishModal, /video\.onloadedmetadata = \(\) =>/);
   assert.match(itemsRoute, /duration_seconds: metadata\.durationSeconds/);
 });
