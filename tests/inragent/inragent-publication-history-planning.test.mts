@@ -184,7 +184,7 @@ test("l'icône calendrier ouvre l'éditeur uniquement pour une publication progr
   const client = readFileSync(resolve(import.meta.dirname, "../../app/dashboard/agent/AgentClient.tsx"), "utf8");
   const scheduleItems = readFileSync(resolve(import.meta.dirname, "../../app/dashboard/agent/_lib/agent.schedule-items.ts"), "utf8");
   assert.match(client, /hasPreparedAction && selectedPreparedAction\?\.scheduledFor/);
-  assert.match(client, /const showFooterDate = !isPublishView \|\| Boolean\(selectedPreparedAction\?\.scheduledFor\)/);
+  assert.match(client, /const showFooterDate = !isPublishView \|\| isInstantPublicationPreview \|\| Boolean\(selectedPreparedAction\?\.scheduledFor\)/);
   assert.match(client, /\{showFooterDate \? <div/);
   assert.match(client, /const displayedPublicationScheduleItem = isPublishView && selectedPreparedAction\?\.scheduledFor/);
   assert.match(client, /linkedScheduledActionIds\.includes\(item\.scheduledActionId \|\| ""\)/);

@@ -265,8 +265,11 @@ test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
   assert.match(client, /source:[\s\S]*?url: publishMediaPreview\.url/);
   assert.doesNotMatch(client, /ChannelImageAdapterModal/);
 
+  const inlineMediaStart = client.indexOf(") : publishMediaPreview?.url ? (");
+  assert.ok(inlineMediaStart > 0);
   const inlineStageStart = client.indexOf(
-    "className={styles.publishInlineMediaStage}"
+    "className={styles.publishInlineMediaStage}",
+    inlineMediaStart,
   );
   const inlineCaptionStart = client.indexOf(
     "className={styles.publishInlineMediaCaption}",

@@ -150,6 +150,11 @@ import {
 } from "./_hooks/useAgentRuntimeData";
 import { useAgentRichTextEditors } from "./_hooks/useAgentRichTextEditors";
 import { useAgentAutomationController } from "./_hooks/useAgentAutomationController";
+import {
+  INSTANT_PUBLICATION_PREPARATION_ID,
+  buildPublicationViewerItems,
+  nextPublicationViewerId,
+} from "./_lib/agent.publication-carousel";
 import { useAgentActionExecution } from "./_hooks/useAgentActionExecution";
 import AgentFeedbackModals from "./_components/AgentFeedbackModals";
 import {
@@ -899,6 +904,7 @@ export default function AgentClient() {
     prepareActionState,
     prepareProgress,
     testNowKey,
+    instantPublicationPreparing,
     prepareNowConfirm,
     setPrepareNowConfirm,
     settingsPlanImpact,
@@ -927,11 +933,17 @@ export default function AgentClient() {
     setActions,
     refreshActions,
     setSelectedKey,
+    selectedPreparedActionId,
     setSelectedPreparedActionId,
     showNotice,
   });
 
-  const instantPublishPreparationInProgress = testNowKey === "publish";
+  const instantPublishPreparationInProgress = instantPublicationPreparing;
+  const isInstantPublicationPreview =
+    instantPublishPreparationInProgress &&
+    selectedKey === "publish" &&
+    selectedPreparedActionId === INSTANT_PUBLICATION_PREPARATION_ID &&
+    !scheduledEditSession;
 
   const publicationCarouselActions = useMemo(
     () =>
@@ -952,6 +964,7 @@ export default function AgentClient() {
 
   const selectedPreparedActionFromActions = useMemo(() => {
     if (selectedKey === "publish") {
+      if (isInstantPublicationPreview) return null;
       const explicitlySelectedPublication = actions.find(
         (action) =>
           action.id === selectedPreparedActionId &&
@@ -986,6 +999,7 @@ export default function AgentClient() {
   }, [
     actions,
     publicationCarouselActions,
+    isInstantPublicationPreview,
     selectedKey,
     selectedPreparedActionId,
   ]);
@@ -1010,32 +1024,18 @@ export default function AgentClient() {
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
     selectedPreparedAction
   );
-  const selectedPublicationCarouselIndex = selectedPreparedAction
-    ? publicationCarouselActions.findIndex(
-        (action) => action.id === selectedPreparedAction.id
-      )
-    : -1;
-  const publicationViewerActions =
-    selectedPreparedAction &&
-    selectedKey === "publish" &&
-    selectedPublicationCarouselIndex < 0 &&
-    selectedPreparedAction.automationKey === "publish" &&
-    selectedPreparedAction.actionType === "publication"
-      ? [
-          selectedPreparedAction,
-          ...publicationCarouselActions.filter(
-            (action) => action.id !== selectedPreparedAction.id
-          ),
-        ]
-      : publicationCarouselActions;
-  const selectedPublicationIndex = selectedPreparedAction
-    ? publicationViewerActions.findIndex(
-        (action) => action.id === selectedPreparedAction.id
-      )
-    : -1;
+  const publicationViewerActions = buildPublicationViewerItems(
+    publicationCarouselActions,
+    selectedKey === "publish" ? selectedPreparedAction : null,
+    instantPublishPreparationInProgress,
+  );
+  const selectedPublicationIndex = publicationViewerActions.findIndex(
+    (item) => item.id === (isInstantPublicationPreview
+      ? INSTANT_PUBLICATION_PREPARATION_ID
+      : selectedPreparedAction?.id),
+  );
   const canNavigatePublications =
     selected.key === "publish" &&
-    !instantPublishPreparationInProgress &&
     !scheduledEditSession &&
     tiktokSessionCheckState !== "checking" &&
     publicationViewerActions.length > 1;
@@ -1043,14 +1043,13 @@ export default function AgentClient() {
   function movePublication(offset: number) {
     if (!canNavigatePublications || tiktokSessionCheckInFlightRef.current)
       return;
-    const currentIndex =
-      selectedPublicationIndex >= 0 ? selectedPublicationIndex : 0;
-    const nextIndex =
-      (currentIndex + offset + publicationViewerActions.length) %
-      publicationViewerActions.length;
-    const nextAction = publicationViewerActions[nextIndex];
-    if (!nextAction) return;
-    setSelectedPreparedActionId(nextAction.id);
+    const nextId = nextPublicationViewerId(
+      publicationViewerActions,
+      isInstantPublicationPreview ? INSTANT_PUBLICATION_PREPARATION_ID : selectedPreparedAction?.id ?? null,
+      offset,
+    );
+    if (!nextId) return;
+    setSelectedPreparedActionId(nextId);
     setPublishMediaActiveIndex(0);
   }
 
@@ -1392,7 +1391,9 @@ export default function AgentClient() {
     [selectedAvailableChannels, selectedPreparedAction, selectedConfigChannels]
   );
   const preparedChannelsKey = preparedChannels.join("|");
-  const selectablePreviewChannels = hasPreparedAction
+  const selectablePreviewChannels = isInstantPublicationPreview
+    ? []
+    : hasPreparedAction
     ? preparedChannels
     : selectedConfigChannels;
   const displayChannels = isPublishView
@@ -1421,7 +1422,9 @@ export default function AgentClient() {
     ? previewNavigationChannels
     : [];
   const selectedAutomationChannel = selectedChannelByAutomation[selected.key];
-  const activePreviewChannel = selectedPreparedAction
+  const activePreviewChannel = isInstantPublicationPreview
+    ? null
+    : selectedPreparedAction
     ? preparedChannels.includes(
         selectedChannelByAction[selectedPreparedAction.id] as ChannelKey
       )
@@ -1432,7 +1435,9 @@ export default function AgentClient() {
       )
     ? (selectedAutomationChannel as ChannelKey)
     : placeholderPreviewChannels[0] ?? null;
-  const activePreviewChannelLabel = activePreviewChannel
+  const activePreviewChannelLabel = isInstantPublicationPreview
+    ? "—"
+    : activePreviewChannel
     ? agentChannelLabel(activePreviewChannel, runtimeT)
     : i18nT("preview_label");
   const preparedChannelPreview = selectedPreparedAction
@@ -1624,13 +1629,13 @@ export default function AgentClient() {
   );
   const publishPreparationInProgress = Boolean(
     isPublishView &&
-      (testNowKey === "publish" ||
-        prepareProgress?.key === "publish" ||
-        (prepareActionState === "saving" && selectedKey === "publish") ||
+      (isInstantPublicationPreview ||
         isInrAgentEditorialPreparationRunning(selectedPreparedAction))
   );
   const publishContentKind = isPublishView
-    ? publishMediaOnly
+    ? isInstantPublicationPreview
+      ? "—"
+      : publishMediaOnly
       ? i18nT("publication_mode_media_only")
       : publishHasText
       ? i18nT("titre_et_texte_7f7b4e2a")
@@ -1934,7 +1939,7 @@ export default function AgentClient() {
     runtimeT
   );
   const statsStoredCountLabel = `${statsReports.length}/5`;
-  const showFooterDate = !isPublishView || Boolean(selectedPreparedAction?.scheduledFor);
+  const showFooterDate = !isPublishView || isInstantPublicationPreview || Boolean(selectedPreparedAction?.scheduledFor);
   const footerDateLabel =
     selected.key === "stats"
       ? statsNextRunLabel
@@ -5891,19 +5896,6 @@ export default function AgentClient() {
               }`}
               aria-label={i18nT("apercu_de_l_action_preparee_460ac719")}
             >
-              {isPublishView && instantPublishPreparationInProgress ? (
-                <div
-                  className={styles.instantPublishLoading}
-                  aria-busy="true"
-                >
-                  <AgentWorkingIndicator
-                    title={i18nT("agent_working_title")}
-                    detail={i18nT("agent_working_preparing")}
-                    progress={prepareProgress?.percent}
-                  />
-                </div>
-              ) : (
-                <>
               <div className={styles.previewBody}>
                 {selected.key === "stats" ? (
                   <div className={styles.statsPreview}>
@@ -6509,9 +6501,11 @@ export default function AgentClient() {
                           <span className={styles.publishMediaInfoText}>
                             <small>{i18nT("media_d8a313d3")}</small>
                             <strong>
-                              {publishMediaPreview?.count
-                                ? publishMediaPreview.typeLabel
-                                : i18nT("aucun_b2ed82f1")}
+                              {isInstantPublicationPreview
+                                ? "—"
+                                : publishMediaPreview?.count
+                                  ? publishMediaPreview.typeLabel
+                                  : i18nT("aucun_b2ed82f1")}
                             </strong>
                           </span>
                         </button>
@@ -6589,10 +6583,17 @@ export default function AgentClient() {
                       >
                         <article
                           className={styles.publishPostCard}
-                          data-has-media={Boolean(publishMediaPreview?.url)}
+                          data-has-media={isInstantPublicationPreview || Boolean(publishMediaPreview?.url)}
                           data-media-only={publishMediaOnly}
+                          data-preparing={isInstantPublicationPreview}
+                          aria-busy={isInstantPublicationPreview}
                         >
-                          {publishMediaPreview?.url ? (
+                          {isInstantPublicationPreview ? (
+                            <section className={styles.publishInlineMedia} aria-hidden="true">
+                              <div className={styles.publishInlineMediaStage} />
+                              <div className={styles.publishInlineMediaCaption} />
+                            </section>
+                          ) : publishMediaPreview?.url ? (
                             <section
                               className={styles.publishInlineMedia}
                               data-media-kind={publishMediaPreview.kind}
@@ -6703,7 +6704,7 @@ export default function AgentClient() {
                             <div className={styles.publishPostText}>
                               <div className={styles.publishTitleLine}>
                                 <span>{i18nT("titre_d03e0c7c")}</span>
-                                {publishPreparationInProgress ? (
+                                {publishPreparationInProgress && !isInstantPublicationPreview ? (
                                   <span
                                     className={styles.publishTitleLoading}
                                     role="status"
@@ -6722,7 +6723,15 @@ export default function AgentClient() {
                                 </strong>
                               </div>
                               <div className={styles.publishPostContent}>
-                                {publishParagraphs.length > 0 ? (
+                                {isInstantPublicationPreview ? (
+                                  <div className={styles.instantPublishLoading}>
+                                    <AgentWorkingIndicator
+                                      title={i18nT("agent_working_title")}
+                                      detail={i18nT("agent_working_preparing")}
+                                      progress={prepareProgress?.percent}
+                                    />
+                                  </div>
+                                ) : publishParagraphs.length > 0 ? (
                                   publishParagraphs.map((paragraph, index) => (
                                     <p
                                       key={`${
@@ -6793,7 +6802,7 @@ export default function AgentClient() {
                           <div className={styles.publishCtaStandalone}>
                             <div className={styles.publishCtaLine}>
                               <span>{i18nT("cta_4f4f1f7e")}</span>
-                              <strong>{publishCtaLine}</strong>
+                              <strong>{isInstantPublicationPreview ? "—" : publishCtaLine}</strong>
                             </div>
                           </div>
                         )}
@@ -7223,7 +7232,7 @@ export default function AgentClient() {
                     <strong>{footerDateLabel}</strong>
                   </span>
                 </div> : null}
-                {isPublishView && selectedPreparedAction ? (
+                {isPublishView && (selectedPreparedAction || isInstantPublicationPreview) ? (
                   <div
                     className={styles.publishMobileStatus}
                     data-validation-state={selectedPublicationValidationState}
@@ -7450,8 +7459,6 @@ export default function AgentClient() {
                   </>
                 )}
               </div>
-                </>
-              )}
             </section>
           </div>
         </div>

@@ -237,12 +237,10 @@ test("Modifier depuis le planning ouvre bien la publication exacte, même hors c
     client,
     /action\.id === selectedPreparedActionId[\s\S]*?action\.automationKey === "publish"[\s\S]*?action\.actionType === "publication"/
   );
-  assert.match(client, /const publicationViewerActions =/);
-  assert.match(client, /selectedPublicationCarouselIndex < 0/);
-  assert.match(
-    client,
-    /selectedPreparedAction,[\s\S]*?\.\.\.publicationCarouselActions\.filter\([\s\S]*?action\.id !== selectedPreparedAction\.id/
-  );
+  const carousel = read("app/dashboard/agent/_lib/agent.publication-carousel.ts");
+  assert.match(client, /const publicationViewerActions = buildPublicationViewerItems\(/);
+  assert.match(carousel, /selectedAction && !actions\.some\(\(action\) => action\.id === selectedAction\.id\)/);
+  assert.match(carousel, /\[selectedAction, \.\.\.actions\]/);
   assert.match(client, /setSelectedPreparedActionId\(item\.preparedActionId \|\| null\)/);
   assert.match(client, /publicationViewerActions\.length > 1/);
 });
@@ -413,7 +411,7 @@ test("l'espace Publier garde le média, la navigation et les commandes dans un c
   assert.match(client, /startPublicationSwipe/);
   assert.match(client, /movePublication\(-1\)/);
   assert.match(client, /movePublication\(1\)/);
-  assert.match(client, /data-has-media=\{Boolean\(publishMediaPreview\?\.url\)\}/);
+  assert.match(client, /data-has-media=\{isInstantPublicationPreview \|\| Boolean\(publishMediaPreview\?\.url\)\}/);
   assert.match(client, /className=\{styles\.publishInlineMedia\}/);
   assert.match(client, /className=\{styles\.publishCtaStandalone\}/);
   assert.match(client, /className=\{styles\.agentCommandRailIdentity\}/);

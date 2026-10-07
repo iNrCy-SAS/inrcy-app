@@ -52,6 +52,8 @@ import {
 } from "../_lib/agent.reports";
 import { writeCachedAgentViewSnapshot } from "./useAgentRuntimeData";
 
+import { INSTANT_PUBLICATION_PREPARATION_ID } from "../_lib/agent.publication-carousel";
+
 type Setter<T> = Dispatch<SetStateAction<T>>;
 
 type UseAgentAutomationControllerParams = {
@@ -70,6 +72,7 @@ type UseAgentAutomationControllerParams = {
   setActions: Setter<AgentPreparedAction[]>;
   refreshActions: (silent?: boolean) => Promise<void>;
   setSelectedKey: Setter<AutomationKey>;
+  selectedPreparedActionId: string | null;
   setSelectedPreparedActionId: Setter<string | null>;
   showNotice: (message: string) => void;
 };
@@ -94,6 +97,7 @@ export function useAgentAutomationController({
   setActions,
   refreshActions,
   setSelectedKey,
+  selectedPreparedActionId,
   setSelectedPreparedActionId,
   showNotice,
 }: UseAgentAutomationControllerParams) {
@@ -109,6 +113,7 @@ export function useAgentAutomationController({
   const [statsProgress, setStatsProgress] = useState<StatsProgressState>(null);
   const [settingsPlanImpact, setSettingsPlanImpact] =
     useState<EditorialPlanQuotaImpact | null>(null);
+  const [instantPublicationPreparing, setInstantPublicationPreparing] = useState(false);
 
   function updateConfig(key: AutomationKey, patch: Partial<AutomationConfig>) {
     setConfigs((current) => ({
@@ -303,8 +308,13 @@ export function useAgentAutomationController({
     const progressKey = key === "stats" ? null : key;
     let progressTimer: number | null = null;
 
+    const previousPreparedActionId = selectedPreparedActionId;
     setTestNowKey(key);
-    if (key === "publish") setSelectedKey("publish");
+    if (key === "publish") {
+      setSelectedKey("publish");
+      setSelectedPreparedActionId(INSTANT_PUBLICATION_PREPARATION_ID);
+      setInstantPublicationPreparing(true);
+    }
 
     if (progressKey) {
       setPrepareProgress({
@@ -377,6 +387,14 @@ export function useAgentAutomationController({
           current?.key === progressKey ? null : current,
         );
       }
+      if (key === "publish" && !completed) {
+        setSelectedPreparedActionId((current) =>
+          current === INSTANT_PUBLICATION_PREPARATION_ID
+            ? previousPreparedActionId
+            : current,
+        );
+      }
+      if (key === "publish") setInstantPublicationPreparing(false);
       setTestNowKey(null);
     }
   }
@@ -452,8 +470,12 @@ export function useAgentAutomationController({
         preparedAction,
         ...current.filter((action) => action.id !== preparedAction.id),
       ]);
-      setSelectedPreparedActionId(preparedAction.id);
-      setSelectedKey("publish");
+      setSelectedPreparedActionId((current) =>
+        current === INSTANT_PUBLICATION_PREPARATION_ID
+          ? preparedAction.id
+          : current,
+      );
+      setInstantPublicationPreparing(false);
       showNotice(i18nT("agent_publication_prepared"));
       return true;
     } catch (error) {
@@ -611,6 +633,7 @@ export function useAgentAutomationController({
     prepareActionState,
     prepareProgress,
     testNowKey,
+    instantPublicationPreparing,
     prepareNowConfirm,
     setPrepareNowConfirm,
     statsProgress,

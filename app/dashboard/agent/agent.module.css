@@ -21335,15 +21335,20 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-/* Aperçu vide pendant la création instantanée d’une publication. */
-.instantPublishLoading {
+/* La publication en préparation conserve les cadres et sa place dans le carrousel. */
+.publishPostCard[data-preparing="true"] .publishPostText {
+  min-height: 260px;
+}
+
+.publishPostCard[data-preparing="true"] .publishPostContent {
   position: relative;
-  width: 100%;
-  min-height: clamp(320px, 64vh, 760px);
-  height: 100%;
-  grid-row: 1 / -1;
-  border-radius: 22px;
-  overflow: hidden;
+  min-height: 220px;
+}
+
+.instantPublishLoading {
+  position: absolute;
+  inset: 0;
+  min-height: 220px;
 }
 
 .instantPublishLoading .robotWorkingBadge {
