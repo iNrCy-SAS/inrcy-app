@@ -97,6 +97,35 @@ export function buildAgentScheduleItems({
   const actionsById = new Map(actions.map((action) => [action.id, action]));
   const historicalActionIds = new Set(historyPublications.map((item) => item.agentActionId).filter(Boolean));
   const historicalScheduledIds = new Set(historyPublications.map((item) => item.scheduledActionId).filter(Boolean));
+  const activeManualScheduledActions = scheduledActions.filter(
+    (action) =>
+      action.source === "manual" &&
+      !historicalScheduledIds.has(action.id) &&
+      ["scheduled", "running", "failed"].includes(action.status),
+  );
+  const sourceActionsByScheduledId = new Map<string, AgentPreparedAction>();
+  for (const action of actions) {
+    const scheduledExecution = asRecord(action.payload?.scheduledExecution);
+    const linkedScheduledIds = Array.isArray(scheduledExecution?.scheduledActionIds)
+      ? scheduledExecution.scheduledActionIds.map(String)
+      : [];
+    for (const id of linkedScheduledIds) sourceActionsByScheduledId.set(id, action);
+  }
+  const scheduledSourceActions = new Map<string, AgentPreparedAction>();
+  const representedEditorialActionIds = new Set<string>();
+  for (const action of activeManualScheduledActions) {
+    const sourceActionId = String(asRecord(action.payload)?.sourceActionId || "");
+    const sourceAction = actionsById.get(sourceActionId) ||
+      sourceActionsByScheduledId.get(action.id);
+    if (!sourceAction) continue;
+    scheduledSourceActions.set(action.id, sourceAction);
+    if (
+      sourceAction.automationKey === "publish" &&
+      asRecord(sourceAction.payload?.editorialPlan)
+    ) {
+      representedEditorialActionIds.add(sourceAction.id);
+    }
+  }
   const editorialActions = actions.filter((action) => {
     const editorialPlan = asRecord(action.payload?.editorialPlan);
     const scheduledExecution = asRecord(action.payload?.scheduledExecution);
@@ -119,7 +148,14 @@ export function buildAgentScheduleItems({
   const hasEditorialPublishPlan = activeEditorialActions.some(
     (action) =>
       new Date(action.scheduledFor || 0).getTime() > Date.now() - 86_400_000,
-  );
+  ) || activeManualScheduledActions.some((action) => {
+    const sourceAction = scheduledSourceActions.get(action.id);
+    return Boolean(
+      sourceAction &&
+      representedEditorialActionIds.has(sourceAction.id) &&
+      new Date(action.scheduledAt || 0).getTime() > Date.now() - 86_400_000,
+    );
+  });
 
   for (const automation of visibleAutomations) {
     const config = configs[automation.key];
@@ -171,6 +207,9 @@ export function buildAgentScheduleItems({
   }
 
   for (const action of editorialActions) {
+    // Une programmation liée est l'exécution durable de cette publication,
+    // pas une seconde publication à ajouter au planning.
+    if (representedEditorialActionIds.has(action.id)) continue;
     const editorialPlan = asRecord(action.payload?.editorialPlan);
     const scheduledFor =
       action.scheduledFor || String(editorialPlan?.scheduledFor || "");
@@ -229,14 +268,8 @@ export function buildAgentScheduleItems({
     });
   }
 
-  for (const action of scheduledActions) {
-    if (
-      action.source !== "manual" ||
-      historicalScheduledIds.has(action.id) ||
-      !["scheduled", "running", "failed"].includes(action.status)
-    ) {
-      continue;
-    }
+  for (const action of activeManualScheduledActions) {
+    const sourceAction = scheduledSourceActions.get(action.id);
     const dateParts = scheduleDateParts(
       action.scheduledAt || action.createdAt,
       "—",
@@ -247,9 +280,16 @@ export function buildAgentScheduleItems({
     const scheduledChannels = preparedAction
       ? normalizeUiChannels(preparedAction.targetChannels)
       : [];
-    const themeLabel = preparedAction
-      ? agentThemeListLabel(preparedAction.targetThemes, translate, locale)
-      : "";
+    const themeLabel = agentThemeListLabel(
+      sourceAction?.targetThemes.length
+        ? sourceAction.targetThemes
+        : preparedAction?.targetThemes || [],
+      translate,
+      locale,
+    );
+    const validationState = sourceAction
+      ? publicationValidationState(sourceAction)
+      : null;
     const contentTitle = preparedAction
       ? scheduledContentTitle(preparedAction, scheduledChannels)
       : "";
@@ -278,8 +318,12 @@ export function buildAgentScheduleItems({
       originLabel: translate("programme_bab7d71e"),
       status: agentScheduledStatusLabel(action.status, translate),
       statusKey: action.status,
+      approvalState:
+        validationState === "validated"
+          ? "approved"
+          : validationState || undefined,
       automationKey: action.automationKey,
-      preparedActionId: String(asRecord(action.payload)?.sourceActionId || "") || undefined,
+      preparedActionId: String(asRecord(action.payload)?.sourceActionId || "") || sourceAction?.id || undefined,
       scheduledActionId: action.id,
       scheduledAtIso: action.scheduledAt || action.createdAt,
       editable: action.status !== "running",

@@ -162,10 +162,13 @@ test("les filtres restent sûrs et la corbeille retire toute publication éditor
   const scheduleItems = read(
     "app/dashboard/agent/_lib/agent.schedule-items.ts"
   );
-  const editorialItemSource = scheduleItems.slice(
-    scheduleItems.indexOf("for (const action of editorialActions)"),
-    scheduleItems.indexOf("for (const action of scheduledActions)")
+  const editorialStart = scheduleItems.indexOf("for (const action of editorialActions)");
+  const editorialEnd = scheduleItems.indexOf(
+    "for (const action of activeManualScheduledActions)",
+    editorialStart,
   );
+  assert.ok(editorialStart >= 0 && editorialEnd > editorialStart);
+  const editorialItemSource = scheduleItems.slice(editorialStart, editorialEnd);
 
   assert.match(
     modal,
@@ -196,10 +199,13 @@ test("une publication éditoriale iNr’Agent peut être reprogrammée sans chan
     "app/dashboard/agent/_lib/agent.schedule-items.ts"
   );
   const actionsRoute = read("app/api/agent/actions/route.ts").replace(/\r\n/g, "\n");
-  const editorialItemSource = scheduleItems.slice(
-    scheduleItems.indexOf("for (const action of editorialActions)"),
-    scheduleItems.indexOf("for (const action of scheduledActions)")
+  const editorialStart = scheduleItems.indexOf("for (const action of editorialActions)");
+  const editorialEnd = scheduleItems.indexOf(
+    "for (const action of activeManualScheduledActions)",
+    editorialStart,
   );
+  assert.ok(editorialStart >= 0 && editorialEnd > editorialStart);
+  const editorialItemSource = scheduleItems.slice(editorialStart, editorialEnd);
   const rescheduleRouteSource = actionsRoute.slice(
     actionsRoute.indexOf('if (editType === "reschedule_editorial")'),
     actionsRoute.indexOf('if (editType === "remove_publish_channel")')

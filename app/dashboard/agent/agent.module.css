@@ -21334,3 +21334,27 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
       "actions actions actions" !important;
   }
 }
+
+/* Aperçu vide pendant la création instantanée d’une publication. */
+.instantPublishLoading {
+  position: relative;
+  width: 100%;
+  min-height: clamp(320px, 64vh, 760px);
+  height: 100%;
+  grid-row: 1 / -1;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.instantPublishLoading .robotWorkingBadge {
+  background: transparent;
+  box-shadow: none;
+}
+
+.instantPublishLoading .robotWorkingBadge strong {
+  font-size: 20px;
+}
+
+.instantPublishLoading .robotWorkingBadge small {
+  font-size: 12px;
+}

@@ -21,7 +21,7 @@ test("Publier, Propulser et Fidéliser proposent l'action instantanée à côté
   assert.match(cards, /const hasInstantAction = automation\.key !== "stats"/);
   assert.match(cards, /className=\{styles\.automationCardActions\}/);
   assert.match(cards, /className=\{styles\.instantActionButton\}/);
-  assert.match(cards, /onClick=\{\(\) => testAutomationNow\(automation\.key\)\}/);
+  assert.match(cards, /onAfterExit: \(\) => testAutomationNow\(automation\.key\)/);
   assert.match(cards, /i18nT\("instant_publish_action_label"\)/);
   assert.match(cards, /i18nT\("instant_campaign_action_label"\)/);
   assert.match(cards, /title=\{`\$\{instantActionLabel\} — \$\{instantActionHelp\}`\}/);

@@ -70,6 +70,7 @@ type UseAgentAutomationControllerParams = {
   setActions: Setter<AgentPreparedAction[]>;
   refreshActions: (silent?: boolean) => Promise<void>;
   setSelectedKey: Setter<AutomationKey>;
+  setSelectedPreparedActionId: Setter<string | null>;
   showNotice: (message: string) => void;
 };
 
@@ -93,6 +94,7 @@ export function useAgentAutomationController({
   setActions,
   refreshActions,
   setSelectedKey,
+  setSelectedPreparedActionId,
   showNotice,
 }: UseAgentAutomationControllerParams) {
   const i18nT = useTranslations("agent");
@@ -302,6 +304,7 @@ export function useAgentAutomationController({
     let progressTimer: number | null = null;
 
     setTestNowKey(key);
+    if (key === "publish") setSelectedKey("publish");
 
     if (progressKey) {
       setPrepareProgress({
@@ -449,6 +452,7 @@ export function useAgentAutomationController({
         preparedAction,
         ...current.filter((action) => action.id !== preparedAction.id),
       ]);
+      setSelectedPreparedActionId(preparedAction.id);
       setSelectedKey("publish");
       showNotice(i18nT("agent_publication_prepared"));
       return true;

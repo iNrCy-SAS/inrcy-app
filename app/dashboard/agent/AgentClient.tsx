@@ -927,8 +927,11 @@ export default function AgentClient() {
     setActions,
     refreshActions,
     setSelectedKey,
+    setSelectedPreparedActionId,
     showNotice,
   });
+
+  const instantPublishPreparationInProgress = testNowKey === "publish";
 
   const publicationCarouselActions = useMemo(
     () =>
@@ -1032,6 +1035,7 @@ export default function AgentClient() {
     : -1;
   const canNavigatePublications =
     selected.key === "publish" &&
+    !instantPublishPreparationInProgress &&
     !scheduledEditSession &&
     tiktokSessionCheckState !== "checking" &&
     publicationViewerActions.length > 1;
@@ -5681,7 +5685,12 @@ export default function AgentClient() {
                     <button
                       type="button"
                       className={styles.instantActionButton}
-                      onClick={() => testAutomationNow(automation.key)}
+                      onClick={() => {
+                        exitScheduledEditSession({
+                          silent: true,
+                          onAfterExit: () => testAutomationNow(automation.key),
+                        });
+                      }}
                       disabled={
                         saveState === "saving" ||
                         loadState === "loading" ||
@@ -5882,6 +5891,19 @@ export default function AgentClient() {
               }`}
               aria-label={i18nT("apercu_de_l_action_preparee_460ac719")}
             >
+              {isPublishView && instantPublishPreparationInProgress ? (
+                <div
+                  className={styles.instantPublishLoading}
+                  aria-busy="true"
+                >
+                  <AgentWorkingIndicator
+                    title={i18nT("agent_working_title")}
+                    detail={i18nT("agent_working_preparing")}
+                    progress={prepareProgress?.percent}
+                  />
+                </div>
+              ) : (
+                <>
               <div className={styles.previewBody}>
                 {selected.key === "stats" ? (
                   <div className={styles.statsPreview}>
@@ -7428,6 +7450,8 @@ export default function AgentClient() {
                   </>
                 )}
               </div>
+                </>
+              )}
             </section>
           </div>
         </div>

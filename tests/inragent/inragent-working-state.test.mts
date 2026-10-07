@@ -76,7 +76,7 @@ test("la roulette affiche la progression estimée sans annoncer 100 % avant la r
   );
   assert.equal(
     (client.match(/progress=\{prepareProgress\?\.percent\}/g) || []).length,
-    2,
+    3,
   );
   assert.match(
     styles,
