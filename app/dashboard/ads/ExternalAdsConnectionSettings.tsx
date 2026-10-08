@@ -10,6 +10,7 @@ import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings"
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { adsAssociationDisplayReady } from "@/lib/adsConnectionSnapshot";
+import { tikTokAdsAccountDisplay } from "@/lib/adsTikTokAccountDisplay";
 import styles from "./AdsConnectionSettings.module.css";
 
 export type ExternalAdsSettingsChannel = "linkedin" | "tiktok" | "pinterest" | "x";
@@ -212,11 +213,12 @@ export default function ExternalAdsConnectionSettings({
   const accountOptions = useMemo(() => accounts.map((account) => {
     const unsupportedCurrency = current.requiresEuro && Boolean(account.currency) && account.currency !== "EUR";
     const unavailable = account.eligibleToAssociate === false || unsupportedCurrency;
-    const reason = account.eligibleToAssociate === false
+    const tiktokStatus = channel === "tiktok" ? tikTokAdsAccountDisplay(account) : null;
+    const reason = tiktokStatus ? tiktokStatus.reason : account.eligibleToAssociate === false
       ? "accès insuffisant"
       : unsupportedCurrency ? "euros requis" : "";
-    return { account, unavailable, reason };
-  }), [accounts, current.requiresEuro]);
+    return { account, unavailable, reason, tiktokStatus };
+  }), [accounts, channel, current.requiresEuro]);
 
   return <SettingsDrawer
     title={`Configurer ${current.label}`}
@@ -269,7 +271,7 @@ export default function ExternalAdsConnectionSettings({
               <select aria-label={accountConfigured ? "Changer de compte" : "Choisir un compte"} value={locked ? "" : accountChoice} disabled={!status.connected || busy} onChange={(event) => onSelectAccount(event.target.value)}>
                 <option value="">Sélectionnez un compte</option>
                 {hasConfiguredAccount && !configuredAccount ? <option value={status.selectedAccountId}>{status.selectedAccountName || `Compte ${status.selectedAccountId}`}{accountsLoaded ? " · accès à vérifier" : ""}</option> : null}
-                {accountOptions.map(({ account, unavailable, reason }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{reason ? ` (${reason})` : ""}</option>)}
+                {accountOptions.map(({ account, unavailable, reason, tiktokStatus }) => <option key={account.id} value={account.id} disabled={unavailable}>{accountLabel(account)}{tiktokStatus ? ` · ${tiktokStatus.statusLabel}` : ""}{reason ? ` (${reason})` : ""}</option>)}
               </select>
             </label>
             <div className={styles.resourceActions}>
@@ -278,6 +280,7 @@ export default function ExternalAdsConnectionSettings({
               {configuredAccountUrl ? <a className={`${dashboardStyles.actionBtn} ${styles.viewAccount}`} href={configuredAccountUrl} target="_blank" rel="noreferrer" aria-label={`Voir le compte ${status.selectedAccountName || status.selectedAccountId} dans ${current.label}`}>Voir le compte</a> : null}
             </div>
           </div>
+          {!locked && status.connected && channel === "tiktok" ? accountOptions.filter(({ unavailable, tiktokStatus }) => unavailable && tiktokStatus?.help).map(({ account, tiktokStatus }) => <p key={account.id} className={styles.detail}>{account.name.trim() || `Compte ${account.id}`} : {tiktokStatus?.help}</p>) : null}
           {selectedAccount ? <p className={styles.detail}>{channel === "linkedin"
             ? `${accountConfigured ? "Compte sélectionné" : "Compte à confirmer"} : ${accountLabel(selectedAccount)}. Rôle LinkedIn : ${selectedAccount.permissions?.[0] || "non vérifié"}. Gestion : ${selectedAccount.canManageCampaigns === true ? "autorisée" : "non autorisée avec cette connexion"}. Servabilité : ${selectedAccount.canServeCampaigns === true ? "RUNNABLE" : selectedAccount.servingStatuses?.includes("RUNNABLE") && selectedAccount.test !== true ? "RUNNABLE, accès de gestion requis" : "non vérifiée"}.`
             : accountConfigured ? `Compte sélectionné : ${accountLabel(selectedAccount)}. Les frais sont gérés directement par ${current.label}.` : "Ce compte sera utilisé après confirmation."}</p> : null}
