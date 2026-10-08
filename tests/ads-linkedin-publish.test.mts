@@ -86,7 +86,7 @@ test("LinkedIn serializes only a non-serving DRAFT campaign with verified resour
   assert.equal(result.request.body.type, "SPONSORED_UPDATES");
   assert.equal(result.request.body.costType, "CPC");
   assert.equal(result.request.body.politicalIntent, "NOT_POLITICAL");
-  assert.equal(result.request.body.dailyBudget.amount, "25.00");
+  assert.equal(result.request.body.dailyBudget!.amount, "25.00");
   assert.equal(result.request.body.unitCost.amount, "2.50");
   assert.deepEqual(result.request.body.targetingCriteria.include.and, [
     { or: { "urn:li:adTargetingFacet:interfaceLocales": ["urn:li:locale:fr_FR"] } },
@@ -199,7 +199,7 @@ test("LinkedIn rejects group, organization, geography and locale substitutions",
 
 test("LinkedIn requires campaign-specific bid and schedule and blocks other draft formats", () => {
   const { draft, evidence, choices } = fixture();
-  draft.format = "SINGLE_VIDEO";
+  draft.format = "CAROUSEL";
   draft.budget.period = "lifetime";
   choices.bidAmount = "0";
   choices.startAtMs = now - 1000;

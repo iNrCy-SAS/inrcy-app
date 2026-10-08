@@ -110,6 +110,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [metricsById, setMetricsById] = useState<Record<string, MetricsState>>({});
+  const [nativeStateById, setNativeStateById] = useState<Record<string, { confirmed: boolean; message: string }>>({});
   const shownDrafts = campaigns.filter((campaign) => campaign.status === "draft").length;
   const shownBeyondDraft = campaigns.filter((campaign) => campaign.status !== "draft").length;
 
@@ -156,6 +157,21 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function readPreparedNativeState(campaign: StoredAdsCampaign) {
+    if (busyId || (campaign.provider !== "tiktok" && campaign.provider !== "x")) return;
+    setBusyId(campaign.id);
+    try {
+      const response = await fetch(`/api/ads/campaigns/${encodeURIComponent(campaign.id)}/lifecycle`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reconcile" }), cache: "no-store" });
+      const result = await response.json().catch(() => null) as { readOnly?: boolean; publicationEnabled?: boolean; nativeReadback?: { confirmed?: boolean; targetStatus?: string }; error?: string } | null;
+      if (!response.ok) throw new Error(result?.error || "Les états natifs ne sont pas encore vérifiables.");
+      if (result?.readOnly !== true || result.publicationEnabled !== false || typeof result.nativeReadback?.confirmed !== "boolean" || result.nativeReadback.targetStatus !== (campaign.provider === "tiktok" ? "DISABLE" : "PAUSED")) throw new Error("La plateforme n’a pas confirmé un état suspendu exploitable.");
+      const confirmed = result.nativeReadback.confirmed;
+      setNativeStateById((current) => ({ ...current, [campaign.id]: { confirmed, message: confirmed ? "États suspendus confirmés sur la plateforme. Aucune activation effectuée." : "États suspendus non confirmés. Contrôlez la plateforme ; le journal de reprise reste conservé." } }));
+    } catch (error) {
+      setNativeStateById((current) => ({ ...current, [campaign.id]: { confirmed: false, message: error instanceof Error ? error.message : "Lecture native indisponible." } }));
+    } finally { setBusyId(null); }
   }
 
   async function loadMetrics(campaign: StoredAdsCampaign) {
@@ -223,6 +239,12 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
             const metricsState = metricsById[campaign.id];
             const expanded = presentation !== "inrsend" || expandedId === campaign.id;
             const draft: Partial<AdsCampaignInput> = campaign.draft && typeof campaign.draft === "object" ? campaign.draft : {};
+            const preparedChannel = campaign.provider === "tiktok" || campaign.provider === "x";
+            const canReadPreparedNative = preparedChannel && ["paused", "needs_review", "publishing"].includes(campaign.status) && Boolean(campaign.provider_resources?.preparationStage);
+            const nativeState = nativeStateById[campaign.id];
+            const nativeBudget = campaign.provider === "google" ? draft.googleDeliverySettings?.budget : campaign.provider === "linkedin" ? draft.linkedinDeliverySettings?.budget : campaign.provider === "pinterest" ? draft.pinterestDeliverySettings?.budget : campaign.provider === "meta" ? draft.metaDeliverySettings?.budget : campaign.provider === "openai" ? draft.openaiDeliverySettings?.budget : preparedChannel ? draft.preparedDeliverySettings?.budget : null;
+            const totalBudget = nativeBudget?.type === "total";
+            const displayedBudget = totalBudget ? nativeBudget.totalEuros : campaign.daily_budget_cents / 100;
             return <article key={campaign.id} className={`${styles.card} ${presentation === "inrsend" ? styles.inboxCard : ""}`}>
               <div className={styles.cardTop}>
                 <div className={styles.identity}>
@@ -234,9 +256,9 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
 
               {expanded && <>
               <dl className={styles.facts}>
-                <div><dt>Budget/jour prévu</dt><dd>{Number.isFinite(campaign.daily_budget_cents) ? euros.format(campaign.daily_budget_cents / 100) : "—"}</dd></div>
-                <div><dt>Fin prévue</dt><dd>{displayDate(campaign.end_date)}</dd></div>
-                <div><dt>Publication enregistrée</dt><dd>{displayDate(campaign.published_at)}</dd></div>
+                <div><dt>{totalBudget ? "Budget total prévu" : "Budget/jour prévu"}</dt><dd>{typeof displayedBudget === "number" && Number.isFinite(displayedBudget) ? euros.format(displayedBudget) : "—"}</dd></div>
+                <div><dt>Fin prévue</dt><dd>{campaign.provider === "linkedin" && draft.linkedinDeliverySettings?.budget.endAt ? new Date(draft.linkedinDeliverySettings.budget.endAt).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : preparedChannel && draft.preparedDeliverySettings?.budget.endAt ? new Date(draft.preparedDeliverySettings.budget.endAt).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : displayDate(campaign.end_date)}</dd></div>
+                <div><dt>{preparedChannel ? "Création enregistrée" : "Publication enregistrée"}</dt><dd>{displayDate(campaign.published_at)}</dd></div>
                 <div><dt>Performances réelles</dt><dd>{metricsState?.status === "ready" ? "30 derniers jours" : metricsState?.status === "empty" ? "Aucune donnée retournée" : canReadMetrics ? "À consulter" : "Indisponibles"}</dd></div>
               </dl>
               <section className={styles.campaignConfiguration} aria-label={`Contenu de la campagne ${campaign.name}`}>
@@ -248,7 +270,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
                     ["Conversion", displayAdsPair(draft.conversionGoal, draft.conversionLocation)],
                     ["Type / format", displayAdsPair(draft.campaignType, draft.mediaStrategy)],
                     ["Stratégie d’enchères", draft.bidStrategy || ""],
-                    ["Compte annonceur", campaign.ad_account_id || "Non associé"],
+                    ["Compte annonceur", campaign.ad_account_id || (preparedChannel ? draft.adAccountId : "") || "Non associé"],
                     ["Destination", draft.destinationUrl || "Non renseignée"],
                     ["Zones", displayAdsList(draft.targetLocations)],
                     ["Audiences", displayAdsList(draft.targetAudiences)],
@@ -272,8 +294,12 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
                   <button type="button" className={styles.danger} disabled={Boolean(busyId)} onClick={() => { cancelAction(); setDeleteId(campaign.id); }}>Supprimer</button>
                 </> : <span className={styles.locked}>Modification, prolongation et suppression indisponibles ici après le lancement : vérifiez la campagne sur la plateforme.</span>}
                 {accountUrl && campaign.status !== "draft" && <a className={styles.external} href={accountUrl} target="_blank" rel="noopener noreferrer">Ouvrir le compte publicitaire ↗</a>}
+                {canReadPreparedNative && <button type="button" className={styles.secondary} disabled={Boolean(busyId)} onClick={() => void readPreparedNativeState(campaign)}>{busyId === campaign.id ? "Lecture de l’état natif…" : "Vérifier l’état suspendu"}</button>}
                 {canReadMetrics && <button type="button" className={styles.secondary} disabled={metricsState?.status === "loading"} onClick={() => void loadMetrics(campaign)}>{metricsState?.status === "loading" ? "Lecture des statistiques…" : metricsState ? "Actualiser les statistiques" : "Voir les statistiques"}</button>}
               </div>
+
+              {preparedChannel && campaign.status !== "draft" && <p className={styles.metricsNote}>Ce parcours vise une campagne suspendue et ne permet aucune activation depuis iNr’ADS. Une création interrompue peut rester incertaine ; vérifiez son état natif avant toute reprise. L’activation, la modification et la suppression distante restent indisponibles ici.</p>}
+              {nativeState && <p className={nativeState.confirmed ? styles.success : styles.campaignError} role={nativeState.confirmed ? "status" : "alert"}>{nativeState.message}</p>}
 
               <section className={styles.metricsPanel} aria-label={`Statistiques de ${campaign.name}`}>
                 <div className={styles.metricsHeading}><strong>Statistiques de la campagne · 30 derniers jours</strong>{metricsState?.status === "ready" && metricsState.metrics && <small>{metricsState.metrics.source === "google" ? "Google Ads" : "Meta Ads"} · relevé le {displayDate(metricsState.metrics.fetchedAt)}</small>}</div>

@@ -1,3 +1,5 @@
+import type { LinkedInVideoCheckpoint } from "./adsLinkedInVideo.ts";
+
 export const LINKEDIN_ADS_CREATE_STEPS = [
   "initialize_image",
   "create_campaign",
@@ -8,7 +10,9 @@ export const LINKEDIN_ADS_CREATE_STEPS = [
 export const LINKEDIN_ADS_PUBLISH_STAGES = [
   "preflight_complete",
   "image_initialized",
+  "video_initialized",
   "image_available",
+  "video_available",
   "campaign_created",
   "dark_post_created",
   "creative_created",
@@ -21,7 +25,9 @@ export type LinkedInAdsCreateStep = (typeof LINKEDIN_ADS_CREATE_STEPS)[number];
 export type LinkedInAdsPublishStage =
   | "preflight_complete"
   | "image_initialized"
+  | "video_initialized"
   | "image_available"
+  | "video_available"
   | "campaign_created"
   | "dark_post_created"
   | "creative_created"
@@ -38,6 +44,9 @@ export type LinkedInAdsPublishProgress = Record<string, unknown> & {
   pendingStep?: LinkedInAdsCreateStep | "upload_image" | "activate_creative" | "finalize_campaign";
   uncertainStep?: LinkedInAdsCreateStep;
   imageUrn?: string;
+  videoUrn?: string;
+  /** Upload capabilities must stay in server-only provider_resources. */
+  videoCheckpoint?: LinkedInVideoCheckpoint;
   campaignId?: string;
   campaignUrn?: string;
   postUrn?: string;
@@ -46,6 +55,7 @@ export type LinkedInAdsPublishProgress = Record<string, unknown> & {
 };
 
 const ACCOUNT_ID = /^\d{1,25}$/;
+const VIDEO_URN = /^urn:li:video:[A-Za-z0-9_-]{3,200}$/;
 const IMAGE_URN = /^urn:li:image:[A-Za-z0-9_-]{3,200}$/;
 const CAMPAIGN_URN = /^urn:li:sponsoredCampaign:(\d{1,25})$/;
 const POST_URN = /^urn:li:(?:share|ugcPost):\d{1,25}$/;
@@ -106,6 +116,8 @@ export function assertLinkedInPublishProgress(
     throw new TypeError("LinkedIn publication checkpoint does not match this operation");
   }
   if (value.imageUrn && !linkedInAdsImageUrn(value.imageUrn)) throw new TypeError("Invalid LinkedIn image checkpoint");
+  if (value.videoUrn && !VIDEO_URN.test(value.videoUrn)) throw new TypeError("Invalid LinkedIn video checkpoint");
+  if (value.videoUrn && value.imageUrn) throw new TypeError("LinkedIn checkpoint cannot mix image and video");
   const campaign = value.campaignUrn ? linkedInAdsCampaignReference(value.campaignUrn) : null;
   if ((value.campaignUrn && !campaign) || (value.campaignId && (!campaign || value.campaignId !== campaign.id))) {
     throw new TypeError("Invalid LinkedIn campaign checkpoint");
@@ -125,7 +137,7 @@ export function assertLinkedInPublishProgress(
   const campaignStage = LINKEDIN_ADS_PUBLISH_STAGES.indexOf("campaign_created");
   const postStage = LINKEDIN_ADS_PUBLISH_STAGES.indexOf("dark_post_created");
   const creativeStage = LINKEDIN_ADS_PUBLISH_STAGES.indexOf("creative_created");
-  if ((stageIndex >= imageStage) !== Boolean(value.imageUrn)
+  if ((stageIndex >= imageStage) !== Boolean(value.imageUrn || value.videoUrn)
     || (stageIndex >= campaignStage) !== Boolean(value.campaignUrn)
     || (stageIndex >= campaignStage) !== Boolean(value.campaignId)
     || (stageIndex >= postStage) !== Boolean(value.postUrn)

@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import * as deliverySettings from "../lib/adsLinkedInCampaignSettings.ts";
+import * as purePublish from "../lib/adsLinkedInPublish.ts";
+import * as videoUpload from "../lib/adsLinkedInVideo.ts";
+
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import type { AdsCampaignInput } from "../lib/adsValidation.ts";
+import * as channelDrafts from "../lib/adsChannelDrafts.ts";
 import * as linkedInPolicy from "../lib/adsLinkedInPolicy.ts";
 import * as linkedInPreflight from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as linkedInPublish from "../lib/adsLinkedInPublish.ts";
@@ -229,6 +234,15 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
   };
   const modules = new Map<string, unknown>([
     ["server-only", {}],
+    ["./adsChannelDrafts.ts", channelDrafts],
+    ["./adsLinkedInCampaignSettings.ts", deliverySettings],
+    ["./adsLinkedInPublish.ts", purePublish],
+    ["./adsLinkedInVideo.ts", videoUpload],
+    ["./adsLinkedInResourcesServer.ts", {
+      resolveLinkedInAdsProfessionalTargets: async (input: { targets: unknown[] }) => { assert.deepEqual(input.targets, []); return { verifiedTargets: [], unresolvedTargets: [] }; },
+      resolveLinkedInAdsConversions: async (input: { conversionUrns: string[] }) => { assert.deepEqual(input.conversionUrns, []); return { verifiedConversions: [], unresolvedUrns: [] }; },
+    }],
+
     ["sharp", () => ({ metadata: async () => ({ width: 1200, height: 628, format: "png" }) })],
     ["./adsLinkedInPolicy.ts", linkedInPolicy],
     ["./adsLinkedInPreflightPolicy.ts", linkedInPreflight],

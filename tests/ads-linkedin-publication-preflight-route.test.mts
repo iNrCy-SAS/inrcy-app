@@ -36,7 +36,16 @@ function routeRuntime(options: {
   };
   const modules = new Map<string, unknown>([
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
+    ["@/lib/adsMetaPublish", { checkMetaAdsPublication: async () => { throw new Error("Meta must not be called by LinkedIn"); } }],
+    ["@/lib/adsMetaResourcesServer", { MetaAdsPreparationError: ConnectionError }],
+    ["@/lib/adsOpenaiServer", { checkOpenaiAdsPublication: async () => { throw new Error("ChatGPT must not be called by LinkedIn"); } }],
+    ["@/lib/adsOpenaiConnector", { OpenaiAdsPublishError: ConnectionError }],
+    ["@/lib/adsPinterestCampaignPublish", { checkPinterestAdsPublication: async () => { throw new Error("Pinterest must not be called by LinkedIn"); } }],
+    ["@/lib/adsPinterestServer", { PinterestAdsConnectionError: ConnectionError }],
+    ["@/lib/adsGooglePublish", { checkGoogleAdsPublication: async () => { throw new Error("Google should not be called by LinkedIn"); }, GoogleAdsLocationResolutionError: class extends Error {} }],
+    ["@/lib/adsGoogleApiError", { GoogleAdsApiError: class extends Error {} }],
     ["@/lib/adsServer", {
+      isAdsChannelUserAllowed: async () => true,
       adsRequestOriginAllowed: () => options.originAllowed !== false,
       adsBadOriginResponse: () => Response.json({ error: "bad origin" }, { status: 403 }),
       requirePremiumAdsUser: async (channel: string) => {
@@ -83,7 +92,7 @@ test("saved-draft preflight authenticates LinkedIn access and checks only the ac
   assert.equal(result.status, 200);
   assert.deepEqual(await result.json(), { ready: true, verifiedGeoCount: 7 });
   assert.equal(result.headers.get("cache-control"), "no-store");
-  assert.deepEqual(runtime.calls[0], { operation: "authorize", value: "linkedin" });
+  assert.deepEqual(runtime.calls[0], { operation: "authorize", value: undefined });
   assert.ok(runtime.calls.some((call) => call.operation === "eq" && JSON.stringify(call.value) === JSON.stringify(["id", campaignId])));
   assert.ok(runtime.calls.some((call) => call.operation === "eq" && JSON.stringify(call.value) === JSON.stringify(["user_id", activeUserId])));
   assert.deepEqual(runtime.calls.find((call) => call.operation === "parse")?.value, { purpose: "publish" });

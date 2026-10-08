@@ -1,3 +1,4 @@
+import { buildLinkedInDeliveryTargeting, linkedInDeliveryBidding, type LinkedInDeliverySettings } from "./adsLinkedInCampaignSettings.ts";
 import { isLinkedInAdsAccountId, missingLinkedInAdsScopes } from "./adsLinkedInPolicy.ts";
 
 export type LinkedInAdsCampaignGroup = {
@@ -10,6 +11,7 @@ export type LinkedInAdsCampaignGroup = {
   allowedCampaignTypes: string[];
   runSchedule: { start?: number; end?: number };
   organizationUrn: string | null;
+  backfilled?: boolean;
 };
 
 export type LinkedInAdsTargetingEntity = {
@@ -57,9 +59,33 @@ export function normalizeLinkedInAdsGeoQueries(values: string[]): string[] {
  */
 export function linkedInAdsCampaignGroupIsCompatible(
   group: Pick<LinkedInAdsCampaignGroup, "objectiveType" | "allowedCampaignTypes">,
+  objectiveType = "WEBSITE_VISIT",
 ): boolean {
-  return (!group.objectiveType || group.objectiveType === "WEBSITE_VISIT")
+  return (!group.objectiveType || group.objectiveType === objectiveType)
     && (!group.allowedCampaignTypes.length || group.allowedCampaignTypes.includes("SPONSORED_UPDATES"));
+}
+
+/** Select an existing provider group; an explicit choice is never silently replaced. */
+export function selectLinkedInAdsCampaignGroup(
+  groups: readonly LinkedInAdsCampaignGroup[],
+  input: {
+    selectedId?: string;
+    objectiveType: string;
+    organizationUrn?: string;
+    scheduleIsCompatible: (group: LinkedInAdsCampaignGroup) => boolean;
+  },
+): LinkedInAdsCampaignGroup | null {
+  if (input.selectedId) return groups.find((group) => group.id === input.selectedId) || null;
+  const candidates = groups.filter((group) =>
+    ["ACTIVE", "DRAFT", "PAUSED"].includes(group.status)
+    && linkedInAdsCampaignGroupIsCompatible(group, input.objectiveType)
+    && (!input.organizationUrn || !group.organizationUrn || group.organizationUrn === input.organizationUrn)
+    && input.scheduleIsCompatible(group));
+  // Provider IDs may exceed Number's safe range; compare their decimal strings.
+  candidates.sort((left, right) => Number(right.status === "ACTIVE") - Number(left.status === "ACTIVE")
+    || Number(right.backfilled === true) - Number(left.backfilled === true)
+    || left.id.length - right.id.length || left.id.localeCompare(right.id));
+  return candidates[0] || null;
 }
 
 export function normalizedLinkedInGeoLabel(value: string): string {
@@ -179,6 +205,7 @@ export function normalizeLinkedInAdsCampaignGroup(
     allowedCampaignTypes,
     runSchedule: { ...(start ? { start } : {}), ...(end ? { end } : {}) },
     organizationUrn: organizationUrn(row.beneficiaryReference),
+    backfilled: row.backfilled === true,
   };
 }
 
@@ -307,20 +334,22 @@ export function buildLinkedInAdsImagePath(imageUrn: string): string {
   return `/rest/images/${encodeURIComponent(imageUrn)}`;
 }
 
-function buildTargetingCriteria(geoUrns: string[], language: string, country: string): string {
+function buildTargetingCriteria(geoUrns: string[], language: string, country: string, deliverySettings?: LinkedInDeliverySettings): string {
   const geos = [...new Set(geoUrns)];
   if (!geos.length || geos.length > 20 || geos.some((urn) => !GEO_URN.test(urn))
     || !/^[a-z]{2}$/.test(language) || !/^[A-Z]{2}$/.test(country)) {
     throw new TypeError("Invalid LinkedIn Ads targeting criteria");
   }
-  const localeUrn = `urn:li:locale:${language}_${country}`;
-  const localeFacet = encodeURIComponent("urn:li:adTargetingFacet:interfaceLocales");
-  const locationFacet = encodeURIComponent("urn:li:adTargetingFacet:locations");
-  return `(include:(and:List((or:(${localeFacet}:List(${encodeURIComponent(localeUrn)}))),(or:(${locationFacet}:List(${geos.map(encodeURIComponent).join(",")}))))))`;
+  const criteria = buildLinkedInDeliveryTargeting(geos, language, country, deliverySettings);
+  const encoded = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  const serialize = (value: unknown): string => Array.isArray(value) ? `List(${value.map(serialize).join(",")})`
+    : value !== null && typeof value === "object" ? `(${Object.entries(value).map(([key, item]) => `${encoded(key)}:${serialize(item)}`).join(",")})`
+      : encoded(String(value));
+  return serialize(criteria);
 }
 
-export function buildLinkedInAdsAudienceCountPath(geoUrns: string[], language: string, country: string): string {
-  return `/rest/audienceCounts?q=targetingCriteriaV2&targetingCriteria=${buildTargetingCriteria(geoUrns, language, country)}`;
+export function buildLinkedInAdsAudienceCountPath(geoUrns: string[], language: string, country: string, deliverySettings?: LinkedInDeliverySettings): string {
+  return `/rest/audienceCounts?q=targetingCriteriaV2&targetingCriteria=${buildTargetingCriteria(geoUrns, language, country, deliverySettings)}`;
 }
 
 export function buildLinkedInAdsBudgetPricingPath(input: {
@@ -328,18 +357,22 @@ export function buildLinkedInAdsBudgetPricingPath(input: {
   geoUrns: string[];
   language: string;
   country: string;
-  dailyBudget: number;
+  dailyBudget?: number;
+  objectiveType?: string;
+  deliverySettings?: LinkedInDeliverySettings;
 }): string {
-  if (!isLinkedInAdsAccountId(input.accountId) || !Number.isFinite(input.dailyBudget) || input.dailyBudget <= 0) {
+  if (!isLinkedInAdsAccountId(input.accountId) || (input.dailyBudget !== undefined && (!Number.isFinite(input.dailyBudget) || input.dailyBudget <= 0))) {
     throw new TypeError("Invalid LinkedIn Ads pricing criteria");
   }
   const accountUrn = encodeURIComponent(`urn:li:sponsoredAccount:${input.accountId}`);
-  const budget = input.dailyBudget.toFixed(2);
+  const objective = input.objectiveType || "WEBSITE_VISIT";
+  const bidding = linkedInDeliveryBidding(objective, input.deliverySettings);
+  if (!bidding) throw new TypeError("Unsupported LinkedIn bidding criteria");
   return "/rest/adBudgetPricing"
-    + `?account=${accountUrn}&bidType=CPC&currency=EUR&optimizationTargetType=NONE`
-    + "&objectiveType=WEBSITE_VISIT&campaignType=SPONSORED_UPDATES&matchType=EXACT&q=criteriaV2"
-    + `&targetingCriteria=${buildTargetingCriteria(input.geoUrns, input.language, input.country)}`
-    + `&dailyBudget=(amount:${budget},currencyCode:EUR)`;
+    + `?account=${accountUrn}&bidType=${bidding.bidType}&currency=EUR&optimizationTargetType=${bidding.optimizationTargetType}`
+    + `&objectiveType=${objective}&campaignType=SPONSORED_UPDATES&matchType=${input.deliverySettings?.placements.audienceExpansion ? "AUDIENCE_EXPANDED" : "EXACT"}&q=criteriaV2`
+    + `&targetingCriteria=${buildTargetingCriteria(input.geoUrns, input.language, input.country, input.deliverySettings)}`
+    + (input.dailyBudget === undefined ? "" : `&dailyBudget=(amount:${input.dailyBudget.toFixed(2)},currencyCode:EUR)`);
 }
 
 export function normalizeLinkedInAdsAudienceCount(payload: unknown): number | null {
@@ -385,6 +418,10 @@ export function linkedInAdsPreflightBlockers(input: {
   dailyBudget: number | null;
   politicalIntentConfirmed: boolean;
   targetingNoticeAcknowledged: boolean;
+  objectiveType?: string;
+  deliverySettings?: LinkedInDeliverySettings;
+  totalBudget?: number | null;
+  scheduleDays?: number;
 }): string[] {
   const blockers: string[] = [];
   for (const scope of missingLinkedInAdsScopes(input.scopes.join(" "), "manage")) {
@@ -397,7 +434,7 @@ export function linkedInAdsPreflightBlockers(input: {
   if (input.targetStatus !== "PAUSED" && input.campaignGroup && input.campaignGroup.status !== "ACTIVE") {
     blockers.push("campaign_group_not_active");
   }
-  if (input.campaignGroup && input.campaignGroup.objectiveType && input.campaignGroup.objectiveType !== "WEBSITE_VISIT") {
+  if (input.campaignGroup && input.campaignGroup.objectiveType && input.campaignGroup.objectiveType !== (input.objectiveType || "WEBSITE_VISIT")) {
     blockers.push("campaign_group_objective_mismatch");
   }
   if (input.campaignGroup && input.campaignGroup.allowedCampaignTypes.length
@@ -412,9 +449,11 @@ export function linkedInAdsPreflightBlockers(input: {
   if (input.audienceCount === null) blockers.push("audience_count_required");
   else if (input.audienceCount < 300) blockers.push("audience_too_small");
   if (!input.pricing) blockers.push("budget_pricing_required");
-  if (input.pricing && (input.bidAmount === null
+  if (input.deliverySettings?.bidding.strategy !== "maximum_delivery" && input.pricing && (input.bidAmount === null
     || input.bidAmount < input.pricing.bidMin || input.bidAmount > input.pricing.bidMax)) blockers.push("bid_out_of_range");
-  if (input.pricing && (input.dailyBudget === null
+  if (input.deliverySettings?.budget.type === "total") {
+    if (input.pricing && (input.totalBudget == null || !input.scheduleDays || input.totalBudget < input.pricing.dailyBudgetMin * input.scheduleDays)) blockers.push("total_budget_too_low");
+  } else if (input.pricing && (input.dailyBudget === null
     || input.dailyBudget < input.pricing.dailyBudgetMin)) blockers.push("daily_budget_too_low");
   if (!input.politicalIntentConfirmed) blockers.push("political_intent_confirmation_required");
   if (!input.targetingNoticeAcknowledged) blockers.push("targeting_notice_acknowledgement_required");

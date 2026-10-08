@@ -1,3 +1,13 @@
+import { normalizePreparedDeliverySettings, plannedNativeCalendar, type PreparedDeliverySettings } from "./adsPreparedCampaignSettings.ts";
+import { normalizeTikTokAdsNativeSelections, type TikTokAdsNativeSelections } from "./adsTikTokNativeSelections.ts";
+import { normalizeXAdsNativeSelections, type XAdsNativeSelections } from "./adsXResources.ts";
+import { normalizeMetaDeliverySettings, metaNativeDelivery, type MetaDeliverySettings } from "./adsMetaCampaignSettings.ts";
+import { normalizeMetaAdsGeoTargets, type MetaAdsGeoTarget } from "./adsMetaResources.ts";
+import { normalizeOpenaiDeliverySettings, openaiAdsTrackingTemplate, type OpenaiDeliverySettings } from "./adsOpenaiCampaignSettings.ts";
+import { normalizePinterestDeliverySettings, pinterestNativeDelivery, type PinterestDeliverySettings } from "./adsPinterestCampaignSettings.ts";
+import { pinterestLiveConfigurationIssue, pinterestDestinationUrl } from "./adsPinterestPublish.ts";
+import { normalizeGoogleDeliverySettings, googleSearchLocalIssue, type GoogleDeliverySettings } from "./adsGoogleCampaignSettings.ts";
+import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding, linkedInTrackedDestination, type LinkedInDeliverySettings } from "./adsLinkedInCampaignSettings.ts";
 import { isPlannedAdsChannel } from "./adsChannelCapabilities.ts";
 import {
   assessAdsChannelDraft,
@@ -117,13 +127,25 @@ export type AdsCampaignInput = {
   dailyBudgetEuros: number;
   /** Explicit Pinterest CPM/CPC max bid; ignored by other channel publishers. */
   pinterestBidEuros?: number;
+  /** Native CBO budget, schedule and bidding; absence preserves the historical Pinterest adapter. */
+  preparedDeliverySettings?: PreparedDeliverySettings;
+  /** Requested native choices; ownership and capabilities must be checked again on the server. */
+  tiktokNativeSelections?: TikTokAdsNativeSelections;
+  xNativeSelections?: XAdsNativeSelections;
+  pinterestDeliverySettings?: PinterestDeliverySettings;
   /** Explicit per-event bid for the first ChatGPT Ads chat-card format. */
   openaiBidEuros?: number;
+  openaiDeliverySettings?: OpenaiDeliverySettings;
+  /** Native Meta traffic delivery and exact provider geographic selections. */
+  metaDeliverySettings?: MetaDeliverySettings;
+  metaGeoTargets?: MetaAdsGeoTarget[];
   /** Verified LinkedIn choices. Provider ownership is always re-read before a mutation. */
   linkedinCampaignGroupId?: string;
   linkedinOrganizationUrn?: string;
   linkedinGeoTargets?: Array<{ urn: string; name: string }>;
   linkedinBidEuros?: number;
+  /** Exact native delivery selections; fresh provider verification is mandatory before publication. */
+  linkedinDeliverySettings?: LinkedInDeliverySettings;
   linkedinPoliticalIntentConfirmed?: boolean;
   linkedinTargetingNoticeAcknowledged?: boolean;
   endDate: string;
@@ -133,6 +155,8 @@ export type AdsCampaignInput = {
   targetLocations: string[];
   targetAudiences: string[];
   languages: string[];
+  /** Native Search settings; absence preserves historical publication defaults. */
+  googleDeliverySettings?: GoogleDeliverySettings;
   googleSearchPartners: boolean;
   googleDisplayExpansion: boolean;
   metaAudienceExpansion: boolean;
@@ -362,6 +386,7 @@ function hasExpectedChannelDraftShape(value: Record<string, unknown>, channel: A
 function parsePlannedChannelDraft(
   value: unknown,
   provider: AdsChannelId,
+  preparedBudget?: AdsChannelDraft["budget"],
 ): { channelDraft: AdsChannelDraft | undefined; error: string | null } {
   if (value === undefined || value === null) return { channelDraft: undefined, error: null };
   if (!isPlannedAdsChannel(provider)) {
@@ -396,6 +421,9 @@ function parsePlannedChannelDraft(
   if (!hasExpectedChannelDraftShape(raw, provider)) {
     return { channelDraft: undefined, error: "Le brief du canal contient des champs inattendus." };
   }
+  // The validated delivery choice is authoritative; IDs and unknown brief fields
+  // were rejected above before synchronizing the draft budget.
+  if (preparedBudget) raw.budget = preparedBudget;
   if (!assessAdsChannelDraft(candidate).briefComplete) {
     return { channelDraft: undefined, error: "Le brief du canal est incomplet ou incompatible avec son objectif." };
   }
@@ -441,10 +469,10 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   // advertisers used by the live adapters. Never transform an X identifier.
   const adAccountId = provider === "x" || provider === "openai" ? rawAccountId : rawAccountId.replace(/^act_/, "").replace(/-/g, "");
   const accountIdPattern = provider === "openai" ? /^adacct_[A-Za-z0-9_-]{1,100}$/
-    : provider === "x" ? /^[a-z0-9]+$/i : provider === "pinterest" ? /^\d{5,30}$/ : /^\d{5,25}$/;
+    : provider === "x" ? /^[a-z0-9]+$/i : (provider === "pinterest" || provider === "tiktok") ? /^\d{5,30}$/ : /^\d{5,25}$/;
   if (purpose === "publish" && !accountIdPattern.test(adAccountId)) return { draft: null, error: "Sélectionnez un compte publicitaire connecté." };
   if (adAccountId && !accountIdPattern.test(adAccountId)) return { draft: null, error: "L’identifiant du compte publicitaire est invalide." };
-  if (!isAdsDraftAccountChannel(provider) && provider !== "x" && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
+  if (!isAdsDraftAccountChannel(provider) && provider !== "x" && provider !== "tiktok" && adAccountId) return { draft: null, error: "Connectez ce canal dans iNr’ADS avant d’associer un compte publicitaire." };
   if (raw.accountCurrency !== "EUR") return { draft: null, error: "Cette première version accepte les comptes publicitaires en EUR uniquement." };
 
   const creationMode: AdsCreationMode = includes(ADS_CREATION_MODES, raw.creationMode) ? raw.creationMode : "manual";
@@ -463,20 +491,58 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   if (!Number.isFinite(dailyBudgetEuros) || dailyBudgetEuros < 5 || dailyBudgetEuros > 500 || Math.abs(Math.round(dailyBudgetEuros * 100) - dailyBudgetEuros * 100) > 0.000001) {
     return { draft: null, error: "Le budget journalier doit être compris entre 5 et 500 €, avec deux décimales maximum." };
   }
-  if (provider === "openai" && dailyBudgetEuros < 15) {
+  if (raw.preparedDeliverySettings != null && provider !== "x" && provider !== "tiktok") return { draft: null, error: "Ces réglages préparés sont réservés à X et TikTok Ads." };
+  const parsedPreparedDelivery = normalizePreparedDeliverySettings(raw.preparedDeliverySettings, provider === "x" || provider === "tiktok" ? provider : undefined);
+  if (parsedPreparedDelivery.error) return { draft: null, error: parsedPreparedDelivery.error };
+  const preparedDeliverySettings = parsedPreparedDelivery.settings || undefined;
+  if (raw.tiktokNativeSelections != null && provider !== "tiktok") return { draft: null, error: "Ces choix natifs sont réservés à TikTok Ads." };
+  if (raw.xNativeSelections != null && provider !== "x") return { draft: null, error: "Ces choix natifs sont réservés à X Ads." };
+  const parsedTikTokSelections = normalizeTikTokAdsNativeSelections(raw.tiktokNativeSelections);
+  const parsedXSelections = normalizeXAdsNativeSelections(raw.xNativeSelections);
+  if (parsedTikTokSelections.error || parsedXSelections.error) return { draft: null, error: parsedTikTokSelections.error || parsedXSelections.error };
+  const tiktokNativeSelections = parsedTikTokSelections.selections || undefined;
+  const xNativeSelections = parsedXSelections.selections || undefined;
+  if (tiktokNativeSelections && tiktokNativeSelections.advertiserId !== adAccountId || xNativeSelections && xNativeSelections.accountId !== adAccountId) {
+    return { draft: null, error: "Les choix natifs ne correspondent plus au compte sélectionné. Revérifiez les ressources du compte." };
+  }
+
+  const parsedOpenaiDelivery = raw.openaiDeliverySettings == null ? null : normalizeOpenaiDeliverySettings(raw.openaiDeliverySettings);
+  if (raw.openaiDeliverySettings != null && provider !== "openai") return { draft: null, error: "Ces réglages sont réservés à ChatGPT Ads." };
+  if (provider === "openai" && parsedOpenaiDelivery?.error) return { draft: null, error: parsedOpenaiDelivery.error };
+  const openaiDeliverySettings = parsedOpenaiDelivery?.settings;
+  const parsedMetaDelivery = normalizeMetaDeliverySettings(raw.metaDeliverySettings);
+  if (raw.metaDeliverySettings != null && provider !== "meta") return { draft: null, error: "Ces réglages sont réservés à Meta Ads." };
+  if (provider === "meta" && parsedMetaDelivery.error) return { draft: null, error: parsedMetaDelivery.error };
+  const metaDeliverySettings = parsedMetaDelivery.settings || undefined;
+  if (raw.metaGeoTargets != null && provider !== "meta") return { draft: null, error: "Ces zones natives sont réservées à Meta Ads." };
+  const metaGeoTargets = normalizeMetaAdsGeoTargets(raw.metaGeoTargets);
+  if (!metaGeoTargets) return { draft: null, error: "Vérifiez les zones Meta natives sélectionnées." };
+  if (provider === "openai" && openaiDeliverySettings?.budget.type !== "total" && dailyBudgetEuros < 15) {
     return { draft: null, error: "Ce parcours ChatGPT Ads commence à 15 € de budget quotidien moyen ; le compte peut exiger davantage." };
   }
+  const parsedPinterestDelivery = normalizePinterestDeliverySettings(raw.pinterestDeliverySettings);
+  if (raw.pinterestDeliverySettings != null && provider !== "pinterest") return { draft: null, error: "Ces réglages sont réservés à Pinterest Ads." };
+  if (provider === "pinterest" && parsedPinterestDelivery.error) return { draft: null, error: parsedPinterestDelivery.error };
+  const pinterestDeliverySettings = parsedPinterestDelivery.settings || undefined;
   const pinterestBidEuros = raw.pinterestBidEuros == null ? 1 : Number(raw.pinterestBidEuros);
-  if (provider === "pinterest" && (!Number.isFinite(pinterestBidEuros) || pinterestBidEuros < 0.01
+  if (provider === "pinterest" && !pinterestDeliverySettings && (!Number.isFinite(pinterestBidEuros) || pinterestBidEuros < 0.01
     || pinterestBidEuros > dailyBudgetEuros || Math.abs(Math.round(pinterestBidEuros * 100) - pinterestBidEuros * 100) > 0.000001)) {
     return { draft: null, error: "L’enchère Pinterest doit être comprise entre 0,01 € et le budget journalier, avec deux décimales maximum." };
   }
   const openaiBidEuros = raw.openaiBidEuros == null ? undefined : Number(raw.openaiBidEuros);
   if (provider === "openai" && openaiBidEuros !== undefined &&
-    (!Number.isFinite(openaiBidEuros) || openaiBidEuros < 0.01 || openaiBidEuros > dailyBudgetEuros
+    (!Number.isFinite(openaiBidEuros) || openaiBidEuros < 0.01 || openaiBidEuros > (openaiDeliverySettings?.budget.type === "total" ? openaiDeliverySettings.budget.totalEuros! : dailyBudgetEuros)
       || Math.abs(Math.round(openaiBidEuros * 100) - openaiBidEuros * 100) > 0.000001)) {
-    return { draft: null, error: "L’enchère ChatGPT Ads doit être comprise entre 0,01 € et le budget quotidien, avec deux décimales maximum." };
+    return { draft: null, error: "L’enchère ChatGPT Ads doit être comprise entre 0,01 € et le budget choisi, avec deux décimales maximum." };
   }
+  const parsedGoogleDelivery = normalizeGoogleDeliverySettings(raw.googleDeliverySettings);
+  if (raw.googleDeliverySettings != null && provider !== "google") return { draft: null, error: "Ces réglages sont réservés à Google Search." };
+  if (provider === "google" && parsedGoogleDelivery.error) return { draft: null, error: parsedGoogleDelivery.error };
+  const googleDeliverySettings = parsedGoogleDelivery.settings || undefined;
+  const parsedLinkedInDelivery = normalizeLinkedInDeliverySettings(raw.linkedinDeliverySettings);
+  if (raw.linkedinDeliverySettings != null && provider !== "linkedin") return { draft: null, error: "Ces réglages de diffusion sont réservés à LinkedIn." };
+  if (provider === "linkedin" && parsedLinkedInDelivery.error) return { draft: null, error: parsedLinkedInDelivery.error };
+  const linkedinDeliverySettings = parsedLinkedInDelivery.settings || undefined;
   const linkedinCampaignGroupId = clean(raw.linkedinCampaignGroupId);
   const linkedinOrganizationUrn = clean(raw.linkedinOrganizationUrn);
   const linkedinGeoTargets = normalizeLinkedInGeoTargets(raw.linkedinGeoTargets ?? []);
@@ -494,7 +560,7 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       return { draft: null, error: "Les zones LinkedIn sélectionnées sont invalides." };
     }
     if (linkedinBidEuros !== undefined && (!Number.isFinite(linkedinBidEuros) || linkedinBidEuros <= 0
-      || linkedinBidEuros > dailyBudgetEuros
+      || linkedinBidEuros > (linkedinDeliverySettings?.budget.type === "total" ? Number(linkedinDeliverySettings.budget.totalEuros) : dailyBudgetEuros)
       || Math.abs(Math.round(linkedinBidEuros * 100) - linkedinBidEuros * 100) > 0.000001)) {
       return { draft: null, error: "L’enchère LinkedIn doit être positive, inférieure au budget journalier et limitée à deux décimales." };
     }
@@ -503,7 +569,11 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   const endDate = clean(raw.endDate);
   const endTime = Date.parse(`${endDate}T23:59:59Z`);
   const daysUntilEnd = (endTime - Date.now()) / 86_400_000;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || !Number.isFinite(endTime) || daysUntilEnd < 1 || daysUntilEnd > 90) {
+  // Native Search calendar dates are finally checked in the verified customer timezone, including one-day daily campaigns.
+  const nativeGoogleCalendar = provider === "google" && raw.googleDeliverySettings != null;
+  const nativePinterestCalendar = provider === "pinterest" && pinterestDeliverySettings != null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || !Number.isFinite(endTime) ||
+      (nativeGoogleCalendar || nativePinterestCalendar || preparedDeliverySettings || (provider === "meta" && metaDeliverySettings) || (provider === "openai" && openaiDeliverySettings) ? daysUntilEnd < -1 || daysUntilEnd > 91 : daysUntilEnd < 1 || daysUntilEnd > 90)) {
     return { draft: null, error: "Choisissez une fin de campagne entre demain et dans 90 jours." };
   }
 
@@ -563,7 +633,14 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
   }
   const noSpecialCategoryConfirmed = raw.noSpecialCategoryConfirmed === true;
   const notEuPoliticalConfirmed = raw.notEuPoliticalConfirmed === true;
-  const { channelDraft: parsedChannelDraft, error: channelDraftError } = parsePlannedChannelDraft(raw.channelDraft, provider);
+  let preparedBudget: AdsChannelDraft["budget"] | undefined;
+  if (preparedDeliverySettings) {
+    try {
+      const prepared = plannedNativeCalendar({ provider, dailyBudgetEuros, endDate, preparedDeliverySettings });
+      preparedBudget = { amount: prepared.amountEuros, currency: "EUR", period: prepared.budgetType === "total" ? "lifetime" : "daily", level: provider === "tiktok" ? "ad_group" : "campaign" };
+    } catch (error) { return { draft: null, error: error instanceof Error ? error.message : "Vérifiez le calendrier préparé." }; }
+  }
+  const { channelDraft: parsedChannelDraft, error: channelDraftError } = parsePlannedChannelDraft(raw.channelDraft, provider, preparedBudget);
   if (channelDraftError) return { draft: null, error: channelDraftError };
   if (!isPlannedAdsChannel(provider) && raw.channelSettings != null) {
     return { draft: null, error: "Ce canal n’accepte pas de réglages publicitaires spécifiques." };
@@ -583,6 +660,12 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     ? undefined : parsedChannelDraft;
 
   if (purpose === "publish" && provider === "meta") {
+    if (metaDeliverySettings) {
+      if (campaignType !== "meta_traffic" || objective !== "website_traffic" || conversionLocation !== "website" || conversionGoal !== "website_visit" || mediaStrategy !== "image" || creativeType !== "image") return { draft: null, error: "Ce parcours Meta transmet une image et optimise les clics sur le lien vers votre site." };
+      if (!metaGeoTargets.length) return { draft: null, error: "Choisissez au moins une zone exacte vérifiée par Meta." };
+      if (headlines.length !== 1 || !headlines[0]?.trim() || descriptions.length > 1) return { draft: null, error: "Choisissez un titre et au maximum une description pour l’annonce Meta." };
+      try { metaNativeDelivery({ dailyBudgetEuros, endDate, metaDeliverySettings }); } catch (error) { return { draft: null, error: error instanceof Error ? error.message : "Vérifiez la diffusion Meta." }; }
+    }
     if (primaryText.length < 10 || primaryText.length > 500) return { draft: null, error: "Le texte Meta doit contenir entre 10 et 500 caractères." };
     const mediaReadinessReason = metaCreativeAssetReadinessReason(assessMetaCreativeAssetReadiness({
       metaPlacements,
@@ -593,6 +676,8 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (!/^\d{5,30}$/.test(pageId)) return { draft: null, error: "Sélectionnez une Page Facebook autorisée pour cette annonce." };
     if (!noSpecialCategoryConfirmed) return { draft: null, error: "Confirmez que l’annonce Meta ne relève d’aucune catégorie publicitaire spéciale." };
   } else if (purpose === "publish" && provider === "google") {
+    const nativeIssue = googleSearchLocalIssue({ campaignType, bidStrategy, endDate, headlines, descriptions, keywords, negativeKeywords, googleDeliverySettings });
+    if (nativeIssue) return { draft: null, error: nativeIssue };
     if (!targetLocations.length) return { draft: null, error: "Google Search requiert au moins une zone ciblée." };
     if (headlines.length < 3 || descriptions.length < 2 || keywords.length < 1) {
       return { draft: null, error: "Google Search requiert 3 titres, 2 descriptions et au moins un mot-clé." };
@@ -604,6 +689,12 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
     if (channelSettings?.channel !== "pinterest") {
       return { draft: null, error: "Choisissez les réglages Pinterest de cette campagne." };
     }
+    const configurationIssue = pinterestLiveConfigurationIssue(channelSettings, keywords);
+    if (configurationIssue) return { draft: null, error: configurationIssue };
+    try {
+      pinterestNativeDelivery({ dailyBudgetEuros, pinterestBidEuros, endDate, pinterestDeliverySettings, channelSettings });
+      pinterestDestinationUrl(destinationUrl || "", trackingParameters);
+    } catch (error) { return { draft: null, error: error instanceof Error ? error.message : "Vérifiez les paramètres Pinterest." }; }
     if (headlines.length !== 1 || !headlines[0]?.trim()) {
       return { draft: null, error: "Choisissez un seul titre pour l’épingle sponsorisée Pinterest avant publication." };
     }
@@ -617,13 +708,26 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       return { draft: null, error: "Ajoutez une image à l’épingle sponsorisée Pinterest." };
     }
   } else if (purpose === "publish" && provider === "linkedin") {
-    if (channelSettings?.channel !== "linkedin" || channelSettings.objectiveType !== "WEBSITE_VISIT"
-      || channelSettings.format !== "STANDARD_UPDATE") {
-      return { draft: null, error: "Le lancement LinkedIn prend actuellement en charge une campagne Visites du site avec une image sponsorisée." };
+    if (channelSettings?.channel !== "linkedin" || !linkedInDeliveryBidding(channelSettings.objectiveType, linkedinDeliverySettings)
+      || !["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(channelSettings.format) || (channelSettings.objectiveType === "VIDEO_VIEW" && channelSettings.format !== "SINGLE_VIDEO")) {
+      return { draft: null, error: "Choisissez un objectif, un format et une stratégie d’enchères LinkedIn pris en charge." };
+    }
+    const trackedDestination = linkedInTrackedDestination(destinationUrl || "", trackingParameters);
+    if (trackedDestination.error) return { draft: null, error: trackedDestination.error };
+    const nativeBudget = linkedinDeliverySettings?.budget;
+    const nativeStart = nativeBudget?.startAt ? Date.parse(nativeBudget.startAt) : Date.now() + 5 * 60_000;
+    const nativeEnd = nativeBudget?.endAt ? Date.parse(nativeBudget.endAt) : endTime;
+    if (nativeStart < Date.now() + 60_000 || nativeEnd <= nativeStart || nativeEnd > Date.now() + 90 * 86_400_000) {
+      return { draft: null, error: "Le calendrier LinkedIn doit commencer dans au moins une minute et se terminer dans les 90 jours." };
+    }
+    if (channelSettings.objectiveType === "WEBSITE_CONVERSION" && !linkedinDeliverySettings?.conversions.conversionUrns.length) {
+      return { draft: null, error: "Sélectionnez au moins une conversion LinkedIn vérifiée pour cet objectif." };
     }
     if (!linkedinCampaignGroupId) return { draft: null, error: "Sélectionnez un groupe de campagnes LinkedIn vérifié." };
     if (!linkedinOrganizationUrn) return { draft: null, error: "Sélectionnez une Page LinkedIn autorisée." };
-    if (linkedinBidEuros === undefined) return { draft: null, error: "Choisissez une enchère CPC LinkedIn vérifiée." };
+    const nativeBid = linkedinDeliverySettings?.bidding.amountEuros ?? linkedinBidEuros;
+    if (linkedinDeliverySettings?.bidding.strategy !== "maximum_delivery" && (nativeBid === undefined || nativeBid === null)) return { draft: null, error: "Choisissez une enchère LinkedIn vérifiée." };
+    if (nativeBid != null && nativeBid > (linkedinDeliverySettings?.budget.type === "total" ? Number(linkedinDeliverySettings.budget.totalEuros) : dailyBudgetEuros)) return { draft: null, error: "L’enchère LinkedIn ne peut pas dépasser le budget choisi." };
     if (!linkedinPoliticalIntentConfirmed) {
       return { draft: null, error: "Confirmez que la campagne LinkedIn n’est pas une publicité politique ciblant l’Union européenne." };
     }
@@ -631,11 +735,12 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       return { draft: null, error: "Acceptez la notice LinkedIn relative au ciblage non discriminatoire." };
     }
     if (!linkedinGeoTargets?.length) return { draft: null, error: "Sélectionnez au moins une zone géographique LinkedIn vérifiée." };
-    if (!(creativeUrl || imageUrl) || creativeType !== "image" || mediaStrategy !== "image") {
-      return { draft: null, error: "Ajoutez une image unique à la campagne LinkedIn." };
+    const expectedMedia = channelSettings.format === "SINGLE_VIDEO" ? "video" : "image";
+    if (!(creativeUrl || imageUrl) || creativeType !== expectedMedia || mediaStrategy !== expectedMedia) {
+      return { draft: null, error: `Ajoutez ${expectedMedia === "video" ? "une vidéo MP4" : "une image unique"} à la campagne LinkedIn.` };
     }
-    if (!primaryText || !headlines[0]?.trim()) {
-      return { draft: null, error: "LinkedIn requiert une introduction et un titre pour la création sponsorisée." };
+    if (primaryText.length < 10 || (headlines[0]?.trim().length || 0) < 3) {
+      return { draft: null, error: "LinkedIn requiert une introduction de 10 caractères, un titre de 3 caractères minimum." };
     }
   } else if (purpose === "publish" && provider === "openai") {
     if (campaignType !== "generic" || objective !== "website_traffic"
@@ -643,13 +748,19 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       || bidStrategy !== "manual_review" || mediaStrategy !== "image" || creativeType !== "image") {
       return { draft: null, error: "Le premier parcours ChatGPT Ads utilise une carte image et l’objectif clics vers votre site." };
     }
-    if (trackingParameters || keywords.length || negativeKeywords.length || callToAction) {
+    if ((!openaiDeliverySettings && trackingParameters) || keywords.length || negativeKeywords.length || callToAction) {
       return { draft: null, error: "Retirez les anciens paramètres de suivi, mots-clés et appels à l’action : ce parcours ChatGPT Ads ne les transmet pas." };
     }
     if (targetLocations.length < 1) {
       return { draft: null, error: "Choisissez au moins une zone locale à vérifier auprès de ChatGPT Ads." };
     }
     if (!openaiBidEuros) return { draft: null, error: "Renseignez l’enchère maximale ChatGPT Ads." };
+    if (openaiDeliverySettings) {
+      try { openaiAdsTrackingTemplate(trackingParameters); } catch (error) { return { draft: null, error: error instanceof Error ? error.message : "Vérifiez le suivi ChatGPT Ads." }; }
+      const start = openaiDeliverySettings.budget.startAt ? Date.parse(openaiDeliverySettings.budget.startAt) : Date.now();
+      const end = openaiDeliverySettings.budget.endAt ? Date.parse(openaiDeliverySettings.budget.endAt) : null;
+      if (start < Date.now() - 60_000 || end !== null && (end <= Math.max(start, Date.now()) || end > Date.now() + 90 * 86_400_000)) return { draft: null, error: "Vérifiez le calendrier futur ChatGPT Ads." };
+    }
     if (headlines.length !== 1 || headlines[0].length < 3) {
       return { draft: null, error: "La carte ChatGPT Ads demande un seul titre de 3 à 50 caractères." };
     }
@@ -676,11 +787,19 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       offer,
       dailyBudgetEuros,
       pinterestBidEuros,
+      ...(preparedDeliverySettings ? { preparedDeliverySettings } : {}),
+      ...(tiktokNativeSelections ? { tiktokNativeSelections } : {}),
+      ...(xNativeSelections ? { xNativeSelections } : {}),
+      ...(pinterestDeliverySettings ? { pinterestDeliverySettings } : {}),
       openaiBidEuros,
+      ...(openaiDeliverySettings ? { openaiDeliverySettings } : {}),
+      ...(metaDeliverySettings ? { metaDeliverySettings } : {}),
+      ...(raw.metaGeoTargets != null ? { metaGeoTargets } : {}),
       linkedinCampaignGroupId,
       linkedinOrganizationUrn,
       linkedinGeoTargets: linkedinGeoTargets || [],
       linkedinBidEuros,
+      ...(linkedinDeliverySettings ? { linkedinDeliverySettings } : {}),
       linkedinPoliticalIntentConfirmed,
       linkedinTargetingNoticeAcknowledged,
       endDate,
@@ -689,7 +808,8 @@ export function parseAdsCampaignInput(value: unknown, options: { purpose?: "draf
       urlExclusions: urlExclusions || [],
       targetLocations: targetLocations || [],
       targetAudiences: targetAudiences || [],
-      languages: languages?.length ? languages : ["fr"],
+      languages: provider === "meta" && metaDeliverySettings ? languages : languages?.length ? languages : ["fr"],
+      ...(googleDeliverySettings ? { googleDeliverySettings } : {}),
       googleSearchPartners,
       googleDisplayExpansion,
       metaAudienceExpansion,

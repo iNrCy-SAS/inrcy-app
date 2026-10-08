@@ -4,6 +4,8 @@ import test from "node:test";
 import ts from "typescript";
 import * as locations from "../../lib/adsPinterestLocations.ts";
 import * as publish from "../../lib/adsPinterestPublish.ts";
+import * as nativeSettings from "../../lib/adsPinterestCampaignSettings.ts";
+import * as nativeResources from "../../lib/adsPinterestResources.ts";
 
 class ConnectionError extends Error {
   code: string;
@@ -131,7 +133,12 @@ function publisherHarness(rejectActivation = false) {
   const publisher = moduleFromFile<PublisherModule>("../../lib/adsPinterestCampaignPublish.ts", {
     "server-only": {},
     "./adsPinterestPublish.ts": publish,
-    "./adsPinterestServer.ts": { pinterestAdsAccessToken: async () => "fake-token" },
+    "./adsPinterestCampaignSettings.ts": nativeSettings,
+    "./adsPinterestResources.ts": nativeResources,
+    "./adsPinterestResourcesServer.ts": { readPinterestAdsDeliveryResources: async () => {
+      for (const type of ["LOCATION", "GEO", "LOCALE"]) calls.push({ path: `/v5/resources/targeting/${type}`, method: "GET", body: undefined });
+      return { resources: nativeResources.normalizePinterestAdsResources({ id: "123456", currency: "EUR" }, fixture.LOCATION, fixture.GEO, fixture.LOCALE, "123456"), accessToken: "fake-token", locationPayload: fixture.LOCATION, geoPayload: fixture.GEO, localePayload: fixture.LOCALE };
+    } },
     "./adsPinterestLocations.ts": locations,
     "./mediaLibraryContentUrl.ts": { verifyMediaLibraryContentToken: () => false },
     "./safeStorageSignedUrl.ts": { createSafeStorageSignedUrl: () => { throw new Error("Unexpected storage access"); } },

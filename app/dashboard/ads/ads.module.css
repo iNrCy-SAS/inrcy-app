@@ -785,7 +785,12 @@
   .studioTargetingCard:is([data-channel=google],[data-channel=pinterest]) .studioLocationField{grid-column:1;grid-row:1/4;gap:8px}
   .studioTargetingCard:is([data-channel=google],[data-channel=pinterest]) .studioAudienceField{grid-column:2;grid-row:1;align-content:start}
   .studioTargetingCard:is([data-channel=google],[data-channel=pinterest]) .studioLanguageField{grid-column:2;grid-row:2;align-content:start}
-  .studioTargetingCard[data-channel=pinterest] .studioTargetingMode{grid-column:2;grid-row:3}
+  .studioTargetingCard[data-channel=pinterest] .studioTargetingMode{grid-column:1;grid-row:2}
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest] .studioGrid{row-gap:6px}
+  .studioTargetingCard[data-google-geography=true] .studioLocationField{grid-column:1;grid-row:1}
+  .studioTargetingCard[data-google-geography=true] .studioGrid>.studioControlPanel{grid-column:2;grid-row:1}
+  .studioTargetingCard[data-channel=google]:not([data-google-geography=true]) .studioAudienceField{grid-column:1;grid-row:1/3}
+  .studioTargetingCard[data-channel=google]:not([data-google-geography=true]) .studioGrid>.studioControlPanel{grid-column:2;grid-row:auto}
   .studioWorkspace .studioTargetingCard .tagInputShell{min-height:44px;padding:8px;gap:6px}
   .studioWorkspace .studioTargetingCard .tagInputShell input{padding:6px 3px}
   .studioWorkspace .stepper{flex-wrap:wrap;gap:8px 14px;overflow:visible}
@@ -1237,3 +1242,404 @@
   .studioWorkspace .studioValidationCard[data-channel="openai"] .studioFinalActions{gap:6px;margin-top:8px}
   .studioWorkspace .studioValidationCard[data-channel="openai"] .studioFinalActions button{min-height:36px;padding:7px 9px;font-size:11px}
 }
+
+/* LinkedIn audience panels stay compact at every viewport. */
+.linkedInAudienceControls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}.studioWide[data-linkedin-targeting=true]{display:grid;gap:14px}.studioWide[data-linkedin-targeting=true]>small{color:#a9c5e7;font-size:11px}@media(max-width:700px){.linkedInAudienceControls{grid-template-columns:1fr}}
+
+.studioWorkspace .studioValidationCard[data-channel=linkedin] .studioReviewGrid{min-width:0;max-width:100%}
+.studioWorkspace .studioValidationCard[data-channel=linkedin] .studioReviewGrid>div{min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr)}
+.studioWorkspace .studioValidationCard[data-channel=linkedin] .studioReviewGrid dd,.studioWorkspace .studioValidationCard[data-channel=linkedin] .studioReviewGrid small{min-width:0;overflow-wrap:anywhere;word-break:normal}
+
+/* Separate LinkedIn geography and audience pages keep native inputs compact. */
+.studioWide[data-linkedin-geography-controls=true]{display:grid;gap:18px}
+.linkedInIdentityChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:18px;margin-top:14px}
+.linkedInIdentityChoices .field{min-width:0}
+.linkedInGroupChoice{display:grid;min-width:0;gap:8px;padding:14px;border:1px solid rgba(128,177,225,.2);border-radius:14px;background:rgba(7,23,49,.3)}
+.linkedInGroupChoice>span{font-size:11px;color:#b3cce6;font-weight:700}
+.linkedInGroupChoice>strong{overflow-wrap:anywhere;font-size:14px}
+.linkedInGroupChoice details{margin-top:4px}
+.linkedInGroupChoice summary{cursor:pointer;color:#8bd4ff;font-size:12px;font-weight:700}
+.linkedInGroupChoice details .field{margin-top:12px}
+@media(max-width:700px){.linkedInIdentityChoices{grid-template-columns:1fr}}
+
+/* Campaign studio uses the screen width with one small outer margin. */
+@media(min-width:1000px){
+  :global([data-dashboard-settings-drawer-scroll="true"]):has(.studioWorkspace){padding-inline:0!important}
+  .studioWorkspace{width:100%;max-width:none;margin-inline:0;padding-inline:clamp(16px,1.2vw,24px)}
+  .studioWorkspace>.studioChoiceCard,.studioWorkspace>.studioCard,.studioWorkspace>.studioAnalysisCard{box-sizing:border-box;width:100%;max-width:none!important;margin-inline:0!important}
+  .studioWorkspace .stepper{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);align-items:start;justify-content:stretch;gap:clamp(12px,1.3vw,24px);overflow:visible;padding:4px 0 10px}
+  .studioWorkspace .stepper button{display:flex;min-width:0;width:100%;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;padding:4px 3px;font-size:11px;line-height:1.35;white-space:normal;text-align:center;overflow-wrap:anywhere}
+  .studioWorkspace .stepper button>span{flex:0 0 auto;width:30px;height:30px}
+}
+@media(max-width:999px){
+  .studioWorkspace[data-compact] .stepper{justify-content:flex-start;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-block:4px 9px}
+  .studioWorkspace[data-compact] .stepper::-webkit-scrollbar{display:none}
+  .studioWorkspace[data-compact] .stepper button{flex:0 0 auto}
+}
+
+/* The campaign studio inherits a calm, accessible palette from its channel. */
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="google"]),
+.studioWorkspace[data-channel="google"] {
+  --ads-wizard-primary-rgb: 66, 133, 244;
+  --ads-wizard-secondary-rgb: 52, 168, 83;
+  --ads-studio-accent: #abc8ff;
+  --ads-studio-surface-start: #102139;
+  --ads-studio-surface-end: #132b2d;
+  --ads-studio-modal-surface: #0a1422;
+  --ads-studio-button-start: #1d57b9;
+  --ads-studio-button-end: #1f694e;
+  --ads-studio-spectrum: linear-gradient(90deg, #4285f4 0% 25%, #ea4335 25% 50%, #fbbc05 50% 75%, #34a853 75% 100%);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="linkedin"]),
+.studioWorkspace[data-channel="linkedin"] {
+  --ads-wizard-primary-rgb: 10, 102, 194;
+  --ads-wizard-secondary-rgb: 14, 165, 233;
+  --ads-studio-accent: #87caff;
+  --ads-studio-surface-start: #0b1b31;
+  --ads-studio-surface-end: #102946;
+  --ads-studio-modal-surface: #081322;
+  --ads-studio-button-start: #0a66c2;
+  --ads-studio-button-end: #075496;
+  --ads-studio-spectrum: linear-gradient(90deg, #0a66c2, #0ea5e9);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="meta"]),
+.studioWorkspace[data-channel="meta"] {
+  --ads-wizard-primary-rgb: 24, 119, 242;
+  --ads-wizard-secondary-rgb: 168, 85, 247;
+  --ads-studio-accent: #b5d9ff;
+  --ads-studio-surface-start: #101f3b;
+  --ads-studio-surface-end: #251d3c;
+  --ads-studio-modal-surface: #0c1429;
+  --ads-studio-button-start: #244ca9;
+  --ads-studio-button-end: #6230a2;
+  --ads-studio-spectrum: linear-gradient(90deg, #1877f2, #a855f7);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="tiktok"]),
+.studioWorkspace[data-channel="tiktok"] {
+  --ads-wizard-primary-rgb: 37, 244, 238;
+  --ads-wizard-secondary-rgb: 254, 44, 85;
+  --ads-studio-accent: #66eee9;
+  --ads-studio-surface-start: #07181c;
+  --ads-studio-surface-end: #24131c;
+  --ads-studio-modal-surface: #080f14;
+  --ads-studio-button-start: #13585e;
+  --ads-studio-button-end: #8b2442;
+  --ads-studio-spectrum: linear-gradient(90deg, #25f4ee, #25f4ee 38%, #fe2c55 62%, #fe2c55);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="pinterest"]),
+.studioWorkspace[data-channel="pinterest"] {
+  --ads-wizard-primary-rgb: 230, 0, 35;
+  --ads-wizard-secondary-rgb: 190, 24, 93;
+  --ads-studio-accent: #ff9fad;
+  --ads-studio-surface-start: #25131e;
+  --ads-studio-surface-end: #2c182a;
+  --ads-studio-modal-surface: #160d16;
+  --ads-studio-button-start: #a91933;
+  --ads-studio-button-end: #802041;
+  --ads-studio-spectrum: linear-gradient(90deg, #e60023, #be185d);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="x"]),
+.studioWorkspace[data-channel="x"] {
+  --ads-wizard-primary-rgb: 236, 236, 236;
+  --ads-wizard-secondary-rgb: 110, 110, 110;
+  --ads-studio-accent: #f1f1f1;
+  --ads-studio-surface-start: #101010;
+  --ads-studio-surface-end: #202020;
+  --ads-studio-modal-surface: #0b0b0b;
+  --ads-studio-button-start: #343434;
+  --ads-studio-button-end: #1f1f1f;
+  --ads-studio-spectrum: linear-gradient(90deg, #f5f5f5, #777777);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel="openai"]),
+.studioWorkspace[data-channel="openai"] {
+  --ads-wizard-primary-rgb: 16, 163, 160;
+  --ads-wizard-secondary-rgb: 14, 104, 109;
+  --ads-studio-accent: #95e4dd;
+  --ads-studio-surface-start: #081719;
+  --ads-studio-surface-end: #102727;
+  --ads-studio-modal-surface: #060e10;
+  --ads-studio-button-start: #12615f;
+  --ads-studio-button-end: #123f40;
+  --ads-studio-spectrum: linear-gradient(90deg, #10a3a0, #0e686d);
+}
+
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel]) {
+  background: radial-gradient(ellipse at 6% 0, rgba(var(--ads-wizard-primary-rgb), .17), transparent 52%), radial-gradient(ellipse at 100% 100%, rgba(var(--ads-wizard-secondary-rgb), .12), transparent 55%), var(--ads-studio-modal-surface) !important;
+}
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel]) .modalBrand > span,
+:global([data-dashboard-settings-modal="true"]):has(.studioWorkspace[data-channel]) .wizardTitle small {
+  color: var(--ads-studio-accent);
+}
+
+.studioWorkspace[data-channel] {
+  background: radial-gradient(ellipse at 6% 0, rgba(var(--ads-wizard-primary-rgb), .09), transparent 38%), radial-gradient(ellipse at 100% 100%, rgba(var(--ads-wizard-secondary-rgb), .08), transparent 47%);
+  scrollbar-color: rgba(var(--ads-wizard-primary-rgb), .6) transparent;
+}
+.studioWorkspace[data-channel] .studioChoiceCard,
+.studioWorkspace[data-channel] .studioCard,
+.studioWorkspace[data-channel] .studioAnalysisCard {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .48);
+  background: radial-gradient(ellipse at 100% 0, rgba(var(--ads-wizard-secondary-rgb), .09), transparent 55%), radial-gradient(ellipse at 0 100%, rgba(var(--ads-wizard-primary-rgb), .1), transparent 55%), linear-gradient(128deg, var(--ads-studio-surface-start), var(--ads-studio-surface-end));
+  box-shadow: inset 0 1px #ffffff13, 0 24px 58px #02060e49;
+}
+.studioWorkspace[data-channel] .studioStepHeader {
+  border-bottom-color: rgba(var(--ads-wizard-primary-rgb), .28);
+}
+.studioWorkspace[data-channel] .studioStepHeader::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--ads-studio-spectrum);
+  opacity: .68;
+  content: "";
+  pointer-events: none;
+}
+.studioWorkspace[data-channel] .studioStepLabel,
+.studioWorkspace[data-channel] .studioStepChannel,
+.studioWorkspace[data-channel] .studioPath b,
+.studioWorkspace[data-channel] .studioAnalysisChoice label b,
+.studioWorkspace[data-channel] .studioTypeGrid span,
+.studioWorkspace[data-channel] .studioNativeBrief dt,
+.studioWorkspace[data-channel] .studioNativeBrief summary::after,
+.studioWorkspace[data-channel] .studioDestinationReview a,
+.studioWorkspace[data-channel] .campaignMediaWorkspaceHeading > div > span,
+.studioWorkspace[data-channel] .adsGenerationEyebrow,
+.studioWorkspace[data-channel] .studioPlanExpandClosed,
+.studioWorkspace[data-channel] .studioPlanExpandOpen {
+  color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] .studioStepChannel,
+.studioWorkspace[data-channel] .studioCampaignPromise span,
+.studioWorkspace[data-channel] .campaignMediaWorkspaceHeading > span {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .5);
+  background: rgba(var(--ads-wizard-primary-rgb), .14);
+  color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] .studioCampaignPromise span {
+  box-shadow: 0 0 20px rgba(var(--ads-wizard-primary-rgb), .15);
+}
+
+.studioWorkspace[data-channel] .studioPath,
+.studioWorkspace[data-channel] .studioAnalysisChoice,
+.studioWorkspace[data-channel] .studioControlPanel,
+.studioWorkspace[data-channel] .studioBudgetPanel,
+.studioWorkspace[data-channel] .studioBudgetForecastCard,
+.studioWorkspace[data-channel] .studioReviewGrid > div,
+.studioWorkspace[data-channel] .studioNativeBrief,
+.studioWorkspace[data-channel] .studioDestinationReview,
+.studioWorkspace[data-channel] .campaignMediaWorkspace,
+.studioWorkspace[data-channel] .campaignMediaAttached,
+.studioWorkspace[data-channel] .studioPlanReady {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .3);
+  background: linear-gradient(120deg, rgba(var(--ads-wizard-primary-rgb), .08), rgba(var(--ads-wizard-secondary-rgb), .05)), var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .studioPathAi {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .6);
+  background: radial-gradient(circle at 91% 10%, rgba(var(--ads-wizard-secondary-rgb), .17), transparent 43%), linear-gradient(135deg, rgba(var(--ads-wizard-primary-rgb), .17), rgba(var(--ads-wizard-secondary-rgb), .1)), var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .studioPath:hover:not(:disabled),
+.studioWorkspace[data-channel] .studioTypeGrid button:not([data-selected="true"]):hover {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(120deg, rgba(var(--ads-wizard-primary-rgb), .18), rgba(var(--ads-wizard-secondary-rgb), .09)), var(--ads-studio-modal-surface);
+  box-shadow: 0 12px 28px rgba(var(--ads-wizard-primary-rgb), .13);
+}
+.studioWorkspace[data-channel] .studioPathIcon,
+.studioWorkspace[data-channel] .studioPathAi .studioPathIcon {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .65);
+  color: #fff;
+  background: linear-gradient(135deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: inset 0 1px #ffffff45, 0 8px 20px rgba(var(--ads-wizard-primary-rgb), .18);
+}
+.studioWorkspace[data-channel] .studioAnalysisChoice > div[role="radiogroup"] > label,
+.studioWorkspace[data-channel] .studioAnalysisChoice [data-analysis-objective],
+.studioWorkspace[data-channel] .studioTypeGrid button,
+.studioWorkspace[data-channel] .studioControlOptions label,
+.studioWorkspace[data-channel] .studioNativeBrief dl > div {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .25);
+  background: var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .studioAnalysisChoice > div[role="radiogroup"] > label[data-selected],
+.studioWorkspace[data-channel] .studioTypeGrid button[data-selected="true"],
+.studioWorkspace[data-channel] .studioControlOptions label:has(input:checked) {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(120deg, rgba(var(--ads-wizard-primary-rgb), .24), rgba(var(--ads-wizard-secondary-rgb), .12)), var(--ads-studio-modal-surface);
+  box-shadow: 0 8px 21px rgba(var(--ads-wizard-primary-rgb), .13);
+}
+.studioWorkspace[data-channel] .field :is(input, select, textarea),
+.studioWorkspace[data-channel] .tagInputShell {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .29);
+  background: var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .tagInputShell input {
+  background: transparent;
+}
+.studioWorkspace[data-channel] select option {
+  background-color: var(--ads-studio-surface-start);
+}
+.studioWorkspace[data-channel] .tagInputShell:focus-within {
+  border-color: var(--ads-studio-accent);
+  box-shadow: 0 0 0 3px rgba(var(--ads-wizard-primary-rgb), .14);
+}
+.studioWorkspace[data-channel] .tagChip:not([data-verified="true"]):not([data-rejected="true"]),
+.studioWorkspace[data-channel] .tagAddButton,
+.studioWorkspace[data-channel] .secondaryButton {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .45);
+  color: #f2f6ff;
+  background: linear-gradient(120deg, rgba(var(--ads-wizard-primary-rgb), .18), rgba(var(--ads-wizard-secondary-rgb), .1)), var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .stepper button > span {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .4);
+  background: var(--ads-studio-modal-surface);
+}
+.studioWorkspace[data-channel] .stepper button[aria-current] {
+  color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] .stepper button[aria-current] > span {
+  border-color: var(--ads-studio-accent);
+  color: #fff;
+  background: linear-gradient(135deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: 0 0 17px rgba(var(--ads-wizard-primary-rgb), .25);
+}
+
+.studioWorkspace[data-channel] .headerCta,
+.studioWorkspace[data-channel] .primaryButton,
+.studioWorkspace[data-channel] .aiButton,
+.studioWorkspace[data-channel] .studioProposalReadyCta:not(:disabled),
+.studioWorkspace[data-channel] .campaignMediaActions .campaignMediaGenerate {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .68);
+  color: #fff;
+  background: linear-gradient(110deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: inset 0 1px #ffffff30, 0 6px 22px rgba(var(--ads-wizard-primary-rgb), .2);
+  text-shadow: 0 1px 1px #0004;
+}
+.studioWorkspace[data-channel] .headerCta:hover:not(:disabled),
+.studioWorkspace[data-channel] .primaryButton:hover:not(:disabled),
+.studioWorkspace[data-channel] .aiButton:hover:not(:disabled),
+.studioWorkspace[data-channel] .studioProposalReadyCta:not(:disabled):hover,
+.studioWorkspace[data-channel] .studioProposalReadyCta:not(:disabled):focus-visible,
+.studioWorkspace[data-channel] .campaignMediaActions .campaignMediaGenerate:hover:not(:disabled) {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(110deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: inset 0 1px #ffffff45, 0 9px 26px rgba(var(--ads-wizard-primary-rgb), .27);
+}
+.studioWorkspace[data-channel] :is(button, a, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--ads-studio-accent);
+  outline-offset: 3px;
+}
+.studioWorkspace[data-channel] .field :is(input, select, textarea):focus-visible {
+  border-color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] :is(.headerCta, .primaryButton, .secondaryButton, .aiButton, .campaignMediaGenerate, .studioPath):disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+.studioWorkspace[data-channel] .adsGenerationCanvas {
+  background: radial-gradient(circle at 50% 46%, rgba(var(--ads-wizard-primary-rgb), .12), transparent 44%), radial-gradient(ellipse at 3% 5%, rgba(var(--ads-wizard-primary-rgb), .13), transparent 39%), radial-gradient(ellipse at 97% 93%, rgba(var(--ads-wizard-secondary-rgb), .13), transparent 39%), linear-gradient(134deg, var(--ads-studio-surface-start), var(--ads-studio-surface-end));
+}
+.studioWorkspace[data-channel] .adsGenerationCanvas::after {
+  background: conic-gradient(from 150deg at 50% 50%, transparent 0 27%, rgba(var(--ads-wizard-primary-rgb), .06) 34%, transparent 41% 58%, rgba(var(--ads-wizard-secondary-rgb), .07) 67%, transparent 77%);
+}
+.studioWorkspace[data-channel] .adsGenerationEmblem {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(135deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: inset 0 1px #ffffff60, 0 0 0 8px rgba(var(--ads-wizard-primary-rgb), .07), 0 16px 42px rgba(var(--ads-wizard-primary-rgb), .2);
+}
+.studioWorkspace[data-channel] .adsGenerationRadar {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .43);
+  box-shadow: inset 0 0 28px rgba(var(--ads-wizard-primary-rgb), .11), 0 0 30px rgba(var(--ads-wizard-primary-rgb), .1);
+}
+.studioWorkspace[data-channel] .adsGenerationRadarSweep {
+  background: conic-gradient(from -35deg at 50% 50%, transparent 0deg 314deg, rgba(var(--ads-wizard-primary-rgb), .07) 330deg, rgba(var(--ads-wizard-primary-rgb), .5) 357deg, transparent 360deg);
+}
+.studioWorkspace[data-channel] .adsGenerationRadarCore,
+.studioWorkspace[data-channel] .adsGenerationParticle {
+  background: var(--ads-studio-accent);
+  box-shadow: 0 0 14px rgba(var(--ads-wizard-primary-rgb), .5);
+}
+.studioWorkspace[data-channel] .adsGenerationParticleTwo {
+  background: rgb(var(--ads-wizard-secondary-rgb));
+  box-shadow: 0 0 24px rgba(var(--ads-wizard-secondary-rgb), .5);
+}
+.studioWorkspace[data-channel] .adsGenerationProgress > div > span {
+  background: var(--ads-studio-spectrum);
+  box-shadow: 0 0 16px rgba(var(--ads-wizard-primary-rgb), .4);
+}
+.studioWorkspace[data-channel] .adsGenerationStages li[data-state="active"] {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(120deg, rgba(var(--ads-wizard-primary-rgb), .24), rgba(var(--ads-wizard-secondary-rgb), .13)), var(--ads-studio-modal-surface);
+  box-shadow: 0 8px 22px rgba(var(--ads-wizard-primary-rgb), .15);
+}
+.studioWorkspace[data-channel] .adsGenerationStages li[data-state="active"] > span {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(135deg, var(--ads-studio-button-start), var(--ads-studio-button-end));
+  box-shadow: 0 0 15px rgba(var(--ads-wizard-primary-rgb), .25);
+}
+
+/* Long URLs and tracking suffixes must not widen the final review on mobile. */
+.studioWorkspace .studioReviewGrid,
+.studioWorkspace .studioReviewGrid > div {
+  min-width: 0;
+}
+.studioWorkspace .studioReviewGrid :is(dd, small) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.studioWorkspace[data-channel] :is(.wizardRequiredCheck, .studioRequiredCheck) {
+  border-color: rgba(var(--ads-wizard-primary-rgb), .55);
+  background: linear-gradient(110deg, rgba(var(--ads-wizard-primary-rgb), .16), rgba(var(--ads-wizard-secondary-rgb), .08)), var(--ads-studio-modal-surface);
+  box-shadow: inset 0 1px #ffffff25, 0 0 0 1px rgba(var(--ads-wizard-primary-rgb), .1);
+}
+.studioWorkspace[data-channel] :is(.wizardRequiredCheck, .studioRequiredCheck) strong {
+  color: var(--ads-studio-accent);
+}
+.studioWorkspace[data-channel] :is(.wizardRequiredCheck, .studioRequiredCheck):has(input:checked) {
+  border-color: var(--ads-studio-accent);
+  background: linear-gradient(110deg, rgba(var(--ads-wizard-primary-rgb), .22), rgba(var(--ads-wizard-secondary-rgb), .1)), var(--ads-studio-modal-surface);
+}
+
+/* Native Pinterest splits geography from language, placement and audience. */
+@media(min-width:1000px){
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest]:not([data-pinterest-geography=true]) .studioGrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .studioWorkspace .studioTargetingCard[data-pinterest-geography=true] .studioLocationField{grid-column:1/-1;grid-row:1}
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest]:not([data-pinterest-geography=true]) .studioGrid>.studioAudienceField{grid-column:1;grid-row:1}
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest]:not([data-pinterest-geography=true]) .studioGrid>.field.studioWide:not(.studioAudienceField){grid-column:2;grid-row:1}
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest]:not([data-pinterest-geography=true]) .studioGrid>.studioControlPanel{grid-column:2;grid-row:2}
+  .studioWorkspace .studioTargetingCard[data-channel=pinterest]:not([data-pinterest-geography=true]) .studioTargetingMode{grid-column:1;grid-row:2}
+}
+@media(max-width:999px){
+  .studioWorkspace:is([data-channel=pinterest],[data-channel=meta],[data-channel=openai],[data-channel=x],[data-channel=tiktok])[data-compact] .stepper{gap:clamp(2px,.6vw,5px);justify-content:space-between}
+  .studioWorkspace:is([data-channel=pinterest],[data-channel=meta],[data-channel=openai],[data-channel=x],[data-channel=tiktok])[data-compact] .stepper button{flex:1 1 0;min-width:0;padding-inline:0}
+  .studioWorkspace:is([data-channel=pinterest],[data-channel=meta],[data-channel=openai],[data-channel=x],[data-channel=tiktok])[data-compact] .stepper button>span{width:clamp(18px,5.5vw,26px);height:clamp(18px,5.5vw,26px);font-size:10px}
+}
+
+/* Native channels keep geographical choices on their own full-width stage. */
+@media(min-width:1000px){
+  .studioWorkspace .studioTargetingCard:is([data-meta-geography=true],[data-openai-geography=true],[data-x-geography=true],[data-tiktok-geography=true]) .studioGrid{grid-template-columns:minmax(0,1fr)}
+  .studioWorkspace .studioTargetingCard:is([data-meta-geography=true],[data-openai-geography=true],[data-x-geography=true],[data-tiktok-geography=true]) .studioLocationField{grid-column:1/-1;grid-row:1;min-width:0}
+  .studioWorkspace .studioTargetingCard:is([data-meta-geography=true],[data-openai-geography=true],[data-x-geography=true],[data-tiktok-geography=true]) .studioLocationField .tagField{min-width:0}
+}
+
+.metaLocationPicker{display:grid;min-width:0;align-content:start;gap:10px}
+.metaLocationPicker>p{margin:0;color:#c4d3e9;font-size:11px;line-height:1.45}
+.metaLocationPicker>.field{margin:0;gap:4px}
+.metaLocationPicker select{width:100%;min-width:0}
+.metaLocationPicker .field>small{font-size:10px;line-height:1.35}
+.metaLocationPicker .field>small[data-ready=true]{color:var(--ads-studio-accent,#b5d9ff)}
+.metaLocationPicker>.secondaryButton{justify-self:start}
+.metaLocationSearch{display:grid;min-width:0;gap:8px;padding-top:10px;border-top:1px solid rgba(var(--ads-wizard-primary-rgb,24,119,242),.2)}
+.metaLocationSearch .field{margin:0}
+@media(max-width:540px){.metaLocationSearch .pinterestLocationSearchActions{grid-template-columns:minmax(0,1fr)}.metaLocationSearch .pinterestLocationSearchActions>.secondaryButton{width:100%}}

@@ -178,13 +178,13 @@ async function linkedInAdsJson(accessToken: string, path: string): Promise<Recor
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const denied = response.status === 403;
-    throw new LinkedInAdsConnectionError(
+    throw Object.assign(new LinkedInAdsConnectionError(
       response.status === 401 ? "Reconnectez LinkedIn Ads." : denied
         ? "LinkedIn n’autorise pas cet accès Ads. Vérifiez le produit Marketing API, le scope et votre rôle sur le compte."
         : "LinkedIn Ads est momentanément indisponible.",
       response.status === 401 ? "needs_reconnect" : denied ? "ads_access_denied" : "provider_unavailable",
       response.status === 401 ? 409 : denied ? 403 : 503,
-    );
+    ), { providerStatus: response.status });
   }
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new LinkedInAdsConnectionError("Réponse LinkedIn Ads invalide.", "provider_invalid_response");
@@ -373,4 +373,13 @@ export async function selectLinkedInAdsAccount(userId: string, accountId: string
   if (error) throw new LinkedInAdsConnectionError("Sélection LinkedIn Ads non enregistrée.", "storage_unavailable");
   if (!data) throw new LinkedInAdsConnectionError("La connexion LinkedIn Ads a changé ; rechargez les comptes.", "connection_changed", 409);
   return selected;
+}
+
+/** GET-only native discovery; fixed origin and endpoints never come from a browser URL. */
+export async function readLinkedInAdsResourceJson(accessToken: string, path: string): Promise<Record<string, unknown>> {
+  if (!/^\/rest\/(?:adTargetingEntities|conversions)(?:\?|$)/.test(path)
+    || path.includes("#") || path.includes("\\") || path.length > 30_000) {
+    throw new TypeError("Invalid LinkedIn Ads resource path");
+  }
+  return linkedInAdsJson(accessToken, path.slice("/rest/".length));
 }

@@ -1,6 +1,9 @@
 import "server-only";
 import { resolveLinkedInAdsGeoTargets } from "./adsLinkedInGeoResolution.ts";
 
+import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding, type LinkedInDeliverySettings } from "./adsLinkedInCampaignSettings.ts";
+import { resolveLinkedInAdsProfessionalTargets, resolveLinkedInAdsConversions } from "./adsLinkedInResourcesServer.ts";
+import { linkedInAdsCampaignScheduleIssues } from "./adsLinkedInPublish.ts";
 import { linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
 import { linkedInAdsContextualGeoDefaults } from "./adsLinkedInClientDefaults.ts";
 import { log } from "./observability/logger.ts";
@@ -19,7 +22,7 @@ import {
   buildLinkedInAdsGeoUrnsPath,
   buildLinkedInAdsImagePath,
   buildLinkedInAdsLocalesPath,
-  linkedInAdsCampaignGroupIsCompatible,
+  selectLinkedInAdsCampaignGroup,
   linkedInAdsPreflightBlockers,
   normalizeLinkedInAdsGeoQueries,
   normalizeLinkedInAdsAudienceCount,
@@ -49,6 +52,10 @@ export type LinkedInAdsPreflightInput = {
   geoUrns?: string[];
   bidAmount?: number;
   dailyBudget?: number;
+  objectiveType?: string;
+  format?: string;
+  deliverySettings?: LinkedInDeliverySettings;
+  endDate?: string;
   politicalIntentConfirmed?: boolean;
   targetingNoticeAcknowledged?: boolean;
 };
@@ -65,6 +72,8 @@ export type LinkedInAdsPreflightOperation =
   | "geo_typeahead_default_locale"
   | "geo_typeahead_minimal"
   | "geo_urn_resolution"
+  | "professional_target_resolution"
+  | "conversion_resolution"
   | "organization_access"
   | "image"
   | "audience_count"
@@ -315,13 +324,19 @@ async function listOrganizationAccess(accessToken: string): Promise<Organization
 }
 
 export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAdsPreflightInput = {}) {
+  const parsedDelivery = normalizeLinkedInDeliverySettings(input.deliverySettings);
+  const deliverySettings = parsedDelivery.settings || undefined;
+  const objectiveType = input.objectiveType || "WEBSITE_VISIT";
+  if (parsedDelivery.error || !linkedInDeliveryBidding(objectiveType, deliverySettings) || (input.format && !["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(input.format))) throw new LinkedInAdsConnectionError(parsedDelivery.error || "Objectif, format ou enchères LinkedIn incompatibles.", "unsupported_delivery_settings", 422);
   const integration = await readLinkedInAdsIntegration(userId);
   if (!integration?.resource_id) {
     throw new LinkedInAdsConnectionError("Associez d’abord un compte LinkedIn Ads.", "account_selection_required", 409);
   }
-  const { token, scopes: rawScopes } = await linkedInAdsAuthorization(userId, integration);
-  const scopes = linkedInAdsScopes(rawScopes);
   const accounts = await listLinkedInAdsAccounts(userId, integration);
+  const currentIntegration = await readLinkedInAdsIntegration(userId);
+  if (!currentIntegration || currentIntegration.resource_id !== integration.resource_id || currentIntegration.id !== integration.id || currentIntegration.provider_account_id !== integration.provider_account_id) throw new LinkedInAdsConnectionError("La connexion LinkedIn a changé pendant le contrôle. Relancez la vérification.", "connection_changed", 409);
+  const { token, scopes: rawScopes } = await linkedInAdsAuthorization(userId, currentIntegration);
+  const scopes = linkedInAdsScopes(rawScopes);
   const account = accounts.find((item) => item.id === integration.resource_id);
   if (!account) throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads associé n’est plus accessible.", "account_access_denied", 403);
 
@@ -341,7 +356,11 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
       accessToken: token, accountId: account.id, queries: geoQueries, language, country,
     }),
     requestedGeoUrns.length
-      ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country), "geo_urn_resolution")
+      ? linkedInAdsRead(token, buildLinkedInAdsGeoUrnsPath(requestedGeoUrns, language, country), "geo_urn_resolution").catch((error: unknown) => {
+        if (!(error instanceof LinkedInAdsPreflightProviderError) || error.providerStatus !== 400) throw error;
+        log.warn("linkedin_ads_preflight_geo_urn_fallback", { provider: "linkedin", operation: "geo_urn_resolution", provider_status: 400 });
+        return { elements: [] };
+      })
       : Promise.resolve({ elements: [] }),
     hasOrganizationRead ? listOrganizationAccess(token) : Promise.resolve([]),
     input.imageUrn ? linkedInAdsRead(token, buildLinkedInAdsImagePath(input.imageUrn), "image") : Promise.resolve(null),
@@ -375,13 +394,24 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     freshSuggestions: geoSuggestions,
     read: (path) => linkedInAdsRead(token, path, "geo_urn_resolution"),
   });
-  const compatibleCampaignGroups = campaignGroups.filter(linkedInAdsCampaignGroupIsCompatible);
-  const selectedGroup: LinkedInAdsCampaignGroup | null = input.campaignGroupId
-    ? campaignGroups.find((item) => item.id === input.campaignGroupId) || null
-    : compatibleCampaignGroups.length === 1 ? compatibleCampaignGroups[0] : null;
   const selectedOrganization = input.organizationUrn
     ? organizations.find((item) => item.urn === input.organizationUrn) || null
     : organizations.length === 1 ? organizations[0] : null;
+  const nowMs = Date.now();
+  const endAtMs = deliverySettings?.budget.endAt ? Date.parse(deliverySettings.budget.endAt)
+    : input.endDate ? Date.parse(`${input.endDate}T23:59:59Z`) : undefined;
+  const selectedGroup = selectLinkedInAdsCampaignGroup(campaignGroups, {
+    selectedId: input.campaignGroupId,
+    objectiveType,
+    organizationUrn: selectedOrganization?.urn || input.organizationUrn,
+    scheduleIsCompatible: (group) => {
+      const startAtMs = deliverySettings?.budget.startAt ? Date.parse(deliverySettings.budget.startAt)
+        : Math.max(nowMs + 5 * 60_000, group.runSchedule.start || 0);
+      return linkedInAdsCampaignScheduleIssues({ startAtMs, endAtMs, groupSchedule: group.runSchedule, nowMs }).length === 0
+        && (endAtMs === undefined || endAtMs <= nowMs + 90 * 86_400_000)
+        && (deliverySettings?.budget.type !== "total" || endAtMs !== undefined);
+    },
+  });
   const image: LinkedInAdsImageEvidence | null = input.imageUrn && imagePayload
     ? normalizeLinkedInAdsImage(imagePayload, input.imageUrn) : null;
   if (input.imageUrn && !image) {
@@ -436,21 +466,27 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     !autoSelectedUrn && !suggestions.some((item) => verifiedGeoUrnSet.has(item.urn)));
   const tooManyGeoTargets = verifiedGeoUrns.length > 20;
   const localeSupported = supportedLocales.some((item) => item.language === language && item.country === country);
+  const [professionalResolution, conversionResolution] = await Promise.all([
+    resolveLinkedInAdsProfessionalTargets({ accessToken: token, targets: [...(deliverySettings?.professionalTargeting.include || []), ...(deliverySettings?.professionalTargeting.exclude || [])], language, country, read: (path) => linkedInAdsRead(token, path, "professional_target_resolution") }),
+    resolveLinkedInAdsConversions({ accessToken: token, accountId: account.id, conversionUrns: deliverySettings?.conversions.conversionUrns || [], read: (path) => linkedInAdsRead(token, path, "conversion_resolution") }),
+  ]);
+  const startAtMs = deliverySettings?.budget.startAt ? Date.parse(deliverySettings.budget.startAt) : Math.max(nowMs + 5 * 60_000, selectedGroup?.runSchedule.start || 0);
+  const scheduleDays = endAtMs === undefined ? undefined : Math.ceil((endAtMs - startAtMs) / 86_400_000);
   const dailyBudget = Number.isFinite(input.dailyBudget) && Number(input.dailyBudget) > 0 ? Number(input.dailyBudget) : null;
   const requestedBidAmount = Number.isFinite(input.bidAmount) && Number(input.bidAmount) > 0 ? Number(input.bidAmount) : null;
   const [audiencePayload, pricingPayload] = verifiedGeoUrns.length && !tooManyGeoTargets && localeSupported
     ? await Promise.all([
-      linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country), "audience_count"),
-      dailyBudget !== null
+      linkedInAdsRead(token, buildLinkedInAdsAudienceCountPath(verifiedGeoUrns, language, country, deliverySettings), "audience_count"),
+      (dailyBudget !== null || deliverySettings?.budget.type === "total")
         ? linkedInAdsRead(token, buildLinkedInAdsBudgetPricingPath({
-          accountId: account.id, geoUrns: verifiedGeoUrns, language, country, dailyBudget,
+          accountId: account.id, geoUrns: verifiedGeoUrns, language, country, dailyBudget: deliverySettings?.budget.type === "total" ? undefined : dailyBudget!, objectiveType, deliverySettings,
         }), "budget_pricing")
         : Promise.resolve(null),
     ])
     : [null, null];
   const audienceCount = audiencePayload ? normalizeLinkedInAdsAudienceCount(audiencePayload) : null;
   const pricing = pricingPayload ? normalizeLinkedInAdsBudgetPricing(pricingPayload) : null;
-  const bidAmount = recommendedLinkedInAdsBid(pricing, requestedBidAmount, dailyBudget);
+  const bidAmount = deliverySettings?.bidding.strategy === "maximum_delivery" ? null : recommendedLinkedInAdsBid(pricing, deliverySettings?.bidding.amountEuros ?? requestedBidAmount, deliverySettings?.budget.type === "total" ? deliverySettings.budget.totalEuros : dailyBudget);
   const developmentAccountMapped = allowedDevelopmentAccountIds().has(account.id);
   const blockers = linkedInAdsPreflightBlockers({
     scopes,
@@ -466,10 +502,14 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
     audienceCount,
     pricing,
     bidAmount,
-    dailyBudget,
+    dailyBudget, objectiveType, deliverySettings, totalBudget: deliverySettings?.budget.totalEuros, scheduleDays,
     politicalIntentConfirmed: input.politicalIntentConfirmed === true,
     targetingNoticeAcknowledged: input.targetingNoticeAcknowledged === true,
   });
+  if (professionalResolution.unresolvedTargets.length) blockers.push("selected_professional_targets_unverified");
+  if (conversionResolution.unresolvedUrns.length) blockers.push("selected_conversion_unverified");
+  if (objectiveType === "WEBSITE_CONVERSION" && !conversionResolution.verifiedConversions.length) blockers.push("conversion_required");
+  if ((endAtMs !== undefined || deliverySettings?.budget.type === "total") && (linkedInAdsCampaignScheduleIssues({ startAtMs, endAtMs, groupSchedule: selectedGroup?.runSchedule || {}, nowMs }).length || (endAtMs !== undefined && endAtMs > nowMs + 90 * 86_400_000) || (deliverySettings?.budget.type === "total" && endAtMs === undefined))) blockers.push("campaign_schedule_invalid");
   if (!developmentAccountMapped) blockers.unshift("development_account_mapping_required");
   if (selectedGeoUnverified) blockers.push("selected_geo_unverified");
   if (unresolvedGeoQueries) blockers.push("unresolved_geo_queries");
@@ -493,6 +533,8 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
       image,
       verifiedGeoUrns,
       verifiedGeoTargets,
+      verifiedProfessionalTargets: professionalResolution.verifiedTargets,
+      verifiedConversions: conversionResolution.verifiedConversions,
       locale: { language, country, supported: localeSupported },
       audienceCount,
       pricing,

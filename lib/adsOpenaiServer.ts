@@ -2,7 +2,9 @@ import "server-only";
 
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { OpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
+import { assessOpenaiAdsAccount, OpenaiAdsPublishError, resolveOpenaiAdsLocations, searchOpenaiAdsLocations, verifyOpenaiAdsAccount, type OpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
+import { openaiNativeDelivery, type OpenaiNativeDraft } from "@/lib/adsOpenaiCampaignSettings";
+import { openaiAdsResourcesConsentKey, type OpenaiAdsResources } from "@/lib/adsOpenaiResources";
 
 export const OPENAI_ADS_PROVIDER = "openai";
 export const OPENAI_ADS_SOURCE = "openai_ads";
@@ -84,4 +86,43 @@ export function openaiAdsStoredAccount(integration: OpenaiAdsIntegration | null)
     brandReviewStatus: value("brand_review_status"),
     accountReviewStatus: value("account_review_status") || null,
   };
+}
+
+async function verifiedOpenaiConnection(userId: string, expectedAccountId?: string) {
+  const integration = await readOpenaiAdsIntegration(userId);
+  if (integration?.status !== "connected" || !integration.resource_id || !integration.access_token_enc || (expectedAccountId && integration.resource_id !== expectedAccountId)) throw new OpenaiAdsPublishError("ACCOUNT_MISMATCH", "Reconnectez le compte ChatGPT Ads sélectionné.");
+  let key = "";
+  try { key = decryptToken(integration.access_token_enc); } catch { /* ciphertext never becomes a plaintext fallback */ }
+  if (!key) throw new OpenaiAdsPublishError("NO_API_KEY", "La clé publicitaire ChatGPT Ads doit être actualisée.");
+  const account = await verifyOpenaiAdsAccount({ apiKey: key, expectedAccountId: integration.resource_id });
+  await assertOpenaiConnectionCurrent(userId, integration);
+  return { key, account, integration };
+}
+/** A reconnect or disconnect while provider GETs are running invalidates the result. */
+async function assertOpenaiConnectionCurrent(userId: string, snapshot: OpenaiAdsIntegration) {
+  const current = await readOpenaiAdsIntegration(userId);
+  if (!current || current.id !== snapshot.id || current.resource_id !== snapshot.resource_id || current.status !== snapshot.status || current.status !== "connected" || current.access_token_enc !== snapshot.access_token_enc) {
+    throw new OpenaiAdsPublishError("ACCOUNT_MISMATCH", "La connexion ChatGPT Ads a changé. Relancez le contrôle du compte sélectionné.");
+  }
+}
+/** Server-only read. The returned projection cannot contain the decrypted credential. */
+export async function readOpenaiAdsDeliveryResources(userId: string, query = "", expectedAccountId?: string, queries: string[] = []): Promise<OpenaiAdsResources> {
+  if (!Array.isArray(queries) || queries.length > 30 || queries.some((item) => typeof item !== "string" || item.trim().length < 2 || item.trim().length > 120 || /[\r\n\u0000-\u001f]/.test(item))) throw new OpenaiAdsPublishError("INVALID_GEO", "La recherche des zones ChatGPT Ads est invalide.");
+  const searches = [...new Set([...queries, ...(query ? [query] : [])].map((item) => item.trim()))];
+  const { key, account, integration } = await verifiedOpenaiConnection(userId, expectedAccountId);
+  const results = await Promise.all(searches.map((query) => searchOpenaiAdsLocations({ apiKey: key, query, countryCode: "FR" })));
+  const geographyOptions = [...new Map(results.flat().map((item) => [item.id, item])).values()];
+  await assertOpenaiConnectionCurrent(userId, integration);
+  return { selectedAccountId: account.id, account, geographyOptions, verifiedAt: new Date().toISOString() };
+}
+/** Independent publication preflight, with GETs only and no database/provider writes. */
+export async function checkOpenaiAdsPublication(userId: string, draft: OpenaiNativeDraft & { adAccountId: string; targetLocations: string[] }) {
+  const { key, account, integration } = await verifiedOpenaiConnection(userId, draft.adAccountId);
+  const assessment = assessOpenaiAdsAccount(account);
+  if (!assessment.ready) throw new OpenaiAdsPublishError(assessment.code || "ACCOUNT_NOT_READY", assessment.message || "Le compte ChatGPT Ads n’est pas prêt.");
+  const delivery = openaiNativeDelivery(draft, Date.now(), account.timezone);
+  const locations = await resolveOpenaiAdsLocations({ apiKey: key, names: draft.targetLocations, countryCode: "FR" });
+  await assertOpenaiConnectionCurrent(userId, integration);
+  const resourcesKey = openaiAdsResourcesConsentKey({ selectedAccountId: account.id, account, geographyOptions: [], verifiedAt: "" });
+  return { ready: true as const, selectedAccountId: account.id, verifiedLocationCount: locations.length, resourcesKey, account, locations, delivery };
 }

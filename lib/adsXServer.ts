@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import { decryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -160,7 +161,10 @@ export async function saveXAdsConnection(userId: string, token: Awaited<ReturnTy
     // A different or unidentified X user must choose an advertiser again.
     resource_id: sameXUser ? previous?.resource_id : null,
     resource_label: sameXUser ? previous?.resource_label : null,
-    meta: { product: "inr_ads", provider: "x", auth: "oauth1a", x_user_id: token.userId || null },
+    meta: { product: "inr_ads", provider: "x", auth: "oauth1a", x_user_id: token.userId || null,
+      // Private, server-generated attestation binds this refreshed OAuth token to its Ads app.
+      oauth1a_app_key_hash: createHash("sha256").update(getXAdsCredentials().apiKey).digest("hex"),
+      oauth1a_token_issued_at: new Date().toISOString() },
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,provider,source,product" });
   if (error) throw new XAdsConnectionError("Impossible de mémoriser X Ads.", "storage_unavailable");

@@ -1,3 +1,4 @@
+import { buildLinkedInDeliveryTargeting, linkedInDeliveryBidding, normalizeLinkedInDeliverySettings, LINKEDIN_CAMPAIGN_OBJECTIVES, type LinkedInDeliverySettings, type LinkedInCallToAction, type LinkedInProfessionalTarget, type LinkedInTargetingCriteria } from "./adsLinkedInCampaignSettings.ts";
 import { assessAdsChannelDraft, type AdsDraftIssue, type LinkedInAdsDraft } from "./adsChannelDrafts.ts";
 import { isLinkedInAdsAccountId, linkedInAdsCanManageCampaigns, linkedInAdsScopes, LINKEDIN_ADS_API_VERSION, type LinkedInAdsAccount, type LinkedInAdsRole } from "./adsLinkedInPolicy.ts";
 
@@ -22,6 +23,7 @@ export type LinkedInAdsCampaignEvidence = {
     runSchedule?: { start?: number; end?: number };
   };
   organization: { urn: string; role: string };
+  video?: { urn: string; owner: string; status: string; associatedAccount?: string | null };
   image: {
     urn: string;
     owner: string;
@@ -35,12 +37,15 @@ export type LinkedInAdsCampaignEvidence = {
     status: string;
   };
   geoUrns: string[];
+  verifiedProfessionalTargets?: LinkedInProfessionalTarget[];
+  verifiedConversionUrns?: string[];
   supportedLocales: Array<{ country: string; language: string }>;
 };
 
 export type LinkedInAdsDraftCampaignChoices = {
   /** Explicit manual CPC bid in the selected account's currency. */
   bidAmount: string;
+  deliverySettings?: LinkedInDeliverySettings;
   /** Milliseconds since epoch. Draft creation never starts delivery. */
   startAtMs: number;
   endAtMs?: number;
@@ -63,20 +68,20 @@ export type LinkedInAdsDraftCampaignRequest = {
     campaignGroup: string;
     associatedEntity: string;
     name: string;
-    objectiveType: "WEBSITE_VISIT";
-    format: "STANDARD_UPDATE";
+    objectiveType: (typeof LINKEDIN_CAMPAIGN_OBJECTIVES)[number];
+    format: "STANDARD_UPDATE" | "SINGLE_VIDEO";
     type: "SPONSORED_UPDATES";
-    costType: "CPC";
-    optimizationTargetType: "NONE";
+    costType: "CPC" | "CPM";
+    optimizationTargetType: NonNullable<ReturnType<typeof linkedInDeliveryBidding>>["optimizationTargetType"];
     unitCost: { amount: string; currencyCode: "EUR" };
-    dailyBudget: { amount: string; currencyCode: "EUR" };
+    dailyBudget?: { amount: string; currencyCode: "EUR" };
+    totalBudget?: { amount: string; currencyCode: "EUR" };
+    pacingStrategy?: "LIFETIME";
     locale: { country: string; language: string };
     runSchedule: { start: number; end?: number };
-    targetingCriteria: {
-      include: { and: Array<{ or: Record<string, string[]> }> };
-    };
-    audienceExpansionEnabled: false;
-    offsiteDeliveryEnabled: false;
+    targetingCriteria: LinkedInTargetingCriteria;
+    audienceExpansionEnabled: boolean;
+    offsiteDeliveryEnabled: boolean;
     politicalIntent: "NOT_POLITICAL";
     status: "DRAFT";
   };
@@ -102,7 +107,7 @@ export type LinkedInAdsDarkPostRequest = {
     };
     lifecycleState: "PUBLISHED";
     isReshareDisabledByAuthor: true;
-    contentCallToActionLabel: "LEARN_MORE";
+    contentCallToActionLabel: LinkedInCallToAction;
     contentLandingPage: string;
     content: { media: { title: string; id: string } };
   };
@@ -144,6 +149,7 @@ const ACCOUNT_URN = /^urn:li:sponsoredAccount:(\d{1,25})$/;
 const GROUP_URN = /^urn:li:sponsoredCampaignGroup:(\d{1,25})$/;
 const ORGANIZATION_URN = /^urn:li:organization:\d{1,25}$/;
 const GEO_URN = /^urn:li:geo:\d{1,25}$/;
+const VIDEO_URN = /^urn:li:video:[A-Za-z0-9_-]{3,200}$/;
 const IMAGE_URN = /^urn:li:image:[A-Za-z0-9_-]{3,200}$/;
 const CAMPAIGN_URN = /^urn:li:sponsoredCampaign:(\d{1,25})$/;
 const CREATIVE_URN = /^urn:li:sponsoredCreative:(\d{1,25})$/;
@@ -203,8 +209,8 @@ function publicHttpsUrl(value: unknown): boolean {
 }
 
 /**
- * Builds only a DRAFT campaign request for a website visit image brief with a
- * manual CPC bid. Every other objective, format, or budget model is blocked.
+ * Builds a DRAFT Sponsored Content campaign from verified native image/video
+ * settings. The legacy website-visit/manual-CPC payload remains unchanged.
  * A successful result is not an ad or a publishable campaign: creative content
  * and its account/organization permissions still need separate verification.
  */
@@ -225,8 +231,12 @@ export function prepareLinkedInAdsDraftCampaign(
   const choices = record(choicesValue);
 
   issue(issues, "unsupported_channel", "channel", draft.channel !== "linkedin");
-  issue(issues, "unsupported_creation_path", "objectiveType", draft.objectiveType !== "WEBSITE_VISIT");
-  issue(issues, "unsupported_creation_path", "format", draft.format !== "STANDARD_UPDATE");
+  const parsedDelivery = normalizeLinkedInDeliverySettings(choices.deliverySettings);
+  const delivery = parsedDelivery.settings;
+  const bidding = linkedInDeliveryBidding(string(draft.objectiveType), delivery);
+  issue(issues, "invalid_delivery_settings", "choices.deliverySettings", Boolean(parsedDelivery.error));
+  issue(issues, "unsupported_creation_path", "objectiveType", !bidding);
+  issue(issues, "unsupported_creation_path", "format", !(["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(string(draft.format))) || (draft.objectiveType === "VIDEO_VIEW" && draft.format !== "SINGLE_VIDEO"));
   issue(issues, "unsupported_creation_path", "budget.period", record(draft.budget).period !== "daily");
 
   const accountId = string(account.id);
@@ -258,7 +268,7 @@ export function prepareLinkedInAdsDraftCampaign(
   issue(issues, "campaign_group_unavailable", "campaignGroup.status",
     !["ACTIVE", "DRAFT", "PAUSED"].includes(string(group.status)));
   issue(issues, "campaign_group_objective_mismatch", "campaignGroup.objectiveType",
-    Boolean(string(group.objectiveType)) && group.objectiveType !== "WEBSITE_VISIT");
+    Boolean(string(group.objectiveType)) && group.objectiveType !== draft.objectiveType);
   issue(issues, "campaign_group_format_unverified", "campaignGroup.allowedCampaignTypes",
     account.type === "ENTERPRISE" && (!Array.isArray(group.allowedCampaignTypes) || !group.allowedCampaignTypes.includes("SPONSORED_UPDATES")));
 
@@ -267,10 +277,10 @@ export function prepareLinkedInAdsDraftCampaign(
     !ORGANIZATION_URN.test(organizationUrn) || string(refs.organizationUrn) !== organizationUrn
       || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER", "CONTENT_ADMINISTRATOR"].includes(string(organization.role)));
 
-  const image = record(evidence.image);
+  const image = record(draft.format === "SINGLE_VIDEO" ? evidence.video : evidence.image);
   const imageUrn = string(image.urn);
   issue(issues, "image_unverified", "externalRefs.creativeAssetUrn",
-    !IMAGE_URN.test(imageUrn) || string(refs.creativeAssetUrn) !== imageUrn
+    !(draft.format === "SINGLE_VIDEO" ? VIDEO_URN : IMAGE_URN).test(imageUrn) || string(refs.creativeAssetUrn) !== imageUrn
       || image.status !== "AVAILABLE" || string(image.owner) !== organizationUrn
       || (Boolean(string(image.associatedAccount)) && string(image.associatedAccount) !== accountUrn));
 
@@ -286,7 +296,14 @@ export function prepareLinkedInAdsDraftCampaign(
     item?.country === locale.country && item?.language === locale.language));
 
   const bid = string(choices.bidAmount);
-  issue(issues, "manual_bid_required", "choices.bidAmount", !BID.test(bid) || Number(bid) <= 0 || Number(bid) > 500);
+  issue(issues, "manual_bid_required", "choices.bidAmount", delivery?.bidding.strategy !== "maximum_delivery" && (!BID.test(bid) || Number(bid) <= 0 || Number(bid) > 500));
+  const requestedTargets = [...(delivery?.professionalTargeting.include || []), ...(delivery?.professionalTargeting.exclude || [])];
+  const verifiedTargets = Array.isArray(evidence.verifiedProfessionalTargets) ? evidence.verifiedProfessionalTargets as LinkedInProfessionalTarget[] : [];
+  issue(issues, "professional_targets_unverified", "choices.deliverySettings.professionalTargeting", requestedTargets.some((target) => !verifiedTargets.some((verified) => verified.facet === target.facet && verified.urn === target.urn)));
+  const requestedConversions = delivery?.conversions.conversionUrns || [];
+  const verifiedConversions = Array.isArray(evidence.verifiedConversionUrns) ? evidence.verifiedConversionUrns : [];
+  issue(issues, "conversions_unverified", "choices.deliverySettings.conversions", requestedConversions.some((urn) => !verifiedConversions.includes(urn)));
+  issue(issues, "conversion_required", "choices.deliverySettings.conversions", draft.objectiveType === "WEBSITE_CONVERSION" && !requestedConversions.length);
   issue(issues, "political_intent_confirmation_required", "choices.politicalIntentConfirmed",
     choices.politicalIntentConfirmed !== true);
   issue(issues, "targeting_notice_acknowledgement_required", "choices.discriminationNoticeAcknowledged",
@@ -294,6 +311,7 @@ export function prepareLinkedInAdsDraftCampaign(
   const startAtMs = choices.startAtMs;
   const endAtMs = choices.endAtMs;
   issues.push(...linkedInAdsCampaignScheduleIssues({ startAtMs, endAtMs, groupSchedule: group.runSchedule, nowMs }));
+  issue(issues, "total_budget_schedule_required", "choices.endAtMs", delivery?.budget.type === "total" && endAtMs === undefined);
 
   if (issues.length > 0) return { readyForDraftCreate: false, publicationReady: false, request: null, issues };
 
@@ -303,23 +321,20 @@ export function prepareLinkedInAdsDraftCampaign(
     campaignGroup: groupUrn,
     associatedEntity: organizationUrn,
     name: typedDraft.name.trim(),
-    objectiveType: "WEBSITE_VISIT",
-    format: "STANDARD_UPDATE",
+    objectiveType: typedDraft.objectiveType as LinkedInAdsDraftCampaignRequest["body"]["objectiveType"],
+    format: typedDraft.format as "STANDARD_UPDATE" | "SINGLE_VIDEO",
     type: "SPONSORED_UPDATES",
-    costType: "CPC",
-    optimizationTargetType: "NONE",
-    unitCost: { amount: Number(bid).toFixed(2), currencyCode: "EUR" },
-    dailyBudget: { amount: typedDraft.budget.amount.toFixed(2), currencyCode: "EUR" },
+    costType: bidding!.costType,
+    optimizationTargetType: bidding!.optimizationTargetType,
+    unitCost: { amount: delivery?.bidding.strategy === "maximum_delivery" ? "0.00" : Number(bid).toFixed(2), currencyCode: "EUR" },
+    ...(delivery?.budget.type === "total"
+      ? { totalBudget: { amount: Number(delivery.budget.totalEuros).toFixed(2), currencyCode: "EUR" as const }, pacingStrategy: "LIFETIME" as const }
+      : { dailyBudget: { amount: typedDraft.budget.amount.toFixed(2), currencyCode: "EUR" as const } }),
     locale: { country: typedDraft.locale.country, language: typedDraft.locale.language },
     runSchedule: { start: startAtMs as number, ...(endAtMs === undefined ? {} : { end: endAtMs as number }) },
-    targetingCriteria: {
-      include: { and: [
-        { or: { "urn:li:adTargetingFacet:interfaceLocales": [`urn:li:locale:${typedDraft.locale.language}_${typedDraft.locale.country}`] } },
-        { or: { "urn:li:adTargetingFacet:locations": [...(geoUrns as string[])] } },
-      ] },
-    },
-    audienceExpansionEnabled: false,
-    offsiteDeliveryEnabled: false,
+    targetingCriteria: buildLinkedInDeliveryTargeting(geoUrns as string[], typedDraft.locale.language, typedDraft.locale.country, delivery),
+    audienceExpansionEnabled: delivery?.placements.audienceExpansion === true,
+    offsiteDeliveryEnabled: delivery?.placements.audienceNetwork === true,
     politicalIntent: "NOT_POLITICAL",
     status: "DRAFT",
   };
@@ -349,6 +364,7 @@ export function prepareLinkedInAdsDarkPost(
   value: unknown,
   evidenceValue: LinkedInAdsCampaignEvidence | null,
   nowMs = Date.now(),
+  deliverySettings?: LinkedInDeliverySettings,
 ): { readyForDraftCreate: false; request: null; issues: AdsDraftIssue[] }
   | { readyForDraftCreate: true; request: LinkedInAdsDarkPostRequest; issues: [] } {
   const assessment = assessAdsChannelDraft(value);
@@ -358,7 +374,7 @@ export function prepareLinkedInAdsDarkPost(
   const evidence = record(evidenceValue);
   const account = record(evidence.account);
   const organization = record(evidence.organization);
-  const image = record(evidence.image);
+  const image = record(draft.format === "SINGLE_VIDEO" ? evidence.video : evidence.image);
   const accountId = string(account.id);
   const accountUrn = `urn:li:sponsoredAccount:${accountId}`;
   const organizationUrn = string(organization.urn);
@@ -375,8 +391,10 @@ export function prepareLinkedInAdsDarkPost(
     ));
 
   issue(issues, "unsupported_channel", "channel", draft.channel !== "linkedin");
-  issue(issues, "unsupported_creation_path", "objectiveType", draft.objectiveType !== "WEBSITE_VISIT");
-  issue(issues, "unsupported_creation_path", "format", draft.format !== "STANDARD_UPDATE");
+  const parsedDelivery = normalizeLinkedInDeliverySettings(deliverySettings);
+  issue(issues, "invalid_delivery_settings", "deliverySettings", Boolean(parsedDelivery.error));
+  issue(issues, "unsupported_creation_path", "objectiveType", !LINKEDIN_CAMPAIGN_OBJECTIVES.includes(string(draft.objectiveType) as (typeof LINKEDIN_CAMPAIGN_OBJECTIVES)[number]));
+  issue(issues, "unsupported_creation_path", "format", !(["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(string(draft.format))) || (draft.objectiveType === "VIDEO_VIEW" && draft.format !== "SINGLE_VIDEO"));
   issue(issues, "account_unverified", "externalRefs.adAccountUrn",
     !isLinkedInAdsAccountId(accountId) || string(refs.adAccountUrn) !== accountUrn
       || string(evidence.selectedAccountId) !== accountId);
@@ -391,7 +409,7 @@ export function prepareLinkedInAdsDarkPost(
     !ORGANIZATION_URN.test(organizationUrn) || string(refs.organizationUrn) !== organizationUrn
       || !["ADMINISTRATOR", "DIRECT_SPONSORED_CONTENT_POSTER", "CONTENT_ADMINISTRATOR"].includes(string(organization.role)));
   issue(issues, "image_unverified", "externalRefs.creativeAssetUrn",
-    !IMAGE_URN.test(imageUrn) || string(refs.creativeAssetUrn) !== imageUrn
+    !(draft.format === "SINGLE_VIDEO" ? VIDEO_URN : IMAGE_URN).test(imageUrn) || string(refs.creativeAssetUrn) !== imageUrn
       || image.status !== "AVAILABLE" || string(image.owner) !== organizationUrn
       || (Boolean(string(image.associatedAccount)) && string(image.associatedAccount) !== accountUrn));
   const creative = record(draft.creative);
@@ -419,7 +437,7 @@ export function prepareLinkedInAdsDarkPost(
         distribution: { feedDistribution: "NONE", targetEntities: [], thirdPartyDistributionChannels: [] },
         lifecycleState: "PUBLISHED",
         isReshareDisabledByAuthor: true,
-        contentCallToActionLabel: "LEARN_MORE",
+        contentCallToActionLabel: parsedDelivery.settings?.callToAction || "LEARN_MORE",
         contentLandingPage: destination,
         content: { media: { title, id: imageUrn } },
       },
@@ -461,8 +479,8 @@ export function prepareLinkedInAdsDraftCreative(
     ));
 
   issue(issues, "unsupported_channel", "channel", draft.channel !== "linkedin");
-  issue(issues, "unsupported_creation_path", "objectiveType", draft.objectiveType !== "WEBSITE_VISIT");
-  issue(issues, "unsupported_creation_path", "format", draft.format !== "STANDARD_UPDATE");
+  issue(issues, "unsupported_creation_path", "objectiveType", !LINKEDIN_CAMPAIGN_OBJECTIVES.includes(string(draft.objectiveType) as (typeof LINKEDIN_CAMPAIGN_OBJECTIVES)[number]));
+  issue(issues, "unsupported_creation_path", "format", !(["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(string(draft.format))) || (draft.objectiveType === "VIDEO_VIEW" && draft.format !== "SINGLE_VIDEO"));
   issue(issues, "campaign_unverified", "campaignUrn", !CAMPAIGN_URN.test(campaignUrn));
   issue(issues, "campaign_unverified", "campaignUrn",
     string(campaign.urn) !== campaignUrn || string(campaign.account) !== accountUrn || campaign.status !== "DRAFT");

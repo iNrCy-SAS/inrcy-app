@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { OPENAI_ADS_PLATFORMS, openaiAdsTrackingTemplate, type OpenaiAdsPlatform } from "./adsOpenaiCampaignSettings.ts";
 
 /**
  * ChatGPT Ads Advertiser API. This module deliberately has no database or UI
@@ -43,6 +44,10 @@ export type OpenaiAdsPublishRequest = {
   countryCode: string;
   /** Unix timestamp in seconds, as expected by the Ads API. */
   endTime?: number;
+  startTime?: number;
+  /** Absent means all available ChatGPT platforms. Never send an empty array. */
+  platforms?: OpenaiAdsPlatform[];
+  queryStringTemplate?: string;
   adGroupName: string;
   contextHints: string[];
   maxBidMicros: number;
@@ -216,8 +221,15 @@ function validateRequest(value: OpenaiAdsPublishRequest): OpenaiAdsPublishReques
   if (daily !== undefined && request.maxBidMicros > daily) {
     fail("INVALID_BID", "L’enchère maximale ChatGPT Ads doit rester inférieure ou égale au budget quotidien.");
   }
+  if (lifetime !== undefined && request.maxBidMicros > lifetime) fail("INVALID_BID", "L’enchère ChatGPT Ads ne peut pas dépasser le budget total.");
   if (request.endTime !== undefined && (!Number.isSafeInteger(request.endTime) || request.endTime < 946684800 || request.endTime > 4102444800)) {
     fail("INVALID_REQUEST", "La date de fin ChatGPT Ads est invalide.");
+  }
+  if (request.startTime !== undefined && (!Number.isSafeInteger(request.startTime) || request.startTime < 946684800 || request.startTime > 4102444800 || (request.endTime != null && request.endTime <= request.startTime))) fail("INVALID_REQUEST", "Le calendrier ChatGPT Ads est invalide.");
+  if (request.platforms !== undefined && (!Array.isArray(request.platforms) || request.platforms.length < 1 || request.platforms.length > OPENAI_ADS_PLATFORMS.length || new Set(request.platforms).size !== request.platforms.length || request.platforms.some((p) => !OPENAI_ADS_PLATFORMS.includes(p)))) fail("INVALID_REQUEST", "Les plateformes ChatGPT Ads sélectionnées sont invalides.");
+  if (request.queryStringTemplate !== undefined) {
+    try { request.queryStringTemplate = openaiAdsTrackingTemplate(request.queryStringTemplate); }
+    catch { fail("INVALID_REQUEST", "Les paramètres de suivi ChatGPT Ads sont invalides."); }
   }
   if (request.title.length < 3 || request.title.length > 50 || !request.body || request.body.length > 100) {
     fail("INVALID_CREATIVE", "Le titre ou le texte ChatGPT Ads ne respecte pas les limites du canal.");
@@ -351,6 +363,20 @@ export async function resolveOpenaiAdsLocations(options: OpenaiAdsConnectorOptio
   return selected;
 }
 
+/** Public geographic catalog only. A search does not verify a campaign or create anything. */
+export async function searchOpenaiAdsLocations(options: OpenaiAdsConnectorOptions & { query: string; countryCode?: string }): Promise<Array<OpenaiAdsResolvedLocation & { canonicalName: string }>> {
+  const query = clean(options.query);
+  if (query.length < 2 || query.length > 120 || /[\r\n\u0000-\u001f]/.test(query)) fail("INVALID_GEO", "Saisissez une zone ChatGPT Ads de 2 à 120 caractères.");
+  const countryCode = options.countryCode ? clean(options.countryCode).toUpperCase() : "";
+  if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) fail("INVALID_GEO", "Le pays ChatGPT Ads est invalide.");
+  const params = new URLSearchParams({ q: query, limit: "30" });
+  const payload = await apiRequest(apiKey(options.apiKey), `/geo_lookup/search?${params}`, "GET", options.fetchImpl || fetch);
+  const results = Array.isArray(payload.results) ? payload.results.map(object) : [];
+  return [...new Map(results.filter((item) => /^[A-Za-z0-9_-]{1,120}$/.test(clean(item.id)) && clean(item.name) && /^[A-Z]{2}$/.test(clean(item.country_code).toUpperCase()) && clean(item.type).toLowerCase() !== "country" && (!countryCode || clean(item.country_code).toUpperCase() === countryCode)).map((item) => [clean(item.id), {
+    id: clean(item.id), name: clean(item.name), countryCode: clean(item.country_code).toUpperCase(), type: clean(item.type), canonicalName: clean(item.canonical_name) || clean(item.name),
+  }])).values()];
+}
+
 export function isOpenaiAdsPublishProgress(value: unknown): value is OpenaiAdsPublishProgress {
   const item = object(value);
   if (!/^[A-Za-z0-9_-]{8,120}$/.test(clean(item.operationId)) || !/^[a-f0-9]{64}$/.test(clean(item.requestFingerprint)) ||
@@ -410,8 +436,10 @@ export async function createPausedOpenaiAdsCampaign(options: CreatePausedOpenaiA
         status: "paused",
         bidding_type: request.biddingType,
         budget,
+        ...(request.startTime != null ? { start_time: request.startTime } : {}),
         ...(request.endTime ? { end_time: request.endTime } : {}),
-        targeting: { locations: { include: progress.locations.map(({ id }) => ({ id })) } },
+        targeting: { locations: { include: progress.locations.map(({ id }) => ({ id })) }, ...(request.platforms?.length ? { platforms: { included: request.platforms } } : {}) },
+        ...(request.queryStringTemplate ? { landing_page_configuration: { query_string_template: request.queryStringTemplate } } : {}),
       }, `${request.operationId}-campaign`);
       const campaignId = resourceId(created.id, "cmpn_");
       if (!campaignId || clean(created.status) !== "paused") fail("INVALID_PROVIDER_RESPONSE", "ChatGPT Ads n’a pas confirmé la campagne en pause.");

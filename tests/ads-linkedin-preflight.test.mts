@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import * as deliverySettings from "../lib/adsLinkedInCampaignSettings.ts";
+import * as purePublish from "../lib/adsLinkedInPublish.ts";
+import * as videoUpload from "../lib/adsLinkedInVideo.ts";
+
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
@@ -22,6 +26,8 @@ import {
   normalizeLinkedInAdsTargetingEntities,
   recommendedLinkedInAdsBid,
   selectUnambiguousLinkedInAdsGeoTarget,
+  selectLinkedInAdsCampaignGroup,
+  type LinkedInAdsCampaignGroup,
 } from "../lib/adsLinkedInPreflightPolicy.ts";
 
 const group = {
@@ -208,6 +214,14 @@ function loadPreflightRuntime(fetchImpl: typeof fetch) {
   };
   const modules = new Map<string, unknown>([
     ["server-only", {}],
+    ["./adsLinkedInCampaignSettings.ts", deliverySettings],
+    ["./adsLinkedInPublish.ts", purePublish],
+    ["./adsLinkedInVideo.ts", videoUpload],
+    ["./adsLinkedInResourcesServer.ts", {
+      resolveLinkedInAdsProfessionalTargets: async (input: { targets: unknown[] }) => { assert.deepEqual(input.targets, []); return { verifiedTargets: [], unresolvedTargets: [] }; },
+      resolveLinkedInAdsConversions: async (input: { conversionUrns: string[] }) => { assert.deepEqual(input.conversionUrns, []); return { verifiedConversions: [], unresolvedUrns: [] }; },
+    }],
+
     ["./adsLinkedInPolicy.ts", {
       LINKEDIN_ADS_API_VERSION: "202609",
       linkedInAdsScopes: (value: unknown) => String(value || "").split(/\s+/).filter(Boolean),
@@ -608,7 +622,7 @@ test("LinkedIn UI auto-selects one verified geo and keeps exact provider suggest
   assert.match(client, /const data = await fetchLinkedInPreflight[\s\S]{0,240}applyLinkedInProviderDefaults\(data\)/);
   assert.match(
     client,
-    /type="checkbox" checked=\{selected\}[\s\S]{0,700}\{ urn: target\.urn, name: target\.name \}/,
+    /LinkedInAdsLocationPicker[\s\S]*onChoose=\{\(previousUrn, target\) =>[\s\S]*linkedinGeoTargets: normalizeLinkedInGeoTargets\(target \? \[\.\.\.retained, target\] : retained\)/,
   );
   assert.match(client, /params\.append\("geoUrn", target\.urn\)/);
   assert.match(client, /fetchLinkedInPreflight\(undefined, true, accountId, launchDraft\)/);
@@ -673,7 +687,7 @@ test("LinkedIn resource preflight remains GET-only while publication is isolated
   assert.match(server, /publicationEnabled:\s*false/);
   assert.doesNotMatch(server, /method:\s*["']POST["']/);
   assert.match(server, /LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS/);
-  assert.match(server, /compatibleCampaignGroups\.length === 1/);
+  assert.match(server, /selectLinkedInAdsCampaignGroup\(campaignGroups/);
   assert.match(server, /organizations\.length === 1/);
   assert.match(server, /selectUnambiguousLinkedInAdsGeoTarget/);
   assert.match(server, /buildLinkedInAdsGeoUrnsPath/);
@@ -685,4 +699,43 @@ test("LinkedIn resource preflight remains GET-only while publication is isolated
   assert.match(route, /provider_code: providerFailure\?\.providerCode/);
   assert.match(route, /provider_request_id: providerFailure\?\.providerRequestId/);
   assert.doesNotMatch(route, /providerFailure\?\.message|JSON\.stringify\(error\)/);
+});
+
+test("LinkedIn group defaults are stable across provider order and prefer active native defaults", () => {
+  const native = (id: string, overrides: Partial<LinkedInAdsCampaignGroup> = {}) => ({
+    ...normalizeLinkedInAdsCampaignGroup({ ...group, id, runSchedule: {} }, "123")!, ...overrides,
+  });
+  const groups = [native("9000000000000000000000001"), native("9000000000000000000000000"),
+    native("555", { status: "PAUSED", backfilled: true }), native("777", { backfilled: true })];
+  const options = { objectiveType: "WEBSITE_VISIT", scheduleIsCompatible: () => true };
+  assert.equal(selectLinkedInAdsCampaignGroup(groups, options)?.id, "777");
+  assert.equal(selectLinkedInAdsCampaignGroup([...groups].reverse(), options)?.id, "777");
+  assert.equal(selectLinkedInAdsCampaignGroup(groups.slice(0, 2), options)?.id, "9000000000000000000000000");
+  assert.deepEqual(groups.map((item) => item.id), ["9000000000000000000000001", "9000000000000000000000000", "555", "777"]);
+  assert.equal(normalizeLinkedInAdsCampaignGroup({ ...group, backfilled: true }, "123")?.backfilled, true);
+});
+
+test("LinkedIn explicit group choices remain intact even when another group is preferred", () => {
+  const groups = [normalizeLinkedInAdsCampaignGroup({ ...group, id: 456, runSchedule: {} }, "123")!,
+    normalizeLinkedInAdsCampaignGroup({ ...group, id: 789, status: "PAUSED", objectiveType: "BRAND_AWARENESS" }, "123")!];
+  const options = { objectiveType: "WEBSITE_VISIT", scheduleIsCompatible: () => false };
+  assert.equal(selectLinkedInAdsCampaignGroup(groups, { ...options, selectedId: "789" })?.id, "789");
+  assert.equal(selectLinkedInAdsCampaignGroup(groups, { ...options, selectedId: "999" }), null);
+});
+
+test("LinkedIn auto group defaults exclude incompatible objectives, formats, states, dates and Pages", () => {
+  const now = Date.parse("2026-10-01T12:00:00Z"), startAtMs = now + 300_000, endAtMs = now + 5 * 86_400_000;
+  const native = (id: number, overrides: Partial<LinkedInAdsCampaignGroup> = {}) => ({
+    ...normalizeLinkedInAdsCampaignGroup({ ...group, id, runSchedule: {} }, "123")!, ...overrides,
+  });
+  const compatible = native(900, { organizationUrn: "urn:li:organization:789" });
+  const excluded = [native(1, { objectiveType: "ENGAGEMENT" }), native(2, { allowedCampaignTypes: ["TEXT_AD"] }),
+    native(3, { status: "ARCHIVED" as LinkedInAdsCampaignGroup["status"] }),
+    native(4, { runSchedule: { end: startAtMs - 1 } }), native(5, { runSchedule: { start: endAtMs + 1 } }),
+    native(6, { runSchedule: { end: endAtMs - 1 } }), native(7, { organizationUrn: "urn:li:organization:999" })];
+  const options = { objectiveType: "WEBSITE_VISIT", organizationUrn: "urn:li:organization:789",
+    scheduleIsCompatible: (selected: LinkedInAdsCampaignGroup) => purePublish.linkedInAdsCampaignScheduleIssues({ startAtMs, endAtMs, nowMs: now, groupSchedule: selected.runSchedule }).length === 0 };
+  assert.equal(selectLinkedInAdsCampaignGroup([...excluded, compatible], options)?.id, "900");
+  assert.equal(selectLinkedInAdsCampaignGroup(excluded, options), null);
+  assert.equal(selectLinkedInAdsCampaignGroup([], options), null);
 });

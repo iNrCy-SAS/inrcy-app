@@ -13,6 +13,10 @@ export type AdsCampaignDemoDialogDetails = {
   accountId: string;
   dailyBudgetEuros: number;
   endDate: string;
+  googleBudget?: { type: "daily" | "total"; totalEuros: number | null; startDate: string | null; timeZone: string };
+  pinterestBudget?: { type: "daily" | "total"; totalEuros: number | null; startAt: string | null; endAt: string; timeZone: string; flexibleDaily: boolean };
+  nativeBudget?: { type: "daily" | "total"; totalEuros: number | null; startAt: string | null; endAt: string; timeZone: string };
+  linkedinBudget?: { type: "daily" | "total"; totalEuros: number | null; startAt: string | null; endAt: string };
 };
 
 export type AdsCampaignLaunchStatus = "active" | "paused";
@@ -36,6 +40,12 @@ type Props = {
 };
 
 export default function AdsCampaignDemoDialog({ mode, details, busy, publicationPhase, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, activeDisabledReason, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
+  const nativeBudget = details.nativeBudget || details.linkedinBudget || details.googleBudget || details.pinterestBudget;
+  const nativeCalendar = details.nativeBudget;
+  const googleBudget = details.googleBudget;
+  const linkedinBudget = details.linkedinBudget;
+  const pinterestBudget = details.pinterestBudget;
+  const formatInstant = (value: string) => new Date(value).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" });
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const declarationRef = useRef<HTMLInputElement>(null);
@@ -133,7 +143,7 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, publication
             <div><dt>Campagne</dt><dd>{details.campaignName}</dd></div>
             <div><dt>Canal</dt><dd>{details.channelLabel}</dd></div>
             <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
-            <div><dt>Budget autorisé</dt><dd>{details.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} / jour<small>Jusqu’au {new Date(`${details.endDate}T12:00:00`).toLocaleDateString("fr-FR")}</small></dd></div>
+            <div><dt>Budget autorisé</dt><dd>{(nativeBudget?.type === "total" ? nativeBudget.totalEuros || 0 : details.dailyBudgetEuros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}{nativeBudget?.type === "total" ? " au total" : " / jour"}<small>{nativeCalendar ? `${nativeCalendar.startAt ? new Date(nativeCalendar.startAt).toLocaleString("fr-FR", { timeZone: nativeCalendar.timeZone }) : "Dès validation de la plateforme"} → ${new Date(nativeCalendar.endAt).toLocaleString("fr-FR", { timeZone: nativeCalendar.timeZone })} · ${nativeCalendar.timeZone}` : googleBudget ? `${googleBudget.startDate || "Dès la validation de Google"} → ${details.endDate} · ${googleBudget.timeZone || "fuseau du compte"}${googleBudget.type === "daily" ? " · budget moyen" : ""}` : linkedinBudget ? `${linkedinBudget.startAt ? formatInstant(linkedinBudget.startAt) : "Dès la validation de LinkedIn"} → ${formatInstant(linkedinBudget.endAt)}` : pinterestBudget ? `${pinterestBudget.startAt ? new Date(pinterestBudget.startAt).toLocaleString("fr-FR", { timeZone: pinterestBudget.timeZone }) : "Dès la validation de Pinterest"} → ${new Date(pinterestBudget.endAt).toLocaleString("fr-FR", { timeZone: pinterestBudget.timeZone })} · ${pinterestBudget.timeZone}${pinterestBudget.type === "daily" ? pinterestBudget.flexibleDaily ? " · budget moyen" : " · limite quotidienne" : ""}` : `Jusqu’au ${new Date(`${details.endDate}T12:00:00`).toLocaleDateString("fr-FR")}`}</small></dd></div>
             {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "En pause · aucune diffusion"}</dd></div>}
           </dl>
           {mode === "confirm" && <fieldset className={styles.statusChoice}>

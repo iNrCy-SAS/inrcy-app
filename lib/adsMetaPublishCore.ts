@@ -1,3 +1,4 @@
+import { META_CALL_TO_ACTIONS, type MetaCallToAction } from "./adsMetaCampaignSettings.ts";
 import {
   metaAssetFeedSpec,
   metaCreativeIdentity,
@@ -40,6 +41,7 @@ export type MetaAdsImageResource = {
 export type MetaAdsPublishProgress = {
   provider: "meta";
   adAccountId: string;
+  budgetType?: "daily" | "total";
   instagramUserId?: string;
   imageAssets?: {
     feed?: MetaAdsImageResource;
@@ -70,7 +72,13 @@ export type MetaAdsGraphPublishInput = {
   primaryText: string;
   headline: string;
   description?: string;
-  dailyBudgetCents: number;
+  dailyBudgetCents: number | null;
+  lifetimeBudgetCents?: number | null;
+  budgetType?: "daily" | "total";
+  startTime?: string | null;
+  bidStrategy?: "LOWEST_COST_WITHOUT_CAP" | "LOWEST_COST_WITH_BID_CAP";
+  bidAmountCents?: number | null;
+  callToAction?: MetaCallToAction;
   endTime: string;
   placements: MetaAdsPlacement[];
   targeting: Record<string, unknown>;
@@ -173,10 +181,18 @@ export async function executeMetaAdsGraphPublish(
   )) {
     throw new Error("Vérifiez les zones Meta avant la création de la campagne.");
   }
+  const lifetime = input.lifetimeBudgetCents != null;
+  const amount = lifetime ? input.lifetimeBudgetCents : input.dailyBudgetCents;
+  if (!Number.isSafeInteger(amount) || Number(amount) < 500 || Number(amount) > (lifetime ? 4_500_000 : 50_000) || lifetime && input.dailyBudgetCents != null) throw new Error("Choisissez un seul budget Meta valide, quotidien ou total.");
+  const bidStrategy = input.bidStrategy || "LOWEST_COST_WITHOUT_CAP";
+  if ((bidStrategy === "LOWEST_COST_WITH_BID_CAP" && (!Number.isSafeInteger(input.bidAmountCents) || Number(input.bidAmountCents) < 1 || Number(input.bidAmountCents) > Number(amount))) || (bidStrategy === "LOWEST_COST_WITHOUT_CAP" && input.bidAmountCents != null)) throw new Error("Vérifiez la stratégie et l’enchère maximale Meta.");
+  if (input.callToAction && !META_CALL_TO_ACTIONS.includes(input.callToAction)) throw new Error("L’appel à l’action Meta n’est pas pris en charge.");
+  if (lifetime && !input.startTime) throw new Error("Le budget total Meta requiert un calendrier de diffusion.");
   const accountPath = `act_${input.adAccountId}`;
   let progress: MetaAdsPublishProgress = {
     provider: "meta",
     adAccountId: input.adAccountId,
+    ...(input.budgetType ? { budgetType: input.budgetType } : {}),
     instagramUserId: input.instagramUserId,
     stage: "preparing",
   };
@@ -236,9 +252,11 @@ export async function executeMetaAdsGraphPublish(
       campaign_id: progress.campaignId!,
       optimization_goal: "LINK_CLICKS",
       billing_event: "IMPRESSIONS",
-      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      bid_strategy: bidStrategy,
+      ...(input.bidAmountCents != null ? { bid_amount: String(input.bidAmountCents) } : {}),
       destination_type: "WEBSITE",
-      daily_budget: String(input.dailyBudgetCents),
+      ...(lifetime ? { lifetime_budget: String(input.lifetimeBudgetCents) } : { daily_budget: String(input.dailyBudgetCents) }),
+      ...(input.startTime ? { start_time: input.startTime } : {}),
       end_time: input.endTime,
       targeting: JSON.stringify(input.targeting),
       status: "PAUSED",
@@ -262,6 +280,7 @@ export async function executeMetaAdsGraphPublish(
         primaryText: input.primaryText,
         headline: input.headline,
         description: input.description,
+        callToAction: input.callToAction,
         feedImageHash: progress.imageAssets?.feed?.hash,
         storyReelImageHash: progress.imageAssets?.storyReel?.hash,
       })),

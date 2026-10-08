@@ -44,7 +44,7 @@ export const PINTEREST_ADS_CREATION_PATHS = {
 } as const;
 
 export type PinterestLiveObjective = "AWARENESS" | "CONSIDERATION";
-export type PinterestLivePlacementGroup = "ALL";
+export type PinterestLivePlacementGroup = "ALL" | "SEARCH" | "BROWSE" | "OTHER";
 
 type PinterestLiveSettings = {
   objectiveType?: unknown;
@@ -62,7 +62,11 @@ type PinterestLiveSettings = {
 type PinterestLiveCampaignBodyInput = {
   name: string;
   objectiveType: PinterestLiveObjective;
-  dailySpendCap: number;
+  dailySpendCap?: number;
+  lifetimeSpendCap?: number;
+  flexibleDaily?: boolean;
+  startTime?: number | null;
+  adAccountId?: string;
   endTime: number;
 };
 
@@ -70,7 +74,9 @@ type PinterestLiveAdGroupBodyInput = {
   name: string;
   campaignId: string;
   objectiveType: PinterestLiveObjective;
-  bidInMicroCurrency: number;
+  bidInMicroCurrency: number | null;
+  bidStrategyType?: "MAX_BID" | "AUTOMATIC_BID";
+  placementGroup?: PinterestLivePlacementGroup;
   targetingSpec: PinterestResolvedTargeting;
 };
 
@@ -126,14 +132,17 @@ export function pinterestLiveConfigurationIssue(
 
 /** Pinterest v5 campaign create payload. Every provider entity starts paused. */
 export function buildPinterestLiveCampaignBody(input: PinterestLiveCampaignBodyInput) {
+  if ((input.dailySpendCap != null) === (input.lifetimeSpendCap != null)) throw new Error("Choisissez une seule limite de dépense Pinterest : quotidienne ou totale.");
   return {
     name: input.name,
     status: "PAUSED" as const,
     objective_type: input.objectiveType,
     intended_promotion_type: "STANDARD_AD" as const,
     is_campaign_budget_optimization: true,
-    is_flexible_daily_budgets: false,
-    daily_spend_cap: input.dailySpendCap,
+    ...(input.lifetimeSpendCap != null ? { lifetime_spend_cap: input.lifetimeSpendCap }
+      : { is_flexible_daily_budgets: input.flexibleDaily === true, daily_spend_cap: input.dailySpendCap }),
+    ...(input.startTime != null ? { start_time: input.startTime } : {}),
+    ...(input.adAccountId ? { ad_account_id: input.adAccountId } : {}),
     end_time: input.endTime,
   };
 }
@@ -144,14 +153,16 @@ export function buildPinterestLiveCampaignBody(input: PinterestLiveCampaignBodyI
  * different AUTOMATIC_BID-only contract that this publisher does not enable.
  */
 export function buildPinterestLiveAdGroupBody(input: PinterestLiveAdGroupBodyInput) {
+  const strategy = input.bidStrategyType || "MAX_BID";
+  if (strategy === "MAX_BID" && (!Number.isSafeInteger(input.bidInMicroCurrency) || Number(input.bidInMicroCurrency) <= 0) || strategy === "AUTOMATIC_BID" && input.bidInMicroCurrency != null) throw new Error("Vérifiez le montant et la stratégie d’enchères Pinterest.");
   return {
     name: input.name,
     campaign_id: input.campaignId,
     status: "PAUSED" as const,
     billable_event: input.objectiveType === "AWARENESS" ? "IMPRESSION" as const : "CLICKTHROUGH" as const,
-    bid_in_micro_currency: input.bidInMicroCurrency,
-    bid_strategy_type: "MAX_BID" as const,
-    placement_group: "ALL" as PinterestLivePlacementGroup,
+    ...((input.bidStrategyType || "MAX_BID") === "AUTOMATIC_BID" ? {} : { bid_in_micro_currency: input.bidInMicroCurrency }),
+    bid_strategy_type: input.bidStrategyType || "MAX_BID" as const,
+    placement_group: input.placementGroup || "ALL" as PinterestLivePlacementGroup,
     auto_targeting_enabled: true,
     targeting_spec: input.targetingSpec,
   };

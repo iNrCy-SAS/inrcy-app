@@ -168,7 +168,7 @@ test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activa
   const pinterestContract = readFileSync(new URL("../lib/adsPinterestPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
   assert.match(google, /if \(options\.activate === false\) return paused;/);
-  assert.match(meta, /activate: shouldActivate/);
+  assert.match(meta, /prepareMetaAdsPublication\(userId, draft, options\.activate !== false\)/);
   assert.match(metaCore, /if \(!input\.activate\) \{/);
   assert.match(pinterest, /if \(options\.activate !== false\)/);
   assert.match(pinterest, /stage: "paused"/);
@@ -194,7 +194,7 @@ test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans a
 
   assert.match(meta, /onProviderMutationStart\?: \(\) => void/);
   assert.ok(
-    meta.indexOf("options.onProviderMutationStart?.();") < meta.indexOf("return executeMetaAdsGraphPublish({"),
+    meta.indexOf("options.onProviderMutationStart?.();") < meta.indexOf("return executeMetaAdsGraphPublish(input,"),
     "la frontière doit être signalée juste avant la séquence de mutations Graph",
   );
   assert.match(route, /let metaProviderMutationStarted = false/);
@@ -210,7 +210,7 @@ test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans a
   assert.match(route, /let pinterestProviderMutationStarted = false/);
   assert.match(route, /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
   assert.match(route, /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
-  assert.match(route, /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !\("imageUrn" in resources \|\| "campaignUrn" in resources \|\| "postUrn" in resources \|\| "creativeUrn" in resources\)/);
+  assert.match(route, /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !hasLinkedInAdsPublicationResources\(resources\)/);
   assert.match(route, /const openaiRejectedBeforeCreate = draft\.provider === "openai" && openaiDraftRetrySafe/);
   assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate \|\| openaiRejectedBeforeCreate;/);
 });
@@ -298,7 +298,7 @@ test("le connecteur Search n'ajoute plus de ciblage linguistique manuel mais gar
   assert.doesNotMatch(google, /resolveGoogleTargetLanguages\(/);
   assert.doesNotMatch(google, /language: \{ languageConstant:/);
   assert.match(google, /languageCriterionResourceNames: \[\]/);
-  assert.match(google, /negative: true,[\s\S]*?matchType: "BROAD"/);
+  assert.match(google, /negative: true,[\s\S]*?keyword: googleSearchKeyword\(keyword, deliverySettings\?\.negativeKeywordMatchType \|\| "BROAD"\)/);
   assert.match(google, /negativeKeywordCriterionResourceNames/);
   assert.match(google, /const adGroupOffset = 2 \+ targetLocations\.length \+ draft\.negativeKeywords\.length/);
   assert.match(google, /resourceNameAt\(created, 2 \+ targetLocations\.length \+ index, "campaignCriterionResult"/);

@@ -18,10 +18,10 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 test("TikTok Ads authorization URL is restricted to the business portal and carries CSRF state", () => {
-  const allowed = tikTokAdsAuthorizeUrl("https://business-api.tiktok.com/portal/auth?app_id=123", "nonce");
+  const allowed = tikTokAdsAuthorizeUrl("https://business-api.tiktok.com/portal/auth?app_id=123456&redirect_uri=https%3A%2F%2Fapp.example%2Fapi%2Fads%2Ftiktok%2Fcallback", "nonce", { appId: "123456", redirectUri: "https://app.example/api/ads/tiktok/callback" });
   assert.equal(allowed?.searchParams.get("state"), "nonce");
-  assert.equal(tikTokAdsAuthorizeUrl("https://evil.example/portal/auth", "nonce"), null);
-  assert.equal(tikTokAdsAuthorizeUrl("http://business-api.tiktok.com/portal/auth", "nonce"), null);
+  assert.equal(tikTokAdsAuthorizeUrl("https://evil.example/portal/auth", "nonce", { appId: "123456", redirectUri: "https://app.example/api/ads/tiktok/callback" }), null);
+  assert.equal(tikTokAdsAuthorizeUrl("http://business-api.tiktok.com/portal/auth", "nonce", { appId: "123456", redirectUri: "https://app.example/api/ads/tiktok/callback" }), null);
 });
 
 test("TikTok Ads advertiser IDs and account metadata are parsed without organic IDs", () => {

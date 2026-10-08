@@ -1,3 +1,5 @@
+import { readMetaAdsPlanIntent } from "@/lib/adsMetaPlanIntent";
+import { readOpenaiAdsPlanIntent, selectOpenaiAdsPlanLocations } from "@/lib/adsOpenaiPlanIntent";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
@@ -7,6 +9,8 @@ import {
   assessAdsCampaignPlanReview,
   isReviewableAdsCampaignPlan,
   normalizeAdsCampaignPlan,
+  normalizeLinkedInCampaignPlanResponse,
+  linkedInAdsCampaignPlanResponseSchema,
   pinterestAdsCampaignPlanResponseSchema,
   plannedAdsChannelPlanPrompt,
   type AdsCampaignPlan,
@@ -19,7 +23,12 @@ import {
 } from "@/lib/adsCampaignIntelligence";
 import { isAdsChannelId, type AdsChannelId } from "@/lib/adsValidation";
 import { resolveAdsCampaignDestination, verifiedAdsDestinationUrl } from "@/lib/adsDestination";
+import { readPreparedAdsPlanIntent } from "@/lib/adsPreparedPlanIntent";
+import { readPinterestAdsPlanIntent, selectPinterestAdsPlanLocations } from "@/lib/adsPinterestPlanIntent";
+import { readGoogleAdsPlanIntent, selectGoogleAdsPlanLocations } from "@/lib/adsGooglePlanIntent";
 import { normalizeGoogleTargetLocationLabels } from "@/lib/adsGoogleLocations";
+import { readLinkedInAdsPlanIntent, selectLinkedInAdsPlanLocations } from "@/lib/adsLinkedInPlanIntent";
+import { normalizeLinkedInDeliverySuggestion, readLinkedInHumanDeliveryConstraints } from "@/lib/adsLinkedInPlanDelivery";
 import { ADS_PLAN_EDITORIAL_INSTRUCTIONS, ADS_PLAN_STRATEGY_INSTRUCTIONS, adsPlanQualityRepairInstructions, adsPlanRepairDetails, canRepairAdsPlanQuality, selectAdsPlanLocations } from "@/lib/adsPlanQuality";
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
@@ -55,7 +64,7 @@ type BusinessContextRecord = {
   business_name?: unknown;
   [key: string]: unknown;
 };
-type ProfessionalContextRecord = { company_legal_name?: unknown };
+type ProfessionalContextRecord = { company_legal_name?: unknown; hq_country?: unknown };
 type CampaignHistoryContextRecord = { name?: unknown; provider?: unknown };
 type PublicationHistoryContextRecord = {
   title?: unknown;
@@ -189,7 +198,7 @@ Analyse l’offre réellement attestée, le besoin du client, la page de destina
 
 Retourne uniquement un objet JSON avec exactement les clés : brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale.
 
-Utilise campaignType="generic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", bidStrategy="manual_review", mediaStrategy="image", creativeType="image", metaPlacements=[], keywords=[], negativeKeywords=[], googleSearchPartners=false, googleDisplayExpansion=false, metaAudienceExpansion=false. Fournis exactement un titre dans headlines, de 3 à 50 caractères, et un texte autonome dans primaryText, de 1 à 100 caractères. Mets exactement le même texte dans descriptions[0], sans variante cachée. N’écris jamais une phrase coupée, un mot coupé ou des points de suspension. Le titre et le corps doivent apporter ensemble une information concrète et une raison honnête de visiter la page. mediaBrief décrit une seule image publicitaire carrée JPG ou PNG fidèle à l’offre, nette sur mobile, sans texte incrusté ni preuve inventée. imageUrl et creativeUrl sont vides : un média réel sera choisi après analyse. La destination HTTPS doit provenir textuellement de preferredDestinationUrl, sinon reste vide. Les zones targetLocations reflètent uniquement les zones attestées dans le contexte, jamais le pays par défaut. Les profils targetAudiences servent à rédiger le message, ils ne constituent pas un ciblage d’audience personnalisée. Les autres listes peuvent rester vides si elles ne sont pas utiles. rationale explique en deux ou trois phrases l’offre, le public, le choix de la carte ChatGPT et la mesure réellement observable. Le budget quotidien minimum est 15 € mais l’enchère reste à valider par l’humain.
+Utilise campaignType="generic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", bidStrategy="manual_review", mediaStrategy="image", creativeType="image", metaPlacements=[], keywords=[], negativeKeywords=[], googleSearchPartners=false, googleDisplayExpansion=false, metaAudienceExpansion=false. Fournis exactement un titre dans headlines, de 3 à 50 caractères, et un texte autonome dans primaryText, de 1 à 100 caractères. Mets exactement le même texte dans descriptions[0], sans variante cachée. N’écris jamais une phrase coupée, un mot coupé ou des points de suspension. Le titre et le corps doivent apporter ensemble une information concrète et une raison honnête de visiter la page. mediaBrief décrit une seule image publicitaire carrée JPG ou PNG fidèle à l’offre, nette sur mobile, sans texte incrusté ni preuve inventée. imageUrl et creativeUrl sont vides : un média réel sera choisi après analyse. La destination HTTPS doit provenir textuellement de preferredDestinationUrl, sinon reste vide. Les zones targetLocations reflètent uniquement les zones attestées dans le contexte, jamais le pays par défaut. Les profils targetAudiences servent à rédiger le message, ils ne constituent pas un ciblage d’audience personnalisée. Les autres listes peuvent rester vides si elles ne sont pas utiles. rationale explique en deux ou trois phrases l’offre, le public, le choix de la carte ChatGPT et la mesure réellement observable. Le budget et les dates explicites du brief sont conservés par le serveur : une enveloppe totale n’est jamais transformée en budget quotidien. Sans indication, propose 15 € par jour et une enchère fixe de 1 € par clic, qui resteront à confirmer sur la dernière page. Les paramètres UTM peuvent être proposés pour le suivi natif de la destination. N’invente aucune conversion ou audience personnalisée.
 
 ${ADS_PLAN_EDITORIAL_INSTRUCTIONS}
 ${ADS_PLAN_STRATEGY_INSTRUCTIONS}`;
@@ -232,8 +241,8 @@ primaryText contient au plus 500 caractères pour Google et Meta. Pour Google Se
 Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Pour rédiger avec une marge fiable, vise 24 à 28 caractères par titre et 70 à 80 par description ; les textes naturellement plus courts conviennent, sans remplissage artificiel. Écris chaque description comme une seule phrase courte sur une idée et une action, sans accumuler marque, horaires et toutes les villes. Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
 Pour Google Search : organise les requêtes autour de cette seule offre et d'une même intention d'achat ou de prise de contact, comme les termes que le client chercherait réellement. Un métier seul, un nom de réseau social ou un terme générique de visibilité ne suffit pas sans lien avec l'offre. Évite les recherches purement informatives si le but est une demande commerciale. Les titres doivent rester autonomes dans n'importe quel assemblage ; répartis-les entre service, besoin concret, bénéfice attesté, différence vérifiée, zone et action, sans simples permutations. Les descriptions apportent des informations complémentaires et une prochaine étape claire. Vérifie que les exclusions ne contredisent ni les requêtes positives ni l'offre : n'exclus pas « gratuit » si l'offre est un essai gratuit, ni « formation » pour un organisme de formation. Sans exclusion justifiée, retourne [].
 Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" par compatibilité du schéma, mais l’annonce publiée est uniquement textuelle (titres et descriptions). Ne promets pas de composant image et ne demande pas de génération de média : le connecteur actuel ne peut pas joindre un visuel Search via l’API Google Ads. Laisse mediaBrief, imageUrl et creativeUrl vides.
-Pour Google Search : choisis les langues utiles, précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
-Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Remplis audience, zones et expansion d’audience. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
+Pour Google : propose uniquement une campagne Search immédiatement prise en charge avec bidStrategy="maximize_clicks" tant qu’aucune conversion primaire active du compte n’a été vérifiée. Les objectifs humains (devis, achat) ne créent aucune action de conversion. Les langues de Search sont déduites automatiquement des annonces et de la page de destination depuis septembre 2026 ; languages décrit seulement la langue rédactionnelle, jamais un filtre natif. targetAudiences décrit le public conseillé, sans prétendre appliquer une liste ou un filtre d’audience. Précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
+Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Prépare le brief client et les zones exactes, sans prétendre transmettre des intérêts ou une expansion d’audience. keywords=[] et negativeKeywords=[]. Fournis exactement un titre et au maximum une description : une seule annonce est créée. Le serveur prépare le budget quotidien ou total, le calendrier et les enchères depuis le brief humain. Le résultat réellement optimisé est le clic sur le lien, sans Pixel ou promesse de conversion. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
 Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl doit reprendre l’URL fiable fournie dans preferredDestinationUrl ; n’invente aucune autre URL. urlExclusions ne doit contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
 }
 
@@ -250,10 +259,44 @@ export async function POST(request: Request) {
   const analysisMode = body.analysisMode === "goal" ? "goal" as const : "open" as const;
   const analysisObjective = clean(body.analysisObjective, 1_200);
   const destinationUrl = clean(body.destinationUrl, 2_000);
+  let timezone = "Europe/Paris";
+  if (typeof body.timezone === "string" && body.timezone.length <= 100) {
+    try { timezone = new Intl.DateTimeFormat("en-GB", { timeZone: body.timezone }).resolvedOptions().timeZone; }
+    catch { /* An invalid browser zone cannot replace the explicit Paris default. */ }
+  }
+  const now = new Date(startedAt).toISOString();
   if (!provider) return NextResponse.json({ error: "Choisissez d’abord un canal publicitaire." }, { status: 400 });
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, provider))) return adsPilotOnlyResponse();
   if (analysisMode === "goal" && !analysisObjective) {
     return NextResponse.json({ error: "Décrivez l’objectif que vous souhaitez confier à iNrCy." }, { status: 400 });
+  }
+  const professionalIntent = analysisObjective || intent;
+  const locationsAreSelected = provider === "linkedin" || provider === "google" || provider === "pinterest" || provider === "meta" || provider === "openai" || provider === "x" || provider === "tiktok";
+  const preparedHumanConstraints = provider === "x" || provider === "tiktok" ? readPreparedAdsPlanIntent({ provider, intent: professionalIntent, now, timezone }) : null;
+  if (preparedHumanConstraints?.error) return NextResponse.json({ error: preparedHumanConstraints.error, code: "ADS_PREPARED_PLAN_DELIVERY_INVALID", requestId }, { status: 400 });
+  const metaHumanConstraints = provider === "meta" ? readMetaAdsPlanIntent({ intent: professionalIntent, now, timezone }) : null;
+  if (metaHumanConstraints?.error) return NextResponse.json({ error: metaHumanConstraints.error, code: "ADS_META_PLAN_BUDGET_INVALID", requestId }, { status: 400 });
+  const openaiHumanConstraints = provider === "openai" ? readOpenaiAdsPlanIntent({ intent: professionalIntent, now, timezone }) : null;
+  if (openaiHumanConstraints?.error) return NextResponse.json({ error: openaiHumanConstraints.error, code: "ADS_OPENAI_PLAN_BUDGET_INVALID", requestId }, { status: 400 });
+  const pinterestHumanConstraints = provider === "pinterest" ? readPinterestAdsPlanIntent({ intent: professionalIntent, now, timezone }) : null;
+  if (pinterestHumanConstraints?.error) return NextResponse.json({ error: pinterestHumanConstraints.error, code: "ADS_PINTEREST_PLAN_BUDGET_INVALID", requestId }, { status: 400 });
+  const googleHumanConstraints = provider === "google" ? readGoogleAdsPlanIntent({ intent: professionalIntent, now, timezone }) : null;
+  if (googleHumanConstraints?.error) return NextResponse.json({ error: googleHumanConstraints.error, code: "ADS_GOOGLE_PLAN_BUDGET_INVALID", requestId }, { status: 400 });
+  const linkedinHumanConstraints = provider === "linkedin" ? readLinkedInAdsPlanIntent(professionalIntent) : null;
+  if (linkedinHumanConstraints?.budgetIssue) {
+    return NextResponse.json({
+      error: linkedinHumanConstraints.budgetIssue === "conflicting_budget"
+        ? "Votre brief indique plusieurs montants de budget contradictoires. Précisez une seule enveloppe totale ou un seul budget quotidien."
+        : linkedinHumanConstraints.budgetIssue === "combined_budget_unsupported"
+          ? "Ce parcours LinkedIn utilise soit une enveloppe totale, soit un budget quotidien. Choisissez une seule de ces limites pour conserver exactement votre demande."
+        : "Précisez un budget quotidien entre 5 et 500 € ou une enveloppe totale entre 5 et 45 000 €.",
+      code: "ADS_LINKEDIN_PLAN_BUDGET_INVALID", requestId,
+    }, { status: 400 });
+  }
+  const humanDelivery = provider === "linkedin" ? readLinkedInHumanDeliveryConstraints({ intent: professionalIntent, now, timezone }) : null;
+  const humanDeliveryCheck = provider === "linkedin" ? normalizeLinkedInDeliverySuggestion(undefined, { intent: professionalIntent, now, timezone }) : null;
+  if (humanDelivery?.error || humanDeliveryCheck?.error) {
+    return NextResponse.json({ error: humanDelivery?.error || humanDeliveryCheck?.error, code: "ADS_LINKEDIN_PLAN_DELIVERY_INVALID", requestId }, { status: 400 });
   }
 
   const limited = await enforceRateLimit({ name: "ads_plan", identifier: user.authUserId, limit: 24, window: "1 d" });
@@ -274,7 +317,7 @@ export async function POST(request: Request) {
       .maybeSingle() as PromiseLike<ContextQueryResult<BusinessContextRecord>>),
     readContextSource("professional_profile", () => user.supabase
       .from("profiles")
-      .select("company_legal_name")
+      .select("company_legal_name,hq_country")
       .eq("user_id", user.activeUserId)
       .maybeSingle() as PromiseLike<ContextQueryResult<ProfessionalContextRecord>>),
     readContextSource("campaign_history", () => supabaseAdmin
@@ -324,7 +367,8 @@ export async function POST(request: Request) {
     theme: `Campagne ${provider}`,
   });
   const trustedBusinessCountry = clean(
-    businessResult.data?.hq_country
+    profileResult.data?.hq_country
+      ?? businessResult.data?.hq_country
       ?? businessResult.data?.hqCountry
       ?? businessResult.data?.country,
     120,
@@ -347,11 +391,11 @@ export async function POST(request: Request) {
     googleBusinessConnected: channelStates?.gmb.connected,
     googleBusinessUrl: channelStates?.gmb.url,
   });
-  const campaignLocations = selectAdsPlanLocations({
+  const campaignLocations = (provider === "linkedin" ? selectLinkedInAdsPlanLocations : provider === "google" ? selectGoogleAdsPlanLocations : provider === "x" || provider === "tiktok" ? selectOpenaiAdsPlanLocations : selectAdsPlanLocations)({
     locations: compactList(profile.business.interventionZones, 20, 120),
     city: clean(profile.business.city, 100),
     country: trustedBusinessCountry,
-    intent: analysisObjective || intent,
+    intent: professionalIntent,
   });
   const context = {
     companyName,
@@ -422,7 +466,8 @@ export async function POST(request: Request) {
     analysisDirection: analysisMode === "goal"
       ? { mode: "objectif précis", objective: analysisObjective }
       : { mode: "analyse libre", instruction: "Identifier l’angle de campagne le plus pertinent à partir de l’iNrADN." },
-    professionalIntent: analysisObjective || intent,
+    professionalIntent,
+    ...(linkedinHumanConstraints ? { linkedinHumanConstraints, linkedinHumanDelivery: humanDelivery?.constraints, now, timezone } : {}),
     preferredDestinationUrl: resolvedDestination.url,
     destinationSource: resolvedDestination.source,
   };
@@ -480,6 +525,13 @@ export async function POST(request: Request) {
               ? `\nCONTRÔLE QUALITÉ : la proposition précédente a été refusée pour ${previousQualityIssues.join(", ")}. ${adsPlanQualityRepairInstructions(previousQualityIssues)}\n${previousQualityDetails}`
               : ""}`,
             ...(provider === "pinterest" ? { responseSchema: pinterestAdsCampaignPlanResponseSchema() } : {}),
+            ...(provider === "linkedin" ? {
+              responseSchema: linkedInAdsCampaignPlanResponseSchema(),
+              normalizeResponseBeforeValidation: (response: unknown) => normalizeLinkedInCampaignPlanResponse(response, {
+                provider, intent: professionalIntent, locations: context.zones, country: trustedBusinessCountry,
+                locationsAreSelected: true, now, timezone,
+              }),
+            } : {}),
             maxOutputTokens: qualityRepair ? 4_000 : 8_000,
             timeoutMs: qualityRepair ? 25_000 : [42_000, 34_000, 22_000, 15_000][index],
             deadlineAt: generationDeadlineAt,
@@ -517,8 +569,21 @@ export async function POST(request: Request) {
           rawPlan.callToAction = "En savoir plus";
           rawPlan.metaPlacements = ["facebook_feed", "instagram_feed", "stories", "reels"];
         }
-        if (provider === "google" && String(rawPlan.campaignType || "").startsWith("meta_")) {
+        if (provider === "google") {
+          // The assisted route promises a campaign the implemented adapter can publish.
           rawPlan.campaignType = "search";
+          rawPlan.bidStrategy = "maximize_clicks";
+          rawPlan.mediaStrategy = "search_text";
+          rawPlan.creativeType = "image";
+        }
+        if (provider === "pinterest") {
+          const native = rawPlan.channelDraft && typeof rawPlan.channelDraft === "object" && !Array.isArray(rawPlan.channelDraft) ? rawPlan.channelDraft as Record<string, unknown> : {};
+          const objectiveType = native.objectiveType === "AWARENESS" || !resolvedDestination.url ? "AWARENESS" : "CONSIDERATION";
+          rawPlan.channelDraft = { ...native, objectiveType, intendedPromotionType: "STANDARD_AD", creativeType: "REGULAR", targetingMode: "automatic", conversionEvent: null };
+          rawPlan.objective = objectiveType === "AWARENESS" ? "awareness" : "website_traffic";
+          rawPlan.conversionGoal = "website_visit"; rawPlan.conversionLocation = "website";
+          rawPlan.bidStrategy = "maximize_clicks"; rawPlan.keywords = [];
+          rawPlan.mediaStrategy = "image"; rawPlan.creativeType = "image";
         }
         if (isPlannedAdsChannel(provider)) rawPlan.campaignType = "generic";
         // A model cannot verify a URL or location. Retain only user context.
@@ -528,8 +593,8 @@ export async function POST(request: Request) {
           ? context.zones
           : context.localContext.city ? [context.localContext.city] : [];
         const targetLocations = provider === "google"
-          ? normalizeGoogleTargetLocationLabels(trustedLocations)
-          : trustedLocations;
+          ? normalizeGoogleTargetLocationLabels(selectGoogleAdsPlanLocations({ locations: trustedLocations, intent: professionalIntent, country: trustedBusinessCountry }))
+          : provider === "pinterest" ? selectPinterestAdsPlanLocations({ locations: trustedLocations, intent: professionalIntent, country: trustedBusinessCountry }) : provider === "meta" || provider === "openai" || provider === "x" || provider === "tiktok" ? selectOpenaiAdsPlanLocations({ locations: trustedLocations, intent: professionalIntent, country: trustedBusinessCountry }) : trustedLocations;
         rawPlan.targetLocations = targetLocations;
         if (typeof rawPlan.trackingParameters !== "string") rawPlan.trackingParameters = "";
         const candidate = normalizeAdsCampaignPlan(rawPlan, {
@@ -538,10 +603,13 @@ export async function POST(request: Request) {
           destinationUrl: resolvedDestination.url,
           locations: targetLocations,
           country: trustedBusinessCountry,
+          intent: professionalIntent,
+          locationsAreSelected,
+          now, timezone,
           audiences: context.audiences,
           services: context.services,
         });
-        if (!context.zones.length && !context.localContext.city) candidate.targetLocations = [];
+        if (!targetLocations.length) candidate.targetLocations = [];
         const review = assessAdsCampaignPlanReview(candidate, provider);
         if (!review.reviewable) {
           const issueCodes = adsCampaignPlanValidationIssueCodes(rawPlan, {
@@ -550,6 +618,9 @@ export async function POST(request: Request) {
             destinationUrl: resolvedDestination.url,
             locations: targetLocations,
             country: trustedBusinessCountry,
+            intent: professionalIntent,
+            locationsAreSelected,
+            now, timezone,
             audiences: context.audiences,
             services: context.services,
           });

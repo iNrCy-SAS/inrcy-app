@@ -41,10 +41,10 @@ test("la création d'un brouillon ne transmet pas d'identifiant nul", () => {
   const owners = new Set(saveBodies.map(({ owner }) => owner));
   for (const owner of ["saveDraft", "openLaunchDialog", "confirmCampaignLaunch"]) assert.ok(owners.has(owner), owner);
   for (const { owner, body } of saveBodies) {
-    const serialize = new Function("savedId", "campaignDraft", "launchDraft", `return (${body.getText(source)});`);
+    const serialize = new Function("savedId", "campaignDraft", "launchDraft", "parsed", `return (${body.getText(source)});`);
     const draft = { provider: "linkedin", name: "Brouillon conservé" };
     for (const savedId of [undefined, null, "", "72b4871a-95e4-4e16-b16e-94c8341741a5"]) {
-      const payload = JSON.parse(serialize(savedId, draft, draft));
+      const payload = JSON.parse(serialize(savedId, draft, draft, { draft }));
       assert.deepEqual(payload, savedId ? { ...draft, id: savedId } : draft, owner);
       assert.equal(Object.hasOwn(payload, "id"), Boolean(savedId), `${owner}: no null or empty id on creation`);
     }

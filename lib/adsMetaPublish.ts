@@ -3,6 +3,7 @@ import "server-only";
 import { listMetaPages, metaAdsJson } from "./adsServer.ts";
 import {
   metaCreativeAssetUrls,
+  metaPlacementTargeting,
   metaPlacementsNeedInstagramIdentity,
   type MetaAdsPlacement,
 } from "./adsMetaPlacement.ts";
@@ -12,7 +13,11 @@ import {
   metaUrlTags,
   MetaAdsPublishError,
   type PersistMetaAdsProgress,
+  type MetaAdsGraphPublishInput,
 } from "./adsMetaPublishCore.ts";
+import { metaNativeDelivery } from "./adsMetaCampaignSettings.ts";
+import { metaAdsResourcesConsentKey, resolveMetaAdsLanguages, type MetaAdsResources } from "./adsMetaResources.ts";
+import { readMetaAdsDeliveryResources, verifyMetaAdsGeoTargets, metaAdsDeliveryContext, MetaAdsPreparationError } from "./adsMetaResourcesServer.ts";
 import { prepareMetaCreativeImageForUpload } from "./adsMetaCreativeImageServer.ts";
 import type { AdsCampaignInput } from "./adsValidation.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
@@ -80,20 +85,20 @@ async function downloadMetaImageBytes(imageUrl: string): Promise<Buffer> {
       signal: AbortSignal.timeout(30_000),
     });
   } catch {
-    throw new Error("Le visuel Meta n’a pas pu être téléchargé. Utilisez une image HTTPS directement accessible, sans redirection.");
+    throw new MetaAdsPreparationError("Le visuel Meta n’a pas pu être téléchargé. Utilisez une image HTTPS directement accessible, sans redirection.");
   }
   if (!response.ok) {
-    throw new Error("Le visuel Meta n’a pas pu être téléchargé avant son import dans Ads Manager.");
+    throw new MetaAdsPreparationError("Le visuel Meta n’a pas pu être téléchargé avant son import dans Ads Manager.");
   }
   const contentType = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
   if (!contentType.startsWith("image/")) {
-    throw new Error("Le fichier préparé pour Meta n’est pas une image valide.");
+    throw new MetaAdsPreparationError("Le fichier préparé pour Meta n’est pas une image valide.");
   }
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (Number.isFinite(declaredLength) && declaredLength > MAX_META_IMAGE_BYTES) {
-    throw new Error("Le visuel Meta dépasse la limite de 30 Mo.");
+    throw new MetaAdsPreparationError("Le visuel Meta dépasse la limite de 30 Mo.");
   }
-  if (!response.body) throw new Error("Le visuel Meta téléchargé est vide.");
+  if (!response.body) throw new MetaAdsPreparationError("Le visuel Meta téléchargé est vide.");
 
   const chunks: Uint8Array[] = [];
   const reader = response.body.getReader();
@@ -104,13 +109,13 @@ async function downloadMetaImageBytes(imageUrl: string): Promise<Buffer> {
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
-      if (total > MAX_META_IMAGE_BYTES) throw new Error("Le visuel Meta dépasse la limite de 30 Mo.");
+      if (total > MAX_META_IMAGE_BYTES) throw new MetaAdsPreparationError("Le visuel Meta dépasse la limite de 30 Mo.");
       chunks.push(value);
     }
   } finally {
     reader.releaseLock();
   }
-  if (!total) throw new Error("Le visuel Meta téléchargé est vide.");
+  if (!total) throw new MetaAdsPreparationError("Le visuel Meta téléchargé est vide.");
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
@@ -139,7 +144,7 @@ async function resolveMetaImageUrl(userId: string, imageUrl: string): Promise<st
 
   const mediaId = mediaLibraryIdFromPrivateUrl(imageUrl);
   if (!mediaId) {
-    throw new Error("Le visuel Meta doit être une URL HTTPS ou un média valide de votre médiathèque iNrCy.");
+    throw new MetaAdsPreparationError("Le visuel Meta doit être une URL HTTPS ou un média valide de votre médiathèque iNrCy.");
   }
 
   const { data: media, error } = await supabaseAdmin
@@ -149,10 +154,10 @@ async function resolveMetaImageUrl(userId: string, imageUrl: string): Promise<st
     .eq("user_id", userId)
     .maybeSingle();
   if (error || !media || media.is_active === false) {
-    throw new Error("Le média sélectionné n’est plus disponible dans votre médiathèque iNrCy.");
+    throw new MetaAdsPreparationError("Le média sélectionné n’est plus disponible dans votre médiathèque iNrCy.");
   }
   if (media.media_type !== "image") {
-    throw new Error("Le connecteur Meta actuellement disponible attend une image. Choisissez une image dans iNr’Studio ou votre médiathèque.");
+    throw new MetaAdsPreparationError("Le connecteur Meta actuellement disponible attend une image. Choisissez une image dans iNr’Studio ou votre médiathèque.");
   }
 
   const publicUrl = await createSafeStorageSignedUrl(
@@ -161,51 +166,28 @@ async function resolveMetaImageUrl(userId: string, imageUrl: string): Promise<st
     60 * 60,
   );
   if (!publicUrl || !safeHttpsUrl(publicUrl)) {
-    throw new Error("Le média iNrCy ne peut pas être préparé pour Meta pour le moment. Réessayez dans quelques instants.");
+    throw new MetaAdsPreparationError("Le média iNrCy ne peut pas être préparé pour Meta pour le moment. Réessayez dans quelques instants.");
   }
   return publicUrl;
 }
 
-/** Meta accepts an ISO-8601 offset; 23:59 Paris time also handles CET/CEST. */
-function parisEndTime(endDate: string): string {
-  const reference = new Date(`${endDate}T12:00:00Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(reference.getTime()) || reference.toISOString().slice(0, 10) !== endDate) {
-    throw new Error("La date de fin Meta est invalide.");
-  }
-  const offsetName = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Paris",
-    timeZoneName: "shortOffset",
-  }).formatToParts(reference).find((part) => part.type === "timeZoneName")?.value;
-  const offset = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(offsetName ?? "");
-  if (!offset) throw new Error("Impossible de déterminer le fuseau horaire de la campagne Meta.");
-  const endTime = `${endDate}T23:59:59${offset[1]}${offset[2].padStart(2, "0")}:${offset[3] ?? "00"}`;
-  const daysUntilEnd = (Date.parse(endTime) - Date.now()) / 86_400_000;
-  if (daysUntilEnd < 1 || daysUntilEnd > 90) {
-    throw new Error("La fin de campagne Meta doit être comprise entre demain et dans 90 jours.");
-  }
-  return endTime;
-}
-
-export async function publishMetaAdsCampaign(
+async function prepareMetaAdsPublication(
   userId: string,
   draft: MetaAdsCampaignDraft,
-  persistProgress: PersistMetaAdsProgress,
-  options: MetaAdsPublishOptions = {},
-): Promise<Record<string, unknown>> {
-  if (draft.provider !== "meta") throw new Error("Ce brouillon n’est pas une campagne Meta Ads.");
-  if (typeof persistProgress !== "function") {
-    throw new Error("La journalisation des identifiants Meta est obligatoire avant publication.");
-  }
+  activate: boolean,
+) {
+  if (draft.provider !== "meta") throw new MetaAdsPreparationError("Ce brouillon n’est pas une campagne Meta Ads.");
   if (draft.noSpecialCategoryConfirmed !== true) {
-    throw new Error("Confirmez que cette campagne ne relève pas d’une catégorie publicitaire spéciale Meta.");
+    throw new MetaAdsPreparationError("Confirmez que cette campagne ne relève pas d’une catégorie publicitaire spéciale Meta.");
   }
   if (!/^\d{5,25}$/.test(draft.adAccountId) || !/^\d{5,30}$/.test(draft.pageId)) {
-    throw new Error("Le compte publicitaire ou la Page Meta est invalide.");
+    throw new MetaAdsPreparationError("Le compte publicitaire ou la Page Meta est invalide.");
   }
-  if (draft.accountCurrency !== "EUR") throw new Error("Seuls les comptes Meta en EUR sont pris en charge.");
+  if (draft.accountCurrency !== "EUR") throw new MetaAdsPreparationError("Seuls les comptes Meta en EUR sont pris en charge.");
   if (!safeHttpsUrl(draft.destinationUrl)) {
-    throw new Error("Le lien de destination Meta doit être une URL HTTPS publique.");
+    throw new MetaAdsPreparationError("Le lien de destination Meta doit être une URL HTTPS publique.");
   }
+  const context = draft.metaDeliverySettings ? await metaAdsDeliveryContext(userId) : "";
   const placements = draft.metaPlacements as MetaAdsPlacement[];
   const needsInstagramIdentity = metaPlacementsNeedInstagramIdentity(placements);
   const selectedAssets = metaCreativeAssetUrls({
@@ -215,49 +197,53 @@ export async function publishMetaAdsCampaign(
   });
   const urlTags = metaUrlTags(draft.trackingParameters);
   if (draft.name.trim().length < 3 || draft.primaryText.trim().length < 10) {
-    throw new Error("Le nom ou le texte de la campagne Meta est trop court.");
+    throw new MetaAdsPreparationError("Le nom ou le texte de la campagne Meta est trop court.");
   }
-  const dailyBudgetCents = Math.round(draft.dailyBudgetEuros * 100);
-  if (!Number.isFinite(dailyBudgetCents) || Math.abs(dailyBudgetCents - draft.dailyBudgetEuros * 100) > 0.000001 || dailyBudgetCents < 500 || dailyBudgetCents > 50_000) {
-    throw new Error("Le budget Meta doit être compris entre 5 et 500 € par jour.");
-  }
-  const endTime = parisEndTime(draft.endDate);
+  let delivery: ReturnType<typeof metaNativeDelivery>;
+  try { delivery = metaNativeDelivery(draft); } catch (error) { throw new MetaAdsPreparationError(error instanceof Error ? error.message : "Vérifiez la diffusion Meta."); }
+  if (draft.metaDeliverySettings && (draft.headlines.length !== 1 || draft.descriptions.length > 1 || draft.campaignType !== "meta_traffic" || draft.objective !== "website_traffic" || draft.conversionGoal !== "website_visit" || draft.conversionLocation !== "website" || draft.mediaStrategy !== "image" || draft.creativeType !== "image")) throw new MetaAdsPreparationError("Vérifiez le format image Trafic Meta, avec un titre et au maximum une description.");
   const accountPath = `act_${draft.adAccountId}`;
-  const shouldActivate = options.activate !== false;
+  let resources: MetaAdsResources | null = null;
 
   // Check the same token used for creation can access the chosen EUR account
   // and Page. Meta still validates the Page's advertising rights at creation.
-  const account = await metaAdsJson(userId, `${accountPath}?fields=id,currency,account_status`);
+  if (draft.metaDeliverySettings) resources = await readMetaAdsDeliveryResources(userId, draft.adAccountId, draft.pageId);
+  const account = resources ? { id: resources.account.id, currency: resources.account.currency, account_status: resources.account.status } : await metaAdsJson(userId, `${accountPath}?fields=id,currency,account_status`);
   if (String(account.id ?? "").replace(/^act_/, "") !== draft.adAccountId) {
-    throw new Error("Ce compte publicitaire Meta n’est pas accessible avec la connexion actuelle.");
+    throw new MetaAdsPreparationError("Ce compte publicitaire Meta n’est pas accessible avec la connexion actuelle.");
   }
-  if (account.currency !== "EUR") throw new Error("Le compte publicitaire Meta doit être en EUR.");
+  if (account.currency !== "EUR") throw new MetaAdsPreparationError("Le compte publicitaire Meta doit être en EUR.");
   if (Number(account.account_status) !== 1) {
-    throw new Error("Le compte publicitaire Meta n’est pas actif. Vérifiez-le dans Ads Manager.");
+    throw new MetaAdsPreparationError("Le compte publicitaire Meta n’est pas actif. Vérifiez-le dans Ads Manager.");
   }
-  const pages = await listMetaPages(userId);
+  const pages = resources?.pages || await listMetaPages(userId);
   const page = pages.find((item) => item.id === draft.pageId);
   if (!page) {
-    throw new Error("Cette Page Facebook n’est pas autorisée par la connexion Meta Ads.");
+    throw new MetaAdsPreparationError("Cette Page Facebook n’est pas autorisée par la connexion Meta Ads.");
   }
   const instagramUserId = page.instagramUserId || undefined;
   if (needsInstagramIdentity && !instagramUserId) {
-    throw new Error("Associez un compte Instagram professionnel à cette Page Facebook dans Meta Business Suite, puis actualisez la configuration iNr’ADS.");
+    throw new MetaAdsPreparationError("Associez un compte Instagram professionnel à cette Page Facebook dans Meta Business Suite, puis actualisez la configuration iNr’ADS.");
   }
   if (needsInstagramIdentity) {
     // A linked Page alone does not prove that this ad account may advertise
     // with the Instagram identity. Check the account edge before any creation.
-    const instagramAccounts = await metaAdsJson(userId, `${accountPath}/connected_instagram_accounts?fields=id&limit=100`);
+    const instagramAccounts = resources ? { data: resources.instagramAccountIds.map((id) => ({ id })) } : await metaAdsJson(userId, `${accountPath}/connected_instagram_accounts?fields=id&limit=100`);
     if (!(Array.isArray(instagramAccounts.data) ? instagramAccounts.data : []).some((item) =>
       String((item as Record<string, unknown>).id || "") === instagramUserId
     )) {
-      throw new Error("Le compte Instagram lié à cette Page n’est pas autorisé sur le compte publicitaire Meta sélectionné. Vérifiez son association dans Meta Business Suite, puis actualisez iNr’ADS.");
+      throw new MetaAdsPreparationError("Le compte Instagram lié à cette Page n’est pas autorisé sur le compte publicitaire Meta sélectionné. Vérifiez son association dans Meta Business Suite, puis actualisez iNr’ADS.");
     }
   }
 
   // The review's local zones must be the actual ad-set geography. The shared
   // resolver rejects unknown/ambiguous locations instead of widening to France.
-  const targeting = await resolveMetaAdsPublishTargeting(userId, placements, draft.targetLocations, metaAdsJson);
+  const targeting: Record<string, unknown> = resources
+    ? { ...metaPlacementTargeting(placements), geo_locations: await verifyMetaAdsGeoTargets(userId, draft.metaGeoTargets || [], draft.adAccountId), age_min: delivery.ageMin, ...(delivery.ageMax == null ? {} : { age_max: delivery.ageMax }) }
+    : await resolveMetaAdsPublishTargeting(userId, placements, draft.targetLocations, metaAdsJson);
+  let localeIds: number[] = [];
+  try { localeIds = resources ? resolveMetaAdsLanguages(resources, draft.languages) : []; } catch (error) { throw new MetaAdsPreparationError(error instanceof Error ? error.message : "Vérifiez les langues Meta."); }
+  if (localeIds.length) targeting.locales = localeIds;
 
   // Resolve and download only after the selected account and identities have
   // been rechecked. Each placement family is inspected independently from the
@@ -276,8 +262,8 @@ export async function publishMetaAdsCampaign(
     ? (await prepareMetaCreativeImageForUpload(storyReelSourceBytes, "storyReel")).buffer.toString("base64")
     : "";
 
-  options.onProviderMutationStart?.();
-  return executeMetaAdsGraphPublish({
+  if (context && context !== await metaAdsDeliveryContext(userId)) throw new MetaAdsPreparationError("Le compte, la connexion ou la Page Meta a changé pendant la préparation. Relancez la vérification.", 409);
+  const input: MetaAdsGraphPublishInput = {
     userId,
     adAccountId: draft.adAccountId,
     pageId: draft.pageId,
@@ -287,13 +273,28 @@ export async function publishMetaAdsCampaign(
     primaryText: draft.primaryText,
     headline: draft.headlines.find((headline) => headline.trim()) || draft.name,
     description: draft.descriptions.find((description) => description.trim()),
-    dailyBudgetCents,
-    endTime,
+    dailyBudgetCents: delivery.dailyBudgetCents,
+    endTime: delivery.endTime,
+    ...(draft.metaDeliverySettings ? { lifetimeBudgetCents: delivery.lifetimeBudgetCents, budgetType: delivery.budgetType, startTime: delivery.startTime, bidStrategy: delivery.bidStrategy, bidAmountCents: delivery.bidAmountCents, callToAction: delivery.callToAction } : {}),
     placements,
     targeting,
     urlTags,
     feedImageBytes,
     storyReelImageBytes,
-    activate: shouldActivate,
-  }, metaAdsJson, persistProgress);
+    activate,
+  };
+  return { input, check: { ready: true as const, selectedAccountId: draft.adAccountId, selectedPageId: draft.pageId, verifiedLocationCount: resources ? (draft.metaGeoTargets || []).length : draft.targetLocations.length, verifiedLanguageCount: localeIds.length, resourcesKey: resources ? metaAdsResourcesConsentKey(resources) : "" } };
+}
+
+/** GET-only checks and media inspection; provider resources remain untouched. */
+export async function checkMetaAdsPublication(userId: string, draft: MetaAdsCampaignDraft) {
+  try { return (await prepareMetaAdsPublication(userId, draft, false)).check; }
+  catch (error) { if (error instanceof MetaAdsPreparationError) throw error; throw new MetaAdsPreparationError("La vérification Meta n’a pas pu être terminée. Vérifiez les zones, les langues, le média et la connexion avant de réessayer.", 503); }
+}
+
+export async function publishMetaAdsCampaign(userId: string, draft: MetaAdsCampaignDraft, persistProgress: PersistMetaAdsProgress, options: MetaAdsPublishOptions = {}): Promise<Record<string, unknown>> {
+  if (typeof persistProgress !== "function") throw new MetaAdsPreparationError("La journalisation des identifiants Meta est obligatoire avant publication.");
+  const { input } = await prepareMetaAdsPublication(userId, draft, options.activate !== false);
+  options.onProviderMutationStart?.();
+  return executeMetaAdsGraphPublish(input, metaAdsJson, persistProgress);
 }

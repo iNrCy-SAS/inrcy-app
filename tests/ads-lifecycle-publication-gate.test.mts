@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { hasCompleteInitialPublishResources, parseAdsCampaignLifecycleRequest } from "../lib/adsCampaignLifecycle.ts";
+import { publicAdsProviderResources } from "../lib/adsProviderResources.ts";
 import { isAdsChannelPublishEnabled } from "../lib/adsPublishMode.ts";
 import { createGoogleAdsRemoteCampaignCoreAdapter, GoogleAdsRemoteCampaignError, type GoogleAdsRemoteRequest } from "../lib/adsGoogleRemoteCampaignCore.ts";
 
@@ -39,7 +40,7 @@ async function exercise(provider: string, body: Record<string, unknown>, recover
   };
   const patch = actualFunction("PATCH", {
     authorizeRemoteLifecycle: async () => ({ campaign, user: { activeUserId: "business" }, account: {} }),
-    parseAdsCampaignLifecycleRequest, lifecycleRecovery, isAdsChannelPublishEnabled,
+    parseAdsCampaignLifecycleRequest, lifecycleRecovery, isAdsChannelPublishEnabled, publicAdsProviderResources,
     process: { env: enabled ? { ...disabled, INRCY_GOOGLE_ADS_PUBLISH_ENABLED: "true", INRCY_PINTEREST_ADS_PUBLISH_ENABLED: "true", INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "true", INRCY_ADS_LIVE_PUBLISH_ENABLED: "true" } : disabled },
     NextResponse: { json: (payload: unknown, options: { status?: number } = {}) => ({ status: options.status || 200, payload }) },
     claimCampaign: async () => { claims += 1; return { claimedAt: "2026-09-30T10:00:00Z" }; },

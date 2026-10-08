@@ -2,8 +2,11 @@ import "server-only";
 import { resolveLinkedInAdsGeoTargets } from "./adsLinkedInGeoResolution.ts";
 
 import sharp from "sharp";
+import { uploadLinkedInAdsVideo, validateLinkedInAdsVideoSource, linkedInAdsVideoUrn, LINKEDIN_ADS_VIDEO_MAX_BYTES, LinkedInVideoUploadError, type LinkedInAdsVideoSource } from "./adsLinkedInVideo.ts";
 import type { AdsCampaignInput } from "./adsValidation.ts";
-import type { LinkedInAdsDraft } from "./adsChannelDrafts.ts";
+import { assessAdsChannelDraft, type LinkedInAdsDraft } from "./adsChannelDrafts.ts";
+import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding, linkedInTrackedDestination, type LinkedInProfessionalTarget } from "./adsLinkedInCampaignSettings.ts";
+import { resolveLinkedInAdsProfessionalTargets, resolveLinkedInAdsConversions } from "./adsLinkedInResourcesServer.ts";
 import {
   linkedInAdsHasAccessMode,
   LINKEDIN_ADS_API_VERSION,
@@ -82,8 +85,11 @@ type PublicationEvidence = {
   campaignGroup: LinkedInAdsCampaignGroup;
   organization: OrganizationAccess;
   geoUrns: string[];
+  verifiedProfessionalTargets: LinkedInProfessionalTarget[];
+  verifiedConversionUrns: string[];
   supportedLocales: Array<{ language: string; country: string }>;
   image: LinkedInAdsImageEvidence | null;
+  video: LinkedInAdsImageEvidence | null;
   pricing: { bidMin: number; bidMax: number; dailyBudgetMin: number };
   checkedAtMs: number;
 };
@@ -132,6 +138,7 @@ function providerHeaders(token: string, json = false): Record<string, string> {
 }
 
 function providerReadError(status: number): LinkedInAdsConnectionError {
+  if (status === 404) return new LinkedInAdsConnectionError("Cette ressource LinkedIn n’existe pas.", "provider_not_found", 404);
   if (status === 401 || status === 403) {
     return new LinkedInAdsConnectionError(
       "LinkedIn refuse le contrôle préalable. Reconnectez LinkedIn Ads et vérifiez les rôles du compte et de la Page.",
@@ -178,7 +185,7 @@ async function linkedInRead(
         await sleep(retryDelay(response, attempt));
         continue;
       }
-      throw providerReadError(response.status);
+      throw Object.assign(providerReadError(response.status), { providerStatus: response.status });
     }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw new LinkedInAdsConnectionError("Réponse LinkedIn Ads invalide.", "provider_invalid_response");
@@ -253,6 +260,24 @@ async function readCampaignImage(userId: string, draft: AdsCampaignInput): Promi
   return { bytes, contentType };
 }
 
+async function readCampaignVideo(userId: string, draft: AdsCampaignInput): Promise<LinkedInAdsVideoSource> {
+  const id = mediaLibraryId(String(draft.creativeUrl || draft.imageUrl || "").trim());
+  if (!id) throw new Error("Pour un lancement LinkedIn sûr, importez la vidéo dans la médiathèque iNrCy.");
+  const { data: media, error } = await supabaseAdmin.from("pro_media_library")
+    .select("bucket_name,storage_path,media_type,mime_type,size_bytes,is_active")
+    .eq("id", id).eq("user_id", userId).maybeSingle();
+  if (error || !media || media.is_active === false || media.media_type !== "video") throw new Error("La vidéo LinkedIn sélectionnée n’est plus disponible.");
+  if (Number(media.size_bytes || 0) > LINKEDIN_ADS_VIDEO_MAX_BYTES) throw new Error("La vidéo LinkedIn dépasse la limite de la médiathèque iNrCy.");
+  const bucket = String(media.bucket_name || "inrcy-pro-media").trim();
+  const storagePath = String(media.storage_path || "").trim();
+  if (!bucket || !storagePath || storagePath.includes("..") || storagePath.includes("\\")) throw new Error("Le chemin de la vidéo LinkedIn est invalide.");
+  const downloaded = await supabaseAdmin.storage.from(bucket).download(storagePath);
+  if (downloaded.error || !downloaded.data || downloaded.data.size <= 0 || downloaded.data.size > LINKEDIN_ADS_VIDEO_MAX_BYTES) throw new Error("La vidéo LinkedIn est vide ou dépasse la limite iNrCy.");
+  const source = { bytes: Buffer.from(await downloaded.data.arrayBuffer()), contentType: String(downloaded.data.type || media.mime_type || ""), sourceIdentity: id };
+  validateLinkedInAdsVideoSource(source);
+  return source;
+}
+
 function campaignEndAtMs(endDate: string): number {
   const end = Date.parse(`${endDate}T23:59:59Z`);
   if (!Number.isSafeInteger(end)) throw new Error("La date de fin LinkedIn est invalide.");
@@ -261,16 +286,14 @@ function campaignEndAtMs(endDate: string): number {
 
 function publicationSchedule(draft: AdsCampaignInput, group: LinkedInAdsCampaignGroup, nowMs: number) {
   return {
-    startAtMs: Math.max(nowMs + 5 * 60_000, group.runSchedule.start || 0),
-    endAtMs: campaignEndAtMs(draft.endDate),
+    startAtMs: draft.linkedinDeliverySettings?.budget.startAt
+      ? Date.parse(draft.linkedinDeliverySettings.budget.startAt) : Math.max(nowMs + 5 * 60_000, group.runSchedule.start || 0),
+    endAtMs: draft.linkedinDeliverySettings?.budget.endAt
+      ? Date.parse(draft.linkedinDeliverySettings.budget.endAt) : campaignEndAtMs(draft.endDate),
   };
 }
 
-function providerDraft(
-  draft: AdsCampaignInput,
-  evidence: PublicationEvidence,
-  imageUrn: string,
-): LinkedInAdsDraft {
+function providerBrief(draft: AdsCampaignInput): LinkedInAdsDraft {
   const settings = draft.channelSettings?.channel === "linkedin" ? draft.channelSettings : null;
   if (!settings) throw new Error("Les réglages LinkedIn sont incomplets.");
   return {
@@ -280,14 +303,37 @@ function providerDraft(
     objectiveType: settings.objectiveType,
     format: settings.format,
     budget: { amount: draft.dailyBudgetEuros, currency: "EUR", period: "daily", level: "campaign" },
-    audience: { locationBriefs: evidence.geoUrns, audienceBrief: draft.targetAudiences.join(" · ") || "Audience professionnelle" },
+    audience: { locationBriefs: (draft.linkedinGeoTargets || []).map((geo) => geo.urn), audienceBrief: draft.targetAudiences.join(" · ") || "Audience professionnelle" },
     locale: settings.locale,
     creative: {
       introText: draft.primaryText,
       headline: String(draft.headlines[0] || draft.name).trim(),
-      mediaBrief: draft.mediaBrief,
-      destinationUrl: draft.destinationUrl,
+      mediaBrief: draft.mediaBrief?.trim().length >= 10 ? draft.mediaBrief : "Média sélectionné dans la médiathèque iNrCy",
+      destinationUrl: linkedInTrackedDestination(draft.destinationUrl, draft.trackingParameters).url || "",
     },
+  };
+}
+
+function assertLocalPublicationChoices(draft: AdsCampaignInput, nowMs: number): void {
+  const delivery = normalizeLinkedInDeliverySettings(draft.linkedinDeliverySettings);
+  if (delivery.error) throw new Error(delivery.error);
+  const brief = providerBrief(draft);
+  const issues = assessAdsChannelDraft(brief).briefIssues;
+  if (issues.length) throw new Error(`La création LinkedIn est incomplète : ${issues.map((item) => item.code).join(", ")}.`);
+  if (!["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(brief.format) || (brief.objectiveType === "VIDEO_VIEW" && brief.format !== "SINGLE_VIDEO") || !linkedInDeliveryBidding(brief.objectiveType, delivery.settings)) throw new Error("L’objectif, le format ou la stratégie d’enchères LinkedIn ne sont pas compatibles.");
+  const tracked = linkedInTrackedDestination(draft.destinationUrl, draft.trackingParameters);
+  if (tracked.error) throw new Error(tracked.error);
+  const schedule = publicationSchedule(draft, { runSchedule: {} } as LinkedInAdsCampaignGroup, nowMs);
+  if (linkedInAdsCampaignScheduleIssues({ ...schedule, groupSchedule: {}, nowMs }).length || schedule.endAtMs > nowMs + 90 * 86_400_000) throw new Error("Le calendrier LinkedIn est invalide.");
+  const bid = delivery.settings?.bidding.amountEuros ?? draft.linkedinBidEuros;
+  const budget = delivery.settings?.budget.type === "total" ? delivery.settings.budget.totalEuros : draft.dailyBudgetEuros;
+  if (delivery.settings?.bidding.strategy !== "maximum_delivery" && (!Number.isFinite(bid) || Number(bid) <= 0 || Number(bid) > Number(budget))) throw new Error("L’enchère LinkedIn est invalide.");
+  if (brief.objectiveType === "WEBSITE_CONVERSION" && !delivery.settings?.conversions.conversionUrns.length) throw new Error("Sélectionnez une conversion LinkedIn pour cet objectif.");
+}
+
+function providerDraft(draft: AdsCampaignInput, evidence: PublicationEvidence, imageUrn: string): LinkedInAdsDraft {
+  return {
+    ...providerBrief(draft),
     externalRefs: {
       adAccountUrn: `urn:li:sponsoredAccount:${draft.adAccountId}`,
       campaignGroupUrn: evidence.campaignGroup.urn,
@@ -306,11 +352,15 @@ async function readPublicationAccount(
   if (!integration || integration.status !== "connected" || integration.resource_id !== draft.adAccountId) {
     throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads associé a changé. Reconnectez-le avant le lancement.", "connection_changed", 409);
   }
-  const { token, scopes } = await linkedInAdsAuthorization(userId, integration);
+  // Discovery can refresh credentials. Authorize the current row once afterwards,
+  // rather than refreshing the same expired snapshot twice.
+  const accounts = await listLinkedInAdsAccounts(userId, integration);
+  const currentIntegration = await readLinkedInAdsIntegration(userId);
+  if (!currentIntegration || currentIntegration.status !== "connected" || currentIntegration.resource_id !== draft.adAccountId || currentIntegration.id !== integration.id || currentIntegration.provider_account_id !== integration.provider_account_id) throw new LinkedInAdsConnectionError("La connexion LinkedIn a changé pendant le contrôle. Relancez la vérification.", "connection_changed", 409);
+  const { token, scopes } = await linkedInAdsAuthorization(userId, currentIntegration);
   if (!linkedInAdsHasAccessMode(scopes, "manage")) {
     throw new LinkedInAdsConnectionError("Reconnectez LinkedIn Ads pour accorder les autorisations de gestion complètes.", "missing_scopes", 403);
   }
-  const accounts = await listLinkedInAdsAccounts(userId, integration);
   const account = accounts.find((item) => item.id === draft.adAccountId);
   if (!account || !allowedDevelopmentAccountIds().has(account.id)) {
     throw new LinkedInAdsConnectionError("Ce compte n’est pas mappé à l’application LinkedIn Advertising API en Development Tier.", "development_account_mapping_required", 403);
@@ -340,7 +390,8 @@ async function collectPublicationEvidence(
   if (!settings || !/^\d{1,25}$/.test(groupId) || !ORGANIZATION_URN.test(organizationUrn) || !geoTargets.length) {
     throw new Error("Les sélections LinkedIn (groupe, Page et zones) sont incomplètes.");
   }
-  const [groupsPayload, organizationsPayload, localesPayload, verifiedGeos] = await Promise.all([
+  const delivery = draft.linkedinDeliverySettings;
+  const [groupsPayload, organizationsPayload, localesPayload, verifiedGeos, professionals, conversions] = await Promise.all([
     linkedInRead(token, buildLinkedInAdsCampaignGroupsPath(account.id), fetchImpl, sleep),
     linkedInRead(token, "/rest/organizationAcls?q=roleAssignee&state=APPROVED&count=500&start=0", fetchImpl, sleep),
     linkedInRead(token, buildLinkedInAdsLocalesPath(), fetchImpl, sleep),
@@ -350,7 +401,11 @@ async function collectPublicationEvidence(
       country: settings.locale.country,
       read: (path) => linkedInRead(token, path, fetchImpl, sleep),
     }),
+    resolveLinkedInAdsProfessionalTargets({ accessToken: token, targets: [...(delivery?.professionalTargeting.include || []), ...(delivery?.professionalTargeting.exclude || [])], language: settings.locale.language, country: settings.locale.country, read: (path) => linkedInRead(token, path, fetchImpl, sleep) }),
+    resolveLinkedInAdsConversions({ accessToken: token, accountId: account.id, conversionUrns: delivery?.conversions.conversionUrns || [], read: (path) => linkedInRead(token, path, fetchImpl, sleep) }),
   ]);
+  if (professionals.unresolvedTargets.length) throw new Error("LinkedIn n’a pas confirmé les critères professionnels sélectionnés.");
+  if (conversions.unresolvedUrns.length) throw new Error("LinkedIn n’a pas confirmé les conversions actives sélectionnées dans ce compte.");
   const groups = normalizeLinkedInAdsCampaignGroups(groupsPayload, account.id);
   const organizations = normalizeOrganizationAccess(organizationsPayload);
   const supportedLocales = normalizeLinkedInAdsLocales(localesPayload);
@@ -383,20 +438,23 @@ async function collectPublicationEvidence(
   }
   const geoUrns = geoTargets.map((target) => target.urn);
   const [audiencePayload, pricingPayload, imagePayload] = await Promise.all([
-    linkedInRead(token, buildLinkedInAdsAudienceCountPath(geoUrns, settings.locale.language, settings.locale.country), fetchImpl, sleep),
+    linkedInRead(token, buildLinkedInAdsAudienceCountPath(geoUrns, settings.locale.language, settings.locale.country, delivery), fetchImpl, sleep),
     linkedInRead(token, buildLinkedInAdsBudgetPricingPath({
       accountId: account.id,
       geoUrns,
       language: settings.locale.language,
       country: settings.locale.country,
-      dailyBudget: draft.dailyBudgetEuros,
+      dailyBudget: delivery?.budget.type === "total" ? undefined : draft.dailyBudgetEuros,
+      objectiveType: settings.objectiveType, deliverySettings: delivery,
     }), fetchImpl, sleep),
-    imageUrn ? linkedInRead(token, buildLinkedInAdsImagePath(imageUrn), fetchImpl, sleep) : Promise.resolve(null),
+    imageUrn ? linkedInRead(token, linkedInAdsVideoUrn(imageUrn) ? `/rest/videos/${encodeURIComponent(imageUrn)}` : buildLinkedInAdsImagePath(imageUrn), fetchImpl, sleep) : Promise.resolve(null),
   ]);
   const audienceCount = normalizeLinkedInAdsAudienceCount(audiencePayload);
   const pricing = normalizeLinkedInAdsBudgetPricing(pricingPayload);
-  const image = imageUrn && imagePayload ? normalizeLinkedInAdsImage(imagePayload, imageUrn) : null;
-  const bidAmount = draft.linkedinBidEuros ?? null;
+  const video = imageUrn && imagePayload && linkedInAdsVideoUrn(imageUrn) ? { urn: imageUrn, owner: text(imagePayload.owner), status: text(imagePayload.status), associatedAccount: null } : null;
+  const image = imageUrn && imagePayload && !video ? normalizeLinkedInAdsImage(imagePayload, imageUrn) : null;
+  if (video && (video.owner !== organization.urn || video.status !== "AVAILABLE")) throw new Error("La vidéo LinkedIn n’est pas disponible pour la Page sélectionnée.");
+  const bidAmount = delivery?.bidding.amountEuros ?? draft.linkedinBidEuros ?? null;
   const blockers = linkedInAdsPreflightBlockers({
     scopes: scopes.split(/\s+/).filter(Boolean),
     accountCurrency: account.currency,
@@ -405,7 +463,7 @@ async function collectPublicationEvidence(
     targetStatus,
     campaignGroup,
     image,
-    requireImage: Boolean(imageUrn),
+    requireImage: Boolean(imageUrn) && !video,
     organizationUrn: organization.urn,
     localeSupported: supportedLocales.some((item) => item.language === settings.locale.language && item.country === settings.locale.country),
     verifiedGeoUrns: geoUrns,
@@ -413,6 +471,8 @@ async function collectPublicationEvidence(
     pricing,
     bidAmount,
     dailyBudget: draft.dailyBudgetEuros,
+    objectiveType: settings.objectiveType, deliverySettings: delivery,
+    totalBudget: delivery?.budget.totalEuros, scheduleDays: Math.ceil((publicationSchedule(draft, campaignGroup, scheduleNow).endAtMs - publicationSchedule(draft, campaignGroup, scheduleNow).startAtMs) / 86_400_000),
     politicalIntentConfirmed: draft.linkedinPoliticalIntentConfirmed === true,
     targetingNoticeAcknowledged: draft.linkedinTargetingNoticeAcknowledged === true,
   });
@@ -425,8 +485,10 @@ async function collectPublicationEvidence(
     campaignGroup,
     organization,
     geoUrns,
+    verifiedProfessionalTargets: professionals.verifiedTargets,
+    verifiedConversionUrns: conversions.verifiedConversions.map((conversion) => conversion.urn),
     supportedLocales,
-    image,
+    image, video,
     pricing,
     checkedAtMs: now(),
   };
@@ -518,6 +580,8 @@ function campaignEvidence(
   groupUrn: string,
   organizationUrn: string,
   expectedStatus: "DRAFT" | "ACTIVE" | "PAUSED" = "DRAFT",
+  objectiveType = "WEBSITE_VISIT",
+  format = "STANDARD_UPDATE",
 ): LinkedInAdsCampaignEvidence["campaign"] | null {
   const row = record(payload);
   const id = linkedInAdsCampaignReference(row.id)?.urn;
@@ -525,12 +589,12 @@ function campaignEvidence(
   const status = text(row.status);
   return id === campaignUrn && account === `urn:li:sponsoredAccount:${accountId}` && status === expectedStatus
     && text(row.campaignGroup) === groupUrn && text(row.associatedEntity) === organizationUrn
-    && row.objectiveType === "WEBSITE_VISIT" && row.format === "STANDARD_UPDATE" && row.type === "SPONSORED_UPDATES"
+    && row.objectiveType === objectiveType && row.format === format && row.type === "SPONSORED_UPDATES"
     ? { urn: campaignUrn, account, status } : null;
 }
 
 function hasProviderResource(progress: LinkedInAdsPublishProgress): boolean {
-  return Boolean(progress.imageUrn || progress.campaignUrn || progress.postUrn || progress.creativeUrn);
+  return Boolean(progress.imageUrn || progress.videoUrn || progress.videoCheckpoint || progress.campaignUrn || progress.postUrn || progress.creativeUrn);
 }
 
 /** Runs the publisher's initial checks without any provider or database mutation. */
@@ -541,7 +605,9 @@ export async function checkLinkedInAdsPublication(
 ): Promise<{ ready: true; verifiedGeoCount: number }> {
   try {
     if (draft.provider !== "linkedin") throw new LinkedInAdsConnectionError("Ce brouillon n’est pas une campagne LinkedIn Ads.", "invalid_provider", 422);
-    await readCampaignImage(userId, draft);
+    assertLocalPublicationChoices(draft, Date.now());
+    if (draft.channelSettings?.channel === "linkedin" && draft.channelSettings.format === "SINGLE_VIDEO") await readCampaignVideo(userId, draft);
+    else await readCampaignImage(userId, draft);
     const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
     const evidence = await collectPublicationEvidence(userId, draft, options.activate === false ? "PAUSED" : "ACTIVE", fetch, sleep, Date.now);
     return { ready: true, verifiedGeoCount: evidence.geoUrns.length };
@@ -635,6 +701,8 @@ export async function publishLinkedInAdsCampaign(
         `urn:li:sponsoredCampaignGroup:${draft.linkedinCampaignGroupId}`,
         String(draft.linkedinOrganizationUrn || ""),
         stillDraft ? "DRAFT" : targetStatus,
+        draft.channelSettings?.channel === "linkedin" ? draft.channelSettings.objectiveType : "WEBSITE_VISIT",
+        draft.channelSettings?.channel === "linkedin" ? draft.channelSettings.format : "STANDARD_UPDATE",
       ) || linkedInAdsCreativeUrn(creativePayload.id) !== progress.creativeUrn
         || text(creativePayload.campaign) !== campaign.urn
         || text(record(creativePayload.content).reference) !== progress.postUrn
@@ -652,7 +720,9 @@ export async function publishLinkedInAdsCampaign(
     // Phase 1: all local and live account/targeting evidence is checked before
     // the first provider mutation. The local image is downloaded and decoded
     // before the LinkedIn upload resource is initialized.
-    const imageSource = await readCampaignImage(userId, draft);
+    assertLocalPublicationChoices(draft, now());
+    const isVideo = draft.channelSettings?.channel === "linkedin" && draft.channelSettings.format === "SINGLE_VIDEO";
+    const imageSource = isVideo ? await readCampaignVideo(userId, draft) : await readCampaignImage(userId, draft);
     let evidence = await collectPublicationEvidence(userId, draft, targetStatus, fetchImpl, sleep, now);
     // Never regress a durable provider checkpoint during recovery. In
     // particular, an interrupted upload must retain `image_initialized` so we
@@ -661,7 +731,28 @@ export async function publishLinkedInAdsCampaign(
       await persist({ ...progress, stage: "preflight_complete", pendingStep: undefined });
     }
 
-    let imageUrn = linkedInAdsImageUrn(progress.imageUrn);
+    let imageUrn: string | null = isVideo ? linkedInAdsVideoUrn(progress.videoUrn) : linkedInAdsImageUrn(progress.imageUrn);
+    if (isVideo) {
+      try {
+        const uploaded = await uploadLinkedInAdsVideo({ operationKey: options.operationKey, ownerUrn: evidence.organization.urn, source: imageSource as LinkedInAdsVideoSource, checkpoint: progress.videoCheckpoint }, {
+          read: (path) => linkedInRead(evidence.token, path, fetchImpl, sleep),
+          write: async (path, body) => { mutationStarted = true; options.onProviderMutationStart?.(); return (await createRequest(evidence.token, `${LINKEDIN_REST_ORIGIN}${path}`, body, fetchImpl, 200)).payload; },
+          fetchImpl, now, sleep,
+          persist: async (checkpoint) => {
+            const videoUrn = linkedInAdsVideoUrn(checkpoint.videoUrn) || undefined;
+            await persist({ ...progress, videoCheckpoint: checkpoint, ...(videoUrn ? { videoUrn } : {}), stage: progress.campaignUrn ? progress.stage : checkpoint.phase === "available" ? "video_available" : videoUrn ? "video_initialized" : "preflight_complete", pendingStep: undefined });
+          },
+        });
+        imageUrn = uploaded.videoUrn;
+      } catch (error) {
+        if (error instanceof LinkedInVideoUploadError && error.checkpoint) {
+          const videoUrn = linkedInAdsVideoUrn(error.checkpoint.videoUrn) || undefined;
+          progress = { ...progress, videoCheckpoint: error.checkpoint, ...(videoUrn ? { videoUrn } : {}), stage: progress.campaignUrn ? progress.stage : videoUrn ? "video_initialized" : "preflight_complete" };
+          await persistProgress(progress).catch(() => undefined);
+        }
+        throw error;
+      }
+    } else {
     let uploadUrl = "";
     if (!imageUrn) {
       await beginCreate("initialize_image");
@@ -720,13 +811,18 @@ export async function publishLinkedInAdsCampaign(
       await persist({ ...progress, imageUrn, stage: "image_available", pendingStep: undefined });
     }
 
+    }
+    if (!imageUrn) throw new Error("LinkedIn n’a pas confirmé l’identifiant du média.");
+
     // Phase 2: re-read every mutable permission/resource plus the newly
     // uploaded image. Campaign creation is impossible if any evidence changed.
     evidence = await collectPublicationEvidence(userId, draft, targetStatus, fetchImpl, sleep, now, imageUrn);
-    if (!evidence.image || evidence.image.status !== "AVAILABLE") throw new Error("L’image LinkedIn n’est pas disponible.");
+    const mediaEvidence = isVideo ? evidence.video : evidence.image;
+    if (!mediaEvidence || mediaEvidence.status !== "AVAILABLE") throw new Error("Le média LinkedIn n’est pas disponible.");
     const linkedInDraft = providerDraft(draft, evidence, imageUrn);
     const choices: LinkedInAdsDraftCampaignChoices = {
-      bidAmount: Number(draft.linkedinBidEuros).toFixed(2),
+      bidAmount: Number(draft.linkedinDeliverySettings?.bidding.amountEuros ?? draft.linkedinBidEuros ?? 0).toFixed(2),
+      deliverySettings: draft.linkedinDeliverySettings,
       ...publicationSchedule(draft, evidence.campaignGroup, now()),
       politicalIntentConfirmed: draft.linkedinPoliticalIntentConfirmed === true,
       discriminationNoticeAcknowledged: draft.linkedinTargetingNoticeAcknowledged === true,
@@ -738,8 +834,11 @@ export async function publishLinkedInAdsCampaign(
       account: evidence.account,
       campaignGroup: evidence.campaignGroup,
       organization: evidence.organization,
-      image: evidence.image,
+      image: evidence.image || { urn: "", owner: "", status: "" },
+      ...(evidence.video ? { video: evidence.video } : {}),
       geoUrns: evidence.geoUrns,
+      verifiedProfessionalTargets: evidence.verifiedProfessionalTargets,
+      verifiedConversionUrns: evidence.verifiedConversionUrns,
       supportedLocales: evidence.supportedLocales,
     }, choices, now());
     if (!campaignPreparation.readyForDraftCreate || !campaignPreparation.request) {
@@ -785,6 +884,7 @@ export async function publishLinkedInAdsCampaign(
       draft.adAccountId,
       evidence.campaignGroup.urn,
       evidence.organization.urn,
+      "DRAFT", linkedInDraft.objectiveType, linkedInDraft.format,
     );
     if (!verifiedCampaign) throw new Error("La campagne LinkedIn DRAFT créée ne peut pas être vérifiée.");
     const serializationEvidence: LinkedInAdsCampaignEvidence = {
@@ -794,15 +894,18 @@ export async function publishLinkedInAdsCampaign(
       account: evidence.account,
       campaignGroup: evidence.campaignGroup,
       organization: evidence.organization,
-      image: evidence.image,
+      image: evidence.image || { urn: "", owner: "", status: "" },
+      ...(evidence.video ? { video: evidence.video } : {}),
       campaign: verifiedCampaign,
       geoUrns: evidence.geoUrns,
+      verifiedProfessionalTargets: evidence.verifiedProfessionalTargets,
+      verifiedConversionUrns: evidence.verifiedConversionUrns,
       supportedLocales: evidence.supportedLocales,
     };
 
     let postUrn = linkedInAdsPostUrn(progress.postUrn);
     if (!postUrn) {
-      const postPreparation = prepareLinkedInAdsDarkPost(linkedInDraft, serializationEvidence, now());
+      const postPreparation = prepareLinkedInAdsDarkPost(linkedInDraft, serializationEvidence, now(), draft.linkedinDeliverySettings);
       if (!postPreparation.readyForDraftCreate || !postPreparation.request) {
         throw new Error(`La publication sponsorisée LinkedIn est invalide : ${postPreparation.issues.map((item) => item.code).join(", ")}.`);
       }
@@ -854,6 +957,24 @@ export async function publishLinkedInAdsCampaign(
         if (error instanceof ProviderMutationFailure) await failCreate("create_creative", error);
         throw error;
       }
+    }
+
+    // Association uses an idempotent PUT on the exact campaign/conversion key.
+    // Re-read before replay and confirm the association before delivery can start.
+    for (const conversionUrn of evidence.verifiedConversionUrns) {
+      const path = `/rest/campaignConversions/(campaign:${encodeURIComponent(campaignReference.urn)},conversion:${encodeURIComponent(conversionUrn)})`;
+      let existing: Record<string, unknown> | null = null;
+      try { existing = await linkedInRead(evidence.token, path, fetchImpl, sleep); } catch (error) {
+        if (!(error instanceof LinkedInAdsConnectionError) || error.status !== 404) throw error;
+      }
+      if (!existing) {
+        mutationStarted = true; options.onProviderMutationStart?.();
+        const response = await fetchImpl(`${LINKEDIN_REST_ORIGIN}${path}`, { method: "PUT", headers: providerHeaders(evidence.token, true), body: JSON.stringify({ campaign: campaignReference.urn, conversion: conversionUrn }), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(30_000) });
+        await response.text().catch(() => "");
+        if (response.status !== 204) throw new Error("LinkedIn n’a pas confirmé l’association de conversion. La campagne reste en brouillon.");
+        existing = await linkedInRead(evidence.token, path, fetchImpl, sleep);
+      }
+      if (existing.campaign !== campaignReference.urn || existing.conversion !== conversionUrn) throw new Error("L’association de conversion LinkedIn ne correspond pas à cette campagne.");
     }
 
     const finalization = buildLinkedInAdsFinalizationSteps(draft.adAccountId, campaignReference.urn, creativeUrn, targetStatus);

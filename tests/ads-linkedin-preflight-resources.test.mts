@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import * as deliverySettings from "../lib/adsLinkedInCampaignSettings.ts";
+import * as purePublish from "../lib/adsLinkedInPublish.ts";
+import * as videoUpload from "../lib/adsLinkedInVideo.ts";
+
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
@@ -8,7 +12,7 @@ import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaul
 import { log } from "../lib/observability/logger.ts";
 
 type PreflightResult = {
-  selected: { verifiedGeoUrns: string[] };
+  selected: { verifiedGeoUrns: string[]; campaignGroup: policy.LinkedInAdsCampaignGroup | null };
   blockers: string[];
   readyForRemoteDraft: boolean;
 };
@@ -37,6 +41,14 @@ function loadPreflight(fetchImpl: typeof fetch) {
   };
   const modules = new Map<string, unknown>([
     ["server-only", {}],
+    ["./adsLinkedInCampaignSettings.ts", deliverySettings],
+    ["./adsLinkedInPublish.ts", purePublish],
+    ["./adsLinkedInVideo.ts", videoUpload],
+    ["./adsLinkedInResourcesServer.ts", {
+      resolveLinkedInAdsProfessionalTargets: async (input: { targets: unknown[] }) => { assert.deepEqual(input.targets, []); return { verifiedTargets: [], unresolvedTargets: [] }; },
+      resolveLinkedInAdsConversions: async (input: { conversionUrns: string[] }) => { assert.deepEqual(input.conversionUrns, []); return { verifiedConversions: [], unresolvedUrns: [] }; },
+    }],
+
     ["./adsLinkedInPolicy.ts", {
       LINKEDIN_ADS_API_VERSION: "202609",
       linkedInAdsScopes: (value: unknown) => String(value || "").split(/\s+/).filter(Boolean),
@@ -299,4 +311,62 @@ test("malformed LinkedIn campaign groups and locales report their own reads", as
       return true;
     });
   }
+});
+
+test("preflight recovers a rejected geo URN finder with exact fresh suggestions and never masks access failures", async () => {
+  const runtime = loadPreflight(async input => {
+    const request = new URL(String(input));
+    if (request.searchParams.get("q") === "urns") return Response.json({}, { status: 400 });
+    return providerResponse(request);
+  });
+  const result = await runtime.run("owner", { geoQueries: ["Arras"], geoUrns: [arras.urn] });
+  assert.deepEqual(result.selected.verifiedGeoUrns, [arras.urn]);
+  assert.equal(result.blockers.includes("selected_geo_unverified"), false);
+  assert.ok(runtime.logs.some(entry => entry.message === "linkedin_ads_preflight_geo_urn_fallback"));
+  for (const status of [401, 403, 429, 500]) {
+    const denied = loadPreflight(async input => {
+      const request = new URL(String(input));
+      return request.searchParams.get("q") === "urns" ? Response.json({}, { status }) : providerResponse(request);
+    });
+    await assert.rejects(denied.run("owner", { geoQueries: ["Arras"], geoUrns: [arras.urn] }));
+    assert.equal(denied.logs.some(entry => entry.message === "linkedin_ads_preflight_geo_urn_fallback"), false);
+  }
+});
+
+test("the preflight deterministically selects an existing group with two or more provider groups", async () => {
+  const now = Date.now(), endAt = new Date(now + 8 * 86_400_000).toISOString();
+  const native = (id: string, overrides: Record<string, unknown> = {}) => ({
+    id, account: "urn:li:sponsoredAccount:123", name: "Existing group " + id, status: "ACTIVE",
+    objectiveType: "WEBSITE_VISIT", allowedCampaignTypes: ["SPONSORED_UPDATES"], runSchedule: {}, ...overrides,
+  });
+  const groups = [native("8"), native("9", { backfilled: true }), native("7", { status: "PAUSED", backfilled: true }),
+    native("1", { backfilled: true, runSchedule: { end: now + 86_400_000 } }), native("2", { objectiveType: "ENGAGEMENT" })];
+  const choices = deliverySettings.defaultLinkedInDeliverySettings();
+  choices.budget.endAt = endAt;
+  const run = async (providerGroups: typeof groups, campaignGroupId?: string) => loadPreflight(async (input, init) => {
+    assert.ok(!init?.method || init.method === "GET", "selection only performs provider reads");
+    const request = new URL(String(input));
+    if (request.pathname.endsWith("/adCampaignGroups")) return Response.json({ elements: providerGroups });
+    return providerResponse(request);
+  }).run("owner", { deliverySettings: choices, campaignGroupId });
+  assert.equal((await run(groups)).selected.campaignGroup?.id, "9");
+  assert.equal((await run([...groups].reverse())).selected.campaignGroup?.id, "9");
+  assert.equal((await run(groups, "7")).selected.campaignGroup?.id, "7", "explicit paused group is preserved");
+  assert.equal((await run(groups, "404")).selected.campaignGroup, null, "unavailable explicit choice never silently changes");
+});
+
+test("the preflight leaves the group empty when no provider schedule can fit the requested budget calendar", async () => {
+  const now = Date.now(), choices = deliverySettings.defaultLinkedInDeliverySettings();
+  choices.budget = { type: "total", totalEuros: 100, startAt: new Date(now + 600_000).toISOString(), endAt: new Date(now + 8 * 86_400_000).toISOString() };
+  const runtime = loadPreflight(async (input) => {
+    const request = new URL(String(input));
+    if (request.pathname.endsWith("/adCampaignGroups")) return Response.json({ elements: [{
+      id: "456", account: "urn:li:sponsoredAccount:123", name: "Existing group", status: "ACTIVE",
+      objectiveType: "WEBSITE_VISIT", runSchedule: { end: now + 86_400_000 },
+    }] });
+    return providerResponse(request);
+  });
+  const result = await runtime.run("owner", { deliverySettings: choices });
+  assert.equal(result.selected.campaignGroup, null);
+  assert.ok(result.blockers.includes("campaign_group_required"));
 });

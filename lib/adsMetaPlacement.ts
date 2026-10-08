@@ -1,3 +1,4 @@
+import { META_CALL_TO_ACTIONS, type MetaCallToAction } from "./adsMetaCampaignSettings.ts";
 export type MetaAdsPlacement =
   | "facebook_feed"
   | "instagram_feed"
@@ -130,6 +131,7 @@ export function metaAssetFeedSpec(input: {
   description?: string;
   feedImageHash?: string;
   storyReelImageHash?: string;
+  callToAction?: MetaCallToAction;
 }) {
   const placements = normalizedPlacements(input.placements);
   const needsFeed = metaPlacementsNeedFeedImage(placements);
@@ -143,6 +145,7 @@ export function metaAssetFeedSpec(input: {
   if (needsFeed && needsStoryReel && input.feedImageHash === input.storyReelImageHash) {
     throw new Error("Les placements Meta Feed et Story/Reel doivent utiliser deux images distinctes, sans recadrage implicite.");
   }
+  if (input.callToAction && !META_CALL_TO_ACTIONS.includes(input.callToAction)) throw new Error("L’appel à l’action Meta n’est pas pris en charge.");
   const usePlacementCustomization = needsFeed && needsStoryReel;
 
   const images = [
@@ -177,7 +180,7 @@ export function metaAssetFeedSpec(input: {
     link_urls: [{
       website_url: input.destinationUrl,
     }],
-    call_to_action_types: ["LEARN_MORE"],
+    call_to_action_types: [input.callToAction || "LEARN_MORE"],
     // Meta placement customization expects a real choice between asset
     // families. With only one family, omit the rules instead of sending a
     // meaningless single-rule customization set.

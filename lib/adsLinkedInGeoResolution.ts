@@ -31,7 +31,12 @@ export async function resolveLinkedInAdsGeoTargets(options: {
   const { targets, language, country, read } = options;
   if (!targets.length) return [];
   const path = buildLinkedInAdsGeoUrnsPath(targets.map((target) => target.urn), language, country);
-  const payload = options.resolvedPayload === undefined ? await read(path) : options.resolvedPayload;
+  // A rejected URN finder is not proof. Only a fresh locations finder for the
+  // exact requested URN can recover this version-specific HTTP 400.
+  const payload = options.resolvedPayload === undefined ? await read(path).catch((error: unknown) => {
+    if (!error || typeof error !== "object" || (error as { providerStatus?: unknown }).providerStatus !== 400) throw error;
+    return { elements: [] };
+  }) : options.resolvedPayload;
   const requested = new Set(targets.map((target) => target.urn));
   const elements = payload && typeof payload === "object" && !Array.isArray(payload)
     ? (payload as Record<string, unknown>).elements : undefined;

@@ -80,12 +80,37 @@ export function parseTikTokAccountInfo(payload: unknown): TikTokAdsAccount[] {
   });
 }
 
-export function tikTokAdsAuthorizeUrl(configuredUrl: string, state: string): URL | null {
+export type TikTokAdsOAuthBinding = { appId: string; redirectUri: string };
+
+/** The state cookie can only return to this application's dedicated callback. */
+export function tikTokAdsCallbackUrl(redirectUri: string, expectedOrigin?: string): URL | null {
+  try {
+    const url = new URL(redirectUri);
+    const localHttp = url.protocol === "http:" && url.hostname === "localhost";
+    if ((url.protocol !== "https:" && !localHttp) || url.username || url.password || url.search || url.hash
+      || url.pathname !== "/api/ads/tiktok/callback") return null;
+    if (expectedOrigin && url.origin !== expectedOrigin) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/** Preserve the generated advertiser URL; only state is set after its binding is verified. */
+export function tikTokAdsAuthorizeUrl(configuredUrl: string, state: string, binding: TikTokAdsOAuthBinding): URL | null {
   try {
     const url = new URL(configuredUrl);
-    if (url.protocol !== "https:" || !(
+    if (url.protocol !== "https:" || url.port || url.username || url.password || url.hash || !(
       url.hostname === "business-api.tiktok.com" || url.hostname === "ads.tiktok.com"
     )) return null;
+    const appId = binding.appId.trim();
+    const callback = tikTokAdsCallbackUrl(binding.redirectUri);
+    if (!/^\d{5,30}$/.test(appId) || !callback) return null;
+    const appIds = url.searchParams.getAll("app_id");
+    // TikTok's authorization guide names redirect_uri; its FAQ also uses redirect_url.
+    const redirects = [...url.searchParams.getAll("redirect_uri"), ...url.searchParams.getAll("redirect_url")];
+    if (appIds.length !== 1 || appIds[0] !== appId || redirects.length !== 1
+      || redirects[0] !== callback.toString()) return null;
     url.searchParams.set("state", state);
     return url;
   } catch {

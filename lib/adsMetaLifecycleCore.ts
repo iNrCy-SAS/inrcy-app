@@ -372,6 +372,7 @@ export async function executeMetaAdsCampaignUpdate(
 ): Promise<MetaAdsLifecycleResult> {
   const campaignId = requiredId(input.resources.campaignId, "de campagne");
   const changes = normalizeChanges(input.changes);
+  if (input.resources.budgetType === "total" && changes.dailyBudgetCents !== undefined) throw new Error("Cette campagne Meta utilise un budget total. Modifiez ce budget dans Ads Manager pour conserver son mode de diffusion.");
   const applied: string[] = [];
   let mutationAttempted = false;
   let adSetBody: URLSearchParams | null = null;

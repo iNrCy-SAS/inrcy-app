@@ -1,8 +1,9 @@
+import { publicAdsProviderResources, hasLinkedInAdsPublicationResources } from "@/lib/adsProviderResources";
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, listAdsAccounts, listMetaPages, readAdsIntegration, requirePremiumAdsUser } from "@/lib/adsServer";
-import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, resolveGoogleTargetLocations, type GoogleTargetLocation } from "@/lib/adsGooglePublish";
-import { MetaAdsPublishError, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
-import { PinterestAdsPublishError, publishPinterestAdsCampaign } from "@/lib/adsPinterestCampaignPublish";
+import { GoogleAdsLocationResolutionError, publishGoogleAdsCampaign, checkGoogleAdsPublication, type GoogleTargetLocation } from "@/lib/adsGooglePublish";
+import { MetaAdsPublishError, checkMetaAdsPublication, publishMetaAdsCampaign } from "@/lib/adsMetaPublish";
+import { PinterestAdsPublishError, checkPinterestAdsPublication, publishPinterestAdsCampaign } from "@/lib/adsPinterestCampaignPublish";
 import { listPinterestAdsAccounts, readPinterestAdsIntegration } from "@/lib/adsPinterestServer";
 import { LinkedInAdsPublishError, publishLinkedInAdsCampaign } from "@/lib/adsLinkedInPublisherServer";
 import { listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
@@ -13,7 +14,9 @@ import { hasAdsPublishConfirmation, isAdsChannelPublishEnabled, openaiDraftRetry
 import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import { GoogleAdsApiError } from "@/lib/adsGoogleApiError";
 import { activateOpenaiAdsCampaign, assessOpenaiAdsAccount, createPausedOpenaiAdsCampaign, OpenaiAdsPublishError, verifyOpenaiAdsAccount } from "@/lib/adsOpenaiConnector";
-import { readChatgptAdsApiKey, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
+import { openaiNativeDelivery } from "@/lib/adsOpenaiCampaignSettings";
+import { MetaAdsPreparationError } from "@/lib/adsMetaResourcesServer";
+import { checkOpenaiAdsPublication, readChatgptAdsApiKey, readOpenaiAdsIntegration } from "@/lib/adsOpenaiServer";
 import { resolveOpenaiAdsImageUrl } from "@/lib/adsOpenaiMediaServer";
 
 export const runtime = "nodejs";
@@ -60,6 +63,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     confirmation?: unknown;
     mode?: unknown;
     billingConfirmed?: unknown;
+    nativeConsentKey?: unknown;
+    expectedDraftFingerprint?: unknown;
   } | null;
   const mode = parseAdsPublishMode(body?.mode);
   const pausedDemo = mode === "demo_paused";
@@ -83,6 +88,23 @@ export async function POST(request: Request, { params }: RouteContext) {
     .select("id,user_id,provider,ad_account_id,currency,daily_budget_cents,draft,status,provider_resources,published_at,updated_at")
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (readError) return NextResponse.json({ error: "Impossible de relire la campagne." }, { status: 503 });
+  if (stored && (stored.provider === "tiktok" || stored.provider === "x")) {
+    if (stored.user_id !== user.activeUserId) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
+    if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, stored.provider))) return adsPilotOnlyResponse();
+    if (mode !== "paused") return NextResponse.json({ publicationEnabled: false, error: "TikTok et X acceptent uniquement une création suspendue." }, { status: 423 });
+    if (typeof body?.nativeConsentKey !== "string" || !/^[0-9a-f]{64}$/.test(body.nativeConsentKey) || typeof body.expectedDraftFingerprint !== "string" || !/^[0-9a-f]{64}$/.test(body.expectedDraftFingerprint)) return NextResponse.json({ error: "Relancez le contrôle préalable et confirmez le brouillon exact avant sa création en pause." }, { status: 400 });
+    const { draft, error: validationError } = parseAdsCampaignInput(stored.draft, { purpose: "draft" });
+    if (!draft || draft.provider !== stored.provider) return NextResponse.json({ error: validationError || "Ce brouillon doit être corrigé avant sa création." }, { status: 400 });
+    const helpers = await import("@/lib/adsTikTokCampaignStore");
+    try {
+      const result = await helpers.publishStoredPreparedAdsCampaign(user.activeUserId, stored, draft, { nativeConsentKey: body.nativeConsentKey, expectedDraftFingerprint: body.expectedDraftFingerprint });
+      if (!result.campaign) return NextResponse.json({ ...result.preparation, error: "Les preuves natives ou l’accès à la création suspendue ne sont pas encore disponibles." }, { status: 423, headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ mode: "paused", publicationEnabled: false, campaign: { ...result.campaign, provider_resources: publicAdsProviderResources(result.campaign.provider_resources) } }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const known = error instanceof helpers.PreparedAdsStoreError ? error : null;
+      return NextResponse.json({ publicationEnabled: false, code: known?.code || "prepared_creation_unavailable", error: "La création suspendue doit être contrôlée avant toute nouvelle tentative." }, { status: known?.status || 422, headers: { "Cache-Control": "no-store" } });
+    }
+  }
   if (!stored || stored.status !== "draft" || stored.published_at !== null
     || !stored.provider_resources || typeof stored.provider_resources !== "object" || Array.isArray(stored.provider_resources)
     || Object.keys(stored.provider_resources).length > 0) {
@@ -115,6 +137,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   let openaiApiKey = "";
   let openaiImage: { imageUrl: string; mediaStableId: string } | null = null;
   let openaiEndTime: number | undefined;
+  let openaiDelivery: ReturnType<typeof openaiNativeDelivery> | undefined;
   try {
     if (draft.provider === "pinterest") {
       const connection = await readPinterestAdsIntegration(user.activeUserId);
@@ -127,7 +150,11 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!selectedAccount) {
         return NextResponse.json({ error: "Le compte Pinterest Ads EUR n’est plus accessible avec un rôle permettant de gérer les campagnes." }, { status: 403 });
       }
+      const current = await readPinterestAdsIntegration(user.activeUserId);
+      if (!current || current.id !== connection.id || current.status !== "connected" || current.resource_id !== connection.resource_id) return NextResponse.json({ error: "Le compte Pinterest associé a changé. Relancez la vérification." }, { status: 409 });
       pinterestAccountCountry = selectedAccount.country;
+      // Native budget, media, languages and exact targeting are checked before the local claim.
+      await checkPinterestAdsPublication(user.activeUserId, draft);
     } else if (draft.provider === "linkedin") {
       const connection = await readLinkedInAdsIntegration(user.activeUserId);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -161,7 +188,11 @@ export async function POST(request: Request, { params }: RouteContext) {
         return NextResponse.json({ error: readiness.message || "Le compte ChatGPT Ads attend sa validation dans Ads Manager." }, { status: 409 });
       }
       openaiImage = await resolveOpenaiAdsImageUrl(user.activeUserId, draft.creativeUrl || draft.imageUrl);
-      openaiEndTime = advertiserEndOfDay(draft.endDate, account.timezone);
+      if (draft.openaiDeliverySettings) {
+        const checked = await checkOpenaiAdsPublication(user.activeUserId, draft);
+        openaiDelivery = checked.delivery;
+        openaiEndTime = checked.delivery.endTime;
+      } else openaiEndTime = advertiserEndOfDay(draft.endDate, account.timezone);
     } else {
       const connection = await readAdsIntegration(user.activeUserId, draft.provider);
       if (connection?.status !== "connected" || connection.resource_id !== draft.adAccountId) {
@@ -172,22 +203,28 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (!selectedAccount) {
         return NextResponse.json({ error: "Le compte publicitaire EUR sélectionné n’est plus accessible." }, { status: 403 });
       }
+      const currentConnection = await readAdsIntegration(user.activeUserId, draft.provider);
+      if (!currentConnection || currentConnection.id !== connection.id || currentConnection.provider_account_id !== connection.provider_account_id || currentConnection.resource_id !== connection.resource_id || currentConnection.status !== "connected") {
+        return NextResponse.json({ error: "Le compte annonceur associé a changé. Relancez la vérification." }, { status: 409 });
+      }
       googleLoginCustomerId = selectedAccount.loginCustomerId;
       if (draft.provider === "google") {
         // Resolve before claiming the local draft: invalid/ambiguous zones must
         // remain editable, and no Google mutation has started at this point.
-        preparedGoogleTargetLocations = await resolveGoogleTargetLocations(
-          user.activeUserId, draft.adAccountId, draft.targetLocations, googleLoginCustomerId,
-        );
+        preparedGoogleTargetLocations = (await checkGoogleAdsPublication(
+          user.activeUserId, draft, googleLoginCustomerId,
+        )).targetLocations;
       }
       if (draft.provider === "meta") {
         const pages = await listMetaPages(user.activeUserId);
         if (!pages.some((page) => page.id === draft.pageId)) {
           return NextResponse.json({ error: "La Page Facebook sélectionnée n’est plus accessible." }, { status: 403 });
         }
+        if (draft.metaDeliverySettings) await checkMetaAdsPublication(user.activeUserId, draft);
       }
     }
   } catch (error) {
+    if (error instanceof MetaAdsPreparationError) return NextResponse.json({ code: "META_PREFLIGHT_INVALID", error: error.message }, { status: error.status });
     if (error instanceof GoogleAdsLocationResolutionError) {
       return NextResponse.json({ code: error.code, error: error.message }, { status: 422 });
     }
@@ -257,13 +294,16 @@ export async function POST(request: Request, { params }: RouteContext) {
             expectedAccountId: draft.adAccountId,
             campaignName: draft.name,
             biddingType: "clicks",
-            budget: { dailySpendLimitMicros: Math.round(draft.dailyBudgetEuros * 1_000_000) },
+            budget: openaiDelivery?.budget || { dailySpendLimitMicros: Math.round(draft.dailyBudgetEuros * 1_000_000) },
+            ...(openaiDelivery?.startTime == null ? {} : { startTime: openaiDelivery.startTime }),
+            ...(openaiDelivery?.platforms ? { platforms: openaiDelivery.platforms } : {}),
+            ...(openaiDelivery?.queryStringTemplate ? { queryStringTemplate: openaiDelivery.queryStringTemplate } : {}),
             targetLocations: draft.targetLocations,
             countryCode: "FR",
             endTime: openaiEndTime,
             adGroupName: `${draft.name} · groupe`,
             contextHints: [draft.offer].filter(Boolean),
-            maxBidMicros: Math.round(Number(draft.openaiBidEuros || 0) * 1_000_000),
+            maxBidMicros: openaiDelivery?.maxBidMicros || Math.round(Number(draft.openaiBidEuros || 0) * 1_000_000),
             adName: `${draft.name} · carte`,
             title: draft.headlines[0],
             body: draft.primaryText,
@@ -325,7 +365,7 @@ export async function POST(request: Request, { params }: RouteContext) {
           ? "La campagne a pu être créée en pause, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative."
           : "La campagne peut être active, mais son statut local n’a pas pu être confirmé. Vérifiez la plateforme avant toute nouvelle tentative.");
     }
-    return NextResponse.json({ campaign: completed, mode });
+    return NextResponse.json({ campaign: { ...completed, provider_resources: publicAdsProviderResources(completed.provider_resources) }, mode });
   } catch (error) {
     const message = error instanceof Error ? error.message : "La plateforme publicitaire a refusé la campagne.";
     const resources = error instanceof OpenaiAdsPublishError
@@ -350,7 +390,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       && Object.keys(resources).length === 0;
     const linkedinRejectedBeforeCreate = draft.provider === "linkedin"
       && (error instanceof LinkedInAdsPublishError ? error.retrySafe : !linkedinProviderMutationStarted)
-      && !("imageUrn" in resources || "campaignUrn" in resources || "postUrn" in resources || "creativeUrn" in resources);
+      && !hasLinkedInAdsPublicationResources(resources);
     // A confirmed 400 on the first POST is a rejected request, not an
     // uncertain network result. Keep the draft editable; lost responses and
     // server failures still require manual review to prevent duplicates.

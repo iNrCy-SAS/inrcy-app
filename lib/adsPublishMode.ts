@@ -1,3 +1,6 @@
+import { normalizeMetaDeliverySettings } from "./adsMetaCampaignSettings.ts";
+import { googleSearchNativeBidding, type GoogleDeliverySettings } from "./adsGoogleCampaignSettings.ts";
+import { linkedInDeliveryBidding } from "./adsLinkedInCampaignSettings.ts";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
 import {
   assessMetaCreativeAssetReadiness,
@@ -63,18 +66,13 @@ export function hasAdsPublishConfirmation(mode: AdsPublishMode, value: unknown):
 
 type ConnectorDraft = Pick<AdsCampaignInput,
   "provider" | "campaignType" | "objective" | "conversionGoal" | "conversionLocation" | "bidStrategy" |
-  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType" | "channelSettings"> &
+  "metaPlacements" | "callToAction" | "mediaStrategy" | "creativeType" | "linkedinDeliverySettings" | "channelSettings"> &
   Partial<Pick<AdsCampaignInput, "imageUrl" | "creativeUrl" | "metaCreativeAssets" | "keywords" |
-    "targetLocations" | "headlines" | "primaryText" | "openaiBidEuros" | "trackingParameters" | "negativeKeywords">>;
+    "targetLocations" | "headlines" | "primaryText" | "openaiBidEuros" | "trackingParameters" | "negativeKeywords" | "googleDeliverySettings" | "metaDeliverySettings" | "openaiDeliverySettings">>;
 
 /** The first Google Search adapter has no numeric CPA/ROAS target input. */
-export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"]): Record<string, object> | null {
-  switch (strategy) {
-    case "maximize_conversions": return { maximizeConversions: {} };
-    case "maximize_clicks": return { targetSpend: {} };
-    case "maximize_value": return { maximizeConversionValue: {} };
-    default: return null;
-  }
+export function googleSearchBiddingFields(strategy: AdsCampaignInput["bidStrategy"], settings?: GoogleDeliverySettings): Record<string, object> | null {
+  return googleSearchNativeBidding(strategy, settings);
 }
 
 /** Reject choices that the first live adapters would otherwise silently replace. */
@@ -83,7 +81,7 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     if (draft.campaignType !== "search") {
       return "La publication Google Ads prend actuellement en charge le Réseau de recherche uniquement.";
     }
-    if (!googleSearchBiddingFields(draft.bidStrategy)) {
+    if (!googleSearchBiddingFields(draft.bidStrategy, draft.googleDeliverySettings)) {
       return "La stratégie Google Ads choisie requiert une cible CPA/ROAS ou une configuration manuelle non disponible dans ce connecteur. Choisissez Maximiser les conversions, les clics ou la valeur.";
     }
     return null;
@@ -113,14 +111,15 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
   }
   if (draft.provider === "linkedin") {
     const settings = draft.channelSettings?.channel === "linkedin" ? draft.channelSettings : null;
-    if (!settings || settings.objectiveType !== "WEBSITE_VISIT" || settings.format !== "STANDARD_UPDATE") {
-      return "Le lancement LinkedIn prend actuellement en charge une campagne Visites du site avec une image sponsorisée uniquement.";
+    if (!settings || !linkedInDeliveryBidding(settings.objectiveType, draft.linkedinDeliverySettings) || !["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(settings.format) || (settings.objectiveType === "VIDEO_VIEW" && settings.format !== "SINGLE_VIDEO")) {
+      return "Choisissez un objectif, un format et une stratégie d’enchères LinkedIn pris en charge.";
     }
-    if (draft.mediaStrategy !== "image" || draft.creativeType !== "image") {
-      return "Le lancement LinkedIn nécessite actuellement une image unique.";
+    const expectedMedia = settings.format === "SINGLE_VIDEO" ? "video" : "image";
+    if (draft.mediaStrategy !== expectedMedia || draft.creativeType !== expectedMedia) {
+      return `Le lancement LinkedIn nécessite ${expectedMedia === "video" ? "une vidéo MP4" : "une image unique"} pour ce format.`;
     }
     if (!String(draft.creativeUrl || draft.imageUrl || "").trim()) {
-      return "Ajoutez l’image sponsorisée LinkedIn avant le lancement.";
+      return "Ajoutez le média sponsorisé LinkedIn avant le lancement.";
     }
     return null;
   }
@@ -143,7 +142,7 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     if (!draft.openaiBidEuros || draft.openaiBidEuros <= 0) {
       return "Définissez une enchère maximale par clic avant la création sur ChatGPT Ads.";
     }
-    if (draft.trackingParameters?.trim() || draft.keywords?.length || draft.negativeKeywords?.length || draft.callToAction.trim()) {
+    if ((!draft.openaiDeliverySettings && draft.trackingParameters?.trim()) || draft.keywords?.length || draft.negativeKeywords?.length || draft.callToAction.trim()) {
       return "Retirez les paramètres de suivi, mots-clés et appels à l’action : ce parcours ChatGPT Ads ne les transmet pas.";
     }
     return null;
@@ -164,6 +163,7 @@ export function unsupportedAdsConnectorReason(draft: ConnectorDraft): string | n
     imageUrl: draft.imageUrl,
   }));
   if (mediaReadinessReason) return mediaReadinessReason;
+  if (draft.metaDeliverySettings) return normalizeMetaDeliverySettings(draft.metaDeliverySettings).error;
   const callToAction = draft.callToAction.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (!["en savoir plus", "decouvrir", "learn more"].includes(callToAction)) {
     return "L’appel à l’action Meta Ads publié actuellement est « En savoir plus ». Adaptez votre brouillon avant publication.";

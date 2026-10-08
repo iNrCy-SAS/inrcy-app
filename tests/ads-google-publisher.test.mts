@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import * as googleSettings from "../lib/adsGoogleCampaignSettings.ts";
+import * as googleResources from "../lib/adsGoogleResources.ts";
 import { normalizeGoogleTargetLocationLabels } from "../lib/adsGoogleLocations.ts";
 import { googleSearchBiddingFields } from "../lib/adsPublishMode.ts";
 import { parseAdsCampaignInput } from "../lib/adsValidation.ts";
@@ -29,12 +31,19 @@ const compiled = ts.transpileModule(readFileSync(new URL("../lib/adsGooglePublis
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-function runtime(options: { malformedActivation?: boolean } = {}) {
+function runtime(options: { malformedActivation?: boolean; conversionsReady?: boolean; conversionFailure?: boolean; timeZone?: string; geoMatches?: unknown[]; plainGeoOnly?: boolean } = {}) {
   const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
   const events: string[] = [];
   const request = async (_user: string, path: string, body: Record<string, unknown>) => {
     calls.push({ path, body });
-    if (path.endsWith("googleAds:search")) return { results: [{ customer: { id: customerId, currencyCode: "EUR", status: "ENABLED", manager: false } }] };
+    if (path.endsWith("googleAds:search")) {
+      const query = String(body.query);
+      if (options.plainGeoOnly && query.includes("geo_target_constant.canonical_name =")) return { results: [] };
+      if (query.includes("geo_target_constant")) return { results: (options.geoMatches || []).map((geoTargetConstant) => ({ geoTargetConstant })) };
+      if (query.includes("customer_conversion_goal")) { if (options.conversionFailure) throw new Error("Conversion read unavailable"); return { results: [{ customerConversionGoal: { category: "SIGNUP", origin: "WEBSITE", biddable: true } }] }; }
+      if (query.includes("FROM conversion_action")) return { results: options.conversionsReady === false ? [] : [{ conversionAction: { resourceName: `${prefix}/conversionActions/77`, name: "Essai", category: "SIGNUP", origin: "WEBSITE", type: "WEBPAGE", status: "ENABLED", primaryForGoal: true } }] };
+      return { results: [{ customer: { id: customerId, currencyCode: "EUR", status: "ENABLED", manager: false, timeZone: options.timeZone || "Europe/Paris" } }] };
+    }
     events.push("mutation");
     if (path.endsWith("campaigns:mutate")) return { results: [{ resourceName: `${prefix}/campaigns/22` }] };
     const operations = body.mutateOperations as Operation[];
@@ -52,6 +61,7 @@ function runtime(options: { malformedActivation?: boolean } = {}) {
   };
   const modules: Record<string, unknown> = {
     "server-only": {}, "node:crypto": { randomUUID: () => "abcd1234-0000-4000-8000-000000000001" },
+    "@/lib/adsGoogleCampaignSettings": googleSettings, "@/lib/adsGoogleResources": googleResources,
     "@/lib/adsGoogleLocations": { normalizeGoogleTargetLocationLabels },
     "@/lib/adsPublishMode": { googleSearchBiddingFields }, "@/lib/adsServer": { googleAdsJson: request },
   };
@@ -60,7 +70,7 @@ function runtime(options: { malformedActivation?: boolean } = {}) {
     assert.ok(Object.hasOwn(modules, name), `Unexpected runtime dependency ${name}`);
     return modules[name];
   }, exports);
-  return { publish: exports.publishGoogleAdsCampaign as (...args: unknown[]) => Promise<Record<string, unknown>>, calls, events };
+  return { publish: exports.publishGoogleAdsCampaign as (...args: unknown[]) => Promise<Record<string, unknown>>, check: exports.checkGoogleAdsPublication as (...args: unknown[]) => Promise<Record<string, unknown>>, resolve: exports.resolveGoogleTargetLocations as (...args: unknown[]) => Promise<unknown>, calls, events };
 }
 
 test("Google preserves cent budgets, URLs, UTM suffixes and batch ID offsets with local and negative criteria", async () => {
@@ -120,4 +130,70 @@ test("Google activates the parent last after confirmed children and persists bot
   assert.deepEqual(checkpoints, ["PAUSED", "ENABLED"]);
   assert.equal(result.status, "ENABLED");
   assert.equal(result.initialActivationPending, false);
+});
+
+test("native Search uses total budget, dates, presence/interest, match types, CPC and RSA paths without changing batch ordering", async () => {
+  const harness = runtime({ conversionFailure: true });
+  const settings = googleSettings.defaultGoogleDeliverySettings();
+  settings.budget = { type: "total", totalEuros: 200.50 };
+  settings.startDate = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  settings.geoTargetType = "PRESENCE_OR_INTEREST";
+  settings.keywordMatchType = "BROAD"; settings.negativeKeywordMatchType = "EXACT";
+  settings.bidding.manualCpcEuros = 1.25;
+  settings.responsiveSearchAd = { path1: "atelier", path2: "reparation" };
+  await harness.publish("professional", { ...draft, bidStrategy: "manual_review", googleDeliverySettings: settings, keywords: ["[atelier vélo]", "vélo Lille"] }, () => {}, undefined, { activate: false, preparedTargetLocations: locations });
+  const ops = harness.calls.find((call) => call.path.endsWith("googleAds:mutate"))!.body.mutateOperations as Operation[];
+  assert.deepEqual(ops[0].campaignBudgetOperation.create?.period, "CUSTOM_PERIOD");
+  assert.equal(ops[0].campaignBudgetOperation.create?.totalAmountMicros, "200500000");
+  assert.equal(Object.hasOwn(ops[0].campaignBudgetOperation.create!, "amountMicros"), false);
+  const campaign = ops[1].campaignOperation.create!;
+  assert.deepEqual(campaign.manualCpc, {});
+  assert.deepEqual(campaign.geoTargetTypeSetting, { positiveGeoTargetType: "PRESENCE_OR_INTEREST" });
+  assert.equal(campaign.startDateTime, settings.startDate + " 00:00:00");
+  assert.equal(campaign.endDateTime, draft.endDate + " 23:59:59");
+  assert.equal(ops[6].adGroupOperation.create?.cpcBidMicros, "1250000");
+  assert.deepEqual(ops[4].campaignCriterionOperation.create?.keyword, { text: "emploi", matchType: "EXACT" });
+  assert.deepEqual(ops[7].adGroupCriterionOperation.create?.keyword, { text: "atelier vélo", matchType: "EXACT" });
+  assert.deepEqual(ops[8].adGroupCriterionOperation.create?.keyword, { text: "vélo Lille", matchType: "BROAD" });
+  const ad = ops.at(-1)!.adGroupAdOperation.create?.ad as Record<string, unknown>;
+  assert.equal((ad.responsiveSearchAd as Record<string, unknown>).path1, "atelier");
+  assert.equal(harness.calls.some((call) => String(call.body.query).includes("conversion_goal")), false);
+});
+
+test("fresh Google native preflight blocks invalid calendar and unverified conversions before mutation", async () => {
+  for (const [strategy, changes] of [
+    ["maximize_conversions", {}], ["maximize_value", {}], ["target_cpa", { bidding: { ...googleSettings.defaultGoogleDeliverySettings().bidding, targetCpaEuros: 25 } }],
+    ["maximize_clicks", { budget: { type: "total", totalEuros: 200 }, startDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) }],
+    ["maximize_clicks", { startDate: "2020-01-01" }],
+    ["maximize_clicks", { responsiveSearchAd: { path1: "x".repeat(16), path2: "" } }],
+  ] as const) {
+    const harness = runtime({ conversionsReady: false });
+    await assert.rejects(() => harness.publish("professional", { ...draft, bidStrategy: strategy, googleDeliverySettings: { ...googleSettings.defaultGoogleDeliverySettings(), ...changes } }, () => {}, undefined, { preparedTargetLocations: locations, onProviderMutationStart: () => harness.events.push("start") }));
+    assert.deepEqual(harness.events, []);
+  }
+  const harness = runtime();
+  const settings = googleSettings.defaultGoogleDeliverySettings(); settings.bidding.targetCpaEuros = 10.99;
+  const checked = await harness.check("professional", { ...draft, bidStrategy: "target_cpa", googleDeliverySettings: settings }, undefined, locations);
+  assert.equal(checked.ready, true); assert.equal(checked.selectedAccountId, customerId); assert.equal(checked.verifiedLocationCount, 2);
+  assert.deepEqual(checked.biddingFields, { maximizeConversions: { targetCpaMicros: "10990000" } });
+  assert.deepEqual(harness.events, []);
+});
+
+test("Google refuses ambiguous city names and keeps a single canonical provider choice", async () => {
+  const first = { resourceName: "geoTargetConstants/100001", canonicalName: "Paris,Ile-de-France,France", countryCode: "FR", status: "ENABLED" };
+  const second = { ...first, resourceName: "geoTargetConstants/100002", canonicalName: "Paris,Texas,United States", countryCode: "US" };
+  await assert.rejects(() => runtime({ geoMatches: [first, second] }).resolve("professional", customerId, ["Paris"]), /précisément/);
+  const harness = runtime({ geoMatches: [first] });
+  assert.deepEqual(await harness.resolve("professional", customerId, [first.canonicalName]), [{ resourceName: first.resourceName, label: first.canonicalName, countryCode: "FR" }]);
+  assert.deepEqual(harness.events, []);
+});
+
+test("a verified country narrows a plain homonym without widening and explicit foreign canonical labels survive", async () => {
+  const french = { resourceName: "geoTargetConstants/100001", canonicalName: "Lille,Hauts-de-France,France", countryCode: "FR", status: "ENABLED" };
+  const plain = runtime({ plainGeoOnly: true, geoMatches: [french] });
+  assert.deepEqual(await plain.resolve("professional", customerId, ["Lille"], undefined, "FR"), [{ resourceName: french.resourceName, label: french.canonicalName, countryCode: "FR" }]);
+  assert.ok(plain.calls.some((call) => String(call.body.query).includes("country_code = 'FR'")));
+  const foreign = { ...french, resourceName: "geoTargetConstants/100002", canonicalName: "Paris,Texas,United States", countryCode: "US" };
+  const explicit = runtime({ geoMatches: [foreign] });
+  assert.deepEqual(await explicit.resolve("professional", customerId, [foreign.canonicalName], undefined, "FR"), [{ resourceName: foreign.resourceName, label: foreign.canonicalName, countryCode: "US" }]);
 });

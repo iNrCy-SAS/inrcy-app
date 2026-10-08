@@ -1,3 +1,17 @@
+import { readPreparedAdsPlanIntent, preparedAdsPlanBudget, type PreparedBudgetSuggestion } from "./adsPreparedPlanIntent.ts";
+import type { PreparedDeliverySettings } from "./adsPreparedCampaignSettings.ts";
+import { readMetaAdsPlanIntent, type MetaBudgetSuggestion } from "./adsMetaPlanIntent.ts";
+import type { MetaDeliverySettings } from "./adsMetaCampaignSettings.ts";
+import { readOpenaiAdsPlanIntent, selectOpenaiAdsPlanLocations, type OpenaiBudgetSuggestion } from "./adsOpenaiPlanIntent.ts";
+import type { OpenaiDeliverySettings } from "./adsOpenaiCampaignSettings.ts";
+import { readPinterestAdsPlanIntent, selectPinterestAdsPlanLocations, type PinterestBudgetSuggestion } from "./adsPinterestPlanIntent.ts";
+import type { PinterestDeliverySettings } from "./adsPinterestCampaignSettings.ts";
+import { readGoogleAdsPlanIntent, selectGoogleAdsPlanLocations, type GoogleBudgetSuggestion } from "./adsGooglePlanIntent.ts";
+import { defaultGoogleDeliverySettings, type GoogleDeliverySettings } from "./adsGoogleCampaignSettings.ts";
+import { normalizeLinkedInAudienceSuggestions, normalizeLinkedInBudgetSuggestion, type LinkedInAudienceSuggestion, type LinkedInBudgetSuggestion } from "./adsLinkedInAudienceSuggestions.ts";
+import { mergeLinkedInAdsPlanAudienceSuggestions, readLinkedInAdsPlanIntent, selectLinkedInAdsPlanLocations } from "./adsLinkedInPlanIntent.ts";
+import { normalizeLinkedInDeliverySuggestion, type LinkedInDeliverySuggestion } from "./adsLinkedInPlanDelivery.ts";
+export type { LinkedInDeliverySuggestion } from "./adsLinkedInPlanDelivery.ts";
 import { isPlannedAdsChannel, type PlannedAdsChannel } from "./adsChannelCapabilities.ts";
 import {
   assessAdsChannelDraft,
@@ -41,6 +55,18 @@ import {
 } from "./adsPlanQuality.ts";
 
 export type AdsCampaignPlan = {
+  preparedDeliverySuggestion?: PreparedDeliverySettings;
+  preparedBudgetSuggestion?: PreparedBudgetSuggestion;
+  metaDeliverySuggestion?: MetaDeliverySettings;
+  metaBudgetSuggestion?: MetaBudgetSuggestion;
+  openaiDeliverySuggestion?: OpenaiDeliverySettings;
+  openaiBudgetSuggestion?: OpenaiBudgetSuggestion;
+  openaiBidSuggestion?: number;
+  pinterestDeliverySuggestion?: PinterestDeliverySettings;
+  pinterestBudgetSuggestion?: PinterestBudgetSuggestion;
+  linkedinTargetingSuggestions?: LinkedInAudienceSuggestion[];
+  linkedinBudgetSuggestion?: LinkedInBudgetSuggestion | null;
+  linkedinDeliverySuggestion?: LinkedInDeliverySuggestion;
   brand: string;
   name: string;
   campaignType: AdsCampaignType;
@@ -55,6 +81,8 @@ export type AdsCampaignPlan = {
   targetLocations: string[];
   targetAudiences: string[];
   languages: string[];
+  googleDeliverySettings?: GoogleDeliverySettings;
+  googleBudgetSuggestion?: GoogleBudgetSuggestion;
   googleSearchPartners: boolean;
   googleDisplayExpansion: boolean;
   metaAudienceExpansion: boolean;
@@ -85,6 +113,10 @@ type PlanContext = {
   country?: string;
   city?: string;
   intent?: string;
+  /** The route has already selected human-requested zones; never narrow them again. */
+  locationsAreSelected?: boolean;
+  now?: string;
+  timezone?: string;
   audiences?: string[];
   services?: string[];
 };
@@ -220,6 +252,42 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Run before transport schema validation too: omitted AI advice cannot erase a human constraint. */
+export function normalizeLinkedInCampaignPlanResponse(value: unknown, context: PlanContext): Record<string, unknown> {
+  const raw = record(value);
+  const intent = readLinkedInAdsPlanIntent(context.intent);
+  if (intent.budgetIssue) throw new Error(`ADS_LINKEDIN_PLAN_${intent.budgetIssue.toUpperCase()}`);
+  const budgetSuggestion = intent.budget || normalizeLinkedInBudgetSuggestion(raw.linkedinBudgetSuggestion)
+    || { type: "daily" as const, totalEuros: null };
+  const channel = record(raw.channelDraft);
+  const budget = record(channel.budget);
+  const audience = record(channel.audience);
+  const delivery = normalizeLinkedInDeliverySuggestion(raw.linkedinDeliverySuggestion, {
+    intent: context.intent, now: context.now, timezone: context.timezone,
+    objectiveType: enumToken(channel.objectiveType), format: enumToken(channel.format),
+  });
+  if (delivery.error || !delivery.suggestion) throw new Error(delivery.error || "ADS_LINKEDIN_PLAN_DELIVERY_INVALID");
+  const locations = selectLinkedInAdsPlanLocations(context);
+  // This legacy brief is a daily hypothesis, not the native total cap. Keeping
+  // its safe default avoids total amounts leaking into a daily-budget field.
+  const dailyAmount = budgetSuggestion.type === "total"
+    ? Math.min(10, budgetSuggestion.totalEuros!) : intent.dailyEuros ?? budget.amount;
+  return {
+    ...raw,
+    targetLocations: locations,
+    linkedinTargetingSuggestions: mergeLinkedInAdsPlanAudienceSuggestions(raw.linkedinTargetingSuggestions, intent),
+    linkedinBudgetSuggestion: budgetSuggestion,
+    linkedinDeliverySuggestion: delivery.suggestion,
+    ...(raw.channelDraft && typeof raw.channelDraft === "object" && !Array.isArray(raw.channelDraft) ? {
+      channelDraft: {
+        ...channel,
+        budget: { ...budget, amount: dailyAmount, ...(budgetSuggestion.type === "total" || intent.dailyEuros !== null ? { period: "daily" } : {}) },
+        audience: { ...audience, locationBriefs: locations },
+      },
+    } : {}),
+  };
+}
+
 /**
  * Keep the AI's strategic choices, but never let it create an account/asset ID,
  * verified geo ID or destination URL. Those must come from the professional or
@@ -235,7 +303,9 @@ function buildPlannedAdsChannelDraft(
   const raw = record(normalizeAdsChannelDraftCompatibility(value));
   const plan = record(planValue);
   if (!suppliedChannelMatches(raw.channel, channel)) return null;
-  const budget = record(raw.budget);
+  const preparedIntent = channel === "x" || channel === "tiktok" ? readPreparedAdsPlanIntent({ ...context, provider: channel }) : null;
+  if (preparedIntent?.error) throw new Error(preparedIntent.error);
+  const budget = preparedIntent?.budget ? preparedAdsPlanBudget(channel as "x" | "tiktok", preparedIntent.budget) : record(raw.budget);
   const audience = record(raw.audience);
   const creative = record(raw.creative);
   const safeBrand = clean(plan.brand, 120) || clean(context.companyName, 120);
@@ -549,12 +619,79 @@ export function pinterestAdsCampaignPlanResponseSchema(): {
   };
 }
 
+/** LinkedIn advice is required at generation time, with labels only and no native IDs. */
+export function linkedInAdsCampaignPlanResponseSchema(): {
+  name: string; strict: true; schema: Record<string, unknown>;
+} {
+  const common = pinterestAdsCampaignPlanResponseSchema().schema.properties as Record<string, unknown>;
+  const object = (properties: Record<string, unknown>) => ({
+    type: "object", additionalProperties: false, required: Object.keys(properties), properties,
+  });
+  const properties = {
+    ...common,
+    primaryText: { type: "string", minLength: 3, maxLength: 300 },
+    mediaBrief: { type: "string", maxLength: 1_000 },
+    headlines: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 3, maxLength: 200 } },
+    descriptions: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 3, maxLength: 300 } },
+    keywords: { type: "array", maxItems: 20, items: { type: "string", maxLength: ADS_LINKEDIN_SIGNAL_MAX_LENGTH } },
+    linkedinTargetingSuggestions: {
+      type: "array", maxItems: 6,
+      items: object({
+        facet: { type: "string", enum: ["titles", "seniorities", "companySizes", "functions", "industries", "skills"] },
+        terms: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", minLength: 1, maxLength: 80 } },
+      }),
+    },
+    linkedinBudgetSuggestion: object({
+      type: { type: "string", enum: ["daily", "total"] },
+      totalEuros: { type: ["number", "null"], minimum: 5, maximum: 45_000, multipleOf: 0.01 },
+    }),
+    linkedinDeliverySuggestion: object({
+      locationType: { type: "string", enum: ["permanent", "recent_or_permanent"] },
+      budget: object({
+        startAt: { type: ["string", "null"], maxLength: 35 },
+        endAt: { type: ["string", "null"], maxLength: 35 },
+      }),
+      placements: object({ audienceNetwork: { type: "boolean" }, audienceExpansion: { type: "boolean" } }),
+      bidding: object({
+        strategy: { type: "string", enum: ["manual_cpc", "maximum_delivery", "cost_cap"] },
+        amountEuros: { type: ["number", "null"], exclusiveMinimum: 0, maximum: 500, multipleOf: 0.01 },
+      }),
+    }),
+    channelDraft: object({
+      schemaVersion: { type: "integer", enum: [1] },
+      channel: { type: "string", enum: ["linkedin"] },
+      name: { type: "string", minLength: 3, maxLength: 100 },
+      budget: object({
+        amount: { type: "number", minimum: 5, maximum: 500, multipleOf: 0.01 },
+        currency: { type: "string", enum: ["EUR"] },
+        period: { type: "string", enum: ["daily"] },
+        level: { type: "string", enum: ["campaign", "ad_group"] },
+      }),
+      audience: object({
+        locationBriefs: { type: "array", minItems: 1, maxItems: 20, items: { type: "string", minLength: 1, maxLength: 120 } },
+        audienceBrief: { type: "string", minLength: 3, maxLength: 500 },
+      }),
+      objectiveType: { type: "string", enum: ["BRAND_AWARENESS", "WEBSITE_VISIT", "ENGAGEMENT", "WEBSITE_CONVERSION", "VIDEO_VIEW", "LEAD_GENERATION"] },
+      format: { type: "string", enum: ["STANDARD_UPDATE", "SINGLE_VIDEO", "CAROUSEL", "TEXT_AD", "LEAD_GENERATION_FORM_SPONSORED_CONTENT"] },
+      locale: object({ country: { type: "string", minLength: 2, maxLength: 2 }, language: { type: "string", minLength: 2, maxLength: 2 } }),
+      creative: object({
+        introText: { type: "string", minLength: 3, maxLength: 300 },
+        headline: { type: "string", minLength: 3, maxLength: 200 },
+        mediaBrief: { type: "string", maxLength: 1_000 },
+        destinationUrl: { type: "string", maxLength: 2_000 },
+        leadFormBrief: { type: "string", maxLength: 1_000 },
+      }),
+    }),
+  };
+  return { name: "inrcy_linkedin_ads_campaign_plan", strict: true, schema: object(properties) };
+}
+
 /** An explicit native brief lets the strategist reason beyond Google/Meta. */
 export function plannedAdsChannelPlanPrompt(channel: PlannedAdsChannel): string {
   const channelInstructions: Record<PlannedAdsChannel, string> = {
-    linkedin: `LinkedIn Ads : cible une audience professionnelle justifiée par l’activité. channelDraft.objectiveType = BRAND_AWARENESS | WEBSITE_VISIT | ENGAGEMENT | VIDEO_VIEW | LEAD_GENERATION | WEBSITE_CONVERSION. channelDraft.format = STANDARD_UPDATE | SINGLE_VIDEO | CAROUSEL | TEXT_AD | LEAD_GENERATION_FORM_SPONSORED_CONTENT ; VIDEO_VIEW exige SINGLE_VIDEO et LEAD_GENERATION exige LEAD_GENERATION_FORM_SPONSORED_CONTENT. channelDraft.locale = {country:"FR",language:"fr"} seulement si ces paramètres conviennent aux zones et à la langue connues. channelDraft.creative = {introText,headline,mediaBrief,destinationUrl,leadFormBrief}. introText : accroche et argument professionnel concrets (300 caractères au plus) ; headline : 200 caractères au plus. Pour LEAD_GENERATION, décris le formulaire et son intérêt dans leadFormBrief. Dans keywords, propose seulement des pistes de ciblage professionnel lisibles, sans identifiant publicitaire : chaque entrée doit être une expression complète de 300 caractères maximum, sans phrase ni mot coupé.`,
+    linkedin: `LinkedIn Ads : cible une audience professionnelle justifiée par l’activité. Pour une campagne immédiatement publiable, recommande STANDARD_UPDATE ou SINGLE_VIDEO avec BRAND_AWARENESS, WEBSITE_VISIT, ENGAGEMENT, WEBSITE_CONVERSION ou VIDEO_VIEW ; VIDEO_VIEW impose SINGLE_VIDEO. Les autres formats et LEAD_GENERATION nécessitent une préparation supplémentaire dans Campaign Manager et doivent être proposés seulement si le brief les exige explicitement. headlines contient exactement [channelDraft.creative.headline] : une annonce, un seul titre. channelDraft.objectiveType = BRAND_AWARENESS | WEBSITE_VISIT | ENGAGEMENT | VIDEO_VIEW | LEAD_GENERATION | WEBSITE_CONVERSION. channelDraft.format = STANDARD_UPDATE | SINGLE_VIDEO | CAROUSEL | TEXT_AD | LEAD_GENERATION_FORM_SPONSORED_CONTENT ; VIDEO_VIEW exige SINGLE_VIDEO et LEAD_GENERATION exige LEAD_GENERATION_FORM_SPONSORED_CONTENT. channelDraft.locale = {country:"FR",language:"fr"} seulement si ces paramètres conviennent aux zones et à la langue connues. channelDraft.creative = {introText,headline,mediaBrief,destinationUrl,leadFormBrief}. introText : accroche et argument professionnel concrets (300 caractères au plus) ; headline : 200 caractères au plus. Pour LEAD_GENERATION, décris le formulaire et son intérêt dans leadFormBrief. Ajoute linkedinTargetingSuggestions:[{facet:"titles"|"seniorities"|"companySizes"|"functions"|"industries"|"skills",terms:[libellés humains précis]}] : catégories utiles seulement, 6 catégories au maximum et 8 termes chacune. companySizes nomme les tranches natives (Moi uniquement, 2-10, 11-50, 51-200, 201-500, 501-1000, 1001-5000, 5001-10000, 10001+). Ne cumule pas titles avec seniorities ou functions. Les termes seront recherchés dans LinkedIn et toute ambiguïté devra être confirmée par l’utilisateur ; jamais d’URN ni d’identifiant inventé. Choisis un CTA natif adapté exprimé en français (En savoir plus, S’inscrire, Demander un devis, Demander une démonstration, Télécharger). Ajoute linkedinBudgetSuggestion:{type:"daily"|"total",totalEuros:number|null}. Si le brief fixe une enveloppe totale, préserve exactement ce montant dans totalEuros et choisis total ; ne transforme jamais cette enveloppe en budget quotidien. Sans enveloppe totale explicite, choisis daily et totalEuros:null. Les minima de LinkedIn seront vérifiés automatiquement. Dans keywords, propose seulement des pistes de ciblage professionnel lisibles, sans identifiant publicitaire : chaque entrée doit être une expression complète de 300 caractères maximum, sans phrase ni mot coupé.`,
     tiktok: `TikTok Ads : ne propose que la voie vidéo préparée dans l’application. channelDraft.objectiveType = REACH | VIDEO_VIEWS | TRAFFIC | WEB_CONVERSIONS | LEAD_GENERATION | ENGAGEMENT ; format="video" ; destinationKind="website" | "instant_form" | "profile" ; placementIntent="automatic" | "tiktok_only" ; optimizationIntent="reach" | "views" | "clicks" | "conversions" | "leads" | "engagement". channelDraft.creative = {adText,videoBrief,destinationUrl,conversionEventBrief}. adText : 100 caractères au plus. videoBrief : scène verticale, déroulé, démonstration et appel à l’action réalistes ; aucun média existant ne doit être supposé. Pour WEB_CONVERSIONS, nomme l’action observable dans conversionEventBrief sans prétendre qu’un Pixel existe.`,
-    pinterest: `Pinterest Ads : fonde l’idée créative sur une recherche d’inspiration plausible pour cette activité. Remplis explicitement tout le channelDraft Pinterest ; un plan racine générique sans brief natif est invalide. channelDraft.objectiveType = AWARENESS | CONSIDERATION | VIDEO_COMPLETION | SALES | LEADS ; intendedPromotionType="STANDARD_AD" | "CATALOG" ; targetingMode="automatic" | "interests" | "keywords" | "audiences". Utilise automatic pour le parcours publiable actuel et retourne alors obligatoirement keywords=[] : ce mode s’appuie sur le contenu du Pin et les zones fiables, pas sur des mots-clés proposés par le moteur. Pour le ciblage géographique, targetLocations et channelDraft.audience.locationBriefs conservent les zones locales sélectionnées dans le contexte. Ne remplace jamais une ville ou une région par le pays du siège. Leur disponibilité sera vérifiée auprès de Pinterest avant publication. interests, keywords et audiences restent des intentions de brouillon tant que leurs identifiants Pinterest n’ont pas été résolus ; pour ces trois modes manuels seulement, conserve les signaux utiles dans keywords. Choisis CATALOG uniquement avec CONSIDERATION ou SALES, et seulement si des produits et un catalogue sont attestés ; LEADS reste STANDARD_AD. Sinon choisis STANDARD_AD. Pour STANDARD_AD, creativeType=REGULAR | VIDEO | MAX_VIDEO | CAROUSEL ; VIDEO_COMPLETION requiert VIDEO ou MAX_VIDEO. Pour CATALOG, mets creativeType à null. Pour SALES, conversionEvent=CHECKOUT | ADD_TO_CART ; pour LEADS, SIGNUP | LEAD ; sinon mets conversionEvent à null. Sans preferredDestinationUrl HTTPS fiable, choisis AWARENESS (ou VIDEO_COMPLETION avec une vraie stratégie vidéo), jamais CONSIDERATION, SALES ou LEADS. Pour le parcours publiable actuel, privilégie STANDARD_AD + REGULAR avec AWARENESS ou CONSIDERATION ; les autres combinaisons restent révisables et enregistrables en brouillon. channelDraft.creative = {pinTitle,pinDescription,visualBrief,destinationUrl}. pinTitle : 100 caractères au plus ; pinDescription : 800 caractères au plus ; visualBrief décrit le format visuel, la scène et la preuve vérifiée, pas un Pin déjà publié. Le budget est une hypothèse quotidienne explicite ; le statut de lancement Active ou Paused, la date de fin, l’enchère MAX_BID, le billable_event et placement_group=ALL sont contrôlés dans les étapes finales et ne doivent pas être inventés dans channelDraft.`,
+    pinterest: `Pinterest Ads : fonde l’idée créative sur une recherche d’inspiration plausible pour cette activité. Remplis explicitement tout le channelDraft Pinterest ; un plan racine générique sans brief natif est invalide. channelDraft.objectiveType = AWARENESS | CONSIDERATION | VIDEO_COMPLETION | SALES | LEADS ; intendedPromotionType="STANDARD_AD" | "CATALOG" ; targetingMode="automatic" | "interests" | "keywords" | "audiences". Utilise automatic pour le parcours publiable actuel et retourne alors obligatoirement keywords=[] : ce mode s’appuie sur le contenu du Pin et les zones fiables, pas sur des mots-clés proposés par le moteur. Pour le ciblage géographique, targetLocations et channelDraft.audience.locationBriefs conservent les zones locales sélectionnées dans le contexte. Ne remplace jamais une ville ou une région par le pays du siège. Leur disponibilité sera vérifiée auprès de Pinterest avant publication. interests, keywords et audiences restent des intentions de brouillon tant que leurs identifiants Pinterest n’ont pas été résolus ; pour ces trois modes manuels seulement, conserve les signaux utiles dans keywords. Choisis CATALOG uniquement avec CONSIDERATION ou SALES, et seulement si des produits et un catalogue sont attestés ; LEADS reste STANDARD_AD. Sinon choisis STANDARD_AD. Pour STANDARD_AD, creativeType=REGULAR | VIDEO | MAX_VIDEO | CAROUSEL ; VIDEO_COMPLETION requiert VIDEO ou MAX_VIDEO. Pour CATALOG, mets creativeType à null. Pour SALES, conversionEvent=CHECKOUT | ADD_TO_CART ; pour LEADS, SIGNUP | LEAD ; sinon mets conversionEvent à null. Sans preferredDestinationUrl HTTPS fiable, choisis AWARENESS (ou VIDEO_COMPLETION avec une vraie stratégie vidéo), jamais CONSIDERATION, SALES ou LEADS. Pour le parcours publiable actuel, privilégie STANDARD_AD + REGULAR avec AWARENESS ou CONSIDERATION ; les autres combinaisons restent révisables et enregistrables en brouillon. channelDraft.creative = {pinTitle,pinDescription,visualBrief,destinationUrl}. pinTitle : 100 caractères au plus ; pinDescription : 800 caractères au plus ; visualBrief décrit le format visuel, la scène et la preuve vérifiée, pas un Pin déjà publié. Le parcours IA actif utilise uniquement STANDARD_AD + REGULAR, automatic, AWARENESS ou CONSIDERATION, conversionEvent=null et keywords=[]. Ne promets pas une optimisation de conversion ni de clic sortant distincte. Le budget quotidien ou total demandé et les horaires seront calculés depuis le brief humain dans pinterestBudgetSuggestion/pinterestDeliverySuggestion. Le budget.amount du channelDraft reste une hypothèse quotidienne de 10 €, jamais le montant d’une enveloppe totale. Le lancement utilise une campagne CBO, un bid automatique sans montant par défaut et les placements ALL. Aucun identifiant de compte, Board ou Pin ne doit être inventé.`,
     x: `X Ads : distingue conversation pertinente et publicité intrusive. channelDraft.objective = reach | video_views | website_traffic | website_conversions | engagement ; format=text | image | video ; video_views requiert video ; targetingMode=broad | keywords | interests | follower_lookalikes ; keywords est une liste courte, concrète, uniquement si targetingMode=keywords. channelDraft.creative = {postText,mediaBrief,destinationUrl}. postText : un vrai texte de publication de 280 caractères maximum, en comptant chaque URL pour 23 caractères. mediaBrief décrit le visuel/vidéo nécessaire quand format n’est pas text. Ne prétends jamais qu’un post publicitaire, un financement ou un événement de conversion existe déjà.`,
   };
 
@@ -566,9 +703,10 @@ Analyse silencieusement l’iNrADN, l’offre réellement attestée, les besoins
 
 Réponds uniquement en JSON. Retourne les mêmes champs principaux que le studio : brand, name, campaignType, objective, conversionGoal, conversionLocation, bidStrategy, offer, destinationUrl, urlExpansion, urlExclusions, targetLocations, targetAudiences, languages, googleSearchPartners, googleDisplayExpansion, metaAudienceExpansion, metaPlacements, trackingParameters, primaryText, imageUrl, creativeUrl, creativeType, mediaStrategy, mediaBrief, callToAction, headlines, descriptions, keywords, negativeKeywords, rationale ; ajoute obligatoirement channelDraft. campaignType="generic" ; objective=leads | sales | website_traffic | awareness | engagement | app_promotion ; conversionGoal=quote_request | lead_form | phone_call | website_visit | purchase | message | store_visit | custom ; conversionLocation=website | instant_form | messaging | phone | store ; bidStrategy=maximize_conversions | maximize_clicks | maximize_value | manual_review ; mediaStrategy=search_text | image | video | mixed | product_feed ; creativeType=image | video. Les flags Google/Meta sont false et metaPlacements=[]. imageUrl et creativeUrl sont vides. trackingParameters est une chaîne UTM ou vide, pas un objet. rationale relie en deux ou trois phrases offre, audience, format, action mesurable et limites à vérifier.
 
-channelDraft est un objet avec {schemaVersion:1,channel:"${channel}",name,budget:{amount,currency:"EUR",period:"daily",level:"campaign" | "ad_group"},audience:{locationBriefs,audienceBrief}, ...champs spécifiques ci-dessous}. Propose amount de 5 à 500 € comme hypothèse quotidienne à faire valider par le professionnel, jamais comme budget engagé. N’ajoute PAS externalRefs : aucun ID de compte, média, géographie, conversion ou autre ressource n’est vérifié par ce moteur. Les zones locationBriefs doivent venir uniquement du contexte connu. audienceBrief formule le public pertinent et sa motivation ; ne cible aucune caractéristique personnelle sensible.
+channelDraft est un objet avec {schemaVersion:1,channel:"${channel}",name,budget:{amount,currency:"EUR",period:"daily",level:"campaign" | "ad_group"},audience:{locationBriefs,audienceBrief}, ...champs spécifiques ci-dessous}. ${channel === "linkedin" ? "Les champs linkedinTargetingSuggestions et linkedinBudgetSuggestion sont obligatoires au niveau racine. Les contraintes explicites dans linkedinHumanConstraints sont prioritaires sur tes hypothèses. Si un total est fixé, linkedinBudgetSuggestion.type=total et totalEuros reprend exactement cette enveloppe ; channelDraft.budget.amount conserve seulement l’hypothèse quotidienne historique de 10 € (ou le total s’il est inférieur à 10 €), qui ne fixe pas la dépense native. Ne copie jamais le total dans amount quotidien. Sinon respecte un montant quotidien explicite ou propose une hypothèse de 5 à 500 €. Pour des indépendants et dirigeants, utilise seniorities=[Owner] ; les indépendants seuls correspondent à companySizes=[Moi uniquement] et les entreprises de 2 à 10 salariés à [2-10]. Plusieurs tailles de la même catégorie sont un OU. Ne remplace pas une région explicitement demandée par les villes du profil." : "Propose amount de 5 à 500 € comme hypothèse quotidienne à faire valider par le professionnel, jamais comme budget engagé."} ${channel === "x" || channel === "tiktok" ? `Le serveur conservera exactement le budget total ou quotidien, les dates et les enchères explicites dans preparedBudgetSuggestion et preparedDeliverySuggestion : ne transforme jamais une enveloppe totale en budget quotidien. Le budget du channelDraft sera synchronisé avec ce choix : EUR, daily ou lifetime, niveau ${channel === "tiktok" ? "ad_group (CBO désactivé dans le brouillon préparé)" : "campaign"}. Négatifs : negativeKeywords=[] ; ${channel === "tiktok" ? "keywords=[] car aucun ciblage par mots-clés n’est appliqué" : "keywords=[] lorsque targetingMode=broad ; le mode keywords seul conserve les mots-clés proposés"}. Aucune enchère, conversion ou ressource distante n’est validée ni publiée par ce plan.` : ""} N’ajoute PAS externalRefs : aucun ID de compte, média, géographie, conversion ou autre ressource n’est vérifié par ce moteur. Les zones locationBriefs doivent venir uniquement du contexte connu. audienceBrief formule le public pertinent et sa motivation ; ne cible aucune caractéristique personnelle sensible.
 
 ${channelInstructions[channel]}
+${channel === "linkedin" ? `Ajoute obligatoirement le champ racine linkedinDeliverySuggestion:{locationType:"permanent"|"recent_or_permanent",budget:{startAt:string|null,endAt:string|null},placements:{audienceNetwork:boolean,audienceExpansion:boolean},bidding:{strategy:"manual_cpc"|"maximum_delivery"|"cost_cap",amountEuros:number|null}}. Ce sont de vrais réglages à remplir, pas des commentaires. Les choix explicités dans linkedinHumanDelivery sont prioritaires. Résidence permanente impose locationType=permanent ; sinon recommande le type de localisation adapté. Dates : utilise now comme horloge actuelle fiable et timezone comme fuseau de l’utilisateur ; « heure de Paris » impose Europe/Paris. startAt et endAt sont des dates ISO complètes avec secondes et Z ou un décalage UTC explicite, jamais une date locale sans fuseau. Respecte exactement les dates/heures explicitement demandées et le décalage réel du fuseau à chaque date (Paris UTC+2 en été, UTC+1 en hiver). Sinon startAt=null signifie dès validation et propose une fin future raisonnable, cohérente avec le budget. Ne remplace jamais une date demandée par « immédiat » ni par une durée de sept jours. Sans justification, audienceNetwork=false et audienceExpansion=false pour respecter l’audience. Une campagne nouvelle peut utiliser maximum_delivery avec amountEuros=null, sans inventer de CPC cible ni de performance. Si le brief exige un montant d’enchère, conserve ce montant exact en euros (deux décimales maximum) ; les bornes natives du compte restent à vérifier. manual_cpc exige WEBSITE_VISIT, ENGAGEMENT ou WEBSITE_CONVERSION ; BRAND_AWARENESS et VIDEO_VIEW utilisent maximum_delivery ou cost_cap ; WEBSITE_CONVERSION ne prend pas cost_cap dans ce parcours. N’ajoute aucun ID à ces réglages.` : ""}
 ${channel === "pinterest" ? "Qualité Pinterest : choisis un angle utile à une personne qui prépare un projet, compare des idées ou cherche une inspiration liée au service attesté ; ne copie pas simplement une annonce Search. Le titre nomme ce qu’elle va découvrir et la description apporte un conseil ou un usage concret, sans accumulation de mots-clés. visualBrief précise une image portrait 4:5 (1080×1350), format généré par le studio, le sujet, son contexte d’usage, la composition et un détail visuel qui rend l’offre compréhensible. Pas de texte incrusté, de faux avant/après ni de preuve non attestée. Une illustration générée n'est pas une réalisation client : ne la décris pas comme une photo de chantier attesté. pinDescription est le texte réellement publié : il reprend les mêmes faits vérifiés que primaryText, sans enrichir les caractéristiques, dimensions, finitions ou lieu d'une réalisation. N'ajoute ni « mat », ni « du sol au plafond », ni une commune de réalisation si ces détails ne sont pas fournis. Justifie l’adéquation de cet angle à l’activité dans rationale." : ""}
 
 ${ADS_PLAN_EDITORIAL_INSTRUCTIONS}
@@ -622,8 +760,18 @@ function creativeTypeForStrategy(
  * be creative in the copy, never in the identifiers or campaign controls.
  */
 export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): AdsCampaignPlan {
-  const raw = record(value);
-  const trustedLocations = selectAdsPlanLocations(context);
+  const raw = context.provider === "linkedin" ? normalizeLinkedInCampaignPlanResponse(value, context) : record(value);
+  const preparedIntent = context.provider === "x" || context.provider === "tiktok" ? readPreparedAdsPlanIntent({ ...context, provider: context.provider }) : null;
+  if (preparedIntent?.error) throw new Error(preparedIntent.error);
+  const metaIntent = context.provider === "meta" ? readMetaAdsPlanIntent(context) : null;
+  if (metaIntent?.error) throw new Error(metaIntent.error);
+  const openaiIntent = context.provider === "openai" ? readOpenaiAdsPlanIntent(context) : null;
+  if (openaiIntent?.error) throw new Error(openaiIntent.error);
+  const pinterestIntent = context.provider === "pinterest" ? readPinterestAdsPlanIntent({ ...context, objectiveType: record(raw.channelDraft).objectiveType === "AWARENESS" ? "AWARENESS" : "CONSIDERATION" }) : null;
+  if (pinterestIntent?.error) throw new Error(pinterestIntent.error);
+  const googleIntent = context.provider === "google" ? readGoogleAdsPlanIntent(context) : null;
+  if (googleIntent?.error) throw new Error(googleIntent.error);
+  const trustedLocations = context.provider === "linkedin" ? selectLinkedInAdsPlanLocations(context) : context.provider === "google" ? selectGoogleAdsPlanLocations(context) : context.provider === "pinterest" ? selectPinterestAdsPlanLocations(context) : context.provider === "openai" || context.provider === "meta" || context.provider === "x" || context.provider === "tiktok" ? selectOpenaiAdsPlanLocations(context) : selectAdsPlanLocations(context);
   const planContext = context.provider === "pinterest"
     ? { ...context, locations: normalizePinterestAutomaticLocations(trustedLocations, context.country) }
     : { ...context, locations: trustedLocations };
@@ -634,11 +782,11 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
   );
   const native = plannedCopy(channelDraft);
   const copyLimits = ADS_PLAN_COPY_LIMITS[context.provider];
-  const campaignType = context.provider === "openai" ? "generic" : oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
+  const campaignType = context.provider === "google" ? "search" : context.provider === "openai" ? "generic" : oneOf(ADS_CAMPAIGN_TYPES, raw.campaignType, defaultAdsCampaignType(context.provider));
   const objective = context.provider === "openai" ? "website_traffic" : oneOf(ADS_CAMPAIGN_OBJECTIVES, raw.objective, context.provider === "meta" ? "website_traffic" : "leads");
   const conversionGoal = context.provider === "openai" ? "website_visit" : oneOf(ADS_CONVERSION_GOALS, raw.conversionGoal, context.provider === "meta" ? "website_visit" : "quote_request");
   const conversionLocation = oneOf(ADS_CONVERSION_LOCATIONS, raw.conversionLocation, "website");
-  const bidStrategy = context.provider === "openai" ? "manual_review" : oneOf(ADS_BID_STRATEGIES, raw.bidStrategy, "maximize_conversions");
+  const bidStrategy = context.provider === "google" ? "maximize_clicks" : context.provider === "openai" ? "manual_review" : oneOf(ADS_BID_STRATEGIES, raw.bidStrategy, "maximize_conversions");
   const rawMediaStrategy = context.provider === "openai" ? "image" : native.strategy || oneOf(ADS_MEDIA_STRATEGIES, raw.mediaStrategy, defaultMediaStrategy(context.provider));
   const mediaStrategy = mediaStrategyForCampaignType(context.provider, campaignType, rawMediaStrategy);
   const rawCreativeType = raw.creativeType === "video" ? "video" as const : "image" as const;
@@ -779,7 +927,8 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     targetLocations[0] ? `${targetLocations[0]} ${subject}` : `découvrir ${subject}`,
   ], 20, 80);
   const keywords = automaticPinterestTargeting
-    || context.provider === "openai" ? []
+    || context.provider === "openai" || context.provider === "meta" || context.provider === "tiktok"
+    || (context.provider === "x" && channelDraft?.channel === "x" && channelDraft.targetingMode === "broad") ? []
     : context.provider === "google"
       ? rawKeywords.length >= 6
         ? rawKeywords
@@ -818,11 +967,16 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     targetLocations,
     targetAudiences,
     languages: list(raw.languages, 10, 40).length ? list(raw.languages, 10, 40) : ["fr"],
+    ...(preparedIntent?.deliverySettings && preparedIntent.budget ? { preparedDeliverySuggestion: preparedIntent.deliverySettings, preparedBudgetSuggestion: preparedIntent.budget } : {}),
+    ...(metaIntent?.deliverySettings && metaIntent.budget ? { metaDeliverySuggestion: metaIntent.deliverySettings, metaBudgetSuggestion: metaIntent.budget } : {}),
+    ...(openaiIntent?.deliverySettings && openaiIntent.budget ? { openaiDeliverySuggestion: openaiIntent.deliverySettings, openaiBudgetSuggestion: openaiIntent.budget, openaiBidSuggestion: openaiIntent.bidEuros ?? 1 } : {}),
+    ...(pinterestIntent?.deliverySettings && pinterestIntent.budget ? { pinterestDeliverySuggestion: pinterestIntent.deliverySettings, pinterestBudgetSuggestion: pinterestIntent.budget } : {}),
+    ...(context.provider === "google" ? { googleDeliverySettings: googleIntent?.deliverySettings || defaultGoogleDeliverySettings(), ...(googleIntent?.budget ? { googleBudgetSuggestion: googleIntent.budget } : {}) } : {}),
     googleSearchPartners: raw.googleSearchPartners === true,
     googleDisplayExpansion: raw.googleDisplayExpansion === true,
-    metaAudienceExpansion: raw.metaAudienceExpansion !== false,
+    metaAudienceExpansion: false,
     metaPlacements,
-    trackingParameters: context.provider === "openai" ? "" : clean(raw.trackingParameters, 500),
+    trackingParameters: clean(raw.trackingParameters, 500),
     primaryText,
     // The planning endpoint receives no verified media URL. Do not turn a
     // model-invented link into an ad asset; Studio or the professional adds it.
@@ -832,15 +986,16 @@ export function normalizeAdsCampaignPlan(value: unknown, context: PlanContext): 
     mediaStrategy,
     mediaBrief,
     callToAction,
-    headlines,
-    descriptions,
+    headlines: context.provider === "meta" ? headlines.slice(0, 1) : headlines,
+    descriptions: context.provider === "meta" ? descriptions.slice(0, 1) : descriptions,
     // Performance+ targeting uses the Pin and trusted locations. Keeping
     // model-suggested keywords here would make an otherwise live-compatible
     // Pinterest plan fail the publisher preflight. Manual targeting modes keep
     // their planning signals unchanged for later provider-side resolution.
     keywords,
-    negativeKeywords: context.provider === "openai" ? [] : list(raw.negativeKeywords, 40, 80),
+    negativeKeywords: context.provider === "openai" || context.provider === "meta" || context.provider === "x" || context.provider === "tiktok" ? [] : list(raw.negativeKeywords, 40, 80),
     rationale,
+    ...(context.provider === "linkedin" ? { linkedinTargetingSuggestions: normalizeLinkedInAudienceSuggestions(raw.linkedinTargetingSuggestions), linkedinBudgetSuggestion: normalizeLinkedInBudgetSuggestion(raw.linkedinBudgetSuggestion), linkedinDeliverySuggestion: raw.linkedinDeliverySuggestion as LinkedInDeliverySuggestion } : {}),
     ...(channelDraft ? { channelDraft } : {}),
   };
 }

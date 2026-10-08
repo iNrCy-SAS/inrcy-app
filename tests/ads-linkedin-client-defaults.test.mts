@@ -161,3 +161,13 @@ test("LinkedIn confirmation filters only the later image upload and ACTIVE-only 
   assert.match(linkedInAdsLaunchBlockerMessage(["unsupported_locale"]), /langue et le pays/);
   assert.match(linkedInAdsLaunchBlockerMessage(["new_unknown_blocker"]), /vérification LinkedIn n’est pas complète/);
 });
+
+test("LinkedIn rechecks resources when the group, Page or fallback calendar changes", () => {
+  const draft = { targetLocations: ["France"], linkedinGeoTargets: [france], dailyBudgetEuros: 25,
+    channelSettings: undefined, linkedinCampaignGroupId: "456", linkedinOrganizationUrn: "urn:li:organization:789", endDate: "2026-10-20" };
+  const before = linkedInAdsAutomaticPreflightKey("123", draft);
+  for (const patch of [{ linkedinCampaignGroupId: "999" }, { linkedinOrganizationUrn: "urn:li:organization:888" }, { endDate: "2026-10-21" }]) {
+    assert.notEqual(linkedInAdsAutomaticPreflightKey("123", { ...draft, ...patch }), before);
+  }
+  assert.equal(linkedInAdsAutomaticPreflightKey("123", { ...draft }), before);
+});

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
+import { createRequire } from "node:module";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { defaultPinterestDeliverySettings } from "../lib/adsPinterestCampaignSettings.ts";
 
 import type { PinterestAdsDraft } from "../lib/adsChannelDrafts.ts";
 import {
@@ -97,6 +102,7 @@ test("le passage au ciblage automatique exige un accord avant de retirer les sig
 test("le studio présente les choix Pinterest utiles et les champs remplis par l’IA", () => {
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 
+  const controls = readFileSync(new URL("../app/dashboard/ads/PinterestAdsCampaignControls.tsx", import.meta.url), "utf8");
   for (const label of [
     "Objectif Pinterest",
     "Mode de ciblage Pinterest",
@@ -104,21 +110,28 @@ test("le studio présente les choix Pinterest utiles et les champs remplis par l
     "Titre de l’épingle",
     "Format de l’épingle",
     "URL de destination du Pin",
-    "Budget quotidien moyen (€)",
-  ]) assert.match(client, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    "Budget et calendrier Pinterest",
+    "Budget total (€)",
+    "Budget quotidien fixe (€)",
+    "Emplacements Pinterest",
+  ]) assert.match(client + controls, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.match(client, /Ciblage automatique — recommandé · publiable/);
   assert.match(client, /Pinterest optimise l’audience à partir du contenu de votre Pin, dans les zones choisies/);
   assert.match(client, /hasKeywordsStep \? \["Découverte Pinterest"\] : \[\]/);
-  assert.match(client, /"Découverte automatique du Pin"/);
+  assert.match(client, /"Format du Pin"/);
+  assert.match(client, /"Budget et calendrier"/);
+  assert.match(client, /"Zones géographiques"/);
+  assert.match(client, /data-pinterest-geography="true"/);
   assert.match(client, /Un seul titre · 100 caractères maximum/);
   assert.match(client, /Choisissez un seul titre pour votre épingle/);
   assert.match(client, /pinterestTargetingLabel\(nativeSettings\.targetingMode\)/);
   assert.match(client, /pinterest: "Pinterest"/);
   assert.match(client, /`Créer une campagne \$\{CAMPAIGN_CHANNEL_NAMES\[channelId\]\}`/);
   assert.match(client, /const channelSettings = channelDraft \? adsChannelWizardSettingsFromBrief\(channelDraft\)/);
-  assert.match(client, /dailyBudgetEuros: channelDraft\.budget\.amount/);
-  assert.match(client, /primaryText: nativeCopy\.message/);
+  assert.match(client, /plan\.pinterestBudgetSuggestion/);
+  assert.match(client, /pinterestDeliverySettings: plan\.pinterestDeliverySuggestion/);
+  assert.match(client, /primaryText: channelDraft\.channel === "x"[\s\S]*?preparedXCopyWithDestination[\s\S]*?: nativeCopy\.message/);
   assert.match(client, /mediaBrief: nativeCopy\.media/);
   assert.match(client, /destinationUrl: nativeCopy\.destination/);
   assert.match(client, /updatePinterestTargetingMode\(event\.target\.value/);
@@ -137,4 +150,47 @@ test("les zones Pinterest ne sont ajoutées que par un choix explicite dans le c
   assert.match(search, /onClick=\{\(\) => onChange\(\[\.\.\.locations, option\.name\]\)\}/);
   assert.match(search, /Pays entier/);
   assert.doesNotMatch(search, /onChange\(response|onChange\(options/);
+});
+
+
+function nativeControls() {
+  const source = readFileSync(new URL("../app/dashboard/ads/PinterestAdsCampaignControls.tsx", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const exports = {} as Record<string, (props: Record<string, unknown>) => ReturnType<typeof createElement>> & { pinterestAdsBudgetLabel: (draft: Record<string, unknown>) => string };
+  const require = createRequire(import.meta.url);
+  new Function("exports", "require", compiled)(exports, (name: string) => name === "@/lib/adsPinterestCampaignSettings" ? { defaultPinterestDeliverySettings } : name === "./ads.module.css" ? { default: new Proxy({}, { get: (_, key) => String(key) }) } : require(name));
+  return exports;
+}
+
+test("le budget natif Pinterest distingue le total, le plafond journalier et la moyenne flexible sans multiplier le total", () => {
+  const controls = nativeControls();
+  const settings = defaultPinterestDeliverySettings();
+  const draft = { dailyBudgetEuros: 25, endDate: "2026-10-21", channelSettings: { objectiveType: "CONSIDERATION" }, pinterestDeliverySettings: settings };
+  assert.match(controls.pinterestAdsBudgetLabel(draft), /25,00.*par jour.*plafond quotidien fixe/);
+  settings.budget.flexibleDaily = true;
+  assert.match(controls.pinterestAdsBudgetLabel(draft), /25,00.*par jour en moyenne/);
+  settings.budget = { type: "total", totalEuros: 200, flexibleDaily: false, startAt: "2026-10-09T07:00:00.000Z", endAt: "2026-10-21T21:59:00.000Z" };
+  assert.match(controls.pinterestAdsBudgetLabel(draft), /200,00.*au total/);
+  assert.doesNotMatch(controls.pinterestAdsBudgetLabel(draft), /par jour|25,00/);
+  const markup = renderToStaticMarkup(createElement(controls.PinterestAdsBudget, { settings, onChange: () => {}, dailyBudget: 25, endDate: "2026-10-21", onDailyChange: () => {}, onEndDateChange: () => {}, timeZone: "Europe/Paris" }));
+  assert.match(markup, /Budget total/);
+  assert.match(markup, /value="200"/);
+  assert.match(markup, /value="2026-10-09T09:00"/);
+  assert.match(markup, /value="2026-10-21T23:59"/);
+  assert.doesNotMatch(markup, /value="25"/);
+});
+
+test("les placements et enchères Pinterest proposent seulement les réglages natifs supportés", () => {
+  const controls = nativeControls();
+  const settings = defaultPinterestDeliverySettings();
+  const placement = renderToStaticMarkup(createElement(controls.PinterestAdsDistribution, { settings, onChange: () => {} }));
+  for (const value of ["ALL", "SEARCH", "BROWSE"]) assert.match(placement, new RegExp(`value="${value}"`));
+  assert.doesNotMatch(placement, /value="OTHER"/);
+  const bidding = renderToStaticMarkup(createElement(controls.PinterestAdsBidding, { objectiveType: "CONSIDERATION", settings, onChange: () => {}, budgetEuros: 25 }));
+  assert.match(bidding, /Clics sur l’épingle/);
+  assert.match(bidding, /value="automatic"/);
+  assert.match(bidding, /value="max_bid"/);
+  assert.doesNotMatch(bidding, /value="outbound_clicks"/);
+  const draftOnly = renderToStaticMarkup(createElement(controls.PinterestAdsBidding, { objectiveType: "WEB_CONVERSION", settings, onChange: () => {}, budgetEuros: 25 }));
+  assert.match(draftOnly, /brouillon/);
 });

@@ -7,11 +7,14 @@ export type AdsDraftStepKey =
   | "project"
   | "analysis"
   | "foundations"
+  | "bidding"
+  | "geography"
   | "targeting"
   | "keywords"
   | "creative"
   | "pinterest_format"
   | "media"
+  | "identity"
   | "delivery"
   | "budget"
   | "validation";
@@ -32,7 +35,8 @@ export function adsDraftHasMediaStep(draft: AdsDraftNavigationShape): boolean {
 
 /** Automatic Pinterest targeting has no manual discovery fields to complete. */
 export function adsDraftHasKeywordsStep(draft: Pick<AdsCampaignInput, "provider"> & Partial<Pick<AdsCampaignInput, "channelSettings">>): boolean {
-  if (draft.provider === "openai") return false;
+  if (["openai", "meta", "tiktok"].includes(draft.provider)) return false;
+  if (draft.provider === "x") return draft.channelSettings?.channel === "x" && draft.channelSettings.targetingMode === "keywords";
   if (draft.provider !== "pinterest") return true;
   return draft.channelSettings?.channel === "pinterest" && draft.channelSettings.targetingMode !== "automatic";
 }
@@ -49,18 +53,36 @@ export function adsDraftStepKeys(draft: AdsDraftNavigationShape): AdsDraftStepKe
   const keywords: AdsDraftStepKey[] = adsDraftHasKeywordsStep(draft) ? ["keywords"] : [];
   const media: AdsDraftStepKey[] = adsDraftHasMediaStep(draft) ? ["media"] : [];
 
+  if (draft.provider === "x" || draft.provider === "tiktok") {
+    return ["project", ...analysis, "foundations", "budget", "geography", "targeting", "bidding",
+      ...keywords, "creative", ...(draft.provider === "tiktok" ? ["identity" as const] : []), ...media,
+      "delivery", "validation"];
+  }
+
+  if (draft.provider === "meta" || draft.provider === "openai") {
+    return [
+      "project", ...analysis, "foundations",
+      ...(draft.provider === "openai" ? ["budget" as const] : []),
+      "geography", "targeting", "bidding", "creative", ...media, "delivery",
+      ...(draft.provider === "meta" ? ["budget" as const] : []),
+      "validation",
+    ];
+  }
+
   if (draft.provider === "pinterest") {
     return [
       "project",
       ...analysis,
       "foundations",
+      "budget",
+      "geography",
       "targeting",
+      "bidding",
+      "pinterest_format",
       ...keywords,
       "creative",
-      "pinterest_format",
       ...media,
       "delivery",
-      "budget",
       "validation",
     ];
   }
@@ -69,6 +91,7 @@ export function adsDraftStepKeys(draft: AdsDraftNavigationShape): AdsDraftStepKe
     "project",
     ...analysis,
     "foundations",
+    ...(draft.provider === "google" ? ["bidding" as const, "geography" as const] : draft.provider === "linkedin" ? ["geography" as const] : []),
     "targeting",
     ...keywords,
     "creative",

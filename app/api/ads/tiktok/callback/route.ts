@@ -8,12 +8,13 @@ import {
   exchangeTikTokAdsCode,
   saveTikTokAdsConnection,
   tikTokAdsReturnUrl,
+  tikTokAdsOAuthConfiguration,
   TikTokAdsConnectionError,
 } from "@/lib/adsTikTokServer";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const state = verifyOAuthState<{ accountId?: string; authUserId?: string }>(
+  const state = verifyOAuthState<{ accountId?: string; authUserId?: string; appId?: string; redirectUri?: string }>(
     request,
     "ads_tiktok",
     url.searchParams.get("state"),
@@ -30,6 +31,9 @@ export async function GET(request: Request) {
     return response;
   };
   if (!state.ok) return finish("error", "oauth_state_invalid");
+  const configuration = tikTokAdsOAuthConfiguration(request.url);
+  if (!configuration || state.state.appId !== configuration.appId
+    || state.state.redirectUri !== configuration.redirectUri) return finish("error", "oauth_configuration_changed");
   const code = url.searchParams.get("auth_code") || url.searchParams.get("code");
   if (!code) return finish("error", "authorization_cancelled");
 

@@ -6,6 +6,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "playwright";
 import ts from "typescript";
+import { adsDraftHasKeywordsStep, adsDraftHasMediaStep, adsDraftStepKeys } from "../lib/adsDraftNavigation.ts";
 
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
@@ -20,38 +21,41 @@ function component(name) {
   return node.getText(parsed);
 }
 
-let mediaSection, stepper, footer, stepNamesExpression;
+let mediaSection, stepper, footer;
+const stepVariableNames = new Set(["keywordStepName", "hasMediaStep", "hasKeywordsStep", "mediaStepName", "manualStepNames", "inrcyStepNames", "linkedInStepLabels", "googleStepLabels", "pinterestStepLabels", "channelStepLabels", "stepNames", "displayedStepNames", "manualStepKeys", "inrcyStepKeys", "stepKeys", "displayedStepKeys", "lastStep", "foundationsStep", "biddingStep", "geographyStep", "targetingStep", "keywordsStep", "creativeStep", "pinterestFormatStep", "mediaStep", "deliveryStep", "budgetStep", "validationStep", "analysisStep"]);
+const stepVariables = [];
 function inspect(node) {
   if (ts.isJsxElement(node)) {
     const attrs = node.openingElement.attributes.getText(parsed);
     if (node.openingElement.tagName.getText(parsed) === "section" && attrs.includes("studioPureMediaCard")) mediaSection = node;
-    if (attrs === "className={styles.stepper} aria-label=\"Étapes de création\"") stepper = node;
-    if (attrs === "className={styles.wizardNavigation}") footer = node;
+    if (attrs.includes("className={styles.stepper}") && attrs.includes('aria-label="Étapes de création"')) stepper = node;
+    if (attrs.includes("className={styles.wizardNavigation}")) footer = node;
   }
-  if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === "inrcyStepNames") stepNamesExpression = node.initializer;
+  if (ts.isVariableDeclaration(node) && stepVariableNames.has(node.name.getText(parsed))) stepVariables.push(node.parent.parent);
   ts.forEachChild(node, inspect);
 }
 inspect(parsed);
-assert.ok(mediaSection && stepper && footer && stepNamesExpression, "The real media section, footer and full stepper must be found");
+assert.ok(mediaSection && stepper && footer && stepVariables.length, "The real media section, footer and step metadata must be found");
+const compactStepperLabels = parsed.statements.find((entry) => ts.isVariableStatement(entry) && entry.declarationList.declarations[0].name.getText(parsed) === "PINTEREST_STEPPER_LABELS");
 const fixtureSource = `
 const { useState } = require("react");
 const styles = new Proxy({}, { get: (_, key) => String(key) });
-${parsed.statements.find((entry) => ts.isVariableStatement(entry) && entry.declarationList.declarations[0].name.getText(parsed) === "PINTEREST_STEPPER_LABELS").getText(parsed)}
+${compactStepperLabels?.getText(parsed) || ""}
 function Image({src,alt,className}) { return <img src={src} alt={alt} className={className} style={{position:"absolute",height:"100%",width:"100%",left:0,top:0,right:0,bottom:0}}/>; }
 function LocalMediaUploadChoice({disabled,triggerLabel}) { return <button type="button" disabled={disabled}>{triggerLabel || "Ajouter une image"}</button>; }
 ${component("StudioStepHeader")}
 ${component("CampaignMediaPreview")}
 export function PinterestMediaFixture({shortScreen,compactScreen}) {
-  const channelId="pinterest", hasKeywordsStep=false, hasMediaStep=true;
-  const step=6, mediaStep=6, analysisStep=1, deliveryStep=7, creationPath="inrcy", busy=null;
-  const stepNames=${stepNamesExpression.getText(parsed)}, displayedStepNames=stepNames, displayedStepKeys=displayedStepNames, reachedStepKeys=displayedStepKeys, lastStep=stepNames.length-1;
+  const channelId="pinterest", creationPath="inrcy", busy=null, analysisSetupOpen=false;
   const channelMeta={label:"Pinterest Ads"}, nativeSettings={channel:"pinterest",intendedPromotionType:"STANDARD_AD",creativeType:"REGULAR"};
-  const draft={name:"Cuisine en bois clair et rangements en colonnes",creativeType:"image",creativeUrl:${JSON.stringify(imageUrl)},imageUrl:${JSON.stringify(imageUrl)},mediaStrategy:"image",mediaBrief:"Cuisine en bois clair, cadrage portrait 4:5."};
+  const draft={provider:"pinterest",creationMode:"inrcy",campaignType:"generic",name:"Cuisine en bois clair et rangements en colonnes",creativeType:"image",creativeUrl:${JSON.stringify(imageUrl)},imageUrl:${JSON.stringify(imageUrl)},mediaStrategy:"image",mediaBrief:"Cuisine en bois clair, cadrage portrait 4:5."};
+  ${[...new Set(stepVariables)].sort((left, right) => left.pos - right.pos).map((node) => node.getText(parsed)).join("\n")}
+  const step=mediaStep, reachedStepKeys=stepKeys;
   const attachedCampaignMediaUrl=draft.imageUrl, nativeMediaUpload=true, googleSearchMedia=false, nativeMediaStrategy="image";
   const campaignMediaUploadBusy=false, campaignMediaUploadError=null, campaignImageInputRef={current:null}, campaignVideoInputRef={current:null};
   const analysisProposalReady=false, planProgress=100, destinationReview={required:false,canContinue:true};
   const nativeWizardFormat=()=>"image unique", updateDraft=()=>{}, setCampaignMediaStudioOpen=()=>{}, setCampaignMediaLibraryOpen=()=>{}, handleCampaignMediaUpload=()=>{}, navigateToStep=()=>{}, setStep=()=>{};
-  return <main className={styles.workspace + " " + styles.studioWorkspace} data-compact={compactScreen||undefined} data-short={shortScreen||undefined} data-stage={step} data-creation-path={creationPath}>
+  return <main className={styles.workspace + " " + styles.studioWorkspace} data-channel={channelId} data-compact={compactScreen||undefined} data-short={shortScreen||undefined} data-stage={step} data-creation-path={creationPath}>
     ${stepper.getText(parsed)}
     ${mediaSection.getText(parsed)}
     ${footer.getText(parsed)}
@@ -59,7 +63,7 @@ export function PinterestMediaFixture({shortScreen,compactScreen}) {
 }`;
 const compiled = ts.transpileModule(fixtureSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const moduleExports = {};
-new Function("exports", "require", compiled)(moduleExports, require);
+new Function("exports", "require", "adsDraftStepKeys", "adsDraftHasKeywordsStep", "adsDraftHasMediaStep", compiled)(moduleExports, require, adsDraftStepKeys, adsDraftHasKeywordsStep, adsDraftHasMediaStep);
 
 function fixture(width, height) {
   const markup = renderToStaticMarkup(createElement(moduleExports.PinterestMediaFixture, { compactScreen: width < 1000 || height < 660, shortScreen: height <= 600 }));
@@ -70,7 +74,7 @@ function fixture(width, height) {
   </style></head><body><header style="height:76px">iNr’ADS — Créer une campagne Pinterest</header><div class="drawerScroll" data-dashboard-settings-drawer-scroll="true">${markup}</div></body></html>`;
 }
 
-test("Pinterest keeps its real portrait, controls and ten steps accessible across phone, tablet and desktop", async () => {
+test("Pinterest keeps its real portrait, controls and twelve native steps accessible across phone, tablet and desktop", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const [width, height] of [[320, 568], [375, 667], [768, 1024], [1024, 768], [1366, 768], [1707, 842]]) {
@@ -94,8 +98,8 @@ test("Pinterest keeps its real portrait, controls and ten steps accessible acros
         });
         const details = `${width}×${height}: ${JSON.stringify(result)}`;
         const preview = result[".campaignMediaPreview"], card = result[".studioPureMediaCard"], footer = result[".wizardNavigation"];
-        assert.equal(result.labels.length, 10, details);
-        assert.ok(result.labels.some((label) => label.includes("Destination & mesure")), details);
+        assert.equal(result.labels.length, 12, details);
+        assert.ok(result.labels.some((label) => label.includes("Destination et suivi")), details);
         assert.ok(result.stepperScrollWidth <= result.stepperWidth + 1, details);
         if (width >= 1000) assert.ok(result.cardScrollHeight <= result.cardClientHeight + 1, details);
         assert.equal(result.cardScrollTop, 0, details);
@@ -113,11 +117,12 @@ test("Pinterest keeps its real portrait, controls and ten steps accessible acros
         if (width >= 1000) assert.ok(footer.top >= card.bottom && footer.bottom <= height, details);
         for (const control of [page.locator(".campaignMediaPreview"), page.getByRole("button", { name: "Ajouter une image", exact: true }), page.getByRole("button", { name: "Générer", exact: true }), page.getByRole("button", { name: "Médiathèque", exact: true }), page.getByRole("button", { name: "Retirer", exact: true }), page.getByRole("button", { name: "Suivant →", exact: true })]) {
           await control.scrollIntoViewIfNeeded();
+          await control.evaluate((element) => element.scrollIntoView({block: "center", inline: "nearest", behavior: "instant"}));
           assert.equal(await control.evaluate((element) => {
             const bounds = element.getBoundingClientRect();
             const top = document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
             return bounds.left >= 0 && bounds.right <= innerWidth + 1 && bounds.top >= 0 && bounds.bottom <= innerHeight + 1 && (top === element || element.contains(top));
-          }), true, `${details}: media or control is inaccessible`);
+          }), true, `${details}: ${control.toString()} is inaccessible; ${JSON.stringify(await control.evaluate((element)=>{const r=element.getBoundingClientRect(); const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,hit:top?.outerHTML};}))}`);
         }
         if (width >= 1000) assert.equal(await page.locator(".studioPureMediaCard").evaluate((element) => element.scrollTop), 0, details);
       } finally { await page.close(); }

@@ -41,7 +41,7 @@ function launchHarness(outcome: "success" | "error" | "unconfirmed") {
   const demoSubmissionRef = { current: false };
   const scope = {
     demoDialog: { mode: "confirm", channelId: "google", launchStatus: "active", details: { accountId: "123" } },
-    busy: null, demoSubmissionRef, channelId: "google", creating: true, step: 8, validationStep: 8,
+    busy: null, demoSubmissionRef, linkedInLaunchConsent: { current: null }, channelId: "google", creating: true, step: 8, validationStep: 8,
     channelPublishingEnabled: true, channelMeta: { label: "Google Ads" }, draft: {}, savedId: "draft-id",
     ADS_PAUSED_PUBLISH_CONFIRMATION: "paused", ADS_LIVE_PUBLISH_CONFIRMATION: "active",
     parseAdsCampaignInput: () => ({ draft: {} }), readJson: async (value: unknown) => value,

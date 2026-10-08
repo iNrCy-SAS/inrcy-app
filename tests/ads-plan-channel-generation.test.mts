@@ -227,7 +227,7 @@ test("automatic plans fill every generatable studio block without fabricating pl
       assert.ok(plan.headlines.length >= 6);
       assert.ok(plan.descriptions.length >= 3);
       assert.ok(plan.keywords.length >= 6);
-    } else if (provider === "pinterest") {
+    } else if (provider === "pinterest" || provider === "meta" || provider === "tiktok") {
       assert.deepEqual(plan.keywords, []);
       assert.ok(plan.mediaBrief);
     } else {

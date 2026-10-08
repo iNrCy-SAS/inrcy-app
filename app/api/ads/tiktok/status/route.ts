@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 
 import { requirePremiumAdsUser } from "@/lib/adsServer";
-import { readTikTokAdsIntegration } from "@/lib/adsTikTokServer";
-import { tikTokAdsAccessTokenIsFresh, tikTokAdsAuthorizeUrl, tikTokAdsRefreshTokenIsUsable } from "@/lib/adsTikTokPolicy";
+import { readTikTokAdsIntegration, tikTokAdsOAuthConfiguration } from "@/lib/adsTikTokServer";
+import { tikTokAdsAccessTokenIsFresh, tikTokAdsRefreshTokenIsUsable } from "@/lib/adsTikTokPolicy";
 
-export async function GET() {
+export async function GET(request: Request) {
   const { user, errorResponse } = await requirePremiumAdsUser("tiktok");
   if (errorResponse || !user) return errorResponse;
   try {
     // Read the durable association, without calling TikTok on every screen open.
     const row = await readTikTokAdsIntegration(user.activeUserId);
-    const configured = Boolean(process.env.TIKTOK_ADS_APP_ID && process.env.TIKTOK_ADS_SECRET
-      && tikTokAdsAuthorizeUrl(process.env.TIKTOK_ADS_AUTHORIZATION_URL || "", "state-check"));
+    const configured = Boolean(tikTokAdsOAuthConfiguration(request.url));
     const meta = row?.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
       ? row.meta as Record<string, unknown> : {};
     const longLived = Boolean(row?.access_token_enc && !row.expires_at && !row.refresh_token_enc

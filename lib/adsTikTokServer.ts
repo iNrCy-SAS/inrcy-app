@@ -13,6 +13,8 @@ import {
   tikTokAdsIsLongLivedAuthorization,
   tikTokAdsRefreshTokenIsUsable,
   tikTokAdsRefreshNeedsReconnect,
+  tikTokAdsAuthorizeUrl,
+  tikTokAdsCallbackUrl,
   type TikTokAdsAccount,
 } from "@/lib/adsTikTokPolicy";
 
@@ -47,8 +49,8 @@ type TikTokAdsTokenPayload = {
 };
 
 export async function exchangeTikTokAdsCode(code: string): Promise<NonNullable<TikTokAdsTokenPayload["data"]>> {
-  const appId = process.env.TIKTOK_ADS_APP_ID;
-  const secret = process.env.TIKTOK_ADS_SECRET;
+  const appId = String(process.env.TIKTOK_ADS_APP_ID || "").trim();
+  const secret = String(process.env.TIKTOK_ADS_SECRET || "").trim();
   if (!appId || !secret) {
     throw new TikTokAdsConnectionError("Configuration TikTok Ads incomplète.", "configuration_missing");
   }
@@ -127,6 +129,25 @@ export function tikTokAdsRedirectUri(requestUrl: string) {
     `${new URL(requestUrl).origin}/api/ads/tiktok/callback`;
 }
 
+/** Validate one server-side OAuth configuration without returning its secret. */
+export function tikTokAdsOAuthConfiguration(requestUrl: string): {
+  appId: string; redirectUri: string; authorizationUrl: string;
+} | null {
+  try {
+    const appId = String(process.env.TIKTOK_ADS_APP_ID || "").trim();
+    const authorizationUrl = String(process.env.TIKTOK_ADS_AUTHORIZATION_URL || "").trim();
+    if (!String(process.env.TIKTOK_ADS_SECRET || "").trim()
+      || Buffer.from(String(process.env.INRCY_CREDENTIALS_SECRET || ""), "base64").length !== 32) return null;
+    const callback = tikTokAdsCallbackUrl(tikTokAdsRedirectUri(requestUrl), new URL(requestUrl).origin);
+    if (!callback) return null;
+    const binding = { appId, redirectUri: callback.toString() };
+    if (!tikTokAdsAuthorizeUrl(authorizationUrl, "configuration-check", binding)) return null;
+    return { ...binding, authorizationUrl };
+  } catch {
+    return null;
+  }
+}
+
 export async function readTikTokAdsIntegration(userId: string): Promise<TikTokAdsIntegration | null> {
   const { data, error } = await supabaseAdmin.from("integrations")
     .select("id,status,access_token_enc,refresh_token_enc,expires_at,resource_id,resource_label,meta")
@@ -162,8 +183,8 @@ async function tikTokAdsGet(path: string, token: string, params: URLSearchParams
 }
 
 export async function listTikTokAdsAccountsWithToken(token: string): Promise<TikTokAdsAccount[]> {
-  const appId = process.env.TIKTOK_ADS_APP_ID;
-  const secret = process.env.TIKTOK_ADS_SECRET;
+  const appId = String(process.env.TIKTOK_ADS_APP_ID || "").trim();
+  const secret = String(process.env.TIKTOK_ADS_SECRET || "").trim();
   if (!appId || !secret) throw new Error("Configuration TikTok Ads incomplète.");
 
   const authorized = await tikTokAdsGet("oauth2/advertiser/get", token,
@@ -230,8 +251,8 @@ export async function tikTokAdsAccessToken(userId: string, row?: TikTokAdsIntegr
     await markTikTokAdsNeedsReconnect(userId, integration.id);
     throw new TikTokAdsConnectionError("Réautorisez TikTok Ads pour conserver l’accès au compte.", "needs_reconnect", 409);
   }
-  const appId = process.env.TIKTOK_ADS_APP_ID;
-  const secret = process.env.TIKTOK_ADS_SECRET;
+  const appId = String(process.env.TIKTOK_ADS_APP_ID || "").trim();
+  const secret = String(process.env.TIKTOK_ADS_SECRET || "").trim();
   if (!appId || !secret) throw new TikTokAdsConnectionError("Configuration TikTok Ads incomplète.", "configuration_missing");
   let refreshToken: string;
   try { refreshToken = decryptToken(integration.refresh_token_enc!); }

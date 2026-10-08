@@ -56,7 +56,7 @@ export function defaultAdsChannelWizardSettings(channel: PlannedAdsChannel): Ads
     case "linkedin": return { schemaVersion: 1, channel, objectiveType: "WEBSITE_VISIT", format: "STANDARD_UPDATE", targetingFacet: "titles", locale: { country: "FR", language: "fr" } };
     case "tiktok": return { schemaVersion: 1, channel, objectiveType: "TRAFFIC", format: "video", targetingMode: "broad", placementIntent: "tiktok_only", optimizationIntent: "clicks", destinationKind: "website" };
     case "pinterest": return { schemaVersion: 1, channel, objectiveType: "CONSIDERATION", intendedPromotionType: "STANDARD_AD", creativeType: "REGULAR", targetingMode: "automatic", conversionEvent: null };
-    case "x": return { schemaVersion: 1, channel, objective: "website_traffic", format: "text", targetingMode: "broad" };
+    case "x": return { schemaVersion: 1, channel, objective: "engagement", format: "text", targetingMode: "broad" };
   }
 }
 

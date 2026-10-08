@@ -1,3 +1,4 @@
+import { publicAdsProviderResources } from "@/lib/adsProviderResources";
 import { NextResponse } from "next/server";
 import {
   adsBadOriginResponse,
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
   const campaigns = (data || []).map((campaign) => ({
     ...campaign,
     draft: normalizeStoredAdsCampaignDraft(campaign.draft),
+    provider_resources: publicAdsProviderResources(campaign.provider_resources),
   }));
   const total = count ?? offset + campaigns.length;
   const nextOffset = offset + campaigns.length < total && campaigns.length > 0 ? offset + campaigns.length : null;
@@ -71,12 +73,12 @@ export async function POST(request: Request) {
     // the dedicated publish route; a saved identifier is never proof of
     // ownership or permission.
 
-    // Keep the user's selected advertiser with the editable proposal. The
-    // publisher still treats it as unverified until its fresh preflight.
+    // TikTok/X keep their selected advertiser in draft JSON. The empty column
+    // preserves compatibility with the existing planned-channel SQL constraint.
+    // Other connectors keep their current column and publication behavior.
     const adAccountId = isAdsProvider(draft.provider)
       || draft.provider === "pinterest"
       || draft.provider === "linkedin"
-      || draft.provider === "x"
       || draft.provider === "openai"
       ? draft.adAccountId : "";
 

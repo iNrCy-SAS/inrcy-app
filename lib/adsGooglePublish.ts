@@ -1,5 +1,7 @@
 import "server-only";
 
+import { googleSearchKeyword, googleSearchLocalIssue, googleAdsCalendarDate, normalizeGoogleDeliverySettings } from "@/lib/adsGoogleCampaignSettings";
+import { readGoogleAdsAccountResources, googleAdsDateInAccount, googleAdsAccountTimeZone } from "@/lib/adsGoogleResources";
 import { randomUUID } from "node:crypto";
 import { normalizeGoogleTargetLocationLabels } from "@/lib/adsGoogleLocations";
 import { googleAdsJson } from "@/lib/adsServer";
@@ -76,9 +78,8 @@ function checkGoogleDraft(draft: AdsCampaignInput): string {
     throw new Error("Budget journalier Google Ads invalide.");
   }
   const endDateTime = `${draft.endDate} 23:59:59`;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.endDate) ||
-      !Number.isFinite(Date.parse(`${draft.endDate}T23:59:59Z`)) ||
-      Date.parse(`${draft.endDate}T23:59:59Z`) <= Date.now()) {
+  if (!googleAdsCalendarDate(draft.endDate) ||
+      (!draft.googleDeliverySettings && Date.parse(`${draft.endDate}T23:59:59Z`) <= Date.now())) {
     throw new Error("Date de fin Google Ads invalide.");
   }
   if (draft.headlines.length < 3 || draft.descriptions.length < 2 || draft.keywords.length < 1) {
@@ -153,13 +154,16 @@ export async function resolveGoogleTargetLocations(
   customerId: string,
   locations: string[],
   loginCustomerId?: string,
+  /** A country freshly read from the active business profile only narrows plain homonyms. */
+  countryCode?: string,
 ): Promise<GoogleTargetLocation[]> {
   const labels = normalizeGoogleTargetLocationLabels(locations);
   if (!labels.length) {
-    throw new GoogleAdsLocationResolutionError("Choisissez au moins une zone à l’étape Ciblage. Aucun pays ne sera ajouté par défaut.");
+    throw new GoogleAdsLocationResolutionError("Choisissez au moins une zone à l’étape Zones géographiques. Aucun pays ne sera ajouté par défaut.");
   }
 
   const franceIncluded = labels.includes("France");
+  if (countryCode && !/^[A-Z]{2}$/.test(countryCode)) throw new GoogleAdsLocationResolutionError("Le contexte géographique du profil est invalide.");
 
   const resolved = await Promise.all(labels.map(async (label) => {
     if (label === "France") {
@@ -179,19 +183,74 @@ export async function resolveGoogleTargetLocations(
       const french = await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId, "FR");
       if (french.length) return { input: label, matches: french, coveredByFrance: true };
     }
-    const matches = await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId);
+    const matches = await searchGoogleTargetLocations(userId, customerId, "name", label, loginCustomerId, countryCode);
     return { input: label, matches, coveredByFrance: false };
   }));
 
   const unresolved = resolved.filter((entry) => !entry.coveredByFrance && entry.matches.length !== 1).map((entry) => entry.input);
   if (unresolved.length) {
-    throw new GoogleAdsLocationResolutionError(`Google Ads ne peut pas identifier précisément la zone ${unresolved.map((label) => `« ${label} »`).join(", ")}. Corrigez-la à l’étape Ciblage avec le nom canonique affiché par Google, puis réessayez.`);
+    throw new GoogleAdsLocationResolutionError(`Google Ads ne peut pas identifier précisément la zone ${unresolved.map((label) => `« ${label} »`).join(", ")}. Corrigez-la à l’étape Zones géographiques avec le nom canonique affiché par Google, puis réessayez.`);
   }
   const targets = new Map<string, GoogleTargetLocation>();
   for (const entry of resolved) {
     if (!entry.coveredByFrance) targets.set(entry.matches[0].resourceName, entry.matches[0]);
   }
   return [...targets.values()];
+}
+
+/** Read-only checks shared by the final saved-draft preflight and the publisher before creation. */
+export async function checkGoogleAdsPublication(
+  userId: string, draft: AdsCampaignInput, loginCustomerId?: string, preparedTargetLocations?: GoogleTargetLocation[],
+) {
+  const endDateTime = checkGoogleDraft(draft);
+  const nativeIssue = googleSearchLocalIssue(draft);
+  if (nativeIssue) throw new Error(nativeIssue);
+  const deliverySettings = normalizeGoogleDeliverySettings(draft.googleDeliverySettings).settings;
+  const biddingFields = googleSearchBiddingFields(draft.bidStrategy, deliverySettings || undefined);
+  if (!biddingFields) {
+    throw new Error("La stratégie d’enchères Google Ads choisie n’est pas encore publiable.");
+  }
+  const finalUrlSuffix = googleFinalUrlSuffix(draft.trackingParameters);
+  const customerId = draft.adAccountId;
+  if (loginCustomerId && !/^\d{5,25}$/.test(loginCustomerId)) {
+    throw new Error("Identifiant de compte administrateur Google Ads invalide.");
+  }
+
+  // Verify the actual account, not only the currency displayed in the UI.
+  const accountResponse = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
+    query: "SELECT customer.id, customer.currency_code, customer.manager, customer.status, customer.time_zone FROM customer LIMIT 1",
+  }, loginCustomerId);
+  const accountRows = Array.isArray(accountResponse.results) ? accountResponse.results : [];
+  const account = asRecord(asRecord(accountRows[0]).customer);
+  if (String(account.id || "") !== customerId || account.currencyCode !== "EUR" || account.manager === true || account.status !== "ENABLED") {
+    throw new Error("Le compte Google Ads sélectionné doit être un compte annonceur actif et accessible, en EUR.");
+  }
+  let startDate: string | null = deliverySettings?.startDate || null;
+  if (deliverySettings) {
+    const timeZone = googleAdsAccountTimeZone(account, customerId);
+    if (["maximize_conversions", "maximize_value", "target_cpa", "target_roas"].includes(draft.bidStrategy)) {
+      const resources = await readGoogleAdsAccountResources((query, pageToken) => googleAdsJson(userId, `customers/${customerId}/googleAds:search`, { query, ...(pageToken ? { pageToken } : {}) }, loginCustomerId), customerId, account);
+      if (!resources.hasBiddableConversions) throw new Error("Aucune conversion primaire active et biddable n’a été vérifiée dans les objectifs du compte Google Ads. Choisissez Maximiser les clics ou configurez les conversions avant le lancement.");
+    }
+    const today = googleAdsDateInAccount(timeZone);
+    if (startDate && startDate < today) throw new Error("La date de début Google est passée dans le fuseau horaire du compte.");
+    if (draft.endDate < today) throw new Error("La date de fin Google est passée dans le fuseau horaire du compte.");
+    if (deliverySettings.budget.type === "total") {
+      startDate ||= today;
+      const days = (Date.parse(draft.endDate + "T00:00:00Z") - Date.parse(startDate + "T00:00:00Z")) / 86400000 + 1;
+      if (days < 3 || days > 90) throw new Error("Un budget total Google Search nécessite un calendrier de 3 à 90 jours dans le fuseau du compte.");
+    }
+  }
+  const targetLocations = preparedTargetLocations || await resolveGoogleTargetLocations(
+    userId,
+    customerId,
+    draft.targetLocations,
+    loginCustomerId,
+  );
+  if (!targetLocations.length || targetLocations.some((location) => !/^geoTargetConstants\/\d+$/.test(location.resourceName))) {
+    throw new GoogleAdsLocationResolutionError("Vérifiez les zones ciblées avant publication. Aucune campagne sans zone vérifiée ne sera créée.");
+  }
+  return { ready: true as const, selectedAccountId: customerId, verifiedLocationCount: targetLocations.length, targetLocations, startDate, endDateTime, deliverySettings, biddingFields, finalUrlSuffix };
 }
 
 /**
@@ -213,35 +272,10 @@ export async function publishGoogleAdsCampaign(
   if (!persistProgress) {
     throw new Error("L’enregistrement des identifiants Google Ads est requis avant publication.");
   }
-  const endDateTime = checkGoogleDraft(draft);
-  const biddingFields = googleSearchBiddingFields(draft.bidStrategy);
-  if (!biddingFields) {
-    throw new Error("La stratégie d’enchères Google Ads choisie n’est pas encore publiable.");
-  }
-  const finalUrlSuffix = googleFinalUrlSuffix(draft.trackingParameters);
-  const customerId = draft.adAccountId;
-  if (loginCustomerId && !/^\d{5,25}$/.test(loginCustomerId)) {
-    throw new Error("Identifiant de compte administrateur Google Ads invalide.");
-  }
-
-  // Verify the actual account, not only the currency displayed in the UI.
-  const accountResponse = await googleAdsJson(userId, `customers/${customerId}/googleAds:search`, {
-    query: "SELECT customer.id, customer.currency_code, customer.manager, customer.status FROM customer LIMIT 1",
-  }, loginCustomerId);
-  const accountRows = Array.isArray(accountResponse.results) ? accountResponse.results : [];
-  const account = asRecord(asRecord(accountRows[0]).customer);
-  if (String(account.id || "") !== customerId || account.currencyCode !== "EUR" || account.manager === true || account.status !== "ENABLED") {
-    throw new Error("Le compte Google Ads sélectionné doit être un compte annonceur actif et accessible, en EUR.");
-  }
-  const targetLocations = options.preparedTargetLocations || await resolveGoogleTargetLocations(
-    userId,
-    customerId,
-    draft.targetLocations,
-    loginCustomerId,
+  const { targetLocations, startDate, endDateTime, deliverySettings, biddingFields, finalUrlSuffix } = await checkGoogleAdsPublication(
+    userId, draft, loginCustomerId, options.preparedTargetLocations,
   );
-  if (!targetLocations.length || targetLocations.some((location) => !/^geoTargetConstants\/\d+$/.test(location.resourceName))) {
-    throw new GoogleAdsLocationResolutionError("Vérifiez les zones ciblées avant publication. Aucune campagne sans zone vérifiée ne sera créée.");
-  }
+  const customerId = draft.adAccountId;
   // Search matches languages from the ad copy and landing page. Google Ads
   // rejects manual CampaignCriterion.language targeting from September 2026.
   const budgetTemp = `customers/${customerId}/campaignBudgets/-1`;
@@ -257,7 +291,9 @@ export async function publishGoogleAdsCampaign(
       resourceName: budgetTemp,
       name: budgetName,
       deliveryMethod: "STANDARD",
-      amountMicros,
+      ...(deliverySettings?.budget.type === "total"
+        ? { period: "CUSTOM_PERIOD", totalAmountMicros: String(Math.round(Number(deliverySettings.budget.totalEuros) * 100) * 10000) }
+        : { amountMicros }),
       explicitlyShared: false,
     } } },
     { campaignOperation: { create: {
@@ -269,7 +305,7 @@ export async function publishGoogleAdsCampaign(
       ...biddingFields,
       ...(finalUrlSuffix ? { finalUrlSuffix } : {}),
       containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-      geoTargetTypeSetting: { positiveGeoTargetType: "PRESENCE" },
+      geoTargetTypeSetting: { positiveGeoTargetType: deliverySettings?.geoTargetType || "PRESENCE" },
       networkSettings: {
         targetGoogleSearch: true,
         // Google Search Partners is targetSearchNetwork. The similarly named
@@ -277,6 +313,7 @@ export async function publishGoogleAdsCampaign(
         targetSearchNetwork: draft.googleSearchPartners,
         targetContentNetwork: draft.googleDisplayExpansion,
       },
+      ...(startDate ? { startDateTime: startDate + " 00:00:00" } : {}),
       endDateTime,
     } } },
     ...targetLocations.map((location) => ({ campaignCriterionOperation: { create: {
@@ -286,7 +323,7 @@ export async function publishGoogleAdsCampaign(
     ...draft.negativeKeywords.map((keyword) => ({ campaignCriterionOperation: { create: {
       campaign: campaignTemp,
       negative: true,
-      keyword: { text: keyword, matchType: "BROAD" },
+      keyword: googleSearchKeyword(keyword, deliverySettings?.negativeKeywordMatchType || "BROAD"),
     } } })),
     { adGroupOperation: { create: {
       resourceName: adGroupTemp,
@@ -294,17 +331,21 @@ export async function publishGoogleAdsCampaign(
       name: `${draft.name} · Groupe principal`,
       type: "SEARCH_STANDARD",
       status: "PAUSED",
+      ...(draft.bidStrategy === "manual_review" && deliverySettings?.bidding.manualCpcEuros != null
+        ? { cpcBidMicros: String(Math.round(deliverySettings.bidding.manualCpcEuros * 100) * 10000) } : {}),
     } } },
     ...draft.keywords.map((keyword) => ({ adGroupCriterionOperation: { create: {
       adGroup: adGroupTemp,
       status: "PAUSED",
-      keyword: { text: keyword, matchType: "PHRASE" },
+      keyword: googleSearchKeyword(keyword, deliverySettings?.keywordMatchType || "PHRASE"),
     } } })),
     { adGroupAdOperation: { create: {
       adGroup: adGroupTemp,
       status: "PAUSED",
       ad: {
         responsiveSearchAd: {
+          ...(deliverySettings?.responsiveSearchAd.path1 ? { path1: deliverySettings.responsiveSearchAd.path1 } : {}),
+          ...(deliverySettings?.responsiveSearchAd.path2 ? { path2: deliverySettings.responsiveSearchAd.path2 } : {}),
           headlines: draft.headlines.map((headline) => ({ text: headline })),
           descriptions: draft.descriptions.map((description) => ({ text: description })),
         },

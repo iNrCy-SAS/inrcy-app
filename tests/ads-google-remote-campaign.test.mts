@@ -42,6 +42,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 function mockGoogleAds(options: {
   status?: MockState["status"];
   sharedBudget?: boolean;
+  totalBudget?: boolean;
   rejectUnifiedMutation?: boolean;
   malformedUnifiedResponse?: boolean;
   acknowledgeWithoutApplying?: boolean;
@@ -80,10 +81,11 @@ function mockGoogleAds(options: {
             name: state.name,
             status: state.status,
             endDateTime: state.endDateTime,
+            ...(options.totalBudget ? { startDateTime: "2026-10-08 00:00:00" } : {}),
           },
           campaignBudget: {
             resourceName: budgetResourceName,
-            amountMicros: state.amountMicros,
+            ...(options.totalBudget ? { period: "CUSTOM_PERIOD", totalAmountMicros: "200500000" } : { amountMicros: state.amountMicros }),
             explicitlyShared: options.sharedBudget === true,
             referenceCount: options.sharedBudget ? "2" : "1",
           },
@@ -444,4 +446,17 @@ test("remove supprime à distance puis traite les répétitions comme un no-op",
   const removedAgain = await adapter.remove();
   assert.equal(removedAgain.changed, false);
   assert.equal(calls.filter((call) => call.path.endsWith("/campaigns:mutate")).length, 1);
+});
+
+
+test("a native total budget remains readable and pausable without conversion into a daily amount", async () => {
+  const mock = mockGoogleAds({ totalBudget: true });
+  const adapter = createGoogleAdsRemoteCampaignCoreAdapter({ expectedCustomerId: customerId, providerResources, request: mock.request, resolveTargetLocations: async () => [] });
+  const snapshot = await adapter.read();
+  assert.equal(snapshot.budgetType, "total"); assert.equal(snapshot.totalBudgetEuros, 200.5); assert.equal(snapshot.dailyBudgetEuros, null); assert.equal(snapshot.startDate, "2026-10-08");
+  const paused = await adapter.pause(); assert.equal(paused.status, "PAUSED");
+  const before = mock.calls.length;
+  await assert.rejects(() => adapter.update({ dailyBudgetEuros: 200 }), /budget total/);
+  await assert.rejects(() => adapter.update({ endDate: "2026-11-01" }), /calendrier/);
+  assert.equal(mock.calls.slice(before).some((call) => !call.path.endsWith("googleAds:search")), false);
 });

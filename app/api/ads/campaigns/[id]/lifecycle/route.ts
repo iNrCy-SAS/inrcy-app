@@ -1,3 +1,4 @@
+import { publicAdsProviderResources } from "@/lib/adsProviderResources";
 import { NextResponse } from "next/server";
 import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
 import {
@@ -317,6 +318,24 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
     .eq("id", id).eq("user_id", user.activeUserId).maybeSingle();
   if (error) return { response: NextResponse.json({ error: "Impossible de relire cette campagne." }, { status: 503 }) };
   if (!data) return { response: NextResponse.json({ error: "Campagne introuvable." }, { status: 404 }) };
+  if (data.provider === "tiktok" || data.provider === "x") {
+    if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, data.provider))) return { response: adsPilotOnlyResponse() };
+    const body = operation === "update" ? await request.clone().json().catch(() => null) as { action?: unknown } | null : null;
+    if (operation !== "update" || body?.action !== "reconcile") return { response: NextResponse.json({ publicationEnabled: false, error: "Seule la lecture des états natifs est disponible ici. TikTok et X ne peuvent pas être activés, modifiés ou supprimés depuis ce parcours." }, { status: 423 }) };
+    const { draft } = parseAdsCampaignInput(data.draft, { purpose: "draft" });
+    if (!draft || draft.provider !== data.provider) return { response: NextResponse.json({ error: "Le brouillon natif doit être contrôlé." }, { status: 409 }) };
+    const helpers = await import("@/lib/adsTikTokCampaignStore");
+    try {
+      const store = helpers.createPreparedAdsCampaignStore({ owner: user.activeUserId, campaignId: id, provider: data.provider, accountId: draft.adAccountId, draftSnapshot: data.draft });
+      const progress = await store.loadCheckpoint();
+      if (!progress) return { response: NextResponse.json({ error: "Aucun journal natif confirmé n’est disponible." }, { status: 409 }) };
+      const readback = draft.provider === "tiktok"
+        ? await (await import("@/lib/adsTikTokPublisherServer")).readTikTokAdsPausedCampaign(user.activeUserId, draft, progress as unknown as import("@/lib/adsTikTokPublisherCore").TikTokTrafficCheckpoint, { campaignId: id, assertCampaignOwnership: store.assertCampaignOwnership })
+        : await (await import("@/lib/adsXPublisherServer")).readbackStoredXAdsCampaign(user.activeUserId, draft, progress as unknown as import("@/lib/adsXPublisherCore").XAdsPublisherCheckpoint, { campaignId: id, assertCampaignOwnership: store.assertCampaignOwnership });
+      await store.assertCampaignOwnership();
+      return { response: NextResponse.json({ publicationEnabled: false, readOnly: true, nativeReadback: helpers.publicPreparedAdsReadback(readback), campaign: { ...data, provider_resources: publicAdsProviderResources(data.provider_resources) } }, { headers: { "Cache-Control": "no-store" } }) };
+    } catch { return { response: NextResponse.json({ publicationEnabled: false, error: "Les états natifs ne peuvent pas encore être confirmés. Le journal de reprise est conservé." }, { status: 422 }) }; }
+  }
   const campaign = data as RemoteCampaignRow;
   if (!(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, campaign.provider))) {
     return { response: adsPilotOnlyResponse() };
@@ -900,7 +919,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error || !data) {
       throw new AdsLifecyclePersistenceError("La plateforme a accepté la modification, mais iNrSend n’a pas pu confirmer son nouvel état.");
     }
-    return NextResponse.json({ campaign: data });
+    return NextResponse.json({ campaign: { ...data, provider_resources: publicAdsProviderResources(data.provider_resources) } });
   } catch (lifecycleError) {
     if (lifecycleError instanceof LinkedInAdsPublishError) providerResources = lifecycleError.progress;
     const error = messageFrom(lifecycleError);

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
+import { defaultOpenaiDeliverySettings, openaiNativeDelivery } from "../lib/adsOpenaiCampaignSettings.ts";
 import { adsDraftHasKeywordsStep, adsDraftHasMediaStep } from "../lib/adsDraftNavigation.ts";
 import { isAdsChannelPublishEnabled, openaiDraftRetrySafe, unsupportedAdsConnectorReason } from "../lib/adsPublishMode.ts";
 import { parseAdsCampaignInput } from "../lib/adsValidation.ts";
@@ -109,14 +110,22 @@ test("le studio ChatGPT garde l’étape image mais évite l’étape mots-clés
   assert.equal(adsDraftHasMediaStep({ provider: "openai", campaignType: "generic" }), true);
 });
 
-test("le studio reflète les formats image et le budget quotidien documentés par ChatGPT Ads", () => {
+test("le studio reflète les formats image et les budgets natifs quotidien ou total ChatGPT Ads", () => {
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   const mediaServer = readFileSync(new URL("../lib/adsOpenaiMediaServer.ts", import.meta.url), "utf8");
   assert.match(client, /\["image\/jpeg", "image\/png", "image\/webp"\]/);
   assert.match(client, /image\/jpeg,image\/png,image\/webp/);
   assert.match(mediaServer, /metadata\.format !== "webp"/);
-  assert.match(client, /channelId === "openai" \? "limite quotidienne" : "moyenne planifiée"/);
-  assert.match(client, /limite quotidienne de campagne/);
+  assert.ok(client.includes('channelId === "openai" ? <ChatGPTAdsBudget'), "ChatGPT uses its dedicated native budget controls");
+  assert.ok(client.includes('channelId === "openai" && <ChatGPTAdsEffectiveSummary'), "the final summary uses the actual native budget");
+  const daily = openaiNativeDelivery(chatgptDraft, Date.now(), "Europe/Paris");
+  assert.deepEqual(daily.budget, { dailySpendLimitMicros: 15_000_000 });
+  const settings = defaultOpenaiDeliverySettings();
+  settings.budget = { type: "total", totalEuros: 200, startAt: null, endAt: new Date(Date.now() + 8 * 86_400_000).toISOString() };
+  const total = openaiNativeDelivery({ ...chatgptDraft, openaiDeliverySettings: settings }, Date.now(), "Europe/Paris");
+  assert.deepEqual(total.budget, { lifetimeSpendLimitMicros: 200_000_000 });
+  assert.equal("dailySpendLimitMicros" in total.budget, false);
+  assert.equal("lifetimeSpendLimitMicros" in daily.budget, false);
   assert.doesNotMatch(client, /Moyenne sur 7 jours|une journée peut atteindre 2 fois|jusqu’à 2×/);
 });
 

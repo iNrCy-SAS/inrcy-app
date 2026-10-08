@@ -28,6 +28,8 @@ test("la configuration ChatGPT Ads n’annonce plus une création exclusivement 
   assert.match(settings, /vous pourrez choisir Active ou En pause lors de la validation finale/);
   assert.match(settings, /une dépense peut démarrer uniquement après votre confirmation explicite/);
   assert.doesNotMatch(settings, /Les campagnes créées via iNr’ADS sont envoyées <strong>en pause<\/strong>/);
-  assert.match(client, /Prête pour un lancement Active ou En pause/);
+  assert.match(client, /Prête pour votre validation finale/);
+  assert.match(client, /Le statut Active est préparé pour ce compte approuvé/);
+  assert.match(client, /Création réelle en pause disponible/);
   assert.doesNotMatch(client, /Créer en pause sur ChatGPT Ads/);
 });

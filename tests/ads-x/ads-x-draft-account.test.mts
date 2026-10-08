@@ -83,7 +83,7 @@ test("POST persiste localement le compte X sans dépendre d’un préflight four
   assert.equal((await h.save()).status, 200);
   assert.deepEqual(h.events, ["insert"]);
   assert.equal(h.writes[0].user_id, "business-owner");
-  assert.equal(h.writes[0].ad_account_id, accountId);
+  assert.equal(h.writes[0].ad_account_id, "", "planned-only SQL remains compatible; the selected native account is kept in draft JSON");
   assert.equal((h.writes[0].draft as { adAccountId: string }).adAccountId, accountId);
 });
 
@@ -106,7 +106,8 @@ test("la sauvegarde X reste pilote et respecte le propriétaire lors d’une mod
   const owned = harness({ existingOwner: "business-owner" });
   assert.equal((await owned.save({ ...draft, id: campaignId } as typeof draft)).status, 200);
   assert.equal(owned.writes[0].p_user_id, "business-owner");
-  assert.equal(owned.writes[0].p_ad_account_id, accountId);
+  assert.equal(owned.writes[0].p_ad_account_id, "");
+  assert.equal((owned.writes[0].p_draft as { adAccountId: string }).adAccountId, accountId);
 });
 
 test("le brouillon X sans compte reste enregistrable sans lire une connexion", async () => {

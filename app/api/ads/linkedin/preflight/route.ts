@@ -1,3 +1,4 @@
+import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding } from "@/lib/adsLinkedInCampaignSettings";
 import { NextResponse } from "next/server";
 import { requirePremiumAdsUser } from "@/lib/adsServer";
 import { LinkedInAdsConnectionError } from "@/lib/adsLinkedInServer";
@@ -42,6 +43,13 @@ function optionalMoney(value: string | null): number | undefined {
 function preflightInput(url: URL): LinkedInAdsPreflightInput {
   const params = url.searchParams;
   const geoQueries = normalizeLinkedInAdsGeoQueries(params.getAll("geo"));
+  const rawDelivery = params.get("deliverySettings");
+  if (rawDelivery && rawDelivery.length > 24_000) throw new TypeError("invalid_delivery_settings");
+  const parsedDelivery = normalizeLinkedInDeliverySettings(rawDelivery ? JSON.parse(rawDelivery) : undefined);
+  const objectiveType = params.get("objectiveType") || "WEBSITE_VISIT";
+  const format = params.get("format") || "STANDARD_UPDATE";
+  const endDate = params.get("endDate") || undefined;
+  if (parsedDelivery.error || !linkedInDeliveryBidding(objectiveType, parsedDelivery.settings) || !["STANDARD_UPDATE", "SINGLE_VIDEO"].includes(format) || (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate))) throw new TypeError("invalid_delivery_settings");
   const language = params.get("language") || "fr";
   const country = params.get("country") || "FR";
   const campaignGroupId = params.get("campaignGroupId") || undefined;
@@ -57,7 +65,8 @@ function preflightInput(url: URL): LinkedInAdsPreflightInput {
     throw new TypeError("invalid_preflight_input");
   }
   return {
-    geoQueries, language, country,
+    geoQueries, language, country, objectiveType, format, endDate,
+    ...(parsedDelivery.settings ? { deliverySettings: parsedDelivery.settings } : {}),
     ...(campaignGroupId ? { campaignGroupId } : {}),
     ...(organizationUrn ? { organizationUrn } : {}),
     ...(imageUrn ? { imageUrn } : {}),

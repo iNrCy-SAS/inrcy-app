@@ -22,6 +22,10 @@ export type GoogleAdsRemoteCampaignSnapshot = {
   budgetResourceName: string;
   name: string;
   dailyBudgetEuros: number | null;
+  /** A campaign total is never presented or edited as a daily amount. */
+  budgetType?: "daily" | "total";
+  totalBudgetEuros?: number | null;
+  startDate?: string | null;
   budgetExplicitlyShared: boolean;
   budgetReferenceCount: number;
   endDate: string | null;
@@ -72,6 +76,7 @@ export type GoogleAdsRemoteCampaignErrorCode =
   | "REMOTE_CAMPAIGN_NOT_FOUND"
   | "REMOTE_CAMPAIGN_REMOVED"
   | "REMOTE_SHARED_BUDGET"
+  | "REMOTE_BUDGET_TYPE_IMMUTABLE"
   | "REMOTE_RESOURCE_MISMATCH"
   | "REMOTE_RESPONSE_INCOMPLETE"
   | "REMOTE_MUTATION_UNCONFIRMED";
@@ -371,7 +376,7 @@ async function readSnapshot(
   options: { allowMissing?: boolean } = {},
 ): Promise<GoogleAdsRemoteCampaignSnapshot | null> {
   const campaignResponse = await request(`customers/${resources.customerId}/googleAds:search`, {
-    query: `SELECT campaign.resource_name, campaign.name, campaign.status, campaign.end_date_time, campaign.campaign_budget, campaign_budget.resource_name, campaign_budget.amount_micros, campaign_budget.explicitly_shared, campaign_budget.reference_count FROM campaign WHERE campaign.resource_name = '${resources.campaignResourceName}' AND campaign.status IN (ENABLED, PAUSED, REMOVED) LIMIT 1`,
+    query: `SELECT campaign.resource_name, campaign.name, campaign.status, campaign.end_date_time, campaign.start_date_time, campaign.campaign_budget, campaign_budget.resource_name, campaign_budget.amount_micros, campaign_budget.total_amount_micros, campaign_budget.period, campaign_budget.explicitly_shared, campaign_budget.reference_count FROM campaign WHERE campaign.resource_name = '${resources.campaignResourceName}' AND campaign.status IN (ENABLED, PAUSED, REMOVED) LIMIT 1`,
   });
   const rows = Array.isArray(campaignResponse.results) ? campaignResponse.results : [];
   if (!rows.length) {
@@ -399,13 +404,16 @@ async function readSnapshot(
     throw new GoogleAdsRemoteCampaignError("REMOTE_RESOURCE_MISMATCH", "La campagne Google Ads utilise un autre budget que celui enregistré.");
   }
 
-  const dailyBudgetEuros = microsToEuros(budget.amountMicros);
+  const budgetType = budget.period === "CUSTOM_PERIOD" ? "total" as const : "daily" as const;
+  const dailyBudgetEuros = budgetType === "daily" ? microsToEuros(budget.amountMicros) : null;
+  const totalBudgetEuros = budgetType === "total" ? microsToEuros(budget.totalAmountMicros) : null;
+  const startDate = endDateFromGoogle(campaign.startDateTime);
   const budgetExplicitlyShared = budget.explicitlyShared === true;
   const budgetReferenceCount = nonNegativeInteger(budget.referenceCount);
   const endDate = endDateFromGoogle(campaign.endDateTime);
   const name = typeof campaign.name === "string" ? campaign.name : "";
   if ((budget.explicitlyShared !== undefined && typeof budget.explicitlyShared !== "boolean") || budgetReferenceCount === null ||
-      (status !== "REMOVED" && (!name || dailyBudgetEuros === null || !endDate))) {
+      (status !== "REMOVED" && (!name || (budgetType === "daily" ? dailyBudgetEuros === null : totalBudgetEuros === null || !startDate) || !endDate))) {
     throw new GoogleAdsRemoteCampaignError("REMOTE_RESPONSE_INCOMPLETE", "Google Ads n’a pas retourné l’état complet de la campagne.");
   }
 
@@ -437,6 +445,7 @@ async function readSnapshot(
     budgetResourceName: resources.budgetResourceName,
     name,
     dailyBudgetEuros,
+    ...(budgetType === "total" ? { budgetType, totalBudgetEuros, startDate } : {}),
     budgetExplicitlyShared,
     budgetReferenceCount: budgetReferenceCount || 0,
     endDate,
@@ -557,6 +566,12 @@ export function createGoogleAdsRemoteCampaignCoreAdapter(
       throw new GoogleAdsRemoteCampaignError("REMOTE_CAMPAIGN_REMOVED", "Une campagne Google Ads supprimée ne peut plus être modifiée.");
     }
 
+    if (before.budgetType === "total" && campaignUpdate.dailyBudgetEuros !== undefined) {
+      throw new GoogleAdsRemoteCampaignError("REMOTE_BUDGET_TYPE_IMMUTABLE", "Cette campagne Google utilise un budget total. Son type ne peut pas devenir quotidien ; modifiez son enveloppe dans Google Ads.");
+    }
+    if (before.budgetType === "total" && campaignUpdate.endDate !== undefined && campaignUpdate.endDate !== before.endDate) {
+      throw new GoogleAdsRemoteCampaignError("INVALID_REMOTE_UPDATE", "Le calendrier du budget total Google doit être ajusté avec son enveloppe dans Google Ads.");
+    }
     const targetLocations = campaignUpdate.targetLocations === undefined
       ? null
       : await input.resolveTargetLocations(campaignUpdate.targetLocations);

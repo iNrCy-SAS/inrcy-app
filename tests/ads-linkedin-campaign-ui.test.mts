@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 import { normalizeLinkedInGeoTargets, parseAdsCampaignInput } from "../lib/adsValidation.ts";
 import { buildLinkedInGeoQueries } from "../lib/adsLinkedInGeoQueries.ts";
 
+const picker = readFileSync(new URL("../app/dashboard/ads/LinkedInAdsLocationPicker.tsx", import.meta.url), "utf8");
+const delivery = readFileSync(new URL("../app/dashboard/ads/LinkedInAdsDelivery.tsx", import.meta.url), "utf8");
 const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
 
 function linkedInDraft(overrides: Record<string, unknown> = {}) {
@@ -87,7 +90,8 @@ test("les zones LinkedIn conservent ensemble leur libellé et leur URN vérifié
   const parsed = parseAdsCampaignInput(linkedInDraft({ linkedinGeoTargets: geoTargets }), { purpose: "draft" });
   assert.equal(parsed.error, null);
   assert.deepEqual(parsed.draft?.linkedinGeoTargets, geoTargets);
-  assert.match(client, /target\.name} · \{target\.urn/);
+  assert.match(picker, /<option value=\{option\.urn\} key=\{option\.urn\}>\{option\.name\}/);
+  assert.doesNotMatch(picker, /type="checkbox"/);
   assert.match(client, /params\.append\("geoUrn", target\.urn\)/);
 
   const labelOnly = parseAdsCampaignInput(linkedInDraft({ linkedinGeoTargets: [{ name: "France" }] }), { purpose: "draft" });
@@ -121,7 +125,7 @@ test("le préflight vérifie chaque tag du brief et garde une recherche manuelle
   assert.deepEqual(buildLinkedInGeoQueries(eight, "Arras"), { queries: ["Arras"], manualOnly: true });
   assert.throws(() => buildLinkedInGeoQueries([...eight, "Douai"]), /huit zones/);
   assert.match(client, /for \(const query of geoQueries\) params\.append\("geo", query\)/);
-  assert.match(client, /\? normalizeLinkedInGeoTargets\(\[\.\.\.linkedInGeoTargets, \{ urn: target\.urn, name: target\.name \}\]\)/);
+  assert.match(client, /linkedinGeoTargets: normalizeLinkedInGeoTargets\(target \? \[\.\.\.retained, target\] : retained\)/);
   assert.match(client, /draft\.targetLocations\.filter\(\(label\) => !linkedInBriefGeoStatus\(label\)\.verified\)/);
   assert.match(client, /linkedInMissingGeoLocations\.length === 0/);
   assert.match(client, /linkedInMissingGeoLocations\.map\(\(label\) => `« \$\{label\} »`\)/);
@@ -133,8 +137,8 @@ test("le préflight vérifie chaque tag du brief et garde une recherche manuelle
   assert.match(client, /"too_many_geo_targets", "budget_pricing_required"/);
   assert.match(client, /Zone refusée par LinkedIn, essayez une autre recherche/);
   assert.match(client, /data-rejected=\{status\?\.rejected \|\| undefined\}/);
-  assert.match(client, /Retirer les pistes coupées/);
-  assert.match(client, /keywords: draft\.keywords\.filter\(\(signal\) => !isPossiblyTruncatedLinkedInSignal\(signal\)\)/);
+  assert.match(client, /LinkedInAdsAudience/);
+  assert.match(client, /onPendingChange=\{setLinkedInAudiencePending\}/);
 });
 
 test("le client relit le tarif multi-zone et n'applique que l'enchère vérifiée", () => {
@@ -142,26 +146,50 @@ test("le client relit le tarif multi-zone et n'applique que l'enchère vérifié
   assert.match(client, /linkedInAutomaticLoadKey\.current === linkedInAutomaticLoadSignature/);
   assert.match(client, /linkedInResourcesLoader\.current\(false\)/);
   assert.match(client, /linkedInAdsVerifiedBidDefault\(\{[\s\S]*currentBid: current\.linkedinBidEuros,[\s\S]*suggestedBid,[\s\S]*pricing: pricing \|\| null,[\s\S]*dailyBudget: current\.dailyBudgetEuros/);
-  assert.match(client, /LinkedIn n’a pas confirmé les bornes d’enchère pour ces zones/);
+  assert.match(client, /LinkedIn n’a pas confirmé les bornes d’enchère/);
 });
 
 test("le lancement LinkedIn reste bloqué sans ressources, déclarations ou média, avec Active réservé au groupe ACTIVE", () => {
   assert.match(client, /channelId === "linkedin" && !linkedInComplianceReady/);
   assert.match(client, /const linkedInLaunchReadinessReason = channelId === "linkedin"[\s\S]*!linkedInSelectionsReady[\s\S]*!linkedInComplianceReady/);
   assert.match(client, /const launchBlockingMessage = incompleteLaunchMessage \|\| launchUnavailableReason \|\| linkedInLaunchReadinessReason/);
-  assert.match(client, /className=\{styles\.primaryButton\} disabled=\{busy !== null \|\| launchBlocked\}/);
+  const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let disabled: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxOpeningElement(node) && node.tagName.getText(source) === "button") {
+      const onClick = node.attributes.properties.find((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(source) === "onClick");
+      if (onClick?.getText(source).includes("openLaunchDialog(")) {
+        const attribute = node.attributes.properties.find((value) => ts.isJsxAttribute(value) && value.name.getText(source) === "disabled") as ts.JsxAttribute | undefined;
+        if (attribute?.initializer && ts.isJsxExpression(attribute.initializer)) disabled = attribute.initializer.expression;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  assert.ok(disabled, "the actual final launch button must keep its gate");
+  const evaluate = new Function("busy", "launchBlocked", "channelId", "creationPath", "confirmedSpend", `return (${disabled.getText(source)});`);
+  for (const busy of [null, "demo"] as const) {
+    for (const blocked of [false, true]) {
+      for (const consent of [false, true]) {
+        assert.equal(evaluate(busy, blocked, "linkedin", "inrcy", consent), busy !== null || blocked || !consent);
+        assert.equal(evaluate(busy, blocked, "linkedin", "manual", consent), busy !== null || blocked);
+      }
+    }
+  }
   assert.match(client, /channelId === "linkedin"[\s\S]*attachedCampaignMediaUrl[\s\S]*draft\.creativeType === "image"[\s\S]*draft\.mediaStrategy === "image"/);
   assert.match(client, /activeEnabled=\{demoDialog\.channelId === "linkedin"[\s\S]*canServeCampaigns[\s\S]*status === "ACTIVE"/);
   assert.match(client, /pausedEnabled=\{demoDialog\.channelId === "linkedin"[\s\S]*canManageCampaigns/);
   assert.match(client, /\/api\/ads\/linkedin\/accounts/);
   assert.match(client, /Média LinkedIn/);
-  assert.match(client, /title\.length > \(channelId === "pinterest" \? 100 : 200\)/);
-  assert.match(client, /caractères maximum par titre ; reformulez tout dépassement/);
+  assert.match(client, /Titre de l’annonce<input value=\{draft\.headlines\[0\] \|\| ""\} maxLength=\{200\}/);
+  assert.match(client, /headlines: \[event\.target\.value\]/);
+  assert.match(delivery, /objective !== "BRAND_AWARENESS" && objective !== "VIDEO_VIEW"/);
 });
 
-test("un décochage manuel LinkedIn reste respecté pendant les nouveaux préflights", () => {
+test("un retrait manuel LinkedIn reste respecté pendant les nouveaux préflights", () => {
   assert.match(client, /const linkedInGeoDismissedUrns = useRef\(new Set<string>\(\)\)/);
-  assert.match(client, /if \(event\.target\.checked\) linkedInGeoDismissedUrns\.current\.delete\(target\.urn\)/);
-  assert.match(client, /else linkedInGeoDismissedUrns\.current\.add\(target\.urn\)/);
+  assert.match(client, /if \(previousUrn && previousUrn !== target\?\.urn\) linkedInGeoDismissedUrns\.current\.add\(previousUrn\)/);
+  assert.match(client, /if \(target\) linkedInGeoDismissedUrns\.current\.delete\(target\.urn\)/);
+  assert.match(client, /onRemove=\{\(urn\) => \{ linkedInGeoDismissedUrns\.current\.add\(urn\)/);
   assert.match(client, /!linkedInGeoDismissedUrns\.current\.has\(target\.urn\)/);
 });

@@ -203,7 +203,8 @@ function assessCommon(raw: RecordValue, briefIssues: AdsDraftIssue[]): void {
   issue(briefIssues, "unsupported_schema", "schemaVersion", raw.schemaVersion !== 1);
   issue(briefIssues, "missing_name", "name", text(raw.name).length < 3 || text(raw.name).length > 100);
   const budget = record(raw.budget);
-  issue(briefIssues, "invalid_budget", "budget.amount", typeof budget.amount !== "number" || !Number.isFinite(budget.amount) || budget.amount < 5 || budget.amount > 500 || Math.abs(Math.round(budget.amount * 100) - budget.amount * 100) > 0.000001);
+  const maximumBudget = (raw.channel === "x" || raw.channel === "tiktok") && budget.period === "lifetime" ? 45_000 : 500;
+  issue(briefIssues, "invalid_budget", "budget.amount", typeof budget.amount !== "number" || !Number.isFinite(budget.amount) || budget.amount < 5 || budget.amount > maximumBudget || Math.abs(Math.round(budget.amount * 100) - budget.amount * 100) > 0.000001);
   issue(briefIssues, "invalid_currency", "budget.currency", text(budget.currency) !== "EUR");
   issue(briefIssues, "invalid_budget_period", "budget.period", !isOneOf(budget.period, ["daily", "lifetime"] as const));
   issue(briefIssues, "invalid_budget_level", "budget.level", !isOneOf(budget.level, ["campaign", "ad_group"] as const));

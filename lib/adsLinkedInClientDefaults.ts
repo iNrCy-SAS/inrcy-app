@@ -4,8 +4,8 @@ import { linkedInAdsGeoNameMatchesQuery, normalizedLinkedInGeoLabel } from "./ad
 
 type AutomaticPreflightDraft = Pick<
   AdsCampaignInput,
-  "targetLocations" | "linkedinGeoTargets" | "dailyBudgetEuros" | "channelSettings"
->;
+  "targetLocations" | "linkedinGeoTargets" | "dailyBudgetEuros" | "channelSettings" | "linkedinDeliverySettings"
+> & Partial<Pick<AdsCampaignInput, "linkedinCampaignGroupId" | "linkedinOrganizationUrn" | "endDate">>;
 
 function distinctSorted(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
@@ -54,7 +54,7 @@ export function linkedInAdsContextualGeoDefaults(input: {
   return [...providerTargets.values()];
 }
 
-/** Only inputs affecting geo resolution or pricing belong in this key. */
+/** Every choice affecting resource compatibility, geo resolution or pricing belongs in this key. */
 export function linkedInAdsAutomaticPreflightKey(accountId: string, draft: AutomaticPreflightDraft): string {
   const locale = draft.channelSettings?.channel === "linkedin"
     ? `${draft.channelSettings.locale.language}_${draft.channelSettings.locale.country}` : "fr_FR";
@@ -64,6 +64,11 @@ export function linkedInAdsAutomaticPreflightKey(accountId: string, draft: Autom
     distinctSorted((draft.linkedinGeoTargets || []).map((target) => target.urn)),
     draft.dailyBudgetEuros,
     locale,
+    draft.channelSettings?.channel === "linkedin" ? [draft.channelSettings.objectiveType, draft.channelSettings.format] : null,
+    draft.linkedinDeliverySettings || null,
+    draft.linkedinCampaignGroupId || "",
+    draft.linkedinOrganizationUrn || "",
+    draft.endDate || "",
   ]);
 }
 
@@ -118,22 +123,28 @@ export function linkedInAdsLaunchBlockerMessage(blockers: readonly string[]): st
     account_manage_access_unverified: "LinkedIn n’a pas confirmé les droits de gestion de ce compte.",
     account_not_serving: "Ce compte LinkedIn ne peut pas diffuser actuellement. La création en pause reste possible.",
     unsupported_account_currency: "Le compte LinkedIn doit utiliser l’euro.",
-    campaign_group_required: "LinkedIn n’a pas confirmé le groupe de campagnes sélectionné.",
+    campaign_group_required: "Sélectionnez un groupe de campagnes LinkedIn vérifié à l’étape Campagne.",
     campaign_group_not_active: "Le groupe LinkedIn n’est pas actif. La création en pause reste possible.",
-    campaign_group_objective_mismatch: "Le groupe LinkedIn ne permet pas l’objectif Visites du site.",
+    campaign_group_objective_mismatch: "Le groupe LinkedIn ne permet pas l’objectif sélectionné.",
     campaign_group_format_unsupported: "Le groupe LinkedIn ne permet pas ce format sponsorisé.",
-    organization_required: "LinkedIn n’a pas confirmé la Page sélectionnée et ses autorisations.",
+    organization_required: "Sélectionnez une Page LinkedIn autorisée à l’étape Campagne.",
     image_owner_mismatch: "L’image LinkedIn n’appartient pas à la Page sélectionnée.",
     unsupported_locale: "LinkedIn ne prend pas en charge la langue et le pays sélectionnés.",
     verified_geo_required: "LinkedIn n’a confirmé aucune zone de ciblage.",
-    selected_geo_unverified: "LinkedIn n’a pas confirmé toutes les zones sélectionnées. Relancez leur vérification à l’étape Ciblage.",
-    unresolved_geo_queries: "Une zone du brief attend encore une correspondance LinkedIn exacte à l’étape Ciblage.",
-    geo_query_provider_rejected: "LinkedIn a refusé la vérification d’une zone du brief. Réessayez à l’étape Ciblage.",
+    selected_geo_unverified: "LinkedIn n’a pas confirmé toutes les zones sélectionnées. Relancez leur vérification à l’étape Zones géographiques.",
+    unresolved_geo_queries: "Une zone du brief attend encore une correspondance LinkedIn exacte à l’étape Zones géographiques.",
+    geo_query_provider_rejected: "LinkedIn a refusé la vérification d’une zone du brief. Réessayez à l’étape Zones géographiques.",
     too_many_geo_targets: "LinkedIn accepte au maximum 20 zones exactes.",
     audience_count_required: "LinkedIn n’a pas pu confirmer la taille de l’audience. Réessayez sa vérification.",
     audience_too_small: "L’audience LinkedIn doit compter au moins 300 membres. Élargissez les zones ciblées.",
-    budget_pricing_required: "LinkedIn n’a pas confirmé les bornes d’enchère pour ces zones. Réessayez à l’étape Budget.",
-    bid_out_of_range: "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Réessayez à l’étape Budget.",
+    budget_pricing_required: "LinkedIn n’a pas confirmé les bornes d’enchère pour ces zones. Réessayez à l’étape Budget et calendrier.",
+    bid_out_of_range: "L’enchère ne respecte plus la plage vérifiée par LinkedIn. Réessayez à l’étape Budget et calendrier.",
+    selected_professional_targets_unverified: "LinkedIn n’a pas confirmé tous les critères professionnels. Vérifiez l’étape Audience.",
+    selected_conversion_unverified: "LinkedIn n’a pas confirmé les conversions sélectionnées dans ce compte.",
+    conversion_required: "Sélectionnez au moins une conversion LinkedIn active pour cet objectif.",
+    campaign_schedule_invalid: "Les dates et heures ne sont pas compatibles avec le groupe LinkedIn ou le budget choisi.",
+    unsupported_delivery_settings: "Les options de diffusion LinkedIn sont invalides ou incompatibles avec cet objectif.",
+    total_budget_too_low: "Le budget total est inférieur au minimum demandé par LinkedIn.",
     daily_budget_too_low: "Le budget quotidien est inférieur au minimum demandé par LinkedIn.",
     political_intent_confirmation_required: "Confirmez la déclaration NOT_POLITICAL avant le lancement.",
     targeting_notice_acknowledgement_required: "Confirmez l’avis de ciblage non discriminatoire avant le lancement.",

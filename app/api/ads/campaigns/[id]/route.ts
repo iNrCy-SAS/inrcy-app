@@ -1,3 +1,4 @@
+import { publicAdsProviderResources } from "@/lib/adsProviderResources";
 import { NextResponse } from "next/server";
 import { adsBadOriginResponse, adsRequestOriginAllowed, requirePremiumAdsUser } from "@/lib/adsServer";
 import { normalizeStoredAdsCampaignDraft, parseAdsCampaignInput } from "@/lib/adsValidation";
@@ -23,7 +24,7 @@ export async function GET(_request: Request, context: RouteContext) {
   if (!data) return NextResponse.json({ error: "Campagne introuvable." }, { status: 404 });
   if (!isAdsChannelId(data.provider) || !(await isAdsChannelUserAllowed(user.authUserId, user.activeUserId, data.provider))) return adsPilotOnlyResponse();
   return NextResponse.json({
-    campaign: { ...data, draft: normalizeStoredAdsCampaignDraft(data.draft) },
+    campaign: { ...data, draft: normalizeStoredAdsCampaignDraft(data.draft), provider_resources: publicAdsProviderResources(data.provider_resources) },
   }, { headers: { "Cache-Control": "no-store" } });
 }
 

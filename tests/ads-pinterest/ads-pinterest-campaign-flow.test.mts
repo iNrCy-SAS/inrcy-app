@@ -6,6 +6,8 @@ import test from "node:test";
 import ts from "typescript";
 
 import { parseAdsCampaignInput } from "../../lib/adsValidation.ts";
+import { defaultPinterestDeliverySettings, pinterestNativeDelivery } from "../../lib/adsPinterestCampaignSettings.ts";
+import { buildPinterestLiveAdGroupBody } from "../../lib/adsPinterestPublish.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const endDate = new Date(Date.now() + 8 * 86_400_000).toISOString().slice(0, 10);
@@ -59,12 +61,22 @@ test("a verified Pinterest advertiser ID can follow a local campaign proposal", 
   assert.equal(publishable.draft?.provider, "pinterest");
 });
 
-test("planned channels without the completed account binding still reject advertiser IDs", () => {
-  for (const provider of ["tiktok"]) {
-    const input = campaign("pinterest", "123456789012");
-    input.provider = provider;
+test("TikTok draft accounts require valid local identifiers and never permit publication", () => {
+  for (const adAccountId of ["12345", "123456789012", "1".repeat(25), "1".repeat(30)]) {
+    const input = campaign("tiktok", adAccountId);
     delete (input as { channelSettings?: unknown }).channelSettings;
-    assert.match(parseAdsCampaignInput(input, { purpose: "draft" }).error || "", /Connectez ce canal/);
+    const parsed = parseAdsCampaignInput(input, { purpose: "draft" });
+    assert.equal(parsed.error, null);
+    assert.equal(parsed.draft?.adAccountId, adAccountId);
+    const publication = parseAdsCampaignInput(input, { purpose: "publish" });
+    assert.equal(publication.draft, null);
+    assert.match(publication.error || "", /connexion et la publication.*pas encore disponibles/);
+  }
+  for (const adAccountId of ["1234", "1".repeat(31), "account_123456", "https://example.com/123456", "123%456"]) {
+    const input = campaign("tiktok", adAccountId);
+    delete (input as { channelSettings?: unknown }).channelSettings;
+    assert.equal(parseAdsCampaignInput(input, { purpose: "draft" }).draft, null);
+    assert.match(parseAdsCampaignInput(input, { purpose: "draft" }).error || "", /identifiant du compte publicitaire est invalide/);
   }
 });
 
@@ -164,7 +176,8 @@ test("the final existing modal adds Active by default and Paused as the alternat
       `the fresh resource response controls ${status}, never the older account response`);
     }
   }
-  assert.match(client, /setDemoDialog\(\{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
+  assert.match(handler.getText(source), /const confirmation: DemoDialogState = \{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
+  assert.match(handler.getText(source), /setDemoDialog\(confirmation\)/);
   assert.match(client, /"Lancer la campagne"/);
   assert.match(client, /"Enregistrer en brouillon"/);
   assert.match(dialog, /Statut au lancement/);
@@ -179,18 +192,48 @@ test("Pinterest publication persists the complete hierarchy and the database unl
   const route = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
   const migration = readFileSync(path.join(root, "supabase/migrations/20260929130000_enable_pinterest_ads_publication.sql"), "utf8");
   for (const resource of ["campaignId", "adGroupId", "pinId", "adId"]) assert.match(publisher, new RegExp(resource));
-  assert.match(contract, /bid_in_micro_currency: input\.bidInMicroCurrency/);
-  assert.match(contract, /bid_strategy_type: "MAX_BID"/);
   assert.match(contract, /auto_targeting_enabled: true/);
   assert.match(contract, /is_removable: true/);
   assert.ok(contract.indexOf('path: `${accountPath}/ads`') < contract.indexOf('path: `${accountPath}/campaigns`'));
   assert.match(publisher, /for \(const step of buildPinterestActivationSteps/);
-  assert.match(publisher, /matchPinterestGeographies\(draft\.targetLocations, locationOptions, geoOptions\)/);
-  assert.match(publisher, /LOCALE: matchPinterestTargetLanguages\(draft\.languages, localeOptions\)/);
-  assert.ok(publisher.indexOf("const targetingSpec") < publisher.indexOf("const campaignId = batchCreatedId"));
+  assert.match(publisher, /matchPinterestGeographies\(draft\.targetLocations, native\.locationPayload, native\.geoPayload\)/);
+  assert.match(publisher, /LOCALE: matchPinterestTargetLanguages\(draft\.languages, native\.localePayload\)/);
+  const targetingIndex = publisher.indexOf("targetingSpec =");
+  const createIndex = publisher.indexOf("const campaignId = batchCreatedId");
+  assert.ok(targetingIndex >= 0 && createIndex > targetingIndex, "native targeting is verified before the first campaign creation");
   assert.match(route, /pinterestAccountCountry = selectedAccount\.country/);
   assert.match(route, /accountCountry: pinterestAccountCountry/);
   assert.match(route, /PinterestAdsPublishError/);
   assert.match(route, /Pinterest Ads Manager/);
   assert.match(migration, /'meta'::text, 'google'::text, 'pinterest'::text/);
+});
+
+test("Pinterest keeps legacy MAX_BID1 and sends native AUTOMATIC_BID without a manual amount", () => {
+  const parsed = parseAdsCampaignInput(campaign("pinterest", "123456789012"), { purpose: "publish" });
+  assert.ok(parsed.draft, parsed.error || "the historical image campaign must remain publishable");
+  assert.equal(parsed.draft.pinterestDeliverySettings, undefined);
+  const legacy = pinterestNativeDelivery(parsed.draft);
+  assert.equal(legacy.bidStrategyType, "MAX_BID");
+  assert.equal(legacy.bidInMicroCurrency, 1_000_000);
+  const group = {
+    name: "Groupe", campaignId: "123456", objectiveType: "CONSIDERATION" as const,
+    targetingSpec: { LOCATION: ["FR"], LOCALE: ["fr"] },
+  };
+  const historical = buildPinterestLiveAdGroupBody({ ...group, bidInMicroCurrency: legacy.bidInMicroCurrency });
+  assert.equal(historical.bid_strategy_type, "MAX_BID");
+  assert.equal(historical.bid_in_micro_currency, 1_000_000);
+  const native = pinterestNativeDelivery({ ...parsed.draft, pinterestDeliverySettings: defaultPinterestDeliverySettings(), pinterestBidEuros: 999 });
+  assert.equal(native.bidStrategyType, "AUTOMATIC_BID");
+  assert.equal(native.bidInMicroCurrency, null);
+  const automatic = buildPinterestLiveAdGroupBody({ ...group, bidStrategyType: native.bidStrategyType, bidInMicroCurrency: native.bidInMicroCurrency });
+  assert.equal(automatic.bid_strategy_type, "AUTOMATIC_BID");
+  assert.equal("bid_in_micro_currency" in automatic, false, "automatic delivery must not inherit a historical manual bid");
+  for (const body of [historical, automatic]) {
+    assert.equal(body.status, "PAUSED");
+    assert.equal(body.auto_targeting_enabled, true);
+    assert.equal(body.billable_event, "CLICKTHROUGH");
+    assert.deepEqual(body.targeting_spec, group.targetingSpec);
+  }
+  assert.throws(() => buildPinterestLiveAdGroupBody({ ...group, bidStrategyType: "AUTOMATIC_BID", bidInMicroCurrency: 1_000_000 }), /montant.*stratégie/);
+  assert.throws(() => buildPinterestLiveAdGroupBody({ ...group, bidStrategyType: "MAX_BID", bidInMicroCurrency: null }), /montant.*stratégie/);
 });

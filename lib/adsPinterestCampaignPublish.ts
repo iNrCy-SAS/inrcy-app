@@ -11,11 +11,17 @@ import {
   pinterestDestinationUrl,
   assertPinterestBatchStatus,
 } from "./adsPinterestPublish.ts";
-import { pinterestAdsAccessToken } from "./adsPinterestServer.ts";
+import { pinterestNativeDelivery } from "./adsPinterestCampaignSettings.ts";
+import { readPinterestAdsDeliveryResources } from "./adsPinterestResourcesServer.ts";
+import { pinterestAdsResourcesConsentKey } from "./adsPinterestResources.ts";
 import { matchPinterestGeographies, matchPinterestTargetLanguages } from "./adsPinterestLocations.ts";
 import { verifyMediaLibraryContentToken } from "./mediaLibraryContentUrl.ts";
 import { createSafeStorageSignedUrl } from "./safeStorageSignedUrl.ts";
 import { supabaseAdmin } from "./supabaseAdmin.ts";
+
+export class PinterestAdsPreparationError extends Error {
+  constructor(message: string) { super(message); this.name = "PinterestAdsPreparationError"; }
+}
 
 type PinterestPublishProgress = Record<string, unknown> & {
   stage?: "campaign_created" | "ad_group_created" | "pin_created" | "ad_created" |
@@ -152,46 +158,47 @@ async function resolvePinterestImageUrl(userId: string, value: string): Promise<
   const source = value.trim();
   if (safeHttpsUrl(source)) return source;
   const id = mediaLibraryId(source);
-  if (!id) throw new Error("Le visuel Pinterest doit être une image HTTPS ou un média valide de votre médiathèque iNrCy.");
+  if (!id) throw new PinterestAdsPreparationError("Le visuel Pinterest doit être une image HTTPS ou un média valide de votre médiathèque iNrCy.");
   const { data, error } = await supabaseAdmin.from("pro_media_library")
     .select("bucket_name,storage_path,media_type,is_active")
     .eq("id", id).eq("user_id", userId).maybeSingle();
   if (error || !data || data.is_active === false) {
-    throw new Error("Le média Pinterest sélectionné n’est plus disponible dans votre médiathèque iNrCy.");
+    throw new PinterestAdsPreparationError("Le média Pinterest sélectionné n’est plus disponible dans votre médiathèque iNrCy.");
   }
   if (data.media_type !== "image") {
-    throw new Error("Le lancement Pinterest actuellement disponible attend une image.");
+    throw new PinterestAdsPreparationError("Le lancement Pinterest actuellement disponible attend une image.");
   }
   const signed = await createSafeStorageSignedUrl(
     String(data.bucket_name || "inrcy-pro-media"),
     String(data.storage_path || ""),
     60 * 60,
   );
-  if (!signed || !safeHttpsUrl(signed)) throw new Error("Le visuel iNrCy ne peut pas être préparé pour Pinterest pour le moment.");
+  if (!signed || !safeHttpsUrl(signed)) throw new PinterestAdsPreparationError("Le visuel iNrCy ne peut pas être préparé pour Pinterest pour le moment.");
   return signed;
 }
 
-function endTimestamp(endDate: string): number {
-  const milliseconds = Date.parse(`${endDate}T23:59:59Z`);
-  const days = (milliseconds - Date.now()) / 86_400_000;
-  if (!Number.isFinite(milliseconds) || days < 1 || days > 90) throw new Error("La date de fin Pinterest doit être comprise entre demain et dans 90 jours.");
-  return Math.floor(milliseconds / 1000);
-}
-
-function microCurrency(amount: number): number {
-  const cents = Math.round(amount * 100);
-  if (!Number.isFinite(amount) || Math.abs(cents - amount * 100) > 0.000001 || cents < 500 || cents > 50_000) {
-    throw new Error("Le budget Pinterest doit être compris entre 5 et 500 € par jour.");
-  }
-  return cents * 10_000;
-}
-
-function bidMicroCurrency(amount: number, dailyBudgetEuros: number): number {
-  const cents = Math.round(amount * 100);
-  if (!Number.isFinite(amount) || Math.abs(cents - amount * 100) > 0.000001 || cents < 1 || amount > dailyBudgetEuros) {
-    throw new Error("L’enchère Pinterest doit être comprise entre 0,01 € et le budget journalier.");
-  }
-  return cents * 10_000;
+/** The exact publication checks are also exposed read-only before claiming a local draft. */
+export async function checkPinterestAdsPublication(userId: string, draft: AdsCampaignInput) {
+  if (draft.provider !== "pinterest") throw new PinterestAdsPreparationError("Ce brouillon n’est pas une campagne Pinterest Ads.");
+  if (!/^\d{5,30}$/.test(draft.adAccountId) || draft.accountCurrency !== "EUR") throw new PinterestAdsPreparationError("Le compte Pinterest Ads EUR est invalide.");
+  const settings = draft.channelSettings?.channel === "pinterest" ? draft.channelSettings : null;
+  const configurationIssue = pinterestLiveConfigurationIssue(settings, draft.keywords);
+  if (configurationIssue) throw new PinterestAdsPreparationError(configurationIssue);
+  let delivery: ReturnType<typeof pinterestNativeDelivery>;
+  try { delivery = pinterestNativeDelivery({ ...draft, channelSettings: settings || undefined }); }
+  catch (error) { throw new PinterestAdsPreparationError(error instanceof Error ? error.message : "Vérifiez les réglages Pinterest."); }
+  if (!safeHttpsUrl(draft.destinationUrl)) throw new PinterestAdsPreparationError("Le lien de destination Pinterest doit être une URL HTTPS publique.");
+  let destinationUrl: string;
+  try { destinationUrl = pinterestDestinationUrl(draft.destinationUrl, draft.trackingParameters); }
+  catch (error) { throw new PinterestAdsPreparationError(error instanceof Error ? error.message : "Vérifiez les paramètres de suivi Pinterest."); }
+  const title = String(draft.headlines[0] || draft.name).trim(), description = draft.primaryText.trim();
+  if (draft.headlines.length !== 1 || !title || !description || Array.from(title).length > 100 || Array.from(description).length > 800) throw new PinterestAdsPreparationError("Pinterest requiert un seul titre de 100 caractères et une description de 800 caractères maximum.");
+  const imageUrl = await resolvePinterestImageUrl(userId, String(draft.creativeUrl || draft.imageUrl || ""));
+  const native = await readPinterestAdsDeliveryResources(userId, draft.adAccountId);
+  let targetingSpec: ReturnType<typeof matchPinterestGeographies> & { LOCALE: string[] };
+  try { targetingSpec = { ...matchPinterestGeographies(draft.targetLocations, native.locationPayload, native.geoPayload), LOCALE: matchPinterestTargetLanguages(draft.languages, native.localePayload) }; }
+  catch (error) { throw new PinterestAdsPreparationError(error instanceof Error ? error.message : "Choisissez des zones et langues Pinterest vérifiées."); }
+  return { ready: true as const, selectedAccountId: draft.adAccountId, verifiedLocationCount: (targetingSpec.LOCATION?.length || 0) + (targetingSpec.GEO?.length || 0), verifiedLanguageCount: targetingSpec.LOCALE.length, resourcesKey: pinterestAdsResourcesConsentKey(native.resources), accessToken: native.accessToken, targetingSpec, imageUrl, destinationUrl, title, description, delivery };
 }
 
 /**
@@ -208,38 +215,11 @@ export async function publishPinterestAdsCampaign(
   let progress: PinterestPublishProgress = {};
   let mutationStarted = false;
   try {
-    if (draft.provider !== "pinterest") throw new Error("Ce brouillon n’est pas une campagne Pinterest Ads.");
     if (typeof persistProgress !== "function") throw new Error("La journalisation Pinterest est obligatoire avant le lancement.");
-    if (!/^\d{5,30}$/.test(draft.adAccountId) || draft.accountCurrency !== "EUR") {
-      throw new Error("Le compte Pinterest Ads EUR est invalide.");
-    }
+    const prepared = await checkPinterestAdsPublication(userId, draft);
+    const { accessToken, targetingSpec, imageUrl, destinationUrl, title, description, delivery } = prepared;
     const settings = draft.channelSettings?.channel === "pinterest" ? draft.channelSettings : null;
-    const configurationIssue = pinterestLiveConfigurationIssue(settings, draft.keywords);
-    if (configurationIssue) throw new Error(configurationIssue);
-    if (!settings || (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION")) {
-      throw new Error("Les réglages Pinterest sont incomplets.");
-    }
-    if (!safeHttpsUrl(draft.destinationUrl)) throw new Error("Le lien de destination Pinterest doit être une URL HTTPS publique.");
-    const destinationUrl = pinterestDestinationUrl(draft.destinationUrl, draft.trackingParameters);
-    const imageUrl = await resolvePinterestImageUrl(userId, String(draft.creativeUrl || draft.imageUrl || ""));
-    const dailySpendCap = microCurrency(draft.dailyBudgetEuros);
-    const bidInMicroCurrency = bidMicroCurrency(draft.pinterestBidEuros ?? 1, draft.dailyBudgetEuros);
-    const endTime = endTimestamp(draft.endDate);
-    const title = String(draft.headlines[0] || draft.name).trim();
-    const description = draft.primaryText.trim();
-    if (!title || !description) throw new Error("Le titre et la description de l’épingle Pinterest sont obligatoires.");
-    if (Array.from(title).length > 100 || Array.from(description).length > 800) {
-      throw new Error("Reformulez le titre (100 caractères) ou la description (800 caractères) Pinterest avant publication.");
-    }
-    const accessToken = await pinterestAdsAccessToken(userId);
-    const [locationOptions, geoOptions, localeOptions] = await Promise.all(
-      ["LOCATION", "GEO", "LOCALE"].map((type) => pinterestAdsRequest(accessToken,
-        `/resources/targeting/${type}?ad_account_id=${encodeURIComponent(draft.adAccountId)}`, "GET")),
-    );
-    const targetingSpec = {
-      ...matchPinterestGeographies(draft.targetLocations, locationOptions, geoOptions),
-      LOCALE: matchPinterestTargetLanguages(draft.languages, localeOptions),
-    };
+    if (!settings || (settings.objectiveType !== "AWARENESS" && settings.objectiveType !== "CONSIDERATION")) throw new Error("Les réglages Pinterest sont incomplets.");
     const accountPath = `/ad_accounts/${draft.adAccountId}`;
     const mutate = async (path: string, method: "POST" | "PATCH", body: unknown) => {
       if (!mutationStarted) {
@@ -253,8 +233,10 @@ export async function publishPinterestAdsCampaign(
       buildPinterestLiveCampaignBody({
         name: draft.name.trim(),
         objectiveType: settings.objectiveType,
-        dailySpendCap,
-        endTime,
+        ...(delivery.budgetType === "total" ? { lifetimeSpendCap: delivery.spendCap } : { dailySpendCap: delivery.spendCap, flexibleDaily: delivery.flexibleDaily }),
+        startTime: delivery.startTime,
+        adAccountId: draft.adAccountId,
+        endTime: delivery.endTime,
       }),
     ]), "de la campagne");
     progress = { campaignId, stage: "campaign_created", initialActivationPending: true };
@@ -265,7 +247,9 @@ export async function publishPinterestAdsCampaign(
         name: `${draft.name.trim()} · Groupe d’annonces`,
         campaignId,
         objectiveType: settings.objectiveType,
-        bidInMicroCurrency,
+        bidInMicroCurrency: delivery.bidInMicroCurrency,
+        bidStrategyType: delivery.bidStrategyType,
+        placementGroup: delivery.placementGroup,
         targetingSpec,
       }),
     ]), "du groupe d’annonces");

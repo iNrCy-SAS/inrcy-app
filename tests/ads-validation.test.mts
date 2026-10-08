@@ -112,7 +112,7 @@ test("les six canaux peuvent être préparés en brouillon sans compte annonceur
   }
 });
 
-test("TikTok et X restent impossibles à publier ; seule l’association X peut accompagner un brouillon", () => {
+test("TikTok et X restent impossibles à publier ; leurs comptes sélectionnés restent des données de brouillon", () => {
   const unconnectedDraft = {
     ...metaDraft,
     provider: "tiktok",
@@ -123,8 +123,9 @@ test("TikTok et X restent impossibles à publier ; seule l’association X peut 
   for (const provider of ["tiktok", "x"]) {
     assert.match(parseAdsCampaignInput({ ...unconnectedDraft, provider }).error || "", /pas encore disponibles/);
   }
-  assert.match(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "1234567890" }, { purpose: "draft" }).error || "", /Connectez ce canal/);
-  // Ownership and current access for an X account are checked by POST /campaigns.
+  assert.equal(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "1234567890" }, { purpose: "draft" }).draft?.adAccountId, "1234567890");
+  assert.equal(parseAdsCampaignInput({ ...unconnectedDraft, adAccountId: "fake-tiktok-account" }, { purpose: "draft" }).draft, null);
+  // Saving a selected identifier proves no provider ownership or publication access.
   assert.equal(parseAdsCampaignInput({ ...unconnectedDraft, provider: "x", adAccountId: "Ab12cd" }, { purpose: "draft" }).draft?.adAccountId, "Ab12cd");
   assert.equal(parseAdsCampaignInput({ ...metaDraft, provider: "meta", adAccountId: "" }, { purpose: "draft" }).draft?.adAccountId, "");
 });
@@ -258,4 +259,11 @@ test("Meta Ads prépare les deux fils Facebook et Instagram avec l’identité I
   });
   assert.equal(creative.page_id, "1234567890");
   assert.equal(creative.instagram_user_id, "17841400000000000");
+});
+
+test("TikTok draft advertiser identifiers keep the full native 30-digit bound", () => {
+  const input = { ...metaDraft, provider: "tiktok", adAccountId: "1".repeat(30), imageUrl: "", noSpecialCategoryConfirmed: false };
+  assert.equal(parseAdsCampaignInput(input, { purpose: "draft" }).draft?.adAccountId, input.adAccountId);
+  assert.equal(parseAdsCampaignInput({ ...input, adAccountId: "1".repeat(31) }, { purpose: "draft" }).draft, null);
+  assert.equal(parseAdsCampaignInput({ ...metaDraft, adAccountId: "1".repeat(30) }, { purpose: "draft" }).draft, null);
 });
