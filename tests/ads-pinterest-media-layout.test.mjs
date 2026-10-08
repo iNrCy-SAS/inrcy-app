@@ -22,7 +22,7 @@ function component(name) {
 }
 
 let mediaSection, stepper, footer;
-const stepVariableNames = new Set(["keywordStepName", "hasMediaStep", "hasKeywordsStep", "mediaStepName", "manualStepNames", "inrcyStepNames", "linkedInStepLabels", "googleStepLabels", "pinterestStepLabels", "channelStepLabels", "stepNames", "displayedStepNames", "manualStepKeys", "inrcyStepKeys", "stepKeys", "displayedStepKeys", "lastStep", "foundationsStep", "biddingStep", "geographyStep", "targetingStep", "keywordsStep", "creativeStep", "pinterestFormatStep", "mediaStep", "deliveryStep", "budgetStep", "validationStep", "analysisStep"]);
+const stepVariableNames = new Set(["keywordStepName", "hasMediaStep", "hasKeywordsStep", "mediaStepName", "automatedChannelStepNames", "manualStepNames", "inrcyStepNames", "linkedInStepLabels", "googleStepLabels", "pinterestStepLabels", "channelStepLabels", "stepNames", "displayedStepNames", "manualStepKeys", "inrcyStepKeys", "stepKeys", "displayedStepKeys", "lastStep", "foundationsStep", "biddingStep", "geographyStep", "targetingStep", "keywordsStep", "creativeStep", "pinterestFormatStep", "mediaStep", "deliveryStep", "budgetStep", "validationStep", "analysisStep"]);
 const stepVariables = [];
 function inspect(node) {
   if (ts.isJsxElement(node)) {

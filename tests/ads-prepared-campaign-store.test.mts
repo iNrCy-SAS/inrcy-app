@@ -4,39 +4,82 @@ import { createHash, randomUUID } from "node:crypto";
 import vm from "node:vm";
 import test from "node:test";
 import ts from "typescript";
+import type { AdsCampaignInput } from "../lib/adsValidation.ts";
+import type {
+  PreparedAdsCampaignRow,
+  PreparedAdsCheckpoint,
+  PreparedAdsProvider,
+  PreparedAdsPublicationDependencies,
+  PreparedAdsStoreDependencies,
+} from "../lib/adsTikTokCampaignStore.ts";
+
+type StoreApi = typeof import("../lib/adsTikTokCampaignStore.ts");
+type CampaignStore = ReturnType<StoreApi["createPreparedAdsCampaignStore"]>;
+type CampaignPatch = Parameters<PreparedAdsStoreDependencies["compareAndSet"]>[1];
+type DatabaseResult = { data: PreparedAdsCampaignRow | null; error: { code: string; message: string } | null };
+type DatabaseQuery = {
+  select: () => DatabaseQuery;
+  eq: (name: string, value: unknown) => DatabaseQuery;
+  update: (value: CampaignPatch) => DatabaseQuery;
+  maybeSingle: () => Promise<DatabaseResult>;
+};
+
+function record(value: unknown): Record<string, unknown> {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  return value as Record<string, unknown>;
+}
+function resources(row: PreparedAdsCampaignRow) { return record(row.provider_resources); }
+function persistedCheckpoint(row: PreparedAdsCampaignRow) {
+  return record(record(resources(row).preparedCampaignCheckpoint).value);
+}
+async function requiredCheckpoint(store: CampaignStore) {
+  const value = await store.loadCheckpoint();
+  assert.ok(value);
+  return value;
+}
 
 function load(supabaseAdmin?: unknown) {
   const source = readFileSync(new URL("../lib/adsTikTokCampaignStore.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  const exports: any = {};
+  const exports: Partial<StoreApi> = {};
   vm.runInNewContext(compiled, { exports, structuredClone, Date, require: (name: string) => {
     if (name === "server-only") return {};
     if (name === "node:crypto") return { createHash, randomUUID };
     if (name === "./supabaseAdmin.ts") return { supabaseAdmin: supabaseAdmin || { from: () => { throw new Error("Unexpected real database use"); } } };
     throw new Error("Unexpected dependency: " + name);
   } });
-  return exports;
+  return exports as StoreApi;
 }
 const api = load(), id = "12345678-1234-1234-1234-123456789abc", owner = "owner";
-function fixture(provider = "tiktok") {
+function fixture(provider: PreparedAdsProvider = "tiktok") {
   const accountId = provider === "tiktok" ? "123456789" : "abc123";
-  const draft = { provider, adAccountId: accountId, accountCurrency: "EUR", name: "Test paused campaign", dailyBudgetEuros: 10 };
-  let row: any = { id, user_id: owner, provider, ad_account_id: "", currency: "EUR", daily_budget_cents: 1000, status: "draft", draft, provider_resources: {}, published_at: null, updated_at: "2026-10-08T12:00:00.000Z" };
-  const patches: any[] = [];
+  const draft: AdsCampaignInput = {
+    provider, adAccountId: accountId, accountCurrency: "EUR", name: "Test paused campaign", dailyBudgetEuros: 10,
+    creationMode: "manual", campaignType: "generic", objective: "engagement", conversionGoal: "website_visit",
+    conversionLocation: "website", bidStrategy: "manual_review", offer: "Test offer", endDate: "2026-10-15",
+    destinationUrl: "https://example.test/", urlExpansion: false, urlExclusions: [], targetLocations: ["France"],
+    targetAudiences: [], languages: ["fr"], googleSearchPartners: false, googleDisplayExpansion: false,
+    metaAudienceExpansion: false, metaPlacements: [], trackingParameters: "", primaryText: "Test campaign",
+    imageUrl: "", metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" }, mediaStrategy: "search_text",
+    mediaBrief: "", callToAction: "", pageId: "", headlines: [], descriptions: [], keywords: [], negativeKeywords: [],
+    noSpecialCategoryConfirmed: false, notEuPoliticalConfirmed: false,
+  };
+  let row: PreparedAdsCampaignRow = { id, user_id: owner, provider, ad_account_id: "", currency: "EUR", daily_budget_cents: 1000, status: "draft", draft, provider_resources: {}, published_at: null, updated_at: "2026-10-08T12:00:00.000Z" };
+  const patches: CampaignPatch[] = [];
   let failWrite = false;
-  const deps = {
+  const deps: PreparedAdsStoreDependencies = {
     readAvailability: async () => true,
     now: () => Date.parse("2026-10-08T12:00:01.000Z"), token: () => "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     readCampaign: async (expectedOwner: string, expectedId: string) => expectedOwner === row.user_id && expectedId === row.id ? structuredClone(row) : null,
-    compareAndSet: async (expected: any, patch: any) => {
+    compareAndSet: async (expected, patch) => {
       if (failWrite) { failWrite = false; throw new Error("Simulated lost database acknowledgement"); }
       if (expected.updated_at !== row.updated_at || expected.status !== row.status || expected.user_id !== row.user_id || expected.provider !== row.provider) return null;
       patches.push(structuredClone(patch)); row = { ...row, ...structuredClone(patch) }; return structuredClone(row);
     },
   };
   const store = api.createPreparedAdsCampaignStore({ owner, campaignId: id, provider, accountId, draftSnapshot: draft }, deps);
-  const cp = (stage = "prepared", extras = {}) => ({ schemaVersion: 1, operationKey: store.operationKey, [provider === "tiktok" ? "advertiserId" : "accountId"]: accountId, inputKey: "a".repeat(64), targetStatus: provider === "tiktok" ? "DISABLE" : "PAUSED", stage, ...extras });
-  return { draft, accountId, deps, store, cp, patches, get: () => row, set: (next: any) => { row = next; }, failNextWrite: () => { failWrite = true; } };
+  const cp = (stage = "prepared", extras: PreparedAdsCheckpoint = {}): PreparedAdsCheckpoint => ({ schemaVersion: 1, operationKey: store.operationKey, [provider === "tiktok" ? "advertiserId" : "accountId"]: accountId, inputKey: "a".repeat(64), targetStatus: provider === "tiktok" ? "DISABLE" : "PAUSED", stage, ...extras });
+  return { draft, accountId, deps, store, cp, patches, get: () => row, set: (next: PreparedAdsCampaignRow) => { row = next; }, failNextWrite: () => { failWrite = true; } };
 }
 
 test("draft account column remains compatible with the historical planned constraint, only for an editable draft", () => {
@@ -48,20 +91,20 @@ test("exact draft fingerprint is stable for object-key order and changes for nat
   assert.equal(api.preparedAdsCampaignDraftKey({ a: 1, b: 2 }), api.preparedAdsCampaignDraftKey({ b: 2, a: 1 }));
   assert.notEqual(api.preparedAdsCampaignDraftKey({ locations: ["1", "2"] }), api.preparedAdsCampaignDraftKey({ locations: ["2", "1"] }));
 });
-for (const provider of ["tiktok", "x"]) {
+for (const provider of ["tiktok", "x"] as const) {
   test(`${provider}: claim and checkpoint persist before the simulated provider mutation; paused result survives reconstruction`, async () => {
     const f = fixture(provider); let calls = 0;
     await f.store.withOperationLock(f.store.operationKey, async () => {
       assert.equal(f.get().status, "publishing"); assert.equal(f.get().ad_account_id, f.accountId);
       await f.store.saveCheckpoint(f.cp("prepared", { pendingStep: "create_campaign" }));
-      assert.equal(f.get().provider_resources.preparedCampaignCheckpoint.value.pendingStep, "create_campaign"); calls++;
+      assert.equal(persistedCheckpoint(f.get()).pendingStep, "create_campaign"); calls++;
       await f.store.saveCheckpoint(f.cp("campaign_created", { campaignId: "555" }));
       await f.store.saveCheckpoint(f.cp("paused_verified", { campaignId: "555", ...(provider === "tiktok" ? { adGroupId: "556", adId: "557" } : { lineItemId: "556", postId: "999", promotedTweetId: "557" }) }));
     });
-    assert.equal(calls, 1); assert.equal(f.get().status, "paused"); assert.equal(f.get().provider_resources.preparedCampaignLock, undefined);
+    assert.equal(calls, 1); assert.equal(f.get().status, "paused"); assert.equal(resources(f.get()).preparedCampaignLock, undefined);
     const resumed = api.createPreparedAdsCampaignStore({ owner, campaignId: id, provider, accountId: f.accountId, draftSnapshot: f.draft }, f.deps);
-    assert.equal((await resumed.loadCheckpoint()).campaignId, "555");
-    await resumed.withOperationLock(resumed.operationKey, async () => { await resumed.saveCheckpoint(await resumed.loadCheckpoint()); });
+    assert.equal((await requiredCheckpoint(resumed)).campaignId, "555");
+    await resumed.withOperationLock(resumed.operationKey, async () => { await resumed.saveCheckpoint(await requiredCheckpoint(resumed)); });
     assert.equal(calls, 1); assert.equal(f.get().status, "paused");
   });
   test(`${provider}: concurrent process and old publishing claim cannot acquire a second operation`, async () => {
@@ -82,7 +125,7 @@ test("unknown provider response remains pending/uncertain in needs_review and is
     await f.store.saveCheckpoint(f.cp("prepared", { pendingStep: "create_campaign", uncertainStep: "create_campaign" }));
     throw new Error("Unknown provider response");
   }), /Unknown provider response/);
-  assert.equal(f.get().status, "needs_review"); assert.equal((await f.store.loadCheckpoint()).uncertainStep, "create_campaign");
+  assert.equal(f.get().status, "needs_review"); assert.equal((await requiredCheckpoint(f.store)).uncertainStep, "create_campaign");
   await assert.rejects(f.store.withOperationLock(f.store.operationKey, async () => f.store.saveCheckpoint(f.cp("paused_verified"))), /revérifié/);
   assert.equal(f.get().status, "needs_review");
 });
@@ -92,7 +135,7 @@ test("known returned IDs survive a failed checkpoint write and recovery cannot r
     await f.store.saveCheckpoint(f.cp("prepared", { pendingStep: "create_campaign" }));
     f.failNextWrite(); await f.store.saveCheckpoint(f.cp("campaign_created", { campaignId: "555" }));
   }), /lost database acknowledgement/);
-  assert.equal(f.get().status, "needs_review"); assert.equal((await f.store.loadCheckpoint()).campaignId, "555");
+  assert.equal(f.get().status, "needs_review"); assert.equal((await requiredCheckpoint(f.store)).campaignId, "555");
 });
 test("ownership/account/draft change is detected before any checkpoint mutation", async () => {
   for (const change of [{ user_id: "someone_else" }, { ad_account_id: "999999", status: "paused" }, { draft: { changed: true } }, { daily_budget_cents: 2000 }]) {
@@ -117,7 +160,8 @@ test("migration RPC uses only GET and fails closed on absent schema, errors and 
 test("missing migration blocks publication and claim before even a native reader is called", async () => {
   const f = fixture(); f.deps.readAvailability = async () => false;
   const result = await api.publishStoredPreparedAdsCampaign(owner, f.get(), f.draft, { nativeConsentKey: "a".repeat(64), expectedDraftFingerprint: api.preparedAdsCampaignDraftKey(f.draft) }, { store: f.deps, check: async () => assert.fail("provider read before storage capability"), publish: async () => assert.fail("provider write without migration") });
-  assert.equal(result.preparation.ready, false); assert.equal(result.preparation.campaignStoreReady, false); assert.ok(result.preparation.blockers.includes("campaign_store_migration_required"));
+  assert.equal(result.preparation.ready, false); assert.equal(result.preparation.campaignStoreReady, false);
+  assert.ok(Array.isArray(result.preparation.blockers)); assert.ok(result.preparation.blockers.includes("campaign_store_migration_required"));
   await assert.rejects(f.store.withOperationLock(f.store.operationKey, async () => assert.fail("claim without migration")), /revérifié/);
   assert.equal(f.patches.length, 0); assert.equal(f.get().ad_account_id, "");
 });
@@ -130,22 +174,22 @@ test("availability is cached for one store only and a new request must recheck t
 });
 test("an intervening atomic draft save invalidates the publication CAS before any provider mutation", async () => {
   const f = fixture(), compare = f.deps.compareAndSet; let raced = false;
-  f.deps.compareAndSet = async (expected: any, patch: any) => {
+  f.deps.compareAndSet = async (expected, patch) => {
     if (!raced && patch.status === "publishing") { raced = true; f.set({ ...f.get(), draft: { ...f.draft, name: "A saved edit won the race" }, updated_at: "2026-10-08T12:00:00.001Z" }); }
     return compare(expected, patch);
   };
   await assert.rejects(f.store.withOperationLock(f.store.operationKey, async () => assert.fail("publish after intervening save")), /revérifié/);
-  assert.equal(f.get().status, "draft"); assert.equal(f.get().draft.name, "A saved edit won the race"); assert.equal(f.patches.length, 0);
+  assert.equal(f.get().status, "draft"); assert.equal(record(f.get().draft).name, "A saved edit won the race"); assert.equal(f.patches.length, 0);
 });
 
 function defaultDatabase(mode: "ok" | "error" | "unknown_claim") {
-  const f = fixture(), updates: Array<{ filters: [string, unknown][]; patch: any }> = [];
+  const f = fixture(), updates: Array<{ filters: [string, unknown][]; patch: CampaignPatch }> = [];
   const database = {
     rpc: async () => ({ data: true, error: null }),
     from: (table: string) => {
-      assert.equal(table, "ads_campaigns"); const filters: [string, unknown][] = []; let patch: any = null;
-      const query: any = { select: () => query, eq: (name: string, value: unknown) => { filters.push([name, value]); return query; }, update: (value: unknown) => { patch = value; return query; }, maybeSingle: async () => {
-        if (filters.some(([key, value]) => f.get()[key] !== value)) return { data: null, error: null };
+      assert.equal(table, "ads_campaigns"); const filters: [string, unknown][] = []; let patch: CampaignPatch | null = null;
+      const query: DatabaseQuery = { select: () => query, eq: (name, value) => { filters.push([name, value]); return query; }, update: (value) => { patch = value; return query; }, maybeSingle: async () => {
+        if (filters.some(([key, value]) => !Object.entries(f.get()).some(([column, entry]) => column === key && entry === value))) return { data: null, error: null };
         if (patch) {
           updates.push({ filters: structuredClone(filters), patch });
           if (mode === "error") return { data: null, error: { code: "23514", message: "PRIVATE constraint rejected" } };
@@ -175,23 +219,23 @@ test("definitive DB claim failure leaves the draft unchanged and unknown DB succ
     assert.equal(providerCalls, 0);
     assert.equal(h.f.get().status, mode === "error" ? "draft" : "publishing");
     assert.equal(h.f.get().ad_account_id, mode === "error" ? "" : h.f.accountId);
-    if (mode === "unknown_claim") { assert.ok(h.f.get().provider_resources.preparedCampaignLock); await assert.rejects(h.store.withOperationLock(h.store.operationKey, async () => assert.fail("claim replay")), /revérifié/); }
+    if (mode === "unknown_claim") { assert.ok(resources(h.f.get()).preparedCampaignLock); await assert.rejects(h.store.withOperationLock(h.store.operationKey, async () => assert.fail("claim replay")), /revérifié/); }
   }
 });
 test("strict checkpoints reject client proof, tokens, URLs and wrong native identity", async () => {
   for (const change of [{ accessToken: "secret" }, { campaignId: "https://host.test?secret=1" }, { advertiserId: "99999" }, { operationKey: "other" }]) {
     const f = fixture(); await assert.rejects(f.store.withOperationLock(f.store.operationKey, async () => f.store.saveCheckpoint(f.cp("prepared", change))), /revérifié/);
-    assert.equal(f.get().provider_resources.campaignId, undefined);
+    assert.equal(resources(f.get()).campaignId, undefined);
   }
 });
 test("native IDs and uncertain results are immutable, compensatory checkpoint keeps established IDs", async () => {
   const f = fixture(); await assert.rejects(f.store.withOperationLock(f.store.operationKey, async () => {
     await f.store.saveCheckpoint(f.cp("campaign_created", { campaignId: "555" }));
     await f.store.saveCheckpoint(f.cp("prepared", { pendingStep: "create_adgroup" }));
-    assert.equal((await f.store.loadCheckpoint()).campaignId, "555");
+    assert.equal((await requiredCheckpoint(f.store)).campaignId, "555");
     await f.store.saveCheckpoint(f.cp("campaign_created", { campaignId: "666" }));
   }), /revérifié/);
-  assert.equal((await f.store.loadCheckpoint()).campaignId, "555");
+  assert.equal((await requiredCheckpoint(f.store)).campaignId, "555");
 });
 test("public preparation and consent exclude transport time and all private proof fields", () => {
   const f = fixture(), preparation = { ready: false, selectedAccountId: f.accountId, resourcesKey: "one", preparationKey: "p", targetStatus: "DISABLE", verifiedAt: "first", nativeEvidence: { token: "secret" } };
@@ -207,7 +251,8 @@ test("X targeting checkpoints append per-location IDs without rewriting previous
     await assert.rejects(f.store.saveCheckpoint(f.cp("targeting_created", { targetingCriteria: [{ locationId: "geo1", id: "replacement" }, { locationId: "geo2", id: "target2" }] })), /revérifié/);
     await f.store.saveCheckpoint(f.cp("paused_verified"));
   });
-  assert.equal((await f.store.loadCheckpoint()).targetingCriteria.length, 2);
+  const targets = (await requiredCheckpoint(f.store)).targetingCriteria;
+  assert.ok(Array.isArray(targets)); assert.equal(targets.length, 2);
 });
 test("readback projection never exposes full X checkpoint hashes/operation journal", () => {
   const projected = api.publicPreparedAdsReadback({ schemaVersion: 1, inputKey: "PRIVATE", operationKey: "PRIVATE", targetStatus: "PAUSED", stage: "paused_verified", campaignId: "555" });
@@ -232,7 +277,7 @@ test("forward migration enables durable suspended TT/X states without granting a
 test("pending or uncertain journals override otherwise-ready native preflight and cannot acquire a claim", () => {
   for (const progress of [{ pendingStep: "create_campaign" }, { uncertainStep: "create_campaign" }]) {
     const projected = api.preparedAdsPreparationForCheckpoint({ ready: true, blockers: [] }, progress);
-    assert.equal(projected.ready, false); assert.ok(projected.blockers.includes("creation_result_uncertain"));
+    assert.equal(projected.ready, false); assert.ok(Array.isArray(projected.blockers)); assert.ok(projected.blockers.includes("creation_result_uncertain"));
   }
 });
 test("closed native preparation never claims or calls a publisher", async () => {
@@ -254,14 +299,15 @@ test("approved stored draft -> fresh preflight -> durable paused graph returns o
   let calls = 0;
   const result = await api.publishStoredPreparedAdsCampaign(owner, f.get(), f.draft, { nativeConsentKey: api.preparedAdsCampaignConsentKey("x", f.get(), preparation), expectedDraftFingerprint: api.preparedAdsCampaignDraftKey(f.draft) }, {
     store: f.deps, check: async () => preparation,
-    publish: async (_owner: string, _draft: unknown, persist: any, options: any) => {
+    publish: (async (_owner, _draft, persist, options) => {
+      assert.equal(_owner, owner); assert.equal(_draft, f.draft);
       assert.equal(options.expectedPreparationKey, preparation.preparationKey);
       await options.withOperationLock(options.operationKey, async () => {
         await options.assertCampaignOwnership(); await persist(f.cp("prepared", { pendingStep: "create_post" })); calls++;
         await persist(f.cp("post_created", { postId: "12345" }));
         await persist(f.cp("paused_verified", { postId: "12345", campaignId: "abc", lineItemId: "def", promotedTweetId: "xyz" }));
       });
-    },
+    }) satisfies NonNullable<PreparedAdsPublicationDependencies["publish"]>,
   });
-  assert.equal(result.campaign.status, "paused"); assert.equal(calls, 1); assert.equal(result.campaign.provider_resources.postId, "12345");
+  assert.ok(result.campaign); assert.equal(result.campaign.status, "paused"); assert.equal(calls, 1); assert.equal(resources(result.campaign).postId, "12345");
 });

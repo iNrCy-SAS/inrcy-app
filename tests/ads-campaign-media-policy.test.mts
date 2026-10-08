@@ -192,7 +192,8 @@ test("les campagnes visuelles gardent leur aperçu et Google Search n’annonce 
   assert.match(client, /onError=\{\(\) => setFailed\(true\)\}/);
   assert.match(client, /Aperçu du média indisponible/);
   assert.match(client, /googleSearchMedia \? "Annonces textuelles"/);
-  assert.match(client, /Image conservée dans iNrCy, non jointe à Google/);
+  assert.match(client, /Image conservée dans iNrCy/);
+  assert.match(client, /Non jointe à la campagne Google Search/);
   assert.match(css, /\.campaignMediaPreview\{[^}]*height:clamp\(/);
 });
 

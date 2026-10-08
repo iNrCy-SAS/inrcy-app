@@ -13,15 +13,15 @@ const phases = [
   "Finalisation",
 ];
 
-function fixture({ compact, ready }) {
+function fixture({ compact, ready, channel = "linkedin" }) {
   const rationale = "L’angle prioritaire retenu est la génération de prospects qualifiés via un formulaire instantané. Cette approche réduit la friction pour les professionnels et met en avant une offre d’essai claire. Le ciblage s’appuie sur les clients existants et les signaux de votre activité, tandis que les messages invitent à un premier échange simple. Une phase de lancement permet de mesurer la réponse réelle avant d’élargir l’audience et le budget.";
   const steps = Array.from({ length: 10 }, (_, index) => `<button><span>${index + 1}</span>${compact ? "" : ` Étape ${index + 1}`}</button>`).join("");
-  const phaseCards = phases.map((label, index) => `<li data-state="${index === 0 ? "active" : "pending"}"><span>${index + 1}</span><div><strong>${label}</strong><small>Analyse de votre campagne</small></div></li>`).join("");
+  const phaseCards = phases.map((label, index) => `<li data-state="${ready ? "done" : index === 0 ? "active" : "pending"}"><span>${index + 1}</span><div><strong>${label}</strong><small>Analyse de votre campagne</small></div></li>`).join("");
   return `<!doctype html><html lang="fr"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *,*::before,*::after{box-sizing:border-box}html,body{margin:0;font-family:Arial,sans-serif}
     ${css}
     </style></head><body><div style="height:76px"></div>
-    <main class="workspace studioWorkspace" ${compact ? 'data-compact="true"' : 'style="height:calc(100vh - 76px)"'}>
+    <main class="workspace studioWorkspace" data-channel="${channel}" ${compact ? 'data-compact="true"' : 'style="height:calc(100vh - 76px)"'}>
       <nav class="stepper">${steps}</nav>
       <section class="card studioAnalysisCard"><div class="adsGenerationCanvas" ${ready ? 'data-ready="true"' : ""}>
         <div class="adsGenerationRadar"><span class="adsGenerationRadarSweep"></span><span class="adsGenerationRadarCore"></span></div>

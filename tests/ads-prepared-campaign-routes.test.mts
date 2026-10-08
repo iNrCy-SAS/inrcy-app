@@ -4,10 +4,23 @@ import { readFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import ts from "typescript";
+import type { AdsCampaignInput } from "../lib/adsValidation.ts";
+import type { PreparedAdsCampaignRow, PreparedAdsCheckpoint, PreparedAdsPausedApproval, PreparedAdsPublicationDependencies, PreparedAdsStoreDependencies } from "../lib/adsTikTokCampaignStore.ts";
+
+type StoreApi = typeof import("../lib/adsTikTokCampaignStore.ts");
+type FixtureDraft = { provider: "tiktok" | "x"; name: string; adAccountId: string; accountCurrency: string; dailyBudgetEuros: number; endDate: string; targetLocations: string[]; tiktokNativeSelections?: { advertiserId: string }; xNativeSelections?: { accountId: string } };
+type FixtureResources = Record<string, unknown> & { preparedCampaignCheckpoint?: { provider: "tiktok" | "x"; draftKey: string; value: PreparedAdsCheckpoint }; preparedCampaignLock?: Record<string, unknown> };
+type FixtureCampaign = Omit<PreparedAdsCampaignRow, "draft" | "provider_resources"> & { draft: FixtureDraft; provider_resources: FixtureResources };
+type FixturePreparation = { ready: boolean; targetStatus: "DISABLE" | "PAUSED"; selectedAccountId: string; verifiedLocationCount: number; resourcesKey: string; preparationKey: string; blockers: string[] };
+type RouteContext = { params: Promise<{ id: string }> };
+type RouteHandler = (request: Request, context: RouteContext) => Promise<Response>;
+type FixtureQuery = { select: () => FixtureQuery; eq: (column: string, value: unknown) => FixtureQuery;
+  maybeSingle: () => Promise<{ data: FixtureCampaign | null; error: null }>; insert: (payload: Partial<FixtureCampaign>) => FixtureQuery;
+  single: () => Promise<{ data: { id: string; status: string }; error: null }> };
 
 const id = "12345678-1234-1234-1234-123456789abc", owner = "owner";
-function compile(file: string, modules: Record<string, unknown>) {
-  const exports: any = {}, source = readFileSync(new URL(file, import.meta.url), "utf8");
+function compile<T>(file: string, modules: Record<string, unknown>): T {
+  const exports = {} as T, source = readFileSync(new URL(file, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   new Function("exports", "require", code)(exports, (name: string) => {
     if (Object.hasOwn(modules, name)) return modules[name];
@@ -19,34 +32,35 @@ function compile(file: string, modules: Record<string, unknown>) {
 type Options = { provider?: "tiktok" | "x"; ready?: boolean; ownerChanged?: boolean; allowed?: boolean; denied?: boolean; origin?: boolean; limited?: boolean; missing?: boolean; migrationMissing?: boolean };
 function runtime(options: Options = {}) {
   const provider = options.provider || "tiktok", accountId = provider === "tiktok" ? "123456789" : "abc123";
-  const draft = { provider, name: "Paused test campaign", adAccountId: accountId, accountCurrency: "EUR", dailyBudgetEuros: 10, endDate: "2026-11-08", targetLocations: ["Hauts-de-France"], ...(provider === "tiktok" ? { tiktokNativeSelections: { advertiserId: accountId } } : { xNativeSelections: { accountId } }) };
-  let row: any = { id, user_id: options.ownerChanged ? "foreign" : owner, provider, ad_account_id: "", currency: "EUR", daily_budget_cents: 1000, status: "draft", draft, provider_resources: {}, published_at: null, updated_at: "2026-10-08T12:00:00.000Z" };
+  const draft: FixtureDraft = { provider, name: "Paused test campaign", adAccountId: accountId, accountCurrency: "EUR", dailyBudgetEuros: 10, endDate: "2026-11-08", targetLocations: ["Hauts-de-France"], ...(provider === "tiktok" ? { tiktokNativeSelections: { advertiserId: accountId } } : { xNativeSelections: { accountId } }) };
+  let row: FixtureCampaign = { id, user_id: options.ownerChanged ? "foreign" : owner, provider, ad_account_id: "", currency: "EUR", daily_budget_cents: 1000, status: "draft", draft, provider_resources: {}, published_at: null, updated_at: "2026-10-08T12:00:00.000Z" };
   const events: string[] = []; let mutations = 0;
-  const deps = {
+  const deps: PreparedAdsStoreDependencies = {
     readAvailability: async () => !options.migrationMissing,
     now: () => Date.parse("2026-10-08T12:00:01Z"), token: () => "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     readCampaign: async (expectedOwner: string, expectedId: string) => expectedOwner === row.user_id && expectedId === row.id ? structuredClone(row) : null,
-    compareAndSet: async (expected: any, patch: any) => { if (expected.status !== row.status || expected.updated_at !== row.updated_at || expected.user_id !== row.user_id) return null; events.push("cas:" + (patch.status || "checkpoint")); row = { ...row, ...structuredClone(patch) }; return structuredClone(row); },
+    compareAndSet: async (expected, patch) => { if (expected.status !== row.status || expected.updated_at !== row.updated_at || expected.user_id !== row.user_id) return null; events.push("cas:" + (patch.status || "checkpoint")); row = { ...row, ...structuredClone(patch) }; return structuredClone(row); },
   };
-  const storeApi = compile("../lib/adsTikTokCampaignStore.ts", { "server-only": {}, "node:crypto": { createHash, randomUUID }, "./supabaseAdmin.ts": { supabaseAdmin: { from: () => { throw new Error("Real database unavailable in fixture"); } } } });
-  let preparation: any = { ready: options.ready === true, targetStatus: provider === "tiktok" ? "DISABLE" : "PAUSED", selectedAccountId: accountId, verifiedLocationCount: 1, resourcesKey: "verified-resources", preparationKey: "b".repeat(64), blockers: options.ready ? [] : ["native_capabilities_unverified"] };
-  const check = async (_owner: string, _draft: unknown) => { events.push("native:get"); return structuredClone(preparation); };
-  const publish = async (_owner: string, _draft: unknown, persist: any, operation: any) => {
+  const storeApi = compile<StoreApi>("../lib/adsTikTokCampaignStore.ts", { "server-only": {}, "node:crypto": { createHash, randomUUID }, "./supabaseAdmin.ts": { supabaseAdmin: { from: () => { throw new Error("Real database unavailable in fixture"); } } } });
+  let preparation: FixturePreparation = { ready: options.ready === true, targetStatus: provider === "tiktok" ? "DISABLE" : "PAUSED", selectedAccountId: accountId, verifiedLocationCount: 1, resourcesKey: "verified-resources", preparationKey: "b".repeat(64), blockers: options.ready ? [] : ["native_capabilities_unverified"] };
+  const check: NonNullable<PreparedAdsPublicationDependencies["check"]> = async (expectedOwner, expectedDraft) => { assert.equal(expectedOwner, owner); assert.equal(expectedDraft.adAccountId, accountId); events.push("native:get"); return structuredClone(preparation); };
+  const publish: NonNullable<PreparedAdsPublicationDependencies["publish"]> = async (expectedOwner, expectedDraft, persist, operation) => {
+    assert.equal(expectedOwner, owner); assert.equal(expectedDraft.adAccountId, accountId);
     events.push("bridge"); assert.equal(operation.expectedPreparationKey, preparation.preparationKey);
     await operation.withOperationLock(operation.operationKey, async () => {
       const base = { schemaVersion: 1, operationKey: operation.operationKey, [provider === "tiktok" ? "advertiserId" : "accountId"]: accountId, inputKey: "c".repeat(64), targetStatus: preparation.targetStatus };
       if (!operation.initialProgress) {
         await persist({ ...base, stage: "prepared", pendingStep: "create_campaign" });
-        assert.equal(row.provider_resources.preparedCampaignCheckpoint.value.pendingStep, "create_campaign"); events.push("simulated-provider:post"); mutations++;
+        assert.equal(row.provider_resources.preparedCampaignCheckpoint?.value.pendingStep, "create_campaign"); events.push("simulated-provider:post"); mutations++;
       }
       await persist({ ...base, stage: "paused_verified", campaignId: "555", ...(provider === "tiktok" ? { adGroupId: "556", adId: "557" } : { postId: "12345", lineItemId: "556", promotedTweetId: "557" }) });
     });
   };
-  const helpers = { ...storeApi, createPreparedAdsCampaignStore: (input: any) => storeApi.createPreparedAdsCampaignStore(input, deps), publishStoredPreparedAdsCampaign: (user: string, stored: unknown, parsed: unknown, approval: unknown) => storeApi.publishStoredPreparedAdsCampaign(user, stored, parsed, approval, { store: deps, check, publish }) };
-  const query: any = {
+  const helpers = { ...storeApi, createPreparedAdsCampaignStore: (input: Parameters<StoreApi["createPreparedAdsCampaignStore"]>[0]) => storeApi.createPreparedAdsCampaignStore(input, deps), publishStoredPreparedAdsCampaign: (user: string, stored: PreparedAdsCampaignRow, parsed: AdsCampaignInput, approval: PreparedAdsPausedApproval) => storeApi.publishStoredPreparedAdsCampaign(user, stored, parsed, approval, { store: deps, check, publish }) };
+  const query: FixtureQuery = {
     select: () => query, eq: (column: string, value: unknown) => { events.push(`eq:${column}:${value}`); return query; },
     maybeSingle: async () => ({ data: options.missing ? null : structuredClone(row), error: null }),
-    insert: (payload: any) => { events.push("save:insert"); row = { ...row, ...structuredClone(payload) }; return query; },
+    insert: (payload) => { events.push("save:insert"); row = { ...row, ...structuredClone(payload) }; return query; },
     single: async () => ({ data: { id, status: "draft" }, error: null }),
   };
   const publicResources = compile("../lib/adsProviderResources.ts", {});
@@ -64,20 +78,20 @@ function runtime(options: Options = {}) {
     "@/lib/adsProviderResources": publicResources,
     "@/lib/adsTikTokCampaignStore": helpers,
     "@/lib/adsTikTokCampaignPreparationServer": { checkTikTokAdsCampaignPreparation: check },
-    "@/lib/adsXResourcesServer": { checkXAdsCampaignPreparation: check },
+    "@/lib/adsXResourcesServer": { checkXAdsCampaignPreparation: async (expectedOwner: string, input: Parameters<typeof import("../lib/adsXResourcesServer.ts").checkXAdsCampaignPreparation>[1]) => { assert.ok(input?.draft); assert.equal(input.accountId, accountId); return check(expectedOwner, input.draft); } },
     "@/lib/adsTikTokPublisherServer": { readTikTokAdsPausedCampaign: async () => { events.push("readback:get"); return { confirmed: true, targetStatus: "DISABLE", campaignId: "555", statuses: { campaign: "DISABLE", adGroup: "DISABLE", ad: "DISABLE" } }; } },
     "@/lib/adsXPublisherServer": { readbackStoredXAdsCampaign: async () => { events.push("readback:get"); return { schemaVersion: 1, operationKey: "PRIVATE", inputKey: "PRIVATE_HASH", targetStatus: "PAUSED", stage: "paused_verified", campaignId: "555", lineItemId: "556" }; } },
     "../trackingPolicy": { ADS_CAMPAIGN_ID_PATTERN: /^[0-9a-f-]{36}$/ },
     "./[id]/trackingPolicy": { ADS_CAMPAIGN_ID_PATTERN: /^[0-9a-f-]{36}$/, canMutateAdsDraft: () => true },
     "@/lib/observability/logger": { log: { warn: () => {} } },
   };
-  const preflight = compile("../app/api/ads/campaigns/[id]/preflight/route.ts", modules), publication = compile("../app/api/ads/campaigns/[id]/publish/route.ts", modules), lifecycle = compile("../app/api/ads/campaigns/[id]/lifecycle/route.ts", modules), save = compile("../app/api/ads/campaigns/route.ts", modules);
+  const preflight = compile<{ GET: RouteHandler }>("../app/api/ads/campaigns/[id]/preflight/route.ts", modules), publication = compile<{ POST: RouteHandler }>("../app/api/ads/campaigns/[id]/publish/route.ts", modules), lifecycle = compile<Record<"PATCH" | "DELETE", RouteHandler>>("../app/api/ads/campaigns/[id]/lifecycle/route.ts", modules), save = compile<{ POST: (request: Request) => Promise<Response> }>("../app/api/ads/campaigns/route.ts", modules);
   const context = { params: Promise.resolve({ id }) }, url = `https://app.test/api/ads/campaigns/${id}`;
   const get = () => preflight.GET(new Request(url + "/preflight?mode=paused"), context);
   const post = (body: Record<string, unknown>) => publication.POST(new Request(url + "/publish", { method: "POST", body: JSON.stringify(body) }), context);
-  return { draft, events, get, post, helpers, mutations: () => mutations, row: () => row, change: (patch: any) => { row = { ...row, ...patch }; }, preparation: (next: any) => { preparation = next; },
+  return { draft, events, get, post, helpers, mutations: () => mutations, row: () => row, change: (patch: Partial<FixtureCampaign>) => { row = { ...row, ...patch }; }, preparation: (next: FixturePreparation) => { preparation = next; },
     save: () => save.POST(new Request("https://app.test/api/ads/campaigns", { method: "POST", body: JSON.stringify(draft) })),
-    lifecycle: (action: string, method = "PATCH") => lifecycle[method](new Request(url + "/lifecycle", { method, body: method === "PATCH" ? JSON.stringify({ action }) : undefined }), context) };
+    lifecycle: (action: string, method: "PATCH" | "DELETE" = "PATCH") => lifecycle[method](new Request(url + "/lifecycle", { method, body: method === "PATCH" ? JSON.stringify({ action }) : undefined }), context) };
 }
 for (const provider of ["tiktok", "x"] as const) {
   test(`${provider}: local save keeps native selections and advertiser only in JSON until forward migration`, async () => {

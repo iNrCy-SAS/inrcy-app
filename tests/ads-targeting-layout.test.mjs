@@ -89,6 +89,7 @@ ${pinterestPlacementLabels.getText(pinterestControlsParsed)}
 ${pinterestDistributionComponent.getText(pinterestControlsParsed)}
 export function TargetingFixture({channelId, stage}) {
   const step = 3, targetingStep = 3, geographyStep = 3;
+  const preparedOnlyChannel = channelId === "x" || channelId === "tiktok";
   const channelMeta = { label: channelId === "google" ? "Google Ads" : "Pinterest Ads" };
   const nativeSettings = channelId === "pinterest" ? {channel:"pinterest",targetingMode:"automatic"} : null;
   const draft = { adAccountId:"1234567890", targetLocations:["Hauts-de-France","Arras","Lille","Valenciennes","Saint-Omer","Sallaumines"],

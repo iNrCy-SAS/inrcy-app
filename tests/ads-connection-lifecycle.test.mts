@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 const settingsSource = readFileSync(
   new URL("../app/dashboard/ads/AdsConnectionSettings.tsx", import.meta.url),
@@ -30,6 +31,22 @@ const publishRouteSource = readFileSync(
   new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url),
   "utf8",
 );
+
+const clientAst = ts.createSourceFile("AdsClient.tsx", clientSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+function clientFunctionBody(name: string): string {
+  let body: string | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name && node.body) {
+      assert.equal(body, undefined, `Function ${name} must be unambiguous`);
+      body = node.body.getText(clientAst);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(clientAst);
+  assert.ok(body, `Function ${name} must have an implementation`);
+  return body;
+}
 
 test("un canal Ads connecté propose une déconnexion, pas une reconnexion systématique", () => {
   assert.match(settingsSource, /\{locked \? <button[^>]*disabled[\s\S]*? : connected \? <button[\s\S]*?Déconnexion/);
@@ -99,9 +116,9 @@ test("une connexion à actualiser garde l’association visible sans autoriser u
 });
 
 test("une nouvelle campagne reprend le compte associé et le lancement l’enregistre dans le même clic", () => {
-  const start = clientSource.split("function startNewCampaign() {")[1]?.split("function closeCampaignCreation()")[0] || "";
-  const launchCheck = clientSource.split("async function openLaunchDialog() {")[1]?.split("async function confirmCampaignLaunch()")[0] || "";
-  const launch = clientSource.split("async function confirmCampaignLaunch() {")[1]?.split("function reopen(")[0] || "";
+  const start = clientFunctionBody("startNewCampaign");
+  const launchCheck = clientFunctionBody("openLaunchDialog");
+  const launch = clientFunctionBody("confirmCampaignLaunch");
   assert.match(start, /adAccountId: isAdsProvider\(channelId\)\s*\? configuredAccountId\s*: isExternalChannel\(channelId\) \? externalStatuses\[channelId\]\.selectedAccountId\s*: channelId === "openai" \? connectionSnapshots\.openai\.accountId : ""/);
   assert.match(launchCheck, /connection\.selectedAccountId/);
   assert.match(launch, /fetch\("\/api\/ads\/campaigns", \{/);
