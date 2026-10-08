@@ -64,6 +64,26 @@ export function parseTikTokAdvertiserIds(payload: unknown): string[] {
   }))];
 }
 
+/** A successful v1.3 response contains data.list of advertiser records.
+ * Keep the existing advertiser_ids compatibility, but never turn a missing
+ * list or rejected identifier into a genuine empty authorization.
+ * https://business-api.tiktok.com/portal/docs/get-authorized-ad-accounts/v1.3
+ */
+export function parseTikTokAdvertiserAuthorization(payload: unknown): string[] | null {
+  const root = asRecord(payload);
+  if (root.code !== 0) return null;
+  const data = asRecord(root.data);
+  const values = Object.hasOwn(data, "list") ? data.list : data.advertiser_ids;
+  if (!Array.isArray(values)) return null;
+  const ids = new Set<string>();
+  for (const entry of values) {
+    const id = advertiserId(typeof entry === "object" && entry !== null ? asRecord(entry).advertiser_id : entry);
+    if (!id) return null;
+    ids.add(id);
+  }
+  return [...ids];
+}
+
 export function parseTikTokAccountInfo(payload: unknown): TikTokAdsAccount[] {
   const data = asRecord(asRecord(payload).data);
   const values = Array.isArray(data.list) ? data.list : [];

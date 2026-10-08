@@ -7,7 +7,7 @@ import {
   TIKTOK_ADS_PRODUCT,
   TIKTOK_ADS_SOURCE,
   parseTikTokAccountInfo,
-  parseTikTokAdvertiserIds,
+  parseTikTokAdvertiserAuthorization,
   tikTokAdsAccountCanAssociate,
   tikTokAdsAccessTokenIsFresh,
   tikTokAdsIsLongLivedAuthorization,
@@ -189,7 +189,10 @@ export async function listTikTokAdsAccountsWithToken(token: string): Promise<Tik
 
   const authorized = await tikTokAdsGet("oauth2/advertiser/get", token,
     new URLSearchParams({ app_id: appId, secret }));
-  const ids = parseTikTokAdvertiserIds(authorized);
+  const ids = parseTikTokAdvertiserAuthorization(authorized);
+  if (ids === null) {
+    throw new TikTokAdsConnectionError("La réponse des comptes autorisés TikTok est incomplète. Réessayez plus tard.", "provider_response_invalid", 502);
+  }
   if (!ids.length) return [];
   if (ids.length > 500) {
     throw new TikTokAdsConnectionError("Trop de comptes TikTok Ads pour cette connexion.", "account_limit", 409);

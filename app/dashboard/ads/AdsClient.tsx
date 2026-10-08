@@ -1829,7 +1829,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       : configuredAccountId
         ? "Compte associé · accès à vérifier"
         : isExternalChannel(channelId)
-          ? "Associez un compte pour enregistrer cette proposition"
+          ? "Compte annonceur à connecter · brouillon enregistrable"
           : channelId === "openai" ? "Ajoutez la clé Advertiser API du compte ChatGPT Ads"
           : "Associez un compte pour créer la démo en pause";
 
@@ -1947,7 +1947,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setExternalConfiguring(true);
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
-        setExternalError(params.get("reason") || "La connexion n’a pas abouti. Réessayez.");
+        const reason = params.get("reason");
+        setExternalError(callbackChannel === "tiktok" && reason === "ads_access_missing"
+          ? "Aucun compte annonceur TikTok Ads n’est accessible avec cette connexion. Terminez la création de votre compte dans TikTok Ads Manager, ou reconnectez-vous avec le compte qui gère vos publicités."
+          : callbackChannel === "tiktok" && reason === "provider_response_invalid"
+            ? "TikTok n’a pas renvoyé une liste de comptes valide. Réessayez plus tard."
+            : reason || "La connexion n’a pas abouti. Réessayez.");
       }
       params.delete("connection");
       params.delete("reason");
