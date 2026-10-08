@@ -4134,7 +4134,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </section>
 
       <section hidden={step !== foundationsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioFoundationsCard}`}>
-        <StudioStepHeader number={foundationsStep + 1} label={channelId === "pinterest" ? "CAMPAGNE PINTEREST" : channelId === "google" ? "CAMPAGNE GOOGLE" : channelId === "linkedin" ? "CAMPAGNE LINKEDIN" : "FONDATIONS"} title={channelId === "pinterest" ? "Votre campagne et son objectif." : "La direction de votre campagne."} mobileTitle="Votre objectif" channel={channelMeta.label} />
+        <StudioStepHeader number={foundationsStep + 1} label="CAMPAGNE" title={channelId === "pinterest" ? "Votre campagne et son objectif." : "La direction de votre campagne."} mobileTitle="Votre objectif" channel={channelMeta.label} />
         <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Notoriété, considération, vidéo, ventes ou prospects : ce choix structure la proposition Pinterest et les réglages qui suivent." : "Définissez ce que vous voulez obtenir. iNrCy utilise ces choix pour guider les messages, le ciblage et la diffusion."}</p>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Nom de la campagne<input value={draft.name} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} placeholder="Ex. Demandes de devis locales" /></label>
