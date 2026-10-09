@@ -185,11 +185,11 @@ test("a newly exchanged inactive token is rechecked unchanged and only saved aft
   const token = await run.api.exchangeLinkedInAdsCode("fixture-code", "https://app.example.test/api/ads/linkedin/callback");
   await run.api.saveLinkedInAdsConnection("fixture-owner", token, "manage");
   assert.deepEqual(run.calls, ["code_exchange", ...Array<string>(4).fill("token_introspection"), "account_users", "db_read"]);
-  assert.deepEqual(run.delays, [250, 750, 1500]);
+  assert.deepEqual(run.delays, [500, 1500, 3000]);
   assert.deepEqual(run.verificationObservations, Array.from({ length: 4 }, () => ({ accountReads: 0, writes: 0 })));
   assert.deepEqual(run.infos, [["[linkedin-ads-oauth-verification]", { attempts: 4, result: "active" }]]);
   assert.equal(run.writes.length, 1);
-  assert.deepEqual(run.timeouts.slice(0, 5), [15000, 10000, 9750, 9000, 7500]);
+  assert.deepEqual(run.timeouts.slice(0, 5), [15000, 10000, 9500, 8000, 5000]);
 });
 
 test("four inactive verifications exhaust the bounded window without accounts, writes or a recovery log", async () => {
@@ -197,13 +197,36 @@ test("four inactive verifications exhaust the bounded window without accounts, w
   await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
     "authorization_invalid", 401, diagnostic("token_introspection", 200, "inactive", null, 4));
   assert.deepEqual(run.calls, Array<string>(4).fill("token_introspection"));
-  assert.deepEqual(run.delays, [250, 750, 1500]);
+  assert.deepEqual(run.delays, [500, 1500, 3000]);
   assert.equal(run.writes.length, 0);
   assert.deepEqual(run.infos, []);
 });
 
-test("explicit revoked or expired statuses are not treated as delayed activation", async () => {
-  for (const status of ["revoked", "expired", "REVOKED", "EXPIRED"]) {
+test("a fresh code exchange rechecks a revoked response and saves only after verified activation", async () => {
+  for (const status of ["revoked", "REVOKED"]) {
+    const run = runtime({ introspection: [{ body: { ...validIntrospection, active: false, status } },
+      { body: { ...validIntrospection, active: false, status } }, { body: validIntrospection }] });
+    const token = await run.api.exchangeLinkedInAdsCode("fixture-code", "https://app.example.test/api/ads/linkedin/callback");
+    await run.api.saveLinkedInAdsConnection("fixture-owner", token, "manage");
+    assert.deepEqual(run.calls, ["code_exchange", "token_introspection", "token_introspection", "token_introspection", "account_users", "db_read"]);
+    assert.deepEqual(run.delays, [500, 1500]);
+    assert.deepEqual(run.verificationObservations, Array.from({ length: 3 }, () => ({ accountReads: 0, writes: 0 })));
+    assert.equal(run.writes.length, 1);
+  }
+});
+
+test("a fresh token that stays revoked exhausts verification without account reads or persistence", async () => {
+  const run = runtime({ introspection: { body: { ...validIntrospection, active: false, status: "revoked" } } });
+  await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "authorization_invalid", 401, { ...diagnostic("token_introspection", 200, "inactive", null, 4), tokenStatus: "revoked" });
+  assert.deepEqual(run.calls, Array<string>(4).fill("token_introspection"));
+  assert.deepEqual(run.delays, [500, 1500, 3000]);
+  assert.equal(run.writes.length, 0);
+  assert.deepEqual(run.infos, []);
+});
+
+test("explicit expired statuses stop immediately even after a fresh code exchange", async () => {
+  for (const status of ["expired", "EXPIRED"]) {
     const run = runtime({ introspection: { body: { active: false, status } } });
     await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
       "authorization_invalid", 401, { ...diagnostic("token_introspection", 200, "inactive"), tokenStatus: status.toLowerCase() as "revoked" | "expired" });
@@ -240,19 +263,19 @@ test("a refusal after an inactive response stops immediately and never logs reco
     await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
       code, status, diagnostic("token_introspection", safeReply.status || 200, verification, providerCode, 2));
     assert.deepEqual(run.calls, ["token_introspection", "token_introspection"]);
-    assert.deepEqual(run.delays, [250]);
+    assert.deepEqual(run.delays, [500]);
     assert.equal(run.writes.length, 0);
     assert.deepEqual(run.infos, []);
   }
 });
 
 test("the fresh verification deadline limits slow responses and late timers to ten seconds", async () => {
-  const run = runtime({ introspection: [{ body: { active: false }, elapsedMs: 8900 }, { body: { active: false }, elapsedMs: 800 }] });
+  const run = runtime({ introspection: [{ body: { active: false }, elapsedMs: 8900 }, { body: { active: false }, elapsedMs: 400 }] });
   await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
     "authorization_invalid", 401, diagnostic("token_introspection", 200, "inactive", null, 2));
   assert.deepEqual(run.calls, ["token_introspection", "token_introspection"]);
-  assert.deepEqual(run.delays, [250]);
-  assert.deepEqual(run.timeouts, [10000, 850]);
+  assert.deepEqual(run.delays, [500]);
+  assert.deepEqual(run.timeouts, [10000, 600]);
   assert.equal(run.writes.length, 0);
   const late = runtime({ introspection: { body: { active: false } }, timerOverrunMs: 10000 });
   await expectFailure(late, () => late.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
@@ -351,7 +374,7 @@ test("interrupted OAuth JSON body transport remains temporary, while JSON syntax
   await expectFailure(second, () => second.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
     "provider_unavailable", 503, diagnostic("token_introspection", 200, "timeout", null, 2));
   assert.deepEqual(second.calls, ["token_introspection", "token_introspection"]);
-  assert.deepEqual(second.delays, [250]);
+  assert.deepEqual(second.delays, [500]);
   assert.equal(second.writes.length, 0);
 });
 
@@ -411,6 +434,16 @@ test("refresh introspection never rechecks an inactive token or changes the save
   assert.deepEqual(run.timeouts, [15000, 15000]);
   assert.equal(run.writes.length, 0);
   assert.deepEqual(run.infos, []);
+});
+
+test("revoked refresh tokens stop immediately and cannot enter the fresh-grant retry window", async () => {
+  const row = expiredIntegration();
+  const run = runtime({ existing: row, introspection: { body: { ...validIntrospection, active: false, status: "revoked" } } });
+  await expectFailure(run, () => run.api.linkedInAdsAuthorization("fixture-owner", row), "authorization_invalid", 401,
+    { ...diagnostic("token_introspection", 200, "inactive"), tokenStatus: "revoked" });
+  assert.deepEqual(run.calls, ["token_refresh", "token_introspection"]);
+  assert.deepEqual(run.delays, []);
+  assert.equal(run.writes.length, 0);
 });
 
 test("rejected refresh grants retain their operation diagnostic and require reconnection for the exact owner", async () => {

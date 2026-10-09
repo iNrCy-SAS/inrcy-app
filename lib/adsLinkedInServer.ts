@@ -183,7 +183,10 @@ async function refreshLinkedInAdsToken(refreshToken: string): Promise<LinkedInAd
 
 /** LinkedIn's code exchange may omit `scope`; verify the actual 3-legged token.
  * Only a fresh code exchange may recheck an inactive token within a ten-second window.
- * This bounded verification handles observed timing, without assuming activation or retrying the exchange.
+ * Fresh code exchanges have been observed to return an immediately revoked token.
+ * Recheck that same token within the bound; never accept the revoked response or
+ * use or persist the token before active=true and full scope verification.
+ * Expired tokens and refreshes remain immediate failures.
  */
 async function verifiedLinkedInAdsScopes(accessToken: string, allowInactiveRechecks = false): Promise<{
   scopes: string[]; attempts: 1 | 2 | 3 | 4;
@@ -191,7 +194,7 @@ async function verifiedLinkedInAdsScopes(accessToken: string, allowInactiveReche
   const { clientId, clientSecret, configured } = getLinkedInAdsCredentials();
   if (!configured) throw new LinkedInAdsConnectionError("Configuration LinkedIn Ads incomplète.", "configuration_missing");
   const operation = "token_introspection";
-  const delays = [250, 750, 1500] as const;
+  const delays = [500, 1500, 3000] as const;
   const deadline = allowInactiveRechecks ? Date.now() + 10000 : null;
   for (const attempts of [1, 2, 3, 4] as const) {
     const remaining = deadline === null ? 15000 : deadline - Date.now();
@@ -235,7 +238,7 @@ async function verifiedLinkedInAdsScopes(accessToken: string, allowInactiveReche
     if (payload.active !== true) {
       const status = typeof payload.status === "string" ? payload.status.toLowerCase() : "";
       const delay = delays[attempts - 1];
-      if (!allowInactiveRechecks || delay === undefined || status === "revoked" || status === "expired"
+      if (!allowInactiveRechecks || delay === undefined || status === "expired"
         || deadline === null || Date.now() + delay >= deadline) {
         throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
           oauthDiagnostic(operation, response.status, payload, "inactive", attempts));
