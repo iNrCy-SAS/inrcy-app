@@ -20,6 +20,7 @@ import XAdsLocationPicker from "./XAdsLocationPicker";
 import { createReviewedPausedCampaign, preparedXCopyWithDestination, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
 import { xAdsResourcesConsentKey, type XAdsResources } from "@/lib/adsXResources";
 import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT } from "@/lib/adsTikTokResources";
+import { linkedInAdsConnectionErrorMessage } from "@/lib/adsLinkedInConnectionDisplay";
 import {
   adsAccountCanBeAssociated,
   defaultAdsCampaignType,
@@ -1948,7 +1949,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
         const reason = params.get("reason");
-        setExternalError(callbackChannel === "tiktok" && reason === "ads_access_missing"
+        setExternalError(callbackChannel === "linkedin" ? linkedInAdsConnectionErrorMessage(reason) : callbackChannel === "tiktok" && reason === "ads_access_missing"
           ? "Aucun compte annonceur TikTok Ads n’est accessible avec cette connexion. Terminez la création de votre compte dans TikTok Ads Manager, ou reconnectez-vous avec le compte qui gère vos publicités."
           : callbackChannel === "tiktok" && reason === "provider_response_invalid"
             ? "TikTok n’a pas renvoyé une liste de comptes valide. Réessayez plus tard."

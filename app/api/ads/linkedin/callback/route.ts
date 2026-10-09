@@ -53,6 +53,17 @@ export async function GET(request: Request) {
     await saveLinkedInAdsConnection(userId, token, state.state.mode);
     return finish("connected");
   } catch (error) {
-    return finish("error", error instanceof LinkedInAdsConnectionError ? error.code : "connection_failed");
+    // Record only fixed diagnostic fields, never the authorization code,
+    // tokens, credentials, request URL or a provider's raw response.
+    const knownError = error instanceof LinkedInAdsConnectionError ? error : null;
+    const diagnostic = knownError?.oauthDiagnostic;
+    console.warn("[linkedin-ads-oauth]", {
+      code: knownError?.code || "connection_failed",
+      operation: diagnostic?.operation || "connection_verification",
+      providerStatus: diagnostic?.providerStatus ?? null,
+      providerCode: diagnostic?.providerCode ?? null,
+      verification: diagnostic?.verification ?? null,
+    });
+    return finish("error", knownError?.code || "connection_failed");
   }
 }
