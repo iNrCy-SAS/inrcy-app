@@ -30,6 +30,10 @@ type MetaDiscoveryStage =
   | "business_owned_pages"
   | "business_client_pages"
   | "page_lookup"
+  | "granted_page_token"
+  | "granted_page_actor"
+  | "granted_page_lookup"
+  | "granted_page_identity"
   | "permissions";
 
 export type MetaDiscoveryIssue = {
@@ -283,6 +287,112 @@ async function enrichPageWithLookup(
   return page;
 }
 
+function nativeMetaId(value: unknown): string | null {
+  return typeof value === "string" && /^[1-9]\d{0,31}$/.test(value) ? value : null;
+}
+
+/** Recovery diagnostics never retain provider descriptions, URLs, or credentials. */
+function grantedPageIssue(error: unknown, stage: MetaDiscoveryStage): MetaDiscoveryIssue {
+  const issue = toDiscoveryIssue(error, stage, true);
+  return { ...issue, message: "Meta n’a pas confirmé l’accès à la Page autorisée." };
+}
+
+/** GET-only, bounded reads. Authorization stays in headers and errors stay fixed. */
+async function readGrantedPageGraph(
+  path: string, params: URLSearchParams, bearer: string, deadlineAt: number,
+): Promise<Record<string, unknown>> {
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 250) throw new MetaGraphApiError({ message: "Vérification Meta interrompue." });
+  const response = await fetch(`${buildMetaGraphUrl(path)}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(Math.min(4_000, remaining)),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = asRecord(asRecord(payload).error);
+    const type = asString(error.type);
+    const trace = asString(error.fbtrace_id);
+    throw new MetaGraphApiError({ message: "Lecture Meta refusée.", status: response.status,
+      code: asFiniteNumber(error.code), subcode: asFiniteNumber(error.error_subcode),
+      type: type === "OAuthException" || type === "GraphMethodException" ? type : null,
+      fbtraceId: trace && /^[A-Za-z0-9_-]{1,128}$/.test(trace) ? trace : null });
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new MetaGraphApiError({ message: "Réponse Meta invalide.", status: response.status });
+  }
+  return asRecord(payload);
+}
+
+/** Native granular Page IDs are candidates, never a substitute for a real Page token. */
+async function recoverGrantedFacebookPages(userToken: string, issues: MetaDiscoveryIssue[]): Promise<FacebookPageAsset[]> {
+  const appId = String(process.env.FACEBOOK_APP_ID || "").trim();
+  const appSecret = String(process.env.FACEBOOK_APP_SECRET || "").trim();
+  if (!nativeMetaId(appId) || !appSecret) return [];
+  const deadlineAt = Date.now() + 10_000;
+  let stage: MetaDiscoveryStage = "granted_page_token";
+  let targets: string[];
+  try {
+    const inspected = await readGrantedPageGraph("debug_token", new URLSearchParams({ input_token: userToken }),
+      `${appId}|${appSecret}`, deadlineAt);
+    const data = asRecord(inspected.data);
+    const actorId = nativeMetaId(data.user_id);
+    if (data.is_valid !== true || data.app_id !== appId || data.type !== "USER" || !actorId
+      || !Array.isArray(data.scopes) || !data.scopes.includes("pages_show_list") || !data.scopes.includes("pages_read_engagement")) {
+      throw new MetaGraphApiError({ message: "Autorisation de Page non vérifiée." });
+    }
+    const nowSeconds = Date.now() / 1000;
+    for (const expiry of [data.expires_at, data.data_access_expires_at]) {
+      if (expiry !== undefined && expiry !== 0 && (typeof expiry !== "number" || !Number.isFinite(expiry) || expiry <= nowSeconds)) {
+        throw new MetaGraphApiError({ message: "Autorisation de Page expirée." });
+      }
+    }
+    if (!Array.isArray(data.granular_scopes)) return [];
+    const nativeTargets = new Set<string>();
+    for (const raw of data.granular_scopes) {
+      const entry = asRecord(raw);
+      if (entry.scope !== "pages_show_list") continue;
+      // Missing targets do not mean all Pages. Only an explicit native list is used.
+      if (entry.target_ids === undefined) continue;
+      if (!Array.isArray(entry.target_ids)) throw new MetaGraphApiError({ message: "Actifs Meta invalides." });
+      for (const target of entry.target_ids) {
+        const id = nativeMetaId(target);
+        if (!id) throw new MetaGraphApiError({ message: "Actif Meta invalide." });
+        nativeTargets.add(id);
+        if (nativeTargets.size > 20) throw new MetaGraphApiError({ message: "Trop d’actifs Meta." });
+      }
+    }
+    targets = [...nativeTargets];
+    if (!targets.length) return [];
+    stage = "granted_page_actor";
+    const actor = await readGrantedPageGraph("me", new URLSearchParams({ fields: "id" }), userToken, deadlineAt);
+    if (actor.id !== actorId) throw new MetaGraphApiError({ message: "Identité Meta incohérente." });
+  } catch (error) {
+    issues.push(grantedPageIssue(error, stage));
+    return [];
+  }
+
+  const recovered: FacebookPageAsset[] = [];
+  for (const id of targets) {
+    stage = "granted_page_lookup";
+    try {
+      // Keep this basic: an unavailable nested Instagram field must not hide a Facebook Page.
+      const page = await readGrantedPageGraph(id, new URLSearchParams({ fields: "id,name,access_token" }), userToken, deadlineAt);
+      const pageToken = typeof page.access_token === "string" && page.access_token.trim() === page.access_token
+        && page.access_token.length > 0 ? page.access_token : null;
+      if (page.id !== id || !pageToken) throw new MetaGraphApiError({ message: "Page Meta non vérifiée." });
+      stage = "granted_page_identity";
+      const identity = await readGrantedPageGraph("me", new URLSearchParams({ fields: "id" }), pageToken, deadlineAt);
+      if (identity.id !== id) throw new MetaGraphApiError({ message: "Identité de Page incohérente." });
+      const normalized = normalizePage(page, "page_lookup");
+      if (normalized) recovered.push(normalized);
+    } catch (error) {
+      issues.push(grantedPageIssue(error, stage));
+    }
+  }
+  return recovered;
+}
+
 export async function listAccessibleFacebookPagesDetailed(userToken: string): Promise<FacebookPageDiscoveryResult> {
   const merged = new Map<string, FacebookPageAsset>();
   const issues: MetaDiscoveryIssue[] = [];
@@ -399,6 +509,14 @@ export async function listAccessibleFacebookPagesDetailed(userToken: string): Pr
     }
   } catch (error) {
     issues.push(toDiscoveryIssue(error, "businesses", true));
+  }
+
+  if (merged.size === 0) {
+    const recovered = await recoverGrantedFacebookPages(userToken, issues);
+    if (recovered.length > 0) {
+      primaryFallbackUsed = true;
+      mergePagesIntoMap(merged, recovered);
+    }
   }
 
   const enriched = await Promise.all(

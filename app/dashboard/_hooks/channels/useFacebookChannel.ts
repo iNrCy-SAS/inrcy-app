@@ -67,7 +67,7 @@ export function useFacebookChannel({
   const [facebookPublicationPreferencesError, setFacebookPublicationPreferencesError] =
     useState<string | null>(null);
 
-  const [fbPages, setFbPages] = useState<Array<{ id: string; name?: string; access_token?: string }>>([]);
+  const [fbPages, setFbPages] = useState<Array<{ id: string; name?: string }>>([]);
   const [fbPagesLoading, setFbPagesLoading] = useState(false);
   const [fbPagesPhase, setFbPagesPhase] = useState<ChannelResourcePhase>("idle");
   const [fbSelectedPageId, setFbSelectedPageId] = useState<string>(() => typeof initialState?.fbSelectedPageId === "string" ? initialState.fbSelectedPageId : "");
