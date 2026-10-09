@@ -126,7 +126,7 @@ test("le suivi distingue le budget prévu des statistiques réelles indisponible
   const component = readFileSync(new URL("../app/dashboard/ads/AdsCampaignTracking.tsx", import.meta.url), "utf8");
   assert.match(component, /Budget\/jour prévu/);
   assert.match(component, /Performances réelles/);
-  assert.match(component, /Les performances Google Ads et Meta Ads sont consultées à la demande/);
+  assert.match(component, /Les performances Google Ads, Meta Ads et LinkedIn Ads sont consultées à la demande/);
   assert.match(component, /Voir les statistiques/);
   assert.match(component, /\/metrics[\s\S]*cache: "no-store"/);
   assert.match(component, /metricsState\.metrics\.conversions === null \? "Non harmonisées"/);

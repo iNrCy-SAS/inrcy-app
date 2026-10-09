@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { getAdsAdvertiserAccountUrl } from "@/lib/adsAccountLinks";
-import { googleCampaignId, metaCampaignId, type AdsCampaignMetrics } from "@/lib/adsCampaignMetrics";
+import { adsCampaignMetricsSourceLabel, googleCampaignId, isAdsCampaignMetrics, linkedInCampaignId, metaCampaignId, type AdsCampaignMetrics } from "@/lib/adsCampaignMetrics";
 import type { AdsCampaignInput, AdsChannelId } from "@/lib/adsValidation";
 import styles from "./AdsCampaignTracking.module.css";
 
@@ -61,14 +61,11 @@ const dates = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", 
 
 type MetricsState = { status: "loading" | "ready" | "empty" | "error"; metrics?: AdsCampaignMetrics; error?: string };
 
-function isCampaignMetrics(value: unknown): value is AdsCampaignMetrics {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const metrics = value as Record<string, unknown>;
-  return metrics.period === "last_30_days"
-    && (metrics.source === "google" || metrics.source === "meta")
-    && [metrics.impressions, metrics.clicks, metrics.spendEuros].every((number) => typeof number === "number" && Number.isFinite(number) && number >= 0)
-    && (metrics.conversions === null || (typeof metrics.conversions === "number" && Number.isFinite(metrics.conversions) && metrics.conversions >= 0))
-    && typeof metrics.fetchedAt === "string";
+function canReadCampaignMetrics(campaign: StoredAdsCampaign) {
+  if (!["active", "paused", "demo_paused", "needs_review"].includes(campaign.status)) return false;
+  if (campaign.provider === "google") return Boolean(googleCampaignId(campaign.provider_resources, campaign.ad_account_id));
+  if (campaign.provider === "meta") return Boolean(metaCampaignId(campaign.provider_resources, campaign.ad_account_id));
+  return campaign.provider === "linkedin" && Boolean(linkedInCampaignId(campaign.provider_resources, campaign.ad_account_id));
 }
 
 function displayDate(value: string | null): string {
@@ -110,6 +107,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [metricsById, setMetricsById] = useState<Record<string, MetricsState>>({});
+  const metricsRequestsRef = useRef(new Set<string>());
   const [nativeStateById, setNativeStateById] = useState<Record<string, { confirmed: boolean; message: string }>>({});
   const shownDrafts = campaigns.filter((campaign) => campaign.status === "draft").length;
   const shownBeyondDraft = campaigns.filter((campaign) => campaign.status !== "draft").length;
@@ -175,7 +173,8 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
   }
 
   async function loadMetrics(campaign: StoredAdsCampaign) {
-    if (metricsById[campaign.id]?.status === "loading") return;
+    if (!canReadCampaignMetrics(campaign) || metricsRequestsRef.current.has(campaign.id)) return;
+    metricsRequestsRef.current.add(campaign.id);
     setMetricsById((current) => ({ ...current, [campaign.id]: { status: "loading" } }));
     try {
       const response = await fetch(`/api/ads/campaigns/${encodeURIComponent(campaign.id)}/metrics`, { cache: "no-store" });
@@ -184,13 +183,15 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
       const metrics = result?.metrics;
       if (metrics === null && result?.reason === "no_data") {
         setMetricsById((current) => ({ ...current, [campaign.id]: { status: "empty" } }));
-      } else if (isCampaignMetrics(metrics)) {
+      } else if (isAdsCampaignMetrics(metrics, campaign.provider)) {
         setMetricsById((current) => ({ ...current, [campaign.id]: { status: "ready", metrics } }));
       } else {
         throw new Error("La plateforme n’a pas retourné de statistiques exploitables.");
       }
     } catch (error) {
       setMetricsById((current) => ({ ...current, [campaign.id]: { status: "error", error: error instanceof Error ? error.message : "Statistiques indisponibles." } }));
+    } finally {
+      metricsRequestsRef.current.delete(campaign.id);
     }
   }
 
@@ -212,7 +213,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
       <div className={styles.overviewTile}><span>Hors brouillon affichées</span><strong>{shownBeyondDraft}</strong><small>Création, contrôle, publication ou démo</small></div>
     </div>
 
-    <p className={styles.metricsNote}>Les statuts ci-dessous sont ceux enregistrés par iNr’ADS, sans synchronisation en direct. Vérifiez l’état actuel dans votre compte publicitaire. Les performances Google Ads et Meta Ads sont consultées à la demande ; celles des autres canaux restent indisponibles ici.</p>
+    <p className={styles.metricsNote}>Les statuts ci-dessous sont ceux enregistrés par iNr’ADS, sans synchronisation en direct. Vérifiez l’état actuel dans votre compte publicitaire. Les performances Google Ads, Meta Ads et LinkedIn Ads sont consultées à la demande ; celles des autres canaux restent indisponibles ici.</p>
 
     {loadError && <div className={styles.feedback} role="alert">{loadError} {campaigns.length > 0 && "Les données affichées peuvent être obsolètes."} <button type="button" onClick={() => void onRefresh()}>Réessayer</button></div>}
     {actionSuccess && <p className={styles.success} role="status">{actionSuccess}</p>}
@@ -232,10 +233,7 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
             const minDate = afterEnd > tomorrow ? afterEnd : tomorrow;
             const maxDate = plusUtcDays(89);
             const canExtend = minDate <= maxDate;
-            const canReadMetrics = ["active", "paused", "demo_paused", "needs_review"].includes(campaign.status)
-              && (campaign.provider === "google"
-                ? Boolean(googleCampaignId(campaign.provider_resources, campaign.ad_account_id))
-                : campaign.provider === "meta" && Boolean(metaCampaignId(campaign.provider_resources, campaign.ad_account_id)));
+            const canReadMetrics = canReadCampaignMetrics(campaign);
             const metricsState = metricsById[campaign.id];
             const expanded = presentation !== "inrsend" || expandedId === campaign.id;
             const draft: Partial<AdsCampaignInput> = campaign.draft && typeof campaign.draft === "object" ? campaign.draft : {};
@@ -302,15 +300,16 @@ export default function AdsCampaignTracking({ campaigns, total, loading, loading
               {nativeState && <p className={nativeState.confirmed ? styles.success : styles.campaignError} role={nativeState.confirmed ? "status" : "alert"}>{nativeState.message}</p>}
 
               <section className={styles.metricsPanel} aria-label={`Statistiques de ${campaign.name}`}>
-                <div className={styles.metricsHeading}><strong>Statistiques de la campagne · 30 derniers jours</strong>{metricsState?.status === "ready" && metricsState.metrics && <small>{metricsState.metrics.source === "google" ? "Google Ads" : "Meta Ads"} · relevé le {displayDate(metricsState.metrics.fetchedAt)}</small>}</div>
+                <div className={styles.metricsHeading}><strong>Statistiques de la campagne · 30 derniers jours</strong>{metricsState?.status === "ready" && metricsState.metrics && <small>{adsCampaignMetricsSourceLabel(metricsState.metrics.source)} · relevé le {displayDate(metricsState.metrics.fetchedAt)}</small>}</div>
                 {metricsState?.status === "ready" && metricsState.metrics ? <dl className={styles.metricsGrid}>
                   <div><dt>Impressions</dt><dd>{quantities.format(metricsState.metrics.impressions)}</dd></div>
                   <div><dt>Clics</dt><dd>{quantities.format(metricsState.metrics.clicks)}</dd></div>
                   <div><dt>Dépenses</dt><dd>{euros.format(metricsState.metrics.spendEuros)}</dd></div>
                   <div><dt>Conversions</dt><dd>{metricsState.metrics.conversions === null ? "Non harmonisées" : quantities.format(metricsState.metrics.conversions)}</dd></div>
                 </dl> : <p className={styles.metricsFeedback} role={metricsState?.status === "error" ? "alert" : "status"}>
-                  {metricsState?.status === "loading" ? "Lecture des performances sur la plateforme…" : metricsState?.status === "empty" ? "Aucune donnée de diffusion retournée sur les 30 derniers jours." : metricsState?.status === "error" ? metricsState.error : campaign.status === "draft" ? "Brouillon non diffusé : aucune statistique pour le moment." : canReadMetrics ? "Ouvrez les détails pour charger les performances." : "Statistiques indisponibles pour ce canal ou cet état."}
+                  {metricsState?.status === "loading" ? "Lecture des performances sur la plateforme…" : metricsState?.status === "empty" ? `Aucune donnée de diffusion retournée par ${adsCampaignMetricsSourceLabel(campaign.provider)} sur les 30 derniers jours.` : metricsState?.status === "error" ? metricsState.error : campaign.status === "draft" ? "Brouillon non diffusé : aucune statistique pour le moment." : canReadMetrics ? "Ouvrez les détails pour charger les performances." : "Statistiques indisponibles pour ce canal ou cet état."}
                 </p>}
+                {metricsState?.status === "ready" && metricsState.metrics?.source === "linkedin" && <p className={styles.metricsNote}>Les conversions web sont celles attribuées par LinkedIn Ads ; elles ne correspondent pas nécessairement à des abonnements.</p>}
               </section>
 
               {extendId === campaign.id && <div className={styles.actionPanel}>

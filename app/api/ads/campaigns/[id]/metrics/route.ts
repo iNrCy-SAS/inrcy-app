@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { googleAdsJson, listAdsAccounts, metaAdsJson, requirePremiumAdsUser } from "@/lib/adsServer";
-import { googleCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseLinkedInAdsMetrics, parseMetaAdsMetrics } from "@/lib/adsCampaignMetrics";
-import { readLinkedInAdsCampaignAnalytics } from "@/lib/adsLinkedInLifecycle";
+import { googleCampaignId, linkedInCampaignId, metaCampaignId, parseGoogleAdsMetrics, parseLinkedInAdsMetrics, parseMetaAdsMetrics } from "@/lib/adsCampaignMetrics";
+import { LinkedInAdsLifecycleError, readLinkedInAdsCampaignAnalytics } from "@/lib/adsLinkedInLifecycle";
+import { LinkedInAdsConnectionError } from "@/lib/adsLinkedInServer";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdsChannelUserAllowed, adsPilotOnlyResponse } from "@/lib/adsServer";
@@ -60,6 +61,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json(metrics ? { metrics } : { metrics: null, reason: "no_data" }, { headers: { "Cache-Control": "no-store" } });
     }
     if (campaign.provider === "linkedin") {
+      if (!linkedInCampaignId(campaign.provider_resources, accountId)) {
+        return NextResponse.json({ error: "Identifiant LinkedIn Ads indisponible ou incohérent." }, { status: 409 });
+      }
       const end = new Date();
       const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - 29));
       const report = await readLinkedInAdsCampaignAnalytics(user.activeUserId, {
@@ -72,7 +76,19 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json(metrics ? { metrics } : { metrics: null, reason: "no_data" }, { headers: { "Cache-Control": "no-store" } });
     }
     return NextResponse.json({ error: "Les statistiques de ce canal ne sont pas encore synchronisées." }, { status: 409 });
-  } catch {
+  } catch (error) {
+    if (campaign.provider === "linkedin" && (error instanceof LinkedInAdsConnectionError || error instanceof LinkedInAdsLifecycleError)) {
+      const accessDenied = error.status === 401 || error.status === 403;
+      const reconnect = error.status === 409;
+      return NextResponse.json({
+        error: accessDenied
+          ? "Les autorisations LinkedIn Ads ne permettent plus de lire les statistiques de ce compte. Vérifiez la connexion et les droits de lecture."
+          : reconnect ? "La connexion LinkedIn Ads a changé. Reconnectez le compte associé à cette campagne."
+            : "LinkedIn Ads ne fournit pas ses statistiques pour le moment. Réessayez dans quelques instants.",
+        code: accessDenied ? "linkedin_reporting_access_denied" : reconnect ? "linkedin_connection_changed" : "linkedin_reporting_unavailable",
+      }, { status: accessDenied ? 403 : reconnect ? 409 : error.status === 404 ? 404 : 503,
+        headers: { "Cache-Control": "no-store" } });
+    }
     return NextResponse.json({ error: "La plateforme publicitaire ne fournit pas ses statistiques pour le moment. Réessayez ou consultez votre compte annonceur." }, { status: 502 });
   }
 }

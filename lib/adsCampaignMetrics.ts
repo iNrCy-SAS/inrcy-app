@@ -9,6 +9,27 @@ export type AdsCampaignMetrics = {
   fetchedAt: string;
 };
 
+/** Public response guard shared by the two campaign views. */
+export function isAdsCampaignMetrics(value: unknown, expectedSource?: unknown): value is AdsCampaignMetrics {
+  const row = record(value);
+  if (row.period !== "last_30_days" || typeof row.source !== "string" || !["google", "meta", "linkedin"].includes(row.source)
+    || (expectedSource !== undefined && row.source !== expectedSource)) return false;
+  const count = (candidate: unknown) => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0;
+  const amount = (candidate: unknown) => typeof candidate === "number" && Number.isFinite(candidate)
+    && candidate >= 0 && candidate <= Number.MAX_SAFE_INTEGER;
+  return count(row.impressions) && count(row.clicks) && amount(row.spendEuros)
+    && (row.conversions === null || amount(row.conversions))
+    && typeof row.fetchedAt === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(row.fetchedAt)
+    && Number.isFinite(Date.parse(row.fetchedAt));
+}
+
+export function adsCampaignMetricsSourceLabel(source: unknown): string {
+  if (source === "google") return "Google Ads";
+  if (source === "meta") return "Meta Ads";
+  if (source === "linkedin") return "LinkedIn Ads";
+  return "Plateforme publicitaire";
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -73,7 +94,10 @@ export function parseLinkedInAdsMetrics(
   campaignUrn: string,
 ): AdsCampaignMetrics | null {
   const rows = record(payload).elements;
-  if (!Array.isArray(rows) || rows.length === 0) return null;
+  if (!/^urn:li:sponsoredCampaign:[1-9]\d{0,24}$/.test(campaignUrn) || !Array.isArray(rows)) {
+    throw new Error("Rapport LinkedIn Ads invalide.");
+  }
+  if (rows.length === 0) return null;
   let impressions = 0;
   let clicks = 0;
   let spendEuros = 0;
@@ -90,15 +114,32 @@ export function parseLinkedInAdsMetrics(
     const rowSpend = Object.hasOwn(row, "costInLocalCurrency") ? nonNegativeNumber(row.costInLocalCurrency) : 0;
     const rowConversions = Object.hasOwn(row, "externalWebsiteConversions")
       ? nonNegativeNumber(row.externalWebsiteConversions) : 0;
-    if (rowImpressions === null || rowClicks === null || rowSpend === null || rowConversions === null) {
+    if (rowImpressions === null || rowClicks === null || rowSpend === null || rowConversions === null
+      || !Number.isSafeInteger(rowImpressions) || !Number.isSafeInteger(rowClicks)
+      || !Number.isSafeInteger(rowConversions) || rowSpend > Number.MAX_SAFE_INTEGER) {
       throw new Error("Rapport LinkedIn Ads incomplet.");
     }
     impressions += rowImpressions;
     clicks += rowClicks;
     spendEuros += rowSpend;
     conversions += rowConversions;
+    if (!Number.isSafeInteger(impressions) || !Number.isSafeInteger(clicks) || !Number.isSafeInteger(conversions)
+      || !Number.isFinite(spendEuros) || spendEuros > Number.MAX_SAFE_INTEGER) {
+      throw new Error("Rapport LinkedIn Ads invalide.");
+    }
   }
   return { period: "last_30_days", source: "linkedin", impressions, clicks, spendEuros, conversions, fetchedAt };
+}
+
+/** LinkedIn publisher checkpoints bind their native campaign to accountId. */
+export function linkedInCampaignId(resources: unknown, accountId: string): string | null {
+  const row = record(resources);
+  if (!/^[1-9]\d{0,24}$/.test(accountId) || row.accountId !== accountId
+    || (row.provider !== undefined && row.provider !== "linkedin")
+    || (row.adAccountId !== undefined && row.adAccountId !== accountId)) return null;
+  const match = typeof row.campaignUrn === "string"
+    ? /^urn:li:sponsoredCampaign:([1-9]\d{0,24})$/.exec(row.campaignUrn) : null;
+  return match && (row.campaignId === undefined || row.campaignId === match[1]) ? match[1] : null;
 }
 
 export function googleCampaignId(resources: unknown, accountId: string): string | null {
