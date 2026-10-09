@@ -50,6 +50,8 @@ export type LinkedInAdsOAuthDiagnostic = {
     | "invalid_scope" | "unauthorized_client" | "access_denied" | "temporarily_unavailable" | "server_error" | null;
   verification: "inactive" | "client_mismatch" | "auth_type_mismatch" | "malformed_response"
     | "missing_scopes" | "timeout" | "request_failed" | null;
+  attempts?: 1 | 2 | 3 | 4;
+  tokenStatus?: "active" | "expired" | "revoked";
 };
 
 export class LinkedInAdsConnectionError extends Error {
@@ -66,31 +68,47 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 /** Never retain provider descriptions, credential values, or arbitrary error strings. */
 function oauthDiagnostic(operation: LinkedInAdsOAuthDiagnostic["operation"], providerStatus: number | null,
-  payload?: unknown, verification: LinkedInAdsOAuthDiagnostic["verification"] = null): LinkedInAdsOAuthDiagnostic {
+  payload?: unknown, verification: LinkedInAdsOAuthDiagnostic["verification"] = null,
+  attempts: 1 | 2 | 3 | 4 = 1): LinkedInAdsOAuthDiagnostic {
   const error = asRecord(payload).error;
   const knownCodes: ReadonlySet<unknown> = new Set([
     "invalid_request", "invalid_client", "invalid_grant", "invalid_redirect_uri", "invalid_scope",
     "unauthorized_client", "access_denied", "temporarily_unavailable", "server_error",
   ]);
+  const rawStatus = asRecord(payload).status;
+  const status = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "";
+  const tokenStatus = status === "active" || status === "expired" || status === "revoked" ? status : null;
   return { operation, providerStatus,
     providerCode: knownCodes.has(error) ? error as LinkedInAdsOAuthDiagnostic["providerCode"] : null,
-    verification };
+    verification, ...(attempts > 1 ? { attempts } : {}), ...(tokenStatus ? { tokenStatus } : {}) };
 }
 
 async function oauthResponse(operation: LinkedInAdsOAuthDiagnostic["operation"], url: string,
-  body: URLSearchParams): Promise<Response> {
+  body: URLSearchParams, timeoutMs = 15000): Promise<Response> {
   try {
     return await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     throw new LinkedInAdsConnectionError("Vérification OAuth LinkedIn Ads momentanément indisponible.",
       "provider_unavailable", 503, oauthDiagnostic(operation, null, undefined, timeout ? "timeout" : "request_failed"));
+  }
+}
+
+/** A JSON syntax error is malformed data; interrupted body transport is temporary. */
+async function oauthPayload(response: Response, operation: LinkedInAdsOAuthDiagnostic["operation"]): Promise<Record<string, unknown>> {
+  try {
+    return asRecord(await response.json());
+  } catch (error) {
+    if (error instanceof SyntaxError) return {};
+    const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new LinkedInAdsConnectionError("Vérification OAuth LinkedIn Ads momentanément indisponible.",
+      "provider_unavailable", 503, oauthDiagnostic(operation, response.status, undefined, timeout ? "timeout" : "request_failed"));
   }
 }
 
@@ -136,7 +154,7 @@ async function tokenRequest(body: URLSearchParams): Promise<LinkedInAdsToken> {
   const operation = body.get("grant_type") === "refresh_token" ? "token_refresh" : "code_exchange";
   const response = await oauthResponse(operation, "https://www.linkedin.com/oauth/v2/accessToken",
     new URLSearchParams({ ...Object.fromEntries(body), client_id: clientId, client_secret: clientSecret }));
-  const payload = asRecord(await response.json().catch(() => null));
+  const payload = await oauthPayload(response, operation);
   if (!response.ok) {
     const invalid = response.status === 400 || response.status === 401;
     throw new LinkedInAdsConnectionError(
@@ -163,37 +181,74 @@ async function refreshLinkedInAdsToken(refreshToken: string): Promise<LinkedInAd
   return tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }));
 }
 
-/** LinkedIn's code exchange may omit `scope`; verify the actual 3-legged token. */
-async function verifiedLinkedInAdsScopes(accessToken: string): Promise<string[]> {
+/** LinkedIn's code exchange may omit `scope`; verify the actual 3-legged token.
+ * Only a fresh code exchange may recheck an inactive token within a ten-second window.
+ * This bounded verification handles observed timing, without assuming activation or retrying the exchange.
+ */
+async function verifiedLinkedInAdsScopes(accessToken: string, allowInactiveRechecks = false): Promise<{
+  scopes: string[]; attempts: 1 | 2 | 3 | 4;
+}> {
   const { clientId, clientSecret, configured } = getLinkedInAdsCredentials();
   if (!configured) throw new LinkedInAdsConnectionError("Configuration LinkedIn Ads incomplète.", "configuration_missing");
   const operation = "token_introspection";
-  const response = await oauthResponse(operation, "https://www.linkedin.com/oauth/v2/introspectToken",
-    new URLSearchParams({ client_id: clientId, client_secret: clientSecret, token: accessToken }));
-  const payload = asRecord(await response.json().catch(() => null));
-  if (response.status === 429 || response.status >= 500) {
-    throw new LinkedInAdsConnectionError("Vérification LinkedIn Ads momentanément indisponible.", "provider_unavailable", 503,
-      oauthDiagnostic(operation, response.status, payload));
+  const delays = [250, 750, 1500] as const;
+  const deadline = allowInactiveRechecks ? Date.now() + 10000 : null;
+  for (const attempts of [1, 2, 3, 4] as const) {
+    const remaining = deadline === null ? 15000 : deadline - Date.now();
+    if (remaining <= 0) {
+      throw new LinkedInAdsConnectionError("Vérification LinkedIn Ads momentanément indisponible.", "provider_unavailable", 503,
+        oauthDiagnostic(operation, null, undefined, "timeout", attempts === 1 ? 1 : attempts - 1 as 1 | 2 | 3));
+    }
+    let response: Response;
+    let payload: Record<string, unknown>;
+    try {
+      response = await oauthResponse(operation, "https://www.linkedin.com/oauth/v2/introspectToken",
+        new URLSearchParams({ client_id: clientId, client_secret: clientSecret, token: accessToken }), remaining);
+      payload = await oauthPayload(response, operation);
+    } catch (error) {
+      if (attempts > 1 && error instanceof LinkedInAdsConnectionError && error.oauthDiagnostic) {
+        throw new LinkedInAdsConnectionError(error.message, error.code, error.status, { ...error.oauthDiagnostic, attempts });
+      }
+      throw error;
+    }
+    if (deadline !== null && Date.now() >= deadline) {
+      throw new LinkedInAdsConnectionError("Vérification LinkedIn Ads momentanément indisponible.", "provider_unavailable", 503,
+        oauthDiagnostic(operation, response.status, undefined, "timeout", attempts));
+    }
+    if (response.status === 429 || response.status >= 500) {
+      throw new LinkedInAdsConnectionError("Vérification LinkedIn Ads momentanément indisponible.", "provider_unavailable", 503,
+        oauthDiagnostic(operation, response.status, payload, null, attempts));
+    }
+    if (!response.ok) {
+      throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
+        oauthDiagnostic(operation, response.status, payload, null, attempts));
+    }
+    if (typeof payload.active !== "boolean") {
+      throw new LinkedInAdsConnectionError("Réponse de vérification LinkedIn Ads invalide.", "provider_invalid_response", 502,
+        oauthDiagnostic(operation, response.status, payload, "malformed_response", attempts));
+    }
+    if ((payload.client_id && payload.client_id !== clientId) || (payload.auth_type && payload.auth_type !== "3L")) {
+      const verification = payload.client_id && payload.client_id !== clientId ? "client_mismatch" : "auth_type_mismatch";
+      throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
+        oauthDiagnostic(operation, response.status, payload, verification, attempts));
+    }
+    if (payload.active !== true) {
+      const status = typeof payload.status === "string" ? payload.status.toLowerCase() : "";
+      const delay = delays[attempts - 1];
+      if (!allowInactiveRechecks || delay === undefined || status === "revoked" || status === "expired"
+        || deadline === null || Date.now() + delay >= deadline) {
+        throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
+          oauthDiagnostic(operation, response.status, payload, "inactive", attempts));
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      continue;
+    }
+    const scopes = linkedInAdsScopes(payload.scope);
+    if (!scopes.length) throw new LinkedInAdsConnectionError("Scopes LinkedIn Ads non vérifiables.", "scope_verification_failed", 403,
+      oauthDiagnostic(operation, response.status, payload, "missing_scopes", attempts));
+    return { scopes, attempts };
   }
-  if (!response.ok) {
-    throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
-      oauthDiagnostic(operation, response.status, payload));
-  }
-  if (typeof payload.active !== "boolean") {
-    throw new LinkedInAdsConnectionError("Réponse de vérification LinkedIn Ads invalide.", "provider_invalid_response", 502,
-      oauthDiagnostic(operation, response.status, payload, "malformed_response"));
-  }
-  if (payload.active !== true || (payload.client_id && payload.client_id !== clientId)
-    || (payload.auth_type && payload.auth_type !== "3L")) {
-    const verification = payload.active !== true ? "inactive"
-      : payload.client_id && payload.client_id !== clientId ? "client_mismatch" : "auth_type_mismatch";
-    throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401,
-      oauthDiagnostic(operation, response.status, payload, verification));
-  }
-  const scopes = linkedInAdsScopes(payload.scope);
-  if (!scopes.length) throw new LinkedInAdsConnectionError("Scopes LinkedIn Ads non vérifiables.", "scope_verification_failed", 403,
-    oauthDiagnostic(operation, response.status, payload, "missing_scopes"));
-  return scopes;
+  throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads non vérifié.", "authorization_invalid", 401);
 }
 
 export async function readLinkedInAdsIntegration(userId: string): Promise<LinkedInAdsIntegration | null> {
@@ -269,11 +324,12 @@ export async function saveLinkedInAdsConnection(userId: string, token: LinkedInA
   if (!token.access_token || !positiveSeconds(token.expires_in)) {
     throw new LinkedInAdsConnectionError("Jeton LinkedIn Ads invalide.", "authorization_invalid", 401);
   }
-  const scopes = await verifiedLinkedInAdsScopes(token.access_token);
+  const { scopes, attempts } = await verifiedLinkedInAdsScopes(token.access_token, true);
   if (!linkedInAdsHasAccessMode(scopes.join(" "), requestedMode)) {
     throw new LinkedInAdsConnectionError("Autorisation LinkedIn Ads requise non accordée.", "missing_scopes", 403,
-      oauthDiagnostic("token_introspection", 200, undefined, "missing_scopes"));
+      oauthDiagnostic("token_introspection", 200, undefined, "missing_scopes", attempts));
   }
+  if (attempts > 1) console.info("[linkedin-ads-oauth-verification]", { attempts, result: "active" });
   // Also verifies that Marketing API access is actually approved for this OAuth app.
   const memberships = await listLinkedInAdsAccountUsers(token.access_token);
   const memberUrn = memberships[0]?.memberUrn || null;
@@ -354,7 +410,7 @@ export async function linkedInAdsAuthorization(userId: string, row?: LinkedInAds
     }
     throw error;
   }
-  const scopes = (await verifiedLinkedInAdsScopes(refreshed.access_token!)).join(" ");
+  const scopes = (await verifiedLinkedInAdsScopes(refreshed.access_token!)).scopes.join(" ");
   if (!linkedInAdsHasReadAccess(scopes)) {
     await markNeedsReconnect(userId, integration.id);
     throw new LinkedInAdsConnectionError("Les autorisations LinkedIn Ads ont changé.", "missing_scopes", 403);

@@ -63,6 +63,8 @@ export async function GET(request: Request) {
       providerStatus: diagnostic?.providerStatus ?? null,
       providerCode: diagnostic?.providerCode ?? null,
       verification: diagnostic?.verification ?? null,
+      attempts: diagnostic?.attempts ?? null,
+      tokenStatus: diagnostic?.tokenStatus ?? null,
     });
     return finish("error", knownError?.code || "connection_failed");
   }

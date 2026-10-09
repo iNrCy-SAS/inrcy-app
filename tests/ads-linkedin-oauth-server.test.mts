@@ -7,7 +7,7 @@ import * as policy from "../lib/adsLinkedInPolicy.ts";
 type Server = typeof import("../lib/adsLinkedInServer.ts");
 type Diagnostic = import("../lib/adsLinkedInServer.ts").LinkedInAdsOAuthDiagnostic;
 type Integration = import("../lib/adsLinkedInServer.ts").LinkedInAdsIntegration;
-type Reply = { status?: number; body?: unknown; raw?: string; failure?: Error };
+type Reply = { status?: number; body?: unknown; raw?: string; failure?: Error; jsonFailure?: Error; elapsedMs?: number };
 const clientId = "fixture-ads-client";
 const clientSecret = "fixture-client-secret";
 const accessToken = "fixture-access-token";
@@ -16,8 +16,15 @@ const scope = policy.LINKEDIN_ADS_MANAGE_SCOPES.join(",");
 const validToken = { access_token: accessToken, expires_in: 5184000, refresh_token: refreshToken, refresh_token_expires_in: 31536000 };
 const validIntrospection = { active: true, client_id: clientId, auth_type: "3L", scope };
 
-function runtime(options: { exchange?: Reply; introspection?: Reply; memberships?: unknown; existing?: Integration | null } = {}) {
+function runtime(options: { exchange?: Reply; introspection?: Reply | Reply[]; memberships?: unknown; existing?: Integration | null;
+  timerOverrunMs?: number } = {}) {
   const calls: string[] = [];
+  const delays: number[] = [];
+  const timeouts: number[] = [];
+  const infos: unknown[][] = [];
+  const verificationObservations: Array<{ accountReads: number; writes: number }> = [];
+  let fakeNow = Date.now();
+  let introspectionIndex = 0;
   const writes: Array<{ kind: "upsert" | "update"; row: Record<string, unknown> }> = [];
   const filters: Array<[string, string]> = [];
   type Query = {
@@ -55,9 +62,12 @@ function runtime(options: { exchange?: Reply; introspection?: Reply; memberships
     "@/lib/adsLinkedInPolicy": policy,
   };
   function response(reply: Reply | undefined, defaultBody: unknown): Response {
+    fakeNow += reply?.elapsedMs || 0;
     if (reply?.failure) throw reply.failure;
-    if (reply?.raw !== undefined) return new Response(reply.raw, { status: reply.status || 200 });
-    return Response.json(reply && Object.hasOwn(reply, "body") ? reply.body : defaultBody, { status: reply?.status || 200 });
+    const result = reply?.raw !== undefined ? new Response(reply.raw, { status: reply.status || 200 })
+      : Response.json(reply && Object.hasOwn(reply, "body") ? reply.body : defaultBody, { status: reply?.status || 200 });
+    if (reply?.jsonFailure) Object.defineProperty(result, "json", { value: async () => { throw reply.jsonFailure; } });
+    return result;
   }
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
@@ -80,7 +90,10 @@ function runtime(options: { exchange?: Reply; introspection?: Reply; memberships
       }
       calls.push("token_introspection");
       assert.equal(init.body.get("token"), accessToken);
-      return response(options.introspection, validIntrospection);
+      verificationObservations.push({ accountReads: calls.filter((call) => call === "account_users").length, writes: writes.length });
+      const reply = Array.isArray(options.introspection) ? options.introspection[introspectionIndex++] : options.introspection;
+      if (Array.isArray(options.introspection)) assert.ok(reply, "No unplanned introspection request");
+      return response(reply, validIntrospection);
     }
     assert.equal(url.origin, "https://api.linkedin.com");
     assert.equal(url.pathname, "/rest/adAccountUsers");
@@ -95,10 +108,16 @@ function runtime(options: { exchange?: Reply; introspection?: Reply; memberships
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const loaded = { exports: {} as Server };
-  new Function("module", "exports", "require", "fetch", "process", compiled)(loaded, loaded.exports, (name: string) => {
+  class Clock extends Date { static now() { return fakeNow; } }
+  const timer = (resolve: () => void, milliseconds: number) => {
+    delays.push(milliseconds); fakeNow += milliseconds + (options.timerOverrunMs || 0); resolve(); return 0;
+  };
+  const abort = { timeout: (milliseconds: number) => { timeouts.push(milliseconds); return new AbortController().signal; } };
+  new Function("module", "exports", "require", "fetch", "process", "Date", "setTimeout", "AbortSignal", "console", compiled)(loaded, loaded.exports, (name: string) => {
     assert.ok(Object.hasOwn(modules, name), `Unexpected module ${name}`); return modules[name];
-  }, fetchImpl, { env: { LINKEDIN_ADS_CLIENT_ID: clientId, LINKEDIN_ADS_CLIENT_SECRET: clientSecret } });
-  return { api: loaded.exports, calls, writes, filters };
+  }, fetchImpl, { env: { LINKEDIN_ADS_CLIENT_ID: clientId, LINKEDIN_ADS_CLIENT_SECRET: clientSecret } },
+  Clock, timer, abort, { info: (...values: unknown[]) => { infos.push(values); } });
+  return { api: loaded.exports, calls, writes, filters, delays, timeouts, infos, verificationObservations };
 }
 
 async function expectFailure(run: ReturnType<typeof runtime>, action: () => Promise<unknown>, code: string,
@@ -118,8 +137,9 @@ async function expectFailure(run: ReturnType<typeof runtime>, action: () => Prom
 }
 
 const diagnostic = (operation: Diagnostic["operation"], providerStatus: number | null,
-  verification: Diagnostic["verification"] = null, providerCode: Diagnostic["providerCode"] = null): Diagnostic =>
-  ({ operation, providerStatus, providerCode, verification });
+  verification: Diagnostic["verification"] = null, providerCode: Diagnostic["providerCode"] = null,
+  attempts?: Diagnostic["attempts"]): Diagnostic =>
+  ({ operation, providerStatus, providerCode, verification, ...(attempts && attempts > 1 ? { attempts } : {}) });
 
 test("official 3-legged introspection with comma scopes saves only the owner-scoped encrypted Ads connection", async () => {
   const run = runtime();
@@ -144,17 +164,106 @@ test("optional official introspection metadata may be omitted, while granted sco
   assert.equal(run.writes.length, 1);
 });
 
-test("inactive, mismatched client and non-member tokens stay rejected before accounts or database access", async () => {
+test("mismatched client and non-member tokens stay rejected immediately, including inactive responses", async () => {
   for (const [override, verification] of [
-    [{ active: false }, "inactive"], [{ client_id: "other-client" }, "client_mismatch"],
+    [{ client_id: "other-client" }, "client_mismatch"], [{ active: false, client_id: "other-client" }, "client_mismatch"],
     [{ auth_type: "2L" }, "auth_type_mismatch"], [{ auth_type: "Enterprise_User" }, "auth_type_mismatch"],
+    [{ active: false, auth_type: "2L" }, "auth_type_mismatch"],
   ] as const) {
     const run = runtime({ introspection: { body: { ...validIntrospection, ...override } } });
     await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
       "authorization_invalid", 401, diagnostic("token_introspection", 200, verification));
     assert.deepEqual(run.calls, ["token_introspection"]);
     assert.equal(run.writes.length, 0);
+    assert.deepEqual(run.delays, []);
   }
+});
+
+test("a newly exchanged inactive token is rechecked unchanged and only saved after active full-scope verification", async () => {
+  const run = runtime({ introspection: [{ body: { active: false } }, { body: { active: false } },
+    { body: { active: false } }, { body: validIntrospection }] });
+  const token = await run.api.exchangeLinkedInAdsCode("fixture-code", "https://app.example.test/api/ads/linkedin/callback");
+  await run.api.saveLinkedInAdsConnection("fixture-owner", token, "manage");
+  assert.deepEqual(run.calls, ["code_exchange", ...Array<string>(4).fill("token_introspection"), "account_users", "db_read"]);
+  assert.deepEqual(run.delays, [250, 750, 1500]);
+  assert.deepEqual(run.verificationObservations, Array.from({ length: 4 }, () => ({ accountReads: 0, writes: 0 })));
+  assert.deepEqual(run.infos, [["[linkedin-ads-oauth-verification]", { attempts: 4, result: "active" }]]);
+  assert.equal(run.writes.length, 1);
+  assert.deepEqual(run.timeouts.slice(0, 5), [15000, 10000, 9750, 9000, 7500]);
+});
+
+test("four inactive verifications exhaust the bounded window without accounts, writes or a recovery log", async () => {
+  const run = runtime({ introspection: { body: { active: false } } });
+  await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "authorization_invalid", 401, diagnostic("token_introspection", 200, "inactive", null, 4));
+  assert.deepEqual(run.calls, Array<string>(4).fill("token_introspection"));
+  assert.deepEqual(run.delays, [250, 750, 1500]);
+  assert.equal(run.writes.length, 0);
+  assert.deepEqual(run.infos, []);
+});
+
+test("explicit revoked or expired statuses are not treated as delayed activation", async () => {
+  for (const status of ["revoked", "expired", "REVOKED", "EXPIRED"]) {
+    const run = runtime({ introspection: { body: { active: false, status } } });
+    await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+      "authorization_invalid", 401, { ...diagnostic("token_introspection", 200, "inactive"), tokenStatus: status.toLowerCase() as "revoked" | "expired" });
+    assert.deepEqual(run.calls, ["token_introspection"]);
+    assert.deepEqual(run.delays, []);
+    assert.equal(run.writes.length, 0);
+  }
+});
+
+test("token status diagnostics expose only known enums and never arbitrary provider values", async () => {
+  for (const status of ["active", "ACTIVE", "fixture-sensitive-description", `${accessToken} https://private.example`]) {
+    const run = runtime({ introspection: { body: { active: true, status } } });
+    const expected = diagnostic("token_introspection", 200, "missing_scopes");
+    if (status.toLowerCase() === "active") expected.tokenStatus = "active";
+    await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+      "scope_verification_failed", 403, expected);
+    assert.deepEqual(run.calls, ["token_introspection"]);
+    assert.equal(run.writes.length, 0);
+  }
+});
+
+test("a refusal after an inactive response stops immediately and never logs recovery", async () => {
+  for (const [reply, code, status, verification, providerCode] of [
+    [{ status: 400, body: { error: "invalid_request" } }, "authorization_invalid", 401, null, "invalid_request"],
+    [{ status: 429, body: { error: "temporarily_unavailable" } }, "provider_unavailable", 503, null, "temporarily_unavailable"],
+    [{ body: { ...validIntrospection, client_id: "other-client" } }, "authorization_invalid", 401, "client_mismatch", null],
+    [{ body: { ...validIntrospection, auth_type: "2L" } }, "authorization_invalid", 401, "auth_type_mismatch", null],
+    [{ raw: "invalid JSON" }, "provider_invalid_response", 502, "malformed_response", null],
+    [{ body: { active: true } }, "scope_verification_failed", 403, "missing_scopes", null],
+    [{ body: { active: true, scope: "r_ads" } }, "missing_scopes", 403, "missing_scopes", null],
+  ] as const) {
+    const safeReply: Reply = reply;
+    const run = runtime({ introspection: [{ body: { active: false } }, safeReply] });
+    await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+      code, status, diagnostic("token_introspection", safeReply.status || 200, verification, providerCode, 2));
+    assert.deepEqual(run.calls, ["token_introspection", "token_introspection"]);
+    assert.deepEqual(run.delays, [250]);
+    assert.equal(run.writes.length, 0);
+    assert.deepEqual(run.infos, []);
+  }
+});
+
+test("the fresh verification deadline limits slow responses and late timers to ten seconds", async () => {
+  const run = runtime({ introspection: [{ body: { active: false }, elapsedMs: 8900 }, { body: { active: false }, elapsedMs: 800 }] });
+  await expectFailure(run, () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "authorization_invalid", 401, diagnostic("token_introspection", 200, "inactive", null, 2));
+  assert.deepEqual(run.calls, ["token_introspection", "token_introspection"]);
+  assert.deepEqual(run.delays, [250]);
+  assert.deepEqual(run.timeouts, [10000, 850]);
+  assert.equal(run.writes.length, 0);
+  const late = runtime({ introspection: { body: { active: false } }, timerOverrunMs: 10000 });
+  await expectFailure(late, () => late.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "provider_unavailable", 503, diagnostic("token_introspection", null, "timeout"));
+  assert.deepEqual(late.calls, ["token_introspection"]);
+  assert.equal(late.writes.length, 0);
+  const slow = runtime({ introspection: { body: validIntrospection, elapsedMs: 10001 } });
+  await expectFailure(slow, () => slow.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "provider_unavailable", 503, diagnostic("token_introspection", 200, "timeout"));
+  assert.deepEqual(slow.calls, ["token_introspection"]);
+  assert.equal(slow.writes.length, 0);
 });
 
 test("introspection HTTP400/401 keeps the safe OAuth error code, never a description or arbitrary provider string", async () => {
@@ -215,6 +324,37 @@ test("OAuth transport timeouts and failures are typed without preserving error t
   }
 });
 
+test("interrupted OAuth JSON body transport remains temporary, while JSON syntax stays malformed", async () => {
+  for (const operation of ["code_exchange", "token_introspection"] as const) {
+    for (const [name, verification] of [["TimeoutError", "timeout"], ["AbortError", "timeout"], ["TypeError", "request_failed"]] as const) {
+      const jsonFailure = new Error(`fixture-sensitive-description ${clientSecret} https://private.example`);
+      jsonFailure.name = name;
+      const run = runtime(operation === "code_exchange" ? { exchange: { jsonFailure } } : { introspection: { jsonFailure } });
+      await expectFailure(run, operation === "code_exchange"
+        ? () => run.api.exchangeLinkedInAdsCode("fixture-code", "https://app.example.test/api/ads/linkedin/callback")
+        : () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+      "provider_unavailable", 503, diagnostic(operation, 200, verification));
+      assert.deepEqual(run.calls, [operation]);
+      assert.deepEqual(run.delays, []);
+      assert.equal(run.writes.length, 0);
+    }
+    const run = runtime(operation === "code_exchange" ? { exchange: { jsonFailure: new SyntaxError("fixture-sensitive-description") } }
+      : { introspection: { jsonFailure: new SyntaxError("fixture-sensitive-description") } });
+    await expectFailure(run, operation === "code_exchange"
+      ? () => run.api.exchangeLinkedInAdsCode("fixture-code", "https://app.example.test/api/ads/linkedin/callback")
+      : () => run.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "provider_invalid_response", 502, diagnostic(operation, 200, "malformed_response"));
+    assert.deepEqual(run.calls, [operation]);
+  }
+  const jsonFailure = new Error("fixture-sensitive-description"); jsonFailure.name = "AbortError";
+  const second = runtime({ introspection: [{ body: { active: false } }, { jsonFailure }] });
+  await expectFailure(second, () => second.api.saveLinkedInAdsConnection("fixture-owner", validToken, "manage"),
+    "provider_unavailable", 503, diagnostic("token_introspection", 200, "timeout", null, 2));
+  assert.deepEqual(second.calls, ["token_introspection", "token_introspection"]);
+  assert.deepEqual(second.delays, [250]);
+  assert.equal(second.writes.length, 0);
+});
+
 test("code exchange diagnostics distinguish the provider HTTP status without changing invalid grant rejection", async () => {
   for (const [status, error, code, appStatus] of [
     [400, "invalid_grant", "authorization_invalid", 401], [401, "invalid_client", "authorization_invalid", 401],
@@ -259,6 +399,18 @@ test("temporary refresh exchange and introspection failures preserve the current
     });
     assert.equal(run.writes.length, 0, "a transient error must not revoke or overwrite the saved connection");
   }
+});
+
+test("refresh introspection never rechecks an inactive token or changes the saved integration", async () => {
+  const row = expiredIntegration();
+  const run = runtime({ existing: row, introspection: { body: { active: false } } });
+  await expectFailure(run, () => run.api.linkedInAdsAuthorization("fixture-owner", row), "authorization_invalid", 401,
+    diagnostic("token_introspection", 200, "inactive"));
+  assert.deepEqual(run.calls, ["token_refresh", "token_introspection"]);
+  assert.deepEqual(run.delays, []);
+  assert.deepEqual(run.timeouts, [15000, 15000]);
+  assert.equal(run.writes.length, 0);
+  assert.deepEqual(run.infos, []);
 });
 
 test("rejected refresh grants retain their operation diagnostic and require reconnection for the exact owner", async () => {
