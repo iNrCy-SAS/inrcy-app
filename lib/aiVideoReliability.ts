@@ -1,7 +1,16 @@
+import type { GoogleGenAIOptions } from "@google/genai";
+import type { gaxios as GoogleAuthGaxios, IdentityPoolClientOptions } from "google-auth-library";
+
+// Legacy Gemini route stays available during the staged migration only.
 export const DEFAULT_VEO_MODEL = "veo-3.1-fast-generate-preview";
 export const DEFAULT_VEO_FALLBACK_MODELS = Object.freeze([
   "veo-3.1-lite-generate-preview",
 ]);
+export const DEFAULT_VEO_VERTEX_MODEL = "veo-3.1-fast-generate-001";
+export const DEFAULT_VEO_VERTEX_FALLBACK_MODELS = Object.freeze([
+  "veo-3.1-lite-generate-001",
+]);
+export type VeoApiBackend = "gemini" | "vertex";
 
 export type VeoInspirationMode = "references" | "source" | "none";
 
@@ -30,6 +39,11 @@ const ACTIVE_VEO_MODELS = new Set([
   "veo-3.1-generate-preview",
   "veo-3.1-fast-generate-preview",
   "veo-3.1-lite-generate-preview",
+]);
+const VERTEX_VEO_MODELS = new Set([
+  "veo-3.1-generate-001",
+  DEFAULT_VEO_VERTEX_MODEL,
+  ...DEFAULT_VEO_VERTEX_FALLBACK_MODELS,
 ]);
 const RETIRED_MODEL_PATTERN = /^veo-(?:2(?:\.0)?|3\.0)-/i;
 
@@ -90,9 +104,142 @@ function statusFromDetails(details: string) {
   return match ? Number(match[1]) : 0;
 }
 
-export function isValidVeoModelId(value: unknown) {
+export function resolveVeoApiBackend(value: unknown): VeoApiBackend {
+  const backend = compact(value, 40).toLowerCase();
+  if (!backend || backend === "gemini") return "gemini";
+  if (backend === "vertex") return "vertex";
+  throw new Error("ai_video_veo_backend_invalid");
+}
+
+/** Explicit project/location prevents the Gemini API key from selecting Express mode. */
+export function resolveVeoVertexClientOptions(
+  env: Readonly<Record<string, string | undefined>>,
+): GoogleGenAIOptions {
+  const project = (
+    env.AI_MEDIA_VEO_VERTEX_PROJECT || env.GOOGLE_CLOUD_PROJECT || ""
+  ).trim();
+  const location = (env.AI_MEDIA_VEO_VERTEX_LOCATION || "us-central1").trim();
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(project)) {
+    throw new Error("ai_video_veo_vertex_project_missing_or_invalid");
+  }
+  if (location !== "us-central1") {
+    throw new Error("ai_video_veo_vertex_location_unsupported");
+  }
+  const options: GoogleGenAIOptions = { vertexai: true, project, location };
+  // Optional server-managed ADC/WIF configuration; never log or echo its contents.
+  const rawCredentials = env.AI_MEDIA_VEO_VERTEX_CREDENTIALS_JSON?.trim();
+  if (rawCredentials) {
+    let credentials: NonNullable<GoogleGenAIOptions["googleAuthOptions"]>["credentials"];
+    try {
+      credentials = JSON.parse(rawCredentials);
+    } catch {
+      throw new Error("ai_video_veo_vertex_credentials_invalid");
+    }
+    if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) {
+      throw new Error("ai_video_veo_vertex_credentials_invalid");
+    }
+    options.googleAuthOptions = { credentials };
+  }
+  return options;
+}
+
+export const VEO_VERTEX_WIF_PHASE_TIMEOUT_MS = 10_000;
+
+async function withVeoWifTimeout<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error("ai_video_veo_vertex_federation_timeout");
+      controller.abort(error);
+      reject(error);
+    }, VEO_VERTEX_WIF_PHASE_TIMEOUT_MS);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([run(controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Use renewable Vercel identity tokens instead of a persistent service-account key.
+ * Token supply, STS wait and IAM each have a 10s deadline (30s maximum together).
+ * The SDK does not forward the caller's AbortSignal into GoogleAuth. STS's own
+ * HTTP transport is not publicly configurable in google-auth-library 10.9.1;
+ * its request can finish later, but a timed-out exchange cannot continue to IAM.
+ */
+export async function createVeoVertexClientOptions(
+  env: Readonly<Record<string, string | undefined>>,
+  tokenSupplier?: () => Promise<string>,
+): Promise<GoogleGenAIOptions> {
+  const options = resolveVeoVertexClientOptions(env);
+  const audience = env.AI_MEDIA_VEO_VERTEX_WIF_AUDIENCE?.trim();
+  const serviceAccount = env.AI_MEDIA_VEO_VERTEX_SERVICE_ACCOUNT?.trim();
+  if (!audience && !serviceAccount) return options;
+  if (
+    !audience ||
+    !/^\/\/iam\.googleapis\.com\/projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]+\/providers\/[a-z0-9-]+$/.test(audience) ||
+    !serviceAccount ||
+    !/^[a-z][a-z0-9-]*@[a-z][a-z0-9-]*\.iam\.gserviceaccount\.com$/.test(serviceAccount) ||
+    options.googleAuthOptions?.credentials
+  ) {
+    throw new Error("ai_video_veo_vertex_federation_invalid");
+  }
+  const { IdentityPoolClient, gaxios } = await import("google-auth-library");
+  const getToken = tokenSupplier || (await import("@vercel/oidc")).getVercelOidcToken;
+
+  class BoundedWifTransport extends gaxios.Gaxios {
+    async request<T = unknown>(requestOptions: GoogleAuthGaxios.GaxiosOptions = {}) {
+      return withVeoWifTimeout((signal) => super.request<T>({
+        ...requestOptions,
+        signal: requestOptions.signal
+          ? AbortSignal.any([requestOptions.signal, signal])
+          : signal,
+        // AuthClient normally enables its own HTTP retries. A single bounded
+        // exchange lets the video provider decide whether to retry the work.
+        retry: false,
+        retryConfig: { ...requestOptions.retryConfig, retry: 0 },
+      }));
+    }
+  }
+
+  class BoundedIdentityPoolClient extends IdentityPoolClient {
+    constructor(clientOptions: IdentityPoolClientOptions) {
+      super({ ...clientOptions, transporter: new BoundedWifTransport() });
+      // STS creates another Gaxios internally, ignoring transporterOptions.
+      // Wrap its declared exchange API rather than reaching into that transport.
+      const exchangeToken = this.stsCredential.exchangeToken.bind(this.stsCredential);
+      this.stsCredential.exchangeToken = (...args: Parameters<typeof exchangeToken>) =>
+        withVeoWifTimeout(() => exchangeToken(...args));
+    }
+  }
+
+  const authClient = new BoundedIdentityPoolClient({
+    audience,
+    subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+    token_url: "https://sts.googleapis.com/v1/token",
+    service_account_impersonation_url:
+      `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${serviceAccount}:generateAccessToken`,
+    subject_token_supplier: { getSubjectToken: () => withVeoWifTimeout(() => getToken()) },
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
+  return { ...options, googleAuthOptions: { authClient } };
+}
+
+function veoModelForBackend(value: unknown, backend: VeoApiBackend) {
+  const model = compact(value, 120).toLowerCase();
+  // Preserve Fast/Lite/Standard overrides when switching the service explicitly.
+  return backend === "vertex" && ACTIVE_VEO_MODELS.has(model)
+    ? model.replace(/-preview$/, "-001")
+    : model;
+}
+
+export function isValidVeoModelId(value: unknown, backend: VeoApiBackend = "gemini") {
   const model = compact(value, 120).toLocaleLowerCase();
-  return ACTIVE_VEO_MODELS.has(model) && !RETIRED_MODEL_PATTERN.test(model);
+  const allowed = backend === "vertex" ? VERTEX_VEO_MODELS : ACTIVE_VEO_MODELS;
+  return allowed.has(model) && !RETIRED_MODEL_PATTERN.test(model);
 }
 
 /**
@@ -104,22 +251,30 @@ export function isValidVeoModelId(value: unknown) {
 export function resolveVeoModelCandidates(args: {
   primary?: unknown;
   fallbacks?: unknown;
+  backend?: VeoApiBackend;
 }) {
-  const configuredPrimary = compact(args.primary, 120);
-  const primary = isValidVeoModelId(configuredPrimary)
-    ? configuredPrimary.toLocaleLowerCase()
+  const backend = args.backend || "gemini";
+  const configuredPrimary = veoModelForBackend(args.primary, backend);
+  const defaultModel = backend === "vertex"
+    ? DEFAULT_VEO_VERTEX_MODEL
     : DEFAULT_VEO_MODEL;
+  const defaultFallbacks = backend === "vertex"
+    ? DEFAULT_VEO_VERTEX_FALLBACK_MODELS
+    : DEFAULT_VEO_FALLBACK_MODELS;
+  const primary = isValidVeoModelId(configuredPrimary, backend)
+    ? configuredPrimary.toLocaleLowerCase()
+    : defaultModel;
 
   const rawFallbacks =
     args.fallbacks === undefined
-      ? DEFAULT_VEO_FALLBACK_MODELS.join(",")
+      ? defaultFallbacks.join(",")
       : compact(args.fallbacks, 600);
   const candidates = [
     primary,
     ...rawFallbacks
       .split(",")
-      .map((value) => value.trim().toLocaleLowerCase())
-      .filter(isValidVeoModelId),
+      .map((value) => veoModelForBackend(value, backend))
+      .filter((value) => isValidVeoModelId(value, backend)),
   ];
   return Array.from(new Set(candidates));
 }
@@ -128,7 +283,9 @@ export function supportsVeoReferenceImages(model: string) {
   const normalized = compact(model, 120).toLocaleLowerCase();
   return (
     normalized === "veo-3.1-generate-preview" ||
-    normalized === "veo-3.1-fast-generate-preview"
+    normalized === "veo-3.1-fast-generate-preview" ||
+    normalized === "veo-3.1-generate-001" ||
+    normalized === DEFAULT_VEO_VERTEX_MODEL
   );
 }
 

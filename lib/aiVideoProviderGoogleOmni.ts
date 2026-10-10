@@ -78,7 +78,11 @@ function apiKey() {
 }
 
 function modelId() {
-  return compact(process.env.AI_MEDIA_OMNI_MODEL, 160) || DEFAULT_OMNI_MODEL;
+  const configured = compact(process.env.AI_MEDIA_OMNI_MODEL, 160);
+  // Preview aliases retire on 2026-10-22; retain the already-integrated GA API.
+  return !configured || configured === "gemini-omni-flash-preview"
+    ? DEFAULT_OMNI_MODEL
+    : configured;
 }
 
 function costMicroUsdPerSecond() {
@@ -644,7 +648,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     assertAiMediaVideoProviderBoundary(args);
     assertAiVideoReferenceTeamGoogleEgress(args);
     const key = apiKey();
-    const ai = new GoogleGenAI({ apiKey: key });
+    const ai = new GoogleGenAI({ vertexai: false, apiKey: key });
     const model = modelId();
     const timeoutMs = positiveInt(
       process.env.AI_MEDIA_VIDEO_TIMEOUT_MS,

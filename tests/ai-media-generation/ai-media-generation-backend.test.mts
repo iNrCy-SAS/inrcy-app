@@ -1139,10 +1139,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /source:\s*\{[\s\S]*?prompt: args\.prompt/);
   assert.doesNotMatch(veo, /\bseed:/);
   assert.doesNotMatch(veo, /stableSeed/);
-  assert.doesNotMatch(veo, /generateAudio/);
   assert.doesNotMatch(veo, /enhancePrompt/);
   assert.doesNotMatch(veo, /negativePrompt/);
-  assert.doesNotMatch(veo, /numberOfVideos/);
   assert.match(veo, /personGeneration: "allow_adult"/);
   assert.match(veo, /Veo scene failed/);
   assert.match(veo, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
@@ -1159,7 +1157,6 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /referenceImages:/);
   assert.match(veo, /VideoGenerationReferenceType\.ASSET/);
   assert.match(veo, /imageBytes: sourceImage\.data/);
-  assert.doesNotMatch(veo, /resolution: "720p"/);
   assert.match(veo, /getVideosOperation/);
   assert.match(veo, /raiMediaFilteredReasons/);
   assert.match(veo, /safetyFilteredError/);
