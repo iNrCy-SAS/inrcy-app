@@ -397,7 +397,7 @@ test("un canal desactive reste gris tandis qu'un canal a connecter garde son eta
 test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster, iNrAgent et iNrStudio", () => {
   assert.match(sharedModulesSource, /\/dashboard\/stats/);
   assert.match(sharedModulesSource, /path: standardMode \? "\/dashboard\/mails\?folder=publications&boxView=sent" : "\/dashboard\/mails"/);
-  assert.match(sharedModulesSource, /description: standardMode \? standardT\("sendDescription"\) : t\.modules\.mailsSub/);
+  assert.match(sharedModulesSource, /description: standardT\("sendDescription"\)/);
   assert.match(sharedModulesSource, /\/dashboard\/e-reputation/);
   assert.match(sharedModulesSource, /onClick=\{openPublishModal\}/);
   assert.match(sharedModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
