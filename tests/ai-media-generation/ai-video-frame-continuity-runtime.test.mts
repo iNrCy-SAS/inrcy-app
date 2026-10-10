@@ -19,12 +19,16 @@ import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 type Engine = "veo" | "omni";
 type RecordValue = Record<string, unknown>;
 type VeoSubmission = {
+  model: string;
   source: { prompt: string; image?: { imageBytes: string; mimeType: string }; video?: unknown };
   config: {
-    referenceImages?: Array<{ image: { imageBytes: string; mimeType: string } }>;
+    referenceImages?: Array<{ image: { imageBytes: string; mimeType: string }; referenceType?: string }>;
     personGeneration?: string;
     durationSeconds?: number;
     aspectRatio?: string;
+    numberOfVideos?: number;
+    generateAudio?: boolean;
+    resolution?: string;
   };
 };
 type OmniSubmission = {
@@ -108,6 +112,10 @@ function refreshProviderBoundary(
 }
 
 function createHarness(engine: Engine, options: {
+  vertex?: boolean;
+  missingInlineBytes?: boolean;
+  holdPoll?: Promise<void>;
+  omniModel?: string;
   holdFirstOutput?: Promise<void>;
   holdOutputs?: Partial<Record<number, Promise<void>>>;
   failSubmission?: number;
@@ -121,10 +129,13 @@ function createHarness(engine: Engine, options: {
   simulatedClipMs?: number;
 } = {}) {
   const submissions: RecordValue[] = [];
+  const clients: RecordValue[] = [];
   const extracted: Array<{ buffer: Buffer; durationSeconds: number; sourceStartSeconds?: number }> = [];
   const buffers: Buffer[] = [];
   const charged: number[] = [];
   const clipTimeouts: number[] = [];
+  const polls: RecordValue[] = [];
+  let completedOperation: RecordValue | undefined;
   let wallTime = 0;
   let fallbackCalls = 0;
   let inFlight = 0;
@@ -154,15 +165,22 @@ function createHarness(engine: Engine, options: {
       }
       const buffer = Buffer.from(`0000ftypgenerated-clip-${index + 1}`);
       buffers.push(buffer);
-      return engine === "veo"
+      const output = engine === "veo"
         ? {
             name: `operations/clip-${index + 1}`, done: true,
-            response: { generatedVideos: [{ video: { videoBytes: buffer.toString("base64"), mimeType: "video/mp4" } }] },
+            response: { generatedVideos: [{ video: options.missingInlineBytes
+              ? { uri: "gs://fixture-only/clip.mp4", mimeType: "video/mp4" }
+              : { videoBytes: buffer.toString("base64"), mimeType: "video/mp4" } }] },
           }
         : {
             id: `interaction-${index + 1}`,
             output_video: { data: buffer.toString("base64"), mime_type: "video/mp4" },
           };
+      if (engine === "veo" && options.holdPoll) {
+        completedOperation = output;
+        return { name: output.name, done: false };
+      }
+      return output;
     } finally {
       inFlight -= 1;
     }
@@ -172,9 +190,15 @@ function createHarness(engine: Engine, options: {
     ["server-only", {}],
     ["@google/genai", {
       GoogleGenAI: class {
+        constructor(clientOptions: RecordValue) { clients.push(clientOptions); }
         models = { generateVideos: submit };
         interactions = { create: submit };
-        operations = { getVideosOperation: () => { throw new Error("unexpected_poll"); } };
+        operations = { getVideosOperation: async (input: RecordValue) => {
+          if (!options.holdPoll) throw new Error("unexpected_poll");
+          polls.push(input);
+          await options.holdPoll;
+          return completedOperation;
+        } };
         files = { download: () => { throw new Error("unexpected_download"); } };
       },
       VideoGenerationReferenceType: { ASSET: "ASSET" },
@@ -228,6 +252,12 @@ function createHarness(engine: Engine, options: {
         // or opt into cumulative continuation from the developer's shell.
         process: { env: {
           GEMINI_API_KEY: "test-only",
+          ...(options.vertex ? {
+            AI_MEDIA_VEO_BACKEND: "vertex",
+            AI_MEDIA_VEO_VERTEX_PROJECT: "fixture-vertex-project",
+          } : {}),
+          ...(options.holdPoll ? { AI_MEDIA_VEO_POLL_MS: "1" } : {}),
+          ...(options.omniModel ? { AI_MEDIA_OMNI_MODEL: options.omniModel } : {}),
           AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED: String(options.statefulEnabled ?? false),
           ...(options.disableOmniFallback ? { AI_MEDIA_OMNI_FALLBACK_TO_VEO: "false" } : {}),
           ...(options.concurrency ? {
@@ -258,12 +288,88 @@ function createHarness(engine: Engine, options: {
   });
   const provider = (engine === "veo" ? veo.googleVeoVideoProvider : loadModule("aiVideoProviderGoogleOmni.ts").googleOmniVideoProvider) as providerTypes.AiVideoProvider;
   return {
-    provider, submissions, extracted, buffers, charged, clipTimeouts,
+    provider, submissions, clients, extracted, buffers, charged, clipTimeouts, polls,
     promptRuntime: veo as unknown as typeof import("../../lib/aiVideoProviderGoogleVeo.ts"),
     get maximumInFlight() { return maximumInFlight; },
     get fallbackCalls() { return fallbackCalls; },
   };
 }
+
+for (const duration of [8, 16, 24] as const) {
+  for (const format of ["square", "portrait", "story", "landscape"] as const) {
+    test(`Veo Vertex conserve ${duration}s, ${format}, les références et les raccords`, async () => {
+      const harness = createHarness("veo", { vertex: true });
+      const args = generationArgs("veo", duration);
+      args.request.format = format;
+      args.request.connectScenes = duration > 8;
+      refreshProviderBoundary(args);
+      const result = await harness.provider.generate(args);
+      assert.equal(result.clips.length, duration / 8);
+      assert.equal(result.model, "veo-3.1-fast-generate-001");
+      assert.equal(harness.charged.reduce((a, b) => a + b, 0), duration * 100_000);
+      assert.equal(harness.clients[0].vertexai, true);
+      assert.equal(harness.clients[0].project, "fixture-vertex-project");
+      assert.equal(harness.clients[0].location, "us-central1");
+      assert.equal(harness.clients[0].apiKey, undefined);
+      for (const submission of harness.submissions as unknown as VeoSubmission[]) {
+        assert.equal(submission.model, "veo-3.1-fast-generate-001");
+        assert.equal(submission.config.durationSeconds, 8);
+        assert.equal(submission.config.aspectRatio, ["portrait", "story"].includes(format) ? "9:16" : "16:9");
+        assert.equal(submission.config.numberOfVideos, 1);
+        assert.equal(submission.config.generateAudio, true);
+        assert.equal(submission.config.resolution, "720p");
+      }
+      const first = harness.submissions[0] as unknown as VeoSubmission;
+      assert.equal(first.config.referenceImages?.[0]?.referenceType, "asset");
+      assert.equal(harness.extracted.length, duration / 8 - 1);
+      assert.equal(harness.fallbackCalls, 0);
+    });
+  }
+}
+
+test("Veo Vertex ne régénère pas un résultat facturable sans bytes et n'appelle pas Files", async () => {
+  const harness = createHarness("veo", { vertex: true, missingInlineBytes: true });
+  const args = generationArgs("veo", 8);
+  await assert.rejects(harness.provider.generate(args), (error: unknown) =>
+    providerTypes.isAiVideoProviderBillableFailure(error));
+  assert.equal(harness.submissions.length, 1);
+  assert.deepEqual(harness.charged, [800_000]);
+  assert.equal(harness.fallbackCalls, 0);
+});
+
+test("Veo Vertex propage une annulation pendant le poll après avoir comptabilisé le clip déjà produit", async () => {
+  const pollResult = deferred();
+  const controller = new AbortController();
+  const harness = createHarness("veo", { vertex: true, holdPoll: pollResult.promise });
+  const args = generationArgs("veo", 8);
+  args.signal = controller.signal;
+  const pending = harness.provider.generate(args);
+  // The fixture reaches the asynchronous poll without running a real generation.
+  for (let turn = 0; turn < 50 && harness.polls.length === 0; turn += 1) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1));
+  }
+  try {
+    assert.equal(harness.polls.length, 1);
+    controller.abort();
+    pollResult.resolve();
+    await assert.rejects(pending, (error: unknown) =>
+      providerTypes.isAiVideoProviderBillableFailure(error));
+    assert.deepEqual(harness.charged, [800_000]);
+    assert.equal(harness.submissions.length, 1);
+    assert.equal(harness.fallbackCalls, 0);
+  } finally {
+    pollResult.resolve();
+    await pending.catch(() => undefined);
+  }
+});
+
+test("Omni remplace son alias preview retiré par GA et reste sur Gemini", async () => {
+  const harness = createHarness("omni", { omniModel: "gemini-omni-flash-preview", vertex: true });
+  const result = await harness.provider.generate(generationArgs("omni", 8));
+  assert.equal(result.model, "gemini-omni-1.1-flash");
+  assert.equal(harness.clients[0].vertexai, false);
+  assert.equal(harness.clients[0].apiKey, "test-only");
+});
 
 for (const engine of ["veo", "omni"] as const) {
   for (const duration of [8, 16, 24] as const) {
@@ -784,6 +890,12 @@ for (const engine of ["veo", "omni"] as const) {
     assert.equal(harness.submissions.length, 1);
     assert.equal(harness.extracted.length, 0);
     assert.equal(harness.fallbackCalls, 0);
+    if (engine === "veo") {
+      const submission = harness.submissions[0] as unknown as VeoSubmission;
+      assert.equal(submission.config.numberOfVideos, undefined);
+      assert.equal(submission.config.generateAudio, undefined);
+      assert.equal(submission.config.resolution, undefined);
+    }
   });
 
   test(`${engine}: la durée du film reste bornée sans réduire le budget du premier acte`, async () => {

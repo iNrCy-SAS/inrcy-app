@@ -50,7 +50,7 @@ const required = [
   "STRIPE_PRICE_ACCEL_ID",
   "STRIPE_PRICE_ACCEL_YEARLY_ID",
 
-  // Google Veo video generation + Gemini TTS (server only)
+  // Google Omni / legacy Veo + Gemini TTS (server only)
   "GEMINI_API_KEY",
 ];
 
@@ -142,6 +142,12 @@ const optionalButRecommended = [
   "AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND",
   "AI_MEDIA_OMNI_CONCURRENCY",
   "AI_MEDIA_OMNI_FALLBACK_TO_VEO",
+  // Veo Cloud migration is opt-in; ADC/WIF may replace credentials JSON.
+  "AI_MEDIA_VEO_BACKEND",
+  "AI_MEDIA_VEO_VERTEX_PROJECT",
+  "AI_MEDIA_VEO_VERTEX_LOCATION",
+  "AI_MEDIA_VEO_VERTEX_WIF_AUDIENCE",
+  "AI_MEDIA_VEO_VERTEX_SERVICE_ACCOUNT",
   "AI_MEDIA_VEO_MODEL",
   "AI_MEDIA_VEO_FALLBACK_MODELS",
   "AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND",
