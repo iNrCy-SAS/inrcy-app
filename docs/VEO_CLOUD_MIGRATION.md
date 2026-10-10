@@ -32,4 +32,8 @@ Avant la bascule, vérifier l'identité du projet, l'accès au modèle et les ta
 
 Basculer la production seulement après ces résultats. Un retour au backend Gemini reste possible avant le 22 octobre 2026 ; après l'arrêt Google, il ne constitue plus une solution de secours.
 
+Pour les essais au budget limité, fixer explicitement Fast (`AI_MEDIA_VEO_MODEL=veo-3.1-fast-generate-001`), désactiver le secours (`AI_MEDIA_VEO_FALLBACK_MODELS` vide) et régler `AI_MEDIA_VEO_SUBMIT_ATTEMPTS=1`. Une erreur temporaire de soumission ne relancera alors pas une génération automatiquement. Le comportement habituel conserve quatre tentatives au maximum en l'absence de ce réglage.
+
+La fédération borne séparément la fourniture du jeton Vercel, l'attente STS et la requête IAM à 10 secondes chacune. Le SDK ne transmet pas le signal d'annulation de la génération à cette phase : une annulation peut donc attendre jusqu'à 30 secondes. Le transport STS interne de Google 10.9.1 peut encore terminer après ce délai, mais il ne peut alors poursuivre vers IAM ni lancer une génération.
+
 Sources : [arrêts Gemini](https://ai.google.dev/gemini-api/docs/deprecations/), [migration vers Cloud](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/migrate/migrate-google-ai), [modèles Veo](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate), [tarifs Cloud](https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing), [fédération Vercel–Google](https://vercel.com/docs/oidc/gcp).

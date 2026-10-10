@@ -921,9 +921,16 @@ async function submitOperation(args: {
     imageCount: args.inspirationImages?.length || 0,
   });
   let transientAttempt = 0;
+  // Preview trials can disable automatic resubmission to bound paid requests.
+  // Production retains the existing four-attempt policy unless configured.
+  const submitAttempts = positiveInt(
+    process.env.AI_MEDIA_VEO_SUBMIT_ATTEMPTS,
+    DEFAULT_SUBMIT_ATTEMPTS,
+    DEFAULT_SUBMIT_ATTEMPTS,
+  );
   const warnings: string[] = [];
 
-  while (transientAttempt < DEFAULT_SUBMIT_ATTEMPTS) {
+  while (transientAttempt < submitAttempts) {
     try {
       const sourceImage =
         args.continuityFrame || (inspirationMode === "source" ? args.inspirationImages?.[0] : null);
@@ -996,7 +1003,7 @@ async function submitOperation(args: {
         continue;
       }
       transientAttempt += 1;
-      if (transientAttempt >= DEFAULT_SUBMIT_ATTEMPTS || !failure.retryable) {
+      if (transientAttempt >= submitAttempts || !failure.retryable) {
         throw normalizedProviderError(error);
       }
       await delay(retryDelayMs(error, transientAttempt - 1), args.signal);

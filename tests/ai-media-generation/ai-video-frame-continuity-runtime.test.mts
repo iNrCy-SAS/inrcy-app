@@ -119,6 +119,9 @@ function createHarness(engine: Engine, options: {
   holdFirstOutput?: Promise<void>;
   holdOutputs?: Partial<Record<number, Promise<void>>>;
   failSubmission?: number;
+  transientFailures?: number;
+  submitAttempts?: number;
+  disableVeoFallback?: boolean;
   safetySubmissions?: number[];
   disableOmniFallback?: boolean;
   failExtraction?: boolean;
@@ -152,6 +155,9 @@ function createHarness(engine: Engine, options: {
       if (options.holdOutputs?.[index]) await options.holdOutputs[index];
       await nextTurn();
       wallTime += options.simulatedClipMs ?? 0;
+      if (index < (options.transientFailures ?? 0)) {
+        throw Object.assign(new Error("503 UNAVAILABLE: temporary fixture failure"), { status: 503 });
+      }
       if (index === options.failSubmission) {
         throw Object.assign(new Error("403 PERMISSION_DENIED: generation denied"), { status: 403 });
       }
@@ -257,6 +263,8 @@ function createHarness(engine: Engine, options: {
             AI_MEDIA_VEO_VERTEX_PROJECT: "fixture-vertex-project",
           } : {}),
           ...(options.holdPoll ? { AI_MEDIA_VEO_POLL_MS: "1" } : {}),
+          ...(options.submitAttempts ? { AI_MEDIA_VEO_SUBMIT_ATTEMPTS: String(options.submitAttempts) } : {}),
+          ...(options.disableVeoFallback ? { AI_MEDIA_VEO_FALLBACK_MODELS: "" } : {}),
           ...(options.omniModel ? { AI_MEDIA_OMNI_MODEL: options.omniModel } : {}),
           AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED: String(options.statefulEnabled ?? false),
           ...(options.disableOmniFallback ? { AI_MEDIA_OMNI_FALLBACK_TO_VEO: "false" } : {}),
@@ -326,6 +334,23 @@ for (const duration of [8, 16, 24] as const) {
     });
   }
 }
+
+test("Veo Vertex conserve sa reprise habituelle après une erreur temporaire", async () => {
+  const harness = createHarness("veo", { vertex: true, transientFailures: 1, disableVeoFallback: true });
+  await harness.provider.generate(generationArgs("veo", 8));
+  assert.equal(harness.submissions.length, 2);
+  assert.deepEqual(harness.charged, [800_000]);
+});
+
+test("un essai Veo Vertex limité ne relance aucune soumission après une erreur temporaire", async () => {
+  const harness = createHarness("veo", {
+    vertex: true, transientFailures: 1, submitAttempts: 1, disableVeoFallback: true,
+  });
+  await assert.rejects(harness.provider.generate(generationArgs("veo", 8)));
+  assert.equal(harness.submissions.length, 1);
+  assert.deepEqual(harness.charged, []);
+  assert.equal(harness.fallbackCalls, 0);
+});
 
 test("Veo Vertex ne régénère pas un résultat facturable sans bytes et n'appelle pas Files", async () => {
   const harness = createHarness("veo", { vertex: true, missingInlineBytes: true });
