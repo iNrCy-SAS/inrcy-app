@@ -64,13 +64,13 @@ for (const method of ["EUR", "UI"] as const) test(`${method} orders persist and 
   assert.deepEqual(route.inserts[0], {
     user_id: "active-account", account_email: "client@example.invalid", admin_email: "admin@example.invalid",
     product_key: "cartes_visite", product_name: "Cartes de visite premium", method,
-    amount_eur: method === "EUR" ? 299 : 179, amount_eur_tax_behavior: "exclusive", amount_ui: method === "UI" ? 7200 : null,
+    amount_eur: method === "EUR" ? 300 : 180, amount_eur_tax_behavior: "exclusive", amount_ui: method === "UI" ? 250 : null,
     status: "pending", idempotency_key: `fixture-${method}`,
   });
   assert.equal(route.mails.length, 2);
   for (const mail of route.mails) {
     const body = String(mail.text).replaceAll("\u202f", " ");
-    assert.match(body, method === "EUR" ? /Prix : 299 € HT\n/ : /Prix : 179 € HT \+ 7 200 UI\n/);
+    assert.match(body, method === "EUR" ? /Prix : 300 € HT\n/ : /Prix : 180 € HT \+ 250 UI\n/);
     assert.doesNotMatch(body, /Prix : 359|Prix : 215/);
   }
   assert.deepEqual(route.updates, [{ boutique_email_sent: true, client_email_sent: true, last_error: null }]);
@@ -89,15 +89,38 @@ test("historic idempotent orders are returned untouched and never recalculated o
   assert.equal(historical.amount_eur_tax_behavior, null);
 });
 
-test("authentication and the full unchanged UI balance remain required", async () => {
+test("authentication and the current UI balance remain required", async () => {
   const anonymous = fixture({ authenticated: false });
   assert.equal((await anonymous.post({ productKey: "cartes_visite", method: "EUR" })).status, 401);
-  const insufficient = fixture({ balance: 7199 });
+  const insufficient = fixture({ balance: 249 });
   assert.equal((await insufficient.post({ productKey: "cartes_visite", method: "UI" })).status, 400);
   for (const route of [anonymous, insufficient]) {
     assert.deepEqual(route.inserts, []);
     assert.deepEqual(route.mails, []);
   }
+});
+
+test("the reduced UI threshold accepts the exact eligible balance through the order workflow", async () => {
+  const route = fixture({ balance: 250 });
+  assert.equal((await route.post({ productKey: "cartes_visite", method: "UI" })).status, 200);
+  assert.equal(route.inserts[0].amount_eur, 180);
+  assert.equal(route.inserts[0].amount_ui, 250);
+  assert.equal(route.inserts[0].status, "pending");
+  assert.equal(route.mails.length, 2);
+});
+
+for (const method of ["EUR", "UI"] as const) test(`the new e-commerce offer stays a manual ${method} order with server-calculated prices`, async () => {
+  const route = fixture({ balance: 2500 });
+  const response = await route.post({ productKey: "site_ecommerce", method, amount_eur: 1, amount_ui: 0 });
+  assert.equal(response.status, 200);
+  assert.equal(route.inserts.length, 1);
+  assert.equal(route.inserts[0].product_key, "site_ecommerce");
+  assert.equal(route.inserts[0].product_name, "Création site e-commerce");
+  assert.equal(route.inserts[0].amount_eur, method === "EUR" ? 3500 : 2100);
+  assert.equal(route.inserts[0].amount_ui, method === "UI" ? 2500 : null);
+  assert.equal(route.inserts[0].status, "pending");
+  assert.equal(route.mails.length, 2);
+  assert.deepEqual(await response.json(), { ok: true, orderId: "order-fixture-001" });
 });
 
 test("a missing schema update fails before sending any order mail", async () => {

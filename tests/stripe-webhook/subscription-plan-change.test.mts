@@ -101,7 +101,7 @@ test("Premium video quota patch is scoped to Premium and preserves Founder/data"
   assert.match(sql, /update public\.ai_media_plan_limits\s+set video_monthly_limit = 196/i);
   assert.match(sql, /where edition = 'premium'/i);
   assert.doesNotMatch(sql, /delete\s+from/i);
-  assert.match(policy, /premium: Object\.freeze\(\{[\s\S]*?video: 196/);
+  assert.match(policy, /premium: Object\.freeze\(\{[\s\S]*?video: 204/);
   assert.match(billingSync, /commercialPriceFromId\(snapshot\.price_id\)/);
   assert.match(billingSync, /patch\.app_edition = safeCommercialPrice\.edition/);
 });

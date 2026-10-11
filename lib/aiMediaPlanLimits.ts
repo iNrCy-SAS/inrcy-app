@@ -45,13 +45,13 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
   Object.freeze({
     standard: Object.freeze({
       image: 25,
-      video: 48,
+      video: 54,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     }),
     premium: Object.freeze({
       image: 70,
-      video: 196,
+      video: 204,
       studioEnabled: true,
       videoMaxDurationSeconds: 24,
     }),

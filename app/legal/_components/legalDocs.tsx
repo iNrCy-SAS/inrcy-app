@@ -32,7 +32,7 @@ export const legalDocs: Record<
   cga: {
     key: "cga",
     titleKey: "cga_et_conditions_d_utilisation_353e0a8b",
-    subtitleKey: "version_du_04_10_2026_51f2b1b8",
+    subtitleKey: "version_du_11_10_2026_video_credits",
     Content: CgaContent,
   },
 };

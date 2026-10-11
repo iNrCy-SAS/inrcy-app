@@ -11,7 +11,8 @@ export default function CgaPage() {
   return (
     <LegalPageShell
       title={i18nT("cga_conditions_generales_d_abonnement_et_e3dfe37c")}
-      subtitle={i18nT("version_du_04_10_2026_51f2b1b8")}
+      subtitle={i18nT("version_du_11_10_2026_video_credits")}
+      revision={i18nT("version_du_11_10_2026_video_credits")}
     >
       <CgaContent />
     </LegalPageShell>

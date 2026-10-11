@@ -140,7 +140,8 @@
     "certify:booster-step5:full": "npm run certify:booster-step5 && npm run typecheck && npm run lint && npm run build",
     "test:tiktok": "node --test tests/tiktok/*.test.mjs && node --test --experimental-strip-types tests/tiktok/*.test.mts",
     "test:billing": "node --test --experimental-strip-types tests/stripe-webhook/*.test.mts",
-    "test:visio-booking": "node --test --test-isolation=none --experimental-strip-types tests/visio-booking/*.test.mts"
+    "test:visio-booking": "node --test --test-isolation=none --experimental-strip-types tests/visio-booking/*.test.mts",
+    "test:video-credits": "node --test --experimental-strip-types tests/boutique/video-credit-*.test.*"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -189,7 +190,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@electric-sql/pglite": "0.5.8"
   },
   "allowScripts": {
     "@google/genai@2.20.0": false,

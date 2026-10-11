@@ -53,6 +53,15 @@ export type AiMediaQuotaCounter = {
   used: number;
   reserved: number;
   remaining: number;
+  includedRemaining?: number;
+  includedLimit?: number;
+  includedUsed?: number;
+  includedReserved?: number;
+  purchasedRemaining?: number;
+  purchasedReserved?: number;
+  purchasedDebt?: number;
+  purchasedHeld?: number;
+  purchasedSuspendedDeficit?: number;
 };
 
 export type AiMediaQuotaSnapshot = {
@@ -100,6 +109,15 @@ type QuotaRpcRow = {
   remaining_count?: unknown;
   period_start?: unknown;
   reset_at?: unknown;
+  included_remaining_count?: unknown;
+  included_limit_count?: unknown;
+  included_used_count?: unknown;
+  included_reserved_count?: unknown;
+  purchased_remaining_count?: unknown;
+  purchased_reserved_count?: unknown;
+  purchased_debt_count?: unknown;
+  purchased_held_count?: unknown;
+  purchased_suspended_deficit_count?: unknown;
 };
 
 type ReservationRpcRow = QuotaRpcRow & {
@@ -300,7 +318,7 @@ export async function getAiMediaQuotaSnapshot(params: {
   const accountId = assertUuid(params.accountId, "accountId");
   const actorAuthUserId = assertUuid(params.actorAuthUserId, "actorAuthUserId");
   const edition = normalizeAiMediaEdition(params.edition);
-  const rows = await callRpc<QuotaRpcRow>(params.supabase ?? supabaseAdmin, "get_ai_media_generation_quota_v2", {
+  const rows = await callRpc<QuotaRpcRow>(params.supabase ?? supabaseAdmin, "get_ai_media_generation_quota_v3", {
     p_account_id: accountId,
     p_actor_auth_user_id: actorAuthUserId,
     p_edition: edition,
@@ -345,6 +363,17 @@ export async function getAiMediaQuotaSnapshot(params: {
       used: video.used,
       reserved: video.reserved,
       remaining: video.remaining,
+      ...(typeof videoRow.purchased_remaining_count === "undefined" ? {} : {
+        includedRemaining: numberValue(videoRow.included_remaining_count, "included_remaining_count"),
+        includedLimit: numberValue(videoRow.included_limit_count, "included_limit_count"),
+        includedUsed: numberValue(videoRow.included_used_count, "included_used_count"),
+        includedReserved: numberValue(videoRow.included_reserved_count, "included_reserved_count"),
+        purchasedRemaining: numberValue(videoRow.purchased_remaining_count, "purchased_remaining_count"),
+        purchasedReserved: numberValue(videoRow.purchased_reserved_count, "purchased_reserved_count"),
+        purchasedDebt: numberValue(videoRow.purchased_debt_count, "purchased_debt_count"),
+        purchasedHeld: numberValue(videoRow.purchased_held_count ?? 0, "purchased_held_count"),
+        purchasedSuspendedDeficit: numberValue(videoRow.purchased_suspended_deficit_count ?? 0, "purchased_suspended_deficit_count"),
+      }),
     },
   };
 }

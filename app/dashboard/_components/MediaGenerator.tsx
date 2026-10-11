@@ -54,6 +54,7 @@ import {
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
+import { VideoCreditRechargeButton } from "./VideoCreditRecharge";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -763,7 +764,7 @@ export default function MediaGenerator({
         ? "0 s / 0 s"
         : "0 / 0"
       : kind === "video"
-      ? `${counter.used + counter.reserved} s / ${counter.limit} s`
+      ? `${(counter.includedUsed ?? counter.used) + (counter.includedReserved ?? counter.reserved)} s / ${counter.includedLimit ?? counter.limit} s`
       : `${counter.used + counter.reserved} / ${counter.limit}`;
 
   const clearTransientState = () => {
@@ -2670,6 +2671,7 @@ export default function MediaGenerator({
                 )}
               </span>
               <strong>{quotaValue}</strong>
+              {kind === "video" && !quota?.unlimited ? <VideoCreditRechargeButton disabled={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} /> : null}
             </div>
             <small>
               {quota?.unlimited
@@ -2685,6 +2687,7 @@ export default function MediaGenerator({
                 ? ` · ${t("ai_generator_reset", { date: resetDate })}`
                 : ""}
             </small>
+            {kind === "video" && typeof counter?.purchasedRemaining === "number" ? <small>{t("ai_generator_purchased_video_seconds", { count: counter.purchasedRemaining })}</small> : null}
           </div>
         </div>
         {identityConsentRequired ? (

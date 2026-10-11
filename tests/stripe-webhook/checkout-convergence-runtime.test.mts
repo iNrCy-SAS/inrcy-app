@@ -25,7 +25,7 @@ function load<T>(path: string, modules: Record<string, unknown>): T {
   return runtime.exports;
 }
 
-function fixture(plan: Plan, cycle: Cycle, trial = false) {
+function fixture(plan: Plan, cycle: Cycle, trial = false, money = false) {
   const priceEnv = Object.fromEntries([
     "STANDARD_58HT_MONTHLY", "STANDARD_58HT_YEARLY", "PREMIUM_108HT_MONTHLY", "PREMIUM_108HT_YEARLY",
   ].map((key) => [`STRIPE_PRICE_${key}_ID`, `price_fixture_${key}`]));
@@ -53,6 +53,14 @@ function fixture(plan: Plan, cycle: Cycle, trial = false) {
   };
   const events = new Map<string, Row>();
   const writes: Row[] = [];
+  const moneyCalls: Row[] = [];
+  const moneyFailure = { enabled: false };
+  const moneyCall = async (operation: string, id: string, event: string) => {
+    if (!money && operation === "checkout") throw new Error("Subscription must not fulfill video credits");
+    moneyCalls.push({ operation, id, event });
+    if (moneyFailure.enabled) throw new Error("Synthetic financial retry");
+    return money;
+  };
   const from = (table: string) => {
     let operation = "select";
     let patch: Row = {};
@@ -105,6 +113,12 @@ function fixture(plan: Plan, cycle: Cycle, trial = false) {
     "@/lib/stripeSubscription": subscriptionDates,
     "@/lib/stripeWebhookPayload": payload,
     "@/lib/stripeWebhookReconciliation": reconciliation,
+    "@/lib/boutique/videoCreditPayments": {
+      VIDEO_CREDIT_PAYMENT_KIND: "inrcy_video_credits_v1",
+      fulfillVideoCreditCheckout: async (id: string,event: string) => moneyCall("checkout",id,event),
+      reconcileVideoCreditRefund: async (id: string,event: string) => moneyCall("refund",id,event),
+      reconcileVideoCreditDispute: async (id: string,event: string) => moneyCall("dispute",id,event),
+    },
     "@/lib/subscriptionAdmin": { sendAdminSubscriptionAlertForUser: async () => {} },
     "@/lib/metaConversionOutbox": { enqueueMetaConversionEvent: async () => {} },
   });
@@ -115,7 +129,7 @@ function fixture(plan: Plan, cycle: Cycle, trial = false) {
   const post = (type: string, object: Row, id = `evt_${type}`, signature = "fixture-verified") => route.POST(new Request("https://example.invalid/api/stripe/webhook", {
     method: "POST", headers: { "stripe-signature": signature }, body: JSON.stringify({ id, type, data: { object } }),
   }));
-  return { row, writes, live, checkout, post, trialEnd };
+  return { row, writes, live, checkout, post, trialEnd, moneyCalls, moneyFailure, events };
 }
 
 for (const plan of ["Standard", "Premium"] as const) {
@@ -155,4 +169,42 @@ test("a forged signature or contradictory Checkout identity cannot link or upgra
   assert.equal(run.row.app_edition, "standard");
   assert.equal(run.row.stripe_subscription_id, null);
   assert.deepEqual(run.writes, []);
+});
+
+test("all video-credit Checkout/refund/dispute events use signed server reconciliation and preserve subscriptions",async()=>{
+  const run=fixture("Standard","monthly",false,true);
+  const types=["checkout.session.completed","checkout.session.async_payment_succeeded","checkout.session.async_payment_failed","checkout.session.expired",
+    "charge.refunded","charge.dispute.created","charge.dispute.updated","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated","charge.dispute.closed"];
+  for (const type of types) {
+    const object={id:type.startsWith("checkout") ? "cs_credit" : type === "charge.refunded" ? "ch_credit" : "du_credit",metadata:{kind:"inrcy_video_credits_v1"}};
+    const response=await run.post(type,object);
+    assert.equal(response.status,200,JSON.stringify(await response.json()));
+    assert.equal(run.moneyCalls.at(-1)?.id,object.id);
+    assert.equal(run.events.get(`evt_${type}`)?.status,"completed");
+  }
+  assert.equal(run.moneyCalls.length,10);assert.deepEqual(run.writes,[]);
+  const response=await run.post("charge.dispute.closed",{id:"du_credit"},"evt_forged","invalid");
+  assert.equal(response.status,400);assert.equal(run.moneyCalls.length,10);assert.equal(run.events.has("evt_forged"),false);
+});
+test("a fresh in-flight financial event keeps Stripe retries alive; a durable completion is acknowledged once",async()=>{
+  const run=fixture("Standard","monthly",false,true);
+  const id="evt_inflight";
+  run.events.set(id,{event_id:id,status:"processing",attempts:1,last_received_at:new Date().toISOString()});
+  assert.equal((await run.post("charge.dispute.funds_withdrawn",{id:"du_credit"},id)).status,503);
+  assert.equal(run.moneyCalls.length,0);
+  run.events.get(id)!.last_received_at=new Date(Date.now()-6*60*1000).toISOString();
+  assert.equal((await run.post("charge.dispute.funds_withdrawn",{id:"du_credit"},id)).status,200);
+  assert.equal(run.moneyCalls.length,1);
+  assert.deepEqual(await (await run.post("charge.dispute.funds_withdrawn",{id:"du_credit"},id)).json(),{received:true,duplicate:true});
+  assert.equal(run.moneyCalls.length,1);
+});
+test("a failed financial reconciliation is retried and completed without touching an abonnement",async()=>{
+  const run=fixture("Standard","monthly",false,true);
+  run.moneyFailure.enabled=true;
+  const id="evt_retry_refund";
+  assert.equal((await run.post("charge.refunded",{id:"ch_credit"},id)).status,500);
+  assert.equal(run.events.get(id)?.status,"failed");
+  run.moneyFailure.enabled=false;
+  assert.equal((await run.post("charge.refunded",{id:"ch_credit"},id)).status,200);
+  assert.equal(run.events.get(id)?.status,"completed");assert.deepEqual(run.writes,[]);
 });

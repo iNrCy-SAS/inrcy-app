@@ -7,6 +7,7 @@ import { stripeSubscriptionMonthlyTerms, stripeSubscriptionTaxBehavior } from "@
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
+import { fulfillVideoCreditCheckout, reconcileVideoCreditRefund, reconcileVideoCreditDispute, VIDEO_CREDIT_PAYMENT_KIND } from "@/lib/boutique/videoCreditPayments";
 import {
   stripeWebhookNeedsReconciliation,
   stripeWebhookReconciliationLastError,
@@ -280,7 +281,16 @@ type StripeWebhookEventRow = {
   last_received_at: string;
 };
 
-async function claimStripeWebhookEvent(event: StripeEvent): Promise<"process" | "duplicate"> {
+const VIDEO_CREDIT_CHECKOUT_EVENTS = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired"]);
+const VIDEO_CREDIT_DISPUTE_EVENTS = new Set(["charge.dispute.created", "charge.dispute.updated", "charge.dispute.funds_withdrawn", "charge.dispute.funds_reinstated", "charge.dispute.closed"]);
+function isVideoCreditMoneyEvent(event: StripeEvent): boolean {
+  const object = event.data?.object as StripeObjectLoose | undefined;
+  const type = String(event.type ?? "");
+  return VIDEO_CREDIT_DISPUTE_EVENTS.has(type) || type === "charge.refunded"
+    || (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type) && (object?.metadata as StripeObjectLoose | undefined)?.kind === VIDEO_CREDIT_PAYMENT_KIND);
+}
+
+async function claimStripeWebhookEvent(event: StripeEvent): Promise<"process" | "duplicate" | "busy"> {
   const eventId = String(event.id || "").trim();
   if (!eventId) return "process";
 
@@ -314,7 +324,9 @@ async function claimStripeWebhookEvent(event: StripeEvent): Promise<"process" | 
     existing.status === "processing" &&
     Number.isFinite(lastReceivedMs) &&
     Date.now() - lastReceivedMs < 5 * 60 * 1000;
-  if (isFreshProcessing) return "duplicate";
+  // Financial SQL is idempotent, but an in-flight handler has not durably
+  // completed yet. Keep Stripe retries alive if that worker is interrupted.
+  if (isFreshProcessing) return isVideoCreditMoneyEvent(event) ? "busy" : "duplicate";
 
   const { error: retryError } = await supabaseAdmin
     .from("stripe_webhook_events")
@@ -397,6 +409,7 @@ export async function POST(req: Request) {
     if (claim === "duplicate") {
       return NextResponse.json({ received: true, duplicate: true });
     }
+    if (claim === "busy") return NextResponse.json({ received: false, retry: true }, { status: 503 });
   } catch (error: unknown) {
     return jsonUserFacingError(error, {
       status: 500,
@@ -533,6 +546,23 @@ export async function POST(req: Request) {
     const type = String(evt.type || "");
     const obj = (evt.data?.object ?? null) as StripeObjectLoose | null;
     const previous = (evt.data?.previous_attributes ?? {}) as StripeObjectLoose;
+
+    if (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type)
+      && (obj?.metadata as StripeObjectLoose | undefined)?.kind === VIDEO_CREDIT_PAYMENT_KIND) {
+      await fulfillVideoCreditCheckout(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      await completeStripeWebhookEvent(evt);
+      return NextResponse.json({ received: true, videoCredits: true });
+    }
+    if (type === "charge.refunded") {
+      await reconcileVideoCreditRefund(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      await completeStripeWebhookEvent(evt);
+      return NextResponse.json({ received: true });
+    }
+    if (VIDEO_CREDIT_DISPUTE_EVENTS.has(type)) {
+      await reconcileVideoCreditDispute(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      await completeStripeWebhookEvent(evt);
+      return NextResponse.json({ received: true });
+    }
 
     if (type === "checkout.session.completed") {
       const session = obj;

@@ -3553,6 +3553,10 @@ export const LEGAL_DOCUMENT_BLOCKS = {
       "key": "cga_0445_studio_rights"
     },
     {
+      "kind": "paragraph",
+      "key": "cga_0459_video_credits"
+    },
+    {
       "kind": "heading",
       "key": "cga_0446_dictation"
     },

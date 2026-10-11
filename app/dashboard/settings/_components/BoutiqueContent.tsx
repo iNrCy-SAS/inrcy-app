@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { BOUTIQUE_PRODUCTS, boutiqueOrderPriceLabel, boutiqueSavingsPercent, type BoutiqueProduct } from "@/lib/boutique/products";
+import { VideoCreditPacksPanel } from "@/app/dashboard/_components/VideoCreditRecharge";
 
 type Props = {
   mode?: "drawer" | "page";
@@ -219,21 +220,6 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
       </DrawerHeaderActions>
       {showUiHelp && <div className={boutiqueStyles.help}>{i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}</div>}
 
-      {/* Message d'info (en haut) */}
-      <div
-        style={{
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(15,23,42,0.40)",
-          borderRadius: 18,
-          padding: 14,
-          color: "rgba(255,255,255,0.72)",
-          fontSize: 13,
-          lineHeight: 1.45,
-        }}
-      >
-        {i18nT("en_cliquant_sur_un_bouton_une_bebba311")}{" "}<b>{BOUTIQUE_TO}</b>.
-      </div>
-
       {notice ? (
         <div
           style={{
@@ -250,6 +236,11 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
       ) : null}
 
       {/* Produits */}
+      {view === "products" ? <VideoCreditPacksPanel /> : null}
+      {view === "products" ? <div style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(15,23,42,0.40)",
+        borderRadius: 18, padding: 14, color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 1.45 }}>
+        {i18nT("en_cliquant_sur_un_bouton_une_bebba311")}{" "}<b>{BOUTIQUE_TO}</b>.
+      </div> : null}
       {view === "products" && <div className={`${sectionStyles.products} ${boutiqueStyles.products}`} style={{ display: "grid", gap: 14 }}>
         {products.map((p) => (
           <div
