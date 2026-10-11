@@ -20,11 +20,15 @@ import {
 import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
 import {
   DEFAULT_VEO_MODEL,
+  DEFAULT_VEO_VERTEX_MODEL,
   classifyVeoFailure,
   nextVeoInspirationMode,
   resolveVeoModelCandidates,
+  resolveVeoApiBackend,
+  createVeoVertexClientOptions,
   selectVeoInspirationMode,
   supportsVeoReferenceImages,
+  type VeoApiBackend,
 } from "@/lib/aiVideoReliability";
 import {
   AiVideoProviderBillableFailure,
@@ -219,8 +223,12 @@ function apiKey() {
 }
 
 function modelCandidates() {
+  const backend = resolveVeoApiBackend(process.env.AI_MEDIA_VEO_BACKEND);
   return resolveVeoModelCandidates({
-    primary: process.env.AI_MEDIA_VEO_MODEL || DEFAULT_VEO_MODEL,
+    backend,
+    primary: process.env.AI_MEDIA_VEO_MODEL || (
+      backend === "vertex" ? DEFAULT_VEO_VERTEX_MODEL : DEFAULT_VEO_MODEL
+    ),
     fallbacks: process.env.AI_MEDIA_VEO_FALLBACK_MODELS,
   });
 }
@@ -896,6 +904,7 @@ export function buildGoogleVideoScenePrompt(
 
 async function submitOperation(args: {
   ai: GoogleGenAI;
+  backend: VeoApiBackend;
   model: string;
   prompt: string;
   durationSeconds: 4 | 6 | 8;
@@ -912,9 +921,16 @@ async function submitOperation(args: {
     imageCount: args.inspirationImages?.length || 0,
   });
   let transientAttempt = 0;
+  // Preview trials can disable automatic resubmission to bound paid requests.
+  // Production retains the existing four-attempt policy unless configured.
+  const submitAttempts = positiveInt(
+    process.env.AI_MEDIA_VEO_SUBMIT_ATTEMPTS,
+    DEFAULT_SUBMIT_ATTEMPTS,
+    DEFAULT_SUBMIT_ATTEMPTS,
+  );
   const warnings: string[] = [];
 
-  while (transientAttempt < DEFAULT_SUBMIT_ATTEMPTS) {
+  while (transientAttempt < submitAttempts) {
     try {
       const sourceImage =
         args.continuityFrame || (inspirationMode === "source" ? args.inspirationImages?.[0] : null);
@@ -933,13 +949,17 @@ async function submitOperation(args: {
               }
             : {}),
         },
-        // Gemini Developer API / Veo 3.1 Fast whitelist. Do not add generic
-        // GenerateVideosConfig fields here unless the Veo model contract lists
-        // them explicitly. Audio, one output and 720p are model defaults.
+        // Backend-specific whitelist, verified against @google/genai 2.20.0.
+        // Vertex returns bytes inline because no outputGcsUri is requested.
         config: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
+          ...(args.backend === "vertex" ? {
+            numberOfVideos: 1,
+            generateAudio: true,
+            resolution: "720p",
+          } : {}),
           // Les routes Veo 3/3.1 européennes n'acceptent que allow_adult pour
           // les personnes. L'expliciter avec une référence évite que le visage
           // adulte autorisé soit rejeté selon le défaut régional du projet.
@@ -953,7 +973,10 @@ async function submitOperation(args: {
                     imageBytes: image.data,
                     mimeType: image.mimeType,
                   },
-                  referenceType: VideoGenerationReferenceType.ASSET,
+                  // Vertex REST documents lowercase asset; this SDK enum is uppercase.
+                  referenceType: args.backend === "vertex"
+                    ? "asset" as VideoGenerationReferenceType
+                    : VideoGenerationReferenceType.ASSET,
                 })),
               }
             : {}),
@@ -980,7 +1003,7 @@ async function submitOperation(args: {
         continue;
       }
       transientAttempt += 1;
-      if (transientAttempt >= DEFAULT_SUBMIT_ATTEMPTS || !failure.retryable) {
+      if (transientAttempt >= submitAttempts || !failure.retryable) {
         throw normalizedProviderError(error);
       }
       await delay(retryDelayMs(error, transientAttempt - 1), args.signal);
@@ -1002,6 +1025,7 @@ function assertMp4Clip(buffer: Buffer) {
 
 async function downloadVideo(args: {
   ai: GoogleGenAI;
+  backend: VeoApiBackend;
   video: Video;
   signal: AbortSignal;
 }) {
@@ -1022,6 +1046,11 @@ async function downloadVideo(args: {
     }
   }
 
+  // Files API is a Gemini service. Never send a Vertex gs:// output to it or
+  // generate a replacement for an already billable but unreadable output.
+  if (args.backend === "vertex") {
+    throw inlineError || new Error("ai_video_veo_vertex_output_bytes_missing");
+  }
   const directory = await mkdtemp(join(tmpdir(), "inrcy-veo-"));
   try {
     let lastError: unknown = inlineError;
@@ -1067,6 +1096,7 @@ async function downloadVideo(args: {
 
 async function generateClip(args: {
   ai: GoogleGenAI;
+  backend: VeoApiBackend;
   models: string[];
   prompt: string;
   durationSeconds: 4 | 6 | 8;
@@ -1080,6 +1110,7 @@ async function generateClip(args: {
   signal?: AbortSignal;
 }): Promise<AiVideoProviderClip> {
   throwIfAborted(args.signal);
+  const clipStartedAt = Date.now();
   const controller = new AbortController();
   let timedOut = false;
   const abortFromCaller = () => controller.abort(generationCancelledError());
@@ -1145,7 +1176,18 @@ async function generateClip(args: {
             try {
               operation = await args.ai.operations.getVideosOperation({
                 operation,
-                config: { abortSignal: controller.signal },
+                config: {
+                  abortSignal: controller.signal,
+                  // This SDK's Vertex polling forwards httpOptions, not abortSignal.
+                  ...(args.backend === "vertex" ? {
+                    httpOptions: {
+                      timeout: Math.max(
+                        1,
+                        args.timeoutMs - (Date.now() - clipStartedAt),
+                      ),
+                    },
+                  } : {}),
+                },
               });
             } catch (error) {
               if (!isExplicitlyRetryable(error)) {
@@ -1166,8 +1208,12 @@ async function generateClip(args: {
           // replacement model if its download fails: only retry the download.
           billableOutputExists = true;
           args.onBillable(model);
+          // Vertex polling ignores abortSignal in this SDK. Account for a returned
+          // asset before rejecting a cancellation received while the poll ran.
+          throwIfAborted(controller.signal);
           const downloaded = await downloadVideo({
             ai: args.ai,
+            backend: args.backend,
             video,
             signal: controller.signal,
           });
@@ -1260,7 +1306,10 @@ export const googleVeoVideoProvider: AiVideoProvider = {
     // Défense en profondeur : même avec les marqueurs internes, Google ne peut
     // recevoir ni les portraits bruts ni un mélange de références.
     assertAiVideoReferenceTeamGoogleEgress(args);
-    const ai = new GoogleGenAI({ apiKey: apiKey() });
+    const backend = resolveVeoApiBackend(process.env.AI_MEDIA_VEO_BACKEND);
+    const ai = new GoogleGenAI(backend === "vertex"
+      ? await createVeoVertexClientOptions(process.env)
+      : { vertexai: false, apiKey: apiKey() });
     const preserveIdentityReferences = preservesIdentityReferences(
       args.request,
     );
@@ -1357,6 +1406,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
             if (remainingMs <= 0) throw new Error("ai_video_veo_timeout");
             const clip = await generateClip({
               ai,
+              backend,
               models: orderedModels,
               prompt: buildGoogleVideoScenePrompt(args, index, durationSeconds, {
                 continuationFrame: Boolean(continuityFrame),

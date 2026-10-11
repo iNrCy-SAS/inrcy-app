@@ -119,14 +119,19 @@ Limites optionnelles :
 - [ ] `AI_GATEWAY_MODEL` (format `provider/model`)
 - [ ] `AI_GATEWAY_VISION_MODEL` si modèle vision distinct
 - [ ] `AI_GATEWAY_IMAGE_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération d’image via la Gateway
-- [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Gemini Omni Flash, Veo Fast et Gemini TTS ; ne jamais le préfixer par `NEXT_PUBLIC_`
+- [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Gemini Omni Flash, Gemini TTS et Veo tant que le backend Gemini est sélectionné ; ne jamais le préfixer par `NEXT_PUBLIC_`
 - [ ] `AI_MEDIA_VIDEO_PROVIDER` (optionnel, défaut `auto`) — respecte le choix Omni/Veo de l’interface ; `google-veo-fast` force immédiatement l’ancien moteur pour un rollback sans redéploiement
 - [ ] `AI_MEDIA_VIDEO_TIMEOUT_MS` (optionnel, défaut 420000, plafond 600000) — délai par plan; budget global du film plafonné à 600000 ms, raccords inclus
 - [ ] `AI_MEDIA_OMNI_MODEL` (optionnel, défaut stable `gemini-omni-1.1-flash`)
+- [ ] `AI_MEDIA_VEO_BACKEND=vertex` pour activer explicitement Veo sur Google Cloud ; absent ou `gemini` conserve l'ancienne route jusqu'à son arrêt annoncé le 22 octobre 2026
+- [ ] `AI_MEDIA_VEO_VERTEX_PROJECT` (ou `GOOGLE_CLOUD_PROJECT`) et `AI_MEDIA_VEO_VERTEX_LOCATION` (défaut `us-central1`, seule région Veo validée) — configuration serveur du backend Cloud
+- [ ] Authentification Google Cloud ADC / Workload Identity Federation ; `AI_MEDIA_VEO_VERTEX_CREDENTIALS_JSON` accepte aussi une configuration d'authentification serveur protégée. Ne jamais placer son contenu dans Git ni dans une variable `NEXT_PUBLIC_`
+- [ ] Pour la fédération Vercel : `AI_MEDIA_VEO_VERTEX_WIF_AUDIENCE` (`//iam.googleapis.com/projects/.../locations/global/workloadIdentityPools/.../providers/...`) et `AI_MEDIA_VEO_VERTEX_SERVICE_ACCOUNT` (e-mail du compte de service dédié). Les jetons sont récupérés et renouvelés par `@vercel/oidc` ; aucune clé privée n'est nécessaire
 - [ ] `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND` (optionnel, défaut 100000 soit 0,10 $/s en 720p)
 - [ ] `AI_MEDIA_OMNI_FALLBACK_TO_VEO` (optionnel, défaut activé) seulement après calibration en Production; concerne les films 8 s sans actif déjà facturé
 - [ ] `AI_MEDIA_OMNI_FILE_POLL_MS` (optionnel, défaut 2000 ms, plafond 10000 ms) — cadence de vérification du fichier vidéo URI jusqu’à l’état Google `ACTIVE`
 - [ ] `AI_MEDIA_VEO_MODEL` (défaut Fast) et `AI_MEDIA_VEO_FALLBACK_MODELS` (défaut Lite ; valeur vide pour désactiver le secours)
+
 - [ ] `AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND` et `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND` seulement si les tarifs par défaut doivent être surchargés ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast
 - [ ] `AI_MEDIA_VEO_POLL_MS` seulement après calibration en Preview — `AI_MEDIA_OMNI_CONCURRENCY` (défaut 3) et `AI_MEDIA_VEO_CONCURRENCY` (défaut 2) s’appliquent seulement sans raccord ; `connectScenes` impose un plan à la fois
 - [ ] `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE`, `AI_MEDIA_TTS_TIMEOUT_MS` et `AI_MEDIA_TTS_COST_MICRO_USD` seulement si les valeurs par défaut doivent être surchargées
@@ -135,6 +140,8 @@ Limites optionnelles :
 - [ ] `AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL` (optionnel ; secours Gateway lorsque ChatGPT est sélectionné, défaut `google/gemini-3-flash`)
 - [ ] `AI_GATEWAY_TRANSCRIBE_MODEL` (optionnel, défaut `openai/gpt-4o-transcribe`)
 - [ ] `AI_GATEWAY_TRANSCRIBE_FALLBACK_MODEL` (optionnel, défaut `openai/whisper-1`)
+
+La procédure de migration Veo, les prérequis Cloud et les essais avant bascule sont détaillés dans [VEO_CLOUD_MIGRATION.md](./VEO_CLOUD_MIGRATION.md). Le backend `vertex` utilise les identifiants `-001` ; une surcharge `-preview` connue est convertie en conservant Fast/Lite/Standard. Le secours Lite Cloud est encore en Preview.
 
 ### OpenAI direct — ultime secours indépendant
 

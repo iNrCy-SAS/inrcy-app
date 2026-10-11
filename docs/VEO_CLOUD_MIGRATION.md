@@ -1,0 +1,51 @@
+# Migration Veo vers Google Cloud
+
+État au 11 octobre 2026 : accès Cloud activé ; essais Omni 8 s et Veo 8/16/24 s réussis et enregistrés en Preview. La vérification perceptuelle du rendu/son et la déduction des quotas sur une offre limitée restent à valider. Cette branche ne bascule pas la production automatiquement.
+
+Google annonce l'arrêt des identifiants Gemini `veo-3.1-*-generate-preview` et `gemini-omni-flash-preview` le 22 octobre 2026. Omni utilise déjà `gemini-omni-1.1-flash` et Interactions. La livraison autorisée est limitée à Veo Cloud : le fournisseur Omni et la route de génération restent identiques à la production actuelle.
+
+## Activation Veo
+
+Le backend historique reste sélectionné tant que `AI_MEDIA_VEO_BACKEND` est absent ou vaut `gemini`. Pour un environnement Preview dédié :
+
+```text
+AI_MEDIA_VEO_BACKEND=vertex
+AI_MEDIA_VEO_VERTEX_PROJECT=<projet Cloud vérifié>
+AI_MEDIA_VEO_VERTEX_LOCATION=us-central1
+```
+
+Préparer l'API `aiplatform.googleapis.com`, la facturation et une identité serveur autorisée à effectuer les prédictions. Utiliser ADC ou Workload Identity Federation ; une configuration d'authentification peut aussi être fournie par la variable serveur protégée `AI_MEDIA_VEO_VERTEX_CREDENTIALS_JSON`. Ne jamais publier de clé privée dans le dépôt. La clé Gemini reste utilisée par Omni/TTS et n'authentifie pas ce backend Cloud.
+
+Pour Vercel, configurer `AI_MEDIA_VEO_VERTEX_WIF_AUDIENCE` avec le nom complet du fournisseur Google (`//iam.googleapis.com/projects/NUMERO/locations/global/workloadIdentityPools/POOL/providers/FOURNISSEUR`) et `AI_MEDIA_VEO_VERTEX_SERVICE_ACCOUNT` avec le compte de service dédié. Le SDK Google échange les jetons temporaires Vercel, puis emprunte l'identité de ce compte. Ne pas combiner cette méthode avec `AI_MEDIA_VEO_VERTEX_CREDENTIALS_JSON`.
+
+Restreindre la confiance à l'équipe et au projet Vercel vérifiés, et seulement aux environnements autorisés. Pour la préparation actuelle : équipe `inrcyteam`, projet `inrcy-app`, environnement Preview. Le droit d'emprunter l'identité ne doit pas être accordé à l'ensemble d'un pool. Le compte dédié doit disposer uniquement des droits nécessaires aux prédictions Veo, sans rôle Owner ni Editor. La confiance Production ne sera ajoutée qu'au moment de la bascule autorisée.
+
+La Preview de `codex/veo-stable-migration` utilise le projet vérifié `location-site-1763997543736`, la région `us-central1`, un compte de service sans clé privée et un rôle personnalisé limité à `aiplatform.endpoints.predict`. Les API et la fédération sont activées. Un essai réel a confirmé les échanges STS/IAM, la soumission et le suivi d'une opération `veo-3.1-fast-generate-001`.
+
+Fast devient `veo-3.1-fast-generate-001`, avec Lite `veo-3.1-lite-generate-001` en secours. Lite est encore en Preview sur Cloud. Les surcharges connues sont converties en conservant Fast/Lite/Standard. Une valeur vide de `AI_MEDIA_VEO_FALLBACK_MODELS` désactive le secours.
+
+Chaque requête demande un seul clip 720p avec audio. L'absence de `outputGcsUri` permet au SDK de renvoyer les octets MP4 directement : aucun bucket supplémentaire n'est requis. Un résultat facturable qui ne fournit pas les octets attendus échoue sans lancer une seconde génération.
+
+## Vérification avant production
+
+Les tests locaux couvrent 8/16/24 secondes, quatre formats, références/raccords, coût et échecs après facturation. Une fixture HTTP vérifie aussi la conversion des requêtes/réponses par le SDK installé. Ces contrôles ne prouvent pas les droits Cloud, les quotas ni la qualité réelle.
+
+Essais réels en Preview, plafond total autorisé de 10 $US : Omni 8 s et Veo Fast 8/16/24 s réussis et enregistrés. Les films 8/16 s sont en portrait 1080 × 1920 ; le film 24 s est en paysage 1920 × 1080, avec trois scènes. Le film Veo 16 s utilise une référence produit obligatoire issue d'un essai synthétique, la précomposition de cette référence et deux clips Google de 8 s avec raccord. Les journaux confirment respectivement une, deux et trois opérations Google pour les essais Veo réussis. La première opération Veo 8 s a échoué avec le code Google 8 et un message de forte charge ; une seule nouvelle tentative a réussi. Le Studio a annoncé zéro quota iNrCy consommé pour l'échec. Les coûts fournisseur restent des estimations tant que la facturation n'est pas consultable. Ces essais utilisent un compte administrateur à quota illimité et ne valident pas encore la déduction sur une offre commerciale limitée.
+
+Le contrôle natif du dialogue a été exécuté dans les deux essais 8 s réussis. Les films 16/24 s ont exécuté le contrôle de voix off puis utilisé le secours TTS déjà présent dans l'application. La qualité audible et la continuité visuelle n'ont pas été vérifiées indépendamment. La récupération du MP4 hors du parcours Studio est bloquée par le contrôle automatique d'accès à l'origine Supabase. Ne pas confondre réussite technique, sauvegarde et validation complète du son.
+
+L'estimation conservatrice des vidéos seules est de 6,41 $US, en comptant aussi 0,80 $US pour l'opération Google échouée malgré l'absence de vidéo retournée. L'enveloppe réservée aux cinq tentatives est de 9,30 $US, avec une marge pour planification, précomposition, contrôles et TTS. Il ne s'agit pas d'un relevé de facturation. Aucun autre essai payant ne fait partie de cette validation.
+
+Le diff de migration est limité au fournisseur vidéo Veo, à son authentification/configuration serveur, aux dépendances et aux tests/documentation associés. Les prompts et consignes créatives, Omni, les autres IA, la route de génération, l'interface Studio, les règles commerciales et les quotas ne sont pas modifiés. Les corrections distinctes de l'alias Omni et du diagnostic des filtres Google sont exclues de cette livraison à la demande de l'utilisateur.
+
+Avant la bascule, vérifier l'identité du projet, l'accès au modèle et les tarifs ; puis générer en Preview des films 8/16/24 secondes, dont un portrait avec référence et raccords. Contrôler MP4, son, durée, rendu final, stockage et consommation du quota iNrCy. Autoriser et plafonner la dépense de ces essais avant leur lancement.
+
+Basculer la production seulement après ces résultats. Un retour au backend Gemini reste possible avant le 22 octobre 2026 ; après l'arrêt Google, il ne constitue plus une solution de secours.
+
+Pour les essais au budget limité, fixer explicitement Fast (`AI_MEDIA_VEO_MODEL=veo-3.1-fast-generate-001`), désactiver le secours (`AI_MEDIA_VEO_FALLBACK_MODELS` vide) et régler `AI_MEDIA_VEO_SUBMIT_ATTEMPTS=1`. Une erreur temporaire de soumission ne relancera alors pas une génération automatiquement. Le comportement habituel conserve quatre tentatives au maximum en l'absence de ce réglage.
+
+Sur la branche de validation Vercel, le secours est fixé explicitement au même identifiant Fast ; la liste est dédupliquée et ne peut donc lancer ni Lite ni une autre variante. Le forçage temporaire `AI_MEDIA_VIDEO_PROVIDER=google-veo-fast` a servi à tester Veo par l'interface normale du Studio, qui demande Omni par défaut. Cette variable a été remise à `auto` après les essais ; un nouveau déploiement Preview applique le routage habituel. Toutes les variables de migration restent limitées à `codex/veo-stable-migration`.
+
+La fédération borne séparément la fourniture du jeton Vercel, l'attente STS et la requête IAM à 10 secondes chacune. Le SDK ne transmet pas le signal d'annulation de la génération à cette phase : une annulation peut donc attendre jusqu'à 30 secondes. Le transport STS interne de Google 10.9.1 peut encore terminer après ce délai, mais il ne peut alors poursuivre vers IAM ni lancer une génération.
+
+Sources : [arrêts Gemini](https://ai.google.dev/gemini-api/docs/deprecations/), [migration vers Cloud](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/migrate/migrate-google-ai), [modèles Veo](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/veo/3-1-generate), [tarifs Cloud](https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing), [fédération Vercel–Google](https://vercel.com/docs/oidc/gcp).
