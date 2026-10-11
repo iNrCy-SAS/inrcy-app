@@ -1,3 +1,5 @@
+import { fitBusinessDnaReferenceDocumentSource } from "./businessDnaDocumentBudget.ts";
+
 export type BusinessDnaBudgetSource = {
   key: string;
   label: string;
@@ -56,7 +58,8 @@ export function buildBusinessDnaAnalysisSourcePayload(
   let remainingEncodedChars = Math.max(0, limit - emptyPayloadLength);
 
   const encodedLength = (value: string) => Math.max(0, JSON.stringify(value).length - 2);
-  const prefixForEncodedBudget = (value: string, budget: number) => {
+  const prefixForEncodedBudget = (value: string, budget: number, key: string) => {
+    if (key === "reference_documents") return fitBusinessDnaReferenceDocumentSource(value, budget);
     let low = 0;
     let high = value.length;
     while (low < high) {
@@ -71,7 +74,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
   // canaux, aucun réseau connecté n'est silencieusement privé d'analyse.
   const fairEncodedShare = Math.floor((remainingEncodedChars * 0.6) / ordered.length);
   for (let index = 0; index < ordered.length; index += 1) {
-    const content = prefixForEncodedBudget(ordered[index].content, fairEncodedShare);
+    const content = prefixForEncodedBudget(ordered[index].content, fairEncodedShare, ordered[index].key);
     payload[index].content = content;
     remainingEncodedChars -= encodedLength(content);
   }
@@ -108,6 +111,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
       const expanded = prefixForEncodedBudget(
         ordered[index].content,
         currentCost + Math.min(remainingEncodedChars, weightedShare),
+        ordered[index].key,
       );
       const extraCost = Math.max(0, encodedLength(expanded) - currentCost);
       payload[index].content = expanded;

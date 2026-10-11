@@ -6,9 +6,10 @@ import {
   isAuthorizedCronRequest,
 } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { BUSINESS_DNA_AUTOMATIC_LEASE_SECONDS, BUSINESS_DNA_AUTOMATIC_REQUEST_TIMEOUT_MS } from "@/lib/businessDnaAnalysisTiming";
 
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 390;
 
 type ClaimedSchedule = {
   account_id?: unknown;
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabaseAdmin.rpc(
     "claim_due_business_dna_automatic_analysis",
-    { p_lease_seconds: 240 },
+    { p_lease_seconds: BUSINESS_DNA_AUTOMATIC_LEASE_SECONDS },
   );
   if (error) {
     return NextResponse.json(
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: buildInternalCronHeaders(accountId),
       cache: "no-store",
-      signal: AbortSignal.timeout(165_000),
+      signal: AbortSignal.timeout(BUSINESS_DNA_AUTOMATIC_REQUEST_TIMEOUT_MS),
     });
     responseStatus = response.status;
     const payload = asRecord(await response.json().catch(() => ({})));

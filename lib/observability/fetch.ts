@@ -9,6 +9,15 @@ export class FetchDeadlineExceededError extends Error {
   }
 }
 
+export class FetchTimeoutError extends Error {
+  code = "fetch_timeout" as const;
+
+  constructor(timeoutMs: number, cause?: unknown) {
+    super(`Request timed out after ${timeoutMs} ms.`, { cause });
+    this.name = "FetchTimeoutError";
+  }
+}
+
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit & { timeoutMs?: number; requestId?: string; route?: string } = {}
@@ -16,22 +25,28 @@ export async function fetchWithTimeout(
   const { timeoutMs = 15_000, requestId, route, signal: upstreamSignal, ...rest } = init;
   const ctrl = new AbortController();
   const effectiveTimeout = Math.max(1, Math.floor(timeoutMs));
-  const t = setTimeout(() => ctrl.abort(), effectiveTimeout);
-  const abortFromUpstream = () => ctrl.abort();
+  let timedOut = false;
+  const t = setTimeout(() => {
+    if (ctrl.signal.aborted) return;
+    timedOut = true;
+    ctrl.abort();
+  }, effectiveTimeout);
+  const abortFromUpstream = () => ctrl.abort(upstreamSignal?.reason);
   if (upstreamSignal) {
-    if (upstreamSignal.aborted) ctrl.abort();
+    if (upstreamSignal.aborted) abortFromUpstream();
     else upstreamSignal.addEventListener("abort", abortFromUpstream, { once: true });
   }
   try {
     const res = await fetch(input, { ...rest, signal: ctrl.signal });
     return res;
   } catch (e: any) {
+    const error = timedOut ? new FetchTimeoutError(effectiveTimeout, e) : e;
     log.error("fetch_error", {
       request_id: requestId,
       route,
-      error_message: e?.message || "fetch failed",
+      error_message: error?.message || "fetch failed",
     });
-    throw e;
+    throw error;
   } finally {
     clearTimeout(t);
     upstreamSignal?.removeEventListener("abort", abortFromUpstream);

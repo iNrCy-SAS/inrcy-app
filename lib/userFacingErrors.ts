@@ -381,7 +381,7 @@ export function getSimpleFrenchErrorMessage(input: unknown, fallback = "Cette ac
     return "Identifiant ou mot de passe incorrect pour ce serveur mail.";
   }
 
-  if (matches(message, ["timeout", "timed out", "deadline exceeded", "aborterror"])) {
+  if (matches(message, ["timeout", "timed out", "deadline exceeded", "aborterror", "this operation was aborted"])) {
     return "Le serveur met trop de temps à répondre. Merci de réessayer.";
   }
 
@@ -546,7 +546,7 @@ function resolveUserFacingErrorKey(input: unknown, frenchMessage: string): UserF
   if (matches(message, ["failed to fetch", "networkerror", "network request failed", "load failed", "fetch failed", "econnreset", "econnrefused", "enotfound", "socket hang up"])) return "network";
   if (matches(message, ["certificate", "ssl", "unable to verify", "issuer certificate"])) return "ssl";
   if (matches(message, ["invalid login", "invalid credentials", "authentication failed", "login failed", "535 5.7.1", "username and password"])) return "credentials";
-  if (matches(message, ["timeout", "timed out", "deadline exceeded", "aborterror"])) return "timeout";
+  if (matches(message, ["timeout", "timed out", "deadline exceeded", "aborterror", "this operation was aborted"])) return "timeout";
   if (matches(message, ["jwt expired", "session has expired", "auth session missing", "401", "unauthorized", "not authenticated", "session a expir", "session has expired"])) return "session";
   if (matches(message, ["403", "forbidden", "access denied", "not allowed", "non autoris"])) return "forbidden";
   if (matches(message, ["404", "not found", "introuvable"])) return "not_found";

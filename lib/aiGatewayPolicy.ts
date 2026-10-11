@@ -1,5 +1,6 @@
 import { AI_ENGINE_OPTIONS } from "./aiEnginePreference.ts";
 import { ADS_CAMPAIGN_MODEL_CHAIN } from "./adsCampaignIntelligence.ts";
+import { BUSINESS_DNA_OPERATION_MAX_DURATION_MS, BUSINESS_DNA_PRIMARY_TIMEOUT_MS } from "./businessDnaAnalysisTiming.ts";
 
 export type AiGenerationFeature =
   | "booster.publish"
@@ -197,13 +198,13 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     // une unique passe de complément tolérante aux pannes.
     maxOutputTokens: 8_000,
     maxRetries: 1,
-    maxTimeoutMs: 72_000,
+    maxTimeoutMs: BUSINESS_DNA_PRIMARY_TIMEOUT_MS,
     maxInputChars: 150_000,
     maxImages: 0,
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 2,
     defaultOperationMaxReservedOutputTokens: 15_200,
-    defaultOperationMaxDurationMs: 125_000,
+    defaultOperationMaxDurationMs: BUSINESS_DNA_OPERATION_MAX_DURATION_MS,
   },
   "agent.stats-report": {
     maxOutputTokens: 1800,
