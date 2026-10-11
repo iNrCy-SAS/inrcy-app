@@ -11,12 +11,35 @@ import * as timing from "../../lib/businessDnaAnalysisTiming.ts";
 import * as documentBudget from "../../lib/businessDnaDocumentBudget.ts";
 import { createAiOperationBudget } from "../../lib/aiGatewayPolicy.ts";
 import * as safe from "../../lib/tsSafe.ts";
+import { buildBusinessDnaWorkspaceSavePatch } from "../../lib/businessDnaManualAnalysisJob.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
 const OTHER = "00000000-0000-4000-8000-000000000012";
 const ACTOR = "00000000-0000-4000-8000-000000000021";
 const read = (file: string) => readFileSync(resolve(ROOT, file), "utf8");
+
+test("une sauvegarde avant le prochain suivi conserve les enrichissements arrivés après l'ouverture du formulaire", () => {
+  const previousMemory = memoryLib.normalizeAiMemory({ values: ["Valeur initiale"] });
+  const previousKnowledge = memoryLib.normalizeAiBusinessKnowledge({ services: ["Service initial"] });
+  const latestMemory = memoryLib.normalizeAiMemory({
+    ...previousMemory, values: ["Valeur initiale", "Ajout de l'analyse"],
+    richText: { editorialStrategy: "<p>Stratégie analysée</p>" },
+  });
+  const latestKnowledge = memoryLib.normalizeAiBusinessKnowledge({ services: ["Service initial", "Nouveau service"] });
+  const draftMemory = memoryLib.normalizeAiMemory({ ...previousMemory, mission: "Mission éditée", richText: { detailedDescription: "<p>Texte édité</p>" } });
+  const draftKnowledge = memoryLib.normalizeAiBusinessKnowledge({ ...previousKnowledge, interventionZones: ["Bretagne"] });
+  const memoryPatch = buildBusinessDnaWorkspaceSavePatch(previousMemory, draftMemory);
+  const knowledgePatch = buildBusinessDnaWorkspaceSavePatch(previousKnowledge, draftKnowledge);
+  const savedMemory = memoryLib.mergeAiMemoryUpdate(latestMemory, memoryPatch);
+  const savedKnowledge = memoryLib.mergeAiBusinessKnowledgeUpdate(latestKnowledge, knowledgePatch);
+  assert.ok(savedMemory.values.includes("Ajout de l'analyse"));
+  assert.equal(savedMemory.mission, "Mission éditée");
+  assert.equal(savedMemory.richText.editorialStrategy, "<p>Stratégie analysée</p>");
+  assert.equal(savedMemory.richText.detailedDescription, "<p>Texte édité</p>");
+  assert.ok(savedKnowledge.services.includes("Nouveau service"));
+  assert.deepEqual(savedKnowledge.interventionZones, ["Bretagne"]);
+});
 
 function load<T>(file: string, deps: Record<string, unknown>): T {
   const code = ts.transpileModule(read(file), {

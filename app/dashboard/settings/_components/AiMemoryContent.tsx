@@ -23,6 +23,7 @@ import {
   type BusinessDnaDashboardChannelAvailability,
 } from "@/lib/businessDnaChannelAvailability";
 import {
+  buildBusinessDnaWorkspaceSavePatch,
   isBusinessDnaManualAnalysisPending,
   parseBusinessDnaManualAnalysisJob,
   type BusinessDnaManualAnalysisJob,
@@ -879,14 +880,17 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         detailedDescription: draftBusinessKnowledge.description,
         differentiators: draftBusinessKnowledge.strengths,
       });
+      const previousWorkspace = JSON.parse(savedSignatureRef.current) as {
+        memory?: unknown; businessKnowledge?: unknown;
+      };
       const response = await fetch("/api/ai-memory", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
         body: JSON.stringify({
-          memory: synchronizedMemory,
-          businessKnowledge: draftBusinessKnowledge,
+          memory: buildBusinessDnaWorkspaceSavePatch(previousWorkspace.memory, synchronizedMemory),
+          businessKnowledge: buildBusinessDnaWorkspaceSavePatch(previousWorkspace.businessKnowledge, draftBusinessKnowledge),
           ...(draft.profession ? { activityProfessionSuggestion: draft.profession } : {}),
         }),
       });

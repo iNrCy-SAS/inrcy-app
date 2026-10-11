@@ -28,3 +28,20 @@ export function parseBusinessDnaManualAnalysisJob(value: unknown): BusinessDnaMa
 export function isBusinessDnaManualAnalysisPending(job: BusinessDnaManualAnalysisJob | null) {
   return job?.status === "queued" || job?.status === "running";
 }
+
+/** Un formulaire ouvert avant la fin de l'analyse ne renvoie que les champs
+ * réellement édités. Une sauvegarde au départ de la page ne peut ainsi pas
+ * écraser des enrichissements serveur avec une ancienne copie complète. */
+export function buildBusinessDnaWorkspaceSavePatch(previousValue: unknown, nextValue: unknown) {
+  const record = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const previous = record(previousValue);
+  const next = record(nextValue);
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(next)) {
+    if (key === "schemaVersion" || key === "referenceDocuments" || JSON.stringify(previous[key]) === JSON.stringify(value)) continue;
+    patch[key] = key === "richText"
+      ? buildBusinessDnaWorkspaceSavePatch(previous[key], value) : value;
+  }
+  return patch;
+}
