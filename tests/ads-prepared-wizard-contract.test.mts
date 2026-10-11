@@ -13,6 +13,44 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
 }
+
+test("X et TikTok ouvrent la même modale finale sans création avant confirmation", async () => {
+  for (const channelId of ["x", "tiktok"] as const) {
+    const dialog: { current: Record<string, unknown> | null } = { current: null };
+    let calls = 0;
+    const draft = { provider: channelId, name: "Campagne test", adAccountId: "compte", dailyBudgetEuros: 10, endDate: "2026-10-20", destinationUrl: "https://example.com/" };
+    const review = { current: { draftKey: "preuve", budgetKey: "preuve", contentKey: "preuve", destination: draft.destinationUrl } };
+    const base = {
+      channelId, channelMeta: { label: channelId + " Ads" }, draft,
+      preparedOnlyChannel: true, busy: null, demoDialog: null, preparedNativeReady: true,
+      preparedNativeCheck: { ready: true, pausedCreationEnabled: true }, preparedDraftKey: "preuve",
+      preparedBudgetApprovalKey: "preuve", preparedContentApprovalKey: "preuve", preparedReviewIssues: [],
+      destinationReview: { required: true, confirmed: true }, preparedTimeZone: "Europe/Paris",
+      externalStatuses: { x: { selectedAccountName: "Compte X" }, tiktok: { selectedAccountName: "Compte TikTok" } },
+      plannedNativeCalendar: () => ({ budgetType: "daily", totalEuros: null, startAt: null, endAt: "2026-10-20T22:00:00Z", timeZone: "Europe/Paris" }),
+      setConfirmedSpend: () => {}, setDemoDialog: (value: Record<string, unknown> | null) => { dialog.current = value; },
+      setNotice: () => {}, setBusy: () => {}, setPublicationPhase: () => {}, setSavedId: () => {},
+      setDraftsRevision: () => {}, setCreating: () => {}, setDirty: () => {}, savedId: null,
+      preparedLatestReview: review, demoSubmissionRef: { current: false },
+      createReviewedPausedCampaign: async ({ assertUnchanged }: { assertUnchanged: () => void }) => { assertUnchanged(); calls += 1; return { id: "créée", campaign: { status: "paused" } }; },
+    };
+    actualFunction("openPreparedLaunchDialog", base)();
+    assert.equal(calls, 0);
+    assert.ok(dialog.current);
+    assert.equal(dialog.current.mode, "confirm");
+    assert.equal(dialog.current.launchStatus, "paused");
+    const modal = dialog.current;
+    const run = (patch: Record<string, unknown> = {}) => actualFunction("createPreparedPausedCampaign", { ...base, demoDialog: modal, confirmedSpend: true, ...patch })();
+    await run({ confirmedSpend: false });
+    await run({ demoDialog: { ...modal, launchStatus: "active" } });
+    await run({ preparedDraftKey: "preuve-modifiée" });
+    assert.equal(calls, 0, "La déclaration, le statut en pause et la preuve exacte sont obligatoires");
+    await Promise.all([run(), run()]);
+    assert.equal(calls, 1, "Deux clics concurrents créent une seule campagne");
+    assert.equal(dialog.current?.mode, "success");
+    assert.equal(dialog.current?.launchStatus, "paused");
+  }
+});
 function actualElement(marker: string) {
   let found: ts.JsxElement | ts.JsxSelfClosingElement | undefined;
   const visit = (node: ts.Node) => {
@@ -102,24 +140,6 @@ test("Prepared confirmations belong to the final review, whose sole validation w
   let ancestor: ts.Node | undefined = paidButtons[0].parent;
   while (ancestor && !(ts.isJsxExpression(ancestor) && ancestor.getText(source).includes("!preparedOnlyChannel"))) ancestor = ancestor.parent;
   assert.ok(ancestor, "The paid launch control is absent from X/TikTok preparation, not merely disabled");
-});
-test("Completed assisted X and TikTok proposals open their real review once, after media preparation finishes", () => {
-  let callback: ts.ArrowFunction | undefined;
-  const visit = (node: ts.Node) => {
-    if (ts.isArrowFunction(node) && ts.isCallExpression(node.parent) && node.parent.expression.getText(source) === "useEffect" && node.getText(source).includes("reviewedPlanRevision.current")) callback = node;
-    ts.forEachChild(node, visit);
-  }; visit(source); assert.ok(callback);
-  const compiled = ts.transpileModule(`const callback = (${callback.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  for (const provider of ["x", "tiktok"] as const) {
-    const draft = { provider, campaignType: "generic" as const, creationMode: "inrcy" as const };
-    const reached: unknown[] = [], steps: number[] = [], reviewedPlanRevision = { current: 0 }, planGenerationRevision = { current: 1 };
-    const base = { channelId: provider, creating: true, creationPath: "inrcy", step: 1, analysisStep: 1, planProgress: 100, busy: null, planError: "", reviewedPlanRevision, planGenerationRevision, draft, adsDraftValidationStep, adsDraftStepKeys, setStep: (value: number) => steps.push(value), setReachedStepKeys: (value: unknown) => reached.push(value) };
-    const run = (patch: Record<string, unknown> = {}) => { const scope = { ...base, ...patch }; new Function(...Object.keys(scope), `${compiled}\ncallback();`)(...Object.values(scope)); };
-    for (const patch of [{ planProgress: 99 }, { busy: "plan" }, { planError: "Média à compléter" }]) run(patch);
-    assert.deepEqual(steps, []); run(); assert.deepEqual(steps, [adsDraftValidationStep(draft)]); assert.deepEqual(reached, [adsDraftStepKeys(draft)]);
-    run(); run({ step: 4 }); assert.equal(steps.length, 1);
-    planGenerationRevision.current = 2; run(); assert.equal(steps.length, 2);
-  }
 });
 
 function harness(options: { channel?: "x" | "tiktok"; missing?: "budget" | "content" | "destination"; issues?: string[]; resources?: boolean; resourceChange?: boolean; editDuring?: "resources" | "save"; revokeDuring?: "resources" | "save"; savedId?: string; missingSavedId?: boolean } = {}) {

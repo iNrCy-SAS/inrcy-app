@@ -145,7 +145,7 @@ test("opening and confirming a disabled LinkedIn launch return before any accoun
     isAdsDraftAccountChannel: () => true, busy: null, demoSubmissionRef: { current: false },
     linkedInSelectionsReady: true, linkedInComplianceReady: true, demoDialog: null,
     setNotice: (notice: string) => notices.push(notice), setBusy: () => {}, setDemoDialog: () => {}, setPublicationPhase: () => {},
-    creating: true, step: 5, validationStep: 5,
+    creating: true, step: 5, validationStep: 5, confirmedSpend: true,
     fetch: () => { requests += 1; throw new Error("unexpected request"); },
   };
   await actualFunction("openLaunchDialog", scope)();
@@ -286,7 +286,7 @@ function launchHarness(options: {
     open: actualFunction("openLaunchDialog", scope), notices, dialogs, requestedDrafts, requests, events, consent,
     currentDraft: () => stateDraft, currentSavedId: () => savedId, consentChecked: () => consentChecked,
     isDirty: () => dirty,
-    confirm: () => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, demoDialog: dialogs.at(-1) })(),
+    confirm: (status?: "active" | "paused", checked = true) => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, confirmedSpend: checked, demoDialog: { ...dialogs.at(-1), ...(status ? { launchStatus: status } : {}) } })(),
   };
 }
 
@@ -378,6 +378,9 @@ test("stable AI consent publishes only after the fresh resource and publisher ch
   const harness = launchHarness({ initialDraft: assistedLaunchDraft(), confirmedSpend: true });
   const expected = harness.currentDraft();
   await harness.open(true);
+  assert.equal(harness.requests.some(({ url }) => url.endsWith("/publish")), false);
+  assert.equal((harness.dialogs.at(-1) as { mode?: string }).mode, "confirm");
+  await harness.confirm();
   assert.deepEqual(harness.events, [
     "GET /api/ads/linkedin/accounts",
     "GET LinkedIn resources",
@@ -394,8 +397,8 @@ test("stable AI consent publishes only after the fresh resource and publisher ch
   assert.deepEqual(harness.currentDraft().linkedinDeliverySettings, expected.linkedinDeliverySettings);
   const published = JSON.parse(harness.requests.at(-1)?.body || "{}");
   assert.deepEqual(published, { mode: "live", confirmation: ADS_LIVE_PUBLISH_CONFIRMATION });
-  assert.equal(harness.dialogs.length, 1);
-  assert.equal((harness.dialogs[0] as { mode?: string }).mode, "success", "there is no second confirmation modal");
+  assert.equal(harness.dialogs.length, 2);
+  assert.equal((harness.dialogs.at(-1) as { mode?: string }).mode, "success");
   assert.equal(harness.consentChecked(), false);
   assert.equal(harness.consent.current, null);
 });
@@ -571,4 +574,22 @@ test("a stale website-visit default cannot attach its group after the objective 
   assert.equal(current, expected);
   assert.equal(current.linkedinCampaignGroupId, undefined);
   assert.equal(current.linkedinBidEuros, undefined);
+});
+
+
+test("linkedin: la proposition préparée attend la confirmation finale et respecte Active ou En pause", async () => {
+  for (const status of ["active", "paused"] as const) {
+    const h = launchHarness({ initialDraft: assistedLaunchDraft(), confirmedSpend: true });
+    await h.open(true);
+    assert.equal((h.dialogs.at(-1) as { mode?: string }).mode, "confirm", h.notices.join(" "));
+    assert.equal(h.requests.filter(({ url }) => url.endsWith("/publish")).length, 0);
+    await h.confirm(status, false);
+    assert.equal(h.requests.filter(({ url }) => url.endsWith("/publish")).length, 0, "La déclaration finale est obligatoire");
+    await h.confirm(status);
+    assert.equal(h.requests.filter(({ url }) => url === "/api/ads/campaigns").length, 1, "Le brouillon vérifié ne doit pas être sauvegardé deux fois");
+    const publications = h.requests.filter(({ url }) => url.endsWith("/publish"));
+    assert.equal(publications.length, 1);
+    assert.deepEqual(JSON.parse(publications[0].body || "{}"), { mode: status === "paused" ? "paused" : "live", confirmation: status === "paused" ? ADS_PAUSED_PUBLISH_CONFIRMATION : ADS_LIVE_PUBLISH_CONFIRMATION });
+    assert.equal((h.dialogs.at(-1) as { mode?: string }).mode, "success");
+  }
 });
