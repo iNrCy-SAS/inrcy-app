@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { deflateSync } from "node:zlib";
 
 import { jsPDF } from "jspdf";
 
@@ -40,6 +41,38 @@ test("un PDF image-only ne transforme pas ses métadonnées en faux texte OCR", 
   const fixture = scannedPdfFixture();
   assert.equal(fixture.subarray(0, 5).toString("ascii"), "%PDF-");
   assert.equal(extractPdfTextForAi(fixture), "");
+});
+
+function encodedPdfFixture(encoded: string | Buffer, filters: string) {
+  const data = Buffer.from(encoded, "latin1");
+  return Buffer.concat([
+    Buffer.from(`%PDF-1.4\n1 0 obj\n<< /Length ${data.length} /Filter ${filters} >>\nstream\n`),
+    data,
+    Buffer.from("endstream\nendobj\n%%EOF"),
+  ]);
+}
+
+test("un PDF ASCII85 puis Flate reste lisible sans saut de ligne avant endstream", () => {
+  // Fixture indépendante : Python base64.a85encode(zlib.compress(b"BT /F1 12 Tf ... Tj ET")).
+  const encoded = "Garg^;:'MC<%p.,#Y@tAE61m.btZG5;$_,\\;fE.gp@P^G<@CVd.g?W_,ml*#$9=O=H)V-bR<aWLRL13@$EbNPGM3_l~>";
+  const fixture = encodedPdfFixture(encoded, "[/ASCII85Decode /FlateDecode]");
+  assert.equal(extractPdfTextForAi(fixture), "Document PDF ASCII85 sans saut de ligne final");
+  assert.equal(extractPdfTextForAi(fixture, 12), "Document PDF");
+});
+
+test("ASCII85 accepte z, les espaces et le dernier groupe partiel", () => {
+  // Python base64.a85encode(b"\\0\\0\\0\\0BT (Lecture) Tj ET") : z puis un groupe final incomplet.
+  const fixture = encodedPdfFixture("z6<#'U9P%^U\nF`M%B+B3(u78s~>", "/A85");
+  assert.equal(extractPdfTextForAi(fixture), "Lecture");
+});
+
+test("les flux encodés invalides ou trop grands ne produisent aucun faux extrait", () => {
+  for (const invalid of ["!z~>", "!~>", "uuuuu~>", "v~>", "z"]) {
+    assert.equal(extractPdfTextForAi(encodedPdfFixture(invalid, "/ASCII85Decode")), "");
+  }
+  const tooLarge = deflateSync(Buffer.from("BT (Faux extrait) Tj ET " + " ".repeat(2 * 1024 * 1024)));
+  assert.equal(extractPdfTextForAi(encodedPdfFixture(tooLarge, "/FlateDecode")), "");
+  assert.equal(extractPdfTextForAi(encodedPdfFixture("BT (Faux extrait) Tj ET", "/DCTDecode")), "");
 });
 
 test("l'analyse borne le Blob avant arrayBuffer et explicite l'absence d'OCR", () => {
