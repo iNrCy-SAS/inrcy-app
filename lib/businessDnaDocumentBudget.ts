@@ -37,7 +37,16 @@ export function fitBusinessDnaDocuments(
 
 export function fitBusinessDnaReferenceDocumentSource(content: string, encodedBudget: number) {
   const sections = Array.from(content.matchAll(/(^|\n\n)(\[Document fourni \d+ — [^\n]*\])\n/g));
-  if (!sections.length) return content.slice(0, encodedBudget);
+  if (!sections.length) {
+    let low = 0;
+    let high = content.length;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      if (JSON.stringify(content.slice(0, middle)).length - 2 <= encodedBudget) low = middle;
+      else high = middle - 1;
+    }
+    return content.slice(0, low);
+  }
   const documents = sections.map((section, index) => ({
     heading: section[2],
     text: content.slice((section.index ?? 0) + section[0].length,

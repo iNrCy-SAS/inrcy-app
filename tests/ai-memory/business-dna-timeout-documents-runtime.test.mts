@@ -147,4 +147,6 @@ test("un petit contexte multicanal conserve chaque document et les règles final
     assert.ok(docs.includes(`DÉBUT-${index}`));
     assert.ok(docs.includes(`FIN-${index}`));
   }
+  const unlabelled = documentBudget.fitBusinessDnaReferenceDocumentSource('"ancien extrait"\n'.repeat(500), 1_000);
+  assert.ok(JSON.stringify(unlabelled).length - 2 <= 1_000);
 });
