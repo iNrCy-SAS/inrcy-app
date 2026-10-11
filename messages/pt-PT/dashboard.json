@@ -647,7 +647,9 @@
     "resetMessage": "Todas as secções visíveis serão apagadas. Depois terá de guardar para confirmar a reposição.",
     "resetConfirm": "Repor tudo",
     "saving": "A guardar…",
-    "save": "Guardar o ADN da empresa"
+    "save": "Guardar o ADN da empresa",
+    "analysisBackgroundHint": "Pode sair desta página: a análise continua e o resultado será guardado automaticamente.",
+    "analysisSaved": "Análise guardada: {fields} secções enriquecidas e {items} novos elementos."
   },
   "aiConfiguration": {
     "pageDescription": "Defina como a IA escreve e adapta cada conteúdo aos seus objetivos.",

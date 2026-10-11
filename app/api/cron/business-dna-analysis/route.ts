@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import {
   buildInternalCronHeaders,
@@ -6,6 +6,7 @@ import {
   isAuthorizedCronRequest,
 } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getQueuedBusinessDnaManualAnalysisJobs } from "@/lib/businessDnaManualAnalysisJobs";
 import { BUSINESS_DNA_AUTOMATIC_LEASE_SECONDS, BUSINESS_DNA_AUTOMATIC_REQUEST_TIMEOUT_MS } from "@/lib/businessDnaAnalysisTiming";
 
 export const runtime = "nodejs";
@@ -56,6 +57,29 @@ async function completeClaim(args: {
 export async function POST(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ ok: false, error: "Non autorisé." }, { status: 401 });
+  }
+
+  // Secours d'un lancement accepté puis non démarré. Le verrou SQL de la
+  // route empêche toute double exécution avec le callback after(). Une tâche
+  // déjà démarrée et expirée est remboursée, sans relance IA automatique.
+  try {
+    const [manualJob] = await getQueuedBusinessDnaManualAnalysisJobs();
+    if (manualJob) {
+      const origin = getAppOriginFromRequest(request);
+      after(async () => {
+        try {
+          const response = await fetch(`${origin}/api/ai-memory/analyze-channels?manual_job=${encodeURIComponent(manualJob.id)}`, {
+            method: "POST", headers: buildInternalCronHeaders(manualJob.account_id), cache: "no-store",
+            signal: AbortSignal.timeout(BUSINESS_DNA_AUTOMATIC_REQUEST_TIMEOUT_MS),
+          });
+          if (!response.ok) console.error("[business-dna-manual] queued request failed", { jobId: manualJob.id, status: response.status });
+        } catch (error) {
+          console.error("[business-dna-manual] queued request deferred", { jobId: manualJob.id, error });
+        }
+      });
+    }
+  } catch (manualError) {
+    console.error("[business-dna-manual] queue check failed", { error: manualError });
   }
 
   const { data, error } = await supabaseAdmin.rpc(

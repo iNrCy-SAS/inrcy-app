@@ -647,7 +647,9 @@
     "resetMessage": "All visible sections will be cleared. You will then need to save to confirm the reset.",
     "resetConfirm": "Reset everything",
     "saving": "Saving…",
-    "save": "Save Business DNA"
+    "save": "Save Business DNA",
+    "analysisBackgroundHint": "You can leave this page: the analysis will continue and its result will be saved automatically.",
+    "analysisSaved": "Analysis saved: {fields} sections enriched and {items} new items."
   },
   "aiConfiguration": {
     "pageDescription": "Set how AI writes and adapts every piece of content to your goals.",

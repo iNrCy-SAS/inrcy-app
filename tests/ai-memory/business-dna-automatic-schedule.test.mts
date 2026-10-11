@@ -97,8 +97,8 @@ test("l'analyse automatique contourne seulement le quota manuel via le cron priv
   const cron = read("app/api/cron/business-dna-analysis/route.ts");
   const vercel = read("vercel.json");
   assert.match(route, /isAuthorizedCronRequest\(request\)/);
-  assert.match(route, /if \(!automatic\)[\s\S]*?consumeBusinessDnaAnalysisQuota/);
-  assert.match(route, /if \(automatic\)[\s\S]*?mergeAiBusinessDnaAnalysis/);
+  assert.match(route, /if \(!automatic && !manualJob\)[\s\S]*?consumeBusinessDnaAnalysisQuota/);
+  assert.match(route, /if \(automatic \|\| manualJob\)[\s\S]*?mergeAiBusinessDnaAnalysis/);
   assert.match(cron, /claim_due_business_dna_automatic_analysis/);
   assert.match(cron, /complete_business_dna_automatic_analysis/);
   assert.match(vercel, /"path": "\/api\/cron\/business-dna-analysis"/);

@@ -115,19 +115,21 @@ test("les documents anciens sont relus uniquement dans leur compte et un échec 
     "@/lib/aiMemory": memory,
     "@/lib/aiAttachmentContext": { analyseAiMemoryReferenceDocument: async (_client: unknown, ref: { name: string; path: string }) => {
       touched.push(ref.path);
+      if (ref.name === "broken.docx") throw new Error("Lecteur interrompu");
       return ref.name === "ok.docx" ? { status: "analysed", text: "Extrait complet relu" } : { status: "error", text: "" };
     } },
   });
   const document = (name: string, accountId = "account") => ({ id: name, name, bucket: "inrcy-ai-documents",
     path: `users/${accountId}/ai-memory-documents/${name}`, mimeType: "application/pdf", size: 1_024,
     extractedText: "Ancien extrait", status: "analysed" as const, note: "", createdAt: "2026-10-01T00:00:00.000Z" });
-  const originals = [document("ok.docx"), document("unavailable.pdf"), document("private.pdf", "other-account"), document("photo.jpg")];
+  const originals = [document("ok.docx"), document("unavailable.pdf"), document("private.pdf", "other-account"), document("photo.jpg"), document("broken.docx")];
   const refreshed = await refreshModule.refreshBusinessDnaReferenceDocuments(originals, { accountId: "account", engine: "anthropic", storageClient: {} });
-  assert.equal(touched.length, 2);
+  assert.equal(touched.length, 3);
   assert.equal(refreshed[0].extractedText, "Extrait complet relu");
   assert.equal(refreshed[1].extractedText, "Ancien extrait");
   assert.equal(originals[0].extractedText, "Ancien extrait");
   assert.equal(refreshed[2], originals[2]);
+  assert.equal(refreshed[4].extractedText, "Ancien extrait");
 });
 
 test("un petit contexte multicanal conserve chaque document et les règles finales sans dépasser le JSON", () => {

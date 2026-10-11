@@ -40,16 +40,22 @@ export async function refreshBusinessDnaReferenceDocuments(
       const reservedSize = document.size || AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES;
       if (reservedSize > AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES - reservedBytes) continue;
       reservedBytes += reservedSize;
-      const extracted = await analyseAiMemoryReferenceDocument(storageClient, {
-        bucket: document.bucket, path: document.path, name: document.name, size: document.size,
-        type: extension === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      }, {
-        userId: options.accountId, engine: options.engine,
-        maxFileBytes: Math.min(AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES, reservedSize),
-        maxCharsPerFile: BUSINESS_DNA_DOCUMENT_EXTRACT_CHARS,
-      });
-      if (extracted.status === "analysed" && extracted.text) {
-        result[currentIndex] = { ...document, extractedText: extracted.text };
+      try {
+        const extracted = await analyseAiMemoryReferenceDocument(storageClient, {
+          bucket: document.bucket, path: document.path, name: document.name, size: document.size,
+          type: extension === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }, {
+          userId: options.accountId, engine: options.engine,
+          maxFileBytes: Math.min(AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES, reservedSize),
+          maxCharsPerFile: BUSINESS_DNA_DOCUMENT_EXTRACT_CHARS,
+        });
+        if (extracted.status === "analysed" && extracted.text) {
+          result[currentIndex] = { ...document, extractedText: extracted.text };
+        }
+      } catch {
+        // Même une erreur inattendue du lecteur reste locale à ce fichier.
+        // Son ancien extrait est conservé et les autres sources continuent.
+        console.warn("[business-dna] document refresh skipped", { documentId: document.id });
       }
     }
   }

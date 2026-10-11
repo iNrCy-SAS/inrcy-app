@@ -647,7 +647,9 @@
     "resetMessage": "所有可见部分都将被清空。之后需要保存以确认重置。",
     "resetConfirm": "全部重置",
     "saving": "正在保存…",
-    "save": "保存企业 DNA"
+    "save": "保存企业 DNA",
+    "analysisBackgroundHint": "您可以离开此页面：分析将继续进行，结果会自动保存。",
+    "analysisSaved": "分析已保存：已完善 {fields} 个部分，新增 {items} 项内容。"
   },
   "aiConfiguration": {
     "pageDescription": "设置 AI 如何编写内容并根据您的目标进行调整。",

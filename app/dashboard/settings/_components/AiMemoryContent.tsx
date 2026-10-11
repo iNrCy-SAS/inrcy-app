@@ -23,6 +23,11 @@ import {
   type BusinessDnaDashboardChannelAvailability,
 } from "@/lib/businessDnaChannelAvailability";
 import {
+  isBusinessDnaManualAnalysisPending,
+  parseBusinessDnaManualAnalysisJob,
+  type BusinessDnaManualAnalysisJob,
+} from "@/lib/businessDnaManualAnalysisJob";
+import {
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES,
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
@@ -92,6 +97,16 @@ type AnalysisQuota = {
   remaining: number;
   resetAt: string;
 };
+
+function summaryFromAnalysisJob(job: BusinessDnaManualAnalysisJob): AnalysisSummary {
+  const applied = job.result.applied as Record<string, unknown> | undefined;
+  return {
+    analyzedAt: job.status === "succeeded" ? String(job.result.analyzedAt || job.completedAt || "") : "",
+    changedFields: Array.isArray(applied?.changedFields) ? applied.changedFields as string[] : [],
+    addedItems: Math.max(0, Number(applied?.addedItems || 0)),
+    sources: Array.isArray(job.result.sources) ? job.result.sources as AnalysisSource[] : [],
+  };
+}
 
 const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
   google_business: "Google Business",
@@ -236,6 +251,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [activityDraftSignature, setActivityDraftSignature] = useState("");
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "scheduled" | "saving" | "failed">("idle");
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisJob, setAnalysisJob] = useState<BusinessDnaManualAnalysisJob | null>(null);
+  const analysisAccountIdRef = useRef("");
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisError, setAnalysisError] = useState("");
@@ -439,6 +456,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         updateBusinessKnowledge(nextBusinessKnowledge);
         setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
         setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
+        analysisAccountIdRef.current = String(quotaPayload.accountId || "");
+        const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
+        setAnalysisJob(job);
+        setAnalyzing(isBusinessDnaManualAnalysisPending(job));
+        setAnalysisError(job?.status === "failed" ? job.error || t("analysisError") : "");
+        setAnalysisSummary(job && (job.status === "succeeded" || job.status === "failed")
+          ? summaryFromAnalysisJob(job) : null);
         setLoaded(true);
         savedSignatureRef.current = workspaceSignature(synchronizedMemory, nextBusinessKnowledge);
       } catch (loadError) {
@@ -452,6 +476,81 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       active = false;
     };
   }, [loadAttempt, t, updateBusinessKnowledge, updateMemory]);
+
+  useEffect(() => {
+    if (!analyzing) return;
+    setAnalysisProgress(4);
+    analysisProgressTimerRef.current = window.setInterval(() => {
+      setAnalysisProgress((current) => Math.min(94, current + (current < 25 ? 7 : current < 57 ? 4 : current < 79 ? 2 : 1)));
+    }, 420);
+    return () => {
+      if (analysisProgressTimerRef.current !== null) {
+        window.clearInterval(analysisProgressTimerRef.current);
+        analysisProgressTimerRef.current = null;
+      }
+    };
+  }, [analyzing]);
+
+  useEffect(() => {
+    if (!isBusinessDnaManualAnalysisPending(analysisJob)) return;
+    let active = true;
+    let polling = false;
+    const accountId = analysisAccountIdRef.current;
+    const refresh = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const response = await fetch("/api/ai-memory/analyze-channels", { credentials: "include", cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!active) return;
+        if (String(payload.accountId || "") !== accountId) {
+          // Un changement d'établissement ne doit jamais appliquer le résultat
+          // du précédent compte dans le brouillon nouvellement affiché.
+          setAnalysisJob(null);
+          setAnalyzing(false);
+          setLoadAttempt((current) => current + 1);
+          return;
+        }
+        const job = parseBusinessDnaManualAnalysisJob(payload.job);
+        if (!job) return;
+        setAnalysisQuota(parseAnalysisQuota(payload.quota));
+        setAnalysisChannels(parseAnalysisChannels(payload.channels));
+        if (job.status === "succeeded") {
+          const memoryResponse = await fetch("/api/ai-memory", { credentials: "include", cache: "no-store" });
+          const savedPayload = await memoryResponse.json();
+          if (!active || !memoryResponse.ok || savedPayload.accountId !== accountId) return;
+          const savedMemory = normalizeAiMemory(savedPayload.memory, { includePremium: strategyEnabled });
+          const savedKnowledge = normalizeAiBusinessKnowledge(savedPayload.businessKnowledge);
+          const cleanDraft = workspaceSignature(memoryRef.current, businessKnowledgeRef.current) === savedSignatureRef.current;
+          const next = cleanDraft ? { memory: savedMemory, businessKnowledge: savedKnowledge }
+            : mergeAiBusinessDnaAnalysis(memoryRef.current, businessKnowledgeRef.current, savedMemory, savedKnowledge, { includePremium: strategyEnabled });
+          savedSignatureRef.current = workspaceSignature(savedMemory, savedKnowledge);
+          updateMemory(next.memory);
+          updateBusinessKnowledge(next.businessKnowledge);
+          if (!activityDirty) setActivityContentRevision((current) => current + 1);
+          void invalidateBoosterGenerationContextClient("professional");
+          void refreshPublicProfileDependents("activity");
+          setAnalysisSummary(summaryFromAnalysisJob(job));
+          setAnalysisError("");
+          setSaved(true);
+        } else if (job.status === "failed") {
+          setAnalysisError(job.error || t("analysisError"));
+          setAnalysisSummary(summaryFromAnalysisJob(job));
+        }
+        setAnalysisJob(job);
+        setAnalyzing(isBusinessDnaManualAnalysisPending(job));
+      } catch {
+        // Une perte réseau du navigateur n'annule pas la tâche serveur. Le
+        // prochain passage sur la page retrouve son état persistant.
+      } finally {
+        polling = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(); }, 3_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [analysisJob?.id, analysisJob?.status, activityDirty, strategyEnabled, t, updateBusinessKnowledge, updateMemory]);
 
   const setField = <K extends keyof AiMemory>(key: K, value: AiMemory[K]) => {
     setSaved(false);
@@ -1100,26 +1199,27 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const analyzeChannels = async () => {
     if (analyzing || loading || !loaded || voiceTargetRef.current) return;
     setAnalyzing(true);
-    setAnalysisProgress(4);
-    if (analysisProgressTimerRef.current !== null) {
-      window.clearInterval(analysisProgressTimerRef.current);
-    }
-    analysisProgressTimerRef.current = window.setInterval(() => {
-      setAnalysisProgress((current) => {
-        const step = current < 25 ? 7 : current < 57 ? 4 : current < 79 ? 2 : 1;
-        return Math.min(94, current + step);
-      });
-    }, 420);
     setAnalysisError("");
     setAnalysisSummary(null);
     setSaved(false);
+    let backgroundAccepted = false;
     try {
-      const response = await fetch("/api/ai-memory/analyze-channels", {
+      if (!(await saveWorkspace({ reason: "analysis" }))) throw new Error(t("saveError"));
+      const response = await fetch("/api/ai-memory/analyze-channels?background=1", {
         method: "POST",
         credentials: "include",
         cache: "no-store",
       });
       const payload = await response.json().catch(() => ({}));
+      if (response.status === 202) {
+        const job = parseBusinessDnaManualAnalysisJob(payload.job);
+        if (!job) throw new Error(t("analysisError"));
+        backgroundAccepted = true;
+        setAnalysisJob(job);
+        const quota = parseAnalysisQuota(payload.quota);
+        if (quota) setAnalysisQuota(quota);
+        return;
+      }
       const rawSources = Array.isArray(payload.sources) ? payload.sources : [];
       const sources = rawSources
         .map((source: unknown): AnalysisSource | null => {
@@ -1179,25 +1279,29 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         analysisFailure instanceof Error ? analysisFailure.message : t("analysisError"),
       );
     } finally {
-      if (analysisProgressTimerRef.current !== null) {
-        window.clearInterval(analysisProgressTimerRef.current);
-        analysisProgressTimerRef.current = null;
-      }
-      setAnalysisProgress(100);
-      window.setTimeout(() => {
+      if (!backgroundAccepted) {
         setAnalyzing(false);
         setAnalysisProgress(0);
-      }, 420);
+      }
       void fetch("/api/ai-memory/analyze-channels", {
         cache: "no-store",
         credentials: "include",
       })
         .then(async (response) => response.ok ? response.json() : null)
         .then((payload) => {
+          if (payload?.accountId && payload.accountId !== analysisAccountIdRef.current) return;
           const refreshedQuota = parseAnalysisQuota(payload?.quota);
           if (refreshedQuota) setAnalysisQuota(refreshedQuota);
           const refreshedChannels = parseAnalysisChannels(payload?.channels);
           if (refreshedChannels.length) setAnalysisChannels(refreshedChannels);
+          const job = parseBusinessDnaManualAnalysisJob(payload?.job);
+          if (isBusinessDnaManualAnalysisPending(job)) {
+            // La réponse du lancement peut être perdue alors que le serveur
+            // l'a déjà accepté. Retrouver la tâche évite un faux échec local.
+            setAnalysisJob(job);
+            setAnalyzing(true);
+            setAnalysisError("");
+          }
         })
         .catch(() => undefined);
     }
@@ -1519,6 +1623,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                 ) : null}
 
                 {analyzing ? (
+                  <p role="status" style={{ color: "#a5f3fc", fontSize: 12, margin: "10px 0" }}>
+                    {t("analysisBackgroundHint")}
+                  </p>
+                ) : null}
+
+                {analyzing ? (
                   <div
                     data-analysis-progress
                     data-running="true"
@@ -1590,7 +1700,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div style={analysisReportStyle}>
                     <strong style={{ color: analysisSummary.changedFields.length ? "#a5f3fc" : "#cbd5e1", fontSize: 12 }}>
                       {analysisSummary.changedFields.length
-                        ? t("analysisApplied", {
+                        ? t("analysisSaved", {
                             fields: analysisSummary.changedFields.length,
                             items: analysisSummary.addedItems,
                           })

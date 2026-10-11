@@ -647,7 +647,9 @@
     "resetMessage": "Toutes les rubriques visibles seront remises à zéro. Vous devrez ensuite enregistrer pour confirmer cette remise à zéro.",
     "resetConfirm": "Remettre à zéro",
     "saving": "Enregistrement…",
-    "save": "Enregistrer l’ADN de l’entreprise"
+    "save": "Enregistrer l’ADN de l’entreprise",
+    "analysisBackgroundHint": "Vous pouvez quitter cette page : l’analyse continue et son résultat sera enregistré automatiquement.",
+    "analysisSaved": "Analyse enregistrée : {fields} rubriques enrichies et {items} nouveaux éléments."
   },
   "aiConfiguration": {
     "pageDescription": "Réglez la manière dont l’IA écrit et adapte chaque contenu à vos objectifs.",
