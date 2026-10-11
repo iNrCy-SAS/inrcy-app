@@ -292,6 +292,19 @@ function publicGenerationError(error: unknown) {
       retryAfterSeconds: 30,
     });
   }
+  // Un raccord peut envelopper un filtre Google dans un refus de référence.
+  // La cause fournisseur prime : cette frame vient du rendu précédent et ne
+  // signifie pas que l'utilisateur a fourni une photo d'identité incorrecte.
+  if (
+    message.includes("ai_video_omni_safety_filtered") ||
+    message.includes("ai_video_veo_safety_filtered")
+  ) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_VIDEO_SAFETY_FILTERED",
+      message: publicVeoSafetyMessage(error),
+    });
+  }
   if (message.includes("ai_video_identity_reference_rejected")) {
     return jsonError({
       status: 422,
@@ -354,16 +367,6 @@ function publicGenerationError(error: unknown) {
       code: "AI_MEDIA_VIDEO_COMPOSITION_FAILED",
       message:
         "Le montage final de la vidéo a échoué. Aucun quota iNrCy n’a été consommé. Vos critères sont conservés pour réessayer.",
-    });
-  }
-  if (
-    message.includes("ai_video_omni_safety_filtered") ||
-    message.includes("ai_video_veo_safety_filtered")
-  ) {
-    return jsonError({
-      status: 422,
-      code: "AI_MEDIA_VIDEO_SAFETY_FILTERED",
-      message: publicVeoSafetyMessage(error),
     });
   }
   if (
