@@ -54,7 +54,7 @@ import {
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
-import { VideoCreditRechargeButton } from "./VideoCreditRecharge";
+import MediaQuotaSummary from "./MediaQuotaSummary";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -751,21 +751,6 @@ export default function MediaGenerator({
     }).format(parsed);
   }, [locale, quota?.resetAt]);
 
-
-  const quotaValue =
-    quotaLoading && !counter
-      ? t("chargement_01cba1df")
-      : quota?.unlimited
-      ? t("ai_generator_unlimited")
-      : counter?.limit === null || !counter
-      ? "—"
-      : counter.limit === 0
-      ? kind === "video"
-        ? "0 s / 0 s"
-        : "0 / 0"
-      : kind === "video"
-      ? `${(counter.includedUsed ?? counter.used) + (counter.includedReserved ?? counter.reserved)} s / ${counter.includedLimit ?? counter.limit} s`
-      : `${counter.used + counter.reserved} / ${counter.limit}`;
 
   const clearTransientState = () => {
     reset();
@@ -2653,43 +2638,8 @@ export default function MediaGenerator({
         data-kind={kind}
         data-consent-required={identityConsentRequired ? "true" : "false"}
       >
-        <div className={styles.quotaCard} data-kind={kind}>
-          <span className={styles.quotaIcon} aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M4.6 15.8a8 8 0 1 1 14.8 0" />
-              <path d="M12 12l4.2-3.1" />
-              <circle cx="12" cy="12" r="1.45" />
-            </svg>
-          </span>
-          <div className={styles.quotaCopy}>
-            <div className={styles.quotaHeadline}>
-              <span>
-                {t(
-                  kind === "image"
-                    ? "ai_generator_image_quota"
-                    : "ai_generator_video_quota"
-                )}
-              </span>
-              <strong>{quotaValue}</strong>
-              {kind === "video" && !quota?.unlimited ? <VideoCreditRechargeButton disabled={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} /> : null}
-            </div>
-            <small>
-              {quota?.unlimited
-                ? t("ai_generator_unlimited")
-                : counter?.remaining !== null && counter
-                ? kind === "video"
-                  ? t("ai_generator_video_seconds_remaining", {
-                      count: counter.remaining,
-                    })
-                  : t("ai_generator_remaining", { count: counter.remaining })
-                : t("ai_generator_monthly_quota")}
-              {resetDate
-                ? ` · ${t("ai_generator_reset", { date: resetDate })}`
-                : ""}
-            </small>
-            {kind === "video" && typeof counter?.purchasedRemaining === "number" ? <small>{t("ai_generator_purchased_video_seconds", { count: counter.purchasedRemaining })}</small> : null}
-          </div>
-        </div>
+        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited}
+          resetDate={resetDate} locked={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} />
         {identityConsentRequired ? (
           <label
             className={styles.footerConsent}

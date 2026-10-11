@@ -43,7 +43,7 @@ import MediaLibraryPickerModal, {
 } from "./MediaLibraryPickerModal";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
-import { VideoCreditRechargeButton } from "./VideoCreditRecharge";
+import MediaQuotaSummary from "./MediaQuotaSummary";
 import styles from "./MediaFreeGenerator.module.css";
 
 type Props = {
@@ -1105,38 +1105,8 @@ export default function MediaFreeGenerator({
         </section>
       </div>
       <div className={styles.footer}>
-        <div className={styles.quota}>
-          <span className={styles.quotaIcon} aria-hidden="true">
-            ◴
-          </span>
-          <div>
-            <span>
-              {t(
-                kind === "video"
-                  ? "ai_generator_video_quota"
-                  : "ai_generator_image_quota"
-              )}
-            </span>
-            <strong>
-              {quota?.unlimited
-                ? t("ai_generator_unlimited")
-                : counter
-                ? `${kind === "video" ? (counter.includedUsed ?? counter.used) + (counter.includedReserved ?? counter.reserved) : counter.used} / ${(kind === "video" ? counter.includedLimit ?? counter.limit : counter.limit) ?? "—"}${
-                    kind === "video" ? " s" : ""
-                  }`
-                : "…"}
-            </strong>
-            {kind === "video" && !quota?.unlimited ? <VideoCreditRechargeButton disabled={locked} onRefresh={() => { void loadQuota({ force: true }); }} /> : null}
-            <small>
-              {t("ai_generator_free_shared_quota")}
-              {kind === "video" && typeof counter?.remaining === "number" ? ` · ${t("ai_generator_video_seconds_remaining", { count: counter.remaining })}` : ""}
-              {kind === "video" && typeof counter?.purchasedRemaining === "number" ? ` · ${t("ai_generator_purchased_video_seconds", { count: counter.purchasedRemaining })}` : ""}
-              {resetDate
-                ? ` · ${t("ai_generator_reset", { date: resetDate })}`
-                : ""}
-            </small>
-          </div>
-        </div>
+        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited}
+          resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />
         <button
           type="button"
           className={styles.primaryButton}

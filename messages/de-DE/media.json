@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Ort / Umgebung",
   "ai_generator_redesign_criteria_result_image": "Ihre Kriterien geben den Rahmen für das Bild vor; die KI bleibt beim Rest kreativ frei.",
   "ai_generator_redesign_criteria_result_video": "Ihre Kriterien geben den Rahmen für das Video vor; die KI bleibt beim Rest kreativ frei.",
-  "ai_generator_purchased_video_seconds": "{count} gekaufte Sekunden übrig"
+  "ai_generator_purchased_video_seconds": "{count} gekaufte Sekunden übrig",
+  "ai_generator_included_balance": "Abo-Guthaben",
+  "ai_generator_included_report": "Monatskontingent + Übertrag",
+  "ai_generator_purchased_balance": "Verbleibendes gekauftes Guthaben",
+  "ai_generator_purchased_keep": "Bleibt bei der monatlichen Verlängerung erhalten"
 }

@@ -12,6 +12,9 @@ const kind = "inrcy_video_credits_v1";
 const hints = { kind, order_id: orderId, account_id: accountId, actor_auth_user_id: actorId, pack_key: "video_50" };
 const source = readFileSync(new URL("../../lib/boutique/videoCreditPayments.ts",import.meta.url),"utf8");
 const output = ts.transpileModule(source,{ compilerOptions:{ module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022 } }).outputText;
+const sharedOutput = ts.transpileModule(readFileSync(new URL("../../lib/boutique/mediaCreditPayments.ts",import.meta.url),"utf8"),{
+  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
+}).outputText;
 
 function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolean; uncertain?: boolean; customerAccount?: string; mutateSession?: (row: Row) => void; mutatePrice?: (row: Row) => void; refunded?: number; disputed?: boolean; disputes?: Row[] } = {}) {
   const price: Row = { id:"price_video_50",currency:"eur",unit_amount:800,tax_behavior:"exclusive",type:"one_time",active:true,livemode:false };
@@ -80,6 +83,11 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
       posts.push({path,params:params.toString(),config}); assert.equal(path,"/checkout/sessions"); return structuredClone(session);
     }},
   };
+  const sharedRuntime = {exports:{}};
+  new Function("module","exports","require",sharedOutput)(sharedRuntime,sharedRuntime.exports,(name: string)=>{
+    assert.ok(Object.hasOwn(modules,name),"Unmocked shared dependency "+name); return modules[name];
+  });
+  modules["@/lib/boutique/mediaCreditPayments"] = sharedRuntime.exports;
   const runtime = {exports:{} as {startVideoCreditCheckout:(args: Row)=>Promise<Row>;fulfillVideoCreditCheckout:(session: string,event: string)=>Promise<boolean>;reconcileVideoCreditRefund:(charge: string,event: string)=>Promise<boolean>;reconcileVideoCreditDispute:(dispute: string,event: string)=>Promise<boolean>}};
   new Function("module","exports","require",output)(runtime,runtime.exports,(name: string)=>{
     assert.ok(Object.hasOwn(modules,name),"Unmocked dependency "+name); return modules[name];

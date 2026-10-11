@@ -295,6 +295,21 @@ function quotaFromRow(row: QuotaRpcRow): AiMediaQuotaCounter & { periodStart: st
   };
 }
 
+function purchasedQuotaFromRow(row: QuotaRpcRow): Partial<AiMediaQuotaCounter> {
+  if (typeof row.purchased_remaining_count === "undefined") return {};
+  return {
+    includedRemaining: numberValue(row.included_remaining_count, "included_remaining_count"),
+    includedLimit: numberValue(row.included_limit_count, "included_limit_count"),
+    includedUsed: numberValue(row.included_used_count, "included_used_count"),
+    includedReserved: numberValue(row.included_reserved_count, "included_reserved_count"),
+    purchasedRemaining: numberValue(row.purchased_remaining_count, "purchased_remaining_count"),
+    purchasedReserved: numberValue(row.purchased_reserved_count, "purchased_reserved_count"),
+    purchasedDebt: numberValue(row.purchased_debt_count, "purchased_debt_count"),
+    purchasedHeld: numberValue(row.purchased_held_count ?? 0, "purchased_held_count"),
+    purchasedSuspendedDeficit: numberValue(row.purchased_suspended_deficit_count ?? 0, "purchased_suspended_deficit_count"),
+  };
+}
+
 function jobStatus(value: unknown, nullable: true): AiMediaGenerationJobStatus | null;
 function jobStatus(value: unknown, nullable?: false): AiMediaGenerationJobStatus;
 function jobStatus(value: unknown, nullable = false): AiMediaGenerationJobStatus | null {
@@ -356,6 +371,7 @@ export async function getAiMediaQuotaSnapshot(params: {
       used: image.used,
       reserved: image.reserved,
       remaining: image.remaining,
+      ...purchasedQuotaFromRow(imageRow),
     },
     video: {
       unit: video.unit,
@@ -363,17 +379,7 @@ export async function getAiMediaQuotaSnapshot(params: {
       used: video.used,
       reserved: video.reserved,
       remaining: video.remaining,
-      ...(typeof videoRow.purchased_remaining_count === "undefined" ? {} : {
-        includedRemaining: numberValue(videoRow.included_remaining_count, "included_remaining_count"),
-        includedLimit: numberValue(videoRow.included_limit_count, "included_limit_count"),
-        includedUsed: numberValue(videoRow.included_used_count, "included_used_count"),
-        includedReserved: numberValue(videoRow.included_reserved_count, "included_reserved_count"),
-        purchasedRemaining: numberValue(videoRow.purchased_remaining_count, "purchased_remaining_count"),
-        purchasedReserved: numberValue(videoRow.purchased_reserved_count, "purchased_reserved_count"),
-        purchasedDebt: numberValue(videoRow.purchased_debt_count, "purchased_debt_count"),
-        purchasedHeld: numberValue(videoRow.purchased_held_count ?? 0, "purchased_held_count"),
-        purchasedSuspendedDeficit: numberValue(videoRow.purchased_suspended_deficit_count ?? 0, "purchased_suspended_deficit_count"),
-      }),
+      ...purchasedQuotaFromRow(videoRow),
     },
   };
 }

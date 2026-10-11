@@ -8,6 +8,7 @@ import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
 import { fulfillVideoCreditCheckout, reconcileVideoCreditRefund, reconcileVideoCreditDispute, VIDEO_CREDIT_PAYMENT_KIND } from "@/lib/boutique/videoCreditPayments";
+import { fulfillImageCreditCheckout, reconcileImageCreditRefund, reconcileImageCreditDispute, IMAGE_CREDIT_PAYMENT_KIND } from "@/lib/boutique/imageCreditPayments";
 import {
   stripeWebhookNeedsReconciliation,
   stripeWebhookReconciliationLastError,
@@ -287,7 +288,8 @@ function isVideoCreditMoneyEvent(event: StripeEvent): boolean {
   const object = event.data?.object as StripeObjectLoose | undefined;
   const type = String(event.type ?? "");
   return VIDEO_CREDIT_DISPUTE_EVENTS.has(type) || type === "charge.refunded"
-    || (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type) && (object?.metadata as StripeObjectLoose | undefined)?.kind === VIDEO_CREDIT_PAYMENT_KIND);
+    || (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type)
+      && [VIDEO_CREDIT_PAYMENT_KIND, IMAGE_CREDIT_PAYMENT_KIND].includes(String((object?.metadata as StripeObjectLoose | undefined)?.kind ?? "")));
 }
 
 async function claimStripeWebhookEvent(event: StripeEvent): Promise<"process" | "duplicate" | "busy"> {
@@ -553,13 +555,25 @@ export async function POST(req: Request) {
       await completeStripeWebhookEvent(evt);
       return NextResponse.json({ received: true, videoCredits: true });
     }
+    if (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type)
+      && (obj?.metadata as StripeObjectLoose | undefined)?.kind === IMAGE_CREDIT_PAYMENT_KIND) {
+      await fulfillImageCreditCheckout(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      await completeStripeWebhookEvent(evt);
+      return NextResponse.json({ received: true, imageCredits: true });
+    }
     if (type === "charge.refunded") {
-      await reconcileVideoCreditRefund(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      const chargeId = stripeObjectId(obj?.id) ?? "";
+      if (!await reconcileVideoCreditRefund(chargeId, String(evt.id ?? ""))) {
+        await reconcileImageCreditRefund(chargeId, String(evt.id ?? ""));
+      }
       await completeStripeWebhookEvent(evt);
       return NextResponse.json({ received: true });
     }
     if (VIDEO_CREDIT_DISPUTE_EVENTS.has(type)) {
-      await reconcileVideoCreditDispute(stripeObjectId(obj?.id) ?? "", String(evt.id ?? ""));
+      const disputeId = stripeObjectId(obj?.id) ?? "";
+      if (!await reconcileVideoCreditDispute(disputeId, String(evt.id ?? ""))) {
+        await reconcileImageCreditDispute(disputeId, String(evt.id ?? ""));
+      }
       await completeStripeWebhookEvent(evt);
       return NextResponse.json({ received: true });
     }

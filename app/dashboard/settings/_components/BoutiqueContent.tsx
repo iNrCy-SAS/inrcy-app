@@ -15,7 +15,10 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { BOUTIQUE_PRODUCTS, boutiqueOrderPriceLabel, boutiqueSavingsPercent, type BoutiqueProduct } from "@/lib/boutique/products";
-import { VideoCreditPacksPanel } from "@/app/dashboard/_components/VideoCreditRecharge";
+import { VIDEO_CREDIT_PACKS } from "@/lib/boutique/videoCreditPacks";
+import { IMAGE_CREDIT_PACKS } from "@/lib/boutique/imageCreditPacks";
+import { detectClientBillingPlatform } from "@/lib/clientSubscriptionBilling";
+import { MediaCreditRechargeButton } from "@/app/dashboard/_components/VideoCreditRecharge";
 
 type Props = {
   mode?: "drawer" | "page";
@@ -34,6 +37,10 @@ type OrderRow = {
 };
 
 const BOUTIQUE_TO = process.env.NEXT_PUBLIC_BOUTIQUE_EMAIL || "boutique@inrcy.com";
+const MEDIA_CREDIT_CARDS = [
+  { mediaKind: "video", title: "video_credit_title", description: "video_credit_description", priceEurHt: VIDEO_CREDIT_PACKS[0].priceEurHt },
+  { mediaKind: "image", title: "image_credit_title", description: "image_credit_description", priceEurHt: IMAGE_CREDIT_PACKS[0].priceEurHt },
+] as const;
 
 function formatDate(d: string, locale: string) {
   try {
@@ -59,6 +66,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
   const [sendingKey, setSendingKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>("");
   const [showUiHelp, setShowUiHelp] = useState<boolean>(false);
+  const [showMediaRecharge, setShowMediaRecharge] = useState(false);
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
@@ -87,6 +95,7 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
 
   useEffect(() => {
     let mounted = true;
+    setShowMediaRecharge(detectClientBillingPlatform() === "web");
     (async () => {
       try {
         const supabase = createClient();
@@ -236,12 +245,27 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
       ) : null}
 
       {/* Produits */}
-      {view === "products" ? <VideoCreditPacksPanel /> : null}
       {view === "products" ? <div style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(15,23,42,0.40)",
         borderRadius: 18, padding: 14, color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 1.45 }}>
         {i18nT("en_cliquant_sur_un_bouton_une_bebba311")}{" "}<b>{BOUTIQUE_TO}</b>.
       </div> : null}
       {view === "products" && <div className={`${sectionStyles.products} ${boutiqueStyles.products}`} style={{ display: "grid", gap: 14 }}>
+        {showMediaRecharge ? MEDIA_CREDIT_CARDS.map((card) => (
+          <div key={card.mediaKind} className={boutiqueStyles.rechargeCard} role="group" aria-label={i18nT(card.title)}>
+            <div className={boutiqueStyles.rechargeHeading}>
+              <h2>{i18nT(card.title)}</h2>
+              <span className={boutiqueStyles.rechargeBadge}>iNr’Studio</span>
+            </div>
+            <p className={boutiqueStyles.rechargeDescription}>{i18nT(card.description)}</p>
+            <p className={boutiqueStyles.rechargePrice}>
+              {i18nT("video_credit_starting_at", {
+                price: new Intl.NumberFormat(locale, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(card.priceEurHt),
+                tax: taxLabel,
+              })}
+            </p>
+            <MediaCreditRechargeButton mediaKind={card.mediaKind} className={boutiqueStyles.rechargeButton} />
+          </div>
+        )) : null}
         {products.map((p) => (
           <div
             key={p.key}

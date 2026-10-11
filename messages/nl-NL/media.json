@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Locatie / omgeving",
   "ai_generator_redesign_criteria_result_image": "Je criteria bepalen het kader van de afbeelding; AI houdt creatieve vrijheid voor de rest.",
   "ai_generator_redesign_criteria_result_video": "Je criteria bepalen het kader van de video; AI houdt creatieve vrijheid voor de rest.",
-  "ai_generator_purchased_video_seconds": "{count} gekochte seconden over"
+  "ai_generator_purchased_video_seconds": "{count} gekochte seconden over",
+  "ai_generator_included_balance": "Abonnementstegoed",
+  "ai_generator_included_report": "Maandquotum + meegenomen tegoed",
+  "ai_generator_purchased_balance": "Resterend gekocht tegoed",
+  "ai_generator_purchased_keep": "Blijft beschikbaar na verlenging"
 }

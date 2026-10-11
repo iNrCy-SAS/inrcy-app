@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "สถานที่ / ฉาก",
   "ai_generator_redesign_criteria_result_image": "เกณฑ์ของคุณกำหนดกรอบภาพ ส่วนที่เหลือ AI ยังสร้างสรรค์ได้อย่างอิสระ",
   "ai_generator_redesign_criteria_result_video": "เกณฑ์ของคุณกำหนดกรอบวิดีโอ ส่วนที่เหลือ AI ยังสร้างสรรค์ได้อย่างอิสระ",
-  "ai_generator_purchased_video_seconds": "เหลือเวลาที่ซื้อ {count} วินาที"
+  "ai_generator_purchased_video_seconds": "เหลือเวลาที่ซื้อ {count} วินาที",
+  "ai_generator_included_balance": "โควตาสมาชิกที่เหลือ",
+  "ai_generator_included_report": "โควตารายเดือน + ยอดยกมา",
+  "ai_generator_purchased_balance": "เครดิตที่ซื้อคงเหลือ",
+  "ai_generator_purchased_keep": "คงอยู่หลังต่ออายุรายเดือน"
 }

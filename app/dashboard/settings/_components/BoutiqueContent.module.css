@@ -47,6 +47,60 @@
 .help { padding: 14px; border: 1px solid #71d7f466; border-radius: 16px; color: #e0f7ff; background: #0b416a; line-height: 1.5; }
 .products { grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
 
+.rechargeCard {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+}
+.rechargeHeading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.rechargeHeading h2 {
+  margin: 0;
+  color: rgba(255,255,255,0.92);
+  font-size: 15px;
+  font-weight: 900;
+}
+.rechargeBadge {
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.78);
+  font-size: 12px;
+  font-weight: 750;
+}
+.rechargeDescription {
+  margin: 0;
+  color: rgba(255,255,255,0.68);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rechargePrice {
+  margin: 0;
+  color: rgba(255,255,255,0.92);
+  font-size: 15px;
+  font-weight: 850;
+}
+.products .rechargeButton {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(56,189,248,0.10);
+  color: rgba(255,255,255,0.92);
+  font-size: 14px;
+  font-weight: 850;
+  text-align: center;
+}
+.rechargeButton:focus-visible { outline: 2px solid #a5f3fc; outline-offset: 3px; }
+
 @media (max-width: 700px) {
   .headerTools { gap: 6px; }
   .headerTools nav { width: 100%; }

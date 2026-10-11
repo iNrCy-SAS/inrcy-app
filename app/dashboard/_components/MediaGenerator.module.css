@@ -2374,68 +2374,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(136, 180, 255, 0.34);
+  gap: 18px;
+  padding: 13px 17px;
+  border: 1px solid rgba(104, 159, 221, 0.3);
   border-radius: 18px;
-  background: radial-gradient(
-      circle at 5% 50%,
-      rgba(31, 202, 241, 0.2),
-      transparent 24%
-    ),
-    radial-gradient(
-      circle at 52% -65%,
-      rgba(121, 88, 238, 0.24),
-      transparent 42%
-    ),
-    radial-gradient(circle at 96% 50%, rgba(235, 72, 159, 0.2), transparent 27%),
-    linear-gradient(
-      112deg,
-      rgba(6, 23, 52, 0.98),
-      rgba(8, 16, 43, 0.98) 48%,
-      rgba(28, 15, 56, 0.97)
-    );
-  box-shadow: 0 -18px 50px rgba(1, 7, 24, 0.48), 0 16px 36px rgba(2, 7, 22, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.075),
-    inset 0 0 38px rgba(81, 110, 231, 0.045);
-  backdrop-filter: blur(22px) saturate(1.2);
-}
-
-.footerBar::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  left: 22px;
-  right: 22px;
-  height: 2px;
-  border-radius: 999px;
   background: linear-gradient(
-    90deg,
-    transparent,
-    #53e5ff 18%,
-    #8e75ff 54%,
-    #ff69b3 82%,
-    transparent
+    105deg,
+    rgba(19, 104, 141, 0.35),
+    rgba(57, 41, 114, 0.35) 65%,
+    rgba(153, 49, 156, 0.36)
   );
-  box-shadow: 0 0 18px rgba(112, 189, 255, 0.5);
-  opacity: 0.86;
-  pointer-events: none;
-}
-
-.footerBar::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: -52px;
-  left: 50%;
-  width: 320px;
-  height: 94px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: rgba(126, 88, 238, 0.16);
-  filter: blur(32px);
-  pointer-events: none;
 }
 
 .footerBar > * {
@@ -2595,72 +2543,22 @@
   min-width: 0;
   width: fit-content;
   max-width: 100%;
-  min-height: 52px;
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  justify-content: start;
+  display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 6px 11px 6px 7px;
-  border: 1px solid rgba(94, 218, 250, 0.19);
-  border-radius: 14px;
-  background: linear-gradient(
-      120deg,
-      rgba(37, 189, 231, 0.12),
-      rgba(71, 87, 203, 0.08) 58%,
-      rgba(255, 255, 255, 0.025)
-    ),
-    rgba(7, 21, 49, 0.62);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 9px 24px rgba(0, 0, 0, 0.16);
+  gap: 13px;
 }
 
 .quotaIcon {
-  width: 36px;
-  height: 36px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(102, 230, 255, 0.48);
-  border-radius: 12px;
-  color: #83ecff;
-  background: radial-gradient(
-      circle at 35% 25%,
-      rgba(141, 244, 255, 0.24),
-      transparent 36%
-    ),
-    linear-gradient(145deg, rgba(25, 186, 229, 0.34), rgba(89, 82, 224, 0.3));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 22px rgba(44, 196, 232, 0.18), 0 7px 18px rgba(27, 159, 220, 0.13);
-}
-
-.quotaIcon svg {
-  width: 22px;
-  height: 22px;
-  overflow: visible;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.quotaIcon circle {
-  fill: currentColor;
-  stroke: none;
-}
-
-.quotaCard[data-kind="video"] .quotaIcon {
-  border-color: rgba(240, 104, 194, 0.45);
-  color: #ff9bd2;
-  background: radial-gradient(
-      circle at 35% 25%,
-      rgba(255, 174, 224, 0.22),
-      transparent 36%
-    ),
-    linear-gradient(145deg, rgba(104, 82, 229, 0.32), rgba(229, 70, 156, 0.31));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 22px rgba(231, 73, 161, 0.16), 0 7px 18px rgba(111, 61, 191, 0.14);
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: 13px;
+  color: #52daf3;
+  background: rgba(33, 168, 211, 0.16);
+  border: 1px solid rgba(50, 167, 205, 0.4);
+  font-size: 27px;
 }
 
 .quotaCopy {
@@ -2668,42 +2566,39 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .quotaHeadline {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 9px;
+  gap: 3px 10px;
   min-width: 0;
 }
 
 .quotaHeadline span {
-  color: rgba(220, 234, 255, 0.78);
-  font-size: 9.5px;
-  font-weight: 800;
+  color: #bbcee5;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.15;
   white-space: nowrap;
 }
 
 .quotaHeadline strong {
   flex: 0 0 auto;
-  color: #fff;
-  background: linear-gradient(90deg, #78ebff, #b8a2ff 52%, #ff91c7);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-size: 18px;
+  color: #d8a3f6;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .quotaCard small {
   display: block;
-  color: rgba(198, 220, 250, 0.58);
-  font-size: 8.5px;
-  line-height: 1.2;
-  white-space: nowrap;
+  color: #94abc9;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: normal;
 }
 
 .footerEnginePicker {
@@ -4255,23 +4150,14 @@
   }
 
   .footerBar {
-    padding: 7px 9px;
-    border-radius: 15px;
-  }
-
-  .quotaCard {
-    min-height: 46px;
-    padding: 5px 8px;
-  }
-
-  .quotaIcon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
+    min-height: 66px;
+    padding: 8px 14px;
+    gap: 12px;
   }
 
   .generateButton {
-    min-height: 48px;
+    min-height: 46px;
+    padding: 10px 25px;
   }
 
   .creationBodyGrid {
@@ -4345,13 +4231,13 @@
     position: relative;
     bottom: auto;
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) minmax(360px, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
 
   .footerBar[data-consent-required="true"] {
-    grid-template-columns: minmax(230px, 0.75fr) minmax(410px, 1.35fr) minmax(
-        330px,
+    grid-template-columns: minmax(210px, 0.75fr) minmax(0, 1.35fr) minmax(
+        220px,
         0.9fr
       );
     grid-template-rows: auto;
@@ -4389,6 +4275,7 @@
   .generateButton {
     grid-column: 2;
     justify-self: end;
+    min-width: 0;
   }
 
   .footerBar[data-consent-required="true"] .generateButton {
@@ -4496,7 +4383,7 @@
   }
 
   .quotaHeadline span {
-    font-size: 10.5px;
+    font-size: 11px;
   }
 
   .quotaHeadline strong {
@@ -4504,11 +4391,11 @@
   }
 
   .quotaCard small {
-    font-size: 9.5px;
+    font-size: 10px;
   }
 
   .generateButton {
-    font-size: 14.5px;
+    font-size: 14px;
   }
 
   .generateButton > span {
@@ -4953,9 +4840,6 @@
     min-height: 41px;
   }
 
-  .footerBar {
-    padding-block: 5px;
-  }
 }
 
 @media (max-width: 1100px) {
@@ -5179,10 +5063,10 @@
     white-space: normal;
   }
   .generateButton {
-    width: min(100%, 250px);
+    width: 100%;
     min-width: 0;
     min-height: 50px;
-    justify-self: center;
+    justify-self: stretch;
     padding: 7px 18px;
     border-radius: 13px;
     font-size: 12px;
@@ -5234,6 +5118,34 @@
   }
   .previewFrame {
     border-radius: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .footerBar[data-consent-required="false"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 13px;
+    gap: 13px;
+  }
+
+  .footerBar[data-consent-required="false"] .quotaCard {
+    width: 100%;
+  }
+
+  .footerBar[data-consent-required="false"] .quotaHeadline span {
+    white-space: normal;
+  }
+
+  .footerBar[data-consent-required="false"] .quotaHeadline strong {
+    font-size: 18px;
+  }
+
+  .footerBar[data-consent-required="false"] .generateButton {
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
   }
 }
 

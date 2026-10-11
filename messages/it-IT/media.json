@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Luogo / ambiente",
   "ai_generator_redesign_criteria_result_image": "I tuoi criteri definiscono l’immagine; l’IA mantiene libertà creativa sul resto.",
   "ai_generator_redesign_criteria_result_video": "I tuoi criteri definiscono il video; l’IA mantiene libertà creativa sul resto.",
-  "ai_generator_purchased_video_seconds": "{count} secondi acquistati rimanenti"
+  "ai_generator_purchased_video_seconds": "{count} secondi acquistati rimanenti",
+  "ai_generator_included_balance": "Abbonamento — disponibile",
+  "ai_generator_included_report": "Quota mensile + riporto",
+  "ai_generator_purchased_balance": "Crediti acquistati — disponibili",
+  "ai_generator_purchased_keep": "Conservati al rinnovo"
 }
