@@ -2,7 +2,7 @@
 
 État au 11 octobre 2026 : accès Cloud activé ; essais Omni 8 s et Veo 8/16/24 s réussis et enregistrés en Preview. La vérification perceptuelle du rendu/son et la déduction des quotas sur une offre limitée restent à valider. Cette branche ne bascule pas la production automatiquement.
 
-Google annonce l'arrêt des identifiants Gemini `veo-3.1-*-generate-preview` et `gemini-omni-flash-preview` le 22 octobre 2026. Omni utilise déjà `gemini-omni-1.1-flash` et Interactions ; une ancienne surcharge preview est désormais convertie vers ce modèle stable.
+Google annonce l'arrêt des identifiants Gemini `veo-3.1-*-generate-preview` et `gemini-omni-flash-preview` le 22 octobre 2026. Omni utilise déjà `gemini-omni-1.1-flash` et Interactions. La livraison autorisée est limitée à Veo Cloud : le fournisseur Omni et la route de génération restent identiques à la production actuelle.
 
 ## Activation Veo
 
@@ -36,7 +36,7 @@ Le contrôle natif du dialogue a été exécuté dans les deux essais 8 s réuss
 
 L'estimation conservatrice des vidéos seules est de 6,41 $US, en comptant aussi 0,80 $US pour l'opération Google échouée malgré l'absence de vidéo retournée. L'enveloppe réservée aux cinq tentatives est de 9,30 $US, avec une marge pour planification, précomposition, contrôles et TTS. Il ne s'agit pas d'un relevé de facturation. Aucun autre essai payant ne fait partie de cette validation.
 
-Le diff de migration est limité aux fournisseurs vidéo Veo/Omni, à leur authentification/configuration serveur, aux dépendances et aux tests/documentation associés. Les prompts et consignes créatives, les autres IA, l'interface Studio, les règles commerciales et les quotas ne sont pas modifiés.
+Le diff de migration est limité au fournisseur vidéo Veo, à son authentification/configuration serveur, aux dépendances et aux tests/documentation associés. Les prompts et consignes créatives, Omni, les autres IA, la route de génération, l'interface Studio, les règles commerciales et les quotas ne sont pas modifiés. Les corrections distinctes de l'alias Omni et du diagnostic des filtres Google sont exclues de cette livraison à la demande de l'utilisateur.
 
 Avant la bascule, vérifier l'identité du projet, l'accès au modèle et les tarifs ; puis générer en Preview des films 8/16/24 secondes, dont un portrait avec référence et raccords. Contrôler MP4, son, durée, rendu final, stockage et consommation du quota iNrCy. Autoriser et plafonner la dépense de ces essais avant leur lancement.
 

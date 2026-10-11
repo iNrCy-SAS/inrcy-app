@@ -388,11 +388,11 @@ test("Veo Vertex propage une annulation pendant le poll après avoir comptabilis
   }
 });
 
-test("Omni remplace son alias preview retiré par GA et reste sur Gemini", async () => {
-  const harness = createHarness("omni", { omniModel: "gemini-omni-flash-preview", vertex: true });
+test("l'activation Veo Cloud conserve le modèle et l'accès Gemini existants d'Omni", async () => {
+  const harness = createHarness("omni", { vertex: true });
   const result = await harness.provider.generate(generationArgs("omni", 8));
   assert.equal(result.model, "gemini-omni-1.1-flash");
-  assert.equal(harness.clients[0].vertexai, false);
+  assert.equal(harness.clients[0].vertexai, undefined);
   assert.equal(harness.clients[0].apiKey, "test-only");
 });
 

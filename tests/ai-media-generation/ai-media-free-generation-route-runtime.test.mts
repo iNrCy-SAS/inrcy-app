@@ -225,36 +225,3 @@ test("des voix IA invalides après les secours renvoient une erreur fournisseur 
   assert.equal(route.failureCalls.length, 1);
   assert.equal(route.completionCalls.length, 0);
 });
-
-test("un filtre Google pendant un raccord conserve sa vraie cause et libère le quota", async () => {
-  for (const engine of ["veo", "omni"]) {
-    const providerError = new Error(
-      "ai_video_provider_billable_failure:google-gemini:film_incomplete:" +
-      "ai_video_identity_reference_rejected:Error | " +
-      `ai_video_${engine}_safety_filtered:1 videos were filtered out. Support codes: 15236754`,
-    );
-    const route = loadRoute({ providerError });
-    const response = await route.post(body({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters" }));
-    const payload = await response.json();
-    assert.equal(response.status, 422);
-    assert.equal(payload.code, "AI_MEDIA_VIDEO_SAFETY_FILTERED");
-    assert.match(payload.error, /Google a bloqué/);
-    assert.doesNotMatch(payload.error, /photos|référence|identité/);
-    assert.equal(route.generationCalls.length, 1);
-    assert.equal(route.reservationCalls[0]!.quotaAmount, 16);
-    assert.equal(route.failureCalls.length, 1);
-    assert.equal(route.completionCalls.length, 0);
-  }
-});
-
-test("un refus d'identité sans filtre Google garde son diagnostic de référence", async () => {
-  const route = loadRoute({ providerError: new Error("ai_video_identity_reference_rejected:no_compatible_reference_model") });
-  const response = await route.post(body({ kind: "video", durationSeconds: 16 }));
-  const payload = await response.json();
-  assert.equal(response.status, 422);
-  assert.equal(payload.code, "AI_MEDIA_VIDEO_IDENTITY_REFERENCE_REJECTED");
-  assert.match(payload.error, /photos de référence/);
-  assert.equal(route.generationCalls.length, 1);
-  assert.equal(route.failureCalls.length, 1);
-  assert.equal(route.completionCalls.length, 0);
-});
