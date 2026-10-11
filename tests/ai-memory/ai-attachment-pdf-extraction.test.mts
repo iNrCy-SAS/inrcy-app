@@ -44,7 +44,7 @@ test("un PDF image-only ne transforme pas ses métadonnées en faux texte OCR", 
 });
 
 function encodedPdfFixture(encoded: string | Buffer, filters: string) {
-  const data = Buffer.from(encoded, "latin1");
+  const data = typeof encoded === "string" ? Buffer.from(encoded, "latin1") : encoded;
   return Buffer.concat([
     Buffer.from(`%PDF-1.4\n1 0 obj\n<< /Length ${data.length} /Filter ${filters} >>\nstream\n`),
     data,
