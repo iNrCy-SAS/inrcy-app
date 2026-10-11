@@ -1626,7 +1626,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   </div>
                 ) : null}
 
-                {analyzing ? (
+                {analyzing && isBusinessDnaManualAnalysisPending(analysisJob) ? (
                   <p role="status" style={{ color: "#a5f3fc", fontSize: 12, margin: "10px 0" }}>
                     {t("analysisBackgroundHint")}
                   </p>
