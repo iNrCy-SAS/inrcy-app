@@ -325,7 +325,7 @@
   "ai_generator_video_format": "8, 16 or 24 seconds · format of your choice",
   "ai_generator_image_quota": "Images generated this month",
   "ai_generator_video_credit_insufficient": "Das verbleibende Videoguthaben reicht für diese Dauer nicht aus.",
-  "ai_generator_video_quota": "Diesen Monat verwendete Videosekunden",
+  "ai_generator_video_quota": "Diesen Monat genutzte enthaltene Videosekunden",
   "ai_generator_video_seconds_remaining": "{count} s verbleibend",
   "ai_generator_remaining": "{count} remaining",
   "ai_generator_monthly_quota": "Monthly quota",
@@ -770,5 +770,6 @@
   "ai_generator_redesign_criteria_focus_product": "Produkt / Objekt",
   "ai_generator_redesign_criteria_focus_environment": "Ort / Umgebung",
   "ai_generator_redesign_criteria_result_image": "Ihre Kriterien geben den Rahmen für das Bild vor; die KI bleibt beim Rest kreativ frei.",
-  "ai_generator_redesign_criteria_result_video": "Ihre Kriterien geben den Rahmen für das Video vor; die KI bleibt beim Rest kreativ frei."
+  "ai_generator_redesign_criteria_result_video": "Ihre Kriterien geben den Rahmen für das Video vor; die KI bleibt beim Rest kreativ frei.",
+  "ai_generator_purchased_video_seconds": "{count} gekaufte Sekunden übrig"
 }

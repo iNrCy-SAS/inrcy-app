@@ -57,6 +57,7 @@ const recentFeatureKeys = [
   "cga_0456_ads_spend",
   "cga_0457_offer_changes",
   "cga_0458_offer_changes",
+  "cga_0459_video_credits",
 ] as const;
 
 test("the legal schema and all nine catalogues cover the recently added features", () => {
@@ -75,6 +76,8 @@ test("the legal schema and all nine catalogues cover the recently added features
     assert.ok(publicMessages.version_juridique_synchronisee_le_04_10_2026_68a90e11, locale);
     assert.ok(settings.derniere_mise_a_jour_04_10_2026_7a4f81d2, locale);
     assert.ok(settings.version_du_04_10_2026_51f2b1b8, locale);
+    assert.ok(publicMessages.version_du_11_10_2026_video_credits, locale);
+    assert.ok(settings.version_du_11_10_2026_video_credits, locale);
   }
 });
 
@@ -104,7 +107,7 @@ test("the ADS disclosure names the planned platforms without promising approval"
   assert.match(ads, /validation du compte/);
 });
 
-test("public and in-app legal surfaces point to the 4 October 2026 revision", () => {
+test("legal surfaces keep their existing revisions and CGA point to the video-credit revision", () => {
   const sources = [
     read("app/legal/_components/legalDocs.tsx"),
     read("app/legal/_components/LegalPageShell.tsx"),
@@ -113,7 +116,7 @@ test("public and in-app legal surfaces point to the 4 October 2026 revision", ()
   ].join("\n");
 
   assert.match(sources, /derniere_mise_a_jour_04_10_2026_7a4f81d2/);
-  assert.match(sources, /version_du_04_10_2026_51f2b1b8/);
+  assert.match(sources, /version_du_11_10_2026_video_credits/);
   assert.match(sources, /version_juridique_synchronisee_le_04_10_2026_68a90e11/);
   assert.doesNotMatch(sources, /derniere_mise_a_jour_(?:08_08|30_06)|version_du_08_08|version_juridique_synchronisee_le_08_08/);
 });

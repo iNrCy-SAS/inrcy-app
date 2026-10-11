@@ -192,6 +192,15 @@ export type MediaGenerationQuotaCounter = {
   used: number;
   reserved: number;
   remaining: number | null;
+  includedRemaining?: number;
+  includedLimit?: number;
+  includedUsed?: number;
+  includedReserved?: number;
+  purchasedRemaining?: number;
+  purchasedReserved?: number;
+  purchasedDebt?: number;
+  purchasedHeld?: number;
+  purchasedSuspendedDeficit?: number;
 };
 
 export type MediaGenerationQuota = {
@@ -435,7 +444,12 @@ function normalizeCounter(
   const remaining =
     reportedRemaining ??
     (limit === null ? null : Math.max(0, limit - used - reserved));
-  return { unit, limit, used, reserved, remaining };
+  const paidFields: Partial<MediaGenerationQuotaCounter> = {};
+  for (const key of ["includedRemaining", "includedLimit", "includedUsed", "includedReserved", "purchasedRemaining", "purchasedReserved", "purchasedDebt", "purchasedHeld", "purchasedSuspendedDeficit"] as const) {
+    const parsed = finiteNumber(source[key]);
+    if (parsed !== null && parsed >= 0) paidFields[key] = parsed;
+  }
+  return { unit, limit, used, reserved, remaining, ...paidFields };
 }
 
 function normalizeQuota(value: unknown): MediaGenerationQuota {

@@ -8,8 +8,8 @@ export type BoutiqueProduct = {
   badge?: string;
 };
 
-// Historical catalogue amounts included the project's 20% reference VAT.
-// Only new offers use the rounded HT amounts below; stored orders are untouched.
+// The historical catalogue used the project's 20% reference VAT.
+// Current offers below are set directly in HT; stored orders are untouched.
 export const BOUTIQUE_REFERENCE_VAT_PERCENT = 20;
 export const BOUTIQUE_PRICE_TAX_BEHAVIOR = "exclusive" as const;
 
@@ -20,112 +20,109 @@ export function boutiqueTtcToRoundedHt(amountEurTtc: number): number {
   return Math.round((amountEurTtc * 100) / (100 + BOUTIQUE_REFERENCE_VAT_PERCENT));
 }
 
-type LegacyBoutiqueProduct = Omit<BoutiqueProduct, "priceEurHt" | "comboEurHt"> & {
-  priceEurTtc: number;
-  comboEurTtc: number;
-};
-
-const LEGACY_BOUTIQUE_PRODUCTS: LegacyBoutiqueProduct[] = [
+// Shared source of truth for the storefront, new order rows and both emails.
+// These services keep the Boutique order workflow; video recharges have a separate catalogue.
+export const BOUTIQUE_PRODUCTS: BoutiqueProduct[] = [
   {
     key: "cartes_visite",
     title: "Cartes de visite premium",
     desc: "Création design pro + impression sur papier de qualité + livraison pour 500 cartes.",
-    priceEurTtc: 359,
-    comboEurTtc: 215,
-    priceUi: 7200,
+    priceEurHt: 300,
+    comboEurHt: 180,
+    priceUi: 250,
     badge: "Print",
   },
   {
     key: "flyers",
     title: "Flyers professionnels",
     desc: "Création design + impression + livraison pour 1000 flyers.",
-    priceEurTtc: 420,
-    comboEurTtc: 252,
-    priceUi: 8400,
+    priceEurHt: 350,
+    comboEurHt: 210,
+    priceUi: 300,
     badge: "Print",
   },
   {
     key: "facebook_page",
     title: "Création page Facebook",
     desc: "Page professionnelle prête à valoriser votre activité.",
-    priceEurTtc: 420,
-    comboEurTtc: 252,
-    priceUi: 8400,
+    priceEurHt: 350,
+    comboEurHt: 210,
+    priceUi: 300,
     badge: "Social",
   },
   {
     key: "instagram_page",
     title: "Création page Instagram",
     desc: "Profil professionnel optimisé pour renforcer votre image.",
-    priceEurTtc: 420,
-    comboEurTtc: 252,
-    priceUi: 8400,
+    priceEurHt: 350,
+    comboEurHt: 210,
+    priceUi: 300,
     badge: "Social",
   },
   {
     key: "linkedin_page",
     title: "Création page LinkedIn",
     desc: "Page entreprise professionnelle et crédible.",
-    priceEurTtc: 469,
-    comboEurTtc: 281,
-    priceUi: 9400,
+    priceEurHt: 350,
+    comboEurHt: 210,
+    priceUi: 300,
     badge: "Social",
   },
   {
     key: "gmb",
     title: "Optimisation Google Business",
     desc: "Fiche optimisée pour renforcer votre visibilité locale.",
-    priceEurTtc: 299,
-    comboEurTtc: 179,
-    priceUi: 6000,
+    priceEurHt: 250,
+    comboEurHt: 150,
+    priceUi: 200,
     badge: "Local",
   },
   {
     key: "logo",
     title: "Logo professionnel",
     desc: "Création graphique complète avec déclinaisons exploitables.",
-    priceEurTtc: 599,
-    comboEurTtc: 359,
-    priceUi: 12000,
+    priceEurHt: 500,
+    comboEurHt: 300,
+    priceUi: 500,
     badge: "Branding",
   },
   {
     key: "ads",
     title: "Campagne publicitaire",
-    desc: "Configuration complète de votre campagne d'acquisition.",
-    priceEurTtc: 719,
-    comboEurTtc: 431,
-    priceUi: 14400,
+    desc: "Configuration complète de votre campagne d'acquisition. Budget publicitaire non inclus.",
+    priceEurHt: 600,
+    comboEurHt: 360,
+    priceUi: 600,
     badge: "Acquisition",
   },
   {
     key: "site_refonte",
     title: "Refonte site internet",
     desc: "Refonte premium pour moderniser votre présence en ligne.",
-    priceEurTtc: 1799,
-    comboEurTtc: 1079,
-    priceUi: 26000,
+    priceEurHt: 1500,
+    comboEurHt: 900,
+    priceUi: 1000,
     badge: "Web",
   },
   {
     key: "site_creation",
-    title: "Création site internet",
-    desc: "Site professionnel haut de gamme conçu pour convertir.",
-    priceEurTtc: 2990,
-    comboEurTtc: 1794,
-    priceUi: 33000,
+    title: "Création site vitrine",
+    desc: "Site vitrine professionnel conçu pour présenter votre activité et convertir vos visiteurs.",
+    priceEurHt: 2000,
+    comboEurHt: 1200,
+    priceUi: 1500,
     badge: "Web",
   },
-];
-
-// Shared source of truth for the storefront, new order rows and both emails.
-export const BOUTIQUE_PRODUCTS: BoutiqueProduct[] = LEGACY_BOUTIQUE_PRODUCTS
-  .map(({ priceEurTtc, comboEurTtc, ...product }) => ({
-    ...product,
-    priceEurHt: boutiqueTtcToRoundedHt(priceEurTtc),
-    comboEurHt: boutiqueTtcToRoundedHt(comboEurTtc),
-  }))
-  .sort((a, b) => a.priceEurHt - b.priceEurHt);
+  {
+    key: "site_ecommerce",
+    title: "Création site e-commerce",
+    desc: "Site e-commerce professionnel pour vendre vos produits en ligne.",
+    priceEurHt: 3500,
+    comboEurHt: 2100,
+    priceUi: 2500,
+    badge: "Web",
+  },
+].sort((a, b) => a.priceEurHt - b.priceEurHt);
 
 export function boutiqueOrderAmounts(product: BoutiqueProduct, method: "EUR" | "UI") {
   return {

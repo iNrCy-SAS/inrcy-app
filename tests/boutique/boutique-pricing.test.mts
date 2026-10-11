@@ -4,19 +4,20 @@ import { BOUTIQUE_PRICE_TAX_BEHAVIOR, BOUTIQUE_PRODUCTS, boutiqueOrderAmounts, b
 import { boutiqueOrderTotals, formatStoredBoutiqueAmounts } from "../../lib/boutique/orderAmounts.ts";
 
 const expected = [
-  ["cartes_visite", 299, 179, 7200],
-  ["flyers", 350, 210, 8400],
-  ["facebook_page", 350, 210, 8400],
-  ["instagram_page", 350, 210, 8400],
-  ["linkedin_page", 391, 234, 9400],
-  ["gmb", 249, 149, 6000],
-  ["logo", 499, 299, 12000],
-  ["ads", 599, 359, 14400],
-  ["site_refonte", 1499, 899, 26000],
-  ["site_creation", 2492, 1495, 33000],
+  ["cartes_visite", 300, 180, 250],
+  ["flyers", 350, 210, 300],
+  ["facebook_page", 350, 210, 300],
+  ["instagram_page", 350, 210, 300],
+  ["linkedin_page", 350, 210, 300],
+  ["gmb", 250, 150, 200],
+  ["logo", 500, 300, 500],
+  ["ads", 600, 360, 600],
+  ["site_refonte", 1500, 900, 1000],
+  ["site_creation", 2000, 1200, 1500],
+  ["site_ecommerce", 3500, 2100, 2500],
 ] as const;
 
-test("all Boutique offers convert 20% TTC to nearest-euro HT while keeping UI quantities", () => {
+test("all current Boutique offers share the approved HT prices and accessible UI thresholds", () => {
   assert.equal(BOUTIQUE_PRODUCTS.length, expected.length);
   for (const [key, euros, combinedEuros, ui] of expected) {
     const product = findBoutiqueProduct(key)!;
@@ -31,6 +32,7 @@ test("all Boutique offers convert 20% TTC to nearest-euro HT while keeping UI qu
     assert.match(boutiqueOrderPriceLabel(product, "UI"), /€ HT \+ .+ UI$/);
   }
   assert.deepEqual(BOUTIQUE_PRODUCTS.map((p) => p.priceEurHt), [...BOUTIQUE_PRODUCTS].map((p) => p.priceEurHt).sort((a, b) => a - b));
+  assert.equal(new Set(BOUTIQUE_PRODUCTS.map((p) => p.key)).size, expected.length);
 });
 
 test("conversion rounds half euros upwards and rejects non-prices", () => {

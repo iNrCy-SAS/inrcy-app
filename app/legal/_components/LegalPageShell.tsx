@@ -8,6 +8,7 @@ import styles from "../legal.module.css";
 export default function LegalPageShell(props: {
   title: string;
   subtitle?: string;
+  revision?: string;
   children: React.ReactNode;
 }) {
   const i18nT = useTranslations("public");
@@ -35,7 +36,7 @@ export default function LegalPageShell(props: {
           <div style={{ marginTop: 14 }}>{props.children}</div>
 
           <p className={styles.small} style={{ marginTop: 18 }}>
-            {i18nT("version_juridique_synchronisee_le_04_10_2026_68a90e11")}{" "}</p>
+            {props.revision ?? i18nT("version_juridique_synchronisee_le_04_10_2026_68a90e11")}{" "}</p>
 
         </div>
       </div>

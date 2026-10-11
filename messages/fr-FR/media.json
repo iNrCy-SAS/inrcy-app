@@ -386,7 +386,7 @@
   "ai_generator_video_options_hint": "Durée, voix off et bande-son iNrCy.",
   "ai_generator_video_premium_required": "Cette durée n’est pas disponible pour cet établissement.",
   "ai_generator_video_credit_insufficient": "Le crédit vidéo restant est insuffisant pour cette durée.",
-  "ai_generator_video_quota": "Secondes vidéo utilisées ce mois",
+  "ai_generator_video_quota": "Secondes incluses utilisées ce mois",
   "ai_generator_video_seconds_remaining": "{count} s restantes",
   "ai_generator_video_ready_title": "Votre vidéo est prête",
   "ai_generator_video_timing_hint": "Temps indicatif : iNrCy lit l’ADN de votre entreprise, construit les scènes puis réalise le montage. La durée dépend du format choisi.",
@@ -770,5 +770,6 @@
   "ai_generator_redesign_criteria_focus_product": "Produit / objet",
   "ai_generator_redesign_criteria_focus_environment": "Lieu / décor",
   "ai_generator_redesign_criteria_result_image": "Vos critères cadrent l’image ; l’IA conserve sa liberté créative sur le reste.",
-  "ai_generator_redesign_criteria_result_video": "Vos critères cadrent la vidéo ; l’IA conserve sa liberté créative sur le reste."
+  "ai_generator_redesign_criteria_result_video": "Vos critères cadrent la vidéo ; l’IA conserve sa liberté créative sur le reste.",
+  "ai_generator_purchased_video_seconds": "{count} s achetées restantes"
 }
