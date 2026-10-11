@@ -10,7 +10,7 @@
 .balance { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 12px; border-radius: 12px; background: rgba(69,202,224,.08); font-size: 13px; }
 .balance span { display: block; }
 .note { color: var(--inrcy-theme-text-secondary,#c8d6e9); }
-.dialog { width: min(780px,calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 20px; overflow: auto; border: 1px solid #6985ab; border-radius: 20px; color: #f5f9ff; background: #0c1a30; }
+.dialog { margin: auto; width: min(780px,calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 20px; overflow: auto; border: 1px solid #6985ab; border-radius: 20px; color: #f5f9ff; background: #0c1a30; }
 .dialog::backdrop { background: rgba(0,7,20,.75); }
 .dialog > header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .dialog > header h2 { margin: 0; }
