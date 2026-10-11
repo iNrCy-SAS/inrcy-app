@@ -71,7 +71,7 @@ test("the analysis endpoint and hero use current Dashboard states, not the last 
 
   assert.match(route, /getChannelConnectionStates\(supabase, activeUserId\)/);
   assert.match(route, /buildBusinessDnaDashboardChannelAvailability/);
-  assert.match(route, /\{ ok: true, quota, channels \}/);
+  assert.match(route, /\{ ok: true, quota, channels, accountId: activeUserId, job:/);
   assert.match(content, /parseAnalysisChannels\(quotaPayload\.channels\)/);
   assert.match(content, /data-business-dna-channel-states/);
   assert.match(content, /data-channel-status=\{channel\.status\}/);

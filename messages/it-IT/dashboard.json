@@ -647,7 +647,9 @@
     "resetMessage": "Tutte le sezioni visibili verranno svuotate. Dovrai poi salvare per confermare.",
     "resetConfirm": "Reimposta tutto",
     "saving": "Salvataggio…",
-    "save": "Salva il DNA dell’impresa"
+    "save": "Salva il DNA dell’impresa",
+    "analysisBackgroundHint": "Puoi lasciare questa pagina: l’analisi continuerà e il risultato sarà salvato automaticamente.",
+    "analysisSaved": "Analisi salvata: {fields} sezioni arricchite e {items} nuovi elementi."
   },
   "aiConfiguration": {
     "pageDescription": "Imposta come l’IA scrive e adatta ogni contenuto ai tuoi obiettivi.",

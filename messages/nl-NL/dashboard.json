@@ -647,7 +647,9 @@
     "resetMessage": "Alle zichtbare onderdelen worden gewist. Sla daarna op om de reset te bevestigen.",
     "resetConfirm": "Alles resetten",
     "saving": "Opslaan…",
-    "save": "Bedrijfs-DNA opslaan"
+    "save": "Bedrijfs-DNA opslaan",
+    "analysisBackgroundHint": "Je kunt deze pagina verlaten: de analyse gaat door en het resultaat wordt automatisch opgeslagen.",
+    "analysisSaved": "Analyse opgeslagen: {fields} onderdelen aangevuld en {items} nieuwe items."
   },
   "aiConfiguration": {
     "pageDescription": "Stel in hoe AI elk onderdeel schrijft en aan uw doelen aanpast.",

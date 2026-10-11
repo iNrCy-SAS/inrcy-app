@@ -171,6 +171,7 @@ export async function GET() {
   return NextResponse.json(
     {
       ok: true,
+      accountId: activeUserId,
       edition,
       strategyEnabled: true,
       memory,

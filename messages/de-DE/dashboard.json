@@ -647,7 +647,9 @@
     "resetMessage": "Alle sichtbaren Bereiche werden geleert. Speichern Sie anschließend, um das Zurücksetzen zu bestätigen.",
     "resetConfirm": "Alles zurücksetzen",
     "saving": "Speichern…",
-    "save": "Unternehmens-DNA speichern"
+    "save": "Unternehmens-DNA speichern",
+    "analysisBackgroundHint": "Sie können diese Seite verlassen: Die Analyse läuft weiter und das Ergebnis wird automatisch gespeichert.",
+    "analysisSaved": "Analyse gespeichert: {fields} Bereiche ergänzt und {items} neue Elemente."
   },
   "aiConfiguration": {
     "pageDescription": "Legen Sie fest, wie die KI Inhalte schreibt und an Ihre Ziele anpasst.",

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
@@ -20,9 +20,17 @@ import {
 import {
   collectBusinessDnaChannelSources,
   getPublicBusinessDnaSourceResults,
+  type BusinessDnaSourceResult,
 } from "@/lib/businessDnaChannelAnalysis";
 import { buildBusinessDnaReferenceDocumentSources } from "@/lib/businessDnaReferenceDocumentSource";
 import { refreshBusinessDnaReferenceDocuments } from "@/lib/businessDnaReferenceDocumentRefresh";
+import {
+  assertBusinessDnaManualAnalysisJobRunning,
+  getBusinessDnaManualAnalysisJob,
+  publicBusinessDnaManualAnalysisJob,
+  runBusinessDnaManualAnalysisJob,
+  startBusinessDnaManualAnalysisJob,
+} from "@/lib/businessDnaManualAnalysisJobs";
 import { BUSINESS_DNA_PRIMARY_TIMEOUT_MS, BUSINESS_DNA_COMPLETION_LATEST_START_MS } from "@/lib/businessDnaAnalysisTiming";
 import { buildBusinessDnaDashboardChannelAvailability } from "@/lib/businessDnaChannelAvailability";
 import {
@@ -271,10 +279,11 @@ export async function GET() {
   if (errorResponse) return errorResponse;
 
   try {
-    const [edition, channelStates, isAdmin] = await Promise.all([
+    const [edition, channelStates, isAdmin, job] = await Promise.all([
       getDashboardEditionForAccountId(activeUserId),
-      getChannelConnectionStates(supabase, activeUserId),
+      getChannelConnectionStates(supabase, activeUserId).catch(() => null),
       isAdminUserForAi(supabase, authUserId),
+      getBusinessDnaManualAnalysisJob(activeUserId),
     ]);
 
     const quota = await getBusinessDnaAnalysisQuota({
@@ -282,11 +291,9 @@ export async function GET() {
       actorAuthUserId: authUserId,
       edition: isAdmin ? "admin" : "standard",
     });
-    const channels = buildBusinessDnaDashboardChannelAvailability({
-      channelStates,
-    });
+    const channels = channelStates ? buildBusinessDnaDashboardChannelAvailability({ channelStates }) : [];
     return NextResponse.json(
-      { ok: true, quota, channels },
+      { ok: true, quota, channels, accountId: activeUserId, job: publicBusinessDnaManualAnalysisJob(job) },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
     );
   } catch (error) {
@@ -300,8 +307,21 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const manualJobId = params.get("manual_job");
+  if (manualJobId !== null) {
+    // Seul le secours cron peut appeler l'exécuteur HTTP. Le compte vient du
+    // verrou persistant, jamais d'un corps fourni par le navigateur.
+    const accountId = isAuthorizedCronRequest(request) ? getCronUserIdFromRequest(request) : "";
+    if (!accountId) return NextResponse.json({ ok: false, error: "Non autorisé." }, { status: 401 });
+    if (!/^[0-9a-f-]{36}$/i.test(manualJobId)) return NextResponse.json({ ok: false }, { status: 404 });
+    const job = await getBusinessDnaManualAnalysisJob(accountId, manualJobId);
+    if (!job) return NextResponse.json({ ok: false }, { status: 404 });
+    const processed = await runBusinessDnaManualAnalysisJob(manualJobId, runManualJobAnalysis);
+    return NextResponse.json({ ok: true, processed });
+  }
   const automaticUserId =
-    new URL(request.url).searchParams.get("automatic") === "1" &&
+    params.get("automatic") === "1" &&
     isAuthorizedCronRequest(request)
       ? getCronUserIdFromRequest(request)
       : "";
@@ -318,6 +338,15 @@ export async function POST(request: Request) {
     authUserId = userContext.authUserId;
   }
 
+  const background = !automatic && params.get("background") === "1";
+  if (background) {
+    const existingJob = await getBusinessDnaManualAnalysisJob(activeUserId);
+    if (existingJob?.status === "queued" || existingJob?.status === "running") {
+      return NextResponse.json({ ok: true, job: publicBusinessDnaManualAnalysisJob(existingJob) },
+        { status: 202, headers: { "Cache-Control": "private, no-store" } });
+    }
+  }
+
   if (!automatic) {
     const rateLimited = await enforceRateLimit({
       name: "business_dna_analyze",
@@ -331,6 +360,44 @@ export async function POST(request: Request) {
     if (rateLimited) return rateLimited;
   }
 
+  if (background) {
+    try {
+      const isAdmin = await isAdminUserForAi(supabase, authUserId);
+      const started = await startBusinessDnaManualAnalysisJob({
+        accountId: activeUserId, actorAuthUserId: authUserId, edition: isAdmin ? "admin" : "standard",
+      });
+      if (started.outcome === "quota_reached") return quotaReachedResponse(started.quota);
+      const job = publicBusinessDnaManualAnalysisJob(started.job);
+      if (!job) throw new Error("Le lancement de l’analyse n’a pas été confirmé.");
+      // after() est suivi par Vercel même après fermeture de l'onglet. La file
+      // SQL permet aussi au cron de prendre une tâche qui n'a pas démarré.
+      after(async () => { await runBusinessDnaManualAnalysisJob(job.id, runManualJobAnalysis); });
+      return NextResponse.json({ ok: true, job, quota: started.quota },
+        { status: 202, headers: { "Cache-Control": "private, no-store" } });
+    } catch (error) {
+      return jsonUserFacingError(error, { status: 503,
+        fallback: "Le lancement de l’analyse est momentanément indisponible. Réessayez dans quelques instants.",
+        code: "business_dna_analysis_start_failed" });
+    }
+  }
+
+  return analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic });
+}
+
+type ManualJobContext = { accountId: string; actorAuthUserId: string; jobId: string; lockToken: string };
+
+function runManualJobAnalysis(job: ManualJobContext) {
+  return analyzeBusinessDna({ supabase: supabaseAdmin, activeUserId: job.accountId,
+    authUserId: job.actorAuthUserId, automatic: false, manualJob: job });
+}
+
+async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automatic, manualJob }: {
+  supabase: typeof supabaseAdmin;
+  activeUserId: string;
+  authUserId: string;
+  automatic: boolean;
+  manualJob?: ManualJobContext;
+}) {
   let consumedQuotaContext: {
     accountId: string;
     actorAuthUserId: string;
@@ -400,13 +467,13 @@ export async function POST(request: Request) {
       edition: quotaEdition,
     };
     let quota: Awaited<ReturnType<typeof consumeBusinessDnaAnalysisQuota>> | null = null;
-    if (!automatic) {
+    if (!automatic && !manualJob) {
       const currentQuota = await getBusinessDnaAnalysisQuota(quotaContext);
       if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);
     }
 
     const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
-    const [channelSources, analysisDocuments] = await Promise.all([
+    const [channelCollection, documentCollection] = await Promise.allSettled([
       collectBusinessDnaChannelSources({
         supabase,
         userId: activeUserId,
@@ -418,6 +485,22 @@ export async function POST(request: Request) {
         accountId: activeUserId, engine: preferredEngine,
       }),
     ]);
+    // Une panne de lecture reste limitée à sa famille de sources. Même une
+    // erreur inattendue du collecteur ne jette pas les documents déjà lus,
+    // et les anciens extraits restent utilisables si leur relecture échoue.
+    const channelSources: BusinessDnaSourceResult[] = channelCollection.status === "fulfilled"
+      ? channelCollection.value : [{
+        key: "channels", label: "Canaux connectés", status: "failed", url: null,
+        itemCount: 0, recentItemCount: 0, contentChars: 0, content: "",
+        message: "Les canaux sont momentanément indisponibles. Les autres sources ont été conservées.",
+      }];
+    const analysisDocuments = documentCollection.status === "fulfilled"
+      ? documentCollection.value : storedMemory.referenceDocuments;
+    if (channelCollection.status === "rejected" || documentCollection.status === "rejected") {
+      console.warn("[business-dna] unavailable source collection skipped", {
+        channels: channelCollection.status, documents: documentCollection.status,
+      });
+    }
     const sources = [...channelSources, ...buildBusinessDnaReferenceDocumentSources(analysisDocuments)];
     const publicSources = getPublicBusinessDnaSourceResults(sources);
     if (!hasReadableBusinessDnaAnalysisSource(sources)) {
@@ -432,7 +515,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!automatic) {
+    if (!automatic && !manualJob) {
       quota = await consumeBusinessDnaAnalysisQuota(quotaContext);
       if (quota.outcome === "quota_reached") {
         return quotaReachedResponse(quota, publicSources);
@@ -645,7 +728,10 @@ Réponds uniquement selon le schéma JSON demandé.`;
       recentNewsWindowEnd: recentWindow.end,
       recentNewsSourceKeys,
     }, { includePremium: strategyEnabled }), companyName);
-    if (automatic) {
+    if (automatic || manualJob) {
+      if (manualJob) {
+        await assertBusinessDnaManualAnalysisJobRunning(activeUserId, manualJob.jobId, manualJob.lockToken);
+      }
       // L'analyse peut durer plus d'une minute. Relire les deux blocs juste
       // avant l'écriture évite qu'une modification manuelle faite pendant ce
       // temps soit remplacée par l'instantané chargé au début de la tâche.
@@ -720,8 +806,14 @@ Réponds uniquement selon le schéma JSON demandé.`;
         professionUpdate = priorSector === null
           ? professionUpdate.is("sector", null)
           : professionUpdate.eq("sector", priorSector);
-        const { error: professionError } = await professionUpdate;
-        if (professionError) throw professionError;
+        // La classification complémentaire n'empêche jamais d'enregistrer les
+        // connaissances et la mémoire déjà produites par l'analyse.
+        try {
+          const { error: professionError } = await professionUpdate;
+          if (professionError) throw professionError;
+        } catch {
+          console.warn("[business-dna] optional profession update skipped");
+        }
       }
 
       const completionScore = getAiWorkspaceCompletionScore(
@@ -742,11 +834,14 @@ Réponds uniquement selon le schéma JSON demandé.`;
         );
       if (memoryError) throw memoryError;
 
-      await invalidateBoosterGenerationContext(activeUserId, "professional");
+      await invalidateBoosterGenerationContext(activeUserId, "professional").catch(() => {
+        console.warn("[business-dna] context refresh deferred after saved analysis");
+      });
       return NextResponse.json(
         {
           ok: true,
-          automatic: true,
+          automatic,
+          persisted: true,
           edition,
           strategyEnabled,
           analyzedAt: updatedAt,
