@@ -258,7 +258,7 @@ test("la confirmation finale impose la déclaration, un statut disponible et la 
   const noop = () => {};
   const scope = {
     demoDialog: { mode: "confirm", channelId: "google", launchStatus: "active", details: { accountId: "123456" } },
-    busy: null, demoSubmissionRef: { current: false }, channelId: "google", creating: true,
+    confirmedSpend: true, busy: null, demoSubmissionRef: { current: false }, channelId: "google", creating: true,
     step: 10, validationStep: 10, channelPublishingEnabled: true, draft: { pageId: "" },
     setPublicationPhase: noop, setBusy: noop, setNotice: noop, setDemoDialog: noop,
     parseAdsCampaignInput: (_draft: unknown, options: { purpose: string }) => {
@@ -273,6 +273,33 @@ test("la confirmation finale impose la déclaration, un statut disponible et la 
   const confirm = new Function(...Object.keys(scope), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(scope));
   await confirm();
   assert.deepEqual(calls, ["validation"], "invalid drafts must not be saved or published after confirmation");
+});
+
+test("une modale sans déclaration ou dont le brouillon préparé a changé ne publie rien", async () => {
+  const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
+  const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let callback: ts.FunctionDeclaration | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "confirmCampaignLaunch") callback = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(callback);
+  const compiled = ts.transpileModule(callback.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  for (const checked of [false, true]) {
+    let calls = 0;
+    const original = { name: "Campagne vérifiée", adAccountId: "compte-vérifié" };
+    const scope = {
+      demoDialog: { mode: "confirm", launchStatus: "paused", prepared: { draft: original, savedId: "brouillon" } },
+      confirmedSpend: checked, busy: null, demoSubmissionRef: { current: false },
+      draft: checked ? { ...original, adAccountId: "autre-compte" } : original,
+      setConfirmedSpend: () => {}, setDemoDialog: () => {}, setNotice: () => {},
+      fetch: () => { calls += 1; throw new Error("Aucune requête autorisée"); },
+      parseAdsCampaignInput: () => { calls += 1; throw new Error("Le garde doit précéder la validation"); },
+    };
+    await new Function(...Object.keys(scope), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(scope))();
+    assert.equal(calls, 0);
+  }
 });
 
 test("les validations bloquantes restent près des actions, les descriptions alignées avec les titres", () => {

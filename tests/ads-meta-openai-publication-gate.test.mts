@@ -82,13 +82,13 @@ function launchHarness(channel: Channel, options: {
         return { ready: options.publisherReady !== false, selectedAccountId: accountId, verifiedLocationCount: options.publisherLocationCount ?? 1, resourcesKey: options.publisherResourcesKey ?? (channel === "meta" && options.legacy ? "" : resourcesKey), ...(channel === "meta" ? { selectedPageId: options.publisherPageId || pageId, verifiedLanguageCount: options.publisherLanguageCount ?? (options.legacy ? 0 : 1) } : {}) };
       }
       assert.equal(url, `/api/ads/campaigns/saved-${channel}-draft/publish`, "no other provider may be contacted"); assert.equal(init?.method, "POST");
-      return { campaign: { status: launchStatus } };
+      return { campaign: { status: JSON.parse(init?.body || "{}").mode === "paused" ? "paused" : "active" } };
     }, readJson: async (value: unknown) => value,
   };
   scope.confirmCampaignLaunch = actualFunction("confirmCampaignLaunch", scope);
   return { open: actualFunction("openLaunchDialog", scope), requests, dialogs, notices, consent, resourcesKey,
     draft: () => stateDraft, dirty: () => dirty, spend: () => confirmedSpend,
-    manualConfirm: () => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, confirmedSpend: true, demoDialog: dialogs.at(-1) })(),
+    manualConfirm: (status?: "active" | "paused", checked = true) => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, confirmedSpend: checked, demoDialog: { ...dialogs.at(-1), ...(status ? { launchStatus: status } : {}) } })(),
   };
 }
 
@@ -108,8 +108,11 @@ for (const channel of ["meta", "openai"] as const) {
       const h = launchHarness(channel, { confirmedSpend: true, ...options }); await h.open(true); assert.equal(h.requests.some(({ method }) => method === "POST"), false); assert.deepEqual(h.dialogs, []);
     }
   });
-  test(`${channel} stable IA checks native resources, saves once, preflights then publishes without another dialog`, async () => {
+  test(`${channel} stable IA checks native resources, saves once, preflights then opens the final status confirmation before publishing`, async () => {
     const h = launchHarness(channel, { confirmedSpend: true }); const expected = h.draft(); await h.open(true);
+    assert.equal(h.requests.some(({ url }) => url.endsWith("/publish")), false);
+    assert.equal(h.dialogs.at(-1)?.mode, "confirm");
+    await h.manualConfirm();
     assert.deepEqual(h.requests.map(({ url, method }) => `${method} ${url}`), [
       channel === "meta" ? "GET /api/ads/accounts?provider=meta" : "GET /api/ads/openai/status",
       channel === "meta" ? "GET /api/ads/meta/resources" : `GET /api/ads/openai/resources?accountId=${h.draft().adAccountId}`,
@@ -118,7 +121,7 @@ for (const channel of ["meta", "openai"] as const) {
     const saved = JSON.parse(h.requests.find(({ url }) => url === "/api/ads/campaigns")?.body || "{}");
     assert.deepEqual(saved, JSON.parse(JSON.stringify(expected))); assert.equal(saved.dailyBudgetEuros, 25); assert.equal((saved.metaDeliverySettings || saved.openaiDeliverySettings).budget.totalEuros, 200);
     assert.deepEqual(JSON.parse(h.requests.at(-1)?.body || "{}"), { mode: "live", confirmation: ADS_LIVE_PUBLISH_CONFIRMATION, ...(channel === "openai" ? { billingConfirmed: true } : {}) });
-    assert.equal(h.dialogs.length, 1); assert.equal(h.dialogs[0].mode, "success"); assert.equal(h.spend(), false); assert.equal(h.consent.current, null);
+    assert.equal(h.dialogs.length, 2); assert.equal(h.dialogs.at(-1)?.mode, "success"); assert.equal(h.spend(), false); assert.equal(h.consent.current, null);
   });
   test(`${channel} edits during lookups or saving remain local and abort publication`, async () => {
     for (const editDuring of ["accounts", "resources", "save"] as const) {
@@ -148,6 +151,9 @@ for (const channel of ["meta", "openai"] as const) {
 
 test("ChatGPT supports an approved paused creation without billing consent or an active launch", async () => {
   const h = launchHarness("openai", { confirmedSpend: true, launchStatus: "paused" }); await h.open(true);
+    assert.equal(h.requests.some(({ url }) => url.endsWith("/publish")), false);
+    assert.equal(h.dialogs.at(-1)?.mode, "confirm");
+    await h.manualConfirm();
   assert.deepEqual(JSON.parse(h.requests.at(-1)?.body || "{}"), { mode: "paused", confirmation: ADS_PAUSED_PUBLISH_CONFIRMATION });
   assert.equal(h.dialogs.at(-1)?.mode, "success"); assert.equal(h.dialogs.at(-1)?.launchStatus, "paused");
 });
@@ -237,6 +243,9 @@ test("Meta historical assisted draft accepts only the legacy empty provider key 
   const h = launchHarness("meta", { confirmedSpend: true, legacy: true });
   const expected = h.draft();
   await h.open(true);
+    assert.equal(h.requests.some(({ url }) => url.endsWith("/publish")), false);
+    assert.equal(h.dialogs.at(-1)?.mode, "confirm");
+    await h.manualConfirm();
   assert.equal(h.requests.filter(({ url }) => url === "/api/ads/campaigns").length, 1);
   assert.equal(h.requests.filter(({ url }) => url.endsWith("/publish")).length, 1, h.notices.join(" "));
   assert.equal(h.dialogs.at(-1)?.mode, "success");
@@ -267,11 +276,33 @@ test("Native Meta cannot reuse the legacy empty key or zero-language preflight e
 test("ChatGPT verifies each requested label while accepting aliases deduplicated to one native location", async () => {
   const locations = ["Hauts-de-France", "Hauts-de-France, France"];
   const accepted = launchHarness("openai", { confirmedSpend: true, locations, publisherLocationCount: 1 });
-  await accepted.open(true); assert.equal(accepted.requests.filter(({ url }) => url.endsWith("/publish")).length, 1, accepted.notices.join(" "));
+  await accepted.open(true);
+    assert.equal(accepted.requests.some(({ url }) => url.endsWith("/publish")), false);
+    assert.equal(accepted.dialogs.at(-1)?.mode, "confirm");
+    await accepted.manualConfirm(); assert.equal(accepted.requests.filter(({ url }) => url.endsWith("/publish")).length, 1, accepted.notices.join(" "));
   const saved = JSON.parse(accepted.requests.find(({ url }) => url === "/api/ads/campaigns")!.body!);
   assert.deepEqual(saved.targetLocations, locations);
   for (const publisherLocationCount of [0, -1, 1.5, 3]) {
     const blocked = launchHarness("openai", { confirmedSpend: true, locations, publisherLocationCount });
     await blocked.open(true); assert.equal(blocked.requests.some(({ url }) => url.endsWith("/publish")), false);
+  }
+});
+
+
+test("Meta et ChatGPT attendent la déclaration finale et respectent le choix Active ou En pause", async () => {
+  for (const channel of ["meta", "openai"] as const) {
+    for (const status of ["active", "paused"] as const) {
+      const h = launchHarness(channel, { confirmedSpend: true });
+      await h.open(true);
+      assert.equal(h.dialogs.at(-1)?.mode, "confirm", h.notices.join(" "));
+      await h.manualConfirm(status, false);
+      assert.equal(h.requests.some(({ url }) => url.endsWith("/publish")), false);
+      await h.manualConfirm(status);
+      assert.equal(h.requests.filter(({ url }) => url === "/api/ads/campaigns").length, 1);
+      const publications = h.requests.filter(({ url }) => url.endsWith("/publish"));
+      assert.equal(publications.length, 1);
+      assert.deepEqual(JSON.parse(publications[0].body || "{}"), { mode: status === "paused" ? "paused" : "live", confirmation: status === "paused" ? ADS_PAUSED_PUBLISH_CONFIRMATION : ADS_LIVE_PUBLISH_CONFIRMATION, ...(channel === "openai" && status === "active" ? { billingConfirmed: true } : {}) });
+      assert.equal(h.dialogs.at(-1)?.mode, "success");
+    }
   }
 });

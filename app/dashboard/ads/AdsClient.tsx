@@ -157,7 +157,7 @@ async function uploadedImageDimensions(file: File): Promise<{ width: number; hei
     image.src = objectUrl;
   });
 }
-type DemoDialogState = { mode: "confirm" | "success"; details: AdsCampaignDemoDialogDetails; channelId: AdsDraftAccountChannel; pageId: string; launchStatus: AdsCampaignLaunchStatus };
+type DemoDialogState = { mode: "confirm" | "success"; details: AdsCampaignDemoDialogDetails; channelId: AdsChannelId; pageId: string; launchStatus: AdsCampaignLaunchStatus; prepared?: { draft: AdsCampaignInput; savedId: string }; preparedReviewKey?: string };
 const PINTEREST_STEPPER_LABELS: Record<string, string> = {
   "Objectif Pinterest": "Objectif",
   "Audience Pinterest": "Audience",
@@ -1275,7 +1275,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const [tikTokResourcesError, setTikTokResourcesError] = useState("");
   const [tikTokResourcesRevision, setTikTokResourcesRevision] = useState(0);
   const linkedInLaunchConsent = useRef<{ key: string; status: AdsCampaignLaunchStatus; googleResourcesKey?: string; pinterestResourcesKey?: string; metaResourcesKey?: string; openaiResourcesKey?: string } | null>(null);
-  const reviewedPlanRevision = useRef(0);
   const [googleResources, setGoogleResources] = useState<GoogleAdsAccountResources | null>(null);
   const [googleResourcesLoad, setGoogleResourcesLoad] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [googleResourcesError, setGoogleResourcesError] = useState("");
@@ -1422,18 +1421,6 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       });
     }
   }
-
-  useEffect(() => {
-    const revision = planGenerationRevision.current;
-    if (!creating || !["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) || creationPath !== "inrcy"
-      || step !== analysisStep || planProgress !== 100 || busy === "plan" || planError
-      || revision === 0 || reviewedPlanRevision.current === revision) return;
-    reviewedPlanRevision.current = revision;
-    // Review the effective prepared draft after its media has finished. Every
-    // optional detail page remains accessible without forcing a manual tour.
-    setStep(adsDraftValidationStep(draft));
-    setReachedStepKeys(adsDraftStepKeys(draft));
-  }, [creating, channelId, creationPath, step, analysisStep, planProgress, busy, planError, draft]);
 
   const googleDelivery = draft.googleDeliverySettings || defaultGoogleDeliverySettings();
   const googleResourceAccountId = draft.adAccountId || configuredAccountId;
@@ -3093,23 +3080,54 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     finally { setBusy(null); }
   }
 
+  function openPreparedLaunchDialog() {
+    if (!preparedOnlyChannel || busy !== null || demoDialog || !preparedNativeCheck || !preparedNativeReady) return;
+    if (preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey
+      || destinationReview.required && !destinationReview.confirmed || preparedReviewIssues.length) {
+      setNotice("Relisez les réglages préparés et cochez les confirmations de cette dernière page."); return;
+    }
+    try {
+      const calendar = plannedNativeCalendar(draft, Date.now(), preparedTimeZone);
+      setConfirmedSpend(false);
+      setDemoDialog({
+        mode: "confirm", channelId, pageId: "", launchStatus: "paused", preparedReviewKey: preparedDraftKey,
+        details: {
+          campaignName: draft.name, channelLabel: channelMeta.label,
+          accountName: externalStatuses[channelId === "tiktok" ? "tiktok" : "x"].selectedAccountName || draft.adAccountId,
+          accountId: draft.adAccountId, dailyBudgetEuros: draft.dailyBudgetEuros, endDate: draft.endDate,
+          nativeBudget: { type: calendar.budgetType, totalEuros: calendar.totalEuros, startAt: calendar.startAt,
+            endAt: calendar.endAt, timeZone: calendar.timeZone },
+        },
+      });
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Vérifiez le budget et le calendrier de la campagne."); }
+  }
+
   async function createPreparedPausedCampaign() {
-    if (!preparedOnlyChannel || busy !== null || !preparedNativeCheck || !preparedNativeReady) return;
+    const confirmation = demoDialog;
+    if (!preparedOnlyChannel || busy !== null || demoSubmissionRef.current || !preparedNativeCheck || !preparedNativeReady
+      || !confirmation || confirmation.mode !== "confirm" || confirmation.channelId !== channelId
+      || confirmation.launchStatus !== "paused" || !confirmedSpend || confirmation.preparedReviewKey !== preparedDraftKey) return;
     const key = preparedDraftKey;
     const assertUnchanged = () => {
       const current = preparedLatestReview.current;
       if (current.draftKey !== key || current.budgetKey !== key || current.contentKey !== key || destinationReview.required && current.destination !== draft.destinationUrl.trim())
         throw new Error("La proposition a changé. Relisez et confirmez ses réglages actuels.");
     };
-    setBusy("publish"); setNotice("");
+    demoSubmissionRef.current = true;
+    setBusy("publish"); setNotice(""); setPublicationPhase("saving");
     try {
       assertUnchanged();
-      const result = await createReviewedPausedCampaign({ draft, savedId: savedId || undefined, checked: preparedNativeCheck, assertUnchanged }, async (url, init) => readJson(await fetch(url, init)));
+      const result = await createReviewedPausedCampaign({ draft, savedId: savedId || undefined, checked: preparedNativeCheck, assertUnchanged }, async (url, init) => {
+        if (url.endsWith("/publish")) setPublicationPhase("sending");
+        return readJson(await fetch(url, init));
+      });
       setSavedId(result.id); setDraftsRevision((value) => value + 1); setCreating(false);
       try { assertUnchanged(); setDirty(false); } catch { setDirty(true); }
+      setDemoDialog({ ...confirmation, mode: "success" });
+      setConfirmedSpend(false); setPublicationPhase("success");
       setNotice(`La campagne ${channelMeta.label} est créée en pause et vérifiée. Sa diffusion reste désactivée ; retrouvez ses identifiants dans le suivi.`);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "La création doit être contrôlée dans le suivi avant toute nouvelle tentative."); }
-    finally { setBusy(null); }
+    } catch (error) { setDemoDialog(null); setPublicationPhase("idle"); setNotice(error instanceof Error ? error.message : "La création doit être contrôlée dans le suivi avant toute nouvelle tentative."); }
+    finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
   async function openLaunchDialog(validatePreparedCampaign = false) {
@@ -3510,14 +3528,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           setNotice("Les réglages de la campagne ont été actualisés. Relisez le récapitulatif puis cochez à nouveau la confirmation avant de valider.");
           return;
         }
-        // The user already approved this exact draft, budget and status in
-        // the review. Fresh resource and publisher checks have just passed.
-        demoSubmissionRef.current = false;
-        await confirmCampaignLaunch({ confirmation, draft: launchDraft, savedId: preparedCampaignId });
-      } else {
-        setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-        setDemoDialog(confirmation);
+        confirmation.prepared = { draft: launchDraft, savedId: preparedCampaignId };
       }
+      setConfirmedSpend(false); linkedInLaunchConsent.current = null;
+      setDemoDialog(confirmation);
     } catch (error) {
       if (channelId === "linkedin") {
         setLinkedInPreflightLoad("error");
@@ -3527,12 +3541,20 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
-  async function confirmCampaignLaunch(prepared?: { confirmation: DemoDialogState; draft: AdsCampaignInput; savedId: string }) {
-    const confirmation = prepared?.confirmation || demoDialog;
-    if (prepared && (!confirmedSpend || !linkedInLaunchConsent.current
-      || linkedInLaunchConsent.current.key !== JSON.stringify(prepared.draft)
-      || linkedInLaunchConsent.current.status !== confirmation?.launchStatus)) return;
-    if (!confirmation || confirmation.mode !== "confirm" || busy !== null || demoSubmissionRef.current) return;
+  async function confirmCampaignLaunch() {
+    const confirmation = demoDialog;
+    if (!confirmation || confirmation.mode !== "confirm" || !confirmedSpend || busy !== null || demoSubmissionRef.current) return;
+    if (confirmation.channelId === "x" || confirmation.channelId === "tiktok") {
+      await createPreparedPausedCampaign();
+      return;
+    }
+    const prepared = confirmation.prepared;
+    if (prepared && JSON.stringify(prepared.draft) !== JSON.stringify(draft)) {
+      setConfirmedSpend(false);
+      setDemoDialog(null);
+      setNotice("Les réglages ont changé depuis la vérification. Relisez la campagne puis confirmez à nouveau son lancement.");
+      return;
+    }
     demoSubmissionRef.current = true;
     setPublicationPhase("saving");
     setBusy("demo"); setNotice("");
@@ -4611,7 +4633,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           </dl>
           <p>{["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) ? "Ce brief explique la proposition de l’IA. Le récapitulatif ci-dessus présente les réglages actuels ; vos confirmations finales autorisent leur publication." : "Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici."}</p>
         </details>}
-        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Une vérification LinkedIn manque encore</strong>{linkedInReadinessDetails} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Voir les réglages Campagne</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>Voir les zones à compléter</button>} Le brouillon reste enregistrable sans lancer de campagne.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>{`Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "Ce type reste un brouillon préparatoire. Son parcours complet et sa publication nécessitent une intégration dédiée. L’automatisation de bout en bout est actuellement disponible pour le Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Ce format nécessite encore une intégration de publication. Les annonces avec image ou vidéo et les objectifs compatibles peuvent être lancés ; les autres formats restent enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez le média demandé par votre format à l’étape Média avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
+        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Une vérification LinkedIn manque encore</strong>{linkedInReadinessDetails} {linkedInAudiencePending > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(targetingStep)}>Vérifier les propositions Audience</button>} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Voir les réglages Campagne</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>Voir les zones à compléter</button>} Le brouillon reste enregistrable sans lancer de campagne.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>{`Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "Ce type reste un brouillon préparatoire. Son parcours complet et sa publication nécessitent une intégration dédiée. L’automatisation de bout en bout est actuellement disponible pour le Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Ce format nécessite encore une intégration de publication. Les annonces avec image ou vidéo et les objectifs compatibles peuvent être lancés ; les autres formats restent enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez le média demandé par votre format à l’étape Média avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button>}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
         </>)}
         {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Prête pour votre validation finale" : "Création réelle en pause disponible" : "À compléter pour ChatGPT Ads"}</strong>{!livePublisherMediaReady ? "Ajoutez une image JPG, PNG ou WebP carrée à l’étape Médias. " : ""}{connectorConfigurationIssue ? `${connectorConfigurationIssue} ` : ""}{!channelPublishingEnabled ? `${openaiReadinessMessage || "La clé Advertiser API et la revue du compte sont requises."} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? "Ce format ou cet objectif n’est pas encore pris en charge. " : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Le statut Active est préparé pour ce compte approuvé. La diffusion démarre seulement après votre validation finale et la revue de l’annonce par ChatGPT Ads." : `La carte peut être créée sans diffusion. ${openaiLiveReadinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}` : "Le brouillon reste enregistrable."}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
@@ -4623,7 +4645,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-targeting-notice="true"><input type="checkbox" checked={draft.linkedinTargetingNoticeAcknowledged === true} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("linkedinTargetingNoticeAcknowledged", event.target.checked)} /><span><strong>Avis LinkedIn contre la discrimination</strong>Je reconnais que les outils publicitaires LinkedIn ne doivent pas être utilisés pour discriminer selon des caractéristiques personnelles telles que le genre, l’âge, l’origine, la race ou l’appartenance ethnique. <a href="https://www.linkedin.com/legal/ads-policy" target="_blank" rel="noreferrer">Consulter les règles LinkedIn ↗</a></span></label>
           </>}
           <div className={styles.studioFinalActionButtons}>
-            {preparedOnlyChannel && <button type="button" className={styles.primaryButton} data-prepared-final-validation="true" data-native-paused-ready={preparedNativeReady || undefined} disabled={busy !== null || preparedReviewIssues.length > 0 || preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey || destinationReview.required && !destinationReview.confirmed} onClick={() => void (preparedNativeReady ? createPreparedPausedCampaign() : validatePreparedDraft())}>{busy === "publish" ? "Création en pause…" : busy === "save" ? "Enregistrement…" : preparedNativeReady ? "VALIDER · CRÉER EN PAUSE" : "VALIDER LE BROUILLON"} <span aria-hidden="true">✓</span></button>}
+            {preparedOnlyChannel && <button type="button" className={styles.primaryButton} data-prepared-final-validation="true" data-native-paused-ready={preparedNativeReady || undefined} disabled={busy !== null || preparedReviewIssues.length > 0 || preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey || destinationReview.required && !destinationReview.confirmed} onClick={() => void (preparedNativeReady ? openPreparedLaunchDialog() : validatePreparedDraft())}>{busy === "publish" ? "Création en pause…" : busy === "save" ? "Enregistrement…" : preparedNativeReady ? "VALIDER" : "VALIDER LE BROUILLON"} <span aria-hidden="true">✓</span></button>}
             <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : !dirty && savedId ? "Brouillon enregistré" : "Enregistrer en brouillon"}</button>
             {!preparedOnlyChannel && <div className={styles.studioLaunchGuard} data-blocked={launchBlocked || undefined} data-tooltip={launchBlocked ? launchBlockingMessage : undefined} title={launchBlocked ? launchBlockingMessage : undefined} tabIndex={launchBlocked ? 0 : undefined} aria-label={launchBlocked ? launchBlockingMessage : undefined}>
               <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked || (["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" && !confirmedSpend)} onClick={() => void openLaunchDialog(["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy")}>{busy === "demo" ? demoDialog || publicationPhase === "saving" || publicationPhase === "sending" ? "Création en cours…" : "Vérification du compte…" : ["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" ? "VALIDER" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
@@ -4644,7 +4666,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
             <span><strong>À confirmer avant lancement</strong>Je confirme ce lien</span>
           </label>}
-          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || busy === "demo" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => { if (["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" && step === analysisStep && planProgress === 100) resetStepProgress(validationStep); else navigateToStep(step + 1); }}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || busy === "demo" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => navigateToStep(step + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
         </div> : <button type="button" className={styles.back} onClick={() => void confirmCampaignExit()}>Revenir au cockpit</button>}
       </div>}
       </div>
@@ -4653,21 +4675,21 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     {demoDialog && <AdsCampaignDemoDialog
       mode={demoDialog.mode}
       details={demoDialog.details}
-      busy={busy === "demo"}
+      busy={busy === "demo" || busy === "publish"}
       publicationPhase={publicationPhase}
       launchStatus={demoDialog.launchStatus}
       activeEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canServeCampaigns
           && selectedLinkedInCampaignGroup?.status === "ACTIVE"
           && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "ACTIVE").length)
-        : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? false : demoDialog.channelId === "openai" ? openaiLiveReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
       pausedEnabled={demoDialog.channelId === "linkedin"
         ? Boolean(linkedInPublishingEnabled && linkedInPreflight?.account?.canManageCampaigns
           && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "PAUSED").length)
-        : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? Boolean(preparedNativeReady) : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : livePublishingEnabled}
       activeDisabledReason={demoDialog.channelId === "openai"
         ? openaiLiveReadinessMessage || "La diffusion Active n’est pas encore autorisée pour ce compte ChatGPT Ads."
-        : undefined}
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? "Ce connecteur crée actuellement les campagnes en pause. La diffusion active reste désactivée dans iNrCy." : undefined}
       declarationLabel={demoDialog.channelId === "openai" && demoDialog.launchStatus === "active"
         ? `Je confirme que la facturation est configurée et validée dans ChatGPT Ads Manager. J’autorise le lancement en statut Active avec une limite de ${demoDialog.details.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} par jour et je comprends qu’une dépense peut démarrer après la validation de l’annonce par ChatGPT Ads.`
         : demoDialog.launchStatus === "active"

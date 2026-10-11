@@ -79,30 +79,6 @@ test("ChatGPT place budget et calendrier avant les zones, avec une carte et aucu
   }
 });
 
-test("la fin IA Meta et ChatGPT ouvre le récapitulatif une seule fois après la préparation du média", () => {
-  for (const provider of ["meta", "openai"] as const) {
-    const draft = { provider, creationMode: "inrcy" as const, campaignType: provider === "meta" ? "meta_traffic" as const : "generic" as const };
-    const reviewedPlanRevision = { current: 0 }, planGenerationRevision = { current: 1 };
-    const calls: number[] = [], reached: unknown[] = [];
-    const scope = {
-      channelId: provider, creating: true, creationPath: "inrcy", step: 1, analysisStep: 1,
-      planProgress: 100, busy: null, planError: "", reviewedPlanRevision, planGenerationRevision, draft,
-      adsDraftValidationStep, adsDraftStepKeys,
-      setStep: (index: number) => calls.push(index), setReachedStepKeys: (keys: unknown) => reached.push(keys),
-    };
-    const run = (patch: Record<string, unknown> = {}) => actualStudioCallback(
-      (node) => ts.isArrowFunction(node) && ts.isCallExpression(node.parent)
-        && node.parent.expression.getText(studioSource) === "useEffect"
-        && node.getText(studioSource).includes("reviewedPlanRevision.current"), { ...scope, ...patch },
-    )();
-    for (const patch of [{ planProgress: 99 }, { busy: "plan" }, { planError: "Média non disponible" }]) run(patch);
-    assert.deepEqual(calls, []);
-    run(); assert.deepEqual(calls, [10]); assert.deepEqual(reached, [adsDraftStepKeys(draft)]);
-    run(); run({ step: 4 }); assert.equal(calls.length, 1);
-    planGenerationRevision.current = 2; run(); assert.equal(calls.length, 2);
-  }
-});
-
 test("LinkedIn distingue la géographie de l’audience dans les parcours manuel et IA", () => {
   const manual = ["project", "foundations", "geography", "targeting", "keywords", "creative", "media", "delivery", "budget", "validation"];
   const assisted = ["project", "analysis", ...manual.slice(1)];
@@ -191,138 +167,10 @@ test("le stepper garde les étapes atteintes accessibles sans déverrouiller les
     }
   }
   assert.match(client, /onClick=\{\(\) => navigateToStep\(index\)\}/);
-  assert.match(client, /navigateToStep\(step \+ 1\);/);
+  assert.match(client, /navigateToStep\(step \+ 1\)/);
   assert.match(client, /navigateToStep\(step - 1\);/);
   assert.match(client, /navigateToStep\(nextStep\);/);
   assert.doesNotMatch(client, /maxReachedStep|setMaxReachedStep/);
-});
-
-test("le bouton Suivant garde le parcours manuel et ouvre les récapitulatifs IA Google, LinkedIn, Pinterest, Meta et ChatGPT terminés", () => {
-  for (const [channelId, creationPath, step, planProgress, expected] of [
-    ["linkedin", "manual", 1, 100, "next:2"],
-    ["linkedin", "inrcy", 1, 100, "review:10"],
-    ["linkedin", "inrcy", 2, 100, "next:3"],
-    ["google", "inrcy", 1, 100, "review:10"],
-    ["google", "manual", 1, 100, "next:2"],
-    ["pinterest", "inrcy", 1, 100, "review:11"],
-    ["pinterest", "manual", 1, 100, "next:2"],
-    ["meta", "inrcy", 1, 100, "review:10"],
-    ["meta", "manual", 1, 100, "next:2"],
-    ["openai", "inrcy", 1, 100, "review:10"],
-    ["openai", "manual", 1, 100, "next:2"],
-  ] as const) {
-    const draft = { provider: channelId, creationMode: "inrcy" as const, campaignType: channelId === "google" ? "search" as const : "generic" as const };
-    const calls: string[] = [];
-    const callback = actualStudioCallback(
-      (node) => ts.isArrowFunction(node) && ts.isJsxExpression(node.parent)
-        && ts.isJsxAttribute(node.parent.parent) && node.parent.parent.name.getText(studioSource) === "onClick"
-        && node.getText(studioSource).includes("navigateToStep(step + 1)"),
-      { channelId, creationPath, step, analysisStep: 1, planProgress, validationStep: adsDraftValidationStep(draft),
-        resetStepProgress: (index: number) => calls.push(`review:${index}`),
-        navigateToStep: (index: number) => calls.push(`next:${index}`) },
-    );
-    callback();
-    assert.deepEqual(calls, [expected]);
-  }
-});
-
-test("la fin IA ouvre une seule fois la validation du draft effectif et rend toutes ses étapes accessibles", () => {
-  const draft = { provider: "linkedin" as const, creationMode: "inrcy" as const, campaignType: "generic" as const };
-  const reviewedPlanRevision = { current: 0 };
-  const planGenerationRevision = { current: 1 };
-  const steps: number[] = [];
-  const reached: unknown[] = [];
-  const scope = {
-    channelId: "linkedin", creating: true, creationPath: "inrcy", step: 1, analysisStep: 1,
-    planProgress: 100, busy: null, planError: "", reviewedPlanRevision, planGenerationRevision, draft,
-    adsDraftValidationStep, adsDraftStepKeys,
-    setStep: (index: number) => steps.push(index), setReachedStepKeys: (keys: unknown) => reached.push(keys),
-  };
-  const run = (patch: Record<string, unknown> = {}) => actualStudioCallback(
-    (node) => ts.isArrowFunction(node) && ts.isCallExpression(node.parent)
-      && node.parent.expression.getText(studioSource) === "useEffect"
-      && node.getText(studioSource).includes("reviewedPlanRevision.current"),
-    { ...scope, ...patch },
-  )();
-  for (const patch of [
-    { creating: false }, { channelId: "unsupported" }, { creationPath: "manual" }, { step: 2 },
-    { planProgress: 99 }, { busy: "plan" }, { planError: "Le média n’est pas finalisé." },
-  ]) run(patch);
-  assert.deepEqual(steps, []);
-  assert.equal(reviewedPlanRevision.current, 0);
-  run();
-  assert.deepEqual(steps, [adsDraftValidationStep(draft)]);
-  assert.deepEqual(reached, [adsDraftStepKeys(draft)]);
-  assert.equal(reviewedPlanRevision.current, 1);
-  run();
-  assert.equal(steps.length, 1, "reopening analysis must not steal navigation again");
-  planGenerationRevision.current = 2;
-  run();
-  assert.equal(steps.length, 2, "a genuinely new generation can open its new proposal");
-});
-
-test("la fin IA Google ouvre une seule fois ses onze étapes et n’interrompt pas la lecture ensuite", () => {
-  const draft = { provider: "google" as const, creationMode: "inrcy" as const, campaignType: "search" as const };
-  const reviewedPlanRevision = { current: 0 };
-  const planGenerationRevision = { current: 1 };
-  const calls: number[] = [];
-  const reached: unknown[] = [];
-  const scope = {
-    channelId: "google", creating: true, creationPath: "inrcy", step: 1, analysisStep: 1,
-    planProgress: 100, busy: null, planError: "", reviewedPlanRevision, planGenerationRevision, draft,
-    adsDraftValidationStep, adsDraftStepKeys,
-    setStep: (index: number) => calls.push(index), setReachedStepKeys: (keys: unknown) => reached.push(keys),
-  };
-  const run = (patch: Record<string, unknown> = {}) => actualStudioCallback(
-    (node) => ts.isArrowFunction(node) && ts.isCallExpression(node.parent)
-      && node.parent.expression.getText(studioSource) === "useEffect"
-      && node.getText(studioSource).includes("reviewedPlanRevision.current"),
-    { ...scope, ...patch },
-  )();
-  run({ planProgress: 99 });
-  assert.deepEqual(calls, []);
-  run();
-  assert.deepEqual(calls, [10]);
-  assert.deepEqual(reached, [adsDraftStepKeys(draft)]);
-  assert.equal((reached[0] as unknown[]).length, 11);
-  run();
-  run({ step: 4 });
-  assert.equal(calls.length, 1);
-  planGenerationRevision.current = 2;
-  run();
-  assert.equal(calls.length, 2);
-});
-
-test("la fin IA Pinterest attend le média puis ouvre une seule fois ses douze étapes", () => {
-  const draft = { provider: "pinterest" as const, creationMode: "inrcy" as const, campaignType: "generic" as const };
-  const reviewedPlanRevision = { current: 0 };
-  const planGenerationRevision = { current: 1 };
-  const calls: number[] = [];
-  const reached: unknown[] = [];
-  const scope = {
-    channelId: "pinterest", creating: true, creationPath: "inrcy", step: 1, analysisStep: 1,
-    planProgress: 100, busy: null, planError: "", reviewedPlanRevision, planGenerationRevision, draft,
-    adsDraftValidationStep, adsDraftStepKeys,
-    setStep: (index: number) => calls.push(index), setReachedStepKeys: (keys: unknown) => reached.push(keys),
-  };
-  const run = (patch: Record<string, unknown> = {}) => actualStudioCallback(
-    (node) => ts.isArrowFunction(node) && ts.isCallExpression(node.parent)
-      && node.parent.expression.getText(studioSource) === "useEffect"
-      && node.getText(studioSource).includes("reviewedPlanRevision.current"),
-    { ...scope, ...patch },
-  )();
-  for (const patch of [{ planProgress: 99 }, { busy: "plan" }, { planError: "Le média Pinterest n’est pas prêt." }]) run(patch);
-  assert.deepEqual(calls, []);
-  run();
-  assert.deepEqual(calls, [11]);
-  assert.deepEqual(reached, [adsDraftStepKeys(draft)]);
-  assert.equal((reached[0] as unknown[]).length, 12);
-  run();
-  run({ step: 4 });
-  assert.equal(calls.length, 1, "La revue ne doit pas interrompre les ajustements ultérieurs");
-  planGenerationRevision.current = 2;
-  run();
-  assert.equal(calls.length, 2);
 });
 
 test("la progression du stepper est réinitialisée par parcours et restaurée pour un brouillon", () => {
@@ -439,4 +287,96 @@ test("iNr’Send expose une vue ADS Brouillons et un accès direct au studio", (
   assert.match(folder, /editCampaign=\$\{encodeURIComponent\(campaign\.id\)\}/);
   assert.match(details, /channel=\$\{encodeURIComponent\(campaign\.provider\)\}&editCampaign=/);
   assert.match(folder, /Toutes les campagnes/);
+});
+
+
+test("Suivant parcourt chaque onglet dans l'ordre pour les sept canaux, en manuel et après génération IA", () => {
+  for (const provider of ["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"] as const) {
+    for (const creationMode of ["manual", "inrcy"] as const) {
+      const draft = { provider, creationMode, campaignType: provider === "google" ? "search" as const : "generic" as const };
+      const keys = adsDraftStepKeys(draft);
+      const firstStep = creationMode === "inrcy" ? keys.indexOf("analysis") : 0;
+      let reached = keys.slice(0, firstStep + 1);
+      for (let step = firstStep; step < keys.length - 1; step += 1) {
+        const moves: number[] = [];
+        const navigateToStep = actualStudioCallback(
+          node => ts.isFunctionDeclaration(node) && node.name?.text === "navigateToStep",
+          { step, stepKeys: keys, lastStep: keys.length - 1,
+            setStep: (index: number) => moves.push(index),
+            setReachedStepKeys: (update: (current: typeof reached) => typeof reached) => { reached = update(reached); } },
+        );
+        const next = actualStudioCallback(
+          node => ts.isArrowFunction(node) && ts.isJsxExpression(node.parent)
+            && ts.isJsxAttribute(node.parent.parent) && node.parent.parent.name.getText(studioSource) === "onClick"
+            && node.getText(studioSource).includes("navigateToStep(step + 1)"),
+          { channelId: provider, creationPath: creationMode, step, analysisStep: firstStep, planProgress: 100,
+            validationStep: keys.indexOf("validation"),
+            resetStepProgress: () => assert.fail("Une nouvelle campagne ne doit pas déverrouiller tous les onglets"),
+            navigateToStep },
+        );
+        next();
+        assert.deepEqual(moves, [step + 1], provider + ": seul l'onglet suivant doit s'ouvrir");
+        assert.deepEqual(reached, keys.slice(0, step + 2));
+        if (step + 1 < keys.length - 1) assert.equal(reached.includes("validation"), false);
+      }
+      assert.deepEqual(reached, keys, provider + ": la validation n'est atteinte qu'après toutes les étapes");
+    }
+  }
+});
+
+test("le bouton de la proposition attend la fin de génération et ne bloque pas les étapes suivantes", () => {
+  const disabled = (scope: Record<string, unknown>) => actualStudioCallback(
+    node => ts.isJsxExpression(node.parent) && ts.isJsxAttribute(node.parent.parent)
+      && node.parent.parent.name.getText(studioSource) === "disabled"
+      && node.getText(studioSource).includes("planProgress !== 100"),
+    { busy: null, creationPath: "inrcy", step: 1, analysisStep: 1, planProgress: 100, ...scope },
+  );
+  assert.equal(disabled({}), false);
+  for (const scope of [{ planProgress: 0 }, { planProgress: 99 }, { busy: "plan" }, { busy: "demo" }]) {
+    assert.equal(disabled(scope), true);
+  }
+  assert.equal(disabled({ step: 2, planProgress: 0 }), false);
+  assert.equal(disabled({ creationPath: "manual", planProgress: 0 }), false);
+});
+
+test("la fin du média conserve la proposition affichée, sans navigation automatique vers la validation", () => {
+  const moves: number[] = [];
+  const media: unknown[] = [];
+  const progress = { current: 99 };
+  const complete = actualStudioCallback(
+    node => ts.isArrowFunction(node) && ts.isJsxExpression(node.parent)
+      && ts.isJsxAttribute(node.parent.parent) && node.parent.parent.name.getText(studioSource) === "onComplete"
+      && node.getText(studioSource).includes("planProgressTarget.current = 100"),
+    { applyCampaignMedia: (item: unknown) => media.push(item),
+      setAutoMediaState: () => {}, setAutoMediaMessage: () => {}, setAutoMediaPlan: () => {}, setBusy: () => {},
+      planProgressTarget: progress, setStep: (step: number) => moves.push(step),
+      navigateToStep: (step: number) => moves.push(step), resetStepProgress: (step: number) => moves.push(step) },
+  );
+  const item = { signed_url: "/fixture-generated-image.svg" };
+  complete({ item });
+  assert.deepEqual(media, [item]);
+  assert.equal(progress.current, 100);
+  assert.deepEqual(moves, []);
+  const automaticJumps: ts.Node[] = [];
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && node.expression.getText(studioSource) === "useEffect") {
+      const body = node.arguments[0]?.getText(studioSource) || "";
+      if (body.includes("planProgress") && /setStep|navigateToStep|resetStepProgress|setReachedStepKeys/.test(body)) automaticJumps.push(node);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(studioSource);
+  assert.deepEqual(automaticJumps, [], "La progression à 100 % ne doit pas déclencher un saut d'onglets");
+});
+
+test("le blocage des suggestions LinkedIn ramène à Audience sans valider les propositions à la place du professionnel", () => {
+  const moves: number[] = [];
+  const openAudience = actualStudioCallback(
+    node => ts.isArrowFunction(node) && ts.isJsxExpression(node.parent)
+      && ts.isJsxAttribute(node.parent.parent) && node.parent.parent.name.getText(studioSource) === "onClick"
+      && node.getText(studioSource).includes("navigateToStep(targetingStep)"),
+    { targetingStep: 4, navigateToStep: (index: number) => moves.push(index) },
+  );
+  openAudience();
+  assert.deepEqual(moves, [4]);
 });

@@ -102,13 +102,13 @@ function launchHarness(options: {
       }
       assert.equal(url, "/api/ads/campaigns/saved-pinterest-draft/publish", "no other account or platform may be contacted");
       assert.equal(init?.method, "POST");
-      return { campaign: { status: "active" } };
+      return { campaign: { status: JSON.parse(init?.body || "{}").mode === "paused" ? "paused" : "active" } };
     }, readJson: async (value: unknown) => value,
   };
   scope.confirmCampaignLaunch = actualFunction("confirmCampaignLaunch", scope);
   return { open: actualFunction("openLaunchDialog", scope), requests, dialogs, notices, consent, resources,
     draft: () => stateDraft, dirty: () => dirty, confirmedSpend: () => confirmedSpend,
-    confirm: () => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, demoDialog: dialogs.at(-1) })(),
+    confirm: (status?: "active" | "paused", checked = true) => actualFunction("confirmCampaignLaunch", { ...scope, draft: stateDraft, savedId, confirmedSpend: checked, demoDialog: { ...dialogs.at(-1), ...(status ? { launchStatus: status } : {}) } })(),
   };
 }
 
@@ -167,6 +167,9 @@ test("une preuve des ressources Pinterest absente ou périmée empêche l’enre
 
 test("Pinterest IA stable vérifie le compte et les ressources, enregistre une fois puis publie le snapshot relu", async () => {
   const harness = launchHarness({ confirmedSpend: true }); const expected = harness.draft(); await harness.open(true);
+  assert.equal(harness.requests.some(({ url }) => url.endsWith("/publish")), false);
+  assert.equal((harness.dialogs.at(-1) as { mode?: string }).mode, "confirm");
+  await harness.confirm();
   assert.deepEqual(harness.requests.map(({ url, method }) => `${method} ${url}`), [
     "GET /api/ads/pinterest/accounts", "GET /api/ads/pinterest/resources", "POST /api/ads/campaigns", "GET /api/ads/campaigns/saved-pinterest-draft/preflight?mode=live", "POST /api/ads/campaigns/saved-pinterest-draft/publish",
   ], harness.notices.join(" "));
@@ -174,7 +177,7 @@ test("Pinterest IA stable vérifie le compte et les ressources, enregistre une f
   assert.deepEqual(saved, JSON.parse(JSON.stringify(expected)), "No field from the approved Pin may be dropped or replaced");
   assert.equal(saved.pinterestDeliverySettings.budget.totalEuros, 200); assert.equal(saved.dailyBudgetEuros, 25);
   assert.deepEqual(JSON.parse(harness.requests.at(-1)?.body || "{}"), { mode: "live", confirmation: ADS_LIVE_PUBLISH_CONFIRMATION });
-  assert.equal(harness.dialogs.length, 1); assert.equal(harness.dialogs[0].mode, "success", "No second confirmation dialog is opened");
+  assert.equal(harness.dialogs.length, 2); assert.equal(harness.dialogs.at(-1)?.mode, "success");
   assert.equal(harness.confirmedSpend(), false); assert.equal(harness.consent.current, null);
 });
 
@@ -288,5 +291,23 @@ test("une vraie modification du Pin ou de sa livraison annule le consentement ex
   for (const patch of [{ headlines: ["Une autre épingle"] }, { primaryText: "Un autre message" }, { destinationUrl: "https://example.com/autre" }, { languages: ["en"] }, { pinterestDeliverySettings: defaultPinterestDeliverySettings() }]) {
     const harness = finalConfirmationHarness(); harness.budget(true); harness.destination(true); assert.equal(harness.launchDisabled(), false);
     harness.edit(patch); assert.equal(harness.spend(), false); assert.equal(harness.consent.current, null); assert.equal(harness.launchDisabled(), true); assert.equal(harness.dirty(), true);
+  }
+});
+
+
+test("pinterest: la proposition préparée attend la confirmation finale et respecte Active ou En pause", async () => {
+  for (const status of ["active", "paused"] as const) {
+    const h = launchHarness({ confirmedSpend: true });
+    await h.open(true);
+    assert.equal((h.dialogs.at(-1) as { mode?: string }).mode, "confirm", h.notices.join(" "));
+    assert.equal(h.requests.filter(({ url }) => url.endsWith("/publish")).length, 0);
+    await h.confirm(status, false);
+    assert.equal(h.requests.filter(({ url }) => url.endsWith("/publish")).length, 0, "La déclaration finale est obligatoire");
+    await h.confirm(status);
+    assert.equal(h.requests.filter(({ url }) => url === "/api/ads/campaigns").length, 1, "Le brouillon vérifié ne doit pas être sauvegardé deux fois");
+    const publications = h.requests.filter(({ url }) => url.endsWith("/publish"));
+    assert.equal(publications.length, 1);
+    assert.deepEqual(JSON.parse(publications[0].body || "{}"), { mode: status === "paused" ? "paused" : "live", confirmation: status === "paused" ? ADS_PAUSED_PUBLISH_CONFIRMATION : ADS_LIVE_PUBLISH_CONFIRMATION });
+    assert.equal((h.dialogs.at(-1) as { mode?: string }).mode, "success");
   }
 });
