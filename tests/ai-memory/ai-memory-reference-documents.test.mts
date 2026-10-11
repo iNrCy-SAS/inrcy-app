@@ -260,7 +260,8 @@ test("reference document extracts are part of the shared AI context", () => {
   assert.match(analysis, /buildBusinessDnaReferenceDocumentSources/);
   assert.match(analysis, /storedMemory\.referenceDocuments/);
   assert.match(source, /key: "reference_documents"/);
-  assert.match(source, /MAX_DOCUMENT_SOURCE_CHARS = 18_000/);
+  assert.match(source, /MAX_DOCUMENT_SOURCE_CHARS = 60_000/);
+  assert.match(source, /fitBusinessDnaDocuments/);
   assert.match(
     budget,
     /key === "website" \|\| key === "inrcy_site" \|\| key === "reference_documents"\) return 5/,

@@ -133,7 +133,7 @@ function extractZipEntry(buffer: Buffer, wanted: Set<string>) {
   return null;
 }
 
-function extractDocxText(buffer: Buffer) {
+function extractDocxText(buffer: Buffer, maxChars: number) {
   const xml = extractZipEntry(buffer, new Set(["word/document.xml"]));
   if (!xml) return "";
   const value = xml.toString("utf8")
@@ -141,7 +141,7 @@ function extractDocxText(buffer: Buffer) {
     .replace(/<w:br\s*\/?>(?:<\/w:br>)?/gi, "\n")
     .replace(/<\/w:p>/gi, "\n")
     .replace(/<[^>]+>/g, " ");
-  return normalizeExtractedText(decodeXmlEntities(value));
+  return normalizeExtractedText(decodeXmlEntities(value), maxChars);
 }
 
 
@@ -316,7 +316,7 @@ function extractAttachmentText(buffer: Buffer, name: string, mimeType: string, m
   if (lowerMime === "application/pdf" || lowerName.endsWith(".pdf")) {
     text = extractPdfTextForAi(buffer, maxCharsPerFile);
   } else if (lowerMime.includes("wordprocessingml.document") || lowerName.endsWith(".docx")) {
-    text = extractDocxText(buffer);
+    text = extractDocxText(buffer, maxCharsPerFile);
   } else if (canReadAsText(mimeType, name)) {
     const raw = buffer.toString("utf8");
     text = lowerMime.includes("html") || lowerName.endsWith(".html") || lowerName.endsWith(".htm") ? stripHtml(raw) : raw;

@@ -19,6 +19,7 @@ import { AiJsonResponseNormalizationError, normalizeAiJsonResponseBeforeValidati
 import { assertAiJsonMatchesSchema } from "../../lib/aiJsonSchemaValidation.ts";
 import * as aiGatewayResponse from "../../lib/aiGatewayResponse.ts";
 import type { AiGenerateJsonOptions } from "../../lib/aiGatewayClient.ts";
+import * as businessDnaTiming from "../../lib/businessDnaAnalysisTiming.ts";
 
 const profile = {
   business: {
@@ -97,6 +98,7 @@ function loadDialogueGateway(responses: unknown[]) {
   const client = transpileModule("../../lib/aiGatewayClient.ts", new Map<string, unknown>([
     ["server-only", {}],
     ["./aiGatewayReasoning.ts", { resolveAiMediaEditorialReasoning: () => undefined }],
+    ["./businessDnaAnalysisTiming.ts", businessDnaTiming],
     ["@/lib/aiGatewayConfig", config],
     ["@/lib/aiEnginePreference", engines],
     ["@/lib/aiGatewayPolicy", {

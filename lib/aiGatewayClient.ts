@@ -1,5 +1,6 @@
 import "server-only";
 import { resolveAiMediaEditorialReasoning } from "./aiGatewayReasoning.ts";
+import { resolveBusinessDnaStageTimeoutMs } from "./businessDnaAnalysisTiming.ts";
 
 import { fetchWithRetry } from "@/lib/observability/fetch";
 import {
@@ -801,6 +802,14 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
   const gatewayFallbackAvailable = opts.allowProviderFallback !== false &&
     Boolean(gatewayCredential && resolveGatewayFallbackRouting(primaryModel));
   const directFallbackAvailable = opts.allowProviderFallback !== false && Boolean(directCredential);
+  const dnaStageTimeout = (stage: AiGenerationAttemptStage) => {
+    const timeout = resolveBusinessDnaStageTimeoutMs({
+      stage, hardDeadlineAt, requestedTimeoutMs,
+      gatewayFallbackAvailable, directFallbackAvailable,
+    });
+    if (!timeout) throw new AiOperationDeadlineExceededError();
+    return timeout;
+  };
   const markStage = (stage: AiGenerationAttemptStage) => {
     attemptedStages.push(stage);
     try {
@@ -816,7 +825,9 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
 
   try {
   if (gatewayCredential) {
-    const primaryTimeoutMs = opts.feature === "ads.generate"
+    const primaryTimeoutMs = opts.feature === "business-dna.analyze"
+      ? dnaStageTimeout("primary")
+      : opts.feature === "ads.generate"
       ? resolveAdsStageTimeoutMs({
           stage: "primary",
           hardDeadlineAt,
@@ -875,7 +886,9 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
           gatewayFallback.model,
           process.env.AI_GATEWAY_ALLOWED_MODELS,
         );
-        const gatewayFallbackTimeoutMs = opts.feature === "ads.generate"
+        const gatewayFallbackTimeoutMs = opts.feature === "business-dna.analyze"
+          ? dnaStageTimeout("gateway_model")
+          : opts.feature === "ads.generate"
           ? resolveAdsStageTimeoutMs({
               stage: "gateway_model",
               hardDeadlineAt,
@@ -949,7 +962,9 @@ export async function aiGenerateJSON<T extends AiResponseJSON>(opts: AiGenerateJ
   if (opts.allowProviderFallback !== false && directCredential && hasTimeForFallback(hardDeadlineAt)) {
     const directModel = getOpenAiDirectFallbackModel();
     const accountingModel = getOpenAiDirectAccountingModel();
-    const directTimeoutMs = opts.feature === "ads.generate"
+    const directTimeoutMs = opts.feature === "business-dna.analyze"
+      ? dnaStageTimeout("openai_direct")
+      : opts.feature === "ads.generate"
       ? resolveAdsStageTimeoutMs({
           stage: "openai_direct",
           hardDeadlineAt,

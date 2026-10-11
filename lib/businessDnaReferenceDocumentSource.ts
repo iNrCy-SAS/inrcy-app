@@ -2,10 +2,11 @@ import "server-only";
 
 import type { AiMemoryReferenceDocument } from "@/lib/aiMemory";
 import type { BusinessDnaSourceResult } from "@/lib/businessDnaChannelAnalysis";
+import { fitBusinessDnaDocuments } from "./businessDnaDocumentBudget.ts";
 
-const MAX_DOCUMENT_SOURCE_CHARS = 18_000;
+const MAX_DOCUMENT_SOURCE_CHARS = 60_000;
 
-function cleanDocumentText(value: unknown, maxLength = 3_000) {
+function cleanDocumentText(value: unknown, maxLength = 30_000) {
   return String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/\r\n?/g, "\n")
@@ -31,13 +32,10 @@ export function buildBusinessDnaReferenceDocumentSources(
     }))
     .filter((document) => Boolean(document.text));
 
-  const content = readableDocuments
-    .map(
-      (document, index) =>
-        `[Document fourni ${index + 1} — ${document.name || "sans nom"}]\n${document.text}`,
-    )
-    .join("\n\n")
-    .slice(0, MAX_DOCUMENT_SOURCE_CHARS);
+  const content = fitBusinessDnaDocuments(readableDocuments.map((document, index) => ({
+    heading: `[Document fourni ${index + 1} — ${document.name || "sans nom"}]`,
+    text: document.text,
+  })), MAX_DOCUMENT_SOURCE_CHARS);
 
   const unreadableCount = Math.max(0, documents.length - readableDocuments.length);
   return [

@@ -110,7 +110,7 @@ function readHexToken(source: string, start: number): PdfStringToken | null {
 }
 
 function isPdfDelimiter(character: string) {
-  return /[\s()[\]{}<>/%]/.test(character);
+  return /[\u0000\s()[\]{}<>/%]/.test(character);
 }
 
 function usefulPdfText(value: string) {
@@ -143,7 +143,7 @@ function extractTextOperators(content: string, maxChars: number) {
 
   for (let index = 0; index < content.length && capturedChars < maxChars; ) {
     const character = content[index];
-    if (/\s/.test(character)) {
+    if (/[\u0000\s]/.test(character)) {
       index += 1;
       continue;
     }
@@ -224,8 +224,77 @@ function extractTextOperators(content: string, maxChars: number) {
   return snippets.join("\n");
 }
 
-function isFlateEncoded(dictionarySource: string) {
-  return /\/Filter\s*(?:\/FlateDecode|\[[^\]]*\/FlateDecode)/i.test(dictionarySource);
+function readPdfStreamFilters(dictionarySource: string) {
+  const declarations = [...dictionarySource.matchAll(/\/Filter\s*(\/[A-Za-z0-9]+|\[[^\]]*\])/g)];
+  const declaration = declarations.at(-1)?.[1] || "";
+  return [...declaration.matchAll(/\/([A-Za-z0-9]+)/g)].map((match) => match[1]);
+}
+
+// PDF Reference 1.7, §3.3.2: whitespace, z, partial groups and the ~> marker.
+// The intermediate binary stream remains bounded before decompression.
+function decodeAscii85Stream(source: Buffer): Buffer | null {
+  const output = Buffer.alloc(Math.min(PDF_MAX_DECOMPRESSED_STREAM_BYTES, source.length * 4));
+  let offset = 0;
+  let value = 0;
+  let digits = 0;
+  let ended = false;
+  function writeGroup(count: number) {
+    if (value > 0xffffffff || offset + count > output.length) return false;
+    for (let index = 0; index < count; index += 1) {
+      output[offset++] = (value >>> (24 - 8 * index)) & 0xff;
+    }
+    value = 0;
+    digits = 0;
+    return true;
+  }
+  for (let index = 0; index < source.length; index += 1) {
+    const code = source[index];
+    if (code === 0 || code === 9 || code === 10 || code === 12 || code === 13 || code === 32) continue;
+    if (code === 126 && source[index + 1] === 62) {
+      ended = true;
+      break;
+    }
+    if (code === 122) {
+      if (digits !== 0 || !writeGroup(4)) return null;
+      continue;
+    }
+    if (code < 33 || code > 117) return null;
+    value = value * 85 + code - 33;
+    digits += 1;
+    if (digits === 5 && !writeGroup(4)) return null;
+  }
+  if (!ended || digits === 1) return null;
+  if (digits > 1) {
+    const bytes = digits - 1;
+    while (digits < 5) {
+      value = value * 85 + 84;
+      digits += 1;
+    }
+    if (!writeGroup(bytes)) return null;
+  }
+  return output.subarray(0, offset);
+}
+
+function decodePdfStream(source: Buffer, filters: string[]): Buffer | null {
+  let decoded = source;
+  for (const filter of filters) {
+    if (filter === "ASCII85Decode" || filter === "A85") {
+      const binary = decodeAscii85Stream(decoded);
+      if (!binary) return null;
+      decoded = binary;
+    } else if (filter === "FlateDecode" || filter === "Fl") {
+      try {
+        decoded = inflateSync(decoded, { maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES });
+      } catch {
+        try {
+          decoded = inflateRawSync(decoded, { maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES });
+        } catch { return null; }
+      }
+    } else {
+      return null;
+    }
+  }
+  return decoded;
 }
 
 /**
@@ -241,7 +310,7 @@ export function extractPdfTextForAi(buffer: Buffer, maxChars = DEFAULT_MAX_CHARS
   let remainingChars = safeMaxChars;
   let streamCount = 0;
 
-  const streamPattern = /stream(?:\r\n|\r|\n)([\s\S]*?)(?:\r\n|\r|\n)endstream/g;
+  const streamPattern = /stream(?:\r\n|\r|\n)([\s\S]*?)endstream\b/g;
   for (const match of source.matchAll(streamPattern)) {
     if (remainingChars <= 0 || streamCount >= PDF_MAX_STREAMS) break;
     streamCount += 1;
@@ -251,20 +320,8 @@ export function extractPdfTextForAi(buffer: Buffer, maxChars = DEFAULT_MAX_CHARS
     const matchIndex = typeof match.index === "number" ? match.index : 0;
     const dictionarySource = source.slice(Math.max(0, matchIndex - 2_048), matchIndex);
     const streamBuffer = Buffer.from(raw, "latin1");
-    const candidates: Buffer[] = [];
-
-    if (isFlateEncoded(dictionarySource)) {
-      try {
-        candidates.push(inflateSync(streamBuffer, { maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES }));
-      } catch {}
-      if (!candidates.length) {
-        try {
-          candidates.push(inflateRawSync(streamBuffer, { maxOutputLength: PDF_MAX_DECOMPRESSED_STREAM_BYTES }));
-        } catch {}
-      }
-    } else {
-      candidates.push(streamBuffer);
-    }
+    const decoded = decodePdfStream(streamBuffer, readPdfStreamFilters(dictionarySource));
+    const candidates = decoded ? [decoded] : [];
 
     for (const candidate of candidates) {
       const extracted = extractTextOperators(candidate.toString("latin1"), remainingChars);

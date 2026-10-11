@@ -22,6 +22,8 @@ import {
   getPublicBusinessDnaSourceResults,
 } from "@/lib/businessDnaChannelAnalysis";
 import { buildBusinessDnaReferenceDocumentSources } from "@/lib/businessDnaReferenceDocumentSource";
+import { refreshBusinessDnaReferenceDocuments } from "@/lib/businessDnaReferenceDocumentRefresh";
+import { BUSINESS_DNA_PRIMARY_TIMEOUT_MS, BUSINESS_DNA_COMPLETION_LATEST_START_MS } from "@/lib/businessDnaAnalysisTiming";
 import { buildBusinessDnaDashboardChannelAvailability } from "@/lib/businessDnaChannelAvailability";
 import {
   buildBusinessDnaAnalysisSourcePayload,
@@ -68,13 +70,13 @@ import {
 } from "@/lib/businessDnaRecentNews";
 
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 360;
 
 const ANALYSIS_MAX_INPUT_CHARS = 150_000;
 const ANALYSIS_MAX_SOURCE_PAYLOAD_CHARS = 100_000;
 const ANALYSIS_MAX_COMPLETION_SOURCE_CHARS = 80_000;
 const ANALYSIS_OUTPUT_TOKENS = 7_600;
-const ANALYSIS_COMPLETION_LATEST_START_MS = 78_000;
+const ANALYSIS_COMPLETION_LATEST_START_MS = BUSINESS_DNA_COMPLETION_LATEST_START_MS;
 
 const ANALYSIS_RESPONSE_SCHEMA = {
   name: "inrcy_business_dna_analysis",
@@ -403,16 +405,20 @@ export async function POST(request: Request) {
       if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);
     }
 
-    const sources = [
-      ...(await collectBusinessDnaChannelSources({
+    const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
+    const [channelSources, analysisDocuments] = await Promise.all([
+      collectBusinessDnaChannelSources({
         supabase,
         userId: activeUserId,
         businessProfile: businessResult.data,
         proToolsConfig: toolsResult.data,
         companyName,
-      })),
-      ...buildBusinessDnaReferenceDocumentSources(storedMemory.referenceDocuments),
-    ];
+      }),
+      refreshBusinessDnaReferenceDocuments(storedMemory.referenceDocuments, {
+        accountId: activeUserId, engine: preferredEngine,
+      }),
+    ]);
+    const sources = [...channelSources, ...buildBusinessDnaReferenceDocumentSources(analysisDocuments)];
     const publicSources = getPublicBusinessDnaSourceResults(sources);
     if (!hasReadableBusinessDnaAnalysisSource(sources)) {
       return NextResponse.json(
@@ -439,7 +445,6 @@ export async function POST(request: Request) {
     });
     const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business, companyName);
     const language = asString(business.ai_language) || "fr";
-    const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
     const budget = createAiOperationBudget("business-dna.analyze");
     const {
       presentation_detaillee: _duplicatedDescription,
@@ -535,7 +540,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       budget,
       maxOutputTokens: ANALYSIS_OUTPUT_TOKENS,
       temperature: 0.18,
-      timeoutMs: 70_000,
+      timeoutMs: BUSINESS_DNA_PRIMARY_TIMEOUT_MS,
       responseSchema: ANALYSIS_RESPONSE_SCHEMA,
       system,
       input,

@@ -34,7 +34,7 @@ function getKnownStructuredErrorMessage(code: string): string | null {
   if (code === "ai_operation_budget_exceeded") {
     return "La génération a atteint sa limite technique de sécurité. Merci de relancer la génération.";
   }
-  if (code === "ai_operation_deadline_exceeded") {
+  if (code === "ai_operation_deadline_exceeded" || code === "fetch_timeout") {
     return "Le moteur IA met trop de temps à répondre. Merci de relancer la génération.";
   }
   if (code === "ai_gateway_guard_unavailable") {
@@ -71,7 +71,7 @@ function resolveKnownErrorStatus(input: unknown, requestedStatus: number): numbe
   if (code === "ai_gateway_guard_unavailable") return 503;
   if (code === "ai_gateway_transcription_unavailable") return 503;
   if (code === "ai_gateway_transcription_protocol_unsupported") return 503;
-  if (code === "ai_operation_deadline_exceeded") return 504;
+  if (code === "ai_operation_deadline_exceeded" || code === "fetch_timeout") return 504;
   return requestedStatus;
 }
 
