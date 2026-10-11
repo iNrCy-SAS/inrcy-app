@@ -25,7 +25,7 @@ function load<T>(path: string, modules: Record<string, unknown>): T {
   return runtime.exports;
 }
 
-function fixture(plan: Plan, cycle: Cycle, trial = false, money = false) {
+function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "image" = false) {
   const priceEnv = Object.fromEntries([
     "STANDARD_58HT_MONTHLY", "STANDARD_58HT_YEARLY", "PREMIUM_108HT_MONTHLY", "PREMIUM_108HT_YEARLY",
   ].map((key) => [`STRIPE_PRICE_${key}_ID`, `price_fixture_${key}`]));
@@ -55,11 +55,12 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money = false) {
   const writes: Row[] = [];
   const moneyCalls: Row[] = [];
   const moneyFailure = { enabled: false };
-  const moneyCall = async (operation: string, id: string, event: string) => {
-    if (!money && operation === "checkout") throw new Error("Subscription must not fulfill video credits");
-    moneyCalls.push({ operation, id, event });
-    if (moneyFailure.enabled) throw new Error("Synthetic financial retry");
-    return money;
+  const moneyCall = async (operation: string, id: string, event: string, domain = "video") => {
+    const matches = money === "image" ? domain === "image" : money === true && domain === "video";
+    if (!matches && operation === "checkout") throw new Error("Checkout must use its verified credit domain");
+    moneyCalls.push({ operation, id, event, domain });
+    if (matches && moneyFailure.enabled) throw new Error("Synthetic financial retry");
+    return matches;
   };
   const from = (table: string) => {
     let operation = "select";
@@ -118,6 +119,12 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money = false) {
       fulfillVideoCreditCheckout: async (id: string,event: string) => moneyCall("checkout",id,event),
       reconcileVideoCreditRefund: async (id: string,event: string) => moneyCall("refund",id,event),
       reconcileVideoCreditDispute: async (id: string,event: string) => moneyCall("dispute",id,event),
+    },
+    "@/lib/boutique/imageCreditPayments": {
+      IMAGE_CREDIT_PAYMENT_KIND: "inrcy_image_credits_v1",
+      fulfillImageCreditCheckout: async (id: string,event: string) => moneyCall("checkout",id,event,"image"),
+      reconcileImageCreditRefund: async (id: string,event: string) => moneyCall("refund",id,event,"image"),
+      reconcileImageCreditDispute: async (id: string,event: string) => moneyCall("dispute",id,event,"image"),
     },
     "@/lib/subscriptionAdmin": { sendAdminSubscriptionAlertForUser: async () => {} },
     "@/lib/metaConversionOutbox": { enqueueMetaConversionEvent: async () => {} },
@@ -207,4 +214,49 @@ test("a failed financial reconciliation is retried and completed without touchin
   run.moneyFailure.enabled=false;
   assert.equal((await run.post("charge.refunded",{id:"ch_credit"},id)).status,200);
   assert.equal(run.events.get(id)?.status,"completed");assert.deepEqual(run.writes,[]);
+});
+
+test("all signed image payment events reach image reconciliation without changing subscriptions or video credits",async()=>{
+  const run=fixture("Standard","monthly",false,"image");
+  const types=["checkout.session.completed","checkout.session.async_payment_succeeded","checkout.session.async_payment_failed","checkout.session.expired",
+    "charge.refunded","charge.dispute.created","charge.dispute.updated","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated","charge.dispute.closed"];
+  for (const type of types) {
+    const object={id:type.startsWith("checkout")?"cs_image":type==="charge.refunded"?"ch_image":"du_image",metadata:{kind:"inrcy_image_credits_v1"}};
+    const response=await run.post(type,object);
+    assert.equal(response.status,200,JSON.stringify(await response.json()));
+    assert.equal(run.moneyCalls.at(-1)?.domain,"image");
+    assert.equal(run.moneyCalls.at(-1)?.id,object.id);
+    assert.equal(run.events.get(`evt_${type}`)?.status,"completed");
+  }
+  assert.equal(run.moneyCalls.filter(call=>call.domain==="image").length,10);
+  assert.equal(run.moneyCalls.filter(call=>call.domain==="video" && call.operation==="checkout").length,0);
+  assert.deepEqual(run.writes,[]);
+  const before=run.moneyCalls.length;
+  assert.equal((await run.post("checkout.session.completed",{id:"cs_image",metadata:{kind:"inrcy_image_credits_v1"}},"evt_forged_image","invalid")).status,400);
+  assert.equal(run.moneyCalls.length,before);assert.equal(run.events.has("evt_forged_image"),false);
+});
+
+test("image Checkout in flight receives retryable503 until a durable completion, then replay is ignored",async()=>{
+  const run=fixture("Standard","monthly",false,"image"),id="evt_image_inflight";
+  const object={id:"cs_image",metadata:{kind:"inrcy_image_credits_v1"}};
+  run.events.set(id,{event_id:id,status:"processing",attempts:1,last_received_at:new Date().toISOString()});
+  assert.equal((await run.post("checkout.session.completed",object,id)).status,503);
+  assert.equal(run.moneyCalls.length,0);
+  run.events.get(id)!.last_received_at=new Date(Date.now()-6*60*1000).toISOString();
+  assert.equal((await run.post("checkout.session.completed",object,id)).status,200);
+  assert.equal(run.moneyCalls.length,1);
+  assert.deepEqual(await (await run.post("checkout.session.completed",object,id)).json(),{received:true,duplicate:true});
+  assert.equal(run.moneyCalls.length,1);
+});
+
+test("failed image refund/dispute verification remains retryable and never changes subscription state",async()=>{
+  for (const type of ["charge.refunded","charge.dispute.closed"]) {
+    const run=fixture("Standard","monthly",false,"image"),id=`evt_image_retry_${type}`;
+    const object={id:type==="charge.refunded"?"ch_image":"du_image"};
+    run.moneyFailure.enabled=true;
+    assert.equal((await run.post(type,object,id)).status,500);assert.equal(run.events.get(id)?.status,"failed");
+    run.moneyFailure.enabled=false;
+    assert.equal((await run.post(type,object,id)).status,200);assert.equal(run.events.get(id)?.status,"completed");
+    assert.deepEqual(run.writes,[]);
+  }
 });

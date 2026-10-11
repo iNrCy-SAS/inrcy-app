@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Local / cenário",
   "ai_generator_redesign_criteria_result_image": "Os seus critérios enquadram a imagem; a IA mantém liberdade criativa no restante.",
   "ai_generator_redesign_criteria_result_video": "Os seus critérios enquadram o vídeo; a IA mantém liberdade criativa no restante.",
-  "ai_generator_purchased_video_seconds": "Restam {count} segundos comprados"
+  "ai_generator_purchased_video_seconds": "Restam {count} segundos comprados",
+  "ai_generator_included_balance": "Subscrição — disponível",
+  "ai_generator_included_report": "Quota mensal + saldo transitado",
+  "ai_generator_purchased_balance": "Créditos comprados — disponíveis",
+  "ai_generator_purchased_keep": "Mantidos na renovação"
 }

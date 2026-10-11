@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Lieu / décor",
   "ai_generator_redesign_criteria_result_image": "Vos critères cadrent l’image ; l’IA conserve sa liberté créative sur le reste.",
   "ai_generator_redesign_criteria_result_video": "Vos critères cadrent la vidéo ; l’IA conserve sa liberté créative sur le reste.",
-  "ai_generator_purchased_video_seconds": "{count} s achetées restantes"
+  "ai_generator_purchased_video_seconds": "{count} s achetées restantes",
+  "ai_generator_included_balance": "Abonnement — restant",
+  "ai_generator_included_report": "Quota mensuel + report",
+  "ai_generator_purchased_balance": "Crédits achetés — restants",
+  "ai_generator_purchased_keep": "Conservés au renouvellement"
 }

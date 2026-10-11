@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "地点 / 场景",
   "ai_generator_redesign_criteria_result_image": "您的条件限定图像方向；其余部分由 AI 保持创作自由。",
   "ai_generator_redesign_criteria_result_video": "您的条件限定视频方向；其余部分由 AI 保持创作自由。",
-  "ai_generator_purchased_video_seconds": "购买时长剩余 {count} 秒"
+  "ai_generator_purchased_video_seconds": "购买时长剩余 {count} 秒",
+  "ai_generator_included_balance": "订阅剩余额度",
+  "ai_generator_included_report": "每月额度及结转余额",
+  "ai_generator_purchased_balance": "已购积分余额",
+  "ai_generator_purchased_keep": "每月续订后保留"
 }

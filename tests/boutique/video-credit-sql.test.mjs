@@ -40,6 +40,7 @@ test('video-credit migration and real quota RPCs with synthetic accounts', async
       'supabase/migrations/20261003163341_ai_media_premium_video_196_seconds.sql',
       'supabase/migrations/20261003165614_ai_media_premium_images_70_rollover_150.sql',
       'supabase/migrations/20261011121940_video_credit_recharges.sql',
+      'supabase/migrations/20261011171132_image_credit_recharges.sql',
     ];
     for (const file of migrations) {
       try { await db.exec((await readFile(new URL(file, root),'utf8')).replaceAll('\r\n','\n')); }

@@ -771,5 +771,9 @@
   "ai_generator_redesign_criteria_focus_environment": "Location / setting",
   "ai_generator_redesign_criteria_result_image": "Your criteria frame the image; AI keeps creative freedom for everything else.",
   "ai_generator_redesign_criteria_result_video": "Your criteria frame the video; AI keeps creative freedom for everything else.",
-  "ai_generator_purchased_video_seconds": "{count} purchased seconds remaining"
+  "ai_generator_purchased_video_seconds": "{count} purchased seconds remaining",
+  "ai_generator_included_balance": "Subscription balance",
+  "ai_generator_included_report": "Monthly allowance + rollover",
+  "ai_generator_purchased_balance": "Purchased credits remaining",
+  "ai_generator_purchased_keep": "Kept at monthly renewal"
 }

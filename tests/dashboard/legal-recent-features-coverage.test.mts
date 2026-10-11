@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { createElement, type ComponentType } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import * as jsxRuntime from "react/jsx-runtime";
+import ts from "typescript";
 
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
@@ -60,6 +64,18 @@ const recentFeatureKeys = [
   "cga_0459_video_credits",
 ] as const;
 
+function loadLegalModule<T>(relativePath: string, modules: Record<string, unknown>): T {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText;
+  const exports = {} as T;
+  new Function("exports", "require", output)(exports, (name: string) => {
+    assert.ok(Object.hasOwn(modules, name), `Unmocked legal dependency: ${name}`);
+    return modules[name];
+  });
+  return exports;
+}
+
 test("the legal schema and all nine catalogues cover the recently added features", () => {
   const schema = read("app/legal/_components/legalDocumentSchema.ts");
 
@@ -79,6 +95,57 @@ test("the legal schema and all nine catalogues cover the recently added features
     assert.ok(publicMessages.version_du_11_10_2026_video_credits, locale);
     assert.ok(settings.version_du_11_10_2026_video_credits, locale);
   }
+});
+
+test("Article 40 displays video and image credits in every language while preserving the existing credit conditions", () => {
+  type Block = { kind: string; key?: string };
+  const schema = loadLegalModule<{ LEGAL_DOCUMENT_BLOCKS: { cga: Block[] } }>("app/legal/_components/legalDocumentSchema.ts", {});
+  const blocks = schema.LEGAL_DOCUMENT_BLOCKS.cga;
+  const creditIndex = blocks.findIndex((block) => block.key === "cga_0459_video_credits");
+  const article40 = blocks.findIndex((block) => block.key === "cga_0443_studio");
+  const nextArticle = blocks.findIndex((block) => block.key === "cga_0446_dictation");
+  assert.ok(article40 < creditIndex && creditIndex < nextArticle);
+  assert.equal(blocks[creditIndex].kind, "paragraph");
+
+  const kinds: Record<string, RegExp> = {
+    "fr-FR": /crédits vidéo ou images/,
+    "en-GB": /Video or image credit/,
+    "es-ES": /créditos de vídeo o imágenes/,
+    "it-IT": /crediti video o immagini/,
+    "de-DE": /Video- oder Bild-Guthaben/,
+    "nl-NL": /video- of afbeeldingentegoed/,
+    "pt-PT": /créditos de vídeo ou imagens/,
+    "th-TH": /เครดิตวิดีโอหรือภาพ/,
+    "zh-CN": /视频或图片额度/,
+  };
+  for (const locale of locales) {
+    const legal = JSON.parse(read(`messages/${locale}/legal.json`)) as Record<string, string>;
+    const paragraph = legal.cga_0459_video_credits;
+    assert.match(paragraph, kinds[locale], locale);
+    const renderer = loadLegalModule<{ default: ComponentType<{ document: "cga" }> }>("app/legal/_components/LegalTextContent.tsx", {
+      "react/jsx-runtime": jsxRuntime,
+      "next-intl": { useTranslations: () => (key: string) => { assert.ok(legal[key], `${locale}: ${key}`); return legal[key]; } },
+      "../legal.module.css": { __esModule: true, default: { h2: "h2", p: "p", ul: "ul", translationNotice: "translationNotice" } },
+      "./legalDocumentSchema": schema,
+    });
+    const html = renderToStaticMarkup(createElement(renderer.default, { document: "cga" }));
+    assert.ok(html.includes(renderToStaticMarkup(createElement("p", { className: "p" }, paragraph))), `${locale}: credits paragraph must appear through the real CGA renderer`);
+  }
+
+  const french = (JSON.parse(read("messages/fr-FR/legal.json")) as Record<string, string>).cga_0459_video_credits;
+  for (const condition of [
+    /achats ponctuels distincts de l’abonnement/,
+    /après confirmation du paiement/,
+    /prix sont indiqués HT/,
+    /crédits inclus sont utilisés en premier/,
+    /solde acheté non consommé est conservé au renouvellement mensuel/,
+    /sous réserve des conditions d’accès au service/,
+    /échec de génération libère les crédits réservés/,
+    /remboursement accordé conformément aux présentes conditions et au droit applicable ajuste le solde correspondant/,
+    /crédits déjà consommés peuvent créer un solde à régulariser sur les prochains achats, sans réduire le quota inclus/,
+    /contestation de paiement peut suspendre les crédits concernés/,
+    /rétablis lorsque le paiement est maintenu, ou annulés si les fonds sont retirés définitivement/,
+  ]) assert.match(french, condition);
 });
 
 test("the X disclosure is limited to the exact implemented OAuth scopes", () => {
