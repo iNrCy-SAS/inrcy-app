@@ -41,9 +41,14 @@ begin
         and p.user_id not in (select user_id from site_web_transfer)) then
     raise exception 'Disconnected legacy website data needs an explicit transfer';
   end if;
-  if exists (select 1 from public.integrations where source in ('site_inrcy', 'inrcy_site')
-      and (user_id not in (select user_id from site_web_transfer)
-        or (provider = 'system' and (access_token_enc is not null or refresh_token_enc is not null)))) then
+  -- Other accounts may retain empty disconnected presence rows from provisioning.
+  -- They carry no website identity or credentials and are removed below.
+  if exists (select 1 from public.integrations i where source in ('site_inrcy', 'inrcy_site')
+      and ((provider = 'system' and (access_token_enc is not null or refresh_token_enc is not null))
+        or (not exists (select 1 from site_web_transfer t where t.user_id = i.user_id)
+          and (provider = 'system' and product = 'site' and status = 'disconnected'
+            and nullif(trim(resource_id), '') is null
+            and access_token_enc is null and refresh_token_enc is null) is not true))) then
     raise exception 'Unexpected legacy integration: review before migration';
   end if;
   if exists (select 1 from site_web_transfer where

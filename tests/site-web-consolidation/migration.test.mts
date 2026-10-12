@@ -199,6 +199,59 @@ test("transfer preserves every article, delivery, parent, credential and the two
   } finally { await db.close(); }
 });
 
+test("transfer accepts the 66-row legacy inventory and removes only empty disconnected presences outside the two accounts", async () => {
+  const db = await fixture();
+  try {
+    for (let index = 1; index <= 60; index++) {
+      await db.query("insert into public.inrcy_accounts(id) values($1)", [id(9, index)]);
+      await db.query(`insert into public.integrations(id,user_id,provider,source,product,status,resource_id)
+        values($1,$2,'system',$3,'site','disconnected',$4)`,
+      [id(10, index), id(9, index), index % 2 ? "site_inrcy" : "inrcy_site", index % 3 ? "" : null]);
+    }
+    assert.equal((await rows(db, "select count(*)::int as count from public.integrations where source in ('site_inrcy','inrcy_site')"))[0].count, 66);
+    const credentials = await rows(db, "select id,user_id,provider,product,status,resource_id,access_token_enc,refresh_token_enc,expires_at,scopes from public.integrations where provider='google' order by id");
+    const otherIntegration = await rows(db, "select * from public.integrations where user_id=$1", [OTHER]);
+    const accounts = await rows(db, "select * from public.inrcy_accounts order by id");
+    await db.exec(transfer);
+    assert.deepEqual(await rows(db, "select id,user_id,provider,product,status,resource_id,access_token_enc,refresh_token_enc,expires_at,scopes from public.integrations where provider='google' order by id"), credentials);
+    assert.deepEqual(await rows(db, "select * from public.integrations where user_id=$1", [OTHER]), otherIntegration);
+    assert.deepEqual(await rows(db, "select * from public.inrcy_accounts order by id"), accounts);
+    assert.equal((await rows(db, "select count(*)::int as count from public.integrations where source in ('site_inrcy','inrcy_site')"))[0].count, 0);
+    assert.equal((await rows(db, "select count(*)::int as count from public.integrations"))[0].count, 7);
+    assert.equal((await rows(db, "select count(*)::int as count from public.pro_tools_configs"))[0].count, 3);
+    assert.equal((await rows(db, "select count(*)::int as count from public.site_articles where user_id=$1 and source='site_web'", [FV]))[0].count, 15);
+  } finally { await db.close(); }
+});
+
+test("transfer refuses unexpected system presence identity, status or credentials and rolls back", async () => {
+  const scenarios = [
+    { name: "connected", status: "connected", resource: null, access: null, refresh: null, product: "site", provider: "system" },
+    { name: "resource", status: "disconnected", resource: "https://unapproved.example", access: null, refresh: null, product: "site", provider: "system" },
+    { name: "access credential", status: "disconnected", resource: null, access: "fixture-access", refresh: null, product: "site", provider: "system" },
+    { name: "refresh credential", status: "disconnected", resource: null, access: null, refresh: "fixture-refresh", product: "site", provider: "system" },
+    { name: "empty credential is not NULL", status: "disconnected", resource: "", access: "", refresh: null, product: "site", provider: "system" },
+    { name: "other product", status: "disconnected", resource: null, access: null, refresh: null, product: "other", provider: "system" },
+    { name: "missing status", status: null, resource: null, access: null, refresh: null, product: "site", provider: "system" },
+    { name: "missing provider", status: "disconnected", resource: null, access: null, refresh: null, product: "site", provider: null },
+  ];
+  for (const scenario of scenarios) {
+    const db = await fixture();
+    try {
+      await db.query(`insert into public.integrations(user_id,provider,source,product,status,resource_id,access_token_enc,refresh_token_enc)
+        values($1,$2,'site_inrcy',$3,$4,$5,$6,$7)`,
+      [OTHER, scenario.provider, scenario.product, scenario.status, scenario.resource, scenario.access, scenario.refresh]);
+      const integrations = await rows(db, "select * from public.integrations order by id");
+      const articles = await rows(db, "select * from public.site_articles order by id");
+      const configs = await rows(db, "select * from public.pro_tools_configs order by user_id");
+      await assert.rejects(db.exec(transfer), /Unexpected legacy integration/, scenario.name);
+      await db.exec("rollback");
+      assert.deepEqual(await rows(db, "select * from public.integrations order by id"), integrations, scenario.name);
+      assert.deepEqual(await rows(db, "select * from public.site_articles order by id"), articles, scenario.name);
+      assert.deepEqual(await rows(db, "select * from public.pro_tools_configs order by user_id"), configs, scenario.name);
+    } finally { await db.close(); }
+  }
+});
+
 test("retirement removes the schema and leaves standard/admin provisioning and future domain updates usable", async () => {
   const db = await fixture();
   try {
