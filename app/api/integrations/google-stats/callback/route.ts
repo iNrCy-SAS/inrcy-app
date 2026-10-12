@@ -38,7 +38,7 @@ type GoogleUserInfo = {
   picture?: string;
 };
 
-const ALLOWED_SOURCES = ["site_inrcy", "site_web"] as const;
+const ALLOWED_SOURCES = ["site_web"] as const;
 const ALLOWED_PRODUCTS = ["ga4", "gsc"] as const;
 
 type AllowedSource = (typeof ALLOWED_SOURCES)[number];
@@ -285,22 +285,12 @@ async function validateGa4Binding(accessToken: string, domain: string, propertyI
 function validateGscPropertyAgainstDomain(domain: string, property: string) {
   return doesGscPropertyCoverSite(property, domain);
 }
-type SiteSettings = {
-  ga4?: { property_id?: string; measurement_id?: string; verified_at?: string };
-  gsc?: { property?: string; verified_at?: string };
-  site_web?: {
-    url?: string;
-    ga4?: { property_id?: string; measurement_id?: string; verified_at?: string };
-    gsc?: { property?: string; verified_at?: string };
-  };
-};
-
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServer>>;
 
 async function upsertGoogleIntegration(opts: {
   supabase: SupabaseServerClient;
   userId: string;
-  source: "site_inrcy" | "site_web";
+  source: "site_web";
   product: "ga4" | "gsc";
   tokenData: TokenResponse;
   userInfo: GoogleUserInfo;
@@ -503,40 +493,24 @@ export async function GET(req: Request) {
     const siteUrlHint = String(siteUrlFromState || "").trim();
 
     if (domain && tokenData.access_token) {
-      const [inrcyCfgRes, proCfgRes] = await Promise.all([
-        supabase.from("inrcy_site_configs").select("settings").eq("user_id", userId).maybeSingle(),
-        supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
-      ]);
+      const proCfgRes = await supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();
 
       const nowIso = new Date().toISOString();
-      const inrcySettings = safeJsonParse<SiteSettings>(asRecord(inrcyCfgRes.data)["settings"], {});
       const proSettings = safeJsonParse<Record<string, unknown>>(asRecord(proCfgRes.data)["settings"], {});
 
-      if (source === "site_web") {
-        const nextPro: Record<string, unknown> = { ...(proSettings ?? {}) };
-        const siteWebNext: Record<string, unknown> = { ...asRecord(nextPro["site_web"]) };
-        if (siteUrlHint) siteWebNext["url"] = siteUrlHint;
-        nextPro["site_web"] = siteWebNext;
+      const nextPro: Record<string, unknown> = { ...(proSettings ?? {}) };
+      const siteWebNext: Record<string, unknown> = { ...asRecord(nextPro["site_web"]) };
+      if (siteUrlHint) siteWebNext["url"] = siteUrlHint;
+      nextPro["site_web"] = siteWebNext;
 
-        if (product === "ga4") {
-          const existingGa4 = asRecord(siteWebNext["ga4"]);
-          const existingPid = (asString(existingGa4["property_id"]) ?? "").trim();
-          const existingMid = (asString(existingGa4["measurement_id"]) ?? "").trim();
+      if (product === "ga4") {
+        const existingGa4 = asRecord(siteWebNext["ga4"]);
+        const existingPid = (asString(existingGa4["property_id"]) ?? "").trim();
+        const existingMid = (asString(existingGa4["measurement_id"]) ?? "").trim();
 
-          if (existingPid) {
-            const v = await validateGa4Binding(tokenData.access_token, domain, existingPid, existingMid || null);
-            if (!v.ok) {
-              const resolved = await resolveGa4FromDomain(tokenData.access_token, domain);
-              siteWebNext["ga4"] = {
-                ...existingGa4,
-                property_id: resolved.propertyId,
-                measurement_id: resolved.measurementId ?? undefined,
-                verified_at: nowIso,
-              };
-            } else if (!existingMid && v.measurementId) {
-              siteWebNext["ga4"] = { ...existingGa4, measurement_id: v.measurementId, verified_at: nowIso };
-            }
-          } else {
+        if (existingPid) {
+          const v = await validateGa4Binding(tokenData.access_token, domain, existingPid, existingMid || null);
+          if (!v.ok) {
             const resolved = await resolveGa4FromDomain(tokenData.access_token, domain);
             siteWebNext["ga4"] = {
               ...existingGa4,
@@ -544,82 +518,40 @@ export async function GET(req: Request) {
               measurement_id: resolved.measurementId ?? undefined,
               verified_at: nowIso,
             };
+          } else if (!existingMid && v.measurementId) {
+            siteWebNext["ga4"] = { ...existingGa4, measurement_id: v.measurementId, verified_at: nowIso };
           }
         } else {
-          const existingGsc = asRecord(siteWebNext["gsc"]);
-          const existingProp = (asString(existingGsc["property"]) ?? "").trim();
+          const resolved = await resolveGa4FromDomain(tokenData.access_token, domain);
+          siteWebNext["ga4"] = {
+            ...existingGa4,
+            property_id: resolved.propertyId,
+            measurement_id: resolved.measurementId ?? undefined,
+            verified_at: nowIso,
+          };
+        }
+      } else {
+        const existingGsc = asRecord(siteWebNext["gsc"]);
+        const existingProp = (asString(existingGsc["property"]) ?? "").trim();
 
-          if (existingProp) {
-            if (!validateGscPropertyAgainstDomain(domain, existingProp)) {
-              const resolvedProp = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null);
-              siteWebNext["gsc"] = { ...existingGsc, property: resolvedProp, verified_at: nowIso };
-            } else {
-              const gscOk = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null).catch(() => null);
-              if (!gscOk) return fail("gsc_not_accessible", "La propriété Search Console de ce domaine n'est pas accessible avec ce compte Google.");
-            }
-          } else {
+        if (existingProp) {
+          if (!validateGscPropertyAgainstDomain(domain, existingProp)) {
             const resolvedProp = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null);
             siteWebNext["gsc"] = { ...existingGsc, property: resolvedProp, verified_at: nowIso };
-          }
-        }
-
-        const { error: upErr } = await supabase
-          .from("pro_tools_configs")
-          .upsert({ user_id: userId, settings: nextPro }, { onConflict: "user_id" });
-        if (upErr) return fail("db_update_settings", "Impossible d'enregistrer la configuration du site web.");
-      } else {
-        const next: SiteSettings = { ...(inrcySettings ?? {}) };
-
-        if (product === "ga4") {
-          const existingGa4 = next.ga4 ?? {};
-          const existingPid = String(existingGa4?.property_id || "").trim();
-          const existingMid = String(existingGa4?.measurement_id || "").trim();
-
-          if (existingPid) {
-            const v = await validateGa4Binding(tokenData.access_token, domain, existingPid, existingMid || null);
-            if (!v.ok) {
-              const resolved = await resolveGa4FromDomain(tokenData.access_token, domain);
-              next.ga4 = {
-                ...(next.ga4 ?? {}),
-                property_id: resolved.propertyId,
-                measurement_id: resolved.measurementId ?? undefined,
-                verified_at: nowIso,
-              };
-            } else if (!existingMid && v.measurementId) {
-              next.ga4 = { ...(next.ga4 ?? {}), measurement_id: v.measurementId, verified_at: nowIso };
-            }
           } else {
-            const resolved = await resolveGa4FromDomain(tokenData.access_token, domain);
-            next.ga4 = {
-              ...(next.ga4 ?? {}),
-              property_id: resolved.propertyId,
-              measurement_id: resolved.measurementId ?? undefined,
-              verified_at: nowIso,
-            };
+            const gscOk = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null).catch(() => null);
+            if (!gscOk) return fail("gsc_not_accessible", "La propriété Search Console de ce domaine n'est pas accessible avec ce compte Google.");
           }
         } else {
-          const existingGsc = next.gsc ?? {};
-          const existingProp = String(existingGsc?.property || "").trim();
-
-          if (existingProp) {
-            if (!validateGscPropertyAgainstDomain(domain, existingProp)) {
-              const resolvedProp = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null);
-              next.gsc = { ...(next.gsc ?? {}), property: resolvedProp, verified_at: nowIso };
-            } else {
-              const gscOk = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null).catch(() => null);
-              if (!gscOk) return fail("gsc_not_accessible", "La propriété Search Console de ce domaine n'est pas accessible avec ce compte Google.");
-            }
-          } else {
-            const resolvedProp = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null);
-            next.gsc = { ...(next.gsc ?? {}), property: resolvedProp, verified_at: nowIso };
-          }
+          const resolvedProp = await resolveGscFromDomain(tokenData.access_token, domain, siteUrlHint || null);
+          siteWebNext["gsc"] = { ...existingGsc, property: resolvedProp, verified_at: nowIso };
         }
-
-        const { error: upErr } = await supabase
-          .from("inrcy_site_configs")
-          .upsert({ user_id: userId, settings: next }, { onConflict: "user_id" });
-        if (upErr) return fail("db_update_settings", "Impossible d'enregistrer la configuration du site iNrCy.");
       }
+
+      const { error: upErr } = await supabase
+        .from("pro_tools_configs")
+        .upsert({ user_id: userId, settings: nextPro }, { onConflict: "user_id" });
+      if (upErr) return fail("db_update_settings", "Impossible d'enregistrer la configuration du site web.");
     }
 
     await upsertGoogleIntegration({ supabase, userId, source, product, tokenData, userInfo });

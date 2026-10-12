@@ -1,5 +1,8 @@
 "use client";
 
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
+
+
 import { useCallback, useEffect, useState } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import {
@@ -30,7 +33,7 @@ type UseTiktokChannelArgs = {
   triggerChannelRefresh?: (channel: DashboardChannelKey) => Promise<void>;
 };
 
-const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
+const DASHBOARD_CHANNEL_STATE_CACHE_KEY = DASHBOARD_CACHE_KEYS.channelState;
 
 type CachedTiktokState = {
   connected: boolean;

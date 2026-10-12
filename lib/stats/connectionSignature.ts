@@ -117,27 +117,13 @@ export async function buildStatsConnectionSignature(
   try {
     const { data } = await supabase
       .from("profiles")
-      .select("inrcy_site_ownership,lead_conversion_rate,avg_basket")
+      .select("lead_conversion_rate,avg_basket")
       .eq("user_id", userId)
       .maybeSingle();
     const rec = asRecord(data);
     pushPart(parts, "profile", {
-      inrcy_site_ownership: String(rec.inrcy_site_ownership ?? "none"),
       lead_conversion_rate: Number(rec.lead_conversion_rate ?? 0),
       avg_basket: Number(rec.avg_basket ?? 0),
-    });
-  } catch {}
-
-  try {
-    const { data } = await supabase
-      .from("inrcy_site_configs")
-      .select("site_url,settings")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const rec = asRecord(data);
-    pushPart(parts, "site_inrcy", {
-      site_url: String(rec.site_url ?? ""),
-      settings: rec.settings ?? {},
     });
   } catch {}
 

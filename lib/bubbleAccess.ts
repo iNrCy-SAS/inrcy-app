@@ -1,7 +1,7 @@
 export const APP_BUBBLE_KEYS = [
   "inrbadge",
   "mails",
-  "site_inrcy",
+
   "site_web",
   "gmb",
   "inr_search",
@@ -42,9 +42,7 @@ export type AppBubbleAccessInsertRow = {
 export const APP_BUBBLE_DEFAULT_ACCESS: AppBubbleAccessMap = {
   inrbadge: true,
   mails: true,
-  // Site iNrCy is an opt-in entitlement managed from Supabase/admin.
-  // Fail closed when no authoritative row exists.
-  site_inrcy: false,
+
   site_web: true,
   gmb: true,
   inr_search: true,
@@ -86,7 +84,6 @@ export function isAppBubbleAlwaysEnabled(bubbleKey: AppBubbleKey): boolean {
 export function createDefaultBubbleAccessMap(): AppBubbleAccessMap {
   return { ...APP_BUBBLE_DEFAULT_ACCESS };
 }
-
 
 export function createDefaultBubbleAccessRows(userId: string): AppBubbleAccessInsertRow[] {
   return APP_BUBBLE_KEYS.map((bubbleKey) => ({

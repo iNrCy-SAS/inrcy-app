@@ -72,16 +72,16 @@ test("channel-specific typing never guesses an unexposed historical format", () 
   );
 });
 
-test("activity recognizes inR Search and both persisted iNrCy site aliases", () => {
+test("activity groups historical site aliases under Site Web once per event", () => {
   assert.match(shared, /export type InrcyActivityChannelKey = OverviewCubeKey \| "inr_search";/);
   assert.match(
     shared,
-    /export const INRCY_PUBLISHABLE_CHANNELS: InrcyActivityChannelKey\[\] = \[[\s\S]*?"site_inrcy",[\s\S]*?"inr_search",/,
+    /export const INRCY_PUBLISHABLE_CHANNELS: InrcyActivityChannelKey\[\] = \[[\s\S]*?"site_web",[\s\S]*?"inr_search",/,
   );
-  assert.match(shared, /channel === "inrcy_site" \? "site_inrcy" : channel/);
+  assert.match(shared, /channel === "inrcy_site" \|\| channel === "site_inrcy" \|\| channel === "siteinrcy" \? "site_web" : channel/);
   assert.match(
     shared,
-    /channel === "site_inrcy" \? \["site_inrcy", "inrcy_site"\] : \[channel\]/,
+    /channel === "site_web" \? \["site_web", "site_inrcy", "inrcy_site", "siteInrcy"\] : \[channel\]/,
   );
 });
 

@@ -7,7 +7,6 @@ export type PublicationErrorProvider =
   | "youtube_shorts"
   | "pinterest"
   | "x"
-  | "inrcy_site"
   | "site_web"
   | "inr_search";
 

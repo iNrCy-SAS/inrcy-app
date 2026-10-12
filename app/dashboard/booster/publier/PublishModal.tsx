@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -557,7 +558,7 @@ export default function PublishModal({
     Partial<Record<ChannelKey, ChannelPost>>
   >({});
   const [contentWorkspaceOpen, setContentWorkspaceOpen] = useState(false);
-  const [activeCard, setActiveCard] = useState<DisplayKey>("inrcy_site");
+  const [activeCard, setActiveCard] = useState<DisplayKey>("site_web");
   const [isMobile, setIsMobile] = useState(false);
   const [drawerViewportHeight, setDrawerViewportHeight] = useState<
     number | null
@@ -943,7 +944,7 @@ export default function PublishModal({
     Partial<Record<ChannelKey, ChannelImageEditorState>>
   >({});
   const [activeImageChannel, setActiveImageChannel] =
-    useState<ChannelKey>("inrcy_site");
+    useState<ChannelKey>("site_web");
   const [activeImageKeyByChannel, setActiveImageKeyByChannel] = useState<
     Partial<Record<ChannelKey, string>>
   >({});
@@ -1015,7 +1016,7 @@ export default function PublishModal({
   }, []);
 
   const getInitialConnectedChannels = (): Record<ChannelKey, boolean> => ({
-    inrcy_site: !!initialConnectedChannels?.inrcy_site,
+
     site_web: !!initialConnectedChannels?.site_web,
     gmb: !!initialConnectedChannels?.gmb,
     inr_search: !!initialConnectedChannels?.inr_search,
@@ -1639,7 +1640,6 @@ export default function PublishModal({
             json?.preferredWebsiteLabel || "",
           ).trim(),
           siteWebUrl: String(json?.siteWebUrl || "").trim(),
-          inrcySiteUrl: String(json?.inrcySiteUrl || "").trim(),
           phone: String(json?.phone || "").trim(),
           preferredCta: normalizeBoosterPreferredCta(json?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(json?.aiLanguage),
@@ -1821,8 +1821,8 @@ export default function PublishModal({
 
   useEffect(() => {
     if (!displayCards.length) {
-      setActiveCard("inrcy_site");
-      setActiveImageChannel("inrcy_site");
+      setActiveCard("site_web");
+      setActiveImageChannel("site_web");
       return;
     }
     if (!displayCards.includes(activeCard)) {
@@ -2954,7 +2954,7 @@ export default function PublishModal({
           throw new Error(
             String(result?.error || "Brouillon publication introuvable."),
           );
-        const payload = (result?.payload || {}) as any;
+        const payload = normalizeSiteWebPublicationPayload((result?.payload || {}) as any);
         adoptMediaWorkspace(
           payload.mediaWorkspaceId,
           payload.mediaWorkspaceClientKey,
@@ -3176,7 +3176,7 @@ export default function PublishModal({
           );
         const nextActiveCard = isChannelKey(payload.activeCard)
           ? payload.activeCard
-          : "inrcy_site";
+          : "site_web";
         const restoredInstagramSelection = normalizeMetaPublicationSelection(
           payload.instagramPublicationSettings || {
             placement: payload.instagramPublicationPlacement,
@@ -5311,7 +5311,7 @@ export default function PublishModal({
           : post.hashtags || [],
       imageCount: selectedKeys.length,
       formatLabel:
-        channel === "inrcy_site" || channel === "site_web" || channel === "inr_search"
+        channel === "site_web" || channel === "inr_search"
           ? i18nT("preview_format_site")
           : channel === "tiktok"
             ? i18nT("preview_format_tiktok", {
@@ -5343,7 +5343,7 @@ export default function PublishModal({
 
   const activePreviewChannel = selectedChannels.includes(activeImageChannel)
     ? activeImageChannel
-    : selectedChannels[0] || "inrcy_site";
+    : selectedChannels[0] || "site_web";
 
   const activePublicationPreview = (() => {
     if (!selectedChannels.length) return null;
@@ -7450,15 +7450,6 @@ export default function PublishModal({
   const finalReviewPublishableCount = finalReviewItems.filter(
     (item) => item.blockers.length === 0,
   ).length;
-  const finalReviewSiteNotice =
-    resolveChannelMediaMode("inrcy_site") === "images" &&
-    resolveChannelMediaMode("site_web") === "images" &&
-    selectedChannels.includes("inrcy_site") &&
-    selectedChannels.includes("site_web")
-      ? getPublishImageKeysForChannel("inrcy_site").join("|") !==
-        getPublishImageKeysForChannel("site_web").join("|")
-      : false;
-
   const publishReadinessItems = buildFinalReviewItems(
     buildPreparedPostsByChannel(),
   );
@@ -7952,7 +7943,6 @@ export default function PublishModal({
         open={finalReviewOpen}
         styles={styles}
         items={finalReviewItems}
-        showSiteNotice={finalReviewSiteNotice}
         hasBlockers={hasFinalReviewBlockers}
         publishableCount={finalReviewPublishableCount}
         isMobile={isMobile}

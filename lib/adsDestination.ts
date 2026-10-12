@@ -4,7 +4,6 @@ type AdsDestinationCandidates = {
   explicitUrl?: unknown;
   profileWebsiteUrl?: unknown;
   connectedWebsiteUrl?: unknown;
-  inrcyWebsiteUrl?: unknown;
   googleBusinessUrl?: unknown;
   googleBusinessConnected?: boolean;
 };
@@ -36,7 +35,6 @@ export function resolveAdsCampaignDestination(candidates: AdsDestinationCandidat
   for (const value of [
     candidates.profileWebsiteUrl,
     candidates.connectedWebsiteUrl,
-    candidates.inrcyWebsiteUrl,
   ]) {
     const url = verifiedAdsDestinationUrl(value);
     if (url) return { url, source: "website" };

@@ -24,7 +24,6 @@ type PublishFinalReviewModalProps = {
   open: boolean;
   styles: PublishModalStyles;
   items: PublishFinalReviewItem[];
-  showSiteNotice: boolean;
   hasBlockers: boolean;
   publishableCount: number;
   isMobile: boolean;
@@ -37,7 +36,6 @@ export default function PublishFinalReviewModal({
   open,
   styles,
   items,
-  showSiteNotice,
   hasBlockers,
   publishableCount,
   isMobile,
@@ -115,21 +113,6 @@ export default function PublishFinalReviewModal({
           >
             {i18nT("value_canal_aux_selectionne_s_e508e84f", { value0: items.length })}</div>
         </div>
-
-        {showSiteNotice ? (
-          <div
-            style={{
-              borderRadius: 14,
-              padding: 12,
-              background: "rgba(76,195,255,0.08)",
-              border: "1px solid rgba(76,195,255,0.18)",
-              color: "rgba(255,255,255,0.82)",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            {i18nT("site_inrcy_et_site_web_ont_8098e8ca")}{" "}</div>
-        ) : null}
 
         <div style={{ display: "grid", gap: isMobile ? 10 : 14 }}>
           {items.map((item) => {

@@ -264,7 +264,7 @@ test("reference document extracts are part of the shared AI context", () => {
   assert.match(source, /fitBusinessDnaDocuments/);
   assert.match(
     budget,
-    /key === "website" \|\| key === "inrcy_site" \|\| key === "reference_documents"\) return 5/,
+    /key === "website" \|\| key === "reference_documents"\) return 5/,
   );
 });
 

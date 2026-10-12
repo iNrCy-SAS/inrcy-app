@@ -40,8 +40,7 @@ const SUB_SELECT =
 const TOOL_LABELS: Record<AppBubbleKey, { label: string; group: string; description: string; default_enabled: boolean }> = {
   inrbadge: { label: "iNr’Badge", group: "Entrée", description: "QR code public et prise de contact.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.inrbadge },
   mails: { label: "Mails", group: "Diffusion", description: "Comptes mails et diffusion par email.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.mails },
-  site_inrcy: { label: "Site iNrCy", group: "Diffusion", description: "Site généré par iNrCy.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.site_inrcy },
-  site_web: { label: "Site Web", group: "Diffusion", description: "Site externe du professionnel.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.site_web },
+  site_web: { label: "Site Web", group: "Diffusion", description: "Site du professionnel.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.site_web },
   gmb: { label: "Google Business", group: "Réseaux", description: "Fiche Google Business Profile.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.gmb },
   inr_search: { label: "iNr'Search", group: "Visibilité", description: "Page publique créée par iNrCy et optimisée pour Google, Bing et les moteurs IA.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.inr_search },
   facebook: { label: "Facebook", group: "Réseaux", description: "Page Facebook.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.facebook },

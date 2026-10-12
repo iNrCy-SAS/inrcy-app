@@ -2816,10 +2816,6 @@
   box-shadow: none;
 }
 
-.channelScroller button[data-channel="siteInrcy"] img {
-  transform: scale(0.92);
-}
-
 .channelScroller button[data-channel="siteWeb"] img {
   transform: scale(1.24);
 }
@@ -4225,13 +4221,6 @@
   transform: scale(1.24);
 }
 
-.settingsModal:not(.helpModal)
-  .choiceGrid
-  button[data-channel="siteInrcy"]
-  img {
-  transform: scale(0.94);
-}
-
 .settingsModal:not(.helpModal) .choiceGrid button[data-channel="siteWeb"] img {
   transform: scale(1.24);
 }
@@ -5200,10 +5189,6 @@
   object-fit: contain !important;
   transform: scale(1) !important;
   padding: 3px !important;
-}
-
-.previewMeta .channelScroller button[data-channel="siteInrcy"] img {
-  transform: scale(0.86) !important;
 }
 
 .previewMeta .channelScroller button[data-channel="gmb"] img {
@@ -20818,14 +20803,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     clip-path: none !important;
   }
 
-  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img {
-    width: 24px !important;
-    height: 24px !important;
-    max-width: 24px !important;
-    max-height: 24px !important;
-    transform: translate(-50%, -50%) !important;
-  }
-
   .previewMetaPublish .channelScroller button[data-channel="gmb"] img {
     width: 24px !important;
     height: 24px !important;
@@ -20864,7 +20841,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .channelScroller button img,
-  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img,
   .previewMetaPublish .channelScroller button[data-channel="gmb"] img,
   .previewMetaPublish
     .channelScroller
@@ -20894,7 +20870,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .channelScroller button img,
-  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img,
   .previewMetaPublish .channelScroller button[data-channel="gmb"] img,
   .previewMetaPublish
     .channelScroller
@@ -20928,14 +20903,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     max-width: 22px !important;
     max-height: 22px !important;
     clip-path: none !important;
-  }
-
-  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img {
-    width: 22px !important;
-    height: 22px !important;
-    max-width: 22px !important;
-    max-height: 22px !important;
-    transform: translate(-50%, -50%) !important;
   }
 
   .previewMetaPublish .channelScroller button[data-channel="gmb"] img {

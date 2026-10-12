@@ -52,7 +52,6 @@ test("the dashboard explains Google consent and offers product-specific retries"
   const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const banner = read("app/dashboard/_components/GoogleOAuthConsentBanner.tsx");
   const googleBusiness = read("app/dashboard/_components/GoogleBusinessPanel.tsx");
-  const siteInrcy = read("app/dashboard/_components/SiteInrcyPanel.tsx");
   const siteWeb = read("app/dashboard/_components/SiteWebPanel.tsx");
   const youtube = read("app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx");
 
@@ -61,7 +60,7 @@ test("the dashboard explains Google consent and offers product-specific retries"
   )?.[1] ?? "";
   assert.deepEqual(
     [...localPanelSet.matchAll(/"([^"]+)"/g)].map((match) => match[1]),
-    ["gmb", "site_inrcy", "site_web", "youtube_shorts"],
+    ["gmb", "site_web", "youtube_shorts"],
   );
   assert.match(
     drawer,
@@ -70,7 +69,6 @@ test("the dashboard explains Google consent and offers product-specific retries"
   assert.match(googleBusiness, /<GoogleOAuthConsentBanner panel="gmb" variant="inline" \/>/);
   assert.match(youtube, /<GoogleOAuthConsentBanner panel="youtube_shorts" variant="inline" \/>/);
   for (const [source, panel] of [
-    [siteInrcy, "site_inrcy"],
     [siteWeb, "site_web"],
   ] as const) {
     assert.ok(

@@ -40,7 +40,6 @@ export type BoosterCtaDefaults = {
   preferredWebsiteUrl: string;
   preferredWebsiteLabel: string;
   siteWebUrl: string;
-  inrcySiteUrl: string;
   phone: string;
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
@@ -260,14 +259,12 @@ export function getPreferredWebsiteUrlForChannel(
 ) {
   if (!defaults) return "";
   const siteWebUrl = normalizeCtaWebsiteUrl(defaults.siteWebUrl);
-  const inrcySiteUrl = normalizeCtaWebsiteUrl(defaults.inrcySiteUrl);
   const preferredWebsiteUrl = normalizeCtaWebsiteUrl(
     defaults.preferredWebsiteUrl,
   );
 
-  if (channel === "inrcy_site") return inrcySiteUrl || preferredWebsiteUrl;
   if (channel === "site_web") return siteWebUrl || preferredWebsiteUrl;
-  return preferredWebsiteUrl || siteWebUrl || inrcySiteUrl;
+  return preferredWebsiteUrl || siteWebUrl;
 }
 
 function emptyCta(): BoosterStructuredCtaPatch {

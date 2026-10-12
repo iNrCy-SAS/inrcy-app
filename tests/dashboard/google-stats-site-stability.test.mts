@@ -84,14 +84,10 @@ test("Dashboard and iNrStats consume the same canonical site state", () => {
   const blocks = readFileSync(new URL("../../lib/inrstats/channelBlocks.ts", import.meta.url), "utf8");
   const state = readFileSync(new URL("../../lib/channelConnectionState.ts", import.meta.url), "utf8");
 
-  assert.match(dashboard, /siteInrcyGa4Connected = states\?\.site_inrcy\?\.ga4 === true/);
   assert.match(dashboard, /siteWebGscConnected = states\?\.site_web\?\.gsc === true/);
-  assert.doesNotMatch(dashboard, /states\?\.site_inrcy\?\.ga4 \|\| ga4MeasurementIdValue/);
-  assert.match(foundations, /site_inrcy: states\.site_inrcy\?\.statsConnected === true/);
   assert.match(foundations, /site_web: states\.site_web\?\.statsConnected === true/);
-  assert.doesNotMatch(foundations, /site_inrcy\?\.ga4 \|\|/);
-  assert.match(blocks, /case 'site_inrcy':[\s\S]*connected: state\.statsConnected[\s\S]*connectionStatus: state\.statsConnected/);
-  assert.match(state, /const inrcyStatsConnected = inrcyGa4 \|\| inrcyGsc/);
+  assert.doesNotMatch(state, /inrcy_site_configs|inrcy_site_ownership|site_inrcy/);
+  assert.match(blocks, /case 'site_web':[\s\S]*connected: state\.statsConnected[\s\S]*connectionStatus: state\.statsConnected/);
   assert.match(state, /const webStatsConnected = webGa4 \|\| webGsc/);
 });
 

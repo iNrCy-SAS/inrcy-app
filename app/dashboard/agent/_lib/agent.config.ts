@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 import type { CSSProperties } from "react";
 import {
   INR_MEDIA_IMAGE_MAX_BYTES,
@@ -25,7 +26,6 @@ export const AGENT_MEDIA_MAX_VIDEO_BYTES = INR_MEDIA_VIDEO_SOURCE_MAX_BYTES;
 export const ROBOT_SRC = "/agent/inr-agent-robot-cutout.webp";
 
 export const channelOptions: Record<ChannelKey, { name: string; src: string }> = {
-  siteInrcy: { name: "Site iNrCy", src: "/icons/inrcy.png" },
   siteWeb: { name: "Site Web", src: "/icons/site-web.jpg" },
   gmb: { name: "Google Business", src: "/icons/google.jpg" },
   inrSearch: { name: "iNr'Search", src: "/icons/inr-search-bubble-128.png" },
@@ -50,11 +50,7 @@ export const statsRubriqueOptions: Record<
     src: "/icons/mails-inrcy-dashboard-v2.png",
     channelKey: "mails",
   },
-  "Site iNrCy": {
-    name: "Site iNrCy",
-    src: "/icons/inrcy.png",
-    channelKey: "siteInrcy",
-  },
+
   "Site Web": {
     name: "Site Web",
     src: "/icons/site-web.jpg",
@@ -95,7 +91,6 @@ export const statsRubriqueOptions: Record<
 };
 
 export const channelOrder: ChannelKey[] = [
-  "siteInrcy",
   "siteWeb",
   "gmb",
   "inrSearch",
@@ -114,9 +109,6 @@ export const channelOrderRank = Object.fromEntries(
 ) as Record<ChannelKey, number>;
 
 export const apiChannelToUi: Record<string, ChannelKey> = {
-  inrcy_site: "siteInrcy",
-  site_inrcy: "siteInrcy",
-  siteInrcy: "siteInrcy",
   site_web: "siteWeb",
   siteWeb: "siteWeb",
   inr_search: "inrSearch",
@@ -139,7 +131,6 @@ export const apiChannelToUi: Record<string, ChannelKey> = {
 };
 
 export const channelPayloadKeys: Record<ChannelKey, string[]> = {
-  siteInrcy: ["inrcy_site", "site_inrcy", "siteInrcy"],
   siteWeb: ["site_web", "siteWeb"],
   inrSearch: ["inr_search", "inrSearch"],
   gmb: ["gmb", "google_business"],
@@ -156,7 +147,6 @@ export const channelPayloadKeys: Record<ChannelKey, string[]> = {
 export const agentChannelToBoosterDisplay: Partial<
   Record<ChannelKey, BoosterDisplayKey>
 > = {
-  siteInrcy: "inrcy_site",
   siteWeb: "site_web",
   inrSearch: "inr_search",
   gmb: "gmb",
@@ -315,7 +305,7 @@ export const automations: Automation[] = [
       "Recrutement",
     ],
     availableChannels: [
-      "siteInrcy",
+
       "siteWeb",
       "gmb",
       "inrSearch",
@@ -356,7 +346,7 @@ export const automations: Automation[] = [
       "Vue globale",
       "iNrBadge",
       "Mails",
-      "Site iNrCy",
+
       "Site Web",
       "Google Business",
       "Facebook",
@@ -406,7 +396,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     ],
     monthDays: [10],
     channels: [
-      "siteInrcy",
+
       "siteWeb",
       "gmb",
       "inrSearch",
@@ -511,7 +501,6 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
 };
 
 export const channelToApi: Record<ChannelKey, InrAgentChannel> = {
-  siteInrcy: "site_inrcy",
   siteWeb: "site_web",
   gmb: "gmb",
   inrSearch: "inr_search",
@@ -530,8 +519,6 @@ export const apiToChannel = Object.fromEntries(
 ) as Record<InrAgentChannel, ChannelKey>;
 
 export const agentPublishChannelToBoosterChannel: Record<string, string> = {
-  siteInrcy: "inrcy_site",
-  site_inrcy: "inrcy_site",
   siteWeb: "site_web",
   site_web: "site_web",
   inrSearch: "inr_search",
@@ -551,7 +538,7 @@ export const agentPublishChannelToBoosterChannel: Record<string, string> = {
   pinterest: "pinterest",
 };
 
-export const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
+export const DASHBOARD_CHANNEL_STATE_CACHE_KEY = DASHBOARD_CACHE_KEYS.channelState;
 
 export const INR_AGENT_VIEW_CACHE_KEY = "inrcy_agent_view_cache_v1";
 
@@ -576,7 +563,7 @@ export const themeToApi: Record<string, InrAgentTheme> = {
   "Vue globale": "vue_globale",
   iNrBadge: "inrbadge",
   Mails: "mails",
-  "Site iNrCy": "site_inrcy",
+
   "Site Web": "site_web",
   "iNr'Search": "inr_search",
   "Google Business": "gmb",

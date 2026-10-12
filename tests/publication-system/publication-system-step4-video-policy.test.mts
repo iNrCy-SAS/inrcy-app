@@ -29,7 +29,6 @@ test("la vidéo originale acceptée reste publiable sur les canaux à 75 Mo", ()
     "tiktok",
     "youtube_shorts",
     "pinterest",
-    "inrcy_site",
     "site_web",
     "inr_search",
   ] as const) {

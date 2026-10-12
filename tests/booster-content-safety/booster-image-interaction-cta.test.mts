@@ -46,7 +46,7 @@ test("image CTA respects provider support and existing explicit CTAs", () => {
       { ...post, ctaPhone: "+33123456789" },
     ]) assert.equal(cta.applyImageInteractionCtaFallback(channel, explicit, link), explicit);
   }
-  for (const channel of ["inrcy_site", "site_web", "inr_search", "instagram", "tiktok", "youtube_shorts", "x"] as BoosterChannelKey[]) {
+  for (const channel of ["site_web", "inr_search", "instagram", "tiktok", "youtube_shorts", "x"] as BoosterChannelKey[]) {
     assert.equal(cta.applyImageInteractionCtaFallback(channel, post, link), post);
   }
   assert.equal(post.ctaUrl, undefined, "shared source post must remain immutable");

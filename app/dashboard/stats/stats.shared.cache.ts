@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS, DASHBOARD_CACHE_PREFIXES, hasRetiredWebsiteSnapshot } from "@/lib/dashboardCacheKeys";
 import { readAccountCacheValue, removeAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
 import { type InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
@@ -7,11 +8,11 @@ import { safeNum } from "./stats.shared.core";
 export const AVAILABLE_PERIODS: Period[] = [7, 14, 30, 60];
 
 export function cubeSessionKey(period: Period) {
-  return `inrcy_stats_cube_snapshot_v1:${period}`;
+  return `${DASHBOARD_CACHE_PREFIXES.statsCube}${period}`;
 }
 
 export function summarySessionKey(period: Period) {
-  return `inrcy_stats_summary_snapshot_v2:${period}`;
+  return `${DASHBOARD_CACHE_PREFIXES.statsSummary}${period}`;
 }
 
 export function readUiCacheValue(key: string): string | null {
@@ -26,7 +27,7 @@ export function removeUiCacheValue(key: string) {
   removeAccountCacheValue(key);
 }
 
-const CUBE_KEYS: CubeKey[] = ["inrbadge", "inr_search", "mails", "site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
+const CUBE_KEYS: CubeKey[] = ["inrbadge", "inr_search", "mails",  "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 const REMOTE_STATS_CUBE_KEYS: CubeKey[] = CUBE_KEYS.filter((key) => key !== "mails" && key !== "inrbadge" && key !== "inr_search");
 
 export function hasCapturedLeadsBlocks(blocks: Partial<Record<CubeKey, InrstatsChannelBlock>> | undefined) {
@@ -42,7 +43,7 @@ export function expectedUiSnapshotDate() {
 }
 
 export function getStatsLastChannelSyncAt() {
-  const raw = readUiCacheValue("inrcy_stats_last_channel_sync_v1");
+  const raw = readUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync);
   const n = raw ? Number(raw) : NaN;
   return Number.isFinite(n) ? n : 0;
 }
@@ -62,6 +63,7 @@ export function parseCachedCubeSnapshot(raw: string | null): { syncedAt: number;
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as any;
+    if (hasRetiredWebsiteSnapshot(parsed)) return null;
     if (parsed && typeof parsed === "object" && parsed.overviews && typeof parsed.overviews === "object") {
       return {
         syncedAt: safeNum(parsed.syncedAt),
@@ -95,6 +97,7 @@ export function parseCachedSummarySnapshot(raw: string | null): {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as any;
+    if (hasRetiredWebsiteSnapshot(parsed)) return null;
     if (parsed && typeof parsed === "object") {
       return {
         syncedAt: safeNum(parsed.syncedAt),
@@ -137,7 +140,7 @@ export function emptyCubeState(): Record<CubeKey, CubeState> {
   return {
     inrbadge: { ov: null, loading: false, capturedLeads: { week: 0, month: 0 } },
     inr_search: { ov: null, loading: false, capturedLeads: { week: 0, month: 0 } },
-    site_inrcy: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
+
     site_web: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     gmb: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     facebook: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },

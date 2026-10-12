@@ -13,15 +13,10 @@ export async function loadBoosterCtaDefaults(args: {
   supabase: SupabaseClient;
   userId: string;
 }): Promise<BoosterCtaDefaults> {
-  const [profileRes, inrcyCfgRes, proCfgRes, businessRes] = await Promise.all([
+  const [profileRes, proCfgRes, businessRes] = await Promise.all([
     args.supabase
       .from("profiles")
       .select("phone")
-      .eq("user_id", args.userId)
-      .maybeSingle(),
-    args.supabase
-      .from("inrcy_site_configs")
-      .select("site_url")
       .eq("user_id", args.userId)
       .maybeSingle(),
     args.supabase
@@ -39,24 +34,17 @@ export async function loadBoosterCtaDefaults(args: {
   ]);
 
   const profile = asRecord(profileRes.data);
-  const inrcyCfg = asRecord(inrcyCfgRes.data);
   const proSettings = asRecord(asRecord(proCfgRes.data).settings);
   const businessProfile = asRecord(businessRes.data);
   const siteWeb = asRecord(proSettings.site_web);
   const youtubeDefaults = asRecord(asRecord(proSettings.youtube_shorts).defaults);
   const siteWebUrl = (asString(siteWeb.url) || "").trim();
-  const inrcySiteUrl = (asString(inrcyCfg.site_url) || "").trim();
-  const preferredWebsiteUrl = siteWebUrl || inrcySiteUrl;
+  const preferredWebsiteUrl = siteWebUrl;
 
   return {
     preferredWebsiteUrl,
-    preferredWebsiteLabel: siteWebUrl
-      ? "Site web connecté"
-      : inrcySiteUrl
-        ? "Site iNrCy"
-        : "",
+    preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "",
     siteWebUrl,
-    inrcySiteUrl,
     phone: (asString(profile.phone) || "").trim(),
     preferredCta: normalizeBoosterPreferredCta(
       asString(businessProfile.preferred_cta) || "devis",

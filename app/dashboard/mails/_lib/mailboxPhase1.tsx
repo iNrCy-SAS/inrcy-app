@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel, normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import React from "react";
 import styles from "../mails.module.css";
 import type { MailCampaignRecipientInput } from "@/lib/crmRecipients";
@@ -489,7 +490,7 @@ export type PublicationPreviewLayout = {
 };
 
 export const PUBLICATION_CHANNEL_PRESETS: Record<string, PublicationImageRenderPreset> = {
-  inrcy_site: { width: 1440, height: 900, defaultFit: "contain", defaultBlurBackground: false },
+
   site_web: { width: 1440, height: 900, defaultFit: "contain", defaultBlurBackground: false },
   inr_search: { width: 1440, height: 900, defaultFit: "contain", defaultBlurBackground: false },
   gmb: { width: 1200, height: 900, defaultFit: "contain", defaultBlurBackground: false },
@@ -979,7 +980,6 @@ export function extractAttachmentsFromPayload(payload: any): PublicationAttachme
     .filter(Boolean) as PublicationAttachment[];
 }
 
-
 export function hasAttachmentFields(payload: any): boolean {
   if (!payload || typeof payload !== "object") return false;
   return [
@@ -1072,19 +1072,19 @@ export function extractPublicationParts(payload: any): PublicationParts {
     null;
   const videoSettings =
     payload.videoSettings && typeof payload.videoSettings === "object"
-      ? normalizeChannelVideoSettings("inrcy_site", payload.videoSettings)
+      ? normalizeChannelVideoSettings("site_web", payload.videoSettings)
       : null;
 
   return { title, content, cta, ctaMode, ctaUrl, ctaPhone, hashtags, attachments, mediaMode, videoSettings, sourceVideo };
 }
 
 export function normalizeChannelKey(channel: string): string {
-  const normalized = String(channel || "").trim().toLowerCase();
+  const normalized = canonicalSiteWebChannel(channel).toLowerCase();
   switch (normalized) {
-    case "inrcy_site":
-    case "site_inrcy":
+
+
     case "site inrcy":
-      return "inrcy_site";
+      return "site_web";
     case "site_web":
     case "site web":
     case "website":
@@ -1112,8 +1112,7 @@ export function normalizeChannelKey(channel: string): string {
 export function formatChannelLabel(channel: string): string {
   const normalized = normalizeChannelKey(channel);
   switch (normalized) {
-    case "inrcy_site":
-      return "Site iNrCy";
+
     case "site_web":
       return "Site web";
     case "inr_search":
@@ -1142,8 +1141,7 @@ export function formatChannelLabel(channel: string): string {
 export function channelApiPath(channel: string): string {
   const normalized = normalizeChannelKey(channel);
   switch (normalized) {
-    case "inrcy_site":
-      return "site-inrcy";
+
     case "site_web":
       return "site-web";
     case "inr_search":
@@ -1210,7 +1208,7 @@ export function isCancelledChannelResult(result: any): boolean {
 }
 
 export function orderChannelKeys(channels: string[]): string[] {
-  const priority = ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x"];
+  const priority = [ "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x"];
   const normalizedUnique = Array.from(new Set(channels.map((channel) => normalizeChannelKey(channel)).filter(Boolean)));
   return normalizedUnique.sort((a, b) => {
     const indexA = priority.indexOf(a);
@@ -1223,7 +1221,7 @@ export function orderChannelKeys(channels: string[]): string[] {
 }
 
 export function extractPublicationResults(payload: any): Record<string, any> {
-  return payload?.results && typeof payload.results === "object" ? payload.results : {};
+  return normalizeSiteWebChannelMap(payload?.results);
 }
 
 export function isFailedChannelResult(result: any): boolean {
@@ -1455,6 +1453,7 @@ export function renderPublicationChannelsWithFailures(payload: any, fallbackChan
 
 export function extractChannelPublications(payload: any): ChannelPublication[] {
   if (!payload || typeof payload !== "object") return [];
+  payload = normalizeSiteWebPublicationPayload(payload);
 
   const explicitChannels = [
     ...extractChannelsFromPayload(payload),
@@ -1472,7 +1471,7 @@ export function extractChannelPublications(payload: any): ChannelPublication[] {
     if (!(cleaned in acc)) acc[cleaned] = value;
     if (channelSet.has(cleaned)) return acc;
 
-    const isSiteMirror = (cleaned === "inrcy_site" || cleaned === "site_web") && (channelSet.has("inrcy_site") || channelSet.has("site_web"));
+    const isSiteMirror = cleaned === "site_web" && channelSet.has("site_web");
     if (!hasExplicitChannels && !isSiteMirror) {
       channelSet.add(cleaned);
     }
@@ -1627,7 +1626,6 @@ export function toolbarActionTheme(f: Folder): React.CSSProperties {
   } as React.CSSProperties;
 }
 
-
 export function bulkConfirmationMessage(recipientCount: number): string {
   if (recipientCount >= BULK_CONFIRM_STRONG_THRESHOLD) {
     return `Confirmer l’envoi de cette campagne à ${recipientCount} destinataires ?\n\nChaque contact recevra un email individuel. Les quotas, pauses automatiques et reprises par vagues s’appliqueront si nécessaire.\n\nVérifiez l’objet, le contenu et la boîte d’envoi avant de continuer.`;
@@ -1767,7 +1765,6 @@ export function campaignReportToHealth(report: CampaignExperienceReport | null |
   };
 }
 
-
 export function applyCampaignRecipientsFilter(query: any, filter: CampaignRecipientsFilterId) {
   switch (filter) {
     case "sent":
@@ -1848,7 +1845,6 @@ export function getCampaignRecipientStatusLabel(recipient: CampaignRecipientLog,
   }
   return "En attente";
 }
-
 
 export function formatOutboxStatusLabel(item: OutboxItem, locale = "fr-FR") {
   if (item.source === "mail_campaigns") {

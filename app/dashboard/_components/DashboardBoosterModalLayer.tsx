@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../dashboard.module.css";
@@ -55,7 +54,7 @@ export default function DashboardBoosterModalLayer({
 }: {
   mode: DashboardBoosterModalMode;
   onClose: () => void;
-  initialConnectedChannels?: Partial<Record<"inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
+  initialConnectedChannels?: Partial<Record<"site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
   const dashboardT = useTranslations("dashboard");
@@ -237,7 +236,6 @@ export default function DashboardBoosterModalLayer({
     router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [activePublishDraftId, i18nT, publishHasUnsavedChanges, router, searchParams]);
 
-
   const handlePublishDraftHeaderStateChange = useCallback((next: PublishDraftHeaderState) => {
     setPublishDraftHeaderState((prev) =>
       prev.saving === next.saving &&
@@ -412,7 +410,7 @@ export default function DashboardBoosterModalLayer({
         done: createActuDone,
       },
       channels: [
-        { name: "Site iNrCy", value: pc("inrcy_site") },
+
         { name: "Site web", value: pc("site_web") },
         { name: "Google Business", value: pc("gmb") },
         { name: "Facebook", value: pc("facebook") },

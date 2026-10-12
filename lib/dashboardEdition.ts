@@ -81,7 +81,6 @@ function isStandardAgentApiPathAllowed(pathname: string): boolean {
 }
 
 export const STANDARD_PUBLICATION_CHANNEL_KEYS = [
-  "site_inrcy",
   "site_web",
   "gmb",
   "inr_search",

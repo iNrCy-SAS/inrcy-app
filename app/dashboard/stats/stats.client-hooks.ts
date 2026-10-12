@@ -1,5 +1,8 @@
 "use client";
 
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
+
+
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import {
   getClientUserFacingApiError as getSimpleFrenchApiError,
@@ -366,7 +369,7 @@ export function useStatsDataController({
           byCube: {
             inrbadge: 0,
             inr_search: 0,
-            site_inrcy: safeNum(cachedSummary.byCube?.site_inrcy),
+
             site_web: safeNum(cachedSummary.byCube?.site_web),
             gmb: safeNum(cachedSummary.byCube?.gmb),
             facebook: safeNum(cachedSummary.byCube?.facebook),
@@ -386,7 +389,7 @@ export function useStatsDataController({
         setSummaryEstimatedByCube({
           inrbadge: 0,
           inr_search: 0,
-          site_inrcy: safeNum(cachedSummary.estimatedByCube?.site_inrcy),
+
           site_web: safeNum(cachedSummary.estimatedByCube?.site_web),
           gmb: safeNum(cachedSummary.estimatedByCube?.gmb),
           facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
@@ -403,7 +406,7 @@ export function useStatsDataController({
       if (targetPeriod === 30 && cachedSummary) {
         syncGeneratorOpportunitiesFromStatsSummary({
           byCube: {
-            site_inrcy: safeNum(cachedSummary.byCube?.site_inrcy),
+
             site_web: safeNum(cachedSummary.byCube?.site_web),
             gmb: safeNum(cachedSummary.byCube?.gmb),
             facebook: safeNum(cachedSummary.byCube?.facebook),
@@ -415,7 +418,7 @@ export function useStatsDataController({
             pinterest: safeNum(cachedSummary.byCube?.pinterest),
           },
           estimatedByCube: {
-            site_inrcy: safeNum(cachedSummary.estimatedByCube?.site_inrcy),
+
             site_web: safeNum(cachedSummary.estimatedByCube?.site_web),
             gmb: safeNum(cachedSummary.estimatedByCube?.gmb),
             facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
@@ -473,7 +476,7 @@ export function useStatsDataController({
       const oppMonth = Number(generator?.details?.opportunities?.month);
       if (Number.isFinite(oppMonth)) {
         try {
-          writeUiCacheValue("inrcy_opp30_total_v1", String(oppMonth));
+          writeUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal, String(oppMonth));
         } catch {
           // ignore
         }
@@ -484,7 +487,7 @@ export function useStatsDataController({
           ? generator.meta.snapshotDate
           : bootstrapSnapshotDate ?? null;
         writeUiCacheValue(
-          "inrcy_generator_kpis_v1",
+          DASHBOARD_CACHE_KEYS.generatorKpis,
           JSON.stringify({ syncedAt: syncAt, snapshotDate: generatorSnapshotDate, payload: generator })
         );
       } catch {
@@ -506,7 +509,7 @@ export function useStatsDataController({
           byCube: {
             inrbadge: 0,
             inr_search: 0,
-            site_inrcy: safeNum(payload?.opportunities?.byCube?.site_inrcy),
+
             site_web: safeNum(payload?.opportunities?.byCube?.site_web),
             gmb: safeNum(payload?.opportunities?.byCube?.gmb),
             facebook: safeNum(payload?.opportunities?.byCube?.facebook),
@@ -526,7 +529,7 @@ export function useStatsDataController({
         estimatedByCube: {
           inrbadge: 0,
           inr_search: 0,
-          site_inrcy: safeNum(payload?.estimatedByCube?.site_inrcy),
+
           site_web: safeNum(payload?.estimatedByCube?.site_web),
           gmb: safeNum(payload?.estimatedByCube?.gmb),
           facebook: safeNum(payload?.estimatedByCube?.facebook),
@@ -797,7 +800,6 @@ export function useStatsDataController({
     };
   }, [refreshInrSearchStats, refreshNonce]);
 
-
   const hydrateFromSessionCache = useCallback((targetPeriod: Period) => {
     const lastChannelSyncAt = getStatsLastChannelSyncAt();
     const cachedCube = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(targetPeriod)));
@@ -833,7 +835,7 @@ export function useStatsDataController({
       byCube: {
         inrbadge: 0,
         inr_search: 0,
-        site_inrcy: safeNum(byCubePartial.site_inrcy),
+
         site_web: safeNum(byCubePartial.site_web),
         gmb: safeNum(byCubePartial.gmb),
         facebook: safeNum(byCubePartial.facebook),
@@ -853,7 +855,7 @@ export function useStatsDataController({
     setSummaryEstimatedByCube({
       inrbadge: 0,
       inr_search: 0,
-      site_inrcy: safeNum(estimatedByCubePartial.site_inrcy),
+
       site_web: safeNum(estimatedByCubePartial.site_web),
       gmb: safeNum(estimatedByCubePartial.gmb),
       facebook: safeNum(estimatedByCubePartial.facebook),
@@ -867,7 +869,6 @@ export function useStatsDataController({
     });
     return true;
   }, []);
-
 
   const fetchBulkStats = async (period: Period, forceFresh = false): Promise<BulkFetchResult> => {
     const params = new URLSearchParams({ days: String(period) });
@@ -889,7 +890,7 @@ export function useStatsDataController({
         byCube: {
           inrbadge: 0,
           inr_search: 0,
-          site_inrcy: safeNum(byCubePartial.site_inrcy),
+
           site_web: safeNum(byCubePartial.site_web),
           gmb: safeNum(byCubePartial.gmb),
           facebook: safeNum(byCubePartial.facebook),
@@ -909,7 +910,7 @@ export function useStatsDataController({
       estimatedByCube: {
         inrbadge: 0,
         inr_search: 0,
-        site_inrcy: safeNum(json?.estimatedByCube?.site_inrcy),
+
         site_web: safeNum(json?.estimatedByCube?.site_web),
         gmb: safeNum(json?.estimatedByCube?.gmb),
         facebook: safeNum(json?.estimatedByCube?.facebook),
@@ -981,7 +982,7 @@ export function useStatsDataController({
   useEffect(() => {
   if (!dailyBootReady) return;
   let cancelled = false;
-  const keys: CubeKey[] = ["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
+  const keys: CubeKey[] = [ "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 
   (async () => {
     // Only a complete snapshot for the current day may reach the UI. Older
@@ -1089,7 +1090,6 @@ export function useStatsDataController({
       window.removeEventListener(PROFILE_VERSION_EVENT, handleProfileVersionChange as EventListener);
     };
   }, [syncFromServerCacheIfNeeded]);
-
 
   useEffect(() => {
     if (!dailyBootReady) return;

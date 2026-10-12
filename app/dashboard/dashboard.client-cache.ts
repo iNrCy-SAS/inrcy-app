@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS, DASHBOARD_CACHE_PREFIXES, hasRetiredWebsiteSnapshot } from "@/lib/dashboardCacheKeys";
 import { readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { createEmptyChannelBlock, createEmptyChannelBlocks, type InrstatsChannelBlock, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
@@ -8,14 +9,14 @@ export type StatsWarmPeriod = 7 | 14 | 30 | 60;
 
 type ChannelSyncMap = Partial<Record<DashboardChannelKey, number>>;
 
-const CHANNEL_SYNC_MAP_KEY = "inrcy_stats_last_channel_syncs_v1";
+const CHANNEL_SYNC_MAP_KEY = DASHBOARD_CACHE_KEYS.channelSyncs;
 
 export function statsCubeSessionKey(period: StatsWarmPeriod) {
-  return `inrcy_stats_cube_snapshot_v1:${period}`;
+  return `${DASHBOARD_CACHE_PREFIXES.statsCube}${period}`;
 }
 
 export function statsSummarySessionKey(period: StatsWarmPeriod) {
-  return `inrcy_stats_summary_snapshot_v2:${period}`;
+  return `${DASHBOARD_CACHE_PREFIXES.statsSummary}${period}`;
 }
 
 export function readUiCacheValue(key: string, accountId?: string | null): string | null {
@@ -27,7 +28,7 @@ export function writeUiCacheValue(key: string, value: string) {
 }
 
 function readLegacyLastChannelSyncAt() {
-  const raw = readUiCacheValue("inrcy_stats_last_channel_sync_v1");
+  const raw = readUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync);
   const n = raw ? Number(raw) : Number.NaN;
   return Number.isFinite(n) ? n : 0;
 }
@@ -69,7 +70,7 @@ export function markChannelsSynced(channels: DashboardChannelKey[], at?: number)
   }
   writeChannelSyncMap(next);
   try {
-    writeUiCacheValue("inrcy_stats_last_channel_sync_v1", String(syncAt));
+    writeUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync, String(syncAt));
   } catch {
     // ignore
   }
@@ -105,9 +106,10 @@ export function getOverviewSnapshotDate(overviews: unknown): string | null {
 
 export function readGeneratorCache(): { syncedAt: number; payload: any | null; snapshotDate: string | null } | null {
   try {
-    const raw = readUiCacheValue("inrcy_generator_kpis_v1");
+    const raw = readUiCacheValue(DASHBOARD_CACHE_KEYS.generatorKpis);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    if (hasRetiredWebsiteSnapshot(parsed)) return null;
     if (parsed && typeof parsed === "object" && "payload" in parsed) {
       return {
         syncedAt: Number.isFinite(Number((parsed as any).syncedAt)) ? Number((parsed as any).syncedAt) : 0,
@@ -123,14 +125,13 @@ export function readGeneratorCache(): { syncedAt: number; payload: any | null; s
 
 export function readCachedOppTotal() {
   try {
-    const raw = readUiCacheValue("inrcy_opp30_total_v1");
+    const raw = readUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal);
     const n = raw ? Number(raw) : Number.NaN;
     return Number.isFinite(n) ? n : null;
   } catch {
     return null;
   }
 }
-
 
 export function readCachedGeneratorChannelSyncAt(channel: DashboardChannelKey): number {
   try {
@@ -172,6 +173,7 @@ export function readSnapshotSyncAt(key: string): number {
     const raw = readUiCacheValue(key);
     if (!raw) return 0;
     const parsed = JSON.parse(raw) as any;
+    if (hasRetiredWebsiteSnapshot(parsed)) return 0;
     const syncedAt = Number(parsed?.syncedAt);
     return Number.isFinite(syncedAt) ? syncedAt : 0;
   } catch {
@@ -185,6 +187,7 @@ export function readCachedChannelBlocks(periods: StatsWarmPeriod[] = [30, 7]): I
       const raw = readUiCacheValue(statsCubeSessionKey(period));
       if (!raw) continue;
       const parsed = JSON.parse(raw) as { blocks?: unknown } | null;
+      if (hasRetiredWebsiteSnapshot(parsed)) continue;
       const blocks = parsed?.blocks;
       if (blocks && typeof blocks === "object" && !Array.isArray(blocks)) {
         return normalizeCachedChannelBlocks(blocks);
@@ -201,6 +204,7 @@ export function readCachedChannelSyncAt(period: StatsWarmPeriod, channel: Dashbo
     const raw = readUiCacheValue(statsCubeSessionKey(period));
     if (!raw) return 0;
     const parsed = JSON.parse(raw) as { blocks?: unknown; overviews?: Record<string, unknown> } | null;
+    if (hasRetiredWebsiteSnapshot(parsed)) return 0;
     const blockSync = Number((parsed?.blocks as any)?.[channel]?.syncAt);
     if (Number.isFinite(blockSync) && blockSync > 0) return blockSync;
 
@@ -230,7 +234,6 @@ export function hasFreshLocalGeneratorSnapshot() {
     (cached as any).snapshotDate === expectedUiSnapshotDate()
   );
 }
-
 
 function toNonNegativeInt(value: unknown) {
   const n = Number(value);
@@ -286,7 +289,7 @@ function isGeneratorBlockActiveFromStatsBlock(block: InrstatsChannelBlock | null
   const connection = block?.connection;
   if (!connection) return undefined;
   if (connection.requiresUpdate || connection.connectionStatus === "needs_update") return false;
-  if (block?.channel === "site_inrcy" || block?.channel === "site_web") {
+  if (block?.channel === "site_web") {
     return Boolean(connection.statsConnected);
   }
   return Boolean(connection.connected);
@@ -311,7 +314,7 @@ export function syncGeneratorOpportunitiesFromStatsSummary(params: {
   const nextSyncedAt = Number.isFinite(Number(params.syncedAt)) ? Number(params.syncedAt) : Date.now();
 
   try {
-    writeUiCacheValue("inrcy_opp30_total_v1", String(total));
+    writeUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal, String(total));
   } catch {
     // ignore browser storage failures
   }
@@ -382,7 +385,7 @@ export function syncGeneratorOpportunitiesFromStatsSummary(params: {
     };
 
     writeUiCacheValue(
-      "inrcy_generator_kpis_v1",
+      DASHBOARD_CACHE_KEYS.generatorKpis,
       JSON.stringify({
         syncedAt: nextSyncedAt,
         snapshotDate: resolvedSnapshotDate,
@@ -439,7 +442,7 @@ export function mergeGeneratorChannelBlockIntoCachedKpis(params: {
     };
 
     writeUiCacheValue(
-      "inrcy_generator_kpis_v1",
+      DASHBOARD_CACHE_KEYS.generatorKpis,
       JSON.stringify({
         syncedAt: nextSyncedAt,
         snapshotDate: resolvedSnapshotDate,

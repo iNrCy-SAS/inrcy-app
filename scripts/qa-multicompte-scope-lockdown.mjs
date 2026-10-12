@@ -47,7 +47,6 @@ const criticalTables = new Set([
   "profiles",
   "business_profiles",
   "pro_tools_configs",
-  "inrcy_site_configs",
   "stats_cache",
   "inr_agent_actions",
   "inr_agent_scheduled_actions",

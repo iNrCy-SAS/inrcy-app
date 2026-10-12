@@ -83,7 +83,6 @@
       "rgpd": "Mijn data (GDPR)",
       "mails": "Mail-instellingen",
       "agenda": "iNr’Calendar instellingen",
-      "site_inrcy": "Instellingen — iNrCy-website",
       "site_web": "Instellingen — Website",
       "instagram": "Instellingen — Instagram",
       "linkedin": "Instellingen — LinkedIn",
@@ -307,13 +306,6 @@
       "view": "Open iNr’Send",
       "connect": "Instellen"
     },
-    "site_inrcy": {
-      "name": "Site iNrCy",
-      "description": "Uw leadmotor ⚡",
-      "view": "Site bekijken",
-      "connect": "Google Analytics koppelen",
-      "siteOnlyTitle": "Alleen met iNrCy-site"
-    },
     "site_web": {
       "name": "Website",
       "description": "Bezoek wordt lead 💡",
@@ -441,7 +433,7 @@
     "openDescription": "Zet uw expertise om in rijkere, nauwkeurigere content die echt bij uw bedrijf past.",
     "contentLengthTitle": "Contentlengte",
     "webLengthLabel": "Websites + iNr’Search",
-    "webLengthHint": "Stuurt de iNrCy-site, de externe website en iNr’Search aan.",
+    "webLengthHint": "Stuurt de Website, de externe website en iNr’Search aan.",
     "socialLengthLabel": "Sociale netwerken + Google Business",
     "socialLengthHint": "Stuurt Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest en Google Business aan.",
     "lengthAdapted": "Aangepast — AI kiest per kanaal",

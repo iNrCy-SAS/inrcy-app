@@ -1,9 +1,9 @@
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 import { readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
 import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
 import type { InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
 
 export type CubeKey =
-  | "site_inrcy"
   | "site_web"
   | "gmb"
   | "facebook"
@@ -76,9 +76,9 @@ export async function runDailyStatsRefreshBootstrap(options?: { announce?: boole
 }
 
 
-const DAILY_BOOTSTRAP_UI_STATE_KEY = "inrcy_daily_stats_bootstrap_ui_v1";
-const DASHBOARD_SERVER_CACHE_UI_STATE_KEY = "inrcy_dashboard_server_cache_check_ui_v1";
-const STATS_SERVER_CACHE_UI_STATE_KEY = "inrcy_stats_server_cache_check_ui_v1";
+const DAILY_BOOTSTRAP_UI_STATE_KEY = DASHBOARD_CACHE_KEYS.dailyBootstrap;
+const DASHBOARD_SERVER_CACHE_UI_STATE_KEY = DASHBOARD_CACHE_KEYS.dashboardServerCheck;
+const STATS_SERVER_CACHE_UI_STATE_KEY = DASHBOARD_CACHE_KEYS.statsServerCheck;
 
 export const UI_BOOTSTRAP_REUSE_TTL_MS = 10 * 60 * 1000;
 // Keep the lightweight server cache check effectively always eligible across sessions/devices.

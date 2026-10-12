@@ -191,7 +191,6 @@ const RECENT_MEDIA_MEMORY_LIMIT = 80;
 const IMAGE_BANK_DIVERSIFICATION_RATE = 0.3;
 
 const boosterToAgentChannel: Record<BoosterChannels, string> = {
-  inrcy_site: "site_inrcy",
   site_web: "site_web",
   inr_search: "inr_search",
   gmb: "gmb",
@@ -242,7 +241,6 @@ const agentToneInstructions: Record<InrAgentTone, string> = {
 };
 
 const channelLabels: Record<string, string> = {
-  site_inrcy: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -256,12 +254,10 @@ const channelLabels: Record<string, string> = {
 };
 
 const siteChannels = new Set<BoosterChannels>([
-  "inrcy_site",
   "site_web",
   "inr_search",
 ]);
 const allowedBoosterChannels = new Set<BoosterChannels>([
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -1331,7 +1327,6 @@ async function selectConnectedChannels(args: {
     .filter(isAllowedBoosterChannel);
 
   const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey> = {
-    inrcy_site: "site_inrcy",
     site_web: "site_web",
     inr_search: "inr_search",
     gmb: "gmb",
@@ -1345,7 +1340,6 @@ async function selectConnectedChannels(args: {
   };
 
   const connected: Record<BoosterChannels, boolean> = {
-    inrcy_site: isOfficialPublicationChannelConnected(states.site_inrcy),
     site_web: isOfficialPublicationChannelConnected(states.site_web),
     inr_search:
       isOfficialPublicationChannelConnected(states.inr_search) &&
@@ -1945,7 +1939,6 @@ function buildPreviewText(
     "instagram",
     "gmb",
     "linkedin",
-    "inrcy_site",
     "site_web",
     "inr_search",
     "tiktok",

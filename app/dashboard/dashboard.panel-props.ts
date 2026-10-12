@@ -113,56 +113,6 @@ export function buildDashboardPanelProps(a: any) {
     useLinkedinPersonalProfile: a.useLinkedinPersonalProfile,
   };
 
-  const siteInrcyPanelProps = {
-    siteInrcyOwnership: a.siteInrcyOwnership,
-    siteInrcyAllGreen: a.siteInrcyAllGreen,
-    siteInrcyContactEmail: a.siteInrcyContactEmail,
-    hasSiteInrcyUrl: a.hasSiteInrcyUrl,
-    siteInrcyUrl: a.siteInrcyUrl,
-    setSiteInrcyUrl: a.setSiteInrcyUrl,
-    setSiteInrcySavedUrl: a.setSiteInrcySavedUrl,
-    applySiteInrcyPublicUrlSaved: a.applySiteInrcyPublicUrlSaved,
-    saveSiteInrcyUrl: a.saveSiteInrcyUrlFromDrawer,
-    deleteSiteInrcyUrl: a.deleteSiteInrcyUrlFromDrawer,
-    siteInrcyUrlBusy: a.isDrawerMutationPending("site_inrcy:url:save") || a.isDrawerMutationPending("site_inrcy:url:delete"),
-    draftSiteInrcyUrlMeta: a.draftSiteInrcyUrlMeta,
-    siteInrcyUrlNotice: a.siteInrcyUrlNotice,
-    siteInrcyGa4Connected: a.siteInrcyGa4Connected,
-    ga4MeasurementId: a.ga4MeasurementId,
-    ga4PropertyId: a.ga4PropertyId,
-    disconnectSiteInrcyGa4: a.disconnectSiteInrcyGa4FromDrawer,
-    siteInrcyGa4Busy: a.isDrawerMutationPending("site_inrcy:ga4:disconnect"),
-    connectSiteInrcyGa4: a.connectSiteInrcyGa4,
-    canConnectSiteInrcyGoogle: a.canConnectSiteInrcyGoogle,
-    canConfigureSite: a.canConfigureSite,
-    siteInrcyGa4Notice: a.siteInrcyGa4Notice,
-    siteInrcyGscConnected: a.siteInrcyGscConnected,
-    gscProperty: a.gscProperty,
-    disconnectSiteInrcyGsc: a.disconnectSiteInrcyGscFromDrawer,
-    siteInrcyGscBusy: a.isDrawerMutationPending("site_inrcy:gsc:disconnect"),
-    connectSiteInrcyGsc: a.connectSiteInrcyGsc,
-    siteInrcyGscNotice: a.siteInrcyGscNotice,
-    siteInrcyActusLayout: a.siteInrcyActusLayout,
-    setSiteInrcyActusLayout: a.setSiteInrcyActusLayout,
-     siteInrcyActusLimit: a.siteInrcyActusLimit,
-     setSiteInrcyActusLimit: a.setSiteInrcyActusLimit,
-     siteInrcyActusFont: a.siteInrcyActusFont,
-     setSiteInrcyActusFont: a.setSiteInrcyActusFont,
-     siteInrcyActusDesign: a.siteInrcyActusDesign,
-     setSiteInrcyActusDesign: a.setSiteInrcyActusDesign,
-     siteInrcyActusTheme: a.siteInrcyActusTheme,
-     setSiteInrcyActusTheme: a.setSiteInrcyActusTheme,
-     siteInrcyActusAccent: a.siteInrcyActusAccent,
-     setSiteInrcyActusAccent: a.setSiteInrcyActusAccent,
-    siteInrcySavedUrl: a.siteInrcySavedUrl,
-    widgetTokenInrcySite: a.widgetTokenInrcySite,
-    showSiteInrcyWidgetCode: a.showSiteInrcyWidgetCode,
-    setShowSiteInrcyWidgetCode: a.setShowSiteInrcyWidgetCode,
-    saveSiteInrcyActusWidgetSettings: a.saveSiteInrcyActusWidgetSettings,
-    siteInrcySettingsError: a.siteInrcySettingsError,
-    resetSiteInrcyAll: a.resetSiteInrcyAll,
-  };
-
   const instagramPanelProps = {
     instagramConnected: a.instagramConnected,
     instagramAccountConnected: a.instagramAccountConnected,
@@ -272,5 +222,5 @@ export function buildDashboardPanelProps(a: any) {
     saveTiktokDefaults: a.saveTiktokDefaults,
   };
 
-  return { siteWebPanelProps, gmbPanelProps, linkedinPanelProps, siteInrcyPanelProps, instagramPanelProps, facebookPanelProps, tiktokPanelProps };
+  return { siteWebPanelProps, gmbPanelProps, linkedinPanelProps,  instagramPanelProps, facebookPanelProps, tiktokPanelProps };
 }

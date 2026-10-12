@@ -58,9 +58,9 @@ test("bubble logos use immutable static assets and stay mounted in the dashboard
   const channels = read("app/dashboard/_components/DashboardChannelsSection.tsx");
   const channelsModal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
 
-  assert.match(constants, /import inrcyBubbleIcon from/);
+  assert.match(constants, /import siteWebBubbleIcon from/);
   assert.match(constants, /DASHBOARD_BUBBLE_ICON_PRELOADS/);
-  assert.match(constants, /moduleIcon\.src|inrcyBubbleIcon\.src/);
+  assert.match(constants, /moduleIcon\.src|siteWebBubbleIcon\.src/);
   assert.match(layout, /DashboardPersistentImageCache/);
   assert.match(persistentCache, /data-dashboard-persistent-image-cache/);
   assert.match(persistentCache, /loading="eager"/);

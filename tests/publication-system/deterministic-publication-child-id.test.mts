@@ -14,7 +14,7 @@ const publishRoute = fs.readFileSync(
 test("publication child ids are stable UUIDs across worker restarts", () => {
   const input = {
     publicationId: "d37e1497-735e-43dd-86f0-c2ee79c9170f",
-    channel: "inrcy_site",
+    channel: "site_web",
     resource: "site_article",
   };
   const first = buildDeterministicPublicationChildId(input);
@@ -29,7 +29,7 @@ test("publication child ids are stable UUIDs across worker restarts", () => {
 test("channels and resource kinds have independent idempotency scopes", () => {
   const base = {
     publicationId: "d37e1497-735e-43dd-86f0-c2ee79c9170f",
-    channel: "inrcy_site",
+    channel: "site_web",
     resource: "site_article",
   };
   assert.notEqual(
@@ -47,7 +47,7 @@ test("empty idempotency dimensions fail closed", () => {
     () =>
       buildDeterministicPublicationChildId({
         publicationId: "",
-        channel: "inrcy_site",
+        channel: "site_web",
         resource: "site_article",
       }),
     /input_required/,

@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel, normalizeSiteWebPublicationPayload } from "./siteWebChannel.ts";
 import { INR_AGENT_AUTOMATION_KEYS, type InrAgentAutomationKey } from "@/lib/inrAgentSettings";
 
 export const INR_AGENT_ACTION_TYPES = ["publication", "campaign", "stats_report", "mailing", "review_request", "loyalty", "custom"] as const;
@@ -144,7 +145,7 @@ function sanitizeUnknownArray(input: unknown): unknown[] {
 
 function sanitizePayload(input: unknown): InrAgentActionPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
-  return input as InrAgentActionPayload;
+  return normalizeSiteWebPublicationPayload(input) as InrAgentActionPayload;
 }
 
 export function rowToInrAgentAction(row: DbInrAgentActionRow): InrAgentAction {
@@ -163,8 +164,8 @@ export function rowToInrAgentAction(row: DbInrAgentActionRow): InrAgentAction {
     title: String(row.title || fallbackTitle),
     summary: String(row.summary || "Action préparée par iNr'Agent."),
     previewText: String(row.preview_text || ""),
-    targetChannels: sanitizeStringArray(row.target_channels),
-    targetThemes: sanitizeStringArray(row.target_themes),
+    targetChannels: Array.from(new Set(sanitizeStringArray(row.target_channels).map(canonicalSiteWebChannel))),
+    targetThemes: Array.from(new Set(sanitizeStringArray(row.target_themes).map(canonicalSiteWebChannel))),
     recipients: sanitizeUnknownArray(row.recipients),
     imageAssets: sanitizeUnknownArray(row.image_assets),
     payload: sanitizePayload(row.payload ?? row.metadata),

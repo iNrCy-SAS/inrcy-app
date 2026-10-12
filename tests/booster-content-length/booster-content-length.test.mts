@@ -11,15 +11,6 @@ import {
 
 test("Booster uses the validated SEO length table for every channel", () => {
   assert.deepEqual(BOOSTER_CHANNEL_CONTENT_RULES, {
-    inrcy_site: {
-      adapted: { min: 1000, max: 1900 },
-      short: { min: 600, max: 950 },
-      medium: { min: 1100, max: 1700 },
-      long: { min: 1800, max: 2600 },
-      deep: { min: 2700, max: 3800 },
-      detailed: { min: 1800, max: 2400 },
-      max: 4200,
-    },
     site_web: {
       adapted: { min: 1100, max: 2100 },
       short: { min: 600, max: 950 },
@@ -183,7 +174,7 @@ test("generated content is capped locally without a second AI call and keeps a n
   assert.match(limitedPinterest, /[.!?…]$/);
 
   const site = `${"Paragraphe SEO local suffisamment développé. ".repeat(90)}Fin.`;
-  const limitedSite = limitBoosterGeneratedContent("inrcy_site", site);
+  const limitedSite = limitBoosterGeneratedContent("site_web", site);
   assert.ok(limitedSite.length <= 4200);
 
   const shortFacebook = "Contenu déjà conforme.";

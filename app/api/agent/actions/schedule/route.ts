@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
 import { prepareBoosterImagesByChannelOnServer } from "@/lib/boosterImageServerPreparation";
@@ -38,7 +39,6 @@ export const maxDuration = 90;
 
 type JsonRecord = Record<string, unknown>;
 type BoosterChannel =
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "gmb"
@@ -81,9 +81,6 @@ const schedulableStatuses = new Set([
 ]);
 
 const agentToBoosterChannel: Record<string, BoosterChannel> = {
-  site_inrcy: "inrcy_site",
-  siteInrcy: "inrcy_site",
-  inrcy_site: "inrcy_site",
   site_web: "site_web",
   siteWeb: "site_web",
   inr_search: "inr_search",
@@ -102,7 +99,7 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
 };
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -468,14 +465,13 @@ function normalizeBoosterChannels(input: unknown): BoosterChannel[] {
     new Set(
       raw
         .map((channel) => {
-          const value = String(channel || "").trim();
+          const value = canonicalSiteWebChannel(channel);
           return agentToBoosterChannel[value] || value;
         })
         .filter((channel): channel is BoosterChannel =>
           Boolean(
             agentToBoosterChannel[channel] ||
             [
-              "inrcy_site",
               "site_web",
               "inr_search",
               "gmb",

@@ -45,7 +45,7 @@ async function hasSubscription(userId: string) {
 
 async function ensureBubbleDefaults(userId: string) {
   // Match the public signup's canonical defaults after Auth triggers run.
-  // This keeps Site iNrCy opt-in even when the deployed trigger is stale.
+  // This applies the current channel catalogue even when the deployed trigger is stale.
   await provisionNewAccountBubbleAccess(userId);
 }
 

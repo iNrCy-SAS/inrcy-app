@@ -10,7 +10,7 @@ function read(path: string) {
 test("each publication channel has an explicit CTA capability policy", () => {
   const cta = read("lib/boosterCta.ts");
 
-  assert.match(cta, /inrcy_site: \["none", "website", "call", "custom"\]/);
+  assert.match(cta, /site_web: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /site_web: \["none", "website", "call", "custom"\]/);
   assert.match(cta, /inr_search: \["none"\]/);
   assert.match(cta, /gmb: \["none", "website", "call", "custom"\]/);
@@ -111,13 +111,13 @@ test("Appeler includes the number in copy and is never promised on Stories", () 
   assert.ok(publishNow.includes('instagramPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call"'));
 });
 
-test("website defaults keep Site web and Site iNrCy as distinct sources", () => {
+test("website defaults use the canonical Site Web URL", () => {
   const publishNow = read("app/api/booster/publish-now/route.ts");
   const inrSend = read("lib/inrsend/publicationChannelActions.ts");
 
   for (const source of [publishNow, inrSend]) {
     assert.match(source, /siteWebUrl/);
-    assert.match(source, /inrcySiteUrl/);
+    assert.doesNotMatch(source, /inrcySiteUrl|inrcy_site_configs/);
     assert.match(source, /getPreferredWebsiteUrlForChannel/);
   }
   assert.doesNotMatch(

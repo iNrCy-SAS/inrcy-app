@@ -18,7 +18,7 @@ const settingsDrawer = read("app/dashboard/SettingsDrawer.tsx");
 const settingsDrawerContent = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
 
 test("generator power keeps the confirmed snapshot visible until live checks settle", () => {
-  assert.match(dashboardBootstrap, /GENERATOR_POWER_SNAPSHOT_CACHE_KEY = "inrcy_generator_power_snapshot_v2"/);
+  assert.match(dashboardBootstrap, /GENERATOR_POWER_SNAPSHOT_CACHE_KEY = DASHBOARD_CACHE_KEYS\.generatorPowerSnapshot/);
   assert.match(accountCache, /"inrcy_generator_power_percent_v2"/);
   assert.match(accountCache, /"inrcy_generator_power_snapshot_v2"/);
   assert.match(

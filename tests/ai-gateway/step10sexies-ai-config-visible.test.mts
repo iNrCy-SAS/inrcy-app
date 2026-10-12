@@ -34,7 +34,7 @@ test("Step 10 sexies gives Booster a real non-blocking emoji policy per requeste
   assert.match(prompt, /buildBoosterEmojiDirective/);
   assert.match(prompt, /POLITIQUE EMOJIS/);
   assert.match(prompt, /EMOJIS BEAUCOUP — INTENSITÉ VISIBLE|BEAUCOUP/);
-  assert.match(prompt, /inrcy_site: "0 emoji malgré le niveau Beaucoup/i);
+  assert.match(prompt, /site_web: "0 emoji malgré le niveau Beaucoup/i);
   assert.match(prompt, /linkedin: "2–4 emojis maximum/i);
   assert.match(prompt, /tiktok: "8–12 emojis visibles/i);
   assert.match(prompt, /canaux site restent strictement sans emoji/i);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { getIsoWeekStart, getIsoWeekId } from "@/lib/weeklyGoals";
+import { normalizeBoosterPublicationChannels } from "@/lib/boosterPublicationPolicy";
 
 type JsonRecord = Record<string, unknown>;
 const asRecord = (v: unknown): JsonRecord =>
@@ -104,7 +105,7 @@ export async function GET(req: Request) {
   const init = () => ({
     month: 0,
     week: 0,
-    channels: { inrcy_site: 0, site_web: 0, inr_search: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0, x: 0 } as Record<string, number>,
+    channels: { site_web: 0, inr_search: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0, x: 0 } as Record<string, number>,
     sent: 0,
     last_sent_at: null as string | null,
   });
@@ -123,7 +124,7 @@ export async function GET(req: Request) {
       publish.month += 1;
       if (inWeek) publish.week += 1;
 
-      const ch = Array.isArray(payload["channels"]) ? (payload["channels"] as unknown[]) : [];
+      const ch = normalizeBoosterPublicationChannels(payload["channels"]).channels;
       for (const c of ch) {
         if (typeof c === "string") {
           publish.channels[c] = (publish.channels[c] ?? 0) + 1;

@@ -31,7 +31,7 @@ import type {
 type AgentTranslator = (key: any) => string;
 
 const AGENT_CHANNEL_MESSAGE_KEYS: Partial<Record<ChannelKey, string>> = {
-  siteInrcy: "site_inrcy_57016d6f",
+
   siteWeb: "site_web_7e78af33",
   mails: "mails_8d79d3a8",
 };

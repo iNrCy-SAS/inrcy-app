@@ -1307,13 +1307,6 @@ export async function collectBusinessDnaChannelSources(args: {
       collect: async () => collectWebsite(states.site_web.url || ""),
     }),
     executeSource({
-      key: "inrcy_site",
-      label: "Site iNrCy",
-      connected: Boolean(states.site_inrcy.connected && states.site_inrcy.url),
-      url: states.site_inrcy.url,
-      collect: async () => collectWebsite(states.site_inrcy.url || ""),
-    }),
-    executeSource({
       key: "google_business",
       label: "Google Business",
       connected: states.gmb.connected,
@@ -1426,23 +1419,6 @@ export async function collectBusinessDnaChannelSources(args: {
       ),
     }),
   ]);
-
-  // Un même site peut être déclaré comme site externe et site iNrCy. On évite
-  // de payer deux fois l'analyse du même contenu, sans masquer son état à l'interface.
-  const website = sources.find((source) => source.key === "website");
-  const inrcySite = sources.find((source) => source.key === "inrcy_site");
-  if (
-    website?.status === "analyzed" &&
-    inrcySite?.status === "analyzed" &&
-    website.url &&
-    inrcySite.url &&
-    website.url.replace(/\/$/, "") === inrcySite.url.replace(/\/$/, "")
-  ) {
-    inrcySite.content = "";
-    inrcySite.contentChars = 0;
-    inrcySite.itemCount = 0;
-    inrcySite.message = "Ce site a déjà été analysé comme site internet.";
-  }
 
   return sources;
 }

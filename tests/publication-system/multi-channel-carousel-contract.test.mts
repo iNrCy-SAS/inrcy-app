@@ -12,7 +12,6 @@ test("Booster conserve les lots partiels sur chaque canal multi-images", () => {
   const route = read("app/api/booster/publish-now/route.ts");
   for (const channel of [
     "inr_search",
-    "inrcy_site",
     "site_web",
     "x",
     "facebook",

@@ -3,7 +3,6 @@
 import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 
-
 import { useMemo, useRef, useState } from "react";
 import styles from "./stats.module.css";
 import { useRouter } from "next/navigation";
@@ -74,7 +73,7 @@ type StatsClientProps = {
 const STATS_CHANNEL_ICON_SRC: Record<CubeKey, string> = {
   inrbadge: "/icons/inrbadge-dashboard.png",
   inr_search: "/icons/inr-search-bubble-128.png",
-  site_inrcy: "/logo-appli-inrcy.png",
+
   site_web: "/icons/site-web.jpg",
   gmb: "/icons/google.jpg",
   facebook: "/icons/facebook.png",
@@ -95,7 +94,7 @@ function isStatsModelConnectionPending(model: CubeModel) {
 
 function isStatsModelConnected(model: CubeModel) {
   if (isStatsModelConnectionPending(model)) return false;
-  const isSite = model.key === "site_inrcy" || model.key === "site_web";
+  const isSite = model.key === "site_web";
   return isSite
     ? !!model.connections.ga4 || !!model.connections.gsc
     : !!model.connections.main;
@@ -115,7 +114,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [reportNotice, setReportNotice] = useState<string | null>(null);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
 
-
   // ✅ Période globale (7j / 30j) pour éviter un mix incohérent entre blocs.
   const period: Period = 30;
 
@@ -124,13 +122,13 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [summaryOpp, setSummaryOpp] = useState<{ loading: boolean; total: number; byCube: Record<CubeKey, number> }>({
     loading: true,
     total: 0,
-    byCube: { inrbadge: 0, inr_search: 0, site_inrcy: 0, site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, x: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
+    byCube: { inrbadge: 0, inr_search: 0,  site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, x: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
   });
   const [summaryProfile, setSummaryProfile] = useState<{ lead_conversion_rate: number; avg_basket: number }>({ lead_conversion_rate: 0, avg_basket: 0 });
   const [summaryEstimatedByCube, setSummaryEstimatedByCube] = useState<Record<CubeKey, number>>({
     inrbadge: 0,
     inr_search: 0,
-    site_inrcy: 0,
+
     site_web: 0,
     gmb: 0,
     facebook: 0,
@@ -213,7 +211,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const opportunityReadyByCube = useMemo<Record<CubeKey, boolean>>(() => ({
     inrbadge: inrBadgeStatsReady,
     inr_search: inrSearchStatsReady,
-    site_inrcy: bulkStatsReady,
+
     site_web: bulkStatsReady,
     gmb: bulkStatsReady,
     facebook: bulkStatsReady,
@@ -300,7 +298,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       buildCubeModel("pinterest", i18nT("title_pinterest"), i18nT("subtitle_inspiration_ideas"), period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest, locale, runtimeT),
       buildCubeModel("x", "X", i18nT("subtitle_social_visibility"), period, dataByCube.x, centralByCube, officialChannelConnectionStatuses.x, locale, runtimeT),
       ...(!standardMode ? [buildMailCubeModel(mailStats, period, locale, runtimeT)] : []),
-      buildCubeModel("site_inrcy", i18nT("site_inrcy_57016d6f"), i18nT("subtitle_optimized_for_conversion"), period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy, locale, runtimeT),
     ];
 
     return baseModels.map((model) => {
@@ -308,7 +305,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       const cachedConnected = officialStatus
         ? officialStatus === "connected"
         : cachedChannelConnectivity[model.key] === true;
-      const isSite = model.key === "site_inrcy" || model.key === "site_web";
+      const isSite = model.key === "site_web";
       const liveConnected = isSite
         ? Boolean(model.connections.ga4 || model.connections.gsc)
         : Boolean(model.connections.main);
@@ -381,7 +378,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     return {
       inrbadge: estimate(centralByCube.inrbadge),
       inr_search: estimate(centralByCube.inr_search),
-      site_inrcy: estimate(centralByCube.site_inrcy),
+
       site_web: estimate(centralByCube.site_web),
       gmb: estimate(centralByCube.gmb),
       facebook: estimate(centralByCube.facebook),

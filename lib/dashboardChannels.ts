@@ -1,5 +1,4 @@
 export const DASHBOARD_CHANNEL_KEYS = [
-  'site_inrcy',
   'site_web',
   'gmb',
   'facebook',
@@ -14,8 +13,7 @@ export const DASHBOARD_CHANNEL_KEYS = [
 export type DashboardChannelKey = (typeof DASHBOARD_CHANNEL_KEYS)[number];
 
 export const DASHBOARD_CHANNEL_LABELS: Record<DashboardChannelKey, string> = {
-  site_inrcy: 'Site iNrCy',
-  site_web: 'Site web',
+  site_web: 'Site Web',
   gmb: 'Google Business Profile',
   facebook: 'Facebook',
   instagram: 'Instagram',

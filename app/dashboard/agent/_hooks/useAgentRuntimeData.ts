@@ -53,7 +53,7 @@ function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
   };
 
   return {
-    siteInrcy: isUsable("site_inrcy"),
+
     siteWeb: isUsable("site_web"),
     gmb: isUsable("gmb"),
     inrSearch: isUsable("inr_search"),
@@ -82,8 +82,6 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
     const state = nestedState || parsedRecord;
     if (!state) return null;
     const hasConnectionHint = [
-      "siteInrcySavedUrl",
-      "siteInrcyUrl",
       "siteWebSavedUrl",
       "siteWebUrl",
       "gmbConnected",
@@ -100,7 +98,7 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
     if (!hasConnectionHint) return null;
 
     return {
-      siteInrcy: Boolean(state.siteInrcySavedUrl || state.siteInrcyUrl),
+
       siteWeb: Boolean(state.siteWebSavedUrl || state.siteWebUrl),
       gmb: Boolean(
         state.gmbConnected && state.gmbConnectionStatus !== "needs_update",

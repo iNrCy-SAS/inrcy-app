@@ -155,8 +155,9 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
 
   assert.match(
     replaceHandler,
-    /markAssetsMayBeInUse\(\);[\s\S]{0,300}?\.from\("site_articles"\)[\s\S]{0,100}?\.update\(/,
+    /markAssetsMayBeInUse\(\);[\s\S]{0,300}?await updateSiteWebPublicationArticles\(/,
   );
+  assert.match(read("lib/inrsend/siteWebArticleActions.ts"), /\.from\("site_articles"\)\.update\(args\.patch\)/);
   for (const externalWrite of [
     "facebookPublishVideoToPage",
     "facebookPublishToPage",

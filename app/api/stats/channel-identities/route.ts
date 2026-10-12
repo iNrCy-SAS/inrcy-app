@@ -62,7 +62,6 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       identities: {
-        site_inrcy: states.site_inrcy.connected ? clean(states.site_inrcy.url) : "",
         site_web: states.site_web.connected ? clean(states.site_web.url) : "",
         gmb: states.gmb.connected ? clean(states.gmb.resource_label) : "",
         facebook: states.facebook.connected ? clean(states.facebook.resource_label) : "",
@@ -74,7 +73,6 @@ export async function GET(request: Request) {
         x: states.x.connected ? (xUsername ? `@${xUsername}` : clean(states.x.display_name)) : "",
       },
       urls: {
-        site_inrcy: clean(states.site_inrcy.url),
         site_web: clean(states.site_web.url),
         gmb: clean(states.gmb.url),
         facebook: clean(states.facebook.page_url),

@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import { useEffect, useMemo, useState } from "react";
 import {
   createActusWidgetEmbedUrl,
@@ -16,7 +15,7 @@ import type { ActusDesign, ActusLayout, ActusTheme } from "../dashboard.types";
 
 type GeneratedActusWidgetConfig = {
   savedUrl: string;
-  source: "inrcy_site" | "site_web";
+  source: "site_web";
   layout: ActusLayout;
   limit: number;
   design: ActusDesign;

@@ -20,7 +20,6 @@ const BUSINESS_TABLES_IN_DELETE_ORDER = [
   "agenda_events",
   "integrations",
   "pro_tools_configs",
-  "inrcy_site_configs",
   "business_profiles",
   "stats_cache",
   "loyalty_ledger",

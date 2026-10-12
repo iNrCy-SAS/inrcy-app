@@ -1,7 +1,6 @@
 import { asRecord, asString } from "@/lib/tsSafe";
 import { getConnectionDisplayStatus, mailConnectionKind, type ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { normalizeTiktokSettings } from "@/lib/tiktokSettings";
 import { buildTiktokProfileUrl } from "@/lib/tiktokOAuth";
 import { applyYoutubeShortsIntegrationState } from "@/lib/youtubeShortsOAuth";
@@ -33,17 +32,6 @@ type IntegrationLite = {
 };
 
 export type ChannelStates = {
-  site_inrcy: {
-    connected: boolean;
-    expired: false;
-    requiresUpdate: false;
-    connection_status: ConnectionDisplayStatus;
-    statsConnected: boolean;
-    score: number;
-    url: string | null;
-    ga4: boolean;
-    gsc: boolean;
-  };
   site_web: {
     connected: boolean;
     expired: false;
@@ -210,7 +198,7 @@ function hasGoogleSetting(settingsNode: unknown, product: "ga4" | "gsc") {
   return hasTruthyString(asRecord(node.gsc).property);
 }
 
-function isConnectedGoogleStat(rows: IntegrationLite[], source: "site_inrcy" | "site_web", product: "ga4" | "gsc", fallbackSettingsNode?: unknown) {
+function isConnectedGoogleStat(rows: IntegrationLite[], source: "site_web", product: "ga4" | "gsc", fallbackSettingsNode?: unknown) {
   const settingsConnected = hasGoogleSetting(fallbackSettingsNode, product);
   const row = latestIntegration(rows, "google", source, product);
 
@@ -224,23 +212,17 @@ export async function getChannelConnectionStates(
   supabase: any,
   userId: string,
   preload?: {
-    profile?: unknown;
-    inrcySiteConfig?: unknown;
     proToolsConfig?: unknown;
     integrations?: unknown[];
   }
 ): Promise<ChannelStates> {
   const usePreload = Boolean(preload);
-  const [profileRes, inrcyCfgRes, proCfgRes, integrationsRes] = usePreload
+  const [proCfgRes, integrationsRes] = usePreload
     ? await Promise.all([
-        Promise.resolve({ data: preload?.profile ?? null }),
-        Promise.resolve({ data: preload?.inrcySiteConfig ?? null }),
         Promise.resolve({ data: preload?.proToolsConfig ?? null }),
         Promise.resolve({ data: preload?.integrations ?? [] }),
       ])
     : await Promise.all([
-        supabase.from("profiles").select("inrcy_site_ownership").eq("user_id", userId).maybeSingle(),
-        supabase.from("inrcy_site_configs").select("site_url,settings").eq("user_id", userId).maybeSingle(),
         supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
         supabaseAdmin
           .from("integrations")
@@ -250,8 +232,6 @@ export async function getChannelConnectionStates(
 
   if (!usePreload) {
     const failedSources = [
-      ["profiles", (profileRes as { error?: unknown }).error],
-      ["inrcy_site_configs", (inrcyCfgRes as { error?: unknown }).error],
       ["pro_tools_configs", (proCfgRes as { error?: unknown }).error],
       ["integrations", (integrationsRes as { error?: unknown }).error],
     ].filter((entry) => Boolean(entry[1])).map((entry) => String(entry[0]));
@@ -265,35 +245,23 @@ export async function getChannelConnectionStates(
     }
   }
 
-  const profile = asRecord((profileRes as { data?: unknown }).data);
-  const inrcyCfg = asRecord((inrcyCfgRes as { data?: unknown }).data);
-  const inrcyCfgSettings = asRecord(inrcyCfg.settings);
   const proCfg = asRecord((proCfgRes as { data?: unknown }).data);
   const settings = asRecord(proCfg.settings);
   const pinterestSettings = asRecord(settings.pinterest);
   const rowsRaw = (integrationsRes as { data?: unknown }).data;
   const rows = Array.isArray(rowsRaw) ? (rowsRaw as IntegrationLite[]) : [];
 
-  const ownership = asString(profile.inrcy_site_ownership) || "none";
-  const inrcyHasSite = hasActiveInrcySite(ownership);
-  const inrcyUrl = (asString(inrcyCfg?.site_url) || "").trim();
   const siteWeb = asRecord(settings.site_web);
   const siteWebUrl = (asString(siteWeb.url) || "").trim();
 
-  const inrcyGa4Binding = isConnectedGoogleStat(rows, "site_inrcy", "ga4", inrcyCfgSettings);
-  const inrcyGscBinding = isConnectedGoogleStat(rows, "site_inrcy", "gsc", inrcyCfgSettings);
   const webGa4Binding = isConnectedGoogleStat(rows, "site_web", "ga4", siteWeb);
   const webGscBinding = isConnectedGoogleStat(rows, "site_web", "gsc", siteWeb);
 
   // A Google binding belongs to a site. Do not let an orphaned GA4/GSC
   // setting make Dashboard or iNrStats report a connection without that site.
-  const inrcyGa4 = Boolean(inrcyHasSite && inrcyUrl && inrcyGa4Binding);
-  const inrcyGsc = Boolean(inrcyHasSite && inrcyUrl && inrcyGscBinding);
   const webGa4 = Boolean(siteWebUrl && webGa4Binding);
   const webGsc = Boolean(siteWebUrl && webGscBinding);
-  const inrcyStatsConnected = inrcyGa4 || inrcyGsc;
   const webStatsConnected = webGa4 || webGsc;
-  const inrcyScore = (inrcyHasSite && !!inrcyUrl ? 1 : 0) + (inrcyGa4 ? 1 : 0) + (inrcyGsc ? 1 : 0);
   const webScore = (!!siteWebUrl ? 1 : 0) + (webGa4 ? 1 : 0) + (webGsc ? 1 : 0);
 
   const fb = latestIntegration(rows, "facebook", "facebook", "facebook");
@@ -538,17 +506,6 @@ export async function getChannelConnectionStates(
   const gmbRequiresUpdate = gmbConnectionStatus === "needs_update";
 
   return {
-    site_inrcy: {
-      connected: inrcyHasSite && !!inrcyUrl,
-      expired: false,
-      requiresUpdate: false,
-      connection_status: inrcyHasSite && !!inrcyUrl ? "connected" : "disconnected",
-      statsConnected: inrcyStatsConnected,
-      score: inrcyScore,
-      url: inrcyUrl || null,
-      ga4: inrcyGa4,
-      gsc: inrcyGsc,
-    },
     site_web: {
       connected: !!siteWebUrl,
       expired: false,

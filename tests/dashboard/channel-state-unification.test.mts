@@ -74,10 +74,10 @@ test("Booster applies connection and Bubble Access guards in UI, worker, and iNr
   const inrSend = read("lib/inrsend/publicationChannelActions.ts");
   const bubbleServer = read("lib/appBubbleAccessServer.ts");
 
-  const publicationChannels = ["site_inrcy", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"];
+  const publicationChannels = ["site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"];
   for (const key of publicationChannels) {
     assert.ok(connectedRoute.includes(`isBubbleEnabled(bubbleAccess, "${key}")`), `missing Bubble Access state for ${key}`);
-    assert.ok(publishNow.includes(`${key === "site_inrcy" ? "inrcy_site" : key}: "${key}"`), `missing final Bubble Access mapping for ${key}`);
+    assert.ok(publishNow.includes(`${key}: "${key}"`), `missing final Bubble Access mapping for ${key}`);
   }
   assert.match(publishNow, /const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey>/);
   assert.match(publishNow, /for \(const ch of selected\)[\s\S]*getChannelConnectionStates\(supabaseAdmin, userId\)[\s\S]*getAppBubbleAccessMapForUser\(supabaseAdmin as any, userId\)/);
@@ -125,7 +125,7 @@ test("Dashboard and iNrStats continuously reconcile canonical state without stal
   assert.match(dashboard, /window\.setInterval\(refreshCanonicalState, 30_000\)/);
   assert.match(dashboard, /mergeCachedDashboardChannelState\(officialState\)/);
   assert.match(dashboard, /if \(Object\.keys\(cachePatch\)\.length\) mergeCachedDashboardChannelState\(cachePatch\)/);
-  assert.match(dashboard, /resetAccountScopedDashboardState\(\)[\s\S]*void loadSiteInrcy\(\)/);
+  assert.match(dashboard, /resetAccountScopedDashboardState\(\)[\s\S]*void loadSiteWebSettings\(\)/);
 
   assert.match(statsHooks, /channelStatesRequestSeq/);
   assert.match(statsHooks, /requestSeq === channelStatesRequestSeq/);
@@ -139,7 +139,7 @@ test("Dashboard and iNrStats continuously reconcile canonical state without stal
 test("iNrAgent uses the same official state and Bubble Access matrix as Booster", () => {
   const agent = read("app/api/agent/actions/prepare-publish/route.ts");
   assert.match(agent, /const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey>/);
-  assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.site_inrcy\s*\)/);
+  assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.site_web\s*\)/);
   assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.gmb\s*\)/);
   assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.youtube_shorts\s*\)/);
   assert.match(agent, /isBubbleEnabled\(bubbleAccess, bubbleKeyByChannel\[channel\]\)/);

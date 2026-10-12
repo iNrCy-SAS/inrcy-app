@@ -1,7 +1,6 @@
 import { type InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 
 export type Overview = {
-  inrcySiteOwnership?: "none" | "sold" | "rented";
   days: number;
   business?: { sectorCategory?: string | null; profession?: string | null };
   totals: {
@@ -18,7 +17,6 @@ export type Overview = {
   channels: Array<{ channel: string; sessions: number }>;
   topQueries: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }>;
   sources: {
-    site_inrcy: { connected: { ga4: boolean; gsc: boolean } };
     site_web: { connected: { ga4: boolean; gsc: boolean } };
     gmb: { connected: boolean; metrics: any | null };
     facebook: { connected: boolean; metrics?: any | null };
@@ -35,7 +33,7 @@ export type Overview = {
   meta?: { generatedAt?: string; snapshotDate?: string | null; live?: boolean };
 };
 
-export type CubeKey = "inrbadge" | "inr_search" | "site_inrcy" | "site_web" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "mails" | "tiktok" | "youtube_shorts" | "pinterest";
+export type CubeKey = "inrbadge" | "inr_search" | "site_web" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "mails" | "tiktok" | "youtube_shorts" | "pinterest";
 
 export type Period = 7 | 14 | 30 | 60;
 
@@ -152,7 +150,6 @@ export type InrcyActivityStats = {
 };
 
 export type CubeModel = {
-  inrcyOwnership?: "none" | "sold" | "rented";
   key: CubeKey;
   title: string;
   subtitle: string;

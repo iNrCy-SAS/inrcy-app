@@ -1,3 +1,4 @@
+import { normalizeSiteWebChannelMap } from "@/lib/siteWebChannel";
 import { limitBoosterChannelContent } from "@/lib/boosterChannelRules";
 import {
   sanitizeBoosterSiteText,
@@ -125,7 +126,8 @@ export function createPublishNowPostResolver(params: {
   post: PostPayload;
   postByChannel: PostByChannel;
 }) {
-  const { post, postByChannel } = params;
+  const { post } = params;
+  const postByChannel = normalizeSiteWebChannelMap(params.postByChannel) as PostByChannel;
   const fallbackTitle = String(post.title || "").trim();
   const fallbackContent = String(post.content || "").trim();
   const fallbackCta = String(post.cta || "").trim();
@@ -137,14 +139,10 @@ export function createPublishNowPostResolver(params: {
     : [];
 
   const getChannelPost = (channel: ChannelKey): PostPayload => {
-    const raw = ((channel === "inrcy_site"
-      ? postByChannel?.inrcy_site || postByChannel?.site_web
-      : channel === "site_web"
-        ? postByChannel?.site_web || postByChannel?.inrcy_site
-        : channel === "inr_search"
-          ? postByChannel?.inr_search || postByChannel?.site_web || postByChannel?.inrcy_site
-          : postByChannel?.[channel]) || {}) as PostPayload;
-    const isSiteChannel = channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
+    const raw = ((channel === "inr_search"
+      ? postByChannel?.inr_search || postByChannel?.site_web
+      : postByChannel?.[channel]) || {}) as PostPayload;
+    const isSiteChannel = channel === "site_web" || channel === "inr_search";
     const rawTitle = String(raw.title || fallbackTitle || "").trim();
     const rawContent = limitBoosterChannelContent(
       channel,

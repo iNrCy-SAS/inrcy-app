@@ -18,7 +18,7 @@ export {
   normalizeBoosterWhatsAppPhone,
 } from "@/lib/boosterWhatsappCta";
 
-export type BoosterChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
+export type BoosterChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 export type BoosterCtaMode = "none" | "website" | "call" | "message" | "custom";
 
 export type BoosterPostLike = {
@@ -47,7 +47,6 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   BoosterChannelKey,
   readonly BoosterCtaMode[]
 > = {
-  inrcy_site: ["none", "website", "call", "custom"],
   site_web: ["none", "website", "call", "custom"],
   // Les actualités iNr'Search n'exposent pas encore de CTA par publication.
   inr_search: ["none"],
@@ -378,7 +377,7 @@ export function buildCtaTextForNativeDestination(
 }
 
 function buildPrimaryBoosterText(channel: BoosterChannelKey, post: Partial<BoosterPostLike> | null | undefined) {
-  const isSiteChannel = channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
+  const isSiteChannel = channel === "site_web" || channel === "inr_search";
   const title = collapseWhitespace(
     isSiteChannel
       ? sanitizeBoosterSiteText(post?.title || "")

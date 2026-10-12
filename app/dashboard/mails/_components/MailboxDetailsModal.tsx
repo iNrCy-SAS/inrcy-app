@@ -1,3 +1,4 @@
+import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { useLocale, useTranslations } from "next-intl";
 import React from "react";
 import { useRouter } from "next/navigation";
@@ -320,7 +321,7 @@ function getFallbackChannelAccountHref(channel: string, result: any): string {
     result?.websiteUrl,
     result?.site_url,
     result?.siteUrl,
-    ["inrcy_site", "site_web", "inr_search", "gmb"].includes(channel)
+    [ "site_web", "inr_search", "gmb"].includes(channel)
       ? result?.external_url
       : "",
   ];
@@ -341,7 +342,7 @@ function getFallbackChannelAccountHref(channel: string, result: any): string {
 }
 
 function getChannelAccountActionLabel(channel: string, detail: ConnectedChannelDetail | null | undefined, t: MailsTranslator) {
-  if (channel === "inrcy_site" || channel === "site_web") return t("ouvrir_le_site_138503f6");
+  if (channel === "site_web") return t("ouvrir_le_site_138503f6");
   if (channel === "inr_search") return t("open_page");
   if (channel === "gmb") return t("open_listing");
   if (channel === "youtube_shorts") return t("open_channel");
@@ -1058,7 +1059,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
 
   const publicationDisplayKey = React.useMemo<DisplayKey>(() => {
     const key = String(activePublicationEditChannelKey || "");
-    if (["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(key)) {
+    if ([ "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(key)) {
       return key as DisplayKey;
     }
     return "facebook";
@@ -1206,7 +1207,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
           preferredWebsiteUrl: String(json?.preferredWebsiteUrl || "").trim(),
           preferredWebsiteLabel: String(json?.preferredWebsiteLabel || "").trim(),
           siteWebUrl: String(json?.siteWebUrl || "").trim(),
-          inrcySiteUrl: String(json?.inrcySiteUrl || "").trim(),
           phone: String(json?.phone || "").trim(),
           preferredCta: normalizeBoosterPreferredCta(json?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(json?.aiLanguage),
@@ -1553,7 +1553,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                 {!detailsItem ? (
                   <div style={{ color: "rgba(255,255,255,0.65)" }}>{i18nT("selectionne_un_element_523f9c88")}</div>
                 ) : (() => {
-                  const payload = detailsItem.source === "app_events" ? ((detailsItem as any)?.raw?.payload || null) : null;
+                  const payload = detailsItem.source === "app_events" ? normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null) : null;
                   const publicationId = detailsItem.source === "app_events" ? String(payload?.publication_id || "").trim() : "";
                   const channelPublications = detailsItem.source === "app_events" ? extractChannelPublications(payload) : [];
                   const defaultParts = detailsItem.source === "app_events" ? extractPublicationParts(payload) : {};
@@ -1759,7 +1759,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                         ? activeVideoFormatLabel && activeVideoAdaptationLabel
                           ? `Vidéo ${activeVideoFormatLabel} · ${activeVideoAdaptationLabel}`
                           : "Vidéo finale"
-                        : activePublicationEntry.key === "inrcy_site" || activePublicationEntry.key === "site_web" ? "Rendu site / iframe" : `Image finale : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`,
+                        : activePublicationEntry.key === "site_web" ? "Rendu site / iframe" : `Image finale : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`,
                       image: firstAsset
                         ? {
                             previewUrl: firstAsset.previewUrl,
@@ -2368,7 +2368,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                           ) : activePublicationEntry ? (
                             (() => {
                               const parts = activeParts;
-                              const isSitePublication = activePublicationEntry.key === "inrcy_site" || activePublicationEntry.key === "site_web" || activePublicationEntry.key === "site";
+                              const isSitePublication = activePublicationEntry.key === "site_web" || activePublicationEntry.key === "site";
                               const showInstagramHashtags = activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok" || activePublicationEntry.key === "x";
                               const deletedAt = activePublicationResult?.deleted_at ? new Date(String(activePublicationResult.deleted_at)).toLocaleString(locale) : null;
                               const hasAny = !!(parts.title || parts.content || parts.cta || (showInstagramHashtags && parts.hashtags?.length));
@@ -2490,9 +2490,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             const activeWebsiteUrl = getWebsiteUrlForChannel(publicationDisplayKey, publicationCtaDefaults);
                                             const activeWebsiteSourceLabel = getWebsiteSourceLabelForChannel(publicationDisplayKey, publicationCtaDefaults);
                                             const websiteChoices = [
-                                              publicationCtaDefaults?.inrcySiteUrl
-                                                ? { label: i18nT("site_inrcy_57016d6f"), url: publicationCtaDefaults.inrcySiteUrl }
-                                                : null,
                                               publicationCtaDefaults?.siteWebUrl
                                                 ? { label: i18nT("site_web_7e78af33"), url: publicationCtaDefaults.siteWebUrl }
                                                 : null,
@@ -2535,7 +2532,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                             activeWebsiteUrl
                                                               ? `URL du site préremplie (${activeWebsiteSourceLabel})`
                                                               : websiteChoices.length > 1
-                                                                ? "Choisissez Site iNrCy ou Site web"
+                                                                ? "Choisissez Site Web ou Site web"
                                                                 : "URL du site (optionnel)"
                                                           }
                                                           disabled={detailsActionBusy}
@@ -2711,7 +2708,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         {parts.content ? (
                                           <div>
                                             <div className={styles.publicationLabel}>{i18nT("contenu_f3cb82af")}</div>
-                                            {activePublicationEntry.key === "inrcy_site" || activePublicationEntry.key === "site_web" ? (
+                                            {activePublicationEntry.key === "site_web" ? (
                                               <div
                                                 className={styles.publicationPre}
                                                 dangerouslySetInnerHTML={{
@@ -3089,7 +3086,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   activeChannel={activePublicationEditChannelKey}
                                   onActiveChannelChange={() => {}}
                                   channelTitle={activePublicationEntry?.label || formatChannelLabel(activePublicationEditChannelKey)}
-                                  formatLabel={activePublicationEditChannelKey === "inrcy_site" || activePublicationEditChannelKey === "site_web" ? "Rendu site / iframe" : `Rendu final : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`}
+                                  formatLabel={activePublicationEditChannelKey === "site_web" ? "Rendu site / iframe" : `Rendu final : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`}
                                   aspectRatio={`${activePublicationEditPreset.width} / ${activePublicationEditPreset.height}`}
                                   items={activePublicationEditAssets.map((asset, index) => {
                                     const selectedAssets = activePublicationEditAssets.filter((candidate) => candidate.selected);

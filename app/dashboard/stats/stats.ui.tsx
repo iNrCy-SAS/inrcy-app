@@ -135,7 +135,6 @@ function ActionToolPill({
   );
 }
 
-
 function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string; subValue?: string }> }) {
   const i18nT = useTranslations("stats");
   if (!items.length) {
@@ -165,8 +164,6 @@ function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string
     </div>
   );
 }
-
-
 
 function InrcyActivityBlock({ model }: { model: CubeModel }) {
   const locale = useLocale();
@@ -336,7 +333,6 @@ function PlugIcon() {
   );
 }
 
-
 export function SummaryBar({
   centralPotential30,
   summaryDisplayReady,
@@ -383,10 +379,6 @@ export function SummaryBar({
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("mails")}>
           <span>{i18nT("mails_8d79d3a8")}</span>
           <b>{summaryDisplayReady ? `+${formatInt(centralByCube.mails)}` : "—"}</b>
-        </button>
-        <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("site_inrcy")}>
-          <span>{i18nT("site_inrcy_57016d6f")}</span>
-          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.site_inrcy)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("site_web")}>
           <span>{i18nT("site_web_c72c13ef")}</span>
@@ -468,7 +460,7 @@ export function SummaryBar({
 
 function getForcedCubeContextKey(key: CubeModel["key"]) {
   switch (key) {
-    case "site_inrcy":
+
     case "site_web":
       return "url_associee_92573a3c";
     case "gmb":
@@ -514,7 +506,7 @@ export function Cube({
   const formatInt = (value: number) => fmtInt(value, locale);
   const [open, setOpen] = useState(false);
   const detailsOpen = forceOpen || open;
-  const isSite = model.key === "site_inrcy" || model.key === "site_web";
+  const isSite = model.key === "site_web";
   const action = model.action;
   const localizedPill = action.pill;
   const premiumLocked = action.premiumLocked === true;

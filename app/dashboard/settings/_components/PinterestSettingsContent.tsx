@@ -1,8 +1,10 @@
 "use client";
 
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
+
+
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-
 
 import {
   getActiveBrowserUserId,
@@ -79,7 +81,7 @@ const DEFAULT_SETTINGS: PinterestSettings = {
   expiresAt: null,
 };
 
-const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
+const DASHBOARD_CHANNEL_STATE_CACHE_KEY = DASHBOARD_CACHE_KEYS.channelState;
 const PINTEREST_UI_CACHE_TTL_MS = 10 * 60 * 1000;
 const PINTEREST_EVENTUAL_CONSISTENCY_TTL_MS = 2 * 60 * 1000;
 

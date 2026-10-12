@@ -16,7 +16,6 @@ const read = (relativePath: string) =>
 
 test("les trois surfaces iNrCy conservent les originaux transparents", () => {
   assert.deepEqual(BOOSTER_ORIGINAL_ALPHA_PRESERVING_CHANNELS, [
-    "inrcy_site",
     "site_web",
     "inr_search",
   ]);

@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const source = typeof body.source === "string" ? body.source : "";
   const product = typeof body.product === "string" ? body.product : "";
-  if (!source || !product) return NextResponse.json({ error: "Source ou produit manquant." }, { status: 400 });
+  if (source !== "site_web" || !["ga4", "gsc"].includes(product)) return NextResponse.json({ error: "Source ou produit invalide." }, { status: 400 });
 
   const { data: revokeRows } = await supabaseAdmin
     .from("integrations")
@@ -93,19 +93,6 @@ export async function POST(request: Request) {
       if (siteWebUpdateError) {
         return NextResponse.json(
           { error: "La déconnexion Google a été partiellement appliquée côté site web." },
-          { status: 500 }
-        );
-      }
-    }
-    if (source === "site_inrcy") {
-      const { data } = await supabaseAdmin.from("inrcy_site_configs").select("settings").eq("user_id", userId).maybeSingle();
-      const current = stripGoogleProduct(asRecord(asRecord(data)["settings"]), product);
-      const { error: siteInrcyUpdateError } = await supabaseAdmin
-        .from("inrcy_site_configs")
-        .upsert({ user_id: userId, settings: current }, { onConflict: "user_id" });
-      if (siteInrcyUpdateError) {
-        return NextResponse.json(
-          { error: "La déconnexion Google a été partiellement appliquée côté site iNrCy." },
           { status: 500 }
         );
       }

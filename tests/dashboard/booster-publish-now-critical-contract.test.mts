@@ -29,7 +29,6 @@ const ingress = read("lib/boosterPublicationIngress.ts");
 const imageServerPreparation = read("lib/boosterImageServerPreparation.ts");
 
 const channelMarkers = [
-  'ch === "inrcy_site"',
   'ch === "site_web"',
   'ch === "inr_search"',
   'ch === "gmb"',
@@ -39,6 +38,7 @@ const channelMarkers = [
   'ch === "tiktok"',
   'ch === "youtube_shorts"',
   'ch === "pinterest"',
+  'ch === "x"',
 ];
 
 test("publish-now keeps user auth, rate limiting and cron-only async dispatch", () => {
@@ -63,7 +63,7 @@ test("strict media cutover consumes the workspace and never silently falls back"
   assert.match(route, /consumptionSource:\s*strictMediaCutover\s*\?\s*"workspace_cutover_v1"/);
 });
 
-test("server image preparation covers 1-11 channels and isolates an exceptional batch retry", () => {
+test("server image preparation covers 1-10 channels and isolates an exceptional batch retry", () => {
   assert.match(route, /prepareBoosterImagesByChannelOnServer\(/);
   assert.ok((route.match(/prepareBoosterImagesByChannelOnServer\(/g) || []).length >= 2);
   assert.match(route, /channels:\s*imageChannels/);

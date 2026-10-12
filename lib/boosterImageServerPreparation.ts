@@ -87,7 +87,6 @@ export type BoosterServerImagePreparationResult = {
 };
 
 const CHANNEL_RENDER_BASE: Record<BoosterImageChannel, { width: number; height: number }> = {
-  inrcy_site: { width: 1440, height: 900 },
   site_web: { width: 1440, height: 900 },
   inr_search: { width: 1440, height: 900 },
   gmb: { width: 1200, height: 675 },
@@ -630,13 +629,6 @@ const ORIGINAL_IMAGE_MIME_TYPES_BY_CHANNEL: Record<
   BoosterImageChannel,
   ReadonlySet<string>
 > = {
-  inrcy_site: new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-    "image/avif",
-  ]),
   site_web: new Set([
     "image/jpeg",
     "image/png",

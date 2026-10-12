@@ -16,34 +16,11 @@ export function getChannelTone(item: DashboardFluxBubbleData): ChannelTone {
 /** One website presence channel, regardless of where the connected site is hosted. */
 export function collapseDashboardWebsiteChannels(
   items: readonly DashboardFluxBubbleData[],
-  presence?: { connectedSite: "site_web" | "site_inrcy" | null; connectedText: string },
+  presence?: { connectedSite: "site_web" | null; connectedText: string },
 ): DashboardFluxBubbleData[] {
-  const siteWeb = items.find((item) => item.key === "site_web");
-  const siteInrcy = items.find((item) => item.key === "site_inrcy");
-  if (!siteWeb || !siteInrcy) return [...items];
-
-  // Keep the actions and connection status of the site that is actually connected.
-  // When neither is connected, the external website remains the default setup path.
-  const preferredSite = presence?.connectedSite === "site_web"
-    ? siteWeb
-    : presence?.connectedSite === "site_inrcy"
-      ? siteInrcy
-      : null;
-  const activeSite = preferredSite ?? (getChannelTone(siteWeb) === "connected"
-    ? siteWeb
-    : getChannelTone(siteInrcy) === "connected"
-      ? siteInrcy
-      : siteWeb);
-  const baseWebsite = activeSite === siteWeb
-    ? siteWeb
-    : { ...activeSite, key: siteWeb.key, name: siteWeb.name };
-  const website = presence?.connectedSite
-    ? { ...baseWebsite, bubbleStatus: "connected" as const, bubbleStatusText: presence.connectedText }
-    : baseWebsite;
-
-  return items
-    .filter((item) => item.key !== "site_inrcy")
-    .map((item) => item.key === "site_web" ? website : item);
+  return items.map((item) => item.key === "site_web" && presence?.connectedSite
+    ? { ...item, bubbleStatus: "connected" as const, bubbleStatusText: presence.connectedText }
+    : item);
 }
 
 export const CHANNEL_BUBBLE_REST_GAP = 44;

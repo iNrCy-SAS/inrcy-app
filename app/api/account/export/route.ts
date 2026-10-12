@@ -197,7 +197,6 @@ export const GET = withApi(async () => {
     { table: "loyalty_ledger", opts: { limit: 5000, orderBy: "created_at", desc: true } },
     { table: "loyalty_balance" },
     { table: "boutique_orders", opts: { limit: 2000, orderBy: "created_at", desc: true } },
-    { table: "inrcy_site_configs" },
     { table: "pro_tools_configs" },
     { table: "publications", opts: { limit: 2000, orderBy: "created_at", desc: true } },
     { table: "publication_deliveries", opts: { limit: 5000, orderBy: "created_at", desc: true } },

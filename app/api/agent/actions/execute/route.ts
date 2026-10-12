@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { POST as publishNowBooster } from "@/app/api/booster/publish-now/route";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
@@ -38,7 +39,6 @@ export const runtime = "nodejs";
 
 type JsonRecord = Record<string, unknown>;
 type BoosterChannel =
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "gmb"
@@ -75,7 +75,6 @@ const executableStatuses = new Set([
 ]);
 
 const allowedBoosterChannels = new Set<BoosterChannel>([
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -89,7 +88,7 @@ const allowedBoosterChannels = new Set<BoosterChannel>([
 ]);
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -103,8 +102,6 @@ function isImageRequiredChannel(channel: BoosterChannel) {
 }
 
 const agentToBoosterChannel: Record<string, BoosterChannel> = {
-  site_inrcy: "inrcy_site",
-  siteInrcy: "inrcy_site",
   site_web: "site_web",
   siteWeb: "site_web",
   inr_search: "inr_search",
@@ -206,7 +203,7 @@ function normalizeBoosterChannels(input: unknown): BoosterChannel[] {
     new Set(
       raw
         .map((channel) => {
-          const value = String(channel || "").trim();
+          const value = canonicalSiteWebChannel(channel);
           return agentToBoosterChannel[value] || value;
         })
         .filter((channel): channel is BoosterChannel =>
@@ -225,7 +222,6 @@ function getFirstPost(
     "instagram",
     "gmb",
     "linkedin",
-    "inrcy_site",
     "site_web",
     "inr_search",
     "tiktok",

@@ -66,7 +66,6 @@ export type VideoPublicationValidation =
     };
 
 export const VIDEO_CHANNEL_LABELS: Record<BoosterVideoChannelKey, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -111,7 +110,6 @@ export const VIDEO_PUBLICATION_POLICY_BY_CHANNEL: Record<
   BoosterVideoChannelKey,
   VideoPublicationPolicy
 > = {
-  inrcy_site: { channel: "inrcy_site", ...DEFAULT_POLICY },
   site_web: { channel: "site_web", ...DEFAULT_POLICY },
   inr_search: { channel: "inr_search", ...DEFAULT_POLICY },
   gmb: {

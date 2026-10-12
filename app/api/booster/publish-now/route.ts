@@ -73,7 +73,8 @@ import {
   logPublishChannelFailure,
   markPublishChannelReconnectRequired,
 } from "@/lib/channelPublishDiagnostics";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
+import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
+import { siteWebImageMediaPatch } from "@/lib/siteWebPublications";
 import {
   buildBoosterGmbSummary,
   buildBoosterHashtagLine,
@@ -301,7 +302,6 @@ export const runtime = "nodejs";
 export const maxDuration = 180;
 
 const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
-  inrcy_site: "site_inrcy",
   site_web: "site_web",
   inr_search: "inr_search",
   gmb: "gmb",
@@ -315,7 +315,6 @@ const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
 };
 
 const PUBLICATION_CHANNEL_LABELS: Record<ChannelKey, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -333,7 +332,6 @@ function getPublicationChannelState(
   channel: ChannelKey,
 ) {
   switch (channel) {
-    case "inrcy_site": return states.site_inrcy;
     case "site_web": return states.site_web;
     case "inr_search": return states.inr_search;
     case "gmb": return states.gmb;
@@ -586,6 +584,7 @@ async function publishNowHandler(req: Request) {
       body = resolvedPreparation.body;
     }
 
+    body = normalizeSiteWebPublicationPayload(body);
     const normalizedChannels = normalizeBoosterPublicationChannels(
       body.channels,
     );
@@ -3118,7 +3117,6 @@ async function publishNowHandler(req: Request) {
     // le canal afin de convertir une préférence incompatible sans faux bouton.
     const needsInternalPublishingContext = selected.some((channel) =>
       [
-        "inrcy_site",
         "site_web",
         "facebook",
         "instagram",
@@ -3130,18 +3128,11 @@ async function publishNowHandler(req: Request) {
         "gmb",
       ].includes(channel),
     );
-    const [profileRes, inrcyCfgRes, proCfgRes] = await Promise.all([
+    const [profileRes, proCfgRes] = await Promise.all([
       needsInternalPublishingContext
         ? supabaseAdmin
             .from("profiles")
-            .select("inrcy_site_ownership,phone")
-            .eq("user_id", userId)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      needsInternalPublishingContext
-        ? supabaseAdmin
-            .from("inrcy_site_configs")
-            .select("site_url")
+            .select("phone")
             .eq("user_id", userId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -3154,7 +3145,6 @@ async function publishNowHandler(req: Request) {
         : Promise.resolve({ data: null }),
     ]);
     const profile = asRecord(profileRes.data);
-    const inrcyCfg = asRecord(inrcyCfgRes.data);
     const proCfg = asRecord(proCfgRes.data);
     const proSettings = asRecord(proCfg["settings"]);
     const proSiteWeb = asRecord(proSettings["site_web"]);
@@ -3163,19 +3153,12 @@ async function publishNowHandler(req: Request) {
       proPinterest["defaultBoardId"] || "",
     ).trim();
 
-    const ownership = String(profile["inrcy_site_ownership"] ?? "none");
     const businessPhone = String(profile["phone"] ?? "").trim();
-    const inrcySiteUrl = String(inrcyCfg["site_url"] ?? "").trim();
     const siteWebUrl = String(proSiteWeb["url"] ?? "").trim();
     const publicationCtaDefaults: BoosterCtaDefaults = {
-      preferredWebsiteUrl: siteWebUrl || inrcySiteUrl,
-      preferredWebsiteLabel: siteWebUrl
-        ? "Site web connecté"
-        : inrcySiteUrl
-          ? "Site iNrCy"
-          : "",
+      preferredWebsiteUrl: siteWebUrl,
+      preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "",
       siteWebUrl,
-      inrcySiteUrl,
       phone: businessPhone,
       preferredCta: "site",
     };
@@ -3977,25 +3960,9 @@ async function publishNowHandler(req: Request) {
             ? getPublicationVideoForChannel(ch)
             : null;
 
-        if (ch === "inrcy_site" || ch === "site_web") {
-          // We treat "publication" as an "article/actu" for the site.
-          // This creates a record that your iNrCy site renderer (or your pro's website connector)
-          // can consume to display the article.
-          const targetUrl = ch === "inrcy_site" ? inrcySiteUrl : siteWebUrl;
-          if (
-            ch === "inrcy_site" &&
-            (!hasActiveInrcySite(ownership) || !targetUrl)
-          ) {
-            await setDelivery(ch, {
-              status: "failed",
-              error: "Le site iNrCy n'est pas encore correctement configuré.",
-            });
-            results[ch] = {
-              ok: false,
-              error: "Le site iNrCy n'est pas encore correctement configuré.",
-            };
-            continue;
-          }
+        if (ch === "site_web") {
+          // Store the website article for the installed customer connector or widget.
+          const targetUrl = siteWebUrl;
           if (ch === "site_web" && !targetUrl) {
             await setDelivery(ch, {
               status: "failed",
@@ -4029,7 +3996,7 @@ async function publishNowHandler(req: Request) {
               ? getExpectedChannelImageCount(ch)
               : 0;
           const siteImageWarning = getImagePublicationWarning({
-            channelLabel: ch === "inrcy_site" ? "Le site iNrCy" : "Le site web",
+            channelLabel: "Le site web",
             expectedCount: expectedSiteImageCount,
             publishedCount: siteImageUrls.length,
           });
@@ -4061,7 +4028,7 @@ async function publishNowHandler(req: Request) {
               ? { imageKey: imageKey || null, overlay }
               : null;
           });
-          const siteMediaMetadata: JsonRecord = {};
+          const siteMediaMetadata: JsonRecord = { publication_id: publicationId };
           const siteImageInteractions = buildSiteImageInteractionMetadata(
             siteRawImages,
             siteImageSet.imageKeys || [],
@@ -4118,7 +4085,7 @@ async function publishNowHandler(req: Request) {
                     video_duration_seconds: channelVideo.duration,
                     video_thumbnail_url: channelVideo.thumbnailUrl,
                   }
-                : {}),
+                : siteWebImageMediaPatch(publicationId, siteMediaMetadata)),
               // Always write this field so a re-publish of the same
               // deterministic article clears a link that was removed in the
               // Adapter instead of retaining stale click metadata.

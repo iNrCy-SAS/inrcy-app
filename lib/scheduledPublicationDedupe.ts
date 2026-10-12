@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "./siteWebChannel.ts";
 import { createHash } from "crypto";
 import { normalizeMetaPublicationSelection } from "@/lib/metaPublicationTargets";
 
@@ -5,7 +6,6 @@ const DEFAULT_DUPLICATE_WINDOW_MINUTES = 60;
 const DEFAULT_IMMEDIATE_DUPLICATE_LOOKAHEAD_MINUTES = 240;
 const DUPLICATE_STATUSES = ["scheduled", "running"];
 const BOOSTER_CHANNELS = [
-  "inrcy_site",
   "site_web",
   "gmb",
   "facebook",
@@ -35,9 +35,6 @@ export type ScheduledPublicationDuplicate = {
 };
 
 const agentToBoosterChannel: Record<string, BoosterChannel> = {
-  site_inrcy: "inrcy_site",
-  siteInrcy: "inrcy_site",
-  inrcy_site: "inrcy_site",
   site_web: "site_web",
   siteWeb: "site_web",
   gmb: "gmb",
@@ -81,7 +78,7 @@ function normalizeChannels(input: unknown): BoosterChannel[] {
   return Array.from(
     new Set(
       raw
-        .map((value) => agentToBoosterChannel[String(value || "").trim()])
+        .map((value) => agentToBoosterChannel[canonicalSiteWebChannel(value)])
         .filter((value): value is BoosterChannel => Boolean(value)),
     ),
   );

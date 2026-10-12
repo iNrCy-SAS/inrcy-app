@@ -5,7 +5,6 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { StatsSourceKey } from "@/lib/googleStats";
 import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import { buildSnapshotWindow } from "@/lib/stats/snapshotWindow";
 import { log } from "@/lib/observability/logger";
@@ -55,7 +54,6 @@ import type {
   OverviewPayload,
   PinterestLocalPublicationStats,
   SiteConn,
-  SiteSettings,
   SourcesStatus,
   TiktokLocalPublicationStats,
   XLocalPublicationStats,
@@ -175,27 +173,7 @@ export async function buildStatsOverview(args: {
     userId,
   });
 
-  // Ownership du site iNrCy : utile pour l'UI (rented => connexion globale "Suivi")
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("inrcy_site_ownership")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const inrcySiteOwnership = String(
-    asRecord(profileRow)["inrcy_site_ownership"] ?? "none",
-  );
-  const hasInrcySite = hasActiveInrcySite(inrcySiteOwnership);
-
-  // Load settings from the new schema:
-  // - site_inrcy -> inrcy_site_configs.settings
-  // - site_web -> pro_tools_configs.settings.site_web
-  const [inrcyCfgRes, proCfgRes, businessProfileRes] = await Promise.all([
-    supabase
-      .from("inrcy_site_configs")
-      .select("site_url,settings")
-      .eq("user_id", userId)
-      .maybeSingle(),
+  const [proCfgRes, businessProfileRes] = await Promise.all([
     supabase
       .from("pro_tools_configs")
       .select("settings")
@@ -208,12 +186,6 @@ export async function buildStatsOverview(args: {
       .maybeSingle(),
   ]);
 
-  // NOTE: SiteSettings has only optional fields, so an empty object is a valid fallback.
-  // Using `null` breaks TS in production builds (null not assignable to SiteSettings).
-  const inrcySettings = safeJsonParse<SiteSettings>(
-    asRecord(inrcyCfgRes.data)["settings"],
-    {},
-  );
   const proSettings = safeJsonParse<Record<string, unknown>>(
     asRecord(proCfgRes.data)["settings"],
     {},
@@ -223,11 +195,6 @@ export async function buildStatsOverview(args: {
     asRecord(businessProfileRes.data)["sector"] ?? "",
   ).trim();
   const decodedBusinessSector = decodeBusinessSector(rawBusinessSector);
-
-  // Flag: en mode rented, on peut couper uniquement la couche iNrCy (sans débrancher GA4/GSC)
-  const inrcyTrackingEnabled = Boolean(
-    asRecord(inrcySettings)["inrcy_tracking_enabled"] ?? true,
-  );
 
   // --- Social connection snapshot (always computed live) ---
   // IMPORTANT: iNrStats calls the same overview endpoint with different `include=` values.
@@ -266,16 +233,12 @@ export async function buildStatsOverview(args: {
   // - integrations (nouveau)
   const connectionsKey = await buildOverviewConnectionsKey({
     integrationsAll,
-    inrcySettings,
     proSettings,
-    inrcySiteOwnership,
-    inrcySiteUrl: asRecord(inrcyCfgRes.data)["site_url"],
-    inrcyTrackingEnabled,
     sectorCategory: decodedBusinessSector.sectorCategory,
     profession: decodedBusinessSector.profession,
     inrcyPublishedActivityStats,
   });
-  const rangeKey = `days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|inrcy=${inrcyTrackingEnabled ? 1 : 0}|conn=${connectionsKey}`;
+  const rangeKey = `days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}`;
 
   const {
     buildLinkedInMetricsCacheKey,
@@ -345,10 +308,6 @@ export async function buildStatsOverview(args: {
 
 
   // --- GA4/GSC properties ---
-  // iNrCy site settings live in `inrcy_site_configs.settings` (root ga4/gsc)
-  const inrcyGa4 = asRecord(asRecord(inrcySettings)["ga4"]);
-  const inrcyGsc = asRecord(asRecord(inrcySettings)["gsc"]);
-
   // Pro "site web" settings live in `pro_tools_configs.settings.site_web`
   const proSiteWeb = asRecord(asRecord(proSettings)["site_web"]);
   const webGa4 = asRecord(proSiteWeb["ga4"]);
@@ -359,18 +318,6 @@ export async function buildStatsOverview(args: {
     ga4Property?: string;
     gscProperty?: string;
   }> = [
-    {
-      key: "site_inrcy",
-      // CRITICAL BUSINESS RULE:
-      // when profiles.inrcy_site_ownership = "none", the iNrCy site must be treated as non-existent.
-      // We therefore ignore any stale GA4/GSC configuration still present in inrcy_site_configs.
-      ga4Property: hasInrcySite
-        ? String(inrcyGa4["property_id"] ?? "").trim() || undefined
-        : undefined,
-      gscProperty: hasInrcySite
-        ? String(inrcyGsc["property"] ?? "").trim() || undefined
-        : undefined,
-    },
     {
       key: "site_web",
       ga4Property: String(webGa4["property_id"] ?? "").trim() || undefined,
@@ -638,7 +585,6 @@ export async function buildStatsOverview(args: {
 
   // --- Connections + channel metrics ---
   const sourcesStatus: SourcesStatus = {
-    site_inrcy: { connected: { ga4: false, gsc: false } },
     site_web: { connected: { ga4: false, gsc: false } },
     gmb: { connected: false, metrics: null },
     facebook: { connected: false, metrics: null },
@@ -653,10 +599,6 @@ export async function buildStatsOverview(args: {
   const channelStates = await channelStatesPromise;
 
   // source commune des états de connexion
-  sourcesStatus.site_inrcy.connected = {
-    ga4: channelStates.site_inrcy.ga4,
-    gsc: channelStates.site_inrcy.gsc,
-  };
   sourcesStatus.youtube_shorts.connected = isStatsActiveConnection(channelStates.youtube_shorts);
   sourcesStatus.pinterest.connected = isStatsActiveConnection({
     ...channelStates.pinterest,
@@ -1560,12 +1502,7 @@ export async function buildStatsOverview(args: {
     payload: {
       days,
       selected: includeAll ? null : Array.from(includeSet),
-      inrcySiteOwnership,
       identities: {
-        site_inrcy: {
-          label: channelStates.site_inrcy.url || null,
-          url: channelStates.site_inrcy.url || null,
-        },
         site_web: {
           label: channelStates.site_web.url || null,
           url: channelStates.site_web.url || null,
@@ -1660,7 +1597,7 @@ export async function buildStatsOverview(args: {
       },
       sources: sourcesStatus,
       inrcyActivity: inrcyPublishedActivityStats,
-      note: "Sources connectées: site iNrCy (GA4/GSC), site web (GA4/GSC), GMB, Facebook, Instagram, LinkedIn, X, TikTok, YouTube, Pinterest.",
+      note: "Sources connectées: Site Web (GA4/GSC), GMB, Facebook, Instagram, LinkedIn, X, TikTok, YouTube, Pinterest.",
       meta: {
         generatedAt,
         snapshotDate: dateWindow.snapshotDate,

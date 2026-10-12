@@ -20,7 +20,6 @@ test("channel links accept their real public hosts and reject lookalikes", () =>
     ["pinterest", "https://www.pinterest.fr/inrcy"],
     ["pinterest", "https://pinterest.co.uk/inrcy"],
     ["x", "https://x.com/inrcy"],
-    ["site_inrcy", "https://site.inrcy.example.com"],
     ["site_web", "example.com:8443/contact"],
   ] as const) {
     assert.equal(normalizeChannelPublicUrl(channel, url).ok, true, `${channel}: ${url}`);
@@ -125,7 +124,6 @@ test("channel links are normalized and never accept embedded credentials", () =>
 
 test("every editable channel surface uses the shared protected field", () => {
   const surfaces = [
-    "app/dashboard/_components/SiteInrcyPanel.tsx",
     "app/dashboard/_components/SiteWebPanel.tsx",
     "app/dashboard/_components/GoogleBusinessPanel.tsx",
     "app/dashboard/_components/FacebookPanel.tsx",
@@ -151,7 +149,7 @@ test("every editable channel surface uses the shared protected field", () => {
 
   const drawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   assert.match(drawer, /XSettingsContent onUnsavedChange=\{panel === "x" \? onUnsavedChange : undefined\}/);
-  for (const channel of ["site_inrcy", "site_web", "instagram", "linkedin", "gmb", "facebook", "tiktok"]) {
+  for (const channel of ["site_web", "instagram", "linkedin", "gmb", "facebook", "tiktok"]) {
     assert.match(
       drawer,
       new RegExp(`onUrlDirtyChange: panel === "${channel}" \\? onUnsavedChange : undefined`),
@@ -178,13 +176,9 @@ test("the save route writes both the active-account mirror and integration sourc
   const route = read("app/api/integrations/channel-public-url/route.ts");
   assert.match(route, /requireUser\(\)/);
   assert.match(route, /activeUserId/);
-  assert.match(route, /\.from\("profiles"\)[\s\S]*?\.select\("inrcy_site_ownership"\)[\s\S]*?\.eq\("user_id", activeUserId\)/);
-  assert.match(route, /hasActiveInrcySite/);
-  assert.match(route, /site_ownership_required[\s\S]*?status: 403/);
   assert.match(route, /\.from\("integrations"\)[\s\S]*?\.eq\("user_id", userId\)/);
   assert.match(route, /nextMeta = \{ \.\.\.asRecord\(integration\.meta\), \[metaKey\]: url \}/);
   assert.match(route, /\.from\("pro_tools_configs"\)[\s\S]*?\.eq\("user_id", activeUserId\)/);
-  assert.match(route, /\.from\("inrcy_site_configs"\)[\s\S]*?user_id: activeUserId/);
   assert.match(route, /sourceOfTruthUpdated = await updateIntegrationSourceOfTruth/);
   assert.match(route, /if \(!sourceOfTruthUpdated\) throw mirrorError/);
   assert.match(route, /mirrorSynced = false/);
@@ -194,21 +188,19 @@ test("the save route writes both the active-account mirror and integration sourc
 });
 
 test("site URL saves update local channel blocks and bubble links prefer the fresh saved value", () => {
-  const inrcyHook = read("app/dashboard/_hooks/channels/useSiteInrcyChannel.ts");
   const webHook = read("app/dashboard/_hooks/channels/useSiteWebChannel.ts");
   const bubbles = read("app/dashboard/dashboard.flux-bubbles.ts");
   const presenceSync = read("lib/sitePresenceSync.ts");
 
-  assert.match(inrcyHook, /applySiteInrcyPublicUrlSaved[\s\S]*?resourceUrl: url[\s\S]*?triggerChannelRefresh\("site_inrcy"\)/);
   assert.match(webHook, /applySiteWebPublicUrlSaved[\s\S]*?resourceUrl: url[\s\S]*?triggerChannelRefresh\("site_web"\)/);
   assert.match(webHook, /setSiteWebSettingsText[\s\S]*?next\.url = url[\s\S]*?next\.domain/);
-  assert.match(bubbles, /normalizeExternalHref\(siteInrcySavedUrl\) \|\| blockDrivenViewHref/);
   assert.match(bubbles, /normalizeExternalHref\(siteWebSavedUrl\) \|\| blockDrivenViewHref/);
 
-  for (const hook of [inrcyHook, webHook]) {
+  for (const hook of [webHook]) {
     assert.match(hook, /fetch\("\/api\/integrations\/channel-public-url"/);
   }
-  assert.match(presenceSync, /profileRes\.error \|\| inrcyCfgRes\.error \|\| proCfgRes\.error/);
+  assert.match(presenceSync, /if \(proCfgRes\.error\) throw proCfgRes\.error/);
+  assert.doesNotMatch(presenceSync, /inrcy_site_configs|inrcy_site_ownership/);
   assert.match(presenceSync, /if \(error\) throw error/);
 });
 

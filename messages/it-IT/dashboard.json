@@ -83,7 +83,6 @@
       "rgpd": "I miei dati (GDPR)",
       "mails": "Impostazioni Mails",
       "agenda": "Impostazioni iNr’Calendar",
-      "site_inrcy": "Impostazioni — Sito iNrCy",
       "site_web": "Impostazioni — Sito web",
       "instagram": "Impostazioni — Instagram",
       "linkedin": "Impostazioni — LinkedIn",
@@ -307,13 +306,6 @@
       "view": "Apri iNr’Send",
       "connect": "Configura"
     },
-    "site_inrcy": {
-      "name": "Site iNrCy",
-      "description": "Motore di lead ⚡",
-      "view": "Vedi sito",
-      "connect": "Collega Google Analytics",
-      "siteOnlyTitle": "Solo con un sito iNrCy"
-    },
     "site_web": {
       "name": "Sito web",
       "description": "Converte visite 💡",
@@ -441,7 +433,7 @@
     "openDescription": "Trasforma la tua esperienza in contenuti più precisi, ricchi e fedeli alla tua attività.",
     "contentLengthTitle": "Lunghezza dei contenuti",
     "webLengthLabel": "Siti web + iNr’Search",
-    "webLengthHint": "Gestisce il Sito iNrCy, il sito web esterno e iNr’Search.",
+    "webLengthHint": "Gestisce il Sito web, il sito web esterno e iNr’Search.",
     "socialLengthLabel": "Social network + Google Business",
     "socialLengthHint": "Gestisce Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest e Google Business.",
     "lengthAdapted": "Adattata — l'IA sceglie in base al canale",

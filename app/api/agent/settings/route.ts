@@ -345,7 +345,6 @@ function rowToAutomation(
 
 function connectedInrAgentChannels(states: Awaited<ReturnType<typeof getChannelConnectionStates>>, inrSearchPublished = false): Set<InrAgentChannel> {
   const channels = new Set<InrAgentChannel>();
-  if (states.site_inrcy.connected) channels.add("site_inrcy");
   if (states.site_web.connected) channels.add("site_web");
   if (inrSearchPublished) channels.add("inr_search");
   if (states.gmb.connected && !states.gmb.requiresUpdate) channels.add("gmb");

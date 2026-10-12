@@ -83,9 +83,6 @@ export function createOverviewLiveSourceTools({
     });
 
     return {
-      site_inrcy: {
-        connected: { ga4: states.site_inrcy.ga4, gsc: states.site_inrcy.gsc },
-      },
       site_web: {
         connected: { ga4: states.site_web.ga4, gsc: states.site_web.gsc },
       },

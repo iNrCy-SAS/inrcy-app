@@ -1,4 +1,5 @@
 import type { BoosterChannels } from "./boosterPrompt.ts";
+import { LEGACY_SITE_OUTPUT_ALIASES } from "./siteWebChannel.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -10,8 +11,7 @@ type NormalizedStructuredPost = {
 };
 
 const CHANNEL_OUTPUT_ALIASES: Record<BoosterChannels, string[]> = {
-  inrcy_site: ["inrcy_site", "inrcysite", "site_inrcy", "siteinrcy"],
-  site_web: ["site_web", "siteweb", "website", "web_site"],
+  site_web: ["site_web", "siteweb", "website", "web_site", ...LEGACY_SITE_OUTPUT_ALIASES],
   inr_search: ["inr_search", "inrsearch", "search_page", "public_page"],
   gmb: ["gmb", "google_business", "googlebusiness", "google_business_profile"],
   facebook: ["facebook", "fb"],

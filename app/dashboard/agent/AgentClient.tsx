@@ -817,7 +817,6 @@ export default function AgentClient() {
             payload?.preferredWebsiteLabel || ""
           ).trim(),
           siteWebUrl: String(payload?.siteWebUrl || "").trim(),
-          inrcySiteUrl: String(payload?.inrcySiteUrl || "").trim(),
           phone: String(payload?.phone || "").trim(),
           preferredCta: normalizeBoosterPreferredCta(payload?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(payload?.aiLanguage),
@@ -7611,12 +7610,6 @@ export default function AgentClient() {
                     boosterRuntimeT
                   );
                 const websiteChoices = [
-                  publishCtaDefaults?.inrcySiteUrl
-                    ? {
-                        label: i18nT("site_inrcy_57016d6f"),
-                        url: publishCtaDefaults.inrcySiteUrl,
-                      }
-                    : null,
                   publishCtaDefaults?.siteWebUrl
                     ? {
                         label: i18nT("site_web_7e78af33"),

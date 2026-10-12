@@ -1,5 +1,8 @@
 "use client";
 
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
+
+
 import styles from "./dashboard.module.css";
 import experienceStyles from "./_components/DashboardExperience.module.css";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,7 +37,6 @@ import { useFacebookChannel } from "./_hooks/channels/useFacebookChannel";
 import { useInstagramChannel } from "./_hooks/channels/useInstagramChannel";
 import { useLinkedinChannel } from "./_hooks/channels/useLinkedinChannel";
 import { useGoogleBusinessChannel } from "./_hooks/channels/useGoogleBusinessChannel";
-import { useSiteInrcyChannel } from "./_hooks/channels/useSiteInrcyChannel";
 import { useSiteWebChannel } from "./_hooks/channels/useSiteWebChannel";
 import { useTiktokChannel } from "./_hooks/channels/useTiktokChannel";
 
@@ -59,7 +61,7 @@ import { resolveProfileLogoUrl } from "@/lib/profileLogo";
 import { PUBLIC_PROFILE_DATA_SAVED_EVENT } from "@/lib/publicProfileRefreshClient";
 import { getDrawerTitle, isDrawerPanel } from "./dashboard.utils";
 import { inferChannelsFromRealtimePayload, inferChannelsFromSearchParams } from "./dashboard.shared";
-import type { ActusFont, GoogleProduct, GoogleSource, Ownership } from "./dashboard.types";
+import type { ActusFont, GoogleProduct, GoogleSource} from "./dashboard.types";
 import { normalizeActusAccent, normalizeActusDesign, normalizeActusLayout, normalizeActusTheme } from "./dashboard.types";
 import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboardChannels";
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
@@ -93,7 +95,6 @@ import {
 } from "@/lib/dashboardEdition";
 import { DASHBOARD_TOP_ANCHOR_ID } from "./dashboard.scroll";
 
-
 import {
   AUTO_DAILY_REFRESH_DEDUP_MS,
   CHANNEL_REFRESH_DEDUP_MS,
@@ -105,7 +106,7 @@ import {
   createUnverifiedBubbleAccessMap,
   getRuntimeInrSearchOrigin,
   isConnectionStatus,
-  isOwnership,
+
   mergeCachedDashboardChannelState,
   readCachedBubbleAccessMap,
   readCachedDashboardBoolean,
@@ -118,7 +119,7 @@ import {
   readCachedInrBadgeProfile,
   readCachedMailAccountsConnectedCount,
   readCachedSiteBubbleProgress,
-  readCachedSiteInrcyDisplayAccess,
+
   sanitizeCachedInrBadgeProfile,
   sanitizeGeneratorPowerSnapshot,
   sanitizeMailAccountsConnectedCount,
@@ -202,7 +203,7 @@ export default function DashboardClient({
   const [helpGeneratorOpen, setHelpGeneratorOpen] = useState(false);
   const [generatorSettingsOpen, setGeneratorSettingsOpen] = useState(false);
   const [helpCanauxOpen, setHelpCanauxOpen] = useState(false);
-  const [helpSiteInrcyOpen, setHelpSiteInrcyOpen] = useState(false);
+
   const [helpSiteWebOpen, setHelpSiteWebOpen] = useState(false);
   const [helpInertieOpen, setHelpInertieOpen] = useState(false);
   const [helpInstagramOpen, setHelpInstagramOpen] = useState(false);
@@ -215,7 +216,7 @@ export default function DashboardClient({
     hasCompleteOfficialDashboardChannelState(initialDashboardChannelState)
   ));
   const [bubbleAccessReady, setBubbleAccessReady] = useState(false);
-  const [displayedSiteInrcyAccess, setDisplayedSiteInrcyAccess] = useState(() => readCachedSiteInrcyDisplayAccess());
+
   const [mailAccountsConnectedCount, setMailAccountsConnectedCount] = useState(() => (
     Object.prototype.hasOwnProperty.call(initialDashboardChannelState ?? {}, "mailAccountsConnectedCount")
       ? sanitizeMailAccountsConnectedCount(initialDashboardChannelState?.mailAccountsConnectedCount)
@@ -560,7 +561,7 @@ export default function DashboardClient({
     }
   }, []);
 
-  const fetchWidgetToken = useCallback(async (domain: string, source: "inrcy_site" | "site_web") => {
+  const fetchWidgetToken = useCallback(async (domain: string, source: "site_web") => {
     if (!domain) return "";
     try {
       const res = await fetch(
@@ -610,7 +611,7 @@ const patchChannelConnectionLocallyRef = useRef<(
 const triggerChannelRefreshRef = useRef<(channel: DashboardChannelKey) => Promise<void>>(async () => {});
 
 const [bubbleAccessMap, setBubbleAccessMap] = useState<AppBubbleAccessMap>(() => readCachedBubbleAccessMap());
-const canAccessSiteInrcy = isBubbleEnabled(bubbleAccessMap, "site_inrcy");
+
 const canAccessInrAgent = isBubbleEnabled(bubbleAccessMap, "inr_agent");
 const canAccessPinterest = isBubbleEnabled(bubbleAccessMap, "pinterest");
 const canAccessX = isBubbleEnabled(bubbleAccessMap, "x");
@@ -698,68 +699,6 @@ const updateRootSettingsKey = useCallback(
   },
   []
 );
-
-const {
-  siteInrcyOwnership,
-  setSiteInrcyOwnership,
-  siteInrcyUrl,
-  setSiteInrcyUrl,
-  siteInrcySavedUrl,
-  setSiteInrcySavedUrl,
-  siteInrcyContactEmail,
-  setSiteInrcyContactEmail,
-  siteInrcySettingsText,
-  setSiteInrcySettingsText,
-  siteInrcySettingsError,
-  setSiteInrcySettingsError,
-  siteInrcyTrackingBusy,
-  siteInrcyGa4Notice,
-  setSiteInrcyGa4Notice,
-  siteInrcyGscNotice,
-  setSiteInrcyGscNotice,
-  siteInrcyUrlNotice,
-  widgetTokenInrcySite,
-  siteInrcyActusLayout,
-  setSiteInrcyActusLayout,
-  siteInrcyActusLimit,
-  setSiteInrcyActusLimit,
-  siteInrcyActusFont,
-  setSiteInrcyActusFont,
-  siteInrcyActusDesign,
-  setSiteInrcyActusDesign,
-  siteInrcyActusTheme,
-  setSiteInrcyActusTheme,
-  siteInrcyActusAccent,
-  setSiteInrcyActusAccent,
-  showSiteInrcyWidgetCode,
-  setShowSiteInrcyWidgetCode,
-  siteInrcyGa4Connected,
-  setSiteInrcyGa4Connected,
-  siteInrcyGscConnected,
-  setSiteInrcyGscConnected,
-  ga4MeasurementId,
-  setGa4MeasurementId,
-  ga4PropertyId,
-  setGa4PropertyId,
-  gscProperty,
-  setGscProperty,
-  connectSiteInrcyGa4,
-  connectSiteInrcyGsc,
-  activateSiteInrcyTracking,
-  deactivateSiteInrcyTracking,
-  disconnectSiteInrcyGa4,
-  disconnectSiteInrcyGsc,
-  applySiteInrcyPublicUrlSaved,
-  saveSiteInrcyUrl,
-  deleteSiteInrcyUrl,
-  saveSiteInrcyActusWidgetSettings,
-  resetSiteInrcyAll,
-} = useSiteInrcyChannel({
-  extractDomain,
-  fetchWidgetToken,
-  patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
-  triggerChannelRefresh: triggerChannelRefreshProxy,
-});
 
 const {
   siteWebUrl,
@@ -1045,24 +984,8 @@ const {
 const applyDashboardChannelState = useCallback((state: Record<string, any> | null, options?: { markReady?: boolean }) => {
   if (!state) return false;
 
-  if (isOwnership(state.siteInrcyOwnership)) setSiteInrcyOwnership(state.siteInrcyOwnership);
-  if (typeof state.siteInrcyUrl === "string") setSiteInrcyUrl(state.siteInrcyUrl);
-  if (typeof state.siteInrcySavedUrl === "string") setSiteInrcySavedUrl(state.siteInrcySavedUrl);
-  if (typeof state.siteInrcyContactEmail === "string") setSiteInrcyContactEmail(state.siteInrcyContactEmail);
-  if (typeof state.siteInrcySettingsText === "string") setSiteInrcySettingsText(state.siteInrcySettingsText);
-  if (typeof state.ga4MeasurementId === "string") setGa4MeasurementId(state.ga4MeasurementId);
-  if (typeof state.ga4PropertyId === "string") setGa4PropertyId(state.ga4PropertyId);
-  if (typeof state.gscProperty === "string") setGscProperty(state.gscProperty);
-  if (["list", "carousel", "grid", "compact"].includes(String(state.siteInrcyActusLayout))) setSiteInrcyActusLayout(normalizeActusLayout(state.siteInrcyActusLayout));
-  if ([3, 5, 10].includes(Number(state.siteInrcyActusLimit))) setSiteInrcyActusLimit(Number(state.siteInrcyActusLimit));
-  if (["site", "inter", "poppins", "montserrat", "lora"].includes(String(state.siteInrcyActusFont))) setSiteInrcyActusFont(state.siteInrcyActusFont);
-  if (["essential", "classic", "contemporary", "futuristic", "elegant"].includes(String(state.siteInrcyActusDesign))) setSiteInrcyActusDesign(normalizeActusDesign(state.siteInrcyActusDesign));
-  if (["white", "dark", "gray", "nature", "sand", "blue", "terracotta", "anthracite", "custom"].includes(String(state.siteInrcyActusTheme))) setSiteInrcyActusTheme(normalizeActusTheme(state.siteInrcyActusTheme));
   // Les rafraîchissements canoniques ne contiennent que l'état des connexions.
   // Une couleur absente ne doit donc jamais effacer le réglage local du widget.
-  if (typeof state.siteInrcyActusAccent === "string") {
-    setSiteInrcyActusAccent(normalizeActusAccent(state.siteInrcyActusAccent));
-  }
 
   if (typeof state.siteWebSettingsText === "string") setSiteWebSettingsText(state.siteWebSettingsText);
   if (typeof state.siteWebUrl === "string") setSiteWebUrl(state.siteWebUrl);
@@ -1141,8 +1064,6 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (typeof state.inrSearchUrl === "string") setInrSearchUrl(state.inrSearchUrl);
   if (typeof state.inrSearchDirectoryEnabled === "boolean") setInrSearchDirectoryEnabled(state.inrSearchDirectoryEnabled);
 
-  if (typeof state.siteInrcyGa4Connected === "boolean") setSiteInrcyGa4Connected(state.siteInrcyGa4Connected);
-  if (typeof state.siteInrcyGscConnected === "boolean") setSiteInrcyGscConnected(state.siteInrcyGscConnected);
   if (typeof state.siteWebGa4Connected === "boolean") setSiteWebGa4Connected(state.siteWebGa4Connected);
   if (typeof state.siteWebGscConnected === "boolean") setSiteWebGscConnected(state.siteWebGscConnected);
 
@@ -1160,22 +1081,19 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
     setLastKnownInrBadgeProfileReady(state.inrBadgeProfileReady);
   }
 
-
-  setSiteInrcySettingsError(null);
   setSiteWebSettingsError(null);
   if (options?.markReady) setSiteConnectionsReady(true);
   return true;
 }, [
   setFacebookAccountConnected, setFacebookConnectionStatus, setFacebookPageConnected, setFacebookUrl,
-  setFbSelectedPageId, setFbSelectedPageName, setGa4MeasurementId, setGa4PropertyId, setGmbAccountConnected,
+  setFbSelectedPageId, setFbSelectedPageName,   setGmbAccountConnected,
   setGmbConfigured, setGmbConnected, setGmbConnectionStatus, setGmbLocationLabel, setGmbLocationName, setGmbUrl,
-  setGscProperty, setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
+   setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
   setInstagramUsername, setLinkedinAccountConnected, setLinkedinConnected, setLinkedinConnectionStatus,
   setLinkedinDisplayName, setLinkedinSelectedOrganizationId, setLinkedinSelectedOrganizationName, setLinkedinUrl,
   setLinkedinProfileUrl, setLinkedinOrganizationUrl,
-  setSiteInrcyActusFont, setSiteInrcyActusLayout, setSiteInrcyActusLimit, setSiteInrcyActusDesign, setSiteInrcyActusTheme, setSiteInrcyActusAccent, setSiteInrcyContactEmail,
-  setSiteInrcyGa4Connected, setSiteInrcyGscConnected, setSiteInrcyOwnership, setSiteInrcySavedUrl,
-  setSiteInrcySettingsError, setSiteInrcySettingsText, setSiteInrcyUrl, setSiteWebActusFont, setSiteWebActusLayout,
+
+     setSiteWebActusFont, setSiteWebActusLayout,
   setSiteWebActusLimit, setSiteWebActusDesign, setSiteWebActusTheme, setSiteWebActusAccent, setSiteWebGa4Connected, setSiteWebGa4MeasurementId,
   setSiteWebGa4PropertyId, setSiteWebGscConnected, setSiteWebGscProperty, setSiteWebSavedUrl,
   setSiteWebSettingsError, setSiteWebSettingsText, setSiteWebUrl, setMailAccountsConnectedCount, setMailAccountsRequireUpdate,
@@ -1233,12 +1151,7 @@ const refreshOfficialChannelStates = useCallback(async () => {
 
 const resetAccountScopedDashboardState = useCallback(() => {
   applyDashboardChannelState({
-    siteInrcyOwnership: "none",
-    siteInrcyUrl: "",
-    siteInrcySavedUrl: "",
-    siteInrcyActusAccent: "",
-    siteInrcyGa4Connected: false,
-    siteInrcyGscConnected: false,
+
     siteWebUrl: "",
     siteWebSavedUrl: "",
     siteWebActusAccent: "",
@@ -1538,7 +1451,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
     () =>
       computeInertiaSnapshot(
         {
-          site_inrcy: Boolean(canAccessSiteInrcy && normalizeSiteUrl(siteInrcySavedUrl) && (siteInrcyGa4Connected || siteInrcyGscConnected)),
+
           site_web: Boolean(normalizeSiteUrl(siteWebSavedUrl) && (siteWebGa4Connected || siteWebGscConnected)),
           // IMPORTANT: on ne compte les réseaux sociaux que si le compte est réellement connecté (OAuth),
           // pas seulement si un lien est renseigné.
@@ -1558,10 +1471,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       ),
     [
       normalizeSiteUrl,
-      canAccessSiteInrcy,
-      siteInrcySavedUrl,
-      siteInrcyGa4Connected,
-      siteInrcyGscConnected,
+
       siteWebSavedUrl,
       siteWebGa4Connected,
       siteWebGscConnected,
@@ -1629,7 +1539,6 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
 
 // OAuth credentials must be stored server-side (env vars), not in the UI.
 
-
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
@@ -1677,7 +1586,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       const cachedGeneratorActive = readCachedGeneratorIsActive();
       if (cachedGeneratorActive !== null) setDisplayedGeneratorIsActive(cachedGeneratorActive);
       setDisplayedSiteBubbleProgress(readCachedSiteBubbleProgress());
-      setDisplayedSiteInrcyAccess(readCachedSiteInrcyDisplayAccess());
+
     };
 
     const syncActiveAccountFromServer = async (authUserId: string) => {
@@ -1749,7 +1658,6 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
     resetAccountScopedDashboardState,
   ]);
 
-
   // =============================
   // UI (Unités iNrCy) — récompenses auto
   // - 50 UI à la 1ère ouverture du compte
@@ -1818,12 +1726,8 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
     return typeof json?.connected === "boolean" ? json.connected : null;
   }, []);
 
-// ✅ Charge infos Site iNrCy + outils du pro depuis Supabase
-// - ownership + url iNrCy : profiles
-// - config iNrCy : inrcy_site_configs
-// - outils du pro (site_web, gmb, facebook, houzz, pages_jaunes, ...) : pro_tools_configs
-// (ancienne table site_configs supprimée)
-const loadSiteInrcy = useCallback(async () => {
+// Charge les réglages Site Web et les outils du compte.
+const loadSiteWebSettings = useCallback(async () => {
   const requestSeq = ++siteConfigRequestSeqRef.current;
   setSiteConnectionsReady(false);
   setBubbleAccessReady(false);
@@ -1838,7 +1742,7 @@ const loadSiteInrcy = useCallback(async () => {
   const [profileRes, bubbleAccessEnsureRes, channelStates] = await Promise.all([
     supabase
       .from("profiles")
-      .select("inrcy_site_ownership,logo_url,logo_path,company_legal_name,first_name,last_name,phone,contact_email")
+      .select("logo_url,logo_path,company_legal_name,first_name,last_name,phone,contact_email")
       .eq("user_id", resolveActiveBrowserUserId(user.id))
       .maybeSingle(),
     fetch("/api/bubble-access/ensure", { method: "GET", cache: "no-store" })
@@ -1866,12 +1770,11 @@ const loadSiteInrcy = useCallback(async () => {
   setBubbleAccessMap(nextBubbleAccessMap);
   if (hasAuthoritativeBubbleAccess) {
     setBubbleAccessReady(true);
-    setDisplayedSiteInrcyAccess(Boolean(nextBubbleAccessMap.site_inrcy));
+
     writeCachedBubbleAccessMap(nextBubbleAccessMap);
   }
 
   const profile = profileRes.data as any | null;
-  const ownership = (profile?.inrcy_site_ownership ?? "none") as Ownership;
   const resolvedProfileLogo = await resolveProfileLogoUrl(supabase, {
     logo_path: profile?.logo_path ?? null,
     logo_url: profile?.logo_url ?? null,
@@ -1891,38 +1794,16 @@ const loadSiteInrcy = useCallback(async () => {
   setInrBadgeProfile(nextInrBadgeProfile);
   mergeCachedDashboardChannelState({ inrBadgeProfile: nextInrBadgeProfile });
 
-  const [inrcyRes, proRes] = await Promise.all([
-    supabase
-      .from("inrcy_site_configs")
-      .select("contact_email,settings,site_url")
-      .eq("user_id", resolveActiveBrowserUserId(user.id))
-      .maybeSingle(),
-    supabase
+  const proRes = await supabase
       .from("pro_tools_configs")
       .select("settings")
       .eq("user_id", resolveActiveBrowserUserId(user.id))
-      .maybeSingle(),
-  ]);
+      .maybeSingle();
   if (requestSeq !== siteConfigRequestSeqRef.current) return;
 
-  const inrcyCfg = (inrcyRes.data as any | null) ?? null;
   const proCfg = (proRes.data as any | null) ?? null;
   type SettingsRow = { settings?: any | null } | null;
   const proSettingsObj = (proCfg as SettingsRow)?.settings ?? {};
-
-  const siteInrcyUrlValue = (inrcyCfg?.site_url as string | undefined ?? "").trim();
-  const siteInrcyContactEmailValue = (inrcyCfg?.contact_email ?? "") as string;
-  const inrcySettingsObj = inrcyCfg?.settings ?? {};
-  let siteInrcySettingsTextValue = "{}";
-  try {
-    siteInrcySettingsTextValue = JSON.stringify(inrcySettingsObj, null, 2);
-  } catch {
-    siteInrcySettingsTextValue = "{}";
-  }
-
-  const ga4MeasurementIdValue = (inrcySettingsObj as any)?.ga4?.measurement_id ?? "";
-  const ga4PropertyIdValue = String((inrcySettingsObj as any)?.ga4?.property_id ?? "");
-  const gscPropertyValue = (inrcySettingsObj as any)?.gsc?.property ?? "";
 
   const siteWebObj = (proSettingsObj as any)?.site_web ?? {};
   let siteWebSettingsTextValue = "{}";
@@ -1943,20 +1824,7 @@ const loadSiteInrcy = useCallback(async () => {
     // A transient network failure must keep the last server-confirmed
     // connection state. A later successful read repairs this cache naturally.
     ...(readCachedDashboardChannelState() ?? {}),
-    siteInrcyOwnership: ownership,
-    siteInrcyUrl: siteInrcyUrlValue,
-    siteInrcySavedUrl: siteInrcyUrlValue,
-    siteInrcyContactEmail: siteInrcyContactEmailValue,
-    siteInrcySettingsText: siteInrcySettingsTextValue,
-    ga4MeasurementId: ga4MeasurementIdValue,
-    ga4PropertyId: ga4PropertyIdValue,
-    gscProperty: gscPropertyValue,
-    siteInrcyActusLayout: normalizeActusLayout((inrcySettingsObj as any)?.actus_widget?.layout),
-    siteInrcyActusLimit: [3, 5, 10].includes(Number((inrcySettingsObj as any)?.actus_widget?.limit)) ? Number((inrcySettingsObj as any)?.actus_widget?.limit) : 5,
-    siteInrcyActusFont: (["site", "inter", "poppins", "montserrat", "lora"] as const).includes((inrcySettingsObj as any)?.actus_widget?.font as never) ? (inrcySettingsObj as any)?.actus_widget?.font as ActusFont : "site" as ActusFont,
-    siteInrcyActusDesign: normalizeActusDesign((inrcySettingsObj as any)?.actus_widget?.design),
-    siteInrcyActusTheme: normalizeActusTheme((inrcySettingsObj as any)?.actus_widget?.theme),
-    siteInrcyActusAccent: normalizeActusAccent((inrcySettingsObj as any)?.actus_widget?.accent),
+
     siteWebSettingsText: siteWebSettingsTextValue,
     siteWebUrl: (siteWebObj as any)?.url ?? "",
     siteWebSavedUrl: (siteWebObj as any)?.url ?? "",
@@ -1983,21 +1851,16 @@ const loadSiteInrcy = useCallback(async () => {
     if (states) {
       // The server state is the sole connection authority once loaded.
       // Saved IDs are configuration, not proof of a live Google binding.
-      nextState.siteInrcyGa4Connected = states?.site_inrcy?.ga4 === true;
-      nextState.siteInrcyGscConnected = states?.site_inrcy?.gsc === true;
+
       nextState.siteWebGa4Connected = states?.site_web?.ga4 === true;
       nextState.siteWebGscConnected = states?.site_web?.gsc === true;
       Object.assign(nextState, buildOfficialDashboardChannelState(states) ?? {});
     } else {
-      const [inrcyGa4, inrcyGsc, webGa4, webGsc] = await Promise.all([
-        fetchGoogleConnected("site_inrcy", "ga4"),
-        fetchGoogleConnected("site_inrcy", "gsc"),
+      const [webGa4, webGsc] = await Promise.all([
         fetchGoogleConnected("site_web", "ga4"),
         fetchGoogleConnected("site_web", "gsc"),
       ]);
       if (requestSeq !== siteConfigRequestSeqRef.current) return;
-      if (typeof inrcyGa4 === "boolean") nextState.siteInrcyGa4Connected = inrcyGa4;
-      if (typeof inrcyGsc === "boolean") nextState.siteInrcyGscConnected = inrcyGsc;
       if (typeof webGa4 === "boolean") nextState.siteWebGa4Connected = webGa4;
       if (typeof webGsc === "boolean") nextState.siteWebGscConnected = webGsc;
     }
@@ -2011,8 +1874,8 @@ const loadSiteInrcy = useCallback(async () => {
 }, [applyDashboardChannelState, fetchGoogleConnected, refreshOfficialChannelStates]);
 
 useEffect(() => {
-  loadSiteInrcy();
-}, [loadSiteInrcy]);
+  loadSiteWebSettings();
+}, [loadSiteWebSettings]);
 
 useEffect(() => {
   const refreshCanonicalState = () => {
@@ -2040,27 +1903,23 @@ useEffect(() => {
 
 useEffect(() => {
   const refreshProfileDependentChannels = () => {
-    void loadSiteInrcy();
+    void loadSiteWebSettings();
   };
 
   window.addEventListener(PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshProfileDependentChannels);
   return () => {
     window.removeEventListener(PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshProfileDependentChannels);
   };
-}, [loadSiteInrcy]);
+}, [loadSiteWebSettings]);
 
-const savedSiteInrcyUrlMeta = normalizeSiteUrl(siteInrcySavedUrl);
 const savedSiteWebUrlMeta = normalizeSiteUrl(siteWebSavedUrl);
-const draftSiteInrcyUrlMeta = normalizeSiteUrl(siteInrcyUrl);
+
 const draftSiteWebUrlMeta = normalizeSiteUrl(siteWebUrl);
 
-const canViewSite = canAccessSiteInrcy && !!savedSiteInrcyUrlMeta;
-const canConfigureSite = canAccessSiteInrcy;
-
 // ✅ UX : Google ne devient connectable qu'une fois un vrai lien enregistré
-const hasSiteInrcyUrl = !!savedSiteInrcyUrlMeta;
+
 const hasSiteWebUrl = !!savedSiteWebUrlMeta;
-const canConnectSiteInrcyGoogle = canConfigureSite && hasSiteInrcyUrl;
+
 const canConnectSiteWebGoogle = hasSiteWebUrl;
 
 const inrBadgeProfileCheckReady = profileCheckReady || lastKnownInrBadgeProfileReady !== null;
@@ -2068,17 +1927,16 @@ const inrBadgeProfileReady = profileCheckReady
   ? !profileIncomplete
   : lastKnownInrBadgeProfileReady === true;
 
-const siteInrcyProgressCount = (hasSiteInrcyUrl ? 1 : 0) + (hasSiteInrcyUrl && siteInrcyGa4Connected ? 1 : 0) + (hasSiteInrcyUrl && siteInrcyGscConnected ? 1 : 0);
 const siteWebProgressCount = (hasSiteWebUrl ? 1 : 0) + (hasSiteWebUrl && siteWebGa4Connected ? 1 : 0) + (hasSiteWebUrl && siteWebGscConnected ? 1 : 0);
-const siteInrcyAllGreen = canAccessSiteInrcy && siteInrcyProgressCount === 3;
+
 const siteWebAllGreen = siteWebProgressCount === 3;
 
-// Les deux types de sites représentent une seule présence web. Mails ne
+// Le Site Web représente la présence web du compte. Mails ne
 // complète la jauge qu'avec le pack Premium, même si une ancienne connexion
 // reste enregistrée après un retour au pack Standard.
 const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   inrbadge: inrBadgeProfileReady,
-  site_web: hasSiteWebUrl || (canAccessSiteInrcy && hasSiteInrcyUrl),
+  site_web: hasSiteWebUrl,
   gmb: Boolean(gmbConnected && gmbConnectionStatus !== "needs_update"),
   inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
   facebook: Boolean(facebookPageConnected && facebookConnectionStatus !== "needs_update"),
@@ -2089,7 +1947,7 @@ const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   pinterest: Boolean(canAccessPinterest && pinterestConnected && !pinterestRequiresUpdate),
   x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update" && !xRequiresUpdate),
   mails: Boolean(!isStandardEdition && mailAccountsConnectedCount > 0 && !mailAccountsRequireUpdate),
-  site_inrcy: siteInrcyAllGreen,
+
 };
 
 const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP.map((channel) => ({
@@ -2175,7 +2033,7 @@ const applyGeneratorCacheToState = useCallback(() => {
     if (Number.isFinite(oppMonth)) {
       setOppTotal(oppMonth);
       try {
-        writeUiCacheValue("inrcy_opp30_total_v1", String(oppMonth));
+        writeUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal, String(oppMonth));
       } catch {
         // ignore
       }
@@ -2192,7 +2050,7 @@ const applyGeneratorCacheToState = useCallback(() => {
       const connection = block?.connection;
       if (!connection) return false;
       if (connection.requiresUpdate || connection.connectionStatus === "needs_update") return false;
-      if (channel === "site_inrcy" || channel === "site_web") {
+      if (channel === "site_web") {
         return Boolean(connection.statsConnected);
       }
       return Boolean(connection.connected);
@@ -2254,7 +2112,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (Number.isFinite(oppMonth)) {
         setOppTotal(oppMonth);
         try {
-          writeUiCacheValue("inrcy_opp30_total_v1", String(oppMonth));
+          writeUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal, String(oppMonth));
         } catch {
           // ignore
         }
@@ -2262,7 +2120,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       try {
         const syncedAt = Number.isFinite(Number(options?.syncedAt)) ? Number(options?.syncedAt) : Date.now();
         const responseSnapshotDate = typeof json?.meta?.snapshotDate === "string" ? json.meta.snapshotDate : null;
-        writeUiCacheValue("inrcy_generator_kpis_v1", JSON.stringify({ syncedAt, snapshotDate: responseSnapshotDate || snapshotDate || null, payload: json }));
+        writeUiCacheValue(DASHBOARD_CACHE_KEYS.generatorKpis, JSON.stringify({ syncedAt, snapshotDate: responseSnapshotDate || snapshotDate || null, payload: json }));
         notifyGeneratorRefresh(syncedAt, DASHBOARD_CHANNEL_KEYS);
       } catch {
         // ignore
@@ -2293,7 +2151,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       }
     } else {
       try {
-        writeUiCacheValue("inrcy_stats_last_channel_sync_v1", String(syncAt));
+        writeUiCacheValue(DASHBOARD_CACHE_KEYS.lastChannelSync, String(syncAt));
       } catch {
         // ignore
       }
@@ -2827,7 +2685,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (Number.isFinite(oppMonth)) {
         setOppTotal(oppMonth);
         try {
-          writeUiCacheValue("inrcy_opp30_total_v1", String(oppMonth));
+          writeUiCacheValue(DASHBOARD_CACHE_KEYS.opportunityTotal, String(oppMonth));
         } catch {
           // ignore
         }
@@ -2838,7 +2696,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           ? generator.meta.snapshotDate
           : bootstrapSnapshotDate ?? null;
         writeUiCacheValue(
-          "inrcy_generator_kpis_v1",
+          DASHBOARD_CACHE_KEYS.generatorKpis,
           JSON.stringify({ syncedAt: syncAt, snapshotDate: generatorSnapshotDate, payload: generator })
         );
       } catch {
@@ -2999,7 +2857,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       const syncAt = Date.now();
       lastGeneratorRefreshAtRef.current = syncAt;
       await Promise.allSettled([
-        loadSiteInrcy(),
+        loadSiteWebSettings(),
         refreshAllGeneratorChannelsFromApi(syncAt, { force: true }),
         refreshAllChannelBlocksFromApi(syncAt, { force: true }),
       ]);
@@ -3008,7 +2866,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
     clearScheduledGeneratorRefreshes();
     await runSync();
-  }, [clearScheduledGeneratorRefreshes, loadSiteInrcy, notifyStatsRefresh, refreshAllChannelBlocksFromApi, refreshAllGeneratorChannelsFromApi]);
+  }, [clearScheduledGeneratorRefreshes, loadSiteWebSettings, notifyStatsRefresh, refreshAllChannelBlocksFromApi, refreshAllGeneratorChannelsFromApi]);
 
   const fallbackToServerSyncThenGlobal = useCallback(async () => {
     const beforeGeneratorSyncAt = Number(readGeneratorCache()?.syncedAt ?? 0);
@@ -3118,8 +2976,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelFromApi, refreshOfficialChannelStates, triggerChannelRefresh, syncInstagramStateFromServer]);
   latestTriggerChannelsRefreshRef.current = triggerChannelsRefresh;
 
-
-
   const handleSharedGeneratorRefresh = useCallback(async () => {
     if (kpisLoading) return;
     setKpisLoading(true);
@@ -3127,7 +2983,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     try {
       const bootstrap = await runDailyStatsRefreshBootstrap({ announce: true, force: true });
       applyBootstrapRefresh(bootstrap);
-      await loadSiteInrcy();
+      await loadSiteWebSettings();
 
       if (!bootstrap?.ran) {
         await syncFromServerCacheIfNeeded(true);
@@ -3137,9 +2993,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     } finally {
       setKpisLoading(false);
     }
-  }, [applyBootstrapRefresh, kpisLoading, loadSiteInrcy, syncFromServerCacheIfNeeded]);
-
-
+  }, [applyBootstrapRefresh, kpisLoading, loadSiteWebSettings, syncFromServerCacheIfNeeded]);
 
   useEffect(() => {
     const applyFromGeneratorCache = () => {
@@ -3155,7 +3009,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (!event.key || !event.key.includes("inrcy_generator_kpis_v1")) return;
+      if (!event.key || !event.key.includes(DASHBOARD_CACHE_KEYS.generatorKpis)) return;
       applyFromGeneratorCache();
     };
 
@@ -3199,7 +3053,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   // ✅ Auto-refresh Générateur + statuts modules dès qu'un module se connecte / se déconnecte
   // On écoute les changements Postgres sur les tables qui impactent:
   // - integrations (OAuth/connecteurs)
-  // - pro_tools_configs / inrcy_site_configs (mirrors/settings)
+  // - pro_tools_configs (mirrors/settings)
   // `profiles` reste centralise dans ProfileRealtimeBridge pour eviter une
   // seconde souscription sur la meme ligne dans chaque onglet.
   useEffect(() => {
@@ -3280,11 +3134,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           { event: "*", schema: "public", table: "pro_tools_configs", filter: userFilter },
           (payload: any) => scheduleRefresh(payload),
         )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "inrcy_site_configs", filter: userFilter },
-          (payload: any) => scheduleRefresh(payload),
-        )
         .subscribe();
     };
 
@@ -3322,7 +3171,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       }
       refreshAfterVisibilityRestore = true;
       subscribeForUser(scopedUserId);
-      void loadSiteInrcy();
+      void loadSiteWebSettings();
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
@@ -3342,7 +3191,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange as EventListener);
       removeRealtimeChannel();
     };
-  }, [applyDashboardChannelState, clearScheduledGeneratorRefreshes, loadSiteInrcy, resetAccountScopedDashboardState]);
+  }, [applyDashboardChannelState, clearScheduledGeneratorRefreshes, loadSiteWebSettings, resetAccountScopedDashboardState]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -3363,7 +3212,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     void fallbackToServerSyncThenGlobal();
   }, [fallbackToServerSyncThenGlobal, searchParams, triggerChannelsRefresh]);
 
-
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -3374,8 +3222,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           if (!res.ok || cancelled) return;
           const reauth = (json as any)?.reauth || {};
 
-          if (reauth?.site_inrcy?.ga4) setSiteInrcyGa4Notice(i18nT("reconnexion_google_analytics_requise_securite_24425a0e"));
-          if (reauth?.site_inrcy?.gsc) setSiteInrcyGscNotice(i18nT("reconnexion_search_console_requise_securite_0e2310af"));
           if (reauth?.site_web?.ga4) setSiteWebGa4Notice(i18nT("reconnexion_google_analytics_requise_securite_24425a0e"));
           if (reauth?.site_web?.gsc) setSiteWebGscNotice(i18nT("reconnexion_search_console_requise_securite_0e2310af"));
           if (reauth?.gmb) setPanelError("gmb", "Reconnexion Google Business requise (sécurité).", "Reconnexion Google Business requise (sécurité).", 5000);
@@ -3419,16 +3265,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     const targetPanel = searchParams.get("panel");
     if (ok !== "1" || skipped !== "1") return;
 
-    if (targetPanel === "site_inrcy" && linked === "ga4") {
-      setSiteInrcyGa4Notice(i18nT("google_analytics_deja_connecte_pour_le_cacb426f"));
-      window.setTimeout(() => setSiteInrcyGa4Notice(null), 2600);
-      return;
-    }
-    if (targetPanel === "site_inrcy" && linked === "gsc") {
-      setSiteInrcyGscNotice(i18nT("search_console_deja_connecte_pour_le_4aa7f95e"));
-      window.setTimeout(() => setSiteInrcyGscNotice(null), 2600);
-      return;
-    }
     if (targetPanel === "site_web" && linked === "ga4") {
       setSiteWebGa4Notice(i18nT("google_analytics_deja_connecte_pour_le_9d2187db"));
       window.setTimeout(() => setSiteWebGa4Notice(null), 2600);
@@ -3610,7 +3446,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const leadsWeek = typeof kpis?.leads?.week === "number" ? kpis.leads.week : null;
   const leadsMonth = typeof kpis?.leads?.month === "number" ? kpis.leads.month : null;
   const computedGeneratorIsActive = Boolean(
-    hasSiteInrcyUrl ||
+
     hasSiteWebUrl ||
     gmbConnected ||
     facebookPageConnected ||
@@ -3637,23 +3473,17 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
   const estimatedValue = typeof kpis?.estimatedValue === "number" ? kpis.estimatedValue : null;
 
-  const computeSiteBubbleProgress = useCallback((kind: "site_inrcy" | "site_web"): SiteBubbleProgress => {
-    const progress = kind === "site_inrcy" ? siteInrcyProgressCount : siteWebProgressCount;
-    const hasUrl = kind === "site_inrcy" ? hasSiteInrcyUrl : hasSiteWebUrl;
-    const canUseSite = kind === "site_inrcy" ? canAccessSiteInrcy : true;
-
-    if (kind === "site_inrcy" && !canUseSite) {
-      return { status: "coming", text: dashboardCopy.status.noSite };
-    }
-
+  const computeSiteBubbleProgress = useCallback((_kind: "site_web"): SiteBubbleProgress => {
+    const progress = siteWebProgressCount;
+    const hasUrl = hasSiteWebUrl;
     return {
       status: hasUrl ? "connected" : "available",
       text: `${hasUrl ? dashboardCopy.status.connected : dashboardCopy.status.toConfigure} ${progress}/3`,
     };
-  }, [canAccessSiteInrcy, dashboardCopy, hasSiteInrcyUrl, hasSiteWebUrl, siteInrcyProgressCount, siteWebProgressCount]);
+  }, [ dashboardCopy,  hasSiteWebUrl,  siteWebProgressCount]);
 
   const siteBubbleProgressSnapshot = useMemo<SiteBubbleProgressCache>(() => ({
-    site_inrcy: computeSiteBubbleProgress("site_inrcy"),
+
     site_web: computeSiteBubbleProgress("site_web"),
   }), [computeSiteBubbleProgress]);
 
@@ -3667,9 +3497,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     }
   }, [bubbleAccessReady, siteBubbleProgressSnapshot, siteConnectionsReady]);
 
-  const getSiteBubbleProgress = useCallback((kind: "site_inrcy" | "site_web") => {
+  const getSiteBubbleProgress = useCallback((kind: "site_web") => {
     if (
-      (!siteConnectionsReady || (kind === "site_inrcy" && !bubbleAccessReady)) &&
+      !siteConnectionsReady &&
       displayedSiteBubbleProgress[kind]
     ) {
       return displayedSiteBubbleProgress[kind] as SiteBubbleProgress;
@@ -3680,20 +3510,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   useEffect(() => {
     if (!siteConnectionsReady) return;
     const state = {
-      siteInrcyOwnership,
-      siteInrcyUrl,
-      siteInrcySavedUrl,
-      siteInrcyContactEmail,
-      siteInrcySettingsText,
-      ga4MeasurementId,
-      ga4PropertyId,
-      gscProperty,
-      siteInrcyActusLayout,
-      siteInrcyActusLimit,
-      siteInrcyActusFont,
-      siteInrcyActusDesign,
-      siteInrcyActusTheme,
-      siteInrcyActusAccent,
+
       siteWebSettingsText,
       siteWebUrl,
       siteWebSavedUrl,
@@ -3757,8 +3574,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       mailAccountsRequireUpdate,
       inrBadgeProfile,
       inrBadgeProfileReady,
-      siteInrcyGa4Connected,
-      siteInrcyGscConnected,
+
       siteWebGa4Connected,
       siteWebGscConnected,
     };
@@ -3788,15 +3604,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     setInrBadgeModalOpen(true);
   }, []);
 
-  const siteInrcyDisplayAccess = canAccessSiteInrcy || (!bubbleAccessReady && displayedSiteInrcyAccess);
-
   const fluxBubbleItems = useMemo(() => buildFluxBubbleItems({
     bubbleAccessMap,
     standardMode: isStandardEdition,
-    siteInrcyAccessReady: bubbleAccessReady,
-    siteInrcyDisplayAccess,
-    canConfigureSite,
-    canViewSite,
+
     officialChannelStatesReady,
     channelBlocks,
     facebookPageConnected,
@@ -3837,9 +3648,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,
-    setHelpSiteInrcyOpen,
+
     setHelpSiteWebOpen,
-    siteInrcySavedUrl,
+
     siteWebSavedUrl,
     copy: dashboardCopy,
   }), [
@@ -3847,8 +3658,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     bubbleAccessReady,
     canAccessPinterest,
     canAccessInrSearch,
-    canConfigureSite,
-    canViewSite,
+
     officialChannelStatesReady,
     channelBlocks,
     dashboardCopy,
@@ -3890,8 +3700,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,
-    siteInrcySavedUrl,
-    siteInrcyDisplayAccess,
+
     siteWebSavedUrl,
   ]);
 
@@ -3904,13 +3713,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
   const dashboardChannelItems = useMemo(() => {
     const channels = collapseDashboardWebsiteChannels(fluxBubbleItems, {
-      connectedSite: hasSiteWebUrl ? "site_web" : canAccessSiteInrcy && hasSiteInrcyUrl ? "site_inrcy" : null,
+      connectedSite: hasSiteWebUrl ? "site_web" : null,
       connectedText: dashboardCopy.status.connected,
     });
     return isStandardEdition
       ? channels.filter((item) => STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
       : channels;
-  }, [canAccessSiteInrcy, dashboardCopy.status.connected, fluxBubbleItems, hasSiteInrcyUrl, hasSiteWebUrl, isStandardEdition]);
+  }, [ dashboardCopy.status.connected, fluxBubbleItems,  hasSiteWebUrl, isStandardEdition]);
 
   const channelSettingsItemsByKey = useMemo(() => new Map(
     displayedFluxBubbleItems
@@ -3962,10 +3771,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         connected: Boolean(canAccessInrSearch && inrSearchConnected && inrSearchUrl),
         url: canAccessInrSearch ? inrSearchUrl : null,
       },
-      siteInrcy: {
-        connected: Boolean(canAccessSiteInrcy && normalizeSiteUrl(siteInrcySavedUrl)),
-        url: siteInrcySavedUrl,
-      },
+
       siteWeb: {
         connected: Boolean(normalizeSiteUrl(siteWebSavedUrl)),
         url: siteWebSavedUrl,
@@ -4018,8 +3824,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     inrSearchUrl,
     canAccessPinterest,
     inrBadgeProfileReady,
-    siteInrcyOwnership,
-    siteInrcySavedUrl,
+
     siteWebSavedUrl,
     gmbConnected,
     gmbUrl,
@@ -4041,11 +3846,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     youtubeShortsUrl,
     openPanel,
   ]);
-
-  const saveSiteInrcyUrlFromDrawer = useCallback(() => runDrawerMutation("site_inrcy:url:save", saveSiteInrcyUrl), [runDrawerMutation, saveSiteInrcyUrl]);
-  const deleteSiteInrcyUrlFromDrawer = useCallback(() => runDrawerMutation("site_inrcy:url:delete", deleteSiteInrcyUrl), [runDrawerMutation, deleteSiteInrcyUrl]);
-  const disconnectSiteInrcyGa4FromDrawer = useCallback(() => runDrawerMutation("site_inrcy:ga4:disconnect", disconnectSiteInrcyGa4), [runDrawerMutation, disconnectSiteInrcyGa4]);
-  const disconnectSiteInrcyGscFromDrawer = useCallback(() => runDrawerMutation("site_inrcy:gsc:disconnect", disconnectSiteInrcyGsc), [runDrawerMutation, disconnectSiteInrcyGsc]);
 
   const saveSiteWebUrlFromDrawer = useCallback(() => runDrawerMutation("site_web:url:save", saveSiteWebUrl), [runDrawerMutation, saveSiteWebUrl]);
   const deleteSiteWebUrlFromDrawer = useCallback(() => runDrawerMutation("site_web:url:delete", deleteSiteWebUrl), [runDrawerMutation, deleteSiteWebUrl]);
@@ -4069,26 +3869,25 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const disconnectLinkedinAccountFromDrawer = useCallback(() => runDrawerMutation("linkedin:account:disconnect", disconnectLinkedinAccount), [runDrawerMutation, disconnectLinkedinAccount]);
   const disconnectLinkedinOrganizationFromDrawer = useCallback(() => runDrawerMutation("linkedin:organization:disconnect", useLinkedinPersonalProfile), [runDrawerMutation, useLinkedinPersonalProfile]);
 
-
   const locals = {
-    applySiteInrcyPublicUrlSaved, applySiteWebPublicUrlSaved,
-    canConfigureSite, canConnectSiteInrcyGoogle, canConnectSiteWebGoogle,
+     applySiteWebPublicUrlSaved,
+      canConnectSiteWebGoogle,
     connectFacebookAccount, connectFacebookBusinessAccount, connectGmbAccount, connectInstagramAccount, connectInstagramBusinessAccount, connectLinkedinAccount, connectLinkedinBusinessAccount,
-    connectSiteInrcyGa4, connectSiteInrcyGsc, connectSiteWebGa4, connectSiteWebGsc,
-    deleteSiteInrcyUrlFromDrawer, deleteSiteWebUrlFromDrawer,
+      connectSiteWebGa4, connectSiteWebGsc,
+     deleteSiteWebUrlFromDrawer,
     disconnectFacebookAccountFromDrawer, disconnectFacebookPageFromDrawer, disconnectGmbAccountFromDrawer, disconnectGmbBusinessFromDrawer,
     disconnectInstagramAccountFromDrawer, disconnectInstagramProfileFromDrawer, disconnectLinkedinAccountFromDrawer, disconnectLinkedinOrganizationFromDrawer,
-    disconnectSiteInrcyGa4FromDrawer, disconnectSiteInrcyGscFromDrawer, disconnectSiteWebGa4FromDrawer, disconnectSiteWebGscFromDrawer,
-    draftSiteInrcyUrlMeta, draftSiteWebUrlMeta,
+      disconnectSiteWebGa4FromDrawer, disconnectSiteWebGscFromDrawer,
+     draftSiteWebUrlMeta,
     facebookAccountConnected, facebookAccountEmail, facebookConnectionStatus, facebookPageConnected, facebookUrl, facebookUrlError, facebookUrlNotice, setFacebookUrl,
     facebookPublicationPreferences, facebookPublicationPreferencesLoading, facebookPublicationPreferencesSaving,
     facebookPublicationPreferencesNotice, facebookPublicationPreferencesError,
     updateFacebookPublicationPreferences, saveFacebookPublicationPreferences,
     fbPages, fbPagesError, fbPagesLoading, fbPagesPhase, fbSelectedPageId, fbSelectedPageName,
-    ga4MeasurementId, ga4PropertyId,
+
     gmbAccountConnected, gmbAccountEmail, gmbAccountName, gmbAccounts, gmbConfigured, gmbConnected, gmbConnectionStatus, gmbListError, gmbLoadingList, gmbLocationsPhase,
     gmbLocationLabel, gmbLocationName, gmbLocations, gmbUrl, gmbUrlError, gmbUrlNotice, setGmbUrl,
-    gscProperty,
+
     igAccounts, igAccountsError, igAccountsLoading, igAccountsPhase, igSelectedPageId,
     instagramAccountConnected, instagramConnected, instagramConnectionStatus, instagramUrl, instagramUrlError, instagramUrlNotice, instagramUsername, setInstagramUrl,
     instagramPublicationPreferences, instagramPublicationPreferencesLoading, instagramPublicationPreferencesSaving,
@@ -4100,20 +3899,18 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     linkedinShareToPersonalProfile, linkedinShareToPersonalProfileBusy, updateLinkedinShareToPersonalProfile,
     loadLinkedinOrganizations, selectLinkedinOrganization, useLinkedinPersonalProfile,
     loadFacebookPages, loadGmbAccountsAndLocations, loadInstagramAccounts,
-    resetSiteInrcyAll, resetSiteWebAll, requestSiteWebWidgetToken, saveSiteInrcyActusWidgetSettings, saveSiteWebActusWidgetSettings,
-    saveFacebookPageFromDrawer, saveGmbLocationFromDrawer, saveInstagramProfileFromDrawer, saveLinkedinProfileUrlFromDrawer, saveLinkedinOrganizationUrlFromDrawer, saveSiteInrcyUrlFromDrawer, saveSiteWebUrlFromDrawer,
+     resetSiteWebAll, requestSiteWebWidgetToken,  saveSiteWebActusWidgetSettings,
+    saveFacebookPageFromDrawer, saveGmbLocationFromDrawer, saveInstagramProfileFromDrawer, saveLinkedinProfileUrlFromDrawer, saveLinkedinOrganizationUrlFromDrawer,  saveSiteWebUrlFromDrawer,
     setFbSelectedPageId, setIgSelectedPageId, setGmbLocationName, setLinkedinUrl, setLinkedinProfileUrl, setLinkedinOrganizationUrl, setLinkedinUrlNotice,
-    setShowSiteInrcyWidgetCode, setShowSiteWebWidgetCode,
-    setSiteInrcyActusFont, setSiteInrcyActusLayout, setSiteInrcyActusLimit, setSiteInrcyActusDesign, setSiteInrcyActusTheme, setSiteInrcyActusAccent, setSiteInrcyUrl, setSiteInrcySavedUrl,
+     setShowSiteWebWidgetCode,
+
     setSiteWebActusFont, setSiteWebActusLayout, setSiteWebActusLimit, setSiteWebActusDesign, setSiteWebActusTheme, setSiteWebActusAccent, setSiteWebUrl, setSiteWebSavedUrl,
-    showSiteInrcyWidgetCode, showSiteWebWidgetCode,
-    siteInrcyActusFont, siteInrcyActusLayout, siteInrcyActusLimit, siteInrcyActusDesign, siteInrcyActusTheme, siteInrcyActusAccent, siteInrcyAllGreen, siteInrcyContactEmail,
-    siteInrcyGa4Connected, siteInrcyGa4Notice, siteInrcyGscConnected, siteInrcyGscNotice, siteInrcyOwnership, siteInrcySavedUrl, siteInrcySettingsError,
-    siteInrcyUrl, siteInrcyUrlNotice,
+     showSiteWebWidgetCode,
+
     siteWebActusFont, siteWebActusLayout, siteWebActusLimit, siteWebActusDesign, siteWebActusTheme, siteWebActusAccent, siteWebAllGreen,
     siteWebGa4Connected, siteWebGa4MeasurementId, siteWebGa4Notice, siteWebGa4PropertyId, siteWebGscConnected, siteWebGscNotice, siteWebGscProperty,
     siteWebSavedUrl, siteWebSettingsError, siteWebUrl, siteWebUrlNotice,
-    widgetTokenInrcySite, widgetTokenSiteWeb, hasSiteInrcyUrl, hasSiteWebUrl,
+     widgetTokenSiteWeb,  hasSiteWebUrl,
     tiktokConnected, tiktokUsername, tiktokProfileUrl, setTiktokProfileUrl, tiktokProfileUrlNotice, tiktokProfileUrlError, tiktokLoading,
     tiktokPreferredMedia, setTiktokPreferredMedia, tiktokAllowComments, setTiktokAllowComments,
     tiktokAllowDuo, setTiktokAllowDuo, tiktokAllowStitch, setTiktokAllowStitch,
@@ -4126,7 +3923,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     siteWebPanelProps,
     gmbPanelProps,
     linkedinPanelProps,
-    siteInrcyPanelProps,
+
     instagramPanelProps,
     facebookPanelProps,
     tiktokPanelProps,
@@ -4227,7 +4024,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       <DashboardBoosterModalLayer
         mode={dashboardBoosterModal}
         initialConnectedChannels={{
-          inrcy_site: Boolean(canAccessSiteInrcy && normalizeSiteUrl(siteInrcySavedUrl)),
+
           site_web: Boolean(normalizeSiteUrl(siteWebSavedUrl)),
           inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
           gmb: Boolean(gmbAccountConnected && gmbConfigured && gmbConnectionStatus !== "needs_update"),
@@ -4250,7 +4047,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           }
         }}
       />
-
 
       {inrBadgeModalOpen ? (
         <InrBadgePreviewModal
@@ -4343,7 +4139,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             onReferralEmailChange={setReferralEmail}
             onReferralFromChange={setReferralFrom}
             submitReferral={submitReferral}
-            siteInrcyPanelProps={siteInrcyPanelProps}
+
             siteWebPanelProps={siteWebPanelProps}
             instagramPanelProps={instagramPanelProps}
             linkedinPanelProps={linkedinPanelProps}
@@ -4362,17 +4158,17 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
       <DashboardHelpModals
         edition={dashboardEdition}
-        siteInrcySubscribed={siteInrcyDisplayAccess}
+
         helpGeneratorOpen={helpGeneratorOpen}
         helpCanauxOpen={helpCanauxOpen}
-        helpSiteInrcyOpen={helpSiteInrcyOpen}
+
         helpSiteWebOpen={helpSiteWebOpen}
         helpInertieOpen={helpInertieOpen}
         helpFacebookOpen={helpFacebookOpen}
         helpInstagramOpen={helpInstagramOpen}
         onCloseGenerator={() => setHelpGeneratorOpen(false)}
         onCloseCanaux={() => setHelpCanauxOpen(false)}
-        onCloseSiteInrcy={() => setHelpSiteInrcyOpen(false)}
+
         onCloseSiteWeb={() => setHelpSiteWebOpen(false)}
         onCloseInertie={() => setHelpInertieOpen(false)}
         onCloseFacebook={() => setHelpFacebookOpen(false)}

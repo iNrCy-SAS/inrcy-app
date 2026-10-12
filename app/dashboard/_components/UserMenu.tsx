@@ -6,26 +6,7 @@ import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
 
 type OpenPanelName =
-  | "contact"
-  | "profil"
-  | "preferences"
-  | "compte"
-  | "ia"
-  | "ai_memory"
-  | "abonnement"
-  | "mails"
-  | "site_inrcy"
-  | "site_web"
-  | "instagram"
-  | "linkedin"
-  | "gmb"
-  | "facebook"
-  | "legal"
-  | "rgpd"
-  | "inertie"
-  | "boutique"
-  | "notifications"
-  | "parrainage";
+  "contact" | "profil" | "preferences" | "compte" | "ia" | "ai_memory" | "abonnement" | "mails" | "site_web" | "instagram" | "linkedin" | "gmb" | "facebook" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage";
 
 export default function UserMenu(props: {
   userEmail: string | null;

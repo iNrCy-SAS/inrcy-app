@@ -13,7 +13,7 @@ type Props = {
 
 const GOOGLE_PANELS = new Set([
   "gmb",
-  "site_inrcy",
+
   "site_web",
   "mails",
   "youtube_shorts",
@@ -32,7 +32,7 @@ function buildRetryHref(panel: string, linked: string | null): string | null {
     return `/api/integrations/youtube-shorts/start?returnTo=${encodeURIComponent(returnTo)}`;
   }
   if (
-    (panel === "site_inrcy" || panel === "site_web") &&
+    (panel === "site_web") &&
     (linked === "ga4" || linked === "gsc")
   ) {
     const params = new URLSearchParams({

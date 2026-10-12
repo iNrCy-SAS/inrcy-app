@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 
   try {
     // The database migration also provisions these defaults, but the API repeats
-    // the operation deliberately so a stale SQL function can never grant Site iNrCy.
+    // the operation deliberately so every account receives the current channel catalogue.
     await provisionNewAccountBubbleAccess(accountId);
   } catch (provisioningError) {
     console.error("[multicompte] bubble access provisioning failed", {

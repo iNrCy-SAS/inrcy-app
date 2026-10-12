@@ -6,10 +6,10 @@ import { createDefaultBubbleAccessRows } from "@/lib/bubbleAccess";
 /**
  * Applies the canonical Bubble Access defaults to an account that has just
  * been created. This function is intentionally for NEW accounts only because
- * it overwrites every key with its product default (including Site iNrCy=false).
+ * it overwrites every key with its product default.
  *
- * Keeping this explicit in the application prevents a stale database trigger
- * from granting an opt-in entitlement before the SQL migration is deployed.
+ * Keeping this explicit in the application provisions the current channel
+ * catalogue even while database triggers are being updated.
  */
 export async function provisionNewAccountBubbleAccess(accountId: string): Promise<void> {
   const rows = createDefaultBubbleAccessRows(accountId);

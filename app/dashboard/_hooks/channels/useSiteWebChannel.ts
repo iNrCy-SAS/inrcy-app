@@ -19,7 +19,7 @@ type PatchChannelConnectionLocally = (
 type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 
 type ExtractDomain = (input: string) => string;
-type FetchWidgetToken = (domain: string, source: "inrcy_site" | "site_web") => Promise<string>;
+type FetchWidgetToken = (domain: string, source: "site_web") => Promise<string>;
 
 type UseSiteWebChannelOptions = {
   extractDomain: ExtractDomain;

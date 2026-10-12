@@ -381,13 +381,11 @@ export async function POST(request: Request) {
   const websiteDestination = resolveAdsCampaignDestination({
     profileWebsiteUrl,
     connectedWebsiteUrl: channelStates?.site_web.connected ? channelStates.site_web.url : null,
-    inrcyWebsiteUrl: channelStates?.site_inrcy.connected ? channelStates.site_inrcy.url : null,
   });
   const resolvedDestination = resolveAdsCampaignDestination({
     explicitUrl: destinationUrl,
     profileWebsiteUrl,
     connectedWebsiteUrl: channelStates?.site_web.connected ? channelStates.site_web.url : null,
-    inrcyWebsiteUrl: channelStates?.site_inrcy.connected ? channelStates.site_inrcy.url : null,
     googleBusinessConnected: channelStates?.gmb.connected,
     googleBusinessUrl: channelStates?.gmb.url,
   });

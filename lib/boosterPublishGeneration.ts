@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel, LEGACY_SITE_OUTPUT_ALIASES } from "@/lib/siteWebChannel";
 import {
   aiGenerateJSON,
   type AiGenerationFeature,
@@ -79,7 +80,6 @@ type BoosterGenResponse = {
 };
 
 const allowedChannels: BoosterChannels[] = [
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -92,13 +92,12 @@ const allowedChannels: BoosterChannels[] = [
   "pinterest",
 ];
 
-const siteChannels = new Set<BoosterChannels>(["inrcy_site", "site_web", "inr_search"]);
+const siteChannels = new Set<BoosterChannels>(["site_web", "inr_search"]);
 
 // Seuils anti-réponse cassée uniquement. Ils sont volontairement très inférieurs
 // aux objectifs éditoriaux du prompt : une IA concise mais pertinente doit passer.
 // Ces valeurs détectent surtout une sortie vide/tronquée, jamais un simple écart de style.
 const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
-  inrcy_site: 180,
   site_web: 220,
   inr_search: 12,
   gmb: 80,
@@ -117,7 +116,6 @@ const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
 // génération. Ils peuvent déclencher l'unique enrichissement historique, mais ne
 // rendent jamais le résultat final invalide.
 const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
-  inrcy_site: 1300,
   site_web: 1600,
   inr_search: 190,
   gmb: 650,
@@ -133,7 +131,6 @@ const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
 };
 
 const CHANNEL_DYNAMIC_EMOJI_MIN: Record<BoosterChannels, number> = {
-  inrcy_site: 0,
   site_web: 0,
   inr_search: 0,
   gmb: 1,
@@ -147,7 +144,6 @@ const CHANNEL_DYNAMIC_EMOJI_MIN: Record<BoosterChannels, number> = {
 };
 
 const CHANNEL_LABELS: Record<BoosterChannels, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -555,8 +551,7 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
 
 
 const CHANNEL_OUTPUT_ALIASES: Record<BoosterChannels, string[]> = {
-  inrcy_site: ["inrcy_site", "inrcysite", "site_inrcy", "siteinrcy"],
-  site_web: ["site_web", "siteweb", "website", "web_site"],
+  site_web: ["site_web", "siteweb", "website", "web_site", ...LEGACY_SITE_OUTPUT_ALIASES],
   inr_search: ["inr_search", "inrsearch", "search_page", "public_page"],
   gmb: ["gmb", "google_business", "googlebusiness", "google_business_profile"],
   facebook: ["facebook", "fb"],
@@ -1574,8 +1569,8 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
       instructionAdjustedGenerationProfile.preferences.preferredAngle,
     );
 
-  const channels = Array.from(new Set(args.channels)).filter(
-    (channel): channel is BoosterChannels => allowedChannels.includes(channel),
+  const channels = Array.from(new Set(args.channels.map(canonicalSiteWebChannel))).filter(
+    (channel): channel is BoosterChannels => allowedChannels.includes(channel as BoosterChannels),
   );
 
   if (!channels.length) {

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { renderWithContext, buildDefaultContext } from "@/lib/templateEngine";
 import { asRecord } from "@/lib/tsSafe";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { normalizeMailSubject } from "@/lib/mailEncoding";
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 
@@ -20,10 +19,9 @@ export async function POST(req: Request) {
     const bodyOverride = String(body["body_override"] ?? "");
 
     // --- Fetch the two persisted sources that make up the unified profile
-    const [profileRes, businessRes, inrcyCfgRes, proCfgRes, statsRes] = await Promise.all([
+    const [profileRes, businessRes, proCfgRes, statsRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("business_profiles").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("inrcy_site_configs").select("site_url").eq("user_id", userId).maybeSingle(),
       supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
       supabase
         .from("integrations")
@@ -35,15 +33,12 @@ export async function POST(req: Request) {
     const profile = asRecord(profileRes.data);
     const business = asRecord(businessRes.data);
 
-    // --- Links logic (priority: iNrCy site > site web ; plus Facebook if connected)
-    const ownership = String(profile["inrcy_site_ownership"] ?? "none");
-    const inrcyUrl = String(asRecord(inrcyCfgRes.data)["site_url"] ?? "").trim();
+    // --- Public links from Site Web and connected social accounts
 
     const proSettings = asRecord(asRecord(proCfgRes.data)["settings"]);
     const siteWebUrl = String(asRecord(asRecord(proSettings)["site_web"])["url"] ?? "").trim();
 
-    const hasInrcySite = hasActiveInrcySite(ownership) && !!inrcyUrl;
-    const siteUrl = hasInrcySite ? inrcyUrl : siteWebUrl;
+    const siteUrl = siteWebUrl;
 
     let facebookUrl = "";
     let gmbUrl = "";

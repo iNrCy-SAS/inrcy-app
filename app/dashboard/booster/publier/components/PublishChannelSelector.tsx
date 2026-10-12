@@ -43,7 +43,7 @@ type PublishChannelSelectorProps = {
 };
 
 const CHANNEL_ICON_SRC: Record<ChannelKey, string> = {
-  inrcy_site: "/icons/inrcy.png",
+
   site_web: "/icons/site-web.jpg",
   inr_search: "/icons/inr-search-bubble-128.png",
   gmb: "/icons/google.jpg",

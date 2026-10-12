@@ -34,7 +34,7 @@ type Props = {
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
-  inrcy_site: "Site iNrCy",
+
   site_web: "Site web",
   inr_search: "iNr’Search",
   gmb: "Google Business",

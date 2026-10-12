@@ -75,7 +75,7 @@ test("The product uses one 75 MB ceiling for source and publication", () => {
 });
 
 test("Safety fallbacks never reactivate blurred image or video backgrounds", () => {
-  assert.equal(getBoosterImageSafetyBackgroundMode("inrcy_site"), "transparent");
+  assert.equal(getBoosterImageSafetyBackgroundMode("site_web"), "transparent");
   assert.equal(getBoosterImageSafetyBackgroundMode("gmb"), "white");
   assert.equal(getBoosterImageSafetyBackgroundMode("instagram"), "black");
   assert.equal(normalizeVideoAdaptationMode("safe_blur"), "safe_frame");

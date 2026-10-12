@@ -67,15 +67,14 @@ function renderHelp(nativeLayer: boolean, initialOverflow: string) {
   return { view, document, dialog, opener, closeButton, listeners, getCloseRequests: () => closeRequests, cleanup: () => cleanups.forEach((cleanup) => cleanup()) };
 }
 
-test("only the three channel help dialogs opt into the native layer, preserving other help screens", () => {
+test("only the two channel help dialogs opt into the native layer, preserving other help screens", () => {
   const entries = [...dashboardHelp.matchAll(/<HelpModal\b([\s\S]*?)>/g)];
-  assert.equal(entries.length, 7);
+  assert.equal(entries.length, 6);
   const nativeEntries = entries.filter((entry) => /\bnativeLayer\b/.test(entry[1]));
-  assert.deepEqual(nativeEntries.map((entry) => entry[1].match(/open=\{(\w+)\}/)?.[1]), ["helpCanauxOpen", "helpSiteInrcyOpen", "helpSiteWebOpen"]);
+  assert.deepEqual(nativeEntries.map((entry) => entry[1].match(/open=\{(\w+)\}/)?.[1]), ["helpCanauxOpen", "helpSiteWebOpen"]);
   assert.match(help, /nativeLayer = false/);
   assert.match(help, /if \(!nativeLayer\) return content/);
   assert.match(dashboardHelp, /premiumLocked = standardMode && channel\.premiumOnly/);
-  assert.match(dashboardHelp, /siteNotSubscribed = Boolean\(channel\.requiresSiteSubscription && !siteInrcySubscribed\)/);
 });
 
 test("native help opens above the channel dialog and returns focus without releasing its scroll lock", () => {
@@ -138,7 +137,7 @@ test("default help preserves the legacy div, mobile dock spacing and Escape list
 test("channel help callbacks leave the bubble dialog open and the native surface is viewport-safe", () => {
   assert.match(channels, /data-dashboard-channels-dialog="true"/);
   assert.match(channels, /aria-label="Aide sur les canaux" onClick=\{onOpenHelp\}/);
-  assert.match(channels, /onClick=\{\(\) => \(selected\.helpKind === "site_inrcy" \? selected\.onHelpSiteInrcy : selected\.onHelpSiteWeb\)\?\.\(\)\}/);
+  assert.ok(channels.includes("(selected.onHelpSiteWeb)?.()"));
   assert.doesNotMatch(channels, /closeDialog\(\);\s*(?:onOpenHelp|\(selected\.helpKind)/);
   assert.match(css, /\.nativeLayer\s*\{[^}]*width: 100vw;[^}]*height: 100dvh;[^}]*overflow: hidden/);
   assert.match(css, /\.nativeLayer::backdrop\s*\{ background: transparent/);

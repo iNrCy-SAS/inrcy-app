@@ -387,7 +387,7 @@ test("les CTA iNrAgent restent structurés et possèdent une destination réelle
   assert.match(ctaDefaults, /\.from\("profiles"\)[\s\S]*?\.select\("phone"\)/);
   assert.match(
     ctaDefaults,
-    /\.from\("inrcy_site_configs"\)[\s\S]*?\.select\("site_url"\)/
+    /\.from\("pro_tools_configs"\)[\s\S]*?\.select\("settings"\)/
   );
   assert.match(prepare, /applySafePreferredCta\(\{/);
   assert.match(prepare, /preserveExplicit: false/);

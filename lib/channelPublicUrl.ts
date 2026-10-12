@@ -1,5 +1,4 @@
 export const EDITABLE_CHANNEL_PUBLIC_URL_CHANNELS = [
-  "site_inrcy",
   "site_web",
   "gmb",
   "facebook",
@@ -130,7 +129,7 @@ function hasExpectedNetworkDestination(
 
   // Public social destinations do not run on custom ports. Rejecting them also
   // avoids accepting an unrelated service merely because it shares a hostname.
-  if (channel !== "site_inrcy" && channel !== "site_web" && parsed.port) return false;
+  if (channel !== "site_web" && parsed.port) return false;
 
   switch (channel) {
     case "gmb":
@@ -178,7 +177,6 @@ function hasExpectedNetworkDestination(
     case "x":
       return (isHostOrSubdomain(hostname, "x.com") || isHostOrSubdomain(hostname, "twitter.com")) &&
         segments.length === 1 && !X_NON_PROFILE_PATHS.has(segments[0] || "");
-    case "site_inrcy":
     case "site_web":
       return true;
   }

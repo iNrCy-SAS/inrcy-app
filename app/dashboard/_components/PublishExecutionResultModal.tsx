@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import {
   useEffect,
   useRef,
@@ -50,7 +49,7 @@ type PublishExecutionSummary = {
 type PublishExecutionEntry = NonNullable<PublishExecutionSummary["entries"]>[number];
 
 const CHANNEL_LOGO_BY_KEY: Readonly<Record<string, string>> = {
-  inrcy_site: "/icons/inrcy.png",
+
   site_web: "/icons/site-web.jpg",
   inr_search: "/icons/inr-search-bubble-128.png",
   gmb: "/icons/google.jpg",

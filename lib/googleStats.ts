@@ -7,7 +7,7 @@ import {
   isGoogleStatsRefreshRetryDeferred,
 } from "@/lib/googleStatsConnectionPolicy";
 
-export type StatsSourceKey = "site_inrcy" | "site_web" | "gmb" | "facebook";
+export type StatsSourceKey = "site_web" | "gmb" | "facebook";
 export type StatsProductKey = "ga4" | "gsc" | "gmb" | "facebook";
 
 export type GoogleTokenRow = {

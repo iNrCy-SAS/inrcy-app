@@ -83,7 +83,6 @@
       "rgpd": "我的数据 (GDPR)",
       "mails": "电子邮件设置",
       "agenda": "设置 iNr’Calendar",
-      "site_inrcy": "配置 — 站点 iNrCy",
       "site_web": "配置——网站",
       "instagram": "配置 — Instagram",
       "linkedin": "配置 — LinkedIn",
@@ -307,13 +306,6 @@
       "view": "打开 iNr’Send",
       "connect": "配置"
     },
-    "site_inrcy": {
-      "name": "网站 iNrCy",
-      "description": "你的主导机器⚡",
-      "view": "查看网站",
-      "connect": "连接 Google 分析",
-      "siteOnlyTitle": "仅当您有网站时可用 iNrCy"
-    },
     "site_web": {
       "name": "网站",
       "description": "转化您的访客💡",
@@ -441,7 +433,7 @@
     "openDescription": "将您的专业经验转化为更准确、更丰富、更符合企业特色的内容。",
     "contentLengthTitle": "内容长度",
     "webLengthLabel": "网站 + iNr’Search",
-    "webLengthHint": "控制 iNrCy 网站、外部网站和 iNr’Search。",
+    "webLengthHint": "适用于网站和 iNr’Search。",
     "socialLengthLabel": "社交平台 + Google Business",
     "socialLengthHint": "控制 Facebook、Instagram、LinkedIn、TikTok、YouTube、Pinterest 和 Google Business。",
     "lengthAdapted": "自适应 — AI 根据渠道选择",

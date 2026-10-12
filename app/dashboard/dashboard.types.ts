@@ -3,7 +3,7 @@ export type Accent = "cyan" | "purple" | "pink" | "orange";
 export type Ownership = "none" | "rented" | "sold";
 
 export type GoogleProduct = "ga4" | "gsc";
-export type GoogleSource = "site_inrcy" | "site_web";
+export type GoogleSource = "site_web";
 
 export type ModuleAction = {
   key: string;

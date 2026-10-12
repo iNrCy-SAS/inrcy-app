@@ -81,13 +81,8 @@ test("un rafraîchissement des connexions ne réinitialise pas la couleur du wid
 
   assert.match(
     dashboard,
-    /if \(typeof state\.siteInrcyActusAccent === "string"\) \{\s*setSiteInrcyActusAccent\(normalizeActusAccent\(state\.siteInrcyActusAccent\)\);\s*\}/,
-  );
-  assert.match(
-    dashboard,
     /if \(typeof state\.siteWebActusAccent === "string"\) \{\s*setSiteWebActusAccent\(normalizeActusAccent\(state\.siteWebActusAccent\)\);\s*\}/,
   );
-  assert.match(dashboard, /siteInrcyActusAccent:\s*""/);
   assert.match(dashboard, /siteWebActusAccent:\s*""/);
 });
 

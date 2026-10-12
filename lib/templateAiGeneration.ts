@@ -5,7 +5,6 @@ import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { asRecord } from "@/lib/tsSafe";
 import { renderWithContext, buildDefaultContext } from "@/lib/templateEngine";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { normalizeMailSubject } from "@/lib/mailEncoding";
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 import {
@@ -163,9 +162,8 @@ export async function generateTemplateAiContent(args: {
     quotaReservation = quota.reservation;
   }
 
-  const [professionalContext, inrcyCfgRes, proCfgRes, integrationsRes] = await Promise.all([
+  const [professionalContext, proCfgRes, integrationsRes] = await Promise.all([
     getAiProfessionalGenerationContext({ supabase, userId }),
-    supabase.from("inrcy_site_configs").select("site_url").eq("user_id", userId).maybeSingle(),
     supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
     supabase
       .from("integrations")
@@ -192,11 +190,9 @@ export async function generateTemplateAiContent(args: {
   const profession = businessContext.professionLabel;
   const sectorLabel = businessContext.sectorLabel;
 
-  const ownership = String(profile["inrcy_site_ownership"] ?? "none");
-  const inrcyUrl = clean(asRecord(inrcyCfgRes.data)["site_url"], 300);
   const proSettings = asRecord(asRecord(proCfgRes.data)["settings"]);
   const siteWebUrl = clean(asRecord(proSettings["site_web"])["url"], 300);
-  const siteUrl = hasActiveInrcySite(ownership) && inrcyUrl ? inrcyUrl : siteWebUrl;
+  const siteUrl = siteWebUrl;
 
   let facebookUrl = "";
   let gmbUrl = "";

@@ -1,10 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { hasActiveInrcySite } from '@/lib/inrcySite';
 import { asRecord, asString } from '@/lib/tsSafe';
 
 type SitePresenceRow = {
   provider: string;
-  source: 'site_inrcy' | 'site_web';
+  source: 'site_web';
   product: 'site';
   status: 'connected' | 'disconnected';
   resource_id: string | null;
@@ -24,39 +23,16 @@ function hasGoogleSetting(settingsNode: unknown, product: 'ga4' | 'gsc') {
 }
 
 export async function computeSitePresenceRows(userId: string): Promise<SitePresenceRow[]> {
-  const [profileRes, inrcyCfgRes, proCfgRes] = await Promise.all([
-    supabaseAdmin.from('profiles').select('inrcy_site_ownership').eq('user_id', userId).maybeSingle(),
-    supabaseAdmin.from('inrcy_site_configs').select('site_url,settings').eq('user_id', userId).maybeSingle(),
-    supabaseAdmin.from('pro_tools_configs').select('settings').eq('user_id', userId).maybeSingle(),
-  ]);
-
-  const readError = profileRes.error || inrcyCfgRes.error || proCfgRes.error;
-  if (readError) throw readError;
-
-  const profile = asRecord(profileRes.data);
-  const inrcyCfg = asRecord(inrcyCfgRes.data);
-  const inrcySettings = asRecord(inrcyCfg.settings);
+  const proCfgRes = await supabaseAdmin.from('pro_tools_configs').select('settings').eq('user_id', userId).maybeSingle();
+  if (proCfgRes.error) throw proCfgRes.error;
   const proSettings = asRecord(asRecord(proCfgRes.data).settings);
   const siteWeb = asRecord(proSettings.site_web);
 
-  const inrcyHasSite = hasActiveInrcySite(asString(profile.inrcy_site_ownership) || 'none');
-  const inrcyUrl = (asString(inrcyCfg.site_url) || '').trim();
   const siteWebUrl = (asString(siteWeb.url) || '').trim();
 
-  const inrcyScore = (inrcyHasSite && inrcyUrl ? 1 : 0) + (hasGoogleSetting(inrcySettings, 'ga4') ? 1 : 0) + (hasGoogleSetting(inrcySettings, 'gsc') ? 1 : 0);
   const siteWebScore = (siteWebUrl ? 1 : 0) + (hasGoogleSetting(siteWeb, 'ga4') ? 1 : 0) + (hasGoogleSetting(siteWeb, 'gsc') ? 1 : 0);
 
   return [
-    {
-      provider: 'system',
-      source: 'site_inrcy',
-      product: 'site',
-      status: inrcyScore > 0 ? 'connected' : 'disconnected',
-      resource_id: inrcyUrl || null,
-      resource_label: inrcyUrl || null,
-      display_name: 'Site iNrCy',
-      meta: { score: inrcyScore, has_url: Boolean(inrcyHasSite && inrcyUrl), ga4: hasGoogleSetting(inrcySettings, 'ga4'), gsc: hasGoogleSetting(inrcySettings, 'gsc') },
-    },
     {
       provider: 'system',
       source: 'site_web',

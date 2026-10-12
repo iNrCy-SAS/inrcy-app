@@ -266,7 +266,6 @@ function dateMs(value: unknown) {
 
 const BOOSTER_PUBLICATION_CHANNELS = new Set<BoosterAsyncChannelKey>([
   "site_web",
-  "inrcy_site",
   "inr_search",
   "facebook",
   "instagram",

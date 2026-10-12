@@ -1,10 +1,10 @@
 import type { BoosterChannels } from "@/lib/boosterPrompt";
 import type { InrAgentChannel } from "@/lib/inrAgentSettings";
+import { canonicalSiteWebChannel } from "./siteWebChannel.ts";
 
 export const INR_AGENT_TO_BOOSTER_PUBLISH_CHANNEL: Partial<
   Record<InrAgentChannel, BoosterChannels>
 > = {
-  site_inrcy: "inrcy_site",
   site_web: "site_web",
   inr_search: "inr_search",
   gmb: "gmb",
@@ -26,7 +26,7 @@ export function inrAgentChannelToBoosterPublishChannel(
 export function normalizeBoosterPublishChannel(
   value: unknown,
 ): BoosterChannels | null {
-  const channel = String(value || "").trim() as InrAgentChannel | BoosterChannels;
+  const channel = canonicalSiteWebChannel(value) as InrAgentChannel | BoosterChannels;
   return (
     INR_AGENT_TO_BOOSTER_PUBLISH_CHANNEL[channel as InrAgentChannel] ||
     (Object.values(INR_AGENT_TO_BOOSTER_PUBLISH_CHANNEL).includes(

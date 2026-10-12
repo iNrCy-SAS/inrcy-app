@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 import {
   expectedUiSnapshotDate,
   fmtInt,
@@ -148,7 +149,6 @@ export function normalizeInrBadgeStatsSnapshot(value: unknown, syncedAt?: number
   };
 }
 
-
 export type InrSearchStatsSnapshot = {
   loading: boolean;
   error?: string;
@@ -218,7 +218,7 @@ export function normalizeInrSearchStatsSnapshot(value: unknown): InrSearchStatsS
 }
 
 const MAIL_STATS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
+const DASHBOARD_CHANNEL_STATE_CACHE_KEY = DASHBOARD_CACHE_KEYS.channelState;
 
 export type ChannelIdentityHints = Partial<Record<CubeKey, string>>;
 export type CachedChannelConnectivity = Partial<Record<CubeKey, boolean>>;
@@ -226,7 +226,7 @@ export type OfficialChannelConnectionStatus = "connected" | "needs_update" | "di
 export type OfficialChannelConnectionStatuses = Partial<Record<CubeKey, OfficialChannelConnectionStatus>>;
 
 export const FAIL_CLOSED_STATS_CHANNEL_KEYS: readonly CubeKey[] = [
-  "site_inrcy",
+
   "site_web",
   "gmb",
   "facebook",
@@ -278,7 +278,7 @@ export function readCachedDashboardChannelIdentityHints(): ChannelIdentityHints 
     const instagramUsername = cleanChannelIdentityHint(state.instagramUsername).replace(/^@+/, "");
     const xUsername = cleanChannelIdentityHint(state.xUsername || state.xDisplayName).replace(/^@+/, "");
     const hints: ChannelIdentityHints = {
-      site_inrcy: cleanChannelIdentityHint(state.siteInrcySavedUrl || state.siteInrcyUrl),
+
       site_web: cleanChannelIdentityHint(state.siteWebSavedUrl || state.siteWebUrl),
       gmb: state.gmbConnected ? cleanChannelIdentityHint(state.gmbLocationLabel || state.gmbLocationName) : "",
       facebook: state.facebookPageConnected ? cleanChannelIdentityHint(state.fbSelectedPageName) : "",
@@ -306,7 +306,7 @@ export function readCachedDashboardChannelConnectivity(): CachedChannelConnectiv
     return {
       inrbadge: typeof state.inrBadgeProfileReady === "boolean" ? state.inrBadgeProfileReady : undefined,
       inr_search: Boolean(state.inrSearchConnected),
-      site_inrcy: Boolean(state.siteInrcyGa4Connected || state.siteInrcyGscConnected),
+
       site_web: Boolean(state.siteWebGa4Connected || state.siteWebGscConnected),
       gmb: Boolean(state.gmbConnected && state.gmbConnectionStatus !== "needs_update"),
       facebook: Boolean(state.facebookPageConnected && state.facebookConnectionStatus !== "needs_update"),
@@ -335,7 +335,7 @@ export function channelConnectivityFromStates(payload: unknown): CachedChannelCo
   return {
     // Site statistics use the exact canonical state returned by
     // /api/integrations/channel-states. Saved IDs never override it here.
-    site_inrcy: states.site_inrcy?.statsConnected === true,
+
     site_web: states.site_web?.statsConnected === true,
     gmb: isUsable("gmb"),
     facebook: isUsable("facebook"),
@@ -362,7 +362,7 @@ export function channelConnectionStatusesFromStates(payload: unknown): OfficialC
 
   return {
     // Same authority as Dashboard and the bulk statistics payload.
-    site_inrcy: states.site_inrcy?.statsConnected === true ? "connected" : "disconnected",
+
     site_web: states.site_web?.statsConnected === true ? "connected" : "disconnected",
     gmb: normalize("gmb"),
     facebook: normalize("facebook"),
@@ -761,7 +761,6 @@ export function buildInrBadgeCubeModel(
     },
   };
 }
-
 
 export function buildInrSearchOpportunity30(stats: InrSearchStatsSnapshot) {
   if (!stats.enabled) return 0;

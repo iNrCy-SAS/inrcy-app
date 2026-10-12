@@ -39,7 +39,6 @@ type Props = {
   historyQuery: string;
 };
 
-
 function formatListDate(value: string | null | undefined, locale: string) {
   const d = value ? new Date(value) : new Date();
   if (Number.isNaN(d.getTime())) return "";
@@ -96,7 +95,6 @@ function simpleStatusMessageKey(item: OutboxItem) {
   if (rawStatus === "completed" || rawStatus === "sent") return "envoye_7b0a810d";
   return "historique_34f3a06a";
 }
-
 
 function stripWorkflowPrefix(value: string) {
   return String(value || "")
@@ -205,7 +203,7 @@ function getRowMetaText(opts: { item: OutboxItem; folder: Folder; accountLabel: 
 
 function localizedChannelLabel(channel: string, translate: MailsTranslator) {
   const normalized = normalizeChannelKey(channel);
-  if (normalized === "inrcy_site") return translate("site_inrcy_57016d6f");
+
   if (normalized === "site_web") return translate("site_web_7e78af33");
   return formatChannelLabel(channel);
 }
@@ -319,7 +317,6 @@ function renderLocalizedPublicationChannels(
     </span>
   );
 }
-
 
 export default function MailboxList(props: Props) {
   const i18nT = useTranslations("mails");

@@ -4,7 +4,6 @@ import {
 } from "./aiContentLength.ts";
 
 export type BoosterChannelKey =
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "gmb"
@@ -45,15 +44,6 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   BoosterChannelKey,
   BoosterChannelContentRule
 > = {
-  inrcy_site: {
-    adapted: { min: 1000, max: 1900 },
-    short: { min: 600, max: 950 },
-    medium: { min: 1100, max: 1700 },
-    long: { min: 1800, max: 2600 },
-    deep: { min: 2700, max: 3800 },
-    detailed: { min: 1800, max: 2400 },
-    max: 4200,
-  },
   site_web: {
     adapted: { min: 1100, max: 2100 },
     short: { min: 600, max: 950 },
@@ -157,7 +147,6 @@ export const BOOSTER_CHANNEL_TITLE_MAX_LENGTH: Record<
   BoosterChannelKey,
   number
 > = {
-  inrcy_site: 120,
   site_web: 120,
   inr_search: 100,
   gmb: 120,
@@ -189,7 +178,7 @@ export function getBoosterGeneratedContentRule(
 }
 
 export function isBoosterWebChannel(channel: BoosterChannelKey) {
-  return channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
+  return channel === "site_web" || channel === "inr_search";
 }
 
 export function getBoosterContentLengthForChannel(

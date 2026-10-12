@@ -589,7 +589,7 @@ export async function POST(req: Request) {
     await ensurePrincipalInrcyAccountProvisioned(invitedUser);
 
     // Apply authoritative defaults after the Auth trigger has completed.
-    // In particular, Site iNrCy must remain opt-in (false) for every new account.
+    // Provision the current catalogue, with Site Web as the only website channel.
     stage = "bubble_access";
     await provisionNewAccountBubbleAccess(userId);
     stage = "profile_bootstrap";

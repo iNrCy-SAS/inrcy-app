@@ -145,7 +145,7 @@ async function buildPerformanceNotification(userId: string, digestHours: number)
   const previousDemandes = toInt(previous?.demandes_captees_total);
   const opportunities = toInt(latest.opportunites_activables_total);
   const deltaDemandes = latestDemandes - previousDemandes;
-  const topOpportunityChannel = ["gmb", "site_web", "site_inrcy", "facebook", "instagram", "linkedin", "x"]
+  const topOpportunityChannel = ["gmb", "site_web", "facebook", "instagram", "linkedin", "x"]
     .map((channel) => ({
       channel,
       value: toInt(safeObj(safeObj(latest.details)[channel]).opportunites_activables),

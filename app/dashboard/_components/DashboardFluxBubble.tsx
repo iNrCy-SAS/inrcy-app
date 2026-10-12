@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
@@ -25,8 +24,7 @@ export type DashboardFluxBubbleData = {
   logoAlt: string;
   bubbleStatus: ModuleStatus;
   bubbleStatusText: string;
-  helpKind?: "site_inrcy" | "site_web";
-  onHelpSiteInrcy?: () => void;
+  helpKind?: "site_web";
   onHelpSiteWeb?: () => void;
   specialViewHref?: string;
   specialViewLabel?: string;

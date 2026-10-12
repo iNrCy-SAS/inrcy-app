@@ -117,7 +117,7 @@ test("the per-channel length grid raises capacity with a bounded safety margin",
     boosterGeneration,
     /content:\s*limitBoosterGeneratedContent\([\s\S]*?channel,[\s\S]*?siteChannel/,
   );
-  assert.match(channelRules, /inrcy_site:\s*\{[\s\S]*?deep:\s*\{ min:\s*2700, max:\s*3800 \}[\s\S]*?max:\s*4200/);
+  assert.match(channelRules, /site_web:\s*\{[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /site_web:\s*\{[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /inr_search:\s*\{[\s\S]*?max:\s*300/);
   assert.match(

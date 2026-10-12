@@ -5,35 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 
 export type DashboardPanelName =
-  | "contact"
-  | "profil"
-  | "preferences"
-  | "inrbadge"
-  | "compte"
-  | "activite"
-  | "ia"
-  | "ai_memory"
-  | "abonnement"
-  | "mails"
-  | "agenda"
-  | "site_inrcy"
-  | "site_web"
-  | "instagram"
-  | "linkedin"
-  | "x"
-  | "gmb"
-  | "inr_search"
-  | "facebook"
-  | "tiktok"
-  | "youtube_shorts"
-  | "pinterest"
-  | "legal"
-  | "rgpd"
-  | "inertie"
-  | "boutique"
-  | "notifications"
-  | "parrainage"
-  | "documents";
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "profileSection", "premium"];
 
@@ -42,7 +14,9 @@ export function useDashboardPanelRouting() {
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const rawPanel = searchParams.get("panel");
-  const urlPanel = rawPanel === "trustpilot"
+  const urlPanel = rawPanel === "site_inrcy"
+    ? "site_web"
+    : rawPanel === "trustpilot"
     ? "inr_search"
     : rawPanel === "profil" || rawPanel === "activite" || rawPanel === "ai_memory" || rawPanel === "ia"
       ? null
@@ -72,9 +46,9 @@ export function useDashboardPanelRouting() {
       );
       return;
     }
-    if (rawPanel !== "trustpilot") return;
+    if (rawPanel !== "trustpilot" && rawPanel !== "site_inrcy") return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set("panel", "inr_search");
+    params.set("panel", rawPanel === "site_inrcy" ? "site_web" : "inr_search");
     router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [rawPanel, router, searchParams]);
 

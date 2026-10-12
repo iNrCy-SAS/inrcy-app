@@ -20,7 +20,7 @@ const inrSearchPublic = read("lib/inrSearchPublic.ts");
 
 const authored = "Première ligne.\n\n\nDeuxième ligne.\n\nTroisième ligne.";
 
-test("Site web and Site iNrCy preserve every authored blank line", () => {
+test("Site web preserve every authored blank line", () => {
   assert.equal(sanitizeBoosterSiteText(authored), authored);
   assert.equal(
     editableHtmlToSiteText("Première ligne.<br><br><br>Deuxième ligne.<br><br>Troisième ligne."),
@@ -42,7 +42,7 @@ test("social-channel formatting strips rich tags without compacting paragraph la
 test("the publication resolver applies the layout-preserving sanitizer per channel", () => {
   assert.match(
     channelContext,
-    /const isSiteChannel = channel === "inrcy_site" \|\| channel === "site_web" \|\| channel === "inr_search"/,
+    /const isSiteChannel = channel === "site_web" \|\| channel === "inr_search"/,
   );
   assert.match(
     channelContext,
@@ -50,8 +50,8 @@ test("the publication resolver applies the layout-preserving sanitizer per chann
   );
 });
 
-test("Site web and Site iNrCy persist the resolved channel content verbatim", () => {
-  assert.match(publishRoute, /if \(ch === "inrcy_site" \|\| ch === "site_web"\)/);
+test("Site web persist the resolved channel content verbatim", () => {
+  assert.match(publishRoute, /if \(ch === "site_web"\)/);
   assert.match(publishRoute, /content: channelPost\.content/);
 });
 

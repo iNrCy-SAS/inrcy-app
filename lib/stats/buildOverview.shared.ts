@@ -166,7 +166,6 @@ export function safeJsonParse<T>(s: unknown, fallback: T): T {
 export type SiteConn = { ga4: boolean; gsc: boolean };
 
 export type SourcesStatus = {
-  site_inrcy: { connected: SiteConn };
   site_web: { connected: SiteConn };
   gmb: { connected: boolean; metrics: unknown | null };
   facebook: { connected: boolean; metrics: unknown | null };
@@ -179,7 +178,6 @@ export type SourcesStatus = {
 };
 
 export type LiveSourcesSnapshot = {
-  site_inrcy: { connected: SiteConn };
   site_web: { connected: SiteConn };
   gmb: { connected: boolean; metrics: unknown | null };
   facebook: { connected: boolean; metrics: unknown | null };
@@ -192,7 +190,6 @@ export type LiveSourcesSnapshot = {
 };
 
 export type OverviewCubeKey =
-  | "site_inrcy"
   | "site_web"
   | "gmb"
   | "facebook"
@@ -279,7 +276,6 @@ export function resolveRequestedCube(
   if (normalized === "youtube_shorts") return "youtube_shorts";
   if (normalized === "pinterest") return "pinterest";
   if (normalized === "gmb") return "gmb";
-  if (normalized.includes("site_inrcy")) return "site_inrcy";
   if (normalized.includes("site_web")) return "site_web";
   return null;
 }
@@ -289,7 +285,7 @@ export function isCubeConnectedInPayload(
   cube: OverviewCubeKey,
 ) {
   const sources = asRecord(payload["sources"]);
-  if (cube === "site_inrcy" || cube === "site_web") {
+  if (cube === "site_web") {
     const connected = asRecord(asRecord(sources[cube])["connected"]);
     return Boolean(connected["ga4"] || connected["gsc"]);
   }
@@ -468,7 +464,6 @@ export type YoutubeShortsLocalPublicationStats = {
 };
 
 export const INRCY_PUBLISHABLE_CHANNELS: InrcyActivityChannelKey[] = [
-  "site_inrcy",
   "site_web",
   "inr_search",
   "gmb",
@@ -506,23 +501,28 @@ export function emptyInrcyActivityStatsByChannel(): InrcyActivityStatsByChannel 
 
 function normalizeInrcyActivityChannel(value: unknown): string {
   const channel = String(value || "").trim().toLowerCase();
-  return channel === "inrcy_site" ? "site_inrcy" : channel;
+  return channel === "inrcy_site" || channel === "site_inrcy" || channel === "siteinrcy" ? "site_web" : channel;
 }
 
 export function inrcyActivityPayloadChannelKeys(
   channel: InrcyActivityChannelKey,
 ): string[] {
-  return channel === "site_inrcy" ? ["site_inrcy", "inrcy_site"] : [channel];
+  // Read past publications under the canonical site channel, once per event.
+  return channel === "site_web" ? ["site_web", "site_inrcy", "inrcy_site", "siteInrcy"] : [channel];
 }
 
 function payloadChannelValue(
   container: Record<string, unknown>,
   channel: InrcyActivityChannelKey,
 ): unknown {
+  let failedValue: unknown;
   for (const key of inrcyActivityPayloadChannelKeys(channel)) {
-    if (Object.prototype.hasOwnProperty.call(container, key)) return container[key];
+    if (!Object.prototype.hasOwnProperty.call(container, key)) continue;
+    const value = container[key];
+    if (asRecord(value)["ok"] !== false) return value;
+    failedValue ??= value;
   }
-  return undefined;
+  return failedValue;
 }
 
 function payloadChannelRecord(
@@ -854,7 +854,7 @@ export function cubeHasUsableData(
   cube: OverviewCubeKey,
 ) {
   if (!isCubeConnectedInPayload(payload, cube)) return false;
-  if (cube === "site_inrcy" || cube === "site_web") {
+  if (cube === "site_web") {
     const totals = asRecord(payload["totals"]);
     const topPages = Array.isArray(payload["topPages"])
       ? payload["topPages"]
@@ -981,7 +981,7 @@ export async function loadPreviousOverviewCandidate(args: {
         for (const row of Array.isArray(rows) ? rows : []) {
           const rowRecord = asRecord(row);
           if (!isRecentOverviewCandidate(rowRecord["expires_at"])) continue;
-          const candidate = asRecord(rowRecord["payload"]);
+          const candidate = withoutRetiredSiteChannels(rowRecord["payload"]);
           if (!candidate || Object.keys(candidate).length === 0) continue;
           if (!identitiesCompatible(currentPayload, candidate, cube)) continue;
           if (!cubeHasUsableData(candidate, cube)) continue;
@@ -995,6 +995,21 @@ export async function loadPreviousOverviewCandidate(args: {
   return null;
 }
 
+/** Old caches may outlive deployment; they must not add a removed channel back. */
+export function withoutRetiredSiteChannels(value: unknown): Record<string, unknown> {
+  const payload = { ...asRecord(value) };
+  const isRetired = (key: string) => key === "site_inrcy" || key === "inrcy_site" || key === "siteInrcy" || key.startsWith("site_inrcy_");
+  for (const field of ["sources", "identities", "inrcyActivity"]) {
+    if (payload[field] === undefined) continue;
+    payload[field] = Object.fromEntries(Object.entries(asRecord(payload[field])).filter(([key]) => !isRetired(key)));
+  }
+  if (Array.isArray(payload["selected"])) {
+    payload["selected"] = payload["selected"].filter((key) => typeof key !== "string" || !isRetired(key));
+  }
+  delete payload["inrcySiteOwnership"];
+  return payload;
+}
+
 export async function stabilizeOverviewPayload(args: {
   supabase: SupabaseClient;
   userId: string;
@@ -1003,7 +1018,8 @@ export async function stabilizeOverviewPayload(args: {
   includeAll: boolean;
   payload: Record<string, unknown>;
 }) {
-  const { supabase, userId, days, includeRaw, includeAll, payload } = args;
+  const { supabase, userId, days, includeRaw, includeAll } = args;
+  const payload = withoutRetiredSiteChannels(args.payload);
   const cube = resolveRequestedCube(includeRaw, includeAll);
   if (!cube) return payload;
   if (!cubeNeedsPreservation(payload, cube)) return payload;
@@ -1025,8 +1041,6 @@ export async function stabilizeOverviewPayload(args: {
     ...candidate,
     days: payload["days"] ?? candidate["days"],
     selected: payload["selected"] ?? candidate["selected"],
-    inrcySiteOwnership:
-      payload["inrcySiteOwnership"] ?? candidate["inrcySiteOwnership"],
     identities: {
       ...asRecord(candidate["identities"]),
       ...asRecord(payload["identities"]),
@@ -1054,15 +1068,6 @@ export async function stabilizeOverviewPayload(args: {
   };
 }
 
-export type SiteSettings = {
-  ga4?: { property_id?: string; measurement_id?: string };
-  gsc?: { property?: string };
-  site_web?: {
-    ga4?: { property_id?: string; measurement_id?: string };
-    gsc?: { property?: string };
-  };
-};
-
 export function _sumMap<K extends string>(items: Array<{ key: K; value: number }>) {
   const m = new Map<K, number>();
   for (const it of items) m.set(it.key, (m.get(it.key) || 0) + it.value);
@@ -1072,7 +1077,6 @@ export function _sumMap<K extends string>(items: Array<{ key: K; value: number }
 export type OverviewPayload = {
   days: number;
   selected: string[] | null;
-  inrcySiteOwnership: string;
   identities: Record<string, { label: string | null; url: string | null }>;
   totals: {
     users: number;

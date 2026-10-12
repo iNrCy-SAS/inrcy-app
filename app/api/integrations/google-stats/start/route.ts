@@ -4,7 +4,7 @@ import { asRecord } from "@/lib/tsSafe";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 
-const ALLOWED_SOURCES = ["site_inrcy", "site_web"] as const;
+const ALLOWED_SOURCES = ["site_web"] as const;
 const ALLOWED_PRODUCTS = ["ga4", "gsc"] as const;
 
 type Source = (typeof ALLOWED_SOURCES)[number];
@@ -30,13 +30,8 @@ function parseScopes(raw: unknown): Set<string> {
   return new Set(value.split(/\s+/).map((scope) => scope.trim()).filter(Boolean));
 }
 
-function hasProductBinding(settings: unknown, source: Source, product: Product): boolean {
-  const root = asRecord(settings);
-
-  const scopedRoot =
-    source === "site_web"
-      ? asRecord(root["site_web"])
-      : root;
+function hasProductBinding(settings: unknown, product: Product): boolean {
+  const scopedRoot = asRecord(asRecord(settings)["site_web"]);
 
   if (product === "ga4") {
     const ga4 = asRecord(scopedRoot["ga4"]);
@@ -56,7 +51,7 @@ async function findReusableGoogleStatsConnection(params: {
   const supabase = await createSupabaseServer();
   const requiredScope = REQUIRED_SCOPE_BY_PRODUCT[params.product];
 
-  const [integrationRes, inrcyCfgRes, proCfgRes] = await Promise.all([
+  const [integrationRes, proCfgRes] = await Promise.all([
     supabase
       .from("integrations")
       .select("status, scopes")
@@ -65,7 +60,6 @@ async function findReusableGoogleStatsConnection(params: {
       .eq("source", params.source)
       .eq("product", params.product)
       .maybeSingle(),
-    supabase.from("inrcy_site_configs").select("settings").eq("user_id", params.userId).maybeSingle(),
     supabase.from("pro_tools_configs").select("settings").eq("user_id", params.userId).maybeSingle(),
   ]);
 
@@ -74,11 +68,7 @@ async function findReusableGoogleStatsConnection(params: {
   const scopes = parseScopes(integration["scopes"]);
   if (!isConnected || !scopes.has(requiredScope)) return false;
 
-  const settings = params.source === "site_web"
-    ? asRecord(proCfgRes.data)["settings"]
-    : asRecord(inrcyCfgRes.data)["settings"];
-
-  return hasProductBinding(settings, params.source, params.product);
+  return hasProductBinding(asRecord(proCfgRes.data)["settings"], params.product);
 }
 
 function extractDomainFromUrl(rawUrl: string): { normalizedUrl: string; domain: string } | null {
@@ -114,13 +104,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const source = searchParams.get("source") || "";
   const product = searchParams.get("product") || "";
-  const mode = searchParams.get("mode") || "";
   const returnTo = safeInternalPath(searchParams.get("returnTo") || `/dashboard?panel=${encodeURIComponent(source)}`, `/dashboard?panel=${encodeURIComponent(source)}`);
   const returnRedirectUrl = new URL(returnTo, appOrigin);
-
-  // Optional: if the UI passes a siteUrl (user just typed it), embed domain in OAuth state
-  // so the callback can auto-resolve GA4/GSC for THAT site without requiring manual IDs.
-  const siteUrlFromQuery = searchParams.get("siteUrl") || "";
 
   if (!isAllowedSource(source)) {
     return NextResponse.json({ error: "La source demandée n'est pas reconnue." }, { status: 400 });
@@ -148,58 +133,16 @@ export async function GET(request: Request) {
     // If the pre-check fails, fall back to the normal OAuth flow.
   }
 
-  // Legacy support: only explicit mode=activate triggers the dual activation flow.
-  // We embed the domain in the OAuth state so the callback can enforce coherence.
-  let domain: string | null = null;
-  let siteUrl: string | null = null;
-
-  
-  if (siteUrlFromQuery) {
-    const parsed = extractDomainFromUrl(String(siteUrlFromQuery).trim());
-    if (parsed) {
-      domain = parsed.domain;
-      siteUrl = parsed.normalizedUrl;
-    }
+  const { data: proConfig } = await supabase.from("pro_tools_configs").select("settings").eq("user_id", accountId).maybeSingle();
+  const siteWeb = asRecord(asRecord(asRecord(proConfig).settings).site_web);
+  const parsed = extractDomainFromUrl(String(siteWeb.url || "").trim());
+  if (!parsed) {
+    return NextResponse.json({ error: "Le lien du site est manquant ou invalide. Veuillez l’enregistrer puis réessayer." }, { status: 400 });
   }
+  const domain = parsed.domain;
+  const siteUrl = parsed.normalizedUrl;
 
-if (mode === "activate") {
-    const userId = accountId;
-
-    
-// Nouveau schéma :
-// - site_inrcy -> inrcy_site_configs.site_url
-// - site_web -> pro_tools_configs.settings.site_web.url
-
-const [inrcyCfgRes, proCfgRes] = await Promise.all([
-  supabase.from("inrcy_site_configs").select("site_url").eq("user_id", userId).maybeSingle(),
-  supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
-]);
-
-const inrcySiteUrl = String(asRecord(inrcyCfgRes.data)["site_url"] ?? "");
-const proSettings = asRecord(asRecord(proCfgRes.data)["settings"]);
-
-const rawUrl =
-  (siteUrlFromQuery && String(siteUrlFromQuery).trim())
-    ? String(siteUrlFromQuery).trim()
-      : (
-        source === "site_web"
-          ? (String(asRecord(asRecord(proSettings)["site_web"])["url"] ?? ""))
-          : (inrcySiteUrl || "")
-      );
-
-    const parsed = extractDomainFromUrl(String(rawUrl || "").trim());
-    if (!parsed) {
-      return NextResponse.json(
-        { error: "Le lien du site est manquant ou invalide. Veuillez l’enregistrer puis réessayer." },
-        { status: 400 }
-      );
-    }
-
-    domain = parsed.domain;
-    siteUrl = parsed.normalizedUrl;
-  }
-
-  const { stateB64, cookieValue, cookieName } = makeOAuthState("google_stats", returnTo, { source, product, mode, domain, siteUrl, accountId });
+  const { stateB64, cookieValue, cookieName } = makeOAuthState("google_stats", returnTo, { source, product, domain, siteUrl, accountId });
 
   const requestedScopes = [
     REQUIRED_SCOPE_BY_PRODUCT[product],

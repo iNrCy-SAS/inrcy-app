@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 
@@ -16,36 +15,7 @@ import type { NotificationItem } from "../dashboard.types";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
 
 type DashboardPanelName =
-  | "contact"
-  | "profil"
-  | "preferences"
-  | "inrbadge"
-  | "compte"
-  | "activite"
-  | "ia"
-  | "ai_memory"
-  | "abonnement"
-  | "mails"
-  | "agenda"
-  | "site_inrcy"
-  | "site_web"
-  | "instagram"
-  | "linkedin"
-  | "x"
-  | "gmb"
-  | "inr_search"
-  | "facebook"
-  | "tiktok"
-  | "youtube_shorts"
-  | "pinterest"
-  | "legal"
-  | "rgpd"
-  | "inertie"
-  | "boutique"
-  | "notifications"
-  | "parrainage"
-  | "documents";
-
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 const INR_AGENT_ROUTE = "/dashboard/agent";
 const INR_AGENT_PRELOAD_ASSETS = [

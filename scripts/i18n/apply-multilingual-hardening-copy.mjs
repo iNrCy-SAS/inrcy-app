@@ -167,7 +167,6 @@ export const rows = {
 };
 
 export const targetedRows = [
-  ["dashboard", "drawer.titles.site_inrcy", "Configuration — Site iNrCy", "Settings — Site iNrCy", "Configuración — Sitio iNrCy", "Impostazioni — Sito iNrCy", "Einstellungen — iNrCy-Website", "Instellingen — iNrCy-website", "Definições — Site iNrCy"],
   ["dashboard", "drawer.titles.site_web", "Configuration — Site web", "Settings — Website", "Configuración — Sitio web", "Impostazioni — Sito web", "Einstellungen — Website", "Instellingen — Website", "Definições — Site"],
   ["dashboard", "drawer.titles.instagram", "Configuration — Instagram", "Settings — Instagram", "Configuración — Instagram", "Impostazioni — Instagram", "Einstellungen — Instagram", "Instellingen — Instagram", "Definições — Instagram"],
   ["dashboard", "drawer.titles.linkedin", "Configuration — LinkedIn", "Settings — LinkedIn", "Configuración — LinkedIn", "Impostazioni — LinkedIn", "Einstellungen — LinkedIn", "Instellingen — LinkedIn", "Definições — LinkedIn"],

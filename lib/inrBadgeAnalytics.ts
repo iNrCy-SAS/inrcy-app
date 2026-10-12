@@ -20,7 +20,6 @@ export type InrBadgeActionBreakdown = {
   save_contact: InrBadgeStatsPeriod;
   lead_form: InrBadgeStatsPeriod;
   appointment: InrBadgeStatsPeriod;
-  site_inrcy: InrBadgeStatsPeriod;
   site_web: InrBadgeStatsPeriod;
   google_business: InrBadgeStatsPeriod;
   facebook: InrBadgeStatsPeriod;
@@ -53,7 +52,6 @@ const ACTION_KEYS = [
   "save_contact",
   "lead_form",
   "appointment",
-  "site_inrcy",
   "site_web",
   "google_business",
   "facebook",
@@ -96,6 +94,7 @@ function safeEventType(value: unknown): InrBadgeEventType {
 function safeActionKey(value: unknown): ActionKey | null {
   const normalized = clean(value, 80).toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
   if (!normalized) return null;
+  if (normalized === "site_inrcy" || normalized === "inrcy_site") return "site_web";
   return (KNOWN_ACTION_KEYS.has(normalized) ? normalized : "other") as ActionKey;
 }
 
@@ -118,7 +117,6 @@ function zeroActions(): InrBadgeActionBreakdown {
     save_contact: zeroPeriod(),
     lead_form: zeroPeriod(),
     appointment: zeroPeriod(),
-    site_inrcy: zeroPeriod(),
     site_web: zeroPeriod(),
     google_business: zeroPeriod(),
     facebook: zeroPeriod(),
@@ -293,7 +291,7 @@ export async function readInrBadgeStats(supabase: SupabaseLike, userId: string):
     const actionsByKey = zeroActions();
 
     for (const key of ACTION_KEYS) {
-      actionsByKey[key] = countPeriod(rowsForTotal, (row) => row.event_type === "action_click" && (row.action_key || "other") === key);
+      actionsByKey[key] = countPeriod(rowsForTotal, (row) => row.event_type === "action_click" && (safeActionKey(row.action_key) || "other") === key);
     }
 
     const capturedWeek = leads.week + appointments.week;

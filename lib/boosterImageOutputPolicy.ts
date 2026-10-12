@@ -1,7 +1,6 @@
 import type { BoosterImageChannel } from "@/lib/boosterImageDecision";
 
 export const BOOSTER_ORIGINAL_ALPHA_PRESERVING_CHANNELS = Object.freeze([
-  "inrcy_site",
   "site_web",
   "inr_search",
 ] satisfies BoosterImageChannel[]);

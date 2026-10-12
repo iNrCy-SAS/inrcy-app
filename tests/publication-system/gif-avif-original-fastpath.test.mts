@@ -35,7 +35,7 @@ test("internal web channels preserve original GIF and AVIF while external provid
     source.indexOf("function normalizedImageMime"),
   );
 
-  for (const channel of ["inrcy_site", "site_web", "inr_search"]) {
+  for (const channel of ["site_web", "inr_search"]) {
     const start = policy.indexOf(`${channel}: new Set([`);
     const end = policy.indexOf("]),", start);
     assert.ok(start >= 0 && end > start, `politique introuvable pour ${channel}`);

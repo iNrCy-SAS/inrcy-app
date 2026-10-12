@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "./siteWebChannel.ts";
 export const INR_AGENT_AUTOMATION_KEYS = ["publish", "grow", "loyalty", "stats"] as const;
 export const INR_AGENT_FREQUENCIES = [
   "weekly",
@@ -17,7 +18,7 @@ export const INR_AGENT_VALIDATION_MODES = [
 ] as const;
 export const INR_AGENT_GOALS = ["visibility", "acquisition", "loyalty", "stats"] as const;
 export const INR_AGENT_TONES = ["professional", "friendly", "premium", "local", "dynamic"] as const;
-export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"] as const;
+export const INR_AGENT_CHANNELS = ["site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"] as const;
 export const INR_AGENT_THEMES = [
   "conseils",
   "realisations",
@@ -37,7 +38,6 @@ export const INR_AGENT_THEMES = [
   "vue_globale",
   "inrbadge",
   "mails",
-  "site_inrcy",
   "site_web",
   "gmb",
   "inr_search",
@@ -204,7 +204,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     dayOfWeek: 1,
     time: "09:00",
     validationMode: "notify_before_validation",
-    allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "x"],
+    allowedChannels: ["site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "x"],
     allowedThemes: [...INR_AGENT_PUBLISH_THEMES],
     useImageBank: true,
     imageRequired: true,
@@ -265,7 +265,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     time: "08:30",
     validationMode: "automatic_report",
     allowedChannels: [],
-    allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "inrbadge", "x"],
+    allowedThemes: ["vue_globale", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "inrbadge", "x"],
     useImageBank: false,
     imageRequired: false,
     preferredMediaSource: "media_library",
@@ -293,7 +293,7 @@ export const INR_AGENT_DEFAULT_SETTINGS: InrAgentSettings = {
   mode: "notify_before_validation",
   goal: "visibility",
   allowedActions: ["publication", "mailing", "review_request", "loyalty"],
-  allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"],
+  allowedChannels: ["site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"],
   useMediaLibrary: true,
   allowAiImages: false,
 };
@@ -347,7 +347,6 @@ export const INR_AGENT_LABELS = {
     loyalty: "Fidélisation",
   } satisfies Record<InrAgentAction, string>,
   channels: {
-    site_inrcy: "Site iNrCy",
     site_web: "Site Web",
     gmb: "Google Business",
     inr_search: "iNr'Search",
@@ -379,7 +378,6 @@ export const INR_AGENT_LABELS = {
     vue_globale: "Vue globale",
     inrbadge: "iNrBadge",
     mails: "Mails",
-    site_inrcy: "Site iNrCy",
     site_web: "Site Web",
     gmb: "Google Business",
     inr_search: "iNr'Search",
@@ -429,13 +427,13 @@ function cloneDefaults(): InrAgentSettings {
 
 function sanitizeStringArray<T extends readonly string[]>(values: T, input: unknown, fallback: T[number][]): T[number][] {
   if (!Array.isArray(input)) return [...fallback];
-  const sanitized = input.filter((value): value is T[number] => includesValue(values, value));
+  const sanitized = input.map(canonicalSiteWebChannel).filter((value): value is T[number] => includesValue(values, value));
   return sanitized.length > 0 ? Array.from(new Set(sanitized)) : [...fallback];
 }
 
 function sanitizeMaybeEmptyStringArray<T extends readonly string[]>(values: T, input: unknown, fallback: T[number][]): T[number][] {
   if (!Array.isArray(input)) return [...fallback];
-  return Array.from(new Set(input.filter((value): value is T[number] => includesValue(values, value))));
+  return Array.from(new Set(input.map(canonicalSiteWebChannel).filter((value): value is T[number] => includesValue(values, value))));
 }
 
 function sanitizeTime(value: unknown, fallback: string): string {

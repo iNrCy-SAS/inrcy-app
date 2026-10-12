@@ -56,7 +56,7 @@ const STANDARD_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
       "l_edition_standard_reunit_10_destinations_fc40dfbd",
     steps: [
       "ouvrir_les_canaux_choisir_la_bulle_7694d398",
-      "relier_les_destinations_utiles_site_inrcy_483ab0d6",
+      "relier_les_destinations_utiles_site_web_483ab0d6",
       "configurer_inr_badge_inclus_en_bonus_a94257d1",
       "verifier_l_etat_de_chaque_bulle_e1a5ba41",
     ],

@@ -304,7 +304,7 @@ test("sites et iNrSearch ne copient pas le master : ils conservent ses référen
     "utf8",
   );
   const siteAt = publishNow.indexOf(
-    'if (ch === "inrcy_site" || ch === "site_web")',
+    'if (ch === "site_web")',
   );
   const siteBranch = publishNow.slice(
     siteAt,

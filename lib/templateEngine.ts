@@ -6,7 +6,7 @@ import { combineOpeningSchedule } from "@/lib/openingSchedule";
 // Replaces {{key}} tokens with values derived from:
 // - profiles
 // - business_profiles
-// - connected tools (Site iNrCy / site web / Facebook / Google Business)
+// - connected tools (Site web / Facebook / Google Business)
 
 export type TemplateContext = Record<string, string>;
 

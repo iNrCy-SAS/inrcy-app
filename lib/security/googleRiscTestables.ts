@@ -124,7 +124,6 @@ export function tokenMatchesIdentifier(token: string, algRaw: string | null, ide
 }
 
 export type GoogleRiscStatusResult = {
-  site_inrcy: { ga4: boolean; gsc: boolean };
   site_web: { ga4: boolean; gsc: boolean };
   gmb: boolean;
   gmail: boolean;
@@ -132,7 +131,6 @@ export type GoogleRiscStatusResult = {
 
 export function emptyGoogleRiscStatus(): GoogleRiscStatusResult {
   return {
-    site_inrcy: { ga4: false, gsc: false },
     site_web: { ga4: false, gsc: false },
     gmb: false,
     gmail: false,
@@ -150,9 +148,7 @@ export function buildGoogleRiscStatusFromRows(rows: unknown[]): GoogleRiscStatus
     const reauthRequired = Boolean(asRecord(meta["risc"])["reauth_required"]);
     if (!reauthRequired) continue;
 
-    if (source === "site_inrcy" && product === "ga4") result.site_inrcy.ga4 = true;
-    else if (source === "site_inrcy" && product === "gsc") result.site_inrcy.gsc = true;
-    else if (source === "site_web" && product === "ga4") result.site_web.ga4 = true;
+    if (source === "site_web" && product === "ga4") result.site_web.ga4 = true;
     else if (source === "site_web" && product === "gsc") result.site_web.gsc = true;
     else if (source === "gmb" && product === "gmb") result.gmb = true;
     else if (product === "gmail") result.gmail = true;

@@ -14,7 +14,7 @@ test("stable internal logo URLs remain on the public iNrSearch origin", () => {
   assert.match(source, /const isInternalPath/);
   assert.match(source, /raw\.startsWith\("\/"\) \|\| isInternalPath/);
   assert.match(source, /new URL\(`\/\$\{raw\.replace/);
-  assert.match(source, /channelStates\.site_inrcy\.url\s*\|\|\s*channelStates\.site_web\.url/);
+  assert.match(source, /channelStates\.site_web\.url/);
 });
 
 test("gallery labels are generated from reliable public profile context", () => {

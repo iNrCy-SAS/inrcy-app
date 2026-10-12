@@ -246,8 +246,6 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslato
   score += hasPricing ? 4 : 0;
   score += Math.round(intentShare * 10);
 
-  if (cubeKey === "site_inrcy") score += 10;
-
   score = clamp(score, 15, 95);
   return { score, ...localizedQualityLabel(score, t) };
 }

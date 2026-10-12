@@ -3,8 +3,9 @@ import { buildUserFacingErrorBody } from "@/lib/apiUserFacingErrors";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
-import { resolveWidgetUserIdFromDomain, normalizeWidgetDomain } from "@/lib/widgets/domainRegistry";
+import { resolveWidgetUserIdFromDomain, normalizeWidgetDomain, normalizeWidgetSource } from "@/lib/widgets/domainRegistry";
 import { stabilizeEmbedActusArticleMedia } from "@/lib/embedActusMedia";
+import { loadSiteWebWidgetArticles } from "@/lib/widgets/siteWebArticles";
 
 export const runtime = "nodejs";
 
@@ -117,13 +118,13 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const domain = normalizeWidgetDomain(searchParams.get("domain"));
-    const source = (searchParams.get("source") || "site_web").trim(); // "inrcy_site" | "site_web"
+    const source = normalizeWidgetSource(searchParams.get("source") || "site_web");
     const limit = Math.min(
       Math.max(parseInt(searchParams.get("limit") || "5", 10) || 5, 1),
       20
     );
 
-    if (!domain) {
+    if (!domain || !source) {
       return NextResponse.json(
         { ok: false, error: "Le domaine du site est manquant." },
         { status: 400, headers: corsHeaders(req) }
@@ -152,7 +153,7 @@ export async function GET(req: Request) {
 
     const tok = verifyWidgetToken(providedToken, signingSecret);
     const tokDomain = normalizeWidgetDomain(tok.domain);
-    const tokSource = String(tok.source || "").trim();
+    const tokSource = normalizeWidgetSource(tok.source);
     if (!tokDomain || tokDomain !== domain) {
       return NextResponse.json(
         { ok: false, error: "Le jeton ne correspond pas au domaine." },
@@ -197,7 +198,7 @@ export async function GET(req: Request) {
     const supabase = getSupabaseAdmin();
 
     // Resolve widget owner via indexed registry first, then durable fallback.
-    const userId = await resolveWidgetUserIdFromDomain(domain, source as "inrcy_site" | "site_web");
+    const userId = await resolveWidgetUserIdFromDomain(domain, source);
 
     if (!userId) {
       return NextResponse.json(
@@ -207,15 +208,7 @@ export async function GET(req: Request) {
     }
 
     // 2) Fetch articles
-    const { data: articles, error: artErr } = await supabase
-      .from("site_articles")
-      .select("id, created_at, title, content, cta, images, media_type, video_url, video_path, video_mime, video_size, video_duration_seconds, video_thumbnail_url, media_metadata")
-      .eq("user_id", userId)
-      .eq("source", source)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (artErr) throw artErr;
+    const articles = await loadSiteWebWidgetArticles(supabase, userId, limit);
 
     const stableArticles = (articles || []).map((article) =>
       stabilizeEmbedActusArticleMedia(article as Record<string, unknown>),

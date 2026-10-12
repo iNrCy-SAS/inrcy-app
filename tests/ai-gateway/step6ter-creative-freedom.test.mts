@@ -46,7 +46,7 @@ test("Booster keeps airy paragraphs and makes dynamic emojis channel-aware", () 
   assert.match(prompt, /canaux site restent strictement sans emoji/i);
   assert.match(prompt, /facebook:\s*"6–10 emojis visibles/i);
   assert.match(prompt, /instagram:\s*"8–12 emojis visibles/i);
-  assert.match(prompt, /inrcy_site:\s*"0 emoji malgré le niveau Beaucoup/i);
+  assert.match(prompt, /site_web:\s*"0 emoji malgré le niveau Beaucoup/i);
   assert.doesNotMatch(prompt, /3 à 5 emojis obligatoires/i);
   assert.doesNotMatch(prompt, /4 à 8 emojis obligatoires/i);
 });
@@ -101,7 +101,7 @@ test("token budgets keep safe headroom while generated channel ceilings stay cen
   const generation = read("lib/boosterPublishGeneration.ts");
   const channelRules = read("lib/boosterChannelRules.ts");
   assert.match(generation, /limitBoosterGeneratedContent/);
-  assert.match(channelRules, /inrcy_site:[\s\S]*?max:\s*4200/);
+  assert.match(channelRules, /site_web:[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /site_web:[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /pinterest:[\s\S]*?max:\s*500/);
   assert.match(generation, /getBoosterContentLengthForChannel/);

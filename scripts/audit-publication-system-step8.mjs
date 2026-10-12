@@ -123,12 +123,11 @@ const checks = [
       /normalizeBoosterImageCustomizationScope/.test(adapterScope),
   },
   {
-    name: "transparence conservée uniquement sur les trois surfaces iNrCy",
+    name: "transparence conservée uniquement sur les deux surfaces iNrCy",
     ok:
-      /"inrcy_site"/.test(imagePolicy) &&
       /"site_web"/.test(imagePolicy) &&
       /"inr_search"/.test(imagePolicy) &&
-      /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8/.test(imagePreparation),
+      /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9/.test(imagePreparation),
   },
   {
     name: "variantes vidéo Google et cache vidéo version 7",
@@ -164,9 +163,9 @@ const checks = [
       !/(?:boxblur|gblur|avgblur|smartblur)/i.test(videoPreparation),
   },
   {
-    name: "tests historiques alignés sur les caches image 8 et vidéo 7",
+    name: "tests historiques alignés sur les caches image 9 et vidéo 7",
     ok:
-      /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8/.test(historicalOriginalFirstTest) &&
+      /CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9/.test(historicalOriginalFirstTest) &&
       /CHANNEL_VIDEO_VARIANT_PIPELINE_VERSION = 7/.test(historicalOriginalFirstTest),
   },
   {

@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel, normalizeSiteWebChannelMap } from "@/lib/siteWebChannel";
 import type { InrAgentAction } from "@/lib/inrAgentActions";
 import {
   INR_MEDIA_IMAGE_MAX_BYTES,
@@ -25,7 +26,6 @@ export function cleanText(value: unknown, maxLength = 6000) {
 }
 
 export type PublishChannelKey =
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "gmb"
@@ -38,9 +38,6 @@ export type PublishChannelKey =
   | "x";
 
 const publishChannelAliases: Record<string, PublishChannelKey> = {
-  inrcy_site: "inrcy_site",
-  site_inrcy: "inrcy_site",
-  siteInrcy: "inrcy_site",
   site_web: "site_web",
   siteWeb: "site_web",
   inr_search: "inr_search",
@@ -59,7 +56,6 @@ const publishChannelAliases: Record<string, PublishChannelKey> = {
 };
 
 const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
-  inrcy_site: ["inrcy_site", "site_inrcy", "siteInrcy"],
   site_web: ["site_web", "siteWeb"],
   inr_search: ["inr_search", "inrSearch"],
   gmb: ["gmb", "google_business"],
@@ -73,7 +69,7 @@ const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
 };
 
 export function cleanPublishChannel(value: unknown): PublishChannelKey | null {
-  const key = String(value ?? "").trim();
+  const key = canonicalSiteWebChannel(value);
   return publishChannelAliases[key] || null;
 }
 
@@ -112,9 +108,9 @@ export function readPublishPost(
   channel: PublishChannelKey,
 ) {
   for (const key of publishChannelReadAliases[channel]) {
-    const record = asRecord(postByChannel[key]);
+    const record = asRecord(normalizeSiteWebChannelMap(postByChannel)[key]);
     if (record) return record;
-    const text = cleanText(postByChannel[key], 6000);
+    const text = cleanText(normalizeSiteWebChannelMap(postByChannel)[key], 6000);
     if (text) return { content: text };
   }
   return {};
@@ -125,8 +121,8 @@ export function readPublishChannelValue(
   channel: PublishChannelKey,
 ) {
   for (const key of publishChannelReadAliases[channel]) {
-    if (Object.prototype.hasOwnProperty.call(valuesByChannel, key)) {
-      return valuesByChannel[key];
+    if (Object.prototype.hasOwnProperty.call(normalizeSiteWebChannelMap(valuesByChannel), key)) {
+      return normalizeSiteWebChannelMap(valuesByChannel)[key];
     }
   }
   return undefined;
@@ -136,7 +132,7 @@ export function removePublishChannelValue(
   valuesByChannel: Record<string, unknown>,
   channel: PublishChannelKey,
 ) {
-  const nextValues = { ...valuesByChannel };
+  const nextValues = normalizeSiteWebChannelMap(valuesByChannel);
   for (const key of publishChannelReadAliases[channel]) {
     delete nextValues[key];
   }
@@ -375,7 +371,7 @@ export function buildPublishMediaAdaptation(
 export type PublishDraftMedia = ReturnType<typeof cleanPublishMedia>;
 
 export function publishCanRunWithoutMedia(channel: PublishChannelKey) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }

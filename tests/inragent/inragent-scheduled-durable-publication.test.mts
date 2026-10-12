@@ -23,7 +23,6 @@ const agentExecuteRoute = read("app/api/agent/actions/execute/route.ts");
 
 test("a mixed schedule keeps five image channels and five video channels intact", () => {
   const imageChannels = [
-    "inrcy_site",
     "site_web",
     "inr_search",
     "gmb",

@@ -112,7 +112,7 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
       {
         id: "canaux-express",
         title: "connecter_les_bonnes_bulles_79848216",
-        keywords: ["canaux_22467b10", "bulles_6a26011b", "connexion_5d2cc1db", "configurer_317b6b02", "connecter_7badff0e", "site_inrcy_707ea046", "site_web_c428d383", "google_759730a9", "facebook_cbe64890", "instagram_b66806f4", "linkedin_7728240c", "tiktok_8d762497", "youtube_d5244a33", "shorts_9e32d15b", "pinterest_ea273f4e", "mails_056e11b5", "inrbadge_f4321501", "statistiques_80d10cfb", "publications_1a4f2b10", "visibilite_6f1baeb8", "ereputation_af31e61c"],
+        keywords: ["canaux_22467b10", "bulles_6a26011b", "connexion_5d2cc1db", "configurer_317b6b02", "connecter_7badff0e", "site_web_c428d383", "google_759730a9", "facebook_cbe64890", "instagram_b66806f4", "linkedin_7728240c", "tiktok_8d762497", "youtube_d5244a33", "shorts_9e32d15b", "pinterest_ea273f4e", "mails_056e11b5", "inrbadge_f4321501", "statistiques_80d10cfb", "publications_1a4f2b10", "visibilite_6f1baeb8", "ereputation_af31e61c"],
         duration: "5_min_b45ebd80",
         goal: "visibilite_reliee_816e8335",
         intro:

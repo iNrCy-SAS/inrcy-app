@@ -6,7 +6,6 @@ export type InrBadgeShareKey =
   | "email"
   | "saveContact"
   | "inrSearch"
-  | "siteInrcy"
   | "siteWeb"
   | "googleBusiness"
   | "facebook"
@@ -51,7 +50,6 @@ export const DEFAULT_INRBADGE_SHARE_SETTINGS: InrBadgeShareSettings = {
   email: true,
   saveContact: true,
   inrSearch: true,
-  siteInrcy: true,
   siteWeb: true,
   googleBusiness: true,
   facebook: true,
@@ -245,7 +243,11 @@ export function getInrBadgeAppointmentDaySlots(settings: InrBadgeAppointmentSett
 }
 
 export function normalizeInrBadgeShareSettings(value: unknown): InrBadgeShareSettings {
-  const raw = asPlainObject(value);
+  const source = asPlainObject(value);
+  const raw = { ...source };
+  if (typeof source.siteInrcy === "boolean") {
+    raw.siteWeb = source.siteInrcy || (typeof source.siteWeb === "boolean" ? source.siteWeb : DEFAULT_INRBADGE_SHARE_SETTINGS.siteWeb);
+  }
   return SHARE_KEYS.reduce((acc, key) => {
     acc[key] = typeof raw[key] === "boolean" ? raw[key] : DEFAULT_INRBADGE_SHARE_SETTINGS[key];
     return acc;

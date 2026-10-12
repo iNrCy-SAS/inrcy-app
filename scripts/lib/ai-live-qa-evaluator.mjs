@@ -1,5 +1,4 @@
 const CHANNEL_RULES = {
-  inrcy_site: { min: 350, max: 2600, maxHashtags: 0 },
   site_web: { min: 450, max: 3200, maxHashtags: 0 },
   gmb: { min: 180, max: 1200, maxHashtags: 0, forbidContact: true },
   facebook: { min: 180, max: 1500, maxHashtags: 2 },

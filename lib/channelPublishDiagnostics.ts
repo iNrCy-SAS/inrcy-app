@@ -24,7 +24,6 @@ export type PublishDiagnosticChannel =
   | "instagram"
   | "linkedin"
   | "gmb"
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "tiktok"
@@ -33,7 +32,6 @@ export type PublishDiagnosticChannel =
   | "x";
 
 const CHANNEL_LABELS: Record<PublishDiagnosticChannel, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr’Search",
   gmb: "Google Business",
@@ -47,7 +45,6 @@ const CHANNEL_LABELS: Record<PublishDiagnosticChannel, string> = {
 };
 
 const CHANNEL_FALLBACKS: Record<PublishDiagnosticChannel, string> = {
-  inrcy_site: "Le site iNrCy n'a pas pu publier. Merci de réessayer.",
   site_web: "Le site web n'a pas pu publier. Merci de réessayer.",
   inr_search: "La page iNr’Search n’a pas pu être mise à jour. Merci de réessayer.",
   gmb: "Google Business n'a pas pu publier. Merci de réessayer.",

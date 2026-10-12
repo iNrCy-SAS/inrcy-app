@@ -34,21 +34,13 @@ function windowCountFingerprint(value: InrcyWindowCount | undefined) {
 
 export async function buildOverviewConnectionsKey({
   integrationsAll,
-  inrcySettings,
   proSettings,
-  inrcySiteOwnership,
-  inrcySiteUrl,
-  inrcyTrackingEnabled,
   sectorCategory,
   profession,
   inrcyPublishedActivityStats,
 }: {
   integrationsAll: unknown;
-  inrcySettings: unknown;
   proSettings: unknown;
-  inrcySiteOwnership: string;
-  inrcySiteUrl: unknown;
-  inrcyTrackingEnabled: boolean;
   sectorCategory: string;
   profession: string;
   inrcyPublishedActivityStats: InrcyActivityStatsByChannel;
@@ -77,24 +69,16 @@ export async function buildOverviewConnectionsKey({
   } catch {}
 
   try {
-    const inrcyGa4Cfg = asRecord(asRecord(inrcySettings)["ga4"]);
-    const inrcyGscCfg = asRecord(asRecord(inrcySettings)["gsc"]);
     const proSiteWebCfg = asRecord(asRecord(proSettings)["site_web"]);
     const webGa4Cfg = asRecord(proSiteWebCfg["ga4"]);
     const webGscCfg = asRecord(proSiteWebCfg["gsc"]);
-    keyParts.push(`profile:ownership=${inrcySiteOwnership}`);
-    keyParts.push(`inrcy:site_url=${String(inrcySiteUrl ?? "")}`);
-    keyParts.push(
-      `inrcy:ga4:${String(inrcyGa4Cfg["property_id"] ?? "")}:${String(inrcyGa4Cfg["measurement_id"] ?? "")}`,
-    );
-    keyParts.push(`inrcy:gsc:${String(inrcyGscCfg["property"] ?? "")}`);
+    keyParts.push(`site_web:url=${String(proSiteWebCfg["url"] ?? "")}`);
     keyParts.push(
       `site_web:ga4:${String(webGa4Cfg["property_id"] ?? "")}:${String(webGa4Cfg["measurement_id"] ?? "")}`,
     );
     keyParts.push(`site_web:gsc:${String(webGscCfg["property"] ?? "")}`);
   } catch {}
 
-  keyParts.push(`inrcyTrackingEnabled:${inrcyTrackingEnabled ? "1" : "0"}`);
   keyParts.push(`business:sector=${sectorCategory}:profession=${profession}`);
   keyParts.push("statsVersion:inrcyPublishedActivityV2");
   keyParts.push(

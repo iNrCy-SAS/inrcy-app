@@ -1072,9 +1072,6 @@ export default function PublishContentEditorPanel({
                   const activeWebsiteSourceLabel =
                     getLocalizedWebsiteSourceLabelForChannel(activeCard, ctaDefaults, runtimeT);
                   const websiteChoices = [
-                    ctaDefaults?.inrcySiteUrl
-                      ? { label: i18nT("site_inrcy_57016d6f"), url: ctaDefaults.inrcySiteUrl }
-                      : null,
                     ctaDefaults?.siteWebUrl
                       ? { label: i18nT("site_web_7e78af33"), url: ctaDefaults.siteWebUrl }
                       : null,

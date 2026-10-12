@@ -97,7 +97,7 @@
   "cliquer_sur_le_bouton_d_information_58868b62": "Haz clic en el botón de información de error para leer la regla o el error técnico exacto.",
   "cliquer_sur_publier_maintenant_pour_ouvrir_20ae1cfb": "Haz clic en **Publicar ahora** para abrir directamente la herramienta de publicación.",
   "commencer_par_connecter_les_boites_mail_5706ea9d": "Empieza por conectar las **cuentas de correo electrónico** que utilizas para enviar comunicaciones.",
-  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Empieza con los canales más útiles: Perfil de Empresa en Google, sitio web de iNrCy, sitio web y correo electrónico.",
+  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Empieza con los canales más útiles: Perfil de Empresa en Google, sitio web y correo electrónico.",
   "commencer_par_les_canaux_sur_lesquels_1684463c": "Comience con los canales donde los clientes están presentes.",
   "comment_l_utiliser_cadca3b9": "¿Cómo usarlo?",
   "communication_60c58ad2": "comunicación ación",
@@ -121,7 +121,7 @@
   "configurer_inr_badge_inclus_en_bonus_a94257d1": "Configura **iNr’Badge**, incluido como bonificación, para compartir el perfil de la empresa y el código QR.",
   "connecter_7badff0e": "conectar",
   "connecter_les_bonnes_bulles_79848216": "Conecta las burbujas adecuadas",
-  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Conecta los canales relevantes: iNr’Badge, correo electrónico, sitio web de iNrCy, sitio web, Perfil de Empresa en Google, Facebook, Instagram, LinkedIn, TikTok, YouTube y Pinterest.",
+  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Conecta los canales útiles: iNr’Badge, correo electrónico, sitio web, Perfil de Empresa en Google, Facebook, Instagram, LinkedIn, TikTok, YouTube y Pinterest.",
   "connecter_les_canaux_utiles_pour_laisser_2691c29f": "Conecta los canales relevantes para que iNrCy pueda recuperar los datos disponibles.",
   "connexion_5d2cc1db": "conexión",
   "connexion_serveur_9e08cbfd": "Conexión al servidor",
@@ -496,7 +496,6 @@
   "relancer_les_anciens_clients_et_prospects_957a3c9d": "Retome el contacto con antiguos clientes y potenciales clientes en lugar de centrarse únicamente en la búsqueda de nuevos contactos.",
   "relation_client_a1e96893": "Relación con el cliente",
   "relier_les_10_destinations_de_publication_e63b94e4": "Vincular los 11 destinos de publicación estándar y configurar iNr’Badge, incluido como bonificación.",
-  "relier_les_destinations_utiles_site_inrcy_483ab0d6": "Enlaces a destinos útiles: sitio web de iNrCy, sitio web, Perfil de Empresa en Google, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube y Pinterest.",
   "relire_l_apercu_puis_valider_ou_eb8a71b3": "Revisa la vista previa y, a continuación, **valide** o **rechace** la acción antes de que se ejecute.",
   "relire_l_apercu_puis_valider_ou_f3f66889": "Revisa la vista previa y, a continuación, **valide** o **rechace** la acción antes de que se ejecute.",
   "remplir_mon_activite_metier_prestations_speciali_47667b2a": "Completa **Mi perfil**: identidad, profesión, servicios, especialidades, áreas de intervención, clientes objetivo y fortalezas.",
@@ -540,7 +539,6 @@
   "signature_fab5f628": "firma",
   "siren_dcb01c3c": "sirena",
   "siret_af59317f": "sirena",
-  "site_inrcy_707ea046": "sitio iNrCy",
   "site_web_c428d383": "sitio web",
   "spam_ded982e7": "spam",
   "statistiques_80d10cfb": "estadísticas",
@@ -630,5 +628,6 @@
   "startup_check_dna_ai_20260905": "El ADN y la Configuración IA reflejan fielmente la empresa.",
   "startup_reflex_partial_analysis_20260905": "Empieza por las fuentes ya conectadas: una fuente no disponible nunca debe bloquear el recorrido.",
   "startup_reflex_validate_20260905": "Revisa la información propuesta por la IA antes de usarla para generar contenidos.",
-  "startup_link_business_dna_20260905": "Analizar y completar el ADN"
+  "startup_link_business_dna_20260905": "Analizar y completar el ADN",
+  "relier_les_destinations_utiles_site_web_483ab0d6": "Enlaza los destinos útiles: sitio web, Perfil de Empresa en Google, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube y Pinterest."
 }

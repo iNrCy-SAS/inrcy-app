@@ -52,7 +52,6 @@ test("X is persisted in iNrBadge sharing and rendered on the public badge", () =
 
 test("X contributes to the loyalty inertia exactly like another connected social channel", () => {
   const channels: InertiaChannels = {
-    site_inrcy: false,
     site_web: false,
     gmb: false,
     facebook: false,
@@ -64,7 +63,7 @@ test("X contributes to the loyalty inertia exactly like another connected social
   };
   const snapshot = computeInertiaSnapshot(channels);
 
-  assert.equal(snapshot.totalChannels, 9);
+  assert.equal(snapshot.totalChannels, 8);
   assert.equal(snapshot.connectedCount, 1);
   assert.equal(snapshot.bonus, 0.5);
   assert.deepEqual(

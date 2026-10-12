@@ -34,7 +34,7 @@ const branchDefinitions = [
   {
     name: "inr_search",
     start: 'if (ch === "inr_search")',
-    end: 'if (ch === "inrcy_site" || ch === "site_web")',
+    end: 'if (ch === "site_web")',
     required: [
       "ensureSystemManagedInrSearch",
       "getInrSearchPublicStatus",
@@ -44,10 +44,10 @@ const branchDefinitions = [
   },
   {
     name: "sites",
-    start: 'if (ch === "inrcy_site" || ch === "site_web")',
+    start: 'if (ch === "site_web")',
     end: 'if (ch === "facebook")',
     required: [
-      "hasActiveInrcySite",
+      "const targetUrl = siteWebUrl",
       "pickCompleteChannelImageUrls",
       '.from("site_articles")',
       "setDelivery",

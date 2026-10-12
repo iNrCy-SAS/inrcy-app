@@ -104,7 +104,7 @@ test("the two length controls cover the requested channel families", () => {
   assert.match(configuration, /value=\{form\.socialLength\}/);
   assert.match(configuration, /CONTENT_LENGTH_VALUES/);
   assert.match(configuration, /aria-disabled=\{locked \|\| undefined\}/);
-  assert.match(rules, /channel === "inrcy_site" \|\| channel === "site_web" \|\| channel === "inr_search"/);
+  assert.match(rules, /channel === "site_web" \|\| channel === "inr_search"/);
   assert.match(rules, /isBoosterWebChannel\(channel\)[\s\S]*\? preferences\.webLength[\s\S]*: preferences\.socialLength/);
 });
 

@@ -15,7 +15,7 @@ function decisionProvenanceLabel(cubeKey: CubeKey, index: number) {
     tiktok: ["audience", "engagement"],
     youtube_shorts: ["audience", "engagement"],
     pinterest: ["audience", "engagement"],
-    site_inrcy: ["google", "direct", "social", "other"],
+
     site_web: ["google", "direct", "social", "other"],
   };
   return labels[cubeKey]?.[index] || "other";
@@ -86,7 +86,6 @@ export function getDecisionInput(
     };
   }
 
-
   const queries = Array.isArray(ov.topQueries) ? ov.topQueries : [];
   const topPages = Array.isArray(ov.topPages) ? ov.topPages : [];
   const intentClicks = queries.filter((q) => isIntentQuery(q.query)).reduce((s, q) => s + safeNum(q.clicks), 0);
@@ -98,9 +97,7 @@ export function getDecisionInput(
   return {
     channelType: "website" as const,
     channelKey: cubeKey,
-    connected: cubeKey === "site_inrcy"
-      ? !!ov?.sources?.site_inrcy?.connected?.ga4 || !!ov?.sources?.site_inrcy?.connected?.gsc
-      : !!ov?.sources?.site_web?.connected?.ga4 || !!ov?.sources?.site_web?.connected?.gsc,
+    connected: !!ov?.sources?.site_web?.connected?.ga4 || !!ov?.sources?.site_web?.connected?.gsc,
     opportunities: opp30,
     quality: qualityScore,
     capturedLeads,
@@ -114,7 +111,6 @@ export function getDecisionInput(
     provenance: provenance.map((entry, index) => ({ label: decisionProvenanceLabel(cubeKey, index), value: entry.value })),
   };
 }
-
 
 function boosterToolAction(detail: string, t: StatsTranslator): CubeModel["action"] {
   return {
@@ -165,39 +161,6 @@ export function actionFromDecision(baseAction: CubeModel["action"], decision: De
 }
 
 export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: number, t: StatsTranslator): CubeModel["action"] {
-  if (cubeKey === "site_inrcy") {
-    const ownership = ov?.inrcySiteOwnership;
-    const c = ov?.sources?.site_inrcy?.connected;
-
-    if (ownership === "none") {
-      return {
-        key: "connect",
-        title: t("configurer_382efbe9"),
-        detail: t("action_no_inrcy_site"),
-        href: "/dashboard?panel=site_inrcy",
-        pill: t("connexion_a33c58f5"),
-      };
-    }
-
-    if (!c?.ga4) {
-      return {
-        key: "connect",
-        title: t("connecter_ga4_60ec761a"),
-        detail: t("action_connect_ga4_detail"),
-        href: "/dashboard?panel=site_inrcy",
-        pill: t("connexion_a33c58f5"),
-      };
-    }
-    if (!c?.gsc) {
-      return {
-        key: "connect",
-        title: t("connecter_google_search_console_f3404063"),
-        detail: t("action_connect_gsc_detail"),
-        href: "/dashboard?panel=site_inrcy",
-        pill: t("connexion_a33c58f5"),
-      };
-    }
-  }
 
   if (cubeKey === "site_web") {
     const c = ov?.sources?.site_web?.connected;
@@ -330,13 +293,6 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
   };
 
   const opp30 = computeOpportunity30(cubeKey, ov);
-
-  if (cubeKey === "site_inrcy") {
-    if (qualityScore >= 70) {
-      return fideliserToolAction(t("action_nurture_satisfied_clients"), t);
-    }
-    return propulserToolAction(t("action_highlight_offer_or_proof"), t);
-  }
 
   if (cubeKey === "site_web") {
     if (qualityScore < 60) {

@@ -97,7 +97,7 @@
   "cliquer_sur_le_bouton_d_information_58868b62": "Klicken Sie auf die Schaltfläche mit den Fehlerinformationen, um die genaue Regel oder den technischen Fehler anzuzeigen.",
   "cliquer_sur_publier_maintenant_pour_ouvrir_20ae1cfb": "Klicken Sie auf **Jetzt veröffentlichen**, um das Veröffentlichungstool direkt zu öffnen.",
   "commencer_par_connecter_les_boites_mail_5706ea9d": "Verbinden Sie zunächst die **Postfächer**, die zum Versenden von Nachrichten verwendet werden.",
-  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Beginnen Sie mit den wichtigsten Kanälen: Google Unternehmensprofil, iNrCy-Website, Website und E-Mail.",
+  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Beginnen Sie mit den wichtigsten Kanälen: Google Unternehmensprofil, Website und E-Mail.",
   "commencer_par_les_canaux_sur_lesquels_1684463c": "Beginnen Sie mit den Kanälen, über die Ihre Kunden tatsächlich erreichbar sind.",
   "comment_l_utiliser_cadca3b9": "Wie funktioniert es?",
   "communication_60c58ad2": "Communication",
@@ -121,7 +121,7 @@
   "configurer_inr_badge_inclus_en_bonus_a94257d1": "Konfigurieren Sie **iNr’Badge**, das als Bonus enthalten ist, um das Unternehmensprofil und den QR-Code des Unternehmens zu teilen.",
   "connecter_7badff0e": "connect",
   "connecter_les_bonnes_bulles_79848216": "Verbinden Sie die relevanten Kanäle",
-  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Verbinden Sie die relevanten Kanäle: iNr'Badge, E-Mails, iNrCy-Website, Website, Google Unternehmensprofil, Facebook, Instagram, LinkedIn, TikTok, YouTube und Pinterest.",
+  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Verbinden Sie die relevanten Kanäle: iNr'Badge, E-Mails, Website, Google Unternehmensprofil, Facebook, Instagram, LinkedIn, TikTok, YouTube und Pinterest.",
   "connecter_les_canaux_utiles_pour_laisser_2691c29f": "Verbinden Sie die relevanten Kanäle, damit iNrCy verfügbare Daten abrufen kann.",
   "connexion_5d2cc1db": "connection",
   "connexion_serveur_9e08cbfd": "Server-Anmeldung",
@@ -496,7 +496,6 @@
   "relancer_les_anciens_clients_et_prospects_957a3c9d": "Ehemalige Kunden und Interessenten erneut ansprechen, anstatt ausschließlich neue Kontakte zu knüpfen.",
   "relation_client_a1e96893": "Kundenbeziehungen",
   "relier_les_10_destinations_de_publication_e63b94e4": "Verknüpfen Sie die 11 Standard-Veröffentlichungsziele und konfigurieren Sie iNr’Badge (als Bonus enthalten).",
-  "relier_les_destinations_utiles_site_inrcy_483ab0d6": "Links zu nützlichen Zielen: iNrCy-Website, Website, Google Unternehmensprofil, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube und Pinterest.",
   "relire_l_apercu_puis_valider_ou_eb8a71b3": "Überprüfen Sie die Vorschau und **bestätigen** oder **lehnen Sie** die Aktion ab, bevor sie ausgeführt wird.",
   "relire_l_apercu_puis_valider_ou_f3f66889": "Überprüfen Sie die Vorschau und **bestätigen** oder **lehnen** Sie die Aktion ab, bevor sie ausgeführt wird.",
   "remplir_mon_activite_metier_prestations_speciali_47667b2a": "Vervollständigen Sie **Mein Profil**: Identität, Beruf, Dienstleistungen, Spezialgebiete, Tätigkeitsbereiche, Zielgruppen und Stärken.",
@@ -540,7 +539,6 @@
   "signature_fab5f628": "Signatur",
   "siren_dcb01c3c": "Sirene",
   "siret_af59317f": "Siret",
-  "site_inrcy_707ea046": "iNrCy-Website",
   "site_web_c428d383": "Website Web",
   "spam_ded982e7": "Spam",
   "statistiques_80d10cfb": "Statistik",
@@ -630,5 +628,6 @@
   "startup_check_dna_ai_20260905": "Unternehmens-DNA und KI-Konfiguration bilden das Unternehmen korrekt ab.",
   "startup_reflex_partial_analysis_20260905": "Mit bereits verbundenen Quellen beginnen: Eine nicht verfügbare Quelle darf die Einrichtung nie blockieren.",
   "startup_reflex_validate_20260905": "Von der KI vorgeschlagene Informationen vor der Inhaltsgenerierung prüfen.",
-  "startup_link_business_dna_20260905": "Unternehmens-DNA analysieren und ergänzen"
+  "startup_link_business_dna_20260905": "Unternehmens-DNA analysieren und ergänzen",
+  "relier_les_destinations_utiles_site_web_483ab0d6": "Links zu nützlichen Zielen: Website, Google Unternehmensprofil, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube und Pinterest."
 }

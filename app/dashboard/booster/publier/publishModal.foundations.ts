@@ -51,7 +51,7 @@ export type PendingImmediatePublishAfterSchedule = {
 };
 
 export const EMPTY_CHANNEL_DETAILS: Record<ChannelKey, ChannelConnectionDetail> = {
-  inrcy_site: { type: "url", label: null, href: null },
+
   site_web: { type: "url", label: null, href: null },
   inr_search: { type: "page", label: null, href: null },
   gmb: { type: "location", label: null, href: null },

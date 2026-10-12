@@ -532,7 +532,7 @@ export function getRequiredImageFormatsForChannel(
     return { socialFeed: true, socialFeedNativeFirst: true };
   }
   if (channel === "gmb") return { gmb: true };
-  // Site iNrCy / Site web use the original prepared image in the article payload.
+  // Site web use the original prepared image in the article payload.
   // Avoid generating social/Instagram/GMB derivatives when they are not needed.
   return EMPTY_IMAGE_FORMATS;
 }

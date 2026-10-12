@@ -80,7 +80,7 @@ test("un statut TikTok non terminal reste en traitement", () => {
 
 test("la transparence est conservée sur les surfaces iNrCy mais pas imposée aux réseaux sociaux", () => {
   assert.equal(
-    getBoosterOriginalPublicationExtension({ channel: "inrcy_site", sourceMime: "image/png" }),
+    getBoosterOriginalPublicationExtension({ channel: "site_web", sourceMime: "image/png" }),
     "png",
   );
   assert.equal(

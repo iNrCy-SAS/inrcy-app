@@ -37,7 +37,6 @@ export async function GET() {
   ]);
 
   const snapshot = computeInertiaSnapshot({
-    site_inrcy: states.site_inrcy.connected && states.site_inrcy.statsConnected,
     site_web: states.site_web.connected && states.site_web.statsConnected,
     gmb: states.gmb.connected && !states.gmb.requiresUpdate,
     facebook: states.facebook.connected && !states.facebook.requiresUpdate,

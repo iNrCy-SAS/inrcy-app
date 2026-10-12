@@ -37,13 +37,13 @@ const AUTOMATION_STEP_KEYS: Record<AutomationKey, readonly [string, string, stri
 };
 
 const CHANNEL_LABEL_KEYS: Partial<Record<ChannelKey, string>> = {
-  siteInrcy: "site_inrcy_57016d6f",
+
   siteWeb: "site_web_7e78af33",
   mails: "mails_8d79d3a8",
 };
 
 const CHANNEL_BRAND_LABELS: Record<ChannelKey, string> = {
-  siteInrcy: "Site iNrCy",
+
   siteWeb: "Site Web",
   gmb: "Google Business",
   inrSearch: "iNr'Search",

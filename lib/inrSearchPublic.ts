@@ -1092,7 +1092,6 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const [
     profileRes,
     businessRes,
-    siteRes,
     integrationsRes,
     boosterEventsRes,
     inrSearchDeliveriesRes,
@@ -1109,11 +1108,6 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
       .limit(1)
-      .maybeSingle(),
-    supabaseAdmin
-      .from("inrcy_site_configs")
-      .select("site_url,settings")
-      .eq("user_id", userId)
       .maybeSingle(),
     supabaseAdmin
       .from("integrations")
@@ -1152,7 +1146,6 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
 
   const profile = selectedProfile;
   const business = asRecord(businessRes.data);
-  const siteConfig = asRecord(siteRes.data);
   const deliveredPublicationIds = Array.from(
     new Set(
       (Array.isArray(inrSearchDeliveriesRes.data)
@@ -1199,8 +1192,6 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   }
 
   const channelStates = await getChannelConnectionStates(supabaseAdmin, userId, {
-    profile,
-    inrcySiteConfig: siteRes.data,
     proToolsConfig: configRow,
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
@@ -1256,9 +1247,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   );
 
   const websiteUrl = normalizeExternalUrl(
-    channelStates.site_inrcy.url
-      || channelStates.site_web.url
-      || siteConfig.site_url,
+    channelStates.site_web.url,
   );
   const googleBusinessUrl = normalizeExternalUrl(channelStates.gmb.url);
 

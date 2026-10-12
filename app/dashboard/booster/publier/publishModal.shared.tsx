@@ -86,22 +86,12 @@ export type {
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =
-  | "inrcy_site"
-  | "site_web"
-  | "inr_search"
-  | "gmb"
-  | "facebook"
-  | "instagram"
-  | "linkedin"
-  | "x"
-  | "tiktok"
-  | "youtube_shorts"
-  | "pinterest";
+  "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 export type DisplayKey = ChannelKey;
 
 // Ordre commun avec les bulles de canaux du dashboard.
 export const BOOSTER_CHANNEL_ORDER: ChannelKey[] = [
-  "inrcy_site",
+
   "site_web",
   "gmb",
   "inr_search",
@@ -159,7 +149,6 @@ export type BoosterCtaDefaults = {
   preferredWebsiteUrl: string;
   preferredWebsiteLabel: string;
   siteWebUrl: string;
-  inrcySiteUrl: string;
   phone: string;
   preferredCta: BoosterPreferredCta;
   aiLanguage?: BoosterAiLanguage;
@@ -280,7 +269,7 @@ export function getPreferredCtaChoiceFromPost(
     else if (label.includes("voir") || label.includes("site")) choice = "site";
     else {
       choice =
-        channel === "inrcy_site" || channel === "site_web"
+        channel === "site_web"
           ? "devis"
           : "site";
     }
@@ -421,7 +410,7 @@ export function getLocalizedImageDecisionLabel(
 }
 
 export const DISPLAY_LABELS: Record<DisplayKey, string> = {
-  inrcy_site: "Site iNrCy",
+
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -435,7 +424,7 @@ export const DISPLAY_LABELS: Record<DisplayKey, string> = {
 };
 
 export const CHANNEL_LABELS: Record<ChannelKey, string> = {
-  inrcy_site: "Site iNrCy",
+
   site_web: "Site web",
   gmb: "Google Business",
   inr_search: "iNr'Search",
@@ -449,7 +438,7 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
 };
 
 export const CHANNEL_LABEL_MESSAGE_KEYS: Partial<Record<ChannelKey, string>> = {
-  inrcy_site: "site_inrcy_57016d6f",
+
   site_web: "site_web_7e78af33",
 };
 
@@ -462,12 +451,7 @@ export function getLocalizedChannelLabel(
 }
 
 export const CHANNEL_PRESETS: Record<ChannelKey, RenderPreset> = {
-  inrcy_site: {
-    width: 1440,
-    height: 900,
-    defaultFit: "contain",
-    defaultBlurBackground: false,
-  },
+
   site_web: {
     width: 1440,
     height: 900,
@@ -1228,11 +1212,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
   DisplayKey,
   ChannelTextGuidelines
 > = {
-  inrcy_site: {
-    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.inrcy_site,
-    content: 6000,
-    cta: 180,
-  },
+
   site_web: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.site_web,
     content: 6000,
@@ -1442,7 +1422,7 @@ export function getLocalizedChannelDefaultCtaLabel(
 }
 
 export function isSiteDisplayKey(channel: DisplayKey) {
-  return channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
+  return channel === "site_web" || channel === "inr_search";
 }
 
 export function getWebsiteUrlForChannel(
@@ -1460,8 +1440,6 @@ export function getWebsiteSourceLabelForChannel(
   if (!url || !defaults) return "";
   if (defaults.siteWebUrl && url === defaults.siteWebUrl)
     return "Site web connecté";
-  if (defaults.inrcySiteUrl && url === defaults.inrcySiteUrl)
-    return "Site iNrCy";
   return defaults.preferredWebsiteLabel || "Site connecté";
 }
 
@@ -1474,9 +1452,6 @@ export function getLocalizedWebsiteSourceLabelForChannel(
   if (!url || !defaults) return "";
   if (defaults.siteWebUrl && url === defaults.siteWebUrl) {
     return translate("site_web_connecte_21cd3026");
-  }
-  if (defaults.inrcySiteUrl && url === defaults.inrcySiteUrl) {
-    return translate("site_inrcy_57016d6f");
   }
   return translate("site_connecte_f4833d02");
 }
@@ -1522,11 +1497,6 @@ export function getWebsiteSourceLabel(defaults: BoosterCtaDefaults | null) {
     defaults.preferredWebsiteUrl === defaults.siteWebUrl
   )
     return "Site web connecté";
-  if (
-    defaults.inrcySiteUrl &&
-    defaults.preferredWebsiteUrl === defaults.inrcySiteUrl
-  )
-    return "Site iNrCy";
   return defaults.preferredWebsiteLabel || "Site connecté";
 }
 

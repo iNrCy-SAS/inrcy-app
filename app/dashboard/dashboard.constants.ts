@@ -1,4 +1,3 @@
-import inrcyBubbleIcon from "../../public/icons/inrcy.png";
 import siteWebBubbleIcon from "../../public/icons/site-web.jpg";
 import facebookBubbleIcon from "../../public/icons/facebook.png";
 import googleBusinessBubbleIcon from "../../public/icons/google.jpg";
@@ -16,8 +15,7 @@ import inrBadgeBubbleIcon from "../../public/icons/inrbadge-dashboard.png";
 import type { Module, GoogleSource } from "./dashboard.types";
 
 export const MODULE_ICONS: Record<string, { src: string; alt: string }> = {
-  site_inrcy: { src: inrcyBubbleIcon.src, alt: "iNrCy" },
-  site_web: { src: siteWebBubbleIcon.src, alt: "Site web" },
+  site_web: { src: siteWebBubbleIcon.src, alt: "Site Web" },
   facebook: { src: facebookBubbleIcon.src, alt: "Facebook" },
   gmb: { src: googleBusinessBubbleIcon.src, alt: "Google Business" },
   inr_search: { src: inrSearchBubbleIcon.src, alt: "iNr'Search" },
@@ -53,7 +51,7 @@ export const fluxModules: Module[] = [
   },
   {
     key: "site_web",
-    name: "Site web",
+    name: "Site Web",
     description: "Convertit vos visiteurs 💡",
     status: "available",
     accent: "pink",
@@ -243,28 +241,7 @@ export const fluxModules: Module[] = [
       },
     ],
   },
-  {
-    key: "site_inrcy",
-    name: "Site iNrCy",
-    description: "Votre machine à leads ⚡",
-    status: "available",
-    accent: "purple",
-    actions: [
-      { key: "view", label: "Voir le site", variant: "view", href: "#" },
-      {
-        key: "ga4",
-        label: "Connecter Google Analytics",
-        variant: "connect",
-        onClick: () => {},
-      },
-      {
-        key: "gsc",
-        label: "Connecter Search Console",
-        variant: "connect",
-        onClick: () => {},
-      },
-    ],
-  },
+
 ];
 
 export const DRAWER_TITLES = {
@@ -277,8 +254,8 @@ export const DRAWER_TITLES = {
   rgpd: "Mes données (RGPD)",
   mails: "Réglages Mails",
   agenda: "Réglages iNr’Calendar",
-  site_inrcy: "Configuration — Site iNrCy",
-  site_web: "Configuration — Site web",
+
+  site_web: "Configuration — Site Web",
   instagram: "Configuration — Instagram",
   linkedin: "Configuration — LinkedIn",
   x: "Configuration — X",
@@ -297,6 +274,5 @@ export const DRAWER_TITLES = {
 
 export const DRAWER_PANELS = new Set(Object.keys(DRAWER_TITLES));
 export const GOOGLE_SOURCES: readonly GoogleSource[] = [
-  "site_inrcy",
   "site_web",
 ] as const;

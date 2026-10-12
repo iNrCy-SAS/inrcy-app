@@ -24,7 +24,6 @@ import {
   resolveInrBadgePublicEmail,
 } from "@/lib/inrBadgeEditionPolicy";
 import inrBadgeIcon from "@/public/icons/inrbadge-dashboard.png";
-import inrcyIcon from "@/public/icons/inrcy.png";
 import inrSearchBubbleIcon from "@/public/icons/inr-search-bubble-128.png";
 import inrSearchLogo from "@/public/icons/inr-search-logo-transparent.png";
 import siteWebIcon from "@/public/icons/site-web.jpg";
@@ -292,10 +291,10 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) notFound();
 
-  const [profileRes, businessRes, badgeLanguageRes, toolsRes, siteInrcyRes, integrationsRes, dashboardEdition] = await Promise.all([
+  const [profileRes, businessRes, badgeLanguageRes, toolsRes, integrationsRes, dashboardEdition] = await Promise.all([
     supabaseAdmin
       .from("profiles")
-      .select("user_id,inrcy_site_ownership,logo_url,logo_path,company_legal_name,first_name,last_name,phone,contact_email,hq_address,hq_zip,hq_city,hq_country")
+      .select("user_id,logo_url,logo_path,company_legal_name,first_name,last_name,phone,contact_email,hq_address,hq_zip,hq_city,hq_country")
       .eq("user_id", userId)
       .maybeSingle(),
     supabaseAdmin
@@ -315,11 +314,6 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     supabaseAdmin
       .from("pro_tools_configs")
       .select("settings")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabaseAdmin
-      .from("inrcy_site_configs")
-      .select("site_url,settings")
       .eq("user_id", userId)
       .maybeSingle(),
     supabaseAdmin
@@ -345,8 +339,6 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const badgeLanguage = normalizeInrBadgeLanguage(badgeLanguageRow.client_language || toolSettings.inrBadgeLanguage);
   const badgeText = getInrBadgeTexts(badgeLanguage);
   const channelStates = await getChannelConnectionStates(supabaseAdmin, userId, {
-    profile,
-    inrcySiteConfig: siteInrcyRes.data,
     proToolsConfig: toolsRes.data,
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
@@ -378,7 +370,6 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const youtubeShortsSettings = safeObj(toolSettings.youtube_shorts);
   const inrSearchSettings = safeObj(toolSettings.inrSearch);
 
-  const siteInrcyUrl = normalizeUrl(channelStates.site_inrcy.url || (siteInrcyRes.data as { site_url?: string | null } | null)?.site_url);
   const siteWebUrl = normalizeUrl(channelStates.site_web.url || siteWebSettings.url);
   const gmbUrl = normalizeUrl(channelStates.gmb.url || gmbSettings.url);
   const facebookUrl = normalizeUrl(channelStates.facebook.page_url || facebookSettings.url);
@@ -414,11 +405,10 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     : null;
   const inrSearchUrl = inrSearchStatus?.published ? inrSearchStatus.publicUrl : "";
   const inrSearchNewsUrl = inrSearchUrl ? `${inrSearchUrl}#actualites` : "";
-  const primaryWebsite = siteWebUrl || siteInrcyUrl;
+  const primaryWebsite = siteWebUrl;
 
   const publicChannelCanShare = {
     inrSearch: Boolean(inrSearchUrl),
-    siteInrcy: Boolean(channelStates.site_inrcy.connected && siteInrcyUrl),
     siteWeb: Boolean(channelStates.site_web.connected && siteWebUrl),
     googleBusiness: Boolean(channelStates.gmb.connected && gmbUrl),
     facebook: Boolean(channelStates.facebook.connected && facebookUrl),
@@ -477,7 +467,6 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
 
   const channelActions = [
     shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: i18nT("inr_apos_search_6cbfd855"), iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
-    shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: i18nT("site_inrcy_57016d6f"), iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
     shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: i18nT("site_web_7e78af33"), iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
     shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: i18nT("google_business_a605b655"), iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
     shareSettings.linkedin && publicChannelCanShare.linkedin ? { href: linkedinUrl, label: i18nT("linkedin_6b6390a4"), iconSrc: linkedinIcon.src, tone: "linkedin" as ActionTone, trackingAction: "linkedin" } : null,

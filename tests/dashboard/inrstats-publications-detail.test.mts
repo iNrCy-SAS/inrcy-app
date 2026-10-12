@@ -115,7 +115,6 @@ test("global navigation and detail pages follow the dashboard channel order", ()
     'buildCubeModel("pinterest"',
     'buildCubeModel("x"',
     "buildMailCubeModel(",
-    'buildCubeModel("site_inrcy"',
   ];
 
   let previousIndex = -1;

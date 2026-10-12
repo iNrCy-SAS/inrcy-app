@@ -75,7 +75,6 @@ export function applyImageInteractionCtaFallback<T extends BoosterPostLike>(
   if (hasExplicitCta) return post;
 
   if (
-    channel === "inrcy_site" ||
     channel === "site_web" ||
     // YouTube deliberately renders external URLs in Shorts descriptions as
     // non-clickable. Keep the URL metadata, but never advertise it as a CTA.

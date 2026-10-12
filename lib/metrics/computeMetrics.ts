@@ -9,7 +9,7 @@ import {
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from '@/lib/stats/cacheSchema';
 
 export type Period = 7 | 30 | 60 | 90;
-export type CubeKey = 'site_inrcy' | 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
+export type CubeKey = 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
 
 export type Overview = {
   days: number;
@@ -54,10 +54,9 @@ export type HistorySnapshot = {
   model: string;
 };
 
-export const CUBES: CubeKey[] = ['site_inrcy', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x'];
+export const CUBES: CubeKey[] = ['site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x'];
 
 export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
-  site_inrcy: 0,
   site_web: 0,
   gmb: 0,
   facebook: 0,
@@ -70,7 +69,6 @@ export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
 };
 
 export const INCLUDE_BY_CUBE: Record<CubeKey, string> = {
-  site_inrcy: 'site_inrcy_ga4,site_inrcy_gsc',
   site_web: 'site_web_ga4,site_web_gsc',
   gmb: 'gmb',
   facebook: 'facebook',
@@ -175,7 +173,7 @@ export function getTotalMetric(metrics: unknown, keys: string[]): number {
 
 export function isCubeConnected(cube: CubeKey, ov: Overview): boolean {
   const sources = safeObj(ov?.sources);
-  if (cube === 'site_inrcy' || cube === 'site_web') {
+  if (cube === 'site_web') {
     const conn = safeObj(safeObj(sources[cube]).connected);
     return Boolean(conn.ga4) || Boolean(conn.gsc);
   }
@@ -201,8 +199,8 @@ export function computeCapturedForCube(cube: CubeKey, ov: Overview): number {
   const pageviews = safeNum(ov?.totals?.pageviews);
   const engagedSessions = estimateEngagedSessions(ov);
 
-  if (cube === 'site_inrcy' || cube === 'site_web') {
-    const ga4Key = cube === 'site_inrcy' ? 'site_inrcy_ga4' : 'site_web_ga4';
+  if (cube === 'site_web') {
+    const ga4Key = 'site_web_ga4';
     const ga4 = safeObj(sources[ga4Key]);
     const convStrong = getTotalMetric(ga4.metrics, ['conversions', 'conversionCount', 'leads', 'leadCount']) || 0;
     const estimate = clicks * 0.12 + pageviews * 0.03 + engagedSessions * 0.08 + impressions * 0.003;
@@ -510,9 +508,8 @@ export function computeOpportunityPerDayWeb(ov: Overview) {
   let rawPerDay = ((sessions / baseDays) * 0.08 + (clicks / baseDays) * 0.10 + (intentClicks / baseDays) * 0.32 + (contactViews / baseDays) * 0.05) * (0.65 + baseIndex) * (0.85 + clamp(directShare / 0.65, 0, 1) * 0.20);
 
   const sources = safeObj(ov.sources);
-  const siteInrcyConn = safeObj(safeObj(sources.site_inrcy).connected);
   const siteWebConn = safeObj(safeObj(sources.site_web).connected);
-  const gscConnected = Boolean(siteInrcyConn.gsc) || Boolean(siteWebConn.gsc);
+  const gscConnected = Boolean(siteWebConn.gsc);
 
   if (gscConnected && (impressions > 0 || clicks > 0 || intentClicks > 0)) {
     const cfg = getGscOpportunityConfig(ov.business?.sectorCategory);

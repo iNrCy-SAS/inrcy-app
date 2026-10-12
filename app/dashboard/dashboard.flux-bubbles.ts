@@ -17,17 +17,13 @@ import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "./dashboard.channel-setup"
 type BuildFluxBubbleItemsArgs = {
   bubbleAccessMap: AppBubbleAccessMap;
   standardMode?: boolean;
-  siteInrcyAccessReady: boolean;
-  siteInrcyDisplayAccess: boolean;
   canAccessPinterest: boolean;
-  canConfigureSite: boolean;
-  canViewSite: boolean;
   officialChannelStatesReady: boolean;
   channelBlocks: any;
   facebookPageConnected: boolean;
   facebookConnectionStatus: ConnectionDisplayStatus;
   facebookUrl: string | null | undefined;
-  getSiteBubbleProgress: (kind: "site_inrcy" | "site_web") => { status: ModuleStatus; text: string };
+  getSiteBubbleProgress: (kind: "site_web") => { status: ModuleStatus; text: string };
   gmbConnected: boolean;
   gmbConnectionStatus: ConnectionDisplayStatus;
   gmbUrl: string | null | undefined;
@@ -61,9 +57,7 @@ type BuildFluxBubbleItemsArgs = {
   youtubeShortsUrl: string | null | undefined;
   openPanel: (panel: any) => void;
   savedSiteWebUrlMeta: unknown;
-  setHelpSiteInrcyOpen: (open: boolean) => void;
   setHelpSiteWebOpen: (open: boolean) => void;
-  siteInrcySavedUrl: string | null | undefined;
   siteWebSavedUrl: string | null | undefined;
   copy: DashboardCopy;
 };
@@ -72,11 +66,9 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
   const {
     bubbleAccessMap,
     standardMode = false,
-    siteInrcyAccessReady,
-    siteInrcyDisplayAccess,
+
     canAccessPinterest,
-    canConfigureSite,
-    canViewSite,
+
     officialChannelStatesReady,
     channelBlocks,
     facebookPageConnected,
@@ -116,22 +108,20 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,
-    setHelpSiteInrcyOpen,
+
     setHelpSiteWebOpen,
-    siteInrcySavedUrl,
+
     siteWebSavedUrl,
     copy,
   } = args;
 
   return fluxModules.flatMap((m) => {
-    const moduleIcon = MODULE_ICONS[m.key] ?? MODULE_ICONS.site_inrcy;
+    const moduleIcon = MODULE_ICONS[m.key] ?? MODULE_ICONS.site_web;
     const bubbleKey = normalizeAppBubbleKey(m.key);
     const storedAccessEnabled = bubbleKey ? isBubbleEnabled(bubbleAccessMap, bubbleKey) : true;
     const mailPremiumLocked = standardMode && m.key === "mails";
     const accessEnabled = storedAccessEnabled && !mailPremiumLocked;
-    const displayAccessEnabled = m.key === "site_inrcy" && !siteInrcyAccessReady
-      ? siteInrcyDisplayAccess
-      : accessEnabled;
+    const displayAccessEnabled = accessEnabled;
     const channelKey = m.key as DashboardChannelKey;
     const channelBlock = channelBlocks?.[channelKey] ?? null;
     const blockDrivenViewHref = getBubbleViewHrefFromBlock(channelKey, channelBlock);
@@ -163,9 +153,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
 
     const viewActionRaw = m.actions.find((a) => a.variant === "view");
     const viewAction = localizeViewAction(
-      (m.key === "site_inrcy" && viewActionRaw)
-        ? { ...viewActionRaw, href: normalizeExternalHref(siteInrcySavedUrl) || blockDrivenViewHref || "#" }
-        : (m.key === "site_web" && viewActionRaw)
+      (m.key === "site_web" && viewActionRaw)
           ? { ...viewActionRaw, href: normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#" }
           : (m.key === "instagram" && viewActionRaw)
             ? { ...viewActionRaw, href: normalizeExternalHref(instagramUrl) || "#" }
@@ -174,9 +162,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
               : viewActionRaw,
     );
 
-    const resolvedBubbleProgressRaw = (m.key === "site_inrcy")
-      ? getSiteBubbleProgress("site_inrcy")
-      : (m.key === "site_web")
+    const resolvedBubbleProgressRaw = (m.key === "site_web")
         ? getSiteBubbleProgress("site_web")
         : officialConnection && !officialChannelStatesReady
           ? { status: "available" as ModuleStatus, text: copy.status.syncing }
@@ -222,16 +208,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? resolvedBubbleProgress
       : {
           status: "coming" as ModuleStatus,
-          text: mailPremiumLocked
-            ? copy.status.disabled
-            : m.key === "site_inrcy"
-              ? copy.status.notSubscribed
-              : copy.status.disabled,
+          text: copy.status.disabled,
         };
 
-    const specialViewHref = m.key === "site_inrcy"
-      ? (normalizeExternalHref(siteInrcySavedUrl) || blockDrivenViewHref || "#")
-        : m.key === "site_web"
+    const specialViewHref = m.key === "site_web"
           ? (normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#")
           : m.key === "instagram"
           ? (normalizeExternalHref(instagramUrl) || "#")
@@ -261,9 +241,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
 
     const canViewSpecial = m.key === "inrbadge"
       ? inrBadgeProfileReady
-      : m.key === "site_inrcy"
-        ? Boolean(blockDrivenViewHref || canViewSite)
-        : m.key === "site_web"
+      : m.key === "site_web"
           ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
         : m.key === "instagram"
           ? Boolean(instagramUrl)
@@ -297,11 +275,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         return;
       }
       if (!accessEnabled) return;
-      if (m.key === "site_inrcy") {
-        if (!canConfigureSite) return;
-        openPanel("site_inrcy");
-        return;
-      }
+
       if (m.key === "tiktok") {
         openPanel("tiktok");
         return;
@@ -351,8 +325,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       logoAlt: moduleIcon.alt,
       bubbleStatus,
       bubbleStatusText,
-      helpKind: m.key === "site_inrcy" ? "site_inrcy" : m.key === "site_web" ? "site_web" : undefined,
-      onHelpSiteInrcy: () => setHelpSiteInrcyOpen(true),
+      helpKind: m.key === "site_web" ? "site_web" : undefined,
+
       onHelpSiteWeb: () => setHelpSiteWebOpen(true),
       specialViewHref,
       specialViewLabel,
@@ -370,17 +344,13 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       configureDestination,
       configureDisabled:
         !accessEnabled ||
-        (m.key === "site_inrcy" ? !canConfigureSite : false) ||
+        (false) ||
         (m.key === "inrbadge" ? !inrBadgeProfileCheckReady : false),
       configureTitle: !accessEnabled
         ? mailPremiumLocked
           ? copy.status.premiumPlan
-          : m.key === "site_inrcy"
-            ? copy.status.notSubscribed
-            : copy.bubble.disabled
-        : m.key === "site_inrcy" && !canConfigureSite
-          ? moduleCopy?.siteOnlyTitle || copy.bubble.disabled
-          : m.key === "inrbadge" && !inrBadgeProfileCheckReady
+          : copy.bubble.disabled
+        : m.key === "inrbadge" && !inrBadgeProfileCheckReady
             ? copy.status.profileChecking
             : undefined,
       // Toutes les bulles ouvrent leur panneau de configuration avec le même
@@ -389,7 +359,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         ? moduleCopy?.view || copy.bubble.open
         : copy.bubble.configure,
       viewFallbackLabel: copy.bubble.viewFallback,
-      emphasizeDisabledReason: !displayAccessEnabled && (mailPremiumLocked || m.key === "site_inrcy"),
+      emphasizeDisabledReason: !displayAccessEnabled && (mailPremiumLocked),
       premiumLocked: mailPremiumLocked,
       premiumLabel: copy.modules.campaignsPremiumLabel,
     };

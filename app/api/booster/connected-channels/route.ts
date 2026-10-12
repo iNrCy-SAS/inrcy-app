@@ -164,7 +164,6 @@ export async function GET() {
       ensureSystemManagedInrSearch(supabase, activeUserId),
     ]);
     const channelEnabled = {
-      inrcy_site: isBubbleEnabled(bubbleAccess, "site_inrcy"),
       site_web: isBubbleEnabled(bubbleAccess, "site_web"),
       inr_search: isBubbleEnabled(bubbleAccess, "inr_search"),
       gmb: isBubbleEnabled(bubbleAccess, "gmb"),
@@ -186,7 +185,6 @@ export async function GET() {
       : null;
     return NextResponse.json({
       channels: {
-        inrcy_site: channelEnabled.inrcy_site && isOfficialPublicationChannelConnected(states.site_inrcy),
         site_web: channelEnabled.site_web && isOfficialPublicationChannelConnected(states.site_web),
         inr_search: channelEnabled.inr_search && inrSearchPublished,
         gmb: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb),
@@ -202,13 +200,6 @@ export async function GET() {
         x: channelEnabled.x && isOfficialPublicationChannelConnected(states.x),
       },
       channelDetails: {
-        inrcy_site: {
-          type: "url",
-          label: firstCleanLabel([states.site_inrcy.url], "Site iNrCy connecté", displayDomain),
-          href: states.site_inrcy.url,
-          connectionStatus: states.site_inrcy.connected ? "connected" : "disconnected",
-          disabled: !channelEnabled.inrcy_site,
-        },
         site_web: {
           type: "url",
           label: firstCleanLabel([states.site_web.url], "Site web connecté", displayDomain),

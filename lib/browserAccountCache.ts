@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS, DASHBOARD_CACHE_PREFIXES } from "@/lib/dashboardCacheKeys";
 import {
   ACTIVE_INRCY_ACCOUNT_COOKIE,
   ACTIVE_INRCY_ACCOUNT_EVENT,
@@ -8,6 +9,7 @@ export const ACTIVE_USER_COOKIE = ACTIVE_INRCY_ACCOUNT_COOKIE;
 const ACTIVE_USER_STORAGE_KEY = ACTIVE_INRCY_ACCOUNT_STORAGE_KEY;
 
 const ACCOUNT_CACHE_BASE_KEYS = [
+  ...Object.values(DASHBOARD_CACHE_KEYS),
   "inrcy_stats_last_channel_sync_v1",
   "inrcy_stats_last_channel_syncs_v1",
   "inrcy_generator_kpis_v1",
@@ -27,7 +29,7 @@ const ACCOUNT_CACHE_BASE_KEYS = [
   "inrcy_generator_power_snapshot_v2",
   "inrcy_generator_active_v1",
   "inrcy_site_bubble_progress_v1",
-  "inrcy_bubble_access_map_v1",
+  "inrcy_site_bubble_progress_v2",
   "inrcy_dashboard_notifications_v1",
   "inrcy_inr_agent_pending_count_v1",
   "inrcy_dashboard_completion_state_v1",
@@ -37,6 +39,7 @@ const ACCOUNT_CACHE_BASE_KEYS = [
 ] as const;
 
 const ACCOUNT_CACHE_PREFIXES = [
+  ...Object.values(DASHBOARD_CACHE_PREFIXES),
   "inrcy_stats_cube_snapshot_v1:",
   "inrcy_stats_summary_snapshot_v2:",
   "inrcy_stats_mail_snapshot_v1:",

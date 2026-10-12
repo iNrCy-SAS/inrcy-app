@@ -147,7 +147,6 @@ const ACTION_SELECT =
   "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
 
 const channelLabels: Record<string, string> = {
-  site_inrcy: "Site iNrCy",
   site_web: "Site Web",
   gmb: "Google Business",
   facebook: "Facebook",

@@ -53,7 +53,7 @@ test("the repair reinstalls one realtime Stats authority for every channel famil
   const sql = read("ops/sql/2026-08-12_stats_oauth_account_repair_v4.sql");
   const verify = read("ops/sql/2026-08-12_stats_oauth_account_repair_v4_verify.sql");
 
-  for (const table of ["integrations", "inrcy_site_configs", "pro_tools_configs"]) {
+  for (const table of ["integrations", "pro_tools_configs"]) {
     assert.match(sql, new RegExp(`public\\.${table}`));
     assert.match(verify, new RegExp(`'${table}'`));
   }

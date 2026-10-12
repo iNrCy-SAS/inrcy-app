@@ -5,6 +5,7 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { withApi } from "@/lib/observability/withApi";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
+import { normalizeWidgetSource, resolveWidgetUserIdFromDomain, isConfiguredSiteWebWidgetDomain } from "@/lib/widgets/domainRegistry";
 import { asRecord } from "@/lib/tsSafe";
 
 export const runtime = "nodejs";
@@ -100,12 +101,12 @@ const handler = async (_req: Request) => {
 
     const { searchParams } = new URL(_req.url);
     const domain = normalizeDomain(searchParams.get("domain"));
-    const source = (searchParams.get("source") || "").trim();
+    const source = normalizeWidgetSource(searchParams.get("source"));
 
     if (!domain) {
       return NextResponse.json({ ok: false, error: "Le domaine du site est manquant." }, { status: 400, headers: corsHeaders(null) });
     }
-    if (source !== "inrcy_site" && source !== "site_web") {
+    if (!source) {
       return NextResponse.json({ ok: false, error: "La source demandée n'est pas reconnue." }, { status: 400, headers: corsHeaders(null) });
     }
 
@@ -174,37 +175,22 @@ const handler = async (_req: Request) => {
     }
 
     // Extra safety: ensure the domain belongs to THIS user for this source.
-    if (source === "inrcy_site") {
-      const { data, error } = await supabase
-        .from("inrcy_site_configs")
-        .select("site_url")
-        .eq("user_id", activeUserId)
-        .maybeSingle();
-      if (error) throw error;
-      const d = normalizeDomain(String(asRecord(data)["site_url"] ?? ""));
-      if (!d || d !== domain) {
-        return NextResponse.json(
-          { ok: false, error: "Ce domaine n'est pas rattaché à votre site iNrCy." },
-          { status: 403, headers: corsHeaders(allowOrigin) }
-        );
-      }
-    } else {
-      const { data, error } = await supabase
-        .from("pro_tools_configs")
-        .select("settings")
-        .eq("user_id", activeUserId)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      const settings = asRecord(asRecord(data)["settings"]);
-      const siteWeb = asRecord(settings["site_web"]);
-      const d = normalizeDomain(String(siteWeb["url"] ?? ""));
-      if (!d || d !== domain) {
-        return NextResponse.json(
-          { ok: false, error: "Ce domaine n'est pas rattaché à votre site web." },
-          { status: 403, headers: corsHeaders(allowOrigin) }
-        );
-      }
+    const domainOwnerId = await resolveWidgetUserIdFromDomain(domain, source);
+    if (domainOwnerId !== activeUserId) {
+      return NextResponse.json(
+        { ok: false, error: "Ce domaine n'est pas rattaché à votre site web." },
+        { status: 403, headers: corsHeaders(allowOrigin) }
+      );
+    }
+    const { data: currentConfig, error: configError } = await supabase.from("pro_tools_configs")
+      .select("settings").eq("user_id", activeUserId).maybeSingle();
+    if (configError) throw configError;
+    const currentSiteWeb = asRecord(asRecord(asRecord(currentConfig).settings).site_web);
+    if (!isConfiguredSiteWebWidgetDomain(currentSiteWeb, domain)) {
+      return NextResponse.json(
+        { ok: false, error: "Ce domaine n'est plus rattaché à votre site web." },
+        { status: 403, headers: corsHeaders(allowOrigin) }
+      );
     }
 
     const now = Math.floor(Date.now() / 1000);

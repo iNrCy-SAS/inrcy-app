@@ -11,8 +11,8 @@ const immediate = read("app/api/booster/publish-now/route.ts");
 const inrSend = read("lib/inrsend/publicationChannelActions.ts");
 
 const checks = [
-  [/inrcy_site/.test(outputPolicy) && /site_web/.test(outputPolicy) && /inr_search/.test(outputPolicy), "transparence réservée aux trois surfaces compatibles"],
-  [/CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 8/.test(preparation), "cache des anciennes variantes blanches invalidé"],
+  [/site_web/.test(outputPolicy) && /inr_search/.test(outputPolicy), "transparence réservée aux deux surfaces compatibles"],
+  [/CHANNEL_IMAGE_VARIANT_PIPELINE_VERSION = 9/.test(preparation), "cache des anciennes variantes blanches invalidé"],
   [/"Originale" is reference-only/.test(preparation) && !/renderPublicationOriginal/.test(preparation), "chemin original sans rendu ni variante par canal"],
   [/FACEBOOK_IMAGE_UPLOAD_CONCURRENCY = 2/.test(facebook), "concurrence Facebook limitée à deux images"],
   [/mapWithConcurrency/.test(facebook), "ordre Facebook préservé malgré le parallélisme"],

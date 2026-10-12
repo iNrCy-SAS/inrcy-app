@@ -15,7 +15,6 @@ import BoutiqueContent from "../settings/_components/BoutiqueContent";
 import NotificationsSettingsContent from "../settings/_components/NotificationsSettingsContent";
 import DocumentsSettingsContent from "../settings/_components/DocumentsSettingsContent";
 import ReferralPanel from "./ReferralPanel";
-import SiteInrcyPanelBlock from "./SiteInrcyPanelBlock";
 import SiteWebPanelBlock from "./SiteWebPanelBlock";
 import InstagramPanelBlock from "./InstagramPanelBlock";
 import LinkedinPanelBlock from "./LinkedinPanelBlock";
@@ -34,7 +33,7 @@ import styles from "../dashboard.module.css";
 
 const PANELS_WITH_LOCAL_GOOGLE_NOTICE = new Set([
   "gmb",
-  "site_inrcy",
+
   "site_web",
   "youtube_shorts",
 ]);
@@ -42,7 +41,7 @@ const PANELS_WITH_LOCAL_GOOGLE_NOTICE = new Set([
 const MEMORIZED_CHANNEL_PANELS = new Set([
   "inrbadge",
   "mails",
-  "site_inrcy",
+
   "site_web",
   "instagram",
   "linkedin",
@@ -68,35 +67,7 @@ function MemorizedPanel({ active, children }: { active: boolean; children: React
 }
 
 type DashboardPanelName =
-  | "contact"
-  | "profil"
-  | "preferences"
-  | "inrbadge"
-  | "compte"
-  | "activite"
-  | "ia"
-  | "ai_memory"
-  | "abonnement"
-  | "mails"
-  | "agenda"
-  | "site_inrcy"
-  | "site_web"
-  | "instagram"
-  | "linkedin"
-  | "x"
-  | "gmb"
-  | "inr_search"
-  | "facebook"
-  | "tiktok"
-  | "youtube_shorts"
-  | "pinterest"
-  | "legal"
-  | "rgpd"
-  | "inertie"
-  | "boutique"
-  | "notifications"
-  | "parrainage"
-  | "documents";
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
@@ -117,7 +88,6 @@ type DashboardSettingsDrawerContentProps = {
   onReferralEmailChange: (value: string) => void;
   onReferralFromChange: (value: string) => void;
   submitReferral: () => void | Promise<void>;
-  siteInrcyPanelProps: any;
   siteWebPanelProps: any;
   instagramPanelProps: any;
   linkedinPanelProps: any;
@@ -152,7 +122,7 @@ export default function DashboardSettingsDrawerContent({
   onReferralEmailChange,
   onReferralFromChange,
   submitReferral,
-  siteInrcyPanelProps,
+
   siteWebPanelProps,
   instagramPanelProps,
   linkedinPanelProps,
@@ -297,14 +267,6 @@ export default function DashboardSettingsDrawerContent({
         </MemorizedPanel>
       ) : null}
 
-      {shouldKeepPanel("site_inrcy") ? (
-        <MemorizedPanel active={panel === "site_inrcy"}>
-          <SiteInrcyPanelBlock
-            panel="site_inrcy"
-            panelProps={{ ...siteInrcyPanelProps, onUrlDirtyChange: panel === "site_inrcy" ? onUnsavedChange : undefined }}
-          />
-        </MemorizedPanel>
-      ) : null}
       {shouldKeepPanel("site_web") ? (
         <MemorizedPanel active={panel === "site_web"}>
           <SiteWebPanelBlock

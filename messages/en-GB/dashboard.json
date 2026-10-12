@@ -83,7 +83,6 @@
       "rgpd": "My data (GDPR)",
       "mails": "Mail settings",
       "agenda": "iNr’Calendar settings",
-      "site_inrcy": "Settings — Site iNrCy",
       "site_web": "Settings — Website",
       "instagram": "Settings — Instagram",
       "linkedin": "Settings — LinkedIn",
@@ -307,13 +306,6 @@
       "view": "Open iNr’Send",
       "connect": "Set up"
     },
-    "site_inrcy": {
-      "name": "Site iNrCy",
-      "description": "Your lead engine ⚡",
-      "view": "View site",
-      "connect": "Connect Google Analytics",
-      "siteOnlyTitle": "Only with an iNrCy site"
-    },
     "site_web": {
       "name": "Website",
       "description": "Turns visits into leads 💡",
@@ -441,7 +433,7 @@
     "openDescription": "Turn your expertise into richer, more accurate content that truly reflects your business.",
     "contentLengthTitle": "Content length",
     "webLengthLabel": "Websites + iNr’Search",
-    "webLengthHint": "Controls iNrCy Site, external website and iNr’Search.",
+    "webLengthHint": "Controls Website, external website and iNr’Search.",
     "socialLengthLabel": "Social networks + Google Business",
     "socialLengthHint": "Controls Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest and Google Business.",
     "lengthAdapted": "Adaptive — AI chooses for each channel",

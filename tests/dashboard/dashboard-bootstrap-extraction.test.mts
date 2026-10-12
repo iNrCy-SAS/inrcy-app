@@ -22,8 +22,7 @@ test("DashboardClient delegates boot caches to the extracted foundations module"
 });
 
 test("the extracted dashboard foundations keep fail-closed and cache-only boundaries", () => {
-  assert.match(foundations, /accessMap\.site_inrcy = false/);
-  assert.match(foundations, /return parsed\.site_inrcy === true/);
+  assert.doesNotMatch(foundations, /site_inrcy|siteInrcy|SiteInrcy/);
   assert.match(foundations, /GENERATOR_POWER_SETTLE_MS = 700/);
   assert.doesNotMatch(foundations, /\bfetch\s*\(/);
   assert.doesNotMatch(foundations, /createClient\s*\(/);

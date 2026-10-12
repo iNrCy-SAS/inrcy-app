@@ -41,7 +41,7 @@ export type CampaignDistributionNotice = {
 
 export function normalizeBoosterChannelKeyForVideo(value: string): BoosterChannelKey {
   const channel = normalizeChannelKey(value);
-  return (channel || "inrcy_site") as BoosterChannelKey;
+  return (channel || "site_web") as BoosterChannelKey;
 }
 
 export function attachmentToVideoPayload(att: any): VideoPayload | null {

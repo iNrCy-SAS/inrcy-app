@@ -33,7 +33,7 @@ export function buildCubeModel(
       channels: [],
       topQueries: [],
       sources: {
-        site_inrcy: { connected: { ga4: false, gsc: false } },
+
         site_web: { connected: { ga4: false, gsc: false } },
         gmb: { connected: false, metrics: null },
         facebook: { connected: false },
@@ -48,15 +48,9 @@ export function buildCubeModel(
     } as Overview);
 
   const accountLabel = String(ov?.identities?.[key]?.label || ov?.identities?.[key]?.url || "").trim();
-  const inrcyOwnership = (ov as any)?.inrcySiteOwnership;
-  const inrcyDisconnected = inrcyOwnership === "none";
 
   const connections =
-    key === "site_inrcy"
-      ? inrcyDisconnected
-        ? { ga4: false, gsc: false }
-        : { ga4: !!ov.sources?.site_inrcy?.connected?.ga4, gsc: !!ov.sources?.site_inrcy?.connected?.gsc }
-      : key === "site_web"
+    key === "site_web"
         ? { ga4: !!ov.sources?.site_web?.connected?.ga4, gsc: !!ov.sources?.site_web?.connected?.gsc }
         : key === "gmb"
           ? { main: !!ov.sources?.gmb?.connected }
@@ -119,7 +113,7 @@ export function buildCubeModel(
     };
   }
 
-  const inferredConnected = key === "site_inrcy" || key === "site_web"
+  const inferredConnected = key === "site_web"
     ? Boolean(connections.ga4 || connections.gsc)
     : Boolean(connections.main);
   const connectionStatus = stateConnectionStatus || (inferredConnected ? "connected" : "disconnected");
@@ -155,7 +149,6 @@ export function buildCubeModel(
 
   return {
     key,
-    inrcyOwnership: key === "site_inrcy" ? (inrcyOwnership as any) : undefined,
     title,
     subtitle,
     accountLabel: accountLabel || undefined,
@@ -211,7 +204,7 @@ export function buildSummaryActionItems({
   const connectionStateByCube: Record<CubeKey, boolean> = {
     inrbadge: !!models.find((m) => m.key === "inrbadge")?.connections.main,
     inr_search: !!models.find((m) => m.key === "inr_search")?.connections.main,
-    site_inrcy: !!models.find((m) => m.key === "site_inrcy")?.connections.ga4 || !!models.find((m) => m.key === "site_inrcy")?.connections.gsc,
+
     site_web: !!models.find((m) => m.key === "site_web")?.connections.ga4 || !!models.find((m) => m.key === "site_web")?.connections.gsc,
     gmb: !!models.find((m) => m.key === "gmb")?.connections.main,
     facebook: !!models.find((m) => m.key === "facebook")?.connections.main,
@@ -229,7 +222,7 @@ export function buildSummaryActionItems({
   const connectedRecommendedToolByCube: Record<CubeKey, StatsRecommendedTool> = {
     inrbadge: "booster",
     inr_search: "propulser",
-    site_inrcy: "propulser",
+
     site_web: "propulser",
     gmb: "propulser",
     facebook: "booster",
@@ -244,7 +237,7 @@ export function buildSummaryActionItems({
   const connectedActionHrefByCube: Record<CubeKey, string> = {
     inrbadge: "/dashboard?panel=inrbadge",
     inr_search: "/dashboard/propulser",
-    site_inrcy: "/dashboard/propulser",
+
     site_web: "/dashboard/propulser",
     gmb: "/dashboard/propulser",
     facebook: "/dashboard?action=publish",
@@ -324,12 +317,7 @@ export function buildSummaryActionItems({
       motive: t("propulser_vous_propose_une_action_business_392120f0"),
       badge: t("propulser_2de43942"),
     },
-    site_inrcy: {
-      label: t("utiliser_propulser_c4b4b56d"),
-      kicker: t("accelerez_une_machine_deja_lancee_3a42543d"),
-      motive: t("propulser_aide_a_transformer_le_potentiel_1256c707"),
-      badge: t("propulser_2de43942"),
-    },
+
     gmb: {
       label: t("utiliser_propulser_c4b4b56d"),
       kicker: t("debloquez_un_potentiel_local_immediat_643b2334"),
@@ -405,12 +393,7 @@ export function buildSummaryActionItems({
       motive: t("connectez_ga4_et_gsc_pour_analyser_6125e506"),
       badge: t("connexion_a33c58f5"),
     },
-    site_inrcy: {
-      label: t("connecter_le_site_inrcy_33bf6baf"),
-      kicker: t("branchez_votre_machine_a_leads_a9d5a607"),
-      motive: t("activez_les_outils_de_mesure_du_59caaea2"),
-      badge: t("connexion_a33c58f5"),
-    },
+
     gmb: {
       label: t("connecter_google_business_ca8b3513"),
       kicker: t("debloquez_un_potentiel_local_immediat_643b2334"),
@@ -422,7 +405,6 @@ export function buildSummaryActionItems({
   return [
     { key: "inrbadge" as CubeKey, opportunities: centralByCube.inrbadge, revenue: computedEstimatedByCube.inrbadge || summaryEstimatedByCube.inrbadge },
     { key: "inr_search" as CubeKey, opportunities: centralByCube.inr_search, revenue: computedEstimatedByCube.inr_search || summaryEstimatedByCube.inr_search },
-    { key: "site_inrcy" as CubeKey, opportunities: centralByCube.site_inrcy, revenue: computedEstimatedByCube.site_inrcy || summaryEstimatedByCube.site_inrcy },
     { key: "site_web" as CubeKey, opportunities: centralByCube.site_web, revenue: computedEstimatedByCube.site_web || summaryEstimatedByCube.site_web },
     { key: "gmb" as CubeKey, opportunities: centralByCube.gmb, revenue: computedEstimatedByCube.gmb || summaryEstimatedByCube.gmb },
     { key: "facebook" as CubeKey, opportunities: centralByCube.facebook, revenue: computedEstimatedByCube.facebook || summaryEstimatedByCube.facebook },

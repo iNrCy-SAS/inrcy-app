@@ -32,12 +32,6 @@ const CHANNEL_COPY: Record<ChannelKey, {
   boosterAngle: string;
   templateAngle: string;
 }> = {
-  site_inrcy: {
-    name: "Site iNrCy",
-    angle: "machine à demandes",
-    boosterAngle: "alimenter le site avec une actualité, une offre ou une preuve récente",
-    templateAngle: "relancer les contacts entrants depuis le CRM",
-  },
   site_web: {
     name: "Site web",
     angle: "point de conversion",

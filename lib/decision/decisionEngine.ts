@@ -9,7 +9,7 @@ export type ActionType =
 
 export type ModeType = "booster" | "fideliser";
 export type ChannelType = "website" | "social" | "gmb";
-export type ChannelKey = "site_inrcy" | "site_web" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
+export type ChannelKey = "site_web" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 
 export type DecisionInput = {
   channelType: ChannelType;
@@ -202,11 +202,8 @@ function detectMode(input: DecisionInput, p: ProvenanceSummary): ModeType {
   }
 
   if (input.channelType === "website") {
-    const isInrcySite = input.channelKey === "site_inrcy";
-    const matureDemand = isInrcySite
-      ? monthLeads >= 18 || weekLeads >= 4 || conversions >= 10
-      : monthLeads >= 14 || weekLeads >= 4 || conversions >= 8;
-    const strongStructure = quality >= (isInrcySite ? 62 : 65);
+    const matureDemand = monthLeads >= 14 || weekLeads >= 4 || conversions >= 8;
+    const strongStructure = quality >= 65;
 
     return matureDemand && strongStructure ? "fideliser" : "booster";
   }

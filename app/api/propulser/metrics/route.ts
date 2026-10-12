@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
@@ -114,7 +115,7 @@ async function propulserMetricsHandler(req: Request) {
   const init = () => ({
     month: 0,
     week: 0,
-    channels: { inrcy_site: 0, site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, tiktok: 0 } as Record<string, number>,
+    channels: { site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, tiktok: 0 } as Record<string, number>,
     sent: 0,
     last_sent_at: null as string | null,
   });
@@ -131,7 +132,9 @@ async function propulserMetricsHandler(req: Request) {
     if (e.type === "valorize") {
       valorize.month += 1;
       if (inWeek) valorize.week += 1;
-      const ch = Array.isArray(payload["channels"]) ? (payload["channels"] as unknown[]) : [];
+      const ch = Array.isArray(payload["channels"])
+        ? [...new Set((payload["channels"] as unknown[]).filter((channel) => typeof channel === "string").map(canonicalSiteWebChannel))]
+        : [];
       const touched = ch.filter((c) => typeof c === "string").length || 1;
       valorize.sent += touched;
       for (const c of ch) {

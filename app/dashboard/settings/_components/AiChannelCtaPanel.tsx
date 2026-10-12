@@ -126,18 +126,18 @@ const CHOICE_MODE: Record<AiCtaChoice, AiChannelCtaConfig["mode"]> = {
   custom: "custom",
 };
 
-const NATIVE_CTA_CHANNELS = new Set<AiCtaChannel>(["gmb", "pinterest", "inrcy_site", "site_web"]);
+const NATIVE_CTA_CHANNELS = new Set<AiCtaChannel>(["gmb", "pinterest",  "site_web"]);
 
 function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDestinations | null) {
-  if (channel === "inrcy_site") return destinations?.inrcySiteUrl || destinations?.preferredWebsiteUrl || "";
+
   if (channel === "site_web") return destinations?.siteWebUrl || destinations?.preferredWebsiteUrl || "";
-  return destinations?.preferredWebsiteUrl || destinations?.siteWebUrl || destinations?.inrcySiteUrl || "";
+  return destinations?.preferredWebsiteUrl || destinations?.siteWebUrl || "";
 }
 
 export default function AiChannelCtaPanel({ value, onChange, disabled = false }: Props) {
   const language = useLocale().split("-")[0];
   const copy = language === "fr" ? COPY.fr : COPY.en;
-  const [activeChannel, setActiveChannel] = useState<AiCtaChannel>("inrcy_site");
+  const [activeChannel, setActiveChannel] = useState<AiCtaChannel>("site_web");
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

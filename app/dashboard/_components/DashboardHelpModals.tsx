@@ -2,23 +2,19 @@
 
 import { useTranslations } from "next-intl";
 
-
 import HelpModal from "./HelpModal";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type DashboardHelpModalsProps = {
   edition?: DashboardEdition;
-  siteInrcySubscribed: boolean;
   helpGeneratorOpen: boolean;
   helpCanauxOpen: boolean;
-  helpSiteInrcyOpen: boolean;
   helpSiteWebOpen: boolean;
   helpInertieOpen: boolean;
   helpInstagramOpen: boolean;
   helpFacebookOpen: boolean;
   onCloseGenerator: () => void;
   onCloseCanaux: () => void;
-  onCloseSiteInrcy: () => void;
   onCloseSiteWeb: () => void;
   onCloseInertie: () => void;
   onCloseFacebook: () => void;
@@ -48,17 +44,17 @@ const INERTIA_ROWS: InertiaHelpRow[] = [
 
 export default function DashboardHelpModals({
   edition = "premium",
-  siteInrcySubscribed,
+
   helpGeneratorOpen,
   helpCanauxOpen,
-  helpSiteInrcyOpen,
+
   helpSiteWebOpen,
   helpInertieOpen,
   helpInstagramOpen,
   helpFacebookOpen,
   onCloseGenerator,
   onCloseCanaux,
-  onCloseSiteInrcy,
+
   onCloseSiteWeb,
   onCloseInertie,
   onCloseFacebook,
@@ -236,13 +232,6 @@ export default function DashboardHelpModals({
                       : "Diffuse votre carte de visite digitale en QR Code. Il donne accès à vos coordonnées, vos liens, vos demandes de contact et vos prises de rendez-vous.",
                   },
                   {
-                    icon: "🌐",
-                    name: "Site iNrCy",
-                    color: "#66d9ff",
-                    text: i18nT("votre_machine_a_leads_intelligente_disponible_2e4e9670"),
-                    requiresSiteSubscription: true,
-                  },
-                  {
                     icon: "🖥️",
                     name: "Site web",
                     color: "#ff9ad5",
@@ -293,8 +282,7 @@ export default function DashboardHelpModals({
                   },
                 ].map((channel) => {
                   const premiumLocked = standardMode && channel.premiumOnly;
-                  const siteNotSubscribed = Boolean(channel.requiresSiteSubscription && !siteInrcySubscribed);
-                  const channelDisabled = Boolean(premiumLocked || siteNotSubscribed);
+                  const channelDisabled = Boolean(premiumLocked);
 
                   return (
                     <div
@@ -315,7 +303,7 @@ export default function DashboardHelpModals({
                       }}
                     >
                       {channel.icon} {channel.name}
-                      {premiumLocked || siteNotSubscribed ? (
+                      {premiumLocked ? (
                         <span
                           style={{
                             marginLeft: 8,
@@ -326,7 +314,7 @@ export default function DashboardHelpModals({
                             color: "#fff",
                           }}
                         >
-                          {premiumLocked ? i18nT("pack_premium_282f98ef") : i18nT("non_souscrit_fb632cc2")}
+                          {i18nT("pack_premium_282f98ef")}
                         </span>
                       ) : null}
                     </div>
@@ -612,18 +600,6 @@ export default function DashboardHelpModals({
           >
             {i18nT("si_le_compte_instagram_ou_la_d9ecd233")}{" "}</div>
         </div>
-      </HelpModal>
-
-      <HelpModal
-        open={helpSiteInrcyOpen}
-        nativeLayer
-        title={i18nT("site_inrcy_57016d6f")}
-        onClose={onCloseSiteInrcy}
-      >
-        <p style={{ marginTop: 0 }}>
-          {i18nT("la_bulle_cb4937bb")}{" "}<strong>{i18nT("site_inrcy_57016d6f")}</strong> {" "}{i18nT("est_accessible_uniquement_si_vous_etes_604521af")}{" "}</p>
-        <p>
-          {i18nT("si_c_apos_est_le_cas_2c0bc7a9")}{" "}</p>
       </HelpModal>
 
       <HelpModal

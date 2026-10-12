@@ -19,7 +19,6 @@ type ChannelStatus = {
  type GeneratorStatus = ChannelStatus;
 
 const INCLUDE_TO_CHANNEL: Record<string, DashboardChannelKey> = {
-  site_inrcy: "site_inrcy",
   site_web: "site_web",
   gmb: "gmb",
   facebook: "facebook",

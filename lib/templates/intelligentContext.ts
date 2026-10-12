@@ -36,7 +36,6 @@ export type CommunicationSeason =
 
 export type CommunicationChannel =
   | 'email'
-  | 'site_inrcy'
   | 'site_web'
   | 'facebook'
   | 'instagram'
@@ -77,7 +76,7 @@ const actionDefaultToneMap: Record<TemplateAction, CommunicationTone> = {
 };
 
 const moduleChannels: Record<TemplateModule, CommunicationChannel[]> = {
-  booster: ['email', 'site_inrcy', 'site_web', 'facebook', 'instagram', 'google_business'],
+  booster: ['email', 'site_web', 'facebook', 'instagram', 'google_business'],
   fideliser: ['email', 'facebook', 'instagram', 'linkedin'],
 };
 

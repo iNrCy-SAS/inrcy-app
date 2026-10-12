@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 
-
 import { useEffect, useId, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
@@ -27,28 +26,7 @@ const DashboardAgentPlanningModal = dynamic(
 );
 
 type DashboardPanelName =
-  | "contact"
-  | "profil"
-  | "inrbadge"
-  | "compte"
-  | "activite"
-  | "abonnement"
-  | "mails"
-  | "agenda"
-  | "site_inrcy"
-  | "site_web"
-  | "instagram"
-  | "linkedin"
-  | "gmb"
-  | "inr_search"
-  | "facebook"
-  | "legal"
-  | "rgpd"
-  | "inertie"
-  | "boutique"
-  | "notifications"
-  | "parrainage"
-  | "documents";
+  "contact" | "profil" | "inrbadge" | "compte" | "activite" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "gmb" | "inr_search" | "facebook" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 type DashboardModulesCardProps = {
   goToModule: (path: string) => void;

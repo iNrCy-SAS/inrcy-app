@@ -1,24 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { asRecord } from "@/lib/tsSafe";
+import { isConfiguredSiteWebWidgetDomain, normalizeWidgetDomain } from "./siteWebDomains.ts";
+export { normalizeWidgetSource } from "@/lib/siteWebChannel";
+export { isConfiguredSiteWebWidgetDomain, normalizeWidgetDomain } from "./siteWebDomains.ts";
 
-export type WidgetSource = "inrcy_site" | "site_web";
-
-export function normalizeWidgetDomain(input: string | null): string {
-  if (!input) return "";
-  let raw = input.trim();
-  try {
-    if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
-    const u = new URL(raw);
-    return (u.hostname || "").toLowerCase().replace(/^www\./, "");
-  } catch {
-    return raw
-      .toLowerCase()
-      .replace(/^https?:\/\//i, "")
-      .replace(/^www\./, "")
-      .split("/")[0] || "";
-  }
-}
+export type WidgetSource = "site_web";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -83,21 +70,6 @@ async function upsertRegistry(
   }
 }
 
-async function resolveInrcySiteUserId(supabase: SupabaseClient, domain: string) {
-  const { data, error } = await supabase
-    .from("inrcy_site_configs")
-    .select("user_id, site_url")
-    .ilike("site_url", `%${domain}%`)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  const userId = (asRecord(data)["user_id"] as string | null) ?? null;
-  if (userId) await upsertRegistry(supabase, domain, "inrcy_site", userId);
-  return userId;
-}
-
 async function resolveSiteWebUserId(supabase: SupabaseClient, domain: string) {
   const pageSize = 1000;
   let from = 0;
@@ -118,8 +90,7 @@ async function resolveSiteWebUserId(supabase: SupabaseClient, domain: string) {
       const rr = asRecord(r);
       const settings = asRecord(rr["settings"]);
       const siteWeb = asRecord(settings["site_web"]);
-      const url = String(siteWeb["url"] ?? "");
-      return normalizeWidgetDomain(url) === domain;
+      return isConfiguredSiteWebWidgetDomain(siteWeb, domain);
     });
 
     if (match) {
@@ -143,10 +114,12 @@ export async function resolveWidgetUserIdFromDomain(
   const supabase = getSupabaseAdmin();
 
   const registryUserId = await readRegistry(supabase, domain, source);
-  if (registryUserId) return registryUserId;
-
-  if (source === "inrcy_site") {
-    return resolveInrcySiteUserId(supabase, domain);
+  if (registryUserId) {
+    const { data, error } = await supabase.from("pro_tools_configs")
+      .select("settings").eq("user_id", registryUserId).maybeSingle();
+    if (error) throw error;
+    const siteWeb = asRecord(asRecord(asRecord(data).settings).site_web);
+    if (isConfiguredSiteWebWidgetDomain(siteWeb, domain)) return registryUserId;
   }
 
   return resolveSiteWebUserId(supabase, domain);

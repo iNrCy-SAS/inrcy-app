@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel, normalizeSiteWebChannelMap } from "@/lib/siteWebChannel";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   normalizeInrAgentPublicationIdeas,
@@ -75,7 +76,7 @@ export function toggleChannelItem(
 export function boosterDisplayKeyFromAgentChannel(
   channel: ChannelKey | "" | null | undefined,
 ): BoosterDisplayKey {
-  return agentChannelToBoosterDisplay[channel as ChannelKey] || "inrcy_site";
+  return agentChannelToBoosterDisplay[channel as ChannelKey] || "site_web";
 }
 
 export function boosterChannelKeyFromAgentChannel(
@@ -85,7 +86,7 @@ export function boosterChannelKeyFromAgentChannel(
 }
 
 export function normalizeUiChannelKey(value: unknown): ChannelKey | null {
-  const raw = String(value || "").trim();
+  const raw = canonicalSiteWebChannel(value);
   if (!raw) return null;
   const mapped = apiChannelToUi[raw] || apiChannelToUi[raw.toLowerCase()];
   if (mapped) return mapped;
@@ -114,8 +115,9 @@ export function recordValueForUiChannel(
   record: Record<string, unknown>,
   channel: ChannelKey | null,
 ): unknown {
+  const normalized = normalizeSiteWebChannelMap(record);
   for (const key of channelPayloadLookupKeys(channel)) {
-    if (Object.prototype.hasOwnProperty.call(record, key)) return record[key];
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) return normalized[key];
   }
   return undefined;
 }

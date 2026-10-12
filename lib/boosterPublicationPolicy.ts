@@ -1,5 +1,6 @@
+import { canonicalSiteWebChannel } from "./siteWebChannel.ts";
+
 export const BOOSTER_PUBLICATION_CHANNELS = [
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -19,7 +20,6 @@ export const BOOSTER_PUBLICATION_CHANNEL_LABELS: Record<
   BoosterPublicationChannelKey,
   string
 > = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -68,7 +68,7 @@ export function normalizeBoosterPublicationChannels(values: unknown): {
   const seenInvalid = new Set<string>();
 
   for (const rawValue of rawValues) {
-    const normalized = typeof rawValue === "string" ? rawValue.trim() : "";
+    const normalized = canonicalSiteWebChannel(rawValue);
     if (isBoosterPublicationChannel(normalized)) {
       if (!seenChannels.has(normalized)) {
         seenChannels.add(normalized);

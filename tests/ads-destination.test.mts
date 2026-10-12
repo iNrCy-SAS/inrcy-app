@@ -20,7 +20,6 @@ test("the profile or connected site is used before Google Business", () => {
   }), { url: "https://entreprise.example/contact", source: "website" });
   assert.deepEqual(resolveAdsCampaignDestination({
     connectedWebsiteUrl: "https://site-connecte.example",
-    inrcyWebsiteUrl: "https://site-inrcy.example",
   }), { url: "https://site-connecte.example/", source: "website" });
 });
 

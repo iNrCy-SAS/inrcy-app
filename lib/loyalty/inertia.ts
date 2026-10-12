@@ -1,5 +1,4 @@
 export type InertiaChannels = {
-  site_inrcy: boolean;
   site_web: boolean;
   gmb: boolean;
   facebook: boolean;
@@ -11,9 +10,9 @@ export type InertiaChannels = {
 };
 
 export type InertiaSnapshot = {
-  /** total connected channels (0..9) */
+  /** total connected channels (0..8) */
   connectedCount: number;
-  /** total available channels (always 9 for now) */
+  /** total available channels (always 8 for now) */
   totalChannels: number;
   /** additive bonus sum (connected channels only) */
   bonus: number;
@@ -25,7 +24,7 @@ export type InertiaSnapshot = {
   breakdown: Array<{ key: keyof InertiaChannels; label: string; bonus: number; connected: boolean }>;
 };
 
-const TOTAL_CHANNELS = 9;
+const TOTAL_CHANNELS = 8;
 
 /**
  * Barème — 2026-03
@@ -41,11 +40,9 @@ const BONUS: Record<keyof InertiaChannels, number> = {
   youtube_shorts: 0.5,
   gmb: 1,
   site_web: 1,
-  site_inrcy: 2.5,
 };
 
 const LABELS: Record<keyof InertiaChannels, string> = {
-  site_inrcy: "Site iNrCy",
   site_web: "Site web",
   gmb: "Google Business",
   facebook: "Facebook",

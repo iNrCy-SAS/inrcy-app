@@ -48,7 +48,8 @@ test("iNrSend upload and site update retain aligned interaction metadata", () =>
     actions,
     /imageMediaMetadata\.imageInteractions = siteImageInteractions/,
   );
-  assert.match(actions, /: \{ media_metadata: imageMediaMetadata \}/);
+  assert.match(actions, /: siteWebImageMediaPatch\(String\(publicationId \|\| ""\), imageMediaMetadata\)/);
+  assert.match(read("lib/siteWebPublications.ts"), /media_metadata: \{ \.\.\.metadata, publication_id: publicationId \}/);
 });
 
 test("iNrSend converts an image interaction into a channel CTA without leaking it to video", () => {

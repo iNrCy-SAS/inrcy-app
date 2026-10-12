@@ -7,7 +7,6 @@
  */
 
 export type BoosterImageChannel =
-  | "inrcy_site"
   | "site_web"
   | "inr_search"
   | "gmb"
@@ -25,7 +24,6 @@ export type BoosterImageSafetyBackgroundMode = "transparent" | "white" | "black"
 const BOOSTER_IMAGE_SAFETY_BACKGROUND_BY_CHANNEL: Readonly<
   Record<BoosterImageChannel, BoosterImageSafetyBackgroundMode>
 > = Object.freeze({
-  inrcy_site: "transparent",
   site_web: "transparent",
   inr_search: "transparent",
   gmb: "white",
@@ -159,7 +157,6 @@ const PINTEREST_MIN_RATIO = 2 / 3;
 export const BOOSTER_IMAGE_CHANNEL_POLICIES: Readonly<
   Record<BoosterImageChannel, BoosterImageChannelPolicy>
 > = Object.freeze({
-  inrcy_site: { supportsImages: true },
   site_web: { supportsImages: true },
   inr_search: { supportsImages: true },
   gmb: { supportsImages: true },

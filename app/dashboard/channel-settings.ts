@@ -13,7 +13,7 @@ export const CHANNEL_SETTINGS_PANEL_ORDER = [
   "pinterest",
   "x",
   "mails",
-  "site_inrcy",
+
 ] as const;
 
 export type ChannelSettingsPanelName = typeof CHANNEL_SETTINGS_PANEL_ORDER[number];
@@ -47,8 +47,7 @@ const CHANNEL_HEADER_BACKGROUNDS: Record<ChannelSettingsPanelName, string> = {
     "linear-gradient(135deg, rgba(148,163,184,0.22), rgba(30,41,59,0.34)), rgba(15,23,42,0.96)",
   mails:
     "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(168,85,247,0.23)), rgba(15,23,42,0.96)",
-  site_inrcy:
-    "linear-gradient(135deg, rgba(236,72,153,0.25), rgba(124,58,237,0.24), rgba(14,165,233,0.14)), rgba(15,23,42,0.96)",
+
 };
 
 export function isChannelSettingsPanel(value: string | null): value is ChannelSettingsPanelName {

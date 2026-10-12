@@ -83,8 +83,7 @@
       "rgpd": "Mes données (RGPD)",
       "mails": "Réglages Mails",
       "agenda": "Réglages iNr’Calendar",
-      "site_inrcy": "Configuration — Site iNrCy",
-      "site_web": "Configuration — Site web",
+      "site_web": "Configuration — Site Web",
       "instagram": "Configuration — Instagram",
       "linkedin": "Configuration — LinkedIn",
       "x": "Configuration — X",
@@ -307,15 +306,8 @@
       "view": "Ouvrir iNr’Send",
       "connect": "Configurer"
     },
-    "site_inrcy": {
-      "name": "Site iNrCy",
-      "description": "Votre machine à leads ⚡",
-      "view": "Voir le site",
-      "connect": "Connecter Google Analytics",
-      "siteOnlyTitle": "Disponible uniquement si vous avez un site iNrCy"
-    },
     "site_web": {
-      "name": "Site web",
+      "name": "Site Web",
       "description": "Convertit vos visiteurs 💡",
       "view": "Voir le site",
       "connect": "Connecter Google Analytics"
@@ -441,7 +433,7 @@
     "openDescription": "Votre expertise au service de contenus plus justes, plus riches et vraiment propres à votre entreprise.",
     "contentLengthTitle": "Longueur des contenus",
     "webLengthLabel": "Sites + iNr’Search",
-    "webLengthHint": "Pilote Site iNrCy, Site web et iNr’Search.",
+    "webLengthHint": "Pilote Site Web et iNr’Search.",
     "socialLengthLabel": "Réseaux + Google Business",
     "socialLengthHint": "Pilote Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest et Google Business.",
     "lengthAdapted": "Adapté — l’IA choisit selon le canal",

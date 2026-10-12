@@ -1,3 +1,4 @@
+import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 import { readUiCacheValue, writeUiCacheValue } from "./dashboard.client-cache";
 import { buildBubbleAccessMap, createDefaultBubbleAccessMap, type AppBubbleAccessMap } from "@/lib/bubbleAccess";
 import type { ModuleStatus, Ownership } from "./dashboard.types";
@@ -11,12 +12,12 @@ export const CHANNEL_REFRESH_DEDUP_MS = 30_000;
 export const GENERATOR_POWER_SETTLE_MS = 700;
 // v2 correspond au calcul par canal. Les anciennes clés v1 décrivaient les
 // étapes Profil/Activité et ne doivent jamais hydrater cette nouvelle jauge.
-export const GENERATOR_POWER_CACHE_KEY = "inrcy_generator_power_percent_v2";
-export const GENERATOR_POWER_SNAPSHOT_CACHE_KEY = "inrcy_generator_power_snapshot_v2";
-export const GENERATOR_ACTIVE_CACHE_KEY = "inrcy_generator_active_v1";
-export const SITE_BUBBLE_PROGRESS_CACHE_KEY = "inrcy_site_bubble_progress_v1";
-export const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
-export const BUBBLE_ACCESS_CACHE_KEY = "inrcy_bubble_access_map_v1";
+export const GENERATOR_POWER_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorPower;
+export const GENERATOR_POWER_SNAPSHOT_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorPowerSnapshot;
+export const GENERATOR_ACTIVE_CACHE_KEY = DASHBOARD_CACHE_KEYS.generatorActive;
+export const SITE_BUBBLE_PROGRESS_CACHE_KEY = DASHBOARD_CACHE_KEYS.siteProgress;
+export const DASHBOARD_CHANNEL_STATE_CACHE_KEY = DASHBOARD_CACHE_KEYS.channelState;
+export const BUBBLE_ACCESS_CACHE_KEY = DASHBOARD_CACHE_KEYS.bubbleAccess;
 export const INR_SEARCH_PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
 
 export function getRuntimeInrSearchOrigin() {
@@ -27,7 +28,7 @@ export function getRuntimeInrSearchOrigin() {
 }
 
 export type SiteBubbleProgress = { status: ModuleStatus; text: string };
-export type SiteBubbleProgressCache = Partial<Record<"site_inrcy" | "site_web", SiteBubbleProgress>>;
+export type SiteBubbleProgressCache = Partial<Record<"site_web", SiteBubbleProgress>>;
 export type GeneratorPowerSnapshot = {
   power: number;
   completedStepKeys: string[];
@@ -47,9 +48,6 @@ export type GeneratorChannelRefreshResult = { block: unknown | null; syncAt: num
 export function createUnverifiedBubbleAccessMap(): AppBubbleAccessMap {
   const accessMap = createDefaultBubbleAccessMap();
 
-  // Site iNrCy is a Supabase-controlled entitlement. A browser cache must
-  // never be able to grant it before the authoritative API has answered.
-  accessMap.site_inrcy = false;
   return accessMap;
 }
 
@@ -65,26 +63,9 @@ export function readCachedBubbleAccessMap(): AppBubbleAccessMap {
     }));
     const accessMap = buildBubbleAccessMap(rows);
 
-    // Keep the UI fail-closed until /api/bubble-access/ensure confirms access.
-    accessMap.site_inrcy = false;
     return accessMap;
   } catch {
     return createUnverifiedBubbleAccessMap();
-  }
-}
-
-export function readCachedSiteInrcyDisplayAccess(): boolean {
-  try {
-    const raw = readUiCacheValue(BUBBLE_ACCESS_CACHE_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
-
-    // Display-only continuity: this value may keep the last confirmed visual
-    // state while Supabase is being checked, but it never unlocks an action.
-    return parsed.site_inrcy === true;
-  } catch {
-    return false;
   }
 }
 
@@ -138,7 +119,7 @@ export function readCachedSiteBubbleProgress(): SiteBubbleProgressCache {
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        for (const key of ["site_inrcy", "site_web"] as const) {
+        for (const key of [ "site_web"] as const) {
           const entry = parsed[key] as Record<string, unknown> | undefined;
           if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
           if (!isModuleStatus(entry.status) || typeof entry.text !== "string") continue;
@@ -150,7 +131,7 @@ export function readCachedSiteBubbleProgress(): SiteBubbleProgressCache {
     // Compatibility with accounts whose detailed channel cache predates the
     // dedicated bubble-progress snapshot. This remains account-scoped.
     const channelState = readCachedDashboardChannelState();
-    const addFallback = (key: "site_inrcy" | "site_web", urlKey: string, ga4Key: string, gscKey: string) => {
+    const addFallback = (key: "site_web", urlKey: string, ga4Key: string, gscKey: string) => {
       if (cache[key]) return;
       const hasUrl = typeof channelState?.[urlKey] === "string" && channelState[urlKey].trim().length > 0;
       const progress = (hasUrl ? 1 : 0) +
@@ -161,12 +142,8 @@ export function readCachedSiteBubbleProgress(): SiteBubbleProgressCache {
         text: `${hasUrl ? "Connecté" : "À configurer"} ${progress}/3`,
       };
     };
-    addFallback("site_inrcy", "siteInrcySavedUrl", "siteInrcyGa4Connected", "siteInrcyGscConnected");
     addFallback("site_web", "siteWebSavedUrl", "siteWebGa4Connected", "siteWebGscConnected");
 
-    if (!readCachedSiteInrcyDisplayAccess()) {
-      delete cache.site_inrcy;
-    }
     return cache;
   } catch {
     return {};

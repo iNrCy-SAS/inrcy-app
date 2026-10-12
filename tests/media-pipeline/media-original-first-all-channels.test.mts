@@ -16,11 +16,11 @@ import {
 import { getVariantForChannel } from "../../lib/boosterVideoTransforms.ts";
 
 const broadImageChannels: BoosterImageChannel[] = [
-  "inrcy_site", "site_web", "inr_search", "gmb", "facebook",
+  "site_web", "inr_search", "gmb", "facebook",
   "linkedin", "x", "tiktok",
 ];
 const videoChannels: BoosterVideoChannelKey[] = [
-  "inrcy_site", "site_web", "inr_search", "gmb", "facebook",
+  "site_web", "inr_search", "gmb", "facebook",
   "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest",
 ];
 
@@ -65,7 +65,7 @@ test("Instagram and Pinterest preserve every ratio they accept and adapt only ha
 
 
 test("safety backgrounds are solid or transparent, never blurred", () => {
-  assert.equal(getBoosterImageSafetyBackgroundMode("inrcy_site"), "transparent");
+  assert.equal(getBoosterImageSafetyBackgroundMode("site_web"), "transparent");
   assert.equal(getBoosterImageSafetyBackgroundMode("site_web"), "transparent");
   assert.equal(getBoosterImageSafetyBackgroundMode("gmb"), "white");
   assert.equal(getBoosterImageSafetyBackgroundMode("instagram"), "black");

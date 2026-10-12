@@ -12,13 +12,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const source = searchParams.get("source");
   const product = searchParams.get("product");
-  if (!source || !product) return NextResponse.json({ error: "Source ou produit manquant." }, { status: 400 });
+  if (source !== "site_web" || !["ga4", "gsc"].includes(product || "")) return NextResponse.json({ error: "Source ou produit invalide." }, { status: 400 });
 
   const states = await getChannelConnectionStates(supabase, activeUserId);
 
   let connected = false;
-  if (source === "site_inrcy" && product === "ga4") connected = states.site_inrcy.ga4;
-  if (source === "site_inrcy" && product === "gsc") connected = states.site_inrcy.gsc;
   if (source === "site_web" && product === "ga4") connected = states.site_web.ga4;
   if (source === "site_web" && product === "gsc") connected = states.site_web.gsc;
 

@@ -126,7 +126,7 @@ const plannedWarnings = [
   {
     id: "transparent-canonical",
     label: "Le canon image peut encore aplatir une transparence sur blanc",
-    present: !/inrcy_site[\s\S]*site_web[\s\S]*inr_search/.test(
+    present: !/site_web[\s\S]*inr_search/.test(
       sources.imageOutputPolicy,
     ),
     nextStep: "Étape qualité : préserver PNG/WebP alpha sur canaux compatibles.",

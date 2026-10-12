@@ -209,7 +209,7 @@ function computeOpportunityPerDayWeb(ov: Overview) {
     (0.65 + baseIndex) *
     (0.85 + clamp(directShare / 0.65, 0, 1) * 0.20);
 
-  const gscConnected = !!ov?.sources?.site_inrcy?.connected?.gsc || !!ov?.sources?.site_web?.connected?.gsc;
+  const gscConnected = !!ov?.sources?.site_web?.connected?.gsc;
   if (gscConnected && (impressions > 0 || clicks > 0 || intentClicks > 0)) {
     const cfg = getGscOpportunityConfig(ov.business?.sectorCategory);
     const gscImpressionsPerDay = impressions / baseDays;

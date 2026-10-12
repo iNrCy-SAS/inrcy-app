@@ -605,13 +605,6 @@
   transform-origin: center;
 }
 
-.channelsRow > .tone_site.actionIconOnly[title="Site iNrCy"] .iconImage,
-.channelsRow > .tone_site.actionIconOnly[aria-label="Site iNrCy"] .iconImage {
-  width: 94%;
-  height: 94%;
-  transform: scale(1.06);
-}
-
 .channelsRow > .tone_google.actionIconOnly .iconImage {
   width: 100%;
   height: 100%;

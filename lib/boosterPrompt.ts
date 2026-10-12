@@ -48,7 +48,6 @@ export type BoosterRecentPublication = {
 };
 
 const CHANNEL_LABELS: Record<BoosterChannels, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -170,10 +169,8 @@ function formatRecentPublications(
 }
 
 const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
-  inrcy_site:
-    "Actualité site iNrCy, utile et locale. SEO naturel + conversion douce. Titre 45–70. Paragraphes aérés. Jusqu’à 2–5 expressions **en gras** si utile. Liste SEO facultative, sans emoji.",
   site_web:
-    "Contenu web durable, crédible et plus riche. SEO local naturel. Titre 45–70. Différent du Site iNrCy. Paragraphes aérés, liste SEO facultative, sans emoji.",
+    "Contenu web durable, crédible et plus riche. SEO local naturel. Titre 45–70. Paragraphes aérés, liste SEO facultative, sans emoji.",
   inr_search:
     `iNr'Search : titre clair et un contenu court, utile et directement exploitable. En mode détaillé, utilise deux phrases complémentaires si elles tiennent naturellement dans la limite. Contenu limité à ${INR_SEARCH_CONTENT_MAX_LENGTH} caractères maximum. Sans emoji ni hashtags.`,
   gmb:
@@ -211,7 +208,6 @@ const CHANNEL_EMOJI_TARGETS: Record<
   Record<BoosterChannels, string>
 > = {
   none: {
-    inrcy_site: "0 emoji.",
     site_web: "0 emoji.",
     inr_search: "0 emoji.",
     gmb: "0 emoji.",
@@ -224,7 +220,6 @@ const CHANNEL_EMOJI_TARGETS: Record<
     pinterest: "0 emoji.",
   },
   light: {
-    inrcy_site: "0 emoji.",
     site_web: "0 emoji.",
     inr_search: "0 emoji.",
     gmb: "0–1 emoji seulement si naturel.",
@@ -237,7 +232,6 @@ const CHANNEL_EMOJI_TARGETS: Record<
     pinterest: "1–3 emojis utiles si l'idée visuelle s'y prête.",
   },
   dynamic: {
-    inrcy_site: "0 emoji malgré le niveau Beaucoup : priorité SEO et lisibilité.",
     site_web: "0 emoji malgré le niveau Beaucoup : priorité SEO et lisibilité.",
     inr_search: "0 emoji malgré le niveau Beaucoup : priorité SEO et lisibilité.",
     gmb: "1–2 emojis sobres et utiles, bien répartis.",
@@ -425,7 +419,7 @@ RÈGLES DURES :
 - Aucune citation, note de bas de page, référence, bibliographie, mention de source ni bloc « Sources ». Interdits notamment : [1], [2][4], [1, 2], 【1†source】 et tout marqueur équivalent.
 - Aucun commentaire méta sur la rédaction. Interdits : « la description doit », « ce contenu sert à », « cette publication peut », ou équivalent.
 - Utilise des paragraphes courts pour TOUS les canaux. Au-delà de 2–3 phrases, sépare les idées par deux sauts de ligne consécutifs ; ces retours font partie du texte final, ne jamais les supprimer. Laisser le moteur choisir librement le nombre de paragraphes utile. Les listes restent facultatives.
-- Hors Site iNrCy/Site web : aucun Markdown ni HTML. Sur les sites seulement, **gras Markdown** modéré si utile.
+- Hors Site web : aucun Markdown ni HTML. Sur les sites seulement, **gras Markdown** modéré si utile.
 - Les coordonnées de l’entreprise sont gérées par les champs CTA structurés d’iNrCy : ne recopie jamais téléphone, email ni URL dans title, content ou cta. Même si une coordonnée figure dans le contexte entreprise, elle sert uniquement à comprendre l’activité.
 - Le champ cta contient seulement une formule d’action courte, sans téléphone, sans email, sans URL et sans répétition dans content.
 - Tous les hashtags doivent être placés exclusivement dans le tableau hashtags, sans #. N’écris aucun hashtag dans title, content ou cta.
@@ -474,16 +468,13 @@ export function boosterUserPrompt(args: {
       ? "- La consigne ponctuelle est une dérogation temporaire prioritaire et doit être comprise comme un message direct du pro au moteur IA actif : applique-la sur chaque point qu’elle précise avec ton propre jugement d’auteur, même si la Configuration IA générale indique autre chose. Les réglages généraux restent valables pour le reste."
       : "",
     "- Respecte le contrat propre à chaque canal et les préférences du pro, sans transformer ces préférences en gabarit fixe.",
-    channelSet.has("inrcy_site") && channelSet.has("site_web")
-      ? "- Site iNrCy et Site web : produis deux variantes complètes et réellement distinctes."
-      : "",
     channelSet.has("gmb")
       ? "- Google Business : reste strictement factuel et sans coordonnées, URL, hashtag ni promotion agressive ; CTA neutre seulement si utile."
       : "",
     channelSet.has("x")
       ? "- X — RÈGLE TECHNIQUE PRIORITAIRE : ne recopie et ne génère aucun lien ni aucune URL dans title, content, cta ou hashtags, même si la phrase libre, la consigne, le profil ou un média en contient. N'utilise jamais de CTA Site, Lien personnalisé ou WhatsApp pour X ; utilise seulement Aucun CTA, Appeler ou Envoyer un message."
       : "",
-    channelSet.has("inrcy_site") || channelSet.has("site_web") || channelSet.has("inr_search")
+    channelSet.has("site_web") || channelSet.has("inr_search")
       ? "- Canaux site : zéro emoji ; SEO local naturel uniquement avec les faits réellement fournis."
       : "",
     preferences.emojiLevel === "dynamic"

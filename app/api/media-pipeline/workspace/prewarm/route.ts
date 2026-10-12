@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
@@ -32,7 +33,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const ALLOWED_CHANNELS = new Set<BoosterVideoChannelKey>([
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -46,7 +46,7 @@ const ALLOWED_CHANNELS = new Set<BoosterVideoChannelKey>([
 ]);
 
 function allowsOriginalVideoFallback(channel: BoosterVideoChannelKey) {
-  return ["inrcy_site", "site_web", "inr_search"].includes(channel);
+  return ["site_web", "inr_search"].includes(channel);
 }
 
 function cleanText(value: unknown, max = 100) {
@@ -58,7 +58,7 @@ function cleanChannels(value: unknown) {
   return Array.from(
     new Set(
       value
-        .map((channel) => cleanText(channel, 40))
+        .map((channel) => canonicalSiteWebChannel(cleanText(channel, 40)))
         .filter(
           (channel): channel is BoosterVideoChannelKey =>
             isBoosterVideoChannelKey(channel) && ALLOWED_CHANNELS.has(channel),

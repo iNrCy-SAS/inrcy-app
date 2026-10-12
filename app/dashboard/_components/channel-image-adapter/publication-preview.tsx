@@ -9,7 +9,6 @@ import { FinalImageFrame, PublicationPreviewLightbox, VideoPreviewFrame } from "
 
 import { clampNumber, cleanNetworkText, cleanText, renderSafeSiteInlineHtml } from "./utils";
 
-
 function PreviewBlockShell({
   eyebrow,
   title,
@@ -282,7 +281,6 @@ function SitePreviewCard({
   cta,
   images,
   video,
-  isInrcySite,
   onOpen,
 }: {
   mode: "desktop" | "mobile";
@@ -291,11 +289,10 @@ function SitePreviewCard({
   cta: string;
   images: PreviewImage[];
   video?: PreviewVideo | null;
-  isInrcySite: boolean;
   onOpen: (index: number) => void;
 }) {
   const i18nT = useTranslations("shell");
-  const accent = isInrcySite ? "#4cc3ff" : "#111827";
+  const accent = "#111827";
   const isMobile = mode === "mobile";
   const safeImages = images.length ? images : [];
   const mediaAspectRatio = isMobile ? "4 / 3" : "16 / 10";
@@ -306,7 +303,7 @@ function SitePreviewCard({
         <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: "uppercase", letterSpacing: 0.4 }}>{isMobile ? i18nT("mobile_b1d70245") : i18nT("desktop_532c67fe")}</div>
       </div>
       <article style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 0.95fr) minmax(0, 1fr)", gap: isMobile ? 10 : 14, alignItems: "start", minWidth: 0 }}>
-        <div style={{ borderRadius: isInrcySite ? 16 : 10, overflow: "hidden", background: "#eef2f7", minWidth: 0 }}>
+        <div style={{ borderRadius: 10, overflow: "hidden", background: "#eef2f7", minWidth: 0 }}>
           {video?.previewUrl ? (
             <VideoPreviewFrame video={video} aspectRatio={mediaAspectRatio} badge="Vidéo site" />
           ) : safeImages.length > 1 ? (
@@ -326,7 +323,7 @@ function SitePreviewCard({
             style={{ fontSize: isMobile ? 12 : 13, lineHeight: isMobile ? 1.42 : 1.45, margin: 0, color: "#475569", display: "-webkit-box", WebkitLineClamp: isMobile ? 4 : 5, WebkitBoxOrient: "vertical", overflow: "hidden" }}
             dangerouslySetInnerHTML={{ __html: renderSafeSiteInlineHtml(content) }}
           />
-          {cta ? <span style={{ justifySelf: "start", marginTop: 1, padding: isMobile ? "7px 10px" : "8px 12px", borderRadius: isInrcySite ? 999 : 8, background: accent, color: "#fff", fontSize: isMobile ? 11 : 12, fontWeight: 800 }}>{cta}</span> : null}
+          {cta ? <span style={{ justifySelf: "start", marginTop: 1, padding: isMobile ? "7px 10px" : "8px 12px", borderRadius: 8, background: accent, color: "#fff", fontSize: isMobile ? 11 : 12, fontWeight: 800 }}>{cta}</span> : null}
         </div>
       </article>
     </div>
@@ -503,7 +500,7 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
 
 export function ChannelPublicationPreview({ preview }: { preview: PublicationPreview }) {
   const key = String(preview.channelKey || "");
-  const isSite = key === "inrcy_site" || key === "site_web" || key === "site";
+  const isSite = key === "site_web" || key === "site";
   const isInstagram = key === "instagram";
   const isLinkedin = key === "linkedin";
   const isX = key === "x";
@@ -531,13 +528,12 @@ export function ChannelPublicationPreview({ preview }: { preview: PublicationPre
   const closeLightbox = () => setLightboxIndex(null);
 
   if (isSite) {
-    const isInrcySite = key === "inrcy_site";
     return (
       <>
         <PreviewBlockShell eyebrow="rendu iframe intégré" title={preview.channelLabel} note={hasVideo ? "Aperçu séparé desktop/mobile avec lecteur vidéo intégré." : "Aperçu séparé desktop/mobile. Dès qu’il y a 2 images ou plus, le site passe en carousel. Cliquez sur une image pour l’ouvrir en grand."}>
           <DevicePreviewSwitcher
-            desktop={<SitePreviewCard mode="desktop" title={title} content={content} cta={cta} images={images} video={video} isInrcySite={isInrcySite} onOpen={openLightbox} />}
-            mobile={<SitePreviewCard mode="mobile" title={title} content={content} cta={cta} images={images} video={video} isInrcySite={isInrcySite} onOpen={openLightbox} />}
+            desktop={<SitePreviewCard mode="desktop" title={title} content={content} cta={cta} images={images} video={video} onOpen={openLightbox} />}
+            mobile={<SitePreviewCard mode="mobile" title={title} content={content} cta={cta} images={images} video={video} onOpen={openLightbox} />}
           />
         </PreviewBlockShell>
         {!hasVideo ? <PublicationPreviewLightbox open={lightboxIndex !== null} images={images} initialIndex={lightboxIndex || 0} aspectRatio="16 / 10" fallbackMode="color" onClose={closeLightbox} /> : null}

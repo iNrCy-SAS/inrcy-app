@@ -1,7 +1,8 @@
+import { canonicalSiteWebChannel, normalizeSiteWebChannelMap } from "./siteWebChannel.ts";
+
 const BOOSTER_GENERATION_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{12,80}$/;
 
 const RECOVERABLE_CHANNELS = new Set([
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -60,7 +61,7 @@ export function readBoosterGenerationRecoveryPayload(
   const receiptId = normalizeBoosterGenerationRequestId(receipt.requestId);
   if (receiptId !== expectedId || receipt.status !== "ready") return null;
 
-  const rawVersions = asRecord(content.postByChannel);
+  const rawVersions = normalizeSiteWebChannelMap(content.postByChannel);
   const versions = Object.fromEntries(
     Object.entries(rawVersions).filter(([channel, post]) => {
       return RECOVERABLE_CHANNELS.has(channel) && Object.keys(asRecord(post)).length > 0;
@@ -71,7 +72,7 @@ export function readBoosterGenerationRecoveryPayload(
   const generatedAt = String(
     receipt.generatedAt || content.generatedAt || "",
   ).trim();
-  const recoveredChannels = cleanStringArray(receipt.recoveredChannels).filter(
+  const recoveredChannels = Array.from(new Set(cleanStringArray(receipt.recoveredChannels).map(canonicalSiteWebChannel))).filter(
     (channel) => RECOVERABLE_CHANNELS.has(channel),
   );
   const aiFallback = asRecord(receipt.aiFallback);

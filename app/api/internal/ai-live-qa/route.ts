@@ -20,7 +20,6 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const ALLOWED_CHANNELS = new Set<BoosterChannels>([
-  "inrcy_site",
   "site_web",
   "gmb",
   "facebook",

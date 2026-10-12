@@ -111,7 +111,6 @@ function getOverviewError(channel: DashboardChannelKey, overview: Overview | nul
   if (!sources || typeof sources !== 'object') return null;
 
   const sourceKeysByChannel: Record<DashboardChannelKey, string[]> = {
-    site_inrcy: ['site_inrcy_ga4', 'site_inrcy_gsc'],
     site_web: ['site_web_ga4', 'site_web_gsc'],
     gmb: ['gmb'],
     facebook: ['facebook'],
@@ -134,21 +133,6 @@ function getOverviewError(channel: DashboardChannelKey, overview: Overview | nul
 
 function mapChannelConnection(channel: DashboardChannelKey, states: ChannelStates): InrstatsChannelConnectionSummary {
   switch (channel) {
-    case 'site_inrcy': {
-      const state = states.site_inrcy;
-      return {
-        connected: state.statsConnected,
-        accountConnected: state.connected,
-        configured: state.connected,
-        statsConnected: state.statsConnected,
-        expired: false,
-        requiresUpdate: false,
-        connectionStatus: state.statsConnected ? 'connected' : 'disconnected',
-        resourceId: state.url,
-        resourceLabel: state.url,
-        resourceUrl: state.url,
-      };
-    }
     case 'site_web': {
       const state = states.site_web;
       return {

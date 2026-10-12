@@ -97,7 +97,7 @@
   "cliquer_sur_le_bouton_d_information_58868b62": "Click the information button next to a failure to view the rule or exact technical error.",
   "cliquer_sur_publier_maintenant_pour_ouvrir_20ae1cfb": "Click **Publish now** to open the publishing tool directly.",
   "commencer_par_connecter_les_boites_mail_5706ea9d": "Start by connecting the **mailboxes** used to send communications.",
-  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Start with the most useful channels: Google Business Profile, iNrCy site, website, and emails.",
+  "commencer_par_les_canaux_les_plus_7b1d3d5e": "Start with the most useful channels: Google Business Profile, Website, and emails.",
   "commencer_par_les_canaux_sur_lesquels_1684463c": "Start with the channels where your customers are actually present.",
   "comment_l_utiliser_cadca3b9": "How to use it?",
   "communication_60c58ad2": "communication",
@@ -121,7 +121,7 @@
   "configurer_inr_badge_inclus_en_bonus_a94257d1": "Configure **iNr’Badge** (included as a bonus) to share the company profile and QR code.",
   "connecter_7badff0e": "connect",
   "connecter_les_bonnes_bulles_79848216": "Connect the right bubbles",
-  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Connect relevant channels: iNr'Badge, Email, iNrCy site, website, Google Business Profile, Facebook, Instagram, LinkedIn, TikTok, YouTube, and Pinterest.",
+  "connecter_les_canaux_utiles_inr_badge_cf0a9388": "Connect relevant channels: iNr'Badge, Email, Website, Google Business Profile, Facebook, Instagram, LinkedIn, TikTok, YouTube, and Pinterest.",
   "connecter_les_canaux_utiles_pour_laisser_2691c29f": "Connect relevant channels to allow iNrCy to retrieve available data.",
   "connexion_5d2cc1db": "connection",
   "connexion_serveur_9e08cbfd": "server connection",
@@ -496,7 +496,6 @@
   "relancer_les_anciens_clients_et_prospects_957a3c9d": "Follow up with past clients and prospects rather than just seeking new contacts.",
   "relation_client_a1e96893": "customer relations",
   "relier_les_10_destinations_de_publication_e63b94e4": "Connect the 11 Standard publishing destinations and configure iNr’Badge, included as a bonus.",
-  "relier_les_destinations_utiles_site_inrcy_483ab0d6": "Link relevant destinations: iNrCy site, website, Google Business Profile, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube, and Pinterest.",
   "relire_l_apercu_puis_valider_ou_eb8a71b3": "Review the preview, then **approve** or **reject** the action before it is executed.",
   "relire_l_apercu_puis_valider_ou_f3f66889": "Review the preview, then **approve** or **reject** the action before execution.",
   "remplir_mon_activite_metier_prestations_speciali_47667b2a": "Complete **My Profile**: identity, profession, services, specialties, service areas, target clients, and key strengths.",
@@ -540,7 +539,6 @@
   "signature_fab5f628": "signature",
   "siren_dcb01c3c": "siren",
   "siret_af59317f": "siret",
-  "site_inrcy_707ea046": "iNrCy site",
   "site_web_c428d383": "website",
   "spam_ded982e7": "spam",
   "statistiques_80d10cfb": "statistics",
@@ -630,5 +628,6 @@
   "startup_check_dna_ai_20260905": "Business DNA and AI Configuration accurately reflect the company.",
   "startup_reflex_partial_analysis_20260905": "Start with sources that are already connected: an unavailable source must never block the setup.",
   "startup_reflex_validate_20260905": "Review the information suggested by AI before using it to generate content.",
-  "startup_link_business_dna_20260905": "Analyse and complete Business DNA"
+  "startup_link_business_dna_20260905": "Analyse and complete Business DNA",
+  "relier_les_destinations_utiles_site_web_483ab0d6": "Link relevant destinations: Website, Google Business Profile, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube, and Pinterest."
 }

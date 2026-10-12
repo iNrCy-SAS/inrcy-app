@@ -200,7 +200,6 @@ export function getVideoPublicationProfileForChannel(
 ): VideoPublicationProfile {
   if (channel === "gmb") return GOOGLE_BUSINESS_VIDEO_PROFILE;
   if (
-    channel === "inrcy_site" ||
     channel === "site_web" ||
     channel === "inr_search"
   ) {

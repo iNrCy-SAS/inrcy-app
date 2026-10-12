@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 
-
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
@@ -35,7 +34,6 @@ type InrBadgeChannelStatus = {
 
 type InrBadgeSettingsChannels = {
   inrSearch: InrBadgeChannelStatus;
-  siteInrcy: InrBadgeChannelStatus;
   siteWeb: InrBadgeChannelStatus;
   googleBusiness: InrBadgeChannelStatus;
   facebook: InrBadgeChannelStatus;
@@ -200,7 +198,6 @@ function saveThemeSettings(storageKey: string, theme: ThemeSettings) {
     // Le réglage serveur reste la source de vérité si le stockage local est indisponible.
   }
 }
-
 
 function loadSelectedMailAccountId(storageKey: string) {
   if (typeof window === "undefined") return "";
@@ -629,7 +626,6 @@ export default function InrBadgeSettingsContent({
     window.setTimeout(() => setNotice(null), 1800);
   };
 
-
   const toggleWeekday = (day: number) => {
     const exists = appointmentSettings.weekdays.includes(day);
     const nextWeekdays = exists
@@ -726,7 +722,7 @@ export default function InrBadgeSettingsContent({
 
   const channelItems: Array<{ key: ShareKey; label: string; connected: boolean; helper: string }> = [
     { key: "inrSearch", label: i18nT("inr_search_ce47ed45"), connected: canShareChannel(channels.inrSearch), helper: i18nT("disponible_des_que_votre_page_inr_dfa63b10") },
-    { key: "siteInrcy", label: i18nT("site_inrcy_57016d6f"), connected: canShareChannel(channels.siteInrcy), helper: i18nT("disponible_si_le_site_inrcy_est_e0e8f37c") },
+
     { key: "siteWeb", label: i18nT("site_web_7e78af33"), connected: canShareChannel(channels.siteWeb), helper: i18nT("disponible_si_le_site_web_est_8e4d92e0") },
     { key: "googleBusiness", label: i18nT("google_business_a605b655"), connected: canShareChannel(channels.googleBusiness), helper: i18nT("disponible_si_google_business_est_connecte_39bbde49") },
     { key: "facebook", label: i18nT("facebook_82da67b2"), connected: canShareChannel(channels.facebook), helper: i18nT("disponible_si_la_page_facebook_est_8a5a0eb7") },
@@ -890,7 +886,6 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
-
       <div style={stepCardStyle("#a78bfa")}>
         <InrBadgeStepHeader
           step={3}
@@ -1011,7 +1006,6 @@ export default function InrBadgeSettingsContent({
           </div>
         </div>
       )}
-
 
       {notice ? <div style={noticeStyle}>{notice}</div> : null}
 

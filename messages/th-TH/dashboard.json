@@ -83,7 +83,6 @@
       "rgpd": "ข้อมูลของฉัน (GDPR)",
       "mails": "การตั้งค่าอีเมล",
       "agenda": "การตั้งค่า iNr’Calendar",
-      "site_inrcy": "การกำหนดค่า — ไซต์ iNrCy",
       "site_web": "การกำหนดค่า — เว็บไซต์",
       "instagram": "การกำหนดค่า — Instagram",
       "linkedin": "การกำหนดค่า — LinkedIn",
@@ -307,13 +306,6 @@
       "view": "เปิด iNr’Send",
       "connect": "กำหนดค่า"
     },
-    "site_inrcy": {
-      "name": "เว็บไซต์ iNrCy",
-      "description": "เครื่องนำทางของคุณ ⚡",
-      "view": "ดูเว็บไซต์",
-      "connect": "เชื่อมต่อ Google Analytics",
-      "siteOnlyTitle": "ใช้ได้เฉพาะในกรณีที่คุณมีไซต์ iNrCy"
-    },
     "site_web": {
       "name": "เว็บไซต์",
       "description": "แปลงผู้เข้าชมของคุณ 💡",
@@ -441,7 +433,7 @@
     "openDescription": "เปลี่ยนความเชี่ยวชาญของคุณให้เป็นเนื้อหาที่แม่นยำ ละเอียด และตรงกับธุรกิจมากยิ่งขึ้น",
     "contentLengthTitle": "ความยาวของเนื้อหา",
     "webLengthLabel": "เว็บไซต์ + iNr’Search",
-    "webLengthHint": "ควบคุมเว็บไซต์ iNrCy เว็บไซต์ภายนอก และ iNr’Search",
+    "webLengthHint": "ควบคุมเว็บไซต์ เว็บไซต์ภายนอก และ iNr’Search",
     "socialLengthLabel": "โซเชียลเน็ตเวิร์ก + Google Business",
     "socialLengthHint": "ควบคุม Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest และ Google Business",
     "lengthAdapted": "ปรับตามช่องทาง — AI เลือกให้",

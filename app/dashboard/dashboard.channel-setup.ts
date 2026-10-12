@@ -1,5 +1,5 @@
 export const DASHBOARD_CHANNEL_SETUP = [
-  // iNr'Badge et le Site iNrCy restent bien présents dans le bilan complet,
+  // iNr'Badge et le Site Web restent bien présents dans le bilan complet,
   // mais ne font pas partie des 11 connexions qui alimentent la jauge Canaux.
   { key: "inrbadge", weight: 0, createHref: null },
   { key: "site_web", weight: 15, createHref: null },
@@ -13,7 +13,7 @@ export const DASHBOARD_CHANNEL_SETUP = [
   { key: "pinterest", weight: 6, createHref: "https://www.pinterest.com/business/create/" },
   { key: "x", weight: 6, createHref: "https://x.com/i/flow/signup" },
   { key: "mails", weight: 7, createHref: null },
-  { key: "site_inrcy", weight: 0, createHref: null },
+
 ] as const;
 
 export type DashboardSetupChannelKey = (typeof DASHBOARD_CHANNEL_SETUP)[number]["key"];

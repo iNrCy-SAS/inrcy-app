@@ -10,7 +10,7 @@ const dashboard = read("app/dashboard/DashboardClient.tsx");
 const profileBridge = read("app/dashboard/_components/ProfileRealtimeBridge.tsx");
 
 test("dashboard connection realtime is scoped to the active account", () => {
-  for (const table of ["integrations", "pro_tools_configs", "inrcy_site_configs"]) {
+  for (const table of ["integrations", "pro_tools_configs"]) {
     assert.match(
       dashboard,
       new RegExp(`table: "${table}", filter: userFilter`),

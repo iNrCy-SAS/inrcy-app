@@ -17,18 +17,7 @@ import type {
 export type AutomationKey = "publish" | "grow" | "loyalty" | "stats";
 
 export type ChannelKey =
-  | "siteInrcy"
-  | "siteWeb"
-  | "inrSearch"
-  | "gmb"
-  | "facebook"
-  | "instagram"
-  | "linkedin"
-  | "x"
-  | "tiktok"
-  | "youtube"
-  | "pinterest"
-  | "mails";
+  "siteWeb" | "inrSearch" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube" | "pinterest" | "mails";
 
 export type PublishMediaMutation = "append" | "replace" | "remove";
 

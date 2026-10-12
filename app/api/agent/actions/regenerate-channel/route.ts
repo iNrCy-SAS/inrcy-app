@@ -1,3 +1,4 @@
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
@@ -53,7 +54,6 @@ const REVIEWABLE_STATUSES = new Set([
   "failed",
 ]);
 const uiChannelAliases: Record<string, PublishChannelKey> = {
-  siteInrcy: "inrcy_site",
   siteWeb: "site_web",
   inrSearch: "inr_search",
   youtube: "youtube_shorts",
@@ -75,7 +75,7 @@ const allowedAgentThemes = new Set<RegenerationAgentTheme>(
 );
 
 function normalizeRequestedChannel(value: unknown): PublishChannelKey | null {
-  const raw = cleanText(value, 80);
+  const raw = canonicalSiteWebChannel(cleanText(value, 80));
   return uiChannelAliases[raw] || cleanPublishChannel(raw);
 }
 

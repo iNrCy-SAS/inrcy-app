@@ -249,8 +249,8 @@ export default function usePublishImageController({
 
   useEffect(() => {
     if (!imageAdapterChannels.length) {
-      setActiveImageChannel("inrcy_site");
-      setActiveCard("inrcy_site");
+      setActiveImageChannel("site_web");
+      setActiveCard("site_web");
       return;
     }
     if (!imageAdapterChannels.includes(activeImageChannel)) {

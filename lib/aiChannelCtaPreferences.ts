@@ -1,9 +1,9 @@
 import type { BoosterChannelKey, BoosterCtaMode } from "./boosterCta.ts";
 import { normalizeBoosterWhatsAppPhone } from "./boosterWhatsappCta.ts";
+import { normalizeSiteWebChannelMap } from "./siteWebChannel.ts";
 
 /** iNr'Search is excluded because its publications do not expose a CTA. */
 export const AI_CTA_CHANNELS = [
-  { key: "inrcy_site", label: "Site iNrCy" },
   { key: "site_web", label: "Site web" },
   { key: "gmb", label: "Google Business" },
   { key: "facebook", label: "Facebook" },
@@ -28,7 +28,6 @@ export type AiChannelCtaMap = Partial<Record<AiCtaChannel, AiChannelCtaConfig>>;
 export type AiChannelCtaDestinations = {
   preferredWebsiteUrl?: string | null;
   siteWebUrl?: string | null;
-  inrcySiteUrl?: string | null;
   phone?: string | null;
 };
 
@@ -44,7 +43,6 @@ const CHOICE_MODES: Record<AiCtaChoice, AiChannelCtaConfig["mode"]> = {
 // Keep this pure so account migration works in the browser and in Node's
 // standalone setup checks. These are the CTA-capable modes of boosterCta.ts.
 const MODES_BY_CHANNEL: Record<AiCtaChannel, readonly AiChannelCtaConfig["mode"][]> = {
-  inrcy_site: ["website", "call", "custom"],
   site_web: ["website", "call", "custom"],
   gmb: ["website", "call", "custom"],
   facebook: ["website", "call", "message", "custom"],
@@ -103,7 +101,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 /** Accept only explicit, usable, channel-compatible selections; never invent a CTA. */
 export function normalizeAiChannelCtaMap(value: unknown): AiChannelCtaMap {
-  const source = asRecord(value);
+  const source = normalizeSiteWebChannelMap(value);
   const normalized: AiChannelCtaMap = {};
 
   for (const { key } of AI_CTA_CHANNELS) {
@@ -139,11 +137,9 @@ export function isAiChannelCtaComplete(
   const normalized = normalizeAiChannelCtaMap({ [channel]: config })[channel];
   if (!normalized) return false;
   if (normalized.choice === "site" || normalized.choice === "devis") {
-    const profileUrl = channel === "inrcy_site"
-      ? destinations?.inrcySiteUrl || destinations?.preferredWebsiteUrl
-      : channel === "site_web"
+    const profileUrl = channel === "site_web"
         ? destinations?.siteWebUrl || destinations?.preferredWebsiteUrl
-        : destinations?.preferredWebsiteUrl || destinations?.siteWebUrl || destinations?.inrcySiteUrl;
+        : destinations?.preferredWebsiteUrl || destinations?.siteWebUrl;
     return Boolean(normalized.url || normalizeCtaWebsiteUrl(profileUrl));
   }
   if (normalized.choice === "appeler") {

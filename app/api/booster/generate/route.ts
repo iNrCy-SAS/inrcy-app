@@ -1,3 +1,4 @@
+import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { after, NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
@@ -296,7 +297,6 @@ type BoosterVideoContext = {
 type JsonRecord = Record<string, unknown>;
 
 const allowedChannels: BoosterChannels[] = [
-  "inrcy_site",
   "site_web",
   "inr_search",
   "gmb",
@@ -319,7 +319,7 @@ const allowedThemes: BoosterTheme[] = [
   "autre",
 ];
 const allowedStyles: BoosterStyle[] = ["sobre", "equilibre", "dynamique"];
-const siteChannels = new Set<BoosterChannels>(["inrcy_site", "site_web", "inr_search"]);
+const siteChannels = new Set<BoosterChannels>(["site_web", "inr_search"]);
 const AI_IMAGE_MAX_COUNT = 5;
 const AI_IMAGE_MAX_DATA_URL_LENGTH = 3_500_000;
 const AI_IMAGE_MAX_TOTAL_DATA_URL_LENGTH = 10_000_000;
@@ -519,7 +519,7 @@ Règles vidéo obligatoires :
 - Pour Instagram et Facebook : ton plus direct, dynamique et immersif.
 - Pour LinkedIn : transformer le support vidéo en preuve de méthode, sérieux ou expertise.
 - Pour Google Business : rester sobre, factuel et local.
-- Pour Site iNrCy / Site web : utiliser la vidéo comme preuve de terrain, sans affirmer de détails non fournis.`;
+- Pour Site web : utiliser la vidéo comme preuve de terrain, sans affirmer de détails non fournis.`;
 }
 
 const handler = async (req: Request) => {
@@ -588,7 +588,7 @@ const handler = async (req: Request) => {
     }
     const requestParseStartedAt = Date.now();
     const parsedRequest = await readBoosterGenerationRequest(req);
-    const body = parsedRequest.body as Payload;
+    const body = normalizeSiteWebPublicationPayload(parsedRequest.body) as Payload;
     const generationRequestId = normalizeBoosterGenerationRequestId(
       body.generationRequestId,
     );

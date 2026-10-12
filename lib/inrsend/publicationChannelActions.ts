@@ -1,3 +1,7 @@
+import { normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
+import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
+import { primarySiteWebArticle, siteWebArticleIdsFromPayload, siteWebImageMediaPatch } from "@/lib/siteWebPublications";
+import { loadSiteWebPublicationArticles, updateSiteWebPublicationArticles, deleteSiteWebPublicationArticles } from "@/lib/inrsend/siteWebArticleActions";
 import { getTranslations } from "next-intl/server";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
@@ -92,11 +96,10 @@ function gmbAcceptedImageCount(accepted: number, expected: number) {
   return `Google Business a publié ${accepted} image(s) conforme(s) sur ${expected}.`;
 }
 
-export type ChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "pinterest";
+export type ChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "pinterest";
 type JsonRecord = Record<string, unknown>;
 
 const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
-  inrcy_site: "site_inrcy",
   site_web: "site_web",
   inr_search: "inr_search",
   gmb: "gmb",
@@ -109,7 +112,6 @@ const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
 };
 
 const CHANNEL_LABELS: Record<ChannelKey, string> = {
-  inrcy_site: "Site iNrCy",
   site_web: "Site web",
   inr_search: "iNr'Search",
   gmb: "Google Business",
@@ -673,8 +675,8 @@ function getRenderedImageUrl(value: unknown): string {
 }
 
 function getChannelImageSet(eventPayload: JsonRecord, publication: JsonRecord, channel: ChannelKey): ImageSet {
-  const postByChannel = asRecord(eventPayload.postByChannel);
-  const fallbackChannelPost = channel === "inrcy_site" ? postByChannel.site_web : channel === "site_web" ? postByChannel.inrcy_site : channel === "inr_search" ? (postByChannel.site_web || postByChannel.inrcy_site) : null;
+  const postByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
+  const fallbackChannelPost = channel === "inr_search" ? postByChannel.site_web : null;
   const raw = asRecord(postByChannel[channel] ?? fallbackChannelPost);
   const publicationImages = Array.isArray(publication.images)
     ? publication.images.map((value) => String(value || "").trim()).filter(Boolean)
@@ -724,8 +726,8 @@ function getChannelImageSet(eventPayload: JsonRecord, publication: JsonRecord, c
 }
 
 function getChannelEditableAttachments(eventPayload: JsonRecord, publication: JsonRecord, channel: ChannelKey): EditableImageAttachment[] {
-  const postByChannel = asRecord(eventPayload.postByChannel);
-  const fallbackChannelPost = channel === "inrcy_site" ? postByChannel.site_web : channel === "site_web" ? postByChannel.inrcy_site : channel === "inr_search" ? (postByChannel.site_web || postByChannel.inrcy_site) : null;
+  const postByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
+  const fallbackChannelPost = channel === "inr_search" ? postByChannel.site_web : null;
   const raw = asRecord(postByChannel[channel] ?? fallbackChannelPost);
   const imageSet = getChannelImageSet(eventPayload, publication, channel);
   const rawAttachments = Array.isArray(raw.attachments) ? raw.attachments : [];
@@ -889,7 +891,7 @@ function firstVideoAttachment(...candidates: unknown[]): PersistedVideoAttachmen
 }
 
 function getPublicationVideo(eventPayload: JsonRecord, publication: JsonRecord, channel?: ChannelKey): PersistedVideoAttachment | null {
-  const postByChannel = asRecord(eventPayload.postByChannel);
+  const postByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
   const channelPost = channel ? asRecord(postByChannel[channel]) : {};
   const post = asRecord(eventPayload.post);
   const publicationMetadata = asRecord(publication.media_metadata);
@@ -919,14 +921,14 @@ function getPublicationVideo(eventPayload: JsonRecord, publication: JsonRecord, 
 }
 
 function getEventPublicationMediaType(eventPayload: JsonRecord, publication: JsonRecord, channel?: ChannelKey): PublicationMediaType {
-  const postByChannel = asRecord(eventPayload.postByChannel);
+  const postByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
   const channelPost = channel ? asRecord(postByChannel[channel]) : {};
   return normalizePublicationMediaType(channelPost.mediaType || eventPayload.mediaType || eventPayload.media_type || publication.media_type || (getPublicationVideo(eventPayload, publication, channel) ? "video" : "images"));
 }
 
 function getChannelPost(eventPayload: JsonRecord, publication: JsonRecord, channel: ChannelKey): PostPayload {
-  const postByChannel = asRecord(eventPayload.postByChannel);
-  const fallbackChannelPost = channel === "inrcy_site" ? postByChannel.site_web : channel === "site_web" ? postByChannel.inrcy_site : channel === "inr_search" ? (postByChannel.site_web || postByChannel.inrcy_site) : null;
+  const postByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
+  const fallbackChannelPost = channel === "inr_search" ? postByChannel.site_web : null;
   const raw = asRecord(postByChannel[channel] ?? fallbackChannelPost ?? eventPayload.post);
   const eventPost = asRecord(eventPayload.post);
   const publicationTags = Array.isArray(publication.hashtags) ? publication.hashtags : [];
@@ -963,7 +965,7 @@ async function getLatestIntegrationRow(userId: string, provider: string, source:
   return Array.isArray(data) ? data[0] ?? null : null;
 }
 
-async function loadPublicationContext(userId: string, publicationId: string) {
+async function loadPublicationContext(userId: string, publicationId: string, channel?: ChannelKey) {
   const { data: publication, error: publicationError } = await supabaseAdmin
     .from("publications")
     .select("id,user_id,title,content,cta,hashtags,images,idea,created_at,media_type,video_url,video_path,video_mime,video_size,video_duration_seconds,video_thumbnail_url,media_metadata")
@@ -986,7 +988,39 @@ async function loadPublicationContext(userId: string, publicationId: string) {
   if (eventsError) throw eventsError;
 
   const event = ((events || []) as AppEventRow[]).find((row) => String(asRecord(row.payload).publication_id || "") === publicationId) ?? null;
-  const eventPayload = asRecord(event?.payload);
+  const rawEventPayload = asRecord(event?.payload);
+  const eventPayload = normalizeSiteWebPublicationPayload(rawEventPayload);
+  const siteArticles = channel === "site_web"
+    ? await loadSiteWebPublicationArticles(supabaseAdmin, userId, publicationId, rawEventPayload)
+    : [];
+  if (channel === "site_web") {
+    const { data: siteConfig, error: siteConfigError } = await supabaseAdmin.from("pro_tools_configs")
+      .select("settings").eq("user_id", userId).maybeSingle();
+    if (siteConfigError) throw siteConfigError;
+    const primaryUrl = String(asRecord(asRecord(asRecord(siteConfig).settings).site_web).url || "");
+    const primaryArticle = primarySiteWebArticle(siteArticles, primaryUrl);
+    const rawResults = asRecord(rawEventPayload.results);
+    const primaryEntry = Object.entries(rawResults).find(([key, result]) =>
+      canonicalSiteWebChannel(key) === "site_web" &&
+      (asRecord(result).external_id === primaryArticle?.id ||
+        (Array.isArray(asRecord(result).external_ids) && (asRecord(result).external_ids as unknown[]).includes(primaryArticle?.id))));
+    if (primaryEntry) {
+      for (const [field, value] of Object.entries(rawEventPayload)) {
+        if (field.endsWith("ByChannel") && Object.hasOwn(asRecord(value), primaryEntry[0])) {
+          eventPayload[field] = { ...asRecord(eventPayload[field]), site_web: asRecord(value)[primaryEntry[0]] };
+        }
+      }
+    }
+    eventPayload.results = {
+      ...asRecord(eventPayload.results),
+      site_web: {
+        ...asRecord(asRecord(eventPayload.results).site_web),
+        ...(primaryEntry ? asRecord(primaryEntry[1]) : {}),
+        ...(primaryArticle ? { external_id: primaryArticle.id, external_url: primaryArticle.external_url } : {}),
+        external_ids: Array.from(new Set([...siteWebArticleIdsFromPayload(rawEventPayload), ...siteArticles.map((article) => String(article.id))])),
+      },
+    };
+  }
 
   const { data: delivery, error: deliveryError } = await supabaseAdmin
     .from("publication_deliveries")
@@ -1000,6 +1034,7 @@ async function loadPublicationContext(userId: string, publicationId: string) {
     publication: asRecord(publication),
     event,
     eventPayload,
+    siteArticleIds: siteArticles.map((article) => String(article.id)),
     deliveries: Array.isArray(delivery) ? delivery : [],
   };
 }
@@ -1465,14 +1500,12 @@ async function replaceChannelDelivery(params: {
     throw new Error(`${channelLabel} est désactivé dans Bubble Access.`);
   }
 
-  const officialState = channel === "inrcy_site"
-    ? publicationStates.site_inrcy
-    : channel === "site_web"
+  const officialState = channel === "site_web"
       ? publicationStates.site_web
       : channel === "inr_search"
         ? publicationStates.inr_search
         : publicationStates[channel];
-  const officiallyConnected = channel === "inrcy_site" || channel === "site_web"
+  const officiallyConnected = channel === "site_web"
     ? officialState.connected === true
     : isOfficialPublicationChannelConnected(officialState);
   if (!officiallyConnected) {
@@ -1511,28 +1544,20 @@ async function replaceChannelDelivery(params: {
     .filter(Boolean)
     .slice(0, 5);
 
-  const [profileRes, inrcyCfgRes, proCfgRes] = await Promise.all([
+  const [profileRes, proCfgRes] = await Promise.all([
     supabaseAdmin.from("profiles").select("phone").eq("user_id", userId).maybeSingle(),
-    supabaseAdmin.from("inrcy_site_configs").select("site_url").eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
   ]);
   const profile = asRecord(profileRes.data);
-  const inrcyCfg = asRecord(inrcyCfgRes.data);
   const proCfg = asRecord(proCfgRes.data);
   const proSettings = asRecord(proCfg.settings);
   const proSiteWeb = asRecord(proSettings.site_web);
   const siteWebUrl = String(proSiteWeb.url || "").trim();
-  const inrcySiteUrl = String(inrcyCfg.site_url || "").trim();
   const phone = String(profile.phone ?? "").trim();
   const publicationCtaDefaults: BoosterCtaDefaults = {
-    preferredWebsiteUrl: siteWebUrl || inrcySiteUrl,
-    preferredWebsiteLabel: siteWebUrl
-      ? "Site web connecté"
-      : inrcySiteUrl
-        ? "Site iNrCy"
-        : "",
+    preferredWebsiteUrl: siteWebUrl,
+    preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "",
     siteWebUrl,
-    inrcySiteUrl,
     phone,
     preferredCta: "site",
   };
@@ -1560,7 +1585,7 @@ async function replaceChannelDelivery(params: {
     };
   }
 
-  if (channel === "inrcy_site" || channel === "site_web") {
+  if (channel === "site_web") {
     const siteImages = isVideoPublication
       ? []
       : siteCardImageUrls.length
@@ -1570,7 +1595,7 @@ async function replaceChannelDelivery(params: {
       ? 0
       : getExpectedImageCount(resolvedImageSet);
     const siteImageWarning = getImagePublicationWarning({
-      channelLabel: channel === "inrcy_site" ? "Le site iNrCy" : "Le site web",
+      channelLabel: "Le site web",
       expectedCount: expectedSiteImages,
       publishedCount: siteImages.length,
     });
@@ -1596,8 +1621,9 @@ async function replaceChannelDelivery(params: {
           : null;
       },
     );
-    const imageMediaMetadata = {
+    const imageMediaMetadata: JsonRecord = {
       ...asRecord(publication.media_metadata),
+      publication_id: publicationId,
     };
     delete imageMediaMetadata.imageInteractions;
     delete imageMediaMetadata.image_interactions;
@@ -1614,9 +1640,9 @@ async function replaceChannelDelivery(params: {
     // The database write may commit even if its response is lost. From this
     // exact point, the new image URLs must be treated as referenced.
     markAssetsMayBeInUse();
-    const { data: article, error: articleError } = await supabaseAdmin
-      .from("site_articles")
-      .update({
+    const updatedArticles = await updateSiteWebPublicationArticles(supabaseAdmin, {
+      userId, publicationId: String(publicationId || ""),
+      patch: {
         title: nextPost.title,
         content: nextPost.content,
         cta: buildCtaTextForChannel(channel, nextPost, { websiteUrl, phone }),
@@ -1631,20 +1657,15 @@ async function replaceChannelDelivery(params: {
               video_size: video.size,
               video_duration_seconds: video.duration,
               video_thumbnail_url: video.thumbnailUrl,
-              media_metadata: { video },
+              media_metadata: { video, publication_id: publicationId },
             }
-          : { media_metadata: imageMediaMetadata }),
-      })
-      .eq("id", previousExternalId || "")
-      .eq("user_id", userId)
-      .eq("source", channel)
-      .select("id")
-      .maybeSingle();
-
-    if (articleError) throw articleError;
-    if (!article?.id) throw new Error("Article du site introuvable.");
+          : siteWebImageMediaPatch(String(publicationId || ""), imageMediaMetadata)),
+      },
+    });
+    const updatedPrimaryArticle = primarySiteWebArticle(updatedArticles as JsonRecord[], siteWebUrl);
     return {
-      externalId: article.id,
+      externalId: String(updatedPrimaryArticle?.id || "") || null,
+      externalIds: updatedArticles.map((article) => String(article.id)),
       status: "delivered",
       error: null,
       warning: siteImageWarning?.code || null,
@@ -2713,12 +2734,11 @@ async function removeChannelDelivery(params: {
     return;
   }
 
-  if (channel === "inrcy_site" || channel === "site_web") {
-    if (previousExternalId) {
-      const { error } = await supabaseAdmin.from("site_articles").delete().eq("id", previousExternalId).eq("user_id", userId).eq("source", channel);
-      if (error) throw error;
-    }
-    return;
+  if (channel === "site_web") {
+    const deletedArticles = await deleteSiteWebPublicationArticles(supabaseAdmin, {
+      userId, publicationId: String(publicationId || ""),
+    });
+    return { externalIds: deletedArticles.map((article) => String(article.id)) };
   }
 
   const [fbRow, _gmbRow, igRow, liRow] = await Promise.all([
@@ -2821,7 +2841,7 @@ function buildUpdatedPayload(params: {
     updated_at: new Date().toISOString(),
   };
 
-  const currentPostByChannel = asRecord(eventPayload.postByChannel);
+  const currentPostByChannel = normalizeSiteWebChannelMap(eventPayload.postByChannel);
   const currentChannelPost = asRecord(currentPostByChannel[channel]);
   const rootVideoSettings = buildVideoSettingsByChannel({
     channels: [channel],
@@ -2903,7 +2923,7 @@ function buildUpdatedPayload(params: {
       ...currentPostByChannel,
       [channel]: nextChannelPost,
     },
-    post: channel === "inrcy_site" || channel === "site_web" || channel === "inr_search" ? asRecord(eventPayload.post) : eventPayload.post,
+    post: channel === "site_web" || channel === "inr_search" ? asRecord(eventPayload.post) : eventPayload.post,
     results,
     mediaType: isVideoPublication ? "video" : (eventPayload.mediaType || eventPayload.media_type || "images"),
     ...(isVideoPublication && video ? { video, sourceVideo: originalVideoForWork || asRecord(video).sourceVideo || asRecord(video).source_video || null } : {}),
@@ -3055,12 +3075,12 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         });
       }
 
-      const ctx = await loadPublicationContext(activeUserId, publicationId);
+      const ctx = await loadPublicationContext(activeUserId, publicationId, channel);
       if (!ctx) return jsonUserFacingError("Publication introuvable.", { status: 404, code: "publication_not_found" });
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
-      if (isDeletedResult(channelResult)) {
+      if (isDeletedResult(channelResult) && !(channel === "site_web" && ctx.siteArticleIds.length)) {
         return jsonUserFacingError("Ce canal est déjà supprimé.", { status: 409, code: "channel_already_deleted" });
       }
 
@@ -3173,7 +3193,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       );
       unpersistedCreatedStoragePaths = imageSet?.createdStoragePaths || [];
 
-      const previousExternalId = String(body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const previousExternalId = String(channel === "site_web" ? channelResult.external_id ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
       const replaceResult = await replaceChannelDelivery({
         userId: activeUserId,
         publicationId,
@@ -3220,6 +3240,10 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             .filter(Boolean)
             .join(" ") || null,
         resultMeta: {
+          ...(channel === "site_web" ? { external_ids: Array.from(new Set([
+            ...siteWebArticleIdsFromPayload(ctx.eventPayload),
+            ...(Array.isArray(asRecord(replaceResult).externalIds) ? asRecord(replaceResult).externalIds as unknown[] : []),
+          ])) } : {}),
           ...((replaceResult as JsonRecord).mediaRepaired
             ? { media_repaired: true }
             : {}),
@@ -3302,7 +3326,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           return jsonUserFacingError(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE, { status: 409, code: "tiktok_external_action_required" });
         }
 
-        const ctx = await loadPublicationContext(activeUserId, publicationId);
+        const ctx = await loadPublicationContext(activeUserId, publicationId, channel);
         if (!ctx) return jsonUserFacingError("Publication introuvable.", { status: 404, code: "publication_not_found" });
 
         const results = asRecord(ctx.eventPayload.results);
@@ -3339,21 +3363,29 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           payload: nextPayload,
         });
       }
-      const ctx = await loadPublicationContext(activeUserId, publicationId);
+      const ctx = await loadPublicationContext(activeUserId, publicationId, channel);
       if (!ctx) return jsonUserFacingError("Publication introuvable.", { status: 404, code: "publication_not_found" });
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
-      const previousExternalId = String(body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const previousExternalId = String(channel === "site_web" ? channelResult.external_id ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
 
-      if (isDeletedResult(channelResult)) {
+      if (isDeletedResult(channelResult) && !(channel === "site_web" && ctx.siteArticleIds.length)) {
         const payload = buildDeletedPayload({ eventPayload: ctx.eventPayload, channel, previousExternalId });
         return NextResponse.json({ ok: true, deleted: true, removed_publication: false, payload });
       }
 
-      await removeChannelDelivery({ userId: activeUserId, publicationId, channel, previousExternalId, eventPayload: ctx.eventPayload });
+      const deleteResult = await removeChannelDelivery({ userId: activeUserId, publicationId, channel, previousExternalId, eventPayload: ctx.eventPayload });
 
       const nextPayload = buildDeletedPayload({ eventPayload: ctx.eventPayload, channel, previousExternalId });
+      if (channel === "site_web") {
+        const deletedIds = asRecord(deleteResult).externalIds;
+        const result = asRecord(asRecord(nextPayload.results).site_web);
+        result.external_ids = Array.from(new Set([
+          ...(Array.isArray(result.external_ids) ? result.external_ids : []),
+          ...(Array.isArray(deletedIds) ? deletedIds : []),
+        ]));
+      }
       await persistEventPayload(activeUserId, publicationId, nextPayload);
       await syncDeliveryRow({ userId: activeUserId, publicationId, channel, status: "deleted", error: null });
       if (channel === "inr_search") {

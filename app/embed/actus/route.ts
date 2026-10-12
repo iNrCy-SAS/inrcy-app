@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
-import { resolveWidgetUserIdFromDomain, normalizeWidgetDomain } from "@/lib/widgets/domainRegistry";
+import { resolveWidgetUserIdFromDomain, normalizeWidgetDomain, normalizeWidgetSource, type WidgetSource } from "@/lib/widgets/domainRegistry";
 import { renderEmbedHtml, type DesignMode, type FontMode, type LayoutMode, type ThemeMode } from "./_lib/render";
+import { loadSiteWebWidgetArticles } from "@/lib/widgets/siteWebArticles";
 
 export const runtime = "nodejs";
 
@@ -79,8 +80,8 @@ function clampAccent(value: string | null) {
 }
 
 
-async function fetchArticles(domain: string, source: string, limit: number) {
-  const userId = await resolveWidgetUserIdFromDomain(domain, source as "inrcy_site" | "site_web");
+async function fetchArticles(domain: string, source: WidgetSource, limit: number) {
+  const userId = await resolveWidgetUserIdFromDomain(domain, source);
   if (!userId) return [];
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -88,16 +89,7 @@ async function fetchArticles(domain: string, source: string, limit: number) {
   if (!url || !key) throw new Error("Configuration Supabase incomplète côté serveur.");
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
-  const { data, error } = await supabase
-    .from("site_articles")
-    .select("id, created_at, title, content, cta, images, media_type, video_url, video_path, video_mime, video_size, video_duration_seconds, video_thumbnail_url, media_metadata")
-    .eq("user_id", userId)
-    .eq("source", source)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return (data || []) as Array<Record<string, unknown>>;
+  return loadSiteWebWidgetArticles(supabase, userId, limit);
 }
 
 function htmlResponse(html: string, status = 200, _domain?: string | null) {
@@ -117,7 +109,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const domain = normalizeWidgetDomain(searchParams.get("domain"));
-    const source = (searchParams.get("source") || "site_web").trim();
+    const source = normalizeWidgetSource(searchParams.get("source") || "site_web");
     const title = (searchParams.get("title") || "Actualités").trim();
     const limit = clampLimit(searchParams.get("limit"));
     const layout = clampLayout(searchParams.get("layout"));
@@ -129,7 +121,7 @@ export async function GET(req: Request) {
     const token = searchParams.get("token") || "";
 
     if (!domain) return htmlResponse(renderEmbedHtml({ title, articles: [], layout, font, design, theme, accent, frameId }), 400, domain);
-    if (source !== "inrcy_site" && source !== "site_web") return htmlResponse(renderEmbedHtml({ title, articles: [], layout, font, design, theme, accent, frameId }), 400, domain);
+    if (!source) return htmlResponse(renderEmbedHtml({ title, articles: [], layout, font, design, theme, accent, frameId }), 400, domain);
     if (!token) return htmlResponse(renderEmbedHtml({ title, articles: [], layout, font, design, theme, accent, frameId }), 401, domain);
 
     const signingSecret = process.env.INRCY_WIDGETS_SIGNING_SECRET;
@@ -137,7 +129,7 @@ export async function GET(req: Request) {
 
     const tok = verifyWidgetToken(token, signingSecret);
     const tokDomain = normalizeWidgetDomain(tok.domain);
-    const tokSource = String(tok.source || "").trim();
+    const tokSource = normalizeWidgetSource(tok.source);
     if (tokDomain !== domain || tokSource !== source) {
       return htmlResponse(renderEmbedHtml({ title, articles: [], layout, font, design, theme, accent, frameId }), 403, tokDomain || domain);
     }

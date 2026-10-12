@@ -107,8 +107,7 @@ export function hasTikTokStatsSignal(metrics: any) {
   ].some((key) => safeNum(totals[key]) > 0 || Object.prototype.hasOwnProperty.call(totals, key));
 }
 
-
-const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["inr_search", "site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
+const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["inr_search",  "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
 
 function normalizeInrcyActivityCount(value: any): InrcyActivityCount {
   return {
@@ -213,9 +212,7 @@ function firstSix(items: CubeMetricItem[]) {
 }
 
 function isWebsiteConnected(cubeKey: CubeKey, ov: Overview) {
-  if (cubeKey === "site_inrcy") {
-    return !!ov?.sources?.site_inrcy?.connected?.ga4 || !!ov?.sources?.site_inrcy?.connected?.gsc;
-  }
+
   if (cubeKey === "site_web") {
     return !!ov?.sources?.site_web?.connected?.ga4 || !!ov?.sources?.site_web?.connected?.gsc;
   }
@@ -369,8 +366,8 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
 
   if (!isWebsiteConnected(cubeKey, ov)) return [];
   const totals = ov?.totals || ({} as any);
-  const gscConnected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.gsc : !!ov.sources?.site_web?.connected?.gsc;
-  const ga4Connected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.ga4 : !!ov.sources?.site_web?.connected?.ga4;
+  const gscConnected = !!ov.sources?.site_web?.connected?.gsc;
+  const ga4Connected = !!ov.sources?.site_web?.connected?.ga4;
   if (gscConnected) {
     pushMetric(t("metric_google_impressions"), safeNum(totals.impressions), { available: true });
     pushMetric(t("metric_google_clicks"), safeNum(totals.clicks), { available: true });
@@ -540,8 +537,8 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
   const topPages = Array.isArray(ov.topPages) ? ov.topPages : [];
   const intentQueryCount = queries.filter((q) => isIntentQuery(q.query) && (safeNum(q.clicks) > 0 || safeNum(q.impressions) > 0)).length;
   const contactViews = topPages.filter((page) => pageKind(page.path) === "contact").reduce((sum, page) => sum + safeNum(page.views), 0);
-  const gscConnected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.gsc : !!ov.sources?.site_web?.connected?.gsc;
-  const ga4Connected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.ga4 : !!ov.sources?.site_web?.connected?.ga4;
+  const gscConnected = !!ov.sources?.site_web?.connected?.gsc;
+  const ga4Connected = !!ov.sources?.site_web?.connected?.ga4;
   pushMetric(t("metric_contact_pages"), contactViews, { available: ga4Connected });
   pushMetric(t("metric_intent_queries"), intentQueryCount, { available: gscConnected });
   pushMetric(t("engagement_4b1f1c7b"), safeNum(totals.engagementRate) * 100, { available: ga4Connected, formatter: (value) => formatPercent(value, locale) });

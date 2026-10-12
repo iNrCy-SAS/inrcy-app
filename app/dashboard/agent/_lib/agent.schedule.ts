@@ -170,9 +170,9 @@ export function isScheduledStatsAction(action: AgentScheduledAction) {
 export function channelDisplayName(channel: string | null | undefined) {
   const normalized = String(channel || "").trim();
   const mapped: Record<string, ChannelKey> = {
-    inrcy_site: "siteInrcy",
-    site_inrcy: "siteInrcy",
-    siteInrcy: "siteInrcy",
+
+
+
     site_web: "siteWeb",
     siteWeb: "siteWeb",
     inr_search: "inrSearch",

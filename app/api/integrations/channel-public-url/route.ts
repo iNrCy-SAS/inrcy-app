@@ -7,7 +7,6 @@ import {
   type LinkedinPublicUrlTarget,
 } from "@/lib/channelPublicUrl";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
-import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { log } from "@/lib/observability/logger";
 import { requireUser } from "@/lib/requireUser";
 import { syncSitePresenceIntegrations } from "@/lib/sitePresenceSync";
@@ -37,7 +36,7 @@ const CHANNEL_PUBLIC_URL_INTEGRATION_MAPPINGS: Partial<
 
 function updateChannelSettings(
   root: Record<string, unknown>,
-  channel: Exclude<EditableChannelPublicUrlChannel, "site_inrcy">,
+  channel: EditableChannelPublicUrlChannel,
   url: string,
   target: LinkedinPublicUrlTarget,
 ) {
@@ -82,7 +81,7 @@ function updateChannelSettings(
 
 async function updateIntegrationSourceOfTruth(
   userId: string,
-  channel: Exclude<EditableChannelPublicUrlChannel, "site_inrcy" | "site_web">,
+  channel: Exclude<EditableChannelPublicUrlChannel, "site_web">,
   url: string,
   target: LinkedinPublicUrlTarget,
 ) {
@@ -150,64 +149,41 @@ export async function PATCH(request: Request) {
     }
 
     let mirrorSynced = true;
-    if (channel === "site_inrcy") {
-      const { data: profile, error: profileError } = await supabaseAdmin
-        .from("profiles")
-        .select("inrcy_site_ownership")
-        .eq("user_id", activeUserId)
-        .maybeSingle();
-      if (profileError) throw profileError;
-      if (!hasActiveInrcySite(asString(asRecord(profile).inrcy_site_ownership))) {
-        return NextResponse.json(
-          { ok: false, error: "Aucun site iNrCy actif n’est associé à ce compte.", errorCode: "site_ownership_required" },
-          { status: 403 },
-        );
-      }
-
-      const { error } = await supabaseAdmin
-        .from("inrcy_site_configs")
-        .upsert(
-          { user_id: activeUserId, site_url: normalized.url },
-          { onConflict: "user_id" },
-        );
-      if (error) throw error;
-    } else {
-      let sourceOfTruthUpdated = false;
-      if (channel !== "site_web") {
-        sourceOfTruthUpdated = await updateIntegrationSourceOfTruth(activeUserId, channel, normalized.url, target);
-      }
-
-      try {
-        const { data: currentConfig, error: readError } = await supabaseAdmin
-          .from("pro_tools_configs")
-          .select("settings")
-          .eq("user_id", activeUserId)
-          .maybeSingle();
-        if (readError) throw readError;
-
-        const root = asRecord(asRecord(currentConfig).settings);
-        const settings = updateChannelSettings(root, channel, normalized.url, target);
-        const { error: writeError } = await supabaseAdmin
-          .from("pro_tools_configs")
-          .upsert({ user_id: activeUserId, settings }, { onConflict: "user_id" });
-        if (writeError) throw writeError;
-      } catch (mirrorError) {
-        // Once provider metadata (the canonical source for connected social
-        // channels) is committed, reporting a 500 would invite a misleading
-        // retry even though the requested URL is already active. The mirror is
-        // still mandatory when no provider row exists and for site_web, where
-        // pro_tools_configs is itself the source of truth.
-        if (!sourceOfTruthUpdated) throw mirrorError;
-        mirrorSynced = false;
-        log.warn("channel_public_url_mirror_sync_failed", {
-          user_id: activeUserId,
-          channel,
-          error: mirrorError instanceof Error ? mirrorError.message : String(mirrorError || ""),
-        });
-      }
+    let sourceOfTruthUpdated = false;
+    if (channel !== "site_web") {
+      sourceOfTruthUpdated = await updateIntegrationSourceOfTruth(activeUserId, channel, normalized.url, target);
     }
 
-    if (channel === "site_inrcy" || channel === "site_web") {
+    try {
+      const { data: currentConfig, error: readError } = await supabaseAdmin
+        .from("pro_tools_configs")
+        .select("settings")
+        .eq("user_id", activeUserId)
+        .maybeSingle();
+      if (readError) throw readError;
+
+      const root = asRecord(asRecord(currentConfig).settings);
+      const settings = updateChannelSettings(root, channel, normalized.url, target);
+      const { error: writeError } = await supabaseAdmin
+        .from("pro_tools_configs")
+        .upsert({ user_id: activeUserId, settings }, { onConflict: "user_id" });
+      if (writeError) throw writeError;
+    } catch (mirrorError) {
+      // Once provider metadata (the canonical source for connected social
+      // channels) is committed, reporting a 500 would invite a misleading
+      // retry even though the requested URL is already active. The mirror is
+      // still mandatory when no provider row exists and for site_web, where
+      // pro_tools_configs is itself the source of truth.
+      if (!sourceOfTruthUpdated) throw mirrorError;
+      mirrorSynced = false;
+      log.warn("channel_public_url_mirror_sync_failed", {
+        user_id: activeUserId,
+        channel,
+        error: mirrorError instanceof Error ? mirrorError.message : String(mirrorError || ""),
+      });
+    }
+
+    if (channel === "site_web") {
       try {
         await syncSitePresenceIntegrations(activeUserId);
       } catch (syncError) {
