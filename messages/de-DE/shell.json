@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "Der Link darf keinen Benutzernamen und kein Passwort enthalten.",
   "channel_url_wrong_platform": "Dieser Link gehört nicht zu diesem Kanal.",
   "channel_url_save_failed": "Dieser Link kann derzeit nicht gespeichert werden.",
-  "channel_url_change_required": "Ändern Sie den Link, bevor Sie ihn speichern."
+  "channel_url_change_required": "Ändern Sie den Link, bevor Sie ihn speichern.",
+  "instagram_direct_connect": "Direkt mit Instagram verbinden",
+  "instagram_facebook_connect": "Über Facebook verbinden",
+  "instagram_direct_help": "Wählen Sie den direkten Zugang zu Ihrem professionellen Instagram-Konto oder den bisherigen Facebook-Ablauf. Der direkte Zugang erfordert keine Facebook-Seite.",
+  "instagram_direct_identity": "Professionelles Instagram-Konto direkt verbunden.",
+  "threads_connect_title": "Threads-Konto verbinden",
+  "threads_connect_help": "Erlauben Sie iNrCy, über die offizielle sichere Verbindung in Ihrem Threads-Konto zu veröffentlichen.",
+  "threads_checking": "Wird geprüft…",
+  "threads_status_error": "Die Threads-Verbindung konnte nicht geprüft werden.",
+  "threads_disconnect_error": "Threads konnte nicht getrennt werden.",
+  "threads_disconnected": "Threads-Konto getrennt.",
+  "threads_reconnect_help": "Erneuern Sie die Berechtigungen Ihres Kontos.",
+  "threads_identity_help": "Das Konto wird bei der offiziellen Verbindung ausgewählt.",
+  "threads_reconnect": "Threads erneut verbinden",
+  "threads_connect": "Threads verbinden",
+  "threads_view_profile": "Threads-Profil ansehen",
+  "threads_description": "Tauschen Sie sich mit Ihrer Community aus",
+  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten."
 }

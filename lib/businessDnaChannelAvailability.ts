@@ -3,6 +3,7 @@ export const BUSINESS_DNA_DASHBOARD_CHANNELS = [
   { key: "gmb", analyzable: true },
   { key: "facebook", analyzable: true },
   { key: "instagram", analyzable: true },
+  { key: "threads", analyzable: true },
   { key: "linkedin", analyzable: true },
   { key: "tiktok", analyzable: true },
   { key: "youtube_shorts", analyzable: true },
@@ -50,8 +51,9 @@ export function projectBusinessDnaDashboardChannelStatus(
 
 export function buildBusinessDnaDashboardChannelAvailability(args: {
   channelStates: Partial<Record<BusinessDnaDashboardChannelKey, DashboardConnectionLike>>;
+  metaPilotEnabled?: boolean;
 }): BusinessDnaDashboardChannelAvailability[] {
-  return BUSINESS_DNA_DASHBOARD_CHANNELS.map(({ key, analyzable }) => ({
+  return BUSINESS_DNA_DASHBOARD_CHANNELS.filter(({ key }) => key !== "threads" || args.metaPilotEnabled === true).map(({ key, analyzable }) => ({
     key,
     analyzable,
     status: projectBusinessDnaDashboardChannelStatus(args.channelStates[key]),

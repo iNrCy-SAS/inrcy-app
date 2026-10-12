@@ -114,6 +114,8 @@ export function buildDashboardPanelProps(a: any) {
   };
 
   const instagramPanelProps = {
+    instagramAuthMode: a.instagramAuthMode,
+    connectInstagramDirectAccount: a.connectInstagramDirectAccount,
     instagramConnected: a.instagramConnected,
     instagramAccountConnected: a.instagramAccountConnected,
     instagramConnectionStatus: a.instagramConnectionStatus,

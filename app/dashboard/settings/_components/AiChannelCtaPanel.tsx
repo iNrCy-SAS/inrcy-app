@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useLocale } from "next-intl";
 import {
-  AI_CTA_CHANNELS,
+  AI_CTA_CHANNELS as ALL_AI_CTA_CHANNELS,
   isAiChannelCtaComplete,
   type AiChannelCtaConfig,
   type AiChannelCtaDestinations,
@@ -135,9 +136,12 @@ function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDesti
 }
 
 export default function AiChannelCtaPanel({ value, onChange, disabled = false }: Props) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled);
   const language = useLocale().split("-")[0];
   const copy = language === "fr" ? COPY.fr : COPY.en;
-  const [activeChannel, setActiveChannel] = useState<AiCtaChannel>("site_web");
+  const [selectedActiveChannel, setActiveChannel] = useState<AiCtaChannel>("site_web");
+  const activeChannel = selectedActiveChannel === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveChannel;
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -168,6 +172,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
   const configuredCount = AI_CTA_CHANNELS.filter(({ key }) =>
     isAiChannelCtaComplete(key, value[key], destinations),
   ).length;
+  const configuredPercent = Math.round((configuredCount / AI_CTA_CHANNELS.length) * 100);
   const activeMeta = AI_CTA_CHANNELS.find(({ key }) => key === activeChannel)!;
   const activeIndex = AI_CTA_CHANNELS.findIndex(({ key }) => key === activeChannel);
   const navigate = (direction: -1 | 1) => {
@@ -257,9 +262,9 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
           <h2>{copy.title}</h2>
           <p>{copy.description}</p>
         </div>
-        <div className={styles.progress} aria-label={`${configuredCount * 10} %, ${configuredCount}/10 ${copy.progress}`}>
-          <strong>{configuredCount * 10}<small> %</small></strong>
-          <span>{configuredCount}/10 {copy.progress}</span>
+        <div className={styles.progress} aria-label={`${configuredPercent} %, ${configuredCount}/${AI_CTA_CHANNELS.length} ${copy.progress}`}>
+          <strong>{configuredPercent}<small> %</small></strong>
+          <span>{configuredCount}/{AI_CTA_CHANNELS.length} {copy.progress}</span>
         </div>
       </div>
 

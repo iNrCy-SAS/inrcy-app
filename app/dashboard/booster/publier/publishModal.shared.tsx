@@ -86,7 +86,7 @@ export type {
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =
-  "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
+  "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 export type DisplayKey = ChannelKey;
 
 // Ordre commun avec les bulles de canaux du dashboard.
@@ -97,6 +97,7 @@ export const BOOSTER_CHANNEL_ORDER: ChannelKey[] = [
   "inr_search",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -416,6 +417,7 @@ export const DISPLAY_LABELS: Record<DisplayKey, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -430,6 +432,7 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
   inr_search: "iNr'Search",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -482,6 +485,7 @@ export const CHANNEL_PRESETS: Record<ChannelKey, RenderPreset> = {
     defaultFit: "cover",
     defaultBlurBackground: false,
   },
+  threads: { width: 1080, height: 1080, defaultFit: "contain", defaultBlurBackground: false },
   linkedin: {
     width: 1200,
     height: 1200,
@@ -1245,6 +1249,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     totalMax: 2200,
     totalValue: (post, context) => buildInstagramPreviewCaption(post, context).length,
   },
+  threads: { title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.threads, content: 500, cta: 120, totalLabel: "Post Threads final", totalMax: 500, totalValue: (post, context) => getBoosterPublicationTextPreview("threads", post, context).count },
   linkedin: {
     title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.linkedin,
     content: 3000,
@@ -1459,6 +1464,7 @@ export function getLocalizedWebsiteSourceLabelForChannel(
 const CHANNEL_TOTAL_LABEL_MESSAGE_KEYS: Partial<Record<DisplayKey, string>> = {
   gmb: "resume_final_google_business_d9bf3960",
   instagram: "legende_instagram_finale_b89c3cc2",
+  threads: "threads_final_text",
   tiktok: "legende_tiktok_finale_4975393f",
   youtube_shorts: "legende_youtube_finale_11f26e6f",
   pinterest: "description_pinterest_finale_4d0327ff",

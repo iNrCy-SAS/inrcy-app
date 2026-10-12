@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import DeletionRequestForm from "./DeletionRequestForm";
 import styles from "./suppression-compte.module.css";
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default function SuppressionComptePage() {
+  const t = useTranslations("legal");
   return (
     <main className={styles.page}>
       <div className={styles.glowA} aria-hidden="true" />
@@ -34,6 +36,8 @@ export default function SuppressionComptePage() {
 
         <div className={styles.content}>
           <DeletionRequestForm />
+          <p className={styles.policyNote}>{t("suppression_meta_disconnect")}</p>
+          <p className={styles.policyNote}>{t("suppression_meta_request")}</p>
           <p className={styles.policyNote}>
             Certaines informations peuvent être conservées pendant la durée imposée par la loi.{" "}
             <Link href="/legal/confidentialite">Consulter la politique de confidentialité</Link>

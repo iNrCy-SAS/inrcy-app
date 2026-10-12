@@ -1,3 +1,7 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
+import { threadsPublish, buildThreadsMediaSourceIdentity } from "@/lib/threadsPublish";
 import { NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import {
@@ -80,6 +84,7 @@ import {
   buildBoosterHashtagLine,
   buildBoosterInstagramCaption,
   buildBoosterMessage,
+  buildBoosterThreadsPostText,
   buildBoosterNativeDestinationMessage,
   buildCtaTextForNativeDestination,
   buildCtaTextForChannel,
@@ -307,6 +312,7 @@ const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
   gmb: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   x: "x",
   tiktok: "tiktok",
@@ -320,6 +326,7 @@ const PUBLICATION_CHANNEL_LABELS: Record<ChannelKey, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -337,6 +344,7 @@ function getPublicationChannelState(
     case "gmb": return states.gmb;
     case "facebook": return states.facebook;
     case "instagram": return states.instagram;
+    case "threads": return states.threads;
     case "linkedin": return states.linkedin;
     case "x": return states.x;
     case "tiktok": return states.tiktok;
@@ -592,6 +600,23 @@ async function publishNowHandler(req: Request) {
     const postByChannel = ((body.postByChannel || {}) as PostByChannel) || {};
     const idea = String(body.idea || "").trim();
     const selected = normalizedChannels.channels;
+    const metaPilotCanPublish = () => cronUserId
+      ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId)
+      : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId);
+    // Refresh direct tokens before connection-state checks can reject expiry.
+    const directRows = await Promise.all([
+      selected.includes("threads") ? getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at") : Promise.resolve(null),
+      selected.includes("instagram") ? getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at") : Promise.resolve(null),
+    ]);
+    const pilotRequested = selected.includes("threads") || resolveInstagramAuthMode(asRecord(directRows[1]).meta) === "instagram_login";
+    if (pilotRequested && !(await metaPilotCanPublish())) return metaChannelPilotDeniedResponse();
+    for (const row of directRows) {
+      const integration = asRecord(row);
+      if (integration.status === "connected" && (integration.provider === "threads" || resolveInstagramAuthMode(integration.meta) === "instagram_login")) {
+        await ensureMetaDirectAccessToken(supabaseAdmin, integration);
+      }
+    }
+
     if (normalizedChannels.invalidChannels.length > 0) {
       return NextResponse.json(
         {
@@ -2133,6 +2158,7 @@ async function publishNowHandler(req: Request) {
 
     if (internalAsyncDispatch) {
       const channel = selected[0];
+      const threadsContinuationAttempt = Math.max(0, Math.floor(Number(body._threadsContinuationAttempt || 0)));
       const instagramVideoContinuationAttempt = Math.max(
         0,
         Math.floor(Number(body._instagramVideoContinuationAttempt || 0)),
@@ -2152,7 +2178,9 @@ async function publishNowHandler(req: Request) {
         ? `${publicationId}:${asyncTargetKey}`
         : `${publicationId}:${channel}`;
       const channelIdempotencyKey =
-        channel === "instagram" &&
+        channel === "threads" && Object.keys(asRecord(body._threadsCheckpoint)).length > 0 && threadsContinuationAttempt > 0
+          ? `${channelTargetIdempotencyKey}:threads:${threadsContinuationAttempt}`
+          : channel === "instagram" &&
         Object.keys(asRecord(body._instagramVideoCheckpoint)).length > 0 &&
         instagramVideoContinuationAttempt > 0
           ? `${channelTargetIdempotencyKey}:video:${instagramVideoContinuationAttempt}`
@@ -3044,7 +3072,7 @@ async function publishNowHandler(req: Request) {
       }),
     );
 
-    const [fbRow, gmbRow, igRow, liRow, tiktokRow, youtubeRow, pinterestRow] =
+    const [fbRow, gmbRow, igRow, liRow, tiktokRow, youtubeRow, pinterestRow, threadsRow] =
       await Promise.all([
         selected.some((channel) =>
           ["facebook", "instagram"].includes(channel),
@@ -3072,7 +3100,7 @@ async function publishNowHandler(req: Request) {
               "instagram",
               "instagram",
               "instagram",
-              "status,resource_id,access_token_enc,resource_label,meta,expires_at",
+              "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at",
             )
           : Promise.resolve(null),
         selected.includes("linkedin")
@@ -3111,6 +3139,7 @@ async function publishNowHandler(req: Request) {
               "status,resource_id,resource_label,display_name,access_token_enc,refresh_token_enc,scopes,meta,expires_at",
             )
           : Promise.resolve(null),
+        selected.includes("threads") ? getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at") : Promise.resolve(null),
       ]);
 
     // Le garde-fou CTA final doit disposer des coordonnées réelles quel que soit
@@ -3120,6 +3149,7 @@ async function publishNowHandler(req: Request) {
         "site_web",
         "facebook",
         "instagram",
+        "threads",
         "linkedin",
         "x",
         "tiktok",
@@ -4760,6 +4790,47 @@ async function publishNowHandler(req: Request) {
           continue;
         }
 
+        if (ch === "threads") {
+          if (!(await metaPilotCanPublish())) {
+            await setDelivery(ch, { status: "failed", error: "Threads est réservé aux comptes ADMIN." });
+            results[ch] = { ok: false, code: "meta_channel_admin_pilot", retryable: false, error: "Threads est réservé aux comptes ADMIN." };
+            continue;
+          }
+          if (!internalAsyncDispatch || !asyncChannelEventId) throw new Error("threads_async_worker_required");
+          const integration = asRecord(threadsRow);
+          const accessToken = await ensureMetaDirectAccessToken(supabaseAdmin, integration);
+          const text = buildBoosterThreadsPostText(channelPost, { websiteUrl: getPublicationWebsiteUrl(ch), phone: businessPhone });
+          const imageUrls = mediaModeByChannel[ch] === "images" ? pickCompleteChannelImageUrls({ channel: ch, candidates: ["socialFeedPublishableUrls", "publishableUrls", "images"], legacyFallback: socialFeedImageUrls, limit: 20 }) : [];
+          if (mediaModeByChannel[ch] === "images" && (getExpectedChannelImageCount(ch) > 0 || getChannelImageSet(ch).images.length > 0) && !imageUrls.length) throw new Error("Les images prévues pour Threads sont introuvables. Le texte n’a pas été publié à leur place.");
+          if (mediaModeByChannel[ch] === "video" && !channelVideo) throw new Error("La vidéo prévue pour Threads est introuvable. Le texte n’a pas été publié à sa place.");
+          const checkpoint = asRecord(body._threadsCheckpoint);
+          const result = await threadsPublish({
+            userId: String(integration.resource_id || ""), accessToken, text,
+            media: mediaModeByChannel[ch] === "video" && channelVideo
+              ? [{ type: "VIDEO", url: String(channelVideo.publicUrl || channelVideo.url || ""), sourceIdentity: buildThreadsMediaSourceIdentity({ bucket: channelVideo.bucket, storagePath: channelVideo.storagePath }) }]
+              : imageUrls.map((url) => ({ type: "IMAGE", url })),
+            ...(Object.keys(checkpoint).length ? { checkpoint } : {}),
+            onCheckpoint: async (nextCheckpoint) => { await updateAsyncChannelEvent({ userId, eventId: asyncChannelEventId, patch: { threadsCheckpoint: nextCheckpoint } }); },
+          });
+          if (!result.ok && result.retryable && result.checkpoint) {
+            const retryAfterMs = Math.max(60_000, Math.min(5 * 60_000, result.retryAfterMs || 60_000));
+            await updateAsyncChannelEvent({ userId, eventId: asyncChannelEventId, patch: { status: "queued", threadsCheckpoint: result.checkpoint, threadsNextRunAt: new Date(Date.now() + retryAfterMs).toISOString() } });
+            await setDelivery(ch, { status: "processing", error: null });
+            await failExecutionIdempotencyLock({ supabase: supabaseAdmin, lockId: asyncChannelLockId, error: "threads_continuation", result: { ok: true, pending: true, code: result.code, channel: ch, publication_id: publicationId } });
+            asyncFailureContext = null;
+            return NextResponse.json({ ok: true, done: false, queued: true, asyncDispatch: true, publication_id: publicationId, channel: ch, pollAfterMs: retryAfterMs, results: { threads: { ok: true, pending: true, status: "processing", code: result.code } } }, { status: 202, headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) } });
+          }
+          if (!result.ok) {
+            if (result.authorizationError) await markPublishChannelReconnectRequired({ channel: "threads", userId, stage: "publish", error: result, userMessage: result.error, attemptStartedAt: publicationAttemptStartedAt });
+            await setDelivery(ch, { status: "failed", error: result.error });
+            results[ch] = { ...result, threads_checkpoint: result.checkpoint || null };
+            continue;
+          }
+          await setDelivery(ch, { status: "delivered", error: null });
+          results[ch] = { ok: true, external_id: result.postId, threads_media_type: result.mediaType, threads_container_id: result.checkpoint.containerId, threads_child_container_ids: result.checkpoint.childContainerIds, threads_checkpoint: result.checkpoint };
+          continue;
+        }
+
         if (ch === "instagram") {
           if (instagramPublicationSettings?.placement === "story" && getCtaMode(channelPost) === "call") {
             const instagramUserError =
@@ -4771,10 +4842,16 @@ async function publishNowHandler(req: Request) {
           const ig = asRecord(igRow);
           const igUserId = String(ig["resource_id"] ?? "");
           const igTokenRaw = String(ig["access_token_enc"] ?? "");
-          const igToken = tryDecryptToken(igTokenRaw) || "";
+          const igAuthMode = resolveInstagramAuthMode(asRecord(ig["meta"]));
+          if (igAuthMode === "instagram_login" && !(await metaPilotCanPublish())) {
+            await setDelivery(ch, { status: "failed", error: "Instagram direct est réservé aux comptes ADMIN." });
+            results[ch] = { ok: false, code: "meta_channel_admin_pilot", retryable: false, error: "Instagram direct est réservé aux comptes ADMIN." };
+            continue;
+          }
+          const igToken = igAuthMode === "instagram_login" ? await ensureMetaDirectAccessToken(supabaseAdmin, ig) : tryDecryptToken(igTokenRaw) || "";
           const igMeta = asRecord(ig["meta"]);
           const igExpired =
-            isExpired(ig["expires_at"]) &&
+            igAuthMode === "facebook_login" && isExpired(ig["expires_at"]) &&
             !String(igMeta["page_id"] ?? "") &&
             !igUserId;
           if (
@@ -4893,6 +4970,7 @@ async function publishNowHandler(req: Request) {
             });
             const expectedRequestFingerprint =
               buildInstagramVideoRequestFingerprint({
+                authMode: igAuthMode,
                 igUserId,
                 videoUrl: instagramPublishVideo.publicUrl,
                 videoSourceIdentity,
@@ -4903,6 +4981,7 @@ async function publishNowHandler(req: Request) {
               });
             const compatibleRequestFingerprints = [
               buildInstagramVideoRequestFingerprint({
+                authMode: igAuthMode,
                 igUserId,
                 videoUrl: instagramPublishVideo.publicUrl,
                 caption: instagramCaption,
@@ -4949,6 +5028,7 @@ async function publishNowHandler(req: Request) {
             } else if (!persistedCheckpoint) {
               videoPhaseResult =
                 await instagramCreateVideoCheckpointWithTokenFallback({
+                  authMode: igAuthMode,
                   igUserId,
                   accessToken: igToken,
                   tokenCandidates: instagramTokenCandidates,
@@ -4967,6 +5047,7 @@ async function publishNowHandler(req: Request) {
             ) {
               videoPhaseResult =
                 await instagramPublishVideoCheckpointWithTokenFallback({
+                  authMode: igAuthMode,
                   checkpoint: persistedCheckpoint,
                   igUserId,
                   accessToken: igToken,
@@ -4977,6 +5058,7 @@ async function publishNowHandler(req: Request) {
             } else {
               videoPhaseResult =
                 await instagramPollVideoCheckpointWithTokenFallback({
+                  authMode: igAuthMode,
                   checkpoint: persistedCheckpoint,
                   accessToken: igToken,
                   tokenCandidates: instagramTokenCandidates,
@@ -4996,6 +5078,7 @@ async function publishNowHandler(req: Request) {
               );
               videoPhaseResult =
                 await instagramPollVideoCheckpointWithTokenFallback({
+                  authMode: igAuthMode,
                   checkpoint: videoPhaseResult.checkpoint,
                   accessToken: igToken,
                   tokenCandidates: instagramTokenCandidates,
@@ -5015,6 +5098,7 @@ async function publishNowHandler(req: Request) {
               );
               videoPhaseResult =
                 await instagramPublishVideoCheckpointWithTokenFallback({
+                  authMode: igAuthMode,
                   checkpoint: videoPhaseResult.checkpoint,
                   igUserId,
                   accessToken: igToken,
@@ -5154,6 +5238,7 @@ async function publishNowHandler(req: Request) {
             instagramImages.length,
           );
           const resp = await instagramPublishImagesBestEffortWithTokenFallback({
+            authMode: igAuthMode,
             igUserId,
             accessToken: igToken,
             tokenCandidates: instagramTokenCandidates,

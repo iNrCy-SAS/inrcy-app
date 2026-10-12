@@ -1,7 +1,9 @@
 "use client";
 
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
+import { filterMetaPilotPayload, filterMetaPilotItems } from "@/lib/metaChannelUiAccess";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   readAccountCacheValue,
   writeAccountCacheValue,
@@ -59,6 +61,7 @@ function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
     inrSearch: isUsable("inr_search"),
     facebook: isUsable("facebook"),
     instagram: isUsable("instagram"),
+    threads: isUsable("threads"),
     linkedin: isUsable("linkedin"),
     x: isUsable("x"),
     tiktok: isUsable("tiktok"),
@@ -126,6 +129,7 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
       // Never trust a dashboard cache for a destination-sensitive channel.
       // The live /channel-states response below will turn Pinterest back on
       // only when a valid default board is present.
+      threads: false,
       pinterest: false,
       mails:
         Math.max(0, Math.round(Number(state.mailAccountsConnectedCount) || 0)) >
@@ -276,13 +280,14 @@ export function useAgentRuntimeData({
 }: {
   standardMode?: boolean;
 } = {}) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   // The server and the browser must produce the same first render. Browser
   // caches are restored immediately after hydration, then refreshed from the
   // authoritative APIs in the background.
-  const deterministicInitialSettings = standardMode
+  const deterministicInitialSettings = filterMetaPilotPayload(standardMode
     ? restrictInrAgentSettingsForStandard(INR_AGENT_DEFAULT_SETTINGS)
-    : INR_AGENT_DEFAULT_SETTINGS;
+    : INR_AGENT_DEFAULT_SETTINGS, metaPilotEnabled);
   const cachedAgentSnapshotRef = useRef<CachedAgentViewSnapshot | null>(null);
 
   const [agentSettings, setAgentSettings] = useState<InrAgentSettings>(
@@ -315,7 +320,7 @@ export function useAgentRuntimeData({
   }
 
   useEffect(() => {
-    const cachedSnapshot = readCachedAgentViewSnapshot();
+    const cachedSnapshot = filterMetaPilotPayload(readCachedAgentViewSnapshot(), metaPilotEnabled);
     const cachedConnectedChannels =
       cachedSnapshot?.connectedChannels ?? readCachedAgentConnectedChannels();
     cachedAgentSnapshotRef.current = cachedSnapshot;
@@ -330,7 +335,7 @@ export function useAgentRuntimeData({
     }
 
     if (cachedConnectedChannels) {
-      setAgentConnectedChannels(cachedConnectedChannels);
+      setAgentConnectedChannels({ ...cachedConnectedChannels, threads: metaPilotEnabled && cachedConnectedChannels.threads });
       setConnectedChannelsLoadState("ready");
     }
 
@@ -355,7 +360,7 @@ export function useAgentRuntimeData({
     setScheduledActionsTableMissing(
       Boolean(cachedSnapshot?.scheduledActionsTableMissing),
     );
-  }, [standardMode]);
+  }, [standardMode, metaPilotEnabled]);
 
   useEffect(() => {
     let alive = true;
@@ -382,7 +387,7 @@ export function useAgentRuntimeData({
           );
         }
 
-        const sanitizedSettings = sanitizeInrAgentSettings(payload?.settings);
+        const sanitizedSettings = sanitizeInrAgentSettings(filterMetaPilotPayload(payload?.settings, metaPilotEnabled));
         const nextSettings = standardMode
           ? restrictInrAgentSettingsForStandard(sanitizedSettings)
           : sanitizedSettings;
@@ -429,7 +434,7 @@ export function useAgentRuntimeData({
         }
 
         const nextConnectedChannels = channelMapFromConnectionStates(payload);
-        setAgentConnectedChannels(nextConnectedChannels);
+        setAgentConnectedChannels({ ...nextConnectedChannels, threads: metaPilotEnabled && nextConnectedChannels.threads });
         setConnectedChannelsLoadState("ready");
         writeCachedAgentViewSnapshot({
           connectedChannels: nextConnectedChannels,
@@ -471,7 +476,7 @@ export function useAgentRuntimeData({
       if (!response.ok || !Array.isArray(payload?.historyPublications)) {
         throw new Error("Lecture de l’historique iNr’Agent impossible.");
       }
-      setHistoryPublications(payload.historyPublications);
+      setHistoryPublications(filterMetaPilotItems(payload.historyPublications, metaPilotEnabled));
     } catch {
       if (!silent) showNotice(i18nT("agent_actions_unavailable"));
     }
@@ -505,7 +510,7 @@ export function useAgentRuntimeData({
         ? filterStandardAgentItems(loadedActions)
         : loadedActions;
       const nextTableMissing = Boolean(payload?.tableMissing);
-      setActions(nextActions);
+      setActions(filterMetaPilotItems(nextActions, metaPilotEnabled));
       if (payload?.tableMissing) setTableMissing(true);
       setActionsLoadState("ready");
       writeCachedAgentViewSnapshot({
@@ -549,7 +554,7 @@ export function useAgentRuntimeData({
         ? filterStandardAgentItems(loadedScheduledActions)
         : loadedScheduledActions;
       const nextScheduledTableMissing = Boolean(payload?.tableMissing);
-      setScheduledActions(nextScheduledActions);
+      setScheduledActions(filterMetaPilotItems(nextScheduledActions, metaPilotEnabled));
       setScheduledActionsTableMissing(nextScheduledTableMissing);
       writeCachedAgentViewSnapshot({
         scheduledActions: nextScheduledActions,
@@ -583,10 +588,16 @@ export function useAgentRuntimeData({
     return () => window.clearInterval(interval);
   }, [actions]);
 
+  const visibleActions = useMemo(() => filterMetaPilotItems(actions, metaPilotEnabled), [actions, metaPilotEnabled]);
+  const visibleScheduledActions = useMemo(() => filterMetaPilotItems(scheduledActions, metaPilotEnabled), [scheduledActions, metaPilotEnabled]);
+  const visibleHistory = useMemo(() => filterMetaPilotItems(historyPublications, metaPilotEnabled), [historyPublications, metaPilotEnabled]);
+  const visibleSettings = useMemo(() => filterMetaPilotPayload(agentSettings, metaPilotEnabled), [agentSettings, metaPilotEnabled]);
+  const visibleConfigs = useMemo(() => filterMetaPilotPayload(configs, metaPilotEnabled), [configs, metaPilotEnabled]);
+
   return {
-    agentSettings,
+    agentSettings: visibleSettings,
     setAgentSettings,
-    configs,
+    configs: visibleConfigs,
     setConfigs,
     agentConnectedChannels,
     setAgentConnectedChannels,
@@ -600,11 +611,11 @@ export function useAgentRuntimeData({
     setTableMissing,
     notice,
     setNotice,
-    actions,
+    actions: visibleActions,
     setActions,
-    historyPublications,
+    historyPublications: visibleHistory,
     refreshPublicationHistory,
-    scheduledActions,
+    scheduledActions: visibleScheduledActions,
     setScheduledActions,
     scheduledActionsTableMissing,
     setScheduledActionsTableMissing,

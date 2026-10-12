@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
+import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 import {
   DEFAULT_INRBADGE_APPOINTMENT_SETTINGS,
@@ -38,6 +39,7 @@ type InrBadgeSettingsChannels = {
   googleBusiness: InrBadgeChannelStatus;
   facebook: InrBadgeChannelStatus;
   instagram: InrBadgeChannelStatus;
+  threads?: InrBadgeChannelStatus;
   linkedin: InrBadgeChannelStatus;
   x?: InrBadgeChannelStatus;
   pinterest?: InrBadgeChannelStatus;
@@ -521,6 +523,7 @@ export default function InrBadgeSettingsContent({
 }: Props) {
   const i18nT = useTranslations("settings");
   const dashboardEdition = useDashboardEdition();
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const standardMode = dashboardEdition === "standard";
   const storageKey = useMemo(() => getStorageKey(profile, publicUrl), [profile, publicUrl]);
   const [settings, setSettings] = useState<ShareSettings>(() =>
@@ -726,6 +729,7 @@ export default function InrBadgeSettingsContent({
     { key: "siteWeb", label: i18nT("site_web_7e78af33"), connected: canShareChannel(channels.siteWeb), helper: i18nT("disponible_si_le_site_web_est_8e4d92e0") },
     { key: "googleBusiness", label: i18nT("google_business_a605b655"), connected: canShareChannel(channels.googleBusiness), helper: i18nT("disponible_si_google_business_est_connecte_39bbde49") },
     { key: "facebook", label: i18nT("facebook_82da67b2"), connected: canShareChannel(channels.facebook), helper: i18nT("disponible_si_la_page_facebook_est_8a5a0eb7") },
+    ...(metaPilotEnabled ? [{ key: "threads" as ShareKey, label: "Threads", connected: canShareChannel(channels.threads || { connected: false }), helper: "Threads" }] : []),
     { key: "instagram", label: i18nT("instagram_5721bbef"), connected: canShareChannel(channels.instagram), helper: i18nT("disponible_si_instagram_est_connecte_avec_8ba9a12c") },
     { key: "linkedin", label: i18nT("linkedin_6b6390a4"), connected: canShareChannel(channels.linkedin), helper: i18nT("disponible_si_linkedin_est_connecte_avec_c95a8863") },
     { key: "x", label: "X", connected: canShareChannel(channels.x || { connected: false }), helper: i18nT("disponible_si_linkedin_est_connecte_avec_c95a8863").replace(/LinkedIn/gi, "X") },

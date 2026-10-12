@@ -7,6 +7,7 @@ export const CHANNEL_SETTINGS_PANEL_ORDER = [
   "inr_search",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -35,6 +36,7 @@ const CHANNEL_HEADER_BACKGROUNDS: Record<ChannelSettingsPanelName, string> = {
     "linear-gradient(135deg, rgba(24,119,242,0.34), rgba(59,130,246,0.16)), rgba(15,23,42,0.96)",
   instagram:
     "linear-gradient(135deg, rgba(225,48,108,0.30), rgba(131,58,180,0.25), rgba(252,175,69,0.14)), rgba(15,23,42,0.96)",
+  threads: "linear-gradient(135deg, rgba(148,163,184,0.22), rgba(30,41,59,0.34)), rgba(15,23,42,0.96)",
   linkedin:
     "linear-gradient(135deg, rgba(10,102,194,0.34), rgba(14,165,233,0.16)), rgba(15,23,42,0.96)",
   tiktok:

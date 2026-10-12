@@ -2,6 +2,7 @@ import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 import {
   GPS_SECTIONS,
+  THREADS_GPS_ARTICLE,
   type GpsArticleSource,
   type GpsMessageKey,
   type GpsSectionSource,
@@ -217,10 +218,11 @@ function applyNonFounderArticleOverride(article: GpsArticleSource): GpsArticleSo
   return override ? { ...article, ...override } : article;
 }
 
-export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSectionSource[] {
-  if (edition === "founder") return GPS_SECTIONS;
+export function getGpsSectionsForEdition(edition: DashboardEdition, metaPilotEnabled = false): GpsSectionSource[] {
+  const sections = GPS_SECTIONS.map(section => section.id === "canaux" && metaPilotEnabled ? { ...section, articles: [...section.articles, THREADS_GPS_ARTICLE] } : section);
+  if (edition === "founder") return sections;
 
-  return GPS_SECTIONS
+  return sections
     .filter((section) => !FOUNDER_ONLY_SECTION_IDS.has(section.id))
     .map((section) => ({
       ...section,

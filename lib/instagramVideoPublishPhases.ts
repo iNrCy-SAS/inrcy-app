@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramAuthMode";
 import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
 
 const INSTAGRAM_VIDEO_CHECKPOINT_VERSION = 3 as const;
@@ -19,6 +19,7 @@ type FetchLike = (
 export type InstagramVideoTokenCandidate = {
   source: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
 };
 
 export type InstagramVideoCheckpointState =
@@ -45,6 +46,7 @@ export type InstagramVideoPublishCheckpoint = {
   mediaId: string | null;
   tokenSource: string | null;
   mediaType: InstagramVideoMediaType;
+  authMode?: InstagramAuthMode;
 };
 
 export type InstagramVideoPhaseDependencies = {
@@ -146,6 +148,7 @@ export function parseInstagramVideoPublishCheckpoint(
   value: unknown,
 ): InstagramVideoPublishCheckpoint | null {
   const record = asRecord(value);
+  const authMode = record.authMode === "instagram_login" ? "instagram_login" : "facebook_login";
   const version = Number(record.version);
   const containerId = cleanString(record.containerId);
   const igUserId = cleanString(record.igUserId);
@@ -178,6 +181,7 @@ export function parseInstagramVideoPublishCheckpoint(
   }
 
   return {
+    ...(authMode === "instagram_login" ? { authMode } : {}),
     version: version as InstagramVideoPublishCheckpoint["version"],
     containerId,
     igUserId,
@@ -234,6 +238,7 @@ export function buildInstagramVideoSourceIdentity(params: {
 
 export function buildInstagramVideoRequestFingerprint(params: {
   igUserId: string;
+  authMode?: InstagramAuthMode;
   videoUrl: string;
   videoSourceIdentity?: string;
   caption: string;
@@ -252,6 +257,7 @@ export function buildInstagramVideoRequestFingerprint(params: {
           caption: String(params.caption || ""),
           shareToFeed: params.shareToFeed !== false,
           ...mediaTypeIdentity,
+          ...(params.authMode === "instagram_login" ? { authMode: params.authMode } : {}),
         }
       : {
           // Preserve the exact v1 canonical request for rolling compatibility.
@@ -260,6 +266,7 @@ export function buildInstagramVideoRequestFingerprint(params: {
           caption: String(params.caption || ""),
           shareToFeed: params.shareToFeed !== false,
           ...mediaTypeIdentity,
+          ...(params.authMode === "instagram_login" ? { authMode: params.authMode } : {}),
         },
   );
   return createHash("sha256").update(canonicalRequest).digest("hex");
@@ -393,6 +400,7 @@ export async function instagramCreateVideoCheckpoint(
   params: {
     igUserId: string;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     caption: string;
     videoUrl: string;
     videoSourceIdentity?: string;
@@ -434,7 +442,7 @@ export async function instagramCreateVideoCheckpoint(
     );
   }
   if (params.caption) createParams.set("caption", params.caption);
-  const createUrl = `${buildMetaGraphUrl(`${encodeURIComponent(igUserId)}/media`)}?${createParams.toString()}`;
+  const createUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(igUserId)}/media`, params.authMode)}?${createParams.toString()}`;
   const fetchImpl = dependencies.fetchImpl || globalThis.fetch.bind(globalThis);
 
   let response: Response;
@@ -500,10 +508,12 @@ export async function instagramCreateVideoCheckpoint(
   const createdAt = nowIso(dependencies);
   const checkpoint: InstagramVideoPublishCheckpoint = {
     version: INSTAGRAM_VIDEO_CHECKPOINT_VERSION,
+    ...(params.authMode === "instagram_login" ? { authMode: params.authMode } : {}),
     containerId,
     igUserId,
     requestFingerprint: buildInstagramVideoRequestFingerprint({
       igUserId,
+      authMode: params.authMode,
       videoUrl,
       videoSourceIdentity,
       caption: params.caption,
@@ -533,6 +543,7 @@ export async function instagramCreateVideoCheckpointWithTokenFallback(
   params: {
     igUserId: string;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     tokenCandidates?: InstagramVideoTokenCandidate[];
     caption: string;
     videoUrl: string;
@@ -544,7 +555,7 @@ export async function instagramCreateVideoCheckpointWithTokenFallback(
 ) {
   const candidates = normalizeTokenCandidates(
     params.accessToken,
-    params.tokenCandidates,
+    params.authMode === "instagram_login" ? [] : params.tokenCandidates,
   );
   const attempts: NonNullable<InstagramVideoPhaseDiagnostics["attempts"]> = [];
   let lastResult: InstagramVideoPhaseResult | null = null;
@@ -593,6 +604,7 @@ export async function instagramPollVideoCheckpoint(
   params: {
     checkpoint: unknown;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     expectedRequestFingerprint?: string;
     compatibleRequestFingerprints?: string[];
   },
@@ -601,6 +613,7 @@ export async function instagramPollVideoCheckpoint(
   const checkpoint = parseInstagramVideoPublishCheckpoint(params.checkpoint);
   if (
     !checkpoint ||
+    (params.authMode !== undefined && params.authMode !== (checkpoint.authMode || "facebook_login")) ||
     !validateExpectedFingerprint(
       checkpoint,
       params.expectedRequestFingerprint,
@@ -661,7 +674,7 @@ export async function instagramPollVideoCheckpoint(
     fields: "status,status_code",
     access_token: accessToken,
   });
-  const url = `${buildMetaGraphUrl(encodeURIComponent(checkpoint.containerId))}?${query.toString()}`;
+  const url = `${buildInstagramGraphUrl(encodeURIComponent(checkpoint.containerId), params.authMode ?? checkpoint.authMode)}?${query.toString()}`;
   const fetchImpl = dependencies.fetchImpl || globalThis.fetch.bind(globalThis);
   let response: Response;
   try {
@@ -805,6 +818,7 @@ async function runCheckpointPhaseWithTokenFallback(
   params: {
     checkpoint: unknown;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     tokenCandidates?: InstagramVideoTokenCandidate[];
     expectedRequestFingerprint?: string;
     compatibleRequestFingerprints?: string[];
@@ -814,7 +828,7 @@ async function runCheckpointPhaseWithTokenFallback(
 ) {
   const candidates = normalizeTokenCandidates(
     params.accessToken,
-    params.tokenCandidates,
+    params.authMode === "instagram_login" ? [] : params.tokenCandidates,
   );
   const attempts: NonNullable<InstagramVideoPhaseDiagnostics["attempts"]> = [];
   let lastResult: InstagramVideoPhaseResult | null = null;
@@ -873,6 +887,7 @@ export function instagramPollVideoCheckpointWithTokenFallback(
   params: {
     checkpoint: unknown;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     tokenCandidates?: InstagramVideoTokenCandidate[];
     expectedRequestFingerprint?: string;
     compatibleRequestFingerprints?: string[];
@@ -887,6 +902,7 @@ export async function instagramPublishVideoCheckpoint(
     checkpoint: unknown;
     igUserId: string;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     expectedRequestFingerprint?: string;
     compatibleRequestFingerprints?: string[];
   },
@@ -895,6 +911,7 @@ export async function instagramPublishVideoCheckpoint(
   const checkpoint = parseInstagramVideoPublishCheckpoint(params.checkpoint);
   if (
     !checkpoint ||
+    (params.authMode !== undefined && params.authMode !== (checkpoint.authMode || "facebook_login")) ||
     !validateExpectedFingerprint(
       checkpoint,
       params.expectedRequestFingerprint,
@@ -963,7 +980,7 @@ export async function instagramPublishVideoCheckpoint(
     creation_id: checkpoint.containerId,
     access_token: accessToken,
   });
-  const publishUrl = `${buildMetaGraphUrl(`${encodeURIComponent(checkpoint.igUserId)}/media_publish`)}?${publishParams.toString()}`;
+  const publishUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(checkpoint.igUserId)}/media_publish`, params.authMode ?? checkpoint.authMode)}?${publishParams.toString()}`;
   const fetchImpl = dependencies.fetchImpl || globalThis.fetch.bind(globalThis);
 
   let response: Response;
@@ -1059,6 +1076,7 @@ export function instagramPublishVideoCheckpointWithTokenFallback(
     checkpoint: unknown;
     igUserId: string;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     tokenCandidates?: InstagramVideoTokenCandidate[];
     expectedRequestFingerprint?: string;
     compatibleRequestFingerprints?: string[];

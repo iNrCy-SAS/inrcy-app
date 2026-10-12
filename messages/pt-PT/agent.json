@@ -792,5 +792,7 @@
   "tiktok_session_change": "Alterar",
   "tiktok_session_save": "Guardar definições",
   "tiktok_session_checking": "A verificar o TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Próxima publicação dentro de alguns minutos"
+  "next_editorial_publication_in_a_few_minutes": "Próxima publicação dentro de alguns minutos",
+  "threads": "Threads",
+  "threads_edit_unsupported": "A API do Threads não permite editar uma publicação já publicada. Pode eliminá-la ou editar um rascunho."
 }

@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForAccount as isMetaChannelPilotEnabledForAccountForAnalysisBase, isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { after, NextResponse } from "next/server";
 
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
@@ -291,9 +293,10 @@ export async function GET() {
       actorAuthUserId: authUserId,
       edition: isAdmin ? "admin" : "standard",
     });
-    const channels = channelStates ? buildBusinessDnaDashboardChannelAvailability({ channelStates }) : [];
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
+    const channels = channelStates ? buildBusinessDnaDashboardChannelAvailability({ channelStates, metaPilotEnabled }) : [];
     return NextResponse.json(
-      { ok: true, quota, channels, accountId: activeUserId, job: publicBusinessDnaManualAnalysisJob(job) },
+      withoutThreadsData({ ok: true, quota, channels, accountId: activeUserId, job: publicBusinessDnaManualAnalysisJob(job) }, metaPilotEnabled),
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
     );
   } catch (error) {
@@ -475,6 +478,7 @@ async function analyzeBusinessDna({ supabase, activeUserId, authUserId, automati
     const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
     const [channelCollection, documentCollection] = await Promise.allSettled([
       collectBusinessDnaChannelSources({
+        metaPilotEnabled: automatic ? await isMetaChannelPilotEnabledForAccountForAnalysisBase(supabase, activeUserId) : await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId),
         supabase,
         userId: activeUserId,
         businessProfile: businessResult.data,

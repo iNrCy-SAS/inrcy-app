@@ -7,6 +7,7 @@ export const APP_BUBBLE_KEYS = [
   "inr_search",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "x",
   "tiktok",
@@ -48,6 +49,7 @@ export const APP_BUBBLE_DEFAULT_ACCESS: AppBubbleAccessMap = {
   inr_search: true,
   facebook: true,
   instagram: true,
+  threads: true,
   linkedin: true,
   // X reste en pilote tant que les clés, crédits et coûts par compte ne sont
   // pas certifiés. L'admin peut l'activer compte par compte via Bubble Access.

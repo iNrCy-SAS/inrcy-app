@@ -9,6 +9,7 @@ export type BoosterChannelKey =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "x"
   | "tiktok"
@@ -89,6 +90,15 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
     detailed: { min: 620, max: 950 },
     max: 2200,
   },
+  threads: {
+    adapted: { min: 180, max: 300 },
+    short: { min: 100, max: 180 },
+    medium: { min: 180, max: 280 },
+    long: { min: 280, max: 350 },
+    deep: { min: 320, max: 400 },
+    detailed: { min: 280, max: 350 },
+    max: 400,
+  },
   linkedin: {
     adapted: { min: 550, max: 1100 },
     short: { min: 350, max: 600 },
@@ -152,6 +162,7 @@ export const BOOSTER_CHANNEL_TITLE_MAX_LENGTH: Record<
   gmb: 120,
   facebook: 120,
   instagram: 120,
+  threads: 60,
   linkedin: 120,
   x: 48,
   // Contraintes techniques propres aux destinations concernées.

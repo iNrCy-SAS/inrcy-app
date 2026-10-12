@@ -792,5 +792,7 @@
   "tiktok_session_change": "Ändern",
   "tiktok_session_save": "Einstellungen speichern",
   "tiktok_session_checking": "TikTok wird geprüft…",
-  "next_editorial_publication_in_a_few_minutes": "Nächste Veröffentlichung in wenigen Minuten"
+  "next_editorial_publication_in_a_few_minutes": "Nächste Veröffentlichung in wenigen Minuten",
+  "threads": "Threads",
+  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten."
 }

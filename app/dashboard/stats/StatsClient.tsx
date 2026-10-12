@@ -45,6 +45,7 @@ import {
 import { useStatsChannelIdentitySync, useStatsDataController } from "./stats.client-hooks";
 import { formatStableStatsValue, hasCommittedStatsSnapshot } from "./stats.client-stability";
 import { Cube } from "./stats.ui";
+import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 
 type StatsPanelKey = "all" | CubeKey;
@@ -78,6 +79,7 @@ const STATS_CHANNEL_ICON_SRC: Record<CubeKey, string> = {
   gmb: "/icons/google.jpg",
   facebook: "/icons/facebook.png",
   instagram: "/icons/instagram.jpg",
+  threads: "/icons/threads.svg",
   linkedin: "/icons/linkedin.png",
   x: "/icons/x.svg",
   mails: "/icons/mails-inrcy-dashboard-v2.png",
@@ -107,6 +109,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const formatInt = (value: number) => fmtInt(value, locale);
   const router = useRouter();
   const dashboardEdition = useDashboardEdition();
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const standardMode = dashboardEdition === "standard";
   const [helpOpen, setHelpOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -122,7 +125,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [summaryOpp, setSummaryOpp] = useState<{ loading: boolean; total: number; byCube: Record<CubeKey, number> }>({
     loading: true,
     total: 0,
-    byCube: { inrbadge: 0, inr_search: 0,  site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, x: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
+    byCube: { inrbadge: 0, inr_search: 0,  site_web: 0, gmb: 0, facebook: 0, instagram: 0, threads: 0, linkedin: 0, x: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
   });
   const [summaryProfile, setSummaryProfile] = useState<{ lead_conversion_rate: number; avg_basket: number }>({ lead_conversion_rate: 0, avg_basket: 0 });
   const [summaryEstimatedByCube, setSummaryEstimatedByCube] = useState<Record<CubeKey, number>>({
@@ -133,6 +136,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     gmb: 0,
     facebook: 0,
     instagram: 0,
+    threads: 0,
     linkedin: 0,
     x: 0,
     mails: 0,
@@ -216,6 +220,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     gmb: bulkStatsReady,
     facebook: bulkStatsReady,
     instagram: bulkStatsReady,
+    threads: bulkStatsReady,
     linkedin: bulkStatsReady,
     x: bulkStatsReady,
     mails: mailStatsReady,
@@ -256,6 +261,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const centralByCube = useMemo<Record<CubeKey, number>>(() => {
     const next: Record<CubeKey, number> = {
       ...summaryOpp.byCube,
+      threads: metaPilotEnabled ? safeNum(summaryOpp.byCube.threads) : 0,
       inrbadge: inrBadgeOpportunity30,
       inr_search: inrSearchOpportunity30,
       mails: standardMode ? 0 : mailOpportunity30,
@@ -268,7 +274,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     }
 
     return next;
-  }, [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, officialChannelConnectionStatuses, standardMode, summaryOpp.byCube]);
+  }, [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, officialChannelConnectionStatuses, standardMode, summaryOpp.byCube, metaPilotEnabled]);
 
   const centralPotential30 = Math.max(
     0,
@@ -291,6 +297,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       buildCubeModel("gmb", i18nT("google_business_a605b655"), i18nT("visibilite_locale_afa9cdc9"), period, dataByCube.gmb, centralByCube, officialChannelConnectionStatuses.gmb, locale, runtimeT),
       buildInrSearchCubeModel(period, inrSearchStats, locale, runtimeT, inrSearchPublicationActivity),
       buildCubeModel("facebook", i18nT("facebook_82da67b2"), i18nT("subtitle_social_visibility"), period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook, locale, runtimeT),
+      ...(metaPilotEnabled ? [buildCubeModel("threads", "Threads", i18nT("subtitle_social_visibility"), period, dataByCube.threads, centralByCube, officialChannelConnectionStatuses.threads, locale, runtimeT)] : []),
       buildCubeModel("instagram", i18nT("instagram_5721bbef"), i18nT("subtitle_brand_visibility"), period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram, locale, runtimeT),
       buildCubeModel("linkedin", i18nT("linkedin_6b6390a4"), i18nT("subtitle_professional_visibility"), period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin, locale, runtimeT),
       buildCubeModel("tiktok", i18nT("tiktok_fc49f156"), i18nT("subtitle_short_photos_videos"), period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok, locale, runtimeT),
@@ -368,7 +375,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         action: applyStatsEditionActionPolicy(identityAwareModel.action, standardMode),
       };
     });
-  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, i18nT, inrBadgeStats, inrSearchStats, locale, mailStats, officialChannelConnectionStatuses, period, runtimeT, standardMode]);
+  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, i18nT, inrBadgeStats, inrSearchStats, locale, mailStats, officialChannelConnectionStatuses, period, runtimeT, standardMode, metaPilotEnabled]);
 
   const computedEstimatedByCube = useMemo<Record<CubeKey, number>>(() => {
     const rate = Math.max(0, safeNum(summaryProfile.lead_conversion_rate)) / 100;
@@ -383,6 +390,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       gmb: estimate(centralByCube.gmb),
       facebook: estimate(centralByCube.facebook),
       instagram: estimate(centralByCube.instagram),
+      threads: metaPilotEnabled ? estimate(centralByCube.threads) : 0,
       linkedin: estimate(centralByCube.linkedin),
       x: estimate(centralByCube.x),
       mails: standardMode ? 0 : estimate(centralByCube.mails),
@@ -390,7 +398,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       youtube_shorts: estimate(centralByCube.youtube_shorts),
       pinterest: estimate(centralByCube.pinterest),
     };
-  }, [centralByCube, standardMode, summaryProfile.avg_basket, summaryProfile.lead_conversion_rate]);
+  }, [centralByCube, standardMode, metaPilotEnabled, summaryProfile.avg_basket, summaryProfile.lead_conversion_rate]);
 
   const summaryActionItems = useMemo(() => buildSummaryActionItems({
     centralByCube,

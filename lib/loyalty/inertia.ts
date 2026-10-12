@@ -3,6 +3,7 @@ export type InertiaChannels = {
   gmb: boolean;
   facebook: boolean;
   instagram: boolean;
+  threads?: boolean;
   linkedin: boolean;
   x: boolean;
   tiktok: boolean;
@@ -24,7 +25,7 @@ export type InertiaSnapshot = {
   breakdown: Array<{ key: keyof InertiaChannels; label: string; bonus: number; connected: boolean }>;
 };
 
-const TOTAL_CHANNELS = 8;
+
 
 /**
  * Barème — 2026-03
@@ -34,6 +35,7 @@ const TOTAL_CHANNELS = 8;
 const BONUS: Record<keyof InertiaChannels, number> = {
   facebook: 0.5,
   instagram: 0.5,
+  threads: 0.5,
   linkedin: 0.5,
   x: 0.5,
   tiktok: 0.5,
@@ -47,6 +49,7 @@ const LABELS: Record<keyof InertiaChannels, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -59,7 +62,7 @@ export function computeInertiaSnapshot(
 ): InertiaSnapshot {
   const maxMultiplier = opts?.maxMultiplier ?? 7;
 
-  const breakdown = (Object.keys(BONUS) as Array<keyof InertiaChannels>).map((key) => ({
+  const breakdown = (Object.keys(BONUS) as Array<keyof InertiaChannels>).filter(key => key !== "threads" || Object.hasOwn(channels, "threads")).map((key) => ({
     key,
     label: LABELS[key],
     bonus: BONUS[key],
@@ -75,7 +78,7 @@ export function computeInertiaSnapshot(
 
   return {
     connectedCount,
-    totalChannels: TOTAL_CHANNELS,
+    totalChannels: breakdown.length,
     bonus,
     multiplier,
     maxMultiplier,

@@ -31,6 +31,7 @@ export type PublishChannelKey =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
@@ -46,6 +47,7 @@ const publishChannelAliases: Record<string, PublishChannelKey> = {
   google_business: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   tiktok: "tiktok",
   youtube: "youtube_shorts",
@@ -61,6 +63,7 @@ const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
   gmb: ["gmb", "google_business"],
   facebook: ["facebook"],
   instagram: ["instagram"],
+  threads: ["threads"],
   linkedin: ["linkedin"],
   tiktok: ["tiktok"],
   youtube_shorts: ["youtube_shorts", "youtube"],
@@ -371,7 +374,7 @@ export function buildPublishMediaAdaptation(
 export type PublishDraftMedia = ReturnType<typeof cleanPublishMedia>;
 
 export function publishCanRunWithoutMedia(channel: PublishChannelKey) {
-  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "threads", "linkedin", "x"].includes(
     channel,
   );
 }

@@ -25,7 +25,7 @@ test("iNrAgent keeps the server and browser hydration initializer deterministic"
 test("iNrAgent restores its account cache only after hydration", () => {
   assert.match(
     runtimeHook,
-    /useEffect\(\(\) => \{\s*const cachedSnapshot = readCachedAgentViewSnapshot\(\)/,
+    /useEffect\(\(\) => \{\s*const cachedSnapshot = filterMetaPilotPayload\(readCachedAgentViewSnapshot\(\), metaPilotEnabled\)/,
   );
   assert.match(runtimeHook, /cachedAgentSnapshotRef\.current = cachedSnapshot/);
   assert.match(runtimeHook, /setActionsLoadState\("ready"\)/);

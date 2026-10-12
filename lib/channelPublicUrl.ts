@@ -3,6 +3,7 @@ export const EDITABLE_CHANNEL_PUBLIC_URL_CHANNELS = [
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -145,6 +146,8 @@ function hasExpectedNetworkDestination(
     case "instagram":
       return isHostOrSubdomain(hostname, "instagram.com") &&
         segments.length === 1 && !INSTAGRAM_NON_PROFILE_PATHS.has(segments[0] || "");
+    case "threads":
+      return ["threads.com", "threads.net"].includes(stripWww(hostname)) && segments.length === 1 && /^@[a-z0-9_.]+$/.test(segments[0] || "");
     case "linkedin": {
       if (!isHostOrSubdomain(hostname, "linkedin.com") || segments.length < 2) return false;
       const kind = segments[0] || "";

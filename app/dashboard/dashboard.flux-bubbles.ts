@@ -17,6 +17,10 @@ import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "./dashboard.channel-setup"
 type BuildFluxBubbleItemsArgs = {
   bubbleAccessMap: AppBubbleAccessMap;
   standardMode?: boolean;
+  metaPilotEnabled?: boolean;
+  threadsConnected?: boolean;
+  threadsConnectionStatus?: ConnectionDisplayStatus;
+  threadsUrl?: string;
   canAccessPinterest: boolean;
   officialChannelStatesReady: boolean;
   channelBlocks: any;
@@ -66,6 +70,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
   const {
     bubbleAccessMap,
     standardMode = false,
+    metaPilotEnabled = false,
+    threadsConnected = false,
+    threadsConnectionStatus = "disconnected",
+    threadsUrl = "",
 
     canAccessPinterest,
 
@@ -116,6 +124,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
   } = args;
 
   return fluxModules.flatMap((m) => {
+    if (m.key === "threads" && !metaPilotEnabled) return [];
     const moduleIcon = MODULE_ICONS[m.key] ?? MODULE_ICONS.site_web;
     const bubbleKey = normalizeAppBubbleKey(m.key);
     const storedAccessEnabled = bubbleKey ? isBubbleEnabled(bubbleAccessMap, bubbleKey) : true;
@@ -129,6 +138,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? { connected: gmbConnected, connectionStatus: gmbConnectionStatus }
       : m.key === "facebook"
         ? { connected: facebookPageConnected, connectionStatus: facebookConnectionStatus }
+        : m.key === "threads"
+          ? { connected: threadsConnected, connectionStatus: threadsConnectionStatus }
         : m.key === "instagram"
           ? { connected: instagramConnected, connectionStatus: instagramConnectionStatus }
           : m.key === "linkedin"
@@ -211,7 +222,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           text: copy.status.disabled,
         };
 
-    const specialViewHref = m.key === "site_web"
+    const specialViewHref = m.key === "threads" ? (normalizeExternalHref(threadsUrl) || "#") : m.key === "site_web"
           ? (normalizeExternalHref(siteWebSavedUrl) || blockDrivenViewHref || "#")
           : m.key === "instagram"
           ? (normalizeExternalHref(instagramUrl) || "#")
@@ -241,7 +252,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
 
     const canViewSpecial = m.key === "inrbadge"
       ? inrBadgeProfileReady
-      : m.key === "site_web"
+      : m.key === "threads" ? Boolean(threadsUrl) : m.key === "site_web"
           ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
         : m.key === "instagram"
           ? Boolean(instagramUrl)
@@ -309,7 +320,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         openPanel("mails");
         return;
       }
-      if (["site_web", "instagram", "linkedin", "gmb", "facebook"].includes(m.key)) openPanel(m.key as any);
+      if (["site_web", "instagram", "threads", "linkedin", "gmb", "facebook"].includes(m.key)) openPanel(m.key as any);
     };
 
     const createHref = m.key in DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY

@@ -779,5 +779,8 @@
   "video_format_selected_for_publication": "Videoformaat geselecteerd voor publicatie",
   "video_format_selected_to_apply": "Videoformaat geselecteerd en klaar om toe te passen",
   "tiktok_reuse_settings_session": "Deze instellingen gebruiken voor de volgende TikTok-berichten in deze reeks",
-  "tiktok_reuse_settings_session_help": "Het venster wordt niet opnieuw getoond. Elk bericht wordt nog steeds afzonderlijk goedgekeurd."
+  "tiktok_reuse_settings_session_help": "Het venster wordt niet opnieuw getoond. Elk bericht wordt nog steeds afzonderlijk goedgekeurd.",
+  "threads": "Threads",
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
+  "threads_final_text": "Definitieve Threads-tekst"
 }

@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { resolveActiveInrcyAccountId } from '@/lib/multicompte/server';
@@ -56,7 +58,9 @@ async function metricsSummaryHandler(req: Request) {
     const fresh = searchParams.get('fresh') === '1';
     const snapshotDate = (searchParams.get('snapshotDate') || '').trim() || null;
 
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
     const summary = await buildMetricsSummary({
+      metaPilotEnabled,
       supabase,
       userId: activeUserId,
       origin,

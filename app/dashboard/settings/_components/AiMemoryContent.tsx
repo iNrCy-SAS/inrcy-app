@@ -1,5 +1,6 @@
 "use client";
 
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
 
 import {
@@ -119,6 +120,7 @@ const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
   tiktok: "TikTok",
   youtube: "YouTube",
   pinterest: "Pinterest",
+  threads: "Threads",
   inrcy_publications: "iNrCy",
 };
 
@@ -223,6 +225,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   onUnsavedChange,
   onVoiceBusyChange,
 }: Props, ref) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const t = useTranslations("dashboard.aiMemory");
   const moduleT = useTranslations("dashboard.moduleCards");
   const settingsT = useTranslations("settings");
@@ -1574,7 +1577,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     aria-label={t("analysisChannelsAria")}
                     style={analysisChannelRailStyle}
                   >
-                    {analysisChannels.map((channel) => {
+                    {analysisChannels.filter((channel) => channel.key !== "threads" || metaPilotEnabled).map((channel) => {
                       const channelName = moduleT(`${channel.key}.name`);
                       const statusLabel = channel.status === "connected"
                         ? t("analysisChannelConnected")

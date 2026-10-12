@@ -92,6 +92,7 @@ const CHANNEL_RENDER_BASE: Record<BoosterImageChannel, { width: number; height: 
   gmb: { width: 1200, height: 675 },
   facebook: { width: 1200, height: 1200 },
   instagram: { width: 1080, height: 1350 },
+  threads: { width: 1200, height: 1200 },
   linkedin: { width: 1200, height: 1200 },
   x: { width: 1200, height: 675 },
   tiktok: { width: 1080, height: 1920 },
@@ -646,6 +647,7 @@ const ORIGINAL_IMAGE_MIME_TYPES_BY_CHANNEL: Record<
   gmb: new Set(["image/jpeg", "image/png"]),
   facebook: new Set(["image/jpeg", "image/png"]),
   instagram: new Set(["image/jpeg"]),
+  threads: new Set(["image/jpeg"]),
   linkedin: new Set(["image/jpeg", "image/png"]),
   x: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
   // TikTok always goes through a channel variant, including the visual

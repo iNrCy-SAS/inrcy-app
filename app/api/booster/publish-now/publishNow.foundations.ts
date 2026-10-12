@@ -524,6 +524,7 @@ export function getRequiredImageFormatsForChannel(
   if (channel === "instagram") return { instagram: true };
   if (
     channel === "facebook" ||
+    channel === "threads" ||
     channel === "linkedin" ||
     channel === "x" ||
     channel === "tiktok" ||

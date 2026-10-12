@@ -31,6 +31,7 @@ function safeMetaSnapshot(metaValue: unknown): AnyRec {
   for (const key of [
     "connection_version",
     "connectionVersion",
+    "auth_mode",
     "auth_version",
     "authVersion",
     "selected",
@@ -117,11 +118,12 @@ export async function buildStatsConnectionSignature(
   try {
     const { data } = await supabase
       .from("profiles")
-      .select("lead_conversion_rate,avg_basket")
+      .select("lead_conversion_rate,avg_basket,role")
       .eq("user_id", userId)
       .maybeSingle();
     const rec = asRecord(data);
     pushPart(parts, "profile", {
+      role: String(rec.role ?? ""),
       lead_conversion_rate: Number(rec.lead_conversion_rate ?? 0),
       avg_basket: Number(rec.avg_basket ?? 0),
     });

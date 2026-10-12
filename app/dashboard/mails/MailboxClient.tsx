@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
+import { filterMetaPilotItems, filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { useLocale, useTranslations } from "next-intl";
 
 
@@ -248,6 +250,7 @@ export default function MailboxClient({
   founderMode?: boolean;
   adsEnabled?: boolean;
 }) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
   const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -317,7 +320,7 @@ export default function MailboxClient({
       )?.data ?? null;
     setInitialHistorySnapshot(snapshot);
     if (snapshot) {
-      const restoredItems = Array.isArray(snapshot.items) ? snapshot.items : [];
+      const restoredItems = filterMetaPilotItems(Array.isArray(snapshot.items) ? snapshot.items : [], metaPilotEnabled);
       const restoredPage = Math.max(1, snapshot.page || 1);
       setItems(restoredItems);
       setLoading(false);
@@ -1215,7 +1218,7 @@ export default function MailboxClient({
     const contextKey = mailboxHistoryContextKey(context);
     if (activeHistoryContextKeyRef.current !== contextKey) return false;
 
-    setItems(snapshot.items);
+    setItems(filterMetaPilotItems(snapshot.items, metaPilotEnabled));
     setHistoryPage(snapshot.page);
     setHistoryHasMorePotential(snapshot.hasMore);
     setHistoryTotalCount(snapshot.total);
@@ -1286,7 +1289,7 @@ export default function MailboxClient({
         }
 
         const nextItems = Array.isArray(payload?.items)
-          ? (payload.items as OutboxItem[])
+          ? filterMetaPilotItems(payload.items as OutboxItem[], metaPilotEnabled)
           : [];
         const nextPage = typeof payload?.page === "number"
           ? Math.max(1, Number(payload.page))
@@ -1639,9 +1642,9 @@ export default function MailboxClient({
 
   const detailsPayload = useMemo(() => {
     return detailsItem && detailsItem.source === "app_events"
-      ? (((detailsItem as any)?.raw?.payload || null) as any)
+      ? filterMetaPilotPayload(((detailsItem as any)?.raw?.payload || null) as any, metaPilotEnabled)
       : null;
-  }, [detailsItem]);
+  }, [detailsItem, metaPilotEnabled]);
 
   const loadCampaignRecipients = useCallback(
     async (

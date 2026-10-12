@@ -21,6 +21,8 @@ const read = (relativePath: string) =>
 const META_FILES = [
   "lib/facebookPublish.ts",
   "lib/instagramPublish.ts",
+  "lib/instagramVideoPublishPhases.ts",
+  "lib/instagramAuthMode.ts",
   "lib/inrsend/publicationChannelActions.ts",
   "lib/metaBusinessAssets.ts",
   "lib/metaInsights.ts",
@@ -73,7 +75,7 @@ test("aucun parcours Facebook ou Instagram ne garde une version codée en dur", 
     );
     assert.match(
       source,
-      /metaGraphApi/,
+      /metaGraphApi|instagramAuthMode/,
       `${relativePath} doit utiliser le contrat Meta central`,
     );
   }
@@ -81,10 +83,13 @@ test("aucun parcours Facebook ou Instagram ne garde une version codée en dur", 
 
 test("publication, OAuth, assets, statistiques et iNrSend utilisent tous le contrat central", () => {
   assert.match(read("lib/facebookPublish.ts"), /buildMetaGraphUrl/);
-  assert.match(read("lib/instagramPublish.ts"), /buildMetaGraphUrl/);
+  assert.match(read("lib/instagramPublish.ts"), /buildInstagramGraphUrl/);
+  assert.match(read("lib/instagramVideoPublishPhases.ts"), /buildInstagramGraphUrl/);
+  assert.match(read("lib/instagramAuthMode.ts"), /buildMetaGraphUrl/);
+  assert.match(read("lib/instagramAuthMode.ts"), /META_GRAPH_API_VERSION/);
   assert.match(read("lib/inrsend/publicationChannelActions.ts"), /buildMetaGraphUrl/);
   assert.match(read("lib/metaBusinessAssets.ts"), /buildMetaGraphUrl/);
-  assert.match(read("lib/metaInsights.ts"), /META_GRAPH_API_BASE_URL/);
+  assert.match(read("lib/metaInsights.ts"), /buildInstagramGraphUrl/);
   assert.match(read("lib/facebookInsights.ts"), /META_GRAPH_API_BASE_URL/);
   assert.match(read("app/api/integrations/facebook/start/route.ts"), /buildMetaOAuthUrl/);
   assert.match(read("app/api/integrations/instagram/start/route.ts"), /buildMetaOAuthUrl/);

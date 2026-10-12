@@ -54,7 +54,7 @@ export default function DashboardBoosterModalLayer({
 }: {
   mode: DashboardBoosterModalMode;
   onClose: () => void;
-  initialConnectedChannels?: Partial<Record<"site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
+  initialConnectedChannels?: Partial<Record<"site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
   const dashboardT = useTranslations("dashboard");

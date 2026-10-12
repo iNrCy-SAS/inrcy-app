@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
@@ -163,12 +164,14 @@ export async function GET() {
       getAppBubbleAccessMapForUser(supabase, activeUserId),
       ensureSystemManagedInrSearch(supabase, activeUserId),
     ]);
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
     const channelEnabled = {
       site_web: isBubbleEnabled(bubbleAccess, "site_web"),
       inr_search: isBubbleEnabled(bubbleAccess, "inr_search"),
       gmb: isBubbleEnabled(bubbleAccess, "gmb"),
       facebook: isBubbleEnabled(bubbleAccess, "facebook"),
-      instagram: isBubbleEnabled(bubbleAccess, "instagram"),
+      instagram: isBubbleEnabled(bubbleAccess, "instagram") && (states.instagram.authMode !== "instagram_login" || metaPilotEnabled),
+      threads: metaPilotEnabled && isBubbleEnabled(bubbleAccess, "threads"),
       linkedin: isBubbleEnabled(bubbleAccess, "linkedin"),
       tiktok: isBubbleEnabled(bubbleAccess, "tiktok"),
       youtube_shorts: isBubbleEnabled(bubbleAccess, "youtube_shorts"),
@@ -190,6 +193,7 @@ export async function GET() {
         gmb: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb),
         facebook: channelEnabled.facebook && isOfficialPublicationChannelConnected(states.facebook),
         instagram: channelEnabled.instagram && isOfficialPublicationChannelConnected(states.instagram),
+        threads: channelEnabled.threads && isOfficialPublicationChannelConnected(states.threads),
         linkedin: channelEnabled.linkedin && isOfficialPublicationChannelConnected(states.linkedin),
         tiktok: channelEnabled.tiktok && isOfficialPublicationChannelConnected(states.tiktok),
         youtube_shorts: channelEnabled.youtube_shorts && isOfficialPublicationChannelConnected(states.youtube_shorts),
@@ -237,6 +241,11 @@ export async function GET() {
           connectionStatus: states.facebook.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.facebook),
           disabled: !channelEnabled.facebook,
+        },
+        threads: {
+          type: "account", label: firstCleanLabel([states.threads.username, states.threads.profile_url], "Compte Threads connecté", cleanSocialHandle),
+          href: states.threads.profile_url, connectionStatus: states.threads.connection_status,
+          requiresReconnect: publicationChannelRequiresReconnect(states.threads), disabled: !channelEnabled.threads,
         },
         instagram: {
           type: "account",

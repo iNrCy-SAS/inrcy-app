@@ -53,6 +53,7 @@ const CHANNEL_LABELS: Record<BoosterChannels, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -179,6 +180,8 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
     "Facebook humain, local et conversationnel. Titre 40–80. Proximité et interaction naturelle. Mini-liste facultative. CTA non agressif.",
   instagram:
     "Instagram visuel, vivant et spontané. Titre 35–70. Paragraphes courts. Hashtags ciblés si utiles. Ne jamais inventer ‘lien en bio’.",
+  threads:
+    "Threads bref, humain, utile et conversationnel. Le texte final complet (titre, contenu et CTA) ne dépasse jamais 500 caractères. Pas de hashtag ajouté. Texte seul, image, vidéo ou carrousel possibles. Ne pas imiter une légende Instagram ni inventer un lien en bio.",
   linkedin:
     "LinkedIn professionnel, humain et crédible. Titre 45–120. Expertise, méthode, recul ou retour terrain. Peu d’emojis, pas de ton vendeur artificiel.",
   x:
@@ -213,6 +216,7 @@ const CHANNEL_EMOJI_TARGETS: Record<
     gmb: "0 emoji.",
     facebook: "0 emoji.",
     instagram: "0 emoji.",
+    threads: "0 emoji.",
     linkedin: "0 emoji.",
     x: "0 emoji.",
     tiktok: "0 emoji.",
@@ -225,6 +229,7 @@ const CHANNEL_EMOJI_TARGETS: Record<
     gmb: "0–1 emoji seulement si naturel.",
     facebook: "1–3 emojis maximum, bien répartis.",
     instagram: "2–5 emojis utiles, sans décoration automatique.",
+    threads: "0–2 emojis utiles seulement si naturels.",
     linkedin: "0–2 emojis maximum, très sobres.",
     x: "0–2 emojis maximum, sans sacrifier la limite de 280 caractères pondérés.",
     tiktok: "2–5 emojis vivants si pertinents.",
@@ -237,6 +242,7 @@ const CHANNEL_EMOJI_TARGETS: Record<
     gmb: "1–2 emojis sobres et utiles, bien répartis.",
     facebook: "6–10 emojis visibles et naturellement répartis.",
     instagram: "8–12 emojis visibles, variés et répartis dans le texte.",
+    threads: "2–4 emojis utiles maximum, sans sacrifier la limite de 500 caractères.",
     linkedin: "2–4 emojis maximum : présence visible mais professionnelle.",
     x: "3–5 emojis maximum, uniquement si le post complet reste sous 280 caractères pondérés.",
     tiktok: "8–12 emojis visibles, vivants et répartis naturellement.",

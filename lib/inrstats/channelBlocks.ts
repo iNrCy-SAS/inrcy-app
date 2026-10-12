@@ -115,6 +115,7 @@ function getOverviewError(channel: DashboardChannelKey, overview: Overview | nul
     gmb: ['gmb'],
     facebook: ['facebook'],
     instagram: ['instagram'],
+    threads: ['threads'],
     linkedin: ['linkedin'],
     x: ['x'],
     tiktok: ['tiktok'],
@@ -178,8 +179,9 @@ function mapChannelConnection(channel: DashboardChannelKey, states: ChannelState
         resourceUrl: state.page_url,
       };
     }
+    case 'threads':
     case 'instagram': {
-      const state = states.instagram;
+      const state = states[channel];
       return {
         connected: state.connected,
         accountConnected: state.accountConnected,

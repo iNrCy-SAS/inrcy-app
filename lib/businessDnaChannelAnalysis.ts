@@ -7,6 +7,11 @@ import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { getGmbToken } from "@/lib/googleBusiness";
 import { getGmbReviewTargetFromRow, gmbListReviews } from "@/lib/googleBusinessReviews";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
+import { buildInstagramGraphUrl, resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
+import { fetchThreadsContent } from "@/lib/threadsInsights";
+import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
 import {
   extractFacebookUserTokens,
@@ -54,6 +59,7 @@ type JsonRecord = Record<string, unknown>;
 
 type IntegrationRow = {
   id?: string | null;
+  user_id?: string | null;
   provider?: string | null;
   source?: string | null;
   product?: string | null;
@@ -654,7 +660,8 @@ async function collectInstagram(
   recentWindow: BusinessDnaRecentWindow,
 ) {
   const profileId = asString(row.resource_id);
-  const accessToken = tryDecryptToken(row.access_token_enc) || "";
+  const accessToken = await ensureMetaDirectAccessToken(supabaseAdmin, row);
+  const authMode = resolveInstagramAuthMode(row.meta);
   if (!profileId || !accessToken) throw new Error("Compte Instagram incomplet.");
   const profileQuery = new URLSearchParams({
     fields: "username,name,biography,website",
@@ -667,8 +674,8 @@ async function collectInstagram(
   });
   const requestInit = { headers: { Authorization: `Bearer ${accessToken}` } };
   const [profileResult, mediaResult] = await Promise.allSettled([
-    fetchJson(`${buildMetaGraphUrl(profileId)}?${profileQuery.toString()}`, requestInit),
-    fetchJson(`${buildMetaGraphUrl(`${profileId}/media`)}?${mediaQuery.toString()}`, requestInit),
+    fetchJson(`${buildInstagramGraphUrl(profileId, authMode)}?${profileQuery.toString()}`, requestInit),
+    fetchJson(`${buildInstagramGraphUrl(`${profileId}/media`, authMode)}?${mediaQuery.toString()}`, requestInit),
   ]);
   const reconnectFailure = findBusinessDnaReconnectRejectedReason(profileResult, mediaResult);
   if (reconnectFailure) throw reconnectFailure;
@@ -1280,21 +1287,24 @@ export async function collectBusinessDnaChannelSources(args: {
   businessProfile: unknown;
   proToolsConfig: unknown;
   companyName?: string;
+  metaPilotEnabled?: boolean;
 }) {
+  const metaPilotEnabled = args.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabaseAdmin, args.userId);
   const now = new Date();
   const recentWindow = buildBusinessDnaRecentWindow(now);
   const historyWindow = buildBusinessDnaAnalysisHistoryWindow(now);
   const [states, integrationsResult] = await Promise.all([
-    getChannelConnectionStates(args.supabase, args.userId),
+    getChannelConnectionStates(args.supabase, args.userId, undefined, { metaPilotEnabled }),
     supabaseAdmin
       .from("integrations")
-      .select("id,provider,source,product,status,resource_id,resource_label,display_name,access_token_enc,refresh_token_enc,expires_at,meta,updated_at,created_at")
+      .select("id,user_id,provider,source,product,status,resource_id,resource_label,display_name,access_token_enc,refresh_token_enc,expires_at,meta,updated_at,created_at")
       .eq("user_id", args.userId),
   ]);
   if (integrationsResult.error) throw integrationsResult.error;
   const rows = (Array.isArray(integrationsResult.data) ? integrationsResult.data : []) as IntegrationRow[];
   const facebookRow = latestIntegration(rows, "facebook", "facebook", "facebook");
   const instagramRow = latestIntegration(rows, "instagram", "instagram", "instagram");
+  const threadsRow = latestIntegration(rows, "threads", "threads", "threads");
   const tiktokRow = latestIntegration(rows, "tiktok", "tiktok", "tiktok");
   const youtubeRow = latestIntegration(rows, "youtube", "youtube_shorts", "youtube_shorts");
 
@@ -1338,6 +1348,14 @@ export async function collectBusinessDnaChannelSources(args: {
       url: states.instagram.profile_url,
       collect: async () => collectInstagram(instagramRow || {}, historyWindow, recentWindow),
     }),
+    ...(metaPilotEnabled ? [executeSource({
+      key: "threads", label: "Threads", connected: Boolean(states.threads.connected && threadsRow), requiresUpdate: states.threads.requiresUpdate, url: states.threads.profile_url,
+      collect: async () => {
+        const token = await ensureMetaDirectAccessToken(supabaseAdmin, threadsRow || {});
+        const posts = await fetchThreadsContent(token, String(threadsRow?.resource_id || ""), new Date(historyWindow.start), new Date(historyWindow.end));
+        return { content: compactJson({ username: states.threads.username, posts: posts.map(post => ({ text: clampText(post.text, 1000), publishedAt: asString(post.timestamp), publicUrl: asString(post.permalink), mediaType: asString(post.media_type) })) }), itemCount: posts.length, recentItemCount: posts.filter(post => isBusinessDnaPublicationInWindow(asString(post.timestamp), recentWindow)).length };
+      },
+    })] : []),
     executeSource({
       key: "linkedin",
       label: "LinkedIn",
@@ -1420,5 +1438,5 @@ export async function collectBusinessDnaChannelSources(args: {
     }),
   ]);
 
-  return sources;
+  return withoutThreadsData(sources, metaPilotEnabled);
 }

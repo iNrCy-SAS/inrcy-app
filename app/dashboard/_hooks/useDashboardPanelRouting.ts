@@ -2,19 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 
 export type DashboardPanelName =
-  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "profileSection", "premium"];
 
 export function useDashboardPanelRouting() {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const rawPanel = searchParams.get("panel");
-  const urlPanel = rawPanel === "site_inrcy"
+  const urlPanel = rawPanel === "threads" && !metaPilotEnabled ? null : rawPanel === "site_inrcy"
     ? "site_web"
     : rawPanel === "trustpilot"
     ? "inr_search"
@@ -62,6 +64,7 @@ export function useDashboardPanelRouting() {
 
   const openPanel = useCallback(
     (name: DashboardPanelName) => {
+      if (name === "threads" && !metaPilotEnabled) return;
       void requestNavigation(() => {
         if (name === "profil" || name === "activite" || name === "ai_memory" || name === "ia") {
           markPanelAsExplicitlyOpened(name);
@@ -85,7 +88,7 @@ export function useDashboardPanelRouting() {
         router.push(`/dashboard?${params.toString()}`, { scroll: false });
       });
     },
-    [markPanelAsExplicitlyOpened, requestNavigation, router, searchParams]
+    [markPanelAsExplicitlyOpened, metaPilotEnabled, requestNavigation, router, searchParams]
   );
 
   const closePanel = useCallback(() => {
@@ -133,5 +136,5 @@ export function useDashboardPanelRouting() {
     [requestNavigation, router]
   );
 
-  return { panel, openPanel, closePanel, goToModule };
+  return { panel: panel === "threads" && !metaPilotEnabled ? null : panel, openPanel, closePanel, goToModule };
 }

@@ -97,7 +97,8 @@
       "boutique": "Negozio",
       "parrainage": "Invita con iNrCy",
       "notifications": "Avvisi",
-      "documents": "Impostazioni predefinite"
+      "documents": "Impostazioni predefinite",
+      "threads": "Impostazioni — Threads"
     }
   },
   "hero": {
@@ -115,7 +116,7 @@
     "aiStepLabel": "Configura la mia IA",
     "channelsInfoAria": "Visualizza la griglia di potenza dei canali",
     "channelsInfoTitle": "Ripartizione della potenza dei canali",
-    "channelsInfoHint": "Ogni canale ponderato contribuisce con la propria quota. La potenza raggiunge il 100% quando tutti i canali Premium sono attivi.",
+    "channelsInfoHint": "L’indicatore somma i pesi fissi dei canali attivi. Il massimo dipende dai canali disponibili con il tuo accesso.",
     "dnaInfoAria": "Comprendi il punteggio DNA",
     "dnaInfoTitle": "Contenuti personalizzati",
     "dnaInfoHint": "Più il tuo iNr’DNA è completo, più i contenuti creati dall’IA saranno personalizzati e fedeli alla tua azienda.",
@@ -371,6 +372,12 @@
       "description": "Automatizza azioni 🤖",
       "view": "Apri",
       "connect": "Configura"
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "Dialoga con la tua comunità",
+      "view": "Vedi account",
+      "connect": "Collega Instagram"
     }
   },
   "bubble": {

@@ -6,10 +6,11 @@
   padding: 18px 22px 24px;
 }
 .experience { position: relative; }
-.hubRow { position: relative; height: 64px; display: flex; justify-content: center; align-items: center; z-index: 3; }
+.hubRow { position: relative; height: 64px; display: flex; justify-content: center; align-items: center; }
 .hubBeam { position: absolute; inset-inline: 10%; top: 50%; height: 1px; background: linear-gradient(90deg, transparent, #1594e522, #47ddff88 48%, #aa53eb88 52%, #ab50e422, transparent); }
 .channelsHub {
-  position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
+  /* Only the circle floats above the open cockpit, not the beam or tools below. */
+  position: relative; z-index: 6; isolation: isolate; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px;
   width: 116px; height: 116px; padding: 13px 7px; border: 2px solid transparent; border-radius: 50%; color: #fff;
   background: radial-gradient(circle at 32% 15%, #205ccb, #0c174b 44%, #311078 95%) padding-box, conic-gradient(from 35deg, #ad70ff, #e06aec, #8368ff, #36d4ff, #3ae8ff, #7593ff, #ad70ff) border-box;
   box-shadow: 0 0 0 6px #080e2cf2, 0 0 0 7px #4f8af877, 0 0 30px #298df46b, 0 0 55px #9848d333, inset 0 0 19px #699dff50;

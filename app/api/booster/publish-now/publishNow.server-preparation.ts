@@ -1,3 +1,4 @@
+import { resolveInstagramAuthMode, buildInstagramGraphUrl } from "@/lib/instagramAuthMode";
 import { randomUUID } from "crypto";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -50,6 +51,7 @@ export function buildInstagramPublishTokenCandidates(
   const ig = asRecord(igRowLike);
   const igMeta = asRecord(ig["meta"]);
   push("instagram.access_token_enc", ig["access_token_enc"]);
+  if (resolveInstagramAuthMode(igMeta) === "instagram_login") return candidates;
   push("instagram.meta.page_access_token_enc", igMeta["page_access_token_enc"]);
   push(
     "instagram.meta.standard_user_access_token_enc",

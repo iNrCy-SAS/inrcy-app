@@ -1,3 +1,5 @@
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
@@ -44,6 +46,10 @@ export async function POST(req: Request) {
   const row = (rows?.[0] as unknown) ?? null;
   const rowRec = asRecord(row);
   const metaRec = asRecord(rowRec["meta"]);
+  if (resolveInstagramAuthMode(metaRec) === "instagram_login") {
+    if (!await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId)) return metaChannelPilotDeniedResponse();
+    return NextResponse.json({ error: "Le compte Instagram est déjà connecté directement. Aucun profil Facebook n’est à sélectionner.", code: "instagram_direct_no_facebook_selection" }, { status: 409 });
+  }
   const encryptedTokens = extractFacebookUserTokens(metaRec, asString(rowRec["access_token_enc"]) || null);
   const userTokens = encryptedTokens.map((raw) => tryDecryptToken(raw)).filter((v): v is string => !!v);
   if (!userTokens.length) return NextResponse.json({ error: "Compte Instagram non connecté." }, { status: 400 });

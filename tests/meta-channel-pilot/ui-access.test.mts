@@ -1,0 +1,320 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
+import test from "node:test";
+import ts from "typescript";
+import { filterMetaPilotItems, filterMetaPilotPayload, isMetaPilotChannelVisible } from "../../lib/metaChannelUiAccess.ts";
+import { isMetaChannelPilotEnabled, META_DIRECT_CHANNELS_PUBLIC_ENABLED } from "../../lib/metaChannelRollout.ts";
+import { buildBubbleAccessMap } from "../../lib/bubbleAccess.ts";
+import { THREADS_PUBLICATION_CAPABILITIES } from "../../lib/inrsend/threadsCapabilities.ts";
+import { clampDashboardChannelPowerForAccess, computeDashboardChannelPower } from "../../lib/dashboardChannelPower.ts";
+import { getDashboardChannelPowerSetup, getDashboardChannelSetup } from "../../app/dashboard/dashboard.channel-setup.ts";
+import { DASHBOARD_CACHE_KEYS } from "../../lib/dashboardCacheKeys.ts";
+import type { DashboardFluxBubbleData } from "../../app/dashboard/_components/DashboardFluxBubble.tsx";
+import { getBoosterImageDecision } from "../../lib/boosterImageDecision.ts";
+
+const require = createRequire(import.meta.url);
+const loaded = new Map<string, Record<string, unknown>>();
+function load(relative: string): Record<string, unknown> {
+  const file = path.resolve(relative);
+  if (loaded.has(file)) return loaded.get(file)!;
+  if (/\.(png|jpg|jpeg|svg)$/.test(file)) return { src: relative };
+  if (file.endsWith(".json")) return JSON.parse(fs.readFileSync(file, "utf8"));
+  const source = fs.readFileSync(file, "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  const loadedModule = { exports: {} as Record<string, unknown> }; loaded.set(file, loadedModule.exports);
+  const localRequire = (id: string) => {
+    if (file.endsWith("dashboard.flux-bubbles.ts") && id === "./dashboard.utils") return { statusLabel: (status: string, copy: { status: Record<string, string> }) => copy.status[status] || status };
+    if (id === "server-only") return {};
+    if (!id.startsWith(".") && !id.startsWith("@/")) return require(id);
+    const base = id.startsWith("@/") ? path.resolve(id.slice(2)) : path.resolve(path.dirname(file), id);
+    const candidate = [base, base + ".ts", base + ".tsx", base + ".json"].find((item) => fs.existsSync(item));
+    assert.ok(candidate, "module " + id);
+    return load(candidate);
+  };
+  new Function("require", "module", "exports", output)(localRequire, loadedModule, loadedModule.exports);
+  loaded.set(file, loadedModule.exports); return loadedModule.exports;
+}
+
+const { buildFluxBubbleItems } = load("app/dashboard/dashboard.flux-bubbles.ts") as { buildFluxBubbleItems: (args: ReturnType<typeof bubbleArgs>) => DashboardFluxBubbleData[] };
+const copy = { ...load("messages/fr-FR/dashboard.json"), locale: "fr-FR" };
+function bubbleArgs(enabled: boolean) {
+  return { bubbleAccessMap: buildBubbleAccessMap([{ bubble_key: "threads", enabled: true }]), metaPilotEnabled: enabled,
+    officialChannelStatesReady: true, canAccessPinterest: true, channelBlocks: {},
+    facebookPageConnected: false, facebookConnectionStatus: "disconnected", facebookUrl: "",
+    instagramConnected: false, instagramConnectionStatus: "disconnected", instagramUrl: "",
+    threadsConnected: true, threadsConnectionStatus: "connected", threadsUrl: "https://www.threads.com/@inrcy",
+    linkedinConnected: false, linkedinConnectionStatus: "disconnected", linkedinUrl: "",
+    gmbConnected: false, gmbConnectionStatus: "disconnected", gmbUrl: "",
+    xConnected: false, xConnectionStatus: "disconnected", xUrl: "", mailAccountsConnectedCount: 0,
+    tiktokConnected: false, youtubeShortsConnected: false, inrBadgeProfileReady: false, inrBadgeProfileCheckReady: true,
+    getSiteBubbleProgress: () => ({ status: "available", text: "À connecter" }),
+    onOpenInrBadgeModal() {}, onOpenInrAgent() {}, openPanel(name: string) { void name; }, setHelpSiteWebOpen() {}, siteWebSavedUrl: "", copy };
+}
+
+test("manual Bubble Access and cached connected state cannot expose Threads to USER", () => {
+  assert.equal(META_DIRECT_CHANNELS_PUBLIC_ENABLED, false);
+  assert.equal(isMetaChannelPilotEnabled(false), false);
+  const rows = buildFluxBubbleItems(bubbleArgs(false));
+  assert.equal(rows.some((row) => row.key === "threads"), false);
+  assert.equal(rows.some((row) => row.key === "instagram"), true);
+});
+
+test("the ADMIN pilot bubble retains the normal status, profile and settings actions", () => {
+  const args = bubbleArgs(isMetaChannelPilotEnabled(true));
+  let opened = ""; args.openPanel = (name: string) => { opened = name; };
+  const row = buildFluxBubbleItems(args).find((item) => item.key === "threads");
+  assert.ok(row); assert.equal(row.logoSrc, "/icons/threads.svg");
+  assert.equal(row.bubbleStatus, "connected"); assert.equal(row.specialViewHref, args.threadsUrl);
+  assert.equal(row.canViewSpecial, true); assert.equal(row.configureDisabled, false);
+  row.onConfigure(); assert.equal(opened, "threads");
+});
+
+test("USER snapshots discard Threads-only publications and strip mixed channel data without changing Facebook", () => {
+  const history = [{ id: "threads-only", channels: ["threads"], raw: { payload: { channels: ["threads"] } } },
+    { id: "mixed", channels: ["facebook", "threads"], raw: { payload: { channels: ["facebook", "threads"], postByChannel: { facebook: { content: "Keep me" }, threads: { content: "Pilot" } }, results: { facebook: { ok: true }, threads: { ok: false } } } } }];
+  const safe = filterMetaPilotItems(history, false);
+  assert.deepEqual(safe.map((item) => item.id), ["mixed"]);
+  assert.deepEqual(safe[0].channels, ["facebook"]);
+  assert.deepEqual(safe[0].raw.payload.postByChannel, { facebook: { content: "Keep me" } });
+  assert.deepEqual(history[1].channels, ["facebook", "threads"]);
+  assert.deepEqual(filterMetaPilotItems(history, true), history);
+});
+
+test("USER Agent preferences, CTA settings and channel maps drop Threads while ADMIN retains them", () => {
+  const snapshot = { allowedChannels: ["instagram", "threads"], connectedChannels: { instagram: true, threads: true }, channelCtas: { threads: { label: "Visit" }, instagram: { label: "Call" } } };
+  assert.deepEqual(filterMetaPilotPayload(snapshot, false), { allowedChannels: ["instagram"], connectedChannels: { instagram: true }, channelCtas: { instagram: { label: "Call" } } });
+  assert.equal(filterMetaPilotPayload(snapshot, true), snapshot);
+  assert.equal(isMetaPilotChannelVisible("Threads", false), false);
+});
+
+test("Threads publication text preview is exactly the transmitted title and CTA at 500 Unicode characters", () => {
+  const { buildBoosterThreadsPostText } = load("lib/boosterCta.ts") as { buildBoosterThreadsPostText: (post: Record<string, unknown>) => string };
+  const { getBoosterPublicationTextPreview } = load("lib/boosterPublicationTextPreview.ts") as { getBoosterPublicationTextPreview: (channel: string, post: Record<string, unknown>) => { count: number; text: string } };
+  const post = { title: "", content: "😀".repeat(500), ctaMode: "none", hashtags: ["ignored"] };
+  const preview = getBoosterPublicationTextPreview("threads", post);
+  assert.equal(preview.count, 500); assert.equal(preview.text, buildBoosterThreadsPostText(post));
+  assert.throws(() => buildBoosterThreadsPostText({ ...post, content: "😀".repeat(501) }), /500/);
+  const cta = { title: "Hello", content: "A useful update", ctaMode: "website", cta: "Visit", ctaUrl: "https://example.com", hashtags: [] };
+  assert.equal(getBoosterPublicationTextPreview("threads", cta).text, buildBoosterThreadsPostText(cta));
+});
+
+test("Threads keeps originals and offers draft editing, remote deletion and retry without fake published editing", () => {
+  assert.deepEqual(THREADS_PUBLICATION_CAPABILITIES.editPublished, false);
+  assert.equal(THREADS_PUBLICATION_CAPABILITIES.editDraft, true);
+  assert.equal(THREADS_PUBLICATION_CAPABILITIES.deletePublished, true);
+  assert.equal(THREADS_PUBLICATION_CAPABILITIES.retryFailed, true);
+  assert.equal(getBoosterImageDecision({ channel: "threads", meta: { width: 3000, height: 600 } }).mode, "original");
+});
+
+test("the approved 12 fixed channel weights total 100 with Threads the smallest contribution", () => {
+  const approved: Readonly<Record<string, number>> = { site_web: 15, gmb: 15, facebook: 10, instagram: 10, linkedin: 10, tiktok: 7, youtube_shorts: 7, mails: 7, pinterest: 5, x: 5, inr_search: 5, threads: 4 };
+  const admin = getDashboardChannelPowerSetup(true);
+  const user = getDashboardChannelPowerSetup(false);
+  assert.deepEqual(Object.fromEntries(admin.map(({ key, weight }) => [key, weight])), approved);
+  assert.equal(admin.reduce((sum, channel) => sum + channel.weight, 0), 100);
+  assert.equal(getDashboardChannelSetup(true).find((channel) => channel.key === "inrbadge")?.weight, 0);
+  for (const channel of user) assert.equal(channel.weight, approved[channel.key], "hiding Threads must preserve " + channel.key);
+  const threads = admin.find((channel) => channel.key === "threads");
+  assert.ok(threads);
+  assert.ok(admin.every((channel) => channel.key === "threads" || channel.weight > threads.weight));
+});
+
+test("fixed scoring reaches ADMIN 100 and USER 96 without compensating for unavailable channels", () => {
+  const user = getDashboardChannelPowerSetup(false);
+  const admin = getDashboardChannelPowerSetup(true);
+  const score = (pilot: boolean, connected: readonly string[]) => computeDashboardChannelPower(getDashboardChannelPowerSetup(pilot).map((channel) => ({ weight: channel.weight, completed: connected.includes(channel.key) })));
+  assert.equal(user.some((channel) => channel.key === "threads"), false);
+  assert.equal(computeDashboardChannelPower(user.map((channel) => ({ weight: channel.weight, completed: true }))), 96);
+  assert.equal(computeDashboardChannelPower(admin.map((channel) => ({ weight: channel.weight, completed: true }))), 100);
+  assert.equal(score(true, user.map((channel) => channel.key)), 96);
+  assert.equal(score(false, ["site_web", "gmb"]), 30);
+  assert.equal(score(true, ["site_web", "gmb"]), 30);
+  assert.equal(score(true, ["site_web", "gmb", "threads"]), 34);
+  assert.equal(score(false, ["site_web", "gmb", "threads"]), 30, "an inaccessible cached Threads connection adds no points");
+  assert.equal(score(true, ["tiktok", "youtube_shorts", "pinterest", "x", "threads"]), 28);
+  assert.equal(score(false, user.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 89);
+  assert.equal(score(true, admin.filter((channel) => channel.key !== "mails").map((channel) => channel.key)), 93);
+  assert.equal(score(false, []), 0);
+  assert.equal(computeDashboardChannelPower([{ weight: 80, completed: true }, { weight: 40, completed: true }, { weight: 99, completed: false }]), 100);
+});
+
+function renderChannelConnections(pilot: boolean): RenderNode {
+  let stateIndex = 0;
+  const jsx = (type: unknown, props: Record<string, unknown>): RenderNode => ({ type, props });
+  const output = ts.transpileModule(fs.readFileSync("app/dashboard/_components/ChannelConnectionsModal.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const modalModule = { exports: {} as Record<string, unknown> };
+  const modalRequire = (id: string) => {
+    if (id === "react/jsx-runtime") return { jsx, jsxs: jsx };
+    if (id === "react") return { useState: () => [stateIndex++ === 0, () => undefined], useEffect: () => undefined, useId: () => "channel-power", useRef: () => ({ current: null }) };
+    if (id === "react-dom") return { createPortal: (node: RenderNode) => node };
+    if (id === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (id.endsWith(".css")) return { channelConnectionsRow: "channelConnectionsRow", channelConnectionsForce: "channelConnectionsForce" };
+    if (id === "../dashboard.channel-setup") return load("app/dashboard/dashboard.channel-setup.ts");
+    throw new Error("unexpected modal dependency " + id);
+  };
+  new Function("require", "module", "exports", output)(modalRequire, modalModule, modalModule.exports);
+  const Modal = modalModule.exports.default as (props: Record<string, unknown>) => RenderNode;
+  const priorDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { body: {} } });
+  try {
+    return Modal({ isOpen: true, items: getDashboardChannelSetup(pilot).map(({ key }) => ({ key, name: key, logoSrc: "/test.svg", bubbleStatus: "connected", bubbleStatusText: "Connected", onConfigure() {} })), businessEssentialsReady: true, onClose() {} });
+  } finally {
+    if (priorDocument) Object.defineProperty(globalThis, "document", priorDocument); else Reflect.deleteProperty(globalThis, "document");
+  }
+}
+
+test("the actual channel modal displays the same fixed percentage for shared USER and ADMIN channels", () => {
+  for (const pilot of [false, true]) {
+    const rows = renderNodes(renderChannelConnections(pilot)).filter((node) => node.type === "div" && node.props?.className === "channelConnectionsRow");
+    const percentages = Object.fromEntries(rows.map((row) => {
+      const children = row.props.children as RenderNode[];
+      const force = renderNodes(row).find((node) => node.type === "strong" && node.props?.className === "channelConnectionsForce");
+      assert.ok(force);
+      return [renderedText(children[0]), renderedText(force)];
+    }));
+    for (const channel of getDashboardChannelSetup(pilot)) assert.equal(percentages[channel.key], channel.weight ? "+" + channel.weight + "%" : "—");
+    assert.equal(percentages.site_web, "+15%");
+    assert.equal(percentages.tiktok, "+7%");
+    assert.equal(percentages.threads, pilot ? "+4%" : undefined);
+  }
+});
+
+function memoryStorage(): Storage {
+  const values = new Map<string, string>();
+  return { get length() { return values.size; }, clear: () => values.clear(), key: (index) => [...values.keys()][index] ?? null, getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); }, removeItem: (key) => { values.delete(key); } };
+}
+
+test("a cached v4 score is immediately capped when actor, account or edition access changes", () => {
+  const localStorage = memoryStorage();
+  const sessionStorage = memoryStorage();
+  const accountId = "11111111-1111-4111-8111-111111111111";
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const priorDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage, sessionStorage, location: { protocol: "http:", hostname: "localhost" } } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
+  try {
+    const browserCache = load("lib/browserAccountCache.ts") as { writeAccountCacheValue: (key: string, value: string, id: string) => void };
+    const bootstrap = load("app/dashboard/dashboard.bootstrap-cache.ts") as { readCachedGeneratorPowerPercent: (id: string) => number | null };
+    browserCache.writeAccountCacheValue(DASHBOARD_CACHE_KEYS.generatorPower, "100", accountId);
+    const contexts = [
+      { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
+      { actorAdmin: false, accountAdmin: true, standard: false, expected: 96 },
+      { actorAdmin: true, accountAdmin: false, standard: false, expected: 96 },
+      { actorAdmin: false, accountAdmin: false, standard: true, expected: 89 },
+      { actorAdmin: true, accountAdmin: true, standard: true, expected: 93 },
+      { actorAdmin: true, accountAdmin: true, standard: false, expected: 100 },
+    ];
+    for (const context of contexts) {
+      const pilot = isMetaChannelPilotEnabled(context.actorAdmin && context.accountAdmin);
+      const maximum = computeDashboardChannelPower(getDashboardChannelPowerSetup(pilot).map((channel) => ({ weight: channel.weight, completed: channel.key !== "mails" || !context.standard })));
+      const cached = bootstrap.readCachedGeneratorPowerPercent(accountId);
+      assert.equal(cached, 100, "the same cached value is present throughout the access changes");
+      assert.equal(clampDashboardChannelPowerForAccess(cached, maximum), context.expected);
+      assert.equal(clampDashboardChannelPowerForAccess(30, maximum), 30, "available capacity never awards points");
+      assert.equal(clampDashboardChannelPowerForAccess(null, maximum), 0);
+    }
+    assert.match(fs.readFileSync("app/dashboard/DashboardClient.tsx", "utf8"), /const generatorPower = clampDashboardChannelPowerForAccess\(displayedGeneratorPower, availableGeneratorPowerMax\)/);
+  } finally {
+    if (priorWindow) Object.defineProperty(globalThis, "window", priorWindow); else Reflect.deleteProperty(globalThis, "window");
+    if (priorDocument) Object.defineProperty(globalThis, "document", priorDocument); else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+test("the fixed-weight gauge ignores previous normalized caches and purges both old and current snapshots", () => {
+  const localStorage = memoryStorage();
+  const sessionStorage = memoryStorage();
+  const accountId = "11111111-1111-4111-8111-111111111111";
+  const scoped = (key: string) => key + ":uid:" + accountId;
+  const staleSnapshot = { power: 91, completedStepKeys: ["site_web"], nextStepKey: "threads", remainingSteps: 1 };
+  for (const storage of [localStorage, sessionStorage]) {
+    storage.setItem(scoped("inrcy_generator_power_percent_v3"), "91");
+    storage.setItem(scoped("inrcy_generator_power_snapshot_v3"), JSON.stringify(staleSnapshot));
+  }
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const priorDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage, sessionStorage, location: { protocol: "http:", hostname: "localhost" } } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
+  try {
+    const bootstrap = load("app/dashboard/dashboard.bootstrap-cache.ts") as { readCachedGeneratorPowerPercent: (id: string) => number | null; readCachedGeneratorPowerSnapshot: (id: string) => unknown };
+    const browserCache = load("lib/browserAccountCache.ts") as { writeAccountCacheValue: (key: string, value: string, id: string) => void; purgeAllBrowserAccountCaches: () => void };
+    assert.equal(bootstrap.readCachedGeneratorPowerPercent(accountId), null);
+    assert.equal(bootstrap.readCachedGeneratorPowerSnapshot(accountId), null);
+    const currentSnapshot = { ...staleSnapshot, power: 96 };
+    browserCache.writeAccountCacheValue(DASHBOARD_CACHE_KEYS.generatorPower, "96", accountId);
+    browserCache.writeAccountCacheValue(DASHBOARD_CACHE_KEYS.generatorPowerSnapshot, JSON.stringify(currentSnapshot), accountId);
+    assert.equal(bootstrap.readCachedGeneratorPowerPercent(accountId), 96);
+    assert.deepEqual(bootstrap.readCachedGeneratorPowerSnapshot(accountId), currentSnapshot);
+    browserCache.purgeAllBrowserAccountCaches();
+    for (const storage of [localStorage, sessionStorage]) assert.equal(storage.length, 0);
+  } finally {
+    if (priorWindow) Object.defineProperty(globalThis, "window", priorWindow); else Reflect.deleteProperty(globalThis, "window");
+    if (priorDocument) Object.defineProperty(globalThis, "document", priorDocument); else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+
+type RenderNode = { type: unknown; props: Record<string, unknown> };
+function renderInstagramPanel(pilot: boolean, connected: boolean, authMode: string, calls: string[]): RenderNode {
+  let stateIndex = 0;
+  const jsx = (type: unknown, props: Record<string, unknown>): RenderNode => ({ type, props });
+  const shell = load("messages/fr-FR/shell.json");
+  const source = fs.readFileSync("app/dashboard/_components/InstagramPanel.tsx", "utf8");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const panelModule = { exports: {} as Record<string, unknown> };
+  const panelRequire = (id: string) => {
+    if (id === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
+    if (id === "react") return {
+      useState: (initial: unknown) => [stateIndex++ === 0 ? true : initial, () => undefined],
+      useEffect: () => undefined, useId: () => "facebook-menu", useRef: () => ({ current: null }),
+    };
+    if (id === "next-intl") return { useTranslations: () => (key: string) => shell[key] || key };
+    if (id === "./DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) };
+    if (id.endsWith(".css")) return {};
+    if (id.startsWith("./")) return { default: "component" };
+    if (id.startsWith("@/")) return load(id.slice(2) + ".ts");
+    return require(id);
+  };
+  new Function("require", "module", "exports", output)(panelRequire, panelModule, panelModule.exports);
+  const Panel = panelModule.exports.default as (props: Record<string, unknown>) => RenderNode;
+  return Panel({ instagramAuthMode: authMode, instagramAccountConnected: connected, instagramConnected: connected, instagramConnectionStatus: connected ? "connected" : "disconnected", instagramUsername: connected ? "inrcy" : "", instagramUrl: "", igAccounts: [], connectInstagramAccount: () => calls.push("standard"), connectInstagramBusinessAccount: () => calls.push("business"), connectInstagramDirectAccount: () => calls.push("direct"), disconnectInstagramAccount: () => calls.push("disconnect") });
+}
+function renderNodes(value: unknown): RenderNode[] {
+  if (Array.isArray(value)) return value.flatMap(renderNodes);
+  if (!value || typeof value !== "object") return [];
+  const node = value as RenderNode;
+  return [node, ...renderNodes(node.props?.children)];
+}
+function renderedText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(renderedText).join("");
+  if (value && typeof value === "object") return renderedText((value as RenderNode).props?.children);
+  return "";
+}
+
+test("the Facebook dropdown keeps Standard and Business callbacks for USER and ADMIN", () => {
+  for (const pilot of [false, true]) {
+    const calls: string[] = [];
+    const nodes = renderNodes(renderInstagramPanel(pilot, false, "facebook_login", calls));
+    const menu = nodes.find((node) => node.props?.role === "menu");
+    assert.ok(menu);
+    const choices = renderNodes(menu).filter((node) => node.props?.role === "menuitem");
+    assert.deepEqual(choices.map((node) => renderedText(node)), ["Connexion standard", "Connexion business"]);
+    for (const choice of choices) (choice.props.onClick as () => void)();
+    assert.deepEqual(calls, ["standard", "business"]);
+    const direct = nodes.find((node) => node.type === "button" && renderedText(node) === "Connexion directe Instagram");
+    assert.equal(Boolean(direct), pilot);
+  }
+});
+
+test("a directly connected Instagram account keeps Disconnect and has no Facebook profile picker", () => {
+  const calls: string[] = [];
+  const nodes = renderNodes(renderInstagramPanel(true, true, "instagram_login", calls));
+  const disconnect = nodes.find((node) => node.type === "button" && renderedText(node) === "Déconnexion");
+  assert.ok(disconnect);
+  (disconnect.props.onClick as () => void)();
+  assert.deepEqual(calls, ["disconnect"]);
+  assert.equal(nodes.some((node) => node.props?.role === "menuitem"), false);
+  assert.equal(nodes.some((node) => renderedText(node) === "Sélectionner un compte"), false);
+});

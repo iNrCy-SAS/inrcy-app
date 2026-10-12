@@ -97,7 +97,8 @@
       "boutique": "Shop",
       "parrainage": "iNrCy aanbevelen",
       "notifications": "Meldingen",
-      "documents": "Standaardwaarden"
+      "documents": "Standaardwaarden",
+      "threads": "Instellingen — Threads"
     }
   },
   "hero": {
@@ -115,7 +116,7 @@
     "aiStepLabel": "Mijn AI configureren",
     "channelsInfoAria": "Het vermogensoverzicht van de kanalen bekijken",
     "channelsInfoTitle": "Verdeling van kanaalkracht",
-    "channelsInfoHint": "Elk gewogen kanaal levert zijn aandeel. Bij alle actieve Premium-kanalen bereikt de kracht 100%.",
+    "channelsInfoHint": "De meter telt de vaste gewichten van actieve kanalen op. Het maximum hangt af van de kanalen die met uw toegang beschikbaar zijn.",
     "dnaInfoAria": "De DNA-score begrijpen",
     "dnaInfoTitle": "Gepersonaliseerde content",
     "dnaInfoHint": "Hoe completer uw iNr’DNA, hoe persoonlijker en beter afgestemd op uw bedrijf de AI-content wordt.",
@@ -371,6 +372,12 @@
       "description": "Automatiseert acties 🤖",
       "view": "Openen",
       "connect": "Instellen"
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "Ga in gesprek met uw community",
+      "view": "Account bekijken",
+      "connect": "Instagram koppelen"
     }
   },
   "bubble": {

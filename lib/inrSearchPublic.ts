@@ -1256,6 +1256,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     { key: "google", label: "Google Business", url: googleBusinessUrl },
     { key: "facebook", label: "Facebook", url: normalizeExternalUrl(channelStates.facebook.page_url) },
     { key: "instagram", label: "Instagram", url: normalizeExternalUrl(channelStates.instagram.profile_url) },
+    ...(channelStates.threads.pilotEnabled && channelStates.threads.connected ? [{ key: "threads", label: "Threads", url: normalizeExternalUrl(channelStates.threads.profile_url) }] : []),
     { key: "linkedin", label: "LinkedIn", url: normalizeExternalUrl(channelStates.linkedin.organization_url || channelStates.linkedin.profile_url) },
     { key: "x", label: "X", url: normalizeExternalUrl(channelStates.x.profile_url) },
     { key: "tiktok", label: "TikTok", url: normalizeExternalUrl(channelStates.tiktok.profile_url) },

@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
@@ -17,6 +18,7 @@ export async function GET() {
   const { supabase, user, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
   const weekStart = getIsoWeekStart();
   const weekId = getIsoWeekId();
   const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
@@ -26,7 +28,7 @@ export async function GET() {
   }).catch(() => null);
 
   const [states, ledgerRes] = await Promise.all([
-    getChannelConnectionStates(supabase, activeUserId),
+    getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled }),
     supabase
       .from("loyalty_ledger")
       .select("created_at,action_key,amount,meta")
@@ -41,6 +43,7 @@ export async function GET() {
     gmb: states.gmb.connected && !states.gmb.requiresUpdate,
     facebook: states.facebook.connected && !states.facebook.requiresUpdate,
     instagram: states.instagram.connected && !states.instagram.requiresUpdate,
+    ...(metaPilotEnabled ? { threads: states.threads.connected && !states.threads.requiresUpdate } : {}),
     linkedin: states.linkedin.connected && !states.linkedin.requiresUpdate,
     x: states.x.connected && !states.x.requiresUpdate,
     tiktok: states.tiktok.connected && !states.tiktok.requiresUpdate,

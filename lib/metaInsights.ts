@@ -1,6 +1,4 @@
-import { META_GRAPH_API_BASE_URL } from "@/lib/metaGraphApi";
-
-const GRAPH = META_GRAPH_API_BASE_URL;
+import { buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramAuthMode";
 
 async function fetchJson(url: string) {
   const res = await fetch(url, { cache: "no-store" });
@@ -79,6 +77,7 @@ function normalizeMetricError(error: unknown): string {
 }
 
 function addNumeric(target: Record<string, number>, key: string, value: unknown) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return;
   const n = typeof value === "number" ? value : Number(value);
   if (Number.isFinite(n)) target[key] = (target[key] || 0) + n;
 }
@@ -107,7 +106,7 @@ function extractRowsForMetric(metricRow: Record<string, unknown>): Array<{ date:
 
   const byDay = new Map<string, Record<string, number>>();
   const pushValue = (date: string, rawValue: unknown) => {
-    if (!date) return;
+    // An empty date represents a range total, never an invented daily sample.
     const row = byDay.get(date) || {};
     addMetricValue(row, name, rawValue);
     if (name === "get_directions_clicks") addMetricValue(row, "get_direction_clicks", rawValue);
@@ -123,11 +122,11 @@ function extractRowsForMetric(metricRow: Record<string, unknown>): Array<{ date:
 
   if (byDay.size === 0 && metricRow?.total_value && typeof metricRow.total_value === "object") {
     const totalValue = metricRow.total_value as Record<string, unknown>;
-    const fallbackDate = String(totalValue?.end_time || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const fallbackDate = "";
     pushValue(fallbackDate, totalValue?.value ?? totalValue);
   }
 
-  return Array.from(byDay.entries()).map(([date, vals]) => ({ date, values: vals }));
+  return Array.from(byDay.entries()).filter(([, vals]) => Object.keys(vals).length > 0).map(([date, vals]) => ({ date, values: vals }));
 }
 
 async function igFetchAccountMetricRows(
@@ -136,7 +135,8 @@ async function igFetchAccountMetricRows(
   metrics: string[],
   since: number,
   until: number,
-  metricType?: "total_value"
+  metricType?: "total_value",
+  authMode: InstagramAuthMode = "facebook_login"
 ): Promise<Array<Record<string, unknown>>> {
   const params: Record<string, string> = {
     metric: metrics.join(","),
@@ -148,7 +148,7 @@ async function igFetchAccountMetricRows(
   if (metricType) params.metric_type = metricType;
 
   const url =
-    `${GRAPH}/${encodeURIComponent(igUserId)}/insights?` +
+    `${buildInstagramGraphUrl(`${encodeURIComponent(igUserId)}/insights`, authMode)}?` +
     new URLSearchParams(params).toString();
 
   const resp = await fetchJson(url);
@@ -161,9 +161,10 @@ async function igFetchAccountMetric(
   metric: string,
   since: number,
   until: number,
-  metricType?: "total_value"
+  metricType?: "total_value",
+  authMode: InstagramAuthMode = "facebook_login"
 ): Promise<Array<{ date: string; values: Record<string, number> }>> {
-  const rows = await igFetchAccountMetricRows(accessToken, igUserId, [metric], since, until, metricType);
+  const rows = await igFetchAccountMetricRows(accessToken, igUserId, [metric], since, until, metricType, authMode);
   return rows.flatMap((row: Record<string, unknown>) => extractRowsForMetric(row));
 }
 
@@ -184,7 +185,8 @@ export async function igFetchDailyInsights(
   accessToken: string,
   igUserId: string,
   start: Date,
-  end: Date
+  end: Date,
+  authMode: InstagramAuthMode = "facebook_login"
 ): Promise<InstagramDailyMetrics> {
   const since = Math.floor(start.getTime() / 1000);
   const until = Math.floor(end.getTime() / 1000);
@@ -198,7 +200,8 @@ export async function igFetchDailyInsights(
   // Instagram metric from killing all Instagram stats.
   for (const metric of IG_ACCOUNT_DAY_METRICS) {
     try {
-      const rows = await igFetchAccountMetric(accessToken, igUserId, metric, since, until);
+      const rows = await igFetchAccountMetric(accessToken, igUserId, metric, since, until, undefined, authMode);
+      if (!rows.length) { unsupportedMetrics.push(metric); metricErrors[metric] = "Métrique non disponible pour ce compte ou cette période."; continue; }
       supportedMetrics.push(metric);
       mergeMetricRows(byDay, rows);
     } catch (error) {
@@ -210,7 +213,8 @@ export async function igFetchDailyInsights(
 
   for (const metric of IG_ACCOUNT_TOTAL_VALUE_METRICS) {
     try {
-      const rows = await igFetchAccountMetric(accessToken, igUserId, metric, since, until, "total_value");
+      const rows = await igFetchAccountMetric(accessToken, igUserId, metric, since, until, "total_value", authMode);
+      if (!rows.length) { unsupportedMetrics.push(metric); metricErrors[metric] = "Métrique non disponible pour ce compte ou cette période."; continue; }
       supportedMetrics.push(metric);
       mergeMetricRows(byDay, rows);
     } catch (error) {
@@ -235,7 +239,8 @@ export async function igFetchDailyInsights(
   return {
     range: { since: start.toISOString(), until: end.toISOString() },
     totals,
-    daily,
+    daily: daily.filter(row => Boolean(row.date)),
+    ...(supportedMetrics.length ? {} : { error: "Les statistiques Instagram ne sont pas disponibles pour ce compte ou cette période." }),
     raw: {
       supportedMetrics: { account: supportedMetrics },
       unsupportedMetrics: { account: unsupportedMetrics },
@@ -252,8 +257,8 @@ function metricListForMediaType(mediaType: string): string[] {
   return [...IG_MEDIA_METRICS];
 }
 
-export async function igFetchRecentMediaInsights(accessToken: string, igUserId: string, start: Date) {
-  const mediaUrl = `${GRAPH}/${encodeURIComponent(igUserId)}/media?` +
+export async function igFetchRecentMediaInsights(accessToken: string, igUserId: string, start: Date, authMode: InstagramAuthMode = "facebook_login") {
+  const mediaUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(igUserId)}/media`, authMode)}?` +
     new URLSearchParams({ fields: "id,timestamp,media_type", limit: "50", access_token: accessToken }).toString();
 
   const mediaResp = await fetchJson(mediaUrl);
@@ -273,7 +278,7 @@ export async function igFetchRecentMediaInsights(accessToken: string, igUserId: 
     }
 
     const requestedMetrics = metricListForMediaType(String(item?.media_type || ""));
-    const buildUrl = (metricList: string[]) => `${GRAPH}/${encodeURIComponent(mediaId)}/insights?` +
+    const buildUrl = (metricList: string[]) => `${buildInstagramGraphUrl(`${encodeURIComponent(mediaId)}/insights`, authMode)}?` +
       new URLSearchParams({ metric: metricList.join(","), access_token: accessToken }).toString();
 
     let rows: Array<Record<string, unknown>> = [];

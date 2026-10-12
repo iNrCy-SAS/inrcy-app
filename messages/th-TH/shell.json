@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "ลิงก์ต้องไม่มีชื่อผู้ใช้หรือรหัสผ่าน",
   "channel_url_wrong_platform": "ลิงก์นี้ไม่ตรงกับช่องทางนี้",
   "channel_url_save_failed": "ไม่สามารถบันทึกลิงก์นี้ได้ในขณะนี้",
-  "channel_url_change_required": "แก้ไขลิงก์ก่อนบันทึก"
+  "channel_url_change_required": "แก้ไขลิงก์ก่อนบันทึก",
+  "instagram_direct_connect": "เชื่อมต่อ Instagram โดยตรง",
+  "instagram_facebook_connect": "เชื่อมต่อผ่าน Facebook",
+  "instagram_direct_help": "เลือกเชื่อมต่อบัญชีมืออาชีพ Instagram โดยตรง หรือใช้ขั้นตอนเดิมผ่าน Facebook การเชื่อมต่อโดยตรงไม่ต้องมีเพจ Facebook",
+  "instagram_direct_identity": "เชื่อมต่อบัญชีมืออาชีพ Instagram โดยตรงแล้ว",
+  "threads_connect_title": "เชื่อมต่อบัญชี Threads",
+  "threads_connect_help": "อนุญาตให้ iNrCy เผยแพร่ในบัญชี Threads ผ่านการเชื่อมต่ออย่างเป็นทางการที่ปลอดภัย",
+  "threads_checking": "กำลังตรวจสอบ…",
+  "threads_status_error": "ไม่สามารถตรวจสอบการเชื่อมต่อ Threads ได้",
+  "threads_disconnect_error": "ไม่สามารถยกเลิกการเชื่อมต่อ Threads ได้",
+  "threads_disconnected": "ยกเลิกการเชื่อมต่อบัญชี Threads แล้ว",
+  "threads_reconnect_help": "ต่ออายุสิทธิ์ของบัญชีของคุณ",
+  "threads_identity_help": "เลือกบัญชีระหว่างการเชื่อมต่ออย่างเป็นทางการ",
+  "threads_reconnect": "เชื่อมต่อ Threads อีกครั้ง",
+  "threads_connect": "เชื่อมต่อ Threads",
+  "threads_view_profile": "ดูโปรไฟล์ Threads",
+  "threads_description": "พูดคุยกับชุมชนของคุณ",
+  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้"
 }

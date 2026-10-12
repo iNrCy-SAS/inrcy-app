@@ -23,6 +23,9 @@ import FacebookPanelBlock from "./FacebookPanelBlock";
 import TiktokPanelBlock from "./TiktokPanelBlock";
 import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsSettingsContent";
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
+import ThreadsPanel from "./ThreadsPanel";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
+import type { useThreadsChannel } from "../_hooks/channels/useThreadsChannel";
 import XSettingsContent from "../settings/_components/XSettingsContent";
 import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
 import InrBadgeSettingsContent from "../settings/_components/InrBadgeSettingsContent";
@@ -44,6 +47,7 @@ const MEMORIZED_CHANNEL_PANELS = new Set([
 
   "site_web",
   "instagram",
+  "threads",
   "linkedin",
   "gmb",
   "facebook",
@@ -67,7 +71,7 @@ function MemorizedPanel({ active, children }: { active: boolean; children: React
 }
 
 type DashboardPanelName =
-  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
+  "contact" | "profil" | "preferences" | "inrbadge" | "compte" | "activite" | "ia" | "ai_memory" | "abonnement" | "mails" | "agenda" | "site_web" | "instagram" | "threads" | "linkedin" | "x" | "gmb" | "inr_search" | "facebook" | "tiktok" | "youtube_shorts" | "pinterest" | "legal" | "rgpd" | "inertie" | "boutique" | "notifications" | "parrainage" | "documents";
 
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
@@ -90,6 +94,7 @@ type DashboardSettingsDrawerContentProps = {
   submitReferral: () => void | Promise<void>;
   siteWebPanelProps: any;
   instagramPanelProps: any;
+  threadsChannel: ReturnType<typeof useThreadsChannel>;
   linkedinPanelProps: any;
   gmbPanelProps: any;
   facebookPanelProps: any;
@@ -125,6 +130,7 @@ export default function DashboardSettingsDrawerContent({
 
   siteWebPanelProps,
   instagramPanelProps,
+  threadsChannel,
   linkedinPanelProps,
   gmbPanelProps,
   facebookPanelProps,
@@ -137,6 +143,7 @@ export default function DashboardSettingsDrawerContent({
   inrSearchUrl = "",
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const contentRef = useRef<HTMLDivElement>(null);
   const previousPanelRef = useRef<string | null>(panel);
   const panelScrollPositionsRef = useRef(new Map<string, number>());
@@ -275,6 +282,7 @@ export default function DashboardSettingsDrawerContent({
           />
         </MemorizedPanel>
       ) : null}
+      {metaPilotEnabled && shouldKeepPanel("threads") ? <MemorizedPanel active={panel === "threads"}><ThreadsPanel channel={threadsChannel} /></MemorizedPanel> : null}
       {shouldKeepPanel("instagram") ? (
         <MemorizedPanel active={panel === "instagram"}>
           <InstagramPanelBlock

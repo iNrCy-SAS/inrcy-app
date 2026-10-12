@@ -21,6 +21,7 @@ export type Overview = {
     gmb: { connected: boolean; metrics: any | null };
     facebook: { connected: boolean; metrics?: any | null };
     instagram: { connected: boolean; metrics?: any | null };
+    threads: { connected: boolean; metrics?: any | null };
     linkedin: { connected: boolean; metrics?: any | null };
     x?: { connected: boolean; metrics?: any | null };
     tiktok: { connected: boolean; metrics?: any | null };
@@ -30,10 +31,10 @@ export type Overview = {
   };
   inrcyActivity?: Partial<Record<CubeKey, InrcyActivityStats>>;
   identities?: Partial<Record<CubeKey, { label?: string | null; url?: string | null }>>;
-  meta?: { generatedAt?: string; snapshotDate?: string | null; live?: boolean };
+  meta?: { generatedAt?: string; snapshotDate?: string | null; live?: boolean; metaPilotEnabled?: boolean };
 };
 
-export type CubeKey = "inrbadge" | "inr_search" | "site_web" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "mails" | "tiktok" | "youtube_shorts" | "pinterest";
+export type CubeKey = "inrbadge" | "inr_search" | "site_web" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "mails" | "tiktok" | "youtube_shorts" | "pinterest";
 
 export type Period = 7 | 14 | 30 | 60;
 

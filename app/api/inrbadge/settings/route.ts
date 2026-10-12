@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
@@ -22,6 +24,7 @@ export async function GET() {
   const { supabase, user, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const dashboardEdition = await getDashboardEditionForAuthUser(user.id);
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
 
   const { data, error } = await supabase
     .from("pro_tools_configs")
@@ -35,7 +38,7 @@ export async function GET() {
   const storedShareSettings = normalizeInrBadgeShareSettings(rootSettings.inrBadgeShareSettings);
   return NextResponse.json({
     ok: true,
-    settings: effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition),
+    settings: withoutThreadsData(effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition), metaPilotEnabled),
     theme: normalizeInrBadgeThemeSettings(rootSettings.inrBadgeTheme),
     appointmentSettings: resolveInrBadgeAppointmentSettings(rootSettings),
     selectedMailAccountId: dashboardEdition === "standard"
@@ -50,9 +53,12 @@ export async function PATCH(req: Request) {
   const { supabase, user, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const dashboardEdition = await getDashboardEditionForAuthUser(user.id);
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
 
   const body = await req.json().catch(() => ({}));
   const input = safeObj(body);
+  // The hidden pilot setting may be present in older full-form clients.
+  // Preserve it without allowing a USER to activate or erase that setting.
 
   const { data: current, error: currentError } = await supabase
     .from("pro_tools_configs")
@@ -71,6 +77,7 @@ export async function PATCH(req: Request) {
   const requestedShareSettings = hasShareSettings
     ? sanitizeInrBadgeShareSettingsPayload(input.settings)
     : currentShareSettings;
+  if (!metaPilotEnabled) requestedShareSettings.threads = currentShareSettings.threads;
   const nextShareSettings = dashboardEdition === "standard"
     ? { ...requestedShareSettings, appointment: currentShareSettings.appointment }
     : requestedShareSettings;
@@ -116,7 +123,7 @@ export async function PATCH(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    settings: effectiveInrBadgeShareSettings(nextShareSettings, dashboardEdition),
+    settings: withoutThreadsData(effectiveInrBadgeShareSettings(nextShareSettings, dashboardEdition), metaPilotEnabled),
     theme: nextTheme,
     appointmentSettings: nextAppointmentSettings,
     selectedMailAccountId: dashboardEdition === "standard" ? "" : nextSelectedMailAccountId,

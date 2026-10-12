@@ -1,5 +1,6 @@
 "use client";
 
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -522,6 +523,7 @@ function AgentEditorialCronWaitIndicator({
 }
 
 export default function AgentClient() {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
@@ -535,13 +537,10 @@ export default function AgentClient() {
   const router = useRouter();
   const standardMode = useDashboardEdition() === "standard";
   const visibleAutomations = useMemo(
-    () =>
-      standardMode
-        ? automations.filter((automation) =>
-            isStandardAgentAutomationKey(automation.key)
-          )
-        : automations,
-    [standardMode]
+    () => (standardMode
+        ? automations.filter((automation) => isStandardAgentAutomationKey(automation.key))
+        : automations).map((automation) => ({ ...automation, availableChannels: automation.availableChannels.filter((channel) => channel !== "threads" || metaPilotEnabled), availableThemes: automation.availableThemes.filter((theme) => theme !== "Threads" || metaPilotEnabled) })),
+    [standardMode, metaPilotEnabled]
   );
   const {
     agentSettings,
@@ -2213,7 +2212,7 @@ export default function AgentClient() {
         !Number.isInteger(returnedMediaIndex) ||
         returnedMediaIndex < 0 ||
         !returnedActionId ||
-        !channelOrder.includes(returnedChannel as ChannelKey)
+        (!channelOrder.includes(returnedChannel as ChannelKey) || (returnedChannel === "threads" && !metaPilotEnabled))
       ) {
         showNotice(i18nT("publish_media_update_failed"));
         return;

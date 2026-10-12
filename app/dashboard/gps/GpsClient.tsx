@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./gps.module.css";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import type { GpsArticle, GpsArticleSource, GpsMessageKey } from "./noticeContent";
 import { getGpsSectionsForEdition, isGpsSectionPremiumOnly } from "./gpsEditionPolicy";
@@ -73,15 +74,16 @@ export default function GpsClient() {
   const i18nT = useTranslations("gps");
   const translateKey = useCallback<GpsTranslator>((key) => i18nT(key as never), [i18nT]);
   const dashboardEdition = useDashboardEdition();
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const standardMode = dashboardEdition === "standard";
   const gpsSections = useMemo(
-    () => getGpsSectionsForEdition(dashboardEdition).map((section) => ({
+    () => getGpsSectionsForEdition(dashboardEdition, metaPilotEnabled).map((section) => ({
       ...section,
       title: translateKey(section.title),
       description: translateKey(section.description),
       articles: section.articles.map((article) => localizeGpsArticle(article, translateKey)),
     })),
-    [dashboardEdition, translateKey],
+    [dashboardEdition, translateKey, metaPilotEnabled],
   );
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] = useState<string>(gpsSections[0]?.id ?? "");

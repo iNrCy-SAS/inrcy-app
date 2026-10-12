@@ -779,5 +779,8 @@
   "video_format_selected_for_publication": "Format selected for the post",
   "video_format_selected_to_apply": "Video format selected, ready to apply",
   "tiktok_reuse_settings_session": "Use these settings for the next TikTok posts in this series",
-  "tiktok_reuse_settings_session_help": "The modal will not be shown again. Each post will still be approved separately."
+  "tiktok_reuse_settings_session_help": "The modal will not be shown again. Each post will still be approved separately.",
+  "threads": "Threads",
+  "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft.",
+  "threads_final_text": "Final Threads text"
 }

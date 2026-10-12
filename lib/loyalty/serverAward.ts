@@ -110,6 +110,7 @@ async function getTurboMultiplier(userId: string) {
       gmb: states.gmb.connected && !states.gmb.requiresUpdate,
       facebook: states.facebook.connected && !states.facebook.requiresUpdate,
       instagram: states.instagram.connected && !states.instagram.requiresUpdate,
+      ...(states.threads.pilotEnabled ? { threads: states.threads.connected && !states.threads.requiresUpdate } : {}),
       linkedin: states.linkedin.connected && !states.linkedin.requiresUpdate,
       x: states.x.connected && !states.x.requiresUpdate,
       tiktok: states.tiktok.connected && !states.tiktok.requiresUpdate,

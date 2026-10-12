@@ -107,7 +107,7 @@ export function hasTikTokStatsSignal(metrics: any) {
   ].some((key) => safeNum(totals[key]) > 0 || Object.prototype.hasOwnProperty.call(totals, key));
 }
 
-const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["inr_search",  "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
+const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["inr_search",  "site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
 
 function normalizeInrcyActivityCount(value: any): InrcyActivityCount {
   return {
@@ -284,12 +284,20 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     return firstSix(items);
   }
 
+  if (cubeKey === "threads") {
+    if (!ov.sources?.threads?.connected) return [];
+    const m = ov.sources.threads.metrics;
+    pushMetric(t("vues_ff576f2b"), safeNum(m?.totals?.views), { available: metricKeyExists(m, ["views"]), keepZero: true });
+    pushMetric(t("abonnes_fa75b9d9"), safeNum(m?.audience?.followers_count), { available: typeof m?.audience?.followers_count === "number", keepZero: true });
+    return firstFour(items);
+  }
+
   if (cubeKey === "instagram") {
     if (!ov?.sources?.instagram?.connected) return [];
     const m = ov?.sources?.instagram?.metrics;
     const followers = latestDailyMetricValue(m, "follower_count");
     pushMetric(t("metric_reach"), safeNum(m?.totals?.reach), { available: metricKeyExists(m, ["reach"]) });
-    pushMetric(t("impressions_b5fb66f6"), safeNum(m?.totals?.impressions), { available: metricKeyExists(m, ["impressions"]) });
+    pushMetric(t("vues_ff576f2b"), bestMetricValue(m, ["views", "content_views", "impressions"]), { available: metricKeyExists(m, ["views", "content_views", "impressions"]), keepZero: true });
     pushMetric(t("metric_profile_views"), safeNum(m?.totals?.profile_views), { available: metricKeyExists(m, ["profile_views"]) });
     pushMetric(t("abonnes_fa75b9d9"), followers, { available: metricKeyExists(m, ["follower_count"]) });
     return firstFour(items);
@@ -429,6 +437,14 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     pushMetric(t("clics_6e92c5b0"), safeNum(m?.totals?.clicks) || safeNum(m?.totals?.post_clicks_sum), {
       available: metricKeyExists(m, ["clicks", "post_clicks_sum"]),
     });
+    return firstSix(items);
+  }
+
+  if (cubeKey === "threads") {
+    if (!ov.sources?.threads?.connected) return [];
+    const m = ov.sources.threads.metrics;
+    const labels: Record<string, string> = { clicks: t("metric_link_clicks"), likes: t("j_aime_b75f4622"), replies: t("threads_replies"), reposts: t("threads_reposts"), quotes: t("threads_quotes"), total_interactions: t("interactions_0b3583ec") };
+    for (const key of ["clicks", "likes", "replies", "reposts", "quotes", "total_interactions"]) pushMetric(labels[key], safeNum(m?.totals?.[key]), { available: metricKeyExists(m, [key]), keepZero: true });
     return firstSix(items);
   }
 

@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
@@ -38,7 +40,8 @@ export async function GET(request: Request) {
     }
 
     const activeUserId = await resolveActiveInrcyAccountId(supabase, user.id);
-    const states = await getChannelConnectionStates(supabase, activeUserId);
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
+    const states = await getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled });
 
     let pinterestLabel = "";
     let pinterestUrl = "";
@@ -62,6 +65,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       identities: {
+        ...(metaPilotEnabled ? { threads: states.threads.connected && states.threads.username ? `@${states.threads.username}` : "" } : {}),
         site_web: states.site_web.connected ? clean(states.site_web.url) : "",
         gmb: states.gmb.connected ? clean(states.gmb.resource_label) : "",
         facebook: states.facebook.connected ? clean(states.facebook.resource_label) : "",
@@ -73,6 +77,7 @@ export async function GET(request: Request) {
         x: states.x.connected ? (xUsername ? `@${xUsername}` : clean(states.x.display_name)) : "",
       },
       urls: {
+        ...(metaPilotEnabled ? { threads: clean(states.threads.profile_url) } : {}),
         site_web: clean(states.site_web.url),
         gmb: clean(states.gmb.url),
         facebook: clean(states.facebook.page_url),

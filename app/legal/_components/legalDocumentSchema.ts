@@ -2229,6 +2229,26 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     },
     {
       "kind": "heading",
+      "key": "confidentialite_0627_meta_connections"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0628_meta_login"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0629_meta_data"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0630_meta_use"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0631_meta_control"
+    },
+    {
+      "kind": "heading",
       "key": "confidentialite_0597_11fea964"
     },
     {

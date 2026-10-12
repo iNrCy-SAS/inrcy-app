@@ -826,5 +826,6 @@
   "video_credit_dispute_lost": "Payment reversed after dispute",
   "video_credit_failed": "Failed",
   "video_credit_failed_retry": "This payment failed. Click Buy again to open a new payment.",
-  "version_du_11_10_2026_video_credits": "Version updated on 11 October 2026."
+  "version_du_11_10_2026_video_credits": "Version updated on 11 October 2026.",
+  "derniere_mise_a_jour_12_10_2026_meta": "Last updated: 12/10/2026"
 }

@@ -10,6 +10,7 @@ export const INR_AGENT_TO_BOOSTER_PUBLISH_CHANNEL: Partial<
   gmb: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   tiktok: "tiktok",
   youtube: "youtube_shorts",

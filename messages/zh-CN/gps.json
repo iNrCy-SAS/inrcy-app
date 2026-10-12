@@ -629,5 +629,12 @@
   "startup_reflex_partial_analysis_20260905": "从已连接的来源开始：不可用来源绝不能阻塞整个流程。",
   "startup_reflex_validate_20260905": "在使用 AI 建议的信息生成内容前，请先进行核对。",
   "startup_link_business_dna_20260905": "分析并完善企业 DNA",
-  "relier_les_destinations_utiles_site_web_483ab0d6": "链接有用的目的地：网站、Google Business、iNr’Search、Facebook、Instagram、 LinkedIn、TikTok、YouTube 和 Pinterest。"
+  "relier_les_destinations_utiles_site_web_483ab0d6": "链接有用的目的地：网站、Google Business、iNr’Search、Facebook、Instagram、 LinkedIn、TikTok、YouTube 和 Pinterest。",
+  "threads_title": "连接 Threads 并查看统计数据",
+  "threads_intro": "连接您的 Threads 账户，使用 Booster 发布内容，并在 iNrStats 中跟踪浏览、互动和点击。",
+  "threads_step_connect": "打开渠道，再打开 Threads，并授权账户连接。",
+  "threads_step_publish": "在 Booster 中准备发布内容，并选择 Threads。",
+  "threads_step_stats": "查看所选时段的 iNrStats；不可用的指标仍会标明不可用。",
+  "threads_check": "Threads 账户显示已连接状态和公开的个人主页链接。",
+  "threads_pitfall": "帖子统计数据是累计值，不能替代特定时段的账户统计数据。"
 }

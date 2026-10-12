@@ -57,6 +57,7 @@ export const EMPTY_CHANNEL_DETAILS: Record<ChannelKey, ChannelConnectionDetail> 
   gmb: { type: "location", label: null, href: null },
   facebook: { type: "page", label: null, href: null },
   instagram: { type: "account", label: null, href: null },
+  threads: { type: "account", label: null, href: null },
   linkedin: { type: "profile", label: null, href: null },
   x: { type: "account", label: null, href: null },
   tiktok: { type: "account", label: null, href: null },

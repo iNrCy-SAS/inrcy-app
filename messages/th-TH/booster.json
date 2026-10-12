@@ -779,5 +779,8 @@
   "video_format_selected_for_publication": "รูปแบบวิดีโอที่เลือกสำหรับการเผยแพร่",
   "video_format_selected_to_apply": "เลือกรูปแบบวิดีโอแล้ว พร้อมใช้งาน",
   "tiktok_reuse_settings_session": "ใช้การตั้งค่านี้กับโพสต์ TikTok ถัดไปในชุดนี้",
-  "tiktok_reuse_settings_session_help": "หน้าต่างนี้จะไม่แสดงซ้ำ และแต่ละโพสต์ยังคงได้รับการยืนยันแยกกัน"
+  "tiktok_reuse_settings_session_help": "หน้าต่างนี้จะไม่แสดงซ้ำ และแต่ละโพสต์ยังคงได้รับการยืนยันแยกกัน",
+  "threads": "Threads",
+  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
+  "threads_final_text": "ข้อความ Threads สุดท้าย"
 }

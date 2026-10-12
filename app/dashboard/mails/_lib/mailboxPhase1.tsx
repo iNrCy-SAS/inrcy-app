@@ -496,6 +496,7 @@ export const PUBLICATION_CHANNEL_PRESETS: Record<string, PublicationImageRenderP
   gmb: { width: 1200, height: 900, defaultFit: "contain", defaultBlurBackground: false },
   facebook: { width: 1200, height: 1200, defaultFit: "contain", defaultBlurBackground: false },
   instagram: { width: 1080, height: 1350, defaultFit: "contain", defaultBlurBackground: false },
+  threads: { width: 1080, height: 1080, defaultFit: "contain", defaultBlurBackground: false },
   linkedin: { width: 1200, height: 1200, defaultFit: "contain", defaultBlurBackground: false },
   x: { width: 1200, height: 675, defaultFit: "contain", defaultBlurBackground: false },
   tiktok: { width: 1080, height: 1920, defaultFit: "contain", defaultBlurBackground: false },
@@ -1123,6 +1124,8 @@ export function formatChannelLabel(channel: string): string {
       return "Facebook";
     case "instagram":
       return "Instagram";
+    case "threads":
+      return "Threads";
     case "linkedin":
       return "LinkedIn";
     case "x":
@@ -1152,6 +1155,8 @@ export function channelApiPath(channel: string): string {
       return "facebook";
     case "instagram":
       return "instagram";
+    case "threads":
+      return "threads";
     case "linkedin":
       return "linkedin";
     case "x":
@@ -1208,7 +1213,7 @@ export function isCancelledChannelResult(result: any): boolean {
 }
 
 export function orderChannelKeys(channels: string[]): string[] {
-  const priority = [ "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x"];
+  const priority = [ "site_web", "inr_search", "gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x"];
   const normalizedUnique = Array.from(new Set(channels.map((channel) => normalizeChannelKey(channel)).filter(Boolean)));
   return normalizedUnique.sort((a, b) => {
     const indexA = priority.indexOf(a);

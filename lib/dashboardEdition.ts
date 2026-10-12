@@ -86,6 +86,7 @@ export const STANDARD_PUBLICATION_CHANNEL_KEYS = [
   "inr_search",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",

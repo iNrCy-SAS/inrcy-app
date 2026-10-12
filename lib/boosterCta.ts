@@ -18,7 +18,7 @@ export {
   normalizeBoosterWhatsAppPhone,
 } from "@/lib/boosterWhatsappCta";
 
-export type BoosterChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
+export type BoosterChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 export type BoosterCtaMode = "none" | "website" | "call" | "message" | "custom";
 
 export type BoosterPostLike = {
@@ -57,6 +57,7 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   facebook: ["none", "website", "call", "message", "custom"],
   // Instagram et TikTok ne rendent pas les URL de légende cliquables via nos API.
   instagram: ["none", "call", "message"],
+  threads: ["none", "website", "call", "custom"],
   linkedin: ["none", "website", "call", "custom"],
   // X n'expose pas de bouton natif et notre intégration refuse toute URL.
   // Seules les invitations textuelles sans lien restent proposées.
@@ -478,4 +479,11 @@ export function getBoosterGmbCallToAction(post: Partial<BoosterPostLike> | null 
     return { actionType: "LEARN_MORE", url };
   }
   return null;
+}
+
+/** Caption sent to Threads, including title and CTA. */
+export function buildBoosterThreadsPostText(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
+  const text = buildBoosterMessage("threads", post, context);
+  if ([...text].length > 500) throw new Error("Le texte Threads, titre et CTA compris, dépasse 500 caractères.");
+  return text;
 }

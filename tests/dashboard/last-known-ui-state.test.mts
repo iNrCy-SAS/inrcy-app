@@ -25,7 +25,7 @@ test("generator power keeps the confirmed snapshot visible until live checks set
     dashboardClient,
     /readCachedGeneratorPowerPercent\(initialBrowserCacheAccountId\)[\s\S]*\?\? readCachedGeneratorPowerSnapshot\(initialBrowserCacheAccountId\)\?\.power[\s\S]*\?\? null/,
   );
-  assert.match(dashboardClient, /const generatorPower = displayedGeneratorPower \?\? 0;/);
+  assert.match(dashboardClient, /const generatorPower = clampDashboardChannelPowerForAccess\(displayedGeneratorPower, availableGeneratorPowerMax\);/);
   assert.match(
     dashboardClient,
     /const generatorPowerIsSettling = generatorPowerReady && generatorPower !== computedGeneratorPower;/,

@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "El enlace no debe contener un usuario ni una contraseña.",
   "channel_url_wrong_platform": "Este enlace no corresponde a este canal.",
   "channel_url_save_failed": "No se puede guardar este enlace ahora.",
-  "channel_url_change_required": "Modifica el enlace antes de guardarlo."
+  "channel_url_change_required": "Modifica el enlace antes de guardarlo.",
+  "instagram_direct_connect": "Conexión directa con Instagram",
+  "instagram_facebook_connect": "Conectar mediante Facebook",
+  "instagram_direct_help": "Elija el acceso directo a su cuenta profesional de Instagram o el proceso existente mediante Facebook. El acceso directo no requiere una página de Facebook.",
+  "instagram_direct_identity": "Cuenta profesional de Instagram conectada directamente.",
+  "threads_connect_title": "Conectar la cuenta de Threads",
+  "threads_connect_help": "Autorice a iNrCy a publicar en su cuenta de Threads mediante la conexión oficial segura.",
+  "threads_checking": "Comprobando…",
+  "threads_status_error": "No se pudo comprobar la conexión de Threads.",
+  "threads_disconnect_error": "No se pudo desconectar Threads.",
+  "threads_disconnected": "Cuenta de Threads desconectada.",
+  "threads_reconnect_help": "Renueve los permisos de su cuenta.",
+  "threads_identity_help": "La cuenta se selecciona durante la conexión oficial.",
+  "threads_reconnect": "Reconectar Threads",
+  "threads_connect": "Conectar Threads",
+  "threads_view_profile": "Ver el perfil de Threads",
+  "threads_description": "Converse con su comunidad",
+  "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador."
 }

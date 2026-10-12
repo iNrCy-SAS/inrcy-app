@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 
 import {
@@ -27,6 +28,7 @@ const CHANNEL_PUBLIC_URL_INTEGRATION_MAPPINGS: Partial<
   gmb: { provider: "google", source: "gmb", product: "gmb", metaKey: "url" },
   facebook: { provider: "facebook", source: "facebook", product: "facebook", metaKey: "page_url" },
   instagram: { provider: "instagram", source: "instagram", product: "instagram", metaKey: "profile_url" },
+  threads: { provider: "threads", source: "threads", product: "threads", metaKey: "profile_url" },
   linkedin: { provider: "linkedin", source: "linkedin", product: "linkedin", metaKey: "profile_url" },
   tiktok: { provider: "tiktok", source: "tiktok", product: "tiktok", metaKey: "profile_url" },
   youtube_shorts: { provider: "youtube", source: "youtube_shorts", product: "youtube_shorts", metaKey: "channel_url" },
@@ -53,6 +55,7 @@ function updateChannelSettings(
     case "gmb":
     case "facebook":
     case "instagram":
+    case "threads":
       next[channel] = { ...current, url };
       break;
     case "linkedin": {
@@ -130,6 +133,7 @@ export async function PATCH(request: Request) {
     const raw = await request.json().catch(() => null);
     const body = asRecord(raw);
     const channel = body.channel;
+    if (channel === "threads" && !await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)) return metaChannelPilotDeniedResponse();
     if (!isEditableChannelPublicUrlChannel(channel)) {
       return NextResponse.json(
         { ok: false, error: "Canal invalide.", errorCode: "invalid_channel" },

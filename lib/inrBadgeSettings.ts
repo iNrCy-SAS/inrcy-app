@@ -10,6 +10,7 @@ export type InrBadgeShareKey =
   | "googleBusiness"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "x"
   | "pinterest"
@@ -54,6 +55,7 @@ export const DEFAULT_INRBADGE_SHARE_SETTINGS: InrBadgeShareSettings = {
   googleBusiness: true,
   facebook: true,
   instagram: true,
+  threads: true,
   linkedin: true,
   x: true,
   pinterest: true,

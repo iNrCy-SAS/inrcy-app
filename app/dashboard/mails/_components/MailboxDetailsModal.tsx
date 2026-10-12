@@ -1,3 +1,6 @@
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
+import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
+import { THREADS_PUBLICATION_CAPABILITIES } from "@/lib/inrsend/threadsCapabilities";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { useLocale, useTranslations } from "next-intl";
 import React from "react";
@@ -462,6 +465,7 @@ function isAccountingDashboardHref(value: unknown) {
 }
 
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
   const mediaT = useTranslations("media");
   const locale = useLocale();
@@ -1553,7 +1557,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                 {!detailsItem ? (
                   <div style={{ color: "rgba(255,255,255,0.65)" }}>{i18nT("selectionne_un_element_523f9c88")}</div>
                 ) : (() => {
-                  const payload = detailsItem.source === "app_events" ? normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null) : null;
+                  const payload = detailsItem.source === "app_events" ? filterMetaPilotPayload(normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null), metaPilotEnabled) : null;
                   const publicationId = detailsItem.source === "app_events" ? String(payload?.publication_id || "").trim() : "";
                   const channelPublications = detailsItem.source === "app_events" ? extractChannelPublications(payload) : [];
                   const defaultParts = detailsItem.source === "app_events" ? extractPublicationParts(payload) : {};
@@ -1710,6 +1714,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     return !(activeHasStructured || fallbackTitle || fallbackContent || fallbackCta || fallbackHashtags.length || fallbackAttachments.length);
                   })();
                   const isDraftItem = String((detailsItem as any)?.status || (detailsItem as any)?.raw?.status || "").toLowerCase() === "draft";
+                  const threadsPublishedEditUnavailable = activePublicationEntry?.key === "threads" && !isDraftItem && (!activePublicationFailed || Boolean(activePublicationResult?.external_id || activePublicationResult?.thread_id)) && !THREADS_PUBLICATION_CAPABILITIES.editPublished;
                   const publicationPreviewData = (() => {
                     if (detailsItem.source !== "app_events" || !activePublicationEntry) return null;
                     const selectedAssets = detailsEditMode
@@ -2203,12 +2208,13 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       type="button"
                                       className={styles.btnGhost}
                                       onClick={() => { setPublicationEditDirty(false); setDetailsEditMode(true); setDetailsActionError(null); setDetailsActionSuccess(null); }}
-                                      disabled={detailsActionBusy}
-                                      title={i18nT("modifier_la_publication_295870a4")}
+                                      disabled={detailsActionBusy || threadsPublishedEditUnavailable}
+                                      title={threadsPublishedEditUnavailable ? i18nT("threads_edit_unsupported") : i18nT("modifier_la_publication_295870a4")}
                                       aria-label={i18nT("modifier_la_publication_295870a4")}
                                     >
                                       {i18nT("modifier_f260e757")}{" "}</button>
                                   )}
+                                  {threadsPublishedEditUnavailable ? <span role="note" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{i18nT("threads_edit_unsupported")}</span> : null}
                                   {!isDraftItem && !isExternalVideoPublicationEntry ? (
                                     <button
                                       type="button"

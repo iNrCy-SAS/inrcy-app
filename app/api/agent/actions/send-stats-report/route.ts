@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { jsPDF } from "jspdf";
 import { planExecutiveInsightCards, type InsightCardLine } from "@/lib/inrstats/statsReportPdfLayout";
@@ -151,6 +153,7 @@ const channelLabels: Record<string, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -336,7 +339,7 @@ function normalizeChannelReports(bulk: JsonRecord | null, allowedThemes: InrAgen
     : allowedThemes.map(statsThemeToChannelKey).filter(Boolean);
   const channelKeys = selected.length ? Array.from(new Set(selected)) : Object.keys(channelLabels);
 
-  return channelKeys.map((key) => {
+  return channelKeys.filter(key => key !== "threads" || Boolean(rawBlocks.threads)).map((key) => {
     const block = asRecord(rawBlocks[key]);
     const connection = asRecord(block.connection);
     const connected = Boolean(connection.connected || connection.accountConnected);
@@ -576,6 +579,7 @@ async function buildReportData(args: {
   allowedThemes: InrAgentTheme[];
   cronUserId?: string;
   includeMail: boolean;
+  metaPilotEnabled: boolean;
 }) {
   const fetchArgs = { cookie: args.cookie, cronUserId: args.cronUserId };
   const [bulkResult, mailResult, badgeResult] = await Promise.all([
@@ -586,7 +590,7 @@ async function buildReportData(args: {
     fetchJson<JsonRecord>(`${args.origin}/api/inrstats/inrbadge`, fetchArgs),
   ]);
 
-  const channels = normalizeChannelReports(bulkResult.data, args.allowedThemes);
+  const channels = normalizeChannelReports(withoutThreadsData(bulkResult.data, args.metaPilotEnabled), args.allowedThemes);
   return {
     channels,
     mail: mailResult.data ? normalizeMailReport(mailResult.data) : null,
@@ -1473,6 +1477,7 @@ export async function POST(request: Request) {
   if (context.errorResponse) return context.errorResponse;
 
   const { supabase, user, userId, authUserId, isCron, body } = context;
+  const metaPilotEnabled = await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId));
   let quotaReservation: AiCreditReservation | null = null;
   const rl = await enforceRateLimit({
     name: "inr_agent_stats_report",
@@ -1521,6 +1526,7 @@ export async function POST(request: Request) {
     allowedThemes: automation.allowedThemes,
     cronUserId: isCron ? userId : undefined,
     includeMail: dashboardEdition !== "standard",
+    metaPilotEnabled,
   });
 
   const mailReport =

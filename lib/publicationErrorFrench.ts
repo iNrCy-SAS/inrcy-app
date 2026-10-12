@@ -1,6 +1,7 @@
 export type PublicationErrorProvider =
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "gmb"
   | "tiktok"
@@ -137,13 +138,13 @@ export function getProviderPublicationErrorMessage(
     }
   }
 
-  if (provider === "instagram" || provider === "facebook") {
+  if (provider === "instagram" || provider === "facebook" || provider === "threads") {
     if (
       message.includes("unsupported image format") ||
       message.includes("invalid image") ||
       message.includes("image could not be downloaded")
     ) {
-      return `${provider === "instagram" ? "Instagram" : "Facebook"} a refusé le format d’une image. iNrCy doit utiliser une variante compatible.`;
+      return `${provider === "instagram" ? "Instagram" : provider === "threads" ? "Threads" : "Facebook"} a refusé le format d’une image. iNrCy doit utiliser une variante compatible.`;
     }
 
     if (
@@ -153,7 +154,7 @@ export function getProviderPublicationErrorMessage(
       message.includes("application request limit reached") ||
       message.includes("user request limit reached")
     ) {
-      return `${provider === "instagram" ? "Instagram" : "Facebook"} limite temporairement les publications. Réessayez dans quelques minutes.`;
+      return `${provider === "instagram" ? "Instagram" : provider === "threads" ? "Threads" : "Facebook"} limite temporairement les publications. Réessayez dans quelques minutes.`;
     }
 
     if (
@@ -163,7 +164,7 @@ export function getProviderPublicationErrorMessage(
       message.includes("an unknown error has occurred") ||
       message.includes("unexpected error")
     ) {
-      return `${provider === "instagram" ? "Instagram" : "Facebook"} est temporairement indisponible. Réessayez dans quelques minutes.`;
+      return `${provider === "instagram" ? "Instagram" : provider === "threads" ? "Threads" : "Facebook"} est temporairement indisponible. Réessayez dans quelques minutes.`;
     }
   }
 

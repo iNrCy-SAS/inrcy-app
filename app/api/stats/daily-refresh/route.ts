@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { withApi } from "@/lib/observability/withApi";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
@@ -165,6 +167,7 @@ async function handler(req: Request) {
     const { supabase, user, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
     const body = await req.json().catch(() => ({} as { announce?: unknown; force?: unknown }));
     const announce = body?.announce === true;
     const force = body?.force === true;
@@ -212,13 +215,13 @@ async function handler(req: Request) {
         await bumpStatsVersion(activeUserId);
       }
 
-      return NextResponse.json({
+      return NextResponse.json(withoutThreadsData({
         ok: true,
         ran: false,
         inProgress,
         snapshotDate,
         syncAt,
-      });
+      }, metaPilotEnabled));
     }
 
     const { origin } = new URL(req.url);
@@ -250,6 +253,8 @@ async function handler(req: Request) {
         userId: activeUserId,
         snapshotDate,
         inrcyPublishedActivityLoader,
+
+        metaPilotEnabled,
       });
       const weekStarted = nowMs();
       const weekPromise = fetchCubeOverviews({
@@ -261,6 +266,8 @@ async function handler(req: Request) {
         userId: activeUserId,
         snapshotDate,
         inrcyPublishedActivityLoader,
+
+        metaPilotEnabled,
       });
 
       const [profile, monthOverviews, weekOverviews, connectionSignature] = await Promise.all([
@@ -269,7 +276,7 @@ async function handler(req: Request) {
         weekPromise,
         buildStatsConnectionSignature(supabase, activeUserId),
       ]);
-      const channelStates = await getChannelConnectionStates(supabase, activeUserId);
+      const channelStates = await getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled });
       const linkedInFallback = await readLastGoodLinkedInGeneratorBlock({
         supabase,
         userId: activeUserId,
@@ -278,6 +285,7 @@ async function handler(req: Request) {
 
       const generatorStarted = nowMs();
       const generator = await buildMetricsSummary({
+        metaPilotEnabled,
         supabase,
         userId: activeUserId,
         origin,
@@ -333,7 +341,7 @@ async function handler(req: Request) {
         },
       });
 
-      return NextResponse.json({
+      return NextResponse.json(withoutThreadsData({
         ok: true,
         ran: true,
         inProgress: false,
@@ -341,7 +349,7 @@ async function handler(req: Request) {
         syncAt,
         generator,
         inrstats: Object.fromEntries(inrstatsEntries),
-      }, {
+      }, metaPilotEnabled), {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
           Pragma: "no-cache",

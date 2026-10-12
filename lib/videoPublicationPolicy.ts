@@ -71,6 +71,7 @@ export const VIDEO_CHANNEL_LABELS: Record<BoosterVideoChannelKey, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -131,6 +132,8 @@ export const VIDEO_PUBLICATION_POLICY_BY_CHANNEL: Record<
     minDurationSeconds: 3,
     maxDurationSeconds: 15 * 60,
   },
+  // Current iNrCy pilot envelope; not a claim about the Meta technical maximum.
+  threads: { channel: "threads", ...DEFAULT_POLICY, maxDurationSeconds: 5 * 60 },
   linkedin: {
     channel: "linkedin",
     ...DEFAULT_POLICY,
@@ -222,6 +225,8 @@ export function getVideoDurationRuleDescription(input: {
       return "4 heures maximum.";
     case "instagram":
       return "entre 3 secondes et 15 minutes.";
+    case "threads":
+      return "5 minutes maximum.";
     case "linkedin":
       return "entre 3 secondes et 30 minutes.";
     case "tiktok": {

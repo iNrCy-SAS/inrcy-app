@@ -9,6 +9,7 @@ import {
   channelBtn,
   channelBtnDisabled,
 } from "../publishModal.styles";
+import { useDashboardViewerAccess } from "../../../_components/DashboardViewerAccessProvider";
 import PublishStepTitle from "./PublishStepTitle";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -49,6 +50,7 @@ const CHANNEL_ICON_SRC: Record<ChannelKey, string> = {
   gmb: "/icons/google.jpg",
   facebook: "/icons/facebook.png",
   instagram: "/icons/instagram.jpg",
+  threads: "/icons/threads.svg",
   linkedin: "/icons/linkedin.png",
   x: "/icons/x.svg",
   tiktok: "/icons/tiktok.png",
@@ -106,6 +108,7 @@ export default function PublishChannelSelector({
   setAllChannelsSelected,
   getChannelDetailInfo,
 }: PublishChannelSelectorProps) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("booster");
   const channelKeys = BOOSTER_CHANNEL_ORDER;
   // Pinterest cannot publish without a real destination board. Contrary to
@@ -113,7 +116,7 @@ export default function PublishChannelSelector({
   // account alone is enough, so keep it out of Booster until the board-ready
   // connection state has been confirmed by the server.
   const visibleChannelKeys = channelKeys.filter(
-    (key) => key !== "pinterest" || connected.pinterest,
+    (key) => (key !== "threads" || metaPilotEnabled) && (key !== "pinterest" || connected.pinterest),
   );
   const connectedChannelKeys = visibleChannelKeys.filter(
     (key) => connected[key],

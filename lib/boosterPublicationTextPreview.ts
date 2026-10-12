@@ -13,6 +13,7 @@ import { getXPostTextMetrics, X_POST_WEIGHTED_LENGTH_MAX } from "@/lib/xChannel"
 
 export type BoosterPreviewChannel =
   | "instagram"
+  | "threads"
   | "x"
   | "tiktok"
   | "youtube_shorts"
@@ -57,6 +58,11 @@ export function getBoosterPublicationTextPreview(
   context?: BoosterCtaContext,
   options?: { youtubeAutoHashtags?: boolean },
 ): BoosterPublicationTextPreview {
+  if (channel === "threads") {
+    const text = buildBoosterMessage("threads", post, context);
+    return { text, count: [...text].length, max: 500, hashtagsOmitted: Boolean(post?.hashtags?.length) };
+  }
+
   if (channel === "pinterest") {
     const sanitizedPost = sanitizeBoosterPostForStructuredCta(post, context);
     const content = stripSiteTextFormattingPreserveLayout(

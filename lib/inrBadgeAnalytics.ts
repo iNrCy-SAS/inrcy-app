@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { createHash } from "node:crypto";
 
 type SupabaseLike = {
@@ -24,6 +26,7 @@ export type InrBadgeActionBreakdown = {
   google_business: InrBadgeStatsPeriod;
   facebook: InrBadgeStatsPeriod;
   instagram: InrBadgeStatsPeriod;
+  threads: InrBadgeStatsPeriod;
   linkedin: InrBadgeStatsPeriod;
   x: InrBadgeStatsPeriod;
   tiktok: InrBadgeStatsPeriod;
@@ -56,6 +59,7 @@ const ACTION_KEYS = [
   "google_business",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "x",
   "tiktok",
@@ -121,6 +125,7 @@ function zeroActions(): InrBadgeActionBreakdown {
     google_business: zeroPeriod(),
     facebook: zeroPeriod(),
     instagram: zeroPeriod(),
+    threads: zeroPeriod(),
     linkedin: zeroPeriod(),
     x: zeroPeriod(),
     tiktok: zeroPeriod(),
@@ -179,6 +184,7 @@ export async function recordInrBadgeEvent(supabase: SupabaseLike, input: {
 
   const eventType = safeEventType(input.eventType);
   const actionKey = eventType === "action_click" ? safeActionKey(input.actionKey) : safeActionKey(input.actionKey);
+  if (actionKey === "threads" && !await isMetaChannelPilotEnabledForAccount(supabase, userId)) return { ok: false, skipped: true };
   const visitorId = clean(input.visitorId, 120).replace(/[^a-zA-Z0-9._:-]/g, "").slice(0, 120);
   const source = clean(input.source, 80).toLowerCase();
   const targetUrl = clean(input.targetUrl, 700);
@@ -246,7 +252,8 @@ export async function recordInrBadgeEvent(supabase: SupabaseLike, input: {
   }
 }
 
-export async function readInrBadgeStats(supabase: SupabaseLike, userId: string): Promise<InrBadgeStatsSnapshot> {
+export async function readInrBadgeStats(supabase: SupabaseLike, userId: string, options?: { metaPilotEnabled?: boolean }): Promise<InrBadgeStatsSnapshot> {
+  const metaPilotEnabled = options?.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabase, userId);
   const now = Date.now();
   const monthStart = startOfPeriod(30);
   const weekStart = startOfPeriod(7);
@@ -274,7 +281,7 @@ export async function readInrBadgeStats(supabase: SupabaseLike, userId: string):
 
     if (error) throw error;
 
-    const monthRows = (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
+    const monthRows = (Array.isArray(data) ? data : []).filter((row: Record<string, unknown>) => metaPilotEnabled || row.action_key !== "threads").map((row: Record<string, unknown>) => {
       const createdAt = String(row.created_at || "");
       return {
         ...row,
@@ -299,7 +306,7 @@ export async function readInrBadgeStats(supabase: SupabaseLike, userId: string):
     const qualityScore = qualityFromStats({ views30: views.month, qr30: qrScans.month, actions30: actions.month, captured30: capturedMonth });
     const opportunity30 = opportunityFromStats({ views30: views.month, qr30: qrScans.month, actions30: actions.month, captured30: capturedMonth });
 
-    return {
+    return withoutThreadsData({
       views,
       qrScans,
       actions,
@@ -310,9 +317,9 @@ export async function readInrBadgeStats(supabase: SupabaseLike, userId: string):
       qualityScore,
       opportunity30,
       syncedAt: now,
-    };
+    }, metaPilotEnabled);
   } catch (error) {
     console.warn("[inrbadge-analytics] stats read failed", error);
-    return empty;
+    return withoutThreadsData(empty, metaPilotEnabled);
   }
 }

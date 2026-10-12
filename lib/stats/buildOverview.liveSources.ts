@@ -88,7 +88,8 @@ export function createOverviewLiveSourceTools({
       },
       gmb: { connected: isStatsActiveConnection(states.gmb), metrics: null },
       facebook: { connected: facebookConnected, metrics: null },
-      instagram: { connected: instagramConnected, metrics: null },
+      instagram: { connected: isStatsActiveConnection(states.instagram) && instagramConnected, metrics: null },
+      ...(states.threads.pilotEnabled ? { threads: { connected: isStatsActiveConnection(states.threads), metrics: null } } : {}),
       linkedin: {
         connected: isStatsActiveConnection(states.linkedin),
         metrics: null,

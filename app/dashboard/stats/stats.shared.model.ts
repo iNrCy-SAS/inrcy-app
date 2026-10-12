@@ -38,6 +38,7 @@ export function buildCubeModel(
         gmb: { connected: false, metrics: null },
         facebook: { connected: false },
         instagram: { connected: false },
+        threads: { connected: false },
         linkedin: { connected: false },
         x: { connected: false },
         tiktok: { connected: false },
@@ -56,6 +57,8 @@ export function buildCubeModel(
           ? { main: !!ov.sources?.gmb?.connected }
           : key === "facebook"
             ? { main: !!ov.sources?.facebook?.connected }
+            : key === "threads"
+              ? { main: !!ov.sources?.threads?.connected }
             : key === "instagram"
               ? { main: !!ov.sources?.instagram?.connected }
               : key === "x"
@@ -209,6 +212,7 @@ export function buildSummaryActionItems({
     gmb: !!models.find((m) => m.key === "gmb")?.connections.main,
     facebook: !!models.find((m) => m.key === "facebook")?.connections.main,
     instagram: !!models.find((m) => m.key === "instagram")?.connections.main,
+    threads: !!models.find((m) => m.key === "threads")?.connections.main,
     linkedin: !!models.find((m) => m.key === "linkedin")?.connections.main,
     x: !!models.find((m) => m.key === "x")?.connections.main,
     mails: !!models.find((m) => m.key === "mails")?.connections.main,
@@ -227,6 +231,7 @@ export function buildSummaryActionItems({
     gmb: "propulser",
     facebook: "booster",
     instagram: "booster",
+    threads: "booster",
     linkedin: "booster",
     x: "booster",
     mails: "fideliser",
@@ -242,6 +247,7 @@ export function buildSummaryActionItems({
     gmb: "/dashboard/propulser",
     facebook: "/dashboard?action=publish",
     instagram: "/dashboard?action=publish",
+    threads: "/dashboard?action=publish",
     linkedin: "/dashboard?action=publish",
     x: "/dashboard?action=publish",
     mails: "/dashboard/fideliser",
@@ -275,6 +281,7 @@ export function buildSummaryActionItems({
       motive: t("booster_vous_aide_a_publier_regulierement_1c1c3d92"),
       badge: t("booster_8e4caec0"),
     },
+    threads: { label: t("utiliser_booster_6138c57d"), kicker: t("relancez_votre_visibilite_locale_b7d7ba45"), motive: t("booster_permet_de_publier_rapidement_pour_c5c61333"), badge: t("booster_8e4caec0") },
     linkedin: {
       label: t("utiliser_booster_6138c57d"),
       kicker: t("renforcez_votre_credibilite_pro_a7ed6a65"),
@@ -351,6 +358,7 @@ export function buildSummaryActionItems({
       motive: t("reliez_instagram_pour_exploiter_votre_visibilite_3de41cc3"),
       badge: t("connexion_a33c58f5"),
     },
+    threads: { label: "Threads", kicker: t("activez_un_levier_social_local_ed260a0f"), motive: t("stats_connect_channel_to_activate"), badge: t("connexion_a33c58f5") },
     linkedin: {
       label: t("connecter_linkedin_dd6eba4d"),
       kicker: t("activez_votre_credibilite_professionnelle_19ce03e5"),
@@ -408,6 +416,7 @@ export function buildSummaryActionItems({
     { key: "site_web" as CubeKey, opportunities: centralByCube.site_web, revenue: computedEstimatedByCube.site_web || summaryEstimatedByCube.site_web },
     { key: "gmb" as CubeKey, opportunities: centralByCube.gmb, revenue: computedEstimatedByCube.gmb || summaryEstimatedByCube.gmb },
     { key: "facebook" as CubeKey, opportunities: centralByCube.facebook, revenue: computedEstimatedByCube.facebook || summaryEstimatedByCube.facebook },
+    ...(models.some(model => model.key === "threads") ? [{ key: "threads" as CubeKey, opportunities: centralByCube.threads, revenue: computedEstimatedByCube.threads || summaryEstimatedByCube.threads }] : []),
     { key: "instagram" as CubeKey, opportunities: centralByCube.instagram, revenue: computedEstimatedByCube.instagram || summaryEstimatedByCube.instagram },
     { key: "linkedin" as CubeKey, opportunities: centralByCube.linkedin, revenue: computedEstimatedByCube.linkedin || summaryEstimatedByCube.linkedin },
     { key: "x" as CubeKey, opportunities: centralByCube.x, revenue: computedEstimatedByCube.x || summaryEstimatedByCube.x },

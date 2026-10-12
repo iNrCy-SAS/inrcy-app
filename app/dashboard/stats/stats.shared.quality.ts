@@ -117,6 +117,11 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview, t: StatsTranslat
     ];
   }
 
+  if (cubeKey === "threads") {
+    const m = ov.sources?.threads?.metrics;
+    return [{ label: t("vues_ff576f2b"), value: safeNum(m?.totals?.views), colorVar: "--cSocial" }, { label: t("interactions_0b3583ec"), value: safeNum(m?.totals?.total_interactions), colorVar: "--cGoogle" }];
+  }
+
   if (cubeKey === "instagram") {
     const m = ov?.sources?.instagram?.metrics;
     const audience =
@@ -223,7 +228,7 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslato
     return { score, ...localizedQualityLabel(score, t) };
   }
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "threads" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     return computeSocialQuality(cubeKey, ov, t);
   }
 
@@ -250,7 +255,11 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslato
   return { score, ...localizedQualityLabel(score, t) };
 }
 
-export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
+export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
+  if (cubeKey === "threads") {
+    const m = ov.sources?.threads?.metrics;
+    return { audience: safeNum(m?.audience?.followers_count), engagement: safeNum(m?.totals?.total_interactions), conversions: safeNum(m?.totals?.clicks), visibility: safeNum(m?.totals?.views) };
+  }
   const m =
     cubeKey === "facebook"
       ? ov?.sources?.facebook?.metrics
@@ -335,10 +344,12 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
   return { audience, engagement, conversions, visibility };
 }
 
-function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview, t: StatsTranslator) {
+function computeSocialQuality(cubeKey: "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview, t: StatsTranslator) {
   const connected =
     cubeKey === "facebook"
       ? !!ov?.sources?.facebook?.connected
+      : cubeKey === "threads"
+        ? !!ov?.sources?.threads?.connected
       : cubeKey === "instagram"
         ? !!ov?.sources?.instagram?.connected
         : cubeKey === "x"

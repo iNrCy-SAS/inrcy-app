@@ -85,6 +85,7 @@ const allowedChannels: BoosterChannels[] = [
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "x",
   "tiktok",
@@ -103,6 +104,7 @@ const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
   gmb: 80,
   facebook: 100,
   instagram: 80,
+  threads: 60,
   linkedin: 120,
   x: 80,
   tiktok: 45,
@@ -121,6 +123,7 @@ const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
   gmb: 650,
   facebook: 750,
   instagram: 580,
+  threads: 280,
   linkedin: 900,
   x: 155,
   tiktok: 340,
@@ -136,6 +139,7 @@ const CHANNEL_DYNAMIC_EMOJI_MIN: Record<BoosterChannels, number> = {
   gmb: 1,
   facebook: 6,
   instagram: 8,
+  threads: 2,
   linkedin: 2,
   x: 3,
   tiktok: 8,
@@ -149,6 +153,7 @@ const CHANNEL_LABELS: Record<BoosterChannels, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -545,6 +550,12 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
   if (channel === "instagram") {
     return normalizeBoosterInstagramPostHashtags(normalized, 8);
   }
+  if (channel === "threads") {
+    const fixedParts = [normalized.title, normalized.cta].filter(Boolean);
+    const separators = fixedParts.length * 2;
+    const contentBudget = Math.max(0, 500 - Array.from(fixedParts.join("")).length - separators);
+    return { ...normalized, content: Array.from(normalized.content).slice(0, contentBudget).join(""), hashtags: [] };
+  }
   return channel === "x" ? fitGeneratedXPost(normalized) : normalized;
 }
 
@@ -556,6 +567,7 @@ const CHANNEL_OUTPUT_ALIASES: Record<BoosterChannels, string[]> = {
   gmb: ["gmb", "google_business", "googlebusiness", "google_business_profile"],
   facebook: ["facebook", "fb"],
   instagram: ["instagram", "insta"],
+  threads: ["threads"],
   linkedin: ["linkedin", "linked_in"],
   x: ["x", "twitter", "twitter_x", "x_twitter"],
   tiktok: ["tiktok", "tik_tok"],

@@ -6,6 +6,8 @@ import type { DashboardFluxBubbleData } from "../../app/dashboard/_components/Da
 import {
   DASHBOARD_CHANNEL_POWER_SETUP,
   DASHBOARD_CHANNEL_SETUP,
+  getDashboardChannelSetup,
+  getDashboardChannelPowerSetup,
 } from "../../app/dashboard/dashboard.channel-setup.ts";
 
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
@@ -35,6 +37,7 @@ test("les onze canaux Standard précèdent Mails", () => {
     "inr_search",
     "facebook",
     "instagram",
+    "threads",
     "linkedin",
     "tiktok",
     "youtube_shorts",
@@ -75,7 +78,7 @@ test("les deux offres montrent douze canaux, Mails restant verrouillé en Standa
   assert.match(dashboardClientSource, /<ChannelConnectionsModal[\s\S]*items=\{dashboardChannelItems\}/);
   assert.match(dashboardClientSource, /<DashboardChannelsSection[\s\S]*fluxBubbleItems=\{dashboardChannelItems\}/);
 
-  const buildItems = (standardMode: boolean): DashboardFluxBubbleData[] => DASHBOARD_CHANNEL_SETUP.map(({ key }) => ({
+  const buildItems = (standardMode: boolean, metaPilotEnabled = false): DashboardFluxBubbleData[] => getDashboardChannelSetup(metaPilotEnabled).map(({ key }) => ({
     key,
     name: key,
     description: "",
@@ -90,6 +93,7 @@ test("les deux offres montrent douze canaux, Mails restant verrouillé en Standa
   const premium = collapseDashboardWebsiteChannels(buildItems(false));
   assert.equal(standard.length, 12);
   assert.equal(premium.length, 12);
+  assert.equal(collapseDashboardWebsiteChannels(buildItems(false, true)).length, 13, "le pilote ADMIN ajoute Threads");
   assert.equal(standard.filter((item) => getChannelTone(item) === "connected").length, 7);
   assert.equal(premium.filter((item) => getChannelTone(item) === "connected").length, 8);
   assert.equal(standard.find((item) => item.key === "site_web")?.bubbleStatus, "available", "le site unique conserve son état canonique");
@@ -112,17 +116,19 @@ test("la présence du site unique conserve ses actions et sa connexion sans dép
   assert.equal(collapseDashboardWebsiteChannels([site])[0].bubbleStatus, "available");
 });
 
-test("la puissance attribue un pourcentage propre à chacun des onze canaux actifs", () => {
-  assert.equal(DASHBOARD_CHANNEL_SETUP.length, 12);
+test("la puissance garde les poids fixes des douze connexions, même si Threads est masqué", () => {
+  assert.equal(DASHBOARD_CHANNEL_SETUP.length, 13);
+  assert.equal(getDashboardChannelSetup(false).length, 12);
+  assert.equal(getDashboardChannelPowerSetup(true).length, 12);
 
   const channelKeys = DASHBOARD_CHANNEL_SETUP.map((channel) => channel.key);
-  assert.equal(new Set(channelKeys).size, 12, "chaque canal doit apparaître une seule fois");
+  assert.equal(new Set(channelKeys).size, 13, "chaque canal doit apparaître une seule fois");
 
-  const weightedChannels = DASHBOARD_CHANNEL_SETUP.filter((channel) => channel.weight > 0);
+  const weightedChannels = getDashboardChannelSetup(false).filter((channel) => channel.weight > 0);
   assert.equal(weightedChannels.length, 11);
   assert.equal(
     weightedChannels.reduce((sum, channel) => sum + channel.weight, 0),
-    100,
+    96,
   );
   assert.deepEqual(DASHBOARD_CHANNEL_POWER_SETUP, weightedChannels);
   assert.equal(DASHBOARD_CHANNEL_SETUP.find((channel) => channel.key === "mails")?.weight, 7);
@@ -132,7 +138,7 @@ test("la puissance attribue un pourcentage propre à chacun des onze canaux acti
 
   assert.match(
     dashboardClientSource,
-    /const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP\.map\(\(channel\) => \(\{[\s\S]*completed: channelPowerConnected\[channel\.key\],/,
+    /const generatorPowerSteps = channelPowerSetup\.map\(\(channel\) => \(\{[\s\S]*completed: channelPowerConnected\[channel\.key\],/,
   );
 });
 

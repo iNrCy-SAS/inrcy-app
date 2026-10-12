@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardViewerAccess } from "../../../_components/DashboardViewerAccessProvider";
+import { filterMetaPilotItems } from "@/lib/metaChannelUiAccess";
 import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
@@ -40,6 +42,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
@@ -145,6 +148,7 @@ export default function PublishDraftHeaderMenu({
   moduleLabel = "Booster",
   onSelect,
 }: Props) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const mailsT = useTranslations("mails");
   const boosterT = useTranslations("booster");
   const menuId = useId();
@@ -187,13 +191,13 @@ export default function PublishDraftHeaderMenu({
             }))
             .filter((draft: PublishDraftSummary) => Boolean(draft.id))
         : [];
-      setDrafts(nextDrafts);
+      setDrafts(filterMetaPilotItems(nextDrafts, metaPilotEnabled));
     } catch {
       if (requestId === requestIdRef.current) setLoadFailed(true);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [endpoint, mailsT]);
+  }, [endpoint, mailsT, metaPilotEnabled]);
 
   const syncMenuPosition = useCallback(() => {
     const trigger = triggerRef.current;

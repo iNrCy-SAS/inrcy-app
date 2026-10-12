@@ -49,6 +49,7 @@ const CHANNEL_BRAND_LABELS: Record<ChannelKey, string> = {
   inrSearch: "iNr'Search",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",

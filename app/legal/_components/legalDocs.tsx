@@ -20,7 +20,7 @@ export const legalDocs: Record<
   confidentialite: {
     key: "confidentialite",
     titleKey: "politique_de_confidentialite_42b0e51e",
-    subtitleKey: "derniere_mise_a_jour_04_10_2026_7a4f81d2",
+    subtitleKey: "derniere_mise_a_jour_12_10_2026_meta",
     Content: ConfidentialiteContent,
   },
   "mentions-legales": {

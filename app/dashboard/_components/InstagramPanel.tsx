@@ -3,8 +3,9 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styles from "../dashboard.module.css";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import ConnectionPill from "./ConnectionPill";
 import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
@@ -16,7 +17,10 @@ import {
 
 export default function InstagramPanel(props: any) {
   const i18nT = useTranslations("shell");
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const {
+    instagramAuthMode = "facebook_login",
+    connectInstagramDirectAccount,
     instagramConnected,
     instagramAccountConnected,
     instagramConnectionStatus,
@@ -51,15 +55,32 @@ export default function InstagramPanel(props: any) {
     onUrlDirtyChange,
   } = props;
 
+  const [facebookLoginMenuOpen, setFacebookLoginMenuOpen] = useState(false);
+  const facebookLoginMenuRef = useRef<HTMLDivElement>(null);
+  const facebookLoginButtonRef = useRef<HTMLButtonElement>(null);
+  const facebookLoginMenuId = useId();
+
+  useEffect(() => {
+    if (!facebookLoginMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!facebookLoginMenuRef.current?.contains(event.target as Node)) setFacebookLoginMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [facebookLoginMenuOpen]);
+
   const startStandard = () => {
+    setFacebookLoginMenuOpen(false);
     connectInstagramAccount();
   };
 
   const repairStandardAuthorization = () => {
-    connectInstagramAccount({ repair: true });
+    if (instagramAuthMode === "instagram_login" && metaPilotEnabled) connectInstagramDirectAccount();
+    else connectInstagramAccount({ repair: true });
   };
 
   const startBusiness = () => {
+    setFacebookLoginMenuOpen(false);
     connectInstagramBusinessAccount();
   };
 
@@ -145,13 +166,14 @@ export default function InstagramPanel(props: any) {
 
   return (
     <div className={`${socialStyles.journey} ${socialStyles.instagram}`}>
-      <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}>
+      <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`} style={{ overflow: "visible", zIndex: facebookLoginMenuOpen ? 3 : undefined }}>
         <div className={socialStyles.stepHeader}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>
           <div className={socialStyles.stepCopy}>
             <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
             <div className={styles.blockSub}>
-              {i18nT("instagram_peut_etre_connecte_en_32ac6030")}{" "}<strong>standard</strong> {" "}{i18nT("ou_en_d680c328")}{" "}<strong>{i18nT("business_via_facebook_business_eb4c034d")}</strong>{i18nT("pour_la_selection_du_profil_un_7c8dbfce")}{" "}<strong>{i18nT("business_creator_e28ea3ce")}</strong> {" "}{i18nT("relie_a_une_page_facebook_reste_5141f18f")}{" "}
+              {metaPilotEnabled ? i18nT("instagram_direct_help") : <>
+              {i18nT("instagram_peut_etre_connecte_en_32ac6030")}{" "}<strong>standard</strong> {" "}{i18nT("ou_en_d680c328")}{" "}<strong>{i18nT("business_via_facebook_business_eb4c034d")}</strong>{i18nT("pour_la_selection_du_profil_un_7c8dbfce")}{" "}<strong>{i18nT("business_creator_e28ea3ce")}</strong> {" "}{i18nT("relie_a_une_page_facebook_reste_5141f18f")}{" "}</>}
             </div>
           </div>
           <div className={socialStyles.stepStatus}>
@@ -181,17 +203,63 @@ export default function InstagramPanel(props: any) {
               </>
             ) : (
               <>
-                <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={startStandard}>
-                  {i18nT("connexion_standard_7718db4b")}{" "}</button>
-                <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startBusiness}>
-                  {i18nT("connexion_business_fbb4bbc5")}{" "}</button>
+                {metaPilotEnabled ? <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectInstagramDirectAccount}>
+                  {i18nT("instagram_direct_connect")}
+                </button> : null}
+                <div ref={facebookLoginMenuRef} style={{ position: "relative" }}>
+                  <button
+                    ref={facebookLoginButtonRef}
+                    type="button"
+                    className={styles.actionBtn + " " + styles.secondaryBtn}
+                    aria-haspopup="menu"
+                    aria-expanded={facebookLoginMenuOpen}
+                    aria-controls={facebookLoginMenuOpen ? facebookLoginMenuId : undefined}
+                    onClick={() => setFacebookLoginMenuOpen((open) => !open)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setFacebookLoginMenuOpen(true);
+                        window.requestAnimationFrame(() => facebookLoginMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus());
+                      }
+                    }}
+                  >
+                    {i18nT("instagram_facebook_connect")} <span aria-hidden="true">▾</span>
+                  </button>
+                  {facebookLoginMenuOpen ? (
+                    <div
+                      id={facebookLoginMenuId}
+                      role="menu"
+                      aria-label={i18nT("instagram_facebook_connect")}
+                      style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 10, minWidth: 230, display: "grid", gap: 6, padding: 8, borderRadius: 12, background: "#0f172a", border: "1px solid rgba(148,163,184,0.35)", boxShadow: "0 16px 35px rgba(0,0,0,0.4)" }}
+                      onKeyDown={(event) => {
+                        const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+                        const index = items.indexOf(document.activeElement as HTMLButtonElement);
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setFacebookLoginMenuOpen(false);
+                          facebookLoginButtonRef.current?.focus();
+                        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                          event.preventDefault();
+                          items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+                        } else if (event.key === "Tab") {
+                          setFacebookLoginMenuOpen(false);
+                        }
+                      }}
+                    >
+                      <button type="button" role="menuitem" className={styles.actionBtn + " " + styles.secondaryBtn} onClick={startStandard}>{i18nT("connexion_standard_7718db4b")}</button>
+                      <button type="button" role="menuitem" className={styles.actionBtn + " " + styles.secondaryBtn} onClick={startBusiness}>{i18nT("connexion_business_fbb4bbc5")}</button>
+                    </div>
+                  ) : null}
+                </div>
               </>
             )}
           </div>
         </div>
       </section>
 
-      {instagramAccountConnected ? (
+      {metaPilotEnabled && instagramAccountConnected && instagramAuthMode === "instagram_login" ? <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}><div className={socialStyles.stepBody}><StatusMessage variant="success">{i18nT("instagram_direct_identity")}</StatusMessage>{instagramUrl ? <a className={`${styles.actionBtn} ${styles.secondaryBtn}`} href={instagramUrl} target="_blank" rel="noopener noreferrer">{i18nT("voir_le_compte_1cbd7501")}</a> : null}</div></section> : null}
+
+      {instagramAccountConnected && instagramAuthMode !== "instagram_login" ? (
         <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`}>
           <div className={socialStyles.stepHeader}>
             <span className={socialStyles.stepNumber} aria-hidden="true">02</span>

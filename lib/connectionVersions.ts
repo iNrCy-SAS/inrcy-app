@@ -40,6 +40,7 @@ export type ConnectionKind =
   | "channel:gmb"
   | "channel:facebook"
   | "channel:instagram"
+  | "channel:threads"
   | "channel:linkedin"
   | "channel:tiktok"
   | "channel:youtube_shorts"
@@ -63,6 +64,7 @@ export const CONNECTION_REQUIRED_VERSIONS: Record<ConnectionKind, number> = {
   "channel:gmb": 1,
   "channel:facebook": 1,
   "channel:instagram": 1,
+  "channel:threads": 1,
   "channel:linkedin": 2,
   "channel:tiktok": 2,
   "channel:youtube_shorts": 1,

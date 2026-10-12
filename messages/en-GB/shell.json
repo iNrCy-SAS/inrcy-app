@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "The link must not contain a username or password.",
   "channel_url_wrong_platform": "This link does not match this channel.",
   "channel_url_save_failed": "This link cannot be saved right now.",
-  "channel_url_change_required": "Change the link before saving it."
+  "channel_url_change_required": "Change the link before saving it.",
+  "instagram_direct_connect": "Connect directly to Instagram",
+  "instagram_facebook_connect": "Connect via Facebook",
+  "instagram_direct_help": "Choose direct access to your professional Instagram account or the existing Facebook flow. Direct access does not require a Facebook Page.",
+  "instagram_direct_identity": "Professional Instagram account connected directly.",
+  "threads_connect_title": "Connect your Threads account",
+  "threads_connect_help": "Allow iNrCy to publish to your Threads account using the official secure connection.",
+  "threads_checking": "Checking…",
+  "threads_status_error": "Unable to check the Threads connection.",
+  "threads_disconnect_error": "Unable to disconnect Threads.",
+  "threads_disconnected": "Threads account disconnected.",
+  "threads_reconnect_help": "Renew your account permissions.",
+  "threads_identity_help": "The account is selected during the official connection.",
+  "threads_reconnect": "Reconnect Threads",
+  "threads_connect": "Connect Threads",
+  "threads_view_profile": "View Threads profile",
+  "threads_description": "Connect with your community",
+  "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft."
 }

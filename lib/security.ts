@@ -38,7 +38,9 @@ export function getCookie(req: Request, name: string): string | null {
   const parts = raw.split(";");
   for (const p of parts) {
     const [k, ...rest] = p.trim().split("=");
-    if (k === name) return decodeURIComponent(rest.join("="));
+    if (k === name) {
+      try { return decodeURIComponent(rest.join("=")); } catch { return null; }
+    }
   }
   return null;
 }

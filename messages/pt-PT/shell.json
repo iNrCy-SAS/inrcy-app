@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "A ligação não deve conter nome de utilizador ou palavra-passe.",
   "channel_url_wrong_platform": "Esta ligação não corresponde a este canal.",
   "channel_url_save_failed": "Não é possível guardar esta ligação agora.",
-  "channel_url_change_required": "Altere a ligação antes de a guardar."
+  "channel_url_change_required": "Altere a ligação antes de a guardar.",
+  "instagram_direct_connect": "Ligação direta ao Instagram",
+  "instagram_facebook_connect": "Ligar através do Facebook",
+  "instagram_direct_help": "Escolha o acesso direto à sua conta profissional do Instagram ou o processo existente através do Facebook. O acesso direto não requer uma Página do Facebook.",
+  "instagram_direct_identity": "Conta profissional do Instagram ligada diretamente.",
+  "threads_connect_title": "Ligar a conta Threads",
+  "threads_connect_help": "Autorize a iNrCy a publicar na sua conta Threads através da ligação oficial segura.",
+  "threads_checking": "A verificar…",
+  "threads_status_error": "Não foi possível verificar a ligação Threads.",
+  "threads_disconnect_error": "Não foi possível desligar o Threads.",
+  "threads_disconnected": "Conta Threads desligada.",
+  "threads_reconnect_help": "Renove as permissões da sua conta.",
+  "threads_identity_help": "A conta é escolhida durante a ligação oficial.",
+  "threads_reconnect": "Voltar a ligar o Threads",
+  "threads_connect": "Ligar o Threads",
+  "threads_view_profile": "Ver o perfil Threads",
+  "threads_description": "Converse com a sua comunidade",
+  "threads_edit_unsupported": "A API do Threads não permite editar uma publicação já publicada. Pode eliminá-la ou editar um rascunho."
 }

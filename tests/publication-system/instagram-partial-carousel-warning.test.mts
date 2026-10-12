@@ -14,7 +14,7 @@ async function loadInstagramPublishModule() {
   );
   const sourcePath = path.join(ROOT, "lib/instagramPublish.ts");
   const source = (await fs.readFile(sourcePath, "utf8"))
-    .replace('"@/lib/metaGraphApi"', '"./metaGraphApiStub.ts"')
+    .replace('"@/lib/instagramAuthMode"', '"./metaGraphApiStub.ts"')
     .replace(
       '"@/lib/metaGraphErrorClassification"',
       '"./metaGraphErrorClassificationStub.ts"',
@@ -24,7 +24,7 @@ async function loadInstagramPublishModule() {
     fs.writeFile(path.join(tempDir, "instagramPublish.ts"), source),
     fs.writeFile(
       path.join(tempDir, "metaGraphApiStub.ts"),
-      'export function buildMetaGraphUrl(value: string) { return `https://graph.instagram.test/v25.0/${value}`; }\n',
+      'export function buildInstagramGraphUrl(value: string) { return `https://graph.instagram.test/v25.0/${value}`; }\n',
     ),
     fs.writeFile(
       path.join(tempDir, "metaGraphErrorClassificationStub.ts"),

@@ -105,7 +105,7 @@ export async function GET(req: Request) {
   const init = () => ({
     month: 0,
     week: 0,
-    channels: { site_web: 0, inr_search: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0, x: 0 } as Record<string, number>,
+    channels: { site_web: 0, inr_search: 0, gmb: 0, facebook: 0, instagram: 0, threads: 0, linkedin: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0, x: 0 } as Record<string, number>,
     sent: 0,
     last_sent_at: null as string | null,
   });

@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "De link mag geen gebruikersnaam of wachtwoord bevatten.",
   "channel_url_wrong_platform": "Deze link hoort niet bij dit kanaal.",
   "channel_url_save_failed": "Deze link kan momenteel niet worden opgeslagen.",
-  "channel_url_change_required": "Wijzig de link voordat u deze opslaat."
+  "channel_url_change_required": "Wijzig de link voordat u deze opslaat.",
+  "instagram_direct_connect": "Rechtstreeks verbinden met Instagram",
+  "instagram_facebook_connect": "Verbinden via Facebook",
+  "instagram_direct_help": "Kies directe toegang tot uw professionele Instagram-account of de bestaande Facebook-route. Directe toegang vereist geen Facebook-pagina.",
+  "instagram_direct_identity": "Professioneel Instagram-account rechtstreeks verbonden.",
+  "threads_connect_title": "Threads-account verbinden",
+  "threads_connect_help": "Geef iNrCy toestemming om op uw Threads-account te publiceren via de officiële beveiligde verbinding.",
+  "threads_checking": "Controleren…",
+  "threads_status_error": "De Threads-verbinding kon niet worden gecontroleerd.",
+  "threads_disconnect_error": "Threads kon niet worden losgekoppeld.",
+  "threads_disconnected": "Threads-account losgekoppeld.",
+  "threads_reconnect_help": "Vernieuw de machtigingen van uw account.",
+  "threads_identity_help": "Het account wordt tijdens de officiële verbinding gekozen.",
+  "threads_reconnect": "Threads opnieuw verbinden",
+  "threads_connect": "Threads verbinden",
+  "threads_view_profile": "Threads-profiel bekijken",
+  "threads_description": "Ga in gesprek met uw community",
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken."
 }

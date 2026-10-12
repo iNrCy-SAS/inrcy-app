@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
@@ -13,6 +15,7 @@ export async function GET() {
   }
   const activeUserId = await resolveActiveInrcyAccountId(supabase, authData.user.id);
 
-  const states = await getChannelConnectionStates(supabase, activeUserId);
-  return NextResponse.json(states);
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
+  const states = await getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled });
+  return NextResponse.json(withoutThreadsData(states, metaPilotEnabled));
 }

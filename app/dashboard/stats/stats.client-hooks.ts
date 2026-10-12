@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardViewerAccess } from "@/app/dashboard/_components/DashboardViewerAccessProvider";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
 
@@ -118,6 +120,7 @@ export function useStatsChannelIdentitySync({
   setCachedChannelConnectivity,
   setOfficialChannelConnectionStatuses,
 }: UseStatsChannelIdentitySyncArgs) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   useEffect(() => {
     let cancelled = false;
     let channelStatesRequestSeq = 0;
@@ -261,6 +264,7 @@ export function useStatsDataController({
   setInrSearchStats,
   includeMailStats,
 }: UseStatsDataControllerArgs) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const inrBadgeStatsRequestSeqRef = useRef(0);
   const inrSearchStatsRequestSeqRef = useRef(0);
   const inrSearchStatsRequestRef = useRef<Promise<void> | null>(null);
@@ -374,6 +378,7 @@ export function useStatsDataController({
             gmb: safeNum(cachedSummary.byCube?.gmb),
             facebook: safeNum(cachedSummary.byCube?.facebook),
             instagram: safeNum(cachedSummary.byCube?.instagram),
+            threads: metaPilotEnabled ? safeNum(cachedSummary.byCube?.threads) : 0,
             linkedin: safeNum(cachedSummary.byCube?.linkedin),
             x: safeNum(cachedSummary.byCube?.x),
             mails: 0,
@@ -394,6 +399,7 @@ export function useStatsDataController({
           gmb: safeNum(cachedSummary.estimatedByCube?.gmb),
           facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
           instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
+          threads: metaPilotEnabled ? safeNum(cachedSummary.estimatedByCube?.threads) : 0,
           linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
           x: safeNum(cachedSummary.estimatedByCube?.x),
           mails: 0,
@@ -411,6 +417,7 @@ export function useStatsDataController({
             gmb: safeNum(cachedSummary.byCube?.gmb),
             facebook: safeNum(cachedSummary.byCube?.facebook),
             instagram: safeNum(cachedSummary.byCube?.instagram),
+            threads: metaPilotEnabled ? safeNum(cachedSummary.byCube?.threads) : 0,
             linkedin: safeNum(cachedSummary.byCube?.linkedin),
             x: safeNum(cachedSummary.byCube?.x),
             tiktok: safeNum(cachedSummary.byCube?.tiktok),
@@ -423,6 +430,7 @@ export function useStatsDataController({
             gmb: safeNum(cachedSummary.estimatedByCube?.gmb),
             facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
             instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
+            threads: metaPilotEnabled ? safeNum(cachedSummary.estimatedByCube?.threads) : 0,
             linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
             x: safeNum(cachedSummary.estimatedByCube?.x),
             tiktok: safeNum(cachedSummary.estimatedByCube?.tiktok),
@@ -514,6 +522,7 @@ export function useStatsDataController({
             gmb: safeNum(payload?.opportunities?.byCube?.gmb),
             facebook: safeNum(payload?.opportunities?.byCube?.facebook),
             instagram: safeNum(payload?.opportunities?.byCube?.instagram),
+            threads: metaPilotEnabled ? safeNum(payload?.opportunities?.byCube?.threads) : 0,
             linkedin: safeNum(payload?.opportunities?.byCube?.linkedin),
             x: safeNum(payload?.opportunities?.byCube?.x),
             mails: 0,
@@ -534,6 +543,7 @@ export function useStatsDataController({
           gmb: safeNum(payload?.estimatedByCube?.gmb),
           facebook: safeNum(payload?.estimatedByCube?.facebook),
           instagram: safeNum(payload?.estimatedByCube?.instagram),
+          threads: metaPilotEnabled ? safeNum(payload?.estimatedByCube?.threads) : 0,
           linkedin: safeNum(payload?.estimatedByCube?.linkedin),
           x: safeNum(payload?.estimatedByCube?.x),
           mails: 0,
@@ -840,6 +850,7 @@ export function useStatsDataController({
         gmb: safeNum(byCubePartial.gmb),
         facebook: safeNum(byCubePartial.facebook),
         instagram: safeNum(byCubePartial.instagram),
+        threads: metaPilotEnabled ? safeNum(byCubePartial.threads) : 0,
         linkedin: safeNum(byCubePartial.linkedin),
         x: safeNum(byCubePartial.x),
           mails: 0,
@@ -860,6 +871,7 @@ export function useStatsDataController({
       gmb: safeNum(estimatedByCubePartial.gmb),
       facebook: safeNum(estimatedByCubePartial.facebook),
       instagram: safeNum(estimatedByCubePartial.instagram),
+      threads: metaPilotEnabled ? safeNum(estimatedByCubePartial.threads) : 0,
       linkedin: safeNum(estimatedByCubePartial.linkedin),
       x: safeNum(estimatedByCubePartial.x),
         mails: 0,
@@ -895,6 +907,7 @@ export function useStatsDataController({
           gmb: safeNum(byCubePartial.gmb),
           facebook: safeNum(byCubePartial.facebook),
           instagram: safeNum(byCubePartial.instagram),
+          threads: metaPilotEnabled ? safeNum(byCubePartial.threads) : 0,
           linkedin: safeNum(byCubePartial.linkedin),
           x: safeNum(byCubePartial.x),
           mails: 0,
@@ -915,6 +928,7 @@ export function useStatsDataController({
         gmb: safeNum(json?.estimatedByCube?.gmb),
         facebook: safeNum(json?.estimatedByCube?.facebook),
         instagram: safeNum(json?.estimatedByCube?.instagram),
+        threads: metaPilotEnabled ? safeNum(json?.estimatedByCube?.threads) : 0,
         linkedin: safeNum(json?.estimatedByCube?.linkedin),
         x: safeNum(json?.estimatedByCube?.x),
         mails: 0,
@@ -982,7 +996,7 @@ export function useStatsDataController({
   useEffect(() => {
   if (!dailyBootReady) return;
   let cancelled = false;
-  const keys: CubeKey[] = [ "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
+  const keys: CubeKey[] = [ "site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 
   (async () => {
     // Only a complete snapshot for the current day may reach the UI. Older

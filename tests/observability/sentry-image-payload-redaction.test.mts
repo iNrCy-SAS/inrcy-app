@@ -10,8 +10,8 @@ const source = readFileSync(
 test("Sentry expurge les images encodées des erreurs et breadcrumbs", () => {
   assert.match(source, /IMAGE_DATA_URL_RE/);
   assert.match(source, /LONG_BASE64_RE/);
-  assert.match(source, /mutableEvent\.message = scrubBinaryPayloads/);
-  assert.match(source, /item\.value = scrubBinaryPayloads/);
-  assert.match(source, /breadcrumb\.message = scrubBinaryPayloads/);
+  assert.match(source, /mutableEvent\.message = scrubDiagnosticText/);
+  assert.match(source, /item\.value = scrubDiagnosticText/);
+  assert.match(source, /breadcrumb\.message = scrubDiagnosticText/);
   assert.match(source, /delete mutableEvent\.request\.data/);
 });

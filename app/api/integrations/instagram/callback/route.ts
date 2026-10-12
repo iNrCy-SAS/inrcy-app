@@ -1,3 +1,4 @@
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
@@ -163,7 +164,11 @@ const { data: existingIntegration } = await supabaseAdmin
   .maybeSingle();
 
 const existingRec = asRecord(existingIntegration);
-const previousMeta = asRecord(existingRec["meta"]);
+const previousMeta = { ...asRecord(existingRec["meta"]) };
+const previousAuthMode = resolveInstagramAuthMode(previousMeta);
+if (previousAuthMode === "instagram_login") {
+  for (const key of ["permissions", "token_issued_at", "token_refreshed_at", "account_type", "profile_picture_url"]) delete previousMeta[key];
+}
 const previousStatus = asString(existingRec["status"]);
 const previousAccessTokenEnc = asString(existingRec["access_token_enc"]);
 const previousRefreshTokenEnc = asString(existingRec["refresh_token_enc"]);
@@ -171,7 +176,7 @@ const previousExpiresAt = asString(existingRec["expires_at"]);
 const previousResourceId = asString(existingRec["resource_id"]);
 const previousResourceLabel = asString(existingRec["resource_label"]);
 const previousPageId = asString(previousMeta["page_id"]);
-const preserveSelection = repairMode && previousStatus === "connected" && !!previousResourceId;
+const preserveSelection = repairMode && previousAuthMode === "facebook_login" && previousStatus === "connected" && !!previousResourceId;
 
 let refreshedSelectedPage: Awaited<ReturnType<typeof listAccessibleFacebookPagesDetailed>>["pages"][number] | null = null;
 if (preserveSelection) {
@@ -194,6 +199,7 @@ const selectedPageId = refreshedSelectedPage?.id || previousPageId || null;
 
 const repairedMetaDraft: Record<string, unknown> = {
   ...previousMeta,
+  auth_mode: "facebook_login",
   user_access_token_enc: encryptedToken,
   standard_user_access_token_enc: loginMode === "standard"
     ? encryptedToken

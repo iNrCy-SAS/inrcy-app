@@ -33,7 +33,7 @@ test("cube overviews share one lazy publication-activity loader", () => {
   assert.match(overview, /args\.inrcyPublishedActivityLoader\?\.\(\)/);
   assert.match(
     metrics,
-    /const inrcyPublishedActivityLoader =[\s\S]*?createInrcyPublishedActivityLoader\(\{ supabase, userId \}\)[\s\S]*?CUBES\.map/,
+    /const inrcyPublishedActivityLoader =[\s\S]*?createInrcyPublishedActivityLoader\(\{ supabase, userId \}\)[\s\S]*?CUBES[\s\S]*?\.map/,
   );
   assert.match(metrics, /buildStatsOverview\(\{[\s\S]*?inrcyPublishedActivityLoader,[\s\S]*?\}\)/);
 });

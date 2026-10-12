@@ -10,6 +10,7 @@ import {
   normalizeInstagramPublicationPreferences,
   type InstagramPublicationPreferences,
 } from "@/lib/instagramPublicationPreferences";
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import type { ChannelResourcePhase } from "./channelResourcePhase";
 
 type PatchChannelConnectionLocally = (
@@ -51,6 +52,8 @@ export function useInstagramChannel({
   triggerChannelRefresh,
   updateRootSettingsKey,
 }: UseInstagramChannelOptions) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const [instagramAuthMode, setInstagramAuthMode] = useState<"instagram_login" | "facebook_login">(initialState?.instagramAuthMode === "instagram_login" ? "instagram_login" : "facebook_login");
   const initialConnected = initialState?.instagramConnected === true;
   const initialStatus = initialState?.instagramConnectionStatus;
   const [instagramUrl, setInstagramUrl] = useState<string>(() => typeof initialState?.instagramUrl === "string" ? initialState.instagramUrl : "");
@@ -80,7 +83,7 @@ export function useInstagramChannel({
   const [instagramPublicationPreferencesError, setInstagramPublicationPreferencesError] =
     useState<string | null>(null);
 
-  const [igAccounts, setIgAccounts] = useState<Array<{ page_id: string; page_name?: string; ig_id: string; username?: string; page_access_token?: string }>>([]);
+  const [igAccounts, setIgAccounts] = useState<Array<{ page_id: string; page_name?: string; ig_id: string; username?: string }>>([]);
   const [igAccountsLoading, setIgAccountsLoading] = useState(false);
   const [igAccountsPhase, setIgAccountsPhase] = useState<ChannelResourcePhase>("idle");
   const [igSelectedPageId, setIgSelectedPageId] = useState<string>("");
@@ -204,6 +207,7 @@ export function useInstagramChannel({
       });
       if (!res.ok) return null;
       const json = await res.json().catch(() => null) as {
+        auth_mode?: "instagram_login" | "facebook_login";
         accountConnected?: boolean;
         connected?: boolean;
         expired?: boolean;
@@ -222,6 +226,7 @@ export function useInstagramChannel({
       const nextResourceId = typeof json.resource_id === "string" ? json.resource_id : null;
       const nextConnectionStatus = (json.connection_status || (nextConnected ? "connected" : "disconnected")) as ConnectionDisplayStatus;
 
+      setInstagramAuthMode(json.auth_mode === "instagram_login" ? "instagram_login" : "facebook_login");
       setInstagramAccountConnected(nextAccountConnected);
       setInstagramConnected(nextConnected);
       setInstagramConnectionStatus(nextConnectionStatus);
@@ -259,8 +264,14 @@ export function useInstagramChannel({
     window.location.href = `/api/integrations/instagram/start?returnTo=${returnTo}&mode=business`;
   }, []);
 
+  const connectInstagramDirectAccount = useCallback(() => {
+    if (!metaPilotEnabled) return;
+    const returnTo = encodeURIComponent("/dashboard?panel=instagram");
+    window.location.href = `/api/integrations/instagram-direct/start?returnTo=${returnTo}`;
+  }, [metaPilotEnabled]);
+
   const disconnectInstagramAccount = useCallback(async () => {
-    const response = await fetch("/api/integrations/instagram/disconnect-account", { method: "POST" }).catch(() => null);
+    const response = await fetch(instagramAuthMode === "instagram_login" ? "/api/integrations/instagram-direct/disconnect" : "/api/integrations/instagram/disconnect-account", { method: "POST" }).catch(() => null);
     const payload = response ? await response.json().catch(() => null) : null;
     if (!response || !response.ok || payload?.ok === false) {
       setPanelError(payload?.error, "Impossible de déconnecter le compte Instagram.");
@@ -293,7 +304,7 @@ export function useInstagramChannel({
     await triggerChannelRefresh("instagram");
     await syncInstagramStateFromServer();
     setPanelSuccess("Compte Instagram déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
+  }, [instagramAuthMode, patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
 
   const disconnectInstagramProfile = useCallback(async () => {
     const response = await fetch("/api/integrations/instagram/disconnect-profile", { method: "POST" }).catch(() => null);
@@ -326,10 +337,10 @@ export function useInstagramChannel({
     await triggerChannelRefresh("instagram");
     await syncInstagramStateFromServer();
     setPanelSuccess("Profil Instagram déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
+  }, [instagramAuthMode, patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
 
   const loadInstagramAccounts = useCallback(async () => {
-    if (!instagramAccountConnected) return;
+    if (!instagramAccountConnected || instagramAuthMode === "instagram_login") return;
     setIgAccountsLoading(true);
     setIgAccountsPhase("searching");
     setIgAccountsError(null);
@@ -337,7 +348,7 @@ export function useInstagramChannel({
       const r = await fetch("/api/integrations/instagram/accounts", { cache: "no-store" });
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de charger vos comptes Instagram."));
       const j = await r.json().catch(() => ({}));
-      const accounts = Array.isArray(j.accounts) ? j.accounts : [];
+      const accounts = Array.isArray(j.accounts) ? j.accounts.map((account: Record<string, unknown>) => ({ page_id: String(account.page_id || ""), page_name: String(account.page_name || ""), ig_id: String(account.ig_id || ""), username: String(account.username || "") })) : [];
       setIgAccounts(accounts);
       if (!accounts.length) {
         setIgAccountsError(
@@ -390,7 +401,7 @@ export function useInstagramChannel({
       setIgAccountsLoading(false);
       setIgAccountsPhase("idle");
     }
-  }, [instagramAccountConnected, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey, syncInstagramStateFromServer]);
+  }, [instagramAccountConnected, instagramAuthMode, igSelectedPageId, patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey, syncInstagramStateFromServer]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -461,6 +472,9 @@ export function useInstagramChannel({
   }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, updateRootSettingsKey, setPanelSuccess, setPanelError, syncInstagramStateFromServer]);
 
   return {
+    instagramAuthMode,
+    setInstagramAuthMode,
+    connectInstagramDirectAccount,
     instagramUrl,
     setInstagramUrl,
     instagramAccountConnected,

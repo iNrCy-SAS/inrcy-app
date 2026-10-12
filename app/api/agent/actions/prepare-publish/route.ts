@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -196,6 +197,7 @@ const boosterToAgentChannel: Record<BoosterChannels, string> = {
   gmb: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   tiktok: "tiktok",
   youtube_shorts: "youtube_shorts",
@@ -246,6 +248,7 @@ const channelLabels: Record<string, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
@@ -263,6 +266,7 @@ const allowedBoosterChannels = new Set<BoosterChannels>([
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -1287,6 +1291,7 @@ async function selectConnectedChannels(args: {
     getAppBubbleAccessMapForUser(args.supabase, args.userId),
     ensureSystemManagedInrSearch(args.supabase as any, args.userId),
   ]);
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForAccount(args.supabase, args.userId);
   const inrSearchStatus = await getInrSearchPublicStatus(
     provisioned.inrSearch.slug
   );
@@ -1332,6 +1337,7 @@ async function selectConnectedChannels(args: {
     gmb: "gmb",
     facebook: "facebook",
     instagram: "instagram",
+    threads: "threads",
     linkedin: "linkedin",
     tiktok: "tiktok",
     youtube_shorts: "youtube_shorts",
@@ -1346,7 +1352,8 @@ async function selectConnectedChannels(args: {
       inrSearchStatus.published,
     gmb: isOfficialPublicationChannelConnected(states.gmb),
     facebook: isOfficialPublicationChannelConnected(states.facebook),
-    instagram: isOfficialPublicationChannelConnected(states.instagram),
+    instagram: (states.instagram.authMode !== "instagram_login" || metaPilotEnabled) && isOfficialPublicationChannelConnected(states.instagram),
+    threads: metaPilotEnabled && isOfficialPublicationChannelConnected(states.threads),
     linkedin: isOfficialPublicationChannelConnected(states.linkedin),
     tiktok: isOfficialPublicationChannelConnected(states.tiktok),
     youtube_shorts: isOfficialPublicationChannelConnected(
@@ -1937,6 +1944,7 @@ function buildPreviewText(
   const preferredOrder: BoosterChannels[] = [
     "facebook",
     "instagram",
+    "threads",
     "gmb",
     "linkedin",
     "site_web",

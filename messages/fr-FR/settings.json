@@ -826,5 +826,6 @@
   "video_credit_dispute_lost": "Paiement annulé après contestation",
   "video_credit_failed": "Échouée",
   "video_credit_failed_retry": "Ce paiement a échoué. Cliquez à nouveau sur Acheter pour ouvrir un nouveau paiement.",
-  "version_du_11_10_2026_video_credits": "Version mise à jour le 11 octobre 2026."
+  "version_du_11_10_2026_video_credits": "Version mise à jour le 11 octobre 2026.",
+  "derniere_mise_a_jour_12_10_2026_meta": "Dernière mise à jour : 12/10/2026"
 }

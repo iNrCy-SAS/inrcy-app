@@ -795,5 +795,6 @@
   "workflow_propulser_name": "推进",
   "workflowactionlabel_272c910f": "工作流程操作标签",
   "youtube_3f8b5798": "YouTube：",
-  "youtube_558865a1": "YouTube"
+  "youtube_558865a1": "YouTube",
+  "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。"
 }

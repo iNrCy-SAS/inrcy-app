@@ -18,7 +18,7 @@ const dashboardStylesSource = readFileSync(
 test("generator power keeps the last confirmed value while channel states settle", () => {
   assert.match(
     dashboardClientSource,
-    /const generatorPower = displayedGeneratorPower \?\? 0;/,
+    /const generatorPower = clampDashboardChannelPowerForAccess\(displayedGeneratorPower, availableGeneratorPowerMax\);/,
   );
   assert.doesNotMatch(
     dashboardClientSource,

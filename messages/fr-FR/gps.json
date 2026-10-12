@@ -629,5 +629,12 @@
   "startup_reflex_partial_analysis_20260905": "Commencer par les sources déjà connectées : une source indisponible ne doit jamais bloquer le parcours.",
   "startup_reflex_validate_20260905": "Relire les informations proposées par l’IA avant de les utiliser pour générer des contenus.",
   "startup_link_business_dna_20260905": "Analyser et compléter l’ADN",
-  "relier_les_destinations_utiles_site_web_483ab0d6": "Relier les destinations utiles : Site Web, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube et Pinterest."
+  "relier_les_destinations_utiles_site_web_483ab0d6": "Relier les destinations utiles : Site Web, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube et Pinterest.",
+  "threads_title": "Connecter Threads et lire ses statistiques",
+  "threads_intro": "Connectez votre compte Threads, publiez avec Booster et suivez les vues, interactions et clics dans iNrStats.",
+  "threads_step_connect": "Ouvrir Canaux, puis Threads, et autoriser la connexion du compte.",
+  "threads_step_publish": "Préparer une publication dans Booster et sélectionner Threads.",
+  "threads_step_stats": "Consulter iNrStats pour la période sélectionnée ; une métrique indisponible reste indiquée comme telle.",
+  "threads_check": "Le compte Threads affiche un état connecté et un lien de profil public.",
+  "threads_pitfall": "Les statistiques d’une publication sont cumulées ; elles ne remplacent pas les statistiques du compte sur une période."
 }

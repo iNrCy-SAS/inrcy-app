@@ -2,6 +2,7 @@ export const DASHBOARD_OAUTH_CHANNELS = [
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -142,13 +143,14 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   const states = payload as Record<string, any>;
   const hasEveryBootChannel = DASHBOARD_BOOT_CHANNELS.every((channel) => (
-    states[channel] && typeof states[channel] === "object" && !Array.isArray(states[channel])
+    (channel === "threads" || states[channel] && typeof states[channel] === "object") && !Array.isArray(states[channel])
   ));
   if (!hasEveryBootChannel || !states.mails || typeof states.mails !== "object") return null;
 
   const gmb = states.gmb;
   const facebook = states.facebook;
   const instagram = states.instagram;
+  const threads = states.threads || {};
   const linkedin = states.linkedin;
   const tiktok = states.tiktok;
   const youtube = states.youtube_shorts;
@@ -182,6 +184,13 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     instagramConnectionStatus: canonicalStatus(instagram),
     instagramUsername: String(instagram.username || ""),
     instagramUrl: String(instagram.profile_url || ""),
+    instagramAuthMode: instagram.authMode === "instagram_login" ? "instagram_login" : "facebook_login",
+    threadsAccountConnected: Boolean(threads.pilotEnabled && threads.accountConnected),
+    threadsConnected: Boolean(threads.pilotEnabled && threads.connected && !threads.requiresUpdate),
+    threadsRequiresUpdate: Boolean(threads.pilotEnabled && threads.requiresUpdate),
+    threadsConnectionStatus: canonicalStatus(threads),
+    threadsUsername: String(threads.pilotEnabled ? threads.username || "" : ""),
+    threadsUrl: String(threads.pilotEnabled ? threads.profile_url || "" : ""),
     linkedinAccountConnected: Boolean(linkedin.accountConnected),
     linkedinConnected: Boolean(linkedin.connected),
     linkedinConnectionStatus: canonicalStatus(linkedin),

@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from 'next/server';
 import { jsonUserFacingError } from '@/lib/apiUserFacingErrors';
 import { captureApiException } from '@/lib/observability/sentry';
@@ -67,6 +69,8 @@ async function dashboardStatsBulkHandler(req: Request) {
       userId = await resolveActiveInrcyAccountId(supabase, user.id);
     }
 
+    const metaPilotEnabled = await (cronUserId ? isMetaChannelPilotEnabledForAccount(supabase, userId) : isMetaChannelPilotEnabledForActorAndAccount(supabase, userId));
+
     const { searchParams, origin } = new URL(req.url);
     const period = Math.max(1, Number(searchParams.get('days') || 30));
     const fresh = searchParams.get('fresh') === '1';
@@ -83,6 +87,8 @@ async function dashboardStatsBulkHandler(req: Request) {
       userId,
       snapshotDate,
       inrcyPublishedActivityLoader,
+
+      metaPilotEnabled,
     });
 
     const opportunities = toInrstatsSnapshot(computeOpportunitiesFromOverviews(overviews, period));
@@ -99,6 +105,8 @@ async function dashboardStatsBulkHandler(req: Request) {
             userId,
             snapshotDate,
             inrcyPublishedActivityLoader,
+
+            metaPilotEnabled,
           }),
       period === 30
         ? Promise.resolve(overviews)
@@ -111,6 +119,8 @@ async function dashboardStatsBulkHandler(req: Request) {
             userId,
             snapshotDate,
             inrcyPublishedActivityLoader,
+
+            metaPilotEnabled,
           }),
     ]);
 
@@ -126,7 +136,7 @@ async function dashboardStatsBulkHandler(req: Request) {
       .maybeSingle();
 
     const [channelStates, connectionSignature] = await Promise.all([
-      getChannelConnectionStates(supabase, userId),
+      getChannelConnectionStates(supabase, userId, undefined, { metaPilotEnabled }),
       buildStatsConnectionSignature(supabase, userId),
     ]);
 
@@ -204,7 +214,7 @@ async function dashboardStatsBulkHandler(req: Request) {
       },
     };
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(withoutThreadsData(payload, metaPilotEnabled), {
       headers: fresh
         ? {
             'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

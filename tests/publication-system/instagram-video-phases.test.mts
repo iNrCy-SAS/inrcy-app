@@ -42,10 +42,10 @@ const transpiled = ts.transpileModule(source, {
 const moduleRecord: { exports: UnknownRecord } = { exports: {} };
 const execute = new Function("module", "exports", "require", transpiled);
 execute(moduleRecord, moduleRecord.exports, (specifier: string) => {
-  if (specifier === "@/lib/metaGraphApi") {
+  if (specifier === "@/lib/instagramAuthMode") {
     return {
-      buildMetaGraphUrl: (path: string) =>
-        `https://graph.test/v25.0/${String(path).replace(/^\/+/, "")}`,
+      buildInstagramGraphUrl: (path: string, authMode?: string) =>
+        `https://${authMode === "instagram_login" ? "graph.instagram.test" : "graph.test"}/v25.0/${String(path).replace(/^\/+/, "")}`,
     };
   }
   if (specifier === "@/lib/metaGraphErrorClassification") {
@@ -808,4 +808,25 @@ test("phased Instagram API has no timer or long polling loop", () => {
   assert.match(source, /outcome: "checkpoint"/);
   assert.match(source, /requestMayHaveSucceeded: true/);
   assert.match(source, /state: "publish_unknown"/);
+});
+
+test("Instagram direct video checkpoints preserve auth mode and reject a Facebook-mode resume", async () => {
+  const calls: URL[] = [];
+  const deps = fixedDependencies(async (input) => {
+    const url = new URL(String(input)); calls.push(url);
+    assert.equal(url.hostname, "graph.instagram.test");
+    if (url.pathname.endsWith("/media")) return jsonResponse({ id: "100" });
+    if (url.pathname.endsWith("/media_publish")) return jsonResponse({ id: "200" });
+    return jsonResponse({ status_code: "FINISHED" });
+  });
+  const params = createInput({ authMode: "instagram_login", tokenCandidates: [{ source: "facebook", accessToken: "facebook-only-token" }] });
+  const created = await instagramCreateVideoCheckpointWithTokenFallback(params, deps);
+  assert.equal(created.ok, true); assert.equal(created.checkpoint?.authMode, "instagram_login");
+  const polled = await instagramPollVideoCheckpointWithTokenFallback({ checkpoint: created.checkpoint, accessToken: "token-primary", authMode: "instagram_login" }, deps);
+  const published = await instagramPublishVideoCheckpointWithTokenFallback({ checkpoint: polled.checkpoint, igUserId: "ig-user-1", accessToken: "token-primary", authMode: "instagram_login" }, deps);
+  assert.equal(published.ok, true); assert.equal(published.mediaId, "200"); assert.equal(calls.length, 3);
+  const before = calls.length;
+  const rejected = await instagramPollVideoCheckpointWithTokenFallback({ checkpoint: created.checkpoint, accessToken: "facebook-only-token", authMode: "facebook_login" }, deps);
+  assert.equal(rejected.ok, false); assert.equal(calls.length, before);
+  assert.notEqual(buildInstagramVideoRequestFingerprint(params), buildInstagramVideoRequestFingerprint({ ...params, authMode: "facebook_login" }));
 });

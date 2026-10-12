@@ -1,5 +1,6 @@
 "use client";
 
+import { clampDashboardChannelPowerForAccess, computeDashboardChannelPower } from "@/lib/dashboardChannelPower";
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
 
@@ -34,6 +35,8 @@ import { useDashboardMenus } from "./_hooks/useDashboardMenus";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 import { useDashboardPreparationScores } from "./_hooks/useDashboardPreparationScores";
 import { useFacebookChannel } from "./_hooks/channels/useFacebookChannel";
+import { useDashboardViewerAccess } from "./_components/DashboardViewerAccessProvider";
+import { useThreadsChannel } from "./_hooks/channels/useThreadsChannel";
 import { useInstagramChannel } from "./_hooks/channels/useInstagramChannel";
 import { useLinkedinChannel } from "./_hooks/channels/useLinkedinChannel";
 import { useGoogleBusinessChannel } from "./_hooks/channels/useGoogleBusinessChannel";
@@ -67,7 +70,7 @@ import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboar
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
 import { collapseDashboardWebsiteChannels } from "./_components/dashboard-channel-presentation";
 import {
-  DASHBOARD_CHANNEL_POWER_SETUP,
+  getDashboardChannelPowerSetup,
   type DashboardSetupChannelKey,
 } from "./dashboard.channel-setup";
 import {
@@ -186,6 +189,7 @@ export default function DashboardClient({
   initialOfficialChannelStates = null,
   initialOfficialChannelStatesUserId = null,
 }: DashboardClientProps) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
@@ -804,6 +808,9 @@ const {
 });
 
 const {
+  instagramAuthMode,
+  setInstagramAuthMode,
+  connectInstagramDirectAccount,
   instagramUrl,
   setInstagramUrl,
   instagramAccountConnected,
@@ -846,6 +853,16 @@ const {
   triggerChannelRefresh: triggerChannelRefreshProxy,
   updateRootSettingsKey,
 });
+
+const onThreadsConnectionChange = useCallback((next: { connected: boolean; requiresUpdate: boolean; connectionStatus: ConnectionDisplayStatus; username: string; profileUrl: string }) => {
+  patchChannelConnectionLocallyProxy("threads", { connected: next.connected, accountConnected: next.connected, configured: next.connected, requiresUpdate: next.requiresUpdate, connectionStatus: next.connectionStatus, resourceLabel: next.username || null, resourceUrl: next.profileUrl || null }, { clearData: !next.connected });
+  void triggerChannelRefreshProxy("threads");
+}, [patchChannelConnectionLocallyProxy, triggerChannelRefreshProxy]);
+const threadsChannel = useThreadsChannel({ initialState: initialDashboardChannelState, panel, onConnectionChange: onThreadsConnectionChange });
+const { applyThreadsState } = threadsChannel;
+const threadsConnected = metaPilotEnabled && threadsChannel.connection.connected;
+const threadsConnectionStatus = threadsChannel.connection.connectionStatus;
+const threadsUrl = threadsChannel.connection.profileUrl;
 
 const {
   linkedinUrl,
@@ -1002,6 +1019,8 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
     setSiteWebActusAccent(normalizeActusAccent(state.siteWebActusAccent));
   }
 
+  if (state.instagramAuthMode === "instagram_login" || state.instagramAuthMode === "facebook_login") setInstagramAuthMode(state.instagramAuthMode);
+  if (typeof state.threadsConnected === "boolean") applyThreadsState({ connected: state.threadsConnected, requiresUpdate: Boolean(state.threadsRequiresUpdate), connectionStatus: isConnectionStatus(state.threadsConnectionStatus) ? state.threadsConnectionStatus : "disconnected", username: String(state.threadsUsername || ""), profileUrl: String(state.threadsUrl || "") });
   if (typeof state.instagramUrl === "string") setInstagramUrl(state.instagramUrl);
   if (typeof state.instagramAccountConnected === "boolean") setInstagramAccountConnected(state.instagramAccountConnected);
   if (typeof state.instagramConnected === "boolean") setInstagramConnected(state.instagramConnected);
@@ -1088,7 +1107,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   setFacebookAccountConnected, setFacebookConnectionStatus, setFacebookPageConnected, setFacebookUrl,
   setFbSelectedPageId, setFbSelectedPageName,   setGmbAccountConnected,
   setGmbConfigured, setGmbConnected, setGmbConnectionStatus, setGmbLocationLabel, setGmbLocationName, setGmbUrl,
-   setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
+   applyThreadsState, setInstagramAuthMode, setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
   setInstagramUsername, setLinkedinAccountConnected, setLinkedinConnected, setLinkedinConnectionStatus,
   setLinkedinDisplayName, setLinkedinSelectedOrganizationId, setLinkedinSelectedOrganizationName, setLinkedinUrl,
   setLinkedinProfileUrl, setLinkedinOrganizationUrl,
@@ -1461,6 +1480,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
           facebook: Boolean(facebookAccountConnected && facebookPageConnected && facebookConnectionStatus !== "needs_update"),
           // Instagram : compte + page/profil (resource) sélectionné.
           instagram: Boolean(instagramAccountConnected && instagramConnected && instagramConnectionStatus !== "needs_update"),
+          ...(metaPilotEnabled ? { threads: threadsConnected && threadsConnectionStatus !== "needs_update" } : {}),
           linkedin: Boolean(linkedinAccountConnected && linkedinConnectionStatus !== "needs_update"),
           x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update"),
           // TikTok est compté uniquement quand la vraie connexion OAuth est active.
@@ -1480,6 +1500,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       facebookAccountConnected,
       facebookPageConnected,
       facebookConnectionStatus,
+      metaPilotEnabled, threadsConnected, threadsConnectionStatus,
       instagramAccountConnected,
       instagramConnected,
       instagramConnectionStatus,
@@ -1941,6 +1962,7 @@ const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
   inr_search: Boolean(canAccessInrSearch && inrSearchConnected),
   facebook: Boolean(facebookPageConnected && facebookConnectionStatus !== "needs_update"),
   instagram: Boolean(instagramConnected && instagramConnectionStatus !== "needs_update"),
+  threads: Boolean(metaPilotEnabled && threadsConnected && threadsConnectionStatus !== "needs_update"),
   linkedin: Boolean(linkedinConnected && linkedinConnectionStatus !== "needs_update"),
   tiktok: Boolean(tiktokConnected && !tiktokRequiresUpdate),
   youtube_shorts: Boolean(youtubeShortsConnected && !youtubeShortsRequiresUpdate),
@@ -1950,7 +1972,8 @@ const channelPowerConnected: Record<DashboardSetupChannelKey, boolean> = {
 
 };
 
-const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP.map((channel) => ({
+const channelPowerSetup = getDashboardChannelPowerSetup(metaPilotEnabled);
+const generatorPowerSteps = channelPowerSetup.map((channel) => ({
   key: channel.key,
   label: channel.key,
   shortLabel: channel.key,
@@ -1958,7 +1981,11 @@ const generatorPowerSteps = DASHBOARD_CHANNEL_POWER_SETUP.map((channel) => ({
   completed: channelPowerConnected[channel.key],
 }));
 
-const computedGeneratorPower = generatorPowerSteps.reduce((sum, step) => sum + (step.completed ? step.weight : 0), 0);
+const computedGeneratorPower = computeDashboardChannelPower(channelPowerSetup.map((channel) => ({ weight: channel.weight, completed: channelPowerConnected[channel.key] })));
+const availableGeneratorPowerMax = computeDashboardChannelPower(channelPowerSetup.map((channel) => ({
+  weight: channel.weight,
+  completed: channel.key !== "mails" || !isStandardEdition,
+})));
 const generatorPowerReady = siteConnectionsReady
   && profileCheckReady
   && officialChannelStatesReady
@@ -1969,7 +1996,7 @@ const generatorPowerReady = siteConnectionsReady
 // Pendant un retour OAuth, une connexion ou une déconnexion, les états des
 // canaux peuvent arriver en plusieurs vagues : on ne montre jamais ces valeurs
 // transitoires et on ne les écrit jamais dans le cache.
-const generatorPower = displayedGeneratorPower ?? 0;
+const generatorPower = clampDashboardChannelPowerForAccess(displayedGeneratorPower, availableGeneratorPowerMax);
 const generatorPowerIsSettling = generatorPowerReady && generatorPower !== computedGeneratorPower;
 const computedNextGeneratorPowerStep = generatorPowerSteps.find((step) => !step.completed) ?? null;
 const computedRemainingGeneratorPowerSteps = generatorPowerSteps.filter((step) => !step.completed).length;
@@ -3524,6 +3551,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       siteWebActusTheme,
       siteWebActusAccent,
       instagramUrl,
+      metaPilotEnabled, threadsConnected, threadsConnectionStatus,
       instagramAccountConnected,
       instagramConnected,
       instagramConnectionStatus,
@@ -3607,6 +3635,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const fluxBubbleItems = useMemo(() => buildFluxBubbleItems({
     bubbleAccessMap,
     standardMode: isStandardEdition,
+    metaPilotEnabled, threadsConnected, threadsConnectionStatus, threadsUrl,
 
     officialChannelStatesReady,
     channelBlocks,
@@ -3656,6 +3685,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   }), [
     bubbleAccessMap,
     bubbleAccessReady,
+    metaPilotEnabled, threadsConnected, threadsConnectionStatus, threadsUrl,
     canAccessPinterest,
     canAccessInrSearch,
 
@@ -3706,9 +3736,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
   const displayedFluxBubbleItems = useMemo(
     () => isStandardEdition
-      ? fluxBubbleItems.filter((item) => STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
+      ? fluxBubbleItems.filter((item) => (metaPilotEnabled && item.key === "threads") || STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
       : fluxBubbleItems,
-    [fluxBubbleItems, isStandardEdition],
+    [fluxBubbleItems, isStandardEdition, metaPilotEnabled],
   );
 
   const dashboardChannelItems = useMemo(() => {
@@ -3717,9 +3747,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       connectedText: dashboardCopy.status.connected,
     });
     return isStandardEdition
-      ? channels.filter((item) => STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
+      ? channels.filter((item) => (metaPilotEnabled && item.key === "threads") || STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
       : channels;
-  }, [ dashboardCopy.status.connected, fluxBubbleItems,  hasSiteWebUrl, isStandardEdition]);
+  }, [ dashboardCopy.status.connected, fluxBubbleItems,  hasSiteWebUrl, isStandardEdition, metaPilotEnabled]);
 
   const channelSettingsItemsByKey = useMemo(() => new Map(
     displayedFluxBubbleItems
@@ -3784,6 +3814,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         connected: Boolean(facebookPageConnected && facebookUrl),
         url: facebookUrl,
       },
+      threads: { connected: Boolean(metaPilotEnabled && threadsConnected && threadsUrl), url: metaPilotEnabled ? threadsUrl : null },
       instagram: {
         connected: Boolean(instagramConnected && instagramUrl),
         url: instagramUrl,
@@ -3817,6 +3848,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     onOpenActivity: () => openPanel("activite"),
     onOpenCalendarSettings: () => openPanel("agenda"),
   }), [
+    metaPilotEnabled, threadsConnected, threadsUrl,
     inrBadgeProfile,
     inrBadgePublicUrl,
     canAccessInrSearch,
@@ -3870,6 +3902,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const disconnectLinkedinOrganizationFromDrawer = useCallback(() => runDrawerMutation("linkedin:organization:disconnect", useLinkedinPersonalProfile), [runDrawerMutation, useLinkedinPersonalProfile]);
 
   const locals = {
+    instagramAuthMode, connectInstagramDirectAccount,
      applySiteWebPublicUrlSaved,
       canConnectSiteWebGoogle,
     connectFacebookAccount, connectFacebookBusinessAccount, connectGmbAccount, connectInstagramAccount, connectInstagramBusinessAccount, connectLinkedinAccount, connectLinkedinBusinessAccount,
@@ -4030,6 +4063,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           gmb: Boolean(gmbAccountConnected && gmbConfigured && gmbConnectionStatus !== "needs_update"),
           facebook: Boolean(facebookAccountConnected && facebookPageConnected && facebookConnectionStatus !== "needs_update"),
           instagram: Boolean(instagramAccountConnected && instagramConnected && instagramConnectionStatus !== "needs_update"),
+          ...(metaPilotEnabled ? { threads: threadsConnected && threadsConnectionStatus !== "needs_update" } : {}),
           linkedin: Boolean(linkedinAccountConnected && linkedinConnectionStatus !== "needs_update"),
           x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update"),
           // TikTok suit maintenant le même état hydraté que les autres canaux.
@@ -4142,6 +4176,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
             siteWebPanelProps={siteWebPanelProps}
             instagramPanelProps={instagramPanelProps}
+            threadsChannel={threadsChannel}
             linkedinPanelProps={linkedinPanelProps}
             gmbPanelProps={gmbPanelProps}
             facebookPanelProps={facebookPanelProps}

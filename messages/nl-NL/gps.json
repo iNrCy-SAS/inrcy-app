@@ -629,5 +629,12 @@
   "startup_reflex_partial_analysis_20260905": "Begin met reeds verbonden bronnen: een onbeschikbare bron mag het traject nooit blokkeren.",
   "startup_reflex_validate_20260905": "Controleer de door AI voorgestelde informatie voordat u er inhoud mee genereert.",
   "startup_link_business_dna_20260905": "Bedrijfs-DNA analyseren en voltooien",
-  "relier_les_destinations_utiles_site_web_483ab0d6": "Link nuttige bestemmingen: Website, Google-bedrijfsprofiel, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube en Pinterest."
+  "relier_les_destinations_utiles_site_web_483ab0d6": "Link nuttige bestemmingen: Website, Google-bedrijfsprofiel, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube en Pinterest.",
+  "threads_title": "Threads verbinden en statistieken bekijken",
+  "threads_intro": "Verbind uw Threads-account, publiceer met Booster en volg weergaven, interacties en klikken in iNrStats.",
+  "threads_step_connect": "Open Kanalen, daarna Threads, en geef toestemming om het account te verbinden.",
+  "threads_step_publish": "Bereid een publicatie in Booster voor en selecteer Threads.",
+  "threads_step_stats": "Bekijk iNrStats voor de gekozen periode; niet beschikbare meetwaarden blijven als zodanig aangeduid.",
+  "threads_check": "Het Threads-account toont een verbonden status en een openbare profiellink.",
+  "threads_pitfall": "Poststatistieken zijn cumulatief; ze vervangen geen accountstatistieken voor een periode."
 }

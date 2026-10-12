@@ -97,7 +97,8 @@
       "boutique": "Shop",
       "parrainage": "Refer with iNrCy",
       "notifications": "Alerts",
-      "documents": "Default settings"
+      "documents": "Default settings",
+      "threads": "Settings — Threads"
     }
   },
   "hero": {
@@ -115,7 +116,7 @@
     "aiStepLabel": "Configure my AI",
     "channelsInfoAria": "View the channel power grid",
     "channelsInfoTitle": "Channel power breakdown",
-    "channelsInfoHint": "Each weighted channel contributes its share. Power reaches 100% when all Premium channels are active.",
+    "channelsInfoHint": "The gauge adds the fixed weights of active channels. Its maximum depends on the channels available with your access.",
     "dnaInfoAria": "Understand the DNA score",
     "dnaInfoTitle": "Personalised content",
     "dnaInfoHint": "The more complete your iNr’DNA is, the more personalised and true-to-your-business the AI’s content becomes.",
@@ -371,6 +372,12 @@
       "description": "Automates actions 🤖",
       "view": "Open",
       "connect": "Set up"
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "Connect with your community",
+      "view": "View account",
+      "connect": "Link Instagram"
     }
   },
   "bubble": {

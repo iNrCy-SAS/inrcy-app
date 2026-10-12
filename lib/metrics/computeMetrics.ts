@@ -6,10 +6,12 @@ import {
   createInrcyPublishedActivityLoader,
   type InrcyPublishedActivityLoader,
 } from '@/lib/stats/buildOverview.activity';
+import { isMetaChannelPilotEnabledForAccount } from '@/lib/metaChannelRolloutServer';
+import { withoutThreadsData } from '@/lib/stats/metaPilotData';
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from '@/lib/stats/cacheSchema';
 
 export type Period = 7 | 30 | 60 | 90;
-export type CubeKey = 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
+export type CubeKey = 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'threads' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
 
 export type Overview = {
   days: number;
@@ -54,13 +56,14 @@ export type HistorySnapshot = {
   model: string;
 };
 
-export const CUBES: CubeKey[] = ['site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x'];
+export const CUBES: CubeKey[] = ['site_web', 'gmb', 'facebook', 'instagram', 'threads', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x'];
 
 export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
   site_web: 0,
   gmb: 0,
   facebook: 0,
   instagram: 0,
+  threads: 0,
   linkedin: 0,
   x: 0,
   tiktok: 0,
@@ -73,6 +76,7 @@ export const INCLUDE_BY_CUBE: Record<CubeKey, string> = {
   gmb: 'gmb',
   facebook: 'facebook',
   instagram: 'instagram',
+  threads: 'threads',
   linkedin: 'linkedin',
   x: 'x',
   tiktok: 'tiktok',
@@ -232,7 +236,7 @@ export function computeCapturedForCube(cube: CubeKey, ov: Overview): number {
     return roundNonNeg(estimate);
   }
 
-  if (cube === 'facebook' || cube === 'instagram' || cube === 'linkedin' || cube === 'x' || cube === 'tiktok' || cube === 'youtube_shorts' || cube === 'pinterest') {
+  if (cube === 'facebook' || cube === 'instagram' || cube === 'threads' || cube === 'linkedin' || cube === 'x' || cube === 'tiktok' || cube === 'youtube_shorts' || cube === 'pinterest') {
     const socialNode = safeObj(sources[cube]);
     const m = socialNode.metrics;
     const messages = getTotalMetric(m, [
@@ -249,6 +253,19 @@ export function computeCapturedForCube(cube: CubeKey, ov: Overview): number {
     const igReach = cube === 'instagram' ? getTotalMetric(m, ['reach', 'uniqueReach', 'unique_reach']) : 0;
     const liPageViews = cube === 'linkedin' ? getTotalMetric(m, ['pageViews']) : 0;
     const liFollowerCount = cube === 'linkedin' ? getTotalMetric(m, ['followerCount', 'memberFollowersCount']) : 0;
+
+    if (cube === 'threads') {
+      const totals = safeObj(safeObj(m).totals);
+      const direct = safeNum(totals.clicks);
+      const replies = safeNum(totals.replies);
+      const reposts = safeNum(totals.reposts);
+      const quotes = safeNum(totals.quotes);
+      const likes = safeNum(totals.likes);
+      const views = safeNum(totals.views);
+      // Estimated demand uses period signals only. Audience size and lifetime
+      // post insights are not captured leads or additional period traffic.
+      return roundNonNeg(direct + replies * 0.5 + reposts * 0.4 + quotes * 0.4 + likes * 0.12 + views * 0.006);
+    }
 
     if (cube === 'instagram') {
       const directSignals =
@@ -390,14 +407,14 @@ export function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): 
 
   // LinkedIn doit garder un potentiel minimum quand le canal est connecté,
   // même si l'API ne remonte pas encore de signaux exploitables.
-  const coldStartBaseline = cubeKey === 'instagram' ? 0.18 : cubeKey === 'linkedin' ? 0.14 : (cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') ? 0.18 : 0.20;
+  const coldStartBaseline = cubeKey === 'threads' ? 0 : cubeKey === 'instagram' ? 0.18 : cubeKey === 'linkedin' ? 0.14 : (cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') ? 0.18 : 0.20;
   if (!m) return coldStartBaseline;
 
   const audienceTotal = getTotalMetric(m, ['followers', 'followerCount', 'memberFollowersCount', 'organicFollowerCount', 'paidFollowerCount', 'follower_count', 'followers_count', 'fans', 'fanCount', 'fan_count', 'audience', 'subscribers']) || 0;
   if (safeObj(m).error && !(cubeKey === 'linkedin' && audienceTotal > 0)) return coldStartBaseline;
 
   const impressionsTotal = getTotalMetric(m, ['page_media_view', 'post_media_view', 'post_media_view_sum', 'views', 'impressions', 'post_impressions', 'postImpressions', 'post_impressions_sum', 'IMPRESSIONS', 'page_total_media_view_unique', 'post_total_media_view_unique', 'post_total_media_view_unique_sum', 'impressionCount', 'uniqueImpressionsCount', 'viewerImpressions', 'reach', 'REACH']) || 0;
-  const engagementsTotal = getTotalMetric(m, ['engagements', 'engagementCount', 'post_engagements', 'postEngagements', 'ENGAGEMENTS', 'total_engagements', 'page_engaged_users', 'post_engaged_users_sum', 'reactions', 'reactionCount', 'comments', 'commentCount', 'shares', 'shareCount', 'likes', 'likeCount', 'saves', 'replies', 'video_views', 'videoViews']) || 0;
+  const engagementsTotal = getTotalMetric(m, ['engagements', 'engagementCount', 'post_engagements', 'postEngagements', 'ENGAGEMENTS', 'total_engagements', 'total_interactions', 'page_engaged_users', 'post_engaged_users_sum', 'reactions', 'reactionCount', 'comments', 'commentCount', 'shares', 'shareCount', 'likes', 'likeCount', 'saves', 'replies', 'video_views', 'videoViews']) || 0;
   const ctaClicksTotal = getTotalMetric(m, ['cta_clicks', 'ctaClicks', 'link_clicks', 'linkClicks', 'website_clicks', 'websiteClicks', 'page_website_clicks_logged_in_unique', 'WEBSITE_CLICKS', 'CLICK_COUNT', 'clickCount', 'clicks', 'pageClicks', 'outbound_clicks', 'outboundClicks', 'profile_links_taps', 'profile_visits', 'profile_activity']) || 0;
 
   const impressionsPerDay = impressionsTotal / baseDays;
@@ -572,7 +589,7 @@ export function computeOpportunity30(cubeKey: CubeKey, ov: Overview) {
 
     return Math.max(0, Math.round(clamp(baseline + intentOpportunity + visibilityOpportunity, 0, 80)));
   }
-  if (cubeKey === 'facebook' || cubeKey === 'instagram' || cubeKey === 'linkedin' || cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') {
+  if (cubeKey === 'facebook' || cubeKey === 'instagram' || cubeKey === 'threads' || cubeKey === 'linkedin' || cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') {
     return Math.max(0, Math.round(computeOpportunityPerDaySocial(cubeKey, ov) * 30));
   }
   return Math.max(0, Math.round(computeOpportunityPerDayWeb(ov) * 30));
@@ -676,17 +693,19 @@ export async function fetchCubeOverviews(args: {
   userId?: string;
   snapshotDate?: string | null;
   inrcyPublishedActivityLoader?: InrcyPublishedActivityLoader;
+  metaPilotEnabled?: boolean;
 }): Promise<Partial<Record<CubeKey, Overview>>> {
   const { origin, days, getHeaders, extraParams, bypassCache = false, supabase, userId, snapshotDate } = args;
   const inrcyPublishedActivityLoader =
     supabase && userId
       ? args.inrcyPublishedActivityLoader || createInrcyPublishedActivityLoader({ supabase, userId })
       : undefined;
+  const metaPilotEnabled = args.metaPilotEnabled !== false && (supabase && userId ? await isMetaChannelPilotEnabledForAccount(supabase, userId) : args.metaPilotEnabled === true);
   const entries = await Promise.all(
-    CUBES.map(async (cube) => {
+    CUBES.filter((cube) => cube !== "threads" || metaPilotEnabled).map(async (cube) => {
       const includeRaw = INCLUDE_BY_CUBE[cube];
       if (supabase && userId) {
-        const directKey = `direct:${userId}:schema=${INRCY_STATS_CACHE_SCHEMA_VERSION}:days=${days}:include=${includeRaw}:snapshot=${snapshotDate || (bypassCache ? 'live' : 'default')}:fresh=${bypassCache ? 1 : 0}`;
+        const directKey = `direct:${userId}:metaPilot=${metaPilotEnabled ? 1 : 0}:schema=${INRCY_STATS_CACHE_SCHEMA_VERSION}:days=${days}:include=${includeRaw}:snapshot=${snapshotDate || (bypassCache ? 'live' : 'default')}:fresh=${bypassCache ? 1 : 0}`;
         const overview = await resolveOverviewWithCache(
           directKey,
           async () =>
@@ -698,6 +717,7 @@ export async function fetchCubeOverviews(args: {
               fresh: bypassCache,
               snapshotDate,
               inrcyPublishedActivityLoader,
+              metaPilotEnabled,
             })) as OverviewPayload,
           bypassCache,
         );
@@ -722,5 +742,5 @@ export async function fetchCubeOverviews(args: {
   for (const [cube, ov] of entries) {
     if (ov) out[cube] = ov;
   }
-  return out;
+  return withoutThreadsData(out, metaPilotEnabled);
 }

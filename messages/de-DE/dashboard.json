@@ -97,7 +97,8 @@
       "boutique": "Shop",
       "parrainage": "iNrCy weiterempfehlen",
       "notifications": "Infos",
-      "documents": "Standardwerte"
+      "documents": "Standardwerte",
+      "threads": "Einstellungen — Threads"
     }
   },
   "hero": {
@@ -115,7 +116,7 @@
     "aiStepLabel": "Meine KI konfigurieren",
     "channelsInfoAria": "Leistungsübersicht der Kanäle anzeigen",
     "channelsInfoTitle": "Leistungsanteile der Kanäle",
-    "channelsInfoHint": "Jeder gewichtete Kanal trägt seinen Anteil bei. Mit allen aktiven Premium-Kanälen werden 100 % erreicht.",
+    "channelsInfoHint": "Die Anzeige addiert die festen Gewichte der aktiven Kanäle. Ihr Höchstwert hängt von den Kanälen ab, die mit Ihrem Zugang verfügbar sind.",
     "dnaInfoAria": "DNA-Wert verstehen",
     "dnaInfoTitle": "Personalisierte Inhalte",
     "dnaInfoHint": "Je vollständiger Ihre iNr’DNA ist, desto individueller und passender zu Ihrem Unternehmen sind die KI-Inhalte.",
@@ -371,6 +372,12 @@
       "description": "Automatisiert Aktionen 🤖",
       "view": "Öffnen",
       "connect": "Einrichten"
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "Tauschen Sie sich mit Ihrer Community aus",
+      "view": "Konto ansehen",
+      "connect": "Instagram verbinden"
     }
   },
   "bubble": {

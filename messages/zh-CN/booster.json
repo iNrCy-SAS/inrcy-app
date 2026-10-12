@@ -779,5 +779,8 @@
   "video_format_selected_for_publication": "选择发布的视频格式",
   "video_format_selected_to_apply": "视频格式已选择，准备应用",
   "tiktok_reuse_settings_session": "将这些设置用于本批次后续的 TikTok 帖子",
-  "tiktok_reuse_settings_session_help": "此窗口不会再次显示，每条帖子仍会单独确认。"
+  "tiktok_reuse_settings_session_help": "此窗口不会再次显示，每条帖子仍会单独确认。",
+  "threads": "Threads",
+  "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
+  "threads_final_text": "Threads 最终文本"
 }

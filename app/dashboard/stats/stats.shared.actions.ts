@@ -10,6 +10,7 @@ function decisionProvenanceLabel(cubeKey: CubeKey, index: number) {
     gmb: ["maps", "search"],
     facebook: ["audience", "interaction"],
     instagram: ["audience", "engagement"],
+    threads: ["audience", "engagement"],
     linkedin: ["impressions", "click"],
     x: ["publication", "media"],
     tiktok: ["audience", "engagement"],
@@ -30,12 +31,14 @@ export function getDecisionInput(
   capturedLeads: CapturedLeads,
 ) {
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "threads" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     const metrics = getSocialMetrics(cubeKey, ov);
     const connected =
       cubeKey === "facebook"
         ? !!ov?.sources?.facebook?.connected
-        : cubeKey === "instagram"
+        : cubeKey === "threads"
+        ? !!ov?.sources?.threads?.connected
+      : cubeKey === "instagram"
           ? !!ov?.sources?.instagram?.connected
           : cubeKey === "x"
             ? !!ov?.sources?.x?.connected
@@ -202,6 +205,10 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
       href: "/dashboard?panel=facebook",
       pill: t("connexion_a33c58f5"),
     };
+  }
+
+  if (cubeKey === "threads" && !ov?.sources?.threads?.connected) {
+    return { key: "connect", title: "Threads", detail: t("stats_connect_channel_to_activate"), href: "/dashboard?panel=threads", pill: t("connexion_a33c58f5") };
   }
 
   if (cubeKey === "instagram" && !ov?.sources?.instagram?.connected) {

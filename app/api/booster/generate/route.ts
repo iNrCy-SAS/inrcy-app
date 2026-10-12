@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { after, NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
@@ -302,6 +303,7 @@ const allowedChannels: BoosterChannels[] = [
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -589,6 +591,7 @@ const handler = async (req: Request) => {
     const requestParseStartedAt = Date.now();
     const parsedRequest = await readBoosterGenerationRequest(req);
     const body = normalizeSiteWebPublicationPayload(parsedRequest.body) as Payload;
+    if (Array.isArray(body.channels) && body.channels.includes("threads") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabase, userId))) return metaChannelPilotDeniedResponse();
     const generationRequestId = normalizeBoosterGenerationRequestId(
       body.generationRequestId,
     );

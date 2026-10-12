@@ -20,6 +20,7 @@ export const MODULE_ICONS: Record<string, { src: string; alt: string }> = {
   gmb: { src: googleBusinessBubbleIcon.src, alt: "Google Business" },
   inr_search: { src: inrSearchBubbleIcon.src, alt: "iNr'Search" },
   instagram: { src: instagramBubbleIcon.src, alt: "Instagram" },
+  threads: { src: "/icons/threads.svg", alt: "Threads" },
   linkedin: { src: linkedinBubbleIcon.src, alt: "LinkedIn" },
   x: { src: xBubbleIcon.src, alt: "X" },
   mails: { src: mailsBubbleIcon.src, alt: "Mails iNrCy" },
@@ -133,6 +134,17 @@ export const fluxModules: Module[] = [
         variant: "connect",
         onClick: () => {},
       },
+    ],
+  },
+  {
+    key: "threads",
+    name: "Threads",
+    description: "Échangez avec votre communauté",
+    status: "available",
+    accent: "cyan",
+    actions: [
+      { key: "view", label: "Voir le profil", variant: "view", href: "#" },
+      { key: "connect", label: "Configurer", variant: "connect", onClick: () => {} },
     ],
   },
   {
@@ -257,6 +269,7 @@ export const DRAWER_TITLES = {
 
   site_web: "Configuration — Site Web",
   instagram: "Configuration — Instagram",
+  threads: "Configuration — Threads",
   linkedin: "Configuration — LinkedIn",
   x: "Configuration — X",
   gmb: "Configuration — Google Business",

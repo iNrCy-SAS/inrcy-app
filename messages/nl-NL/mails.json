@@ -795,5 +795,6 @@
   "workflow_propulser_name": "Groei",
   "workflowactionlabel_272c910f": "workflowActionLabel",
   "youtube_3f8b5798": "YouTube:",
-  "youtube_558865a1": "YouTube"
+  "youtube_558865a1": "YouTube",
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken."
 }

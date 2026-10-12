@@ -1,3 +1,5 @@
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { disconnectMetaDirectConnection } from "@/lib/metaDirectConnectionRoutes";
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
@@ -10,7 +12,7 @@ function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createSupabaseServer();
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   const user = authData?.user;
@@ -34,6 +36,7 @@ export async function POST() {
   }
 
   const currentMeta = asRecord(asRecord(row)["meta"]);
+  if (resolveInstagramAuthMode(currentMeta) === "instagram_login") return disconnectMetaDirectConnection(request, "instagram");
 
   if (row?.id) {
     const { data: updated, error: updateError } = await supabaseAdmin

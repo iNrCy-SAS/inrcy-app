@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { POST as publishNowBooster } from "@/app/api/booster/publish-now/route";
@@ -44,6 +45,7 @@ type BoosterChannel =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
@@ -80,6 +82,7 @@ const allowedBoosterChannels = new Set<BoosterChannel>([
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -88,7 +91,7 @@ const allowedBoosterChannels = new Set<BoosterChannel>([
 ]);
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "threads", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -110,6 +113,7 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
   google_business: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   tiktok: "tiktok",
   youtube: "youtube_shorts",
@@ -220,6 +224,7 @@ function getFirstPost(
   const preferred: BoosterChannel[] = [
     "facebook",
     "instagram",
+    "threads",
     "gmb",
     "linkedin",
     "site_web",
@@ -974,6 +979,7 @@ async function executeAgentActionHandler(request: Request) {
     : normalizeBoosterChannels(
         payload.selectedChannels || payload.channels || action.targetChannels,
       );
+  if (selectedChannels.includes("threads") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId))) return metaChannelPilotDeniedResponse();
   const tiktokPublicationSettings = selectedChannels.includes("tiktok")
     ? normalizeTiktokPublicationSettings(
         body?.tiktokPublicationSettings ||

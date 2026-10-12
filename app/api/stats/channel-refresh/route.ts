@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { captureApiException } from "@/lib/observability/sentry";
@@ -68,17 +70,19 @@ async function buildChannelPeriodPayload(args: {
   channel: DashboardChannelKey;
   period: 7 | 30;
   snapshotDate: string;
+  metaPilotEnabled?: boolean;
   channelStates: Awaited<ReturnType<typeof getChannelConnectionStates>>;
   profile: ProfileMetrics;
   linkedInFallback?: LinkedInStatsFallback | null;
 }): Promise<ChannelRefreshPeriodPayload> {
-  const { supabase, userId, channel, period, snapshotDate, channelStates, profile, linkedInFallback } = args;
+  const { supabase, userId, channel, period, snapshotDate, channelStates, profile, linkedInFallback, metaPilotEnabled } = args;
   const overview = await buildStatsOverview({
     supabase,
     userId,
     days: period,
     includeRaw: INCLUDE_BY_CUBE[channel],
     fresh: true,
+    metaPilotEnabled: args.metaPilotEnabled,
     snapshotDate,
   }) as Overview;
 
@@ -139,10 +143,12 @@ async function channelStatsRefreshHandler(req: Request) {
       }, { status: 400 });
     }
 
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
+    if (channel === "threads" && !metaPilotEnabled) return metaChannelPilotDeniedResponse();
     const snapshotDate = getDefaultSnapshotDate();
     const [profile, channelStates, connectionSignature] = await Promise.all([
       fetchProfileMetrics(supabase, activeUserId),
-      getChannelConnectionStates(supabase, activeUserId),
+      getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled }),
       buildStatsConnectionSignature(supabase, activeUserId),
     ]);
     const linkedInFallback = channel === "linkedin"
@@ -154,8 +160,8 @@ async function channelStatsRefreshHandler(req: Request) {
       : null;
 
     const [rawPeriod7, rawPeriod30] = await Promise.all([
-      buildChannelPeriodPayload({ supabase, userId: activeUserId, channel, period: 7, snapshotDate, channelStates, profile, linkedInFallback }),
-      buildChannelPeriodPayload({ supabase, userId: activeUserId, channel, period: 30, snapshotDate, channelStates, profile, linkedInFallback }),
+      buildChannelPeriodPayload({ supabase, userId: activeUserId, channel, period: 7, snapshotDate, channelStates, profile, linkedInFallback, metaPilotEnabled }),
+      buildChannelPeriodPayload({ supabase, userId: activeUserId, channel, period: 30, snapshotDate, channelStates, profile, linkedInFallback, metaPilotEnabled }),
     ]);
 
     const capturedLeads = {
@@ -192,7 +198,7 @@ async function channelStatsRefreshHandler(req: Request) {
       },
     };
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(withoutThreadsData(payload, metaPilotEnabled), {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
         Pragma: "no-cache",

@@ -1,3 +1,5 @@
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { disconnectMetaDirectConnection } from "@/lib/metaDirectConnectionRoutes";
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
@@ -9,12 +11,17 @@ function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createSupabaseServer();
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   const user = authData?.user;
   if (authErr || !user) return NextResponse.json({ error: "Accès non autorisé." }, { status: 401 });
   const activeUserId = await resolveActiveInrcyAccountId(supabase, user.id);
+
+  const { data: existing, error: readError } = await supabaseAdmin.from("integrations").select("meta")
+    .eq("user_id", activeUserId).eq("provider", "instagram").eq("source", "instagram").eq("product", "instagram").maybeSingle();
+  if (readError) return jsonUserFacingError(readError, { status: 503 });
+  if (resolveInstagramAuthMode(existing?.meta) === "instagram_login") return disconnectMetaDirectConnection(request, "instagram");
 
   const { error: deleteError } = await supabaseAdmin
     .from("integrations")

@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "Il link non deve contenere nome utente o password.",
   "channel_url_wrong_platform": "Questo link non corrisponde a questo canale.",
   "channel_url_save_failed": "Impossibile salvare questo link al momento.",
-  "channel_url_change_required": "Modifica il link prima di salvarlo."
+  "channel_url_change_required": "Modifica il link prima di salvarlo.",
+  "instagram_direct_connect": "Connessione diretta a Instagram",
+  "instagram_facebook_connect": "Connetti tramite Facebook",
+  "instagram_direct_help": "Scegli l’accesso diretto al tuo account professionale Instagram o il percorso esistente tramite Facebook. L’accesso diretto non richiede una pagina Facebook.",
+  "instagram_direct_identity": "Account professionale Instagram connesso direttamente.",
+  "threads_connect_title": "Connetti l’account Threads",
+  "threads_connect_help": "Autorizza iNrCy a pubblicare sul tuo account Threads tramite la connessione ufficiale sicura.",
+  "threads_checking": "Verifica…",
+  "threads_status_error": "Impossibile verificare la connessione Threads.",
+  "threads_disconnect_error": "Impossibile disconnettere Threads.",
+  "threads_disconnected": "Account Threads disconnesso.",
+  "threads_reconnect_help": "Rinnova le autorizzazioni del tuo account.",
+  "threads_identity_help": "L’account viene scelto durante la connessione ufficiale.",
+  "threads_reconnect": "Riconnetti Threads",
+  "threads_connect": "Connetti Threads",
+  "threads_view_profile": "Visualizza il profilo Threads",
+  "threads_description": "Dialoga con la tua comunità",
+  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza."
 }

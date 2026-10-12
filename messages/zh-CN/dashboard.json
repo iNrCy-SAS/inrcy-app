@@ -97,7 +97,8 @@
       "boutique": "商店",
       "parrainage": "赞助 iNrCy",
       "notifications": "通知",
-      "documents": "默认设置"
+      "documents": "默认设置",
+      "threads": "配置 — Threads"
     }
   },
   "hero": {
@@ -115,7 +116,7 @@
     "aiStepLabel": "配置我的 AI",
     "channelsInfoAria": "查看渠道动力明细",
     "channelsInfoTitle": "渠道动力占比",
-    "channelsInfoHint": "每个加权渠道贡献相应比例，所有 Premium 渠道启用后可达 100%。",
+    "channelsInfoHint": "仪表将已启用渠道的固定权重相加。可达到的最高值取决于您的访问权限所提供的渠道。",
     "dnaInfoAria": "了解企业 DNA 分数",
     "dnaInfoTitle": "个性化内容",
     "dnaInfoHint": "iNr’DNA 信息越完整，AI 创建的内容就越个性化，也越贴合您的企业。",
@@ -371,6 +372,12 @@
       "description": "自动化你的行动🤖",
       "view": "打开",
       "connect": "配置"
+    },
+    "threads": {
+      "name": "Threads",
+      "description": "与您的社群交流",
+      "view": "查看账户",
+      "connect": "连接 Instagram"
     }
   },
   "bubble": {

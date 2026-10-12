@@ -629,5 +629,12 @@
   "startup_reflex_partial_analysis_20260905": "เริ่มจากแหล่งข้อมูลที่เชื่อมต่อแล้ว แหล่งข้อมูลที่ใช้ไม่ได้ต้องไม่ขวางขั้นตอนทั้งหมด",
   "startup_reflex_validate_20260905": "ตรวจสอบข้อมูลที่ AI เสนอก่อนนำไปใช้สร้างเนื้อหา",
   "startup_link_business_dna_20260905": "วิเคราะห์และเติม DNA ธุรกิจ",
-  "relier_les_destinations_utiles_site_web_483ab0d6": "เชื่อมต่อปลายทางที่มีประโยชน์: เว็บไซต์, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube และ Pinterest"
+  "relier_les_destinations_utiles_site_web_483ab0d6": "เชื่อมต่อปลายทางที่มีประโยชน์: เว็บไซต์, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube และ Pinterest",
+  "threads_title": "เชื่อมต่อ Threads และอ่านสถิติ",
+  "threads_intro": "เชื่อมต่อบัญชี Threads เผยแพร่ด้วย Booster และติดตามยอดดู การมีส่วนร่วม และคลิกใน iNrStats",
+  "threads_step_connect": "เปิดช่องทาง จากนั้นเปิด Threads และอนุญาตให้เชื่อมต่อบัญชี",
+  "threads_step_publish": "เตรียมโพสต์ใน Booster และเลือก Threads",
+  "threads_step_stats": "ดู iNrStats ตามช่วงเวลาที่เลือก ตัวชี้วัดที่ไม่มีข้อมูลจะแสดงว่าไม่พร้อมใช้งาน",
+  "threads_check": "บัญชี Threads แสดงสถานะเชื่อมต่อแล้วและลิงก์โปรไฟล์สาธารณะ",
+  "threads_pitfall": "สถิติโพสต์เป็นยอดสะสม ไม่ใช่สถิติบัญชีสำหรับช่วงเวลาหนึ่ง"
 }

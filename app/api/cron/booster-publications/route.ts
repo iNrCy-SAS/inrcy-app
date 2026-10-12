@@ -44,6 +44,8 @@ type AsyncEventCandidateRow = {
 };
 type AsyncChannelCandidateRow = AsyncEventCandidateRow & {
   candidate_channel?: unknown;
+  candidate_threads_checkpoint?: unknown;
+  candidate_threads_next_run_at?: unknown;
   candidate_dispatch_deferred_until?: unknown;
   candidate_instagram_checkpoint?: unknown;
   candidate_instagram_next_poll_at?: unknown;
@@ -62,6 +64,9 @@ type AsyncDispatchJob = {
   dispatchRequest: JsonRecord;
   lastActivityAt: number;
   attempt: number;
+  threadsContinuation: boolean;
+  threadsContinuationAttempt: number;
+  threadsNextRunAt: number;
   instagramVideoContinuation: boolean;
   instagramContinuationAttempt: number;
   instagramVideoNextPollAt: number;
@@ -105,6 +110,8 @@ const ASYNC_EVENT_CANDIDATE_COLUMNS = [
 const ASYNC_CHANNEL_CANDIDATE_COLUMNS = [
   ASYNC_EVENT_CANDIDATE_COLUMNS,
   "candidate_channel:payload->>channel",
+  "candidate_threads_checkpoint:payload->threadsCheckpoint",
+  "candidate_threads_next_run_at:payload->>threadsNextRunAt",
   "candidate_dispatch_deferred_until:payload->>dispatchDeferredUntil",
   "candidate_instagram_checkpoint:payload->instagramVideoCheckpoint",
   "candidate_instagram_next_poll_at:payload->>instagramVideoNextPollAt",
@@ -159,6 +166,7 @@ function candidateKey(row: Pick<AsyncEventCandidateRow, "id" | "user_id">) {
 function isChannelCandidateDue(row: AsyncChannelCandidateRow, nowMs: number) {
   if (timestampMs(row.candidate_dispatch_deferred_until) > nowMs) return false;
   const channel = String(row.candidate_channel || "").trim();
+  if (channel === "threads" && timestampMs(row.candidate_threads_next_run_at) > nowMs) return false;
   const instagramCheckpoint = asRecord(row.candidate_instagram_checkpoint);
   const hasYoutubeCheckpoint =
     row.candidate_youtube_checkpoint !== null &&
@@ -249,6 +257,8 @@ function readDispatchJob(row: AsyncEventRow): AsyncDispatchJob {
     rawPinterestVideoCheckpoint,
   );
   const channel = String(payload.channel || "");
+  const persistedThreadsCheckpoint = asRecord(payload.threadsCheckpoint);
+  const threadsContinuation = channel === "threads" && Object.keys(persistedThreadsCheckpoint).length > 0;
   const instagramVideoContinuation =
     channel === "instagram" &&
     Object.keys(persistedInstagramVideoCheckpoint).length > 0;
@@ -274,6 +284,7 @@ function readDispatchJob(row: AsyncEventRow): AsyncDispatchJob {
     publicationId: String(payload.publication_id || ""),
     dispatchRequest: {
       ...asRecord(payload.dispatchRequest),
+      ...(threadsContinuation ? { _threadsCheckpoint: persistedThreadsCheckpoint } : {}),
       ...(Object.keys(persistedTiktokCheckpoint).length
         ? { _tiktokUploadCheckpoint: persistedTiktokCheckpoint }
         : {}),
@@ -295,6 +306,9 @@ function readDispatchJob(row: AsyncEventRow): AsyncDispatchJob {
         : {}),
     },
     attempt: Math.max(0, Number(payload.attempt || 0)),
+    threadsContinuation,
+    threadsContinuationAttempt: Math.max(0, Number(payload.threadsContinuationAttempt || 0)),
+    threadsNextRunAt: timestampMs(payload.threadsNextRunAt),
     instagramVideoContinuation,
     instagramContinuationAttempt: Math.max(
       0,
@@ -502,6 +516,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
     return;
   }
   if (
+    (job.threadsContinuation && job.threadsNextRunAt > Date.now()) ||
     (job.instagramVideoContinuation &&
       job.instagramVideoNextPollAt > Date.now()) ||
     (job.youtubeUploadContinuation &&
@@ -511,7 +526,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
   ) {
     return;
   }
-  const attemptsExhausted = job.instagramVideoContinuation
+  const attemptsExhausted = job.threadsContinuation ? job.threadsContinuationAttempt >= 480 : job.instagramVideoContinuation
     ? job.instagramContinuationAttempt >=
       MAX_INSTAGRAM_VIDEO_CONTINUATION_ATTEMPTS
     : job.youtubeUploadContinuation
@@ -557,7 +572,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
     return;
   }
 
-  const retainedAttemptPatch: JsonRecord = job.instagramVideoContinuation
+  const retainedAttemptPatch: JsonRecord = job.threadsContinuation ? { threadsContinuationAttempt: job.threadsContinuationAttempt } : job.instagramVideoContinuation
     ? { instagramContinuationAttempt: job.instagramContinuationAttempt }
     : job.youtubeUploadContinuation
       ? { youtubeContinuationAttempt: job.youtubeContinuationAttempt }
@@ -570,6 +585,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
       userId: job.userId,
       eventId: job.id,
       patch: {
+        ...(job.threadsContinuation ? { threadsContinuationAttempt: job.threadsContinuationAttempt + 1 } : {}),
         ...(job.instagramVideoContinuation
           ? {
               instagramContinuationAttempt:
@@ -585,7 +601,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
                   pinterestContinuationAttempt:
                     job.pinterestContinuationAttempt + 1,
                 }
-              : { attempt: job.attempt + 1 }),
+              : job.threadsContinuation ? {} : { attempt: job.attempt + 1 }),
         dispatchDeferredUntil: null,
         lastDispatchAt: new Date().toISOString(),
       },
@@ -595,6 +611,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
       headers: buildInternalCronHeaders(job.userId),
       body: JSON.stringify({
         ...job.dispatchRequest,
+        ...(job.threadsContinuation ? { _threadsContinuationAttempt: job.threadsContinuationAttempt + 1 } : {}),
         ...(job.instagramVideoContinuation
           ? {
               _instagramVideoContinuationAttempt:

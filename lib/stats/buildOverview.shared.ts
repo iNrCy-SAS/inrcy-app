@@ -170,6 +170,7 @@ export type SourcesStatus = {
   gmb: { connected: boolean; metrics: unknown | null };
   facebook: { connected: boolean; metrics: unknown | null };
   instagram: { connected: boolean; metrics: unknown | null };
+  threads?: { connected: boolean; metrics: unknown | null };
   linkedin: { connected: boolean; metrics: unknown | null };
   x: { connected: boolean; metrics: unknown | null };
   tiktok: { connected: boolean; metrics: unknown | null };
@@ -182,6 +183,7 @@ export type LiveSourcesSnapshot = {
   gmb: { connected: boolean; metrics: unknown | null };
   facebook: { connected: boolean; metrics: unknown | null };
   instagram: { connected: boolean; metrics: unknown | null };
+  threads?: { connected: boolean; metrics: unknown | null };
   linkedin: { connected: boolean; metrics: unknown | null };
   x: { connected: boolean; metrics: unknown | null };
   tiktok: { connected: boolean; metrics: unknown | null };
@@ -194,6 +196,7 @@ export type OverviewCubeKey =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "x"
   | "tiktok"
@@ -270,6 +273,7 @@ export function resolveRequestedCube(
   if (!normalized) return null;
   if (normalized === "facebook") return "facebook";
   if (normalized === "instagram") return "instagram";
+  if (normalized === "threads") return "threads";
   if (normalized === "linkedin") return "linkedin";
   if (normalized === "x") return "x";
   if (normalized === "tiktok") return "tiktok";
@@ -469,6 +473,7 @@ export const INRCY_PUBLISHABLE_CHANNELS: InrcyActivityChannelKey[] = [
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "tiktok",
   "youtube_shorts",
@@ -581,7 +586,7 @@ export function inferPayloadMediaKindForChannel(
   for (const candidate of candidates) {
     const value = String(candidate || "").trim().toLowerCase();
     if (!value) continue;
-    if (value === "none" || value === "text" || value === "text_only") return "none";
+    if (value === "none" || value === "text" || value === "text_post" || value === "text_only") return "none";
     if (value.includes("video")) return "video";
     if (
       value.includes("photo") ||

@@ -7,6 +7,8 @@ import { applyYoutubeShortsIntegrationState } from "@/lib/youtubeShortsOAuth";
 import { hasUsableRefreshCredential } from "@/lib/publicationChannelAvailability";
 import { getPinterestApiEnvironment } from "@/lib/pinterestOAuth";
 import { log } from "@/lib/observability/logger";
+import { resolveInstagramAuthMode, type InstagramAuthMode } from "@/lib/instagramAuthMode";
+import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
 import { isGoogleStatsSiteBindingConnected } from "@/lib/googleStatsConnectionPolicy";
 
 type JsonRecord = Record<string, unknown>;
@@ -69,6 +71,18 @@ export type ChannelStates = {
     page_url: string | null;
   };
   instagram: {
+    authMode: InstagramAuthMode;
+    accountConnected: boolean;
+    connected: boolean;
+    expired: boolean;
+    requiresUpdate: boolean;
+    connection_status: ConnectionDisplayStatus;
+    resource_id: string | null;
+    username: string | null;
+    profile_url: string | null;
+  };
+  threads: {
+    pilotEnabled: boolean;
     accountConnected: boolean;
     connected: boolean;
     expired: boolean;
@@ -214,8 +228,10 @@ export async function getChannelConnectionStates(
   preload?: {
     proToolsConfig?: unknown;
     integrations?: unknown[];
-  }
+  },
+  options?: { metaPilotEnabled?: boolean }
 ): Promise<ChannelStates> {
+  const metaPilotEnabled = options?.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId);
   const usePreload = Boolean(preload);
   const [proCfgRes, integrationsRes] = usePreload
     ? await Promise.all([
@@ -289,11 +305,13 @@ export async function getChannelConnectionStates(
     : getConnectionDisplayStatus(fbPageConnected, "channel:facebook", fbMeta);
   const fbRequiresUpdate = fbConnectionStatus === "needs_update";
 
-  const ig = latestIntegration(rows, "instagram", "instagram", "instagram");
+  const storedIg = latestIntegration(rows, "instagram", "instagram", "instagram");
+  const igAuthMode = resolveInstagramAuthMode(storedIg.meta);
+  const ig = igAuthMode === "instagram_login" && !metaPilotEnabled ? {} : storedIg;
   const igSettings = asRecord(settings.instagram);
   const igMeta = asRecord(ig.meta);
   const igHasSelectedProfileToken = hasTruthyString(igMeta.page_id) || hasTruthyString(ig.resource_id);
-  const igExpired = isExpired(ig.expires_at) && !igHasSelectedProfileToken;
+  const igExpired = isExpired(ig.expires_at) && (igAuthMode === "instagram_login" || !igHasSelectedProfileToken);
   const igStatus = asString(ig.status);
   const igHasOfficialRow = hasIntegrationRecord(ig);
   const igHasToken = hasTruthyString(ig.access_token_enc);
@@ -304,13 +322,21 @@ export async function getChannelConnectionStates(
       igHasToken,
   );
   const igResourceId = asString(ig.resource_id) || null;
-  const igUsername = asString(ig.resource_label) || asString(igSettings.username) || null;
-  const igProfileUrl = asString(igSettings.url) || (igUsername ? `https://www.instagram.com/${igUsername}/` : null);
+  const igUsername = asString(igMeta.username) || asString(ig.resource_label) || asString(igSettings.username) || null;
+  const igProfileUrl = asString(igSettings.url) || asString(igMeta.profile_url) || (igUsername ? `https://www.instagram.com/${igUsername}/` : null);
   const igConnected = Boolean(igAccountConnected && igResourceId);
   const igConnectionStatus = igExpired
     ? "needs_update"
     : getConnectionDisplayStatus(igConnected, "channel:instagram", igMeta);
   const igRequiresUpdate = igConnectionStatus === "needs_update";
+
+  const threads = metaPilotEnabled ? latestIntegration(rows, "threads", "threads", "threads") : {};
+  const threadsMeta = asRecord(threads.meta);
+  const threadsSettings = metaPilotEnabled ? asRecord(settings.threads) : {};
+  const threadsExpired = metaPilotEnabled && isExpired(threads.expires_at);
+  const threadsConnected = Boolean(threads.status === "connected" && threads.resource_id && threads.access_token_enc && !threadsExpired);
+  const threadsRequiresUpdate = Boolean(metaPilotEnabled && (threadsExpired || threadsMeta.needs_reconnect === true || threadsMeta.requires_reconnect === true));
+  const threadsUsername = metaPilotEnabled ? (asString(threadsMeta.username) || asString(threads.resource_label) || asString(threadsSettings.username) || "").replace(/^@+/, "") : "";
 
   const li = latestIntegration(rows, "linkedin", "linkedin", "linkedin");
   const liSettings = asRecord(settings.linkedin);
@@ -543,6 +569,7 @@ export async function getChannelConnectionStates(
       page_url: fbPageUrl,
     },
     instagram: {
+      authMode: igAuthMode,
       accountConnected: igAccountConnected,
       connected: igConnected,
       expired: igExpired,
@@ -551,6 +578,15 @@ export async function getChannelConnectionStates(
       resource_id: igResourceId,
       username: igUsername,
       profile_url: igProfileUrl,
+    },
+    threads: {
+      pilotEnabled: metaPilotEnabled,
+      accountConnected: threadsConnected, connected: threadsConnected,
+      expired: threadsExpired, requiresUpdate: threadsRequiresUpdate,
+      connection_status: threadsRequiresUpdate ? "needs_update" : threadsConnected ? "connected" : "disconnected",
+      resource_id: metaPilotEnabled ? asString(threads.resource_id) || null : null,
+      username: threadsUsername || null,
+      profile_url: threadsConnected ? asString(threadsSettings.url) || (threadsUsername ? `https://www.threads.com/@${threadsUsername}` : null) : null,
     },
     linkedin: {
       accountConnected: liConnected,

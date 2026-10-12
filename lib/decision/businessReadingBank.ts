@@ -56,6 +56,7 @@ const CHANNEL_COPY: Record<ChannelKey, {
     boosterAngle: "publier un contenu visuel simple pour recréer de l’attention",
     templateAngle: "réactiver les contacts avec une offre ou une relance ciblée",
   },
+  threads: { name: "Threads", angle: "conversations et visibilité", boosterAngle: "publier une prise de parole courte pour échanger avec votre audience", templateAngle: "suivre les contacts issus de vos échanges" },
   linkedin: {
     name: "LinkedIn",
     angle: "crédibilité professionnelle",

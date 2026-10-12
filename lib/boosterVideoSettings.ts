@@ -6,6 +6,7 @@ export type BoosterVideoChannelKey =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "x"
   | "tiktok"
@@ -66,6 +67,7 @@ export const VIDEO_RECOMMENDED_FORMAT_BY_CHANNEL: Record<BoosterVideoChannelKey,
   gmb: "original",
   facebook: "16_9",
   instagram: "16_9",
+  threads: "original",
   linkedin: "16_9",
   x: "16_9",
   tiktok: "9_16",
@@ -79,6 +81,7 @@ export const VIDEO_FORMAT_OPTIONS_BY_CHANNEL: Record<BoosterVideoChannelKey, Vid
   gmb: ["original", "16_9", "1_1", "9_16"],
   facebook: ["9_16", "1_1", "16_9", "original"],
   instagram: ["9_16", "1_1", "16_9", "original"],
+  threads: ["original", "9_16", "1_1", "16_9"],
   linkedin: ["1_1", "16_9", "9_16", "original"],
   x: ["16_9", "1_1", "9_16", "original"],
   tiktok: ["9_16", "1_1", "16_9", "original"],
@@ -87,7 +90,7 @@ export const VIDEO_FORMAT_OPTIONS_BY_CHANNEL: Record<BoosterVideoChannelKey, Vid
 };
 
 export function isBoosterVideoChannelKey(value: unknown): value is BoosterVideoChannelKey {
-  return ["site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(String(value || ""));
+  return ["site_web", "inr_search", "gmb", "facebook", "instagram", "threads", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(String(value || ""));
 }
 
 export function normalizeVideoFormat(channel: BoosterVideoChannelKey, value: unknown): VideoFormat {

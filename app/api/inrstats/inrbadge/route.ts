@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
@@ -23,7 +24,8 @@ async function inrStatsBadgeHandler(req: Request) {
       userId = await resolveActiveInrcyAccountId(supabase, user.id);
     }
 
-    const stats = await readInrBadgeStats(supabase, userId);
+    const metaPilotEnabled = await (cronUserId ? isMetaChannelPilotEnabledForAccount(supabase, userId) : isMetaChannelPilotEnabledForActorAndAccount(supabase, userId));
+    const stats = await readInrBadgeStats(supabase, userId, { metaPilotEnabled });
     return NextResponse.json(stats, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     captureApiException(req, error, {

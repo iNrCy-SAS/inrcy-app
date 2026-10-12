@@ -1,5 +1,11 @@
 import "server-only";
 
+import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
+import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
+import { fetchThreadsAccountInsights } from "@/lib/threadsInsights";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { StatsSourceKey } from "@/lib/googleStats";
@@ -66,12 +72,14 @@ export async function buildStatsOverview(args: {
   supabase: SupabaseClient;
   userId: string;
   days: number;
+  metaPilotEnabled?: boolean;
   includeRaw?: string;
   fresh?: boolean;
   snapshotDate?: string | null;
   inrcyPublishedActivityLoader?: InrcyPublishedActivityLoader;
 }): Promise<OverviewPayload> {
   const { supabase, userId, fresh = false } = args;
+  const metaPilotEnabled = args.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabase, userId);
   const days = Math.min(Math.max(Number(args.days || 28), 7), 90);
   const includeRaw = (args.includeRaw || "").trim();
   const includeSet = new Set(
@@ -154,7 +162,7 @@ export async function buildStatsOverview(args: {
   const { data: integrationsAll = [] } = await supabase
     .from("integrations")
     .select(
-      "provider,source,product,status,resource_id,resource_label,display_name,access_token_enc,refresh_token_enc,scopes,expires_at,meta,updated_at,created_at",
+      "id,user_id,provider,source,product,status,resource_id,resource_label,display_name,access_token_enc,refresh_token_enc,scopes,expires_at,meta,updated_at,created_at",
     )
     .eq("user_id", userId);
 
@@ -205,7 +213,7 @@ export async function buildStatsOverview(args: {
   // Use the same direct DB resolution path as /api/integrations/channel-states.
   // The preloaded snapshot used here could diverge from the live dashboard state and
   // make iNrStats show only one site as connected when both bubbles were green.
-  const channelStatesPromise = getChannelConnectionStates(supabase, userId);
+  const channelStatesPromise = getChannelConnectionStates(supabase, userId, undefined, { metaPilotEnabled });
 
   const {
     fetchLiveSourcesStatus,
@@ -238,7 +246,7 @@ export async function buildStatsOverview(args: {
     profession: decodedBusinessSector.profession,
     inrcyPublishedActivityStats,
   });
-  const rangeKey = `days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}`;
+  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}`;
 
   const {
     buildLinkedInMetricsCacheKey,
@@ -300,7 +308,7 @@ export async function buildStatsOverview(args: {
           includeAll,
           payload,
         });
-        return stabilizedPayload as OverviewPayload;
+        return withoutThreadsData(stabilizedPayload, metaPilotEnabled) as OverviewPayload;
       }
     } catch {
       // Table stats_cache non présente ou non accessible : on ignore.
@@ -589,6 +597,7 @@ export async function buildStatsOverview(args: {
     gmb: { connected: false, metrics: null },
     facebook: { connected: false, metrics: null },
     instagram: { connected: false, metrics: null },
+    ...(metaPilotEnabled ? { threads: { connected: false, metrics: null } } : {}),
     linkedin: { connected: false, metrics: null },
     x: { connected: false, metrics: null },
     tiktok: { connected: false, metrics: null },
@@ -951,7 +960,7 @@ export async function buildStatsOverview(args: {
       "instagram",
       (row) => Boolean(row["access_token_enc"]),
     );
-    sourcesStatus.instagram.connected = hasActiveStoredIntegration(
+    sourcesStatus.instagram.connected = isStatsActiveConnection(channelStates.instagram) && hasActiveStoredIntegration(
       igRow,
       Boolean(igRow["access_token_enc"]),
     );
@@ -967,7 +976,7 @@ export async function buildStatsOverview(args: {
       try {
         const end = dateWindow.end;
         const start = dateWindow.start;
-        const token = tryDecryptToken(String(igRow["access_token_enc"]));
+        const token = await ensureMetaDirectAccessToken(supabaseAdmin, igRow);
         if (!token)
           throw new Error(
             "La connexion Instagram a expiré ou n’est plus valide.",
@@ -977,6 +986,7 @@ export async function buildStatsOverview(args: {
           String(igRow["resource_id"]),
           start,
           end,
+          resolveInstagramAuthMode(igRow["meta"]),
         );
         if (!baseMetrics)
           throw new Error(
@@ -1493,6 +1503,19 @@ export async function buildStatsOverview(args: {
 
   const generatedAt = new Date().toISOString();
 
+  if (metaPilotEnabled && sourcesStatus.threads) {
+    const row = bestIntegrationAny("threads", "threads", "threads", (value) => Boolean(value["access_token_enc"]));
+    sourcesStatus.threads.connected = isStatsActiveConnection(channelStates.threads);
+    if (sourcesStatus.threads.connected && (includeAll || includeSet.has("threads"))) {
+      try {
+        const token = await ensureMetaDirectAccessToken(supabaseAdmin, row);
+        sourcesStatus.threads.metrics = await fetchThreadsAccountInsights(token, String(row["resource_id"]), dateWindow.start, dateWindow.end);
+      } catch (error) {
+        sourcesStatus.threads.metrics = { error: getSimpleFrenchErrorMessage(error, "Statistiques Threads indisponibles.") };
+      }
+    }
+  }
+
   const payload = await stabilizeOverviewPayload({
     supabase,
     userId,
@@ -1531,6 +1554,7 @@ export async function buildStatsOverview(args: {
             ) ||
             null,
         },
+        ...(metaPilotEnabled ? { threads: { label: channelStates.threads.username ? `@${channelStates.threads.username}` : null, url: channelStates.threads.profile_url } } : {}),
         instagram: {
           label: channelStates.instagram.username
             ? `@${channelStates.instagram.username}`
@@ -1596,7 +1620,7 @@ export async function buildStatsOverview(args: {
         profession: decodedBusinessSector.profession || null,
       },
       sources: sourcesStatus,
-      inrcyActivity: inrcyPublishedActivityStats,
+      inrcyActivity: withoutThreadsData(inrcyPublishedActivityStats, metaPilotEnabled),
       note: "Sources connectées: Site Web (GA4/GSC), GMB, Facebook, Instagram, LinkedIn, X, TikTok, YouTube, Pinterest.",
       meta: {
         generatedAt,
@@ -1638,5 +1662,5 @@ export async function buildStatsOverview(args: {
 
 
 
-  return payload as OverviewPayload;
+  return withoutThreadsData(payload, metaPilotEnabled) as OverviewPayload;
 }

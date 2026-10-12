@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
+import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
 import { useTranslations } from "next-intl";
 
 import {
@@ -56,6 +58,7 @@ const CHANNEL_LOGO_BY_KEY: Readonly<Record<string, string>> = {
   google_business: "/icons/google.jpg",
   facebook: "/icons/facebook.png",
   instagram: "/icons/instagram.jpg",
+  threads: "/icons/threads.svg",
   linkedin: "/icons/linkedin.png",
   x: "/icons/x.svg",
   twitter: "/icons/x.svg",
@@ -96,6 +99,7 @@ export default function PublishExecutionResultModal({
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
 }) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   const i18nT = useTranslations("booster");
   const [liveSummary, setLiveSummary] = useState<PublishExecutionSummary | null>(summary || null);
   const [expandedEntryDetails, setExpandedEntryDetails] = useState<Record<string, boolean>>({});
@@ -140,7 +144,7 @@ export default function PublishExecutionResultModal({
     setExpandedEntryDetails({});
   }, [publicationId]);
   const liveEntries = Array.isArray(liveSummary?.entries)
-    ? liveSummary.entries
+    ? liveSummary.entries.filter((entry) => isMetaPilotChannelVisible(entry.channel, metaPilotEnabled))
     : [];
   const hasPendingAsyncJob = liveEntries.some(isPendingPublicationEntry);
 

@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { isMetaChannelPilotEnabledForAccount } from '@/lib/metaChannelRolloutServer';
+import { withoutThreadsData } from '@/lib/stats/metaPilotData';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildSnapshotWindow } from '@/lib/stats/snapshotWindow';
 import { buildStatsConnectionSignature } from '@/lib/stats/connectionSignature';
@@ -161,6 +163,7 @@ export async function buildMetricsSummary(args: {
   debug?: AnyRec;
   fresh?: boolean;
   snapshotDate?: string | null;
+  metaPilotEnabled?: boolean;
   profileOverride?: ProfileMetrics;
   monthOverviewsOverride?: Partial<Record<CubeKey, Overview>>;
   weekOverviewsOverride?: Partial<Record<CubeKey, Overview>>;
@@ -180,6 +183,8 @@ export async function buildMetricsSummary(args: {
     monthOverviewsOverride,
     weekOverviewsOverride,
   } = args;
+
+  const metaPilotEnabled = args.metaPilotEnabled !== false && await isMetaChannelPilotEnabledForAccount(supabase, userId);
 
   const safe = async <T,>(key: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
     try {
@@ -207,7 +212,7 @@ export async function buildMetricsSummary(args: {
   let cacheRangeKey: string | null = null;
 
   if (!fresh) {
-    cacheRangeKey = `month=${monthDays}|week=${weekDays}|today=${todayDays}|snapshot=${dateWindow.snapshotDate || 'live'}|conn=${connectionSignature}`;
+    cacheRangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|month=${monthDays}|week=${weekDays}|today=${todayDays}|snapshot=${dateWindow.snapshotDate || 'live'}|conn=${connectionSignature}`;
     try {
       const nowIso = new Date().toISOString();
       const { data: cacheHit } = await supabase
@@ -222,7 +227,7 @@ export async function buildMetricsSummary(args: {
         .maybeSingle();
       const payload = safeJsonValue<MetricsSummary | null>(asRecord(cacheHit)['payload'], null);
       if (payload) {
-        return await repairLinkedInCachedSummary({
+        return withoutThreadsData(await repairLinkedInCachedSummary({
           supabase,
           userId,
           payload,
@@ -230,7 +235,7 @@ export async function buildMetricsSummary(args: {
           monthDays,
           weekDays,
           todayDays,
-        });
+        }), metaPilotEnabled);
       }
     } catch {}
   }
@@ -244,11 +249,11 @@ export async function buildMetricsSummary(args: {
           avg_basket: 0,
         }),
     monthOverviewsOverride
-      ? Promise.resolve(monthOverviewsOverride)
-      : safe('overviews_30d', () => fetchCubeOverviews({ origin, days: monthDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader }), {}),
+      ? Promise.resolve(withoutThreadsData(monthOverviewsOverride, metaPilotEnabled))
+      : safe('overviews_30d', () => fetchCubeOverviews({ origin, days: monthDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader, metaPilotEnabled }), {}),
     weekOverviewsOverride
-      ? Promise.resolve(weekOverviewsOverride)
-      : safe('overviews_7d', () => fetchCubeOverviews({ origin, days: weekDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader }), {}),
+      ? Promise.resolve(withoutThreadsData(weekOverviewsOverride, metaPilotEnabled))
+      : safe('overviews_7d', () => fetchCubeOverviews({ origin, days: weekDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader, metaPilotEnabled }), {}),
   ]);
 
   const [oppResolved, history30Resolved, history7Resolved] = await Promise.all([
@@ -364,7 +369,7 @@ export async function buildMetricsSummary(args: {
   try {
     // Keep the shared generator/iNrStats snapshot warm for a very short period
     // so another device catches up quickly without waiting for hours.
-    const rangeKey = cacheRangeKey ?? `month=${monthDays}|week=${weekDays}|today=${todayDays}|snapshot=${dateWindow.snapshotDate || 'live'}|conn=${connectionSignature}`;
+    const rangeKey = cacheRangeKey ?? `metaPilot=${metaPilotEnabled ? 1 : 0}|month=${monthDays}|week=${weekDays}|today=${todayDays}|snapshot=${dateWindow.snapshotDate || 'live'}|conn=${connectionSignature}`;
     const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
     await supabase.from('stats_cache').upsert(
       {
@@ -378,5 +383,5 @@ export async function buildMetricsSummary(args: {
     );
   } catch {}
 
-  return payload;
+  return withoutThreadsData(payload, metaPilotEnabled);
 }

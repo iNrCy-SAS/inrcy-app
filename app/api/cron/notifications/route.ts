@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
@@ -145,7 +146,8 @@ async function buildPerformanceNotification(userId: string, digestHours: number)
   const previousDemandes = toInt(previous?.demandes_captees_total);
   const opportunities = toInt(latest.opportunites_activables_total);
   const deltaDemandes = latestDemandes - previousDemandes;
-  const topOpportunityChannel = ["gmb", "site_web", "facebook", "instagram", "linkedin", "x"]
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId);
+  const topOpportunityChannel = ["gmb", "site_web", "facebook", "instagram", "linkedin", "x", ...(metaPilotEnabled ? ["threads"] : [])]
     .map((channel) => ({
       channel,
       value: toInt(safeObj(safeObj(latest.details)[channel]).opportunites_activables),
@@ -217,13 +219,15 @@ async function buildActionNotification(userId: string, digestHours: number) {
       .maybeSingle(),
   ]);
 
-  const connectedRows = (integrations ?? []) as IntegrationRow[];
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId);
+  const connectedRows = ((integrations ?? []) as IntegrationRow[]).filter(row => metaPilotEnabled || (row.provider !== "threads" && row.product !== "threads"));
   const opportunities = toInt(latest?.opportunites_activables_total);
   const connectedTools = toInt(latest?.connected_tools_count);
   const latestDemandes = toInt(latest?.demandes_captees_total);
   const missingChannels = listMissingCoreChannels(connectedRows);
   const facebookClicks = truthyDetailMetric(latest?.details as Record<string, unknown> | null, "facebook", "page_website_clicks")
     + truthyDetailMetric(latest?.details as Record<string, unknown> | null, "facebook", "phone_call_clicks");
+  const threadsSignals = metaPilotEnabled ? truthyDetailMetric(latest?.details as Record<string, unknown> | null, "threads", "views") + truthyDetailMetric(latest?.details as Record<string, unknown> | null, "threads", "clicks") : 0;
   const instagramSignals = truthyDetailMetric(latest?.details as Record<string, unknown> | null, "instagram", "reach")
     + truthyDetailMetric(latest?.details as Record<string, unknown> | null, "instagram", "website_clicks");
 
@@ -250,6 +254,10 @@ async function buildActionNotification(userId: string, digestHours: number) {
     title = `Instagram chauffe : activez une action maintenant`;
     body = `Votre compte Instagram génère déjà des signaux de reach. Avec ${opportunities} opportunités activables et aucune demande captée récemment, le meilleur levier est une action booster.`;
     kind = "instagram_boost";
+  } else if (threadsSignals > 0 && opportunities > 0 && latestDemandes === 0) {
+    title = "Threads : poursuivez les échanges avec votre audience";
+    body = "Votre compte Threads reçoit des vues ou des clics. Préparez une nouvelle publication avec Booster pour entretenir ce mouvement.";
+    kind = "threads_boost";
   } else if (opportunities > 0 || connectedTools >= 3) {
     title = `Votre machine est prête : passez à l’action`;
     body = `Vous avez ${opportunities} opportunités activables et ${connectedTools} canaux bien branchés. Le bon levier maintenant : lancer une action booster.`;
@@ -306,7 +314,8 @@ async function buildInformationNotification(
   const connectedTools = toInt(latest?.connected_tools_count);
   const demandes = toInt(latest?.demandes_captees_total);
   const opportunities = toInt(latest?.opportunites_activables_total);
-  const connectedRows = (integrations ?? []) as IntegrationRow[];
+  const metaPilotEnabled = await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId);
+  const connectedRows = ((integrations ?? []) as IntegrationRow[]).filter(row => metaPilotEnabled || (row.provider !== "threads" && row.product !== "threads"));
   const crmLooksEmptyOrStale = premiumToolsAvailable && (
     !latestCrmContactAt || (Date.now() - latestCrmContactAt.getTime()) > 30 * 24 * 3600 * 1000
   );

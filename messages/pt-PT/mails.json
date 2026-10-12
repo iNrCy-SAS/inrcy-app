@@ -795,5 +795,6 @@
   "workflow_propulser_name": "Impulsionar",
   "workflowactionlabel_272c910f": "workflowActionLabel",
   "youtube_3f8b5798": "YouTube:",
-  "youtube_558865a1": "YouTube"
+  "youtube_558865a1": "YouTube",
+  "threads_edit_unsupported": "A API do Threads não permite editar uma publicação já publicada. Pode eliminá-la ou editar um rascunho."
 }

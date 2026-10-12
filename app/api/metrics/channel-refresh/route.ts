@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from 'next/server';
 import { jsonUserFacingError } from '@/lib/apiUserFacingErrors';
 import { DASHBOARD_CHANNEL_KEYS, isDashboardChannelKey, type DashboardChannelKey } from '@/lib/dashboardChannels';
@@ -73,6 +75,7 @@ async function fetchChannelOverview(args: {
   channel: DashboardChannelKey;
   days: 7 | 30;
   snapshotDate: string;
+  metaPilotEnabled?: boolean;
 }): Promise<Overview> {
   const { supabase, userId, channel, days, snapshotDate } = args;
   return await buildStatsOverview({
@@ -81,6 +84,7 @@ async function fetchChannelOverview(args: {
     days,
     includeRaw: INCLUDE_BY_CUBE[channel],
     fresh: true,
+    metaPilotEnabled: args.metaPilotEnabled,
     snapshotDate,
   }) as Overview;
 }
@@ -99,11 +103,13 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
+    if (channel === "threads" && !metaPilotEnabled) return metaChannelPilotDeniedResponse();
     const snapshotDate = getDefaultSnapshotDate();
     const [profile, monthOverview, weekOverview, connectionSignature] = await Promise.all([
       fetchProfileMetrics(supabase, activeUserId),
-      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 30, snapshotDate }),
-      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 7, snapshotDate }),
+      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 30, snapshotDate, metaPilotEnabled }),
+      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 7, snapshotDate, metaPilotEnabled }),
       buildStatsConnectionSignature(supabase, activeUserId),
     ]);
 
@@ -194,7 +200,7 @@ export async function POST(req: Request) {
       },
     };
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(withoutThreadsData(payload, metaPilotEnabled), {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         Pragma: 'no-cache',

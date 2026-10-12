@@ -255,7 +255,7 @@ function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): number 
 
   if (!connected) return 0;
 
-  const coldStartBaseline = cubeKey === "instagram" ? 0.18 : cubeKey === "linkedin" ? 0 : (cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 0.18 : 0.2;
+  const coldStartBaseline = cubeKey === "threads" ? 0 : cubeKey === "instagram" ? 0.18 : cubeKey === "linkedin" ? 0 : (cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 0.18 : 0.2;
   if (!m) return coldStartBaseline;
 
   const audienceTotal =
@@ -456,7 +456,7 @@ export function computeOpportunity30(cubeKey: CubeKey, ov: Overview) {
     return Math.max(0, Math.round(base + contactsPotential + activityPotential));
   }
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "threads" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     const perDay = computeOpportunityPerDaySocial(cubeKey, ov);
     return Math.max(0, Math.round(perDay * 30));
   }

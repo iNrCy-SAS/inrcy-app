@@ -779,5 +779,8 @@
   "youtube_necessite_une_video_les_photos_be0f53d0": "YouTube nécessite une vidéo. Les photos seules ne peuvent pas être publiées sur YouTube.",
   "zoom_value_1d90c01c": "zoom {value0}×",
   "tiktok_reuse_settings_session": "Utiliser ces réglages pour les prochaines publications TikTok de cette série",
-  "tiktok_reuse_settings_session_help": "La modale ne sera plus redemandée. Chaque publication restera validée séparément."
+  "tiktok_reuse_settings_session_help": "La modale ne sera plus redemandée. Chaque publication restera validée séparément.",
+  "threads": "Threads",
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
+  "threads_final_text": "Texte Threads final"
 }

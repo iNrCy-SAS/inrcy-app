@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -38,6 +39,7 @@ const ALLOWED_CHANNELS = new Set<BoosterVideoChannelKey>([
   "gmb",
   "facebook",
   "instagram",
+  "threads",
   "linkedin",
   "x",
   "tiktok",
@@ -75,7 +77,7 @@ function asObject(value: unknown): Record<string, unknown> {
 
 export async function POST(request: Request) {
   try {
-    const { errorResponse, activeUserId } = await requireUser();
+    const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const limited = await enforceRateLimit({
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const workspaceId = cleanText(body?.workspaceId, 80);
     const selectedChannels = cleanChannels(body?.selectedChannels);
+    if (selectedChannels.includes("threads") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId))) return metaChannelPilotDeniedResponse();
     const requestedMediaType =
       body?.requestedMediaType === "images" || body?.requestedMediaType === "video"
         ? body.requestedMediaType

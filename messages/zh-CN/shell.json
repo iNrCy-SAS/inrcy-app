@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "链接不能包含用户名或密码。",
   "channel_url_wrong_platform": "此链接与该渠道不匹配。",
   "channel_url_save_failed": "目前无法保存此链接。",
-  "channel_url_change_required": "请先修改链接再保存。"
+  "channel_url_change_required": "请先修改链接再保存。",
+  "instagram_direct_connect": "直接连接 Instagram",
+  "instagram_facebook_connect": "通过 Facebook 连接",
+  "instagram_direct_help": "请选择直接连接 Instagram 专业账户，或使用现有的 Facebook 流程。直接连接不需要 Facebook 公共主页。",
+  "instagram_direct_identity": "Instagram 专业账户已直接连接。",
+  "threads_connect_title": "连接 Threads 账户",
+  "threads_connect_help": "通过官方安全连接，授权 iNrCy 在您的 Threads 账户发布内容。",
+  "threads_checking": "正在检查…",
+  "threads_status_error": "无法检查 Threads 连接。",
+  "threads_disconnect_error": "无法断开 Threads 连接。",
+  "threads_disconnected": "Threads 账户已断开连接。",
+  "threads_reconnect_help": "请重新授权您的账户。",
+  "threads_identity_help": "账户在官方连接过程中选择。",
+  "threads_reconnect": "重新连接 Threads",
+  "threads_connect": "连接 Threads",
+  "threads_view_profile": "查看 Threads 个人主页",
+  "threads_description": "与您的社群交流",
+  "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。"
 }

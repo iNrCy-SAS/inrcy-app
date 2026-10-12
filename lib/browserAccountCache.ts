@@ -27,6 +27,8 @@ const ACCOUNT_CACHE_BASE_KEYS = [
   "inrcy_generator_power_snapshot_v1",
   "inrcy_generator_power_percent_v2",
   "inrcy_generator_power_snapshot_v2",
+  "inrcy_generator_power_percent_v3",
+  "inrcy_generator_power_snapshot_v3",
   "inrcy_generator_active_v1",
   "inrcy_site_bubble_progress_v1",
   "inrcy_site_bubble_progress_v2",

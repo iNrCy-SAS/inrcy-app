@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { migrateBusinessProfileAiConfiguration } from "@/lib/aiConfigurationCompatibility";
-import { countConfiguredAiChannelCtas } from "@/lib/aiChannelCtaPreferences";
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
+import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
+import { AI_CTA_CHANNELS, countConfiguredAiChannelCtas } from "@/lib/aiChannelCtaPreferences";
 import {
   getActiveBrowserUserId,
   readAccountCacheValue,
@@ -107,7 +109,7 @@ function writeCachedPreparationScores(state: PreparationScoreState) {
   );
 }
 
-function getAiConfigurationScore(row: unknown, edition: DashboardEdition) {
+function getAiConfigurationScore(row: unknown, edition: DashboardEdition, metaPilotEnabled: boolean) {
   const migrated = migrateBusinessProfileAiConfiguration(row, edition, { useDbLanguage: true });
   const coreScore = CORE_AI_FIELDS.reduce((score, field) => (
     migrated[field] === undefined ? score : score + 4
@@ -117,7 +119,8 @@ function getAiConfigurationScore(row: unknown, edition: DashboardEdition) {
   ), 0);
   // 24 of the 100 points belong to the ten per-channel CTAs. No configured CTA
   // earns zero points in that category, never a legacy global default.
-  const ctaScore = countConfiguredAiChannelCtas(migrated.channelCtas) * 2.4;
+  const visibleCtaCount = AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled).length;
+  const ctaScore = countConfiguredAiChannelCtas(filterMetaPilotPayload(migrated.channelCtas, metaPilotEnabled)) * (24 / visibleCtaCount);
   return clampScore(coreScore + enrichmentScore + ctaScore);
 }
 
@@ -128,6 +131,7 @@ export function useDashboardPreparationScores({
   accountId: string | null;
   edition: DashboardEdition;
 }) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
   // The live browser scope wins after an establishment switch; the server or
   // completion scope remains the stable fallback on a hard refresh/OAuth return.
   const currentAccountId = getActiveBrowserUserId() ?? accountId;
@@ -182,7 +186,7 @@ export function useDashboardPreparationScores({
         ? clampScore(dnaResult.value.completionScore)
         : baseline.dnaScore,
       aiScore: aiSucceeded
-        ? getAiConfigurationScore(aiResult.value.data, edition)
+        ? getAiConfigurationScore(aiResult.value.data, edition, metaPilotEnabled)
         : baseline.aiScore,
       dnaKnown: dnaSucceeded || baseline.dnaKnown,
       aiKnown: aiSucceeded || baseline.aiKnown,
@@ -191,7 +195,7 @@ export function useDashboardPreparationScores({
     scoreStateRef.current = nextState;
     setScoreState(nextState);
     writeCachedPreparationScores(nextState);
-  }, [accountId, edition]);
+  }, [accountId, edition, metaPilotEnabled]);
 
   useEffect(() => {
     void refresh();

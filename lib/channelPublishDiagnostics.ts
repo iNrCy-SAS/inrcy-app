@@ -22,6 +22,7 @@ import { getGoogleBusinessPostErrorDiagnostics } from "@/lib/googleBusinessPostT
 export type PublishDiagnosticChannel =
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "gmb"
   | "site_web"
@@ -37,6 +38,7 @@ const CHANNEL_LABELS: Record<PublishDiagnosticChannel, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
@@ -50,6 +52,7 @@ const CHANNEL_FALLBACKS: Record<PublishDiagnosticChannel, string> = {
   gmb: "Google Business n'a pas pu publier. Merci de réessayer.",
   facebook: "Facebook n'a pas pu publier. Merci de réessayer.",
   instagram: "Instagram n'a pas pu publier. Merci de réessayer.",
+  threads: "Threads n’a pas pu publier. Merci de réessayer.",
   linkedin: "LinkedIn n'a pas pu publier. Merci de réessayer.",
   tiktok: "TikTok n'a pas pu publier. Merci de réessayer.",
   youtube_shorts: "YouTube n'a pas pu publier. Merci de réessayer.",
@@ -61,6 +64,7 @@ const CHANNEL_RECONNECTS: Partial<Record<PublishDiagnosticChannel, string>> = {
   gmb: GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE,
   facebook: FACEBOOK_RECONNECT_USER_MESSAGE,
   instagram: INSTAGRAM_RECONNECT_USER_MESSAGE,
+  threads: "Threads à reconnecter. Rendez-vous dans Canaux.",
   linkedin: LINKEDIN_RECONNECT_USER_MESSAGE,
   tiktok: "TikTok à reconnecter. Rendez-vous dans Canaux.",
   youtube_shorts: "YouTube à reconnecter. Rendez-vous dans Canaux.",
@@ -82,6 +86,7 @@ const RECONNECT_INTEGRATION_KEYS: Partial<Record<PublishDiagnosticChannel, { pro
   gmb: { provider: "google", source: "gmb", product: "gmb" },
   facebook: { provider: "facebook", source: "facebook", product: "facebook" },
   instagram: { provider: "instagram", source: "instagram", product: "instagram" },
+  threads: { provider: "threads", source: "threads", product: "threads" },
   linkedin: { provider: "linkedin", source: "linkedin", product: "linkedin" },
   tiktok: { provider: "tiktok", source: "tiktok", product: "tiktok" },
   youtube_shorts: { provider: "youtube", source: "youtube_shorts", product: "youtube_shorts" },

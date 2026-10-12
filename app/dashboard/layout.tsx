@@ -26,6 +26,8 @@ import { DashboardCompletionBypassProvider } from "./_components/DashboardComple
 import { isDashboardCompletionE2EBypassEnabled } from "@/lib/e2eServerFlags";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
+import DashboardViewerAccessProvider from "./_components/DashboardViewerAccessProvider";
+import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
 import DashboardIntlProvider from "./_components/DashboardIntlProvider";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { CHECKOUT_RETURN_HEADER, blockedCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
@@ -97,6 +99,18 @@ export default async function DashboardLayout({
 
   const accountScope = await resolveInrcyAccountScopeForUser(supabase, user);
   await ensureProfileRow(user, accountScope.activeUserId).catch(() => null);
+  const { isAdmin: actorIsAdmin } = await getMyRole();
+  let activeAccountIsAdmin = actorIsAdmin && accountScope.activeUserId === user.id;
+  if (actorIsAdmin && accountScope.activeUserId !== user.id) {
+    if (ADMIN_USER_IDS.includes(accountScope.activeUserId as (typeof ADMIN_USER_IDS)[number])) {
+      activeAccountIsAdmin = true;
+    } else {
+      const { data: activeAccountProfile, error: activeAccountRoleError } = await supabaseAdmin
+        .from("profiles").select("role").eq("user_id", accountScope.activeUserId).maybeSingle();
+      activeAccountIsAdmin = !activeAccountRoleError && isAdminRole(activeAccountProfile?.role);
+    }
+  }
+  const viewerIsAdmin = actorIsAdmin && activeAccountIsAdmin;
 
   const { data: subscription } = await supabaseAdmin
     .from("subscriptions")
@@ -143,6 +157,7 @@ export default async function DashboardLayout({
     <div className={`${styles.shell} inrcy-dashboard-shell`}>
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition}>
+      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} activeAccountId={accountScope.activeUserId}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />
         <div className={styles.noise} />
@@ -163,6 +178,7 @@ export default async function DashboardLayout({
             <ResponsiveBottomNav />
           </DashboardUnsavedNavigationProvider>
         </DashboardCompletionBypassProvider>
+      </DashboardViewerAccessProvider>
       </DashboardEditionProvider>
       </DashboardIntlProvider>
     </div>

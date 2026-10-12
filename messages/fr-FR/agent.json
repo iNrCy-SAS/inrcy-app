@@ -792,5 +792,7 @@
   "tiktok_session_change": "Modifier",
   "tiktok_session_save": "Enregistrer les réglages",
   "tiktok_session_checking": "Vérification TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Prochaine publication dans quelques minutes"
+  "next_editorial_publication_in_a_few_minutes": "Prochaine publication dans quelques minutes",
+  "threads": "Threads",
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon."
 }

@@ -1,3 +1,4 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
@@ -44,6 +45,7 @@ type BoosterChannel =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
@@ -89,6 +91,7 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
   google_business: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   tiktok: "tiktok",
   youtube: "youtube_shorts",
@@ -99,7 +102,7 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
 };
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
+  return ["site_web", "inr_search", "gmb", "facebook", "threads", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -477,6 +480,7 @@ function normalizeBoosterChannels(input: unknown): BoosterChannel[] {
               "gmb",
               "facebook",
               "instagram",
+              "threads",
               "linkedin",
               "tiktok",
               "youtube_shorts",
@@ -1001,6 +1005,7 @@ async function buildScheduledPayload(
     const selectedChannels = normalizeBoosterChannels(
       payload.selectedChannels || payload.channels || action.targetChannels,
     );
+    if (selectedChannels.includes("threads") && !(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, accountId))) throw new Error("Threads est réservé aux comptes ADMIN.");
     const imagePayloads = await buildImagePayloadsFromAgentAction(
       payload,
       action.id,
@@ -1260,6 +1265,7 @@ async function scheduleAgentActionHandler(request: Request) {
     );
 
   let action = rowToInrAgentAction(actionRow as any);
+  if (normalizeBoosterChannels(action.payload?.selectedChannels || action.payload?.channels || action.targetChannels).includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, activeUserId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)))) return metaChannelPilotDeniedResponse();
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();
   }

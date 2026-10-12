@@ -1,3 +1,6 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
+import { requireUser } from "@/lib/requireUser";
 import { NextResponse } from 'next/server';
 import { jsonUserFacingError } from '@/lib/apiUserFacingErrors';
 import { computeOpportunitiesFromOverviews, fetchCubeOverviews, invalidateOverviewCache, toInrstatsSnapshot } from '@/lib/metrics/computeMetrics';
@@ -6,6 +9,9 @@ import { withApi } from '@/lib/observability/withApi';
 
 async function inrStatsOpportunitiesHandler(request: Request) {
   try {
+    const { supabase, activeUserId, errorResponse } = await requireUser();
+    if (errorResponse) return errorResponse;
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
     const url = new URL(request.url);
     const qMode = (url.searchParams.get('mode') || '').toLowerCase();
     const qToday = Number(url.searchParams.get('todayDays') || '0') || 0;
@@ -21,6 +27,7 @@ async function inrStatsOpportunitiesHandler(request: Request) {
     if (fresh) invalidateOverviewCache();
 
     const monthOverviews = await fetchCubeOverviews({
+      supabase, userId: activeUserId, metaPilotEnabled,
       origin: url.origin,
       days: monthDays,
       getHeaders: () => (cookie ? { cookie } : undefined),
@@ -37,7 +44,7 @@ async function inrStatsOpportunitiesHandler(request: Request) {
     result.month = monthOpps.total;
     result.total = monthOpps.total;
 
-    return NextResponse.json(result);
+    return NextResponse.json(withoutThreadsData(result, metaPilotEnabled));
   } catch (e: unknown) {
     captureApiException(request, e, {
       area: 'inrstats',

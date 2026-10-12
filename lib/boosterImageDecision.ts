@@ -12,6 +12,7 @@ export type BoosterImageChannel =
   | "gmb"
   | "facebook"
   | "instagram"
+  | "threads"
   | "linkedin"
   | "x"
   | "tiktok"
@@ -29,6 +30,7 @@ const BOOSTER_IMAGE_SAFETY_BACKGROUND_BY_CHANNEL: Readonly<
   gmb: "white",
   facebook: "black",
   instagram: "black",
+  threads: "black",
   linkedin: "black",
   x: "black",
   tiktok: "black",
@@ -170,6 +172,7 @@ export const BOOSTER_IMAGE_CHANNEL_POLICIES: Readonly<
     tooTallTargetRatio: INSTAGRAM_MIN_RATIO,
     tooWideTargetRatio: INSTAGRAM_MAX_RATIO,
   },
+  threads: { supportsImages: true },
   linkedin: { supportsImages: true },
   x: { supportsImages: true },
   tiktok: { supportsImages: true },

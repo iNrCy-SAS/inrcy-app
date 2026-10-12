@@ -588,5 +588,22 @@
   "channel_url_credentials_forbidden": "Le lien ne doit pas contenir d’identifiant ni de mot de passe.",
   "channel_url_wrong_platform": "Ce lien ne correspond pas à ce canal.",
   "channel_url_save_failed": "Impossible d’enregistrer ce lien pour le moment.",
-  "channel_url_change_required": "Modifiez réellement le lien avant de l’enregistrer."
+  "channel_url_change_required": "Modifiez réellement le lien avant de l’enregistrer.",
+  "instagram_direct_connect": "Connexion directe Instagram",
+  "instagram_facebook_connect": "Connexion via Facebook",
+  "instagram_direct_help": "Choisissez la connexion directe au compte professionnel Instagram ou le parcours existant via Facebook. La connexion directe ne nécessite pas de Page Facebook.",
+  "instagram_direct_identity": "Compte professionnel Instagram connecté directement.",
+  "threads_connect_title": "Connecter le compte Threads",
+  "threads_connect_help": "Autorisez iNrCy à publier sur votre compte Threads via la connexion officielle sécurisée.",
+  "threads_checking": "Vérification…",
+  "threads_status_error": "Impossible de vérifier la connexion Threads.",
+  "threads_disconnect_error": "Impossible de déconnecter Threads.",
+  "threads_disconnected": "Compte Threads déconnecté.",
+  "threads_reconnect_help": "Renouvelez les autorisations de votre compte.",
+  "threads_identity_help": "Le compte est choisi pendant la connexion officielle.",
+  "threads_reconnect": "Reconnecter Threads",
+  "threads_connect": "Connecter Threads",
+  "threads_view_profile": "Voir le profil Threads",
+  "threads_description": "Échangez avec votre communauté",
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon."
 }

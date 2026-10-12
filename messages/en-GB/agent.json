@@ -792,5 +792,7 @@
   "tiktok_session_change": "Change",
   "tiktok_session_save": "Save settings",
   "tiktok_session_checking": "Checking TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Next publication in a few minutes"
+  "next_editorial_publication_in_a_few_minutes": "Next publication in a few minutes",
+  "threads": "Threads",
+  "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft."
 }

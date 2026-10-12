@@ -18,6 +18,7 @@ export function getBubbleViewHrefFromBlock(
     channel === "gmb" ||
     channel === "facebook" ||
     channel === "instagram" ||
+    channel === "threads" ||
     channel === "linkedin" ||
     channel === "x" ||
     channel === "tiktok" ||
@@ -53,6 +54,7 @@ export function getChannelsFromSettingsDiff(previousSettings: unknown, nextSetti
     ["gmb", "gmb"],
     ["facebook", "facebook"],
     ["instagram", "instagram"],
+    ["threads", "threads"],
     ["linkedin", "linkedin"],
     ["x", "x"],
     ["tiktok", "tiktok"],
@@ -96,6 +98,7 @@ export function inferChannelsFromRealtimePayload(payload: any): DashboardChannel
       source === "gmb" ||
       source === "facebook" ||
       source === "instagram" ||
+      source === "threads" ||
       source === "linkedin" ||
       source === "x" ||
       source === "tiktok" ||
@@ -106,6 +109,7 @@ export function inferChannelsFromRealtimePayload(payload: any): DashboardChannel
       continue;
     }
 
+    if (provider === "threads") impacted.add("threads");
     if (provider === "facebook") impacted.add("facebook");
     if (provider === "linkedin") impacted.add("linkedin");
     if (provider === "x" || provider === "twitter") impacted.add("x");
@@ -123,8 +127,8 @@ export function inferChannelsFromSearchParams(
   targetPanel: string | null,
 ): DashboardChannelKey[] {
   if (linked === "twitter") return ["x"];
-  if (linked === "gmb" || linked === "facebook" || linked === "instagram" || linked === "linkedin" || linked === "x" || linked === "tiktok" || linked === "youtube_shorts" || linked === "pinterest") {
-    return [linked];
+  if (linked === "gmb" || linked === "facebook" || linked === "instagram" || linked === "instagram_direct" || linked === "threads" || linked === "linkedin" || linked === "x" || linked === "tiktok" || linked === "youtube_shorts" || linked === "pinterest") {
+    return [linked === "instagram_direct" ? "instagram" : linked];
   }
 
   if ((linked === "ga4" || linked === "gsc") && (targetPanel === "site_web")) {
@@ -136,6 +140,7 @@ export function inferChannelsFromSearchParams(
     targetPanel === "gmb" ||
     targetPanel === "facebook" ||
     targetPanel === "instagram" ||
+    targetPanel === "threads" ||
     targetPanel === "linkedin" ||
     targetPanel === "x" ||
     targetPanel === "tiktok" ||

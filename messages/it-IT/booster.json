@@ -779,5 +779,8 @@
   "video_format_selected_for_publication": "Formato video selezionato per la pubblicazione",
   "video_format_selected_to_apply": "Formato video selezionato, pronto per essere applicato",
   "tiktok_reuse_settings_session": "Usa queste impostazioni per i prossimi post TikTok della serie",
-  "tiktok_reuse_settings_session_help": "La finestra non verrà più mostrata. Ogni post sarà comunque convalidato separatamente."
+  "tiktok_reuse_settings_session_help": "La finestra non verrà più mostrata. Ogni post sarà comunque convalidato separatamente.",
+  "threads": "Threads",
+  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
+  "threads_final_text": "Testo finale Threads"
 }

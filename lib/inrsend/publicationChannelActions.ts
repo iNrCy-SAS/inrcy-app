@@ -1,3 +1,8 @@
+import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { resolveInstagramAuthMode, buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramAuthMode";
+import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
+import { threadsPublish, threadsDeletePost, buildThreadsMediaSourceIdentity, THREADS_EDIT_UNSUPPORTED_MESSAGE } from "@/lib/threadsPublish";
+import { acquireExecutionIdempotencyLock, failExecutionIdempotencyLock, completeExecutionIdempotencyLock } from "@/lib/executionIdempotency";
 import { normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { primarySiteWebArticle, siteWebArticleIdsFromPayload, siteWebImageMediaPatch } from "@/lib/siteWebPublications";
@@ -7,7 +12,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
-import { tryDecryptToken } from "@/lib/oauthCrypto";
+import { tryDecryptToken, encryptToken } from "@/lib/oauthCrypto";
 import { facebookPublishToPage, facebookPublishVideoToPage } from "@/lib/facebookPublish";
 import { instagramPublishImagesBestEffortWithTokenFallback, instagramPublishVideoWithTokenFallback, isInstagramAuthorizationErrorResult } from "@/lib/instagramPublish";
 import { linkedinPublishImage, linkedinPublishMultiImage, linkedinPublishText, linkedinPublishVideo, linkedinResharePost } from "@/lib/linkedinPublish";
@@ -32,6 +37,7 @@ import {
   buildBoosterHashtagLine,
   buildBoosterInstagramCaption,
   buildBoosterMessage,
+  buildBoosterThreadsPostText,
   buildBoosterNativeDestinationMessage,
   buildCtaTextForChannel,
   getBoosterCtaDestinationUrlForChannel,
@@ -96,7 +102,7 @@ function gmbAcceptedImageCount(accepted: number, expected: number) {
   return `Google Business a publié ${accepted} image(s) conforme(s) sur ${expected}.`;
 }
 
-export type ChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "pinterest";
+export type ChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "pinterest";
 type JsonRecord = Record<string, unknown>;
 
 const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
@@ -105,6 +111,7 @@ const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
   gmb: "gmb",
   facebook: "facebook",
   instagram: "instagram",
+  threads: "threads",
   linkedin: "linkedin",
   x: "x",
   tiktok: "tiktok",
@@ -117,6 +124,7 @@ const CHANNEL_LABELS: Record<ChannelKey, string> = {
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
+  threads: "Threads",
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
@@ -1072,12 +1080,12 @@ function areImageListsEqual(left: string[], right: string[]) {
   return left.every((value, index) => String(value || "").trim() === String(right[index] || "").trim());
 }
 
-async function verifyInstagramMediaId(externalId: string, accessToken: string) {
+async function verifyInstagramMediaId(externalId: string, accessToken: string, authMode?: InstagramAuthMode) {
   const qs = new URLSearchParams({
     fields: "id,media_type,media_product_type,permalink,timestamp,username,children{id,media_type,permalink}",
     access_token: accessToken,
   });
-  const res = await fetch(`${buildMetaGraphUrl(encodeURIComponent(externalId))}?${qs.toString()}`, {
+  const res = await fetch(`${buildInstagramGraphUrl(encodeURIComponent(externalId), authMode)}?${qs.toString()}`, {
     method: "GET",
     cache: "no-store",
   });
@@ -1085,9 +1093,9 @@ async function verifyInstagramMediaId(externalId: string, accessToken: string) {
   return { res, json };
 }
 
-async function deleteInstagramMedia(externalId: string, accessToken: string) {
+async function deleteInstagramMedia(externalId: string, accessToken: string, authMode?: InstagramAuthMode) {
   const qs = new URLSearchParams({ access_token: accessToken });
-  const res = await fetch(`${buildMetaGraphUrl(encodeURIComponent(externalId))}?${qs.toString()}`, {
+  const res = await fetch(`${buildInstagramGraphUrl(encodeURIComponent(externalId), authMode)}?${qs.toString()}`, {
     method: "DELETE",
     cache: "no-store",
   });
@@ -1112,6 +1120,8 @@ function buildInstagramDeleteTokenCandidates(entries: Array<{ sourceLabel: strin
     candidates.push({ source, token, preview: previewToken(token) });
   };
 
+  const directEntry = entries.find((entry) => entry.sourceLabel === "instagram" && resolveInstagramAuthMode(asRecord(entry.row).meta) === "instagram_login");
+  if (directEntry) { pushCandidate("instagram.access_token_enc", asRecord(directEntry.row).access_token_enc); return candidates; }
   for (const entry of entries) {
     const row = asRecord(entry.row);
     const meta = asRecord(row.meta);
@@ -1223,6 +1233,7 @@ async function deleteInstagramMediaWithFallback(
     allowLocalFallback?: boolean;
   } = {},
 ): Promise<InstagramDeleteResult> {
+  const authMode = resolveInstagramAuthMode(asRecord(options.igRow).meta);
   const target = resolveInstagramDeleteTarget({ requestedExternalId: externalId, channelResult: options.channelResult });
   const emptyResult: InstagramDeleteResult = {
     ok: true,
@@ -1276,7 +1287,7 @@ async function deleteInstagramMediaWithFallback(
     };
 
     try {
-      const verify = await verifyInstagramMediaId(target.deleteTargetId || externalId, candidate.token);
+      const verify = await verifyInstagramMediaId(target.deleteTargetId || externalId, candidate.token, authMode);
       attempt.verify_http_status = verify.res.status;
       if (!verify.res.ok) {
         attempt.verify_error = extractGraphErrorMeta(verify.json);
@@ -1297,7 +1308,7 @@ async function deleteInstagramMediaWithFallback(
       }
 
       attempt.verified = true;
-      const deleted = await deleteInstagramMedia(target.deleteTargetId || externalId, candidate.token);
+      const deleted = await deleteInstagramMedia(target.deleteTargetId || externalId, candidate.token, authMode);
       attempt.delete_http_status = deleted.res.status;
 
       if (deleted.res.ok && deleted.json?.success !== false) {
@@ -1491,6 +1502,15 @@ async function replaceChannelDelivery(params: {
 }) {
   const { userId, publicationId, channel, previousExternalId, publication, eventPayload, nextPost, imageSet } = params;
   const markAssetsMayBeInUse = () => params.onAssetsMayBeInUse?.();
+  if (channel === "threads" || channel === "instagram") {
+    const row = await getLatestIntegrationRow(userId, channel, channel, channel, "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at");
+    const direct = channel === "threads" || resolveInstagramAuthMode(asRecord(row).meta) === "instagram_login";
+    if (direct) {
+      if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Ce canal est réservé aux comptes ADMIN.");
+      await ensureMetaDirectAccessToken(supabaseAdmin, asRecord(row));
+    }
+  }
+
   const [publicationStates, bubbleAccess] = await Promise.all([
     getChannelConnectionStates(supabaseAdmin, userId),
     getAppBubbleAccessMapForUser(supabaseAdmin, userId),
@@ -1675,10 +1695,34 @@ async function replaceChannelDelivery(params: {
     };
   }
 
+  if (channel === "threads") {
+    if (previousExternalId) throw new Error(THREADS_EDIT_UNSUPPORTED_MESSAGE);
+    if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Threads est réservé aux comptes ADMIN.");
+    const row = await getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at");
+    const integration = asRecord(row);
+    const accessToken = await ensureMetaDirectAccessToken(supabaseAdmin, integration);
+    markAssetsMayBeInUse();
+    const response = await threadsPublish({
+      userId: String(integration.resource_id || ""), accessToken,
+      text: buildBoosterThreadsPostText(nextPost, { websiteUrl, phone }),
+      media: isVideoPublication ? [{ type: "VIDEO", url: videoUrl, sourceIdentity: buildThreadsMediaSourceIdentity({ bucket: video?.bucket, storagePath: video?.storagePath }) }] : socialFeedImageUrls.filter(Boolean).map((url) => ({ type: "IMAGE", url })),
+      checkpoint: asRecord(asRecord(eventPayload.results).threads).threads_checkpoint,
+      onCheckpoint: async (checkpoint) => {
+        eventPayload.results = { ...asRecord(eventPayload.results), threads: { ...asRecord(asRecord(eventPayload.results).threads), threads_checkpoint: checkpoint } };
+        await persistEventPayload(userId, String(publicationId || ""), eventPayload);
+      },
+    });
+    if (!response.ok) {
+      if (response.retryable && response.checkpoint) return { externalId: null, status: "processing", error: null, pending: true, threadsMeta: { threads_checkpoint: response.checkpoint, pending: true, code: response.code } };
+      throw new Error(response.error);
+    }
+    return { externalId: response.postId, status: "delivered", error: null, threadsMeta: { threads_checkpoint: response.checkpoint, threads_media_type: response.mediaType } };
+  }
+
   const [fbRow, gmbRow, igRow, liRow] = await Promise.all([
     getLatestIntegrationRow(userId, "facebook", "facebook", "facebook", "status,resource_id,access_token_enc,meta,expires_at"),
     getLatestIntegrationRow(userId, "google", "gmb", "gmb", "status,resource_id,meta,expires_at"),
-    getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "status,resource_id,access_token_enc,resource_label,meta,expires_at"),
+    getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at"),
     getLatestIntegrationRow(userId, "linkedin", "linkedin", "linkedin", "status,resource_id,access_token_enc,meta,expires_at"),
   ]);
 
@@ -1803,7 +1847,9 @@ async function replaceChannelDelivery(params: {
   if (channel === "instagram") {
     const ig = asRecord(igRow);
     const igUserId = String(ig.resource_id ?? "");
-    const igToken = tryDecryptToken(String(ig.access_token_enc ?? "")) || "";
+    const igAuthMode = resolveInstagramAuthMode(ig.meta);
+    const igToken = igAuthMode === "instagram_login" ? await ensureMetaDirectAccessToken(supabaseAdmin, ig) : tryDecryptToken(String(ig.access_token_enc ?? "")) || "";
+    if (igAuthMode === "instagram_login") ig.access_token_enc = encryptToken(igToken);
     if (!igUserId || !igToken) {
       const instagramUserError = "Instagram à connecter. Rendez-vous dans Canaux.";
       logPublishChannelFailure({
@@ -1836,6 +1882,7 @@ async function replaceChannelDelivery(params: {
       const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
       markAssetsMayBeInUse();
       const resp = await instagramPublishVideoWithTokenFallback({
+        authMode: igAuthMode,
         igUserId,
         accessToken: igToken,
         tokenCandidates: instagramTokenCandidates,
@@ -1892,6 +1939,7 @@ async function replaceChannelDelivery(params: {
     const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
     markAssetsMayBeInUse();
     const resp = await instagramPublishImagesBestEffortWithTokenFallback({
+      authMode: igAuthMode,
       igUserId,
       accessToken: igToken,
       tokenCandidates: instagramTokenCandidates,
@@ -2741,10 +2789,22 @@ async function removeChannelDelivery(params: {
     return { externalIds: deletedArticles.map((article) => String(article.id)) };
   }
 
+  if (channel === "threads") {
+    if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Threads est réservé aux comptes ADMIN.");
+    const channelResult = asRecord(asRecord(asRecord(params.eventPayload).results).threads);
+    if (!previousExternalId) {
+      if (asRecord(channelResult.threads_checkpoint).state === "publish_unknown") throw new Error("Vérifiez le résultat de la publication Threads avant sa suppression.");
+      return;
+    }
+    const row = await getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at");
+    await threadsDeletePost({ postId: previousExternalId, accessToken: await ensureMetaDirectAccessToken(supabaseAdmin, asRecord(row)) });
+    return;
+  }
+
   const [fbRow, _gmbRow, igRow, liRow] = await Promise.all([
     getLatestIntegrationRow(userId, "facebook", "facebook", "facebook", "status,resource_id,access_token_enc,meta"),
     getLatestIntegrationRow(userId, "google", "gmb", "gmb", "status,resource_id,meta"),
-    getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "status,resource_id,access_token_enc,meta"),
+    getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at"),
     getLatestIntegrationRow(userId, "linkedin", "linkedin", "linkedin", "status,resource_id,access_token_enc"),
   ]);
 
@@ -2756,6 +2816,11 @@ async function removeChannelDelivery(params: {
   }
 
   if (channel === "instagram") {
+    const ig = asRecord(igRow);
+    if (resolveInstagramAuthMode(ig.meta) === "instagram_login") {
+      if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Instagram direct est réservé aux comptes ADMIN.");
+      ig.access_token_enc = encryptToken(await ensureMetaDirectAccessToken(supabaseAdmin, ig));
+    }
     const candidates = buildInstagramDeleteTokenCandidates([{ sourceLabel: "instagram", row: igRow }, { sourceLabel: "facebook", row: fbRow }]);
     if (!candidates.length) throw new Error("Votre compte Instagram n’est pas encore correctement relié.");
     if (previousExternalId) {
@@ -3041,9 +3106,12 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
   async function PATCH(req: Request, context: { params: Promise<{ publicationId: string }> }) {
     let unpersistedCreatedStoragePaths: string[] = [];
     const imageUseGuard = createPublicationImageUseGuard();
+    let threadsRetryLockId: string | null = null;
     try {
       const { user, activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
+      const directIntegration = channel === "instagram" ? await getLatestIntegrationRow(activeUserId, "instagram", "instagram", "instagram", "meta") : null;
+      if ((channel === "threads" || resolveInstagramAuthMode(asRecord(directIntegration).meta) === "instagram_login") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId))) return metaChannelPilotDeniedResponse();
 
       const params = await context.params;
       const publicationId = String(params.publicationId || "").trim();
@@ -3080,6 +3148,15 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
+      if (channel === "threads") {
+        if (isDeletedResult(channelResult)) return jsonUserFacingError("Ce canal est déjà supprimé.", { status: 409, code: "channel_already_deleted" });
+        if (channelResult.external_id || asRecord(channelResult.threads_checkpoint).postId || channelResult.ok === true && !channelResult.pending) return jsonUserFacingError(THREADS_EDIT_UNSUPPORTED_MESSAGE, { status: 409, code: "threads_edit_unsupported" });
+        const retryLock = await acquireExecutionIdempotencyLock({ supabase: supabaseAdmin, userId: activeUserId, scope: "inrsend_threads_retry", idempotencyKey: publicationId, ttlMs: 5 * 60_000 });
+        if (retryLock.state === "running") return NextResponse.json({ ok: false, pending: true, code: "threads_retry_running" }, { status: 425, headers: { "Retry-After": "60" } });
+        if (retryLock.state === "completed") return NextResponse.json(retryLock.lock.result || { ok: true });
+        if (retryLock.state !== "acquired" || !retryLock.lock?.id) return jsonUserFacingError("La reprise Threads est temporairement indisponible.", { status: 503, code: "threads_retry_lock_unavailable" });
+        threadsRetryLockId = retryLock.lock.id;
+      }
       if (isDeletedResult(channelResult) && !(channel === "site_web" && ctx.siteArticleIds.length)) {
         return jsonUserFacingError("Ce canal est déjà supprimé.", { status: 409, code: "channel_already_deleted" });
       }
@@ -3193,7 +3270,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       );
       unpersistedCreatedStoragePaths = imageSet?.createdStoragePaths || [];
 
-      const previousExternalId = String(channel === "site_web" ? channelResult.external_id ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const previousExternalId = String((channel === "site_web" || channel === "threads") ? channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
       const replaceResult = await replaceChannelDelivery({
         userId: activeUserId,
         publicationId,
@@ -3240,6 +3317,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             .filter(Boolean)
             .join(" ") || null,
         resultMeta: {
+          ...(channel === "threads" ? asRecord((replaceResult as JsonRecord).threadsMeta) : {}),
           ...(channel === "site_web" ? { external_ids: Array.from(new Set([
             ...siteWebArticleIdsFromPayload(ctx.eventPayload),
             ...(Array.isArray(asRecord(replaceResult).externalIds) ? asRecord(replaceResult).externalIds as unknown[] : []),
@@ -3268,6 +3346,9 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         videoSettings: requestedVideoSettings,
       });
 
+      if (channel === "threads" && (replaceResult as JsonRecord).pending) {
+        nextPayload.results = { ...asRecord(nextPayload.results), threads: { ...asRecord(asRecord(nextPayload.results).threads), status: "processing", pending: true } };
+      }
       await persistEventPayload(
         activeUserId,
         publicationId,
@@ -3282,8 +3363,15 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         await notifyInrSearchIndexing(slug);
       }
 
-      return NextResponse.json({ ok: true, publication_id: publicationId, channel, external_id: replaceResult.externalId, payload: nextPayload });
+      const actionResponse = { ok: true, publication_id: publicationId, channel, external_id: replaceResult.externalId, payload: nextPayload, ...((replaceResult as JsonRecord).pending ? { pending: true, queued: true } : {}) };
+      if (threadsRetryLockId) {
+        if ((replaceResult as JsonRecord).pending) await failExecutionIdempotencyLock({ supabase: supabaseAdmin, lockId: threadsRetryLockId, error: "threads_processing", result: actionResponse });
+        else await completeExecutionIdempotencyLock({ supabase: supabaseAdmin, lockId: threadsRetryLockId, result: actionResponse });
+        threadsRetryLockId = null;
+      }
+      return NextResponse.json(actionResponse, { status: (replaceResult as JsonRecord).pending ? 202 : 200 });
     } catch (e: unknown) {
+      if (threadsRetryLockId) await failExecutionIdempotencyLock({ supabase: supabaseAdmin, lockId: threadsRetryLockId, error: "threads_retry_failed" }).catch(() => undefined);
       if (imageUseGuard.canCleanupUnusedAssets()) {
         await cleanupCreatedPublicationImagePaths({
           paths: unpersistedCreatedStoragePaths,
@@ -3314,6 +3402,8 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
     try {
       const { user, activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
+      const directIntegration = channel === "instagram" ? await getLatestIntegrationRow(activeUserId, "instagram", "instagram", "instagram", "meta") : null;
+      if ((channel === "threads" || resolveInstagramAuthMode(asRecord(directIntegration).meta) === "instagram_login") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId))) return metaChannelPilotDeniedResponse();
 
       const params = await context.params;
       const publicationId = String(params.publicationId || "").trim();
@@ -3368,7 +3458,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
-      const previousExternalId = String(channel === "site_web" ? channelResult.external_id ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const previousExternalId = String((channel === "site_web" || channel === "threads") ? channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
 
       if (isDeletedResult(channelResult) && !(channel === "site_web" && ctx.siteArticleIds.length)) {
         const payload = buildDeletedPayload({ eventPayload: ctx.eventPayload, channel, previousExternalId });

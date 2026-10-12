@@ -37,7 +37,7 @@ test("the GPS documents onboarding, legal settings, media optimization and mobil
   assert.ok(Object.values(messages).some((message) => message.includes("50 Mo maximum par image et 75 Mo pour la vidéo")));
 });
 
-test("legal documents keep their expected dates, with only CGA updated for video credits, and no Trustpilot", () => {
+test("legal documents keep their expected dates, with privacy updated for Meta and CGA for video credits, and no Trustpilot", () => {
   const docs = read("app/legal/_components/legalDocs.tsx");
   const shell = read("app/legal/_components/LegalPageShell.tsx");
   const cga = read("app/legal/_components/CgaContent.tsx");
@@ -57,7 +57,7 @@ test("legal documents keep their expected dates, with only CGA updated for video
     (match) => [match[1] ?? match[2], match[3]],
   ));
   assert.deepEqual(documentDates, {
-    confidentialite: "derniere_mise_a_jour_04_10_2026_7a4f81d2",
+    confidentialite: "derniere_mise_a_jour_12_10_2026_meta",
     "mentions-legales": "derniere_mise_a_jour_04_10_2026_7a4f81d2",
     cga: "version_du_11_10_2026_video_credits",
   });
@@ -68,8 +68,12 @@ test("legal documents keep their expected dates, with only CGA updated for video
   assert.equal(legalMessages.cga_0436_revision_20261004, publicMessages.version_du_11_10_2026_video_credits);
   assert.match(cgaPage, /subtitle=\{i18nT\("version_du_11_10_2026_video_credits"\)\}/);
   assert.match(cgaPage, /revision=\{i18nT\("version_du_11_10_2026_video_credits"\)\}/);
-  assert.match(privacyPage, /derniere_mise_a_jour_04_10_2026_7a4f81d2/);
-  assert.doesNotMatch(privacyPage + mentionsPage, /revision=/);
+  assert.equal(publicMessages.derniere_mise_a_jour_12_10_2026_meta, "Dernière mise à jour : 12/10/2026");
+  assert.equal(settingsMessages.derniere_mise_a_jour_12_10_2026_meta, publicMessages.derniere_mise_a_jour_12_10_2026_meta);
+  assert.equal(legalMessages.confidentialite_0601_revision_20261004, "Version mise à jour le 12 octobre 2026.");
+  assert.match(privacyPage, /derniere_mise_a_jour_12_10_2026_meta/);
+  assert.match(privacyPage, /revision=\{i18nT\("derniere_mise_a_jour_12_10_2026_meta"\)\}/);
+  assert.doesNotMatch(mentionsPage, /revision=/);
   assert.match(shell, /version_juridique_synchronisee_le_04_10_2026_68a90e11/);
   assert.match(shell, /props\.revision \?\? i18nT\("version_juridique_synchronisee_le_04_10_2026_68a90e11"\)/);
   assert.match(shell, /subtitle/);

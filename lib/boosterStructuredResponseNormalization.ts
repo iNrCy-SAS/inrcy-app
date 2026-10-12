@@ -16,6 +16,7 @@ const CHANNEL_OUTPUT_ALIASES: Record<BoosterChannels, string[]> = {
   gmb: ["gmb", "google_business", "googlebusiness", "google_business_profile"],
   facebook: ["facebook", "fb"],
   instagram: ["instagram", "insta"],
+  threads: ["threads"],
   linkedin: ["linkedin", "linked_in"],
   x: ["x", "twitter", "twitter_x", "x_twitter"],
   tiktok: ["tiktok", "tik_tok"],

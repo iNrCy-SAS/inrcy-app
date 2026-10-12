@@ -485,5 +485,8 @@
   "subtitle_social_visibility": "Sichtbarkeit in sozialen Medien",
   "subtitle_your_image": "Ihr Image",
   "canal_precedent_65f40ce6": "Vorheriger Kanal",
-  "canal_suivant_7b81611d": "Nächster Kanal"
+  "canal_suivant_7b81611d": "Nächster Kanal",
+  "threads_replies": "Antworten",
+  "threads_reposts": "Reposts",
+  "threads_quotes": "Zitate"
 }

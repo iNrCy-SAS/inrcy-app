@@ -45,6 +45,7 @@ const TOOL_LABELS: Record<AppBubbleKey, { label: string; group: string; descript
   inr_search: { label: "iNr'Search", group: "Visibilité", description: "Page publique créée par iNrCy et optimisée pour Google, Bing et les moteurs IA.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.inr_search },
   facebook: { label: "Facebook", group: "Réseaux", description: "Page Facebook.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.facebook },
   instagram: { label: "Instagram", group: "Réseaux", description: "Compte Instagram.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.instagram },
+  threads: { label: "Threads", group: "Réseaux", description: "Connexion, publication et statistiques Threads. Réservé aux comptes ADMIN pendant la validation Meta.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.threads },
   linkedin: { label: "LinkedIn", group: "Réseaux", description: "Page ou profil LinkedIn.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.linkedin },
   x: { label: "X", group: "Réseaux", description: "Publications et statistiques du compte X.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.x },
   tiktok: { label: "TikTok", group: "Réseaux", description: "Publication TikTok.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.tiktok },

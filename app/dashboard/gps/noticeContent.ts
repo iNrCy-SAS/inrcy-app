@@ -33,6 +33,12 @@ export type GpsSection = GpsSectionShape<string, GpsArticle>;
 export type GpsArticleSource = GpsArticleShape<GpsMessageKey>;
 export type GpsSectionSource = GpsSectionShape<GpsMessageKey, GpsArticleSource>;
 
+export const THREADS_GPS_ARTICLE: GpsArticleSource = {
+  id: "canaux-threads", title: "threads_title", keywords: ["threads_title"], intro: "threads_intro",
+  steps: ["threads_step_connect", "threads_step_publish", "threads_step_stats"], checks: ["threads_check"], pitfalls: ["threads_pitfall"],
+  links: [{ label: "ouvrir_les_canaux_9322102a", href: "/dashboard?panel=threads" }, { label: "ouvrir_inr_stats_48397dcd", href: "/dashboard/stats" }],
+};
+
 export const GPS_SECTIONS: GpsSectionSource[] = [
   {
     id: "demarrer",

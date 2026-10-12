@@ -85,8 +85,9 @@ test("website publications keep a clickable and safely rendered CTA", () => {
 
   assert.match(publishNow, /cta: buildCtaTextForChannel\(ch, channelPost,/);
   assert.match(inrSend, /cta: buildCtaTextForChannel\(channel, nextPost,/);
-  assert.match(widgetApi, /title, content, cta, images/);
-  assert.match(embedRoute, /title, content, cta, images/);
+  assert.match(widgetApi, /loadSiteWebWidgetArticles/);
+  assert.match(embedRoute, /loadSiteWebWidgetArticles/);
+  assert.match(read("lib/widgets/siteWebArticles.ts"), /title,content,cta,images/);
   assert.match(embedRenderer, /function renderArticleCta/);
   assert.match(embedRenderer, /url\.protocol !== "https:"/);
   assert.match(embedRenderer, /rel="noopener noreferrer"/);

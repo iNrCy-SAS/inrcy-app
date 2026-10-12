@@ -1,3 +1,5 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, isMetaChannelPilotEnabledForAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { withoutThreadsData } from "@/lib/stats/metaPilotData";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -29,7 +31,10 @@ export async function GET(request: Request) {
       userId = await resolveActiveInrcyAccountId(supabase, authData.user.id);
     }
 
+    const metaPilotEnabled = await (isCronMode ? isMetaChannelPilotEnabledForAccount(supabase, userId) : isMetaChannelPilotEnabledForActorAndAccount(supabase, userId));
+    if (includeRaw === "threads" && !metaPilotEnabled) return metaChannelPilotDeniedResponse();
     const payload = await buildStatsOverview({
+      metaPilotEnabled,
       supabase,
       userId,
       days,

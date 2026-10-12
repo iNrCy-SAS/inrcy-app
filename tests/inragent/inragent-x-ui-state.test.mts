@@ -162,6 +162,6 @@ test("iNrAgent accepts text-only X drafts without inventing a media requirement"
   const foundations = read("app/api/agent/actions/actionPublishDraft.foundations.ts");
   assert.match(
     foundations,
-    /publishCanRunWithoutMedia[\s\S]*?"facebook",\s*"linkedin",\s*"x"/,
+    /publishCanRunWithoutMedia[\s\S]*?"facebook",\s*"threads",\s*"linkedin",\s*"x"/,
   );
 });

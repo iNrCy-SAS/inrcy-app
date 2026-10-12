@@ -1,3 +1,4 @@
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useTranslations } from "next-intl";
 import {
   useCallback,
@@ -8,6 +9,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { createClient } from "@/lib/supabaseClient";
@@ -149,7 +151,7 @@ import {
 } from "./publishModal.shared";
 import {
   AI_CONFIGURATION_STORAGE_KEY,
-  CHANNEL_KEYS,
+  CHANNEL_KEYS as ALL_CHANNEL_KEYS,
   EMPTY_CHANNEL_DETAILS,
   buildVideoFileName,
   buildVideoOrientation,
@@ -459,6 +461,8 @@ export default function PublishModal({
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
 }) {
+  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const CHANNEL_KEYS = useMemo(() => ALL_CHANNEL_KEYS.filter((key) => key !== "threads" || metaPilotEnabled), [metaPilotEnabled]);
   const i18nT = useTranslations("booster");
   const mediaT = useTranslations("media");
   const runtimeT = i18nT as unknown as (
@@ -558,7 +562,8 @@ export default function PublishModal({
     Partial<Record<ChannelKey, ChannelPost>>
   >({});
   const [contentWorkspaceOpen, setContentWorkspaceOpen] = useState(false);
-  const [activeCard, setActiveCard] = useState<DisplayKey>("site_web");
+  const [selectedActiveCard, setActiveCard] = useState<DisplayKey>("site_web");
+  const activeCard = selectedActiveCard === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveCard;
   const [isMobile, setIsMobile] = useState(false);
   const [drawerViewportHeight, setDrawerViewportHeight] = useState<
     number | null
@@ -943,8 +948,9 @@ export default function PublishModal({
   const [channelImageEditors, setChannelImageEditors] = useState<
     Partial<Record<ChannelKey, ChannelImageEditorState>>
   >({});
-  const [activeImageChannel, setActiveImageChannel] =
+  const [selectedActiveImageChannel, setActiveImageChannel] =
     useState<ChannelKey>("site_web");
+  const activeImageChannel = selectedActiveImageChannel === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveImageChannel;
   const [activeImageKeyByChannel, setActiveImageKeyByChannel] = useState<
     Partial<Record<ChannelKey, string>>
   >({});
@@ -1022,6 +1028,7 @@ export default function PublishModal({
     inr_search: !!initialConnectedChannels?.inr_search,
     facebook: !!initialConnectedChannels?.facebook,
     instagram: !!initialConnectedChannels?.instagram,
+    threads: metaPilotEnabled && !!initialConnectedChannels?.threads,
     linkedin: !!initialConnectedChannels?.linkedin,
     x: !!initialConnectedChannels?.x,
     tiktok: !!initialConnectedChannels?.tiktok,
@@ -1817,7 +1824,7 @@ export default function PublishModal({
 
   const displayCards = useMemo(() => {
     return CHANNEL_KEYS.filter((key) => channels[key] && connected[key]);
-  }, [channels, connected]);
+  }, [channels, connected, CHANNEL_KEYS]);
 
   useEffect(() => {
     if (!displayCards.length) {
@@ -1834,7 +1841,7 @@ export default function PublishModal({
 
   const selectedChannels = useMemo(
     () => CHANNEL_KEYS.filter((key) => channels[key] && connected[key]),
-    [channels, connected],
+    [channels, connected, CHANNEL_KEYS],
   );
 
   const handlePreparedWorkspaceMedia = useCallback(
@@ -2607,9 +2614,10 @@ export default function PublishModal({
 
   const selectedForGeneration = useMemo(() => {
     return CHANNEL_KEYS.filter((channel) => channels[channel] && connected[channel]);
-  }, [channels, connected]);
+  }, [channels, connected, CHANNEL_KEYS]);
 
   const setSynchronizedActiveChannel = (channel: ChannelKey) => {
+    if (!CHANNEL_KEYS.includes(channel)) return;
     setActiveCard(channel);
     setActiveImageChannel(channel);
   };
@@ -2954,7 +2962,7 @@ export default function PublishModal({
           throw new Error(
             String(result?.error || "Brouillon publication introuvable."),
           );
-        const payload = normalizeSiteWebPublicationPayload((result?.payload || {}) as any);
+        const payload = filterMetaPilotPayload(normalizeSiteWebPublicationPayload((result?.payload || {}) as any), metaPilotEnabled);
         adoptMediaWorkspace(
           payload.mediaWorkspaceId,
           payload.mediaWorkspaceClientKey,
@@ -2965,7 +2973,7 @@ export default function PublishModal({
           : [];
         const savedChannels = rawChannels
           .map((value: unknown) => String(value || ""))
-          .filter(isChannelKey);
+          .filter(isChannelKey).filter((key: ChannelKey) => key !== "threads" || metaPilotEnabled);
         const nextChannels = CHANNEL_KEYS.reduce(
           (acc, key) => {
             acc[key] = savedChannels.length
@@ -3174,7 +3182,7 @@ export default function PublishModal({
           normalizeRestoredTiktokPublicationSettings(
             payload.tiktokPublicationSettings,
           );
-        const nextActiveCard = isChannelKey(payload.activeCard)
+        const nextActiveCard = isChannelKey(payload.activeCard) && CHANNEL_KEYS.includes(payload.activeCard)
           ? payload.activeCard
           : "site_web";
         const restoredInstagramSelection = normalizeMetaPublicationSelection(

@@ -181,6 +181,7 @@ export function channelDisplayName(channel: string | null | undefined) {
     google_business: "gmb",
     facebook: "facebook",
     instagram: "instagram",
+    threads: "threads",
     linkedin: "linkedin",
     x: "x",
     twitter: "x",

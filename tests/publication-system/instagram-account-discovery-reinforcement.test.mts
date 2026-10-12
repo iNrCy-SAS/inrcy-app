@@ -58,7 +58,7 @@ test("la réparation OAuth conserve le compte Instagram déjà sélectionné", (
 
   assert.match(start, /ig_repair/);
   assert.match(callback, /const repairMode = .*ig_repair/);
-  assert.match(callback, /const preserveSelection = repairMode && previousStatus === "connected"/);
+  assert.match(callback, /const preserveSelection = repairMode && previousAuthMode === "facebook_login" && previousStatus === "connected"/);
   assert.match(callback, /status: preserveSelection \? "connected" : "account_connected"/);
   assert.match(callback, /resource_id: preserveSelection \? previousResourceId : null/);
   assert.match(callback, /refreshedPageTokenEnc \|\| previousAccessTokenEnc \|\| encryptedToken/);

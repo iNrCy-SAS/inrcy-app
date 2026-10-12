@@ -1,4 +1,4 @@
-import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramAuthMode";
 import {
   isMetaAuthorizationError,
   isMetaRateLimitError,
@@ -58,6 +58,7 @@ export type InstagramBestEffortImagePublishResult = InstagramPublishResult & {
 export type InstagramTokenCandidate = {
   source: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
 };
 
 type InstagramPublishAttempt = {
@@ -229,6 +230,7 @@ function buildInstagramGraphFailure(params: {
 async function waitForContainerReady(params: {
   containerId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   maxAttempts?: number;
   initialDelayMs?: number;
 }): Promise<WaitForContainerReadyResult> {
@@ -249,7 +251,7 @@ async function waitForContainerReady(params: {
       access_token: accessToken,
     });
 
-    const url = `${buildMetaGraphUrl(encodeURIComponent(containerId))}?${qs.toString()}`;
+    const url = `${buildInstagramGraphUrl(encodeURIComponent(containerId), params.authMode)}?${qs.toString()}`;
     const { res, json } = await fetchJson(url, { method: "GET" });
 
     const row = {
@@ -296,6 +298,7 @@ async function waitForContainerReady(params: {
 async function createInstagramImageContainer(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   imageUrl: string;
   caption?: string;
   isCarouselItem?: boolean;
@@ -308,13 +311,14 @@ async function createInstagramImageContainer(params: {
   if (params.caption) createParams.set("caption", params.caption);
   if (params.isCarouselItem) createParams.set("is_carousel_item", "true");
 
-  const createUrl = `${buildMetaGraphUrl(`${encodeURIComponent(params.igUserId)}/media`)}?${createParams.toString()}`;
+  const createUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(params.igUserId)}/media`, params.authMode)}?${createParams.toString()}`;
   return fetchJson(createUrl, { method: "POST" });
 }
 
 async function publishInstagramContainer(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   creationId: string;
 }) {
   const publishParams = new URLSearchParams({
@@ -322,19 +326,20 @@ async function publishInstagramContainer(params: {
     access_token: params.accessToken,
   });
 
-  const publishUrl = `${buildMetaGraphUrl(`${encodeURIComponent(params.igUserId)}/media_publish`)}?${publishParams.toString()}`;
+  const publishUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(params.igUserId)}/media_publish`, params.authMode)}?${publishParams.toString()}`;
   return fetchJson(publishUrl, { method: "POST" });
 }
 
 async function getInstagramMediaDetails(params: {
   mediaId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
 }) {
   const qs = new URLSearchParams({
     fields: "id,media_type,media_product_type,permalink,children{id,media_type,permalink}",
     access_token: params.accessToken,
   });
-  const url = `${buildMetaGraphUrl(encodeURIComponent(params.mediaId))}?${qs.toString()}`;
+  const url = `${buildInstagramGraphUrl(encodeURIComponent(params.mediaId), params.authMode)}?${qs.toString()}`;
   return fetchJson(url, { method: "GET" });
 }
 
@@ -344,6 +349,7 @@ async function getInstagramMediaDetails(params: {
 export async function instagramPublishPhoto(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   caption: string;
   imageUrl: string;
 }): Promise<InstagramPublishResult> {
@@ -355,6 +361,7 @@ export async function instagramPublishPhoto(params: {
     if (!imageUrl) return { ok: false, error: "Ajoute au moins une image pour publier sur Instagram." };
 
     const { res: createRes, json: createJson } = await createInstagramImageContainer({
+      authMode: params.authMode,
       igUserId,
       accessToken,
       caption,
@@ -379,6 +386,7 @@ export async function instagramPublishPhoto(params: {
     }
 
     const waitResult = await waitForContainerReady({
+      authMode: params.authMode,
       containerId,
       accessToken,
       maxAttempts: 10,
@@ -398,6 +406,7 @@ export async function instagramPublishPhoto(params: {
     }
 
     const { res: publishRes, json: publishJson } = await publishInstagramContainer({
+      authMode: params.authMode,
       igUserId,
       accessToken,
       creationId: containerId,
@@ -454,6 +463,7 @@ export async function instagramPublishPhoto(params: {
 async function createInstagramVideoContainer(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   videoUrl: string;
   caption?: string;
 }) {
@@ -466,7 +476,7 @@ async function createInstagramVideoContainer(params: {
   if (params.caption) createParams.set("caption", params.caption);
   createParams.set("share_to_feed", "true");
 
-  const createUrl = `${buildMetaGraphUrl(`${encodeURIComponent(params.igUserId)}/media`)}?${createParams.toString()}`;
+  const createUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(params.igUserId)}/media`, params.authMode)}?${createParams.toString()}`;
   return fetchJson(createUrl, { method: "POST" });
 }
 
@@ -477,6 +487,7 @@ async function createInstagramVideoContainer(params: {
 export async function instagramPublishVideo(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   caption: string;
   videoUrl: string;
 }): Promise<InstagramPublishResult> {
@@ -488,6 +499,7 @@ export async function instagramPublishVideo(params: {
     if (!videoUrl?.trim()) return { ok: false, error: "Ajoutez une vidéo avant de publier sur Instagram." };
 
     const { res: createRes, json: createJson } = await createInstagramVideoContainer({
+      authMode: params.authMode,
       igUserId,
       accessToken,
       caption,
@@ -512,6 +524,7 @@ export async function instagramPublishVideo(params: {
     }
 
     const waitResult = await waitForContainerReady({
+      authMode: params.authMode,
       containerId,
       accessToken,
       maxAttempts: 14,
@@ -531,6 +544,7 @@ export async function instagramPublishVideo(params: {
     }
 
     const { res: publishRes, json: publishJson } = await publishInstagramContainer({
+      authMode: params.authMode,
       igUserId,
       accessToken,
       creationId: containerId,
@@ -586,6 +600,7 @@ export async function instagramPublishVideo(params: {
 export async function instagramPublishCarousel(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   caption: string;
   imageUrls: string[];
 }): Promise<InstagramPublishResult> {
@@ -597,7 +612,7 @@ export async function instagramPublishCarousel(params: {
     if (!accessToken) return { ok: false, error: "La connexion Instagram a expiré. Merci de reconnecter votre compte." };
     if (imageUrls.length === 0) return { ok: false, error: "Ajoute au moins une image pour publier sur Instagram." };
     if (imageUrls.length === 1) {
-      return instagramPublishPhoto({ igUserId, accessToken, caption, imageUrl: imageUrls[0] });
+      return instagramPublishPhoto({ igUserId, accessToken, authMode: params.authMode, caption, imageUrl: imageUrls[0] });
     }
 
     const childCandidates: Array<{
@@ -617,6 +632,7 @@ export async function instagramPublishCarousel(params: {
       try {
         const { res: childRes, json: childJson } =
           await createInstagramImageContainer({
+            authMode: params.authMode,
             igUserId,
             accessToken,
             imageUrl,
@@ -673,6 +689,7 @@ export async function instagramPublishCarousel(params: {
     const readyChildren: typeof childCandidates = [];
     for (const child of childCandidates) {
       const waitResult = await waitForContainerReady({
+        authMode: params.authMode,
         containerId: child.containerId,
         accessToken,
         maxAttempts: 10,
@@ -702,6 +719,7 @@ export async function instagramPublishCarousel(params: {
     );
     if (readyChildren.length === 1) {
       const photoResult = await instagramPublishPhoto({
+        authMode: params.authMode,
         igUserId,
         accessToken,
         caption,
@@ -754,7 +772,7 @@ export async function instagramPublishCarousel(params: {
       access_token: accessToken,
     });
 
-    const createUrl = `${buildMetaGraphUrl(`${encodeURIComponent(igUserId)}/media`)}?${createParams.toString()}`;
+    const createUrl = `${buildInstagramGraphUrl(`${encodeURIComponent(igUserId)}/media`, params.authMode)}?${createParams.toString()}`;
     const { res: createRes, json: createJson } = await fetchJson(createUrl, { method: "POST" });
 
     if (!createRes.ok) {
@@ -775,6 +793,7 @@ export async function instagramPublishCarousel(params: {
     }
 
     const waitResult = await waitForContainerReady({
+      authMode: params.authMode,
       containerId,
       accessToken,
       maxAttempts: 10,
@@ -798,6 +817,7 @@ export async function instagramPublishCarousel(params: {
     }
 
     const { res: publishRes, json: publishJson } = await publishInstagramContainer({
+      authMode: params.authMode,
       igUserId,
       accessToken,
       creationId: containerId,
@@ -839,7 +859,7 @@ export async function instagramPublishCarousel(params: {
       };
     }
 
-    const { res: detailsRes, json: detailsJson } = await getInstagramMediaDetails({ mediaId, accessToken });
+    const { res: detailsRes, json: detailsJson } = await getInstagramMediaDetails({ mediaId, accessToken, authMode: params.authMode });
     const childMediaIds = Array.isArray(detailsJson?.children?.data)
       ? detailsJson.children.data.map((child: any) => String(child?.id || "").trim()).filter(Boolean)
       : [];
@@ -880,16 +900,18 @@ export async function instagramPublishCarousel(params: {
 export async function instagramPublishPhotoWithTokenFallback(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   tokenCandidates?: InstagramTokenCandidate[];
   caption: string;
   imageUrl: string;
 }): Promise<InstagramPublishResult> {
-  const candidates = normalizeTokenCandidates(params.accessToken, params.tokenCandidates);
+  const candidates = normalizeTokenCandidates(params.accessToken, params.authMode === "instagram_login" ? [] : params.tokenCandidates);
   const attempts: InstagramPublishAttempt[] = [];
   let lastResult: InstagramPublishResult | null = null;
 
   for (const candidate of candidates) {
     const result = await instagramPublishPhoto({
+      authMode: params.authMode,
       igUserId: params.igUserId,
       accessToken: candidate.accessToken,
       caption: params.caption,
@@ -917,16 +939,18 @@ export async function instagramPublishPhotoWithTokenFallback(params: {
 export async function instagramPublishCarouselWithTokenFallback(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   tokenCandidates?: InstagramTokenCandidate[];
   caption: string;
   imageUrls: string[];
 }): Promise<InstagramPublishResult> {
-  const candidates = normalizeTokenCandidates(params.accessToken, params.tokenCandidates);
+  const candidates = normalizeTokenCandidates(params.accessToken, params.authMode === "instagram_login" ? [] : params.tokenCandidates);
   const attempts: InstagramPublishAttempt[] = [];
   let lastResult: InstagramPublishResult | null = null;
 
   for (const candidate of candidates) {
     const result = await instagramPublishCarousel({
+      authMode: params.authMode,
       igUserId: params.igUserId,
       accessToken: candidate.accessToken,
       caption: params.caption,
@@ -982,6 +1006,7 @@ export async function instagramPublishImagesBestEffortWithTokenFallback(
   params: {
     igUserId: string;
     accessToken: string;
+    authMode?: InstagramAuthMode;
     tokenCandidates?: InstagramTokenCandidate[];
     caption: string;
     imageUrls: string[];
@@ -995,6 +1020,7 @@ export async function instagramPublishImagesBestEffortWithTokenFallback(
 
   if (requestedImageCount <= 1) {
     const result = await instagramPublishPhotoWithTokenFallback({
+      authMode: params.authMode,
       ...params,
       imageUrl: imageUrls[0] || "",
     });
@@ -1007,6 +1033,7 @@ export async function instagramPublishImagesBestEffortWithTokenFallback(
   }
 
   const carouselResult = await instagramPublishCarouselWithTokenFallback({
+    authMode: params.authMode,
     ...params,
     imageUrls,
   });
@@ -1036,6 +1063,7 @@ export async function instagramPublishImagesBestEffortWithTokenFallback(
   }
 
   const photoResult = await instagramPublishPhotoWithTokenFallback({
+    authMode: params.authMode,
     igUserId: params.igUserId,
     accessToken: params.accessToken,
     tokenCandidates: params.tokenCandidates,
@@ -1064,16 +1092,18 @@ export async function instagramPublishImagesBestEffortWithTokenFallback(
 export async function instagramPublishVideoWithTokenFallback(params: {
   igUserId: string;
   accessToken: string;
+  authMode?: InstagramAuthMode;
   tokenCandidates?: InstagramTokenCandidate[];
   caption: string;
   videoUrl: string;
 }): Promise<InstagramPublishResult> {
-  const candidates = normalizeTokenCandidates(params.accessToken, params.tokenCandidates);
+  const candidates = normalizeTokenCandidates(params.accessToken, params.authMode === "instagram_login" ? [] : params.tokenCandidates);
   const attempts: InstagramPublishAttempt[] = [];
   let lastResult: InstagramPublishResult | null = null;
 
   for (const candidate of candidates) {
     const result = await instagramPublishVideo({
+      authMode: params.authMode,
       igUserId: params.igUserId,
       accessToken: candidate.accessToken,
       caption: params.caption,
