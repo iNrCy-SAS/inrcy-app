@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { defaultLinkedInDeliverySettings } from "../lib/adsLinkedInCampaignSettings.ts";
+import { prepareLinkedInPlanForGroup } from "../lib/adsLinkedInCalendarReadiness.ts";
 import { ADS_LIVE_PUBLISH_CONFIRMATION, ADS_PAUSED_PUBLISH_CONFIRMATION } from "../lib/adsPublishMode.ts";
 import { normalizeLinkedInGeoTargets, parseAdsCampaignInput, type AdsCampaignInput } from "../lib/adsValidation.ts";
 import { buildLinkedInGeoQueries, linkedInGeoQueryKey } from "../lib/adsLinkedInGeoQueries.ts";
@@ -157,6 +158,7 @@ test("opening and confirming a disabled LinkedIn launch return before any accoun
 const launchGroup = {
   id: "987", urn: "urn:li:sponsoredCampaignGroup:987", name: "Groupe vérifié", status: "ACTIVE",
   objectiveType: "WEBSITE_VISIT", allowedCampaignTypes: ["SPONSORED_UPDATES"],
+  runSchedule: {}, organizationUrn: "urn:li:organization:456", account: "urn:li:sponsoredAccount:12345",
 };
 const launchOrganization = { urn: "urn:li:organization:456", role: "ADMINISTRATOR" };
 const launchGeo = { urn: "urn:li:geo:104609892", name: "Arras, Hauts-de-France, France", facetUrn: "urn:li:adTargetingFacet:locations" };
@@ -232,6 +234,7 @@ function launchHarness(options: {
     setDirty: (value: boolean) => { dirty = value; }, linkedInGeoDismissedUrns: { current: new Set<string>() },
     normalizeLinkedInGeoTargets, parseAdsCampaignInput, linkedInAdsContextualGeoDefaults, linkedInAdsLaunchBlockerMessage,
     linkedInAdsLaunchBlockers, linkedInAdsLaunchPreflightKey, linkedInAdsVerifiedBidDefault,
+    prepareLinkedInPlanForGroup, linkedInManualGroupId: { current: null }, linkedInPlanEndIsExplicit: { current: true },
     applyDraftEdit: actualFunction("applyDraftEdit", {}),
     linkedInCampaignGroupIsCompatible: actualFunction("linkedInCampaignGroupIsCompatible", {}),
     savedId,
@@ -506,6 +509,7 @@ test("the actual preflight request serializes the effective draft rather than th
   const fetchPreflight = actualFunction("fetchLinkedInPreflight", {
     draft, externalStatuses: { linkedin: { selectedAccountId: "123" } },
     linkedInPreflightContext: { current: 0 },
+    linkedInLatestPreflightSignature: { current: linkedInAdsAutomaticPreflightKey("123", effective) }, linkedInAdsAutomaticPreflightKey,
     linkedInPreflightCache: { current: new Map() },
     setLinkedInPreflight: () => {}, buildLinkedInGeoQueries, linkedInGeoQueryKey,
     fetch: async (url: string) => { requestedUrl = url; return freshLaunchPreflight(); },
@@ -562,6 +566,7 @@ test("a stale website-visit default cannot attach its group after the objective 
   const expected = current;
   const apply = actualFunction("applyLinkedInProviderDefaults", {
     draft: base, externalStatuses: { linkedin: { selectedAccountId: "12345" } },
+    prepareLinkedInPlanForGroup, linkedInManualGroupId: { current: null }, linkedInPlanEndIsExplicit: { current: true },
     linkedInGeoDismissedUrns: { current: new Set<string>() },
     normalizeLinkedInGeoTargets, linkedInAdsContextualGeoDefaults, linkedInAdsAutomaticPreflightKey, linkedInAdsVerifiedBidDefault,
     linkedInCampaignGroupIsCompatible: actualFunction("linkedInCampaignGroupIsCompatible", {}),
