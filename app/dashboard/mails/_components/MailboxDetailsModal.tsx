@@ -2023,7 +2023,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                               </div>
                             </>
                           ) : (
-                            <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: 12, alignItems: instagramPublishedDeleteUnavailable ? "baseline" : "center", justifyContent: "space-between", flexWrap: "wrap" }}>
                               <div className={styles.detailPillsWrap}>
                                 {publicationChannelEntries.length ? (
                                   publicationChannelEntries.map((entry, idx) => {
@@ -2059,7 +2059,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 )}
                               </div>
                               {activePublicationEntry ? (
-                                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginLeft: "auto" }}>
+                                <div style={{ display: "flex", gap: 10, alignItems: instagramPublishedDeleteUnavailable ? "baseline" : "center", flexWrap: "wrap", marginLeft: "auto" }}>
                                   {detailsActionSuccess ? (
                                     <div className={styles.detailsSuccessInline}>
                                       <b>{i18nT("action_7392d4ef")}</b> {detailsActionSuccess}
