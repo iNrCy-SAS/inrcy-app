@@ -605,5 +605,7 @@
   "threads_connect": "Threads verbinden",
   "threads_view_profile": "Threads-Profil ansehen",
   "threads_description": "Tauschen Sie sich mit Ihrer Community aus",
-  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten."
+  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
+  "instagram_callback_error": "Die Instagram-Verbindung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+  "threads_callback_error": "Die Threads-Verbindung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut."
 }

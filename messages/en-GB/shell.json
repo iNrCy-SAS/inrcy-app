@@ -605,5 +605,7 @@
   "threads_connect": "Connect Threads",
   "threads_view_profile": "View Threads profile",
   "threads_description": "Connect with your community",
-  "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft."
+  "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft.",
+  "instagram_callback_error": "The Instagram connection could not be completed. Please try again.",
+  "threads_callback_error": "The Threads connection could not be completed. Please try again."
 }

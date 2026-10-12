@@ -605,5 +605,7 @@
   "threads_connect": "เชื่อมต่อ Threads",
   "threads_view_profile": "ดูโปรไฟล์ Threads",
   "threads_description": "พูดคุยกับชุมชนของคุณ",
-  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้"
+  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
+  "instagram_callback_error": "ไม่สามารถเชื่อมต่อ Instagram ให้เสร็จสิ้นได้ โปรดลองอีกครั้ง",
+  "threads_callback_error": "ไม่สามารถเชื่อมต่อ Threads ให้เสร็จสิ้นได้ โปรดลองอีกครั้ง"
 }

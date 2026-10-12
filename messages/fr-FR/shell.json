@@ -605,5 +605,7 @@
   "threads_connect": "Connecter Threads",
   "threads_view_profile": "Voir le profil Threads",
   "threads_description": "Échangez avec votre communauté",
-  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon."
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
+  "instagram_callback_error": "La connexion Instagram n’a pas pu être finalisée. Réessayez.",
+  "threads_callback_error": "La connexion Threads n’a pas pu être finalisée. Réessayez."
 }

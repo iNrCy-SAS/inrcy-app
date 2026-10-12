@@ -38,11 +38,11 @@ const responseFactory = {
   redirect(url: string | URL) { const values = new Map<string, { value: string; options: any }>(); return { status: 307, headers: new Headers({ location: String(url) }), cookies: { set(name: string, value: string, options: unknown) { values.set(name, { value, options }); } }, cookieValues: values }; },
   json(body: unknown, options?: { status?: number }) { return { status: options?.status ?? 200, body }; },
 };
-function harness(options: { actorAdmin?: boolean; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; responseThrows?: boolean; personal?: boolean } = {}) {
+function harness(options: { actorAdmin?: boolean; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
   const actorAdmin = options.actorAdmin ?? true, role = options.accountRole ?? "admin";
   const saves: any[] = [], calls: any[] = [], events: any[] = [];
   const query = { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: { role, meta: { publication_preferences: { mode: "reels" }, page_id: "legacy-page" } }, error: null }; } };
-  const admin = { from: () => query, async rpc(name: string, args: any) { saves.push({ name, args }); return { error: null }; } };
+  const admin = { from: () => query, async rpc(name: string, args: any) { saves.push({ name, args }); return { error: options.saveError ?? null }; } };
   const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin }) }, "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false } });
   const oauth = load("lib/metaDirectOAuth.ts", {
     "next/server": { NextResponse: responseFactory },
@@ -58,11 +58,16 @@ function harness(options: { actorAdmin?: boolean; accountRole?: string; authenti
     "@/lib/metaDirectTokens": { ...tokens,
       fetchMetaDirectJson: async (input: string | URL, init?: RequestInit) => {
         const url = new URL(String(input)); calls.push({ url, init });
+        const requestStage = url.pathname.endsWith("oauth/access_token") ? "token_exchange" : url.pathname.endsWith("debug_token") ? "token_inspection" : "profile";
+        if (options.failAt === requestStage) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400, { httpStatus: 400, metaCode: 100, metaSubcode: 33 });
         if (options.responseThrows) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400);
         if (url.pathname.endsWith("oauth/access_token")) return { access_token: "fixture-short-token", permissions: options.partialScopes ? ["instagram_business_basic"] : [...authMode.INSTAGRAM_DIRECT_SCOPES] };
         if (url.pathname.endsWith("debug_token")) return { data: { is_valid: true, app_id: ENV.THREADS_APP_ID, scopes: options.partialScopes ? ["threads_basic"] : [...threadsGraph.THREADS_SCOPES] } };
         return url.host === "graph.instagram.com" ? { data: [{ user_id: "1234567890", username: "brand", account_type: options.personal ? "PERSONAL" : "BUSINESS" }] } : { id: "1234567891", username: "thread-brand" };
-      }, exchangeMetaDirectLongToken: async () => ({ accessToken: "fixture-long-token", expiresAt: new Date(Date.now() + 60 * 86400000).toISOString() }),
+      }, exchangeMetaDirectLongToken: async () => {
+        if (options.failAt === "long_token_exchange") throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400, { httpStatus: 400, metaCode: 100, metaSubcode: 33 });
+        return { accessToken: "fixture-long-token", expiresAt: new Date(Date.now() + 60 * 86400000).toISOString() };
+      },
     },
   });
   const callback = (provider: "instagram" | "threads", changes?: { missingCookie?: boolean; legacyCookie?: boolean; malformedCookie?: boolean; tamper?: boolean; account?: string; code?: string }) => {
@@ -118,7 +123,10 @@ test("Successful callbacks save one transaction with bound IDs and preferences, 
   for (const provider of ["instagram", "threads"] as const) {
     const h = harness(); const result = await h.module.handleMetaDirectOAuthCallback(h.callback(provider), provider);
     assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "1"); assert.equal(h.saves.length, 1);
-    const saved = h.saves[0]; assert.equal(saved.name, "save_meta_direct_connection"); assert.equal(saved.args.p_account_id, ACCOUNT); assert.equal(saved.args.p_admin_pilot, true);
+    const saved = h.saves[0];
+    assert.equal(saved.args.p_integration.scopes, (provider === "instagram" ? authMode.INSTAGRAM_DIRECT_SCOPES : threadsGraph.THREADS_SCOPES).join(" "));
+    assert.equal(saved.args.p_integration.scope, undefined);
+    assert.equal(saved.name, "save_meta_direct_connection"); assert.equal(saved.args.p_account_id, ACCOUNT); assert.equal(saved.args.p_admin_pilot, true);
     assert.equal(saved.args.p_integration.resource_id, provider === "instagram" ? "1234567890" : "1234567891");
     assert.equal(encryption.decryptToken(saved.args.p_integration.access_token_enc), "fixture-long-token");
     assert.deepEqual(saved.args.p_integration.meta.publication_preferences, { mode: "reels" }); assert.equal(saved.args.p_integration.meta.page_id, undefined);
@@ -241,5 +249,33 @@ test("A callback configured on another origin cannot start OAuth or save a conne
     assert.equal(destination.searchParams.get("error"), "meta_oauth_config_missing");
     assert.equal(destination.searchParams.get("ok"), "0");
     assert.equal(h.calls.length, 0); assert.equal(h.saves.length, 0);
+  }
+}));
+
+test("Callback failures identify only the failed Meta step and safe numeric diagnostics", async () => configured(async () => {
+  for (const failAt of ["token_exchange", "token_inspection", "long_token_exchange", "profile"] as const) {
+    const h = harness({ failAt });
+    const result = await h.module.handleMetaDirectOAuthCallback(h.callback("threads"), "threads");
+    assert.equal(new URL(result.headers.get("location")).searchParams.get("error"), "meta_permission_or_request_failed");
+    assert.equal(h.saves.length, 0);
+    const event = h.events.at(-1);
+    assert.equal(event.stage, failAt);
+    assert.equal(event.httpStatus, 400); assert.equal(event.metaCode, 100); assert.equal(event.metaSubcode, 33);
+    for (const secret of ["fixture-code-secret", "fixture-short-token", "fixture-long-token", ENV.THREADS_APP_SECRET]) assert.equal(JSON.stringify(h.events).includes(secret), false);
+  }
+}));
+
+test("Connection save failure logs only the allowlisted SQLSTATE and preserves credential privacy", async () => configured(async () => {
+  for (const databaseCode of ["42703", "PGRST202", "DO_NOT_EXPOSE_DATABASE_SECRET"]) {
+    const h = harness({ saveError: { code: databaseCode, details: "DO_NOT_EXPOSE_DATABASE_ROW_TOKEN" } });
+    const result = await h.module.handleMetaDirectOAuthCallback(h.callback("instagram"), "instagram");
+    const destination = new URL(result.headers.get("location"));
+    assert.equal(destination.searchParams.get("error"), "meta_connection_save_failed");
+    assert.equal(h.events.at(-1).stage, "connection_save");
+    assert.equal(h.events.at(-1).database_code, databaseCode.startsWith("DO_NOT") ? undefined : databaseCode);
+    for (const secret of ["DO_NOT_EXPOSE_DATABASE_SECRET", "DO_NOT_EXPOSE_DATABASE_ROW_TOKEN", "fixture-code-secret", "fixture-long-token"]) {
+      assert.equal(JSON.stringify(h.events).includes(secret), false);
+      assert.equal(destination.toString().includes(secret), false);
+    }
   }
 }));

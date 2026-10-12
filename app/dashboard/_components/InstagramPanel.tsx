@@ -9,6 +9,7 @@ import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import ConnectionPill from "./ConnectionPill";
 import socialStyles from "./SocialSettingsSteps.module.css";
 import StatusMessage from "./StatusMessage";
+import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 import EditableChannelUrlField from "./EditableChannelUrlField";
 import {
   DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
@@ -166,6 +167,7 @@ export default function InstagramPanel(props: any) {
 
   return (
     <div className={`${socialStyles.journey} ${socialStyles.instagram}`}>
+      <MetaOAuthCallbackNotice provider="instagram" />
       <section className={`${socialStyles.stepCard} ${socialStyles.instagram}`} style={{ overflow: "visible", zIndex: facebookLoginMenuOpen ? 3 : undefined }}>
         <div className={socialStyles.stepHeader}>
           <span className={socialStyles.stepNumber} aria-hidden="true">01</span>

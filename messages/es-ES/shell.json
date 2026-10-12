@@ -605,5 +605,7 @@
   "threads_connect": "Conectar Threads",
   "threads_view_profile": "Ver el perfil de Threads",
   "threads_description": "Converse con su comunidad",
-  "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador."
+  "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador.",
+  "instagram_callback_error": "No se ha podido completar la conexión con Instagram. Inténtalo de nuevo.",
+  "threads_callback_error": "No se ha podido completar la conexión con Threads. Inténtalo de nuevo."
 }

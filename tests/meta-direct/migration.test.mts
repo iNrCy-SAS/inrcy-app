@@ -8,17 +8,20 @@ const ADMIN = "00000000-0000-4000-8000-000000000001";
 const USER = "00000000-0000-4000-8000-000000000002";
 const HARD_ADMIN = "670b527d-5e08-42b4-ba95-e58e812339eb";
 const sql = readFileSync(new URL("../../supabase/migrations/20261012115509_meta_direct_channels_admin_pilot.sql", import.meta.url), "utf8");
+const scopeFixSql = readFileSync(new URL("../../supabase/migrations/20261012143832_fix_meta_direct_connection_scopes.sql", import.meta.url), "utf8");
 async function rows(db: PGlite, query: string, args: unknown[] = []) { return (await db.query<Record<string, any>>(query, args)).rows; }
-async function fixture() {
+async function fixture(applyScopeFix = true) {
   const db = new PGlite();
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
-    create table public.profiles(user_id uuid primary key, role text, stats_version integer default 0, stats_cache_epoch integer default 0);
+    create table public.inrcy_accounts(id uuid primary key);
+    create table public.profiles(user_id uuid primary key, role text, stats_version bigint default 0, stats_cache_epoch integer default 0);
     create table public.app_bubble_access(user_id uuid,bubble_key text,enabled boolean,updated_at timestamptz default now(),primary key(user_id,bubble_key));
-    create table public.pro_tools_configs(user_id uuid primary key,settings jsonb,updated_at timestamptz default now());
-    create table public.integrations(id uuid primary key default gen_random_uuid(),user_id uuid,provider text,category text,source text,product text,status text,resource_id text,resource_label text,display_name text,access_token_enc text,refresh_token_enc text,expires_at timestamptz,scope text,meta jsonb,updated_at timestamptz default now(),unique(user_id,provider,source,product));
+    create table public.pro_tools_configs(user_id uuid primary key references public.inrcy_accounts(id),settings jsonb,updated_at timestamptz default now());
+    create table public.integrations(id uuid primary key default gen_random_uuid(),user_id uuid references public.inrcy_accounts(id),provider text,category text,source text,product text,status text,resource_id text,resource_label text,display_name text,access_token_enc text,refresh_token_enc text,expires_at timestamptz,scopes text,meta jsonb,updated_at timestamptz default now(),unique(user_id,provider,source,product));
     create function public.create_default_bubble_access() returns trigger language plpgsql as $$ begin return new; end; $$;
     create trigger default_bubbles after insert on public.profiles for each row execute function public.create_default_bubble_access();
+    insert into public.inrcy_accounts(id) values ('${ADMIN}'),('${USER}'),('${HARD_ADMIN}');
     insert into public.profiles(user_id,role) values ('${ADMIN}','admin'),('${USER}','user'),('${HARD_ADMIN}','user');
     insert into public.app_bubble_access(user_id,bubble_key,enabled) values ('${ADMIN}','facebook',true),('${USER}','facebook',true);
     insert into public.pro_tools_configs(user_id,settings) values ('${ADMIN}','{"instagram":{"publicationPreferences":{"reels":true},"connected":true},"threads":{"publicationPreferences":{"reply_control":"followers_only"}},"site_web":{"url":"https://preserved.example"},"generalPreferences":{"language":"fr-FR"}}'),('${USER}','{"site_web":{"url":"https://user.example"}}');
@@ -28,10 +31,12 @@ async function fixture() {
     grant usage on schema public to service_role;
     grant all on public.profiles,public.pro_tools_configs,public.integrations,public.app_bubble_access to service_role;
   `);
-  await db.exec(sql); return db;
+  await db.exec(sql);
+  if (applyScopeFix) await db.exec(scopeFixSql);
+  return db;
 }
-function integration(account: string, channel: "instagram" | "threads", resourceId = "direct-profile") { return { user_id: account, provider: channel, source: channel, product: channel, status: "connected", resource_id: resourceId, resource_label: "brand", display_name: channel, access_token_enc: "fixture-encrypted-token", expires_at: "2030-01-01T00:00:00Z", scope: "fixture-scope", meta: { auth_mode: channel === "instagram" ? "instagram_login" : "threads_login", publication_preferences: { reels: true } } }; }
-async function save(db: PGlite, account: string, channel: "instagram" | "threads", settings: any = { accountConnected: true, connected: true, username: "brand", url: "https://public.example" }, data = integration(account, channel)) {
+function integration(account: string, channel: "instagram" | "threads", resourceId = "direct-profile") { return { user_id: account, provider: channel, source: channel, product: channel, status: "connected", resource_id: resourceId, resource_label: "brand", display_name: channel, access_token_enc: "fixture-encrypted-token", expires_at: "2030-01-01T00:00:00Z", scopes: "fixture-scope", meta: { auth_mode: channel === "instagram" ? "instagram_login" : "threads_login", publication_preferences: { reels: true } } }; }
+async function save(db: PGlite, account: string, channel: "instagram" | "threads", settings: any = { accountConnected: true, connected: true, username: "brand", url: "https://public.example" }, data: Record<string, unknown> = integration(account, channel)) {
   return db.query("select public.save_meta_direct_connection($1::uuid,$2::text,$3::jsonb,$4::jsonb,true)", [account, channel, JSON.stringify(data), JSON.stringify(settings)]);
 }
 
@@ -44,7 +49,7 @@ test("Migration seeds Threads only for ADMIN/allow-listed accounts and enforces 
     for (const role of ["anon", "authenticated"]) for (const signature of signatures) assert.equal((await rows(db, "select has_function_privilege($1,$2,'EXECUTE') as allowed", [role, signature]))[0].allowed, false);
     for (const signature of signatures.slice(0, 2)) assert.equal((await rows(db, "select has_function_privilege('service_role',$1,'EXECUTE') as allowed", [signature]))[0].allowed, true);
     await db.exec("set role authenticated"); await assert.rejects(save(db, ADMIN, "threads"), /permission denied/); await db.exec("reset role");
-    await db.exec(sql); assert.equal((await rows(db, "select count(*)::integer as n from public.app_bubble_access where bubble_key='threads'"))[0].n, 3);
+    await db.exec(sql); await db.exec(scopeFixSql); assert.equal((await rows(db, "select count(*)::integer as n from public.app_bubble_access where bubble_key='threads'"))[0].n, 3);
     const newAdmin = "00000000-0000-4000-8000-000000000003", newUser = "00000000-0000-4000-8000-000000000004";
     await db.query("insert into public.profiles(user_id,role) values ($1,'admin'),($2,'user')", [newAdmin, newUser]);
     assert.equal((await rows(db, "select enabled from public.app_bubble_access where user_id=$1 and bubble_key='threads'", [newAdmin]))[0].enabled, true);
@@ -107,5 +112,61 @@ test("Malformed UI configuration also prevents partial disconnect of a valid dir
       assert.equal((await rows(db, "select count(*)::integer as n from public.integrations where provider='instagram'"))[0].n, 1);
       assert.equal((await rows(db, "select stats_version from public.profiles where user_id=$1", [ADMIN]))[0].stats_version, 1);
     }
+  } finally { await db.close(); }
+});
+
+
+test("The live scopes-only schema reproduces 42703 before the follow-up and service_role saves legacy and canonical payloads afterwards", async () => {
+  const db = await fixture(false);
+  try {
+    const before = await rows(db, "select * from public.integrations order by provider");
+    await db.exec("set role service_role");
+    await assert.rejects(save(db, ADMIN, "instagram"), (error: any) => error.code === "42703" && /column \"scope\"/.test(error.message));
+    assert.deepEqual(await rows(db, "select * from public.integrations order by provider"), before);
+    assert.equal((await rows(db, "select stats_version::text as version from public.profiles where user_id=$1", [ADMIN]))[0].version, "0");
+    await db.exec("reset role");
+    await db.exec(scopeFixSql);
+    await db.exec("set role service_role");
+
+    const { scopes: legacyScopes, ...legacy } = integration(ADMIN, "instagram");
+    await save(db, ADMIN, "instagram", undefined, { ...legacy, scope: legacyScopes });
+    assert.equal((await rows(db, "select scopes from public.integrations where user_id=$1 and provider='instagram'", [ADMIN]))[0].scopes, "fixture-scope");
+    await save(db, ADMIN, "threads", undefined, { ...integration(ADMIN, "threads"), scopes: "canonical-scopes", scope: "older-scopes" });
+    assert.equal((await rows(db, "select scopes from public.integrations where user_id=$1 and provider='threads'", [ADMIN]))[0].scopes, "canonical-scopes");
+    await save(db, ADMIN, "threads", undefined, { ...integration(ADMIN, "threads"), scopes: null, scope: "fallback-scopes" });
+    assert.equal((await rows(db, "select scopes from public.integrations where user_id=$1 and provider='threads'", [ADMIN]))[0].scopes, "fallback-scopes");
+    assert.deepEqual((await rows(db, "select * from public.integrations where provider='facebook'"))[0], before.find(row => row.provider === "facebook"));
+    assert.equal((await rows(db, "select stats_version::text as version from public.profiles where user_id=$1", [ADMIN]))[0].version, "3");
+  } finally { await db.close(); }
+});
+
+test("A service_role save that fails after the integration upsert rolls back credentials, scopes, settings and BIGINT versions", async () => {
+  const db = await fixture();
+  try {
+    await db.exec(`
+      update public.profiles set stats_version=9007199254740993,stats_cache_epoch=7 where user_id='${ADMIN}';
+      create function public.reject_fixture_projection() returns trigger language plpgsql as $$
+        begin
+          if new.settings#>>'{instagram,username}'='reject-fixture' then raise exception 'Fixture UI projection rejected'; end if;
+          return new;
+        end;
+      $$;
+      create trigger reject_fixture_projection before insert or update on public.pro_tools_configs for each row execute function public.reject_fixture_projection();
+    `);
+    await db.exec("set role service_role");
+    await save(db, ADMIN, "instagram");
+    const beforeIntegration = await rows(db, "select * from public.integrations order by provider");
+    const beforeConfigs = await rows(db, "select * from public.pro_tools_configs order by user_id");
+    const beforeVersions = await rows(db, "select stats_version::text as version,stats_cache_epoch from public.profiles where user_id=$1", [ADMIN]);
+    assert.equal(beforeVersions[0].version, "9007199254740994");
+    assert.equal(beforeVersions[0].stats_cache_epoch, 8);
+    await assert.rejects(save(db, ADMIN, "instagram", { connected: true, username: "reject-fixture" }, {
+      ...integration(ADMIN, "instagram", "another-profile"), scopes: "new-scopes", access_token_enc: "new-fixture-ciphertext",
+    }), /Fixture UI projection rejected/);
+    assert.deepEqual(await rows(db, "select * from public.integrations order by provider"), beforeIntegration);
+    assert.deepEqual(await rows(db, "select * from public.pro_tools_configs order by user_id"), beforeConfigs);
+    assert.deepEqual(await rows(db, "select stats_version::text as version,stats_cache_epoch from public.profiles where user_id=$1", [ADMIN]), beforeVersions);
+    await assert.rejects(save(db, USER, "threads"), /restricted to ADMIN/);
+    await assert.rejects(save(db, ADMIN, "threads", {}, integration(USER, "threads")), /Invalid Meta connection/);
   } finally { await db.close(); }
 });

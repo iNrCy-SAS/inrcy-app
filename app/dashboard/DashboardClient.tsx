@@ -3272,7 +3272,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       return;
     }
     if (linked === "instagram") {
-      setPanelSuccess("instagram", "Compte Instagram connecté. Choisissez maintenant le profil à utiliser.", 3200);
+      if (searchParams.get("ig_login") !== "direct") {
+        setPanelSuccess("instagram", "Compte Instagram connecté. Choisissez maintenant le profil à utiliser.", 3200);
+      }
       void syncInstagramStateFromServer({ preserveSelection: true });
       return;
     }
@@ -3309,6 +3311,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     const error = searchParams.get("error");
     const message = searchParams.get("message");
     if (!linked || ok !== "0" || (!error && !message)) return;
+    // Direct callback feedback is rendered persistently by the panel, outside the Facebook profile step.
+    if (linked === "instagram" && searchParams.get("ig_login") === "direct") return;
 
     const byLinked = linked === "facebook" || linked === "instagram" || linked === "linkedin" || linked === "gmb" ? linked : null;
     const byPanel = panel === "facebook" || panel === "instagram" || panel === "linkedin" || panel === "gmb" ? panel : null;

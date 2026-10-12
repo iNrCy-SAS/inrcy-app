@@ -104,6 +104,8 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     return response;
   };
   if (!stateValid || !state.ok) return finish(false, "oauth_state", "La connexion a expiré. Relancez-la depuis l’application.");
+  let stage = "authorization";
+  let databaseCode: string | undefined;
   try {
     const supabase = await createSupabaseServer();
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -123,11 +125,13 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     const shortFields = { client_id: config.appId!, client_secret: config.appSecret!, grant_type: "authorization_code", redirect_uri: config.redirectUri, code: code.replace(/#_$/, "") };
     const form = provider === "instagram" ? new FormData() : new URLSearchParams();
     for (const [key, value] of Object.entries(shortFields)) form.set(key, value);
+    stage = "token_exchange";
     const shortToken = await fetchMetaDirectJson(provider === "instagram" ? "https://api.instagram.com/oauth/access_token" : "https://graph.threads.com/oauth/access_token", { method: "POST", body: form });
     const accessToken = asString(shortToken.access_token);
     if (!accessToken) throw new MetaDirectApiError("meta_token_missing", "Meta n’a pas fourni de token. Relancez la connexion.", 502);
     let grantedScopes = parseMetaDirectScopes(shortToken.permissions ?? shortToken.scope);
     if (provider === "threads") {
+      stage = "token_inspection";
       const debugUrl = new URL(buildThreadsGraphUrl("debug_token"));
       debugUrl.searchParams.set("input_token", accessToken);
       debugUrl.searchParams.set("access_token", accessToken);
@@ -137,14 +141,17 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
       }
       grantedScopes = parseMetaDirectScopes(debugData.scopes);
     }
+    stage = "permissions";
     const scopes = provider === "instagram" ? INSTAGRAM_DIRECT_SCOPES : THREADS_SCOPES;
     if (scopes.some((scope) => !grantedScopes.includes(scope))) {
       throw new MetaDirectApiError("meta_permissions_incomplete", "Accordez les autorisations de connexion, publication et statistiques demandées par iNrCy, puis relancez la connexion.", 403);
     }
+    stage = "long_token_exchange";
     const longToken = await exchangeMetaDirectLongToken(provider, accessToken, config.appSecret!);
     const profileUrl = new URL(provider === "instagram" ? buildInstagramGraphUrl("me", "instagram_login") : buildThreadsGraphUrl("me"));
     profileUrl.searchParams.set("fields", provider === "instagram" ? "user_id,username,account_type" : "id,username,name,threads_profile_picture_url");
     profileUrl.searchParams.set("access_token", longToken.accessToken);
+    stage = "profile";
     const profileData = await fetchMetaDirectJson(profileUrl);
     const profile = Array.isArray(profileData.data) ? asRecord(profileData.data[0]) : profileData;
     const resourceId = asString(provider === "instagram" ? profile.user_id ?? profile.id : profile.id);
@@ -152,6 +159,7 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     const accountType = asString(profile.account_type)?.toUpperCase();
     if (!resourceId || !/^\d+$/.test(resourceId) || !username) throw new MetaDirectApiError("meta_profile_missing", "Meta n’a pas confirmé le profil à connecter.", 400);
     if (provider === "instagram" && accountType === "PERSONAL") throw new MetaDirectApiError("instagram_professional_required", "La connexion directe nécessite un compte Instagram professionnel ou Creator.", 400);
+    stage = "connection_read";
     const { data: previous, error: previousError } = await supabaseAdmin.from("integrations").select("meta")
       .eq("user_id", accountId).eq("provider", provider).eq("source", provider).eq("product", provider).maybeSingle();
     if (previousError) throw new MetaDirectApiError("meta_connection_read_failed", "La connexion précédente n’a pas pu être vérifiée. Réessayez.", 503);
@@ -168,24 +176,32 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
       user_id: accountId, provider, category: "social", source: provider, product: provider,
       status: "connected", resource_id: resourceId, resource_label: username, display_name: provider === "instagram" ? "Instagram" : "Threads",
       access_token_enc: encryptToken(longToken.accessToken), refresh_token_enc: null,
-      expires_at: longToken.expiresAt, scope: grantedScopes.join(" "), meta, updated_at: now,
+      expires_at: longToken.expiresAt, scopes: grantedScopes.join(" "), meta, updated_at: now,
     };
     const settings = { accountConnected: true, connected: true, username, url: publicUrl,
       ...(provider === "instagram" ? { igId: resourceId, pageId: null, auth_mode: "instagram_login" } : { threadsId: resourceId }),
     };
     // A single transaction updates the connection and its UI projection without overwriting other tools.
+    stage = "connection_save";
     const { error: saveError } = await supabaseAdmin.rpc("save_meta_direct_connection", {
       p_account_id: accountId, p_channel: provider, p_integration: integration, p_settings: settings,
       p_admin_pilot: !META_DIRECT_CHANNELS_PUBLIC_ENABLED,
     });
-    if (saveError) throw new MetaDirectApiError("meta_connection_save_failed", "La connexion n’a pas pu être enregistrée. Réessayez.", 503);
+    if (saveError) {
+      const candidate = typeof saveError.code === "string" ? saveError.code : "";
+      databaseCode = /^(?:[A-Z0-9]{5}|PGRST\d{3})$/.test(candidate) ? candidate : undefined;
+      throw new MetaDirectApiError("meta_connection_save_failed", "La connexion n’a pas pu être enregistrée. Réessayez.", 503);
+    }
     try { await clearAllToolCaches(supabase, accountId); } catch {}
     oauthCallbackEvent(request, { provider: stateProvider(provider), outcome: "success", user_id: accountId, return_to: `${returnUrl.pathname}${returnUrl.search}` });
     return finish(true);
   } catch (error) {
     const code = error instanceof MetaDirectApiError ? error.code : "meta_connection_failed";
     const message = error instanceof MetaDirectApiError ? error.message : "La connexion Meta n’a pas pu être finalisée. Réessayez.";
-    oauthCallbackEvent(request, { provider: stateProvider(provider), outcome: "failed", error: code, message, capture_in_sentry: false });
+    oauthCallbackEvent(request, { provider: stateProvider(provider), outcome: "failed", error: code, message,
+      stage, database_code: databaseCode,
+      ...(error instanceof MetaDirectApiError ? { status_code: error.status, ...error.diagnostics } : {}),
+      capture_in_sentry: false });
     return finish(false, code, message);
   }
 }

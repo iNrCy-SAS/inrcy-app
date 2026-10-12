@@ -6,6 +6,7 @@ import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import type { useThreadsChannel } from "../_hooks/channels/useThreadsChannel";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
+import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 import ChannelSettingsStep from "../settings/_components/ChannelSettingsStep";
 import guideStyles from "../settings/_components/ChannelSettingsSteps.module.css";
 import styles from "../dashboard.module.css";
@@ -17,6 +18,7 @@ export default function ThreadsPanel({ channel }: { channel: ReturnType<typeof u
   const { connection, loading, busy, notice, error, connectThreads, disconnectThreads } = channel;
   return (
     <div className={guideStyles.steps}>
+      <MetaOAuthCallbackNotice provider="threads" />
       <ChannelSettingsStep step={1} accent="x" title={t("threads_connect_title")} description={t("threads_connect_help")}
         status={<ConnectionPill connected={connection.connected} status={connection.connectionStatus} label={loading ? t("threads_checking") : undefined} />}>
         <div className={guideStyles.compactActionLine}>

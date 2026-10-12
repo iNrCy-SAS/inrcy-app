@@ -605,5 +605,7 @@
   "threads_connect": "Threads verbinden",
   "threads_view_profile": "Threads-profiel bekijken",
   "threads_description": "Ga in gesprek met uw community",
-  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken."
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
+  "instagram_callback_error": "De verbinding met Instagram kon niet worden voltooid. Probeer het opnieuw.",
+  "threads_callback_error": "De verbinding met Threads kon niet worden voltooid. Probeer het opnieuw."
 }

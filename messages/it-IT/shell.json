@@ -605,5 +605,7 @@
   "threads_connect": "Connetti Threads",
   "threads_view_profile": "Visualizza il profilo Threads",
   "threads_description": "Dialoga con la tua comunità",
-  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza."
+  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
+  "instagram_callback_error": "Non è stato possibile completare la connessione a Instagram. Riprova.",
+  "threads_callback_error": "Non è stato possibile completare la connessione a Threads. Riprova."
 }

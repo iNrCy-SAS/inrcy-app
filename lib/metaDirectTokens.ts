@@ -11,10 +11,29 @@ export type MetaDirectIntegration = {
 };
 export type MetaDirectProvider = "instagram" | "threads";
 
+export type MetaDirectApiDiagnostics = Readonly<{
+  httpStatus?: number;
+  metaCode?: number;
+  metaSubcode?: number;
+}>;
+
+function safeMetaDirectDiagnostics(input: unknown): MetaDirectApiDiagnostics {
+  const record = asRecord(input);
+  const diagnostics: { httpStatus?: number; metaCode?: number; metaSubcode?: number } = {};
+  for (const key of ["httpStatus", "metaCode", "metaSubcode"] as const) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) diagnostics[key] = value;
+  }
+  return Object.freeze(diagnostics);
+}
+
 export class MetaDirectApiError extends Error {
-  constructor(public code: string, message: string, public status = 400) {
+  readonly diagnostics: MetaDirectApiDiagnostics;
+
+  constructor(public code: string, message: string, public status = 400, diagnostics: unknown = {}) {
     super(message);
     this.name = "MetaDirectApiError";
+    this.diagnostics = safeMetaDirectDiagnostics(diagnostics);
   }
 }
 
@@ -28,14 +47,16 @@ export async function fetchMetaDirectJson(url: URL | string, init: RequestInit =
   }
   let data: Record<string, unknown>;
   try { data = asRecord(await response.json()); }
-  catch { throw new MetaDirectApiError("meta_response_invalid", "La réponse de Meta est momentanément indisponible.", 502); }
+  catch { throw new MetaDirectApiError("meta_response_invalid", "La réponse de Meta est momentanément indisponible.", 502, { httpStatus: response.status }); }
   if (!response.ok || data.error || data.error_type) {
-    const providerCode = Number(asRecord(data.error).code);
+    const providerError = asRecord(data.error);
+    const providerCode = Number(providerError.code);
     const authenticationError = response.status === 401 || providerCode === 190 || providerCode === 102;
     throw new MetaDirectApiError(authenticationError ? "meta_direct_reconnect_required" : "meta_permission_or_request_failed",
       authenticationError ? "Reconnectez ce compte pour renouveler ses autorisations."
         : "Meta a refusé cette opération. Vérifiez les autorisations du compte et les réglages de l’application.",
-      authenticationError ? 401 : response.status >= 500 ? 502 : 400);
+      authenticationError ? 401 : response.status >= 500 ? 502 : 400,
+      { httpStatus: response.status, metaCode: providerError.code ?? data.code, metaSubcode: providerError.error_subcode ?? data.error_subcode });
   }
   return data;
 }
