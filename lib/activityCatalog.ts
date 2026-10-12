@@ -305,6 +305,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     label: 'Immobilier',
     jobs: {
       agence_immobiliere: { label: 'Agence immobilière', services: ['Estimation', 'Vente', 'Location', 'Visite', 'Mise en valeur du bien', 'Accompagnement acheteur', 'Accompagnement vendeur', 'Conseils marché local'] },
+      mandataire_immobilier: { label: 'Mandataire immobilier', services: ['Estimation du bien', 'Accompagnement vendeur', 'Recherche de biens', 'Accompagnement acquéreur', 'Mise en valeur du bien', 'Organisation des visites', 'Négociation des offres', 'Suivi jusqu’à la signature chez le notaire'] },
       courtier: { label: 'Courtier', services: ['Étude financement', 'Simulation', 'Renégociation', 'Assurance emprunteur', 'Accompagnement dossier', 'Investissement', 'Premier achat', 'Conseils budget'] },
       diagnostiqueur_immobilier: { label: 'Diagnostiqueur immobilier', services: ['DPE', 'Diagnostic amiante', 'Diagnostic plomb', 'Diagnostic électricité', 'Diagnostic gaz', 'ERP', 'Audit logement', 'Devis diagnostics'] },
       gestion_locative: { label: 'Gestion locative', services: ['Mise en location', 'Gestion quotidienne', 'Sélection locataire', 'États des lieux', 'Suivi propriétaire', 'Conseils rentabilité', 'Garanties', 'Accompagnement juridique'] },
@@ -469,6 +470,19 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
       vtc: { label: 'VTC', services: ['Transfert gare', 'Transfert aéroport', 'Trajet professionnel', 'Mise à disposition', 'Événement', 'Longue distance', 'Réservation', 'Accueil personnalisé'] },
     },
   },};
+
+const IMMOBILIER_JOB_ALIASES: Record<string, string> = {
+  'mandataire': 'mandataire_immobilier',
+  'mandataire immobiliere': 'mandataire_immobilier',
+  'mandataire immobilier independant': 'mandataire_immobilier',
+  'mandataire immobiliere independante': 'mandataire_immobilier',
+  'agent commercial immobilier': 'mandataire_immobilier',
+  'agent commercial en immobilier': 'mandataire_immobilier',
+  'conseiller immobilier': 'mandataire_immobilier',
+  'conseillere immobiliere': 'mandataire_immobilier',
+  'negociateur immobilier': 'mandataire_immobilier',
+  'negociatrice immobiliere': 'mandataire_immobilier',
+};
 
 const AGRICULTURE_PRODUCTEURS_JOB_ALIASES: Record<string, string> = {
   'agricultrice': 'agriculteur',
@@ -676,6 +690,9 @@ export function findJobValueByLabel(sector: string, label: string) {
   const normalized = normalizeJobLabel(label);
   for (const [value, job] of Object.entries(pack.jobs)) {
     if (normalizeJobLabel(job.label) === normalized) return value;
+  }
+  if (sector === 'immobilier') {
+    return IMMOBILIER_JOB_ALIASES[normalized] || '';
   }
   if (sector === 'agriculture_producteurs') {
     return AGRICULTURE_PRODUCTEURS_JOB_ALIASES[normalized] || '';
