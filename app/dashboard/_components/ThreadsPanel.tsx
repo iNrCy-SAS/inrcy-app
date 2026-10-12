@@ -63,7 +63,7 @@ export default function ThreadsPanel({ channel }: { channel: ReturnType<typeof u
               {publicationPreferences.ghostEnabled ? <option value="ghost">{t("threads_ghost_mode")}</option> : null}
             </select>
           </label>
-          <button type="button" className={styles.actionBtn + " " + styles.connectBtn} disabled={preferencesDisabled} onClick={() => void savePublicationPreferences()}>{t(preferencesSaving ? "threads_publication_modes_saving" : "threads_publication_modes_save")}</button>
+          <button type="button" className={styles.actionBtn + " " + styles.connectBtn} disabled={preferencesDisabled} onClick={() => void savePublicationPreferences()} style={{ alignSelf: "end" }}>{t(preferencesSaving ? "threads_publication_modes_saving" : "threads_publication_modes_save")}</button>
         </div>
         {preferencesNotice ? <StatusMessage variant="success">{preferencesNotice}</StatusMessage> : null}
         {preferencesError ? <><StatusMessage variant="error">{preferencesError}</StatusMessage><button type="button" className={styles.actionBtn + " " + styles.secondaryBtn} disabled={preferencesLoading || preferencesSaving} onClick={() => void loadPublicationPreferences()}>{t("threads_publication_modes_retry")}</button></> : null}

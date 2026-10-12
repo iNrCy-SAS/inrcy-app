@@ -621,7 +621,8 @@ export default function PublishContentEditorPanel({
           >
             <div
               style={{
-                display: "flex",
+                display: activeCard === "threads" ? "grid" : "flex",
+                gridTemplateColumns: activeCard === "threads" ? "auto minmax(0, 1fr)" : undefined,
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 10,
@@ -668,7 +669,7 @@ export default function PublishContentEditorPanel({
                   ))}
                 </select>
               ) : null}
-              {activeCard === "threads" ? <ThreadsPublicationModeControls mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} /> : null}
+              {activeCard === "threads" ? <ThreadsPublicationModeControls inline mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} /> : null}
               {activeCard === "instagram" ? (
                 <MetaPublicationFormatControls
                   label={i18nT("instagram_publication_format")}
