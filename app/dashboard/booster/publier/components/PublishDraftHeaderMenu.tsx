@@ -148,7 +148,7 @@ export default function PublishDraftHeaderMenu({
   moduleLabel = "Booster",
   onSelect,
 }: Props) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const mailsT = useTranslations("mails");
   const boosterT = useTranslations("booster");
   const menuId = useId();
@@ -156,11 +156,15 @@ export default function PublishDraftHeaderMenu({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const requestIdRef = useRef(0);
+  const draftsAccountIdRef = useRef(activeAccountId);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [drafts, setDrafts] = useState<PublishDraftSummary[]>([]);
+  const visibleDrafts = draftsAccountIdRef.current === activeAccountId
+    ? filterMetaPilotItems(drafts, metaPilotEnabled)
+    : [];
 
   const loadDrafts = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -297,12 +301,17 @@ export default function PublishDraftHeaderMenu({
     };
   }, [closeMenu, open, syncMenuPosition]);
 
-  useEffect(
-    () => () => {
-      requestIdRef.current += 1;
-    },
-    [],
-  );
+  useEffect(() => {
+    // A response started in another account or pilot scope cannot update this menu.
+    requestIdRef.current += 1;
+    if (draftsAccountIdRef.current !== activeAccountId) {
+      draftsAccountIdRef.current = activeAccountId;
+      setDrafts([]);
+    }
+    setLoading(false);
+    setLoadFailed(false);
+    return () => { requestIdRef.current += 1; };
+  }, [activeAccountId, metaPilotEnabled]);
 
   const menu =
     open && menuPosition && typeof document !== "undefined"
@@ -323,7 +332,7 @@ export default function PublishDraftHeaderMenu({
                 <small>{moduleLabel}</small>
                 <strong>{mailsT("brouillons_a55f3cd9")}</strong>
               </span>
-              <span className={menuStyles.menuCount}>{drafts.length}</span>
+              <span className={menuStyles.menuCount}>{visibleDrafts.length}</span>
               <button
                 type="button"
                 className={menuStyles.refreshButton}
@@ -351,7 +360,7 @@ export default function PublishDraftHeaderMenu({
                   <RefreshIcon />
                   {mailsT("actualiser_9d3b2a7d")}
                 </button>
-              ) : drafts.length === 0 ? (
+              ) : visibleDrafts.length === 0 ? (
                 <div className={menuStyles.emptyState}>
                   <span className={menuStyles.emptyIcon} aria-hidden="true">
                     <DraftsIcon />
@@ -362,7 +371,7 @@ export default function PublishDraftHeaderMenu({
                   })}
                 </div>
               ) : (
-                drafts.map((draft) => {
+                visibleDrafts.map((draft) => {
                   const active = draft.id === activeDraftId;
                   const visibleChannels = draft.channels.slice(0, 3);
                   const remainingChannels = Math.max(
@@ -448,8 +457,8 @@ export default function PublishDraftHeaderMenu({
         <span className={menuStyles.triggerLabel}>
           {mailsT("brouillons_a55f3cd9")}
         </span>
-        {drafts.length > 0 ? (
-          <span className={menuStyles.count}>{drafts.length}</span>
+        {visibleDrafts.length > 0 ? (
+          <span className={menuStyles.count}>{visibleDrafts.length}</span>
         ) : null}
         <span className={menuStyles.chevron} aria-hidden="true">
           <ChevronIcon open={open} />

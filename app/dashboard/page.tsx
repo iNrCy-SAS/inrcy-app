@@ -5,6 +5,7 @@ import { getMyRole } from "@/lib/roles";
 import { getTranslations } from "next-intl/server";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { getChannelConnectionStates, type ChannelStates } from "@/lib/channelConnectionState";
+import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRolloutServer";
 
 type InitialOfficialChannelSnapshot = {
   activeUserId: string;
@@ -15,9 +16,10 @@ async function loadInitialOfficialChannelStates(): Promise<InitialOfficialChanne
   try {
     const current = await getCurrentInrcyAccountScope();
     if (!current) return null;
+    const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(current.supabase, current.scope.activeUserId);
     return {
       activeUserId: current.scope.activeUserId,
-      states: await getChannelConnectionStates(current.supabase, current.scope.activeUserId),
+      states: await getChannelConnectionStates(current.supabase, current.scope.activeUserId, undefined, { metaPilotEnabled }),
     };
   } catch {
     // The account-scoped browser snapshot keeps the last confirmed colours.
