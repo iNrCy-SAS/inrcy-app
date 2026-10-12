@@ -130,11 +130,15 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     const accessToken = asString(shortToken.access_token);
     if (!accessToken) throw new MetaDirectApiError("meta_token_missing", "Meta n’a pas fourni de token. Relancez la connexion.", 502);
     let grantedScopes = parseMetaDirectScopes(shortToken.permissions ?? shortToken.scope);
+    let longToken: Awaited<ReturnType<typeof exchangeMetaDirectLongToken>> | undefined;
     if (provider === "threads") {
+      // Meta's OAuth sample inspects the long-lived user token at the unversioned control endpoint.
+      stage = "long_token_exchange";
+      longToken = await exchangeMetaDirectLongToken(provider, accessToken, config.appSecret!);
       stage = "token_inspection";
-      const debugUrl = new URL(buildThreadsGraphUrl("debug_token"));
-      debugUrl.searchParams.set("input_token", accessToken);
-      debugUrl.searchParams.set("access_token", accessToken);
+      const debugUrl = new URL("https://graph.threads.com/debug_token");
+      debugUrl.searchParams.set("input_token", longToken.accessToken);
+      debugUrl.searchParams.set("access_token", longToken.accessToken);
       const debugData = asRecord((await fetchMetaDirectJson(debugUrl)).data);
       if (debugData.is_valid !== true || (debugData.app_id && String(debugData.app_id) !== config.appId)) {
         throw new MetaDirectApiError("meta_token_invalid", "Meta n’a pas validé l’autorisation de ce compte.", 401);
@@ -146,8 +150,10 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     if (scopes.some((scope) => !grantedScopes.includes(scope))) {
       throw new MetaDirectApiError("meta_permissions_incomplete", "Accordez les autorisations de connexion, publication et statistiques demandées par iNrCy, puis relancez la connexion.", 403);
     }
-    stage = "long_token_exchange";
-    const longToken = await exchangeMetaDirectLongToken(provider, accessToken, config.appSecret!);
+    if (!longToken) {
+      stage = "long_token_exchange";
+      longToken = await exchangeMetaDirectLongToken(provider, accessToken, config.appSecret!);
+    }
     const profileUrl = new URL(provider === "instagram" ? buildInstagramGraphUrl("me", "instagram_login") : buildThreadsGraphUrl("me"));
     profileUrl.searchParams.set("fields", provider === "instagram" ? "user_id,username,account_type" : "id,username,name,threads_profile_picture_url");
     profileUrl.searchParams.set("access_token", longToken.accessToken);

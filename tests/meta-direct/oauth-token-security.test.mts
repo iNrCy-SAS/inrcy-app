@@ -38,9 +38,9 @@ const responseFactory = {
   redirect(url: string | URL) { const values = new Map<string, { value: string; options: any }>(); return { status: 307, headers: new Headers({ location: String(url) }), cookies: { set(name: string, value: string, options: unknown) { values.set(name, { value, options }); } }, cookieValues: values }; },
   json(body: unknown, options?: { status?: number }) { return { status: options?.status ?? 200, body }; },
 };
-function harness(options: { actorAdmin?: boolean; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
+function harness(options: { actorAdmin?: boolean; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
   const actorAdmin = options.actorAdmin ?? true, role = options.accountRole ?? "admin";
-  const saves: any[] = [], calls: any[] = [], events: any[] = [];
+  const saves: any[] = [], calls: any[] = [], events: any[] = [], steps: string[] = [];
   const query = { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: { role, meta: { publication_preferences: { mode: "reels" }, page_id: "legacy-page" } }, error: null }; } };
   const admin = { from: () => query, async rpc(name: string, args: any) { saves.push({ name, args }); return { error: options.saveError ?? null }; } };
   const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin }) }, "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false } });
@@ -59,12 +59,14 @@ function harness(options: { actorAdmin?: boolean; accountRole?: string; authenti
       fetchMetaDirectJson: async (input: string | URL, init?: RequestInit) => {
         const url = new URL(String(input)); calls.push({ url, init });
         const requestStage = url.pathname.endsWith("oauth/access_token") ? "token_exchange" : url.pathname.endsWith("debug_token") ? "token_inspection" : "profile";
+        steps.push(requestStage);
         if (options.failAt === requestStage) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400, { httpStatus: 400, metaCode: 100, metaSubcode: 33 });
         if (options.responseThrows) throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400);
         if (url.pathname.endsWith("oauth/access_token")) return { access_token: "fixture-short-token", permissions: options.partialScopes ? ["instagram_business_basic"] : [...authMode.INSTAGRAM_DIRECT_SCOPES] };
-        if (url.pathname.endsWith("debug_token")) return { data: { is_valid: true, app_id: ENV.THREADS_APP_ID, scopes: options.partialScopes ? ["threads_basic"] : [...threadsGraph.THREADS_SCOPES] } };
+        if (url.pathname.endsWith("debug_token")) return { data: { is_valid: !options.invalidDebugToken, app_id: options.wrongDebugApp ? "another-app" : ENV.THREADS_APP_ID, scopes: options.partialScopes ? ["threads_basic"] : [...threadsGraph.THREADS_SCOPES] } };
         return url.host === "graph.instagram.com" ? { data: [{ user_id: "1234567890", username: "brand", account_type: options.personal ? "PERSONAL" : "BUSINESS" }] } : { id: "1234567891", username: "thread-brand" };
       }, exchangeMetaDirectLongToken: async () => {
+        steps.push("long_token_exchange");
         if (options.failAt === "long_token_exchange") throw new tokens.MetaDirectApiError("meta_permission_or_request_failed", "Meta a refusé cette opération.", 400, { httpStatus: 400, metaCode: 100, metaSubcode: 33 });
         return { accessToken: "fixture-long-token", expiresAt: new Date(Date.now() + 60 * 86400000).toISOString() };
       },
@@ -77,7 +79,7 @@ function harness(options: { actorAdmin?: boolean; accountRole?: string; authenti
     const url = new URL(`https://fixture.example/api/integrations/${provider}/callback`); url.searchParams.set("state", stateB64); url.searchParams.set("code", changes?.code ?? "fixture-code-secret");
     return new Request(url, { headers: changes?.missingCookie ? {} : { cookie: `${state.cookieName}=${changes?.malformedCookie ? "%E0%A4%A" : changes?.legacyCookie ? state.nonce : state.cookieValue}` } });
   };
-  return { module: oauth, calls, saves, events, callback };
+  return { module: oauth, calls, saves, events, steps, callback };
 }
 
 test("OAuth start rejects USER/staff or a non-admin account before contacting Meta", async () => configured(async () => {
@@ -278,4 +280,32 @@ test("Connection save failure logs only the allowlisted SQLSTATE and preserves c
       assert.equal(destination.toString().includes(secret), false);
     }
   }
+}));
+
+test("Threads exchanges to a long-lived token before inspecting the unversioned OAuth endpoint", async () => configured(async () => {
+  const h = harness();
+  const result = await h.module.handleMetaDirectOAuthCallback(h.callback("threads"), "threads");
+  assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "1");
+  assert.deepEqual(h.steps, ["token_exchange", "long_token_exchange", "token_inspection", "profile"]);
+  const inspection = h.calls.find((call: any) => call.url.pathname.endsWith("debug_token"));
+  assert.equal(inspection.url.origin, "https://graph.threads.com");
+  assert.equal(inspection.url.pathname, "/debug_token");
+  assert.equal(inspection.url.searchParams.get("input_token"), "fixture-long-token");
+  assert.equal(inspection.url.searchParams.get("access_token"), "fixture-long-token");
+  assert.equal(inspection.url.toString().includes("fixture-short-token"), false);
+  assert.equal(h.saves.length, 1);
+}));
+
+test("Threads inspection rejects invalid tokens, wrong apps and incomplete permissions before reading or saving", async () => configured(async () => {
+  for (const options of [{ invalidDebugToken: true }, { wrongDebugApp: true }, { partialScopes: true }]) {
+    const h = harness(options);
+    const result = await h.module.handleMetaDirectOAuthCallback(h.callback("threads"), "threads");
+    assert.equal(new URL(result.headers.get("location")).searchParams.get("error"), options.partialScopes ? "meta_permissions_incomplete" : "meta_token_invalid");
+    assert.equal(h.saves.length, 0);
+    assert.deepEqual(h.steps, ["token_exchange", "long_token_exchange", "token_inspection"]);
+  }
+  const instagram = harness({ partialScopes: true });
+  await instagram.module.handleMetaDirectOAuthCallback(instagram.callback("instagram"), "instagram");
+  assert.deepEqual(instagram.steps, ["token_exchange"]);
+  assert.equal(instagram.saves.length, 0);
 }));
