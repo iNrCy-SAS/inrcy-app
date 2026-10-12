@@ -11,6 +11,20 @@ export type ActivityJobSearchResult = {
 const JOB_ALIASES: Partial<
   Record<ActivitySectorCategory, Record<string, string[]>>
 > = {
+  immobilier: {
+    mandataire_immobilier: [
+      "mandataire",
+      "mandataire immobilière",
+      "mandataire immobilier indépendant",
+      "mandataire immobilière indépendante",
+      "agent commercial immobilier",
+      "agent commercial en immobilier",
+      "conseiller immobilier",
+      "conseillère immobilière",
+      "négociateur immobilier",
+      "négociatrice immobilière",
+    ],
+  },
   agriculture_producteurs: {
     agriculteur: [
       "agricultrice",
