@@ -419,6 +419,7 @@ export type InrcyWindowCount = {
 };
 
 export type InrcyPublicationType =
+  | "ghost"
   | "text"
   | "image"
   | "video"
@@ -560,10 +561,19 @@ export function payloadSucceededForChannel(
   return channels.includes(channel);
 }
 
+/** The saved result describes the publication, independently of shared media. */
+export function isThreadsGhostPublication(payload: Record<string, unknown>): boolean {
+  const result = asRecord(asRecord(payload["results"])["threads"]);
+  const mode = String(result["threads_publication_mode"] ?? result["publicationMode"] ?? asRecord(result["threads_checkpoint"])["publicationMode"] ?? asRecord(payload["threadsPublicationSettings"])["mode"] ?? "").toLowerCase();
+  if (mode === "classic") return false;
+  return mode === "ghost" || result["is_ghost_post"] === true;
+}
+
 export function inferPayloadMediaKindForChannel(
   payload: Record<string, unknown>,
   channel: InrcyActivityChannelKey,
 ): "video" | "photos" | "none" | "unknown" {
+  if (channel === "threads" && isThreadsGhostPublication(payload)) return "none";
   const results = asRecord(payload["results"]);
   const channelResult = payloadChannelRecord(results, channel);
   const diagnostics = asRecord(channelResult["diagnostics"]);
@@ -572,6 +582,7 @@ export function inferPayloadMediaKindForChannel(
   const channelPost = payloadChannelRecord(postByChannel, channel);
   const candidates = [
     channelResult["tiktok_media_type"],
+    channelResult["threads_media_type"],
     channelResult["media_type"],
     channelResult["mediaType"],
     channelResult["instagram_media_type"],
@@ -704,6 +715,7 @@ export function inferPublicationTypeForChannel(
   payload: Record<string, unknown>,
   channel: InrcyActivityChannelKey,
 ): InrcyPublicationType {
+  if (channel === "threads" && isThreadsGhostPublication(payload)) return "ghost";
   if (channel === "pinterest") return "pin";
 
   if (channel === "youtube_shorts") {

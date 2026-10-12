@@ -607,5 +607,18 @@
   "threads_description": "Ga in gesprek met uw community",
   "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
   "instagram_callback_error": "De verbinding met Instagram kon niet worden voltooid. Probeer het opnieuw.",
-  "threads_callback_error": "De verbinding met Threads kon niet worden voltooid. Probeer het opnieuw."
+  "threads_callback_error": "De verbinding met Threads kon niet worden voltooid. Probeer het opnieuw.",
+  "threads_publication_modes_title": "Threads-publicatieformaten",
+  "threads_publication_modes_help": "Kies de beschikbare formaten in Booster en het voorgestelde standaardformaat.",
+  "threads_classic_mode": "Klassiek",
+  "threads_classic_mode_help": "Blijvend bericht met tekst, afbeeldingen of video.",
+  "threads_ghost_mode": "Ghost",
+  "threads_ghost_mode_help": "Alleen tekst, maximaal 500 tekens. Het bericht wordt na 24 uur automatisch gearchiveerd.",
+  "threads_default_publication_mode": "Standaardformaat",
+  "threads_publication_modes_save": "Formaten opslaan",
+  "threads_publication_modes_saving": "Opslaan…",
+  "threads_publication_modes_saved": "Threads-formaten opgeslagen.",
+  "threads_publication_modes_load_error": "Threads-formaten kunnen niet worden geladen. Ghost blijft niet beschikbaar.",
+  "threads_publication_modes_save_error": "Threads-formaten kunnen niet worden opgeslagen.",
+  "threads_publication_modes_retry": "Opnieuw proberen"
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, getEnabledThreadsPublicationModes, isThreadsPublicationModeEnabled, type ThreadsPublicationMode, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
+import { readInrAgentThreadsPublicationSettings, applyInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -727,6 +729,8 @@ export default function AgentClient() {
     useState<FacebookPublicationPreferences>(
       CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES
     );
+  const [threadsPublicationPreferences, setThreadsPublicationPreferences] = useState<ThreadsPublicationPreferences>(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+  const [threadsModeSaveState, setThreadsModeSaveState] = useState<"idle" | "saving">("idle");
   const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
     "idle" | "saving"
   >("idle");
@@ -844,14 +848,16 @@ export default function AgentClient() {
   useEffect(() => {
     let alive = true;
 
+    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
     async function loadMetaPublicationPreferences() {
-      const [instagramResult, facebookResult] = await Promise.allSettled([
+      const [instagramResult, facebookResult, threadsResult] = await Promise.allSettled([
         fetch("/api/integrations/instagram/publication-preferences", {
           cache: "no-store",
         }),
         fetch("/api/integrations/facebook/publication-preferences", {
           cache: "no-store",
         }),
+        metaPilotEnabled ? fetch("/api/integrations/threads/publication-preferences", { cache: "no-store" }) : Promise.resolve(null),
       ]);
       if (!alive) return;
 
@@ -871,13 +877,17 @@ export default function AgentClient() {
           );
         }
       }
+      if (threadsResult.status === "fulfilled" && threadsResult.value?.ok) {
+        const payload = await threadsResult.value.json().catch(() => ({}));
+        if (alive) setThreadsPublicationPreferences(normalizeThreadsPublicationPreferences(payload?.preferences));
+      }
     }
 
     loadMetaPublicationPreferences().catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, []);
+  }, [metaPilotEnabled]);
 
   const pendingActionsByAutomation = useMemo(() => {
     return actions.reduce<Record<AutomationKey, number>>(
@@ -1523,6 +1533,9 @@ export default function AgentClient() {
   const publishMediaOnly = Boolean(
     activeMetaPublicationChannel && publishPlacement === "story"
   );
+  const activeThreadsPublicationMode = readInrAgentThreadsPublicationSettings(selectedPreparedAction?.payload).mode;
+  const activeThreadsGhost = activePreviewChannel === "threads" && activeThreadsPublicationMode === "ghost";
+  const threadsModeEnabled = isThreadsPublicationModeEnabled(activeThreadsPublicationMode, threadsPublicationPreferences);
   const savedPinterestBoard = selectedPreparedAction
     ? readInrAgentPinterestBoardSelection(selectedPreparedAction.payload)
     : null;
@@ -1715,6 +1728,7 @@ export default function AgentClient() {
               selectedPreparedAction.summary)
         );
         const blockers: string[] = [];
+        if (channel === "threads" && (!metaPilotEnabled || !isThreadsPublicationModeEnabled(readInrAgentThreadsPublicationSettings(selectedPreparedAction.payload).mode, threadsPublicationPreferences))) blockers.push(i18nT("threads_ghost_disabled"));
         if (media.statusTone === "blocked" && media.statusLabel) {
           blockers.push(agentMediaStatusLabel(media.statusLabel, runtimeT));
         }
@@ -1763,7 +1777,9 @@ export default function AgentClient() {
         return {
           channel: boosterChannel,
           label: agentChannelLabel(channel, runtimeT),
-          mediaLabel: mediaOnly
+          mediaLabel: channel === "threads" && readInrAgentThreadsPublicationSettings(selectedPreparedAction.payload).mode === "ghost"
+            ? i18nT("threads_mode_ghost")
+            : mediaOnly
             ? `${
                 placement === "story"
                   ? i18nT("publication_mode_story")
@@ -1780,6 +1796,8 @@ export default function AgentClient() {
       .filter((item): item is PublishScheduleItem => Boolean(item));
   }, [
     facebookPublicationPreferences,
+    threadsPublicationPreferences,
+    metaPilotEnabled,
     i18nT,
     instagramPublicationPreferences,
     isPublishView,
@@ -2433,6 +2451,7 @@ export default function AgentClient() {
   }
 
   function openPublishMediaEditor() {
+    if (activeThreadsGhost) { showNotice(i18nT("threads_ghost_help")); return; }
     if (
       !selectedPreparedAction ||
       !isPublishPreparedAction(selectedPreparedAction) ||
@@ -2783,6 +2802,25 @@ export default function AgentClient() {
     } finally {
       setPublishPlacementSaveState("idle");
     }
+  }
+
+  async function saveThreadsPublicationMode(mode: ThreadsPublicationMode) {
+    if (!selectedPreparedAction || activePreviewChannel !== "threads" || !metaPilotEnabled || threadsModeSaveState === "saving") return;
+    if (!isThreadsPublicationModeEnabled(mode, threadsPublicationPreferences)) { showNotice(i18nT("threads_ghost_disabled")); return; }
+    setThreadsModeSaveState("saving");
+    try {
+      if (scheduledEditSession) {
+        updateScheduledEditAction((action) => ({ ...action, payload: applyInrAgentThreadsPublicationSettings(action.payload || {}, mode) }));
+      } else {
+        const response = await fetch("/api/agent/actions", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actionId: selectedPreparedAction.id, editType: "publish_threads_mode", channel: "threads", mode }) });
+        const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
+        if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+        const updatedAction = payload.action;
+        setActions((current) => current.map((action) => action.id === updatedAction.id ? updatedAction : action));
+      }
+      showNotice(i18nT(mode === "ghost" ? "threads_mode_ghost" : "publication_mode_classic"));
+    } catch (error) { showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed")); }
+    finally { setThreadsModeSaveState("idle"); }
   }
 
   async function savePublishPinterestBoard(nextBoardId: string) {
@@ -5207,6 +5245,7 @@ export default function AgentClient() {
   }
 
   function requestPublishChannelRegeneration(kind: "content" | "media") {
+    if (kind === "media" && activeThreadsGhost) { showNotice(i18nT("threads_ghost_help")); return; }
     if (
       !selectedPreparedAction ||
       !activePreviewChannel ||
@@ -6336,6 +6375,17 @@ export default function AgentClient() {
                                 </label>
                               ) : null}
                             </span>
+                          ) : activePreviewChannel === "threads" && metaPilotEnabled ? (
+                            <span className={styles.publishPlacementControls}>
+                              <select className={styles.publishPlacementSelect} value={activeThreadsPublicationMode}
+                                onChange={(event) => { void saveThreadsPublicationMode(event.target.value as ThreadsPublicationMode); }}
+                                disabled={!selectedPreparedAction || !canReviewSelectedAction || actionMutationState === "saving" || threadsModeSaveState === "saving"}
+                                aria-label={i18nT("publication_mode_label")} title={i18nT("threads_ghost_help")}>
+                                {!threadsModeEnabled ? <option value="ghost" disabled>{i18nT("threads_ghost_disabled")}</option> : null}
+                                {getEnabledThreadsPublicationModes(threadsPublicationPreferences).map((mode) => <option key={mode} value={mode}>{i18nT(mode === "ghost" ? "threads_mode_ghost" : "publication_mode_classic")}</option>)}
+                              </select>
+                              {activeThreadsGhost ? <small>{i18nT("threads_ghost_help")}</small> : null}
+                            </span>
                           ) : activePreviewChannel === "pinterest" ? (
                             <select
                               className={styles.publishPlacementSelect}
@@ -6449,12 +6499,13 @@ export default function AgentClient() {
                           className={`${styles.campaignInfoCard} ${styles.publishInfoAttachment} ${styles.publishInfoCardWithAction}`}
                           onClick={openPublishMediaEditor}
                           disabled={
+                            activeThreadsGhost ||
                             !selectedPreparedAction ||
                             !canReviewSelectedAction ||
                             actionMutationState === "saving"
                           }
                           title={
-                            selectedPreparedAction
+                            activeThreadsGhost ? i18nT("threads_ghost_help") : selectedPreparedAction
                               ? i18nT("manage_media")
                               : i18nT("no_publication_prepared")
                           }
@@ -6514,6 +6565,7 @@ export default function AgentClient() {
                             requestPublishChannelRegeneration("media")
                           }
                           disabled={
+                            activeThreadsGhost ||
                             !selectedPreparedAction ||
                             !canReviewSelectedAction ||
                             Boolean(scheduledEditSession) ||

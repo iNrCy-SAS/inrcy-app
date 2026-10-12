@@ -794,5 +794,8 @@
   "tiktok_session_checking": "Comprobando TikTok…",
   "next_editorial_publication_in_a_few_minutes": "Próxima publicación en unos minutos",
   "threads": "Threads",
-  "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador."
+  "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador.",
+  "threads_mode_ghost": "Ghost · 24 h",
+  "threads_ghost_help": "Ghost: solo texto, se archiva después de 24 horas.",
+  "threads_ghost_disabled": "Ghost está desactivado en la configuración de Threads."
 }

@@ -607,5 +607,18 @@
   "threads_description": "与您的社群交流",
   "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
   "instagram_callback_error": "无法完成 Instagram 连接。请重试。",
-  "threads_callback_error": "无法完成 Threads 连接。请重试。"
+  "threads_callback_error": "无法完成 Threads 连接。请重试。",
+  "threads_publication_modes_title": "Threads 发布格式",
+  "threads_publication_modes_help": "选择 Booster 中可用的格式和建议的默认格式。",
+  "threads_classic_mode": "普通",
+  "threads_classic_mode_help": "包含文字、图片或视频的永久帖子。",
+  "threads_ghost_mode": "Ghost",
+  "threads_ghost_mode_help": "仅限文字，最多 500 个字符。帖子将在 24 小时后自动归档。",
+  "threads_default_publication_mode": "默认格式",
+  "threads_publication_modes_save": "保存格式",
+  "threads_publication_modes_saving": "正在保存…",
+  "threads_publication_modes_saved": "Threads 格式已保存。",
+  "threads_publication_modes_load_error": "无法加载 Threads 格式。Ghost 暂不可用。",
+  "threads_publication_modes_save_error": "无法保存 Threads 格式。",
+  "threads_publication_modes_retry": "重试"
 }

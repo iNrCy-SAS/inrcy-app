@@ -607,5 +607,18 @@
   "threads_description": "Dialoga con la tua comunità",
   "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
   "instagram_callback_error": "Non è stato possibile completare la connessione a Instagram. Riprova.",
-  "threads_callback_error": "Non è stato possibile completare la connessione a Threads. Riprova."
+  "threads_callback_error": "Non è stato possibile completare la connessione a Threads. Riprova.",
+  "threads_publication_modes_title": "Formati di pubblicazione Threads",
+  "threads_publication_modes_help": "Scegli i formati disponibili in Booster e il formato proposto come predefinito.",
+  "threads_classic_mode": "Classico",
+  "threads_classic_mode_help": "Pubblicazione permanente con testo, immagini o video.",
+  "threads_ghost_mode": "Ghost",
+  "threads_ghost_mode_help": "Solo testo, fino a 500 caratteri. Il post viene archiviato automaticamente dopo 24 ore.",
+  "threads_default_publication_mode": "Formato predefinito",
+  "threads_publication_modes_save": "Salva i formati",
+  "threads_publication_modes_saving": "Salvataggio…",
+  "threads_publication_modes_saved": "Formati Threads salvati.",
+  "threads_publication_modes_load_error": "Impossibile caricare i formati Threads. Ghost rimane non disponibile.",
+  "threads_publication_modes_save_error": "Impossibile salvare i formati Threads.",
+  "threads_publication_modes_retry": "Riprova"
 }

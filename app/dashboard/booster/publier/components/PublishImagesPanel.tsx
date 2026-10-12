@@ -1,4 +1,7 @@
+import type { ThreadsPublicationMode, ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
+import ThreadsPublicationModeControls from "./ThreadsPublicationModeControls";
 import { useTranslations } from "next-intl";
+import { getEffectiveThreadsMediaMode } from "../threadsPublicationUi";
 import {
   getBoosterImageDisplayPlan,
   getBoosterImageRenderDimensions,
@@ -83,6 +86,12 @@ type ImageAdapterTab = {
 };
 
 type PublishImagesPanelProps = {
+  threadsPublicationMode: ThreadsPublicationMode;
+  threadsPublicationPreferences: ThreadsPublicationPreferences;
+  threadsPreferencesLoading: boolean;
+  threadsPreferencesFailed: boolean;
+  onThreadsPublicationModeChange: (mode: ThreadsPublicationMode) => void;
+
   styles: PublishModalStyles;
   isMobile: boolean;
   stepNumber: number;
@@ -141,6 +150,12 @@ type PublishImagesPanelProps = {
 };
 
 export default function PublishImagesPanel({
+  threadsPublicationMode,
+  threadsPublicationPreferences,
+  threadsPreferencesLoading,
+  threadsPreferencesFailed,
+  onThreadsPublicationModeChange,
+
   styles,
   isMobile,
   stepNumber,
@@ -199,7 +214,7 @@ export default function PublishImagesPanel({
   const pickImagesDisabled = imagesLimitReached;
   const pickVideoDisabled = hasVideoMedia;
   const cameraDisabled = !isMobile || imagesLimitReached;
-  const getModeForChannel = (channel: ChannelKey): ChannelMediaMode => {
+  const getStoredModeForChannel = (channel: ChannelKey): ChannelMediaMode => {
     const explicit = channelMediaModes[channel];
     const channelHasImages =
       hasImages &&
@@ -229,6 +244,9 @@ export default function PublishImagesPanel({
     if (hasVideoMedia) return "video";
     return "none";
   };
+
+  const getModeForChannel = (channel: ChannelKey): ChannelMediaMode =>
+    getEffectiveThreadsMediaMode(channel, threadsPublicationMode, getStoredModeForChannel(channel));
 
   const mediaAllocation = selectedChannels.reduce(
     (summary, channel) => {
@@ -366,7 +384,8 @@ export default function PublishImagesPanel({
       runtimeT,
     );
     const unavailable = Boolean(unsupportedMessage);
-    const effectiveDisabled = disabled || unavailable;
+    const ghostMediaDisabled = activeImageChannel === "threads" && threadsPublicationMode === "ghost" && mode !== "none";
+    const effectiveDisabled = disabled || unavailable || ghostMediaDisabled;
     const translatedLabel = label;
     const accessibleLabel = i18nT("media_mode_for_channel", {
       mode: translatedLabel,
@@ -378,7 +397,7 @@ export default function PublishImagesPanel({
         disabled={effectiveDisabled}
         aria-label={accessibleLabel}
         aria-pressed={active}
-        title={unsupportedMessage || accessibleLabel}
+        title={ghostMediaDisabled ? i18nT("threads_ghost_help") : unsupportedMessage || accessibleLabel}
         onClick={() => {
           if (effectiveDisabled) return;
           if (onActivate) {
@@ -777,6 +796,8 @@ export default function PublishImagesPanel({
             <span style={{ opacity: 0.7 }}>
               {i18nT("cliquez_sur_un_canal_puis_choisissez_f2189aac")}{" "}</span>
           </div>
+
+          {activeImageChannel === "threads" ? <ThreadsPublicationModeControls mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} onChange={onThreadsPublicationModeChange} /> : null}
 
           <div
             style={{

@@ -488,5 +488,6 @@
   "canal_suivant_7b81611d": "下一个频道",
   "threads_replies": "回复",
   "threads_reposts": "转发",
-  "threads_quotes": "引用"
+  "threads_quotes": "引用",
+  "publication_type_ghost": "Ghost 帖子"
 }

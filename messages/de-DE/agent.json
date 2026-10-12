@@ -794,5 +794,8 @@
   "tiktok_session_checking": "TikTok wird geprüft…",
   "next_editorial_publication_in_a_few_minutes": "Nächste Veröffentlichung in wenigen Minuten",
   "threads": "Threads",
-  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten."
+  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
+  "threads_mode_ghost": "Ghost · 24 Std.",
+  "threads_ghost_help": "Ghost: nur Text, nach 24 Stunden archiviert.",
+  "threads_ghost_disabled": "Ghost ist in den Threads-Einstellungen deaktiviert."
 }

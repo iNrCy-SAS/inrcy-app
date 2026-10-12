@@ -794,5 +794,8 @@
   "tiktok_session_checking": "Verifica TikTok…",
   "next_editorial_publication_in_a_few_minutes": "Prossima pubblicazione tra pochi minuti",
   "threads": "Threads",
-  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza."
+  "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
+  "threads_mode_ghost": "Ghost · 24 ore",
+  "threads_ghost_help": "Ghost: solo testo, archiviato dopo 24 ore.",
+  "threads_ghost_disabled": "Ghost è disattivato nelle impostazioni di Threads."
 }

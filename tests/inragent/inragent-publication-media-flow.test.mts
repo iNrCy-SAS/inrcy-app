@@ -21,7 +21,7 @@ assert.notEqual(quotaStart, -1);
 const body = post.body.statements.slice(quotaStart).map((node) => node.getText(route)).join("\n");
 const compiled = ts.transpileModule(`async function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[] } = {}) {
+function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[] } = {}) {
   const events: string[] = [];
   const generated = new Map<string, { item: Media; request: string }>();
   const mediaCalls: RecordValue[] = [];
@@ -71,13 +71,13 @@ function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; 
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences,
       supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
-      isAdmin: false, isCron: true, automaticMediaKind: "image", requestedImageCount: 3, videoDurationSeconds: undefined,
+      isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: "image", requestedImageCount: options.ghostOnly ? 0 : 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },
       editorialTarget: { id: "slot-1", metadata: structuredClone(metadata), plan: { criteriaSignature: "criteria-1", scheduledFor: "2026-10-05T10:00:00Z", sequence: 1, channels: ["facebook"], theme: "realisations" } },
       instantActionId: null, reservedInstantIdea: false,
       studioMediaPreferences: defaultPreferences, idea: "Cuisine : présenter le plan puis les finitions", agentTheme: "realisations", boosterTheme: "realisation",
       runtimeFocus: { focusKey: "focus-1" }, business: {}, profile: {}, businessProfession: {}, recentPublications: [], earlierEditorialAngles: [], ctaDefaults: {}, agentTone: "professional",
-      prefersExistingVideo: false, instantMediaMix: null, youtubeDisabledForImage: false, channels: ["facebook"], autoDisabledChannels: [],
+      prefersExistingVideo: false, instantMediaMix: null, youtubeDisabledForImage: false, channels: options.ghostOnly ? ["threads"] : options.ghostMixed ? ["facebook", "threads"] : ["facebook"], autoDisabledChannels: [],
       routeStartedAt: Date.now(), mediaSelectionMs: 0, imagePreparationMs: 0, videoPreparationMs: 0, aiGenerationMs: 0, persistenceMs: 0, generationContextMs: 0,
       professionalContextSource: "database", publicationsContextSource: "database", IMAGE_BANK_DIVERSIFICATION_RATE: 0,
       NextResponse: { json: (value: unknown, init?: { status?: number }) => ({ status: init?.status || 200, body: value }) },
@@ -85,7 +85,7 @@ function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; 
       asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
       computeBoosterAiCredits: (value: { mediaType: string; imagesForAI: unknown[] }) => value.mediaType === "video" ? 3 : value.imagesForAI.length ? 2 : 1,
       reserveInrAgentEditorialCredits: async ({ credits: amount, idempotencyKey }: { credits: number; idempotencyKey: string }) => {
-        events.push("reserve-credits"); assert.equal(amount, 2); assert.equal(idempotencyKey, "slot-1");
+        events.push("reserve-credits"); assert.equal(amount, options.ghostOnly ? 1 : 2); assert.equal(idempotencyKey, "slot-1");
         if (options.refusedCredits) return { errorResponse: { status: 429 }, reservation: null };
         credits.reserved++; return { reservation: { state: "reserved" }, errorResponse: null };
       },
@@ -111,17 +111,17 @@ function harness(options: { refusedCredits?: boolean; failedSnapshot?: boolean; 
       getRecentMediaTrace: () => ({}), isRecentlyUsedMediaRow: () => false, isValidJobForSector: () => true,
       shouldUseFastAgentMediaContext: () => true,
       prepareAgentSelectedImageForAI: async (asset: Media) => { events.push(`vision:${asset.id}`); return [{ id: asset.id }]; },
-      buildAgentSelectedMediaContext: () => ({}), channelMediaReadiness: () => ({}), channelMediaAdaptation: () => ({}),
+      buildAgentSelectedMediaContext: () => ({}), channelMediaReadiness: (_channel: string, media: unknown) => ({ mediaRequired: Boolean(media) }), channelMediaAdaptation: (_channel: string, media: unknown) => ({ mediaType: media ? "image" : "none" }),
       videoAiContextReferenceAliases: () => ({}),
       generateBoosterPosts: async (args: RecordValue) => {
         events.push("text"); textCalls.push(args);
         if (options.failedText) throw new Error("text_failed");
-        return { versions: { facebook: { title: "Notre cuisine", content: "Découvrez les détails de notre cuisine.", cta: "Contactez-nous", hashtags: [] } }, recoveredChannels: [] };
+        return { versions: { facebook: { title: "Notre cuisine", content: "Découvrez les détails de notre cuisine.", cta: "Contactez-nous", hashtags: [] }, threads: { title: "Cuisine", content: "Un conseil concret pour votre cuisine.", cta: "Contactez-nous", hashtags: [] } }, recoveredChannels: [] };
       },
       applySafePreferredCta: ({ post }: { post: unknown }) => post,
       hasUsefulContent: (post: { title?: string; content?: string; cta?: string } | undefined) =>
         Boolean(post?.title?.trim() || post?.content?.trim() || post?.cta?.trim()),
-      boosterToAgentChannel: { facebook: "facebook" }, inrAgentChannelToBoosterPublishChannel: (channel: string) => channel,
+      boosterToAgentChannel: { facebook: "facebook", threads: "threads" }, inrAgentChannelToBoosterPublishChannel: (channel: string) => channel,
       buildPreviewText: () => "Aperçu", themeLabels: { realisations: "Réalisations" }, buildSummary: () => "Trois images",
       requiresManualValidation: () => true, getExecutionPolicy: () => "manual", getInitialStatus: () => "pending_validation",
       rowToInrAgentAction: (value: unknown) => value,
@@ -279,4 +279,25 @@ test("le coordinateur marque uniquement l'échec sans retry comme terminal pour 
   const quota = retryCoordinatorHarness({ priorAttempts: 7, error: "Quota IA atteint" });
   assert.equal((await quota.run()).status, "retry");
   assert.equal((quota.row.metadata as RecordValue).editorialIdeaReservationTerminal, false);
+});
+
+test("Ghost Threads seul prépare le texte sans générer ni analyser de média", async () => {
+  const h = harness({ ghostOnly: true }); const result = await h.run();
+  assert.equal(result.status, 200); assert.equal(h.mediaCalls.length, 0); assert.equal(h.generated.size, 0);
+  assert.equal(h.textCalls.length, 1); assert.deepEqual(h.textCalls[0].imagesForAI, []);
+  assert.deepEqual(h.storedAction?.image_assets, []);
+  const payload = h.storedAction?.payload as RecordValue;
+  assert.deepEqual(payload.threadsPublicationSettings, { mode: "ghost" });
+  assert.deepEqual(payload.mediaAssets, []); assert.equal(payload.mediaType, "none");
+  assert.equal((payload.mediaAdaptationByChannel as Record<string, RecordValue>).threads.mediaType, "none");
+});
+
+test("Ghost dans une préparation mixte conserve le carrousel Facebook et désactive uniquement les médias Threads", async () => {
+  const h = harness({ ghostMixed: true }); const result = await h.run();
+  assert.equal(result.status, 200); assert.equal(h.generated.size, 3);
+  const payload = h.storedAction?.payload as RecordValue;
+  assert.deepEqual(payload.threadsPublicationSettings, { mode: "ghost" });
+  assert.equal((payload.mediaAssets as unknown[]).length, 3);
+  const adaptations = payload.mediaAdaptationByChannel as Record<string, RecordValue>;
+  assert.equal(adaptations.facebook.mediaType, "image"); assert.equal(adaptations.threads.mediaType, "none");
 });

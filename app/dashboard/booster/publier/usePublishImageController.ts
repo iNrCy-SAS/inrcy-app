@@ -1577,6 +1577,7 @@ export default function usePublishImageController({
 
   const buildChannelImagesPayload = async (
     onProgress?: (current: number, total: number) => void,
+    channelsToRender: readonly ChannelKey[] = selectedChannels,
   ): Promise<{
     channelImages: ChannelImagePayload;
     channelSettings: ChannelImageSettingsPayload;
@@ -1587,7 +1588,7 @@ export default function usePublishImageController({
       return channelImageEditors[channel] || { imageKeys: [], transforms: {} };
     };
 
-    const totalRenders = selectedChannels.reduce((sum, channel) => {
+    const totalRenders = channelsToRender.reduce((sum, channel) => {
       if (!channelSupportsImages(channel)) return sum;
       const editor = getEditorForPublish(channel);
       const keys = editor.imageKeys.slice(
@@ -1598,7 +1599,7 @@ export default function usePublishImageController({
     }, 0);
     let doneRenders = 0;
 
-    for (const channel of selectedChannels) {
+    for (const channel of channelsToRender) {
       if (!channelSupportsImages(channel)) {
         channelImages[channel] = [];
         channelSettings[channel] = {

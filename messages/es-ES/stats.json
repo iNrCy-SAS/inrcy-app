@@ -488,5 +488,6 @@
   "canal_suivant_7b81611d": "Canal siguiente",
   "threads_replies": "Respuestas",
   "threads_reposts": "Republicaciones",
-  "threads_quotes": "Citas"
+  "threads_quotes": "Citas",
+  "publication_type_ghost": "Ghost"
 }

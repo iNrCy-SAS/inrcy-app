@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "Das Fenster wird nicht erneut angezeigt. Jeder Beitrag wird weiterhin einzeln bestätigt.",
   "threads": "Threads",
   "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
-  "threads_final_text": "Finaler Threads-Text"
+  "threads_final_text": "Finaler Threads-Text",
+  "threads_publication_format": "Threads-Format",
+  "threads_classic": "Klassisch",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost: nur Text, maximal 500 Zeichen, nach 24 Stunden archiviert. Medien anderer Kanäle bleiben erhalten.",
+  "threads_ghost_preferences_loading": "Threads-Formate werden geprüft. Ghost kann noch nicht veröffentlicht werden.",
+  "threads_ghost_preferences_error": "Threads-Formate sind nicht verfügbar. Lade die Seite neu oder wähle ausdrücklich Klassisch.",
+  "threads_ghost_disabled": "Ghost ist in den Threads-Einstellungen deaktiviert. Aktiviere es oder wähle ausdrücklich Klassisch.",
+  "threads_text_too_long": "Der endgültige Threads-Text darf 500 Zeichen nicht überschreiten.",
+  "threads_ghost_preview": "Ghost · nur Text · nach 24 Stunden archiviert"
 }

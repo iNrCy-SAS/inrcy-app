@@ -794,5 +794,8 @@
   "tiktok_session_checking": "TikTok controleren…",
   "next_editorial_publication_in_a_few_minutes": "Volgende publicatie over enkele minuten",
   "threads": "Threads",
-  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken."
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
+  "threads_mode_ghost": "Ghost · 24 uur",
+  "threads_ghost_help": "Ghost: alleen tekst, na 24 uur gearchiveerd.",
+  "threads_ghost_disabled": "Ghost is uitgeschakeld in je Threads-instellingen."
 }

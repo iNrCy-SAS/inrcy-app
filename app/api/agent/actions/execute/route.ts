@@ -1,3 +1,4 @@
+import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
@@ -1017,6 +1018,9 @@ async function executeAgentActionHandler(request: Request) {
     : hasImagePayload
       ? "images"
       : "none";
+  const threadsPublicationSettings = selectedChannels.includes("threads")
+    ? readInrAgentThreadsPublicationSettings(payload)
+    : null;
   const instagramPublicationSettings = selectedChannels.includes("instagram")
     ? publicationSettingsForInrAgentChannel(payload, "instagram")
     : null;
@@ -1118,7 +1122,7 @@ async function executeAgentActionHandler(request: Request) {
     const videoSettingsByChannel =
       activeMediaMode === "video"
         ? buildVideoSettingsByChannel({
-            channels: publishChannels as any,
+            channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost") as any,
             videoSettingsByChannel:
               (videoPayload as any)?.videoSettingsByChannel ||
               payload.videoSettingsByChannel,
@@ -1129,7 +1133,7 @@ async function executeAgentActionHandler(request: Request) {
       activeMediaMode === "images" && imagePayloads.length
         ? await prepareBoosterImagesByChannelOnServer({
             accountId: userId,
-            channels: publishChannels,
+            channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost"),
             images: imagePayloads,
             automaticFit: "contain",
           })
@@ -1140,7 +1144,7 @@ async function executeAgentActionHandler(request: Request) {
             failuresByChannel: {},
           };
 
-    const publishBody = {
+    const publishBody = projectInrAgentThreadsPublishPayload({
       channels: publishChannels,
       post: firstPost,
       postByChannel: normalizedPostByChannel,
@@ -1157,6 +1161,7 @@ async function executeAgentActionHandler(request: Request) {
         ? { instagramPublicationSettings }
         : {}),
       ...(facebookPublicationSettings ? { facebookPublicationSettings } : {}),
+      ...(threadsPublicationSettings ? { threadsPublicationSettings } : {}),
       ...(pinterestPublicationSettings ? { pinterestPublicationSettings } : {}),
       ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
       workflowTool: "booster",
@@ -1175,7 +1180,7 @@ async function executeAgentActionHandler(request: Request) {
         workflowAction: "publier",
         runMode: "manual_validation",
       },
-    };
+    });
 
     const publishResponse = await publishNowBooster(
       new Request("http://inrcy.local/api/booster/publish-now", {

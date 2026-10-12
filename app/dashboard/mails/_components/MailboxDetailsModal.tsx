@@ -1583,6 +1583,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     ? getLivePublicationResult(publicationLiveStatus, activePublicationEntry.key)
                     : null;
                   const activePublicationResult = activePublicationLiveResult || persistedActivePublicationResult;
+                  const isThreadsGhost = activePublicationEntry?.key === "threads" && (activePublicationResult?.threads_publication_mode === "ghost" || activePublicationResult?.is_ghost_post === true || payload?.threadsPublicationSettings?.mode === "ghost");
                   const activePublicationDeleted = isDeletedChannelResult(activePublicationResult);
                   const activePublicationFailed = isFailedChannelResult(activePublicationResult);
                   const activePublicationFailureMessage = activePublicationFailed
@@ -1669,7 +1670,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                         }))
                         .filter((att: any) => att.url)
                     : [];
-                  const attachmentCandidates = detailsItem.source === "send_items"
+                  const attachmentCandidates = isThreadsGhost ? [] : detailsItem.source === "send_items"
                     ? [...(detailsItem.attachments || []), ...extractAttachmentsFromPayload((detailsItem as any).raw), ...sourceDocAttachments]
                     : detailsItem.source === "mail_campaigns"
                     ? campaignAttachments
@@ -1683,13 +1684,13 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const imageAttachments = dedupedAttachments.filter((att) => att?.url && isImageAttachment(att));
                   const videoAttachments = dedupedAttachments.filter((att) => att?.url && isVideoAttachment(att));
                   const activeVideoAttachment = videoAttachments[0] || null;
-                  const activeSourceVideoAttachment = activeParts.sourceVideo && !sameVideoAttachment(activeParts.sourceVideo, activeVideoAttachment)
+                  const activeSourceVideoAttachment = !isThreadsGhost && activeParts.sourceVideo && !sameVideoAttachment(activeParts.sourceVideo, activeVideoAttachment)
                     ? activeParts.sourceVideo
                     : null;
                   // iNrSend conserve la vidéo originale comme source de travail, même si une variante publiée existe.
                   const activeVideoDisplayAttachment = activeSourceVideoAttachment || activeVideoAttachment;
                   const activeVideoSourceMetadata = (activeSourceVideoAttachment as any)?.sourceMetadata || (activeVideoAttachment as any)?.sourceMetadata || null;
-                  const isVideoPublication = detailsItem.source === "app_events" && (
+                  const isVideoPublication = !isThreadsGhost && detailsItem.source === "app_events" && (
                     String(payload?.mediaType || payload?.media_type || "").toLowerCase() === "video" ||
                     Boolean(activeVideoAttachment)
                   );
@@ -2214,6 +2215,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     >
                                       {i18nT("modifier_f260e757")}{" "}</button>
                                   )}
+                                  {isThreadsGhost ? <span role="note" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{i18nT("threads_mode_ghost")} · {i18nT("threads_ghost_text_only")}</span> : null}
                                   {threadsPublishedEditUnavailable ? <span role="note" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{i18nT("threads_edit_unsupported")}</span> : null}
                                   {!isDraftItem && !isExternalVideoPublicationEntry ? (
                                     <button

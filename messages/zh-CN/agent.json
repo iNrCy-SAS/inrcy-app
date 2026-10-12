@@ -794,5 +794,8 @@
   "tiktok_session_checking": "正在检查 TikTok…",
   "next_editorial_publication_in_a_few_minutes": "下一篇发布内容将在几分钟后生成",
   "threads": "Threads",
-  "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。"
+  "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
+  "threads_mode_ghost": "Ghost · 24 小时",
+  "threads_ghost_help": "Ghost：仅限文字，24 小时后归档。",
+  "threads_ghost_disabled": "Threads 设置中已禁用 Ghost。"
 }

@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "หน้าต่างนี้จะไม่แสดงซ้ำ และแต่ละโพสต์ยังคงได้รับการยืนยันแยกกัน",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
-  "threads_final_text": "ข้อความ Threads สุดท้าย"
+  "threads_final_text": "ข้อความ Threads สุดท้าย",
+  "threads_publication_format": "รูปแบบ Threads",
+  "threads_classic": "แบบปกติ",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost: เฉพาะข้อความ ไม่เกิน 500 ตัวอักษร เก็บถาวรหลัง 24 ชั่วโมง สื่อของช่องทางอื่นยังคงอยู่",
+  "threads_ghost_preferences_loading": "กำลังตรวจสอบรูปแบบ Threads ยังเผยแพร่ Ghost ไม่ได้",
+  "threads_ghost_preferences_error": "รูปแบบ Threads ไม่พร้อมใช้งาน โหลดหน้าใหม่หรือเลือกแบบปกติอย่างชัดเจน",
+  "threads_ghost_disabled": "Ghost ถูกปิดในการตั้งค่า Threads เปิดใช้งานหรือเลือกแบบปกติอย่างชัดเจน",
+  "threads_text_too_long": "ข้อความ Threads ฉบับสุดท้ายต้องไม่เกิน 500 ตัวอักษร",
+  "threads_ghost_preview": "Ghost · เฉพาะข้อความ · เก็บถาวรหลัง 24 ชั่วโมง"
 }

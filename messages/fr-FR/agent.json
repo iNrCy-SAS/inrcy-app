@@ -794,5 +794,8 @@
   "tiktok_session_checking": "Vérification TikTok…",
   "next_editorial_publication_in_a_few_minutes": "Prochaine publication dans quelques minutes",
   "threads": "Threads",
-  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon."
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
+  "threads_mode_ghost": "Ghost · 24 h",
+  "threads_ghost_help": "Ghost : texte seul, archivé après 24 h.",
+  "threads_ghost_disabled": "Ghost est désactivé dans la configuration Threads."
 }

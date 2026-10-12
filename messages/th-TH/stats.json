@@ -488,5 +488,6 @@
   "canal_suivant_7b81611d": "ช่องถัดไป",
   "threads_replies": "การตอบกลับ",
   "threads_reposts": "การโพสต์ซ้ำ",
-  "threads_quotes": "การอ้างอิง"
+  "threads_quotes": "การอ้างอิง",
+  "publication_type_ghost": "โพสต์ Ghost"
 }

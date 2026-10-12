@@ -796,5 +796,8 @@
   "workflowactionlabel_272c910f": "workflowActionLabel",
   "youtube_3f8b5798": "YouTube :",
   "youtube_558865a1": "YouTube",
-  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon."
+  "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
+  "threads_mode_ghost": "Ghost · 24 h",
+  "threads_ghost_text_only": "Ghost : texte seul, archivé après 24 h.",
+  "threads_ghost_disabled": "Ghost est désactivé dans la configuration Threads."
 }

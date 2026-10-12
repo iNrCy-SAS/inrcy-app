@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "此窗口不会再次显示，每条帖子仍会单独确认。",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
-  "threads_final_text": "Threads 最终文本"
+  "threads_final_text": "Threads 最终文本",
+  "threads_publication_format": "Threads 格式",
+  "threads_classic": "普通",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost：仅限文字，最多 500 个字符，24 小时后归档。其他渠道的媒体保持不变。",
+  "threads_ghost_preferences_loading": "正在检查 Threads 格式。暂时无法发布 Ghost。",
+  "threads_ghost_preferences_error": "Threads 格式不可用。请重新加载页面或明确选择普通格式。",
+  "threads_ghost_disabled": "Threads 设置中已禁用 Ghost。请启用它或明确选择普通格式。",
+  "threads_text_too_long": "Threads 最终文本不得超过 500 个字符。",
+  "threads_ghost_preview": "Ghost · 仅限文字 · 24 小时后归档"
 }

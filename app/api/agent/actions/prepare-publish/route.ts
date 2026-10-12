@@ -1,3 +1,4 @@
+import { normalizeThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
@@ -2093,6 +2094,7 @@ export async function POST(request: Request) {
     ctaDefaults,
     studioMediaPreferences,
     instantMediaMix,
+    threadsConfig,
   ] = await Promise.all([
     selectConnectedChannels({
       supabase,
@@ -2104,7 +2106,13 @@ export async function POST(request: Request) {
     loadBoosterCtaDefaults({ supabase, userId }),
     studioMediaPreferencesPromise,
     instantMediaMixPromise,
+    supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
   ]);
+  if (availableChannels.includes("threads") && threadsConfig.error) return NextResponse.json({ error: "Impossible de vérifier le format Threads." }, { status: 503 });
+  if (availableChannels.includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId)))) return metaChannelPilotDeniedResponse();
+  const threadsPreferences = normalizeThreadsPublicationPreferences(asRecord(asRecord(threadsConfig.data?.settings).threads).publicationPreferences);
+  const threadsPublicationSettings = availableChannels.includes("threads") ? { mode: threadsPreferences.defaultMode } : null;
+  const ghostOnlyPublication = availableChannels.length === 1 && availableChannels[0] === "threads" && threadsPublicationSettings?.mode === "ghost";
   const plannedMediaKind = editorialTarget?.plan.mediaKind;
   const publicationMediaTypes = normalizeInrAgentPublicationMediaTypes(automation.publicationMediaTypes);
   const automaticMediaKind =
@@ -2112,7 +2120,7 @@ export async function POST(request: Request) {
       ? (publicationMediaTypes.video ? "video" : "image")
       : plannedMediaKind === "image" ? "image"
       : instantMediaMix?.mediaKind || "image";
-  const requestedImageCount = automaticMediaKind === "image"
+  const requestedImageCount = !ghostOnlyPublication && automaticMediaKind === "image"
     ? (publicationMediaTypes.carousel && (editorialTarget?.plan.imageCount === 3 || instantMediaMix?.imageCount === 3) ? 3 : 1)
     : 0;
   const videoDurationSeconds = automaticMediaKind === "video"
@@ -2272,8 +2280,8 @@ export async function POST(request: Request) {
   let quotaReservation: AiCreditReservation | null = null;
   const actionCredits = computeBoosterAiCredits({
     mediaType: automaticMediaKind === "video" ? "video" : "images",
-    imagesForAI: automaticMediaKind === "image" ? [{}] : [],
-    videoForAI: automaticMediaKind === "video" ? {} : undefined,
+    imagesForAI: !ghostOnlyPublication && automaticMediaKind === "image" ? [{}] : [],
+    videoForAI: !ghostOnlyPublication && automaticMediaKind === "video" ? {} : undefined,
   });
   if (!isAdmin) {
     const quota = editorialTarget
@@ -2293,7 +2301,7 @@ export async function POST(request: Request) {
   try {
   const mediaSelectionStartedAt = Date.now();
   const recentMediaUsage = await loadRecentMediaUsage(userId);
-  const diversifiedMediaSelection = automation.useImageBank
+  const diversifiedMediaSelection = !ghostOnlyPublication && automation.useImageBank
     ? await pickDiversifiedMedia({
         userId,
         business,
@@ -2343,7 +2351,7 @@ export async function POST(request: Request) {
     fallbackAssets.push(next.media);
   }
   const generatedKind = automaticMediaKind;
-  const desiredMediaCount = requestedImageCount || 1;
+  const desiredMediaCount = ghostOnlyPublication ? 0 : requestedImageCount || 1;
   let existingMediaAssets = automation.preferredMediaSource === "ai_generation" ? [] : fallbackAssets;
   const mediaSnapshotSignature = createHash("sha256").update(JSON.stringify([
     editorialTarget?.plan.criteriaSignature, automaticMediaKind, desiredMediaCount,
@@ -2357,7 +2365,7 @@ export async function POST(request: Request) {
   const generationStudioPreferences = reuseMediaSnapshot
     ? (savedMediaSnapshot.studioPreferences ? normalizeAiMediaGeneratorPreferences(savedMediaSnapshot.studioPreferences) : null)
     : studioMediaPreferences;
-  if (reuseMediaSnapshot && Array.isArray(savedMediaSnapshot.existingAssets)) {
+  if (!ghostOnlyPublication && reuseMediaSnapshot && Array.isArray(savedMediaSnapshot.existingAssets)) {
     existingMediaAssets = savedMediaSnapshot.existingAssets as ImageBankAsset[];
   }
   if (editorialTarget && !reuseMediaSnapshot) {
@@ -2661,10 +2669,10 @@ export async function POST(request: Request) {
   // la préparation du texte. Les canaux compatibles restent prêts en texte seul,
   // les canaux qui exigent un média sont marqués comme incomplets canal par canal.
   const mediaReadinessByChannel = Object.fromEntries(
-    channels.map((channel) => [channel, channelMediaReadiness(channel, media)])
+    channels.map((channel) => [channel, channelMediaReadiness(channel, channel === "threads" && threadsPublicationSettings?.mode === "ghost" ? null : media)])
   );
   const mediaAdaptationByChannel = Object.fromEntries(
-    channels.map((channel) => [channel, channelMediaAdaptation(channel, media)])
+    channels.map((channel) => [channel, channelMediaAdaptation(channel, channel === "threads" && threadsPublicationSettings?.mode === "ghost" ? null : media)])
   );
 
   try {
@@ -2741,6 +2749,7 @@ export async function POST(request: Request) {
       boosterTheme,
       editorialFocus: runtimeFocus,
       postByChannel: versions,
+      ...(threadsPublicationSettings ? { threadsPublicationSettings } : {}),
       ctaPolicy: {
         version: 1,
         source: "channel_configuration",

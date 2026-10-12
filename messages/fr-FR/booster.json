@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "La modale ne sera plus redemandée. Chaque publication restera validée séparément.",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
-  "threads_final_text": "Texte Threads final"
+  "threads_final_text": "Texte Threads final",
+  "threads_publication_format": "Format Threads",
+  "threads_classic": "Classique",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost : texte seul, 500 caractères maximum, archivé après 24 h. Les médias des autres canaux sont conservés.",
+  "threads_ghost_preferences_loading": "Vérification des formats Threads. Ghost ne peut pas encore être publié.",
+  "threads_ghost_preferences_error": "Les formats Threads sont indisponibles. Rechargez la page ou choisissez explicitement Classique.",
+  "threads_ghost_disabled": "Ghost est désactivé dans la configuration Threads. Activez-le ou choisissez explicitement Classique.",
+  "threads_text_too_long": "Le texte Threads final ne doit pas dépasser 500 caractères.",
+  "threads_ghost_preview": "Ghost · texte seul · archivé après 24 h"
 }

@@ -607,5 +607,18 @@
   "threads_description": "Échangez avec votre communauté",
   "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
   "instagram_callback_error": "La connexion Instagram n’a pas pu être finalisée. Réessayez.",
-  "threads_callback_error": "La connexion Threads n’a pas pu être finalisée. Réessayez."
+  "threads_callback_error": "La connexion Threads n’a pas pu être finalisée. Réessayez.",
+  "threads_publication_modes_title": "Formats de publication Threads",
+  "threads_publication_modes_help": "Choisissez les formats disponibles dans Booster et le format proposé par défaut.",
+  "threads_classic_mode": "Classique",
+  "threads_classic_mode_help": "Publication permanente avec texte, images ou vidéo.",
+  "threads_ghost_mode": "Ghost",
+  "threads_ghost_mode_help": "Texte seul, 500 caractères maximum. Le post est archivé automatiquement après 24 h.",
+  "threads_default_publication_mode": "Format par défaut",
+  "threads_publication_modes_save": "Enregistrer les formats",
+  "threads_publication_modes_saving": "Enregistrement…",
+  "threads_publication_modes_saved": "Formats Threads enregistrés.",
+  "threads_publication_modes_load_error": "Impossible de charger les formats Threads. Ghost reste indisponible.",
+  "threads_publication_modes_save_error": "Impossible d’enregistrer les formats Threads.",
+  "threads_publication_modes_retry": "Réessayer"
 }

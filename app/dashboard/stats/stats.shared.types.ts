@@ -131,6 +131,7 @@ export type InrcyActivityCount = {
 };
 
 export type InrcyPublicationType =
+  | "ghost"
   | "text"
   | "image"
   | "video"

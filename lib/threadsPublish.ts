@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { type ThreadsPublicationMode } from "./threadsPublicationPreferences.ts";
 import { buildThreadsGraphUrl } from "./threadsGraphApi.ts";
 import { isMetaAuthorizationError, isMetaRateLimitError } from "./metaGraphErrorClassification.ts";
 
@@ -15,11 +16,12 @@ export type ThreadsPublishCheckpoint = {
   childContainerIds: string[];
   containerId: string | null;
   mediaType: "TEXT" | "IMAGE" | "VIDEO" | "CAROUSEL";
+  publicationMode?: ThreadsPublicationMode;
   state: "created" | "processing" | "ready" | "publish_unknown" | "published" | "failed";
   postId: string | null;
 };
 export type ThreadsPublishResult =
-  | { ok: true; postId: string; mediaType: ThreadsPublishCheckpoint["mediaType"]; checkpoint: ThreadsPublishCheckpoint }
+  | { ok: true; postId: string; mediaType: ThreadsPublishCheckpoint["mediaType"]; publicationMode: ThreadsPublicationMode; checkpoint: ThreadsPublishCheckpoint }
   | { ok: false; error: string; code: string; retryable: boolean; requestMayHaveSucceeded?: boolean; authorizationError?: boolean; retryAfterMs?: number; checkpoint?: ThreadsPublishCheckpoint; diagnostics?: unknown };
 type Dependencies = { fetchImpl?: typeof fetch; now?: () => Date };
 type PublishParams = {
@@ -27,6 +29,7 @@ type PublishParams = {
   accessToken: string;
   text: string;
   media?: ThreadsMediaItem[];
+  publicationMode?: ThreadsPublicationMode;
   expiresAt?: string | null;
   checkpoint?: unknown;
   onCheckpoint?: (checkpoint: ThreadsPublishCheckpoint) => Promise<void>;
@@ -49,6 +52,8 @@ export function parseThreadsPublishCheckpoint(value: unknown): ThreadsPublishChe
     !Number.isFinite(Date.parse(clean(row.createdAt))) || !Array.isArray(row.childContainerIds) ||
     row.childContainerIds.some((id) => !/^\d+$/.test(clean(id))) || row.childContainerIds.length > 20 ||
     !["TEXT", "IMAGE", "VIDEO", "CAROUSEL"].includes(clean(row.mediaType)) ||
+    (row.publicationMode !== undefined && !["classic", "ghost"].includes(clean(row.publicationMode))) ||
+    (row.publicationMode === "ghost" && (row.mediaType !== "TEXT" || row.childContainerIds.length > 0)) ||
     !["created", "processing", "ready", "publish_unknown", "published", "failed"].includes(clean(row.state)) ||
     (row.containerId !== null && !/^\d+$/.test(clean(row.containerId))) ||
     (row.postId !== null && !/^\d+$/.test(clean(row.postId))) || (row.state === "published" && !row.postId)) return null;
@@ -81,6 +86,10 @@ function graphFailure(response: Response, body: Record<string, unknown>, checkpo
 export async function threadsPublish(params: PublishParams, deps: Dependencies = {}): Promise<ThreadsPublishResult> {
   const userId = clean(params.userId), accessToken = clean(params.accessToken), text = clean(params.text);
   const media = (params.media || []).map((item) => ({ ...item, url: clean(item.url) }));
+  const publicationMode = params.publicationMode ?? "classic";
+  if (!["classic", "ghost"].includes(publicationMode)) return { ok: false, error: "Le format Threads demandé est invalide.", code: "threads_invalid_input", retryable: false };
+  // Meta only supports text for Ghost Posts. Never silently discard selected media.
+  if (publicationMode === "ghost" && media.length) return { ok: false, error: "Les Ghost Posts Threads acceptent uniquement du texte, sans image ni vidéo.", code: "threads_ghost_media_unsupported", retryable: false };
   const invalid = !userId || !accessToken || (!text && !media.length) || Array.from(text).length > 500 || media.length > 20 || media.some((item) => !["IMAGE", "VIDEO"].includes(item.type) || !/^https:\/\//i.test(item.url));
   if (invalid) return { ok: false, error: "Publication Threads invalide (texte de 500 caractères maximum, médias HTTPS, 20 médias maximum).", code: "threads_invalid_input", retryable: false };
   if (params.expiresAt && Date.parse(params.expiresAt) <= now(deps).getTime()) return { ok: false, error: "La connexion Threads a expiré. Reconnectez votre compte.", code: "threads_reconnect_required", retryable: false, authorizationError: true };
@@ -88,11 +97,11 @@ export async function threadsPublish(params: PublishParams, deps: Dependencies =
   // Signed delivery URLs can rotate between polls. The same stored object
   // remains the same request; another object, media order or text never does.
   const fingerprintMedia = media.map(({ sourceIdentity, ...item }) => ({ ...item, url: clean(sourceIdentity) || item.url }));
-  const requestFingerprint = createHash("sha256").update(JSON.stringify({ userId, text, media: fingerprintMedia })).digest("hex");
+  const requestFingerprint = createHash("sha256").update(JSON.stringify({ userId, text, media: fingerprintMedia, ...(publicationMode === "ghost" ? { publicationMode } : {}) })).digest("hex");
   let checkpoint = parseThreadsPublishCheckpoint(params.checkpoint);
-  if (params.checkpoint && (!checkpoint || checkpoint.userId !== userId || checkpoint.requestFingerprint !== requestFingerprint)) return { ok: false, error: "La reprise Threads ne correspond pas à cette publication.", code: "threads_checkpoint_invalid", retryable: false };
-  checkpoint ||= { version: 1, userId, requestFingerprint, createdAt: now(deps).toISOString(), childContainerIds: [], containerId: null, mediaType, state: "created", postId: null };
-  if (checkpoint.state === "published" && checkpoint.postId) return { ok: true, postId: checkpoint.postId, mediaType: checkpoint.mediaType, checkpoint };
+  if (params.checkpoint && (!checkpoint || checkpoint.userId !== userId || checkpoint.requestFingerprint !== requestFingerprint || (checkpoint.publicationMode ?? "classic") !== publicationMode)) return { ok: false, error: "La reprise Threads ne correspond pas à cette publication.", code: "threads_checkpoint_invalid", retryable: false };
+  checkpoint ||= { version: 1, userId, requestFingerprint, createdAt: now(deps).toISOString(), childContainerIds: [], containerId: null, mediaType, publicationMode, state: "created", postId: null };
+  if (checkpoint.state === "published" && checkpoint.postId) return { ok: true, postId: checkpoint.postId, mediaType: checkpoint.mediaType, publicationMode, checkpoint };
   if (checkpoint.state === "publish_unknown") return { ok: false, error: "Threads a reçu une tentative de publication dont le résultat doit être vérifié avant tout nouvel essai.", code: "threads_publish_ambiguous", retryable: false, requestMayHaveSucceeded: true, checkpoint };
   if (checkpoint.state === "failed" || now(deps).getTime() - Date.parse(checkpoint.createdAt) >= 24 * 60 * 60_000) return { ok: false, error: "Le conteneur Threads a expiré ou a échoué. Créez une nouvelle publication.", code: "threads_container_expired", retryable: false, checkpoint };
   const persist = async (patch: Partial<ThreadsPublishCheckpoint>) => { checkpoint = { ...checkpoint!, ...patch }; await params.onCheckpoint?.(checkpoint); };
@@ -117,7 +126,7 @@ export async function threadsPublish(params: PublishParams, deps: Dependencies =
           if (clean(status.body.status) !== "FINISHED") { await persist({ state: "processing" }); return { ok: false, error: "Threads prépare les médias.", code: "threads_processing", retryable: true, retryAfterMs: 60_000, checkpoint }; }
         }
       }
-      const fields: Record<string, string> = { media_type: mediaType, ...(text ? { text } : {}) };
+      const fields: Record<string, string> = { media_type: mediaType, ...(text ? { text } : {}), ...(publicationMode === "ghost" ? { is_ghost_post: "true" } : {}) };
       if (mediaType === "CAROUSEL") fields.children = checkpoint.childContainerIds.join(",");
       else if (media[0]) { fields[media[0].type === "IMAGE" ? "image_url" : "video_url"] = media[0].url; if (media[0].altText) fields.alt_text = media[0].altText; }
       const created = await create(fields);
@@ -149,7 +158,7 @@ export async function threadsPublish(params: PublishParams, deps: Dependencies =
     const postId = clean(published.body.id);
     if (!/^\d+$/.test(postId)) return fail(new Error("Threads n’a pas renvoyé l’identifiant de la publication."), "publish");
     await persist({ postId, state: "published" });
-    return { ok: true, postId, mediaType, checkpoint };
+    return { ok: true, postId, mediaType, publicationMode, checkpoint };
   } catch (error) { return fail(error, "publish"); }
 }
 

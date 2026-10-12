@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "La ventana no volverá a mostrarse. Cada publicación se seguirá validando por separado.",
   "threads": "Threads",
   "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador.",
-  "threads_final_text": "Texto final de Threads"
+  "threads_final_text": "Texto final de Threads",
+  "threads_publication_format": "Formato de Threads",
+  "threads_classic": "Clásico",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost: solo texto, hasta 500 caracteres, archivado tras 24 horas. Se conservan los medios de otros canales.",
+  "threads_ghost_preferences_loading": "Comprobando los formatos de Threads. Ghost aún no se puede publicar.",
+  "threads_ghost_preferences_error": "Los formatos de Threads no están disponibles. Recarga la página o elige explícitamente Clásico.",
+  "threads_ghost_disabled": "Ghost está desactivado en la configuración de Threads. Actívalo o elige explícitamente Clásico.",
+  "threads_text_too_long": "El texto final de Threads no puede superar los 500 caracteres.",
+  "threads_ghost_preview": "Ghost · solo texto · archivado tras 24 horas"
 }

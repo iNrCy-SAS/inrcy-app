@@ -1,3 +1,4 @@
+import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
@@ -228,6 +229,7 @@ function publicationPayloadForChannels(
     delete nextPublishPayload.facebookPublicationSettings;
     delete nextPublishPayload.facebookPublicationPlacement;
   }
+  if (!channels.includes("threads")) delete nextPublishPayload.threadsPublicationSettings;
   if (!channels.includes("tiktok")) {
     delete nextPublishPayload.tiktokPublicationSettings;
   }
@@ -1030,6 +1032,7 @@ async function buildScheduledPayload(
       payload.videoByChannel || nestedPublishPayload.videoByChannel,
     ) || {};
     const channelMediaMode = (channel: BoosterChannel) => {
+      if (channel === "threads" && readInrAgentThreadsPublicationSettings(payload).mode === "ghost") return "none";
       const configured = cleanText(sourceMediaModeByChannel[channel], 20).toLowerCase();
       return configured === "video" || configured === "images" || configured === "none"
         ? configured
@@ -1042,6 +1045,9 @@ async function buildScheduledPayload(
     const channelHasVideo = (channel: BoosterChannel) =>
       Object.keys(asRecord(sourceVideoByChannel[channel]) || {}).length > 0 ||
       hasVideoPayload;
+    const threadsPublicationSettings = selectedChannels.includes("threads")
+      ? readInrAgentThreadsPublicationSettings(payload)
+      : null;
     const instagramPublicationSettings = selectedChannels.includes("instagram")
       ? publicationSettingsForInrAgentChannel(payload, "instagram")
       : null;
@@ -1120,7 +1126,7 @@ async function buildScheduledPayload(
     const videoSettingsByChannel =
       activeMediaMode === "video"
         ? buildVideoSettingsByChannel({
-            channels: publishChannels as any,
+            channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost") as any,
             videoSettingsByChannel: videoSettingsSource,
             sourceMetadata: (videoPayload as any)?.sourceMetadata || null,
           })
@@ -1129,7 +1135,7 @@ async function buildScheduledPayload(
       activeMediaMode === "images" && imagePayloads.length
           ? await prepareBoosterImagesByChannelOnServer({
             accountId,
-            channels: publishChannels,
+            channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost"),
             images: imagePayloads,
             automaticFit: "contain",
           })
@@ -1146,7 +1152,7 @@ async function buildScheduledPayload(
       payload: {
         kind: "manual_publish_schedule",
         sourceActionId: action.id,
-        publishPayload: {
+        publishPayload: projectInrAgentThreadsPublishPayload({
           channels: publishChannels,
           autoDisabledChannels,
           ...(sourceMediaWorkspaceId
@@ -1179,6 +1185,7 @@ async function buildScheduledPayload(
           ...(facebookPublicationSettings
             ? { facebookPublicationSettings }
             : {}),
+          ...(threadsPublicationSettings ? { threadsPublicationSettings } : {}),
           ...(pinterestPublicationSettings
             ? { pinterestPublicationSettings }
             : {}),
@@ -1189,7 +1196,7 @@ async function buildScheduledPayload(
           workflowAction: "publier",
           source: "inr_agent",
           inrAgentActionId: action.id,
-        },
+        }),
       },
     };
   }

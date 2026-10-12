@@ -5,6 +5,7 @@ import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useTranslations } from "next-intl";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicationPreferences, type ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
 
 export type ThreadsConnection = {
   connected: boolean;
@@ -23,6 +24,7 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const requestSequenceRef = useRef(0);
   const lastAccountIdRef = useRef(activeAccountId);
+  const preferencesSequenceRef = useRef(0);
   const t = useTranslations("shell");
   const [connection, setConnection] = useState<ThreadsConnection>(() => metaPilotEnabled ? {
     connected: initialState?.threadsConnected === true,
@@ -35,6 +37,23 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [publicationPreferences, setPublicationPreferences] = useState<ThreadsPublicationPreferences>(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+  const [preferencesRequestLoading, setPreferencesLoading] = useState(true);
+  const [preferencesAccountId, setPreferencesAccountId] = useState<string | null | undefined>(undefined);
+  const preferencesLoading = preferencesRequestLoading || preferencesAccountId !== activeAccountId;
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferencesNotice, setPreferencesNotice] = useState<string | null>(null);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  useEffect(() => {
+    preferencesSequenceRef.current += 1;
+    setPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+    setPreferencesLoading(true);
+    setPreferencesSaving(false);
+    setPreferencesNotice(null);
+    setPreferencesError(null);
+    return () => { preferencesSequenceRef.current += 1; };
+  }, [activeAccountId, metaPilotEnabled]);
+
   useEffect(() => {
     requestSequenceRef.current += 1;
     if (lastAccountIdRef.current !== activeAccountId || !metaPilotEnabled) {
@@ -77,6 +96,44 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
     finally { if (isCurrent()) setLoading(false); }
   }, [activeAccountId, applyThreadsState, metaPilotEnabled, onConnectionChange, t]);
   useEffect(() => { if (panel === "threads" && metaPilotEnabled) void syncThreadsStateFromServer(); }, [metaPilotEnabled, panel, syncThreadsStateFromServer]);
+  const loadPublicationPreferences = useCallback(async () => {
+    if (!metaPilotEnabled) return;
+    const sequence = ++preferencesSequenceRef.current;
+    const isCurrent = () => sequence === preferencesSequenceRef.current && (!getActiveBrowserUserId() || getActiveBrowserUserId() === activeAccountId);
+    setPreferencesLoading(true); setPreferencesError(null);
+    try {
+      const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store", credentials: "include" });
+      const data = await response.json().catch(() => null);
+      if (!isCurrent()) return;
+      if (!response.ok || !data?.preferences) throw new Error("preferences_unavailable");
+      setPublicationPreferences(normalizeThreadsPublicationPreferences(data.preferences));
+      setPreferencesAccountId(activeAccountId);
+    } catch {
+      if (isCurrent()) { setPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES); setPreferencesAccountId(activeAccountId); setPreferencesError(t("threads_publication_modes_load_error")); }
+    } finally { if (isCurrent()) setPreferencesLoading(false); }
+  }, [activeAccountId, metaPilotEnabled, t]);
+  useEffect(() => { if (panel === "threads" && metaPilotEnabled) void loadPublicationPreferences(); }, [loadPublicationPreferences, metaPilotEnabled, panel]);
+  const updatePublicationPreferences = useCallback((patch: Partial<ThreadsPublicationPreferences>) => {
+    if (!metaPilotEnabled) return;
+    setPublicationPreferences(current => normalizeThreadsPublicationPreferences({ ...current, ...patch }));
+    setPreferencesNotice(null); setPreferencesError(null);
+  }, [metaPilotEnabled]);
+  const savePublicationPreferences = useCallback(async () => {
+    if (!metaPilotEnabled || preferencesLoading || preferencesSaving || preferencesError) return false;
+    const sequence = ++preferencesSequenceRef.current;
+    const isCurrent = () => sequence === preferencesSequenceRef.current && (!getActiveBrowserUserId() || getActiveBrowserUserId() === activeAccountId);
+    setPreferencesSaving(true); setPreferencesNotice(null); setPreferencesError(null);
+    try {
+      const response = await fetch("/api/integrations/threads/publication-preferences", { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(publicationPreferences) });
+      const data = await response.json().catch(() => null);
+      if (!isCurrent()) return false;
+      if (!response.ok || !data?.preferences) throw new Error("preferences_save_failed");
+      setPublicationPreferences(normalizeThreadsPublicationPreferences(data.preferences));
+      setPreferencesNotice(t("threads_publication_modes_saved"));
+      return true;
+    } catch { if (isCurrent()) setPreferencesError(t("threads_publication_modes_save_error")); return false; }
+    finally { if (isCurrent()) setPreferencesSaving(false); }
+  }, [activeAccountId, metaPilotEnabled, preferencesError, preferencesLoading, preferencesSaving, publicationPreferences, t]);
   const connectThreads = useCallback(() => {
     if (!metaPilotEnabled) return;
     window.location.href = "/api/integrations/threads/start?returnTo=" + encodeURIComponent("/dashboard?panel=threads");
@@ -94,5 +151,5 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
     } catch { if (isCurrent()) setError(t("threads_disconnect_error")); }
     finally { if (isCurrent()) setBusy(false); }
   }, [activeAccountId, applyThreadsState, busy, metaPilotEnabled, onConnectionChange, t]);
-  return { connection: metaPilotEnabled ? connection : EMPTY, applyThreadsState, loading, busy, notice, error, connectThreads, disconnectThreads, syncThreadsStateFromServer };
+  return { publicationPreferences: metaPilotEnabled && preferencesAccountId === activeAccountId ? publicationPreferences : CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, preferencesLoading, preferencesSaving, preferencesNotice, preferencesError, updatePublicationPreferences, savePublicationPreferences, loadPublicationPreferences, connection: metaPilotEnabled ? connection : EMPTY, applyThreadsState, loading, busy, notice, error, connectThreads, disconnectThreads, syncThreadsStateFromServer };
 }

@@ -12,6 +12,7 @@ import type {
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from "@/lib/stats/cacheSchema";
 
 const INRCY_PUBLICATION_TYPE_KEYS = [
+  "ghost",
   "text",
   "image",
   "video",

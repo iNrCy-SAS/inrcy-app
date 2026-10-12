@@ -1,3 +1,4 @@
+import { readInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -300,6 +301,7 @@ export async function POST(request: Request) {
 
   const payload = { ...(action.payload || {}) };
   const nested = asRecord(payload.publishPayload) || {};
+  if (kind === "media" && channel === "threads" && readInrAgentThreadsPublicationSettings(payload).mode === "ghost") return NextResponse.json({ error: "Les Ghost Posts Threads acceptent uniquement du texte.", code: "threads_ghost_media_unsupported" }, { status: 409 });
   const postByChannel = { ...(asRecord(payload.postByChannel) || asRecord(nested.postByChannel) || {}) };
   const currentPost = readPublishPost(postByChannel, channel);
   const theme = normalizeAgentTheme(payload.theme || action.targetThemes[0] || "conseils");

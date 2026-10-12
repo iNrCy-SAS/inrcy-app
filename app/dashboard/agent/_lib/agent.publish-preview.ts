@@ -1,3 +1,4 @@
+import { readInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
 import type { ChannelKey as BoosterChannelKey } from "../../booster/publier/publishModal.shared";
 import { channelPayloadKeys } from "./agent.config";
 import type {
@@ -396,6 +397,7 @@ export function publishChannelMediaMode(
   channelKey: ChannelKey | null,
 ): string {
   if (!channelKey) return "";
+  if (channelKey === "threads" && readInrAgentThreadsPublicationSettings(action.payload).mode === "ghost") return "none";
   const mediaModeByChannel =
     asRecord(publishPayloadValue(action, "mediaModeByChannel")) || {};
   return String(recordValueForUiChannel(mediaModeByChannel, channelKey) || "")
@@ -467,6 +469,7 @@ export function getPublishMediaRecords(
   channelKey: ChannelKey | null,
 ): Record<string, unknown>[] {
   if (!action) return [];
+  if (channelKey === "threads" && readInrAgentThreadsPublicationSettings(action.payload).mode === "ghost") return [];
   const mode = publishChannelMediaMode(action, channelKey);
   const channelImages = publishChannelImages(action, channelKey);
   const video = publishChannelVideo(action, channelKey);
@@ -680,6 +683,10 @@ export function extractPublishMediaAdaptationPreview(
       note: "Aucune adaptation média à préparer.",
       userEditable: false,
     };
+  }
+
+  if (channelKey === "threads" && readInrAgentThreadsPublicationSettings(action.payload).mode === "ghost") {
+    return { strategy: "none", mediaType: "none", note: "Publication texte prête pour ce canal.", userEditable: false };
   }
 
   const adaptationByChannel = asRecord(

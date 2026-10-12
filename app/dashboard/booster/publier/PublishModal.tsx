@@ -236,6 +236,14 @@ import {
   shouldRetryVideoVariantGeneration,
 } from "@/lib/boosterVideoPreparationRecovery";
 import {
+  CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES,
+  normalizeThreadsPublicationPreferences,
+  normalizeThreadsPublicationMode,
+  type ThreadsPublicationMode,
+  type ThreadsPublicationPreferences,
+} from "@/lib/threadsPublicationPreferences";
+import { getEffectiveThreadsMediaMode, getThreadsPublicationModeIssue } from "./threadsPublicationUi";
+import {
   CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
   normalizeInstagramPublicationPreferences,
   type InstagramPublicationPreferences,
@@ -461,7 +469,7 @@ export default function PublishModal({
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
 }) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const CHANNEL_KEYS = useMemo(() => ALL_CHANNEL_KEYS.filter((key) => key !== "threads" || metaPilotEnabled), [metaPilotEnabled]);
   const i18nT = useTranslations("booster");
   const mediaT = useTranslations("media");
@@ -589,6 +597,19 @@ export default function PublishModal({
   const aiEngineRestoredFromDraftRef = useRef(false);
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
   const [xHashtagsInput, setXHashtagsInput] = useState("");
+  const [threadsPublicationMode, setThreadsPublicationMode] = useState<ThreadsPublicationMode>("classic");
+  const [threadsPublicationPreferences, setThreadsPublicationPreferences] = useState<ThreadsPublicationPreferences>(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+  const threadsPublicationPreferencesRef = useRef<ThreadsPublicationPreferences>(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+  const threadsModeTouchedRef = useRef(Boolean(publicationDraftIdParam));
+  const [threadsPreferencesRequestLoading, setThreadsPreferencesLoading] = useState(true);
+  const [threadsPreferencesAccountId, setThreadsPreferencesAccountId] = useState<string | null | undefined>(undefined);
+  const threadsPreferencesLoading = threadsPreferencesRequestLoading || threadsPreferencesAccountId !== activeAccountId;
+  const [threadsPreferencesFailed, setThreadsPreferencesFailed] = useState(false);
+  const onThreadsPublicationModeChange = (mode: ThreadsPublicationMode) => {
+    if (!metaPilotEnabled || (mode === "ghost" && (threadsPreferencesLoading || threadsPreferencesFailed || !threadsPublicationPreferences.ghostEnabled))) return;
+    threadsModeTouchedRef.current = true;
+    setThreadsPublicationMode(mode);
+  };
   const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
     useState<MetaPrimaryPublicationPlacement>("classic");
   const [instagramStoryEnabled, setInstagramStoryEnabled] = useState(false);
@@ -643,6 +664,31 @@ export default function PublishModal({
   >(null);
   const [tiktokPublicationSettings, setTiktokPublicationSettings] =
     useState<TiktokPublicationSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    threadsPublicationPreferencesRef.current = CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES;
+    setThreadsPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+    setThreadsPreferencesLoading(true);
+    setThreadsPreferencesFailed(false);
+    if (!metaPilotEnabled) { setThreadsPublicationMode("classic"); return; }
+    const loadThreadsPreferences = async () => {
+      try {
+        const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store", credentials: "include" });
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+        if (!response.ok || !payload?.preferences) throw new Error("preferences_unavailable");
+        const preferences = normalizeThreadsPublicationPreferences(payload.preferences);
+        threadsPublicationPreferencesRef.current = preferences;
+        setThreadsPublicationPreferences(preferences);
+        setThreadsPreferencesAccountId(activeAccountId);
+        if (!publicationDraftIdParam && !threadsModeTouchedRef.current) setThreadsPublicationMode(preferences.defaultMode);
+      } catch { if (!cancelled) { setThreadsPreferencesFailed(true); setThreadsPreferencesAccountId(activeAccountId); } }
+      finally { if (!cancelled) setThreadsPreferencesLoading(false); }
+    };
+    void loadThreadsPreferences();
+    return () => { cancelled = true; };
+  }, [activeAccountId, metaPilotEnabled, publicationDraftIdParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2318,7 +2364,7 @@ export default function PublishModal({
     };
   }, []);
 
-  const resolveChannelMediaMode = (channel: ChannelKey): ChannelMediaMode => {
+  const resolveStoredChannelMediaMode = (channel: ChannelKey): ChannelMediaMode => {
     const explicit = channelMediaModes[channel];
     const hasVideo = Boolean(videoFile || videoPreviewUrl);
     const hasImages =
@@ -2346,6 +2392,9 @@ export default function PublishModal({
     if (hasVideo) return "video";
     return "none";
   };
+
+  const resolveChannelMediaMode = (channel: ChannelKey): ChannelMediaMode =>
+    getEffectiveThreadsMediaMode(channel, threadsPublicationMode, resolveStoredChannelMediaMode(channel));
 
   const setChannelMediaMode = (channel: ChannelKey, mode: ChannelMediaMode) => {
     if (mode === "images" && !channelSupportsImages(channel)) return;
@@ -2812,6 +2861,7 @@ export default function PublishModal({
       contentWorkspaceOpen,
       instagramHashtagsInput,
       xHashtagsInput,
+      threadsPublicationSettings: { mode: threadsPublicationMode },
       instagramPublicationPlacement,
       instagramStoryEnabled,
       facebookPublicationPlacement,
@@ -2847,6 +2897,7 @@ export default function PublishModal({
     contentWorkspaceOpen,
     instagramHashtagsInput,
     xHashtagsInput,
+    threadsPublicationMode,
     instagramPublicationPlacement,
     instagramStoryEnabled,
     facebookPublicationPlacement,
@@ -3185,6 +3236,7 @@ export default function PublishModal({
         const nextActiveCard = isChannelKey(payload.activeCard) && CHANNEL_KEYS.includes(payload.activeCard)
           ? payload.activeCard
           : "site_web";
+        const nextThreadsPublicationMode = normalizeThreadsPublicationMode(payload.threadsPublicationSettings?.mode);
         const restoredInstagramSelection = normalizeMetaPublicationSelection(
           payload.instagramPublicationSettings || {
             placement: payload.instagramPublicationPlacement,
@@ -3270,6 +3322,8 @@ export default function PublishModal({
         setPostsByChannel(nextPostsByChannel);
         setInstagramHashtagsInput(nextInstagramHashtags);
         setXHashtagsInput(nextXHashtags);
+        threadsModeTouchedRef.current = true;
+        setThreadsPublicationMode(nextThreadsPublicationMode);
         instagramPlacementTouchedRef.current = true;
         setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
         setInstagramStoryEnabled(nextInstagramStoryEnabled);
@@ -3358,6 +3412,7 @@ export default function PublishModal({
                   }),
             instagramHashtagsInput: nextInstagramHashtags,
             xHashtagsInput: nextXHashtags,
+            threadsPublicationSettings: { mode: nextThreadsPublicationMode },
             instagramPublicationPlacement:
               nextInstagramPublicationPlacement,
             instagramStoryEnabled: nextInstagramStoryEnabled,
@@ -3523,6 +3578,8 @@ export default function PublishModal({
     setPostsByChannel(prefillConfiguredChannelCtas({}, ctaDefaults));
     setInstagramHashtagsInput("");
     setXHashtagsInput("");
+    threadsModeTouchedRef.current = false;
+    setThreadsPublicationMode(threadsPublicationPreferencesRef.current.defaultMode);
     instagramPlacementTouchedRef.current = false;
     const instagramDefaultSelection = normalizeMetaPublicationSelection({
       placement: instagramPublicationPreferencesRef.current.defaultMode,
@@ -5375,7 +5432,7 @@ export default function PublishModal({
             ? getLiveInstagramHashtags()
             : post.hashtags || [],
         imageCount: 0,
-        formatLabel: i18nT("texte_seul_24210789"),
+        formatLabel: activePreviewChannel === "threads" && threadsPublicationMode === "ghost" ? i18nT("threads_ghost_preview") : i18nT("texte_seul_24210789"),
         image: null,
         images: [],
         video: null,
@@ -5947,7 +6004,7 @@ export default function PublishModal({
               i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
               mapProgressRange(ratio, 0, 1, 35, 38),
             );
-          });
+          }, publishableChannels.filter(channel => resolveChannelMediaMode(channel) === "images"));
 
       const originalImageByKey: Record<string, ImagePayload> =
         !shouldBuildImageFallbackPayload
@@ -6114,15 +6171,16 @@ export default function PublishModal({
         images: [],
         imagesByChannel: buildChannelRecord(
           uploadedChannelImages,
-          publishableChannels,
+          publishableChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
         ),
         imageSettingsByChannel: buildChannelRecord(
           channelSettings,
-          publishTargetChannels,
+          publishTargetChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
         ),
         tiktokPublicationSettings: publishTargetChannels.includes("tiktok")
           ? options?.tiktokPublicationSettings || tiktokPublicationSettings
           : null,
+        threadsPublicationSettings: publishTargetChannels.includes("threads") ? { mode: threadsPublicationMode } : null,
         instagramPublicationSettings: publishTargetChannels.includes(
           "instagram",
         )
@@ -6479,6 +6537,7 @@ export default function PublishModal({
             ...videoAiContextReferenceAliases(videoAiContextRef),
             useImagesForAI,
             imageSettingsByChannel: getDraftImageSettingsByChannel(),
+            threadsPublicationSettings: { mode: threadsPublicationMode },
             instagramHashtagsInput,
             xHashtagsInput,
             instagramPublicationPlacement,
@@ -6814,7 +6873,7 @@ export default function PublishModal({
             setPublishProgressLabel(
               i18nT("schedule_preparing_images_progress", { value0: clampPercent(ratio * 100) }),
             );
-          });
+          }, channelsToSchedule.filter(channel => resolveChannelMediaMode(channel) === "images"));
 
       const originalImageByKey: Record<string, ImagePayload> =
         !shouldBuildScheduleImageFallback
@@ -7019,15 +7078,16 @@ export default function PublishModal({
                 images: [],
                 imagesByChannel: buildChannelRecord(
                   uploadedChannelImages,
-                  groupChannels,
+                  groupChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
                 ),
                 imageSettingsByChannel: buildChannelRecord(
                   channelSettings,
-                  groupChannels,
+                  groupChannels.filter(channel => resolveChannelMediaMode(channel) === "images"),
                 ),
                 tiktokPublicationSettings: groupChannels.includes("tiktok")
                   ? tiktokSettingsForSchedule
                   : null,
+                threadsPublicationSettings: groupChannels.includes("threads") ? { mode: threadsPublicationMode } : null,
                 instagramPublicationSettings: groupChannels.includes(
                   "instagram",
                 )
@@ -7239,8 +7299,10 @@ export default function PublishModal({
     workspaceStatesOverride?: readonly PersistentWorkspaceMediaState[],
   ) => {
     return channelsToReview.map((channel) => {
+      const mode = resolveChannelMediaMode(channel);
+      const threadsModeIssue = channel === "threads" ? getThreadsPublicationModeIssue(threadsPublicationMode, threadsPublicationPreferences, threadsPreferencesLoading, threadsPreferencesFailed) : null;
       const post = getReviewPostForChannel(channel, preparedPostsByChannel);
-      const imageKeysToPublish = getPublishImageKeysForChannel(channel);
+      const imageKeysToPublish = mode === "images" ? getPublishImageKeysForChannel(channel) : [];
       const hasTitle = !!String(post?.title || "").trim();
       const hasContent = !!String(post?.content || "").trim();
       const instagramStoryAlsoPublished =
@@ -7261,7 +7323,6 @@ export default function PublishModal({
         facebookStoryAlsoPublished || facebookStoryOnlyPublished;
       const hasText = hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
-      const mode = resolveChannelMediaMode(channel);
       const hasVideo = mode === "video" && !!videoFile;
       const imageKeySet = new Set(imageKeysToPublish);
       const xGifCount =
@@ -7301,6 +7362,7 @@ export default function PublishModal({
         effectiveVideoDuration > 0 &&
         (effectiveVideoDuration < 3 ||
           effectiveVideoDuration > facebookMaximumDuration);
+      const threadsTextTooLong = channel === "threads" && getBoosterPublicationTextPreview("threads", post, { websiteUrl: getWebsiteUrlForChannel(channel, ctaDefaults), phone: ctaDefaults?.phone || "" }).count > 500;
       const requirements = getChannelPublicationRequirements({
         channel,
         connected: connected[channel],
@@ -7345,6 +7407,8 @@ export default function PublishModal({
       );
       const hasMediaUploadBlocker = workspaceSourceExpected && !!failedWorkspaceState;
       const blockerCodes = [
+        ...(threadsModeIssue ? [threadsModeIssue] : []),
+        ...(threadsTextTooLong ? ["threads_text_too_long"] : []),
         ...requirements.blockerCodes,
         ...(hasVideoPreparationBlocker ? ["video_conversion_failed"] : []),
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
@@ -7365,7 +7429,9 @@ export default function PublishModal({
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
       ];
       const localizeRequirement = (code: string) =>
-        code === "x_url_forbidden"
+        code === "threads_ghost_preferences_loading" || code === "threads_ghost_preferences_error" || code === "threads_ghost_disabled" || code === "threads_text_too_long"
+          ? i18nT(code)
+          : code === "x_url_forbidden"
           ? getBoosterXUrlBlockerMessage(xForbiddenUrlFields)
           : code === "facebook_vertical_media_required"
           ? "Facebook Reel/Story nécessite une image ou une vidéo."
@@ -7394,6 +7460,7 @@ export default function PublishModal({
         imageCount: imageKeysToPublish.length,
         warnings: [
           ...requirements.warningCodes.map(localizeRequirement),
+          ...(channel === "threads" && threadsPublicationMode === "ghost" ? [i18nT("threads_ghost_help")] : []),
           ...(instagramStoryPublished
             ? [
                 i18nT("instagram_review_media_only_warning", {
@@ -8262,6 +8329,11 @@ export default function PublishModal({
               pinterestBoardsLoading={pinterestBoardsLoading}
               pinterestBoardsError={pinterestBoardsError}
               onPinterestBoardChange={onPinterestBoardChange}
+              threadsPublicationMode={threadsPublicationMode}
+              threadsPublicationPreferences={threadsPublicationPreferences}
+              threadsPreferencesLoading={threadsPreferencesLoading}
+              threadsPreferencesFailed={threadsPreferencesFailed}
+              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
               instagramPublicationPlacement={instagramPublicationPlacement}
               instagramStoryEnabled={instagramStoryEnabled}
               instagramPublicationPreferences={instagramPublicationPreferences}
@@ -8314,6 +8386,11 @@ export default function PublishModal({
             />
 
             <PublishImagesPanel
+              threadsPublicationMode={threadsPublicationMode}
+              threadsPublicationPreferences={threadsPublicationPreferences}
+              threadsPreferencesLoading={threadsPreferencesLoading}
+              threadsPreferencesFailed={threadsPreferencesFailed}
+              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
               styles={styles}
               isMobile={isMobile}
               stepNumber={workflowSteps.media}
@@ -8392,6 +8469,11 @@ export default function PublishModal({
             />
 
             <PublishPreviewPanel
+              threadsPublicationMode={threadsPublicationMode}
+              threadsPublicationPreferences={threadsPublicationPreferences}
+              threadsPreferencesLoading={threadsPreferencesLoading}
+              threadsPreferencesFailed={threadsPreferencesFailed}
+              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
               styles={styles}
               isMobile={isMobile}
               stepNumber={workflowSteps.preview}

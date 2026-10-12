@@ -2,6 +2,8 @@ import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorA
 import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
 import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
 import { threadsPublish, buildThreadsMediaSourceIdentity } from "@/lib/threadsPublish";
+import { parseThreadsPublicationSettings, hasSelectedThreadsPublicationMedia, type ThreadsPublicationSettings } from "@/lib/threadsPublicationPreferences";
+import { getThreadsPublicationPreflightFailure } from "@/lib/threadsPublicationPreferencesServer";
 import { NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import {
@@ -600,6 +602,14 @@ async function publishNowHandler(req: Request) {
     const postByChannel = ((body.postByChannel || {}) as PostByChannel) || {};
     const idea = String(body.idea || "").trim();
     const selected = normalizedChannels.channels;
+    let threadsPublicationSettings: ThreadsPublicationSettings | null = null;
+    if (selected.includes("threads")) {
+      try { threadsPublicationSettings = parseThreadsPublicationSettings(body.threadsPublicationSettings); }
+      catch (error) { return NextResponse.json({ ok: false, code: "threads_invalid_publication_mode", retryable: false,
+        error: error instanceof Error ? error.message : "Le format Threads demandé est invalide." }, { status: 400 }); }
+      // Freeze the format before durable ingress. Old payloads remain Classic.
+      body.threadsPublicationSettings = threadsPublicationSettings;
+    }
     const metaPilotCanPublish = () => cronUserId
       ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId)
       : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId);
@@ -610,9 +620,13 @@ async function publishNowHandler(req: Request) {
     ]);
     const pilotRequested = selected.includes("threads") || resolveInstagramAuthMode(asRecord(directRows[1]).meta) === "instagram_login";
     if (pilotRequested && !(await metaPilotCanPublish())) return metaChannelPilotDeniedResponse();
+    const threadsPreflightFailure = threadsPublicationSettings
+      ? await getThreadsPublicationPreflightFailure({ supabase: supabaseAdmin, accountId: userId,
+          mode: threadsPublicationSettings.mode, hasMedia: hasSelectedThreadsPublicationMedia(body) })
+      : null;
     for (const row of directRows) {
       const integration = asRecord(row);
-      if (integration.status === "connected" && (integration.provider === "threads" || resolveInstagramAuthMode(integration.meta) === "instagram_login")) {
+      if (!(integration.provider === "threads" && threadsPreflightFailure) && integration.status === "connected" && (integration.provider === "threads" || resolveInstagramAuthMode(integration.meta) === "instagram_login")) {
         await ensureMetaDirectAccessToken(supabaseAdmin, integration);
       }
     }
@@ -680,6 +694,10 @@ async function publishNowHandler(req: Request) {
         body.clientPreflightFailuresByChannel,
         selected,
       );
+    if (threadsPreflightFailure) clientPreflightFailuresByChannel.threads = {
+      ok: false, source: "server_preflight", threads_publication_mode: threadsPublicationSettings?.mode,
+      ...threadsPreflightFailure,
+    };
     if (!clientPreflightFailuresByChannel.instagram) {
       for (const placement of requestedInstagramPlacements) {
         if (placement === "classic") continue;
@@ -2660,6 +2678,7 @@ async function publishNowHandler(req: Request) {
           mediaModeByChannel,
           instagramPublicationSettings: canonicalInstagramPublicationSettings,
           facebookPublicationSettings: canonicalFacebookPublicationSettings,
+          threadsPublicationSettings,
           videoSettingsByChannel,
           video: hasAnyVideoChannel ? publicationVideo : null,
           videoByChannel: publicationVideoByChannel,
@@ -2798,6 +2817,7 @@ async function publishNowHandler(req: Request) {
                     targetFacebookPublicationSettings,
                 }
               : {}),
+            ...(channel === "threads" ? { threadsPublicationSettings } : {}),
             ...(channel === "pinterest"
               ? { pinterestPublicationSettings }
               : {}),
@@ -4806,6 +4826,7 @@ async function publishNowHandler(req: Request) {
           const checkpoint = asRecord(body._threadsCheckpoint);
           const result = await threadsPublish({
             userId: String(integration.resource_id || ""), accessToken, text,
+            publicationMode: threadsPublicationSettings?.mode || "classic",
             media: mediaModeByChannel[ch] === "video" && channelVideo
               ? [{ type: "VIDEO", url: String(channelVideo.publicUrl || channelVideo.url || ""), sourceIdentity: buildThreadsMediaSourceIdentity({ bucket: channelVideo.bucket, storagePath: channelVideo.storagePath }) }]
               : imageUrls.map((url) => ({ type: "IMAGE", url })),
@@ -4818,16 +4839,16 @@ async function publishNowHandler(req: Request) {
             await setDelivery(ch, { status: "processing", error: null });
             await failExecutionIdempotencyLock({ supabase: supabaseAdmin, lockId: asyncChannelLockId, error: "threads_continuation", result: { ok: true, pending: true, code: result.code, channel: ch, publication_id: publicationId } });
             asyncFailureContext = null;
-            return NextResponse.json({ ok: true, done: false, queued: true, asyncDispatch: true, publication_id: publicationId, channel: ch, pollAfterMs: retryAfterMs, results: { threads: { ok: true, pending: true, status: "processing", code: result.code } } }, { status: 202, headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) } });
+            return NextResponse.json({ ok: true, done: false, queued: true, asyncDispatch: true, publication_id: publicationId, channel: ch, pollAfterMs: retryAfterMs, results: { threads: { ok: true, pending: true, status: "processing", code: result.code, threads_publication_mode: threadsPublicationSettings?.mode || "classic" } } }, { status: 202, headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) } });
           }
           if (!result.ok) {
             if (result.authorizationError) await markPublishChannelReconnectRequired({ channel: "threads", userId, stage: "publish", error: result, userMessage: result.error, attemptStartedAt: publicationAttemptStartedAt });
             await setDelivery(ch, { status: "failed", error: result.error });
-            results[ch] = { ...result, threads_checkpoint: result.checkpoint || null };
+            results[ch] = { ...result, threads_publication_mode: threadsPublicationSettings?.mode || "classic", threads_checkpoint: result.checkpoint || null };
             continue;
           }
           await setDelivery(ch, { status: "delivered", error: null });
-          results[ch] = { ok: true, external_id: result.postId, threads_media_type: result.mediaType, threads_container_id: result.checkpoint.containerId, threads_child_container_ids: result.checkpoint.childContainerIds, threads_checkpoint: result.checkpoint };
+          results[ch] = { ok: true, external_id: result.postId, threads_media_type: result.mediaType, threads_publication_mode: result.publicationMode, is_ghost_post: result.publicationMode === "ghost", threads_container_id: result.checkpoint.containerId, threads_child_container_ids: result.checkpoint.childContainerIds, threads_checkpoint: result.checkpoint };
           continue;
         }
 
@@ -7603,6 +7624,7 @@ async function publishNowHandler(req: Request) {
         instagramPublicationSettings:
           canonicalInstagramPublicationSettings,
         facebookPublicationSettings: canonicalFacebookPublicationSettings,
+        threadsPublicationSettings,
         videoSettingsByChannel,
         video: persistedVideo,
         videoByChannel,

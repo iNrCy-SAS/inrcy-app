@@ -796,5 +796,8 @@
   "workflowactionlabel_272c910f": "workflowActionLabel",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "threads_edit_unsupported": "A API do Threads não permite editar uma publicação já publicada. Pode eliminá-la ou editar um rascunho."
+  "threads_edit_unsupported": "A API do Threads não permite editar uma publicação já publicada. Pode eliminá-la ou editar um rascunho.",
+  "threads_mode_ghost": "Ghost · 24 h",
+  "threads_ghost_text_only": "Ghost: apenas texto, arquivado após 24 horas.",
+  "threads_ghost_disabled": "Ghost está desativado nas definições do Threads."
 }

@@ -202,3 +202,64 @@ test("Threads URL-only media retains strict URL matching and rejects invalid sto
   assert.equal(never.calls.length, 0);
   for (const storagePath of ["", "user/../foreign.mp4", "user\\video.mp4"]) assert.equal(buildThreadsMediaSourceIdentity({ bucket: "medias_pro", storagePath }), undefined);
 });
+
+test("Ghost creates a TEXT container with is_ghost_post and keeps its format throughout durable publication", async () => {
+  const snapshots: ThreadsPublishCheckpoint[] = [];
+  const deps = transport(singleContainer);
+  const result = await threadsPublish({ ...input, publicationMode: "ghost", onCheckpoint: async (cp) => { snapshots.push(cp); } }, deps);
+  assert.equal(result.ok && result.publicationMode, "ghost");
+  assert.equal(result.checkpoint?.publicationMode, "ghost");
+  assert.equal(deps.calls[0].form.get("media_type"), "TEXT");
+  assert.equal(deps.calls[0].form.get("is_ghost_post"), "true");
+  assert.equal(deps.calls[0].form.has("auto_publish_text"), false);
+  assert.equal(snapshots.every((cp) => cp.publicationMode === "ghost"), true);
+  const classic = transport(singleContainer);
+  assert.equal((await threadsPublish(input, classic)).ok, true);
+  assert.equal(classic.calls[0].form.has("is_ghost_post"), false);
+});
+
+test("Ghost rejects images, video and carousel before any remote request", async () => {
+  const never = transport(() => { throw new Error("must not fetch"); });
+  for (const media of [
+    [{ type: "IMAGE", url: "https://media.test/image.jpg" }],
+    [{ type: "VIDEO", url: "https://media.test/video.mp4" }],
+    [{ type: "IMAGE", url: "https://media.test/image.jpg" }, { type: "VIDEO", url: "https://media.test/video.mp4" }],
+  ] as ThreadsMediaItem[][]) {
+    const result = await threadsPublish({ ...input, publicationMode: "ghost", media }, never);
+    assert.equal(!result.ok && result.code, "threads_ghost_media_unsupported");
+    assert.equal(!result.ok && result.retryable, false);
+  }
+  assert.equal(never.calls.length, 0);
+});
+
+test("Ghost container resumes unchanged; Classic/Ghost drift and legacy checkpoint upgrade are refused", async () => {
+  const pending = await threadsPublish({ ...input, publicationMode: "ghost" }, transport((call) => call.method === "POST" ? { id: "100" } : { status: "IN_PROGRESS" }));
+  const next = transport(singleContainer);
+  const done = await threadsPublish({ ...input, publicationMode: "ghost", checkpoint: pending.checkpoint }, next);
+  assert.equal(done.ok && done.publicationMode, "ghost");
+  assert.deepEqual(next.calls.map((call) => call.method), ["GET", "POST"]);
+  const classic = await threadsPublish(input, transport((call) => call.method === "POST" ? { id: "100" } : { status: "IN_PROGRESS" }));
+  const legacy = { ...classic.checkpoint }; delete legacy.publicationMode;
+  const never = transport(() => { throw new Error("must not fetch"); });
+  for (const changed of [
+    { ...input, publicationMode: "classic" as const, checkpoint: pending.checkpoint },
+    { ...input, publicationMode: "ghost" as const, checkpoint: legacy },
+    { ...input, publicationMode: "ghost" as const, checkpoint: { ...classic.checkpoint, publicationMode: "ghost" } },
+  ]) assert.equal(!((await threadsPublish(changed, never)).ok), true);
+  assert.equal(never.calls.length, 0);
+  const resumedLegacy = await threadsPublish({ ...input, checkpoint: legacy }, transport(singleContainer));
+  assert.equal(resumedLegacy.ok && resumedLegacy.publicationMode, "classic");
+});
+
+test("An ambiguous Ghost publication can never replay as Ghost or Classic", async () => {
+  const attempt = transport((call) => {
+    if (call.url.pathname.endsWith("threads_publish")) throw new Error("Lost remote response");
+    return singleContainer(call);
+  });
+  const result = await threadsPublish({ ...input, publicationMode: "ghost" }, attempt);
+  assert.equal(!result.ok && result.code, "threads_publish_ambiguous");
+  assert.equal(result.checkpoint?.publicationMode, "ghost");
+  const never = transport(() => { throw new Error("must not fetch"); });
+  for (const publicationMode of ["ghost", "classic"] as const) assert.equal((await threadsPublish({ ...input, publicationMode, checkpoint: result.checkpoint }, never)).ok, false);
+  assert.equal(never.calls.length, 0);
+});

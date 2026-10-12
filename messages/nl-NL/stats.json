@@ -488,5 +488,6 @@
   "canal_suivant_7b81611d": "Volgend kanaal",
   "threads_replies": "Antwoorden",
   "threads_reposts": "Reposts",
-  "threads_quotes": "Citaten"
+  "threads_quotes": "Citaten",
+  "publication_type_ghost": "Ghost"
 }

@@ -796,5 +796,8 @@
   "workflowactionlabel_272c910f": "เวิร์กโฟลว์ActionLabel",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้"
+  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
+  "threads_mode_ghost": "Ghost · 24 ชั่วโมง",
+  "threads_ghost_text_only": "Ghost: เฉพาะข้อความ เก็บถาวรหลัง 24 ชั่วโมง",
+  "threads_ghost_disabled": "Ghost ถูกปิดในการตั้งค่า Threads"
 }

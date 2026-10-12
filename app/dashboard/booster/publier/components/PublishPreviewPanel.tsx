@@ -1,3 +1,5 @@
+import type { ThreadsPublicationMode, ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
+import ThreadsPublicationModeControls from "./ThreadsPublicationModeControls";
 import { useTranslations } from "next-intl";
 import type { Dispatch, SetStateAction } from "react";
 import {
@@ -19,6 +21,12 @@ type PreviewReadinessTab = {
 };
 
 type PublishPreviewPanelProps = {
+  threadsPublicationMode: ThreadsPublicationMode;
+  threadsPublicationPreferences: ThreadsPublicationPreferences;
+  threadsPreferencesLoading: boolean;
+  threadsPreferencesFailed: boolean;
+  onThreadsPublicationModeChange: (mode: ThreadsPublicationMode) => void;
+
   styles: PublishModalStyles;
   isMobile: boolean;
   stepNumber: number;
@@ -31,6 +39,12 @@ type PublishPreviewPanelProps = {
 };
 
 export default function PublishPreviewPanel({
+  threadsPublicationMode,
+  threadsPublicationPreferences,
+  threadsPreferencesLoading,
+  threadsPreferencesFailed,
+  onThreadsPublicationModeChange,
+
   styles,
   isMobile,
   stepNumber,
@@ -190,6 +204,7 @@ export default function PublishPreviewPanel({
           {showPublicationPreview ? i18nT("masquer_adb05f2b") : i18nT("afficher_5e802040")}
         </button>
       </div>
+      {activePublicationPreview.channelKey === "threads" ? <ThreadsPublicationModeControls mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} onChange={onThreadsPublicationModeChange} /> : null}
       {showPublicationPreview ? (
         <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
           <ChannelPublicationPreview preview={activePublicationPreview} />

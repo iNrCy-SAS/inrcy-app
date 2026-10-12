@@ -1,3 +1,5 @@
+import type { ThreadsPublicationMode, ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
+import ThreadsPublicationModeControls from "./ThreadsPublicationModeControls";
 import { useTranslations } from "next-intl";
 import type {
   Dispatch,
@@ -224,6 +226,11 @@ type PublishContentEditorPanelProps = {
   pinterestBoardsLoading: boolean;
   pinterestBoardsError: string;
   onPinterestBoardChange: (boardId: string) => void;
+  threadsPublicationMode: ThreadsPublicationMode;
+  threadsPublicationPreferences: ThreadsPublicationPreferences;
+  threadsPreferencesLoading: boolean;
+  threadsPreferencesFailed: boolean;
+  onThreadsPublicationModeChange: (mode: ThreadsPublicationMode) => void;
   instagramPublicationPlacement: MetaPrimaryPublicationPlacement;
   instagramStoryEnabled: boolean;
   instagramPublicationPreferences: InstagramPublicationPreferences;
@@ -270,6 +277,11 @@ export default function PublishContentEditorPanel({
   pinterestBoardsLoading,
   pinterestBoardsError,
   onPinterestBoardChange,
+  threadsPublicationMode,
+  threadsPublicationPreferences,
+  threadsPreferencesLoading,
+  threadsPreferencesFailed,
+  onThreadsPublicationModeChange,
   instagramPublicationPlacement,
   instagramStoryEnabled,
   instagramPublicationPreferences,
@@ -656,6 +668,7 @@ export default function PublishContentEditorPanel({
                   ))}
                 </select>
               ) : null}
+              {activeCard === "threads" ? <ThreadsPublicationModeControls mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} /> : null}
               {activeCard === "instagram" ? (
                 <MetaPublicationFormatControls
                   label={i18nT("instagram_publication_format")}

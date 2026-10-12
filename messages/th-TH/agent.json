@@ -794,5 +794,8 @@
   "tiktok_session_checking": "กำลังตรวจสอบ TikTok…",
   "next_editorial_publication_in_a_few_minutes": "โพสต์ถัดไปในอีกไม่กี่นาที",
   "threads": "Threads",
-  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้"
+  "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
+  "threads_mode_ghost": "Ghost · 24 ชม.",
+  "threads_ghost_help": "Ghost: เฉพาะข้อความ เก็บเข้าคลังหลังจาก 24 ชั่วโมง",
+  "threads_ghost_disabled": "Ghost ถูกปิดใช้งานในการตั้งค่า Threads"
 }

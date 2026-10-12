@@ -607,5 +607,18 @@
   "threads_description": "Tauschen Sie sich mit Ihrer Community aus",
   "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
   "instagram_callback_error": "Die Instagram-Verbindung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
-  "threads_callback_error": "Die Threads-Verbindung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut."
+  "threads_callback_error": "Die Threads-Verbindung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+  "threads_publication_modes_title": "Threads-Veröffentlichungsformate",
+  "threads_publication_modes_help": "Wähle die in Booster verfügbaren Formate und das vorgeschlagene Standardformat.",
+  "threads_classic_mode": "Klassisch",
+  "threads_classic_mode_help": "Dauerhafter Beitrag mit Text, Bildern oder Video.",
+  "threads_ghost_mode": "Ghost",
+  "threads_ghost_mode_help": "Nur Text, maximal 500 Zeichen. Der Beitrag wird nach 24 Stunden automatisch archiviert.",
+  "threads_default_publication_mode": "Standardformat",
+  "threads_publication_modes_save": "Formate speichern",
+  "threads_publication_modes_saving": "Speichern…",
+  "threads_publication_modes_saved": "Threads-Formate gespeichert.",
+  "threads_publication_modes_load_error": "Threads-Formate konnten nicht geladen werden. Ghost bleibt nicht verfügbar.",
+  "threads_publication_modes_save_error": "Threads-Formate konnten nicht gespeichert werden.",
+  "threads_publication_modes_retry": "Erneut versuchen"
 }

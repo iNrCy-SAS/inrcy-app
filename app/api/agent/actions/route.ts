@@ -1,3 +1,6 @@
+import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
+import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences, isThreadsPublicationModeEnabled } from "@/lib/threadsPublicationPreferences";
+import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { NextResponse } from "next/server";
 import {
   rowToInrAgentAction,
@@ -1027,7 +1030,7 @@ async function savePublishActionAsBoosterDraft(args: {
     ? instagramPost.hashtags.map((tag) => `#${String(tag).replace(/^#+/, "")}`).join(" ")
     : "";
   const now = new Date().toISOString();
-  const draftPayload = {
+  const draftPayload = projectInrAgentThreadsPublishPayload({
     status: "draft",
     title: firstTitle || action.title || "Brouillon publication",
     preview: firstContent || fallbackText || channelLabels,
@@ -1041,6 +1044,7 @@ async function savePublishActionAsBoosterDraft(args: {
     mediaType: media?.kind === "video" ? "video" : "images",
     channelMediaModes,
     mediaModeByChannel: channelMediaModes,
+    ...(channels.includes("threads") ? { threadsPublicationSettings: readInrAgentThreadsPublicationSettings(payload) } : {}),
     videoFormatByChannel,
     videoAdaptationModeByChannel,
     videoSettingsByChannel,
@@ -1076,7 +1080,7 @@ async function savePublishActionAsBoosterDraft(args: {
     workflowTool: "booster",
     workflowAction: "publier",
     inrAgentActionId: action.id,
-  };
+  });
 
   const { data: draft, error: draftError } = await supabaseAdmin
     .from("app_events")
@@ -1389,6 +1393,7 @@ export async function PATCH(request: Request) {
     channel?: unknown;
     placement?: unknown;
     includeStory?: unknown;
+    mode?: unknown;
     boardId?: unknown;
     boardName?: unknown;
     title?: unknown;
@@ -1803,6 +1808,37 @@ export async function PATCH(request: Request) {
       remainingChannels,
       saved: true,
     });
+  }
+
+  if (editType === "publish_threads_mode") {
+    if (!actionId || requestBody?.channel !== "threads" || !["classic", "ghost"].includes(String(requestBody?.mode))) return NextResponse.json({ error: "Format Threads invalide." }, { status: 400 });
+    if (!(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId))) return metaChannelPilotDeniedResponse();
+    const { data: currentRow, error: readError } = await supabaseAdmin.from("inr_agent_actions").select(ACTION_SELECT).eq("id", actionId).eq("user_id", activeUserId).single();
+    if (readError || !currentRow) return NextResponse.json({ error: "Action iNr’Agent introuvable." }, { status: 404 });
+    const currentAction = rowToInrAgentAction(currentRow);
+    if (currentAction.automationKey !== "publish" || currentAction.actionType !== "publication" || currentAction.targetTool !== "booster" || ["done", "completed", "executing", "processing"].includes(currentAction.status)) return NextResponse.json({ error: "Cette publication ne peut plus être modifiée." }, { status: 409 });
+    const currentPayload = currentAction.payload || {};
+    const currentChannels = normalizePublishChannels([...currentAction.targetChannels, ...(Array.isArray(currentPayload.selectedChannels) ? currentPayload.selectedChannels : []), ...(Array.isArray(asRecord(currentPayload.publishPayload)?.channels) ? asRecord(currentPayload.publishPayload)!.channels as string[] : [])]);
+    if (!currentChannels.includes("threads")) return NextResponse.json({ error: "Threads ne fait plus partie de cette publication." }, { status: 409 });
+    const { data: config, error: configError } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", activeUserId).maybeSingle();
+    if (configError) return NextResponse.json({ error: "Impossible de vérifier les formats Threads autorisés." }, { status: 503 });
+    const mode = normalizeThreadsPublicationMode(requestBody?.mode);
+    const preferences = normalizeThreadsPublicationPreferences(asRecord(asRecord(config?.settings)?.threads)?.publicationPreferences);
+    if (!isThreadsPublicationModeEnabled(mode, preferences)) return NextResponse.json({ error: "Le format Ghost est désactivé dans la configuration Threads.", code: "INR_AGENT_THREADS_MODE_DISABLED" }, { status: 409 });
+    const editedAt = new Date().toISOString();
+    const nextPayload = applyInrAgentThreadsPublicationSettings(currentPayload, mode);
+    nextPayload.lastManualEdit = { channel: "threads", mode, editedAt, editType };
+    // An execution claim or another editor must win over this stale snapshot.
+    let updateQuery = supabaseAdmin.from("inr_agent_actions")
+      .update({ payload: nextPayload, updated_at: editedAt, last_error: null })
+      .eq("id", actionId).eq("user_id", activeUserId).eq("status", currentRow.status);
+    updateQuery = currentRow.updated_at != null
+      ? updateQuery.eq("updated_at", currentRow.updated_at)
+      : updateQuery.eq("payload", JSON.stringify(currentRow.payload ?? {}));
+    const { data, error } = await updateQuery.select(ACTION_SELECT).maybeSingle();
+    if (error) return NextResponse.json({ error: "Impossible de mettre à jour le format Threads." }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Cette publication a changé. Rechargez-la avant de modifier son format.", code: "INR_AGENT_PUBLICATION_CHANGED" }, { status: 409 });
+    return NextResponse.json({ action: await refreshActionImageUrls(rowToInrAgentAction(data)), saved: true });
   }
 
   if (editType === "publish_channel_placement") {

@@ -1,3 +1,5 @@
+import { loadThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferencesServer";
+import { parseThreadsPublicationSettings, getThreadsPublicationModeFailure } from "@/lib/threadsPublicationPreferences";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { resolveInstagramAuthMode, buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramAuthMode";
 import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
@@ -1698,25 +1700,31 @@ async function replaceChannelDelivery(params: {
   if (channel === "threads") {
     if (previousExternalId) throw new Error(THREADS_EDIT_UNSUPPORTED_MESSAGE);
     if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Threads est réservé aux comptes ADMIN.");
+    const channelResult = asRecord(asRecord(eventPayload.results).threads);
+    const savedMode = channelResult.threads_publication_mode ?? asRecord(channelResult.threads_checkpoint).publicationMode;
+    const settings = parseThreadsPublicationSettings(eventPayload.threadsPublicationSettings ?? (savedMode ? { mode: savedMode } : undefined));
+    const preferences = await loadThreadsPublicationPreferences(supabaseAdmin, userId);
+    const modeFailure = getThreadsPublicationModeFailure({ mode: settings.mode, preferences });
+    if (modeFailure) throw Object.assign(new Error(modeFailure.error), { code: modeFailure.code });
     const row = await getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at");
     const integration = asRecord(row);
     const accessToken = await ensureMetaDirectAccessToken(supabaseAdmin, integration);
     markAssetsMayBeInUse();
     const response = await threadsPublish({
-      userId: String(integration.resource_id || ""), accessToken,
+      userId: String(integration.resource_id || ""), accessToken, publicationMode: settings.mode,
       text: buildBoosterThreadsPostText(nextPost, { websiteUrl, phone }),
-      media: isVideoPublication ? [{ type: "VIDEO", url: videoUrl, sourceIdentity: buildThreadsMediaSourceIdentity({ bucket: video?.bucket, storagePath: video?.storagePath }) }] : socialFeedImageUrls.filter(Boolean).map((url) => ({ type: "IMAGE", url })),
+      media: settings.mode === "ghost" ? [] : isVideoPublication ? [{ type: "VIDEO", url: videoUrl, sourceIdentity: buildThreadsMediaSourceIdentity({ bucket: video?.bucket, storagePath: video?.storagePath }) }] : socialFeedImageUrls.filter(Boolean).map((url) => ({ type: "IMAGE", url })),
       checkpoint: asRecord(asRecord(eventPayload.results).threads).threads_checkpoint,
       onCheckpoint: async (checkpoint) => {
-        eventPayload.results = { ...asRecord(eventPayload.results), threads: { ...asRecord(asRecord(eventPayload.results).threads), threads_checkpoint: checkpoint } };
+        eventPayload.results = { ...asRecord(eventPayload.results), threads: { ...asRecord(asRecord(eventPayload.results).threads), threads_checkpoint: checkpoint, threads_publication_mode: settings.mode, is_ghost_post: settings.mode === "ghost" } };
         await persistEventPayload(userId, String(publicationId || ""), eventPayload);
       },
     });
     if (!response.ok) {
-      if (response.retryable && response.checkpoint) return { externalId: null, status: "processing", error: null, pending: true, threadsMeta: { threads_checkpoint: response.checkpoint, pending: true, code: response.code } };
+      if (response.retryable && response.checkpoint) return { externalId: null, status: "processing", error: null, pending: true, threadsMeta: { threads_checkpoint: response.checkpoint, threads_publication_mode: settings.mode, is_ghost_post: settings.mode === "ghost", pending: true, code: response.code } };
       throw new Error(response.error);
     }
-    return { externalId: response.postId, status: "delivered", error: null, threadsMeta: { threads_checkpoint: response.checkpoint, threads_media_type: response.mediaType } };
+    return { externalId: response.postId, status: "delivered", error: null, threadsMeta: { threads_checkpoint: response.checkpoint, threads_media_type: response.mediaType, threads_publication_mode: response.publicationMode, is_ghost_post: response.publicationMode === "ghost" } };
   }
 
   const [fbRow, gmbRow, igRow, liRow] = await Promise.all([

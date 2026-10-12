@@ -782,5 +782,14 @@
   "tiktok_reuse_settings_session_help": "La finestra non verrà più mostrata. Ogni post sarà comunque convalidato separatamente.",
   "threads": "Threads",
   "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
-  "threads_final_text": "Testo finale Threads"
+  "threads_final_text": "Testo finale Threads",
+  "threads_publication_format": "Formato Threads",
+  "threads_classic": "Classico",
+  "threads_ghost": "Ghost",
+  "threads_ghost_help": "Ghost: solo testo, fino a 500 caratteri, archiviato dopo 24 ore. I contenuti multimediali degli altri canali vengono conservati.",
+  "threads_ghost_preferences_loading": "Verifica dei formati Threads. Ghost non può ancora essere pubblicato.",
+  "threads_ghost_preferences_error": "I formati Threads non sono disponibili. Ricarica la pagina o scegli esplicitamente Classico.",
+  "threads_ghost_disabled": "Ghost è disattivato nelle impostazioni Threads. Attivalo o scegli esplicitamente Classico.",
+  "threads_text_too_long": "Il testo finale Threads non deve superare 500 caratteri.",
+  "threads_ghost_preview": "Ghost · solo testo · archiviato dopo 24 ore"
 }

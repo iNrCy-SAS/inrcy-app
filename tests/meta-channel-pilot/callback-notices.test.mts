@@ -4,6 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
+import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, DEFAULT_THREADS_PUBLICATION_PREFERENCES } from "../../lib/threadsPublicationPreferences.ts";
 
 type RecordLike = Record<string, unknown>;
 type RenderNode = { type: unknown; props: RecordLike };
@@ -79,11 +80,24 @@ test("Instagram direct callback failures are visible while the account and Faceb
 test("Threads callback failure remains visible during and after an independent status check", () => {
   pilot = true; locale = "fr-FR";
   query = new URLSearchParams({ panel: "threads", linked: "threads", ok: "0", error: "meta_request_failed", message: "Meta request failed" });
-  const channel = { connection: threadsConnection, loading: true, busy: false, notice: null, error: null };
+  const channel = {
+    connection: threadsConnection, loading: true, busy: false, notice: null, error: null,
+    publicationPreferences: CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES,
+    preferencesLoading: true, preferencesSaving: false, preferencesNotice: null,
+    preferencesError: null as string | null,
+    connectThreads() {}, disconnectThreads() {},
+    updatePublicationPreferences() {}, savePublicationPreferences() {}, loadPublicationPreferences() {},
+  };
   const before = structuredClone(channel.connection);
   assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure]);
   channel.loading = false;
   assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure]);
+  channel.preferencesLoading = false;
+  channel.publicationPreferences = DEFAULT_THREADS_PUBLICATION_PREFERENCES;
+  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure], "a successful formats check cannot clear OAuth feedback");
+  channel.publicationPreferences = CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES;
+  channel.preferencesError = "Impossible de charger les formats Threads. Ghost reste indisponible.";
+  assert.deepEqual(alerts(ThreadsPanel({ channel })), [threadsFailure, channel.preferencesError], "the formats error is separate from the persistent OAuth error");
   assert.deepEqual(channel.connection, before);
 });
 

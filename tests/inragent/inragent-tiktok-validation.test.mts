@@ -48,7 +48,7 @@ test("iNrAgent rechecks reusable TikTok settings before creating a scheduled pub
   );
   assert.match(
     scheduleRoute,
-    /publishPayload: \{[\s\S]*?tiktokPublicationSettings/,
+    /publishPayload: projectInrAgentThreadsPublishPayload\(\{[\s\S]*?tiktokPublicationSettings/,
   );
   assert.match(
     scheduleRoute,
@@ -64,6 +64,6 @@ test("the server rejects every iNrAgent TikTok execution without explicit consen
   assert.match(executeRoute, /INR_AGENT_TIKTOK_SETTINGS_REQUIRED/);
   assert.match(
     executeRoute,
-    /publishBody = \{[\s\S]*?tiktokPublicationSettings/,
+    /publishBody = projectInrAgentThreadsPublishPayload\(\{[\s\S]*?tiktokPublicationSettings/,
   );
 });

@@ -136,7 +136,7 @@ export function buildInrcyActivityStats(cubeKey: CubeKey, ov: Overview): InrcyAc
   const publicationTypes = rawPublicationTypes && typeof rawPublicationTypes === "object"
     ? Object.fromEntries(
         Object.entries(rawPublicationTypes)
-          .filter(([type]) => ["text", "image", "video", "classic", "reel", "story", "short", "pin", "unknown"].includes(type))
+          .filter(([type]) => ["ghost", "text", "image", "video", "classic", "reel", "story", "short", "pin", "unknown"].includes(type))
           .map(([type, count]) => [type, normalizeInrcyActivityCount(count)]),
       ) as Partial<Record<InrcyPublicationType, InrcyActivityCount>>
     : undefined;

@@ -796,5 +796,8 @@
   "workflowactionlabel_272c910f": "workflowActionLabel",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken."
+  "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
+  "threads_mode_ghost": "Ghost · 24 uur",
+  "threads_ghost_text_only": "Ghost: alleen tekst, gearchiveerd na 24 uur.",
+  "threads_ghost_disabled": "Ghost is uitgeschakeld in de Threads-instellingen."
 }

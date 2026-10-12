@@ -796,5 +796,8 @@
   "workflowactionlabel_272c910f": "Workflow-Aktionsbezeichnung",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten."
+  "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
+  "threads_mode_ghost": "Ghost · 24 Std.",
+  "threads_ghost_text_only": "Ghost: nur Text, nach 24 Stunden archiviert.",
+  "threads_ghost_disabled": "Ghost ist in den Threads-Einstellungen deaktiviert."
 }

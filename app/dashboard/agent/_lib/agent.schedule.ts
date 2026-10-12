@@ -1,3 +1,4 @@
+import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
 import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
 import {
@@ -1122,7 +1123,7 @@ export function scheduledEditUpdateFromAction(
       payload: compactInrAgentScheduledPayload({
         ...payload,
         kind: "manual_publish_schedule",
-        publishPayload: nextPublishPayload,
+        publishPayload: projectInrAgentThreadsPublishPayload({ ...nextPublishPayload, ...(channels.includes("threads") ? { threadsPublicationSettings: readInrAgentThreadsPublicationSettings(payload) } : {}) }),
         channels,
         selectedChannels: channels,
         uiChannels,

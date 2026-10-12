@@ -175,6 +175,7 @@ function InrcyActivityBlock({ model }: { model: CubeModel }) {
   if (stats.publicationTrackingAvailable !== undefined) {
     const trackingAvailable = stats.publicationTrackingAvailable;
     const typeLabelKeys: Record<Exclude<InrcyPublicationType, "unknown">, string> = {
+      ghost: "publication_type_ghost",
       text: "publication_type_text",
       image: "publication_type_image",
       video: "publication_type_video",
@@ -186,6 +187,7 @@ function InrcyActivityBlock({ model }: { model: CubeModel }) {
     };
     const typeOrder: Array<Exclude<InrcyPublicationType, "unknown">> = [
       "classic",
+      "ghost",
       "text",
       "image",
       "video",
