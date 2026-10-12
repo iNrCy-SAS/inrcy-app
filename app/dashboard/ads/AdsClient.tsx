@@ -82,6 +82,8 @@ import type { AdsPublicationPhase } from "@/lib/adsPublicationProgress";
 import { adsIncompleteLaunchMessage, adsIncompleteLaunchSteps } from "@/lib/adsLaunchReadiness";
 import { buildLinkedInGeoQueries, linkedInGeoQueryKey } from "@/lib/adsLinkedInGeoQueries";
 import { linkedInAdsAutomaticPreflightKey, linkedInAdsContextualGeoDefaults, linkedInAdsLaunchBlockerMessage, linkedInAdsLaunchBlockers, linkedInAdsLaunchPreflightKey, linkedInAdsVerifiedBidDefault } from "@/lib/adsLinkedInClientDefaults";
+import { linkedInCalendarIssue, prepareLinkedInPlanForGroup } from "@/lib/adsLinkedInCalendarReadiness";
+import type { LinkedInAdsCampaignGroup } from "@/lib/adsLinkedInPreflightPolicy";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import {
   adsConnectionDisplay,
@@ -218,14 +220,7 @@ type ExternalConnectorStatus = {
   error: string;
 };
 
-type LinkedInCampaignGroupOption = {
-  id: string;
-  urn: string;
-  name: string;
-  status: "ACTIVE" | "DRAFT" | "PAUSED";
-  objectiveType: string | null;
-  allowedCampaignTypes: string[];
-};
+type LinkedInCampaignGroupOption = LinkedInAdsCampaignGroup;
 
 type LinkedInOrganizationOption = {
   urn: string;
@@ -240,6 +235,7 @@ type LinkedInGeoTargetOption = {
 };
 
 type LinkedInAdsPreflightResponse = {
+  inputKey?: string;
   account?: ExternalAdsAccount;
   campaignGroups?: LinkedInCampaignGroupOption[];
   supportedLocales?: Array<{ language: string; country: string }>;
@@ -1248,6 +1244,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const linkedInGeoChoices = useRef<Record<string, string>>({});
   const linkedInGeoDismissedUrns = useRef(new Set<string>());
   const linkedInAutomaticLoadKey = useRef("");
+  const linkedInLatestPreflightSignature = useRef("");
+  const linkedInManualGroupId = useRef<string | null>(null);
+  const linkedInPlanEndIsExplicit = useRef(true);
   const linkedInResourcesLoader = useRef<(force?: boolean, geoQueryOverride?: string) => Promise<void>>(async () => undefined);
   const externalAccountsRequest = useRef(0);
   const externalAccountsCache = useRef<Record<ExternalChannelId, ExternalAccountsCacheEntry>>({
@@ -1311,6 +1310,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     linkedInPreflightContext.current++;
     linkedInPreflightCache.current.clear();
     linkedInAutomaticLoadKey.current = "";
+    linkedInManualGroupId.current = null;
+    linkedInPlanEndIsExplicit.current = true;
     setLinkedInPreflight(null); setLinkedInPreflightLoad("idle"); setLinkedInPreflightError("");
     setDemoDialog(null); setConfirmedSpend(false); linkedInLaunchConsent.current = null;
     if (draft.adAccountId !== accountId) {
@@ -2206,6 +2207,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
 
   function updateDraft(next: Partial<AdsCampaignInput>) {
+    if (Object.hasOwn(next, "linkedinCampaignGroupId")) linkedInManualGroupId.current = next.linkedinCampaignGroupId || null;
+    if (Object.hasOwn(next, "endDate") || (next.linkedinDeliverySettings && next.linkedinDeliverySettings.budget.endAt !== draft.linkedinDeliverySettings?.budget.endAt)) linkedInPlanEndIsExplicit.current = true;
     if (Object.prototype.hasOwnProperty.call(next, "destinationUrl")) setConfirmedDestinationUrl("");
     if (channelId === "openai" && next.primaryText !== undefined) next = { ...next, descriptions: next.primaryText ? [next.primaryText] : [] };
     setDraft((current) => applyDraftEdit(current, next));
@@ -2261,12 +2264,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
     const showResponse = (data: LinkedInAdsPreflightResponse) => {
       if (context !== linkedInPreflightContext.current) return;
+      const inputKey = linkedInAdsAutomaticPreflightKey(selectedAccountId, preflightDraft);
+      if (inputKey !== linkedInLatestPreflightSignature.current) return;
       setLinkedInPreflight((current) => {
         if (!manualOnly) {
           const briefQueries = new Set(preflightDraft.targetLocations.map(linkedInGeoQueryKey));
           const merged = new Map((current?.geoResolutions || []).filter((entry) => !briefQueries.has(linkedInGeoQueryKey(entry.query))).map((entry) => [linkedInGeoQueryKey(entry.query), entry]));
           for (const entry of data.geoResolutions || []) merged.set(linkedInGeoQueryKey(entry.query), entry);
-          return { ...data, geoResolutions: [...merged.values()] };
+          return { ...data, inputKey, geoResolutions: [...merged.values()] };
         }
         const kept = current?.geoResolutions || [];
         const merged = new Map(kept.map((entry) => [linkedInGeoQueryKey(entry.query), entry]));
@@ -2294,6 +2299,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   function applyLinkedInProviderDefaults(data: LinkedInAdsPreflightResponse, baseDraft: AdsCampaignInput = draft): AdsCampaignInput {
     const selected = data.selected;
     if (!selected) return baseDraft;
+    const preparedGroupDraft = prepareLinkedInPlanForGroup(baseDraft, { groups: data.campaignGroups || [],
+      manualGroupId: linkedInManualGroupId.current, endIsExplicit: linkedInPlanEndIsExplicit.current });
     const verifiedGeoUrns = new Set(selected.verifiedGeoUrns || []);
     const verifiedGeoTargets = (selected.verifiedGeoTargets || [])
       .filter((target) => verifiedGeoUrns.has(target.urn))
@@ -2307,6 +2314,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     const pricing = selected.pricing;
     const hasProviderDefault = Boolean(
       selected.campaignGroup || selected.organization || proposedGeoTargets.length
+      || (preparedGroupDraft.linkedinCampaignGroupId && preparedGroupDraft.linkedinCampaignGroupId !== baseDraft.linkedinCampaignGroupId)
       || (pricing && suggestedBid !== null && Number.isFinite(suggestedBid) && suggestedBid > 0),
     );
     if (!hasProviderDefault) return baseDraft;
@@ -2315,7 +2323,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (current.provider !== "linkedin") return patch;
       const accountId = externalStatuses.linkedin.selectedAccountId || baseDraft.adAccountId;
       if (linkedInAdsAutomaticPreflightKey(accountId, current) !== linkedInAdsAutomaticPreflightKey(accountId, baseDraft)) return patch;
-      if (!current.linkedinCampaignGroupId && selected.campaignGroup
+      if (preparedGroupDraft.linkedinCampaignGroupId && preparedGroupDraft.linkedinCampaignGroupId !== current.linkedinCampaignGroupId) patch.linkedinCampaignGroupId = preparedGroupDraft.linkedinCampaignGroupId;
+      if (preparedGroupDraft.linkedinDeliverySettings?.budget.endAt !== baseDraft.linkedinDeliverySettings?.budget.endAt) {
+        patch.linkedinDeliverySettings = preparedGroupDraft.linkedinDeliverySettings;
+        patch.endDate = preparedGroupDraft.endDate;
+      }
+      if (!patch.linkedinCampaignGroupId && !current.linkedinCampaignGroupId && selected.campaignGroup
           && linkedInCampaignGroupIsCompatible(selected.campaignGroup, baseDraft.channelSettings?.channel === "linkedin" ? baseDraft.channelSettings.objectiveType : "WEBSITE_VISIT")) {
         patch.linkedinCampaignGroupId = selected.campaignGroup.id;
       }
@@ -2354,15 +2367,19 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   async function loadLinkedInResources(force = false, geoQueryOverride?: string) {
     if (linkedInPreflightLoad === "loading") return;
     const context = linkedInPreflightContext.current;
+    const signature = linkedInLatestPreflightSignature.current;
     setLinkedInPreflightLoad("loading");
     setLinkedInPreflightError("");
+    if (linkedInPreflightLoad === "error") setNotice("");
     try {
       const data = await fetchLinkedInPreflight(geoQueryOverride, force);
       if (context !== linkedInPreflightContext.current) return;
+      if (signature !== linkedInLatestPreflightSignature.current) { setLinkedInPreflightLoad("idle"); return; }
       if (!geoQueryOverride) applyLinkedInProviderDefaults(data);
       setLinkedInPreflightLoad("ready");
     } catch (error) {
       if (context !== linkedInPreflightContext.current) return;
+      if (signature !== linkedInLatestPreflightSignature.current) { setLinkedInPreflightLoad("idle"); return; }
       setLinkedInPreflightLoad("error");
       setLinkedInPreflightError(error instanceof Error ? error.message : "Ressources LinkedIn Ads indisponibles.");
     }
@@ -2373,6 +2390,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     externalStatuses.linkedin.selectedAccountId,
     draft,
   );
+  linkedInLatestPreflightSignature.current = linkedInAutomaticLoadSignature;
   useEffect(() => {
     const selectedAccountId = externalStatuses.linkedin.selectedAccountId;
     if (!creating || channelId !== "linkedin" || !externalStatuses.linkedin.connected || !selectedAccountId) return;
@@ -2734,6 +2752,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   function applyCampaignPlan(plan: AdsCampaignPlan) {
     linkedInPreflightContext.current++;
+    linkedInPlanEndIsExplicit.current = plan.linkedinCalendarConstraints?.endIsExplicit !== false;
     if (channelId === "linkedin") { setLinkedInPreflight(null); setLinkedInPreflightLoad("idle"); linkedInAutomaticLoadKey.current = ""; setLinkedInAudienceSuggestions(plan.linkedinTargetingSuggestions || []); setLinkedInAudiencePending((plan.linkedinTargetingSuggestions || []).reduce((count, suggestion) => count + suggestion.terms.length, 0)); }
     setConfirmedDestinationUrl("");
     setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
@@ -2827,6 +2846,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         } : {}),
       } : {}),
       };
+      if (channelDraft?.channel === "linkedin") {
+        Object.assign(proposal, prepareLinkedInPlanForGroup(proposal, {
+          groups: linkedInPreflight?.campaignGroups || [],
+          manualGroupId: linkedInManualGroupId.current,
+          endIsExplicit: plan.linkedinCalendarConstraints?.endIsExplicit !== false,
+        }));
+      }
       if (!channelDraft || !nativeCopy) return proposal;
       // For prepared-only channels, the audited native brief is the source of
       // truth for fields that the model could otherwise contradict or invent.
@@ -2983,6 +3009,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     linkedInGeoDismissedUrns.current.clear();
     linkedInGeoChoices.current = {};
     linkedInAutomaticLoadKey.current = "";
+    linkedInManualGroupId.current = null;
+    linkedInPlanEndIsExplicit.current = true;
     setMetaMediaSlot(null);
     setMetaMediaFormatStatus({ feed: "empty", story_reel: "empty" });
     setConfirmedSpend(false); linkedInLaunchConsent.current = null;
@@ -3623,6 +3651,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   function reopen(campaign: StoredCampaign) {
     if (campaign.status !== "draft") return;
     if (!pilotChannelsEnabled && !isAdsPublicChannel(campaign.provider)) return;
+    linkedInManualGroupId.current = campaign.draft.linkedinCampaignGroupId || null;
+    linkedInPlanEndIsExplicit.current = true;
     stopPlanProgress();
     setConfirmedDestinationUrl("");
     setChannelId(campaign.provider);
@@ -3813,6 +3843,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const selectedLinkedInOrganization = linkedInOrganizations.find((organization) => organization.urn === draft.linkedinOrganizationUrn)
     || (preflightSelectedLinkedInOrganization?.urn === draft.linkedinOrganizationUrn
       ? preflightSelectedLinkedInOrganization : null);
+  const linkedInScheduleIssue = linkedInCalendarIssue(draft, selectedLinkedInCampaignGroup);
+  const linkedInCalendarRepair = channelId === "linkedin" && linkedInScheduleIssue && selectedLinkedInCampaignGroup
+    ? prepareLinkedInPlanForGroup(draft, { groups: [selectedLinkedInCampaignGroup], manualGroupId: draft.linkedinCampaignGroupId || null, endIsExplicit: false }) : null;
+  const linkedInCalendarCanBeRepaired = Boolean(linkedInCalendarRepair
+    && linkedInCalendarRepair.linkedinDeliverySettings?.budget.endAt !== draft.linkedinDeliverySettings?.budget.endAt);
+  const linkedInPreflightCurrent = linkedInPreflight?.inputKey === linkedInAutomaticLoadSignature;
   const linkedInGeoTargets = normalizeLinkedInGeoTargets(draft.linkedinGeoTargets ?? []) || [];
   const linkedInVerifiedGeoUrns = new Set(linkedInPreflight?.selected?.verifiedGeoUrns || []);
   const linkedInGeoResolutions = linkedInPreflight?.geoResolutions || [];
@@ -3846,12 +3882,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     && linkedInGeoTargets.length <= 20
     && linkedInPreflightLoad === "ready"
     && linkedInPreflight
+    && linkedInPreflightCurrent
     && linkedInBriefGeoReady
     && linkedInAudiencePending === 0
     && linkedInGeoTargets.every((target) => linkedInVerifiedGeoUrns.has(target.urn))
     && linkedInBidPricing
     && !linkedInBudgetBelowProviderMinimum
     && !linkedInBidOutsideVerifiedRange
+    && !linkedInScheduleIssue
     && !linkedInPreflight.blockers?.some((blocker) => ["unresolved_geo_queries", "geo_query_provider_rejected", "selected_geo_unverified", "too_many_geo_targets", "budget_pricing_required"].includes(blocker))
     && (!linkedInManualBid || (draft.linkedinBidEuros && draft.linkedinBidEuros > 0))
     && !(nativeSettings?.channel === "linkedin" && nativeSettings.objectiveType === "WEBSITE_CONVERSION" && !linkedInDelivery.conversions.conversionUrns.length)
@@ -3865,7 +3903,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (linkedInPreflightLoad === "error") {
       return linkedInPreflightError || "La vérification LinkedIn a échoué. Actualisez les ressources à l’étape Campagne.";
     }
-    if (linkedInPreflightLoad !== "ready" || !linkedInPreflight) {
+    if (linkedInPreflightLoad !== "ready" || !linkedInPreflight || !linkedInPreflightCurrent) {
       return "La vérification LinkedIn est en cours. Attendez son résultat avant de lancer.";
     }
     if (!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) {
@@ -3895,7 +3933,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (linkedInBidOutsideVerifiedRange) {
       return "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Corrigez-la à l’étape Budget et calendrier.";
     }
-    return linkedInAdsLaunchBlockerMessage(linkedInPreflight.blockers || []) || "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.";
+    if (linkedInScheduleIssue) return linkedInScheduleIssue;
+    return linkedInAdsLaunchBlockerMessage(linkedInAdsLaunchBlockers(linkedInPreflight.blockers, linkedInPreparedLaunchStatus === "active" ? "ACTIVE" : "PAUSED")) || "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.";
   })();
   const linkedInComplianceReady = draft.linkedinPoliticalIntentConfirmed === true
     && draft.linkedinTargetingNoticeAcknowledged === true;
@@ -4194,6 +4233,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                 <span>Rangement dans LinkedIn</span>
                 <strong>{selectedLinkedInCampaignGroup?.name || (draft.linkedinCampaignGroupId ? `Groupe ${draft.linkedinCampaignGroupId}` : linkedInPreflightLoad === "loading" ? "Recherche d’un groupe compatible…" : "Aucun groupe compatible sélectionné")}</strong>
                 <small>Votre nouvelle campagne sera ajoutée à ce groupe.</small>
+                {selectedLinkedInCampaignGroup?.runSchedule.end && <small>Fin du groupe : {new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString("fr-FR")}. Le calendrier de la campagne doit tenir dans cette période.</small>}
+                {linkedInScheduleIssue && <small role="alert">{linkedInScheduleIssue} <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>Vérifier le calendrier</button></small>}
                 <details open={!draft.linkedinCampaignGroupId || undefined}>
                   <summary>Changer de groupe</summary>
                   <label className={styles.field}>Groupe de campagnes
@@ -4538,7 +4579,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       <section hidden={step !== budgetStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioBudgetCard}`}>
         <StudioStepHeader number={budgetStep + 1} label={channelId === "pinterest" ? "BUDGET PINTEREST" : "BUDGET"} title="Votre investissement, en clair." mobileTitle="Votre budget" channel={channelMeta.label} />
         <p className={styles.intro}><span className={styles.studioTitleLong}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</span><span className={styles.studioTitleShort}>Estimation indicative, sans promesse de résultat.</span></p>
-        {preparedOnlyChannel ? <PreparedAdsBudget settings={preparedDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={preparedTimeZone} onChange={updatePreparedDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "meta" ? <MetaAdsBudget settings={metaDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveMetaResources?.account.timezone || null} onChange={updateMetaDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "openai" ? <ChatGPTAdsBudget settings={openaiDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveOpenaiResources?.account.timezone || null} onChange={updateOpenaiDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "pinterest" ? <PinterestAdsBudget settings={pinterestDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectivePinterestResources?.account.timezone || null} onChange={updatePinterestDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "google" ? <GoogleAdsBudget settings={googleDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveGoogleResources?.timeZone || ""} onChange={updateGoogleDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : nativeSettings?.channel === "linkedin" ? <LinkedInAdsBudget settings={linkedInDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} bid={draft.linkedinBidEuros} objective={nativeSettings.objectiveType} pricing={linkedInBidPricing} onChange={updateLinkedInDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} onBidChange={(linkedinBidEuros) => updateDraft({ linkedinBidEuros })} /> : <>
+        {preparedOnlyChannel ? <PreparedAdsBudget settings={preparedDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={preparedTimeZone} onChange={updatePreparedDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "meta" ? <MetaAdsBudget settings={metaDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveMetaResources?.account.timezone || null} onChange={updateMetaDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "openai" ? <ChatGPTAdsBudget settings={openaiDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveOpenaiResources?.account.timezone || null} onChange={updateOpenaiDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "pinterest" ? <PinterestAdsBudget settings={pinterestDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectivePinterestResources?.account.timezone || null} onChange={updatePinterestDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "google" ? <GoogleAdsBudget settings={googleDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveGoogleResources?.timeZone || ""} onChange={updateGoogleDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : nativeSettings?.channel === "linkedin" ? <>
+          <LinkedInAdsBudget settings={linkedInDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} bid={draft.linkedinBidEuros} objective={nativeSettings.objectiveType} pricing={linkedInBidPricing} onChange={updateLinkedInDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} onBidChange={(linkedinBidEuros) => updateDraft({ linkedinBidEuros })} />
+          {selectedLinkedInCampaignGroup?.runSchedule.end && <p className={styles.studioReadiness}>Le groupe « {selectedLinkedInCampaignGroup.name} » termine sa diffusion le {new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString("fr-FR")}. La campagne doit terminer dans cette période.</p>}
+          {linkedInScheduleIssue && <div className={styles.studioReadiness} role="alert"><strong>Calendrier à adapter</strong>{linkedInScheduleIssue}
+            {linkedInCalendarCanBeRepaired && linkedInCalendarRepair && <button type="button" className={styles.secondaryButton} disabled={busy !== null} onClick={() => updateDraft({ endDate: linkedInCalendarRepair.endDate, linkedinDeliverySettings: linkedInCalendarRepair.linkedinDeliverySettings })}>Adapter la fin au groupe · {new Date(linkedInCalendarRepair.linkedinDeliverySettings!.budget.endAt!).toLocaleString("fr-FR")}</button>}
+            <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Choisir un autre groupe</button>
+          </div>}
+        </> : <>
         <div className={styles.studioGrid}>
           <label className={styles.field}>Budget quotidien moyen (€)<input type="number" min="5" max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} /></label>
           <label className={styles.field}>Date de fin<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
@@ -4633,7 +4681,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           </dl>
           <p>{["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) ? "Ce brief explique la proposition de l’IA. Le récapitulatif ci-dessus présente les réglages actuels ; vos confirmations finales autorisent leur publication." : "Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici."}</p>
         </details>}
-        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Une vérification LinkedIn manque encore</strong>{linkedInReadinessDetails} {linkedInAudiencePending > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(targetingStep)}>Vérifier les propositions Audience</button>} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Voir les réglages Campagne</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>Voir les zones à compléter</button>} Le brouillon reste enregistrable sans lancer de campagne.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>{`Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "Ce type reste un brouillon préparatoire. Son parcours complet et sa publication nécessitent une intégration dédiée. L’automatisation de bout en bout est actuellement disponible pour le Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Ce format nécessite encore une intégration de publication. Les annonces avec image ou vidéo et les objectifs compatibles peuvent être lancés ; les autres formats restent enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez le média demandé par votre format à l’étape Média avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
+        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Une vérification LinkedIn manque encore</strong>{linkedInReadinessDetails} {linkedInScheduleIssue && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>Corriger le calendrier</button>} <button type="button" className={styles.secondaryButton} disabled={busy !== null || linkedInPreflightLoad === "loading"} onClick={() => void loadLinkedInResources(true)}>Actualiser les vérifications</button> {linkedInAudiencePending > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(targetingStep)}>Vérifier les propositions Audience</button>} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Voir les réglages Campagne</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>Voir les zones à compléter</button>} Le brouillon reste enregistrable sans lancer de campagne.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>Brouillon uniquement pour le moment</strong>{`Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "Ce type reste un brouillon préparatoire. Son parcours complet et sa publication nécessitent une intégration dédiée. L’automatisation de bout en bout est actuellement disponible pour le Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Ce format nécessite encore une intégration de publication. Les annonces avec image ou vidéo et les objectifs compatibles peuvent être lancés ; les autres formats restent enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez le média demandé par votre format à l’étape Média avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
           {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button>}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
         </>)}
         {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Prête pour votre validation finale" : "Création réelle en pause disponible" : "À compléter pour ChatGPT Ads"}</strong>{!livePublisherMediaReady ? "Ajoutez une image JPG, PNG ou WebP carrée à l’étape Médias. " : ""}{connectorConfigurationIssue ? `${connectorConfigurationIssue} ` : ""}{!channelPublishingEnabled ? `${openaiReadinessMessage || "La clé Advertiser API et la revue du compte sont requises."} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? "Ce format ou cet objectif n’est pas encore pris en charge. " : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Le statut Active est préparé pour ce compte approuvé. La diffusion démarre seulement après votre validation finale et la revue de l’annonce par ChatGPT Ads." : `La carte peut être créée sans diffusion. ${openaiLiveReadinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}` : "Le brouillon reste enregistrable."}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}

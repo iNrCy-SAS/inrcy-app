@@ -678,7 +678,10 @@ export async function POST(request: Request) {
       attemptedStages,
     });
     return NextResponse.json({
-      plan,
+      plan: provider === "linkedin" ? { ...plan, linkedinCalendarConstraints: {
+        endIsExplicit: Object.hasOwn(humanDelivery?.constraints.budget || {}, "endAt")
+          || /\b(?:pendant|sur|dur[ée]e(?: de)?)\s+\d+\s*(?:jours?|semaines?|mois)\b/i.test(professionalIntent),
+      } } : plan,
       requestId,
       creditsUsed: 1,
       requiresHumanReview: true,

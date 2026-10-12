@@ -67,6 +67,8 @@ export type AdsCampaignPlan = {
   linkedinTargetingSuggestions?: LinkedInAudienceSuggestion[];
   linkedinBudgetSuggestion?: LinkedInBudgetSuggestion | null;
   linkedinDeliverySuggestion?: LinkedInDeliverySuggestion;
+  /** Set by the server from the human brief, never by the generation model. */
+  linkedinCalendarConstraints?: { endIsExplicit: boolean };
   brand: string;
   name: string;
   campaignType: AdsCampaignType;

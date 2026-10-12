@@ -5,7 +5,7 @@ import { linkedInAdsGeoNameMatchesQuery, normalizedLinkedInGeoLabel } from "./ad
 type AutomaticPreflightDraft = Pick<
   AdsCampaignInput,
   "targetLocations" | "linkedinGeoTargets" | "dailyBudgetEuros" | "channelSettings" | "linkedinDeliverySettings"
-> & Partial<Pick<AdsCampaignInput, "linkedinCampaignGroupId" | "linkedinOrganizationUrn" | "endDate">>;
+> & Partial<Pick<AdsCampaignInput, "linkedinCampaignGroupId" | "linkedinOrganizationUrn" | "endDate" | "linkedinPoliticalIntentConfirmed" | "linkedinTargetingNoticeAcknowledged">>;
 
 function distinctSorted(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
@@ -69,6 +69,8 @@ export function linkedInAdsAutomaticPreflightKey(accountId: string, draft: Autom
     draft.linkedinCampaignGroupId || "",
     draft.linkedinOrganizationUrn || "",
     draft.endDate || "",
+    draft.linkedinPoliticalIntentConfirmed === true,
+    draft.linkedinTargetingNoticeAcknowledged === true,
   ]);
 }
 
