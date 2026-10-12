@@ -1,3 +1,4 @@
+import { projectInstagramDeletionStatus } from "@/lib/inrsend/instagramDeletionStatus";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { readAsyncPublicationStatus } from "@/lib/boosterAsyncPublication";
@@ -34,7 +35,7 @@ async function handler(
       );
     }
 
-    return NextResponse.json(status, {
+    return NextResponse.json(projectInstagramDeletionStatus(status), {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {

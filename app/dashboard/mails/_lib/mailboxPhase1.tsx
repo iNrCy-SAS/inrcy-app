@@ -1,3 +1,4 @@
+import { hasInstagramDeletionUnconfirmedAnnotation, isInstagramDeletionUnconfirmed, projectInstagramDeletionStatus } from "@/lib/inrsend/instagramDeletionStatus";
 import { canonicalSiteWebChannel, normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import React from "react";
 import styles from "../mails.module.css";
@@ -1202,7 +1203,7 @@ export function extractVideoSettingsForChannel(payload: any, channel: string, ch
 }
 
 export function isDeletedChannelResult(result: any): boolean {
-  if (!result || typeof result !== "object") return false;
+  if (!result || typeof result !== "object" || hasInstagramDeletionUnconfirmedAnnotation(result)) return false;
   return result.deleted === true || String(result.status || "").toLowerCase() === "deleted";
 }
 
@@ -1226,11 +1227,11 @@ export function orderChannelKeys(channels: string[]): string[] {
 }
 
 export function extractPublicationResults(payload: any): Record<string, any> {
-  return normalizeSiteWebChannelMap(payload?.results);
+  return normalizeSiteWebChannelMap(projectInstagramDeletionStatus(payload)?.results);
 }
 
 export function isFailedChannelResult(result: any): boolean {
-  if (!result || typeof result !== "object") return false;
+  if (!result || typeof result !== "object" || hasInstagramDeletionUnconfirmedAnnotation(result)) return false;
   if (isDeletedChannelResult(result) || isCancelledChannelResult(result)) return false;
   if (result.ok === false) return true;
   const status = String(result.status || "").toLowerCase();
@@ -1239,6 +1240,7 @@ export function isFailedChannelResult(result: any): boolean {
 
 export function isWarningChannelResult(result: any, channel = ""): boolean {
   if (!result || typeof result !== "object") return false;
+  if (hasInstagramDeletionUnconfirmedAnnotation(result) || (normalizeChannelKey(channel) === "instagram" && isInstagramDeletionUnconfirmed(result))) return true;
   if (
     isFailedChannelResult(result) ||
     isDeletedChannelResult(result) ||
@@ -1281,7 +1283,7 @@ export function isWarningChannelResult(result: any, channel = ""): boolean {
 }
 
 export function isProcessingChannelResult(result: any, channel = ""): boolean {
-  if (!result || typeof result !== "object") return false;
+  if (!result || typeof result !== "object" || hasInstagramDeletionUnconfirmedAnnotation(result)) return false;
   if (
     isFailedChannelResult(result) ||
     isDeletedChannelResult(result) ||
@@ -1362,6 +1364,7 @@ export function getWarningChannelMessage(result: any, channel = ""): string {
 }
 
 export function getChannelIndicatorMeta(result: any, channel = ""): { kind: "failed" | "deleted" | "cancelled" | "warning" | "processing"; title: string; className: string } | null {
+  if (hasInstagramDeletionUnconfirmedAnnotation(result) || (normalizeChannelKey(channel) === "instagram" && isInstagramDeletionUnconfirmed(result))) return { kind: "warning", title: "Suppression non confirmée", className: styles.channelWarningDot };
   if (isCancelledChannelResult(result)) {
     return {
       kind: "cancelled",

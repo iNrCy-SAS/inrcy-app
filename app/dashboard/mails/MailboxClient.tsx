@@ -37,6 +37,7 @@ import {
   getVideoPublicationProfileForChannel,
 } from "@/lib/boosterVideoTransforms";
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import { canRemoveInstagramDraftLocally } from "@/lib/inrsend/instagramCapabilities";
 import {
   PROFILE_VERSION_EVENT,
   type ProfileVersionChangeDetail,
@@ -5363,6 +5364,11 @@ export default function MailboxClient({
     ).trim();
     const channel = String(activeDetailsChannelEntry?.key || "").trim();
     if (!publicationId || !channel) return null;
+    if (channel === "instagram" && !canRemoveInstagramDraftLocally(activeDetailsChannelResult, (detailsPayload as any)?.results_delivery)) {
+      setDetailsActionSuccess(null);
+      setDetailsActionError(i18nT("instagram_delete_unsupported"));
+      return null;
+    }
     const label =
       activeDetailsChannelEntry?.label || formatChannelLabel(channel);
     const ok = await confirmInrcy({
@@ -5389,7 +5395,7 @@ export default function MailboxClient({
         },
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || json?.ok !== true || json?.deleted !== true) {
         throw new Error(json?.error || i18nT("publication_delete_failed"));
       }
 
@@ -5449,7 +5455,9 @@ export default function MailboxClient({
         ),
       );
       setDetailsActionSuccess(
-        i18nT("publication_value_supprimee_3fa97962", { value0: label }),
+        channel === "instagram" && json?.local_deleted_only === true
+          ? i18nT("instagram_draft_deleted_local")
+          : i18nT("publication_value_supprimee_3fa97962", { value0: label }),
       );
       setDetailsEditMode(false);
       // Release the action immediately. The history refresh can continue in

@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
   "threads_mode_ghost": "Ghost · 24 小时",
   "threads_ghost_text_only": "Ghost：仅限文字，24 小时后归档。",
-  "threads_ghost_disabled": "Threads 设置中已禁用 Ghost。"
+  "threads_ghost_disabled": "Threads 设置中已禁用 Ghost。",
+  "instagram_delete_unsupported": "无法从应用中删除此帖子。请直接在 Instagram 上删除。",
+  "instagram_deletion_unconfirmed": "删除尚未确认",
+  "instagram_deletion_unconfirmed_help": "Instagram 尚未确认删除。请直接在 Instagram 上检查此帖子。",
+  "instagram_draft_deleted_local": "Instagram 草稿已从应用中删除。"
 }

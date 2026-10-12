@@ -1,3 +1,4 @@
+import { projectInstagramDeletionStatus } from "@/lib/inrsend/instagramDeletionStatus";
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
@@ -942,7 +943,7 @@ function mapEventItems(rows: any[]): OutboxItem[] {
       // et on garde le statut technique du parent comme `processing`. Si une
       // finalisation interrompue a déjà écrit un bilan terminal avant de
       // convertir le type, ce bilan reste néanmoins visible immédiatement.
-      const payload = isAsyncPublication
+      const payload = projectInstagramDeletionStatus(isAsyncPublication
         ? {
             ...((durablePayload.preparationRequest || {}) as any),
             ...((durablePayload.finalPayloadBase || {}) as any),
@@ -950,7 +951,7 @@ function mapEventItems(rows: any[]): OutboxItem[] {
             status: durablePayload.status || "queued",
             publication_id: durablePayload.publication_id || e.id,
           }
-        : durablePayload;
+        : durablePayload);
       const isDraft = String(payload?.status || "").toLowerCase() === "draft" || t === "publish_draft";
       const actionType =
         t === "publish_draft" || isAsyncPublication ? "publish" : t;
@@ -1023,7 +1024,7 @@ function mapEventItems(rows: any[]): OutboxItem[] {
         channels: extractedChannels,
         attachments: extractAttachmentsFromPayload(payload),
         ...originMeta,
-          raw: isAsyncPublication ? { ...e, payload } : e,
+          raw: isAsyncPublication || payload !== durablePayload ? { ...e, payload } : e,
         reopenHref: isDraft && folder === "publications"
           ? `/dashboard?action=publish&draftId=${encodeURIComponent(String(e.id || ""))}`
           : null,

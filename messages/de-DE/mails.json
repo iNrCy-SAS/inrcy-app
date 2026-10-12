@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
   "threads_mode_ghost": "Ghost · 24 Std.",
   "threads_ghost_text_only": "Ghost: nur Text, nach 24 Stunden archiviert.",
-  "threads_ghost_disabled": "Ghost ist in den Threads-Einstellungen deaktiviert."
+  "threads_ghost_disabled": "Ghost ist in den Threads-Einstellungen deaktiviert.",
+  "instagram_delete_unsupported": "Dieser Beitrag kann nicht über die Anwendung gelöscht werden. Lösche ihn direkt auf Instagram.",
+  "instagram_deletion_unconfirmed": "Löschung nicht bestätigt",
+  "instagram_deletion_unconfirmed_help": "Instagram hat die Löschung nicht bestätigt. Prüfe den Beitrag direkt auf Instagram.",
+  "instagram_draft_deleted_local": "Instagram-Entwurf aus der Anwendung entfernt."
 }

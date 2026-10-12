@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
   "threads_mode_ghost": "Ghost · 24 h",
   "threads_ghost_text_only": "Ghost : texte seul, archivé après 24 h.",
-  "threads_ghost_disabled": "Ghost est désactivé dans la configuration Threads."
+  "threads_ghost_disabled": "Ghost est désactivé dans la configuration Threads.",
+  "instagram_delete_unsupported": "Impossible de supprimer cette publication depuis l’application. Supprimez-la directement sur Instagram.",
+  "instagram_deletion_unconfirmed": "Suppression non confirmée",
+  "instagram_deletion_unconfirmed_help": "La suppression n’a pas été confirmée par Instagram. Vérifiez la publication directement sur Instagram.",
+  "instagram_draft_deleted_local": "Brouillon Instagram supprimé de l’application."
 }

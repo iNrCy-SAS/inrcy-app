@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft.",
   "threads_mode_ghost": "Ghost · 24 h",
   "threads_ghost_text_only": "Ghost: text only, archived after 24 hours.",
-  "threads_ghost_disabled": "Ghost is disabled in Threads settings."
+  "threads_ghost_disabled": "Ghost is disabled in Threads settings.",
+  "instagram_delete_unsupported": "This post cannot be deleted from the app. Delete it directly on Instagram.",
+  "instagram_deletion_unconfirmed": "Deletion unconfirmed",
+  "instagram_deletion_unconfirmed_help": "Instagram has not confirmed the deletion. Check the post directly on Instagram.",
+  "instagram_draft_deleted_local": "Instagram draft removed from the app."
 }

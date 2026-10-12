@@ -1,3 +1,4 @@
+import { canRemoveInstagramDraftLocally, hasInstagramPublishedMedia, INSTAGRAM_DELETE_UNSUPPORTED_MESSAGE } from "@/lib/inrsend/instagramCapabilities";
 import { loadThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferencesServer";
 import { parseThreadsPublicationSettings, getThreadsPublicationModeFailure } from "@/lib/threadsPublicationPreferences";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
@@ -2755,8 +2756,15 @@ async function removeChannelDelivery(params: {
   channel: ChannelKey;
   previousExternalId?: string | null;
   eventPayload?: JsonRecord | null;
+  deliveries?: unknown;
 }) {
   const { userId, publicationId, channel, previousExternalId } = params;
+
+  if (channel === "instagram") {
+    const result = asRecord(asRecord(asRecord(params.eventPayload).results).instagram);
+    if (previousExternalId || !canRemoveInstagramDraftLocally(result, params.deliveries)) throw new Error(INSTAGRAM_DELETE_UNSUPPORTED_MESSAGE);
+    return;
+  }
 
   if (channel === "tiktok") {
     throw new Error(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE);
@@ -2809,7 +2817,7 @@ async function removeChannelDelivery(params: {
     return;
   }
 
-  const [fbRow, _gmbRow, igRow, liRow] = await Promise.all([
+  const [fbRow, _gmbRow, _igRow, liRow] = await Promise.all([
     getLatestIntegrationRow(userId, "facebook", "facebook", "facebook", "status,resource_id,access_token_enc,meta"),
     getLatestIntegrationRow(userId, "google", "gmb", "gmb", "status,resource_id,meta"),
     getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at"),
@@ -2820,35 +2828,6 @@ async function removeChannelDelivery(params: {
     const token = tryDecryptToken(String(asRecord(fbRow).access_token_enc ?? "")) || "";
     if (!token) throw new Error("Votre compte Facebook n’est pas encore correctement relié.");
     if (previousExternalId) await deleteFacebookPost(previousExternalId, token);
-    return;
-  }
-
-  if (channel === "instagram") {
-    const ig = asRecord(igRow);
-    if (resolveInstagramAuthMode(ig.meta) === "instagram_login") {
-      if (!(await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId))) throw new Error("Instagram direct est réservé aux comptes ADMIN.");
-      ig.access_token_enc = encryptToken(await ensureMetaDirectAccessToken(supabaseAdmin, ig));
-    }
-    const candidates = buildInstagramDeleteTokenCandidates([{ sourceLabel: "instagram", row: igRow }, { sourceLabel: "facebook", row: fbRow }]);
-    if (!candidates.length) throw new Error("Votre compte Instagram n’est pas encore correctement relié.");
-    if (previousExternalId) {
-      const instagramChannelResult = asRecord(asRecord(params.eventPayload).results).instagram
-        ? asRecord(asRecord(asRecord(params.eventPayload).results).instagram)
-        : null;
-      const deleteResult = await deleteInstagramMediaWithFallback(previousExternalId, {
-        igRow,
-        fbRow,
-        channelResult: instagramChannelResult,
-        allowLocalFallback: true,
-      });
-      await logInstagramAction({
-        userId,
-        publicationId: publicationId || null,
-        action: "delete",
-        externalId: previousExternalId,
-        result: deleteResult as unknown as JsonRecord,
-      });
-    }
     return;
   }
 
@@ -3025,6 +3004,7 @@ function buildDeletedPayload(params: {
     error: null,
     deleted_at: new Date().toISOString(),
     external_id: previousExternalId || channelResult.external_id || null,
+    ...(channel === "instagram" ? { local_deleted_only: true, remote_deleted: false, delete_scope: "local_draft" } : {}),
   };
 
   return {
@@ -3466,14 +3446,21 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
-      const previousExternalId = String((channel === "site_web" || channel === "threads") ? channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const previousExternalId = String((channel === "site_web" || channel === "threads" || channel === "instagram") ? channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
+
+      // Instagram has no remote delete operation. Block published, ambiguous and
+      // legacy false-deleted results before idempotent success, tokens or writes.
+      if (channel === "instagram" && (hasInstagramPublishedMedia(channelResult, ctx.deliveries) || !canRemoveInstagramDraftLocally(channelResult, ctx.deliveries))) {
+        return jsonUserFacingError(INSTAGRAM_DELETE_UNSUPPORTED_MESSAGE, { status: 409, code: "instagram_delete_unsupported" });
+      }
 
       if (isDeletedResult(channelResult) && !(channel === "site_web" && ctx.siteArticleIds.length)) {
         const payload = buildDeletedPayload({ eventPayload: ctx.eventPayload, channel, previousExternalId });
-        return NextResponse.json({ ok: true, deleted: true, removed_publication: false, payload });
+        return NextResponse.json({ ok: true, deleted: true, removed_publication: false,
+          ...(channel === "instagram" ? { local_deleted_only: true, remote_deleted: false } : {}), payload });
       }
 
-      const deleteResult = await removeChannelDelivery({ userId: activeUserId, publicationId, channel, previousExternalId, eventPayload: ctx.eventPayload });
+      const deleteResult = await removeChannelDelivery({ userId: activeUserId, publicationId, channel, previousExternalId, eventPayload: ctx.eventPayload, deliveries: ctx.deliveries });
 
       const nextPayload = buildDeletedPayload({ eventPayload: ctx.eventPayload, channel, previousExternalId });
       if (channel === "site_web") {
@@ -3493,7 +3480,8 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         await notifyInrSearchIndexing(slug);
       }
 
-      return NextResponse.json({ ok: true, deleted: true, removed_publication: false, payload: nextPayload });
+      return NextResponse.json({ ok: true, deleted: true, removed_publication: false,
+        ...(channel === "instagram" ? { local_deleted_only: true, remote_deleted: false } : {}), payload: nextPayload });
     } catch (e: unknown) {
       captureApiException(req, e, {
         area: "booster",

@@ -173,7 +173,7 @@ test("the publications tab filters every source before downloading history rows"
   );
   assert.match(
     route,
-    /const payload = isAsyncPublication[\s\S]{0,220}durablePayload\.preparationRequest[\s\S]{0,120}durablePayload\.finalPayloadBase/,
+    /const payload = projectInstagramDeletionStatus\(isAsyncPublication[\s\S]{0,220}durablePayload\.preparationRequest[\s\S]{0,120}durablePayload\.finalPayloadBase/,
   );
   assert.match(
     route,

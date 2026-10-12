@@ -1,6 +1,8 @@
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { THREADS_PUBLICATION_CAPABILITIES } from "@/lib/inrsend/threadsCapabilities";
+import { INSTAGRAM_PUBLICATION_CAPABILITIES, canRemoveInstagramDraftLocally } from "@/lib/inrsend/instagramCapabilities";
+import { isInstagramDeletionUnconfirmed, normalizeInstagramDeletionResult, projectInstagramDeletionStatus } from "@/lib/inrsend/instagramDeletionStatus";
 import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { useLocale, useTranslations } from "next-intl";
 import React from "react";
@@ -378,6 +380,9 @@ function getPublicationStatusMeta(
   liveEntry: any,
   t: MailsTranslator,
 ): PublicationStatusMeta {
+  if (channel === "instagram" && (isInstagramDeletionUnconfirmed(result) || isInstagramDeletionUnconfirmed(liveEntry))) {
+    return { label: t("instagram_deletion_unconfirmed"), tone: "warning", title: t("instagram_deletion_unconfirmed_help") };
+  }
   if (isCancelledChannelResult(result)) {
     return { label: t("annulee_2776573b"), tone: "muted", title: t("publication_annulee_cbe31b94") };
   }
@@ -538,6 +543,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     resumeDraft,
   } = props;
   const router = useRouter();
+  const instagramDeleteNoticeId = React.useId();
   const canReopenDetailsItem = Boolean(detailsItem?.reopenHref) && (
     documentsEnabled || !isAccountingDashboardHref(detailsItem?.reopenHref)
   );
@@ -1557,7 +1563,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                 {!detailsItem ? (
                   <div style={{ color: "rgba(255,255,255,0.65)" }}>{i18nT("selectionne_un_element_523f9c88")}</div>
                 ) : (() => {
-                  const payload = detailsItem.source === "app_events" ? filterMetaPilotPayload(normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null), metaPilotEnabled) : null;
+                  const payload = detailsItem.source === "app_events" ? filterMetaPilotPayload(projectInstagramDeletionStatus(normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null)), metaPilotEnabled) : null;
                   const publicationId = detailsItem.source === "app_events" ? String(payload?.publication_id || "").trim() : "";
                   const channelPublications = detailsItem.source === "app_events" ? extractChannelPublications(payload) : [];
                   const defaultParts = detailsItem.source === "app_events" ? extractPublicationParts(payload) : {};
@@ -1582,7 +1588,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const activePublicationLiveResult = activePublicationEntry
                     ? getLivePublicationResult(publicationLiveStatus, activePublicationEntry.key)
                     : null;
-                  const activePublicationResult = activePublicationLiveResult || persistedActivePublicationResult;
+                  const activePublicationResult = activePublicationEntry?.key === "instagram" ? normalizeInstagramDeletionResult(activePublicationLiveResult || persistedActivePublicationResult) : activePublicationLiveResult || persistedActivePublicationResult;
+                  const activeInstagramDeletionUnconfirmed = activePublicationEntry?.key === "instagram" && isInstagramDeletionUnconfirmed(activePublicationResult);
                   const isThreadsGhost = activePublicationEntry?.key === "threads" && (activePublicationResult?.threads_publication_mode === "ghost" || activePublicationResult?.is_ghost_post === true || payload?.threadsPublicationSettings?.mode === "ghost");
                   const activePublicationDeleted = isDeletedChannelResult(activePublicationResult);
                   const activePublicationFailed = isFailedChannelResult(activePublicationResult);
@@ -1598,7 +1605,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     activePublicationResult,
                     activePublicationEntry?.key || "",
                   );
-                  const activePublicationWarningMessage = activePublicationWarning
+                  const activePublicationWarningMessage = activeInstagramDeletionUnconfirmed
+                    ? i18nT("instagram_deletion_unconfirmed_help")
+                    : activePublicationWarning
                     ? String(
                         activePublicationResult?.warning_message ||
                           activePublicationResult?.warningMessage ||
@@ -1715,6 +1724,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     return !(activeHasStructured || fallbackTitle || fallbackContent || fallbackCta || fallbackHashtags.length || fallbackAttachments.length);
                   })();
                   const isDraftItem = String((detailsItem as any)?.status || (detailsItem as any)?.raw?.status || "").toLowerCase() === "draft";
+                  const instagramLocalRemovalAllowed = canRemoveInstagramDraftLocally(activePublicationResult, payload?.results_delivery) && canRemoveInstagramDraftLocally(activePublicationResult, publicationLiveStatus?.results_delivery) && canRemoveInstagramDraftLocally(activePublicationResult, publicationLiveStatus?.summary?.entries);
+                  const instagramPublishedDeleteUnavailable = activePublicationEntry?.key === "instagram" && !isDraftItem && !INSTAGRAM_PUBLICATION_CAPABILITIES.deletePublished && !instagramLocalRemovalAllowed;
                   const threadsPublishedEditUnavailable = activePublicationEntry?.key === "threads" && !isDraftItem && (!activePublicationFailed || Boolean(activePublicationResult?.external_id || activePublicationResult?.thread_id)) && !THREADS_PUBLICATION_CAPABILITIES.editPublished;
                   const publicationPreviewData = (() => {
                     if (detailsItem.source !== "app_events" || !activePublicationEntry) return null;
@@ -2035,8 +2046,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                           {entryIndicator ? (
                                             <span
                                               className={entryIndicator.className}
-                                              title={localizedIndicatorTitle(entryIndicator.kind, runtimeT)}
-                                              aria-label={localizedIndicatorTitle(entryIndicator.kind, runtimeT)}
+                                              title={entry.key === "instagram" && isInstagramDeletionUnconfirmed(entryResult) ? i18nT("instagram_deletion_unconfirmed") : localizedIndicatorTitle(entryIndicator.kind, runtimeT)}
+                                              aria-label={entry.key === "instagram" && isInstagramDeletionUnconfirmed(entryResult) ? i18nT("instagram_deletion_unconfirmed") : localizedIndicatorTitle(entryIndicator.kind, runtimeT)}
                                             />
                                           ) : null}
                                         </span>
@@ -2218,16 +2229,34 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   {isThreadsGhost ? <span role="note" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{i18nT("threads_mode_ghost")} · {i18nT("threads_ghost_text_only")}</span> : null}
                                   {threadsPublishedEditUnavailable ? <span role="note" style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{i18nT("threads_edit_unsupported")}</span> : null}
                                   {!isDraftItem && !isExternalVideoPublicationEntry ? (
-                                    <button
-                                      type="button"
-                                      className={styles.btnDangerSmall}
-                                      onClick={() => void deleteChannelPublicationAndSyncStatus()}
-                                      disabled={detailsActionBusy}
-                                      title={i18nT("supprimer_la_publication_2960b405")}
-                                      aria-label={i18nT("supprimer_la_publication_2960b405")}
-                                    >
-                                      {detailsActionBusy && !detailsEditMode ? i18nT("suppression_a620db43") : i18nT("supprimer_1acfc1c7")}
-                                    </button>
+                                    <div style={{ display: "grid", gap: 6, minWidth: 0, maxWidth: 300 }}>
+                                      <button
+                                        type="button"
+                                        className={instagramPublishedDeleteUnavailable ? undefined : styles.btnDangerSmall}
+                                        style={instagramPublishedDeleteUnavailable ? {
+                                          border: "1px solid rgba(148,163,184,0.25)",
+                                          background: "rgba(148,163,184,0.1)",
+                                          color: "rgba(255,255,255,0.45)",
+                                          borderRadius: 12,
+                                          padding: "8px 10px",
+                                          cursor: "not-allowed",
+                                          fontWeight: 850,
+                                          justifySelf: "start",
+                                        } : { justifySelf: "start" }}
+                                        onClick={instagramPublishedDeleteUnavailable ? undefined : () => void deleteChannelPublicationAndSyncStatus()}
+                                        disabled={detailsActionBusy || instagramPublishedDeleteUnavailable}
+                                        title={i18nT(instagramPublishedDeleteUnavailable ? "instagram_delete_unsupported" : "supprimer_la_publication_2960b405")}
+                                        aria-label={i18nT("supprimer_la_publication_2960b405")}
+                                        aria-describedby={instagramPublishedDeleteUnavailable ? instagramDeleteNoticeId : undefined}
+                                      >
+                                        {detailsActionBusy && !detailsEditMode ? i18nT("suppression_a620db43") : i18nT("supprimer_1acfc1c7")}
+                                      </button>
+                                      {instagramPublishedDeleteUnavailable ? (
+                                        <span id={instagramDeleteNoticeId} role="note" style={{ fontSize: 12, lineHeight: 1.4, color: "rgba(255,255,255,0.7)", overflowWrap: "anywhere" }}>
+                                          {i18nT("instagram_delete_unsupported")}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   ) : null}
                                 </div>
                               ) : isDraftItem ? (
@@ -2349,11 +2378,11 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
 
                           {detailsItem.source === "app_events" && activePublicationWarning ? (
                             <div className={styles.detailsWarning}>
-                              <b>{i18nT("statut_b20e7fc2")}</b> {" "}{i18nT("publiee_avec_avertissement_47eb62fb")}{" "}{activePublicationWarningMessage ? ` — ${activePublicationWarningMessage}` : ""}
+                              <b>{i18nT("statut_b20e7fc2")}</b> {" "}{i18nT(activeInstagramDeletionUnconfirmed ? "instagram_deletion_unconfirmed" : "publiee_avec_avertissement_47eb62fb")}{" "}{activePublicationWarningMessage ? ` — ${activePublicationWarningMessage}` : ""}
                             </div>
                           ) : null}
 
-                          {detailsItem.error ? (
+                          {detailsItem.error && !activeInstagramDeletionUnconfirmed ? (
                             <div className={styles.detailsError}>
                               <b>{i18nT("detail_fd53c22d")}</b> {detailsItem.source !== "app_events" ? i18nT("mail_action_failed") : visiblePublicationItemError}
                             </div>

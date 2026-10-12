@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "La API de Threads no permite editar una publicación ya publicada. Puede eliminarla o editar un borrador.",
   "threads_mode_ghost": "Ghost · 24 h",
   "threads_ghost_text_only": "Ghost: solo texto, archivado tras 24 horas.",
-  "threads_ghost_disabled": "Ghost está desactivado en la configuración de Threads."
+  "threads_ghost_disabled": "Ghost está desactivado en la configuración de Threads.",
+  "instagram_delete_unsupported": "No se puede eliminar esta publicación desde la aplicación. Elimínala directamente en Instagram.",
+  "instagram_deletion_unconfirmed": "Eliminación sin confirmar",
+  "instagram_deletion_unconfirmed_help": "Instagram no ha confirmado la eliminación. Comprueba la publicación directamente en Instagram.",
+  "instagram_draft_deleted_local": "Borrador de Instagram eliminado de la aplicación."
 }

@@ -799,5 +799,9 @@
   "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
   "threads_mode_ghost": "Ghost · 24 ชั่วโมง",
   "threads_ghost_text_only": "Ghost: เฉพาะข้อความ เก็บถาวรหลัง 24 ชั่วโมง",
-  "threads_ghost_disabled": "Ghost ถูกปิดในการตั้งค่า Threads"
+  "threads_ghost_disabled": "Ghost ถูกปิดในการตั้งค่า Threads",
+  "instagram_delete_unsupported": "ไม่สามารถลบโพสต์นี้จากแอปได้ โปรดลบโดยตรงบน Instagram",
+  "instagram_deletion_unconfirmed": "ยังไม่ยืนยันการลบ",
+  "instagram_deletion_unconfirmed_help": "Instagram ยังไม่ยืนยันการลบ โปรดตรวจสอบโพสต์โดยตรงบน Instagram",
+  "instagram_draft_deleted_local": "ลบฉบับร่าง Instagram ออกจากแอปแล้ว"
 }

@@ -1,3 +1,4 @@
+import { isInstagramDeletionUnconfirmed } from "@/lib/inrsend/instagramDeletionStatus";
 import { useLocale, useTranslations } from "next-intl";
 import React from "react";
 import styles from "../mails.module.css";
@@ -308,8 +309,8 @@ function renderLocalizedPublicationChannels(
           {entry.indicator ? (
             <span
               className={entry.indicator.className}
-              title={localizedIndicatorTitle(entry.indicator.kind, translate)}
-              aria-label={localizedIndicatorTitle(entry.indicator.kind, translate)}
+              title={entry.key === "instagram" && isInstagramDeletionUnconfirmed(entry.result) ? translate("instagram_deletion_unconfirmed") : localizedIndicatorTitle(entry.indicator.kind, translate)}
+              aria-label={entry.key === "instagram" && isInstagramDeletionUnconfirmed(entry.result) ? translate("instagram_deletion_unconfirmed") : localizedIndicatorTitle(entry.indicator.kind, translate)}
             />
           ) : null}
         </span>
