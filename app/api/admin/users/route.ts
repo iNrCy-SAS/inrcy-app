@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 type UserStatusFilter = "all" | "none" | string;
-type RoleFilter = "all" | "user" | "admin" | "staff" | "none";
+type RoleFilter = "all" | "user" | "admin" | "reviewer" | "staff" | "none";
 
 const SUB_SELECT =
   "user_id,contact_email,app_edition,plan,scheduled_plan,status,monthly_price_eur,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,founder_offer_enabled,updated_at";
@@ -18,7 +18,7 @@ const PROFILE_SELECT_WITH_ROLE =
 const PROFILE_SELECT_FALLBACK =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone,last_active_at,updated_at";
 
-const ALLOWED_ROLES = new Set(["user", "admin"]);
+const ALLOWED_ROLES = new Set(["user", "admin", "reviewer"]);
 const ALLOWED_PLANS = new Set(["Trial", "Standard", "Premium", "Founder"]);
 const ALLOWED_SUBSCRIPTION_STATUSES = new Set([
   "trialing",

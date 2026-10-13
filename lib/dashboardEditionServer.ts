@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import {
   resolveDashboardEdition,
+  resolveDashboardEditionForRole,
   type DashboardEdition,
 } from "@/lib/dashboardEdition";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -36,7 +37,8 @@ export async function getDashboardEditionForAuthUser(
 
   // A temporary subscription lookup failure must never unlock Premium APIs.
   if (error || !data) return "standard";
-  return editionFromRow(data as SubscriptionEditionRow);
+  const { data: profile, error: profileError } = await supabaseAdmin.from("profiles").select("role").eq("user_id", authUserId).maybeSingle();
+  return resolveDashboardEditionForRole(editionFromRow(data as SubscriptionEditionRow), profileError ? null : profile?.role, authUserId);
 }
 
 /** Resolve auth-level editions for account-scoped cron rows in one batch. */
@@ -82,6 +84,14 @@ export async function getDashboardEditionsForAccountIds(
 
   if (subscriptionError) return editions;
 
+  // The exception is restricted to the explicitly approved existing review account.
+  // No role grants membership, changes a subscription, or unlocks another company.
+  const { data: profileRows, error: profileError } = await supabaseAdmin.from("profiles").select("user_id,role").in("user_id", uniqueAccountIds);
+  const rolesByAccount = new Map<string, unknown>();
+  if (!profileError) for (const row of Array.isArray(profileRows) ? profileRows : []) {
+    rolesByAccount.set(String(row.user_id || "").trim(), row.role);
+  }
+
   const subscriptionsByUser = new Map<string, SubscriptionEditionRow>();
   for (const row of Array.isArray(subscriptionRows) ? subscriptionRows : []) {
     const userId = String(row?.user_id || "").trim();
@@ -92,7 +102,7 @@ export async function getDashboardEditionsForAccountIds(
     const authUserId = ownerByAccount.get(accountId) || accountId;
     const subscription =
       subscriptionsByUser.get(authUserId) || subscriptionsByUser.get(accountId);
-    if (subscription) editions.set(accountId, editionFromRow(subscription));
+    if (subscription) editions.set(accountId, resolveDashboardEditionForRole(editionFromRow(subscription), rolesByAccount.get(accountId), accountId));
   }
 
   return editions;

@@ -25,6 +25,7 @@ import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsS
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
 import ThreadsPanel from "./ThreadsPanel";
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
+import { useDashboardSubscriptionEdition } from "./DashboardEditionProvider";
 import type { useThreadsChannel } from "../_hooks/channels/useThreadsChannel";
 import XSettingsContent from "../settings/_components/XSettingsContent";
 import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
@@ -144,6 +145,7 @@ export default function DashboardSettingsDrawerContent({
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
+  const subscriptionEdition = useDashboardSubscriptionEdition();
   const contentRef = useRef<HTMLDivElement>(null);
   const previousPanelRef = useRef<string | null>(panel);
   const panelScrollPositionsRef = useRef(new Map<string, number>());
@@ -189,7 +191,7 @@ export default function DashboardSettingsDrawerContent({
       {panel === "compte" && (
         <AccountContent
           mode="drawer"
-          edition={edition}
+          edition={subscriptionEdition}
           onOpenSubscription={() => openPanel("abonnement")}
           onUnsavedChange={onUnsavedChange}
         />
@@ -201,7 +203,7 @@ export default function DashboardSettingsDrawerContent({
         </MemorizedPanel>
       ) : null}
       {panel === "abonnement" && (
-        edition === "founder"
+        subscriptionEdition === "founder"
           ? <AbonnementContent mode="drawer" />
           : <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
       )}

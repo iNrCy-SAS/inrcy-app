@@ -8,6 +8,7 @@ import {
   isDashboardRouteAllowedForEdition,
   isPotentialEditionRestrictedApiPath,
   resolveDashboardEdition,
+  resolveDashboardEditionForRole,
 } from "./lib/dashboardEdition";
 import {
   APP_LOCALE_COOKIE,
@@ -21,6 +22,7 @@ import {
 } from "./i18n/config";
 import { isPublicEmbedPath } from "./lib/actusWidgetEmbed";
 import { CHECKOUT_RETURN_HEADER, checkoutReturnQuery } from "./lib/checkoutReturnRouting";
+import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "./lib/multicompte/constants";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -326,14 +328,14 @@ async function getMaintenanceRow(): Promise<MaintenanceRow | null> {
   }
 }
 
-async function isAdminUser(userId: string | null): Promise<boolean> {
-  if (!userId) return false;
-  if (ADMIN_USER_IDS.includes(userId as (typeof ADMIN_USER_IDS)[number])) return true;
+async function getTrustedUserRole(userId: string | null): Promise<string | null> {
+  if (!userId) return null;
+  if (ADMIN_USER_IDS.includes(userId as (typeof ADMIN_USER_IDS)[number])) return "admin";
 
   try {
     const headers = getSupabaseHeaders();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!headers || !supabaseUrl) return false;
+    if (!headers || !supabaseUrl) return null;
 
     const url = new URL(`${supabaseUrl}/rest/v1/profiles`);
     url.searchParams.set("select", "role");
@@ -345,13 +347,17 @@ async function isAdminUser(userId: string | null): Promise<boolean> {
       cache: "no-store",
     });
 
-    if (!res.ok) return false;
+    if (!res.ok) return null;
     const rows = (await res.json()) as Array<{ role?: string | null }>;
-    const role = rows[0]?.role;
-    return role === "admin" || role === "staff";
+    return rows[0]?.role ?? null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function isAdminUser(userId: string | null): Promise<boolean> {
+  const role = await getTrustedUserRole(userId);
+  return role === "admin" || role === "staff";
 }
 
 function isPublicBypassPath(pathname: string): boolean {
@@ -720,6 +726,7 @@ export async function proxy(req: NextRequest) {
   }
 
   let subscriptionGate: SubscriptionGateRow | null | undefined;
+  let trustedUserRole: string | null | undefined;
 
   const getCurrentUserId = async () => authenticatedUserId;
 
@@ -730,6 +737,15 @@ export async function proxy(req: NextRequest) {
     subscriptionGate = await getSubscriptionGateRow(currentUserId);
     return subscriptionGate;
   };
+  const getCurrentUserRole = async () => {
+    if (trustedUserRole !== undefined) return trustedUserRole;
+    trustedUserRole = await getTrustedUserRole(authenticatedUserId);
+    return trustedUserRole;
+  };
+  // An account-switch hint can only remove the review exception here. The
+  // application still verifies membership before serving account data.
+  const reviewerActiveAccountMatches = !req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value
+    || req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value === authenticatedUserId;
 
   const isDashboardPath = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 
@@ -751,7 +767,9 @@ export async function proxy(req: NextRequest) {
     }
 
     if (await getCurrentUserId()) {
-      const currentSubscriptionGate = await getCurrentSubscriptionGate();
+      const [currentSubscriptionGate, role] = await Promise.all([
+        getCurrentSubscriptionGate(), getCurrentUserRole(),
+      ]);
 
       if (!isAllowedSubscription(currentSubscriptionGate)) {
         const url = req.nextUrl.clone();
@@ -761,11 +779,11 @@ export async function proxy(req: NextRequest) {
         return applyResponseHeaders(out);
       }
 
-      const edition = resolveDashboardEdition({
+      const edition = resolveDashboardEditionForRole(resolveDashboardEdition({
         edition: currentSubscriptionGate?.app_edition,
         plan: currentSubscriptionGate?.plan,
         developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
-      });
+      }), reviewerActiveAccountMatches ? role : null, authenticatedUserId);
       if (!isDashboardRouteAllowedForEdition(pathname, req.nextUrl.searchParams, edition)) {
         const url = req.nextUrl.clone();
         url.pathname = "/dashboard";
@@ -801,11 +819,11 @@ export async function proxy(req: NextRequest) {
   ) {
     const currentUserId = await getCurrentUserId();
     const currentSubscriptionGate = currentUserId ? await getCurrentSubscriptionGate() : null;
-    const edition = resolveDashboardEdition({
+    const edition = resolveDashboardEditionForRole(resolveDashboardEdition({
       edition: currentSubscriptionGate?.app_edition,
       plan: currentSubscriptionGate?.plan,
       developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
-    });
+    }), reviewerActiveAccountMatches ? await getCurrentUserRole() : null, authenticatedUserId);
 
     if (
       currentUserId &&

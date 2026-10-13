@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import crypto from "node:crypto";
 import ts from "typescript";
 import { createClient } from "@supabase/supabase-js";
+import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 
 function load<T = any>(file: string, dependencies: Record<string, unknown> = {}): T {
   const code = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), {
@@ -38,17 +39,18 @@ const responseFactory = {
   redirect(url: string | URL) { const values = new Map<string, { value: string; options: any }>(); return { status: 307, headers: new Headers({ location: String(url) }), cookies: { set(name: string, value: string, options: unknown) { values.set(name, { value, options }); } }, cookieValues: values }; },
   json(body: unknown, options?: { status?: number }) { return { status: options?.status ?? 200, body }; },
 };
-function harness(options: { actorAdmin?: boolean; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
+function harness(options: { actorAdmin?: boolean; actorReviewer?: boolean; actorId?: string; activeAccountId?: string; accountRole?: string; authenticatedActor?: string; wrongAccount?: boolean; partialScopes?: boolean; invalidDebugToken?: boolean; wrongDebugApp?: boolean; responseThrows?: boolean; personal?: boolean; failAt?: "token_exchange" | "token_inspection" | "long_token_exchange" | "profile"; saveError?: { code: string; details: string } } = {}) {
   const actorAdmin = options.actorAdmin ?? true, role = options.accountRole ?? "admin";
+  const actorId = options.actorId ?? ACTOR, accountId = options.activeAccountId ?? ACCOUNT;
   const saves: any[] = [], calls: any[] = [], events: any[] = [], steps: string[] = [];
   const query = { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: { role, meta: { publication_preferences: { mode: "reels" }, page_id: "legacy-page" } }, error: null }; } };
   const admin = { from: () => query, async rpc(name: string, args: any) { saves.push({ name, args }); return { error: options.saveError ?? null }; } };
-  const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin }) }, "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false } });
+  const gate = load("lib/metaChannelRolloutServer.ts", { "next/server": { NextResponse: responseFactory }, "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin, isReviewer: options.actorReviewer === true, role: options.actorReviewer ? "reviewer" : actorAdmin ? "admin" : "user", authUserId: actorId }) }, "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false }, "@/lib/reviewerAccess": reviewerAccess });
   const oauth = load("lib/metaDirectOAuth.ts", {
     "next/server": { NextResponse: responseFactory },
-    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: options.authenticatedActor ?? ACTOR } }, error: null }) } }) },
+    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: options.authenticatedActor ?? actorId } }, error: null }) } }) },
     "@/lib/supabaseAdmin": { supabaseAdmin: admin },
-    "@/lib/multicompte/server": { getCurrentInrcyAccountScope: async () => ({ scope: { activeUserId: ACCOUNT }, user: { id: ACTOR } }), resolveOAuthBoundInrcyAccountId: async (_supabase: unknown, _actor: string, account: string) => { if (options.wrongAccount || account !== ACCOUNT) throw Error("Account authorization denied"); return account; } },
+    "@/lib/multicompte/server": { getCurrentInrcyAccountScope: async () => ({ scope: { activeUserId: accountId }, user: { id: actorId } }), resolveOAuthBoundInrcyAccountId: async (_supabase: unknown, _actor: string, account: string) => { if (options.wrongAccount || account !== accountId) throw Error("Account authorization denied"); return account; } },
     "@/lib/security": security, "@/lib/metaChannelRolloutServer": gate,
     "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false },
     "@/lib/instagramAuthMode": authMode, "@/lib/threadsGraphApi": threadsGraph, "@/lib/oauthCrypto": encryption, "@/lib/tsSafe": safe,
@@ -74,7 +76,7 @@ function harness(options: { actorAdmin?: boolean; accountRole?: string; authenti
   });
   const callback = (provider: "instagram" | "threads", changes?: { missingCookie?: boolean; legacyCookie?: boolean; malformedCookie?: boolean; tamper?: boolean; account?: string; code?: string }) => {
     const stateProvider = provider === "instagram" ? "instagram_direct" : "threads";
-    const state = security.makeOAuthState(stateProvider, "/dashboard?panel=" + provider, { accountId: changes?.account ?? ACCOUNT, authUserId: ACTOR });
+    const state = security.makeOAuthState(stateProvider, "/dashboard?panel=" + provider, { accountId: changes?.account ?? accountId, authUserId: actorId });
     const stateB64 = changes?.tamper ? Buffer.from(JSON.stringify({ ...security.b64urlJsonDecode(state.stateB64), accountId: OTHER })).toString("base64url") : state.stateB64;
     const url = new URL(`https://fixture.example/api/integrations/${provider}/callback`); url.searchParams.set("state", stateB64); url.searchParams.set("code", changes?.code ?? "fixture-code-secret");
     return new Request(url, { headers: changes?.missingCookie ? {} : { cookie: `${state.cookieName}=${changes?.malformedCookie ? "%E0%A4%A" : changes?.legacyCookie ? state.nonce : state.cookieValue}` } });
@@ -134,6 +136,30 @@ test("Successful callbacks save one transaction with bound IDs and preferences, 
     assert.deepEqual(saved.args.p_integration.meta.publication_preferences, { mode: "reels" }); assert.equal(saved.args.p_integration.meta.page_id, undefined);
     assert.equal(saved.args.p_integration.meta.auth_mode, provider === "instagram" ? "instagram_login" : "threads_login");
     assert.equal((Array.from(result.cookieValues.values())[0] as any).options.maxAge, 0);
+  }
+}));
+
+test("REVIEWER can authorize both pilot providers while account ownership remains bound", async () => configured(async () => {
+  const reviewer = reviewerAccess.FULL_PRODUCT_REVIEWER_ACCOUNT_ID;
+  for (const provider of ["instagram", "threads"] as const) {
+    const h = harness({ actorAdmin: false, actorReviewer: true, accountRole: "reviewer", actorId: reviewer, activeAccountId: reviewer });
+    const start = await h.module.startMetaDirectOAuth(new Request("https://fixture.example/start"), provider);
+    assert.equal(start.status, 307);
+    const result = await h.module.handleMetaDirectOAuthCallback(h.callback(provider), provider);
+    assert.equal(new URL(result.headers.get("location")).searchParams.get("ok"), "1");
+    assert.equal(h.saves.length, 1);
+    assert.equal(h.saves[0].args.p_account_id, reviewer);
+    const denied = harness({ actorAdmin: false, actorReviewer: true, accountRole: "reviewer", actorId: reviewer, activeAccountId: reviewer, wrongAccount: true });
+    const invalid = await denied.module.handleMetaDirectOAuthCallback(denied.callback(provider), provider);
+    assert.equal(new URL(invalid.headers.get("location")).searchParams.get("ok"), "0");
+    assert.equal(denied.saves.length, 0);
+    for (const [actorId,activeAccountId] of [[ACTOR,reviewer],[reviewer,ACCOUNT],[ACTOR,ACCOUNT]] as const) {
+      const unrelated = harness({ actorAdmin:false,actorReviewer:true,accountRole:"reviewer",actorId,activeAccountId });
+      assert.equal((await unrelated.module.startMetaDirectOAuth(new Request("https://fixture.example/start"),provider)).status,403);
+      assert.equal(new URL((await unrelated.module.handleMetaDirectOAuthCallback(unrelated.callback(provider),provider)).headers.get("location")).searchParams.get("ok"),"0");
+      assert.equal(unrelated.saves.length,0);
+      assert.equal(unrelated.calls.length,0);
+    }
   }
 }));
 

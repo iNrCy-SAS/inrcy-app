@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Runtime-transpiled modules and fluent fixtures intentionally expose dynamic shapes. */
 import assert from "node:assert/strict";
+import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
@@ -128,6 +129,7 @@ test("Pilot server gate requires an ADMIN actor and ADMIN account and fails clos
       "next/server": { NextResponse: { json: () => ({}) } },
       "@/lib/roles": { ADMIN_USER_IDS: [], getMyRole: async () => ({ isAdmin: actorAdmin }) },
       "@/lib/metaChannelRollout": { META_DIRECT_CHANNELS_PUBLIC_ENABLED: false },
+      "@/lib/reviewerAccess": reviewerAccess,
     });
     const query = { select() { return this; }, eq() { return this; }, async maybeSingle() { return { data: { role }, error: null }; } };
     assert.equal(await gate.isMetaChannelPilotEnabledForActorAndAccount({ from: () => query }, "account"), actorAdmin && role === "admin");

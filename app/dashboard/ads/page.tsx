@@ -16,7 +16,7 @@ export default async function AdsPage({ searchParams }: { searchParams: Promise<
   if (!data.user) redirect("/login");
   const accountScope = await resolveInrcyAccountScopeForUser(supabase, data.user);
   if (!(await isAdsUserAllowed(data.user.id, accountScope.activeUserId))) redirect("/dashboard?panel=abonnement");
-  const pilotChannelsEnabled = await isAdsPilotAdmin(data.user.id);
+  const pilotChannelsEnabled = await isAdsPilotAdmin(data.user.id, accountScope.activeUserId);
   const initialConnections = await readAdsConnectionSnapshots(accountScope.activeUserId);
   const params = await searchParams;
   const requestedChannel = Array.isArray(params.channel) ? params.channel[0] : params.channel;

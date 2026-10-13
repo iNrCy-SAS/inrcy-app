@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   let query = supabaseAdmin.from("ads_campaigns")
     .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact" })
     .eq("user_id", user.activeUserId);
-  if (!(await isAdsPilotAdmin(user.authUserId))) query = query.in("provider", [...ADS_PUBLIC_CHANNELS]);
+  if (!(await isAdsPilotAdmin(user.authUserId, user.activeUserId))) query = query.in("provider", [...ADS_PUBLIC_CHANNELS]);
   if (requestedStatus === "draft") query = query.eq("status", "draft");
   const { data, error, count } = await query
     .order("created_at", { ascending: false })

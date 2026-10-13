@@ -9,6 +9,7 @@ import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
 import { listAccessibleFacebookPagesDetailed } from "@/lib/metaBusinessAssets";
 import { GoogleAdsApiError, googleAdsApiErrorMessage } from "@/lib/adsGoogleApiError";
 import { ADMIN_USER_IDS, isAdminRole } from "@/lib/roles";
+import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
 import type { AdsAccount, AdsChannelId, AdsProvider } from "@/lib/adsValidation";
 import { getDashboardEditionForAccountId, premiumRequiredApiResponse } from "@/lib/dashboardEditionServer";
 import { adsAccessAllowed, isAdsPublicChannel } from "@/lib/adsAccessPolicy";
@@ -33,8 +34,8 @@ export type AdsIntegration = {
 
 export type AdsConnectionStatus = "connected" | "needs_update" | "disconnected";
 
-/** The pilot guard still applies to channels awaiting their platform approval. */
-export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
+/** Legacy name: product reviewers can use Ads pilots without becoming admins. */
+export async function isAdsPilotAdmin(authUserId: string, activeAccountId = authUserId): Promise<boolean> {
   if (ADMIN_USER_IDS.some((adminUserId) => adminUserId === authUserId)) return true;
 
   const { data, error } = await supabaseAdmin
@@ -43,13 +44,13 @@ export async function isAdsPilotAdmin(authUserId: string): Promise<boolean> {
     .eq("user_id", authUserId)
     .maybeSingle();
 
-  return !error && isAdminRole(data?.role);
+  return !error && (isAdminRole(data?.role) || (hasFullProductReviewerAccess(data?.role, authUserId) && activeAccountId === authUserId));
 }
 
 export function adsPilotOnlyResponse() {
   return NextResponse.json(
     {
-      error: "Ce canal publicitaire reste réservé au compte Admin jusqu’à sa validation.",
+      error: "Ce canal publicitaire reste réservé aux comptes Admin et Reviewer jusqu’à sa validation.",
       code: "INRCY_ADS_COMING_SOON",
     },
     { status: 403 },
@@ -57,13 +58,13 @@ export function adsPilotOnlyResponse() {
 }
 
 export async function isAdsUserAllowed(authUserId: string, activeUserId: string): Promise<boolean> {
-  if (await isAdsPilotAdmin(authUserId)) return true;
+  if (await isAdsPilotAdmin(authUserId, activeUserId)) return true;
   const edition = await getDashboardEditionForAccountId(activeUserId);
   return adsAccessAllowed(edition, false);
 }
 
 export async function isAdsChannelUserAllowed(authUserId: string, activeUserId: string, channel: AdsChannelId): Promise<boolean> {
-  if (!isAdsPublicChannel(channel)) return isAdsPilotAdmin(authUserId);
+  if (!isAdsPublicChannel(channel)) return isAdsPilotAdmin(authUserId, activeUserId);
   return isAdsUserAllowed(authUserId, activeUserId);
 }
 

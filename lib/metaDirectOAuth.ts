@@ -112,7 +112,7 @@ export async function handleMetaDirectOAuthCallback(request: Request, provider: 
     const user = authData?.user;
     if (authError || !user || user.id !== state.state.authUserId) return finish(false, "not_authenticated", "Reconnectez-vous à l’application avant de relancer cette connexion.");
     const accountId = await resolveOAuthBoundInrcyAccountId(supabase, user.id, state.state.accountId);
-    if (!await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, accountId)) return finish(false, "meta_channel_admin_pilot", "Cette connexion est réservée au compte ADMIN pendant sa validation.");
+    if (!await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, accountId)) return finish(false, "meta_channel_admin_pilot", "Cette connexion est réservée aux comptes ADMIN et REVIEWER pendant sa validation.");
     const code = requestUrl.searchParams.get("code");
     if (!code || requestUrl.searchParams.has("error")) {
       oauthCallbackEvent(request, { provider: stateProvider(provider), outcome: "cancelled", error: "authorization_cancelled" });

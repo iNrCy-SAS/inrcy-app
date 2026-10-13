@@ -28,8 +28,10 @@ import DashboardPersistentImageCache from "./_components/DashboardPersistentImag
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardViewerAccessProvider from "./_components/DashboardViewerAccessProvider";
 import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
+import { isMetaChannelPilotEnabled } from "@/lib/metaChannelRollout";
+import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
 import DashboardIntlProvider from "./_components/DashboardIntlProvider";
-import { resolveDashboardEdition } from "@/lib/dashboardEdition";
+import { resolveDashboardEdition, resolveDashboardEditionForRole } from "@/lib/dashboardEdition";
 import { CHECKOUT_RETURN_HEADER, blockedCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
 import {
   APP_LOCALE_REQUEST_HEADER,
@@ -99,18 +101,24 @@ export default async function DashboardLayout({
 
   const accountScope = await resolveInrcyAccountScopeForUser(supabase, user);
   await ensureProfileRow(user, accountScope.activeUserId).catch(() => null);
-  const { isAdmin: actorIsAdmin } = await getMyRole();
+  const { role: actorRole, isAdmin: actorIsAdmin } = await getMyRole();
+  const actorIsApprovedReviewer = hasFullProductReviewerAccess(actorRole, user.id);
+  const actorIsReviewingOwnAccount = actorIsApprovedReviewer && accountScope.activeUserId === user.id;
   let activeAccountIsAdmin = actorIsAdmin && accountScope.activeUserId === user.id;
-  if (actorIsAdmin && accountScope.activeUserId !== user.id) {
+  let activeAccountIsApprovedReviewer = actorIsReviewingOwnAccount;
+  if ((actorIsAdmin || actorIsApprovedReviewer) && accountScope.activeUserId !== user.id) {
     if (ADMIN_USER_IDS.includes(accountScope.activeUserId as (typeof ADMIN_USER_IDS)[number])) {
       activeAccountIsAdmin = true;
     } else {
       const { data: activeAccountProfile, error: activeAccountRoleError } = await supabaseAdmin
         .from("profiles").select("role").eq("user_id", accountScope.activeUserId).maybeSingle();
       activeAccountIsAdmin = !activeAccountRoleError && isAdminRole(activeAccountProfile?.role);
+      activeAccountIsApprovedReviewer = !activeAccountRoleError && hasFullProductReviewerAccess(activeAccountProfile?.role, accountScope.activeUserId);
     }
   }
   const viewerIsAdmin = actorIsAdmin && activeAccountIsAdmin;
+  const viewerMetaPilotEnabled = isMetaChannelPilotEnabled(actorIsAdmin, actorIsReviewingOwnAccount)
+    && isMetaChannelPilotEnabled(activeAccountIsAdmin, activeAccountIsApprovedReviewer);
 
   const { data: subscription } = await supabaseAdmin
     .from("subscriptions")
@@ -123,11 +131,12 @@ export default async function DashboardLayout({
     redirect(blockedCheckoutReturnUrl(requestHeaders.get(CHECKOUT_RETURN_HEADER) || ""));
   }
 
-  const dashboardEdition = resolveDashboardEdition({
+  const subscriptionEdition = resolveDashboardEdition({
     edition: subscription?.app_edition,
     plan: subscription?.plan,
     developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
   });
+  const dashboardEdition = resolveDashboardEditionForRole(subscriptionEdition, actorIsReviewingOwnAccount ? actorRole : null, accountScope.activeUserId);
   const { data: languageProfile } = await supabaseAdmin
     .from("business_profiles")
     .select("app_language")
@@ -156,8 +165,8 @@ export default async function DashboardLayout({
   return (
     <div className={`${styles.shell} inrcy-dashboard-shell`}>
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
-      <DashboardEditionProvider edition={dashboardEdition}>
-      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} activeAccountId={accountScope.activeUserId}>
+      <DashboardEditionProvider edition={dashboardEdition} subscriptionEdition={subscriptionEdition}>
+      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} activeAccountId={accountScope.activeUserId}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />
         <div className={styles.noise} />

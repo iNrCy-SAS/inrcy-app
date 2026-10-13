@@ -47,8 +47,8 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServer();
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user || data.user.id !== state.state.authUserId) return finish("error", "auth_required");
-    if (!(await isAdsPilotAdmin(data.user.id))) return finish("error", "ads_pilot_only");
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, data.user.id, state.state.accountId);
+    if (!(await isAdsPilotAdmin(data.user.id, userId))) return finish("error", "ads_pilot_only");
     const token = await exchangeXAdsAccessToken(temporary.token, temporary.tokenSecret, verifier);
     await saveXAdsConnection(userId, token);
     return finish("connected");

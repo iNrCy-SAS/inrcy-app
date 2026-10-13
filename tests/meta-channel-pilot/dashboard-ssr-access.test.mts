@@ -41,6 +41,7 @@ async function renderPage(actorRole: Role, accountRole: Role) {
       if (id === "@/lib/supabaseServer") return { createSupabaseServer: async () => client };
       if (id === "@/lib/roles") return load("lib/roles.ts");
       if (id === "@/lib/metaChannelRollout") return load("lib/metaChannelRollout.ts");
+      if (id === "@/lib/reviewerAccess") return load("lib/reviewerAccess.ts");
       if (id === "@/lib/metaChannelRolloutServer") return load("lib/metaChannelRolloutServer.ts");
       if (id === "@/lib/multicompte/server") return { getCurrentInrcyAccountScope: async () => ({ supabase: client, scope: { activeUserId: accountId } }) };
       if (id === "@/lib/channelConnectionState") return { getChannelConnectionStates: async (database: unknown, activeId: string, _preload: unknown, options?: { metaPilotEnabled?: boolean }) => {

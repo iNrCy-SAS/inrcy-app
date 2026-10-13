@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import styles from "./users.module.css";
 
-type RoleFilter = "all" | "user" | "admin" | "staff";
+type RoleFilter = "all" | "user" | "admin" | "staff" | "reviewer";
 type StatusFilter =
   | "all"
   | "none"
@@ -323,6 +323,7 @@ export default function AdminUsersClient() {
                 <option value="user">Utilisateur</option>
                 <option value="admin">Admin</option>
                 <option value="staff">Staff</option>
+                <option value="reviewer">Reviewer</option>
               </select>
             </label>
 
@@ -415,6 +416,7 @@ export default function AdminUsersClient() {
                               onChange={(event) => patchUser(user.user_id, { role: event.target.value }, "Rôle mis à jour.")}
                             >
                               <option value="user">user</option>
+                              <option value="reviewer">reviewer</option>
                               <option value="admin">admin</option>
                             </select>
                           </div>

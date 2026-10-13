@@ -1,3 +1,5 @@
+import { hasFullProductReviewerAccess } from "./reviewerAccess.ts";
+
 export type DashboardEdition = "standard" | "premium" | "founder";
 
 const STANDARD_PLAN_VALUES = new Set([
@@ -142,6 +144,12 @@ export function hasPremiumDashboardAccess(edition: DashboardEdition): boolean {
 export function hasAccountingDashboardAccess(edition: DashboardEdition): boolean {
   return edition === "founder";
 }
+
+/** Effective product access for the approved reviewer; the paid plan remains independent. */
+export function resolveDashboardEditionForRole(edition: DashboardEdition, role: unknown, accountId?: unknown): DashboardEdition {
+  return hasFullProductReviewerAccess(role, accountId) ? "founder" : edition;
+}
+
 
 export function resolveDashboardEdition({
   edition,
