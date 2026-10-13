@@ -45,7 +45,7 @@ test("le portefeuille reste séparé des commandes compactes et le prix confirm�
   assert.ok(actions.indexOf("<MediaCreditQuoteSummary")<actions.indexOf("styles.primaryButton"));
   assert.match(footer, /imageQuotaExhausted/);
   assert.match(footer, /!creditQuote\.ready \|\| creditQuote\.insufficient/);
-  assert.match(modifier,/if \(operationLocked \|\| !creditQuote\.ready \|\| creditQuote\.insufficient\) return/);
+  assert.match(modifier,/if \(operationLocked \|\| canRecover \|\| !creditQuote\.ready \|\| creditQuote\.insufficient\) return/);
   assert.match(
     styles,
     /@media \(max-width: 620px\)[\s\S]*?\.actionBar\s*\{[\s\S]*?flex-direction:\s*column/,

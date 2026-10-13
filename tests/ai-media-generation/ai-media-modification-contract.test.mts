@@ -144,6 +144,11 @@ function loadImageGatewayBoundaryRuntime() {
               }>;
               response_format: { aspect_ratio: string };
             }) => {
+              // Production rejects an explicit image delivery mode, despite
+              // the SDK allowing the field. Omit it and read the default data.
+              if (Object.hasOwn(args.response_format, "delivery")) {
+                throw Object.assign(new Error("Image delivery mode is not supported."), { statusCode: 400 });
+              }
               const image = args.input.find((item) => item.type === "image");
               captures.google = {
                 text: String(args.input[0]?.text || ""),

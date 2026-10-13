@@ -7,7 +7,7 @@
 .settingsPanels { flex:1; min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; }
 .tabPanel[hidden] { display:none!important; }
 .previewPane { min-width:0; min-height:0; height:100%; border:1px solid rgba(120,112,226,.3); border-radius:18px; background:linear-gradient(135deg,#0d2442,#121b3b 60%,#201d48); overflow:hidden; }
-.embedded { width:100%;height:100%;min-height:0;border-radius:18px; }
+.embedded { width:100%;height:100%;min-height:0;border-radius:18px;overflow:clip; }
 .idle { position:relative;z-index:1;width:min(420px,85%);text-align:center;color:#b7cde8; }
 .idleIcon { display:inline-grid;place-items:center;width:82px;height:82px;border:1px solid #5a91be;border-radius:25px;background:linear-gradient(135deg,#164065,#302351);color:#a0deff;font-size:38px;box-shadow:0 0 50px rgba(50,152,226,.14); }
 .idle h3 { margin:12px 0;font-size:24px;color:#eff8ff;line-height:1.3; }

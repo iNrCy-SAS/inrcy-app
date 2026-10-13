@@ -21,7 +21,7 @@
 
 .formContent {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(350px, 35%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-auto-rows: max-content;
   align-content: stretch;
@@ -55,6 +55,47 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.mediaPanel[data-media-state="result"],
+.mediaPanel[data-media-state="progress"] {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.mediaStage {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(var(--modifier-accent), 0.25);
+  border-radius: 18px;
+}
+
+.preparingSource {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  color: rgba(225, 238, 255, 0.84);
+  background: linear-gradient(135deg, #0d2442, #201d48);
+}
+
+.mediaPanel .sourcePreview {
+  min-height: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .panelHeader > span {
@@ -263,7 +304,7 @@
   width: 100%;
   min-height: clamp(220px, 36vh, 360px);
   height: 100%;
-  resize: vertical;
+  resize: none;
   box-sizing: border-box;
   padding: 17px 68px 48px 17px;
   border: 1px solid rgba(132, 181, 255, 0.22);
@@ -656,7 +697,13 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  .formContent {
+    grid-template-columns: minmax(320px, 40%) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
   .workspace {
     height: auto;
     min-height: 100%;
@@ -670,6 +717,14 @@
 
   .panel {
     height: auto;
+  }
+
+  .mediaPanel {
+    min-height: 440px;
+  }
+
+  .mediaStage {
+    min-height: 350px;
   }
 
   .resultContent {

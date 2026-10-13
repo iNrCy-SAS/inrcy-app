@@ -149,7 +149,7 @@ test("l’enregistrement volontaire depuis un flux d’insertion promeut le brou
       component,
       "const handleSaveToLibrary = async () =>",
       componentPath.endsWith("MediaModifier.tsx")
-        ? "if (result) {"
+        ? "const engineControls"
         : componentPath.endsWith("MediaGenerator.tsx")
           ? "const subjectChoices"
           : "const handleConfirmGenerationStop",
@@ -163,6 +163,7 @@ test("l’enregistrement volontaire depuis un flux d’insertion promeut le brou
   for (const componentPath of [
     "app/dashboard/_components/MediaGenerator.tsx",
     "app/dashboard/_components/MediaFreeGenerator.tsx",
+    "app/dashboard/_components/MediaModifier.tsx",
   ]) {
     assert.match(read(componentPath), /handleSaveToLibrary=\{handleSaveToLibrary\}/);
   }

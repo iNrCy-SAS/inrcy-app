@@ -42,6 +42,7 @@ import MediaQuotaSummary from "./MediaQuotaSummary";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 import { isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 
+import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import styles from "./MediaModifier.module.css";
 
 type MediaModifierProps = {
@@ -172,6 +173,8 @@ export default function MediaModifier({
   const t = useTranslations("media");
   const locale = useLocale();
   const fileInputId = useId();
+  const instructionId = useId();
+  const recoveryInFlightRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRef = useRef("");
   const initializedSourceRef = useRef<File | null>(null);
@@ -182,10 +185,11 @@ export default function MediaModifier({
   const [sourceBusy, setSourceBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
-  const [discarding, setDiscarding] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const {
     quota,
     status,
@@ -193,6 +197,12 @@ export default function MediaModifier({
     error,
     result,
     busy: generationBusy,
+    cancellable: generationCancellable,
+    cancellationPending,
+    canRecover,
+    cancelGeneration,
+    retryRecovery,
+    cancelRecovery,
     quotaLoading,
     loadQuota,
     generate,
@@ -205,7 +215,7 @@ export default function MediaModifier({
     Boolean(initialSourceLoading && !sourceImage && initialPreview?.url) ||
     generationBusy ||
     finishing ||
-    discarding;
+    recovering;
   const operationLocked = baseOperationLocked || voiceBusy;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const sourceFormat = sourceImage ? closestFormat(sourceImage.width, sourceImage.height) : "square";
@@ -333,7 +343,7 @@ export default function MediaModifier({
   };
 
   const handleGenerate = async () => {
-    if (operationLocked || !creditQuote.ready || creditQuote.insufficient) return;
+    if (operationLocked || canRecover || !creditQuote.ready || creditQuote.insufficient) return;
     setActionError("");
     if (!sourceImage) {
       setActionError(t("ai_modifier_missing_source"));
@@ -347,6 +357,12 @@ export default function MediaModifier({
 
     setSourceBusy(true);
     try {
+      // Only an explicit new generation discards the previous temporary result.
+      if (result) {
+        if (result.draft) await discardDraft(result);
+        reset();
+        onResultChange?.(null);
+      }
       const prepared =
         sourceImage.preparedReference ||
         (await prepareMediaGenerationImageReference(sourceImage.file));
@@ -391,25 +407,44 @@ export default function MediaModifier({
     }
   };
 
-  const handleEditInstruction = async () => {
+  const handleEditInstruction = () => {
     if (operationLocked) return;
     setActionError("");
-    if (result?.draft) {
-      setDiscarding(true);
-      try {
-        await discardDraft(result);
-      } catch (caught) {
-        setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error"),
-        );
-        return;
-      } finally {
-        setDiscarding(false);
-      }
-    }
-    reset();
-    onResultChange?.(null);
+    if (!result && !canRecover) reset();
+    document.getElementById(instructionId)?.focus();
   };
+
+  const handleRecovery = async (abandon = false) => {
+    if (!canRecover || operationLocked || recoveryInFlightRef.current) return;
+    recoveryInFlightRef.current = true;
+    setRecovering(true);
+    setActionError("");
+    try {
+      if (abandon) await cancelRecovery();
+      else await retryRecovery();
+    } catch (caught) {
+      if (!(caught instanceof MediaGenerationAccountChangedError)) {
+        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+      }
+    } finally {
+      recoveryInFlightRef.current = false;
+      setRecovering(false);
+    }
+  };
+
+  const handleRequestGenerationStop = () => {
+    if (generationCancellable || (canRecover && !operationLocked)) setCancelConfirmationOpen(true);
+  };
+
+  const handleConfirmGenerationStop = () => {
+    setCancelConfirmationOpen(false);
+    if (canRecover && !generationBusy) void handleRecovery(true);
+    else if (cancelGeneration()) setActionError("");
+  };
+
+  useEffect(() => {
+    if (!generationCancellable && !(canRecover && !operationLocked)) setCancelConfirmationOpen(false);
+  }, [generationCancellable, canRecover, operationLocked]);
 
   const handleConfirm = async () => {
     if (!result || operationLocked || acceptInFlightRef.current) return;
@@ -459,88 +494,6 @@ export default function MediaModifier({
     }
   };
 
-  if (result) {
-    return (
-      <div className={styles.workspace} data-state="result">
-        <main className={styles.resultContent}>
-          <div className={styles.resultHeading}>
-            <span aria-hidden="true">✓</span>
-            <div>
-              <p>{t("ai_modifier_result_eyebrow")}</p>
-              <h2>{t("ai_modifier_result_title")}</h2>
-            </div>
-          </div>
-          <div className={styles.resultPreview}>
-            {result.item.signed_url ? (
-              <img
-                src={result.item.signed_url}
-                alt={result.item.title || t("ai_modifier_result_alt")}
-              />
-            ) : (
-              <span>{t("apercu_indisponible_d0ce704a")}</span>
-            )}
-          </div>
-          <p className={styles.draftNote}>
-            {result.draft
-              ? t("ai_generator_saved_automatically")
-              : t("ai_generator_saved_to_library")}
-          </p>
-          {actionError ? (
-            <p className={styles.error} role="alert">{actionError}</p>
-          ) : null}
-        </main>
-        <footer className={styles.actionBar} data-media-footer>
-          <div>
-            <strong>{t("ai_modifier_result_action_title")}</strong>
-            <span>{t("ai_modifier_result_action_hint")}</span>
-          </div>
-          <div className={styles.resultActions}>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={() => void handleEditInstruction()}
-              disabled={operationLocked}
-            >
-              {t("ai_modifier_edit_instruction")}
-            </button>
-            {acceptMode === "insert" ? (
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void handleSaveToLibrary()}
-                disabled={operationLocked || !result.draft}
-              >
-                {savingToLibrary
-                  ? t("ai_generator_finishing_library")
-                  : result.draft
-                    ? t("ai_generator_open_library")
-                    : `✓ ${t("ai_generator_saved_to_library")}`}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => void handleConfirm()}
-              disabled={operationLocked}
-            >
-              {finishing
-                ? t(
-                    acceptMode === "insert"
-                      ? "ai_generator_inserting"
-                      : "ai_generator_finishing_library",
-                  )
-                : t(
-                    acceptMode === "insert"
-                      ? "ai_generator_confirm_insert"
-                      : "ai_generator_open_library",
-                  )}
-            </button>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
   const engineControls = (
     <MediaEngineCreditControls kind="image" format={sourceFormat} operation="modify" videoEngine={enginePreference.videoEngine}
             recommendation={recommendAiMediaModel({ kind: "image", format: sourceFormat, operation: "modify", brief: instruction, language: locale, inspirationImagesCount: sourceImage ? 1 : 0, inputMode: "essential", identityMode: "auto" })}
@@ -554,9 +507,58 @@ export default function MediaModifier({
   return (
     <div className={styles.workspace} data-state={status}>
       <main className={styles.formContent}>
-        <section className={styles.panel} aria-labelledby="modifier-source-title">
+        <section className={styles.panel} aria-labelledby="modifier-instruction-title">
           <header className={styles.panelHeader}>
             <span aria-hidden="true">1</span>
+            <div>
+              <h2 id="modifier-instruction-title">
+                {t("ai_modifier_instruction_title")}
+              </h2>
+              <p>{t("ai_modifier_instruction_hint")}</p>
+            </div>
+          </header>
+          <label className={styles.instructionField} htmlFor={instructionId}>
+            <span className={styles.srOnly}>{t("ai_modifier_instruction_title")}</span>
+            <textarea
+              id={instructionId}
+              value={instruction}
+              maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
+              disabled={baseOperationLocked}
+              readOnly={voiceBusy}
+              placeholder={t("ai_modifier_instruction_placeholder")}
+              onChange={(event) => {
+                setInstruction(event.currentTarget.value);
+                if (actionError) setActionError("");
+              }}
+            />
+            <span className={styles.counter}>
+              {instruction.length}/{AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
+            </span>
+            <div className={styles.voiceControl}>
+              <MediaSubjectVoiceButton
+                purpose="instruction"
+                placement="inline"
+                mergeMode="paragraph"
+                maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
+                disabled={baseOperationLocked}
+                value={instruction}
+                onBusyChange={setVoiceBusy}
+                onChange={(nextValue) => {
+                  setInstruction(nextValue);
+                  if (actionError) setActionError("");
+                }}
+              />
+            </div>
+          </label>
+          <div className={styles.contractNote}>
+            <span aria-hidden="true">◎</span>
+            <p>{t("ai_modifier_preservation_contract")}</p>
+          </div>
+        </section>
+
+        <section className={`${styles.panel} ${styles.mediaPanel}`} aria-labelledby="modifier-source-title" data-media-state={result ? "result" : generationBusy || sourceBusy ? "progress" : "source"}>
+          <header className={styles.panelHeader}>
+            <span aria-hidden="true">2</span>
             <div>
               <h2 id="modifier-source-title">{t("ai_modifier_source_title")}</h2>
               <p>{t("ai_modifier_source_hint")}</p>
@@ -576,7 +578,45 @@ export default function MediaModifier({
             }}
           />
 
-          {sourceImage ? (
+          {sourceBusy && !generationBusy && !result ? (
+            <div className={styles.mediaStage} data-modifier-preview>
+              <div className={styles.preparingSource} role="status" aria-live="polite">
+                <span className={styles.spinner} aria-hidden="true">✦</span>
+                <strong>{t("ai_modifier_preparing")}</strong>
+              </div>
+            </div>
+          ) : result || generationBusy || cancellationPending || canRecover || actionError || error ? (
+            <div className={styles.mediaStage} data-modifier-preview>
+              <MediaGenerationCreationWorkspace
+                variant="embedded"
+                creationStarted
+                generationInProgress={sourceBusy || generationBusy || recovering}
+                cancellationPending={cancellationPending}
+                kind="image"
+                format={sourceFormat}
+                durationSeconds={0}
+                progress={progress}
+                operationLocked={operationLocked}
+                finishing={finishing}
+                generationResult={result}
+                generationCancellable={generationCancellable || (canRecover && !operationLocked)}
+                cancelConfirmationOpen={cancelConfirmationOpen}
+                setCancelConfirmationOpen={setCancelConfirmationOpen}
+                handleRequestGenerationStop={handleRequestGenerationStop}
+                handleConfirmGenerationStop={handleConfirmGenerationStop}
+                handleConfirm={handleConfirm}
+                handleSaveToLibrary={handleSaveToLibrary}
+                handleGenerate={handleGenerate}
+                handleEditCriteria={handleEditInstruction}
+                editLabel={t("ai_modifier_edit_instruction")}
+                disabled={operationLocked || !sourceImage || !creditQuote.ready || creditQuote.insufficient}
+                acceptMode={acceptMode}
+                savingToLibrary={savingToLibrary}
+                actionError={actionError}
+                error={error}
+              />
+            </div>
+          ) : sourceImage ? (
             <div className={styles.sourcePreview}>
               <img src={sourceImage.previewUrl} alt={t("ai_modifier_source_alt")} />
               <div className={styles.sourceMeta}>
@@ -640,7 +680,7 @@ export default function MediaModifier({
             </label>
           )}
 
-          <div className={styles.importActions}>
+          {!result && !generationBusy && !canRecover ? <div className={styles.importActions}>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -655,76 +695,9 @@ export default function MediaModifier({
             >
               {t("ai_generator_inspiration_from_library")}
             </button>
-          </div>
+          </div> : null}
         </section>
 
-        <section className={styles.panel} aria-labelledby="modifier-instruction-title">
-          <header className={styles.panelHeader}>
-            <span aria-hidden="true">2</span>
-            <div>
-              <h2 id="modifier-instruction-title">
-                {t("ai_modifier_instruction_title")}
-              </h2>
-              <p>{t("ai_modifier_instruction_hint")}</p>
-            </div>
-          </header>
-          <label className={styles.instructionField}>
-            <textarea
-              value={instruction}
-              maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
-              disabled={baseOperationLocked}
-              readOnly={voiceBusy}
-              placeholder={t("ai_modifier_instruction_placeholder")}
-              onChange={(event) => {
-                setInstruction(event.currentTarget.value);
-                if (actionError) setActionError("");
-              }}
-            />
-            <span className={styles.counter}>
-              {instruction.length}/{AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
-            </span>
-            <div className={styles.voiceControl}>
-              <MediaSubjectVoiceButton
-                purpose="instruction"
-                placement="inline"
-                mergeMode="paragraph"
-                maxLength={AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS}
-                disabled={baseOperationLocked}
-                value={instruction}
-                onBusyChange={setVoiceBusy}
-                onChange={(nextValue) => {
-                  setInstruction(nextValue);
-                  if (actionError) setActionError("");
-                }}
-              />
-            </div>
-          </label>
-          <div className={styles.contractNote}>
-            <span aria-hidden="true">◎</span>
-            <p>{t("ai_modifier_preservation_contract")}</p>
-          </div>
-        </section>
-
-        {operationLocked ? (
-          <div className={styles.progressPanel} role="status" aria-live="polite">
-            <span className={styles.spinner} aria-hidden="true">✦</span>
-            <div>
-              <strong>
-                {sourceBusy && !generationBusy
-                  ? t("ai_modifier_preparing")
-                  : t("ai_modifier_progress")}
-              </strong>
-              <span>{generationBusy ? `${Math.max(4, progress)} %` : ""}</span>
-            </div>
-            {generationBusy ? (
-              <i aria-hidden="true"><b style={{ width: `${Math.max(4, progress)}%` }} /></i>
-            ) : null}
-          </div>
-        ) : null}
-
-        {actionError || error ? (
-          <p className={styles.error} role="alert">{actionError || error}</p>
-        ) : null}
       </main>
 
       <footer className={styles.actionBar} data-media-footer>
@@ -734,11 +707,17 @@ export default function MediaModifier({
         <MediaGenerationActions>
           {engineControls}
           <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
+          {canRecover && !generationBusy ? <button type="button" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t("ai_generator_editor_stop")}</button> : null}
           <button
             type="button"
             className={styles.primaryButton}
-            onClick={() => void handleGenerate()}
-            disabled={
+            onClick={() => {
+              if (generationBusy) handleRequestGenerationStop();
+              else if (canRecover) void handleRecovery();
+              else void handleGenerate();
+            }}
+            title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
+            disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked :
               operationLocked ||
               !sourceImage ||
               instruction.trim().length < 3 ||
@@ -746,8 +725,8 @@ export default function MediaModifier({
               imageQuotaExhausted
             }
           >
-            <span aria-hidden="true">✦</span>
-            {t("ai_modifier_action")}
+            <span aria-hidden="true">{generationBusy ? "■" : result ? "↻" : "✦"}</span>
+            {t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : "ai_modifier_action")}
           </button>
         </MediaGenerationActions>
       </footer>

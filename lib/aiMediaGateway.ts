@@ -561,7 +561,6 @@ export async function generateAiMediaImageWithGoogle(args: {
             aspect_ratio: resolveGoogleImageAspectRatio(args.size),
             image_size: "1K",
             mime_type: "image/jpeg",
-            delivery: "inline",
           },
         },
         {
