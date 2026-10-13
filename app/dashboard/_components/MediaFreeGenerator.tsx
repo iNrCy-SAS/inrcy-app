@@ -46,8 +46,8 @@ import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
-import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions, MediaVideoDurationSelect } from "./MediaEngineCreditControls";
-import { getAiMediaVideoModel } from "@/lib/aiMediaModelCatalog";
+import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
+import { getAiMediaVideoModel, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
@@ -174,8 +174,6 @@ export default function MediaFreeGenerator({
   const counter = quota?.credits;
   const maxDuration = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(maxDuration);
-  const durationUnavailable = kind === "video" && (!durations.includes(duration) ||
-    !canGenerateAiMediaVideoDuration(enginePreference.videoEngine, duration, videoResolution, sceneMode));
   const exhausted = !quota?.unlimited && counter?.remaining === 0;
   const personReferences = references.filter(
     (reference) =>
@@ -193,10 +191,11 @@ export default function MediaFreeGenerator({
   const roleLimitExceeded = personReferences.length > 3;
   const maxUserPromptLength = Math.max(0, MAX_PROMPT - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
   const effectivePrompt = [prompt.trim(), requiredPromptSuffix.trim()].filter(Boolean).join(" ");
-  const referenceCompatible = kind !== "video" || isMediaVideoReferenceCompatible(enginePreference.videoEngine, references.length);
+  const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(enginePreference.videoEngine, duration, videoResolution, sceneMode));
+  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(enginePreference.videoEngine, references.length) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, effectivePrompt);
   const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
-  const creditQuote = useMediaCreditQuote({ kind, operation: "generate", creationMode: "free",
+  const creditQuote = useMediaCreditQuote({ kind, format: fixedFormat || format, operation: "generate", creationMode: "free",
     inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto",
     videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
     videoResolution, durationSeconds: kind === "video" ? duration : undefined,
@@ -205,7 +204,7 @@ export default function MediaFreeGenerator({
     teamVideoSpeechMode: speechMode,
   }, quota, !durationUnavailable && referenceCompatible && briefCompatible);
   const creditInsufficient = creditQuote.insufficient;
-  const modelRecommendation = recommendAiMediaModel({ kind, brief: effectivePrompt,
+  const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     durationSeconds: duration, sceneMode, withNarration: effectiveWithNarration,
     teamVideoSpeechMode: speechMode, language: locale, inspirationImagesCount: references.length,
     inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto" });
@@ -245,10 +244,6 @@ export default function MediaFreeGenerator({
   useLayoutEffect(() => {
     onResultChange?.(result);
   }, [onResultChange, result]);
-
-  useEffect(() => {
-    if (kind !== "video" || duration < 8) setSceneMode("single");
-  }, [kind, duration]);
 
   useEffect(() => {
     const clearAccountState = () => {
@@ -585,9 +580,9 @@ export default function MediaFreeGenerator({
   };
 
   const engineControls = (
-    <MediaEngineCreditControls kind={kind} videoEngine={enginePreference.videoEngine}
+    <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={enginePreference.videoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
-            durationSeconds={duration} sceneMode={sceneMode}
+            durationSeconds={duration} sceneMode={sceneMode} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
             recommendation={modelRecommendation}
             brief={effectivePrompt}
             referenceCount={references.length} disabled={locked}
@@ -664,7 +659,6 @@ export default function MediaFreeGenerator({
       className={styles.workspace}
       data-creation-mode="free"
       data-media-kind={kind}
-      data-scenes-available={kind === "video" && duration >= 8}
       data-view="form"
     >
       <div className={styles.creationGrid}>
@@ -710,32 +704,6 @@ export default function MediaFreeGenerator({
               ))}
             </div>
           </fieldset>
-          {kind === "video" ? (
-            <fieldset className={`${styles.fieldset} ${styles.durationFieldset}`} disabled={locked}>
-              <legend>{t("ai_generator_free_duration_label")}</legend>
-              <MediaVideoDurationSelect value={duration} durations={durations} disabled={locked} onChange={setDuration} hideLabel />
-                <div className={styles.sceneOptions} role="group" aria-label={t("ai_generator_free_scene_label")}>
-                  {(["single", "multi"] as const).map((mode) => (
-                    <label
-                      className={styles.sceneOption}
-                      data-selected={sceneMode === mode}
-                      key={mode}
-                    >
-                      <input
-                        type="radio"
-                        name={`${instanceId}-scene-mode`}
-                        value={mode}
-                        checked={sceneMode === mode}
-                        disabled={locked || (mode === "multi" && duration < 8)}
-                        onChange={() => setSceneMode(mode)}
-                      />
-                      <strong>{t(`ai_generator_free_scene_${mode}`)}</strong>
-                    </label>
-                  ))}
-                </div>
-              {duration < 8 ? <small>{t("ai_generator_two_scenes_minimum")}</small> : null}
-            </fieldset>
-          ) : null}
           <div className={styles.referencesSection}>
             <div className={styles.sectionHeading}>
               <h3>{t("ai_generator_free_references_title")}</h3>

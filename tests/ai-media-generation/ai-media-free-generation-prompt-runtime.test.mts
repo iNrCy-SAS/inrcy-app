@@ -183,16 +183,17 @@ test("la vidéo libre respecte la durée, les menus de référence et l'absence 
   }
 });
 
-test("Libre garde la durée choisie indépendante du moteur et propose au plus deux scènes", () => {
+test("Libre conserve le scénario choisi dans le sélecteur partagé du bandeau", () => {
   assert.match(freeGeneratorSource, /useState<MediaGenerationVideoSceneMode>\("single"\)/);
-  assert.match(freeGeneratorSource, /<MediaVideoDurationSelect[^>]*>[\s\S]*?<div className=\{styles\.sceneOptions\}/);
+  assert.match(freeGeneratorSource, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDuration\(seconds\); setSceneMode\(mode\); \}\}/);
+  assert.match(freeGeneratorSource, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
+  assert.doesNotMatch(freeGeneratorSource, /<MediaVideoDurationSelect|className=\{styles\.sceneOptions\}/);
   assert.match(freeGeneratorSource, /getMediaVideoDurationChoices\(maxDuration\)/);
-  assert.match(freeGeneratorSource, /mode === "multi" && duration < 8/);
   assert.match(freeGeneratorSource, /canGenerateAiMediaVideoDuration\(enginePreference\.videoEngine, duration, videoResolution, sceneMode\)/);
   assert.doesNotMatch(freeGeneratorSource, /setDuration\(\(current\)/);
   assert.doesNotMatch(freeGeneratorSource, /const DURATIONS = \[8, 16, 24\]/);
   assert.match(freeGeneratorSource, /sceneMode: kind === "video" \? sceneMode : undefined/);
-  assert.match(freeGeneratorStyles, /\.sceneOptions\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(2,/);
+  assert.match(freeGeneratorStyles, /\.workspace \.formatFieldset\s*\{\s*grid-column:\s*1 \/ -1/);
   assert.doesNotMatch(freeGeneratorSource, /ai_generator_free_scene_(?:single|multi)_hint/);
 });
 

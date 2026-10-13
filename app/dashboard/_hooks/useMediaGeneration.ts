@@ -10,7 +10,7 @@ import {
   shouldConnectAiMediaVideoScenes,
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
-import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
+import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine, type AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
 
 export type MediaGenerationKind = "image" | "video";
 export type MediaGenerationOperation = "generate" | "modify";
@@ -275,7 +275,7 @@ export type MediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   videoEngine?: MediaGenerationVideoEngine;
-  imageEngine?: "openai" | "gemini";
+  imageEngine?: AiMediaImageEngine;
   videoResolution?: "720p" | "768p" | "1080p";
   expectedCredits?: number;
   creditTariffVersion?: string;

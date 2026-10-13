@@ -57,8 +57,8 @@ import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
-import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions, MediaVideoDurationSelect } from "./MediaEngineCreditControls";
-import { getAiMediaVideoModel } from "@/lib/aiMediaModelCatalog";
+import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
+import { getAiMediaVideoModel, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
@@ -359,8 +359,7 @@ export default function MediaGenerator({
     useState<StudioVisualDirection>("auto");
   const [textMode, setTextMode] = useState<StudioTextMode>("none");
   const [exactText, setExactText] = useState("");
-  const [videoSceneMode, setVideoSceneMode] =
-    useState<StudioVideoSceneMode>("single");
+  const [videoSceneMode, setVideoSceneMode] = useState<StudioVideoSceneMode>("single");
   const [durationSeconds, setDurationSeconds] =
     useState<MediaGenerationVideoDuration>(8);
   const [withText, setWithText] = useState(false);
@@ -533,11 +532,7 @@ export default function MediaGenerator({
 
     if (block6.saved) {
       setDurationSeconds(block6.defaults.durationSeconds);
-      if (!block3.saved) {
-        setVideoSceneMode(
-          block6.defaults.connectScenes ? "single" : "multi"
-        );
-      }
+      if (!block3.saved) setVideoSceneMode(block6.defaults.connectScenes ? "single" : "multi");
       setWithText(block6.defaults.withText);
       setTextMode(block6.defaults.withText ? "ai" : "none");
       setWithMusic(block6.defaults.withMusic);
@@ -602,28 +597,8 @@ export default function MediaGenerator({
       : kind === "image" && imagePurpose === "infographic"
       ? "advice"
       : "service";
-  const generationAiInstruction = useMemo(() => {
-    if (transformMode) return aiInstruction.trim();
-
-    const directives: string[] = [];
-    if (kind === "video") {
-      directives.push(
-        videoSceneMode === "single"
-          ? "Raconter l'action dans une scène continue, avec les mêmes personnes, le même lieu et une continuité visuelle entre les plans."
-          : "Construire un récit multiscène clair : chaque scène apporte une étape différente sans perdre le sujet central."
-      );
-    }
-    const directiveText = directives.join(" ").trim();
-    const baseInstruction = creativeBrief.trim();
-    return [baseInstruction, directiveText].filter(Boolean).join("\n\n");
-  }, [
-    creativeBrief,
-    durationSeconds,
-    kind,
-    mediaSourceMode,
-    transformMode,
-    videoSceneMode,
-  ]);
+  const generationAiInstruction = useMemo(() => (transformMode ? aiInstruction : creativeBrief).trim(), [transformMode, aiInstruction, creativeBrief]);
+  const modelBrief = [resolvedIdea, generationAiInstruction].filter(Boolean).join("\n\n");
   const subjectReady =
     subjectSource === "profile" ||
     (subjectSource === "publication" && publicationAvailable) ||
@@ -635,10 +610,6 @@ export default function MediaGenerator({
   const exhausted = quota?.unlimited ? false : counter?.remaining === 0;
   const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(videoMaxDurationSeconds);
-
-  useEffect(() => {
-    if (kind !== "video" || durationSeconds < 8) setVideoSceneMode("single");
-  }, [kind, durationSeconds]);
 
   const videoDurationUnavailable =
     kind === "video" && (!durations.includes(durationSeconds) ||
@@ -703,10 +674,9 @@ export default function MediaGenerator({
     kind === "video" && effectiveIdentityMode === "reference_team";
   const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak;
   const referenceCount = mediaSourceMode === "real" ? inspirationImages.length : 0;
-  const modelBrief = [resolvedIdea, generationAiInstruction].filter(Boolean).join("\n\n");
-  const referenceCompatible = kind !== "video" || isMediaVideoReferenceCompatible(enginePreference.videoEngine, referenceCount);
+  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(enginePreference.videoEngine, referenceCount) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: referenceCount });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, modelBrief);
-  const creditQuote = useMediaCreditQuote({ kind, operation: "generate", creationMode: "guided",
+  const creditQuote = useMediaCreditQuote({ kind, format, operation: "generate", creationMode: "guided",
     inputMode: "essential", identityMode: effectiveIdentityMode,
     videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
     videoResolution, durationSeconds: kind === "video" ? durationSeconds : undefined,
@@ -715,7 +685,7 @@ export default function MediaGenerator({
     teamVideoSpeechMode,
   }, quota, !videoDurationUnavailable && referenceCompatible && briefCompatible);
   const videoCreditInsufficient = creditQuote.insufficient;
-  const modelRecommendation = recommendAiMediaModel({ kind, brief: modelBrief,
+  const modelRecommendation = recommendAiMediaModel({ kind, format, operation: "generate", brief: modelBrief,
     durationSeconds, sceneMode: videoSceneMode, withNarration: effectiveWithNarration,
     teamVideoSpeechMode, language: locale, inspirationImagesCount: referenceCount,
     inputMode: "essential", identityMode: effectiveIdentityMode });
@@ -1536,9 +1506,9 @@ export default function MediaGenerator({
   ) : null;
 
   const engineControls = (
-    <MediaEngineCreditControls kind={kind} videoEngine={enginePreference.videoEngine}
+    <MediaEngineCreditControls kind={kind} format={format} videoEngine={enginePreference.videoEngine}
               imageEngine={enginePreference.imageEngine} resolution={videoResolution}
-              durationSeconds={durationSeconds} sceneMode={videoSceneMode}
+              durationSeconds={durationSeconds} sceneMode={videoSceneMode} onDurationSceneChange={(seconds, mode) => { setDurationSeconds(seconds); setVideoSceneMode(mode); }} videoMaxDurationSeconds={videoMaxDurationSeconds}
               recommendation={modelRecommendation}
               brief={modelBrief}
               referenceCount={referenceCount} disabled={operationLocked}
@@ -2099,9 +2069,6 @@ export default function MediaGenerator({
           data-generator-block="direction"
           data-direction-layout="compact"
           data-media-kind={kind}
-          data-has-scene-mode={
-            kind === "video" && durationSeconds >= 8 ? "true" : "false"
-          }
         >
           <header className={styles.essentialCardHeader}>
             <span>3</span>
@@ -2155,27 +2122,7 @@ export default function MediaGenerator({
                   ))}
                 </select>
               </label>
-            ) : (
-              <div className={styles.durationAndScenes} data-direction-control="duration">
-                <MediaVideoDurationSelect value={durationSeconds} durations={durations} disabled={operationLocked} onChange={setDurationSeconds} />
-                <div className={styles.sceneModeField}>
-                  <span>{t("ai_generator_free_scene_label")}</span>
-                  <div className={styles.sceneModeChoices} role="radiogroup" aria-label={t("ai_generator_free_scene_label")}>
-                    {(["single", "multi"] as const).map((mode) => (
-                      <button key={mode} type="button" role="radio"
-                        aria-checked={videoSceneMode === mode}
-                        data-active={videoSceneMode === mode ? "true" : "false"}
-                        disabled={operationLocked || (mode === "multi" && durationSeconds < 8)}
-                        onClick={() => setVideoSceneMode(mode)}
-                        title={t(`ai_generator_free_scene_${mode}_hint`)}>
-                        <strong>{t(`ai_generator_free_scene_${mode}`)}</strong>
-                      </button>
-                    ))}
-                  </div>
-                  {durationSeconds < 8 ? <small>{t("ai_generator_two_scenes_minimum")}</small> : null}
-                </div>
-              </div>
-            )}
+            ) : null}
 
             <label className={styles.essentialSelectField} data-direction-control="format">
               <span>{t("ai_generator_format_title")}</span>

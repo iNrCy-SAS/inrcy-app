@@ -1,6 +1,6 @@
 # iNrStudio : crédits média et choix de modèles
 
-Changement préparé localement le 13 octobre 2026. Aucun déploiement, migration distante, achat ou appel de génération payant n'a été effectué pendant l'implémentation.
+Le système de crédits médias a été activé en production le 13 octobre 2026, après autorisation du propriétaire. Les migrations Supabase, le catalogue Stripe et les variables Vercel sont appliqués. Cette mise à jour complémentaire ajoute trois moteurs image, le guide des moteurs et le menu durée dans le bandeau compact ; sa publication et sa vérification sont documentées dans le rapport final. Aucun paiement client Stripe n'a été effectué pour les essais.
 
 ## Portefeuille commun
 
@@ -20,11 +20,21 @@ Ces crédits forment un seul solde, réparti librement entre images et vidéos. 
 
 Les commandes Stripe historiques gardent leur unité et leur montant d'origine. Le portefeuille convertit leur financement et conserve les remboursements, dettes, blocages et litiges. Les jobs déjà en cours peuvent terminer sans deuxième débit. Une réussite consomme ses crédits dès la création du résultat, même si le professionnel le refuse ensuite. Un échec technique libère la réservation ; une nouvelle tentative indépendante peut consommer à nouveau. Une réponse réseau répétée avec la même clé retrouve la génération existante.
 
-## Images
+## Images : cinq moteurs
 
-OpenAI Image et Gemini Image sont proposés pour Générer et Modifier. Le prix de base est **7 crédits**, plus **2 crédits par image d'entrée**. Modifier, avec son image source, coûte donc **9 crédits**. Une création avec cinq références coûte 17 crédits. Le choix explicite d'un moteur image n'est pas remplacé silencieusement par un autre moteur.
+| Moteur | Génération | Référence supplémentaire | Retouche | Limites |
+|---|---:|---:|---|---|
+| OpenAI Image | 7 crédits | 2 crédits | Oui | 5 références |
+| Gemini Image | 7 crédits | 2 crédits | Oui | 5 références |
+| FLUX.2 Pro | 5 crédits | 2 crédits | Oui | 5 références, chacune ≤ 1 MP ; sortie fournisseur ≤ 2 MP |
+| Grok Imagine Image | 2 crédits | 1 crédit | Oui | 3 références maximum |
+| Recraft V4.1 | 4 crédits | — | Non | Création raster uniquement, sans références |
 
-Ce sont des tarifs commerciaux en crédits. Ils ne signifient pas que le fournisseur facture exactement sept centimes ni qu'un crédit se vend un centime.
+Modifier consomme aussi son image source : OpenAI/Gemini 9 crédits, FLUX 7, Grok 3. Les incompatibilités sont refusées avant toute préparation payante. Le choix explicite du moteur est conservé sans remplacement silencieux. Le format fait partie du devis et de son empreinte ; la retouche conserve le canvas final de la source. Une réservation interne conservatrice protège le budget fournisseur lors d'un échec incertain après soumission, sans convertir cet échec technique en débit du professionnel.
+
+Pour les trois nouveaux moteurs, le logo officiel est ajouté localement dans le coin supérieur droit, sans référence fournisseur cachée ni supplément surprise. Cette position standard est expliquée dans le guide ; intégrer le logo dans une surface en perspective n'est pas garanti par cette composition. FLUX et Grok sont testés avec plusieurs références ; Recraft n'est pas présenté comme un moteur de retouche ou de SVG dans ce parcours.
+
+Ce sont des tarifs commerciaux en crédits. Ils ne signifient pas qu'un crédit se vend un centime. La grille fournisseur et la grille commerciale sont distinctes.
 
 ## Vidéos : quatre familles, huit modèles
 
@@ -39,13 +49,13 @@ Ce sont des tarifs commerciaux en crédits. Ils ne signifient pas que le fournis
 | Grok | Imagine Lite | 4–30 s | 3 en 720p | 14 en 1080p |
 | Grok | Imagine 1.5 | 4–30 s | 14 en 720p | 25 en 1080p |
 
-Le professionnel choisit d'abord une durée finale entre **4 et 30 secondes**, puis un moteur compatible. Changer le moteur ou la qualité ne raccourcit pas la durée : les options incompatibles sont grisées, et la génération attend une combinaison valide et un devis confirmé. Le plafond de l'établissement peut restreindre cette plage.
+Le professionnel choisit d'abord le moteur et sa résolution dans le bandeau, puis la durée. Le menu Durée propose uniquement les couples réellement réalisables, avec une ou deux scènes : par exemple Omni 15 s · 2 scènes, Veo Fast 720p 8 s · 1 ou 2 scènes, et Veo Fast 1080p 8 s · 1 scène ou 16 s · 2 scènes. Aucune durée impossible n'est affichée. Les moteurs ne sont plus grisés à cause de la durée précédemment choisie ; un changement de moteur conserve la durée si elle reste réalisable, sinon sélectionne la durée compatible la plus proche et actualise le devis. Les incompatibilités de références, de retouche ou de brief restent signalées. Le plafond du compte peut restreindre la plage globale **4–30 s**.
 
 Chaque vidéo comporte **au maximum deux scènes** et nécessite au maximum deux clips fournisseurs. Omni est limité à 20 secondes (deux clips jusqu'à 10 s), Veo à 16 (deux clips jusqu'à 8 s), et MiniMax H3, Wan Flash et Grok à 30 (deux clips jusqu'à 15 s). Wan 3 peut produire 30 secondes nativement. Une réalisation avec deux scènes doit aussi permettre deux clips d'au moins quatre secondes ; un moteur ou une durée incompatible reste indisponible.
 
 Le devis couvre les clips réellement prévus et arrondit le total à l'entier supérieur. L'assemblage ne permet pas de lancer un troisième clip pour obtenir une durée supérieure au plafond d'un moteur. Les vidéos historiques restent dans la médiathèque et leurs montants comptables restent intacts. Les nouveaux réglages mémorisés acceptent 4–30 s ; les anciennes préférences de 1–3 s sont ramenées à 4 lors de leur lecture.
 
-Le bandeau compact réunit **un seul menu moteur/résolution/tarif, le prix confirmé et le bouton de génération sur la même ligne**. Le menu contient quatorze combinaisons réelles, chacune sur une ligne distincte, regroupées par fournisseur. La recommandation figure dans une option et son motif reste accessible au survol, sans agrandir le bandeau. Le détail des crédits est fermé par défaut et s'ouvre depuis le prix. Le portefeuille demeure distinct, à gauche sur ordinateur ; un devis périmé, un changement d'établissement ou un solde insuffisant bloque le lancement.
+Le bandeau compact réunit **crédits disponibles, menu moteur/résolution/tarif, menu durée/scènes, prix confirmé et bouton de génération sur la même ligne**. La durée et les boutons de scènes séparés sont retirés du bloc des paramètres. Le bouton ⓘ près du moteur ouvre un guide accessible présentant capacités et différences des cinq moteurs image ou des huit moteurs vidéo. Le menu contient quatorze combinaisons réelles, chacune sur une ligne distincte, regroupées par fournisseur. La recommandation figure dans une option et son motif reste accessible au survol, sans agrandir le bandeau. Le détail des crédits est fermé par défaut et s'ouvre depuis le prix. Le portefeuille demeure distinct, à gauche sur ordinateur ; un devis périmé, un changement d'établissement ou un solde insuffisant bloque le lancement.
 
 Une suggestion de modèle explique son motif à partir du brief et des options : MiniMax H3 pour la parole française, Wan 3 pour une scène continue de 16–30 secondes native, Wan Flash pour une photo compatible à animer, ou le tarif fournisseur public le plus faible parmi les modèles compatibles. Pour une image, une demande de texte précis ou de flyer suggère OpenAI ; les autres créations suggèrent Gemini, sans prétendre qu'il coûte moins cher (les deux ont la même base de sept crédits). Ces règles déterministes ne lancent aucun appel IA, ne changent ni le moteur choisi ni la durée et vérifient les mêmes contraintes de références et de clips que le devis. Il s'agit d'un conseil de choix, pas d'une garantie de qualité.
 
@@ -88,15 +98,15 @@ Les droits inclus sont 735/2 530 crédits par mois pour Standard/Premium. La dif
 
 La grille en crédits est versionnée dans `lib/aiMediaCreditsPricing.ts`. Les capacités, IDs et estimations de prix fournisseurs sont centralisés dans `lib/aiMediaModelCatalog.ts`. Les estimations fournisseurs servent au fusible de dépenses internes ; elles sont séparées du débit commercial des pros. Les coûts estimés sont en USD, les recharges en EUR HT. La marge réelle dépend du change, des options, des frais Stripe et des tentatives techniquement échouées. Veo Fast utilise les prix Google avec audio : 0,10 USD/s en 720p et 0,12 USD/s en 1080p, identiques sur les grilles Gemini API et Vertex consultées.
 
-## Activation ultérieure, sans l'avoir exécutée
+## Activation de production exécutée
 
-1. Tester les migrations `supabase/migrations/20261013100955_unified_media_credits.sql`, puis `supabase/migrations/20261013113745_media_credit_recharge_pricing.sql` et `supabase/migrations/20261013114612_standard_media_credits_735.sql`, sur une copie de la base contenant les migrations précédentes. Elles sont transactionnelles, vérifient leurs dépendances et gardent les commandes historiques intactes. La deuxième change seulement les quatre prix du catalogue pour les futures commandes. La troisième corrige le forfait Standard historique 25/54 en 25/56 et préserve les exceptions de compte, les configurations non standard et les consommations déjà enregistrées.
-2. Appliquer ces migrations dans l'environnement retenu AVANT d'y servir la nouvelle interface. Les nouveaux appels se bloquent avant tout fournisseur si les crédits ne sont pas prêts ; un écart entre le prix stocké, le catalogue serveur et Stripe bloque aussi le checkout avant création de session payante.
-3. Vérifier les accès : Gemini API pour Omni, le transport Google/Vertex existant pour Fast, AI Gateway pour Lite/MiniMax/Wan/Grok/OpenAI Image. Une clé Gateway ou l'OIDC Vercel donne l'accès technique ; le compte doit aussi disposer du budget et des permissions nécessaires. Un abonnement Magnific ne finance pas ces appels API. Aucune nouvelle clé de fournisseur n'est embarquée dans le navigateur.
-4. Préparer de nouveaux prix Stripe à 19/35/65/155 € HT, à paiement unique, actifs, en EUR, avec `tax_behavior=exclusive` et un libellé en crédits médias. Conserver les anciens objets pour les paiements, retours et webhooks historiques. Remplacer ultérieurement les valeurs des quatre variables serveur ci-dessous dans l'environnement Vercel retenu, puis vérifier les montants. Une variable qui référence encore l'ancien prix de 8 € ne peut pas ouvrir la nouvelle recharge de 19 €. Aucun prix Stripe, secret, variable Vercel ou déploiement distant n'a été modifié ici.
-5. Faire quelques générations réelles contrôlées pour comparer la qualité, la voix française et la latence, puis décider du déploiement. Aucun test payant n'a été lancé pour cette préparation.
+Les trois migrations `20261013100955_unified_media_credits`, `20261013113745_media_credit_recharge_pricing` et `20261013114612_standard_media_credits_735` ont été appliquées dans une transaction, puis vérifiées. Les six tables du portefeuille ont leur RLS active ; les accès client sont limités au compte autorisé et les mutations passent par les RPC serveur. Les anciennes commandes et générations restent intactes. Les portefeuilles sont initialisés à leur première lecture V4 : aucune réécriture massive arbitraire des comptes n'est nécessaire.
 
-| Variable serveur existante, à remplacer ultérieurement | Crédits | Montant Stripe `unit_amount`, centimes EUR HT |
+Les quatre nouveaux prix Stripe LIVE sont actifs, à paiement unique, en EUR HT, avec taxes ajoutées au checkout. Les anciens objets et les abonnements récurrents sont conservés. Les quatre variables de prix Vercel Production ont été enregistrées et vérifiées ; le déploiement a été reconstruit avec les variables de production et promu sur `app.inrcy.com`.
+
+Le parcours réel a confirmé le devis, généré une vidéo de quatre secondes via Google Vertex, puis affiché le résultat dans iNrStudio. Le checkout de 500 crédits affiche 19 € HT + 3,80 € de TVA = 22,80 € TTC ; il a été fermé sans paiement. Les essais des huit moteurs vidéo et des trois nouveaux moteurs image sont détaillés dans le rapport final.
+
+| Variable serveur de production configurée | Crédits | Montant Stripe `unit_amount`, centimes EUR HT |
 |---|---:|---:|
 | `STRIPE_VIDEO_CREDITS_50_PRICE_ID` | 500 | 1 900 |
 | `STRIPE_VIDEO_CREDITS_100_PRICE_ID` | 1 000 | 3 500 |
@@ -107,7 +117,7 @@ Les IDs ne sont pas inventés dans le code et ne sont pas fournis par le navigat
 
 Le choix de moteur du Studio est mémorisé par établissement dans le navigateur. iNrAgent conserve son moteur automatique Omni et utilise le même portefeuille : ses durées restent dans la plage 4–20 s, avec au maximum deux clips. Une ancienne préférence automatique de 24 s devient 20 s ; les autres paramètres de réalisation et de voix sont conservés. Un plafond de compte incompatible bloque la génération avant tout appel fournisseur. Ce changement n'ajoute pas de nouveaux fournisseurs autonomes aux campagnes déjà configurées.
 
-Une future modification du barème doit conserver la récupération des anciens jobs : le devis courant et le fingerprint empêchent les réductions de débit, mais une reprise après changement de version peut nécessiter la récupération du résultat enregistré. La version actuelle reste fixe pendant cette livraison.
+Une future modification du barème doit conserver la récupération des anciens jobs : le devis courant et le fingerprint empêchent les réductions de débit, mais une reprise après changement de version peut nécessiter la récupération du résultat enregistré. Les devis sont versionnés ; un changement de version exige un nouveau devis pour une nouvelle génération et ne supprime pas les résultats historiques.
 
 ## Sources techniques vérifiées
 
@@ -119,14 +129,20 @@ Une future modification du barème doit conserver la récupération des anciens 
 
 La sélection et les prix ont été vérifiés le 13 octobre 2026. Les prix d'achat privés ou négociés de Magnific ne sont pas connus.
 
-## Vérifications locales
+## Vérifications
 
 Les suites médias, crédits, recharges et iNrAgent couvrent le recalcul des devis, les erreurs et reprises, les nouveaux transports vidéo, les plafonds de durée et les commandes Stripe simulées. Les tests SQL exécutent réellement les migrations sur PGlite avec des comptes synthétiques : conversion, débit/libération, report, désactivation de médias, durées mémorisées, remboursements, dettes et litiges. PGlite sérialise les requêtes ; ces essais ne constituent pas un test de charge multiprocessus de PostgreSQL.
 
 TypeScript et le lint des fichiers modifiés passent. La compilation Next.js complète passe, avec 8 Go de mémoire JavaScript dans cet environnement local ; le premier essai au plafond mémoire par défaut a échoué par manque de mémoire.
 
-Les vrais composants Libre, Guidé, Modifier et Boutique ont été vérifiés dans Chrome avec des réponses API simulées : moteur/durée/résolution, devis périmé, changement d'établissement, justificatif tarifaire, portefeuille indisponible, voix courtes et affichage mobile. Les captures montrent des soldes fictifs. Aucun compte Supabase réel, fournisseur vidéo ou paiement réel n'a été appelé pour cette vérification.
+Les vrais composants Libre, Guidé, Modifier et Boutique ont été vérifiés dans Chrome avec des réponses API simulées : moteur/durée/résolution, devis périmé, changement d'établissement, justificatif tarifaire, portefeuille indisponible, voix courtes et affichage mobile. Les captures montrent des soldes fictifs. Ces captures de composants utilisent des réponses simulées ; elles complètent les générations et contrôles de production réels réalisés ensuite.
 
 Les libellés ajoutés sont traduits dans les neuf langues de l'application. Les validations de catalogues et les contrôles de rendu passent.
 
-Le bandeau du mode Guidé a été mesuré à 83 px sur ordinateur (1536, 1920 et 2560 px), y compris en mode illimité et portefeuille indisponible ; il mesure 167 px sur mobile de 390 px. Le bouton reste sur une ligne et le solde dispose d'un seul sous-texte. Le bloc 3 présente ses six réglages sur trois colonnes et deux rangées sur ordinateur, avec le choix des scènes dans la cellule durée, sans défilement interne. Les états de moteur incompatible ont également été vérifiés. Les captures utilisent les vrais composants avec des API et soldes simulés.
+Le bandeau du mode Guidé a été mesuré à 83 px sur ordinateur (1536, 1920 et 2560 px), y compris en mode illimité et portefeuille indisponible ; il mesure 167 px sur mobile de 390 px. Le bouton reste sur une ligne et le solde dispose d'un seul sous-texte. Le bloc 3 présente ses six réglages sur trois colonnes et deux rangées sur ordinateur, sans durée ni sélecteur de scènes séparé, et sans défilement interne. Les états de moteur incompatible ont également été vérifiés. Les captures utilisent les vrais composants avec des API et soldes simulés.
+
+## Piste distincte : brouillon vidéo économique
+
+Wan 2.2 Fast 5B sur fal affiche 0,025 USD par vidéo 720p jusqu'à cinq secondes ; deux clips suggèrent un coût vidéo d'environ 0,05 USD pour dix secondes. Cela reste une piste de brouillon visuel à 1 crédit/s, non un moteur final garantissant le même rendu et sans voix native promise. L'accès `FAL_KEY` est présent localement, sans authentification ou génération fal testée pour cette livraison. Ce mode nécessite un parcours évitant le supplément de préparation vidéo actuel ; il n'est pas annoncé comme déjà activé.
+
+Sources complémentaires : [FLUX via Gateway](https://vercel.com/ai-gateway/models/flux-2-pro), [prix Black Forest Labs](https://docs.bfl.ai/quick_start/pricing), [Grok Imagine Image](https://docs.x.ai/developers/models/grok-imagine-image), [prix Recraft](https://www.recraft.ai/docs/api-reference/pricing), [Wan Fast fal](https://fal.ai/models/fal-ai/wan/v2.2-5b/text-to-video/fast-wan).

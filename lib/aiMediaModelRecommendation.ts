@@ -12,6 +12,8 @@ import {
 
 export type AiMediaModelRecommendationInput = {
   kind: "image" | "video";
+  operation?: "generate" | "modify";
+  format?: unknown;
   brief?: string;
   durationSeconds?: number | null;
   sceneMode?: AiMediaVideoSceneMode;
@@ -55,10 +57,23 @@ export function recommendAiMediaModel(input: AiMediaModelRecommendationInput): A
   if (!Number.isSafeInteger(references) || references < 0 || references > 5) return null;
   const brief = normalizedText(input.brief ?? "");
   if (input.kind === "image") {
+    const compatible = (engine: AiMediaImageEngine) => {
+      try { quoteAiMediaCredits({ ...input, imageEngine: engine }); return true; }
+      catch { return false; }
+    };
     const positiveBrief = brief.replace(/\b(?:sans|aucun|no|without)\s+(?:texte|text|logo)(?:\s+(?:ni|and|or)\s+(?:texte|text|logo))*\b/gu, "");
     const precise = /\b(?:text(?:e)?|typograph(?:ie|y)|orthographe|flyer|affiche|poster|banniere|banner|infograph(?:ie|ic)|fiche produit|logo|lettrage|inscription|ecri(?:t|re)|titres?|slogan|prix|tarifs?)\b/u.test(positiveBrief);
-    return precise ? { engine: "openai", reason: "precise-image" }
-      : { engine: "gemini", reason: "image-creation" };
+    if (precise && compatible("openai")) return { engine: "openai", reason: "precise-image" };
+    if (/\b(?:economique|budget|low cost|cheap|moins cher)\b/u.test(brief) && compatible("grok")) {
+      return { engine: "grok", reason: "economy" };
+    }
+    if (references > 0 && /\b(?:produit|product|packshot|marque|brand|couleurs?)\b/u.test(brief) && compatible("flux")) {
+      return { engine: "flux", reason: "image-creation" };
+    }
+    if (/\b(?:illustration|graphique|graphic|icone|icon)\b/u.test(brief) && compatible("recraft")) {
+      return { engine: "recraft", reason: "image-creation" };
+    }
+    return compatible("gemini") ? { engine: "gemini", reason: "image-creation" } : null;
   }
   if (input.kind !== "video") return null;
   const duration = input.durationSeconds ?? 8;

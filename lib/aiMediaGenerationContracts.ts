@@ -5,7 +5,7 @@ import {
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
-  normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine,
+  normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
   type AiMediaVideoEngine, type AiMediaImageEngine, type AiMediaVideoResolution,
 } from "./aiMediaModelCatalog.ts";
 export type { AiMediaVideoEngine, AiMediaImageEngine, AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
@@ -901,6 +901,15 @@ export function normalizeAiMediaGenerationRequest(
   ) {
     throw new AiMediaRequestValidationError(
       "Ajoutez une seule image source avant de lancer la modification."
+    );
+  }
+  if (kind === "image" && !isAiMediaImageModelCompatible({
+    engine: imageEngine,
+    operation,
+    inspirationImagesCount: inspirationImages.length,
+  })) {
+    throw new AiMediaRequestValidationError(
+      "Ce moteur image ne prend pas en charge cette opération ou ce nombre de références."
     );
   }
   const rawGenerationMode = cleanText(body.generationMode, 32);

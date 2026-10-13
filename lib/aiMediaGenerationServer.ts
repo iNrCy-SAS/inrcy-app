@@ -44,6 +44,7 @@ import {
   buildAiMediaImageProviderRequest,
   resolveAiMediaImageEditSize,
 } from "@/lib/aiMediaImageProviderRequest";
+import { assertAiMediaGatewayImageInputs } from "./aiMediaImageProviderGateway.ts";
 import {
   AiMediaNarrationTooLongError,
   composeOriginalAiVideo,
@@ -249,6 +250,8 @@ function cleanProviderMetadata(gateway: AiMediaGatewayResult) {
   return {
     provider: gateway.provider,
     model: gateway.model,
+    engine: gateway.engine || null,
+    upstream_provider: gateway.upstreamProvider || null,
     provider_media_type: gateway.mediaType,
     reference_images_count: gateway.referenceImagesCount,
     identity_reference_images_count: gateway.identityReferenceImagesCount,
@@ -382,6 +385,20 @@ export async function generateAndSaveAiMedia(args: {
     ...args.request,
     inspirationImages: preparedIdentityReferences.providerImages,
   };
+  if (providerRequest.kind === "image" &&
+    (providerRequest.imageEngine === "flux" || providerRequest.imageEngine === "grok" || providerRequest.imageEngine === "recraft")) {
+    // Refuser les incompatibilités avant toute préparation créative payante.
+    // Le logo officiel de ces moteurs est composé localement, hors références.
+    assertAiMediaGatewayImageInputs({
+      engine: providerRequest.imageEngine,
+      operation: providerRequest.operation,
+      referenceImagesCount: preparedIdentityReferences.buffers.length,
+      format: providerRequest.format,
+    });
+    if (!String(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "").trim()) {
+      throw new Error("ai_gateway_credentials_missing");
+    }
+  }
   if (providerRequest.kind === "video") {
     await measure("video_transport_preflight", () => preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal }));
   }
@@ -482,6 +499,9 @@ export async function generateAndSaveAiMedia(args: {
     providerRequest.operation === "modify" || providerRequest.logoMode === "none"
       ? null
       : brandKit.logo;
+  const localLogoOnlyComposition = providerRequest.kind === "image" &&
+    providerRequest.operation !== "modify" && Boolean(officialLogo) &&
+    (providerRequest.imageEngine === "flux" || providerRequest.imageEngine === "grok" || providerRequest.imageEngine === "recraft");
   const effectiveColors: [string, string, string] = isFreeCreation ? (freeBrandPolicy?.useBrandColors ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
@@ -491,16 +511,19 @@ export async function generateAndSaveAiMedia(args: {
         recentVariantKeys: await castingHistoryTask,
       })
     : null;
-  const prompt = buildAiMediaPrompt({
+  const compiledPrompt = buildAiMediaPrompt({
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
     brandColors: providerRequest.useBrandColors || freeBrandPolicy?.useBrandColors ? brandKit.colors : [],
-    hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition,
+    hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition && !localLogoOnlyComposition,
     deferVisibleElementsToComposer: useDeterministicImageComposition,
     copy: creativePlan,
     castingDirection: castingVariation?.direction,
   });
+  const prompt = localLogoOnlyComposition
+    ? `${compiledPrompt}\n\nLe logo officiel sera ajouté exactement par iNrStudio après la génération. Ne pas dessiner ni inventer de logo ; conserver une zone dégagée dans le coin supérieur droit. Conserver les autres textes explicitement demandés.`
+    : compiledPrompt;
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
   const imageGenerationSize = isFreeCreation ? getAiMediaFreeImageSize(providerRequest.format) : format.generationSize;
@@ -645,11 +668,13 @@ export async function generateAndSaveAiMedia(args: {
       accountId: args.accountId,
       prompt,
       operation: providerRequest.operation,
+      imageEngine: providerRequest.imageEngine || "openai",
+      format: providerRequest.format,
       creationMode: providerRequest.creationMode,
       identityMode: providerRequest.identityMode,
       identityReferences: preparedIdentityReferences.buffers,
       referenceRoles: preparedReferenceRoles,
-      officialLogo: useDeterministicImageComposition ? null : officialLogo,
+      officialLogo: useDeterministicImageComposition || localLogoOnlyComposition ? null : officialLogo,
       size: modificationCanvas
         ? resolveAiMediaImageEditSize(modificationCanvas)
         : imageGenerationSize,
@@ -801,6 +826,25 @@ export async function generateAndSaveAiMedia(args: {
           cause: error,
         });
       }
+    } else if (localLogoOnlyComposition) {
+      const imageScene = creativePlan.scenes[0];
+      if (!imageScene) throw new Error("ai_image_brand_scene_missing");
+      const composedBuffer = await measure("image_exact_logo_composition", () =>
+        composeAiMediaBrandedImage({
+          input: normalized.buffer,
+          width: format.width,
+          height: format.height,
+          scene: imageScene,
+          logo: officialLogo,
+          colors: effectiveColors,
+          companyName: creativePlan.companyName,
+          visualStyle: providerRequest.visualStyle,
+          logoMode: isFreeCreation ? "discreet" : providerRequest.logoMode,
+          imagePurpose: providerRequest.imagePurpose,
+          withText: false,
+        })
+      );
+      normalized = { ...normalized, buffer: composedBuffer };
     }
     args.signal?.throwIfAborted();
     model = gateway.model;
@@ -817,6 +861,7 @@ export async function generateAndSaveAiMedia(args: {
       exact_contact_composition_applied: exactContactCompositionApplied,
       deterministic_image_composition_applied:
         deterministicImageCompositionApplied,
+      local_logo_composition_applied: localLogoOnlyComposition,
       profile_phone_requested: profilePhoneDisplayRequested,
       profile_phone_applied: Boolean(profilePhone),
     };
@@ -2008,6 +2053,7 @@ export async function generateAndSaveAiMedia(args: {
           exact_contact_composition_applied: exactContactCompositionApplied,
           deterministic_image_composition_applied:
             deterministicImageCompositionApplied,
+          local_logo_composition_applied: localLogoOnlyComposition,
           profile_phone_display_requested: profilePhoneDisplayRequested,
           profile_phone_display_applied: Boolean(profilePhone),
           brand_palette_applied: providerRequest.useBrandColors

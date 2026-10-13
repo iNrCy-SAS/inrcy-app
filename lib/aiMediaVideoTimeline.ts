@@ -33,6 +33,29 @@ export function canGenerateAiMediaVideoDuration(
   catch { return false; }
 }
 
+export type AiMediaVideoDurationSceneOption = Readonly<{
+  durationSeconds: number;
+  sceneMode: AiMediaVideoSceneMode;
+  sceneCount: 1 | 2;
+}>;
+
+/** A displayed scene is one real provider clip, never a hidden second segment. */
+export function getAiMediaVideoDurationSceneOptions(
+  engine: AiMediaVideoEngine | null = "omni",
+  resolution?: AiMediaVideoResolution | null,
+): readonly AiMediaVideoDurationSceneOption[] {
+  const selected = engine || "omni";
+  const oneScene = getAiMediaVideoNativeDurations(selected, resolution)
+    .filter((duration) => duration >= 4 && duration <= 30)
+    .map((durationSeconds): AiMediaVideoDurationSceneOption => ({ durationSeconds, sceneMode: "single", sceneCount: 1 }));
+  const twoScenes = getAiMediaVideoDurations(selected, resolution, "multi")
+    .filter((duration) => duration >= 4 && duration <= 30)
+    .map((durationSeconds): AiMediaVideoDurationSceneOption => ({ durationSeconds, sceneMode: "multi", sceneCount: 2 }));
+  return Object.freeze([...oneScene, ...twoScenes]
+    .sort((first, second) => first.durationSeconds - second.durationSeconds || first.sceneCount - second.sceneCount)
+    .map((option) => Object.freeze(option)));
+}
+
 export function getAiMediaVideoSegmentCount(
   durationSeconds: number,
   engine: AiMediaVideoEngine | null = "omni",

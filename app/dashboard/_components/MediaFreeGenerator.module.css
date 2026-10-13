@@ -752,7 +752,7 @@
   .audioSection {
     grid-column: 1 / -1;
   }
-  .workspace[data-media-kind="image"] .formatFieldset {
+  .workspace .formatFieldset {
     grid-column: 1 / -1;
   }
   .panelHeading {

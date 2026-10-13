@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   AI_MEDIA_VIDEO_MODELS,
+  AI_MEDIA_IMAGE_MODELS,
+  AI_MEDIA_IMAGE_REFERENCE_MAX_PIXELS,
+  AI_MEDIA_FLUX_OUTPUT_MAX_PIXELS,
+  getAiMediaImageDimensions,
+  getAiMediaImageModel,
+  isAiMediaImageModelCompatible,
   getAiMediaVideoDurations,
   getAiMediaVideoModel,
   normalizeAiMediaVideoEngine,
 } from "../../lib/aiMediaModelCatalog.ts";
-import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd } from "../../lib/aiMediaCreditsPricing.ts";
-import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration } from "../../lib/aiMediaVideoTimeline.ts";
+import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd, estimateAiMediaImageSupplierCostMicroUsd } from "../../lib/aiMediaCreditsPricing.ts";
+import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
 test("Studio offers eight choices from four video families with distinct capabilities", () => {
   assert.equal(AI_MEDIA_VIDEO_MODELS.length, 8);
@@ -123,4 +129,75 @@ test("Libre video includes creative preparation and replaces it with the first-f
   assert.equal(quoteAiMediaCredits({ ...freeVideo, kind: "image" }).totalCredits, 7);
   assert.equal(quoteAiMediaCredits({ ...freeVideo, creationMode: "guided" }).totalCredits, 15);
   assert.equal(estimateAiMediaVideoSupplierCostMicroUsd(freeVideo), 150_000);
+});
+
+test("raster image models price actual input counts and refuse unsupported edits or references", () => {
+  assert.deepEqual(AI_MEDIA_IMAGE_MODELS.map((model) => model.id), ["openai", "gemini", "flux", "grok", "recraft"]);
+  assert.equal(getAiMediaImageModel("flux").modelId, "bfl/flux-2-pro");
+  assert.equal(getAiMediaImageModel("grok").maxReferenceImages, 3);
+  assert.deepEqual(AI_MEDIA_IMAGE_MODELS.map((model) => quoteAiMediaCredits({ kind: "image", imageEngine: model.id }).totalCredits), [7, 7, 5, 2, 4]);
+  assert.equal(quoteAiMediaCredits({ kind: "image", imageEngine: "flux", operation: "modify", inspirationImagesCount: 5 }).totalCredits, 15);
+  const editQuote = quoteAiMediaCredits({ kind: "image", imageEngine: "flux", operation: "modify", format: "portrait", inspirationImagesCount: 1 });
+  assert.equal(editQuote.imageDimensions, null);
+  assert.equal(editQuote.imageFormat, "portrait");
+  assert.equal(editQuote.totalCredits, 7);
+  assert.equal(quoteAiMediaCredits({ kind: "image", imageEngine: "grok", operation: "modify", inspirationImagesCount: 3 }).totalCredits, 5);
+  for (const input of [
+    { imageEngine: "recraft", inspirationImagesCount: 1 },
+    { imageEngine: "recraft", operation: "modify", inspirationImagesCount: 1 },
+    { imageEngine: "grok", inspirationImagesCount: 4 },
+    { imageEngine: "flux", operation: "modify", inspirationImagesCount: 0 },
+    { imageEngine: "flux", operation: "unpriced-operation" },
+    { imageEngine: "flux", format: "unpriced-canvas" },
+  ]) assert.throws(() => quoteAiMediaCredits({ kind: "image", ...input }));
+  assert.equal(isAiMediaImageModelCompatible({ engine: "recraft", operation: "generate" }), true);
+  assert.equal(isAiMediaImageModelCompatible({ engine: "recraft", operation: "modify", inspirationImagesCount: 1 }), false);
+});
+
+test("Flux quotes bind bounded format canvases while every format retains the conservative five-credit base", () => {
+  const expected = { square: [1024, 1024], portrait: [1024, 1280], story: [864, 1536], landscape: [1536, 864] } as const;
+  for (const [format, [width, height]] of Object.entries(expected)) {
+    const dimensions = getAiMediaImageDimensions("flux", format)!;
+    assert.deepEqual(dimensions, { width, height });
+    assert.equal(width % 16, 0); assert.equal(height % 16, 0);
+    assert.ok(width * height <= AI_MEDIA_FLUX_OUTPUT_MAX_PIXELS);
+    const quote = quoteAiMediaCredits({ kind: "image", imageEngine: "flux", format, inspirationImagesCount: 2 });
+    assert.equal(quote.totalCredits, 9); assert.equal(quote.imageFormat, format);
+    assert.deepEqual(quote.imageDimensions, dimensions);
+  }
+  assert.equal(AI_MEDIA_IMAGE_REFERENCE_MAX_PIXELS, 1_000_000);
+  assert.deepEqual(getAiMediaImageDimensions("recraft", "story"), { width: 768, height: 1344 });
+});
+
+test("supplier reservations stay distinct from image credit sale units and reject unknown cost paths", () => {
+  assert.equal(estimateAiMediaImageSupplierCostMicroUsd({ engine: "flux", referenceImagesCount: 5, format: "story" }), 120_000);
+  assert.equal(estimateAiMediaImageSupplierCostMicroUsd({ engine: "grok", referenceImagesCount: 3 }), 26_000);
+  assert.equal(estimateAiMediaImageSupplierCostMicroUsd({ engine: "recraft" }), 35_000);
+  assert.throws(() => estimateAiMediaImageSupplierCostMicroUsd({ engine: "recraft", referenceImagesCount: 1 }));
+  assert.throws(() => estimateAiMediaImageSupplierCostMicroUsd({ engine: "openai" }), /supplier_rate_missing/);
+});
+
+test("the duration-and-scenes dropdown labels only one native clip or two real native clips", () => {
+  const compact = (engine: Parameters<typeof getAiMediaVideoDurationSceneOptions>[0], resolution?: Parameters<typeof getAiMediaVideoDurationSceneOptions>[1]) =>
+    getAiMediaVideoDurationSceneOptions(engine, resolution).map((option) => `${option.durationSeconds}:${option.sceneCount}`);
+  const omni = compact("omni");
+  assert.ok(omni.includes("15:2") && omni.includes("20:2"));
+  assert.ok(!omni.includes("15:1") && !omni.includes("20:1"));
+  assert.ok(omni.includes("8:1") && omni.includes("8:2"));
+  const veo = compact("veo", "720p");
+  assert.ok(veo.includes("10:2") && !veo.includes("10:1"));
+  assert.ok(veo.includes("8:1") && veo.includes("8:2"));
+  assert.deepEqual(compact("veo", "1080p"), ["8:1", "16:2"]);
+  const wan = compact("wan3");
+  assert.ok(wan.includes("30:1") && wan.includes("30:2"));
+  for (const model of AI_MEDIA_VIDEO_MODELS) for (const resolution of model.resolutions) {
+    const options = getAiMediaVideoDurationSceneOptions(model.id, resolution);
+    assert.equal(new Set(options.map((option) => `${option.durationSeconds}:${option.sceneMode}`)).size, options.length);
+    for (const option of options) {
+      const segments = getAiMediaVideoSegmentDurations(option.durationSeconds, model.id, resolution, option.sceneMode);
+      assert.equal(segments.length, option.sceneCount);
+      assert.ok(option.durationSeconds >= 4 && option.durationSeconds <= 30);
+      assert.ok(segments.every((duration) => duration >= 4));
+    }
+  }
 });

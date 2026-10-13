@@ -1,8 +1,14 @@
 import {
+  getAiMediaImageDimensions,
+  getAiMediaImageModel,
+  isAiMediaImageModelCompatible,
+  normalizeAiMediaImageFormat,
   getAiMediaVideoModel,
   getAiMediaVideoResolution,
   normalizeAiMediaImageEngine,
   type AiMediaImageEngine,
+  type AiMediaImageFormat,
+  type AiMediaImageDimensions,
   type AiMediaVideoEngine,
   type AiMediaVideoResolution,
   type AiMediaVideoSceneMode,
@@ -10,12 +16,13 @@ import {
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 
 /** Commercial credit units, independent of supplier USD and credit pack prices. */
-export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-10-v2" as const;
+export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-10-v3" as const;
 export type AiMediaCreditsQuoteInput = {
   kind: string;
   operation?: string;
   creationMode?: string;
   imageEngine?: unknown;
+  format?: unknown;
   videoEngine?: unknown;
   durationSeconds?: number | null;
   videoResolution?: unknown;
@@ -36,6 +43,8 @@ export type AiMediaCreditsQuote = Readonly<{
   durationSeconds: number | null;
   resolution: AiMediaVideoResolution | null;
   sceneMode: AiMediaVideoSceneMode | null;
+  imageFormat: AiMediaImageFormat | null;
+  imageDimensions: AiMediaImageDimensions | null;
 }>;
 
 export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCreditsQuote {
@@ -47,16 +56,26 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   if (input.kind === "image") {
     const engine = normalizeAiMediaImageEngine(input.imageEngine ?? "openai");
     if (!engine) throw new Error("ai_media_image_engine_invalid");
-    const referenceCredits = references * 2;
+    const format = normalizeAiMediaImageFormat(input.format ?? "square");
+    if (!format) throw new Error("ai_media_image_format_invalid");
+    const model = getAiMediaImageModel(engine);
+    if (!isAiMediaImageModelCompatible({ engine, operation: input.operation, inspirationImagesCount: references })) {
+      throw new Error(input.operation === "modify" ? "ai_media_image_modification_unsupported" : "ai_media_image_references_unsupported");
+    }
+    const referenceCredits = references * model.referenceInputCredits;
     return {
       tariffVersion: AI_MEDIA_CREDIT_TARIFF_VERSION,
-      totalCredits: 7 + referenceCredits,
+      totalCredits: model.baseCredits + referenceCredits,
       breakdown: [
-        { key: "image", label: input.operation === "modify" ? "Modification d'image" : "Génération d'image", credits: 7 },
+        { key: "image", label: input.operation === "modify" ? "Modification d'image" : "Génération d'image", credits: model.baseCredits },
         ...(referenceCredits ? [{ key: "references", label: "Images de référence", credits: referenceCredits }] : []),
       ],
-      modelLabel: engine === "gemini" ? "Gemini Image" : "OpenAI Image",
+      modelLabel: model.label,
       engine, durationSeconds: null, resolution: null, sceneMode: null,
+      imageFormat: format,
+      // Editing preserves a custom source canvas, bounded by the provider's
+      // flat tariff. A preset must not be reported as its actual dimensions.
+      imageDimensions: input.operation === "modify" ? null : getAiMediaImageDimensions(engine, format),
     };
   }
   if (input.kind !== "video") throw new Error("ai_media_credit_kind_invalid");
@@ -90,7 +109,20 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
       ...(narrationCredits ? [{ key: "narration", label: "Voix off", credits: narrationCredits }] : []),
     ],
     modelLabel: model.label, engine: model.id, durationSeconds, resolution, sceneMode: input.sceneMode === "multi" ? "multi" : "single",
+    imageFormat: null, imageDimensions: null,
   };
+}
+
+/** Bounded upstream reservation only; commercial credits remain a separate tariff. */
+export function estimateAiMediaImageSupplierCostMicroUsd(input: { engine: unknown; referenceImagesCount?: number; format?: unknown; operation?: string }): number {
+  const model = getAiMediaImageModel(input.engine);
+  const references = input.referenceImagesCount ?? 0;
+  if (!isAiMediaImageModelCompatible({ engine: model.id, operation: input.operation, inspirationImagesCount: references })) {
+    throw new Error("ai_media_image_references_unsupported");
+  }
+  if (!normalizeAiMediaImageFormat(input.format ?? "square")) throw new Error("ai_media_image_format_invalid");
+  if (model.supplierBaseCostMicroUsd === null) throw new Error("ai_media_image_supplier_rate_missing");
+  return model.supplierBaseCostMicroUsd + references * model.supplierReferenceCostMicroUsd;
 }
 
 /** Conservative guard estimate only: never use this amount to debit Studio credits. */

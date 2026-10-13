@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
+import { normalizeAiMediaImageEngine, normalizeAiMediaVideoEngine, type AiMediaImageEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 
 type Preference = {
   videoEngine: AiMediaVideoEngine;
-  imageEngine: "openai" | "gemini";
+  imageEngine: AiMediaImageEngine;
   videoResolution: "720p" | "768p" | "1080p";
 };
 const DEFAULT: Preference = { videoEngine: "omni", imageEngine: "openai", videoResolution: "720p" };
@@ -21,7 +21,7 @@ export default function useMediaEnginePreference(accountId: string | null | unde
       const parsed = JSON.parse(localStorage.getItem(`inrcy:media-engines:v1:${accountId}`) || "null");
       if (parsed && typeof parsed === "object") next = {
         videoEngine: normalizeAiMediaVideoEngine(parsed.videoEngine) || "omni",
-        imageEngine: parsed.imageEngine === "gemini" ? "gemini" : "openai",
+        imageEngine: normalizeAiMediaImageEngine(parsed.imageEngine) ?? "openai",
         videoResolution: ["720p", "768p", "1080p"].includes(parsed.videoResolution) ? parsed.videoResolution : "720p",
       };
     } catch { /* The generator still works when browser storage is disabled. */ }

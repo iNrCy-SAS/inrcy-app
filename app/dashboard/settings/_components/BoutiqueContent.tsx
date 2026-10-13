@@ -16,7 +16,6 @@ import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { BOUTIQUE_PRODUCTS, boutiqueOrderPriceLabel, boutiqueSavingsPercent, type BoutiqueProduct } from "@/lib/boutique/products";
 import { VIDEO_CREDIT_PACKS } from "@/lib/boutique/videoCreditPacks";
-import { IMAGE_CREDIT_PACKS } from "@/lib/boutique/imageCreditPacks";
 import { detectClientBillingPlatform } from "@/lib/clientSubscriptionBilling";
 import { MediaCreditRechargeButton } from "@/app/dashboard/_components/VideoCreditRecharge";
 
@@ -39,7 +38,6 @@ type OrderRow = {
 const BOUTIQUE_TO = process.env.NEXT_PUBLIC_BOUTIQUE_EMAIL || "boutique@inrcy.com";
 const MEDIA_CREDIT_CARDS = [
   { mediaKind: "video", title: "video_credit_title", description: "video_credit_description", priceEurHt: VIDEO_CREDIT_PACKS[0].priceEurHt },
-  { mediaKind: "image", title: "image_credit_title", description: "image_credit_description", priceEurHt: IMAGE_CREDIT_PACKS[0].priceEurHt },
 ] as const;
 
 function formatDate(d: string, locale: string) {

@@ -93,6 +93,10 @@ function loadImageGatewayBoundaryRuntime() {
   }).outputText;
   const stubs = new Map<string, unknown>([
     ["server-only", {}],
+    ["./aiMediaImageProviderGateway.ts", {
+      generateAiMediaImageWithGatewayModel: () => { throw new Error("unexpected_new_image_engine_in_legacy_test"); },
+      assertAiMediaGatewayImageInputs: () => { throw new Error("unexpected_new_image_engine_in_legacy_test"); },
+    }],
     [
       "ai",
       {

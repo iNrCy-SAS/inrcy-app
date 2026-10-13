@@ -10,7 +10,7 @@ type Status = { ready: boolean; loading: boolean; quote: { totalCredits: number;
 function quota(accountId = "account-a", remaining = 500, creditsReady = true) {
   return { accountId, unlimited: false, creditsReady, credits: { unit: "credit", remaining, reserved: 0 } } as unknown as MediaGenerationQuota;
 }
-const input = (videoEngine = "omni"): MediaCreditQuoteInput => ({ kind: "video", operation: "generate", creationMode: "free", inputMode: "essential", identityMode: "auto", videoEngine: videoEngine as MediaCreditQuoteInput["videoEngine"], videoResolution: "720p", durationSeconds: 8, inspirationImagesCount: 0, withNarration: false, teamVideoSpeechMode: "voiceover" });
+const input = (videoEngine = "omni"): MediaCreditQuoteInput => ({ kind: "video", format: "story", operation: "generate", creationMode: "free", inputMode: "essential", identityMode: "auto", videoEngine: videoEngine as MediaCreditQuoteInput["videoEngine"], videoResolution: "720p", durationSeconds: 8, sceneMode: "single", inspirationImagesCount: 0, withNarration: false, teamVideoSpeechMode: "voiceover" });
 
 /** Execute the real hook with deterministic effects, deferred HTTP and account events. */
 function harness(initialInput = input(), initialQuota = quota()) {
@@ -118,4 +118,16 @@ test("an incompatible brief clears price and authorization until a fresh eligibl
   h.runTimers(); assert.equal(h.requests.length, 1);
   h.eligible(true); assert.equal(h.status().ready, false); h.runTimers(); h.respond(1, "account-a"); await h.flush();
   assert.equal(h.status().ready, true); assert.equal(h.status().quote?.quoteId, "account-a-1"); h.dispose();
+});
+
+test("changing image format requires a fresh quote even when the credit price stays the same", async () => {
+  const image: MediaCreditQuoteInput = { kind: "image", format: "square", operation: "generate", creationMode: "free", inputMode: "essential", identityMode: "auto", imageEngine: "flux", inspirationImagesCount: 0 };
+  const h = harness(image); h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 5);
+  h.update({ ...image, format: "portrait" });
+  assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
+  h.runTimers(); assert.equal(h.requests[1].input.format, "portrait");
+  h.respond(1, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 5);
+  assert.equal(h.status().quote?.quoteId, "account-a-1"); h.dispose();
 });

@@ -4,7 +4,29 @@
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
   | "wan-flash" | "wan3" | "grok-lite" | "grok";
-export type AiMediaImageEngine = "openai" | "gemini";
+export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
+export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
+export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
+export type AiMediaImageModel = Readonly<{
+  id: AiMediaImageEngine;
+  label: string;
+  provider: "openai" | "google" | "bfl" | "spacexai" | "recraft";
+  providerLabel: string;
+  transport: "existing" | "gateway-image";
+  modelId: string | null;
+  description: string;
+  baseCredits: number;
+  referenceInputCredits: number;
+  supportsReferences: boolean;
+  supportsModify: boolean;
+  maxReferenceImages: number;
+  supplierBaseCostMicroUsd: number | null;
+  supplierReferenceCostMicroUsd: number;
+}>;
+
+// Bounds deliberately use decimal megapixels: valid under either MP convention.
+export const AI_MEDIA_IMAGE_REFERENCE_MAX_PIXELS = 1_000_000;
+export const AI_MEDIA_FLUX_OUTPUT_MAX_PIXELS = 2_000_000;
 export type AiMediaVideoResolution = "720p" | "768p" | "1080p";
 export type AiMediaVideoSceneMode = "single" | "multi";
 export type AiMediaVideoModel = Readonly<{
@@ -112,10 +134,78 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
   },
 ].map((model) => Object.freeze(model)) as AiMediaVideoModel[]);
 
-export const AI_MEDIA_IMAGE_MODELS = Object.freeze([
-  { id: "openai" as const, label: "OpenAI Image", providerLabel: "OpenAI", baseCredits: 7 },
-  { id: "gemini" as const, label: "Gemini Image", providerLabel: "Google", baseCredits: 7 },
-]);
+export const AI_MEDIA_IMAGE_MODELS: readonly AiMediaImageModel[] = Object.freeze([
+  { id: "openai", label: "OpenAI Image", provider: "openai", providerLabel: "OpenAI", transport: "existing", modelId: null,
+    description: "Création et retouche, notamment pour les compositions avec texte précis.",
+    baseCredits: 7, referenceInputCredits: 2, supportsReferences: true, supportsModify: true, maxReferenceImages: 5,
+    supplierBaseCostMicroUsd: null, supplierReferenceCostMicroUsd: 0 },
+  { id: "gemini", label: "Gemini Image", provider: "google", providerLabel: "Google", transport: "existing", modelId: null,
+    description: "Création et retouche polyvalentes avec images de référence.",
+    baseCredits: 7, referenceInputCredits: 2, supportsReferences: true, supportsModify: true, maxReferenceImages: 5,
+    supplierBaseCostMicroUsd: null, supplierReferenceCostMicroUsd: 0 },
+  { id: "flux", label: "FLUX.2 Pro", provider: "bfl", providerLabel: "Black Forest Labs", transport: "gateway-image", modelId: "bfl/flux-2-pro",
+    description: "Photos de produits, couleurs de marque et retouche avec références, sortie bornée à 2 MP.",
+    baseCredits: 5, referenceInputCredits: 2, supportsReferences: true, supportsModify: true, maxReferenceImages: 5,
+    supplierBaseCostMicroUsd: 45_000, supplierReferenceCostMicroUsd: 15_000 },
+  { id: "grok", label: "Grok Imagine Image", provider: "spacexai", providerLabel: "Grok", transport: "gateway-image", modelId: "spacexai/grok-imagine-image",
+    description: "Création et retouche économiques avec au maximum trois images de référence.",
+    baseCredits: 2, referenceInputCredits: 1, supportsReferences: true, supportsModify: true, maxReferenceImages: 3,
+    supplierBaseCostMicroUsd: 20_000, supplierReferenceCostMicroUsd: 2_000 },
+  { id: "recraft", label: "Recraft V4.1", provider: "recraft", providerLabel: "Recraft", transport: "gateway-image", modelId: "recraft/recraft-v4.1",
+    description: "Illustrations et compositions graphiques raster, sans photo de référence ni retouche dans ce parcours.",
+    baseCredits: 4, referenceInputCredits: 0, supportsReferences: false, supportsModify: false, maxReferenceImages: 0,
+    supplierBaseCostMicroUsd: 35_000, supplierReferenceCostMicroUsd: 0 },
+].map((model) => Object.freeze(model)) as AiMediaImageModel[]);
+
+const FLUX_IMAGE_DIMENSIONS: Readonly<Record<AiMediaImageFormat, AiMediaImageDimensions>> = Object.freeze({
+  square: Object.freeze({ width: 1024, height: 1024 }),
+  portrait: Object.freeze({ width: 1024, height: 1280 }),
+  story: Object.freeze({ width: 864, height: 1536 }),
+  landscape: Object.freeze({ width: 1536, height: 864 }),
+});
+// Standard raster V4.1 sizes, not its separately priced Pro or SVG variants.
+const RECRAFT_IMAGE_DIMENSIONS: Readonly<Record<AiMediaImageFormat, AiMediaImageDimensions>> = Object.freeze({
+  square: Object.freeze({ width: 1024, height: 1024 }),
+  portrait: Object.freeze({ width: 896, height: 1152 }),
+  story: Object.freeze({ width: 768, height: 1344 }),
+  landscape: Object.freeze({ width: 1344, height: 768 }),
+});
+
+export function normalizeAiMediaImageFormat(value: unknown): AiMediaImageFormat | null {
+  return value === "square" || value === "portrait" || value === "story" || value === "landscape" ? value : null;
+}
+
+export function getAiMediaImageModel(engine: unknown): AiMediaImageModel {
+  const model = AI_MEDIA_IMAGE_MODELS.find((candidate) => candidate.id === normalizeAiMediaImageEngine(engine));
+  if (!model) throw new Error("ai_media_image_engine_invalid");
+  return model;
+}
+
+/** Shared fixed canvas for quote and transport; Grok specifies aspect ratio instead. */
+export function getAiMediaImageDimensions(engine: "flux" | "recraft", format?: unknown): AiMediaImageDimensions;
+export function getAiMediaImageDimensions(engine: unknown, format?: unknown): AiMediaImageDimensions | null;
+export function getAiMediaImageDimensions(engine: unknown, format: unknown = "square"): AiMediaImageDimensions | null {
+  const model = getAiMediaImageModel(engine);
+  const normalized = normalizeAiMediaImageFormat(format);
+  if (!normalized) throw new Error("ai_media_image_format_invalid");
+  return model.id === "flux" ? FLUX_IMAGE_DIMENSIONS[normalized]
+    : model.id === "recraft" ? RECRAFT_IMAGE_DIMENSIONS[normalized] : null;
+}
+
+export function getAiMediaImageBaseCredits(engine: unknown, format: unknown = "square"): number {
+  if (!normalizeAiMediaImageFormat(format)) throw new Error("ai_media_image_format_invalid");
+  return getAiMediaImageModel(engine).baseCredits;
+}
+
+export function isAiMediaImageModelCompatible(input: { engine: unknown; operation?: string; inspirationImagesCount?: number }): boolean {
+  const engine = normalizeAiMediaImageEngine(input.engine);
+  const references = input.inspirationImagesCount ?? 0;
+  if (!engine || !Number.isSafeInteger(references) || references < 0 ||
+    (input.operation !== undefined && input.operation !== "generate" && input.operation !== "modify")) return false;
+  const model = getAiMediaImageModel(engine);
+  return references <= model.maxReferenceImages && (!references || model.supportsReferences)
+    && (input.operation !== "modify" || (model.supportsModify && references > 0));
+}
 
 export function normalizeAiMediaVideoEngine(value: unknown): AiMediaVideoEngine | null {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -156,5 +246,5 @@ export function getAiMediaVideoDurations(engine: unknown, resolution?: unknown, 
 }
 
 export function normalizeAiMediaImageEngine(value: unknown): AiMediaImageEngine | null {
-  return value === "openai" || value === "gemini" ? value : null;
+  return value === "openai" || value === "gemini" || value === "flux" || value === "grok" || value === "recraft" ? value : null;
 }

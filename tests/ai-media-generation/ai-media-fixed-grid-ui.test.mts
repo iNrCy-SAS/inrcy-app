@@ -61,8 +61,9 @@ test("le desktop confortable aère les quatre blocs Image et Vidéo", () => {
   assert.match(styles, /\.mediaModeField\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(
     styles,
-    /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a;[\s\S]*?background-image:\s*url\([\s\S]*?background-position:\s*right 13px center;/,
+    /\.studioSelect(?:\s*,\s*\.durationAndScenes > div:first-child > select)?\s*\{[\s\S]*?background-color:\s*#10244a;[\s\S]*?background-image:\s*url\(/,
   );
+  assert.match(styles, /\.studioSelect(?:\s*,\s*\.durationAndScenes > div:first-child > select)?\s*\{[^}]*min-height:\s*42px;[^}]*background-position:\s*right 12px center;/);
   assert.match(styles, /\.finishCard\[data-media-kind="image"\]\s*\{[\s\S]*?minmax\(0, 1fr\)/);
   assert.match(styles, /\.finishCard\[data-media-kind="video"\]\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(

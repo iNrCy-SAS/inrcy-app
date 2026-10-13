@@ -5,6 +5,8 @@ import type { AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 
 export function createAiMediaServerQuote(accountId: string, input: AiMediaCreditsQuoteInput) {
   const quote = quoteAiMediaCredits(input);
+  // Image format and the fixed provider canvas are part of the quote identity,
+  // even when a bounded model has the same commercial price in every format.
   const quoteId = createHash("sha256").update(JSON.stringify({ accountId, ...quote })).digest("hex");
   return { ...quote, quoteId };
 }

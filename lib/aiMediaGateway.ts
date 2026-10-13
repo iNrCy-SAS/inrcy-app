@@ -18,7 +18,10 @@ import type {
   AiMediaIdentityMode,
   AiMediaInspirationImage,
   AiMediaOperation,
+  AiMediaOutputFormat,
 } from "@/lib/aiMediaGenerationContracts";
+import type { AiMediaImageEngine } from "./aiMediaModelCatalog.ts";
+import { generateAiMediaImageWithGatewayModel } from "./aiMediaImageProviderGateway.ts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
@@ -31,6 +34,8 @@ const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
 export type AiMediaGatewayResult = {
   kind: "image";
   provider: "vercel-ai-gateway" | "google-gemini-direct";
+  engine?: AiMediaImageEngine;
+  upstreamProvider?: string;
   model: string;
   buffer: Buffer;
   mediaType: string;
@@ -42,7 +47,7 @@ export type AiMediaGatewayResult = {
   usage: Record<string, unknown> | null;
 };
 
-type AiMediaImageProviderInput = {
+export type AiMediaImageProviderInput = {
   providedReferences: Buffer[];
   providedReferenceRoles: Array<
     Pick<AiMediaInspirationImage, "role" | "usage" | "characterIndex">
@@ -361,6 +366,8 @@ async function withEconomicGuard<T>(args: {
 export async function generateAiMediaImage(args: {
   accountId: string;
   prompt: string;
+  imageEngine?: AiMediaImageEngine;
+  format?: AiMediaOutputFormat;
   operation?: AiMediaOperation;
   creationMode?: AiMediaCreationMode;
   identityMode: AiMediaIdentityMode;
@@ -379,6 +386,14 @@ export async function generateAiMediaImage(args: {
   signal?: AbortSignal;
 }): Promise<AiMediaGatewayResult> {
   args.signal?.throwIfAborted();
+  if (args.imageEngine === "gemini") return generateAiMediaImageWithGoogle(args);
+  if (args.imageEngine === "flux" || args.imageEngine === "grok" || args.imageEngine === "recraft") {
+    if ((args.identityReferences || []).length > 5 || (args.identityReferences || []).some((buffer) => !buffer.byteLength)) throw new Error("ai_image_gateway_reference_count_unsupported");
+    const input = prepareImageProviderInput(args);
+    return generateAiMediaImageWithGatewayModel({ ...args, engine: args.imageEngine, input,
+      referenceRoleRules: buildImageReferenceRoleRules({ ...args, input }) });
+  }
+  if (args.imageEngine && args.imageEngine !== "openai") throw new Error("ai_image_gateway_engine_invalid");
   assertGatewayCredentials();
   const configuredModel = resolveImageModel();
   const input = prepareImageProviderInput(args);
@@ -451,6 +466,8 @@ export async function generateAiMediaImage(args: {
       return {
         kind: "image",
         provider: "vercel-ai-gateway",
+        engine: "openai",
+        upstreamProvider: providerModel.split("/")[0],
         model: providerModel,
         buffer: bufferFromUint8ArrayView(image.uint8Array),
         mediaType: image.mediaType || "image/png",
@@ -565,6 +582,8 @@ export async function generateAiMediaImageWithGoogle(args: {
       return {
         kind: "image",
         provider: "google-gemini-direct",
+        engine: "gemini",
+        upstreamProvider: "google",
         model,
         buffer,
         mediaType: interaction.output_image?.mime_type || "image/jpeg",

@@ -40,6 +40,7 @@ import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
 import MediaEngineCreditControls, { MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
+import { isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 
 import styles from "./MediaModifier.module.css";
 
@@ -207,10 +208,12 @@ export default function MediaModifier({
     discarding;
   const operationLocked = baseOperationLocked || voiceBusy;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
-  const creditQuote = useMediaCreditQuote({ kind: "image", operation: "modify", creationMode: "guided",
+  const sourceFormat = sourceImage ? closestFormat(sourceImage.width, sourceImage.height) : "square";
+  const imageEngineCompatible = isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "modify", inspirationImagesCount: sourceImage ? 1 : 0 });
+  const creditQuote = useMediaCreditQuote({ kind: "image", format: sourceFormat, operation: "modify", creationMode: "guided",
     inputMode: "essential", identityMode: "auto",
     imageEngine: enginePreference.imageEngine, inspirationImagesCount: sourceImage ? 1 : 0,
-  }, quota);
+  }, quota, imageEngineCompatible);
   const imageCounter = quota?.credits || null;
   const imageQuotaExhausted = quota?.unlimited
     ? false
@@ -363,7 +366,7 @@ export default function MediaModifier({
         // plus proche. Le chemin Modifier transporte aussi le canvas source
         // exact afin que le prompt et la normalisation ne le convertissent
         // jamais implicitement en 16:9.
-        format: closestFormat(sourceImage.width, sourceImage.height),
+        format: sourceFormat,
         modificationSourceWidth: sourceImage.width,
         modificationSourceHeight: sourceImage.height,
         imageStyle: "photo",
@@ -539,8 +542,8 @@ export default function MediaModifier({
   }
 
   const engineControls = (
-    <MediaEngineCreditControls kind="image" videoEngine={enginePreference.videoEngine}
-            recommendation={recommendAiMediaModel({ kind: "image", brief: instruction, language: locale, inspirationImagesCount: sourceImage ? 1 : 0, inputMode: "essential", identityMode: "auto" })}
+    <MediaEngineCreditControls kind="image" format={sourceFormat} operation="modify" videoEngine={enginePreference.videoEngine}
+            recommendation={recommendAiMediaModel({ kind: "image", format: sourceFormat, operation: "modify", brief: instruction, language: locale, inspirationImagesCount: sourceImage ? 1 : 0, inputMode: "essential", identityMode: "auto" })}
             imageEngine={enginePreference.imageEngine} resolution={enginePreference.videoResolution}
             referenceCount={sourceImage ? 1 : 0} disabled={operationLocked}
             onVideoEngineChange={() => {}}

@@ -3,12 +3,16 @@ import type {
   AiMediaIdentityMode,
   AiMediaInspirationImage,
   AiMediaOperation,
+  AiMediaOutputFormat,
 } from "@/lib/aiMediaGenerationContracts";
+import type { AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
 
 export type AiMediaImageProviderRequest = {
   accountId: string;
   prompt: string;
   operation?: AiMediaOperation;
+  imageEngine?: AiMediaImageEngine;
+  format?: AiMediaOutputFormat;
   creationMode?: AiMediaCreationMode;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];

@@ -99,3 +99,12 @@ test("image recommendations describe brief fit without implying a price differen
   }
   assert.equal(quoteAiMediaCredits({ kind: "image", imageEngine: "openai" }).totalCredits, quoteAiMediaCredits({ kind: "image", imageEngine: "gemini" }).totalCredits);
 });
+
+test("new image suggestions respect reference and operation capabilities without changing the selected engine", () => {
+  assert.equal(recommendAiMediaModel({kind:"image",brief:"Illustration graphique d'une boutique"})?.engine,"recraft");
+  assert.equal(recommendAiMediaModel({kind:"image",brief:"Packshot produit avec couleurs de marque",inspirationImagesCount:2})?.engine,"flux");
+  assert.equal(recommendAiMediaModel({kind:"image",brief:"Une image économique",inspirationImagesCount:3})?.engine,"grok");
+  assert.equal(recommendAiMediaModel({kind:"image",brief:"Une image économique",inspirationImagesCount:4})?.engine,"gemini");
+  assert.equal(recommendAiMediaModel({kind:"image",operation:"modify",brief:"Illustration graphique",inspirationImagesCount:1})?.engine,"gemini");
+  assert.equal(recommendAiMediaModel({kind:"image",operation:"modify",inspirationImagesCount:0}),null);
+});

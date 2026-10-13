@@ -6,6 +6,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 import ts from "typescript";
+import { getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
 import {
   AiMediaRequestValidationError,
@@ -246,7 +247,7 @@ test("Générer possède quatre blocs stables, dédiés à Image et à Vidéo", 
     "Sélection",
     "Création, format & identité visuelle",
     "Texte du visuel",
-    "Durée, scénario & identité visuelle",
+    "Format, réalisation & identité visuelle",
     "Texte, voix & son",
   ]) {
     assertGeneratorUsesLabel(title);
@@ -1231,8 +1232,19 @@ test("les anciens films gardent leur raccord et les nouvelles durées suivent le
     AiMediaRequestValidationError,
   );
   assert.match(generatorSource, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
-  assert.match(generatorSource, /<MediaVideoDurationSelect value=\{durationSeconds\}/);
-  assert.match(generatorSource, /\(\["single",\s*"multi"\]\s+as const\)/);
+  assert.match(generatorSource, /durationSeconds=\{durationSeconds\} sceneMode=\{videoSceneMode\} onDurationSceneChange=/);
+  assert.match(generatorSource, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
+  assert.doesNotMatch(generatorSource, /<MediaVideoDurationSelect|className=\{styles\.sceneModeChoices\}/);
+  const controls = readFileSync(path.join(ROOT, "app/dashboard/_components/MediaEngineCreditControls.tsx"), "utf8");
+  assert.match(controls, /getAiMediaVideoDurationSceneOptions\(props\.videoEngine, selectedResolution\)/);
+  assert.match(controls, /value=\{`\$\{duration\}:\$\{sceneMode\}`\}/);
+  assert.deepEqual(getAiMediaVideoDurationSceneOptions("omni", "720p").filter((option) => option.durationSeconds === 20), [
+    { durationSeconds: 20, sceneMode: "multi", sceneCount: 2 },
+  ]);
+  assert.deepEqual(getAiMediaVideoDurationSceneOptions("wan3", "720p").filter((option) => option.durationSeconds === 30), [
+    { durationSeconds: 30, sceneMode: "single", sceneCount: 1 },
+    { durationSeconds: 30, sceneMode: "multi", sceneCount: 2 },
+  ]);
 });
 
 test("le client sérialise les nouveaux contrats au lieu de les réduire aux anciens booléens", () => {

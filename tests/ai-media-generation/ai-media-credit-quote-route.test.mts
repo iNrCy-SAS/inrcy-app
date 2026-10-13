@@ -76,3 +76,13 @@ test("account duration restrictions return 403; the global admin has an unlimite
   assert.equal(adminResponse.status,200);assert.equal(body.credits.limit,null);assert.equal(body.credits.remaining,null);
   assert.equal(body.quote.totalCredits,15);assert.ok(!admin.calls.some(call=>call.type==="entitlement"));
 });
+
+test("same-priced image formats have distinct account-scoped quote identities", () => {
+  const square = quotes.createAiMediaServerQuote("account-a", {kind:"image",imageEngine:"flux",format:"square",inspirationImagesCount:1});
+  const story = quotes.createAiMediaServerQuote("account-a", {kind:"image",imageEngine:"flux",format:"story",inspirationImagesCount:1});
+  const other = quotes.createAiMediaServerQuote("account-b", {kind:"image",imageEngine:"flux",format:"square",inspirationImagesCount:1});
+  assert.equal(square.totalCredits, story.totalCredits);
+  assert.notEqual(square.quoteId, story.quoteId);
+  assert.notEqual(square.quoteId, other.quoteId);
+  assert.deepEqual(story.imageDimensions, {width:864,height:1536});
+});
