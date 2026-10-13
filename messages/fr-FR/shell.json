@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "Enregistrement…",
   "threads_publication_modes_saved": "Formats Threads enregistrés.",
   "threads_publication_modes_load_error": "Impossible de charger les formats Threads. Ghost reste indisponible.",
+  "threads_publication_modes_connection_required": "Connectez Threads pour configurer les formats de publication.",
   "threads_publication_modes_save_error": "Impossible d’enregistrer les formats Threads.",
   "threads_publication_modes_retry": "Réessayer"
 }

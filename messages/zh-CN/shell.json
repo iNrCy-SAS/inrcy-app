@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "正在保存…",
   "threads_publication_modes_saved": "Threads 格式已保存。",
   "threads_publication_modes_load_error": "无法加载 Threads 格式。Ghost 暂不可用。",
+  "threads_publication_modes_connection_required": "连接 Threads 以配置发布格式。",
   "threads_publication_modes_save_error": "无法保存 Threads 格式。",
   "threads_publication_modes_retry": "重试"
 }

@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "Saving…",
   "threads_publication_modes_saved": "Threads formats saved.",
   "threads_publication_modes_load_error": "Unable to load Threads formats. Ghost remains unavailable.",
+  "threads_publication_modes_connection_required": "Connect Threads to configure publication formats.",
   "threads_publication_modes_save_error": "Unable to save Threads formats.",
   "threads_publication_modes_retry": "Retry"
 }

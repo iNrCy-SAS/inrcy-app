@@ -105,6 +105,12 @@ export function useThreadsChannel({ initialState, panel, onConnectionChange }: {
       const response = await fetch("/api/integrations/threads/publication-preferences", { cache: "no-store", credentials: "include" });
       const data = await response.json().catch(() => null);
       if (!isCurrent()) return;
+      if (response.status === 409 && data?.code === "threads_connection_required") {
+        setPublicationPreferences(CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES);
+        setPreferencesAccountId(activeAccountId);
+        setPreferencesError(t("threads_publication_modes_connection_required"));
+        return;
+      }
       if (!response.ok || !data?.preferences) throw new Error("preferences_unavailable");
       setPublicationPreferences(normalizeThreadsPublicationPreferences(data.preferences));
       setPreferencesAccountId(activeAccountId);

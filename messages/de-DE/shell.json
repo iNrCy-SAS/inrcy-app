@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "Speichern…",
   "threads_publication_modes_saved": "Threads-Formate gespeichert.",
   "threads_publication_modes_load_error": "Threads-Formate konnten nicht geladen werden. Ghost bleibt nicht verfügbar.",
+  "threads_publication_modes_connection_required": "Verbinde Threads, um die Veröffentlichungsformate zu konfigurieren.",
   "threads_publication_modes_save_error": "Threads-Formate konnten nicht gespeichert werden.",
   "threads_publication_modes_retry": "Erneut versuchen"
 }

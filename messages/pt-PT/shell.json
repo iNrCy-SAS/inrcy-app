@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "A guardar…",
   "threads_publication_modes_saved": "Formatos do Threads guardados.",
   "threads_publication_modes_load_error": "Não foi possível carregar os formatos do Threads. Ghost continua indisponível.",
+  "threads_publication_modes_connection_required": "Ligue o Threads para configurar os formatos de publicação.",
   "threads_publication_modes_save_error": "Não foi possível guardar os formatos do Threads.",
   "threads_publication_modes_retry": "Tentar novamente"
 }

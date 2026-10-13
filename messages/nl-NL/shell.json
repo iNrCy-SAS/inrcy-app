@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "Opslaan…",
   "threads_publication_modes_saved": "Threads-formaten opgeslagen.",
   "threads_publication_modes_load_error": "Threads-formaten kunnen niet worden geladen. Ghost blijft niet beschikbaar.",
+  "threads_publication_modes_connection_required": "Verbind Threads om de publicatieformaten in te stellen.",
   "threads_publication_modes_save_error": "Threads-formaten kunnen niet worden opgeslagen.",
   "threads_publication_modes_retry": "Opnieuw proberen"
 }

@@ -619,6 +619,7 @@
   "threads_publication_modes_saving": "กำลังบันทึก…",
   "threads_publication_modes_saved": "บันทึกรูปแบบ Threads แล้ว",
   "threads_publication_modes_load_error": "โหลดรูปแบบ Threads ไม่ได้ Ghost ยังไม่พร้อมใช้งาน",
+  "threads_publication_modes_connection_required": "เชื่อมต่อ Threads เพื่อตั้งค่ารูปแบบการเผยแพร่",
   "threads_publication_modes_save_error": "บันทึกรูปแบบ Threads ไม่ได้",
   "threads_publication_modes_retry": "ลองอีกครั้ง"
 }
