@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import useMediaGeneration, {
   MediaGenerationAccountChangedError,
@@ -53,7 +53,8 @@ import {
 } from "@/lib/mediaGenerationReferenceClient";
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
-import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
+import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
+import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
@@ -294,6 +295,7 @@ export default function MediaGenerator({
 }: MediaGeneratorProps) {
   const t = useTranslations("media");
   const locale = useLocale();
+  const instanceId = useId();
   const transformMode = studioMode !== "generate";
   const normalizedPublicationBrief = String(publicationBrief || "").trim();
   const publicationAvailable = normalizedPublicationBrief.length >= 3;
@@ -305,9 +307,12 @@ export default function MediaGenerator({
     originChangedNotice,
     busy: generationBusy,
     cancellable: generationCancellable,
+    cancellationPending,
+    canRecover,
     quotaLoading,
     loadQuota,
     generate,
+    retryRecovery,
     cancelGeneration,
     acceptDraft,
     discardDraft,
@@ -377,6 +382,8 @@ export default function MediaGenerator({
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState("subject");
+  const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -385,6 +392,7 @@ export default function MediaGenerator({
   const appliedPreferencesEpochRef = useRef(-1);
   const clearedSensitiveStateEpochRef = useRef(0);
   const generationSequenceRef = useRef(0);
+  useEffect(() => () => { generationSequenceRef.current += 1; }, []);
   const initializedStudioModeRef = useRef<MediaGeneratorStudioMode | null>(
     null
   );
@@ -393,6 +401,7 @@ export default function MediaGenerator({
     identityReferenceSetIdRef.current = createIdentityReferenceSetId();
   }
   const acceptInFlightRef = useRef(false);
+  const recoveryInFlightRef = useRef(false);
   const busy = generationBusy || discarding;
   const operationLocked = busy || finishing || voiceBusy || inspirationBusy;
 
@@ -733,7 +742,7 @@ export default function MediaGenerator({
 
 
   const clearTransientState = () => {
-    reset();
+    if (!generationResult && !canRecover) reset();
     setActionError("");
     setSavingToLibrary(false);
   };
@@ -1099,6 +1108,7 @@ export default function MediaGenerator({
     const sequence = generationSequenceRef.current + 1;
     generationSequenceRef.current = sequence;
     setCreationScreen(true);
+    setActiveAttempt({ kind, format, durationSeconds });
     setCancelConfirmationOpen(false);
     setActionError("");
 
@@ -1106,6 +1116,7 @@ export default function MediaGenerator({
       setDiscarding(true);
       try {
         await discardDraft(generationResult);
+        if (sequence !== generationSequenceRef.current) return;
         onResultChange?.(null);
       } catch (caught) {
         if (sequence !== generationSequenceRef.current) {
@@ -1239,32 +1250,32 @@ export default function MediaGenerator({
   };
 
   const handleConfirmGenerationStop = () => {
-    generationSequenceRef.current += 1;
     setCancelConfirmationOpen(false);
     if (!cancelGeneration()) return;
     setActionError("");
     setCreationScreen(false);
   };
 
-  const handleEditCriteria = async () => {
+  const handleEditCriteria = () => {
     if (operationLocked) return;
+    setActiveSettingsTab("subject");
+    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-subject`)?.focus());
+  };
+
+  const handleRecoverResult = async () => {
+    if (!canRecover || operationLocked || recoveryInFlightRef.current) return;
+    recoveryInFlightRef.current = true;
+    const sequence = generationSequenceRef.current;
     setActionError("");
-    if (generationResult?.draft) {
-      setDiscarding(true);
-      try {
-        await discardDraft(generationResult);
-        onResultChange?.(null);
-      } catch (caught) {
-        setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error")
-        );
-        return;
-      } finally {
-        setDiscarding(false);
+    try {
+      await retryRecovery();
+    } catch (caught) {
+      if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError)) {
+        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
+    } finally {
+      if (sequence === generationSequenceRef.current) recoveryInFlightRef.current = false;
     }
-    clearTransientState();
-    setCreationScreen(false);
   };
 
   const handleConfirm = async () => {
@@ -1517,12 +1528,15 @@ export default function MediaGenerator({
               onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
   );
 
-  if (creationScreen) {
-    return (
+  const preview = (
       <MediaGenerationCreationWorkspace
-        kind={kind}
-        format={format}
-        durationSeconds={durationSeconds}
+        variant="embedded"
+        creationStarted={creationScreen}
+        generationInProgress={generationBusy}
+        cancellationPending={cancellationPending}
+        kind={generationBusy && activeAttempt ? activeAttempt.kind : kind}
+        format={generationBusy && activeAttempt ? activeAttempt.format : format}
+        durationSeconds={generationBusy && activeAttempt ? activeAttempt.durationSeconds : durationSeconds}
         origin={origin}
         progress={progress}
         operationLocked={operationLocked}
@@ -1547,7 +1561,6 @@ export default function MediaGenerator({
         originChangedNotice={originChangedNotice}
         identityTeam={effectiveIdentityMode === "reference_team"}
         referenceCinematicRequested={referenceCinematicRequested}
-        overlay={teamVideoConsentDialog}
         regenerationConsents={
           identityConsentRequired
             ? [{
@@ -1567,20 +1580,20 @@ export default function MediaGenerator({
             : undefined
         }
       />
-    );
-  }
+  );
   return (
-    <div className={styles.generator} data-origin={origin}>
+    <div className={styles.generator} data-origin={origin} data-layout="editor">
       {teamVideoConsentDialog}
-      <div
-        className={styles.essentialGrid}
-        data-testid="inr-studio-essential-grid"
-      >
+      <div className={editorStyles.editorBody}>
+        <div className={editorStyles.settingsPane}>
+          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "subject", label: t("ai_generator_redesign_subject_title") }, { id: "selection", label: t("ai_generator_redesign_selection_title") }, { id: "direction", label: t("ai_generator_editor_tab_style") }, { id: "finish", label: t(kind === "video" ? "ai_generator_editor_tab_text_voice" : "ai_generator_redesign_image_finish_title") }]} />
+          <div className={`${styles.essentialGrid} ${editorStyles.settingsPanels}`} data-testid="inr-studio-essential-grid">
         <section
           className={`${styles.essentialCard} ${styles.creationCard}`}
           data-media-kind={kind}
           data-subject-source={subjectSource}
           data-generator-block="subject"
+          role="tabpanel" id={`${instanceId}-panel-subject`} aria-labelledby={`${instanceId}-tab-subject`} hidden={activeSettingsTab !== "subject"}
         >
           <header className={styles.essentialCardHeader}>
             <span>1</span>
@@ -1702,6 +1715,7 @@ export default function MediaGenerator({
           data-source-mode={mediaSourceMode}
           data-character-count={effectiveCharacterCount}
           data-generator-block="selection"
+          role="tabpanel" id={`${instanceId}-panel-selection`} aria-labelledby={`${instanceId}-tab-selection`} hidden={activeSettingsTab !== "selection"}
         >
           <header className={styles.essentialCardHeader}>
             <span>2</span>
@@ -2067,6 +2081,7 @@ export default function MediaGenerator({
         <section
           className={`${styles.essentialCard} ${styles.messageCard} ${styles.directionCard}`}
           data-generator-block="direction"
+          role="tabpanel" id={`${instanceId}-panel-direction`} aria-labelledby={`${instanceId}-tab-direction`} hidden={activeSettingsTab !== "direction"}
           data-direction-layout="compact"
           data-media-kind={kind}
         >
@@ -2226,6 +2241,7 @@ export default function MediaGenerator({
           className={`${styles.essentialCard} ${styles.soundCard} ${styles.finishCard}`}
           data-media-kind={kind}
           data-generator-block="finish"
+          role="tabpanel" id={`${instanceId}-panel-finish`} aria-labelledby={`${instanceId}-tab-finish`} hidden={activeSettingsTab !== "finish"}
         >
           <header className={styles.essentialCardHeader}>
             <span>4</span>
@@ -2523,6 +2539,9 @@ export default function MediaGenerator({
           ) : null}
 
         </section>
+          </div>
+        </div>
+        <div className={editorStyles.previewPane}>{preview}</div>
       </div>
 
       <div className={styles.generatorAlerts} aria-live="polite">
@@ -2619,21 +2638,18 @@ export default function MediaGenerator({
           <button
             type="button"
             className={styles.generateButton}
-            disabled={disabled}
+            disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked : disabled}
+            title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
             aria-describedby={
               identityConsentMissing
                 ? "ai-media-footer-consent-status"
                 : undefined
             }
-            onClick={() => void handleGenerate()}
+            onClick={() => { if (generationBusy) handleRequestGenerationStop(); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
           >
-            <span aria-hidden="true">✦</span>
+            <span aria-hidden="true">{generationBusy ? "■" : generationResult ? "↻" : "✦"}</span>
             <strong>
-              {t(
-                kind === "image"
-                  ? "ai_generator_generate_image"
-                  : "ai_generator_generate_video"
-              )}
+              {t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : generationResult ? "ai_generator_regenerate" : kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}
             </strong>
           </button>
         </MediaGenerationActions>

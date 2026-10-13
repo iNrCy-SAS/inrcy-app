@@ -164,6 +164,16 @@ export async function getExistingGeneratedAiMedia(args: {
   return await toPickerItem(row);
 }
 
+/** Read-only recovery of a result, preserving its accepted/draft lifecycle. */
+export async function getExistingGeneratedAiMediaContext(args: {
+  accountId: string;
+  jobId: string;
+}) {
+  const row = await readRegistryRow(args.accountId, args.jobId);
+  if (!row || !isReplayableGeneratedMedia(row)) return null;
+  return { item: await toPickerItem(row), draft: isGeneratedDraft(row) };
+}
+
 /**
  * Vérification sans signature Storage, utilisable dans le chemin d'erreur.
  * Elle permet de ne jamais libérer un quota après une insertion réussie même

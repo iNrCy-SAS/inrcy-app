@@ -301,12 +301,31 @@ export async function generateAndSaveAiMedia(args: {
   /** Autorisation résolue avant réservation, contrôlée une seconde fois ici. */
   videoMaxDurationSeconds?: AiMediaVideoDurationLimit;
   signal?: AbortSignal;
+  /** Locks cancellation before the first potentially billable provider phase. */
+  onBillableWorkStarted?: () => void | Promise<void>;
 }): Promise<AiMediaGenerationServerResult> {
   const pipelineStartedAt = performance.now();
   const pipelineTimingsMs: Record<string, number> = {};
+  let billableWorkStartTask: Promise<void> | null = null;
+  const beginBillableWork = () => {
+    args.signal?.throwIfAborted();
+    billableWorkStartTask ??= Promise.resolve().then(async () => {
+      args.signal?.throwIfAborted();
+      await args.onBillableWorkStarted?.();
+      args.signal?.throwIfAborted();
+    });
+    return billableWorkStartTask;
+  };
+  const paidStages = new Set([
+    "free_creative_plan", "headline", "image_provider", "image_provider_google_fallback",
+    "native_voiceover_copy", "video_generation",
+  ]);
   const measure = async <T>(stage: string, action: () => Promise<T>) => {
     const startedAt = performance.now();
     try {
+      if (paidStages.has(stage) || stage.startsWith("narration_copy") || stage.startsWith("narration_audio")) {
+        await beginBillableWork();
+      }
       return await action();
     } finally {
       pipelineTimingsMs[stage] = roundedDurationMs(startedAt);

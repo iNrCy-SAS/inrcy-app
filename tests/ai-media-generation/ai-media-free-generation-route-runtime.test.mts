@@ -9,6 +9,7 @@ import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
+import * as generationTransport from "../../lib/aiMediaGenerationTransport.ts";
 
 const quoteOutput = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaCreditQuoteServer.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -28,9 +29,12 @@ type ReservationCall = {
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
 };
 
-function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean } = {}) {
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void> } = {}) {
   const reservationCalls: ReservationCall[] = [];
-  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string }> = [];
+  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal }> = [];
+  const lifetimes: Promise<unknown>[] = [];
+  let authenticationCalls = 0;
+  let paidCalls = 0;
   const completionCalls: unknown[] = [];
   const failureCalls: unknown[] = [];
   const completedRequests = new Map<string, { fingerprint: string; jobId: string }>();
@@ -43,7 +47,8 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
   class GuardUnavailableError extends Error {}
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
-    ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
+    ["next/server", { after: (task: Promise<unknown>) => { lifetimes.push(task); }, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
+    ["@/lib/aiMediaGenerationTransport", generationTransport],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
     ["@/lib/aiMediaGenerationContracts", contracts],
     ["@/lib/aiMediaCreditQuoteServer", quoteRecord.exports],
@@ -78,8 +83,13 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
     }],
     ["@/lib/aiUsageQuota", { isAdminUserForAi: async () => false }],
     ["@/lib/aiMediaGenerationServer", {
-      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string }) => {
+      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; onBillableWorkStarted?: () => void | Promise<void> }) => {
         generationCalls.push(args);
+        await options.preparation;
+        args.signal?.throwIfAborted();
+        await args.onBillableWorkStarted?.();
+        paidCalls += 1;
+        await options.work;
         if (options.providerError) throw options.providerError;
         if (options.providerFails) throw new Error("ai_image_provider_output_invalid");
         return { item, soundtrack: null, model: "mock-provider", videoEngineResult: null,
@@ -94,8 +104,12 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
     ["@/lib/dashboardEditionServer", { getDashboardEditionForAccountId: async () => "standard" }],
     ["@/lib/aiMediaVideoEntitlementServer", { getAiMediaVideoEntitlement: async () => ({ maxDurationSeconds: options.maximumDuration ?? 30 }) }],
     ["@/lib/multicompte/server", {
-      getCurrentInrcyAccountScope: async () => options.authenticated === false ? null : {
-        scope: { activeUserId: "active-account-test", authUserId: "actor-test" }, supabase: {},
+      getCurrentInrcyAccountScope: async () => {
+        authenticationCalls += 1;
+        await options.authentication;
+        return options.authenticated === false ? null : {
+          scope: { activeUserId: "active-account-test", authUserId: "actor-test" }, supabase: {},
+        };
       },
     }],
     ["@/lib/rateLimit", { enforceRateLimit: async () => null }],
@@ -109,9 +123,10 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
     return modules.get(specifier);
   }, { info() {}, warn() {}, error() {} });
   return {
-    reservationCalls, generationCalls, completionCalls, failureCalls,
-    post: (body: unknown) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes,
+    paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
+    post: (body: unknown, init: RequestInit = {}) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...init,
     })),
   };
 }
@@ -135,6 +150,116 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("a preparation stop while authentication is delayed cannot create a later reservation or paid call", async () => {
+  let releaseAuth!: () => void;
+  const route = loadRoute({ authentication: new Promise<void>((resolve) => { releaseAuth = resolve; }) });
+  const controller = new AbortController();
+  const task = route.post(body(), { signal: controller.signal, headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE } });
+  controller.abort(); releaseAuth();
+  const response = await generationTransport.readAiMediaGenerationResponse(await task, () => { assert.fail("An aborted preparation cannot lock billing"); });
+  assert.equal(response.status, 499); assert.equal(route.reservationCalls.length, 0); assert.equal(route.paidCalls(), 0); assert.equal(route.completionCalls.length, 0);
+});
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((finish) => { resolve = finish; });
+  return { promise, resolve };
+}
+const flush = async () => { for (let index = 0; index < 8; index++) await new Promise((resolve) => setImmediate(resolve)); };
+const streamHeaders = { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE };
+
+test("streaming emits the real paid-work lock before the result and authenticates once", async () => {
+  const work = deferred();
+  const route = loadRoute({ work: work.promise });
+  const response = await route.post(body(), { headers: streamHeaders });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") || "", /application\/x-ndjson/);
+  const reader = response.body!.getReader();
+  assert.deepEqual(JSON.parse(new TextDecoder().decode((await reader.read()).value)), { type: "billing_locked" });
+  await flush();
+  assert.equal(route.paidCalls(), 1);
+  assert.equal(route.completionCalls.length, 0);
+  work.resolve();
+  const result = JSON.parse(new TextDecoder().decode((await reader.read()).value));
+  assert.equal(result.type, "result"); assert.equal(result.status, 200); assert.equal(result.payload.ok, true);
+  assert.equal((await reader.read()).done, true);
+  assert.equal(route.authenticationCalls(), 1);
+  await Promise.all(route.lifetimes);
+  assert.equal(route.completionCalls.length, 1);
+});
+
+test("cancellation during preparation releases the reservation without a paid call", async () => {
+  const preparation = deferred();
+  const route = loadRoute({ preparation: preparation.promise });
+  const client = new AbortController();
+  const response = await route.post(body(), { headers: streamHeaders, signal: client.signal });
+  await flush();
+  assert.equal(route.generationCalls.length, 1);
+  client.abort(); preparation.resolve();
+  const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(events.length, 1); assert.equal(events[0].type, "result"); assert.equal(events[0].status, 499);
+  assert.equal(events[0].payload.code, "AI_MEDIA_GENERATION_CANCELLED");
+  assert.equal(route.paidCalls(), 0); assert.equal(route.failureCalls.length, 1); assert.equal(route.completionCalls.length, 0);
+});
+
+test("disconnect after the paid gate leaves one independent job to persist and finalize", async () => {
+  const work = deferred();
+  const route = loadRoute({ work: work.promise });
+  const client = new AbortController();
+  const response = await route.post(body(), { headers: streamHeaders, signal: client.signal });
+  const reader = response.body!.getReader();
+  assert.equal(JSON.parse(new TextDecoder().decode((await reader.read()).value)).type, "billing_locked");
+  client.abort(); await reader.cancel();
+  assert.equal(route.generationCalls[0].signal?.aborted, false);
+  work.resolve(); await Promise.all(route.lifetimes);
+  assert.equal(route.paidCalls(), 1); assert.equal(route.completionCalls.length, 1); assert.equal(route.failureCalls.length, 0);
+  const replay = await route.post(body());
+  assert.equal((await replay.json()).replayed, true); assert.equal(route.paidCalls(), 1);
+});
+
+test("a client stop before reading the billing frame cannot cancel the server job that already crossed its gate", async () => {
+  const work = deferred(); const route = loadRoute({ work: work.promise }); const client = new AbortController();
+  const response = await route.post(body(), { headers: streamHeaders, signal: client.signal });
+  await flush(); assert.equal(route.paidCalls(), 1);
+  // No body reader has received billing_locked yet: the server boundary alone
+  // decides whether the supplier execution remains cancellable.
+  client.abort(); assert.equal(route.generationCalls[0].signal?.aborted, false);
+  work.resolve(); await Promise.all(route.lifetimes);
+  const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(events[0].type, "billing_locked"); assert.equal(events[1].payload.ok, true);
+  assert.equal(route.completionCalls.length, 1); assert.equal(route.failureCalls.length, 0);
+  const replay = await route.post(body()); assert.equal((await replay.json()).replayed, true); assert.equal(route.paidCalls(), 1);
+});
+
+test("legacy JSON also detaches client abort after paid work while wrong Accept and unauthenticated responses keep JSON", async () => {
+  const work = deferred(); const route = loadRoute({ work: work.promise }); const client = new AbortController();
+  const responseTask = route.post(body(), { headers: { Accept: "application/json" }, signal: client.signal });
+  await flush(); assert.equal(route.paidCalls(), 1); client.abort(); work.resolve();
+  const response = await responseTask;
+  assert.equal(response.status, 200); assert.match(response.headers.get("content-type") || "", /application\/json/);
+  assert.equal(route.generationCalls[0].signal?.aborted, false);
+  for (const accept of ["application/json", "text/event-stream", "application/x-ndjson;q=0"]) {
+    const legacy = loadRoute(); const reply = await legacy.post(body(), { headers: { Accept: accept } });
+    assert.match(reply.headers.get("content-type") || "", /application\/json/); assert.equal((await reply.json()).ok, true);
+  }
+  const anonymous = loadRoute({ authenticated: false });
+  const denied = await anonymous.post(body(), { headers: streamHeaders });
+  assert.equal(denied.status, 401); assert.match(denied.headers.get("content-type") || "", /application\/json/);
+  assert.deepEqual(await denied.json(), { ok: false, code: "UNAUTHORIZED", error: "Non authentifié." });
+  assert.equal(anonymous.paidCalls(), 0); assert.equal(anonymous.reservationCalls.length, 0);
+});
+
+test("stream errors carry only the existing public message and preserve their HTTP status", async () => {
+  const route = loadRoute({ providerError: new Error("private failure https://provider.invalid/private-key diagnostics") });
+  const response = await route.post(body(), { headers: streamHeaders });
+  let locks = 0;
+  const result = await generationTransport.readAiMediaGenerationResponse(response, () => { locks += 1; });
+  assert.equal(locks, 1); assert.equal(result.status, 502); assert.equal(result.ok, false);
+  assert.equal((result.payload as { code: string }).code, "AI_MEDIA_GENERATION_FAILED");
+  assert.doesNotMatch(JSON.stringify(result.payload), /provider.invalid|private-key|diagnostics/);
+  assert.equal(route.failureCalls.length, 1);
 });
 
 test("un devis falsifié, périmé ou d'un autre compte bloque tout appel et tout débit", async () => {

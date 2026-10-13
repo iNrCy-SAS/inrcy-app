@@ -1,5 +1,16 @@
 export type InrStudioWorkspaceTab = "generate" | "modify" | "retouch";
 
+/** A publication handoff reuses its existing subject; ordinary Studio stays free. */
+export function getInrStudioInitialCreationMode(input: {
+  source: string;
+  origin: string;
+  publicationBrief?: string;
+  freeOnly?: boolean;
+}): "guided" | "free" {
+  return !input.freeOnly && (input.source === "booster" || input.origin === "booster")
+    && Boolean(input.publicationBrief?.trim()) ? "guided" : "free";
+}
+
 type InrStudioHandoffPolicyInput = {
   hasExternalHandoff: boolean;
   hasSourceMedia: boolean;

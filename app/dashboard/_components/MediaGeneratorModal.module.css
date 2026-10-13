@@ -1,10 +1,12 @@
 .layer {
+  --studio-viewport-gutter: clamp(12px, 0.9vw, 20px);
   position: fixed;
   inset: 0;
   z-index: 2147483002;
   display: grid;
   place-items: center;
-  padding: clamp(10px, 1.6vw, 24px);
+  box-sizing: border-box;
+  padding: var(--studio-viewport-gutter);
   isolation: isolate;
   pointer-events: auto;
 }
@@ -32,8 +34,10 @@
   position: relative;
   z-index: 1;
   pointer-events: auto;
-  width: min(1600px, 100%);
-  height: calc(100dvh - clamp(20px, 3.2vw, 48px));
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: calc(100dvh - 2 * var(--studio-viewport-gutter));
   max-height: 980px;
   overflow: auto;
   overscroll-behavior: contain;
@@ -84,7 +88,7 @@
     );
   align-items: center;
   gap: 16px;
-  padding: 9px clamp(14px, 2vw, 30px);
+  padding: 9px clamp(14px, 0.9vw, 20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.075);
   background: radial-gradient(
       circle at 8% 50%,
@@ -370,7 +374,7 @@
 .body {
   min-height: calc(100% - 73px);
   box-sizing: border-box;
-  padding: 12px clamp(12px, 3vw, 42px) 28px;
+  padding: 12px clamp(12px, 0.9vw, 20px) 16px;
 }
 
 .generationWorkspace {
@@ -712,7 +716,7 @@
   .header {
     min-height: 68px;
     gap: 13px;
-    padding: 9px clamp(18px, 2.4vw, 36px);
+    padding: 9px clamp(14px, 0.9vw, 20px);
   }
 
   .heading h2 {
@@ -730,7 +734,7 @@
   }
 
   .body {
-    padding: 12px clamp(18px, 3vw, 44px) 30px;
+    padding: 12px clamp(12px, 0.9vw, 20px) 16px;
   }
 
   .closeConfirmDialog {
@@ -860,7 +864,7 @@
 
 @media (min-width: 901px) and (max-width: 1279px) {
   .dialog[data-studio-tab="generate"] .header {
-    grid-template-columns: minmax(100px, 1fr) minmax(0, 640px) minmax(130px, 1fr);
+    grid-template-columns: minmax(100px, 1fr) minmax(0, 640px) minmax(210px, 1fr);
     gap: 10px;
   }
 
@@ -880,7 +884,11 @@
 }
 
 @media (min-width: 621px) and (max-width: 900px) {
-  .dialog[data-studio-tab="generate"] .heading {
+  .header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .heading {
     grid-column: 1 / -1;
     grid-row: 2;
     max-width: none;

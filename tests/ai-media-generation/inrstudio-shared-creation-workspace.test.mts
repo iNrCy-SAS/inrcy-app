@@ -64,6 +64,7 @@ const modules = new Map<string, unknown>([
   ["@/lib/aiMediaVideoTimeline", videoTimeline],
   ["@/lib/aiMediaVideoClientOptions", videoOptions],
   ["./MediaGenerator.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
+  ["./MediaGenerationCreationWorkspace.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
   ["./MediaEngineCreditControls.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
 ]);
 // The real shared action wrapper is a presentation dependency, not a request
@@ -82,11 +83,12 @@ const output = ts.transpileModule(source, {
   fileName: componentPath,
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
-const record = { exports: {} as { default: (props: Props) => Element } };
-new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
+const record = { exports: {} as { default: (props: Props) => Element; MediaGenerationSettingsTabs: (props: Props) => Element } };
+const focusedElements: string[] = [];
+new Function("module", "exports", "require", "document", output)(record, record.exports, (specifier: string) => {
   assert.ok(modules.has(specifier), `Unexpected presentation dependency: ${specifier}`);
   return modules.get(specifier);
-});
+}, { getElementById: (id: string) => ({ focus: () => focusedElements.push(id) }) });
 
 function render(overrides: Props = {}) {
   return record.exports.default({
@@ -109,7 +111,7 @@ function mediaResult(kind: "image" | "video", width = 1080, height = 1920) {
 test("Libre et Guidé utilisent une seule présentation sans y déplacer leurs requêtes", () => {
   for (const name of ["MediaGenerator", "MediaFreeGenerator"]) {
     const parent = read(`app/dashboard/_components/${name}.tsx`);
-    assert.match(parent, /import MediaGenerationCreationWorkspace from "\.\/MediaGenerationCreationWorkspace"/);
+    assert.ok(/import MediaGenerationCreationWorkspace(?:,\s*\{[^}]*\})? from "\.\/MediaGenerationCreationWorkspace"/u.test(parent), `${name} imports the shared presentation`);
     assert.match(parent, /<MediaGenerationCreationWorkspace/);
     assert.doesNotMatch(parent, /className=\{styles\.(?:progressPanel|reviewWorkspace|creationProgress|resultPanel)\}/);
   }
@@ -304,4 +306,69 @@ test("sans personne de référence, aucune autorisation vide n'est ajoutée à l
       assert.equal(elements(tree).some((node) => node.type === "fieldset" || node.type === "input"), false);
     }
   }
+});
+
+test("l’aperçu permanent reste vide avant le premier essai sans transformer un upload ou la voix en génération", () => {
+  for (const creationStarted of [false, true]) {
+    const tree = render({ variant: "embedded", creationStarted, generationInProgress: false, operationLocked: true });
+    assert.equal(tree.props["data-media-creation-stage"], "idle");
+    assert.match(text(tree), /ai_generator_editor_preview_hint/);
+    assert.equal(elements(tree).some((node) => node.props.className === "creationProgress" || node.props.className === "creationErrorPanel" || node.type === "video" || node.type === "img" || node.type === "button"), false);
+  }
+});
+
+test("la progression intégrée conserve son pourcentage et laisse Stop ainsi que le devis au seul footer", () => {
+  const tree = render({ variant: "embedded", creationStarted: true, generationInProgress: true, operationLocked: true, generationCancellable: true, progress: 57,
+    engineControls: "CONTROLES_FOOTER", creditSummary: "DEVIS_FOOTER", regenerationConsents: [{ id: "identity", label: "CONSENT_FOOTER", checked: false, onChange() {} }] });
+  assert.equal(tree.props["data-media-creation-stage"], "progress");
+  assert.equal(text(find(tree, (node) => node.type === "strong")), "57 %");
+  assert.equal(elements(tree).some((node) => node.type === "button" || node.type === "fieldset"), false);
+  assert.doesNotMatch(text(tree), /CONTROLES_FOOTER|DEVIS_FOOTER|CONSENT_FOOTER/);
+});
+
+test("le résultat intégré conserve son type et son format pendant l’édition des prochains réglages", () => {
+  const actions: string[] = [];
+  const result = mediaResult("video", 1920, 1080);
+  const tree = render({ variant: "embedded", creationStarted: true, generationInProgress: false,
+    kind: "image", format: "square", generationResult: result, acceptMode: "insert", disabled: true,
+    handleConfirm() { actions.push("insert"); }, handleSaveToLibrary() { actions.push("save"); },
+    handleGenerate() { actions.push("paid-generation"); }, handleEditCriteria() { actions.push("focus-settings"); },
+    engineControls: "CONTROLES_FOOTER", creditSummary: "DEVIS_FOOTER" });
+  assert.equal(tree.props["data-media-kind"], "video");
+  assert.equal(tree.props["data-media-creation-stage"], "result");
+  assert.match(text(tree), /ai_generator_video_ready_title/);
+  assert.equal(byClass(tree, "previewFrame").props["data-format"], "landscape");
+  assert.equal(find(tree, (node) => node.type === "video").props.src, result.item.signed_url);
+  assert.equal(elements(byClass(tree, "resultActions")).filter((node) => node.type === "button").length, 3);
+  assert.doesNotMatch(text(tree), /ai_generator_regenerate|CONTROLES_FOOTER|DEVIS_FOOTER/);
+  click(button(tree, "ai_generator_edit_criteria"));
+  click(button(tree, "ai_generator_open_library"));
+  click(button(tree, "ai_generator_confirm_insert"));
+  assert.deepEqual(actions, ["focus-settings", "save", "insert"]);
+});
+
+test("une erreur intégrée affiche le message utile sans dupliquer le bouton payant ni effacer les paramètres", () => {
+  const actions: string[] = [];
+  const tree = render({ variant: "embedded", creationStarted: true, generationInProgress: false, error: "Le moteur est indisponible",
+    handleGenerate() { actions.push("paid-generation"); }, handleEditCriteria() { actions.push("focus-settings"); } });
+  assert.equal(tree.props["data-media-creation-stage"], "error");
+  assert.match(text(tree), /Le moteur est indisponible/);
+  assert.equal(elements(tree).filter((node) => node.type === "button").length, 1);
+  click(button(tree, "ai_generator_edit_criteria"));
+  assert.deepEqual(actions, ["focus-settings"]);
+});
+
+test("les onglets de réglage ne font que sélectionner un panneau et gardent une navigation clavier accessible", () => {
+  const selected: string[] = [];
+  const tree = record.exports.MediaGenerationSettingsTabs({ idPrefix: "free-image", activeTab: "criteria",
+    tabs: [{ id: "criteria", label: "Critères" }, { id: "prompt", label: "Prompt" }], onChange: (id: string) => selected.push(id) });
+  assert.equal(tree.props.role, "tablist");
+  const criteria = button(tree, "Critères"); const prompt = button(tree, "Prompt");
+  assert.equal(criteria.props.type, "button"); assert.equal(criteria.props["aria-selected"], true); assert.equal(criteria.props.tabIndex, 0);
+  assert.equal(prompt.props["aria-controls"], "free-image-panel-prompt"); assert.equal(prompt.props.tabIndex, -1);
+  click(prompt); assert.deepEqual(selected, ["prompt"]);
+  let prevented = false;
+  (criteria.props.onKeyDown as (event: { key: string; preventDefault: () => void }) => void)({ key: "ArrowRight", preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, true); assert.deepEqual(selected, ["prompt", "prompt"]);
+  assert.equal(focusedElements.at(-1), "free-image-tab-prompt");
 });

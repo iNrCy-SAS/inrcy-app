@@ -4,6 +4,8 @@ import test from "node:test";
 
 import ts from "typescript";
 import * as mediaModels from "../../lib/aiMediaModelCatalog.ts";
+import * as mediaTransport from "../../lib/aiMediaGenerationTransport.ts";
+import * as mediaRecovery from "../../lib/aiMediaGenerationRecovery.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import {
@@ -74,6 +76,8 @@ function hookRuntime() {
       return { shouldConnectAiMediaVideoScenes };
     }
     if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
+    if (specifier === "@/lib/aiMediaGenerationTransport") return mediaTransport;
+    if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;
     throw new Error(`Unexpected runtime dependency: ${specifier}`);
   };
   const fixtureFetch = async (url: string, options: RequestInit) => {
@@ -82,12 +86,13 @@ function hookRuntime() {
     assert.equal(options.credentials, "include");
     assert.equal(typeof options.body, "string");
     requests.push(JSON.parse(options.body as string));
-    // Keep the request pending so that we can verify real idempotent retries.
+    // This fixture validates serialization and then ends the attempt. Pending
+    // paid-job recovery is verified separately through the real GET protocol.
     return new Response(JSON.stringify({
       ok: false,
-      code: "AI_MEDIA_GENERATION_IN_PROGRESS",
-      message: "Fixture generation pending",
-    }), { status: 409, headers: { "content-type": "application/json" } });
+      code: "AI_MEDIA_REQUEST_INVALID",
+      message: "Fixture serialization validated",
+    }), { status: 422, headers: { "content-type": "application/json" } });
   };
   new Function("module", "exports", "require", "fetch", output)(
     moduleRecord, moduleRecord.exports, runtimeRequire, fixtureFetch,
@@ -173,13 +178,13 @@ test("le raccord fait partie de l'empreinte idempotente du client", () => {
   );
 });
 
-test("le vrai payload transmet le mode et son changement crée une nouvelle tentative", async () => {
+test("le vrai payload transmet le mode et chaque tentative terminée possède son identifiant", async () => {
   const { runtime, requests } = hookRuntime();
   const hook = runtime.default();
   for (const sceneMode of ["multi", "multi", "single", "single", "multi"] as const) {
     await assert.rejects(
       hook.generate(clientRequest({ sceneMode })),
-      { message: "Fixture generation pending" },
+      { message: "Fixture serialization validated" },
     );
   }
   assert.deepEqual(requests.map((body) => body.connectScenes), [false, false, true, true, false]);
@@ -188,10 +193,8 @@ test("le vrai payload transmet le mode et son changement crée une nouvelle tent
     assert.equal(body.durationSeconds, 16);
     assert.equal(typeof body.requestId, "string");
   }
-  assert.equal(requests[0]!.requestId, requests[1]!.requestId, "retry identique rejoué sans double génération");
-  assert.notEqual(requests[1]!.requestId, requests[2]!.requestId, "cocher le raccord change la requête");
-  assert.equal(requests[2]!.requestId, requests[3]!.requestId, "retry du raccord conserve sa tentative");
-  assert.notEqual(requests[3]!.requestId, requests[4]!.requestId, "décocher le raccord change aussi la requête");
+  assert.equal(new Set(requests.map((body) => body.requestId)).size, requests.length,
+    "une demande terminée ne conserve pas une tentative encore en attente");
 });
 
 test("payload et empreinte utilisent la même applicabilité pour les options sans effet", async () => {
@@ -217,7 +220,7 @@ test("payload et empreinte utilisent la même applicabilité pour les options sa
     const key = runtime.fingerprintForTest(request, request.idea);
     assert.equal(JSON.parse(key).connectScenes, false);
     assert.equal(key, runtime.fingerprintForTest({ ...request, connectScenes: false }, request.idea));
-    await assert.rejects(hook.generate(request), { message: "Fixture generation pending" });
+    await assert.rejects(hook.generate(request), { message: "Fixture serialization validated" });
     const body = requests.at(-1)!;
     assert.equal(body.connectScenes, false);
     assert.equal(normalizeAiMediaGenerationRequest(body).connectScenes, false);

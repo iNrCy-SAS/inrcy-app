@@ -12,6 +12,7 @@ import { resolveAiMediaPreviewFormat } from "@/lib/aiMediaGenerationContracts";
 import { AI_MEDIA_VIDEO_MODELS } from "@/lib/aiMediaModelCatalog";
 import { MediaGenerationActions } from "./MediaEngineCreditControls";
 import styles from "./MediaGenerator.module.css";
+import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 
 type RegenerationConsent = {
   id: string;
@@ -21,6 +22,10 @@ type RegenerationConsent = {
 };
 
 type Props = {
+  variant?: "full" | "embedded";
+  creationStarted?: boolean;
+  generationInProgress?: boolean;
+  cancellationPending?: boolean;
   kind: MediaGenerationKind;
   format: MediaGenerationFormat;
   durationSeconds: number;
@@ -53,6 +58,18 @@ type Props = {
   creditSummary?: ReactNode;
   engineControls?: ReactNode;
 };
+
+export function MediaGenerationSettingsTabs({ idPrefix, tabs, activeTab, onChange }: { idPrefix: string; tabs: readonly { id: string; label: string }[]; activeTab: string; onChange: (id: string) => void }) {
+  const t = useTranslations("media");
+  return <div className={editorStyles.tabs} role="tablist" aria-label={t("ai_generator_editor_settings_label")}>
+    {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`${idPrefix}-tab-${tab.id}`} aria-controls={`${idPrefix}-panel-${tab.id}`} aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={(event) => {
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length : null;
+      if (next === null) return;
+      event.preventDefault(); onChange(tabs[next].id);
+      document.getElementById(`${idPrefix}-tab-${tabs[next].id}`)?.focus();
+    }}>{tab.label}</button>)}
+  </div>;
+}
 
 const FORMATS: Array<{ id: MediaGenerationFormat; ratio: string }> = [
   { id: "square", ratio: "1:1" },
@@ -90,6 +107,10 @@ function RegenerationAuthorization({
 
 /** Presentation only: both creation paths retain their own requests and lifecycle. */
 export default function MediaGenerationCreationWorkspace({
+  variant = "full",
+  creationStarted = true,
+  generationInProgress,
+  cancellationPending = false,
   kind,
   format,
   durationSeconds,
@@ -124,6 +145,9 @@ export default function MediaGenerationCreationWorkspace({
 }: Props) {
   const t = useTranslations("media");
   const instanceId = useId();
+  const embedded = variant === "embedded";
+  const rendering = generationInProgress ?? operationLocked;
+  const previewKind = generationResult?.item.media_type ?? kind;
   const resultPreviewFormat = generationResult
     ? resolveAiMediaPreviewFormat({
         width: generationResult.item.width,
@@ -165,12 +189,12 @@ export default function MediaGenerationCreationWorkspace({
 
   return (
     <div
-      className={styles.creationWorkspace}
+      className={embedded ? `${styles.creationWorkspace} ${editorStyles.embedded}` : styles.creationWorkspace}
       data-origin={origin}
-      data-media-kind={kind}
+      data-media-kind={previewKind}
       data-creation-mode={creationMode}
       data-media-creation-stage={
-        generationResult ? "result" : operationLocked ? "progress" : "error"
+        generationResult ? "result" : rendering ? "progress" : creationStarted && (actionError || error || !embedded) ? "error" : "idle"
       }
     >
       <div className={styles.creationBackdrop} aria-hidden="true">
@@ -181,7 +205,14 @@ export default function MediaGenerationCreationWorkspace({
 
       {overlay}
 
-      {operationLocked && !generationResult ? (
+      {!generationResult && !rendering && (!creationStarted || (embedded && !actionError && !error)) ? <div className={editorStyles.idle}>
+        <span className={editorStyles.idleIcon} aria-hidden="true">✦</span>
+        <p className={styles.creationEyebrow}>iNr’Studio</p>
+        <h3>{t("ai_generator_editor_preview_title")}</h3>
+        <p>{t("ai_generator_editor_preview_hint")}</p>
+      </div> : null}
+
+      {rendering && !generationResult ? (
         <div
           className={styles.creationProgress}
           role="status"
@@ -193,7 +224,7 @@ export default function MediaGenerationCreationWorkspace({
           <p className={styles.creationEyebrow}>
             {t("ai_generator_creation_eyebrow")}
           </p>
-          <h3>{progressLabel}</h3>
+          <h3>{cancellationPending ? t("ai_generator_editor_stop_pending") : progressLabel}</h3>
           <p>
             {t(
               creationMode === "free"
@@ -212,7 +243,7 @@ export default function MediaGenerationCreationWorkspace({
           <strong>{progress} %</strong>
           <small>{t("ai_generator_keep_open")}</small>
           <div className={styles.stopGenerationSlot}>
-            {generationCancellable ? (
+            {generationCancellable && !embedded ? (
               <button
                 type="button"
                 className={styles.stopGenerationButton}
@@ -265,13 +296,13 @@ export default function MediaGenerationCreationWorkspace({
       ) : null}
 
       {generationResult ? (
-        <div className={styles.reviewWorkspace}>
-          <div className={styles.reviewHeading}>
+        <div className={styles.reviewWorkspace} data-media-review>
+          <div className={styles.reviewHeading} data-media-review-heading>
             <div>
               <p>{t("ai_generator_ready")}</p>
               <h3>
                 {t(
-                  kind === "video"
+                  previewKind === "video"
                     ? "ai_generator_video_ready_title"
                     : "ai_generator_image_ready_title"
                 )}
@@ -284,7 +315,7 @@ export default function MediaGenerationCreationWorkspace({
                     ?.ratio
                 }
               </span>
-              {kind === "video" && generationResult.videoEngineResult ? (
+              {previewKind === "video" && generationResult.videoEngineResult ? (
                 <span
                   className={styles.engineResultBadge}
                   data-fallback={generationResult.videoEngineResult.includes(
@@ -298,7 +329,7 @@ export default function MediaGenerationCreationWorkspace({
               ) : null}
             </div>
           </div>
-          <div className={styles.previewViewport}>
+          <div className={styles.previewViewport} data-media-preview>
             <div
               className={styles.previewFrame}
               data-format={resultPreviewFormat}
@@ -341,17 +372,17 @@ export default function MediaGenerationCreationWorkspace({
               )}
             </div>
           </div>
-          <div className={styles.savedStatus} role="status">
+          <div className={styles.savedStatus} role="status" data-media-saved-status>
             <span aria-hidden="true">✓</span>
             {resultSavedToLibrary
               ? t("ai_generator_saved_to_library")
               : t("ai_generator_saved_automatically")}
           </div>
-          <div className={styles.resultActions}>
-            <RegenerationAuthorization
+          <div className={styles.resultActions} data-media-result-actions>
+            {!embedded ? <RegenerationAuthorization
               consents={regenerationConsents}
               disabled={operationLocked}
-            />
+            /> : null}
             <button
               type="button"
               className={styles.confirmButton}
@@ -384,7 +415,7 @@ export default function MediaGenerationCreationWorkspace({
                   : t("ai_generator_open_library")}
               </button>
             ) : null}
-            <MediaGenerationActions>
+            {!embedded ? <MediaGenerationActions>
             {engineControls}
             {creditSummary}
             <button
@@ -395,7 +426,7 @@ export default function MediaGenerationCreationWorkspace({
             >
               ↻ {t("ai_generator_regenerate")}
             </button>
-            </MediaGenerationActions>
+            </MediaGenerationActions> : null}
             <button
               type="button"
               className={styles.editButton}
@@ -408,17 +439,17 @@ export default function MediaGenerationCreationWorkspace({
         </div>
       ) : null}
 
-      {!operationLocked && !generationResult ? (
+      {!rendering && !generationResult && creationStarted && (!embedded || Boolean(actionError || error)) ? (
         <div className={styles.creationErrorPanel}>
           <span aria-hidden="true">!</span>
           <h3>{t("ai_generator_creation_failed_title")}</h3>
           <p>{actionError || error || t("ai_generator_error")}</p>
-          <RegenerationAuthorization
+          {!embedded ? <RegenerationAuthorization
             consents={regenerationConsents}
             disabled={operationLocked}
-          />
+          /> : null}
           <div>
-            <MediaGenerationActions>
+            {!embedded ? <MediaGenerationActions>
             {engineControls}
             {creditSummary}
             <button
@@ -428,7 +459,7 @@ export default function MediaGenerationCreationWorkspace({
             >
               {t("ai_generator_retry")}
             </button>
-            </MediaGenerationActions>
+            </MediaGenerationActions> : null}
             <button type="button" onClick={() => void handleEditCriteria()}>
               {editLabel || t("ai_generator_edit_criteria")}
             </button>

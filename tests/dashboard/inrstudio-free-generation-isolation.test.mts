@@ -45,6 +45,15 @@ function resultContext() {
   return {
     events, sequence, operationInFlight, result,
     operationLocked: false,
+    instanceId: "free-test",
+    setActiveSettingsTab: (value: string) => { events.push(`tab:${value}`); },
+    setActiveAttempt: () => { events.push("attempt-snapshot"); },
+    window: { requestAnimationFrame(callback: () => void) { callback(); } },
+    document: { getElementById(id: string) { return { focus() { events.push(`focus:${id}`); } }; } },
+    creditQuote: { authorization: { expectedCredits: 160, creditTariffVersion: "test", creditQuoteId: "confirmed" } },
+    enginePreference: { videoEngine: "omni", imageEngine: "openai" },
+    videoResolution: "720p",
+    videoModel: { provider: "google" },
     setCreationScreen: (value: boolean) => { events.push(`creation:${value}`); },
     setFinishing: (value: boolean) => { events.push(`finishing:${value}`); },
     setSavingToLibrary: (value: boolean) => { events.push(`saving:${value}`); },
@@ -111,27 +120,24 @@ test("une erreur de validation obsolète ne pollue pas la nouvelle session", asy
   assert.deepEqual(context.events, []);
 });
 
-test("une suppression de brouillon en retard ne réinitialise pas un nouveau formulaire", async () => {
+test("éditer après un résultat conserve le brouillon et n'engage aucune génération", async () => {
   const context = resultContext();
-  const pending = deferred<void>();
-  const run = handler("handleEdit", { ...context, discardDraft: () => pending.promise });
-  const request = run();
-  context.sequence.current += 1;
-  context.events.length = 0;
-  pending.resolve();
-  await request;
-  assert.deepEqual(context.events, []);
+  const run = handler("handleEdit", { ...context,
+    discardDraft: () => assert.fail("Changer d'onglet ne doit pas supprimer le média"),
+    generate: () => assert.fail("Changer d'onglet ne doit pas lancer la génération"),
+  });
+  await run();
+  assert.deepEqual(context.events, ["tab:prompt", "focus:free-test-prompt"]);
+  assert.equal(context.result.item.id, "draft-for-account-a");
+  assert.equal(context.operationInFlight.current, false);
 });
 
-test("modifier le prompt retourne au formulaire seulement après suppression réussie du brouillon", async () => {
+test("éditer le prompt pendant une opération verrouillée ne change ni onglet ni résultat", async () => {
   const context = resultContext();
-  const pending = deferred<void>();
-  const run = handler("handleEdit", { ...context, discardDraft: () => pending.promise });
-  const request = run();
-  assert.equal(context.events.includes("creation:false"), false);
-  pending.resolve();
-  await request;
-  assert.deepEqual(context.events, ["finishing:true", "error:", "reset", "creation:false", "finishing:false"]);
+  const run = handler("handleEdit", { ...context, operationLocked: true });
+  await run();
+  assert.deepEqual(context.events, []);
+  assert.equal(context.result.item.id, "draft-for-account-a");
   assert.equal(context.operationInFlight.current, false);
 });
 
@@ -146,6 +152,31 @@ test("un arrêt refusé pendant finalisation ne masque pas l'écran partagé", a
     await run();
     assert.deepEqual(context.events, cancelled ? ["stop-dialog:false", "error:", "creation:false"] : ["stop-dialog:false"]);
   }
+});
+
+test("récupérer Libre ne dépend pas d'un devis et ne supprime ni ne régénère le média", async () => {
+  const context = resultContext();
+  const run = handler("handleRecoverResult", {
+    ...context, canRecover: true, canGenerate: false,
+    retryRecovery: async () => { context.events.push("recover-existing-request"); return context.result; },
+    generate: () => assert.fail("La récupération ne doit pas générer"),
+    discardDraft: () => assert.fail("La récupération ne doit pas supprimer"),
+  });
+  await run();
+  assert.deepEqual(context.events, ["error:", "recover-existing-request"]);
+  assert.equal(context.operationInFlight.current, false);
+});
+
+test("une récupération Libre devenue obsolète ne modifie pas le nouveau compte", async () => {
+  const context = resultContext();
+  const pending = deferred<typeof context.result>();
+  const run = handler("handleRecoverResult", { ...context, canRecover: true, retryRecovery: () => pending.promise });
+  const request = run();
+  context.sequence.current += 1;
+  context.events.length = 0;
+  pending.reject(new Error("Ancienne récupération"));
+  await request;
+  assert.deepEqual(context.events, []);
 });
 
 test("le double clic Accepter ne promeut le média et ne rappelle le parent qu’une fois", async () => {

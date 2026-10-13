@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import {
   AiGatewayAccountLimitError,
@@ -43,6 +43,10 @@ import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { assertAiMediaCreditQuote, quoteAiMediaRequest } from "@/lib/aiMediaCreditQuoteServer";
 import type { AiMediaGenerationServerResult } from "@/lib/aiMediaGenerationServer";
+import {
+  AI_MEDIA_GENERATION_STREAM_TYPE, acceptsAiMediaGenerationStream, createAiMediaBillingGate,
+  type AiMediaGenerationEvent,
+} from "@/lib/aiMediaGenerationTransport";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -588,7 +592,13 @@ function assertDraftContractVersion(value: unknown): Record<string, unknown> {
   return body;
 }
 
-export async function POST(request: Request) {
+type GenerationExecutionOptions = {
+  current: NonNullable<Awaited<ReturnType<typeof getCurrentInrcyAccountScope>>>;
+  signal: AbortSignal;
+  onBillingStarted: () => void | Promise<void>;
+};
+
+async function executeGenerate(request: Request, options: GenerationExecutionOptions) {
   const routeStartedAt = performance.now();
   const context: RouteContext = {
     accountId: "",
@@ -608,17 +618,10 @@ export async function POST(request: Request) {
   let adminUnlimited = false;
 
   try {
-    const current = await getCurrentInrcyAccountScope();
-    if (!current) {
-      return jsonError({
-        status: 401,
-        code: "UNAUTHORIZED",
-        message: "Non authentifié.",
-      });
-    }
-
+    const current = options.current;
     context.accountId = current.scope.activeUserId;
     context.authUserId = current.scope.authUserId;
+    options.signal.throwIfAborted();
     // Ces trois lectures sont indépendantes. Les lancer ensemble supprime deux
     // allers-retours séquentiels avant même l'appel au moteur image ou vidéo.
     const [resolvedAdminUnlimited, rateLimited, edition] = await Promise.all([
@@ -692,6 +695,7 @@ export async function POST(request: Request) {
     if (!wallet.creditsReady) {
       return jsonError({ status: 503, code: "AI_MEDIA_CREDITS_NOT_READY", message: "Le portefeuille de crédits média doit être activé avant la génération." });
     }
+    options.signal.throwIfAborted();
     const reservation = await reserveAiMediaGeneration({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
@@ -887,7 +891,8 @@ export async function POST(request: Request) {
       edition: accountEdition || undefined,
       request: normalizedRequest,
       videoMaxDurationSeconds,
-      signal: request.signal,
+      signal: options.signal,
+      onBillableWorkStarted: options.onBillingStarted,
     });
     mediaPersisted = true;
     persistedMediaId = generated.item.id;
@@ -1084,4 +1089,53 @@ export async function POST(request: Request) {
     }));
     return publicGenerationError(error);
   }
+}
+
+export async function POST(request: Request) {
+  // Authentication is resolved once, before any stream headers. Unauthorized
+  // callers keep the same 401 JSON contract, regardless of their Accept header.
+  let current: Awaited<ReturnType<typeof getCurrentInrcyAccountScope>>;
+  try { current = await getCurrentInrcyAccountScope(); }
+  catch (error) { return publicGenerationError(error); }
+  if (!current) return jsonError({ status: 401, code: "UNAUTHORIZED", message: "Non authentifié." });
+  if (!acceptsAiMediaGenerationStream(request.headers.get("accept"))) {
+    const gate = createAiMediaBillingGate(request.signal);
+    const execution = executeGenerate(request, { current, signal: gate.signal, onBillingStarted: () => gate.lock() });
+    // The same paid job is allowed to finalize after a client disconnect.
+    after(execution.then(() => undefined));
+    try { return await execution; }
+    finally { gate.dispose(); }
+  }
+
+  let connected = true;
+  let streamController: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const emit = (event: AiMediaGenerationEvent) => {
+    if (!connected) return;
+    try { streamController.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)); }
+    catch { connected = false; }
+  };
+  const gate = createAiMediaBillingGate(request.signal, () => emit({ type: "billing_locked" }));
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) { streamController = controller; },
+    cancel() { connected = false; gate.disconnect(); },
+  });
+  const execution = executeGenerate(request, { current, signal: gate.signal, onBillingStarted: () => gate.lock() })
+    .then(async (response) => {
+      const payload: unknown = await response.json();
+      emit({ type: "result", status: response.status, payload });
+    })
+    .catch(async (error) => {
+      const response = publicGenerationError(error);
+      emit({ type: "result", status: response.status, payload: await response.json() });
+    })
+    .finally(() => {
+      gate.dispose();
+      if (connected) { connected = false; streamController.close(); }
+    });
+  after(execution);
+  return new Response(stream, { headers: {
+    ...NO_STORE_HEADERS, "Content-Type": `${AI_MEDIA_GENERATION_STREAM_TYPE}; charset=utf-8`,
+    "X-Content-Type-Options": "nosniff",
+  } });
 }

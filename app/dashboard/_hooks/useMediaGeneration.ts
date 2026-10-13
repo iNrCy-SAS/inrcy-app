@@ -11,6 +11,11 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
 import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine, type AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
+import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
+import {
+  clearAiMediaGenerationRecovery, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
+  type AiMediaGenerationRecoveryPointer,
+} from "@/lib/aiMediaGenerationRecovery";
 
 export type MediaGenerationKind = "image" | "video";
 export type MediaGenerationOperation = "generate" | "modify";
@@ -311,6 +316,9 @@ const COMPLETION_RAMP_MAX_MS = 700;
 const COMPLETION_99_HOLD_MS = 120;
 const COMPLETION_100_HOLD_MS = 250;
 const DRAFT_ACCEPT_RETRY_DELAYS_MS = [0, 450, 1_200] as const;
+const GENERATION_RECOVERY_POLL_MS = 2_000;
+const GENERATION_RECOVERY_MAX_CHECKS = 420;
+const GENERATION_RECOVERY_MAX_MISSING_CHECKS = 8;
 
 function interpolateProgress(
   elapsedSeconds: number,
@@ -659,6 +667,19 @@ function waitForDraftAcceptanceRetry(delayMs: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
 }
 
+function recoveryStorage() {
+  try { return window.sessionStorage || null; } catch { return null; }
+}
+
+function recoveryRequest(pointer: AiMediaGenerationRecoveryPointer): MediaGenerationRequest {
+  // This scaffold is for result presentation only and is never sent by POST.
+  return {
+    kind: pointer.kind, format: pointer.format, source: "studio", subjectSource: "custom",
+    idea: "Récupération du média", textKeywords: [], imageStyle: "photo", peopleMode: "auto",
+    useBrandColors: false, logoMode: "none",
+  };
+}
+
 function isRetryableDraftAcceptanceStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
@@ -699,6 +720,8 @@ export default function useMediaGeneration() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<MediaGenerationResult | null>(null);
   const [cancellable, setCancellable] = useState(false);
+  const [cancellationPending, setCancellationPending] = useState(false);
+  const [canRecover, setCanRecover] = useState(false);
   const [originChangedNotice, setOriginChangedNotice] = useState(false);
   const quotaRef = useRef<MediaGenerationQuota | null>(null);
   const resultRef = useRef<MediaGenerationResult | null>(null);
@@ -711,9 +734,18 @@ export default function useMediaGeneration() {
     key: string;
     requestId: string;
   } | null>(null);
+  const pendingRecoveryRef = useRef<{
+    requestId: string;
+    epoch: number;
+    run: () => Promise<MediaGenerationResult>;
+  } | null>(null);
   const generationAbortRef = useRef<{
     controller: AbortController;
     requestId: string;
+    billingLocked: boolean;
+    cancelRequested: boolean;
+    recovering: boolean;
+    recoveryController: AbortController | null;
   } | null>(null);
   const quotaRequestRef = useRef<{
     epoch: number;
@@ -725,8 +757,10 @@ export default function useMediaGeneration() {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      generationAbortRef.current?.controller.abort();
+      generationAbortRef.current?.recoveryController?.abort();
+      if (!generationAbortRef.current?.billingLocked) generationAbortRef.current?.controller.abort();
       generationAbortRef.current = null;
+      pendingRecoveryRef.current = null;
     };
   }, []);
 
@@ -826,7 +860,8 @@ export default function useMediaGeneration() {
 
   useEffect(() => {
     const handleActiveAccountChange = () => {
-      generationAbortRef.current?.controller.abort();
+      generationAbortRef.current?.recoveryController?.abort();
+      if (!generationAbortRef.current?.billingLocked) generationAbortRef.current?.controller.abort();
       generationAbortRef.current = null;
       const previousResult = resultRef.current;
       if (previousResult?.draft) {
@@ -840,11 +875,14 @@ export default function useMediaGeneration() {
       quotaRef.current = null;
       resultRef.current = null;
       pendingGenerationAttemptRef.current = null;
+      pendingRecoveryRef.current = null;
       setQuota(null);
       setResult(null);
       setError("");
       setOriginChangedNotice(false);
       setCancellable(false);
+      setCancellationPending(false);
+      setCanRecover(false);
       completionStartedRef.current = false;
       progressRef.current = 0;
       setProgress(0);
@@ -863,8 +901,11 @@ export default function useMediaGeneration() {
       );
   }, [loadQuota]);
 
-  const generate = useCallback(
-    async (request: MediaGenerationRequest) => {
+  const executeGeneration = useCallback(
+    async (request: MediaGenerationRequest, recoveryPointer?: AiMediaGenerationRecoveryPointer): Promise<MediaGenerationResult> => {
+      if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
+      if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
+      if (pendingRecoveryRef.current && !recoveryPointer) throw new Error("Récupérez le résultat de la tentative précédente avant de générer un autre média.");
       if (request.creationMode === "free") {
         const freePrompt = String(request.freePrompt || "").trim();
         if (freePrompt.length < 3 || freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
@@ -895,9 +936,11 @@ export default function useMediaGeneration() {
       const attemptKey = buildGenerationAttemptKey(request, idea);
       const previousAttempt = pendingGenerationAttemptRef.current;
       const requestId =
-        previousAttempt?.key === attemptKey
+        recoveryPointer?.requestId || (previousAttempt?.key === attemptKey
           ? previousAttempt.requestId
-          : createRequestId();
+          : createRequestId());
+      const originAccountId = quotaRef.current?.accountId || "";
+      writeAiMediaGenerationRecovery(recoveryStorage(), originAccountId, { requestId, kind: request.kind, format: request.format });
       pendingGenerationAttemptRef.current = { key: attemptKey, requestId };
       const clearCurrentAttempt = () => {
         if (
@@ -906,12 +949,17 @@ export default function useMediaGeneration() {
         ) {
           pendingGenerationAttemptRef.current = null;
         }
+        if (pendingRecoveryRef.current?.requestId === requestId) pendingRecoveryRef.current = null;
+        clearAiMediaGenerationRecovery(recoveryStorage(), originAccountId, requestId);
+        if (mountedRef.current) setCanRecover(false);
       };
 
       const requestEpoch = accountEpochRef.current;
-      generationAbortRef.current?.controller.abort();
       const controller = new AbortController();
-      const activeGeneration = { controller, requestId };
+      const activeGeneration = {
+        controller, requestId, billingLocked: Boolean(recoveryPointer), cancelRequested: false,
+        recovering: Boolean(recoveryPointer), recoveryController: null as AbortController | null,
+      };
       generationAbortRef.current = activeGeneration;
       generationKindRef.current = request.kind;
       completionStartedRef.current = false;
@@ -921,14 +969,261 @@ export default function useMediaGeneration() {
       setError("");
       setResult(null);
       setOriginChangedNotice(false);
-      setCancellable(true);
+      setCancellable(!recoveryPointer);
+      setCancellationPending(false);
 
-      try {
+      const recoverExistingAttempt = async () => {
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) throw new MediaGenerationAccountChangedError();
+        activeGeneration.billingLocked = true;
+        activeGeneration.recovering = true;
+        setCancellable(false);
+        const recoveryController = new AbortController();
+        activeGeneration.recoveryController = recoveryController;
+        let missingChecks = 0;
+        let unavailableChecks = 0;
+        for (let check = 0; check < GENERATION_RECOVERY_MAX_CHECKS; check += 1) {
+          if (!mountedRef.current || requestEpoch !== accountEpochRef.current || generationAbortRef.current !== activeGeneration) throw new MediaGenerationAccountChangedError();
+          try {
+            const response = await fetch(`/api/media-generation/status?requestId=${encodeURIComponent(requestId)}`, {
+              method: "GET", credentials: "include", cache: "no-store", signal: recoveryController.signal,
+            });
+            const payload = await readJson(response);
+            const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : null;
+            if (!mountedRef.current || requestEpoch !== accountEpochRef.current) throw new MediaGenerationAccountChangedError();
+            if (response.ok && data?.ok === true && data.status === "completed" && data.item && typeof data.item === "object") {
+              const recoveredQuota = await loadQuota({ force: true });
+              return { ok: true, status: 200, payload: recoveredQuota ? { ...data, quota: recoveredQuota } : data };
+            }
+            if (response.ok && data?.ok === true && (data.status === "failed" || data.status === "expired")) {
+              clearCurrentAttempt();
+              void loadQuota({ force: true });
+              if (activeGeneration.cancelRequested) throw new MediaGenerationCancelledError();
+              return { ok: false, status: 502, payload: { ok: false, error: "La génération n’a pas abouti. Vous pouvez réessayer." } };
+            }
+            if (response.status === 404 && data?.status === "missing") {
+              missingChecks += 1;
+              unavailableChecks = 0;
+              if (missingChecks >= GENERATION_RECOVERY_MAX_MISSING_CHECKS) break;
+            } else if (response.status === 202 && data?.status === "processing") {
+              missingChecks = 0;
+              unavailableChecks = 0;
+            } else if (response.status === 410 && data?.status === "completed") {
+              clearCurrentAttempt();
+              return { ok: false, status: 410, payload: { ok: false, error: "Le média enregistré n’est plus disponible." } };
+            } else {
+              unavailableChecks += 1;
+              if (unavailableChecks >= GENERATION_RECOVERY_MAX_MISSING_CHECKS) break;
+            }
+          } catch (caught) {
+            if (caught instanceof MediaGenerationAccountChangedError || caught instanceof MediaGenerationCancelledError) throw caught;
+            if (recoveryController.signal.aborted || !mountedRef.current || requestEpoch !== accountEpochRef.current) throw new MediaGenerationAccountChangedError();
+            unavailableChecks += 1;
+            if (unavailableChecks >= GENERATION_RECOVERY_MAX_MISSING_CHECKS) break;
+          }
+          await waitForDraftAcceptanceRetry(GENERATION_RECOVERY_POLL_MS);
+        }
+        // A missing job or disconnected response never proves a free stop.
+        // Keep the same request ID; recovery performs no generation POST.
+        throw new Error("La génération n’a pas encore pu être vérifiée. Son identifiant est conservé pour récupérer le même média.");
+      };
+
+      const finishGeneration = async (publicResponse: Awaited<ReturnType<typeof readAiMediaGenerationResponse>>) => {
+        activeGeneration.billingLocked = true;
+        if (generationAbortRef.current === activeGeneration) setCancellable(false);
+        const payload = publicResponse.payload;
+        if (!publicResponse.ok) {
+          if (publicResponse.status === 429) {
+            const responseQuota =
+              payload && typeof payload === "object" && "quota" in payload
+                ? (payload as { quota?: unknown }).quota
+                : null;
+            if (
+              responseQuota &&
+              typeof responseQuota === "object" &&
+              mountedRef.current &&
+              requestEpoch === accountEpochRef.current
+            ) {
+              const normalizedQuota = normalizeQuota(responseQuota);
+              quotaRef.current = normalizedQuota;
+              setQuota(normalizedQuota);
+            }
+            // Confirm the authoritative counter even when an older server did
+            // not include it in the 429 response.
+            void loadQuota({ force: true });
+          }
+          const errorCode = readErrorCode(payload);
+          if (!shouldKeepGenerationRequestId(publicResponse.status, errorCode)) {
+            clearCurrentAttempt();
+          }
+          throw new Error(
+            readErrorMessage(payload, "La génération du média a échoué.")
+          );
+        }
+        // Une réponse 2xx tronquée reste incertaine : le serveur a pu enregistrer
+        // le média. Conserver l'id permet au retry de rejouer le job au lieu de
+        // payer une seconde génération.
+        if (!payload || typeof payload !== "object") {
+          throw new Error(
+            "La réponse de génération est incomplète. Réessayez."
+          );
+        }
+        const data = payload as Record<string, unknown>;
+        if (data.ok !== true || !data.item || typeof data.item !== "object") {
+          throw new Error(
+            readErrorMessage(payload, "Le média généré est incomplet.")
+          );
+        }
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
+          if (mountedRef.current) {
+            setOriginChangedNotice(true);
+            void loadQuota({ force: true });
+          }
+          throw new MediaGenerationAccountChangedError();
+        }
+        const hasReturnedQuota = Boolean(
+          data.quota && typeof data.quota === "object"
+        );
+        const normalizedQuota = hasReturnedQuota
+          ? normalizeQuota(data.quota)
+          : quotaRef.current || normalizeQuota(null);
+        const soundtrackSource =
+          data.soundtrack && typeof data.soundtrack === "object"
+            ? (data.soundtrack as Record<string, unknown>)
+            : null;
+        const soundtrack =
+          soundtrackSource && typeof soundtrackSource.id === "string"
+            ? {
+                id: soundtrackSource.id,
+                name:
+                  typeof soundtrackSource.name === "string"
+                    ? soundtrackSource.name
+                    : soundtrackSource.id,
+              }
+            : null;
+        const rawVideoEngineResult = data.videoEngineResult;
+        const videoEngineResult: MediaGenerationVideoEngineResult | null =
+          normalizeAiMediaVideoEngine(rawVideoEngineResult) ||
+          rawVideoEngineResult === "omni_veo_fallback" ||
+          rawVideoEngineResult === "veo_omni_fallback" ||
+          rawVideoEngineResult === "local_fallback"
+            ? rawVideoEngineResult as MediaGenerationVideoEngineResult
+            : null;
+        const nextResult: MediaGenerationResult = {
+          item: data.item as MediaLibraryPickerItem,
+          format: ["square", "portrait", "story", "landscape"].includes(String(data.format)) ? data.format as MediaGenerationFormat : request.format,
+          quota: normalizedQuota,
+          soundtrack,
+          videoEngineResult,
+          draft: data.draft !== false,
+        };
+        if (mountedRef.current) {
+          completionStartedRef.current = true;
+          if (hasReturnedQuota) {
+            quotaRef.current = normalizedQuota;
+            setQuota(normalizedQuota);
+          }
+          await animateProgressToCompletion({
+            from: progressRef.current,
+            isActive: () =>
+              mountedRef.current &&
+              requestEpoch === accountEpochRef.current &&
+              generationAbortRef.current === activeGeneration &&
+              (!controller.signal.aborted || activeGeneration.recovering),
+            onProgress: (value) => {
+              progressRef.current = Math.max(progressRef.current, value);
+              setProgress((current) => Math.max(current, value));
+            },
+          });
+        }
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
+          throw new MediaGenerationAccountChangedError();
+        }
+        if (
+          (controller.signal.aborted && !activeGeneration.recovering) ||
+          generationAbortRef.current !== activeGeneration
+        ) {
+          throw new MediaGenerationCancelledError();
+        }
+        if (mountedRef.current) {
+          resultRef.current = nextResult;
+          setResult(nextResult);
+          setStatus("success");
+          setCancellationPending(false);
+          clearCurrentAttempt();
+        }
+        if (!hasReturnedQuota) {
+          void loadQuota({ force: true });
+        }
+        return nextResult;
+      };
+
+      const runAttempt = async (action: () => Promise<MediaGenerationResult>) => {
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) throw new MediaGenerationAccountChangedError();
+        generationAbortRef.current = activeGeneration;
+        generationKindRef.current = request.kind;
+        completionStartedRef.current = false;
+        progressRef.current = Math.max(4, progressRef.current);
+        setStatus("generating");
+        setProgress(progressRef.current);
+        setError("");
+        setCanRecover(false);
+        setCancellationPending(activeGeneration.cancelRequested);
+        setCancellable(!activeGeneration.billingLocked);
+        try { return await action(); } catch (caught) {
+        if (caught instanceof MediaGenerationAccountChangedError) throw caught;
+        if (
+          caught instanceof MediaGenerationCancelledError
+        ) {
+          if (mountedRef.current && requestEpoch === accountEpochRef.current) {
+            completionStartedRef.current = false;
+            progressRef.current = 0;
+            setCancellable(false);
+            setCancellationPending(false);
+            setError("");
+            setStatus("idle");
+            setProgress(0);
+          }
+          throw new MediaGenerationCancelledError();
+        }
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
+          throw new MediaGenerationAccountChangedError();
+        }
+        const message =
+          caught instanceof Error
+            ? caught.message
+            : "La génération du média a échoué.";
+        if (mountedRef.current) {
+          completionStartedRef.current = false;
+          setError(message);
+          setCanRecover(pendingRecoveryRef.current?.requestId === requestId);
+          setCancellationPending(false);
+          progressRef.current = 0;
+          setStatus("error");
+          setProgress(0);
+        }
+        throw caught instanceof Error ? caught : new Error(message);
+      } finally {
+        activeGeneration.recoveryController?.abort();
+        if (generationAbortRef.current === activeGeneration) {
+          generationAbortRef.current = null;
+          if (mountedRef.current) setCancellable(false);
+        }
+      }
+      };
+
+      const recover = () => runAttempt(() => recoverExistingAttempt().then(finishGeneration));
+      if (recoveryPointer) {
+        pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+        return recover();
+      }
+      return runAttempt(async () => {
+        let publicResponse: Awaited<ReturnType<typeof readAiMediaGenerationResponse>>;
+        try {
         const response = await fetch("/api/media-generation/generate", {
           method: "POST",
           credentials: "include",
           cache: "no-store",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", accept: AI_MEDIA_GENERATION_STREAM_TYPE },
           signal: controller.signal,
           body: JSON.stringify({
             contractVersion: 4,
@@ -1067,189 +1362,60 @@ export default function useMediaGeneration() {
             source: request.source,
           }),
         });
-        if (generationAbortRef.current === activeGeneration) {
-          setCancellable(false);
+        publicResponse = await readAiMediaGenerationResponse(response, () => {
+          activeGeneration.billingLocked = true;
+          if (mountedRef.current && requestEpoch === accountEpochRef.current && generationAbortRef.current === activeGeneration) setCancellable(false);
+        });
+        } catch {
+          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+          publicResponse = await recoverExistingAttempt();
         }
-        const payload = await readJson(response);
-        if (!response.ok) {
-          if (response.status === 429) {
-            const responseQuota =
-              payload && typeof payload === "object" && "quota" in payload
-                ? (payload as { quota?: unknown }).quota
-                : null;
-            if (
-              responseQuota &&
-              typeof responseQuota === "object" &&
-              mountedRef.current &&
-              requestEpoch === accountEpochRef.current
-            ) {
-              const normalizedQuota = normalizeQuota(responseQuota);
-              quotaRef.current = normalizedQuota;
-              setQuota(normalizedQuota);
-            }
-            // Confirm the authoritative counter even when an older server did
-            // not include it in the 429 response.
-            void loadQuota({ force: true });
-          }
-          const errorCode = readErrorCode(payload);
-          if (!shouldKeepGenerationRequestId(response.status, errorCode)) {
-            clearCurrentAttempt();
-          }
-          throw new Error(
-            readErrorMessage(payload, "La génération du média a échoué.")
-          );
+        const finalPayload = publicResponse.payload && typeof publicResponse.payload === "object" ? publicResponse.payload as Record<string, unknown> : null;
+        if ((publicResponse.ok && (finalPayload?.ok !== true || !finalPayload.item || typeof finalPayload.item !== "object")) ||
+          shouldKeepGenerationRequestId(publicResponse.status, readErrorCode(finalPayload))) {
+          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+          publicResponse = await recoverExistingAttempt();
         }
-        // Une réponse 2xx tronquée reste incertaine : le serveur a pu enregistrer
-        // le média. Conserver l'id permet au retry de rejouer le job au lieu de
-        // payer une seconde génération.
-        if (!payload || typeof payload !== "object") {
-          throw new Error(
-            "La réponse de génération est incomplète. Réessayez."
-          );
-        }
-        const data = payload as Record<string, unknown>;
-        if (data.ok !== true || !data.item || typeof data.item !== "object") {
-          throw new Error(
-            readErrorMessage(payload, "Le média généré est incomplet.")
-          );
-        }
-        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
-          if (mountedRef.current) {
-            setOriginChangedNotice(true);
-            void loadQuota({ force: true });
-          }
-          throw new MediaGenerationAccountChangedError();
-        }
-        clearCurrentAttempt();
-        const hasReturnedQuota = Boolean(
-          data.quota && typeof data.quota === "object"
-        );
-        const normalizedQuota = hasReturnedQuota
-          ? normalizeQuota(data.quota)
-          : quotaRef.current || normalizeQuota(null);
-        const soundtrackSource =
-          data.soundtrack && typeof data.soundtrack === "object"
-            ? (data.soundtrack as Record<string, unknown>)
-            : null;
-        const soundtrack =
-          soundtrackSource && typeof soundtrackSource.id === "string"
-            ? {
-                id: soundtrackSource.id,
-                name:
-                  typeof soundtrackSource.name === "string"
-                    ? soundtrackSource.name
-                    : soundtrackSource.id,
-              }
-            : null;
-        const rawVideoEngineResult = data.videoEngineResult;
-        const videoEngineResult: MediaGenerationVideoEngineResult | null =
-          normalizeAiMediaVideoEngine(rawVideoEngineResult) ||
-          rawVideoEngineResult === "omni_veo_fallback" ||
-          rawVideoEngineResult === "veo_omni_fallback" ||
-          rawVideoEngineResult === "local_fallback"
-            ? rawVideoEngineResult as MediaGenerationVideoEngineResult
-            : null;
-        const nextResult: MediaGenerationResult = {
-          item: data.item as MediaLibraryPickerItem,
-          format: request.format,
-          quota: normalizedQuota,
-          soundtrack,
-          videoEngineResult,
-          draft: data.draft !== false,
-        };
-        if (mountedRef.current) {
-          completionStartedRef.current = true;
-          if (hasReturnedQuota) {
-            quotaRef.current = normalizedQuota;
-            setQuota(normalizedQuota);
-          }
-          await animateProgressToCompletion({
-            from: progressRef.current,
-            isActive: () =>
-              mountedRef.current &&
-              requestEpoch === accountEpochRef.current &&
-              generationAbortRef.current === activeGeneration &&
-              !controller.signal.aborted,
-            onProgress: (value) => {
-              progressRef.current = Math.max(progressRef.current, value);
-              setProgress((current) => Math.max(current, value));
-            },
-          });
-        }
-        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
-          throw new MediaGenerationAccountChangedError();
-        }
-        if (
-          controller.signal.aborted ||
-          generationAbortRef.current !== activeGeneration
-        ) {
-          throw new MediaGenerationCancelledError();
-        }
-        if (mountedRef.current) {
-          resultRef.current = nextResult;
-          setResult(nextResult);
-          setStatus("success");
-        }
-        if (!hasReturnedQuota) {
-          void loadQuota({ force: true });
-        }
-        return nextResult;
-      } catch (caught) {
-        if (caught instanceof MediaGenerationAccountChangedError) throw caught;
-        if (
-          caught instanceof MediaGenerationCancelledError ||
-          controller.signal.aborted ||
-          (caught instanceof DOMException && caught.name === "AbortError")
-        ) {
-          if (mountedRef.current && requestEpoch === accountEpochRef.current) {
-            completionStartedRef.current = false;
-            progressRef.current = 0;
-            setCancellable(false);
-            setError("");
-            setStatus("idle");
-            setProgress(0);
-          }
-          throw new MediaGenerationCancelledError();
-        }
-        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
-          throw new MediaGenerationAccountChangedError();
-        }
-        const message =
-          caught instanceof Error
-            ? caught.message
-            : "La génération du média a échoué.";
-        if (mountedRef.current) {
-          completionStartedRef.current = false;
-          setError(message);
-          progressRef.current = 0;
-          setStatus("error");
-          setProgress(0);
-        }
-        throw caught instanceof Error ? caught : new Error(message);
-      } finally {
-        if (generationAbortRef.current === activeGeneration) {
-          generationAbortRef.current = null;
-          if (mountedRef.current) setCancellable(false);
-        }
-      }
+        return finishGeneration(publicResponse);
+      });
     },
     [loadQuota]
   );
 
+  const generate = useCallback((request: MediaGenerationRequest) => executeGeneration(request), [executeGeneration]);
+
+  useEffect(() => {
+    const accountId = quota?.accountId;
+    if (!accountId || generationAbortRef.current || pendingRecoveryRef.current || resultRef.current) return;
+    const pointer = readAiMediaGenerationRecovery(recoveryStorage(), accountId);
+    if (!pointer) return;
+    pendingRecoveryRef.current = {
+      requestId: pointer.requestId, epoch: accountEpochRef.current,
+      run: () => executeGeneration(recoveryRequest(pointer), pointer),
+    };
+    setCanRecover(true);
+  }, [quota?.accountId, executeGeneration]);
+
   const cancelGeneration = useCallback(() => {
     const active = generationAbortRef.current;
-    if (!active) return false;
-    generationAbortRef.current = null;
+    if (!active || active.billingLocked) return false;
+    active.cancelRequested = true;
+    active.billingLocked = true;
     active.controller.abort();
-    completionStartedRef.current = false;
-    progressRef.current = 0;
     if (mountedRef.current) {
       setCancellable(false);
+      setCancellationPending(true);
       setError("");
-      setStatus("idle");
-      setProgress(0);
     }
     return true;
+  }, []);
+
+  const retryRecovery = useCallback(() => {
+    if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
+    if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
+    const pending = pendingRecoveryRef.current;
+    if (!pending || pending.epoch !== accountEpochRef.current) throw new Error("Aucune génération en attente de récupération.");
+    return pending.run();
   }, []);
 
   const acceptDraft = useCallback(
@@ -1375,9 +1541,13 @@ export default function useMediaGeneration() {
   );
 
   const reset = useCallback(() => {
+    // A normal reset must not hide a paid attempt or lose its idempotency key.
+    // Account changes and unmount have their own presentation cleanup above.
+    if (generationAbortRef.current?.billingLocked || pendingRecoveryRef.current) return;
     generationAbortRef.current?.controller.abort();
     generationAbortRef.current = null;
     pendingGenerationAttemptRef.current = null;
+    pendingRecoveryRef.current = null;
     resultRef.current = null;
     completionStartedRef.current = false;
     progressRef.current = 0;
@@ -1387,6 +1557,8 @@ export default function useMediaGeneration() {
     setResult(null);
     setOriginChangedNotice(false);
     setCancellable(false);
+    setCancellationPending(false);
+    setCanRecover(false);
   }, []);
 
   return {
@@ -1397,11 +1569,14 @@ export default function useMediaGeneration() {
     result,
     originChangedNotice,
     cancellable,
+    cancellationPending,
+    canRecover,
     busy: status === "generating",
     quotaLoading: status === "loading-quota",
     loadQuota,
     generate,
     cancelGeneration,
+    retryRecovery,
     acceptDraft,
     discardDraft,
     reset,

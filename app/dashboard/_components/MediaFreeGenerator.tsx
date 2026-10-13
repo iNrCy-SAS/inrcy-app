@@ -42,7 +42,8 @@ import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
-import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
+import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
+import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
@@ -131,8 +132,11 @@ export default function MediaFreeGenerator({
     result,
     originChangedNotice,
     cancellable,
+    cancellationPending,
+    canRecover,
     loadQuota,
     generate,
+    retryRecovery,
     cancelGeneration,
     acceptDraft,
     discardDraft,
@@ -163,6 +167,8 @@ export default function MediaFreeGenerator({
   const [finishing, setFinishing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState("prompt");
+  const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -170,7 +176,7 @@ export default function MediaFreeGenerator({
   const operationInFlight = useRef(false);
   const referenceSetId = useRef("");
   const operationLocked = busy || finishing || voiceBusy || referencesBusy;
-  const locked = operationLocked || Boolean(result);
+  const locked = operationLocked;
   const counter = quota?.credits;
   const maxDuration = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(maxDuration);
@@ -415,6 +421,7 @@ export default function MediaFreeGenerator({
     setActionError("");
     setFinishing(true);
     setCreationScreen(true);
+    setActiveAttempt({ kind, format: fixedFormat || format, durationSeconds: duration });
     try {
       if (result?.draft) await discardDraft(result);
       if (sequence.current !== currentSequence) return;
@@ -488,27 +495,25 @@ export default function MediaFreeGenerator({
     }
   };
 
-  const handleEdit = async () => {
-    if (operationLocked || operationInFlight.current) return;
+  const handleEdit = () => {
+    if (operationLocked) return;
+    setActiveSettingsTab("prompt");
+    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-prompt`)?.focus());
+  };
+
+  const handleRecoverResult = async () => {
+    if (!canRecover || operationLocked || operationInFlight.current) return;
     operationInFlight.current = true;
     const currentSequence = sequence.current;
-    setFinishing(true);
     setActionError("");
     try {
-      if (result?.draft) await discardDraft(result);
-      if (sequence.current !== currentSequence) return;
-      reset();
-      setCreationScreen(false);
+      await retryRecovery();
     } catch (caught) {
-      if (sequence.current !== currentSequence) return;
-      setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
-      );
-    } finally {
-      if (sequence.current === currentSequence) {
-        setFinishing(false);
-        operationInFlight.current = false;
+      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
+        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
+    } finally {
+      if (sequence.current === currentSequence) operationInFlight.current = false;
     }
   };
 
@@ -591,12 +596,15 @@ export default function MediaFreeGenerator({
             onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
   );
 
-  if (creationScreen) {
-    return (
+  const preview = (
       <MediaGenerationCreationWorkspace
-        kind={kind}
-        format={format}
-        durationSeconds={duration}
+        variant="embedded"
+        creationStarted={creationScreen}
+        generationInProgress={busy}
+        cancellationPending={cancellationPending}
+        kind={busy && activeAttempt ? activeAttempt.kind : kind}
+        format={busy && activeAttempt ? activeAttempt.format : format}
+        durationSeconds={busy && activeAttempt ? activeAttempt.durationSeconds : duration}
         origin={source}
         creationMode="free"
         progress={progress}
@@ -651,20 +659,22 @@ export default function MediaFreeGenerator({
             : undefined
         }
       />
-    );
-  }
+  );
 
   return (
     <div
       className={styles.workspace}
       data-creation-mode="free"
       data-media-kind={kind}
-      data-view="form"
+      data-view="editor"
     >
-      <div className={styles.creationGrid}>
+      <div className={editorStyles.editorBody}>
+        <div className={editorStyles.settingsPane}>
+          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "criteria", label: t("ai_generator_editor_tab_criteria") }, { id: "prompt", label: t("ai_generator_editor_tab_prompt") }]} />
+          <div className={editorStyles.settingsPanels}>
         <section
-          className={styles.parameters}
-          aria-labelledby={`${instanceId}-parameters`}
+          className={`${styles.parameters} ${editorStyles.tabPanel}`}
+          role="tabpanel" id={`${instanceId}-panel-criteria`} aria-labelledby={`${instanceId}-tab-criteria`} hidden={activeSettingsTab !== "criteria"}
         >
           <div className={styles.panelHeading}>
             <span className={styles.panelIcon} aria-hidden="true">
@@ -980,8 +990,8 @@ export default function MediaFreeGenerator({
           ) : null}
         </section>
         <section
-          className={styles.promptPanel}
-          aria-labelledby={`${instanceId}-prompt-title`}
+          className={`${styles.promptPanel} ${editorStyles.tabPanel}`}
+          role="tabpanel" id={`${instanceId}-panel-prompt`} aria-labelledby={`${instanceId}-tab-prompt`} hidden={activeSettingsTab !== "prompt"}
         >
           <div className={styles.panelHeading}>
             <span className={styles.promptIcon} aria-hidden="true">
@@ -1067,6 +1077,9 @@ export default function MediaFreeGenerator({
             </label>
           ) : null}
         </section>
+          </div>
+        </div>
+        <div className={editorStyles.previewPane}>{preview}</div>
       </div>
       <div className={styles.footer} data-media-footer>
         <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
@@ -1077,15 +1090,12 @@ export default function MediaFreeGenerator({
           <button
             type="button"
             className={styles.primaryButton}
-            disabled={!canGenerate}
-            onClick={() => void handleGenerate()}
+            disabled={busy ? !cancellable : canRecover ? operationLocked : !canGenerate}
+            title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
+            onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
           >
-            <span aria-hidden="true">✦</span>
-            {t(
-              kind === "video"
-                ? "ai_generator_generate_video"
-                : "ai_generator_generate_image"
-            )}
+            <span aria-hidden="true">{busy ? "■" : result ? "↻" : "✦"}</span>
+            {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
           </button>
         </MediaGenerationActions>
       </div>

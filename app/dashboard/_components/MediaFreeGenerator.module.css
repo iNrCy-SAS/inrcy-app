@@ -10,6 +10,15 @@
   color: #f5f7ff;
 }
 
+.workspace[data-view="editor"] { height:100%;min-height:0; }
+.workspace[data-view="editor"] .parameters,
+.workspace[data-view="editor"] .promptPanel { box-sizing:border-box;width:100%;min-height:100%;height:auto;padding:18px;border:0;border-radius:0;overflow:visible; }
+.workspace[data-view="editor"] .parameters { display:flex;flex-direction:column;gap:16px; }
+.workspace[data-view="editor"] .promptPanel { height:100%;gap:12px; }
+.workspace[data-view="editor"] .promptContainer { min-height:260px;flex:1; }
+.workspace[data-view="editor"] .promptContainer textarea { min-height:210px; }
+@media(max-width:760px) { .workspace[data-view="editor"] { height:auto; } .workspace[data-view="editor"] .parameters,.workspace[data-view="editor"] .promptPanel { padding:14px; } }
+
 @media (max-width: 760px) {
   .footer[data-media-footer] { padding:7px; gap:6px; }
 }

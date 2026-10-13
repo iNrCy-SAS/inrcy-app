@@ -30,6 +30,7 @@ import MediaVideoRetoucher, {
 import {
   canSwitchInrStudioMediaType,
   isInrStudioTabUnavailable,
+  getInrStudioInitialCreationMode,
 } from "@/lib/inrStudioModalPolicy";
 
 import styles from "./MediaGeneratorModal.module.css";
@@ -113,7 +114,9 @@ export default function MediaGeneratorModal({
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
   const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
-  const [creationMode, setCreationMode] = useState<StudioCreationMode>("free");
+  const defaultCreationMode = getInrStudioInitialCreationMode({ source, origin, publicationBrief, freeOnly });
+  const [creationMode, setCreationMode] = useState<StudioCreationMode>(defaultCreationMode);
+  const openedRef = useRef(false);
   const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>(initialFreeMediaType);
   const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([initialFreeMediaType]);
   const [generationSession, setGenerationSession] = useState(0);
@@ -158,9 +161,13 @@ export default function MediaGeneratorModal({
   }, [embedded, mounted, open]);
 
   useEffect(() => {
-    if (!open) return;
+    const newOpening = open && !openedRef.current;
+    openedRef.current = open;
+    // Changes to the originating brief must not override a mode the pro has
+    // already chosen during this session. Reopening uses the latest subject.
+    if (!newOpening) return;
     setStudioTab(initialTab);
-    setCreationMode("free");
+    setCreationMode(defaultCreationMode);
     setFreeMediaType(initialFreeMediaType);
     setVisitedFreeTypes([initialFreeMediaType]);
     setMediaTypeByTab({
@@ -169,7 +176,7 @@ export default function MediaGeneratorModal({
       retouch: initialTab === "retouch" ? initialMediaType : "image",
     });
     setRetoucherDirty(false);
-  }, [initialFreeMediaType, initialMediaType, initialTab, open]);
+  }, [defaultCreationMode, initialFreeMediaType, initialMediaType, initialTab, open]);
 
   useEffect(() => {
     // Hidden Activity forms suspend their listeners: invalidate all of them

@@ -27,7 +27,7 @@ function compile(file: string, modules: Map<string, unknown>, quiet = false) {
 }
 
 function realCapabilityGate() {
-  return compile("lib/aiMediaImageProviderGateway.ts", new Map([
+  return compile("lib/aiMediaImageProviderGateway.ts", new Map<string, unknown>([
     ["server-only", {}], ["sharp", {}], ["ai", {}], ["@/lib/aiGatewayAccountGuard", {}],
     ["./aiMediaModelCatalog.ts", catalog], ["./aiMediaCreditsPricing.ts", pricing],
     ["./aiMediaBuffer.ts", {}], ["./aiMediaSensitiveText.ts", sensitive],
@@ -85,7 +85,7 @@ function serverHarness(providerFailure = false) {
   ];
   for (const [id, moduleValue] of overrides) modules.set(id, moduleValue);
   const runtime = compile("lib/aiMediaGenerationServer.ts", modules, true) as unknown as { generateAndSaveAiMedia: (args: RecordValue) => Promise<unknown> };
-  return { counts, providerCalls, composerCalls, promptCalls, saved, logo, generate: (request: contracts.AiMediaGenerationRequest) => runtime.generateAndSaveAiMedia({ accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, request }) };
+  return { counts, providerCalls, composerCalls, promptCalls, saved, logo, generate: (request: contracts.AiMediaGenerationRequest, execution: RecordValue = {}) => runtime.generateAndSaveAiMedia({ accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, request, ...execution }) };
 }
 
 function request(engine: catalog.AiMediaImageEngine, options: RecordValue = {}) {
@@ -159,6 +159,41 @@ test("an explicit new image engine failure does not invoke Google fallback or pe
     await assert.rejects(harness.generate(request("flux")), /selected_provider_failed/);
     assert.equal(harness.counts.provider, 1);
     assert.equal(harness.counts.fallback, 0);
+    assert.equal(harness.counts.saved, 0);
+  });
+});
+
+test("the server locks cancellation once, before the first billable plan or image request", async () => {
+  await withCredentials(async () => {
+    for (const creationMode of ["guided", "free"] as const) {
+      const harness = serverHarness();
+      let locks = 0;
+      await harness.generate(request("grok", {
+        creationMode,
+        freePrompt: creationMode === "free" ? "Photographie d'une tasse turquoise sans logo." : undefined,
+      }), { onBillableWorkStarted: async () => {
+        locks += 1;
+        assert.equal(harness.counts.creative, 0);
+        assert.equal(harness.counts.headline, 0);
+        assert.equal(harness.counts.provider, 0);
+      } });
+      assert.equal(locks, 1);
+      assert.equal(harness.counts.provider, 1);
+      assert.equal(harness.counts.saved, 1);
+    }
+  });
+});
+
+test("a cancellation at the paid-work gate cannot reach a creative plan or provider", async () => {
+  await withCredentials(async () => {
+    const harness = serverHarness();
+    const controller = new AbortController();
+    await assert.rejects(harness.generate(request("grok", { creationMode: "free", freePrompt: "Photographie d'une tasse." }), {
+      signal: controller.signal,
+      onBillableWorkStarted: () => controller.abort(new DOMException("Preparation cancelled", "AbortError")),
+    }), { name: "AbortError" });
+    assert.equal(harness.counts.creative, 0);
+    assert.equal(harness.counts.provider, 0);
     assert.equal(harness.counts.saved, 0);
   });
 });
