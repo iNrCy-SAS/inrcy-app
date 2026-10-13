@@ -23,7 +23,7 @@ const NARRATION_SCHEMA = {
     type: "object",
     additionalProperties: false,
     properties: {
-      script: { type: "string", minLength: 12, maxLength: 620 },
+      script: { type: "string", minLength: 3, maxLength: 620 },
     },
     required: ["script"],
   },
@@ -41,10 +41,14 @@ const WORD_TARGETS = {
 type NarrationWordTarget = { min: number; target: number; max: number };
 
 function resolveNarrationWordTarget(
-  duration: 8 | 16 | 24,
+  duration: number,
   maximumSpeechUnits?: number,
 ): NarrationWordTarget {
-  const baseline = WORD_TARGETS[duration];
+  const baseline = WORD_TARGETS[duration as keyof typeof WORD_TARGETS] || {
+    min: Math.max(1, Math.floor((duration - 1) * 1.3)),
+    target: Math.max(1, Math.floor((duration - 1) * 1.8)),
+    max: Math.max(1, Math.floor((duration - 1) * 2)),
+  };
   if (!Number.isFinite(maximumSpeechUnits)) return baseline;
   // Le préflight audio peut demander une réécriture plus concise, mais jamais
   // un fragment inférieur au minimum éditorial naturel de la durée choisie.
@@ -298,14 +302,14 @@ function narrationDiagnostic(args: {
 
 function respectsNarrationSentenceContract(
   value: string,
-  duration: 8 | 16 | 24,
+  duration: number,
 ) {
   const sentenceCount =
     value
       .match(/[^.!?。！？]+[.!?。！？]+/gu)
       ?.map((sentence) => sentence.trim())
       .filter(Boolean).length || 0;
-  const maximumSentences = duration === 8 ? 1 : duration === 16 ? 2 : 3;
+  const maximumSentences = Math.max(1, Math.ceil(duration / 8));
   return sentenceCount >= 1 && sentenceCount <= maximumSentences;
 }
 
@@ -440,7 +444,7 @@ function safeFallback(args: {
 
 function generatedScriptRejectionReasons(
   value: string,
-  duration: 8 | 16 | 24,
+  duration: number,
   language: string,
   target = resolveNarrationWordTarget(duration),
 ) {
@@ -457,7 +461,7 @@ function generatedScriptRejectionReasons(
 
 function validGeneratedScript(
   value: string,
-  duration: 8 | 16 | 24,
+  duration: number,
   language: string,
   target = resolveNarrationWordTarget(duration),
 ) {
@@ -490,9 +494,9 @@ export async function writeAiMediaNarration(args: {
   const languageCode = args.profile.preferences.language || "fr";
   const language = LANGUAGE_NAMES[languageCode] || LANGUAGE_NAMES.fr;
   const sentenceContract =
-    duration === 8
+    duration <= 8
       ? "une seule phrase continue, ou exceptionnellement deux propositions étroitement liées"
-      : duration === 16
+      : duration <= 16
       ? "deux phrases fluides qui forment un même discours"
       : "deux ou trois phrases fluides qui forment un même discours";
   let script = "";
@@ -517,7 +521,7 @@ export async function writeAiMediaNarration(args: {
           `Vise exactement ${target.target} mots et reste impérativement entre ${target.min} et ${target.max} mots.`,
           `Structure obligatoire : ${sentenceContract}.`,
           "Ce budget est volontairement court : privilégie une seule idée mémorable et des respirations naturelles plutôt qu'une accumulation d'informations.",
-          duration === 8
+          duration <= 8
             ? "Une seule idée orale suffit : nomme le produit ou le geste central et l'intention orale demandée. N'accumule pas ouverture, bénéfice et conclusion dans cette courte phrase."
             : "Construis un récit fluide avec des faits concrets du sujet, puis la conclusion ou l'invitation demandée.",
           "Produis une formulation singulière pour cette requête : ne recycle ni accroche, ni structure, ni vocabulaire d'une publication récente. L'identifiant de variation est un sel créatif opaque et ne doit jamais être prononcé.",

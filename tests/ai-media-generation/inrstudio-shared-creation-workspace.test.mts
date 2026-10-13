@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as mediaModels from "../../lib/aiMediaModelCatalog.ts";
+import * as videoTimeline from "../../lib/aiMediaVideoTimeline.ts";
+import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
 
 const componentPath = "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx";
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -57,8 +60,23 @@ const modules = new Map<string, unknown>([
   ["next/image", { __esModule: true, default: (props: Props) => element("img", props) }],
   ["next-intl", { useTranslations: () => (key: string) => key }],
   ["@/lib/aiMediaGenerationContracts", contracts],
+  ["@/lib/aiMediaModelCatalog", mediaModels],
+  ["@/lib/aiMediaVideoTimeline", videoTimeline],
+  ["@/lib/aiMediaVideoClientOptions", videoOptions],
   ["./MediaGenerator.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
+  ["./MediaEngineCreditControls.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
 ]);
+// The real shared action wrapper is a presentation dependency, not a request
+// owner. Execute it too so the existing lifecycle tests retain their meaning.
+const controlsOutput=ts.transpileModule(read("app/dashboard/_components/MediaEngineCreditControls.tsx"),{
+  fileName:"MediaEngineCreditControls.tsx",
+  compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true},
+}).outputText;
+const controlsRecord={exports:{} as Record<string,unknown>};
+new Function("module","exports","require",controlsOutput)(controlsRecord,controlsRecord.exports,(specifier:string)=>{
+  assert.ok(modules.has(specifier),`Unexpected controls dependency: ${specifier}`);return modules.get(specifier);
+});
+modules.set("./MediaEngineCreditControls",controlsRecord.exports);
 const source = read(componentPath);
 const output = ts.transpileModule(source, {
   fileName: componentPath,

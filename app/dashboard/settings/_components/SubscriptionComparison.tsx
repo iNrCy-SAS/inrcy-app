@@ -1,14 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { AI_MEDIA_MONTHLY_LIMITS, type AiMediaEdition } from "@/lib/aiMediaPlanLimits";
+import { AI_MEDIA_MONTHLY_LIMITS, legacyAiMediaAmountToCredits, type AiMediaEdition } from "@/lib/aiMediaPlanLimits";
 import { STANDARD_PUBLICATION_CHANNEL_KEYS } from "@/lib/dashboardEdition";
 import styles from "./settingsContentLayout.module.css";
 
+const monthlyCredits = (edition: AiMediaEdition) => legacyAiMediaAmountToCredits("image", AI_MEDIA_MONTHLY_LIMITS[edition].image) + legacyAiMediaAmountToCredits("video", AI_MEDIA_MONTHLY_LIMITS[edition].video);
+
 export function SubscriptionPlanFeatures({ edition }: { edition: "standard" | "premium" }) {
   const t = useTranslations("settings");
-  const limits = AI_MEDIA_MONTHLY_LIMITS[edition];
-  const standard = AI_MEDIA_MONTHLY_LIMITS.standard;
+  const credits = monthlyCredits(edition);
+  const standard = monthlyCredits("standard");
   const rows = edition === "standard" ? [
     ["Booster", t("subscription_publication_channels", { count: STANDARD_PUBLICATION_CHANNEL_KEYS.length })],
     ["iNr’Agent", t("subscription_publications_statistics")],
@@ -26,11 +28,9 @@ export function SubscriptionPlanFeatures({ edition }: { edition: "standard" | "p
     <tr className={styles.studioRow}>
       <th scope="row"><span className={styles.studioName}>iNr’Studio</span><small>{t("subscription_creation")}</small></th>
       <td><div className={styles.studioMetrics}>
-        <div><strong>{limits.image}</strong><span>{t("subscription_images_month_label")}</span>
-          {edition === "premium" ? <small>{t("subscription_studio_image_gain", { count: limits.image - standard.image })}</small> : null}
-        </div>
-        <div><strong>{limits.video}<span> s</span></strong><span>{t("subscription_video_month_label")}</span>
-          {edition === "premium" ? <small>{t("subscription_studio_video_gain", { count: limits.video - standard.video })}</small> : null}
+        <div><strong>{credits}</strong><span>{t("subscription_media_month_label")}</span>
+          {edition === "premium" ? <small>{t("subscription_studio_credit_gain", { count: credits - standard })}</small> : null}
+          <small>{t("subscription_media_shared_hint")}</small>
         </div>
       </div></td>
     </tr>
@@ -40,18 +40,13 @@ export function SubscriptionPlanFeatures({ edition }: { edition: "standard" | "p
 
 export function SubscriptionQuotaSummary({ edition }: { edition: AiMediaEdition }) {
   const t = useTranslations("settings");
-  const limits = AI_MEDIA_MONTHLY_LIMITS[edition];
-  const standard = AI_MEDIA_MONTHLY_LIMITS.standard;
+  const credits = monthlyCredits(edition);
+  const standard = monthlyCredits("standard");
   return <div className={styles.quotaSummary}>
     <div className={styles.quotaStat}>
-      <div><strong>{limits.image}</strong>{edition === "premium" ? <span className={styles.quotaGain}>+{limits.image - standard.image}</span> : null}</div>
-      <span>{t("subscription_images_month_label")}</span>
-      {edition === "premium" ? <small>{t("subscription_compared_standard", { count: standard.image })}</small> : null}
-    </div>
-    <div className={styles.quotaStat}>
-      <div><strong>{limits.video}<small> s</small></strong>{edition === "premium" ? <span className={styles.quotaGain}>+{limits.video - standard.video} s</span> : null}</div>
-      <span>{t("subscription_video_month_label")}</span>
-      {edition === "premium" ? <small>{t("subscription_compared_standard_seconds", { count: standard.video })}</small> : null}
+      <div><strong>{credits}</strong>{edition === "premium" ? <span className={styles.quotaGain}>+{credits - standard}</span> : null}</div>
+      <span>{t("subscription_media_month_label")}</span>
+      <small>{t("subscription_media_shared_hint")}</small>
     </div>
   </div>;
 }

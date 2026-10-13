@@ -36,17 +36,16 @@ function fixture({role="owner",activeAccount=account,owned=true,pending=false}:{
     post:(body: Row)=>checkout.POST(new Request("https://example.invalid/api",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})),
     get:()=>returnRoute.GET(new Request("https://example.invalid/api"),{params:Promise.resolve({orderId:order.id})})};
 }
-test("checkout uses authenticated account and actor; browser amount and images are ignored",async()=>{
+test("new image-pack checkouts are retired without opening a payment",async()=>{
   const f=fixture();const result=await f.post({accountId:account,packKey:"image_20",requestKey:"safe-intent",images:200,amountHt:1});
-  assert.equal(result.status,200);assert.equal(f.calls[0].accountId,account);assert.equal(f.calls[0].actorAuthUserId,actor);
-  assert.equal(Object.hasOwn(f.calls[0],"amountHt"),false);assert.equal(Object.hasOwn(f.calls[0],"images"),false);
+  assert.equal(result.status,410);assert.equal(f.calls.length,0);
 });
 test("checkout blocks a member and an account changed since the displayed catalogue",async()=>{
-  const member=fixture({role:"member"});assert.equal((await member.post({accountId:account,requestKey:"safe-intent"})).status,403);assert.equal(member.calls.length,0);
-  const changed=fixture({activeAccount:"another-account"});assert.equal((await changed.post({accountId:account,requestKey:"safe-intent"})).status,409);assert.equal(changed.calls.length,0);
+  const member=fixture({role:"member"});assert.equal((await member.post({accountId:account,requestKey:"safe-intent"})).status,410);assert.equal(member.calls.length,0);
+  const changed=fixture({activeAccount:"another-account"});assert.equal((await changed.post({accountId:account,requestKey:"safe-intent"})).status,410);assert.equal(changed.calls.length,0);
 });
 test("checkout rejects an invalid key before opening a Stripe payment",async()=>{
-  const f=fixture();assert.equal((await f.post({accountId:account,requestKey:"x"})).status,400);assert.equal(f.calls.length,0);
+  const f=fixture();assert.equal((await f.post({accountId:account,requestKey:"x"})).status,410);assert.equal(f.calls.length,0);
 });
 test("return never confirms an order outside the active account or calls Stripe for it",async()=>{
   const f=fixture({owned:false});assert.equal((await f.get()).status,404);assert.equal(f.calls.length,1);assert.equal(f.calls[0].type,"read");

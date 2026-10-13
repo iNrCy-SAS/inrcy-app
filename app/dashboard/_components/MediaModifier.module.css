@@ -416,23 +416,6 @@
   backdrop-filter: blur(16px);
 }
 
-.actionBar > div:first-child:not(.quotaCard) {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.actionBar strong {
-  color: #fff;
-  font-size: 12px;
-}
-
-.actionBar span {
-  color: rgba(202, 220, 248, 0.6);
-  font-size: 9.5px;
-  line-height: 1.35;
-}
-
 .quotaCard {
   min-width: 0;
   width: fit-content;
@@ -776,4 +759,8 @@
   .secondaryButton {
     transition: none;
   }
+}
+
+@media (max-width: 760px) {
+  .actionBar[data-media-footer] { padding:7px; gap:6px; }
 }

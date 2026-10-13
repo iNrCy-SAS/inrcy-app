@@ -416,7 +416,7 @@ async function generateClip(args: {
   model: string;
   generationArgs: AiVideoProviderGenerationArgs;
   prompt: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   aspectRatio: "16:9" | "9:16";
   inspirationImages: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   preserveIdentityReferences: boolean;
@@ -519,7 +519,7 @@ async function generateClip(args: {
               response_format: {
                 type: "video",
                 aspect_ratio: args.aspectRatio,
-                resolution: "720p",
+                resolution: args.generationArgs.request.videoResolution || "720p",
                 duration: `${args.durationSeconds}s`,
                 delivery: "uri",
               },
@@ -654,13 +654,14 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     const preserveIdentityReferences = preservesIdentityReferences(
       args.request,
     );
-    const durations: Array<4 | 6 | 8> = [
-      ...getAiMediaVideoSegmentDurations(args.request.durationSeconds || 16),
+    const durations: number[] = [
+      ...getAiMediaVideoSegmentDurations(args.request.durationSeconds || 8, "omni", args.request.videoResolution, args.request.sceneMode),
     ];
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_omni_scene_count_invalid");
     }
-    const connectScenes = durations.length > 1 && args.request.connectScenes === true;
+    durations.forEach((duration, index) => buildGoogleVideoScenePrompt(args, index, duration));
+    const connectScenes = durations.length > 1 && args.request.sceneMode !== "multi";
     const configuredConcurrency = positiveInt(
       process.env.AI_MEDIA_OMNI_CONCURRENCY,
       DEFAULT_CONCURRENCY,
@@ -740,7 +741,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 args.request.format,
               ),
               inspirationImages:
-                index === 0 || (!connectScenes && preserveIdentityReferences)
+                index === 0 || !connectScenes
                   ? args.request.inspirationImages
                   : [],
               continuityFrame,

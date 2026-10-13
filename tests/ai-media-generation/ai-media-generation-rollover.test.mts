@@ -54,7 +54,7 @@ test("les plafonds produit conservent le report pour tous les forfaits", () => {
       ]),
     ),
     {
-      standard: { image: 25, video: 54 },
+      standard: { image: 25, video: 56 },
       premium: { image: 70, video: 204 },
       founder: { image: 50, video: 144 },
     },
@@ -119,7 +119,7 @@ test("les credits inutilises se cumulent puis s'arretent exactement au plafond",
   assert.equal(premiumImages, 150);
 
   let standardVideos = AI_MEDIA_MONTHLY_LIMITS.standard.video;
-  for (const expected of [108, 162, 168, 168]) {
+  for (const expected of [112, 168, 168, 168]) {
     standardVideos = nextPeriodLimit({
       previousLimit: standardVideos,
       previousUsed: 0,
@@ -167,7 +167,7 @@ test("plusieurs mois sans connexion sont credites sans depasser la cagnotte", ()
       elapsedMonths: 2,
       cap: 168,
     }),
-    146,
+    152,
   );
 
   assert.match(rolloverMigration, /left join public\.subscriptions s[\s\S]*s\.user_id = a\.id/i);

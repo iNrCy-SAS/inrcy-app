@@ -19,7 +19,7 @@ export type NormalizedAiVideo = {
   extension: "mp4";
   width: number;
   height: number;
-  durationSeconds: 8 | 16 | 24;
+  durationSeconds: number;
 };
 
 export type NormalizedAiMedia = NormalizedAiImage | NormalizedAiVideo;

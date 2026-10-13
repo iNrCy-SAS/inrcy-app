@@ -26,7 +26,7 @@ function literalTerms(prompt: string) {
 
 /** Transport-compatible plan with zero guided copy, CTA, layout or branding. */
 export function buildAiMediaFreeBasePlan(request: AiMediaGenerationRequest): AiMediaCreativePlan {
-  const count = request.kind === "video" ? getAiMediaVideoSegmentCount(request.durationSeconds || 8) : 1;
+  const count = request.kind === "video" ? getAiMediaVideoSegmentCount(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode) : 1;
   return {
     headline: "", subline: "", companyName: "", cta: "",
     scenes: Array.from({ length: count }, () => ({
@@ -51,9 +51,9 @@ export async function prepareAiMediaFreeCreativePlan(args: {
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
   const exactDialogue = nativeDialogue ? getAiMediaFreeRequestedDialogue(prompt) : [];
   if (exactDialogue.length > base.scenes.length) {
-    throw new AiMediaRequestValidationError("Prévoyez un plan de 8 secondes par réplique. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
+    throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
-  exactDialogue.forEach(validateAiMediaFreeDialogueLine);
+  exactDialogue.forEach((line) => validateAiMediaFreeDialogueLine(line, (args.request.durationSeconds || 8) / base.scenes.length));
   const protectedTerms = literalTerms(prompt).filter((term) => !exactDialogue.includes(term));
   const generated = await aiGenerateJSON<{ direction?: unknown; scenes?: unknown }>({
     accountId: args.accountId,
@@ -64,8 +64,8 @@ export async function prepareAiMediaFreeCreativePlan(args: {
       "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Ne convertis pas une demande artistique en publicité. L'entreprise n'est utile que si le brief s'y réfère.",
       "direction contient l'ensemble des contraintes nécessaires au film, avec tous les textes/valeurs littérales fournis. Ne récite pas les consignes dans le film. Les paroles ne sont pas du texte visible.",
       args.request.sceneMode === "single"
-        ? "scenes contient exactement le nombre de segments de 8 secondes demandé pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
-        : "scenes contient exactement le nombre de plans de 8 secondes demandé. Chaque plan apporte une étape visuelle distincte de la réalisation ; les changements de cadrage ou de lieu suivent le brief et conservent une cohérence d'ensemble.",
+        ? "scenes contient exactement le nombre de segments demandé (durée indiquée dans les paramètres) pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
+        : "scenes contient exactement le nombre de plans demandé (durée indiquée dans les paramètres). Chaque plan apporte une étape visuelle distincte de la réalisation ; les changements de cadrage ou de lieu suivent le brief et conservent une cohérence d'ensemble.",
       nativeDialogue
         ? "Pour chaque plan, visualBrief décrit l'action et identifie clairement le personnage qui parle. spokenLine contient une seule réplique naturelle, complète, de 14 mots et 90 caractères maximum. Voix synthétiques, pas de clonage. Respecte la langue demandée, sinon celle du brief. Les répliques exactes fournies sont attribuées dans l'ordre, une par plan ; après la dernière, spokenLine reste vide. Si aucune réplique n'est fournie, écris les paroles pertinentes pour cette création, sans slogan commercial imposé. La direction ne répète pas les paroles : spokenLine est leur seule source autoritaire. Pas de narrateur ajouté."
         : "Aucun dialogue des personnages : si une voix off est demandée, elle sera produite nativement par le moteur vidéo à partir d'un script transmis séparément pour chaque plan. Ne pas animer les bouches pour cette voix off.",
@@ -96,7 +96,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
         const spokenLine = exactDialogue.length
           ? exactDialogue[index] || ""
           : cleaned(scene.spokenLine);
-        if (!exactDialogue.length) validateAiMediaFreeDialogueLine(spokenLine);
+        if (!exactDialogue.length) validateAiMediaFreeDialogueLine(spokenLine, (args.request.durationSeconds || 8) / base.scenes.length);
         return { ...scene, spokenLine };
       }) : output.scenes,
     }) : undefined,
@@ -151,7 +151,7 @@ export async function writeAiMediaFreeNarration(args: {
   if (args.request.kind !== "video" || !args.request.withNarration || args.request.teamVideoSpeechMode === "characters") return null;
   const prompt = args.request.freePrompt || "";
   const duration = args.request.durationSeconds || 8;
-  const maxWords = Math.max(1, Math.min({ 8: 14, 16: 30, 24: 44 }[duration], args.maximumSpeechUnits ?? Infinity));
+  const maxWords = Math.max(1, Math.min(Math.max(1, Math.floor((duration - 1) * 2)), args.maximumSpeechUnits ?? Infinity));
   const exact = prompt.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
   const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName);
   let script = exact || "";
@@ -163,10 +163,10 @@ export async function writeAiMediaFreeNarration(args: {
         "Écris uniquement la voix off souhaitée pour ce film créatif. Respecte le sujet, le ton et la langue explicitement demandés ; sinon utilise la langue du brief.",
         "Ne récite pas les consignes de réalisation ni des descriptions techniques. Aucune publicité, accroche, promesse ni invitation imposée. Aucune information commerciale inventée.",
         `Le texte doit former une ou plusieurs phrases complètes, naturelles et terminées, de ${maxWords} mots maximum. Conserve les nombres et noms exacts pertinents pour la voix off.`,
-        duration > 8
+        args.plan.scenes.length > 1
           ? args.request.sceneMode === "single"
-            ? `La scène continue est produite en ${duration / 8} segments successifs de 8 secondes : écris une narration fluide, avec une phrase complète par segment et sans répéter l'introduction.`
-            : `Le film comporte ${duration / 8} plans de 8 secondes : privilégie une phrase courte et autonome par plan, sans couper une phrase entre deux plans.`
+            ? `La scène continue est produite en ${args.plan.scenes.length} segments successifs de durées natives compatibles : écris une narration fluide, avec une phrase complète par segment et sans répéter l'introduction.`
+            : `Le film comporte ${args.plan.scenes.length} plans de durées natives compatibles : privilégie une phrase courte et autonome par plan, sans couper une phrase entre deux plans.`
           : "",
       ].join(" "),
       input: JSON.stringify({ brief: prompt, film: args.plan.subline, max_words: maxWords, company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null }),

@@ -6,6 +6,7 @@ import ts from "typescript";
 import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 import { buildInrAgentMediaGenerationRequest } from "../../lib/inrAgentMediaRequest.ts";
 import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
+import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
 
 type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string };
 type Args = { accountId?: string; generationRequestId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8 };
@@ -19,6 +20,7 @@ function harness(options: {
   providerFailures?: number; persistThenThrow?: number; completionFailures?: number;
   acceptanceFailures?: number; registryFailures?: number; gate?: () => Promise<void>;
   reservationOutcome?: "quota_reached" | "premium_required";
+  creditsReady?: boolean;
 } = {}) {
   const jobs = new Map<string, Job>();
   const media = new Map<string, { id: string; accountId: string; media_type: string }>();
@@ -34,6 +36,10 @@ function harness(options: {
   const deps: Record<string, unknown> = {
     "server-only": {}, "node:crypto": crypto,
     "@/lib/aiMediaGenerationQuotaPolicy": { createAiMediaRequestFingerprint },
+    "@/lib/aiMediaCreditQuoteServer": { quoteAiMediaRequest: (accountId:string,request:ReturnType<typeof buildInrAgentMediaGenerationRequest>) => {
+      const quote=quoteAiMediaCredits({...request,inspirationImagesCount:request.inspirationImages.length});
+      return {...quote,quoteId:crypto.createHash("sha256").update(JSON.stringify({accountId,...quote})).digest("hex")};
+    } },
     "@/lib/inrAgentMediaRequest": { buildInrAgentMediaGenerationRequest },
     "@/lib/inrAgentMediaMix": { resolveInrAgentMediaMix },
     "@/lib/aiMediaQuotaPresentation": { AI_MEDIA_ADMIN_LIMIT_OVERRIDE: 10_000 },
@@ -53,6 +59,7 @@ function harness(options: {
       },
     },
     "@/lib/aiMediaGenerationQuota": {
+      getAiMediaQuotaSnapshot: async()=>({creditsReady:options.creditsReady!==false}),
       reserveAiMediaGeneration: async (args: { accountId: string; requestKey: string; requestFingerprint: string; quotaAmount: number; mediaKind: string }) => {
         reservations.push({ ...args });
         assert.ok(args.requestKey.length >= 8 && args.requestKey.length <= 180);
@@ -112,7 +119,7 @@ test("une génération terminée est réutilisée pour la même partie sans seco
   const first = await h.run();
   const replay = await h.run();
   assert.equal(first.outcome, "generated"); assert.equal(replay.item?.id, first.item?.id);
-  assert.equal(h.providerCalls.length, 1); assert.equal(h.jobs.size, 1); assert.equal(h.counts.used, 1);
+  assert.equal(h.providerCalls.length, 1); assert.equal(h.jobs.size, 1); assert.equal(h.counts.used, 7);
 });
 
 test("trois parties cohérentes gardent leurs idées distinctes et leurs propres reprises", async () => {
@@ -124,7 +131,7 @@ test("trois parties cohérentes gardent leurs idées distinctes et leurs propres
     const result = await h.run(args); items.push(result.item?.id);
     assert.equal((await h.run(args)).item?.id, result.item?.id);
   }
-  assert.equal(new Set(items).size, 3); assert.equal(h.providerCalls.length, 3); assert.equal(h.counts.used, 3);
+  assert.equal(new Set(items).size, 3); assert.equal(h.providerCalls.length, 3); assert.equal(h.counts.used, 21);
   assert.deepEqual(h.providerCalls.map((call) => call.request.idea), ideas);
 });
 
@@ -138,7 +145,7 @@ test("une reprise concurrente en cours n'appelle pas à nouveau le fournisseur",
   assert.equal((await h.run()).errorCode, "inr_agent_ai_media_generation_in_progress");
   release(); assert.equal((await first).outcome, "generated");
   assert.equal((await h.run()).outcome, "generated");
-  assert.equal(h.providerCalls.length, 1); assert.equal(h.counts.used, 1);
+  assert.equal(h.providerCalls.length, 1); assert.equal(h.counts.used, 7);
 });
 
 test("un échec confirmé peut être retenté puis rejoué avec une seule consommation réussie", async () => {
@@ -147,7 +154,7 @@ test("un échec confirmé peut être retenté puis rejoué avec une seule consom
   const retry = await h.run(); assert.equal(retry.outcome, "generated");
   assert.equal((await h.run()).item?.id, retry.item?.id);
   assert.equal(h.providerCalls.length, 2); assert.equal(h.jobs.size, 2);
-  assert.equal(h.counts.failures, 1); assert.equal(h.counts.used, 1);
+  assert.equal(h.counts.failures, 1); assert.equal(h.counts.used, 7);
 });
 
 test("deux reprises du même échec partagent une seule nouvelle réservation", async () => {
@@ -164,7 +171,7 @@ test("deux reprises du même échec partagent une seule nouvelle réservation", 
   const retry = h.run(); await entered;
   assert.equal((await h.run()).errorCode, "inr_agent_ai_media_generation_in_progress");
   release(); assert.equal((await retry).outcome, "generated");
-  assert.equal(h.providerCalls.length, 2); assert.equal(h.jobs.size, 2); assert.equal(h.counts.used, 1);
+  assert.equal(h.providerCalls.length, 2); assert.equal(h.jobs.size, 2); assert.equal(h.counts.used, 7);
 });
 
 test("les échecs persistants sont bornés à trois tentatives, jamais une clé aléatoire à chaque reprise", async () => {
@@ -179,7 +186,7 @@ test("les erreurs de complétion ou d'acceptation reprennent le même média", a
     const h = harness(options);
     assert.equal((await h.run()).outcome, "finalization_failed");
     assert.equal((await h.run()).outcome, "generated");
-    assert.equal(h.providerCalls.length, 1); assert.equal(h.counts.used, 1);
+    assert.equal(h.providerCalls.length, 1); assert.equal(h.counts.used, 7);
     assert.equal(h.counts.failures, 0); assert.equal(h.counts.completions, 1);
   }
 });
@@ -208,15 +215,24 @@ test("la clé ne permet ni de changer l'idée silencieusement ni de récupérer 
   assert.notEqual(other.item?.id, first.item?.id); assert.equal(h.providerCalls.length, 2);
 });
 
-test("le clip court réserve huit secondes et une image une unité", async () => {
+test("le clip court garde sa durée technique et réserve le devis en crédits", async () => {
   const h = harness();
   await h.run({ kind: "video", videoDurationSeconds: 8 });
   assert.equal(h.providerCalls[0].request.durationSeconds, 8);
   assert.equal(h.providerCalls[0].request.sceneMode, "single");
-  assert.equal(h.reservations[0].quotaAmount, 8); assert.equal(h.counts.used, 8);
+  const request=h.providerCalls[0].request;
+  const expected=quoteAiMediaCredits({...request,inspirationImagesCount:request.inspirationImages.length}).totalCredits;
+  assert.equal(h.reservations[0].quotaAmount, expected); assert.equal(h.counts.used, expected);
   const image = harness(); await image.run({ videoDurationSeconds: 8 });
-  assert.equal(image.reservations[0].quotaAmount, 1);
+  assert.equal(image.reservations[0].quotaAmount, 7);
   assert.equal(image.providerCalls[0].request.durationSeconds, null);
+});
+
+test("le portefeuille non migré bloque avant toute réservation et tout fournisseur",async()=>{
+  const h=harness({creditsReady:false});
+  const result=await h.run();
+  assert.equal(result.errorCode,"AI_MEDIA_CREDITS_NOT_READY");
+  assert.equal(h.providerCalls.length,0);assert.equal(h.reservations.length,0);
 });
 
 test("quota épuisé ou Studio indisponible ne déclenchent aucun fournisseur", async () => {
@@ -231,5 +247,5 @@ test("un appel historique sans identifiant reste une nouvelle génération expli
   const h = harness();
   const first = await h.run({ generationRequestId: undefined });
   const second = await h.run({ generationRequestId: undefined });
-  assert.notEqual(first.item?.id, second.item?.id); assert.equal(h.counts.used, 2);
+  assert.notEqual(first.item?.id, second.item?.id); assert.equal(h.counts.used, 14);
 });

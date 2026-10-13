@@ -38,7 +38,7 @@ test("les identités gardent leurs références en parallèle et héritent des f
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
   for (const provider of [veo, omni]) {
-    assert.match(provider, /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/);
+    assert.match(provider, /inspirationImages:\s*index === 0 \|\| !connectScenes\s*\? args\.request\.inspirationImages\s*: \[\]/);
     assert.match(provider, /const previousClip =[^;]*index > 0 \? clips\[index - 1\] : undefined/);
     assert.match(provider, /ai_video_continuity_context_missing/);
     assert.match(provider, /const continuityFrame = previousClip\s*\? await extractAiMediaVideoContinuityFrame\(\{ \.\.\.previousClip, signal: args\.signal \}\)/);
@@ -105,8 +105,9 @@ test("l’équipe cinématique conserve le moteur choisi, tente Omni après Veo 
     /inspirationImages:\s*\[\s*\{\s*\.\.\.groupImage,\s*role: "character",\s*usage: "required",\s*\},\s*\]/,
   );
   assert.match(server, /identityTeamPrecomposed: true/);
-  assert.match(server, /identityTeamGoogleEgressConsent: true/);
-  assert.match(server, /if \(request\.videoEngine !== "veo"\) throw primaryError/);
+  assert.match(server, /identityTeamGoogleEgressConsent: providerRequest\.teamVideoVeoConsent/);
+  assert.match(server, /identityTeamProviderEgressConsent: request\.teamVideoProviderConsent/);
+  assert.match(server, /request\.videoEngine !== "veo" \|\| !\[8, 16\]\.includes\(request\.durationSeconds \|\| 8\)/);
   assert.match(server, /request: \{ \.\.\.request, videoEngine: "omni" \}/);
   assert.match(server, /veo_fallback_to_omni/);
   assert.match(server, /video_engine_\$\{failureArgs\.engine\}_failure_\$\{failure\.kind\}/);
@@ -243,7 +244,7 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.doesNotMatch(veo, /\["On s’y met \?", "Avec plaisir\."\]/);
   assert.match(veo, /VOICE-OVER: people stay silent with closed mouths/);
   assert.match(veo, /no native speech, lip-sync, vocalisation/);
-  assert.match(veo, /DIALOGUE: recurring character lip-syncs once 0\.2–5\.5s/);
+  assert.match(veo, /DIALOGUE: recurring character lip-syncs once 0\.2–\$\{speechEnd\}s/);
   assert.match(veo, /DIALOGUE: Person \$\{firstSpeaker\} left-to-right lip-syncs once/);
   assert.match(veo, /const firstLine = resolveAiMediaDialogueSequence\(\{[\s\S]*?\}\)\[index\]/);
   assert.match(veo, /Then mouth closed\/silent/);

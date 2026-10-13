@@ -12,30 +12,37 @@ const styles = readFileSync(
   "utf8",
 );
 
-test("Modifier Image recharge et affiche le compteur image partagé", () => {
+test("Modifier Image recharge et affiche le portefeuille médias partagé", () => {
   assert.match(modifier, /const \{[\s\S]*?quota,[\s\S]*?quotaLoading,[\s\S]*?loadQuota,/);
   assert.match(modifier, /void loadQuota\(\)/);
-  assert.match(modifier, /const imageCounter = quota\?\.image \|\| null/);
-  assert.match(modifier, /imageCounter\.used \+ imageCounter\.reserved/);
-  assert.match(modifier, /ai_generator_image_quota/);
-  assert.match(modifier, /ai_generator_remaining/);
-  assert.match(modifier, /ai_generator_reset/);
+  assert.match(modifier, /const imageCounter = quota\?\.credits \|\| null/);
+  assert.match(modifier, /<MediaQuotaSummary kind="image" counter=\{imageCounter\}/);
+  assert.match(modifier, /creditsReady=\{quota\?\.creditsReady\}/);
+  assert.match(modifier, /useMediaCreditQuote\(\{ kind: "image", operation: "modify"/);
+  assert.match(modifier, /\.\.\.creditQuote\.authorization/);
+  assert.match(modifier, /imageEngine: enginePreference\.imageEngine/);
+  assert.match(modifier, /<MediaCreditQuoteSummary/);
 });
 
-test("le quota reste à gauche du CTA Modifier et bloque un crédit épuisé", () => {
+test("le portefeuille reste séparé des commandes compactes et le prix confirmé protège Modifier", () => {
   const footer = modifier
-    .match(/<footer className=\{styles\.actionBar\}>[\s\S]*?<\/footer>/g)
-    ?.find((candidate) => candidate.includes("styles.quotaCard"));
+    .match(/<footer\b[^>]*data-media-footer[^>]*>[\s\S]*?<\/footer>/g)
+    ?.find((candidate) => candidate.includes("<MediaQuotaSummary"));
 
   assert.ok(footer, "le bandeau Modifier doit exister");
   assert.ok(
-    footer.indexOf("styles.quotaCard") < footer.indexOf("styles.primaryButton"),
-    "le quota doit précéder le CTA",
+    footer.indexOf("<MediaQuotaSummary") < footer.indexOf("<MediaGenerationActions>"),
+    "le portefeuille doit précéder les commandes de génération",
   );
+  const actions=footer.match(/<MediaGenerationActions>[\s\S]*?<\/MediaGenerationActions>/)?.[0];
+  assert.ok(actions,"le moteur, le prix et le CTA doivent partager les commandes compactes");
+  assert.ok(actions.indexOf("{engineControls}")<actions.indexOf("<MediaCreditQuoteSummary"));
+  assert.ok(actions.indexOf("<MediaCreditQuoteSummary")<actions.indexOf("styles.primaryButton"));
   assert.match(footer, /imageQuotaExhausted/);
-  assert.match(styles, /\.quotaCard\s*\{[\s\S]*?width:\s*fit-content/);
+  assert.match(footer, /!creditQuote\.ready \|\| creditQuote\.insufficient/);
+  assert.match(modifier,/if \(operationLocked \|\| !creditQuote\.ready \|\| creditQuote\.insufficient\) return/);
   assert.match(
     styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.quotaCard\s*\{[\s\S]*?width:\s*100%/,
+    /@media \(max-width: 620px\)[\s\S]*?\.actionBar\s*\{[\s\S]*?flex-direction:\s*column/,
   );
 });

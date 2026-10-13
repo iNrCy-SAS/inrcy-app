@@ -20,7 +20,7 @@ export type AiMediaNativeDialogueQaClip = {
   sceneIndex: number;
   buffer: Buffer;
   mediaType?: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   /** Début logique dans un MP4 cumulatif Omni de 16/24 secondes. */
   sourceStartSeconds?: number;
   expectedLine: string;

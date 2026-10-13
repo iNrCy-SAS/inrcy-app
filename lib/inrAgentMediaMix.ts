@@ -3,6 +3,7 @@ import type {
   AiMediaKind,
 } from "./aiMediaGenerationContracts.ts";
 import type { AiMediaVideoDurationLimit } from "./aiMediaGenerationQuotaPolicy.ts";
+import { getAiMediaVideoDurations, getAiMediaVideoNativeDurations } from "./aiMediaModelCatalog.ts";
 import {
   normalizeAiMediaGeneratorPreferences,
   type AiMediaGeneratorPreferences,
@@ -219,17 +220,19 @@ function applyVideoDurationLimit(
     };
   }
 
-  const requestedDuration = parameters.durationSeconds || 8;
-  const durationSeconds = Math.min(
-    requestedDuration,
-    maxVideoDurationSeconds,
-  ) as AiMediaVideoDurationLimit;
+  // Automated publishing still uses Omni. A saved Studio duration can belong
+  // to another engine. Its total is limited to two Omni clips (20 seconds),
+  // while an existing 24-second preference becomes a 20-second film.
+  const minimumDuration = 4;
+  const supported = getAiMediaVideoDurations("omni")
+    .filter((duration) => duration >= minimumDuration && duration <= maxVideoDurationSeconds);
+  if (!supported.length) throw new Error("inr_agent_ai_media_duration_not_supported");
+  const requestedDuration = Math.max(parameters.durationSeconds || 8, minimumDuration);
+  const durationSeconds = supported.filter((duration) => duration <= requestedDuration).at(-1) ?? supported[0];
   return {
     ...parameters,
     durationSeconds,
-    // Une vidéo de 8 secondes ne comporte qu'un plan fournisseur : conserver
-    // un raccord de scènes hérité d'un ancien réglage Studio serait incohérent.
-    connectScenes: durationSeconds > 8 && parameters.connectScenes,
+    connectScenes: !getAiMediaVideoNativeDurations("omni").includes(durationSeconds) && parameters.connectScenes,
   };
 }
 
@@ -290,7 +293,7 @@ export function resolveInrAgentMediaMix(args: {
   studioMediaPreferencePercent: number;
   studioPreferences?: AiMediaGeneratorPreferences | null;
   seed: string;
-  /** Limite commerciale déjà résolue pour le compte (8, 16 ou 24 s). */
+  /** Account cap; the automatic Omni route applies its own supported durations. */
   maxVideoDurationSeconds?: AiMediaVideoDurationLimit;
 }): InrAgentMediaMixResolution {
   const percent = normalizeInrAgentStudioMediaPreferencePercent(
@@ -311,7 +314,7 @@ export function resolveInrAgentMediaMix(args: {
       ...applyVideoDurationLimit(
         studio.parameters,
         args.kind,
-        args.maxVideoDurationSeconds ?? 24,
+        args.maxVideoDurationSeconds ?? 30,
       ),
       mode: "studio",
       studioMediaPreferencePercent: percent,
@@ -333,7 +336,7 @@ export function resolveInrAgentMediaMix(args: {
       narrationVoice: args.kind === "video" ? creative.narrationVoice : null,
     },
     args.kind,
-    args.maxVideoDurationSeconds ?? 24,
+    args.maxVideoDurationSeconds ?? 30,
   );
   return {
     ...creativeParameters,

@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { VideoCreditPacksPanel, ImageCreditPacksPanel } from "@/app/dashboard/_components/VideoCreditRecharge";
+import { VideoCreditPacksPanel } from "@/app/dashboard/_components/VideoCreditRecharge";
 
 function Recharges() {
   const t = useTranslations("settings");
@@ -29,7 +29,7 @@ function Recharges() {
   return <main style={{ width: "min(100%,1000px)", margin: "0 auto", padding: "24px 16px", boxSizing: "border-box" }}>
     <Link href="/dashboard/generer-media">← iNr’Studio</Link>
     {notice ? <p role="status">{notice} <button type="button" onClick={() => setRefresh((n) => n+1)}>{t("video_credit_refresh")}</button></p> : null}
-    {mediaKind === "image" ? <ImageCreditPacksPanel key={`image-${refresh}`} /> : <VideoCreditPacksPanel key={`video-${refresh}`} />}
+    <VideoCreditPacksPanel key={`media-${refresh}`} />
   </main>;
 }
 export default function VideoCreditRechargePage() {

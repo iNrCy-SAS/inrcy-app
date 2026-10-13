@@ -11,6 +11,9 @@ import sharp from "sharp";
 import type {
   AiMediaInspirationImage,
   AiMediaVideoDuration,
+  AiMediaVideoEngine,
+  AiMediaVideoResolution,
+  AiMediaVideoSceneMode,
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
 import type { AiVideoProviderResult } from "@/lib/aiVideoProviderTypes";
@@ -348,10 +351,13 @@ export async function createAiMediaFallbackVideo(args: {
   width: number;
   height: number;
   durationSeconds: AiMediaVideoDuration;
+  videoEngine?: AiMediaVideoEngine | null;
+  videoResolution?: AiMediaVideoResolution | null;
+  sceneMode?: AiMediaVideoSceneMode;
   signal?: AbortSignal;
 }): Promise<AiVideoProviderResult> {
   args.signal?.throwIfAborted();
-  const durations = getAiMediaVideoSegmentDurations(args.durationSeconds);
+  const durations = getAiMediaVideoSegmentDurations(args.durationSeconds, args.videoEngine, args.videoResolution, args.sceneMode);
   const temporaryDirectory = await mkdtemp(
     path.join(tmpdir(), "inrcy-media-fallback-"),
   );
@@ -463,6 +469,9 @@ export async function createReferenceTeamFallbackVideo(args: {
   width: number;
   height: number;
   durationSeconds: AiMediaVideoDuration;
+  videoEngine?: AiMediaVideoEngine | null;
+  videoResolution?: AiMediaVideoResolution | null;
+  sceneMode?: AiMediaVideoSceneMode;
   signal?: AbortSignal;
 }): Promise<AiVideoProviderResult> {
   const result = await createAiMediaFallbackVideo(args);

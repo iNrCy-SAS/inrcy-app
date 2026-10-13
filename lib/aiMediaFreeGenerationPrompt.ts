@@ -6,22 +6,30 @@ import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
 
 export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v2-native-voice";
 
-/** One short native voice-over cue per eight-second act; empty acts stay silent. */
-export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: number): string[] {
-  if (!Number.isInteger(sceneCount) || sceneCount < 1 || sceneCount > 3) {
+/** One native voice-over cue per generated clip; two clips maximum. */
+export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: number, segmentDurations?: readonly number[]): string[] {
+  if (!Number.isInteger(sceneCount) || sceneCount < 1 || sceneCount > 2) {
     throw new AiMediaRequestValidationError("La durée du film libre est invalide.");
   }
   const words = script.trim().split(/\s+/u).filter(Boolean);
   if (!words.length) throw new AiMediaRequestValidationError("Le texte de la voix off est vide.");
-  const activeScenes = Math.min(sceneCount, Math.max(1, Math.ceil(words.length / 15)));
+  if (segmentDurations && (segmentDurations.length !== sceneCount || segmentDurations.some((duration) => !Number.isInteger(duration) || duration < 4 || duration > 30))) {
+    throw new AiMediaRequestValidationError("Le découpage de la voix off est invalide.");
+  }
+  const capacities = Array.from({ length: sceneCount }, (_, index) => segmentDurations ? Math.floor((segmentDurations[index] - 1) * 2) : 15);
+  if (words.length > capacities.reduce((sum, capacity) => sum + capacity, 0)) {
+    throw new AiMediaRequestValidationError("La voix off est trop longue pour cette durée. Raccourcissez le texte ou choisissez une durée supérieure.");
+  }
+  const activeScenes = words.length <= capacities[0] ? 1 : sceneCount;
   const lines: string[] = [];
   let start = 0;
   for (let index = 0; index < activeScenes; index += 1) {
     const remaining = words.length - start;
     const remainingScenes = activeScenes - index;
     const target = Math.ceil(remaining / remainingScenes);
-    const minimum = Math.max(1, remaining - 15 * (remainingScenes - 1));
-    const maximum = Math.min(15, remaining - (remainingScenes - 1));
+    const remainingCapacity = capacities.slice(index + 1, activeScenes).reduce((sum, capacity) => sum + capacity, 0);
+    const minimum = Math.max(1, remaining - remainingCapacity);
+    const maximum = Math.min(capacities[index], remaining - (remainingScenes - 1));
     const sentenceBreaks = Array.from({ length: maximum - minimum + 1 }, (_, offset) => minimum + offset)
       .filter((count) => /[.!?;][»”"']?$/u.test(words[start + count - 1] || ""));
     const count = remainingScenes === 1
@@ -57,13 +65,14 @@ export function getAiMediaFreeRequestedDialogue(prompt: string) {
   return Array.from(prompt.matchAll(pattern), (match) => match[1]!.replace(/\s+/g, " ").trim());
 }
 
-export function validateAiMediaFreeDialogueLine(line: string) {
+export function validateAiMediaFreeDialogueLine(line: string, durationSeconds = 8) {
   const nonSpaceScript = /[\p{Script=Han}\p{Script=Thai}]/u.test(line);
   const units = nonSpaceScript
     ? Array.from(line.replace(/[^\p{L}\p{N}]/gu, "")).length
     : line.split(/\s+/u).filter(Boolean).length;
-  if (!line || line.length > 90 || units > (nonSpaceScript ? 42 : 14)) {
-    throw new AiMediaRequestValidationError("Une réplique est trop longue pour un plan de 8 secondes. Utilisez au maximum 14 mots et 90 caractères par réplique, ou répartissez le dialogue sur plusieurs plans.");
+  const maxWords = Math.max(1, Math.min(55, Math.floor((durationSeconds - 1) * 2)));
+  if (!line || line.length > 90 || units > (nonSpaceScript ? maxWords * 3 : maxWords)) {
+    throw new AiMediaRequestValidationError(`Une réplique est trop longue pour ce plan de ${durationSeconds} secondes. Utilisez au maximum ${maxWords} mots ou choisissez une durée supérieure.`);
   }
 }
 
@@ -74,11 +83,11 @@ export function resolveAiMediaFreeDialogueSequence(args: {
   if (args.request.kind !== "video" || args.request.teamVideoSpeechMode !== "characters") return [];
   const exact = getAiMediaFreeRequestedDialogue(args.request.freePrompt || "");
   if (exact.length > args.plan.scenes.length) {
-    throw new AiMediaRequestValidationError("Prévoyez un plan de 8 secondes par réplique. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
+    throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
   const lines = args.plan.scenes.map((scene, index) => exact.length ? exact[index] || "" : String(scene.spokenLine || "").trim());
   if (!lines.some(Boolean)) throw new AiMediaRequestValidationError("La préparation des voix des personnages est incomplète. Précisez leur dialogue dans votre demande.");
-  lines.filter(Boolean).forEach(validateAiMediaFreeDialogueLine);
+  lines.filter(Boolean).forEach((line) => validateAiMediaFreeDialogueLine(line, (args.request.durationSeconds || 8) / args.plan.scenes.length));
   return lines;
 }
 
@@ -162,7 +171,7 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
   return [
     "MODE LIBRE — réaliser un film original selon la demande, sans gabarit ni habillage commercial imposé.",
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
-    `Scènes : ${args.request.sceneMode === "single" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "plusieurs plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
+    `Scènes : ${args.request.sceneMode !== "multi" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "exactement deux plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
     args.request.teamVideoSpeechMode === "characters"
       ? "Les personnages parlent avec des voix synthétiques naturelles synchronisées à leurs mouvements de bouche. Respecter les répliques demandées, un locuteur à la fois, sans narrateur ajouté ni clonage de voix réelle."
       : args.request.withNarration
@@ -189,7 +198,7 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
 export function buildAiMediaFreeVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
-  durationSeconds: 4 | 6 | 8,
+  durationSeconds: number,
   options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean } = {},
 ) {
   const scene = args.plan.scenes[index];

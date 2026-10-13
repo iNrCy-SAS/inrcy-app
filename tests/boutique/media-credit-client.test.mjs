@@ -147,7 +147,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     },
     checkout: async () => response({ url: "https://checkout.stripe.com/c/pay/test" }),
     readOrder: async () => response({ order: { granted: false } }),
-    quota: { quota: { unlimited: false, image: { remaining: 17, includedRemaining: 10, purchasedRemaining: 7, purchasedDebt: 2, purchasedHeld: 3 }, video: { remaining: 96, includedRemaining: 46, purchasedRemaining: 50, purchasedDebt: 0, purchasedHeld: 0 } } },
+    quota: { quota: { unlimited: false, creditsReady: true, credits: { unit: "credit", remaining: 700, includedRemaining: 500, purchasedRemaining: 200, purchasedDebt: 20, purchasedHeld: 30 }, image: { remaining: 17, includedRemaining: 10, purchasedRemaining: 7, purchasedDebt: 2, purchasedHeld: 3 }, video: { remaining: 96, includedRemaining: 46, purchasedRemaining: 50, purchasedDebt: 0, purchasedHeld: 0 } } },
   };
   const require = (name) => {
     if (modules.has(name)) return modules.get(name);
@@ -195,59 +195,37 @@ function deferred() {
   return { promise, resolve };
 }
 
-test("image packs render image quantities and route payment through the image endpoint", async () => {
-  const h = clientHarness({ catalogueOrders: [{ id: "order", pack_key: "image_20", request_key: "previous", images: 20, amount_ht_cents: 500, status: "paid", granted_at: "2026-10-11T12:00:00Z", held_images: 2, revoked_images: 0, dispute_revoked_images: 0, created_at: "2026-10-11T12:00:00Z" }] });
-  const owner = h.panel("image");
-  await owner.flush();
-  assert.equal(h.calls[0].url, "/api/boutique/image-credits");
+test("four shared credit packs replace the image catalogue while legacy image history remains visible", async () => {
+  const h = clientHarness({ catalogueOrders: [{ id: "order", mediaKind: "image", pack_key: "image_20", request_key: "previous", images: 20, credits: 140, heldCredits: 14, amount_ht_cents: 500, status: "paid", granted_at: "2026-10-11T12:00:00Z", created_at: "2026-10-11T12:00:00Z" }] });
+  const owner = h.panel("image"); await owner.flush();
+  assert.equal(h.calls[0].url, "/api/boutique/video-credits");
   const packs = [...h.walk(owner.tree)].filter((node) => node.type === "article");
-  assert.deepEqual(packs.map((node) => node.key), ["image_20", "image_50", "image_100"]);
-  for (const [index, images] of [20, 50, 100].entries()) assert.ok(JSON.stringify(packs[index]).includes(`\\"images\\":${images}`));
-  assert.ok(JSON.stringify(owner.tree).includes("video_credit_disputed"), "history must read held_images");
-  h.packButton(owner, "image_20").props.onClick();
-  await owner.flush();
-  const request = h.calls.find((call) => call.init?.method === "POST");
-  assert.equal(request.url, "/api/boutique/image-credits/checkout");
-  assert.deepEqual(Object.keys(JSON.parse(request.init.body)).sort(), ["accountId", "packKey", "requestKey"]);
-  assert.equal(JSON.parse(request.init.body).accountId, "account-a");
-  assert.equal(JSON.parse(request.init.body).packKey, "image_20");
-  assert.deepEqual(h.actions[0], ["open", "about:blank", "_blank"]);
-  assert.equal(h.actions[1][0], "post");
-  assert.equal(h.paymentTabs[0].opener, null);
-  assert.equal(h.paymentTabs[0].location.href, "https://checkout.stripe.com/c/pay/test");
-  owner.dispose();
+  assert.deepEqual(packs.map((node) => node.key), ["video_50", "video_100", "video_200", "video_500"]);
+  for (const [index, credits] of [500,1000,2000,5000].entries()) {
+    const label=h.find(packs[index],(node)=>node.type==="strong").props.children;
+    assert.equal(label,'media_credit_quantity '+JSON.stringify({credits}));
+    const price=h.find(packs[index],(node)=>node.type==="span").props.children;
+    assert.equal(price[0],new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format([19,35,65,155][index]));
+  }
+  assert.ok(JSON.stringify(owner.tree).includes("video_credit_disputed"), "shared history uses normalized heldCredits from an old image order");
+  h.packButton(owner, "video_50").props.onClick(); await owner.flush();
+  const request=h.calls.find((call)=>call.init?.method==="POST");
+  assert.equal(request.url,"/api/boutique/video-credits/checkout");
+  assert.deepEqual(Object.keys(JSON.parse(request.init.body)).sort(),["accountId","packKey","requestKey"]);
+  assert.equal(JSON.parse(request.init.body).accountId,"account-a");assert.equal(JSON.parse(request.init.body).packKey,"video_50");
+  assert.deepEqual(h.actions[0],["open","about:blank","_blank"]);assert.equal(h.actions[1][0],"post");
+  assert.equal(h.paymentTabs[0].opener,null);assert.equal(h.paymentTabs[0].location.href,"https://checkout.stripe.com/c/pay/test");owner.dispose();
 });
 
-test("uncertain retries retain image request keys and preserve the existing video storage namespace", async () => {
-  const h = clientHarness();
-  const image = h.panel("image");
-  await image.flush();
-  h.environment.checkout = async () => { throw new Error("synthetic network loss"); };
-  h.packButton(image, "image_20").props.onClick();
-  await image.flush();
-  const imageKey = "inrcy:image-credit-checkout:v1:account-a:actor:image_20";
-  const requestKey = h.storage.get(imageKey);
-  assert.ok(requestKey);
-  assert.equal(h.paymentTabs[0].closed, true);
-  h.environment.checkout = async () => ({ ok: true, json: async () => ({ url: "https://untrusted.example/checkout" }) });
-  h.packButton(image, "image_20").props.onClick();
-  await image.flush();
-  const imagePosts = h.calls.filter((call) => call.init?.method === "POST");
-  assert.equal(JSON.parse(imagePosts[0].init.body).requestKey, JSON.parse(imagePosts[1].init.body).requestKey);
-  assert.equal(h.storage.get(imageKey), requestKey);
-  assert.equal(h.paymentTabs[1].closed, true, "untrusted redirect must remain blocked");
-  const videoKey = "inrcy:video-credit-checkout:v1:account-a:actor:video_50";
-  const priorVideoRequest = randomUUID();
-  h.storage.set(videoKey, priorVideoRequest);
-  const video = h.panel("video");
-  await video.flush();
-  h.packButton(video, "video_50").props.onClick();
-  await video.flush();
-  const request = h.calls.filter((call) => call.init?.method === "POST").at(-1);
-  assert.equal(request.url, "/api/boutique/video-credits/checkout");
-  assert.equal(JSON.parse(request.init.body).requestKey, priorVideoRequest);
-  assert.equal(h.storage.get(imageKey), requestKey);
-  image.dispose(); video.dispose();
+test("shared pack retries retain scoped request keys and preserve the original video checkout namespace", async () => {
+  const h=clientHarness();const common=h.panel("image");await common.flush();
+  h.environment.checkout=async()=>{throw new Error("synthetic network loss");};h.packButton(common,"video_50").props.onClick();await common.flush();
+  const key="inrcy:video-credit-checkout:v1:account-a:actor:video_50",requestKey=h.storage.get(key);assert.ok(requestKey);assert.equal(h.paymentTabs[0].closed,true);
+  h.environment.checkout=async()=>({ok:true,json:async()=>({url:"https://untrusted.example/checkout"})});h.packButton(common,"video_50").props.onClick();await common.flush();
+  const posts=h.calls.filter((call)=>call.init?.method==="POST");assert.equal(JSON.parse(posts[0].init.body).requestKey,JSON.parse(posts[1].init.body).requestKey);assert.equal(h.storage.get(key),requestKey);assert.equal(h.paymentTabs[1].closed,true);
+  const otherKey="inrcy:video-credit-checkout:v1:account-a:actor:video_100",prior=randomUUID();h.storage.set(otherKey,prior);
+  const other=h.panel("video");await other.flush();h.packButton(other,"video_100").props.onClick();await other.flush();
+  const request=h.calls.filter((call)=>call.init?.method==="POST").at(-1);assert.equal(request.url,"/api/boutique/video-credits/checkout");assert.equal(JSON.parse(request.init.body).requestKey,prior);assert.equal(h.storage.get(key),requestKey);common.dispose();other.dispose();
 });
 
 test("an old account checkout cannot navigate or unlock a newer account purchase", async () => {
@@ -258,100 +236,51 @@ test("an old account checkout cannot navigate or unlock a newer account purchase
   const second = deferred();
   let count = 0;
   h.environment.checkout = () => (++count === 1 ? first.promise : second.promise);
-  h.packButton(owner, "image_20").props.onClick();
+  h.packButton(owner, "video_50").props.onClick();
   h.changeAccount("account-b");
   await owner.flush();
-  h.packButton(owner, "image_20").props.onClick();
+  h.packButton(owner, "video_50").props.onClick();
   await owner.flush();
   first.resolve({ ok: true, json: async () => ({ url: "https://checkout.stripe.com/c/pay/old-account" }) });
   await owner.flush();
   assert.equal(h.paymentTabs[0].closed, true);
   assert.equal(h.paymentTabs[0].location.href, "about:blank");
-  assert.equal(h.packButton(owner, "image_20").props.disabled, true, "old finally must not clear the new busy state");
+  assert.equal(h.packButton(owner, "video_50").props.disabled, true, "old finally must not clear the new busy state");
   second.resolve({ ok: true, json: async () => ({ url: "https://checkout.stripe.com/c/pay/new-account" }) });
   await owner.flush();
   assert.equal(h.paymentTabs[1].closed, false);
   assert.equal(h.paymentTabs[1].location.href, "https://checkout.stripe.com/c/pay/new-account");
-  assert.equal(h.packButton(owner, "image_20").props.disabled, false);
+  assert.equal(h.packButton(owner, "video_50").props.disabled, false);
   const posts = h.calls.filter((call) => call.init?.method === "POST");
   assert.deepEqual(posts.map((call) => JSON.parse(call.init.body).accountId), ["account-a", "account-b"]);
   owner.dispose();
 });
 
-test("image balance reads only the image allowance, purchased debt and dispute hold", async () => {
-  const h = clientHarness();
-  const element = h.components.ImageCreditBalance();
-  const owner = h.render(element.type, element.props);
-  await owner.flush();
-  const text = JSON.stringify(owner.tree);
-  assert.ok(text.includes("media_credit_included") && text.includes('\\"images\\":10'));
-  assert.ok(text.includes("media_credit_purchased") && text.includes('\\"images\\":7'));
-  assert.ok(text.includes("image_credit_debt") && text.includes('\\"images\\":2'));
-  assert.ok(text.includes("image_credit_held") && text.includes('\\"images\\":3'));
-  assert.ok(!text.includes("video_credit_available"));
-  assert.ok(!text.includes("image_credit_available") && !text.includes('\\"images\\":17'), "do not present a combined total as the monthly allowance");
-  owner.dispose();
+test("images and videos read one credit allowance with purchased debt and dispute hold", async () => {
+ const h=clientHarness();const element=h.components.ImageCreditBalance(),owner=h.render(element.type,element.props);await owner.flush();
+ const labels=[...h.walk(owner.tree)].filter((node)=>node.type==="dd").map((node)=>node.props.children);
+ assert.deepEqual(labels,['media_credit_quantity '+JSON.stringify({credits:500}),'media_credit_quantity '+JSON.stringify({credits:200})]);
+ const paragraphs=[...h.walk(owner.tree)].filter((node)=>node.type==="p").map((node)=>node.props.children);
+ assert.ok(paragraphs.includes('media_credit_debt '+JSON.stringify({credits:20})));assert.ok(paragraphs.includes('media_credit_held '+JSON.stringify({credits:30})));
+ assert.ok(!JSON.stringify(owner.tree).includes('image_credit_quantity'));owner.dispose();
 });
 
-test("shared dialog starts on the requested kind, exposes keyboard tabs and resets on reopening", async () => {
-  const h = clientHarness();
-  assert.equal(h.components.VideoCreditRechargeButton, h.components.MediaCreditRechargeButton);
-  const owner = h.render(h.components.MediaCreditRechargeButton, { mediaKind: "image" });
-  const tabs = () => [...h.walk(owner.tree)].filter((node) => node.props.role === "tab");
-  assert.deepEqual(tabs().map((node) => node.props["aria-selected"]), [false, true]);
-  assert.deepEqual(tabs().map((node) => node.props.tabIndex), [-1, 0]);
-  const dialog = h.find(owner.tree, (node) => node.type === "dialog");
-  assert.ok(h.find(owner.tree, (node) => node.props.id === dialog.props["aria-labelledby"]));
-  const tabPanel = () => h.find(owner.tree, (node) => node.props.role === "tabpanel");
-  assert.equal(tabPanel().props["aria-labelledby"], tabs()[1].props.id);
-  assert.equal(tabPanel().props.children.props.mediaKind, "image");
-  let prevented = false;
-  tabs()[1].props.onKeyDown({ key: "Home", preventDefault: () => { prevented = true; } });
-  await owner.flush();
-  assert.equal(prevented, true);
-  assert.equal(tabs()[0].props["aria-selected"], true);
-  assert.equal(h.focused(), tabs()[0].props.id);
-  const trigger = h.find(owner.tree, (node) => node.type === "button" && node.props["aria-haspopup"] === "dialog");
-  trigger.props.onClick();
-  await owner.flush();
-  assert.equal(h.dialog.open, true);
-  assert.equal(tabs()[1].props["aria-selected"], true);
-  assert.equal(tabPanel().props.children.props.mediaKind, "image");
-  owner.dispose();
-  const native = clientHarness({ platform: "ios" });
-  const nativeOwner = native.render(native.components.MediaCreditRechargeButton, { mediaKind: "image" });
-  assert.equal(nativeOwner.tree, null);
-  assert.equal(native.calls.length, 0);
-  nativeOwner.dispose();
+test("the recharge dialog presents the same media catalogue from either kind and remains accessible", async () => {
+ const h=clientHarness();assert.equal(h.components.VideoCreditRechargeButton,h.components.MediaCreditRechargeButton);
+ const owner=h.render(h.components.MediaCreditRechargeButton,{mediaKind:"image"});
+ const dialog=h.find(owner.tree,(node)=>node.type==="dialog");assert.ok(h.find(owner.tree,(node)=>node.props.id===dialog.props["aria-labelledby"]));
+ assert.equal([...h.walk(owner.tree)].filter((node)=>node.props.role==="tab").length,0);
+ assert.ok(h.find(owner.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"));
+ const trigger=h.find(owner.tree,(node)=>node.type==="button"&&node.props["aria-haspopup"]==="dialog");trigger.props.onClick();await owner.flush();assert.equal(h.dialog.open,true);owner.dispose();
+ const native=clientHarness({platform:"ios"}),nativeOwner=native.render(native.components.MediaCreditRechargeButton,{mediaKind:"image"});assert.equal(nativeOwner.tree,null);assert.equal(native.calls.length,0);nativeOwner.dispose();
 });
 
-test("tabs stay locked until the current checkout request completes", async () => {
-  const h = clientHarness();
-  const modal = h.render(h.components.MediaCreditRechargeButton, { mediaKind: "video" });
-  const tabs = () => [...h.walk(modal.tree)].filter((node) => node.props.role === "tab");
-  tabs()[1].props.onClick();
-  await modal.flush();
-  const panelElement = h.find(modal.tree, (node) => node.props.role === "tabpanel").props.children;
-  const panel = h.render(panelElement.type, panelElement.props);
-  await panel.flush();
-  const checkout = deferred();
-  h.environment.checkout = () => checkout.promise;
-  h.packButton(panel, "image_20").props.onClick();
-  await panel.flush(); await modal.flush();
-  assert.ok(tabs().every((tab) => tab.props.disabled));
-  tabs()[0].props.onClick();
-  await modal.flush();
-  assert.equal(tabs()[1].props["aria-selected"], true, "a tab change must not abandon the pending payment tab");
-  h.dialog.close();
-  h.find(modal.tree, (node) => node.type === "button" && node.props["aria-haspopup"] === "dialog").props.onClick();
-  await modal.flush();
-  assert.equal(tabs()[1].props["aria-selected"], true, "reopening must preserve the kind of a checkout still in flight");
-  checkout.resolve({ ok: true, json: async () => ({ url: "https://checkout.stripe.com/c/pay/test" }) });
-  await panel.flush(); await modal.flush();
-  assert.ok(tabs().every((tab) => !tab.props.disabled));
-  assert.equal(h.paymentTabs[0].closed, false);
-  assert.equal(h.paymentTabs[0].location.href, "https://checkout.stripe.com/c/pay/test");
-  panel.dispose(); modal.dispose();
+test("the recharge dialog close action stays locked until the current checkout completes", async () => {
+ const h=clientHarness(),modal=h.render(h.components.MediaCreditRechargeButton,{mediaKind:"video"});
+ const panelElement=h.find(modal.tree,(node)=>typeof node.type==="function"&&node.props.mediaKind==="video"),panel=h.render(panelElement.type,panelElement.props);await panel.flush();
+ const checkout=deferred();h.environment.checkout=()=>checkout.promise;h.packButton(panel,"video_50").props.onClick();await panel.flush();await modal.flush();
+ const close=()=>h.find(modal.tree,(node)=>node.type==="button"&&node.props["aria-label"]==="video_credit_close");assert.equal(close().props.disabled,true);
+ checkout.resolve({ok:true,json:async()=>({url:"https://checkout.stripe.com/c/pay/test"})});await panel.flush();await modal.flush();assert.equal(close().props.disabled,false);assert.equal(h.paymentTabs[0].closed,false);assert.equal(h.paymentTabs[0].location.href,"https://checkout.stripe.com/c/pay/test");panel.dispose();modal.dispose();
 });
 
 test("image checkout return waits for confirmation, refreshes image credits and clears a cancelled notice", async () => {
@@ -362,8 +291,8 @@ test("image checkout return waits for confirmation, refreshes image credits and 
   await owner.flush();
   const status = () => h.find(owner.tree, (node) => node.props.role === "status");
   assert.equal(status().props.children[0], messages.video_credit_pending, "pending image payments need a translated message before fulfillment");
-  assert.ok(h.find(owner.tree, (node) => node.type === h.components.ImageCreditPacksPanel));
-  assert.ok(!h.find(owner.tree, (node) => node.type === h.components.VideoCreditPacksPanel));
+  assert.ok(h.find(owner.tree, (node) => node.type === h.components.VideoCreditPacksPanel));
+  assert.ok(!h.find(owner.tree, (node) => node.type === h.components.ImageCreditPacksPanel));
   h.environment.readOrder = async () => ({ ok: true, json: async () => ({ order: { granted: true } }) });
   const refresh = h.find(status(), (node) => node.type === "button");
   assert.equal(refresh.props.children, messages.video_credit_refresh);

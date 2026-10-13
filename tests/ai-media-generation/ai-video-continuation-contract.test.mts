@@ -10,6 +10,7 @@ import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 import * as providerContract from "../../lib/aiMediaVideoProviderContract.ts";
 import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
+import * as mediaModelCatalog from "../../lib/aiMediaModelCatalog.ts";
 
 import {
   aiMediaDialogueSignature,
@@ -176,6 +177,8 @@ function loadVideoProviderRouter() {
       { googleVeoVideoProvider: provider("google-veo-fast", "veo-test") },
     ],
     ["@/lib/aiVideoProviderTypes", {}],
+    ["./aiMediaModelCatalog.ts", mediaModelCatalog],
+    ["./aiVideoProviderGateway.ts", { createGatewayAiVideoProvider: () => { throw new Error("unexpected_gateway_provider"); } }],
   ]);
   const localRequire = (specifier: string) => {
     if (stubs.has(specifier)) return stubs.get(specifier);
@@ -207,13 +210,13 @@ function loadVideoProviderRouter() {
   };
 }
 
-test("le routeur respecte Veo ou Omni pour les vidéos de 8, 16 et 24 secondes", async () => {
+test("le routeur respecte Veo ou Omni pour les vidéos de 8 et 16 secondes", async () => {
   const { calls, generate } = loadVideoProviderRouter();
   const configuredProvider = process.env.AI_MEDIA_VIDEO_PROVIDER;
   delete process.env.AI_MEDIA_VIDEO_PROVIDER;
 
   try {
-    for (const durationSeconds of [8, 16, 24]) {
+    for (const durationSeconds of [8, 16]) {
       for (const videoEngine of ["veo", "omni"] as const) {
         await generate({ request: { durationSeconds, videoEngine } });
       }
@@ -231,11 +234,9 @@ test("le routeur respecte Veo ou Omni pour les vidéos de 8, 16 et 24 secondes",
     { durationSeconds: 8, provider: "google-gemini-omni", videoEngine: "omni" },
     { durationSeconds: 16, provider: "google-veo-fast", videoEngine: "veo" },
     { durationSeconds: 16, provider: "google-gemini-omni", videoEngine: "omni" },
-    { durationSeconds: 24, provider: "google-veo-fast", videoEngine: "veo" },
-    { durationSeconds: 24, provider: "google-gemini-omni", videoEngine: "omni" },
   ]);
   assert.deepEqual(getAiMediaVideoSegmentDurations(16), [8, 8]);
-  assert.deepEqual(getAiMediaVideoSegmentDurations(24), [8, 8, 8]);
+  assert.throws(() => getAiMediaVideoSegmentDurations(24), /duration_unsupported/);
 });
 
 test("Omni chaîne les frames sur demande et borne le temps de génération du film", () => {
@@ -257,7 +258,7 @@ test("Omni chaîne les frames sur demande et borne le temps de génération du f
   );
   assert.match(
     omni,
-    /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
+    /inspirationImages:\s*index === 0 \|\| !connectScenes\s*\? args\.request\.inspirationImages\s*: \[\]/,
     "les actes indépendants gardent leurs références; les actes connectés héritent de la frame réelle",
   );
   assert.match(omni, /extractAiMediaVideoContinuityFrame\(\{ \.\.\.previousClip/);
@@ -301,7 +302,7 @@ test("un film long verrouille son provider et son modèle après tout coût fact
   assert.equal(isAiVideoProviderBillableFailure(new Error("ordinary")), false);
 });
 
-test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les images qu’au premier tour", () => {
+test("l’opt-in Omni enchaîne res1 vers res2 et n’envoie les images qu’au premier tour", () => {
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
   assert.match(
@@ -338,7 +339,7 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
   );
   assert.ok(
     stateHandoff > previousIdInput && stateHandoff < loopEnd,
-    "res1 devient le parent de res2, puis res2 celui de res3",
+    "res1 devient le parent de res2",
   );
   assert.match(
     omni,
@@ -346,7 +347,7 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
   );
   assert.match(
     omni,
-    /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
+    /inspirationImages:\s*index === 0 \|\| !connectScenes\s*\? args\.request\.inspirationImages\s*: \[\]/,
   );
   assert.match(
     omni,
@@ -364,9 +365,9 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
   );
 });
 
-test("la sortie Omni cumulée est découpée en fenêtres logiques 0/8/16", () => {
+test("la sortie Omni cumulée est découpée en deux fenêtres logiques", () => {
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
-  const offsets = (duration: 8 | 16 | 24) => {
+  const offsets = (duration: 8 | 16 | 20) => {
     let cursor = 0;
     return getAiMediaVideoSegmentDurations(duration).map((clipDuration) => {
       const start = cursor;
@@ -377,7 +378,7 @@ test("la sortie Omni cumulée est découpée en fenêtres logiques 0/8/16", () =
 
   assert.deepEqual(offsets(8), [0]);
   assert.deepEqual(offsets(16), [0, 8]);
-  assert.deepEqual(offsets(24), [0, 8, 16]);
+  assert.deepEqual(offsets(20), [0, 10]);
   assert.match(
     omni,
     /const finalClip = completedClips\[completedClips\.length - 1\]!/,
@@ -435,10 +436,10 @@ test("le prompt de prolongation impose une vraie suite sans coupe, reset ni rép
   assert.match(veo, /Then silent\/closed mouth/);
 });
 
-test("le prompt reference_team de 24 secondes conserve ses contraintes critiques sous 3 200 caractères", () => {
+test("le prompt reference_team de 16 secondes conserve ses contraintes critiques sous 3 200 caractères", () => {
   const { buildGoogleVideoScenePrompt, promptForInspirationMode } =
     loadVeoPromptRuntime();
-  const dialogues = [0, 1, 2].map((index) =>
+  const dialogues = [0, 1].map((index) =>
     getAiMediaDialogueFallbackPair("fr", index),
   );
   const plan = {
@@ -488,7 +489,9 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
         teamVideoSpeechMode: "characters",
         teamVideoVeoConsent: true,
         identityReferenceSetId: "reference-set-contract",
-        durationSeconds: 24,
+        durationSeconds: 16,
+        sceneMode: "multi",
+        connectScenes: false,
         inspirationImages: [{ mimeType: "image/jpeg", data: "AA==" }],
         source: "studio",
       },
@@ -542,7 +545,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     }
   }
 
-  const actPrompts = [0, 1, 2].map((index) =>
+  const actPrompts = [0, 1].map((index) =>
     buildGoogleVideoScenePrompt(
       generationArgs,
       index,
@@ -566,7 +569,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     assert.match(actPrompt, /NO VISUAL TEXT: blank surfaces/);
     assert.match(
       actPrompt,
-      /PARAMS: film=24s;fmt=square;type=service;mode=ai_free/,
+      /PARAMS: film=16s;fmt=square;type=service;mode=ai_free/,
     );
     assert.match(actPrompt, /look=expert\/photo\/medium\/team\/faithful/);
     assert.match(actPrompt, /story=multi\/unlinked/);
@@ -581,7 +584,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     assert.match(actPrompt, /FRAME medium\/full heads/);
   }
 
-  const parallelActPrompts = [0, 1, 2].map((index) =>
+  const parallelActPrompts = [0, 1].map((index) =>
     buildGoogleVideoScenePrompt(generationArgs, index, 8),
   );
   const continuityContracts = parallelActPrompts.map(
@@ -594,7 +597,6 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   assert.match(continuityContracts[0] || "", /FRAME medium\/full heads/);
   const expectedParallelRoles = [
     /ACT: OPENING: requested action moves at frame 1/,
-    /ACT: MIDDLE: new proof step; no opening replay/,
     /ACT: FINAL: same task reaches requested result/,
   ];
   for (const [index, actPrompt] of parallelActPrompts.entries()) {
@@ -609,7 +611,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
       `acte parallèle ${index + 1}: l'action propre à l'acte ne doit pas être tronquée`,
     );
   }
-  assert.equal(new Set(parallelActPrompts).size, 3);
+  assert.equal(new Set(parallelActPrompts).size, 2);
 
   const genericReferencePrompt = actPrompts[0]!.replace(
     /REFERENCE:[\s\S]*?(?=\sACT:)/,
@@ -640,9 +642,9 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   );
 });
 
-test("les dialogues de 24 secondes sont assez longs, significatifs et tous uniques", () => {
+test("les dialogues de 16 secondes sont assez longs, significatifs et tous uniques", () => {
   for (const language of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
-    const lines = [0, 1, 2].flatMap((sceneIndex) =>
+    const lines = [0, 1].flatMap((sceneIndex) =>
       getAiMediaDialogueFallbackPair(language, sceneIndex),
     );
     const signatures = lines.map(aiMediaDialogueSignature);

@@ -30,7 +30,8 @@ type RuntimeModule = {
     montage: Buffer;
     width: number;
     height: number;
-    durationSeconds: 8 | 16 | 24;
+    durationSeconds: number;
+    videoEngine?: "wan3";
     signal?: AbortSignal;
   }) => Promise<{
     provider: string;
@@ -215,4 +216,13 @@ test("le dernier recours 16 secondes garde un mouvement continu et expose deux t
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
+});
+
+test("un secours Wan natif de 16 secondes conserve un seul clip", async () => {
+  const runtime = loadRuntime();
+  const montage = await syntheticPortrait({ r: 24, g: 52, b: 92 }, { r: 224, g: 231, b: 255 });
+  const result = await runtime.createReferenceTeamFallbackVideo({ montage, width: 320, height: 320, durationSeconds: 16, videoEngine: "wan3" });
+  assert.equal(result.clips.length, 1);
+  assert.equal(result.clips[0]?.durationSeconds, 16);
+  assert.equal(result.clips[0]?.sourceStartSeconds, 0);
 });

@@ -55,6 +55,13 @@ export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationRefer
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import MediaQuotaSummary from "./MediaQuotaSummary";
+import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
+import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
+import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions, MediaVideoDurationSelect } from "./MediaEngineCreditControls";
+import { getAiMediaVideoModel } from "@/lib/aiMediaModelCatalog";
+import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
+import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
+import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -306,6 +313,10 @@ export default function MediaGenerator({
     discardDraft,
     reset,
   } = useMediaGeneration();
+  const enginePreference = useMediaEnginePreference(quota?.accountId);
+  const videoModel = getAiMediaVideoModel(enginePreference.videoEngine);
+  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
+    ? enginePreference.videoResolution : videoModel.defaultResolution;
   const {
     preferences: savedPreferences,
     loaded: preferencesLoaded,
@@ -595,7 +606,7 @@ export default function MediaGenerator({
     if (transformMode) return aiInstruction.trim();
 
     const directives: string[] = [];
-    if (kind === "video" && durationSeconds > 8) {
+    if (kind === "video") {
       directives.push(
         videoSceneMode === "single"
           ? "Raconter l'action dans une scène continue, avec les mêmes personnes, le même lieu et une continuité visuelle entre les plans."
@@ -620,39 +631,18 @@ export default function MediaGenerator({
   const resolvedTextKeywords = effectiveWithText
     ? normalizeTextKeywordValues([...textKeywords, textKeywordDraft])
     : [];
-  const counter = quota?.[kind] || null;
+  const counter = quota?.credits || null;
   const exhausted = quota?.unlimited ? false : counter?.remaining === 0;
-  const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 24;
-  const videoRemainingSeconds =
-    kind === "video" && !quota?.unlimited
-      ? quota?.video.remaining ?? null
-      : null;
+  const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 30;
+  const durations = getMediaVideoDurationChoices(videoMaxDurationSeconds);
 
   useEffect(() => {
-    if (!quota) return;
-    const affordableDurations = ([8, 16, 24] as const).filter(
-      (duration) =>
-        duration <= videoMaxDurationSeconds &&
-        (quota.unlimited ||
-          quota.video.remaining === null ||
-          duration <= quota.video.remaining)
-    );
-    setDurationSeconds((current) =>
-      affordableDurations.includes(current)
-        ? current
-        : affordableDurations.at(-1) ??
-          (current > videoMaxDurationSeconds
-            ? videoMaxDurationSeconds
-            : current)
-    );
-  }, [quota, videoMaxDurationSeconds]);
+    if (kind !== "video" || durationSeconds < 8) setVideoSceneMode("single");
+  }, [kind, durationSeconds]);
 
   const videoDurationUnavailable =
-    kind === "video" && durationSeconds > videoMaxDurationSeconds;
-  const videoCreditInsufficient =
-    kind === "video" &&
-    videoRemainingSeconds !== null &&
-    durationSeconds > videoRemainingSeconds;
+    kind === "video" && (!durations.includes(durationSeconds) ||
+      !canGenerateAiMediaVideoDuration(enginePreference.videoEngine, durationSeconds, videoResolution, videoSceneMode));
   const characterReferences = inspirationImages.filter(
     (image) => image.role === "character" && image.usage !== "inspiration"
   );
@@ -712,6 +702,23 @@ export default function MediaGenerator({
   const teamCinematicConsentRequired =
     kind === "video" && effectiveIdentityMode === "reference_team";
   const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak;
+  const referenceCount = mediaSourceMode === "real" ? inspirationImages.length : 0;
+  const modelBrief = [resolvedIdea, generationAiInstruction].filter(Boolean).join("\n\n");
+  const referenceCompatible = kind !== "video" || isMediaVideoReferenceCompatible(enginePreference.videoEngine, referenceCount);
+  const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, modelBrief);
+  const creditQuote = useMediaCreditQuote({ kind, operation: "generate", creationMode: "guided",
+    inputMode: "essential", identityMode: effectiveIdentityMode,
+    videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
+    videoResolution, durationSeconds: kind === "video" ? durationSeconds : undefined,
+    sceneMode: kind === "video" ? videoSceneMode : undefined,
+    inspirationImagesCount: referenceCount, withNarration: effectiveWithNarration,
+    teamVideoSpeechMode,
+  }, quota, !videoDurationUnavailable && referenceCompatible && briefCompatible);
+  const videoCreditInsufficient = creditQuote.insufficient;
+  const modelRecommendation = recommendAiMediaModel({ kind, brief: modelBrief,
+    durationSeconds, sceneMode: videoSceneMode, withNarration: effectiveWithNarration,
+    teamVideoSpeechMode, language: locale, inspirationImagesCount: referenceCount,
+    inputMode: "essential", identityMode: effectiveIdentityMode });
   const characterReferenceMissing =
     transformMode &&
     mediaSourceMode === "real" &&
@@ -736,6 +743,9 @@ export default function MediaGenerator({
     Boolean(exhausted) ||
     videoDurationUnavailable ||
     videoCreditInsufficient ||
+    !creditQuote.ready ||
+    !referenceCompatible ||
+    !briefCompatible ||
     Boolean(referenceRoleLimitError) ||
     characterReferenceMissing ||
     identityConsentMissing ||
@@ -1115,7 +1125,7 @@ export default function MediaGenerator({
   };
 
   const performGeneration = async (veoConsentForAttempt: boolean) => {
-    if (!subjectReady) return;
+    if (disabled) return;
     const sequence = generationSequenceRef.current + 1;
     generationSequenceRef.current = sequence;
     setCreationScreen(true);
@@ -1146,6 +1156,10 @@ export default function MediaGenerator({
 
     try {
       await generate({
+        ...creditQuote.authorization,
+        imageEngine: enginePreference.imageEngine,
+        videoEngine: enginePreference.videoEngine,
+        videoResolution,
         inputMode: "essential",
         source,
         kind,
@@ -1196,8 +1210,9 @@ export default function MediaGenerator({
         teamVideoMode: kind === "video" ? "cinematic" : undefined,
         teamVideoSpeechMode: kind === "video" ? teamVideoSpeechMode : undefined,
         teamVideoVeoConsent: teamCinematicConsentRequired
-          ? veoConsentForAttempt
+          ? videoModel.provider === "google" && veoConsentForAttempt
           : false,
+        teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt ? enginePreference.videoEngine : undefined,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
         sceneMode: kind === "video" ? videoSceneMode : undefined,
         connectScenes:
@@ -1229,7 +1244,7 @@ export default function MediaGenerator({
   };
 
   const handleGenerate = async () => {
-    if (!subjectReady) return;
+    if (disabled) return;
     if (teamCinematicConsentRequired) {
       setTeamVideoVeoConsent(false);
       setTeamVideoConsentOpen(true);
@@ -1480,11 +1495,7 @@ export default function MediaGenerator({
             {t("ai_generator_team_video_consent_title")}
           </h3>
           <p id="ai-media-team-video-consent-description">
-            {t(
-              animatedCharactersSpeak
-                ? "ai_generator_team_video_consent_description_characters"
-                : "ai_generator_team_video_consent_description"
-            )}
+            {t("ai_generator_team_video_provider_description", { provider: videoModel.providerLabel })}
           </p>
         </div>
         <label className={styles.teamVideoConsentCheck}>
@@ -1495,11 +1506,7 @@ export default function MediaGenerator({
             onChange={(event) => setTeamVideoVeoConsent(event.target.checked)}
           />
           <span>
-            {t(
-              animatedCharactersSpeak
-                ? "ai_generator_team_video_consent_checkbox_characters"
-                : "ai_generator_team_video_consent_checkbox"
-            )}
+            {t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}
           </span>
         </label>
         {!teamVideoVeoConsent ? (
@@ -1528,6 +1535,18 @@ export default function MediaGenerator({
     </div>
   ) : null;
 
+  const engineControls = (
+    <MediaEngineCreditControls kind={kind} videoEngine={enginePreference.videoEngine}
+              imageEngine={enginePreference.imageEngine} resolution={videoResolution}
+              durationSeconds={durationSeconds} sceneMode={videoSceneMode}
+              recommendation={modelRecommendation}
+              brief={modelBrief}
+              referenceCount={referenceCount} disabled={operationLocked}
+              onVideoEngineChange={(videoEngine, resolution) => { setTeamVideoVeoConsent(false); setTeamVideoConsentOpen(false); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
+              onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
+              onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
+  );
+
   if (creationScreen) {
     return (
       <MediaGenerationCreationWorkspace
@@ -1549,6 +1568,8 @@ export default function MediaGenerator({
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEditCriteria}
         disabled={disabled}
+        creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
+        engineControls={engineControls}
         acceptMode={acceptMode}
         savingToLibrary={savingToLibrary}
         actionError={actionError}
@@ -2076,9 +2097,10 @@ export default function MediaGenerator({
         <section
           className={`${styles.essentialCard} ${styles.messageCard} ${styles.directionCard}`}
           data-generator-block="direction"
+          data-direction-layout="compact"
           data-media-kind={kind}
           data-has-scene-mode={
-            kind === "video" && durationSeconds > 8 ? "true" : "false"
+            kind === "video" && durationSeconds >= 8 ? "true" : "false"
           }
         >
           <header className={styles.essentialCardHeader}>
@@ -2116,7 +2138,7 @@ export default function MediaGenerator({
 
           <div className={styles.directionSettings}>
             {kind === "image" ? (
-              <label className={styles.essentialSelectField}>
+              <label className={styles.essentialSelectField} data-direction-control="duration">
                 <span>Type de création</span>
                 <select
                   className={styles.studioSelect}
@@ -2134,47 +2156,28 @@ export default function MediaGenerator({
                 </select>
               </label>
             ) : (
-              <div className={styles.essentialField}>
-                <span>Durée</span>
-                <div className={styles.essentialSegmented} role="radiogroup">
-                  {([8, 16, 24] as const).map((duration) => {
-                    const durationUnavailable =
-                      duration > videoMaxDurationSeconds;
-                    const creditInsufficient =
-                      videoRemainingSeconds !== null &&
-                      duration > videoRemainingSeconds;
-                    return (
-                      <button
-                        key={duration}
-                        type="button"
-                        role="radio"
-                        aria-checked={durationSeconds === duration}
-                        data-active={
-                          durationSeconds === duration ? "true" : "false"
-                        }
-                        disabled={
-                          operationLocked ||
-                          durationUnavailable ||
-                          creditInsufficient
-                        }
-                        title={
-                          creditInsufficient
-                            ? t("ai_generator_video_credit_insufficient")
-                            : durationUnavailable
-                            ? t("ai_generator_video_premium_required")
-                            : undefined
-                        }
-                        onClick={() => setDurationSeconds(duration)}
-                      >
-                        {duration} s
+              <div className={styles.durationAndScenes} data-direction-control="duration">
+                <MediaVideoDurationSelect value={durationSeconds} durations={durations} disabled={operationLocked} onChange={setDurationSeconds} />
+                <div className={styles.sceneModeField}>
+                  <span>{t("ai_generator_free_scene_label")}</span>
+                  <div className={styles.sceneModeChoices} role="radiogroup" aria-label={t("ai_generator_free_scene_label")}>
+                    {(["single", "multi"] as const).map((mode) => (
+                      <button key={mode} type="button" role="radio"
+                        aria-checked={videoSceneMode === mode}
+                        data-active={videoSceneMode === mode ? "true" : "false"}
+                        disabled={operationLocked || (mode === "multi" && durationSeconds < 8)}
+                        onClick={() => setVideoSceneMode(mode)}
+                        title={t(`ai_generator_free_scene_${mode}_hint`)}>
+                        <strong>{t(`ai_generator_free_scene_${mode}`)}</strong>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  {durationSeconds < 8 ? <small>{t("ai_generator_two_scenes_minimum")}</small> : null}
                 </div>
               </div>
             )}
 
-            <label className={styles.essentialSelectField}>
+            <label className={styles.essentialSelectField} data-direction-control="format">
               <span>{t("ai_generator_format_title")}</span>
               <select
                 className={styles.studioSelect}
@@ -2192,7 +2195,7 @@ export default function MediaGenerator({
               </select>
             </label>
 
-            <label className={styles.essentialSelectField}>
+            <label className={styles.essentialSelectField} data-direction-control="render">
               <span>{kind === "video" ? "Réalisation" : "Rendu visuel"}</span>
               <select
                 className={styles.studioSelect}
@@ -2214,7 +2217,7 @@ export default function MediaGenerator({
               </select>
             </label>
 
-            <label className={styles.essentialSelectField}>
+            <label className={styles.essentialSelectField} data-direction-control="visual-direction">
               <span>Direction visuelle</span>
               <select
                 className={styles.studioSelect}
@@ -2236,7 +2239,7 @@ export default function MediaGenerator({
           </div>
 
           <div className={styles.identitySettings}>
-            <label className={styles.essentialSwitchRow}>
+            <label className={styles.essentialSwitchRow} data-direction-control="brand-colors">
               <span>
                 <strong>{t("ai_generator_brand_colors")}</strong>
                 <small>{t("ai_generator_brand_colors_hint")}</small>
@@ -2250,7 +2253,7 @@ export default function MediaGenerator({
               <i aria-hidden="true" />
             </label>
 
-            <div className={styles.essentialField}>
+            <div className={styles.essentialField} data-direction-control="logo">
               <span>{t("ai_generator_logo_label")}</span>
               <div className={styles.essentialSegmented} role="radiogroup">
                 {LOGO_MODES.map((option) => (
@@ -2270,33 +2273,6 @@ export default function MediaGenerator({
             </div>
           </div>
 
-          {kind === "video" && durationSeconds > 8 ? (
-            <div className={styles.sceneModeField}>
-              <span>Organisation du scénario</span>
-              <div className={styles.sceneModeChoices} role="radiogroup">
-                {(["single", "multi"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={videoSceneMode === mode}
-                    data-active={videoSceneMode === mode ? "true" : "false"}
-                    disabled={operationLocked}
-                    onClick={() => setVideoSceneMode(mode)}
-                  >
-                    <strong>
-                      {mode === "single" ? "Scène unique" : "Multiscène"}
-                    </strong>
-                    <small>
-                      {mode === "single"
-                        ? "Une action continue et une identité stable."
-                        : "Plusieurs étapes reliées dans une même histoire."}
-                    </small>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </section>
 
         <section
@@ -2619,7 +2595,7 @@ export default function MediaGenerator({
           </div>
         ) : videoDurationUnavailable ? (
           <div className={styles.warning} role="status">
-            {t("ai_generator_video_premium_required")}
+            {t("ai_generator_model_duration_unavailable", { seconds: durationSeconds })}
           </div>
         ) : exhausted ? (
           <div className={styles.warning} role="status">
@@ -2635,10 +2611,11 @@ export default function MediaGenerator({
 
       <div
         className={styles.footerBar}
+        data-media-footer
         data-kind={kind}
         data-consent-required={identityConsentRequired ? "true" : "false"}
       >
-        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited}
+        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
           resetDate={resetDate} locked={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} />
         {identityConsentRequired ? (
           <label
@@ -2689,26 +2666,30 @@ export default function MediaGenerator({
             </span>
           </label>
         ) : null}
-        <button
-          type="button"
-          className={styles.generateButton}
-          disabled={disabled}
-          aria-describedby={
-            identityConsentMissing
-              ? "ai-media-footer-consent-status"
-              : undefined
-          }
-          onClick={() => void handleGenerate()}
-        >
-          <span aria-hidden="true">✦</span>
-          <strong>
-            {t(
-              kind === "image"
-                ? "ai_generator_generate_image"
-                : "ai_generator_generate_video"
-            )}
-          </strong>
-        </button>
+        <MediaGenerationActions>
+          {engineControls}
+          <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
+          <button
+            type="button"
+            className={styles.generateButton}
+            disabled={disabled}
+            aria-describedby={
+              identityConsentMissing
+                ? "ai-media-footer-consent-status"
+                : undefined
+            }
+            onClick={() => void handleGenerate()}
+          >
+            <span aria-hidden="true">✦</span>
+            <strong>
+              {t(
+                kind === "image"
+                  ? "ai_generator_generate_image"
+                  : "ai_generator_generate_video"
+              )}
+            </strong>
+          </button>
+        </MediaGenerationActions>
       </div>
 
       <MediaLibraryPickerModal

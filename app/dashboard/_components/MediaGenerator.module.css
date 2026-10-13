@@ -133,7 +133,8 @@
 
 .essentialField,
 .essentialSelectField,
-.essentialTextareaField {
+.essentialTextareaField,
+.durationAndScenes > div:first-child {
   min-width: 0;
   display: grid;
   gap: 7px;
@@ -141,7 +142,8 @@
 
 .essentialField > span,
 .essentialSelectField > span,
-.essentialTextareaField > span {
+.essentialTextareaField > span,
+.durationAndScenes > div:first-child > label {
   color: rgba(227, 237, 255, 0.84);
   font-size: 10.5px;
   font-weight: 820;
@@ -254,7 +256,8 @@
   opacity: 0.5;
 }
 
-.studioSelect {
+.studioSelect,
+.durationAndScenes > div:first-child > select {
   width: 100%;
   min-height: 40px;
   padding: 0 38px 0 12px;
@@ -275,12 +278,15 @@
 }
 
 .studioSelect:hover:not(:disabled),
-.studioSelect:focus-visible {
+.studioSelect:focus-visible,
+.durationAndScenes > div:first-child > select:hover:not(:disabled),
+.durationAndScenes > div:first-child > select:focus-visible {
   border-color: rgba(75, 218, 250, 0.58);
   background-color: #142b57;
 }
 
-.studioSelect option {
+.studioSelect option,
+.durationAndScenes > div:first-child > select option {
   color: #f4f8ff;
   background: #10244a;
 }
@@ -2370,7 +2376,7 @@
   bottom: 0;
   z-index: 2;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2384,6 +2390,21 @@
     rgba(57, 41, 114, 0.35) 65%,
     rgba(153, 49, 156, 0.36)
   );
+}
+
+.footerBar[data-media-footer] {
+  flex-wrap: wrap;
+}
+.footerBar[data-media-footer]>[data-media-generation-actions] {
+  justify-self:end;
+}
+
+@media (max-width: 1100px) {
+  .footerBar[data-media-footer] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .footerBar > * {
@@ -3686,7 +3707,8 @@
 
   .essentialField,
   .essentialSelectField,
-  .essentialTextareaField {
+  .essentialTextareaField,
+  .durationAndScenes > div:first-child {
     gap: 4px;
   }
 
@@ -3696,7 +3718,8 @@
 
   .essentialField > span,
   .essentialSelectField > span,
-  .essentialTextareaField > span {
+  .essentialTextareaField > span,
+  .durationAndScenes > div:first-child > label {
     font-size: 9.3px;
   }
 
@@ -3742,7 +3765,8 @@
     font-size: 9.2px;
   }
 
-  .studioSelect {
+  .studioSelect,
+  .durationAndScenes > div:first-child > select {
     width: auto;
     max-width: 100%;
     min-height: 33px;
@@ -4472,13 +4496,15 @@
 
   .essentialField,
   .essentialSelectField,
-  .essentialTextareaField {
+  .essentialTextareaField,
+  .durationAndScenes > div:first-child {
     gap: 6px;
   }
 
   .essentialField > span,
   .essentialSelectField > span,
-  .essentialTextareaField > span {
+  .essentialTextareaField > span,
+  .durationAndScenes > div:first-child > label {
     font-size: 10.8px;
   }
 
@@ -4539,7 +4565,8 @@
     min-width: 190px;
   }
 
-  .studioSelect {
+  .studioSelect,
+  .durationAndScenes > div:first-child > select {
     min-height: 42px;
     padding: 0 36px 0 12px;
     border-radius: 11px;
@@ -5695,6 +5722,10 @@
 .sceneModeChoices strong {
   font-size: 10px;
 }
+.sceneModeChoices button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .sceneModeChoices small {
   color: rgba(191, 211, 242, 0.57);
@@ -6321,5 +6352,97 @@
 
   .identitySettings .essentialSegmented {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Six settings share two rows. Scene controls belong to the duration cell. */
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-rows:max-content max-content max-content;
+  align-content:start;
+  align-items:start;
+  gap:12px;
+  min-width:0;
+  min-height:0;
+  overflow:visible;
+}
+.generator .directionCard[data-direction-layout="compact"][data-media-kind]>.essentialCardHeader {
+  grid-column:1/-1;
+  grid-row:1;
+}
+.generator .directionCard[data-direction-layout="compact"][data-media-kind]>.directionSettings,
+.generator .directionCard[data-direction-layout="compact"][data-media-kind]>.identitySettings {
+  display:contents;
+}
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control] {
+  grid-column:auto;
+  grid-row:auto;
+  min-width:0;
+  align-self:start;
+}
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="duration"] { grid-column:1;grid-row:2; }
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="format"] { grid-column:2;grid-row:2; }
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="render"] { grid-column:3;grid-row:2; }
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="visual-direction"] { grid-column:1;grid-row:3; }
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="brand-colors"] { grid-column:2;grid-row:3; }
+.generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="logo"] { grid-column:3;grid-row:3; }
+.durationAndScenes { display:grid;gap:7px; }
+.durationAndScenes .sceneModeField { gap:4px; }
+.durationAndScenes .sceneModeChoices { gap:5px; }
+.durationAndScenes .sceneModeChoices button { min-height:30px;padding:5px 7px;text-align:center; }
+.durationAndScenes .sceneModeField>small { font-size:9px;line-height:1.4;color:#b3c5e0; }
+@media (max-width:700px) {
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] {
+    height:auto;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-rows:repeat(4,max-content);
+    gap:12px 10px;
+  }
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="duration"] {grid-column:1;grid-row:2;}
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="format"] {grid-column:2;grid-row:2;}
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="render"] {grid-column:1;grid-row:3;}
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="visual-direction"] {grid-column:2;grid-row:3;}
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="brand-colors"] {grid-column:1;grid-row:4;}
+  .generator .directionCard[data-direction-layout="compact"][data-media-kind] :is(.directionSettings,.identitySettings)>[data-direction-control="logo"] {grid-column:2;grid-row:4;}
+}
+
+@media (max-width: 760px) {
+  .footerBar[data-media-footer] { padding:7px; gap:6px; }
+}
+
+@media (min-width: 1101px) {
+  .footerBar[data-media-footer][data-consent-required="false"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    min-height: 74px;
+    padding: 10px 14px;
+  }
+  .footerBar[data-media-footer] > [data-media-credit-balance] {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .footerBar[data-media-footer][data-consent-required="false"] > [data-media-generation-actions] {
+    grid-column: 2;
+    width: auto;
+    max-width: none;
+    justify-self: end;
+  }
+  .footerBar[data-media-footer][data-consent-required="true"] > [data-media-generation-actions] {
+    grid-column: 3;
+    grid-row: 1;
+    width: auto;
+    max-width: none;
+    justify-self: end;
+  }
+  .footerBar[data-media-footer] [data-media-generation-actions] > .generateButton {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 220px;
+    min-height: 46px;
+    padding: 10px 20px;
+    white-space: nowrap;
   }
 }

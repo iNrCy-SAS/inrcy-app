@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 const { PGlite } = await import(process.env.PGLITE_MODULE ?? '@electric-sql/pglite');
 const root = new URL('../../', import.meta.url);
-export async function createMediaCreditDatabase() {
+export async function createMediaCreditDatabase({ preferences = false } = {}) {
   const db = new PGlite();
   try {
   await db.exec(`
@@ -20,6 +20,13 @@ export async function createMediaCreditDatabase() {
     grant usage on schema auth to service_role,authenticated;
     grant select on public.inrcy_account_members,public.subscriptions to service_role;
   `);
+  if (preferences) await db.exec(`
+    create table public.pro_tools_configs(user_id uuid primary key references public.inrcy_accounts(id),settings jsonb not null default '{}');
+    alter table public.pro_tools_configs enable row level security;
+    grant select,insert,update on public.pro_tools_configs to authenticated,service_role;
+    create policy pro_tools_configs_account_access on public.pro_tools_configs for all to authenticated
+      using(public.inrcy_can_access_account(user_id)) with check(public.inrcy_can_access_account(user_id));
+  `);
   const migrations = [
     'ops/sql/2026-08-31_ai_media_generation_quota.sql',
     'ops/sql/2026-09-02_ai_media_account_limits_20_5_30_6.sql',
@@ -33,6 +40,10 @@ export async function createMediaCreditDatabase() {
     'supabase/migrations/20261011121940_video_credit_recharges.sql',
     'supabase/migrations/20261011171132_image_credit_recharges.sql',
   ];
+  if (preferences) migrations.push(
+    'supabase/migrations/20260909210317_ai_media_connect_scenes_preference.sql',
+    'ops/sql/2026-09-05_ai_media_generator_team_video_mode.sql',
+  );
   for (const file of migrations) {
     try { await db.exec((await readFile(new URL(file, root),'utf8')).replaceAll('\r\n','\n')); }
     catch (error) { throw new Error(`Migration ${file}: ${error.message}`, { cause: error }); }

@@ -75,7 +75,7 @@ export type AiMediaGeneratorBlockDefaults = {
     teamVideoSpeechMode: "voiceover" | "characters";
   };
   6: {
-    durationSeconds: 8 | 16 | 24;
+    durationSeconds: number;
     connectScenes: boolean;
     withText: boolean;
     withMusic: boolean;
@@ -415,7 +415,7 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
     case 6: {
       if (
         typeof input.durationSeconds !== "number" ||
-        ![8, 16, 24].includes(input.durationSeconds)
+        !Number.isSafeInteger(input.durationSeconds) || input.durationSeconds < 4 || input.durationSeconds > 30
       ) {
         return invalidPatch("La durée du média est invalide.");
       }
@@ -437,7 +437,7 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
         return invalidPatch("La variante de voix de narration est invalide.");
       }
       return {
-        durationSeconds: input.durationSeconds as 8 | 16 | 24,
+        durationSeconds: input.durationSeconds,
         connectScenes: input.connectScenes === undefined
           ? false
           : requiredBoolean(input.connectScenes, "L’option de raccord des scènes"),
@@ -653,8 +653,8 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
           ? input.narrationVoiceVariant
           : defaultAiMediaNarrationVoiceVariant(narrationVoice);
       return {
-        durationSeconds: [8, 16, 24].includes(Number(input.durationSeconds))
-          ? (Number(input.durationSeconds) as 8 | 16 | 24)
+        durationSeconds: Number.isSafeInteger(Number(input.durationSeconds)) && Number(input.durationSeconds) >= 1 && Number(input.durationSeconds) <= 30
+          ? Number(input.durationSeconds)
           : 8,
         connectScenes: booleanValue(input.connectScenes, false),
         withText: booleanValue(input.withText, true),

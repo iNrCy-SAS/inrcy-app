@@ -9,6 +9,7 @@ import {
   normalizeAiMediaGenerationRequest,
 } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
+import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import {
   AI_MEDIA_SOUNDTRACKS,
   selectAiMediaSoundtrack,
@@ -106,7 +107,7 @@ test("le contrat réduit les options au média demandé", () => {
     creativity: "bold",
     useBrandColors: false,
     logoMode: "visible",
-    durationSeconds: 24,
+    durationSeconds: 20,
     identityConsent: true,
     inspirationImages: [
       { mimeType: "image/jpeg", data: inspirationData },
@@ -135,7 +136,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.teamVideoMode, "montage");
   assert.equal(video.teamVideoSpeechMode, "voiceover");
   assert.equal(video.teamVideoVeoConsent, false);
-  assert.equal(video.durationSeconds, 24);
+  assert.equal(video.durationSeconds, 20);
   assert.equal(video.inspirationImages.length, 3);
   assert.deepEqual(
     video.inspirationImages.map((item) => item.mimeType),
@@ -1048,7 +1049,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.doesNotMatch(gateway, /flux-3-video/);
   assert.match(gateway, /bufferFromUint8ArrayView\(image\.uint8Array\)/);
   assert.doesNotMatch(gateway, /Buffer\.from\(image\.uint8Array\)/);
-  assert.match(normalizer, /durationSeconds: 8 \| 16 \| 24/);
+  assert.match(normalizer, /durationSeconds: number/);
   assert.match(
     normalizer,
     /options:\s*\{[\s\S]*?width\?: number;[\s\S]*?height\?: number;[\s\S]*?canvasMode\?: AiImageNormalizationCanvasMode;/
@@ -1059,7 +1060,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     false
   );
   assert.match(provider, /configured === "auto"/);
-  assert.match(provider, /args\?\.request\.videoEngine === "veo"/);
+  assert.match(provider, /normalizeAiMediaVideoEngine\(args\?\.request\.videoEngine/);
+  assert.match(provider, /requestedEngine === "veo"/);
+  assert.match(provider, /selectedModel\.transport === "gateway"/);
   assert.match(provider, /googleOmniVideoProvider/);
   assert.match(provider, /googleVeoVideoProvider/);
   assert.match(provider, /generateOriginalAiVideoClips/);
@@ -1070,7 +1073,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(omni, /gemini-omni-1\.1-flash/);
   assert.match(omni, /ai\.interactions\.create/);
   assert.match(omni, /response_format:\s*\{[\s\S]*?type: "video"/);
-  assert.match(omni, /resolution: "720p"/);
+  assert.match(omni, /resolution: args\.generationArgs\.request\.videoResolution \|\| "720p"/);
   assert.match(omni, /duration: `\$\{args\.durationSeconds\}s`/);
   assert.match(omni, /delivery: "uri"/);
   assert.doesNotMatch(omni, /delivery: "inline"/);
@@ -1096,7 +1099,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     );
     assert.match(
       videoProvider,
-      /const connectScenes = durations\.length > 1 && args\.request\.connectScenes === true/
+      /const connectScenes = durations\.length > 1 && args\.request\.sceneMode !== "multi"/
     );
     assert.match(
       videoProvider,
@@ -1175,7 +1178,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /ai_video_veo_film_model_mixed/);
   assert.match(veo, /retryDelayMs/);
   assert.match(veo, /actualCostMicroUsd \+=/);
-  assert.match(veo, /costMicroUsdPerSecond\(usedModel\)/);
+  assert.match(veo, /costMicroUsdPerSecond\(usedModel, videoResolution\)/);
   assert.match(veo, /Math\.max\([\s\S]*costMicroUsdPerSecond/);
   for (const criterion of [
     "request.visualStyle",
@@ -1210,9 +1213,17 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /NO VISUAL TEXT/);
   assert.match(veo, /Animate from 0\.0s throughout/);
   assert.doesNotMatch(veo, /watermarks, interfaces, posters/);
-  assert.match(timeline, /8: Object\.freeze\(\[8\]/);
-  assert.match(timeline, /16: Object\.freeze\(\[8, 8\]/);
-  assert.match(timeline, /24: Object\.freeze\(\[8, 8, 8\]/);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(8, "omni"), [8]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(16, "omni"), [8, 8]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(20, "omni"), [10, 10]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(16, "veo"), [8, 8]);
+  assert.throws(() => getAiMediaVideoSegmentDurations(24, "veo"), /ai_media_video_duration_unsupported/);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(15, "minimax-h3"), [15]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(16, "wan3"), [16]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(30, "minimax-h3"), [15, 15]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(30, "wan3"), [30]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(30, "wan3", "720p", "multi"), [15, 15]);
+  assert.match(timeline, /return \[durationSeconds\]/);
   assert.match(copywriter, /ne les additionne jamais/);
   assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);

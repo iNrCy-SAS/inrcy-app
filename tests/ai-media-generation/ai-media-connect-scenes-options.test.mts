@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import ts from "typescript";
+import * as mediaModels from "../../lib/aiMediaModelCatalog.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import {
@@ -72,6 +73,7 @@ function hookRuntime() {
     if (specifier === "@/lib/aiMediaGenerationContracts") {
       return { shouldConnectAiMediaVideoScenes };
     }
+    if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
     throw new Error(`Unexpected runtime dependency: ${specifier}`);
   };
   const fixtureFetch = async (url: string, options: RequestInit) => {
@@ -93,16 +95,21 @@ function hookRuntime() {
   return { runtime: moduleRecord.exports as HookRuntime, requests };
 }
 
-test("le raccord des scènes est optionnel, désactivé par défaut et réservé aux vidéos multi-actes", () => {
-  for (const durationSeconds of [8, 16, 24]) {
-    assert.equal(normalize({ durationSeconds }).connectScenes, false);
-    assert.equal(normalize({ durationSeconds, connectScenes: false }).connectScenes, false);
-    assert.equal(normalize({ durationSeconds, connectScenes: true }).connectScenes, durationSeconds > 8);
+test("une scène continue raccorde automatiquement deux clips, deux scènes restent indépendantes", () => {
+  for (const durationSeconds of [8, 16, 20]) {
+    assert.equal(normalize({ durationSeconds }).connectScenes, durationSeconds > 10);
+    assert.equal(normalize({ durationSeconds, connectScenes: false }).connectScenes, durationSeconds > 10);
+    assert.equal(normalize({ durationSeconds, sceneMode: "multi" }).connectScenes, false);
   }
   assert.equal(normalize({ kind: "image", connectScenes: true }).connectScenes, false);
   for (const videoEngine of ["veo", "omni"]) {
-    assert.equal(normalize({ videoEngine, durationSeconds: 24, connectScenes: true }).connectScenes, true);
+    assert.equal(normalize({ videoEngine, durationSeconds: 16, connectScenes: true }).connectScenes, true);
   }
+  for (const durationSeconds of [0, 1, 3, 4.5, 31]) assert.throws(() => normalize({ durationSeconds }), AiMediaRequestValidationError);
+  assert.throws(() => normalize({ durationSeconds: 24 }), AiMediaRequestValidationError, "Omni ne produit pas un troisième clip");
+  assert.throws(() => normalize({ durationSeconds: 7, sceneMode: "multi" }), AiMediaRequestValidationError);
+  assert.equal(normalize({ videoEngine: "wan3", durationSeconds: 30 }).connectScenes, false, "Wan 3 produit 30 s nativement");
+  assert.equal(normalize({ videoEngine: "grok-lite", durationSeconds: 30 }).connectScenes, true);
 });
 
 test("le contrat refuse les valeurs non booléennes au lieu de les rendre vraies implicitement", () => {
@@ -123,7 +130,7 @@ test("les références obligatoires et les inspirations respectent le contrat de
     identityConsent: true,
     inspirationImages,
     connectScenes: true,
-    durationSeconds: 24,
+    durationSeconds: 20,
   };
   for (const identityMode of ["professional", "brand_avatar", "reference_team"]) {
     assert.equal(normalize({ ...identitySource, identityMode, teamVideoMode: "montage" }).connectScenes, false);
@@ -152,8 +159,8 @@ test("les références obligatoires et les inspirations respectent le contrat de
 
 test("le raccord fait partie de l'empreinte idempotente du client", () => {
   const { runtime } = hookRuntime();
-  const independent = clientRequest({ connectScenes: false });
-  const continuous = clientRequest({ connectScenes: true });
+  const independent = clientRequest({ sceneMode: "multi" });
+  const continuous = clientRequest({ sceneMode: "single" });
   const independentKey = runtime.fingerprintForTest(independent, independent.idea);
   const continuousKey = runtime.fingerprintForTest(continuous, continuous.idea);
   assert.notEqual(independentKey, continuousKey);
@@ -161,17 +168,17 @@ test("le raccord fait partie de l'empreinte idempotente du client", () => {
   assert.equal(JSON.parse(continuousKey).connectScenes, true);
   assert.equal(
     runtime.fingerprintForTest(clientRequest(), independent.idea),
-    independentKey,
-    "un ancien client sans cette option reste en mode sans raccord",
+    continuousKey,
+    "une nouvelle demande sans mode explicite garde une scène continue",
   );
 });
 
 test("le vrai payload transmet le mode et son changement crée une nouvelle tentative", async () => {
   const { runtime, requests } = hookRuntime();
   const hook = runtime.default();
-  for (const connectScenes of [false, false, true, true, false]) {
+  for (const sceneMode of ["multi", "multi", "single", "single", "multi"] as const) {
     await assert.rejects(
-      hook.generate(clientRequest({ connectScenes })),
+      hook.generate(clientRequest({ sceneMode })),
       { message: "Fixture generation pending" },
     );
   }

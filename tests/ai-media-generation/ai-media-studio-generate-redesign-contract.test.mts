@@ -560,7 +560,7 @@ test("Générer Vidéo compose trois contrats de mode réellement distincts", ()
       settingCriterion: "exterior",
       focusCriterion: "environment",
       imageStyle: "three_d",
-      durationSeconds: 24,
+      durationSeconds: 20,
       sceneMode: "multi",
       textMode: "exact",
       exactText: "Fabriqué à Arras",
@@ -574,8 +574,8 @@ test("Générer Vidéo compose trois contrats de mode réellement distincts", ()
     /exactement 2 personnes/,
     /action en extérieur/,
     /priorité visuelle au lieu, au décor/,
-    /DURÉE EXACTE : 24 secondes/,
-    /MULTISCÈNE : structurer 3 séquences/,
+    /DURÉE EXACTE : 20 secondes/,
+    /MULTISCÈNE : structurer 2 séquences/,
     /film d’animation 3D premium/,
     /Fabriqué à Arras/,
     /MUSIQUE :/,
@@ -686,7 +686,7 @@ test("Générer Image et Générer Vidéo gardent des contrats moteur distincts"
       format: "landscape",
       textMode: "exact",
       exactText: "Portes ouvertes · 14 octobre",
-      durationSeconds: 24,
+      durationSeconds: 20,
       sceneMode: "multi",
       connectScenes: true,
       withMusic: true,
@@ -737,7 +737,7 @@ test("Générer Image et Générer Vidéo gardent des contrats moteur distincts"
       textMode: "ai",
       exactText: "Ce texte doit être ignoré",
       textKeywords: ["bois local", "sur mesure"],
-      durationSeconds: 24,
+      durationSeconds: 20,
       sceneMode: "multi",
       connectScenes: false,
       withMusic: true,
@@ -762,12 +762,12 @@ test("Générer Image et Générer Vidéo gardent des contrats moteur distincts"
   );
   const videoSpec = getAiMediaPromptOutputSpec(video);
   assert.equal(video.kind, "video");
-  assert.equal(video.durationSeconds, 24);
+  assert.equal(video.durationSeconds, 20);
   assert.equal(video.sceneMode, "multi");
   assert.equal(video.connectScenes, false);
   assert.equal(video.withMusic, true);
   assert.equal(video.withNarration, true);
-  assert.equal(videoSpec.durationSeconds, 24);
+  assert.equal(videoSpec.durationSeconds, 20);
   assert.equal(videoSpec.sceneMode, "multi");
   assert.equal(videoSpec.videoEngine, "omni");
   const videoPrompt = buildAiMediaPrompt({
@@ -911,7 +911,7 @@ test("Vidéo conserve la matrice critères, réalisation, durée, audio, texte e
       format: "story",
       imageStyle: "three_d",
       visualDirection: "dynamic",
-      durationSeconds: 24,
+      durationSeconds: 20,
       sceneMode: "multi",
       textMode: "exact",
       exactText: "Collection Atelier Horizon",
@@ -932,8 +932,8 @@ test("Vidéo conserve la matrice critères, réalisation, durée, audio, texte e
     /9:16/,
     /film d’animation 3D premium/,
     /DIRECTION VISUELLE STRUCTURÉE — DYNAMIC/,
-    /DURÉE EXACTE : 24 secondes/,
-    /MULTISCÈNE : structurer 3 séquences/,
+    /DURÉE EXACTE : 20 secondes/,
+    /MULTISCÈNE : structurer 2 séquences/,
     /Collection Atelier Horizon/,
     /Voix choisie : homme, style de voix Orus/,
     /MUSIQUE :/,
@@ -1202,7 +1202,7 @@ test("les modes texte none, ai et exact restent distincts jusque dans le prompt"
   }
 });
 
-test("les durées 8/16/24 et les modes single/multi pilotent le raccord réel", () => {
+test("les anciens films gardent leur raccord et les nouvelles durées suivent le catalogue moteur", () => {
   const eight = normalizeAiMediaGenerationRequest(
     baseRequest({ kind: "video", durationSeconds: 8, sceneMode: "single" }),
   );
@@ -1210,7 +1210,7 @@ test("les durées 8/16/24 et les modes single/multi pilotent le raccord réel", 
   assert.equal(eight.sceneMode, "single");
   assert.equal(eight.connectScenes, false);
 
-  for (const durationSeconds of [16, 24] as const) {
+  for (const durationSeconds of [16, 20] as const) {
     const single = normalizeAiMediaGenerationRequest(
       baseRequest({ kind: "video", durationSeconds, sceneMode: "single" }),
     );
@@ -1230,7 +1230,8 @@ test("les durées 8/16/24 et les modes single/multi pilotent le raccord réel", 
       ),
     AiMediaRequestValidationError,
   );
-  assert.match(generatorSource, /\(\[8,\s*16,\s*24\]\s+as const\)/);
+  assert.match(generatorSource, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
+  assert.match(generatorSource, /<MediaVideoDurationSelect value=\{durationSeconds\}/);
   assert.match(generatorSource, /\(\["single",\s*"multi"\]\s+as const\)/);
 });
 
@@ -1244,7 +1245,7 @@ test("le client sérialise les nouveaux contrats au lieu de les réduire aux anc
   ]) {
     assert.match(
       hookSource,
-      new RegExp(`${field}:\\s*request\\.${field}`),
+      new RegExp(field === "sceneMode" ? "sceneMode:[^\\n]*resolveMediaGenerationSceneMode" : `${field}:\\s*request\\.${field}`),
       `${field} doit traverser useMediaGeneration`,
     );
   }

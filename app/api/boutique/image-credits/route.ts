@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { IMAGE_CREDIT_PACKS } from "@/lib/boutique/imageCreditPacks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +18,9 @@ export async function GET() {
   return NextResponse.json({
     accountId: auth.activeUserId,
     actorAuthUserId: auth.authUserId,
-    canPurchase: Boolean(auth.activeAccount && ["owner", "admin"].includes(auth.activeAccount.role)
-      && ["active", "trialing"].includes(subscription.data?.status ?? "")),
-    packs: IMAGE_CREDIT_PACKS.map((pack) => ({ key: pack.key, images: pack.images, priceEurHt: pack.priceEurHt,
-      available: Boolean(process.env.STRIPE_SECRET_KEY && process.env[pack.priceEnv]) })),
-    orders: history.data ?? [],
+    unit: "credit",
+    canPurchase: false,
+    packs: [],
+    orders: (history.data ?? []).map((order) => ({ ...order, credits: order.images * 7 })),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

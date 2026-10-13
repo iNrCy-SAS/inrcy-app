@@ -152,7 +152,7 @@ export function buildAiMediaVideoReferenceContract(args: {
  */
 export function buildAiMediaVideoParameterContract(args: {
   request: AiMediaGenerationRequest;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   brandColors: readonly string[];
 }) {
   const { request } = args;
@@ -160,7 +160,7 @@ export function buildAiMediaVideoParameterContract(args: {
     ? describeAiMediaBrandColors(args.brandColors).join("/") || "subject-led"
     : "subject-led";
   const sceneMode =
-    request.sceneMode || (request.connectScenes ? "single" : "multi");
+    request.sceneMode || "single";
   const textMode = request.textMode || (request.withText ? "ai" : "none");
   const audioMode =
     request.teamVideoSpeechMode === "characters"
@@ -211,7 +211,7 @@ export function hashAiMediaVideoProviderContract(
 
 export function buildAiMediaVideoProviderContract(args: {
   request: AiMediaGenerationRequest;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   brandColors: readonly string[];
   nativeNarrationLines?: readonly string[];
   identityTeamPrecomposed?: boolean;

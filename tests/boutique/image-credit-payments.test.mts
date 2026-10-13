@@ -56,6 +56,7 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
     return query;
   };
   const modules: Record<string,unknown> = {
+    "@/lib/aiMediaPlanLimits":{AI_MEDIA_LEGACY_CREDIT_FACTORS:{image:7,video:10}},
     "server-only":{}, "@/lib/boutique/imageCreditPacks":packs,
     "@/lib/boutique/videoCreditPacks":{isStripeCheckoutUrl},
     "@/lib/supabaseAdmin": {supabaseAdmin:{ from, async rpc(name: string,args: Row) {
@@ -85,7 +86,7 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
       posts.push({path,params:params.toString(),config}); assert.equal(path,"/checkout/sessions"); return structuredClone(session);
     }},
   };
-  const sharedRuntime = {exports:{}};
+  const sharedRuntime = {exports:{} as {createMediaCreditPayments(config:Row):{startCheckout(args:Row):Promise<Row>}}};
   new Function("module","exports","require",sharedOutput)(sharedRuntime,sharedRuntime.exports,(name: string)=>{
     assert.ok(Object.hasOwn(modules,name),"Unmocked shared dependency "+name); return modules[name];
   });
@@ -94,14 +95,21 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
   new Function("module","exports","require",output)(runtime,runtime.exports,(name: string)=>{
     assert.ok(Object.hasOwn(modules,name),"Unmocked dependency "+name); return modules[name];
   });
+  const historicalPayments=sharedRuntime.exports.createMediaCreditPayments({mediaKind:"image",unit:"images",findPack:packs.findImageCreditPack});
   return {order,session,intent,price,calls,posts,reads,disputes,api:runtime.exports,
-    start:()=>runtime.exports.startImageCreditCheckout({req:new Request("https://example.invalid/api"),accountId,actorAuthUserId:actorId,packKey:"image_20",requestKey:"same-intent",email:"test@example.invalid"})};
+    start:()=>historicalPayments.startCheckout({req:new Request("https://example.invalid/api"),accountId,actorAuthUserId:actorId,packKey:"image_20",requestKey:"same-intent",email:"test@example.invalid"})};
 }
 process.env.STRIPE_IMAGE_CREDITS_20_PRICE_ID="price_image_20";
 process.env.STRIPE_SECRET_KEY="sk_test_SYNTHETIC_NOT_A_CREDENTIAL";
 
 test("the three accepted image packs use HT amounts and exact images",()=>{
   assert.deepEqual(packs.IMAGE_CREDIT_PACKS.map(({images,priceEurHt})=>[images,priceEurHt]),[[20,5],[50,10],[100,19]]);
+});
+
+test("public image checkout is retired while historic orders retain their original verification flow",async()=>{
+  const f=fixture();
+  await assert.rejects(f.api.startImageCreditCheckout({}),/LEGACY_PACK_RETIRED/);
+  assert.equal(f.reads.length,0);assert.equal(f.posts.length,0);assert.equal(f.calls.length,0);
 });
 test("unpaid completed checkout remains pending and never grants images",async()=>{
   const f=fixture({prepared:true,mutateSession:s=>{s.status="complete";}});

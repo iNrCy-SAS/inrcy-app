@@ -10,6 +10,7 @@ import {
   shouldConnectAiMediaVideoScenes,
   type AiMediaNarrationVoiceVariant,
 } from "@/lib/aiMediaGenerationContracts";
+import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 
 export type MediaGenerationKind = "image" | "video";
 export type MediaGenerationOperation = "generate" | "modify";
@@ -63,9 +64,9 @@ export type MediaGenerationShotType = "auto" | "close" | "medium" | "wide";
 export type MediaGenerationPeopleMode = "auto" | "none" | "solo" | "team";
 export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
-export type MediaGenerationVideoDuration = 8 | 16 | 24;
+export type MediaGenerationVideoDuration = number;
 export type MediaGenerationVideoSceneMode = "single" | "multi";
-export type MediaGenerationVideoEngine = "omni" | "veo";
+export type MediaGenerationVideoEngine = AiMediaVideoEngine;
 export type MediaGenerationTeamVideoMode = "cinematic" | "montage";
 export type MediaGenerationTeamVideoSpeechMode = "voiceover" | "characters";
 export type MediaGenerationNarrationVoice = "female" | "male";
@@ -108,8 +109,7 @@ export type MediaGenerationIdentityMode =
 /** @deprecated Alias conservé pour les anciens écrans vidéo. */
 export type MediaGenerationVideoCharacterMode = MediaGenerationIdentityMode;
 export type MediaGenerationVideoEngineResult =
-  | "omni"
-  | "veo"
+  | MediaGenerationVideoEngine
   | "omni_veo_fallback"
   | "veo_omni_fallback"
   | "local_fallback";
@@ -157,16 +157,17 @@ function resolveMediaGenerationTextMode(request: MediaGenerationRequest) {
 function resolveMediaGenerationSceneMode(
   request: MediaGenerationRequest
 ): MediaGenerationVideoSceneMode {
-  if (request.kind !== "video" || (request.durationSeconds || 16) <= 8) {
+  if (request.kind !== "video" || (request.durationSeconds || 16) < 8) {
     return "single";
   }
-  return request.sceneMode || (request.connectScenes ? "single" : "multi");
+  return request.sceneMode || "single";
 }
 
 function resolveMediaGenerationConnectScenes(request: MediaGenerationRequest) {
   const sceneMode = resolveMediaGenerationSceneMode(request);
   return shouldConnectAiMediaVideoScenes({
     ...request,
+    sceneMode,
     connectScenes: sceneMode === "single",
   });
 }
@@ -187,7 +188,7 @@ function normalizeMediaGenerationAiInstruction(
 }
 
 export type MediaGenerationQuotaCounter = {
-  unit: "item" | "second";
+  unit: "item" | "second" | "credit";
   limit: number | null;
   used: number;
   reserved: number;
@@ -213,6 +214,8 @@ export type MediaGenerationQuota = {
   videoLongFormPremiumRequired: boolean;
   videoMaxDurationSeconds: MediaGenerationVideoDuration;
   videoAllowedDurationsSeconds: MediaGenerationVideoDuration[];
+  credits: MediaGenerationQuotaCounter;
+  creditsReady: boolean;
   image: MediaGenerationQuotaCounter;
   video: MediaGenerationQuotaCounter;
 };
@@ -272,10 +275,16 @@ export type MediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   videoEngine?: MediaGenerationVideoEngine;
+  imageEngine?: "openai" | "gemini";
+  videoResolution?: "720p" | "768p" | "1080p";
+  expectedCredits?: number;
+  creditTariffVersion?: string;
+  creditQuoteId?: string;
   teamVideoMode?: MediaGenerationTeamVideoMode;
   teamVideoSpeechMode?: MediaGenerationTeamVideoSpeechMode;
   /** Consentement ponctuel Veo : il ne doit jamais être mémorisé. */
   teamVideoVeoConsent?: boolean;
+  teamVideoProviderConsent?: MediaGenerationVideoEngine;
   identityMode?: MediaGenerationIdentityMode;
   videoCharacterMode?: MediaGenerationVideoCharacterMode;
   identityConsent?: boolean;
@@ -429,7 +438,9 @@ function normalizeCounter(
   }
   const source = value as Record<string, unknown>;
   const unit =
-    source.unit === "second" || source.quotaUnit === "second"
+    source.unit === "credit" || source.quotaUnit === "credit"
+      ? "credit"
+      : source.unit === "second" || source.quotaUnit === "second"
       ? "second"
       : source.unit === "item" || source.quotaUnit === "item"
       ? "item"
@@ -465,16 +476,14 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
   const reportedVideoMaxDuration = Number(
     source.videoMaxDurationSeconds ?? source.video_max_duration_seconds
   );
-  const videoMaxDurationSeconds = ([8, 16, 24] as const).includes(
-    reportedVideoMaxDuration as MediaGenerationVideoDuration
-  )
-    ? (reportedVideoMaxDuration as MediaGenerationVideoDuration)
+  const videoMaxDurationSeconds = Number.isSafeInteger(reportedVideoMaxDuration) && reportedVideoMaxDuration >= 1 && reportedVideoMaxDuration <= 30
+    ? reportedVideoMaxDuration
     : videoLongFormPremiumRequired
     ? 8
-    : 24;
-  const videoAllowedDurationsSeconds = ([8, 16, 24] as const).filter(
-    (duration) => duration <= videoMaxDurationSeconds
-  );
+    : 30;
+  const videoAllowedDurationsSeconds = Array.isArray(source.videoAllowedDurationsSeconds)
+    ? source.videoAllowedDurationsSeconds.filter((duration): duration is number => typeof duration === "number" && Number.isSafeInteger(duration) && duration >= 1 && duration <= videoMaxDurationSeconds)
+    : Array.from({ length: videoMaxDurationSeconds }, (_, index) => index + 1);
   return {
     accountId: typeof source.accountId === "string" ? source.accountId : null,
     edition: typeof source.edition === "string" ? source.edition : null,
@@ -486,6 +495,8 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
     videoLongFormPremiumRequired,
     videoMaxDurationSeconds,
     videoAllowedDurationsSeconds,
+    credits: normalizeCounter(source.credits, "credit"),
+    creditsReady: source.creditsReady === true,
     image: normalizeCounter(source.image ?? source.images, "item"),
     video: normalizeCounter(source.video ?? source.videos, "second"),
   };
@@ -572,6 +583,9 @@ function buildGenerationAttemptKey(
     peopleMode: request.peopleMode,
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
+    imageEngine: request.kind === "image" ? request.imageEngine || "openai" : null,
+    videoResolution: request.kind === "video" ? request.videoResolution || null : null,
+    teamVideoProviderConsent: request.teamVideoProviderConsent || null,
     videoEngine:
       request.kind === "video"
         ? request.videoEngine ||
@@ -610,7 +624,7 @@ function buildGenerationAttemptKey(
       : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
-    sceneMode: request.sceneMode,
+    sceneMode: request.kind === "video" ? resolveMediaGenerationSceneMode(request) : undefined,
     connectScenes: resolveMediaGenerationConnectScenes(request),
     inspirationImages: (request.inspirationImages || []).map((image) => ({
       mimeType: image.mimeType,
@@ -866,7 +880,7 @@ export default function useMediaGeneration() {
           imagePurpose: "auto", imageStyle: "photo", visualDirection: "auto",
           typology: "service", visualStyle: "brand", shotType: "auto", creativity: "faithful",
           peopleMode: "auto", useBrandColors: false, logoMode: "none",
-          videoEngine: "omni", teamVideoMode: "cinematic",
+          videoEngine: request.videoEngine || "omni", teamVideoMode: "cinematic",
           teamVideoSpeechMode: request.teamVideoSpeechMode || "voiceover",
           withNarration: request.teamVideoSpeechMode === "characters" ? false : request.withNarration,
         };
@@ -950,6 +964,12 @@ export default function useMediaGeneration() {
                 ? request.modificationSourceHeight
                 : undefined,
             requestId,
+            expectedCredits: request.expectedCredits,
+            creditTariffVersion: request.creditTariffVersion,
+            creditQuoteId: request.creditQuoteId,
+            teamVideoProviderConsent: request.kind === "video" ? request.teamVideoProviderConsent : undefined,
+            imageEngine: request.kind === "image" ? request.imageEngine || "openai" : undefined,
+            videoResolution: request.kind === "video" ? request.videoResolution : undefined,
             kind: request.kind,
             subjectSource: request.subjectSource,
             idea,
@@ -1033,7 +1053,7 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.durationSeconds || 16
                 : undefined,
-            sceneMode: request.sceneMode,
+            sceneMode: request.kind === "video" ? resolveMediaGenerationSceneMode(request) : undefined,
             connectScenes: resolveMediaGenerationConnectScenes(request),
             inspirationImages: request.inspirationImages?.length
               ? request.inspirationImages.map((image) => ({
@@ -1123,12 +1143,11 @@ export default function useMediaGeneration() {
             : null;
         const rawVideoEngineResult = data.videoEngineResult;
         const videoEngineResult: MediaGenerationVideoEngineResult | null =
-          rawVideoEngineResult === "omni" ||
-          rawVideoEngineResult === "veo" ||
+          normalizeAiMediaVideoEngine(rawVideoEngineResult) ||
           rawVideoEngineResult === "omni_veo_fallback" ||
           rawVideoEngineResult === "veo_omni_fallback" ||
           rawVideoEngineResult === "local_fallback"
-            ? rawVideoEngineResult
+            ? rawVideoEngineResult as MediaGenerationVideoEngineResult
             : null;
         const nextResult: MediaGenerationResult = {
           item: data.item as MediaLibraryPickerItem,

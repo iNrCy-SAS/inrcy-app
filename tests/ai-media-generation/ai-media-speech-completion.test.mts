@@ -160,7 +160,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
     /providerRequest\.inputMode === "essential" &&[\s\S]*?providerRequest\.withNarration &&[\s\S]*?ai_media_narration_unavailable/,
     "une voix off demandée ne peut pas disparaître silencieusement"
   );
-  assert.match(veo, /lip-syncs once 0\.2–5\.5s: “\$\{firstLine\}”/);
+  assert.match(veo, /lip-syncs once 0\.2–\$\{speechEnd\}s: “\$\{firstLine\}”/);
   assert.match(veo, /Then silent\/closed mouth/);
   assert.match(veo, /No repeat\/old line\/narrator\/music/);
 
@@ -173,7 +173,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   assert.match(narration, /hasNaturalAiMediaSpeechFlow\(value, language\)/);
   assert.match(
     narration,
-    /const maximumSentences = duration === 8 \? 1 : duration === 16 \? 2 : 3/
+    /const maximumSentences = Math\.max\(1, Math\.ceil\(duration \/ 8\)\)/
   );
   assert.match(narration, /isNarrationGrounded\(\{/);
   assert.match(

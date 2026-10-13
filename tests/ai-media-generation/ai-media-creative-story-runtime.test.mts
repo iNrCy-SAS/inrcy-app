@@ -71,7 +71,7 @@ function loadCreativePlanBuilder() {
   };
 }
 
-test("les films 16/24 s gardent leur nombre d'actes et finissent par une vraie conclusion liée au sujet", () => {
+test("les films 16/24 s gardent deux scènes maximum et finissent par une vraie conclusion liée au sujet", () => {
   const buildAiMediaCreativePlan = loadCreativePlanBuilder();
   const profile = {
     preferences: { language: "fr", preferredCta: "appeler" },
@@ -96,6 +96,7 @@ test("les films 16/24 s gardent leur nombre d'actes et finissent par une vraie c
         requestId: `story-${durationSeconds}`,
         kind: "video",
         durationSeconds,
+        videoEngine: "wan3", sceneMode: "multi",
         subjectSource: "custom",
         idea,
         aiInstruction: "",
@@ -106,7 +107,7 @@ test("les films 16/24 s gardent leur nombre d'actes et finissent par une vraie c
       profile,
       recentPublications: [],
     });
-    assert.equal(plan.scenes.length, durationSeconds / 8);
+    assert.equal(plan.scenes.length, 2);
     assert.match(plan.headline, /page blanche/i);
     assert.notEqual(
       plan.headline.toLocaleLowerCase(),
@@ -175,7 +176,7 @@ test("une collision entre prestation et CTA ne peut jamais supprimer la conclusi
   assert.equal(duplicateTitlePlan.scenes.at(-1)?.layout, "cta");
 });
 
-test("un profil aux titres répétés garde ses trois actes pour un film de 24 secondes", () => {
+test("un profil aux titres répétés garde ses deux scènes pour un film de 24 secondes", () => {
   const buildAiMediaCreativePlan = loadCreativePlanBuilder();
   const profile = {
     preferences: { language: "fr", preferredCta: "appeler" },
@@ -189,14 +190,14 @@ test("un profil aux titres répétés garde ses trois actes pour un film de 24 s
   for (let index = 0; index < 20; index += 1) {
     const plan = buildAiMediaCreativePlan({
       request: {
-        requestId: `three-acts-collision-${index}`, kind: "video",
-        durationSeconds: 24, subjectSource: "profile", idea: "",
+        requestId: `two-scenes-collision-${index}`, kind: "video",
+        durationSeconds: 24, videoEngine: "wan3", sceneMode: "multi", subjectSource: "profile", idea: "",
         aiInstruction: "", withText: false, textKeywords: [], typology: "service",
       },
       profile,
       recentPublications: [],
     });
-    assert.equal(plan.scenes.length, 3, `variante ${index}`);
+    assert.equal(plan.scenes.length, 2, `variante ${index}`);
     assert.equal(plan.scenes.at(-1)?.layout, "cta");
   }
 });

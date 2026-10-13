@@ -25,13 +25,13 @@ type ComposerModule = {
   composeOriginalAiVideo: (args: {
     clips: Array<{
       buffer: Buffer;
-      durationSeconds: 4 | 6 | 8;
+      durationSeconds: number;
       sourceStartSeconds?: number;
     }>;
     overlays: Buffer[];
     width: number;
     height: number;
-    durationSeconds: 8 | 16 | 24;
+    durationSeconds: number;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
   }) => Promise<{ buffer: Buffer }>;
 };
@@ -214,6 +214,55 @@ function transpileRuntimeModule<T>(relativePath: string): T {
   execute(moduleRecord, moduleRecord.exports, localRequire);
   return moduleRecord.exports as T;
 }
+
+test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, avec audio", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-native-duration-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+  try {
+    for (const durationSeconds of [4, 5, 15, 30]) {
+      const source = path.join(directory, `source-${durationSeconds}.mp4`);
+      await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", `testsrc2=s=320x320:r=30:d=${durationSeconds}`, "-f", "lavfi", "-i", `sine=frequency=440:duration=${durationSeconds}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source], { windowsHide: true, timeout: 45_000 });
+      const output = await runtime.composeOriginalAiVideo({ clips: [{ buffer: await readFile(source), durationSeconds }], overlays: [overlay], width: 320, height: 320, durationSeconds, nativeAudioMode: "dialogue" });
+      const file = path.join(directory, `result-${durationSeconds}.mp4`);
+      await writeFile(file, output.buffer);
+      const probe = await probeVideoSource({ ffmpegPath, inputPath: file, timeoutMs: 30_000 });
+      assert.ok(Math.abs(probe.durationSeconds - durationSeconds) < 0.35);
+      assert.equal(probe.hasAudio, true);
+      assert.equal(probe.orientedWidth, 320);
+    }
+    const half = await readFile(path.join(directory, "source-15.mp4"));
+    const joined = await runtime.composeOriginalAiVideo({
+      clips: [{ buffer: half, durationSeconds: 15 }, { buffer: half, durationSeconds: 15 }],
+      overlays: [overlay, overlay], width: 320, height: 320, durationSeconds: 30, nativeAudioMode: "dialogue",
+    });
+    const joinedPath = path.join(directory, "result-two-clips-30.mp4");
+    await writeFile(joinedPath, joined.buffer);
+    const joinedProbe = await probeVideoSource({ ffmpegPath, inputPath: joinedPath, timeoutMs: 30_000 });
+    assert.ok(Math.abs(joinedProbe.durationSeconds - 30) < 0.35);
+    assert.equal(joinedProbe.hasAudio, true, "l'audio natif survit à l'assemblage des deux clips");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("le compositeur refuse explicitement trois clips ou une durée hors de 4 à 30 secondes avant tout décodage", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const unused = Buffer.from("must-not-be-decoded");
+  await assert.rejects(runtime.composeOriginalAiVideo({
+    clips: Array.from({ length: 3 }, () => ({ buffer: unused, durationSeconds: 4 })),
+    overlays: [unused, unused, unused], width: 320, height: 320, durationSeconds: 12,
+  }), /ai_original_video_clip_count_invalid/);
+  for (const durationSeconds of [1, 3, 31]) {
+    await assert.rejects(runtime.composeOriginalAiVideo({
+      clips: [{ buffer: unused, durationSeconds }], overlays: [unused],
+      width: 320, height: 320, durationSeconds,
+    }), /ai_original_video_clip_count_invalid/);
+  }
+  await assert.rejects(runtime.composeOriginalAiVideo({
+    clips: [{ buffer: unused, durationSeconds: 3 }, { buffer: unused, durationSeconds: 3 }],
+    overlays: [unused, unused], width: 320, height: 320, durationSeconds: 6,
+  }), /ai_original_video_clip_count_invalid/);
+});
 
 test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", async () => {
   const runtime = transpileRuntimeModule<ComposerModule>(

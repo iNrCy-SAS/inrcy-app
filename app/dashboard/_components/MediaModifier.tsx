@@ -35,6 +35,11 @@ import {
 import { prepareMediaGenerationImageReference } from "./MediaGenerator";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import type { MediaStudioInitialPreview } from "./MediaRetoucher";
+import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
+import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
+import MediaEngineCreditControls, { MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
+import MediaQuotaSummary from "./MediaQuotaSummary";
+import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 
 import styles from "./MediaModifier.module.css";
 
@@ -201,7 +206,12 @@ export default function MediaModifier({
     finishing ||
     discarding;
   const operationLocked = baseOperationLocked || voiceBusy;
-  const imageCounter = quota?.image || null;
+  const enginePreference = useMediaEnginePreference(quota?.accountId);
+  const creditQuote = useMediaCreditQuote({ kind: "image", operation: "modify", creationMode: "guided",
+    inputMode: "essential", identityMode: "auto",
+    imageEngine: enginePreference.imageEngine, inspirationImagesCount: sourceImage ? 1 : 0,
+  }, quota);
+  const imageCounter = quota?.credits || null;
   const imageQuotaExhausted = quota?.unlimited
     ? false
     : imageCounter?.remaining === 0;
@@ -215,15 +225,6 @@ export default function MediaModifier({
       month: "long",
     }).format(parsed);
   }, [locale, quota?.resetAt]);
-
-  const imageQuotaValue =
-    quotaLoading && !imageCounter
-      ? t("chargement_01cba1df")
-      : quota?.unlimited
-        ? t("ai_generator_unlimited")
-        : imageCounter?.limit === null || !imageCounter
-          ? "—"
-          : `${imageCounter.used + imageCounter.reserved} / ${imageCounter.limit}`;
 
   useEffect(() => {
     void loadQuota();
@@ -329,7 +330,7 @@ export default function MediaModifier({
   };
 
   const handleGenerate = async () => {
-    if (operationLocked) return;
+    if (operationLocked || !creditQuote.ready || creditQuote.insufficient) return;
     setActionError("");
     if (!sourceImage) {
       setActionError(t("ai_modifier_missing_source"));
@@ -347,6 +348,8 @@ export default function MediaModifier({
         sourceImage.preparedReference ||
         (await prepareMediaGenerationImageReference(sourceImage.file));
       await generate({
+        ...creditQuote.authorization,
+        imageEngine: enginePreference.imageEngine,
         operation: "modify",
         inputMode: "essential",
         source,
@@ -483,7 +486,7 @@ export default function MediaModifier({
             <p className={styles.error} role="alert">{actionError}</p>
           ) : null}
         </main>
-        <footer className={styles.actionBar}>
+        <footer className={styles.actionBar} data-media-footer>
           <div>
             <strong>{t("ai_modifier_result_action_title")}</strong>
             <span>{t("ai_modifier_result_action_hint")}</span>
@@ -534,6 +537,16 @@ export default function MediaModifier({
       </div>
     );
   }
+
+  const engineControls = (
+    <MediaEngineCreditControls kind="image" videoEngine={enginePreference.videoEngine}
+            recommendation={recommendAiMediaModel({ kind: "image", brief: instruction, language: locale, inspirationImagesCount: sourceImage ? 1 : 0, inputMode: "essential", identityMode: "auto" })}
+            imageEngine={enginePreference.imageEngine} resolution={enginePreference.videoResolution}
+            referenceCount={sourceImage ? 1 : 0} disabled={operationLocked}
+            onVideoEngineChange={() => {}}
+            onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
+            onResolutionChange={() => {}} />
+  );
 
   return (
     <div className={styles.workspace} data-state={status}>
@@ -711,51 +724,29 @@ export default function MediaModifier({
         ) : null}
       </main>
 
-      <footer className={styles.actionBar}>
-        <div
-          className={styles.quotaCard}
-          data-exhausted={imageQuotaExhausted ? "true" : "false"}
-        >
-          <span className={styles.quotaIcon} aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M4.6 15.8a8 8 0 1 1 14.8 0" />
-              <path d="M12 12l4.2-3.1" />
-              <circle cx="12" cy="12" r="1.45" />
-            </svg>
-          </span>
-          <div className={styles.quotaCopy}>
-            <div className={styles.quotaHeadline}>
-              <span>{t("ai_generator_image_quota")}</span>
-              <strong>{imageQuotaValue}</strong>
-            </div>
-            <small>
-              {quota?.unlimited
-                ? t("ai_generator_unlimited")
-                : imageCounter?.remaining !== null && imageCounter
-                  ? t("ai_generator_remaining", {
-                      count: imageCounter.remaining,
-                    })
-                  : t("ai_generator_monthly_quota")}
-              {resetDate
-                ? ` · ${t("ai_generator_reset", { date: resetDate })}`
-                : ""}
-            </small>
-          </div>
-        </div>
-        <button
-          type="button"
-          className={styles.primaryButton}
-          onClick={() => void handleGenerate()}
-          disabled={
-            operationLocked ||
-            !sourceImage ||
-            instruction.trim().length < 3 ||
-            imageQuotaExhausted
-          }
-        >
-          <span aria-hidden="true">✦</span>
-          {t("ai_modifier_action")}
-        </button>
+      <footer className={styles.actionBar} data-media-footer>
+        <MediaQuotaSummary kind="image" counter={imageCounter} unlimited={quota?.unlimited}
+          creditsReady={quota?.creditsReady} resetDate={resetDate} locked={operationLocked}
+          onRefresh={() => { void loadQuota({ force: true }); }} />
+        <MediaGenerationActions>
+          {engineControls}
+          <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={() => void handleGenerate()}
+            disabled={
+              operationLocked ||
+              !sourceImage ||
+              instruction.trim().length < 3 ||
+              quotaLoading || !creditQuote.ready || creditQuote.insufficient ||
+              imageQuotaExhausted
+            }
+          >
+            <span aria-hidden="true">✦</span>
+            {t("ai_modifier_action")}
+          </button>
+        </MediaGenerationActions>
       </footer>
 
       <MediaLibraryPickerModal

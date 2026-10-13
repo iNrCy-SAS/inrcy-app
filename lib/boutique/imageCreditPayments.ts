@@ -11,7 +11,10 @@ const payments = createMediaCreditPayments({ mediaKind: "image", unit: "images",
 
 export const getImageCreditOrder = payments.getOrder as (orderId: string, accountId?: string) => Promise<ImageCreditOrder | null>;
 export const validateImageCreditPrice = payments.validatePrice;
-export const startImageCreditCheckout = payments.startCheckout;
+/** Existing orders still reconcile; new purchases use the common media packs. */
+export const startImageCreditCheckout: typeof payments.startCheckout = async () => {
+  throw new Error("IMAGE_CREDITS_LEGACY_PACK_RETIRED");
+};
 export const fulfillImageCreditCheckout = payments.fulfillCheckout;
 export const reconcileImageCreditDispute = payments.reconcileDispute;
 export const reconcileImageCreditRefund = payments.reconcileRefund;

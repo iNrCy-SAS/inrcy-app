@@ -7,7 +7,7 @@ export type AiMediaSoundtrackDefinition = {
   license: "inrcy-original-procedural-v1";
 };
 
-export type AiMediaSoundtrackDuration = 8 | 16 | 24;
+export type AiMediaSoundtrackDuration = number;
 
 export type AiMediaSoundtrackSelectionOptions = {
   /**

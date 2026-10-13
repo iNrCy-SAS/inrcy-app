@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import { detectClientBillingPlatform } from "@/lib/clientSubscriptionBilling";
@@ -17,20 +17,23 @@ type Order = {
   id: string; pack_key: string; request_key: string; amount_ht_cents: number; status: string; granted_at: string | null; created_at: string;
   seconds?: number; revoked_seconds?: number; held_seconds?: number; dispute_revoked_seconds?: number;
   images?: number; revoked_images?: number; held_images?: number; dispute_revoked_images?: number;
+  credits?: number;
+  mediaKind?: MediaCreditKind;
+  revokedCredits?: number; heldCredits?: number; disputeRevokedCredits?: number;
 };
 type Catalogue = { accountId: string; actorAuthUserId: string; canPurchase: boolean; packs: PackState[]; orders: Order[] };
 
 const CREDIT_OPTIONS = {
   video: {
     endpoint: "/api/boutique/video-credits",
-    packs: VIDEO_CREDIT_PACKS.map((pack) => ({ key: pack.key, quantity: pack.seconds, priceEurHt: pack.priceEurHt })),
+    packs: VIDEO_CREDIT_PACKS.map((pack) => ({ key: pack.key, quantity: pack.credits, priceEurHt: pack.priceEurHt })),
     quantityField: "seconds", revokedField: "revoked_seconds", heldField: "held_seconds", disputeRevokedField: "dispute_revoked_seconds",
     title: "video_credit_title", description: "video_credit_description", unavailable: "video_credit_unavailable", confirmed: "video_credit_confirmed",
     debt: "video_credit_debt", held: "video_credit_held",
   },
   image: {
     endpoint: "/api/boutique/image-credits",
-    packs: IMAGE_CREDIT_PACKS.map((pack) => ({ key: pack.key, quantity: pack.images, priceEurHt: pack.priceEurHt })),
+    packs: IMAGE_CREDIT_PACKS.map((pack) => ({ key: pack.key, quantity: pack.credits, priceEurHt: pack.priceEurHt })),
     quantityField: "images", revokedField: "revoked_images", heldField: "held_images", disputeRevokedField: "dispute_revoked_images",
     title: "image_credit_title", description: "image_credit_description", unavailable: "image_credit_unavailable", confirmed: "image_credit_confirmed",
     debt: "image_credit_debt", held: "image_credit_held",
@@ -45,13 +48,16 @@ export function VideoCreditBalance() {
   return <MediaCreditBalance mediaKind="video" />;
 }
 
+export function StudioCreditBalance() {
+  return <MediaCreditBalance mediaKind="video" />;
+}
+
 export function ImageCreditBalance() {
   return <MediaCreditBalance mediaKind="image" />;
 }
 
 function MediaCreditBalance({ mediaKind }: { mediaKind: MediaCreditKind }) {
   const t = useTranslations("settings");
-  const options = CREDIT_OPTIONS[mediaKind];
   const [balance, setBalance] = useState<{ included: number; purchased: number; debt: number; held: number } | null>(null);
   useEffect(() => {
     let active = true;
@@ -61,8 +67,8 @@ function MediaCreditBalance({ mediaKind }: { mediaKind: MediaCreditKind }) {
       setBalance(null);
       const response = await fetch("/api/media-generation/quota", { cache: "no-store" }).catch(() => null);
       const data = response?.ok ? await response.json().catch(() => null) : null;
-      if (!active || request !== sequence || !data?.quota || data.quota.unlimited) return;
-      const counter = data.quota[mediaKind];
+      if (!active || request !== sequence || !data?.quota || data.quota.unlimited || !data.quota.creditsReady) return;
+      const counter = data.quota.credits;
       if (typeof counter?.remaining === "number") setBalance({ included: counter.includedRemaining ?? counter.remaining,
         purchased: counter.purchasedRemaining ?? 0, debt: counter.purchasedDebt ?? 0, held: counter.purchasedHeld ?? 0 });
     };
@@ -71,14 +77,14 @@ function MediaCreditBalance({ mediaKind }: { mediaKind: MediaCreditKind }) {
     window.addEventListener("focus", load);
     return () => { active = false; sequence++; window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, load); window.removeEventListener("focus", load); };
   }, [mediaKind]);
-  const quantityLabel = (quantity: number) => mediaKind === "video" ? `${quantity} s` : t("image_credit_quantity", { images: quantity });
+  const quantityLabel = (quantity: number) => t("media_credit_quantity", { credits: quantity });
   return balance ? <div className={styles.balance} role="status">
     <dl className={styles.balanceCounts}>
       <div><dt>{t("media_credit_included")}</dt><dd>{quantityLabel(balance.included)}</dd></div>
       <div><dt>{t("media_credit_purchased")}</dt><dd>{quantityLabel(balance.purchased)}</dd></div>
     </dl>
-    {balance.debt > 0 ? <p>{t(options.debt, mediaKind === "video" ? { seconds: balance.debt } : { images: balance.debt })}</p> : null}
-    {balance.held > 0 ? <p>{t(options.held, mediaKind === "video" ? { seconds: balance.held } : { images: balance.held })}</p> : null}
+    {balance.debt > 0 ? <p>{t("media_credit_debt", { credits: balance.debt })}</p> : null}
+    {balance.held > 0 ? <p>{t("media_credit_held", { credits: balance.held })}</p> : null}
   </div> : null;
 }
 
@@ -87,7 +93,7 @@ export function VideoCreditPacksPanel(props: PacksPanelProps) {
 }
 
 export function ImageCreditPacksPanel(props: PacksPanelProps) {
-  return <MediaCreditPacksPanel mediaKind="image" {...props} />;
+  return <MediaCreditPacksPanel mediaKind="video" {...props} />;
 }
 
 function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: PacksPanelProps & { mediaKind: MediaCreditKind; onBusyChange?: (busy: boolean) => void }) {
@@ -115,7 +121,7 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
       setCatalogue(data as Catalogue);
       for (const order of (data.orders ?? []) as Order[]) {
         if (!order.granted_at && !["expired", "failed"].includes(order.status)) continue;
-        const key = storageKey(mediaKind, data.accountId, data.actorAuthUserId, order.pack_key);
+        const key = storageKey(order.mediaKind || mediaKind, data.accountId, data.actorAuthUserId, order.pack_key);
         if (requests.current.get(key) === order.request_key) requests.current.delete(key);
         try { if (sessionStorage.getItem(key) === order.request_key) sessionStorage.removeItem(key); } catch { /* Ref also fences retries. */ }
       }
@@ -180,7 +186,7 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
       }
     }
   };
-  const quantityLabel = (quantity: number) => mediaKind === "video" ? `${quantity} s` : t("image_credit_quantity", { images: quantity });
+  const quantityLabel = (quantity: number) => t("media_credit_quantity", { credits: quantity });
   return <section className={styles.panel} aria-label={t(options.title)} aria-busy={busy !== null}>
     <h2>{t(options.title)}</h2>
     <p>{t(options.description)}</p>
@@ -201,9 +207,9 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
     <p className={styles.note}>{t("video_credit_tax_note")}</p>
     {catalogue?.orders?.length ? <details className={styles.history}>
       <summary>{t("video_credit_history")}</summary>
-      {catalogue.orders.map((order) => <p key={order.id}><strong>{quantityLabel(order[options.quantityField] ?? 0)}</strong>
+      {catalogue.orders.map((order) => <p key={order.id}><strong>{quantityLabel(order.credits ?? (order[options.quantityField] ?? 0) * (mediaKind === "video" ? 10 : 7))}</strong>
         <span>{new Intl.DateTimeFormat(locale, { dateStyle: "short" }).format(new Date(order.created_at))}</span>
-        <span>{t(order.status === "refunded" ? "video_credit_refunded" : order.status === "failed" ? "video_credit_failed" : order.status === "expired" ? "video_credit_expired" : (order[options.heldField] ?? 0) > 0 ? "video_credit_disputed" : (order[options.disputeRevokedField] ?? 0) > 0 ? "video_credit_dispute_lost" : (order[options.revokedField] ?? 0) > 0 ? "video_credit_partially_refunded" : order.granted_at ? "video_credit_paid" : "video_credit_pending")}</span>
+        <span>{t(order.status === "refunded" ? "video_credit_refunded" : order.status === "failed" ? "video_credit_failed" : order.status === "expired" ? "video_credit_expired" : (order.heldCredits ?? order[options.heldField] ?? 0) > 0 ? "video_credit_disputed" : (order.disputeRevokedCredits ?? order[options.disputeRevokedField] ?? 0) > 0 ? "video_credit_dispute_lost" : (order.revokedCredits ?? order[options.revokedField] ?? 0) > 0 ? "video_credit_partially_refunded" : order.granted_at ? "video_credit_paid" : "video_credit_pending")}</span>
       </p>)}
     </details> : null}
   </section>;
@@ -214,9 +220,7 @@ export function MediaCreditRechargeButton({ mediaKind = "video", disabled = fals
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const [web, setWeb] = useState(false);
-  const [activeKind, setActiveKind] = useState<MediaCreditKind>(mediaKind);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
-  const tabs = useRef<Partial<Record<MediaCreditKind, HTMLButtonElement>>>({});
   const openedCheckout = useRef(false);
   useEffect(() => { setWeb(detectClientBillingPlatform() === "web"); }, []);
   useEffect(() => {
@@ -224,37 +228,17 @@ export function MediaCreditRechargeButton({ mediaKind = "video", disabled = fals
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, [onRefresh]);
-  const selectTab = (kind: MediaCreditKind, focus = false) => {
-    if (purchaseBusy) return;
-    setActiveKind(kind);
-    if (focus) tabs.current[kind]?.focus();
-  };
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const next = event.key === "Home" ? "video" : event.key === "End" ? "image"
-      : ["ArrowLeft", "ArrowRight"].includes(event.key) ? (activeKind === "video" ? "image" : "video") : null;
-    if (next) { event.preventDefault(); selectTab(next, true); }
-  };
   if (!web) return null;
   return <>
-    <button type="button" className={[styles.recharge, className].filter(Boolean).join(" ")} disabled={disabled}
+    <button type="button" className={[styles.recharge, className].filter(Boolean).join(" ")} disabled={disabled} data-media-kind={mediaKind}
       aria-haspopup="dialog" aria-controls={`${titleId}-dialog`}
-      aria-label={`${t("video_credit_recharge")} · ${t(CREDIT_OPTIONS[mediaKind].title)}`}
-      onClick={() => { if (!purchaseBusy) setActiveKind(mediaKind); dialog.current?.showModal(); }}>{t("video_credit_recharge")}</button>
+      aria-label={`${t("video_credit_recharge")} · ${t("media_credit_recharge_title")}`}
+      onClick={() => { dialog.current?.showModal(); }}>{t("video_credit_recharge")}</button>
     {createPortal(<dialog id={`${titleId}-dialog`} className={styles.dialog} ref={dialog} aria-labelledby={titleId} onClose={onRefresh}>
       <header><h2 id={titleId}>{t("media_credit_recharge_title")}</h2>
-        <button type="button" autoFocus onClick={() => dialog.current?.close()} aria-label={t("video_credit_close")}>×</button></header>
-      <div className={styles.tabs} role="tablist" aria-label={t("media_credit_tabs")}>
-        {(["video", "image"] as const).map((kind) => <button key={kind} type="button" role="tab"
-          id={`${titleId}-${kind}-tab`} aria-selected={activeKind === kind} aria-controls={`${titleId}-panel`}
-          tabIndex={activeKind === kind ? 0 : -1}
-          disabled={purchaseBusy}
-          ref={(element) => { if (element) tabs.current[kind] = element; else delete tabs.current[kind]; }}
-          onClick={() => selectTab(kind)} onKeyDown={handleTabKeyDown}>
-          {t(kind === "video" ? "media_credit_video_tab" : "media_credit_image_tab")}
-        </button>)}
-      </div>
-      <div id={`${titleId}-panel`} role="tabpanel" aria-labelledby={`${titleId}-${activeKind}-tab`} tabIndex={0}>
-        <MediaCreditPacksPanel key={activeKind} mediaKind={activeKind} onBusyChange={setPurchaseBusy} onCheckoutOpened={() => { openedCheckout.current = true; }} />
+        <button type="button" autoFocus disabled={purchaseBusy} onClick={() => dialog.current?.close()} aria-label={t("video_credit_close")}>×</button></header>
+      <div id={`${titleId}-panel`}>
+        <MediaCreditPacksPanel mediaKind="video" onBusyChange={setPurchaseBusy} onCheckoutOpened={() => { openedCheckout.current = true; }} />
       </div>
     </dialog>, document.body)}
   </>;

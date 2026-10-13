@@ -189,7 +189,7 @@ export function buildAiMediaVideoTimelineContract(
       "Construire un début immédiatement lisible, une évolution naturelle et une fin propre dans ce seul plan narratif.",
     ].join("\n");
   }
-  const sequenceCount = duration >= 24 ? 3 : 2;
+  const sequenceCount = 2;
   return [
     `DURÉE EXACTE : ${duration} secondes.`,
     `MULTISCÈNE : structurer ${sequenceCount} séquences complémentaires avec une progression claire, sans répéter la même action ni le même cadrage.`,

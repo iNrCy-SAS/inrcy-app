@@ -4,6 +4,7 @@ import type {
 } from "@/lib/aiMediaGenerationQuota";
 import {
   getAiMediaVideoMaxDuration,
+  AI_MEDIA_VIDEO_DURATION_OPTIONS,
   type AiMediaVideoDurationLimit,
 } from "@/lib/aiMediaGenerationQuotaPolicy";
 
@@ -23,7 +24,7 @@ export type PublicAiMediaQuotaCounter = Omit<
 
 export type PublicAiMediaQuotaSnapshot = Omit<
   AiMediaQuotaSnapshot,
-  "image" | "video"
+  "image" | "video" | "credits"
 > & {
   unlimited: boolean;
   videoLongFormPremiumRequired: boolean;
@@ -31,6 +32,7 @@ export type PublicAiMediaQuotaSnapshot = Omit<
   videoAllowedDurationsSeconds: AiMediaVideoDurationLimit[];
   image: PublicAiMediaQuotaCounter;
   video: PublicAiMediaQuotaCounter;
+  credits: PublicAiMediaQuotaCounter;
 };
 
 export function presentAiMediaQuotaCounter<T extends AiMediaQuotaCounter>(
@@ -50,20 +52,18 @@ export function presentAiMediaQuota(
   configuredVideoMaxDurationSeconds?: AiMediaVideoDurationLimit,
 ): PublicAiMediaQuotaSnapshot {
   const videoMaxDurationSeconds = unlimited
-    ? 24
+    ? 30
     : configuredVideoMaxDurationSeconds ??
       getAiMediaVideoMaxDuration(quota.edition);
   return {
     ...quota,
     unlimited,
-    // Les trois offres utilisent le même catalogue 8/16/24 s. La différence
-    // commerciale porte désormais sur le nombre de secondes mensuelles.
+    // The account ceiling is separate from each model's native durations.
     videoLongFormPremiumRequired: false,
     videoMaxDurationSeconds,
-    videoAllowedDurationsSeconds: ([8, 16, 24] as const).filter(
-      (duration) => duration <= videoMaxDurationSeconds,
-    ),
+    videoAllowedDurationsSeconds: AI_MEDIA_VIDEO_DURATION_OPTIONS.filter((duration) => duration <= videoMaxDurationSeconds),
     image: presentAiMediaQuotaCounter(quota.image, unlimited),
     video: presentAiMediaQuotaCounter(quota.video, unlimited),
+    credits: presentAiMediaQuotaCounter(quota.credits, unlimited),
   };
 }

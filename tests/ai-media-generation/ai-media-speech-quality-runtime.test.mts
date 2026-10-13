@@ -55,7 +55,7 @@ function runtime(duration: 8 | 16 | 24, generated: readonly unknown[]) {
   const profile = load<typeof import("../../lib/aiGenerationProfile.ts")>("lib/aiGenerationProfile.ts")
     .buildNormalizedAiGenerationProfile({ business: { company_name: "Atelier Horizon", profession: "Jardinier" }, preferences: { language: "fr" } });
   const request = load<typeof import("../../lib/aiMediaGenerationContracts.ts")>("lib/aiMediaGenerationContracts.ts")
-    .normalizeAiMediaGenerationRequest({ requestId: `speech-${duration}`, source: "studio", kind: "video", durationSeconds: duration,
+    .normalizeAiMediaGenerationRequest({ requestId: `speech-${duration}`, source: "studio", kind: "video", durationSeconds: duration, videoEngine: "wan3", sceneMode: duration === 8 ? "single" : "multi",
       subjectSource: "custom", idea: "Un robot plante un rosier dans le jardin", withNarration: true, withText: false, textMode: "none" });
   const plan = load<typeof import("../../lib/aiMediaCreativePlan.ts")>("lib/aiMediaCreativePlan.ts")
     .buildAiMediaCreativePlan({ request, profile });
@@ -66,7 +66,7 @@ function runtime(duration: 8 | 16 | 24, generated: readonly unknown[]) {
 function generatedCopy(duration: 8 | 16 | 24) {
   return {
     headline: "Le robot plante un rosier", cta: "Parlons de votre jardin",
-    scenes: lines.slice(0, duration / 8).map((spokenLine, index) => ({
+    scenes: lines.slice(0, duration === 8 ? 1 : 2).map((spokenLine, index) => ({
       eyebrow: "Au jardin", title: `Le rosier et le robot ${index + 1}`, body: "", spokenLine, spokenReply: replies[index]!,
     })),
   };
@@ -85,14 +85,14 @@ for (const duration of [8, 16, 24] as const) {
     assert.ok(count / (120 / 60) <= duration - 1, "le budget tient au débit conversationnel demandé avec une seconde finale");
   });
 
-  test(`le dialogue ${duration} s conserve ${duration / 8} actes distincts liés au brief`, async () => {
+  test(`le dialogue ${duration} s conserve ${duration === 8 ? 1 : 2} scènes distincts liés au brief`, async () => {
     const copy = generatedCopy(duration);
     const env = runtime(duration, [copy]);
     env.args.request.teamVideoSpeechMode = "characters";
     const result = await env.load<typeof import("../../lib/aiMediaCopywriter.ts")>("lib/aiMediaCopywriter.ts").writeAiMediaHeadline(env.args);
     assert.equal(env.calls.length, 1);
-    assert.deepEqual(result.scenes.map((scene) => scene.spokenLine), lines.slice(0, duration / 8));
-    assert.equal(new Set(result.scenes.flatMap((scene) => [scene.spokenLine, scene.spokenReply])).size, duration / 4);
+    assert.deepEqual(result.scenes.map((scene) => scene.spokenLine), lines.slice(0, duration === 8 ? 1 : 2));
+    assert.equal(new Set(result.scenes.flatMap((scene) => [scene.spokenLine, scene.spokenReply])).size, duration === 8 ? 2 : 4);
     assert.ok(result.scenes.every((scene) => scene.spokenLine.split(/\s+/u).length <= 14));
   });
 

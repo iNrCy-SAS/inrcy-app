@@ -598,6 +598,8 @@ export async function writeAiMediaHeadline(args: {
   const exactDialogue = characterDialogueRequested
     ? extractAiMediaRequestedDialogue([args.request.idea, args.request.aiInstruction].filter(Boolean).join("\n"))
     : [];
+  const speechSeconds = (args.request.durationSeconds || 8) / args.plan.scenes.length;
+  const speechWordMaximum = Math.min(AI_MEDIA_SPOKEN_LINE_MAX_WORDS, Math.max(1, Math.floor((speechSeconds - 1) * 2)));
   if (exactDialogue.length) {
     validateAiMediaRequestedDialogue(exactDialogue, args.profile.preferences.language);
     if (exactDialogue.length > args.plan.scenes.length) throw new Error("ai_media_exact_dialogue_unfit");
@@ -655,8 +657,8 @@ export async function writeAiMediaHeadline(args: {
           "La consigne ponctuelle est une CONSIGNE DE RÉALISATION PRIORITAIRE : applique intégralement chacun de ses éléments visuels et narratifs, même s'ils ne figurent pas dans l'ADN. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié ; ne la cite jamais.",
           `Chaque title visible est une accroche autonome de ${AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS} caractères maximum. Chaque body visible est vide ou forme une seule phrase autonome et grammaticalement complète de ${AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS} caractères maximum.`,
           "RÈGLE ABSOLUE : écris dès le départ une formulation qui tient entièrement dans la limite. Aucun texte visible ne doit être tronqué, abrégé, finir par des points de suspension, ni se terminer par un article, une préposition ou une conjonction. Si aucune phrase body utile ne tient, retourne une chaîne vide.",
-          `Pour chaque scène, spokenLine est une phrase orale naturelle et complète de 5 à ${AI_MEDIA_SPOKEN_LINE_MAX_WORDS} mots et ${AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS} caractères maximum, directement liée au sujet central exact et à l'action demandée dans cette scène ; aucun dialogue vague, générique ou hors sujet.`,
-          `spokenReply est une réponse courte et complète de 5 à ${AI_MEDIA_SPOKEN_LINE_MAX_WORDS} mots et ${AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS} caractères maximum qui poursuit naturellement spokenLine pour une éventuelle seconde personne.`,
+          `Pour chaque scène de ${speechSeconds} secondes, spokenLine est une phrase orale naturelle et complète de ${Math.min(5, speechWordMaximum)} à ${speechWordMaximum} mots et ${AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS} caractères maximum, directement liée au sujet central exact et à l'action demandée dans cette scène ; aucun dialogue vague, générique ou hors sujet.`,
+          `spokenReply est une réponse courte et complète de ${Math.min(5, speechWordMaximum)} à ${speechWordMaximum} mots et ${AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS} caractères maximum qui poursuit naturellement spokenLine pour une éventuelle seconde personne.`,
           "Pour un film en plusieurs scènes, les dialogues racontent une seule histoire : la première scène ouvre précisément le sujet, chaque scène intermédiaire apporte une preuve ou une étape nouvelle, et la dernière conclut le sujet avec une action ou un appel clair. Ne recommence jamais l'introduction et ne change jamais de sujet.",
           "Chaque réplique doit être différente de toutes les répliques des autres scènes : ne répète jamais une phrase, une accroche ou une question déjà utilisée.",
           "Les répliques ne doivent jamais être vagues ou passe-partout : interdiction d'écrire « On s'y met ? », « On avance bien », « C'est prêt », « Exactement » ou une variante.",

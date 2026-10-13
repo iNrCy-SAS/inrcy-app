@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import * as crypto from "node:crypto";
+import * as creditPricing from "../../lib/aiMediaCreditsPricing.ts";
 import test from "node:test";
 import ts from "typescript";
 
@@ -8,12 +10,25 @@ import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuot
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
 
+const quoteOutput = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaCreditQuoteServer.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const quoteRecord = { exports: {} as {
+  quoteAiMediaRequest: (account: string, request: contracts.AiMediaGenerationRequest) => { totalCredits: number; tariffVersion: string; quoteId: string };
+} };
+new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteRecord.exports, (id: string) => {
+  if (id === "server-only") return {};
+  if (id === "node:crypto") return crypto;
+  if (id === "./aiMediaCreditsPricing.ts") return creditPricing;
+  throw new Error(`Unisolated quote dependency: ${id}`);
+});
+
 type ReservationCall = {
   accountId: string; actorAuthUserId: string; requestKey: string;
-  requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number;
+  requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
 };
 
-function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number } = {}) {
+function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string }> = [];
   const completionCalls: unknown[] = [];
@@ -23,7 +38,7 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
   const item = {
     id: "generated-media-test-id", media_type: "image", signed_url: "https://example.invalid/result.jpg",
   };
-  const quota = { image: { remaining: 19 }, video: { remaining: 24 } };
+  const quota = { image: { remaining: 19 }, video: { remaining: 24 }, credits: { remaining: 560 }, creditsReady: options.creditsReady !== false };
   class AccountLimitError extends Error {}
   class GuardUnavailableError extends Error {}
   class QuotaError extends Error {}
@@ -31,6 +46,7 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
     ["@/lib/aiMediaGenerationContracts", contracts],
+    ["@/lib/aiMediaCreditQuoteServer", quoteRecord.exports],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test-version" }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version" }],
     ["@/lib/aiMediaGenerationQuota", {
@@ -76,7 +92,7 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
       getExistingGeneratedAiMedia: async () => completedRequests.size ? item : null,
     }],
     ["@/lib/dashboardEditionServer", { getDashboardEditionForAccountId: async () => "standard" }],
-    ["@/lib/aiMediaVideoEntitlementServer", { getAiMediaVideoEntitlement: async () => ({ maxDurationSeconds: options.maximumDuration ?? 24 }) }],
+    ["@/lib/aiMediaVideoEntitlementServer", { getAiMediaVideoEntitlement: async () => ({ maxDurationSeconds: options.maximumDuration ?? 30 }) }],
     ["@/lib/multicompte/server", {
       getCurrentInrcyAccountScope: async () => options.authenticated === false ? null : {
         scope: { activeUserId: "active-account-test", authUserId: "actor-test" }, supabase: {},
@@ -101,12 +117,16 @@ function loadRoute(options: { authenticated?: boolean; providerFails?: boolean; 
 }
 
 function body(overrides: Record<string, unknown> = {}) {
-  return {
+  const input = {
     contractVersion: 4, requestId: "free-route-runtime-0001", source: "studio", operation: "generate",
     creationMode: "free", kind: "image", format: "square",
     freePrompt: "Une affiche violette avec le texte exact : 21 jours gratuits.",
     ...overrides,
   };
+  try {
+    const quote = quoteRecord.exports.quoteAiMediaRequest("active-account-test", contracts.normalizeAiMediaGenerationRequest(input));
+    return { expectedCredits: quote.totalCredits, creditTariffVersion: quote.tariffVersion, creditQuoteId: quote.quoteId, ...input };
+  } catch { return input; }
 }
 
 test("les créations libres passent par la même authentification avant tout débit", async () => {
@@ -115,6 +135,48 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("un devis falsifié, périmé ou d'un autre compte bloque tout appel et tout débit", async () => {
+  for (const overrides of [{ expectedCredits: 1 }, { creditTariffVersion: "ancienne-version" }, { creditQuoteId: "autre-compte" }]) {
+    const route = loadRoute();
+    const response = await route.post(body(overrides));
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, "AI_MEDIA_CREDIT_QUOTE_CHANGED");
+    assert.equal(route.reservationCalls.length, 0);
+    assert.equal(route.generationCalls.length, 0);
+  }
+});
+
+test("une migration absente bloque avant le fournisseur, même avec un devis valide", async () => {
+  const route = loadRoute({ creditsReady: false });
+  const response = await route.post(body());
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, "AI_MEDIA_CREDITS_NOT_READY");
+  assert.equal(route.reservationCalls.length, 0);
+  assert.equal(route.generationCalls.length, 0);
+});
+
+test("chaque fournisseur accepte une durée compatible avec deux clips maximum et débite le devis du serveur", async () => {
+  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["minimax-h3", 30, 247], ["wan3", 30, 307], ["veo-lite", 16, 87]] as const) {
+    const route = loadRoute({ maximumDuration: 30 });
+    const response = await route.post(body({ kind: "video", videoEngine, durationSeconds }));
+    assert.equal(response.status, 200, await response.text());
+    assert.equal(route.reservationCalls[0]!.quotaAmount, expectedCredits);
+    assert.equal(route.reservationCalls[0]!.quotaUnit, "credit");
+    assert.equal(route.generationCalls[0]!.request.videoEngine, videoEngine);
+    assert.equal(route.generationCalls[0]!.request.durationSeconds, durationSeconds);
+  }
+});
+
+test("les durées natives inférieures à quatre secondes restent refusées avant tout appel payant", async () => {
+  for (const durationSeconds of [1, 2, 3]) {
+    const route = loadRoute();
+    const response = await route.post(body({ kind: "video", videoEngine: "grok-lite", durationSeconds }));
+    assert.equal(response.status, 400);
+    assert.equal(route.reservationCalls.length, 0);
+    assert.equal(route.generationCalls.length, 0);
+  }
 });
 
 test("un prompt Libre invalide est rejeté avant la réservation et l'appel fournisseur", async () => {
@@ -128,11 +190,11 @@ test("un prompt Libre invalide est rejeté avant la réservation et l'appel four
   assert.equal(route.failureCalls.length, 0);
 });
 
-test("Libre et Guidé partagent le quota d'établissement : une image ou les secondes vidéo", async () => {
+test("Libre et Guidé partagent les crédits d’établissement, pour les images et les vidéos", async () => {
   for (const creationMode of ["free", "guided"]) for (const kind of ["image", "video"]) {
     const route = loadRoute();
     const response = await route.post(body({
-      creationMode, kind, durationSeconds: kind === "video" ? 24 : undefined,
+      creationMode, kind, durationSeconds: kind === "video" ? 20 : undefined,
       subjectSource: "custom", idea: "Un paysage coloré et original.", inputMode: "essential",
     }));
     assert.equal(response.status, 200, `${creationMode}/${kind}: ${await response.text()}`);
@@ -142,7 +204,8 @@ test("Libre et Guidé partagent le quota d'établissement : une image ou les sec
     assert.equal(reservation.actorAuthUserId, "actor-test");
     assert.equal(reservation.surface, "studio");
     assert.equal(reservation.mediaKind, kind);
-    assert.equal(reservation.quotaAmount, kind === "video" ? 24 : 1);
+    assert.equal(reservation.quotaAmount, kind === "video" ? 200 + (creationMode === "free" ? 7 : 0) : 7);
+    assert.equal(reservation.quotaUnit, "credit");
     assert.equal(route.generationCalls.length, 1);
     assert.equal(route.generationCalls[0]!.request.creationMode, creationMode);
     assert.equal(route.completionCalls.length, 1);
@@ -184,7 +247,7 @@ test("les quotas épuisés et les durées non autorisées bloquent aussi Libre",
   assert.equal(exhausted.generationCalls.length, 0);
   assert.equal(exhausted.completionCalls.length, 0);
   const restricted = loadRoute({ maximumDuration: 8 });
-  assert.equal((await restricted.post(body({ kind: "video", durationSeconds: 24 }))).status, 403);
+  assert.equal((await restricted.post(body({ kind: "video", durationSeconds: 16 }))).status, 403);
   assert.equal(restricted.reservationCalls.length, 0);
   assert.equal(restricted.generationCalls.length, 0);
 });
@@ -199,7 +262,7 @@ test("le dialogue Libre atteint le serveur avec son quota vidéo et une empreint
     assert.equal(request.teamVideoSpeechMode, teamVideoSpeechMode);
     assert.equal(request.withNarration, teamVideoSpeechMode === "voiceover");
     assert.equal(request.videoEngine, "omni");
-    assert.equal(route.reservationCalls[0]!.quotaAmount, 16);
+    assert.equal(route.reservationCalls[0]!.quotaAmount, 167);
     assert.equal(route.completionCalls.length, 1);
     fingerprints.push(route.reservationCalls[0]!.requestFingerprint);
   }
@@ -221,7 +284,7 @@ test("des voix IA invalides après les secours renvoient une erreur fournisseur 
   const response = await route.post(body({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }));
   assert.equal(response.status, 502);
   assert.equal((await response.json()).code, "AI_MEDIA_GENERATION_FAILED");
-  assert.equal(route.reservationCalls[0]!.quotaAmount, 8);
+  assert.equal(route.reservationCalls[0]!.quotaAmount, 87);
   assert.equal(route.failureCalls.length, 1);
   assert.equal(route.completionCalls.length, 0);
 });

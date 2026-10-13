@@ -5,11 +5,11 @@ import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderCon
 export type AiVideoProviderClip = {
   buffer: Buffer;
   mediaType: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   /**
    * Logical start inside a cumulative continuation output. This lets the
-   * compositor reuse one seamless 16/24 s MP4 while keeping one overlay per
-   * eight-second narrative act.
+   * compositor reuse a cumulative MP4 while keeping one overlay per clip.
+   * A new generation contains at most two clips.
    */
   sourceStartSeconds?: number;
   requestId: string;
@@ -103,7 +103,7 @@ export type AiVideoProviderGenerationArgs = {
   profession: string;
   /** Langue configurée pour les éventuels dialogues natifs du plan. */
   contentLanguage?: string;
-  /** Script de voix off native du mode Libre, découpé par acte de 8 s. */
+  /** Script de voix off native du mode Libre, découpé sur deux clips maximum. */
   nativeNarrationLines?: readonly string[];
   /**
    * Marqueur interne exclusivement positionné par le serveur après avoir
@@ -119,6 +119,8 @@ export type AiVideoProviderGenerationArgs = {
    * d’identité. Les providers le vérifient avant de créer leur client réseau.
    */
   identityTeamGoogleEgressConsent?: boolean;
+  /** Engine named by the one-shot consent, checked before provider access. */
+  identityTeamProviderEgressConsent?: AiMediaGenerationRequest["videoEngine"];
   /**
    * Best-effort cancellation propagated from the browser request. Veo does not
    * expose an operation-cancel method in the Gemini Developer API SDK, but the
@@ -138,18 +140,32 @@ export function assertAiVideoReferenceTeamGoogleEgress(
     | "request"
     | "identityTeamPrecomposed"
     | "identityTeamGoogleEgressConsent"
+    | "identityTeamProviderEgressConsent"
   >,
 ) {
   if (args.request.identityMode !== "reference_team") return;
   if (!args.identityTeamPrecomposed) {
     throw new Error("ai_video_reference_team_precomposition_required");
   }
-  if (!args.identityTeamGoogleEgressConsent) {
+  if (!args.identityTeamGoogleEgressConsent && args.identityTeamProviderEgressConsent !== args.request.videoEngine) {
     throw new Error("ai_video_reference_team_google_consent_required");
   }
   if (args.request.inspirationImages.length !== 1) {
     throw new Error("ai_video_reference_team_single_group_image_required");
   }
+}
+
+export function assertAiVideoReferenceTeamProviderEgress(
+  args: Pick<AiVideoProviderGenerationArgs, "request" | "identityTeamPrecomposed" | "identityTeamProviderEgressConsent" | "identityTeamGoogleEgressConsent">,
+  provider: "google" | "minimax" | "alibaba" | "spacexai",
+) {
+  if (args.request.identityMode !== "reference_team") return;
+  if (provider === "google") return assertAiVideoReferenceTeamGoogleEgress(args);
+  if (!args.identityTeamPrecomposed) throw new Error("ai_video_reference_team_precomposition_required");
+  if (args.identityTeamProviderEgressConsent !== args.request.videoEngine) {
+    throw new Error("ai_video_reference_team_provider_consent_required");
+  }
+  if (args.request.inspirationImages.length !== 1) throw new Error("ai_video_reference_team_single_group_image_required");
 }
 
 export interface AiVideoProvider {

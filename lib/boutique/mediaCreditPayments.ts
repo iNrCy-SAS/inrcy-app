@@ -3,6 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
 import { isStripeCheckoutUrl } from "@/lib/boutique/videoCreditPacks";
+import { AI_MEDIA_LEGACY_CREDIT_FACTORS } from "@/lib/aiMediaPlanLimits";
 
 type Row = Record<string, unknown>;
 export type MediaCreditOrder = {
@@ -13,6 +14,8 @@ export type MediaCreditOrder = {
   stripe_livemode: boolean | null; granted_at: string | null;
   checkout_attempted_at: string | null; checkout_params: string | null;
   created_at: string; refunded_amount_cents: number;
+  credits?: number;
+  unit?: "credit";
   [field: string]: unknown;
 };
 type CreditPack = { readonly key: string; readonly priceEurHt: number; readonly priceEnv: string };
@@ -62,7 +65,9 @@ export function createMediaCreditPayments(config: CreditConfig) {
     if (accountId) query = query.eq("account_id", accountId);
     const result = await query.maybeSingle();
     if (result.error) throw new Error(result.error.message);
-    return result.data as MediaCreditOrder | null;
+    if (!result.data) return null;
+    const order = result.data as MediaCreditOrder;
+    return { ...order, unit: "credit", credits: Number(order[config.unit]) * AI_MEDIA_LEGACY_CREDIT_FACTORS[config.mediaKind] };
   }
 
   /** Price, tax and quantity come exclusively from the server catalogue/Stripe. */
@@ -115,6 +120,12 @@ export function createMediaCreditPayments(config: CreditConfig) {
       p_pack_key: pack.key, p_request_key: args.requestKey, p_stripe_price_id: priceId,
     });
     if (order.granted_at) return { orderId: order.id, completed: true, url: null };
+
+    // An unapplied catalogue migration must fail before a customer or payment
+    // session is created. Fulfillment still uses each historical order snapshot.
+    assert(order.amount_ht_cents === pack.priceEurHt * 100 && order.currency === "eur"
+      && order.tax_behavior === "exclusive" && order.stripe_price_id === priceId,
+      errorCode("PRICE_CONFIGURATION_INVALID"));
 
     if (!order.checkout_params) {
       const { data: subscription, error } = await supabaseAdmin.from("subscriptions")

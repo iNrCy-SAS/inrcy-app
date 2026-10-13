@@ -17,7 +17,7 @@ import {
 } from "@/lib/subscriptionOffers";
 import SubscriptionWorkspace from "./SubscriptionWorkspace";
 import { SubscriptionQuotaSummary } from "./SubscriptionComparison";
-import { VideoCreditBalance, ImageCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
+import { StudioCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
 import styles from "./settingsContentLayout.module.css";
 
 
@@ -885,8 +885,7 @@ useEffect(() => {
       </div>
 
       <div className={styles.legacySummary}><SubscriptionQuotaSummary edition={computed.planNormalized === "Founder" ? "founder" : computed.planNormalized === "Premium" ? "premium" : "standard"} /></div>
-      <VideoCreditBalance />
-      <ImageCreditBalance />
+      <StudioCreditBalance />
     </div>
     </SubscriptionWorkspace>
   );

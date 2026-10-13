@@ -201,7 +201,7 @@ function normalizeAudio(args: {
 export async function generateAiMediaNarrationAudio(args: {
   accountId: string;
   narration: AiMediaNarration;
-  durationSeconds: 8 | 16 | 24;
+  durationSeconds: number;
   narrationVoice: AiMediaNarrationVoice;
   narrationVoiceVariant?: AiMediaNarrationVoiceVariant | null;
   signal?: AbortSignal;

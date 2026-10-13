@@ -14,6 +14,7 @@ import {
   completeAiMediaGeneration,
   failAiMediaGeneration,
   reserveAiMediaGeneration,
+  getAiMediaQuotaSnapshot,
 } from "@/lib/aiMediaGenerationQuota";
 import { createAiMediaRequestFingerprint } from "@/lib/aiMediaGenerationQuotaPolicy";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
@@ -24,6 +25,7 @@ import type { InrAgentTheme } from "@/lib/inrAgentSettings";
 import type { AiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
 import { buildInrAgentMediaGenerationRequest } from "@/lib/inrAgentMediaRequest";
+import { quoteAiMediaRequest } from "@/lib/aiMediaCreditQuoteServer";
 
 type SupabaseLike = Parameters<typeof generateAndSaveAiMedia>[0]["supabase"];
 
@@ -107,6 +109,9 @@ export async function generateInrAgentMedia(args: {
     contract: "inrcy-agent-ai-media-v1",
     request,
   });
+  const quote = quoteAiMediaRequest(args.accountId, request);
+  const wallet = await getAiMediaQuotaSnapshot({ accountId: args.accountId, actorAuthUserId: args.actorAuthUserId, edition });
+  if (!wallet.creditsReady) return { item: null, outcome: "studio_unavailable", kind: args.kind, errorCode: "AI_MEDIA_CREDITS_NOT_READY" };
 
   const reservationArgs = {
     accountId: args.accountId,
@@ -117,12 +122,16 @@ export async function generateInrAgentMedia(args: {
     surface: "booster" as const,
     edition,
     reservationTtlSeconds: args.kind === "video" ? 3_600 : 900,
-    quotaAmount:
-      args.kind === "video" ? request.durationSeconds || 8 : 1,
+    quotaUnit: "credit" as const,
+    quotaAmount: quote.totalCredits,
     limitOverride: args.adminUnlimited
       ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
       : undefined,
     metadata: {
+      credit_tariff_version: quote.tariffVersion,
+      credit_quote_id: quote.quoteId,
+      credit_amount: quote.totalCredits,
+      credit_breakdown: quote.breakdown,
       source: "inr_agent",
       automation_key: "publish",
       theme: args.theme,

@@ -1,0 +1,278 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import test from "node:test";
+import vm from "node:vm";
+import ts from "typescript";
+import * as catalog from "../../lib/aiMediaModelCatalog.ts";
+import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
+import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
+import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
+import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
+import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
+
+type Runtime = {
+  buildGatewayAiVideoRequest: (args: providerTypes.AiVideoProviderGenerationArgs) => Record<string, unknown>;
+  createGatewayAiVideoProvider: (engine: catalog.AiMediaVideoEngine) => providerTypes.AiVideoProvider;
+};
+
+function argsFor(engine: catalog.AiMediaVideoEngine, references = 0, duration = 5, sceneMode: catalog.AiMediaVideoSceneMode = "single"): providerTypes.AiVideoProviderGenerationArgs {
+  const base = {
+    version: boundary.AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION,
+    subject: "Un artisan présente son travail.", instruction: "La caméra avance doucement.",
+    parameters: "duration=5;native_audio=true", references: references ? "required characters" : "none",
+  };
+  return {
+    accountId: "account-test", canonicalPrompt: "Film demandé, sans perte du brief.",
+    canonicalPromptSha256: boundary.hashAiMediaCanonicalPrompt("Film demandé, sans perte du brief."),
+    providerContract: { ...base, sha256: boundary.hashAiMediaVideoProviderContract(base) },
+    request: {
+      requestId: "generation-test", kind: "video", videoEngine: engine, durationSeconds: duration, sceneMode,
+      videoResolution: engine === "minimax-h3" ? "768p" : "720p", format: "landscape", identityMode: "auto",
+      inspirationImages: Array.from({ length: references }, () => ({ data: Buffer.from("image").toString("base64"), mimeType: "image/png" })),
+    },
+    plan: { scenes: timeline.getAiMediaVideoSegmentDurations(duration, engine, undefined, sceneMode).map(() => ({ visualBrief: "Avancée lente." })) },
+  } as unknown as providerTypes.AiVideoProviderGenerationArgs;
+}
+
+function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" = "success") {
+  const counters = { requests: 0, reservations: 0, commits: 0, rollbacks: 0 };
+  let observed: Record<string, unknown> | undefined;
+  const submissions: Record<string, unknown>[] = [];
+  const costs: number[] = [];
+  let frames = 0;
+  let storageCleanups = 0;
+  let privateChecks = 0;
+  const hostedImages: { data: string; mimeType: string }[][] = [];
+  const source = readFileSync(path.join(process.cwd(), "lib/aiVideoProviderGateway.ts"), "utf8");
+  const javascript = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const noOp = () => undefined;
+  const stubs = new Map<string, unknown>([
+    ["server-only", {}],
+    ["ai", {
+      createDownload: () => async () => { throw new Error("download unavailable"); },
+      experimental_generateVideo: async (input: Record<string, unknown>) => {
+        counters.requests += 1; observed = input; submissions.push(input);
+        if (mode === "rejected") throw new Error("provider rejected before output");
+        if (mode === "second-rejected" && counters.requests === 2) throw new Error("second provider rejected before output");
+        if (mode === "download-failed") {
+          const download = input.download as (options: { url: URL }) => Promise<unknown>;
+          await download({ url: new URL("https://example.com/asset.mp4") });
+        }
+        const buffer = Buffer.alloc(24);
+        if (mode !== "bad-asset") buffer.write("ftyp", 4, "ascii");
+        return { videos: [{ uint8Array: buffer }], warnings: mode === "warnings-with-url" ? [{ type: "other", message: "Source https://storage.example.com/private.jpg?token=secret" }] : [] };
+      },
+    }],
+    ["@/lib/aiGatewayAccountGuard", {
+      reserveAiGatewayAccountAttempt: async () => { counters.reservations += 1; return {}; },
+      commitAiGatewayAccountAttempt: async (input: { actualCostMicroUsd: number }) => { counters.commits += 1; costs.push(input.actualCostMicroUsd); },
+      rollbackAiGatewayAccountAttempt: async () => { counters.rollbacks += 1; },
+      recordAiGatewayAccountFailure: async () => noOp(),
+    }],
+    ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
+    ["./aiMediaModelCatalog.ts", catalog],
+    ["./aiMediaCreditsPricing.ts", pricing],
+    ["./aiMediaVideoTimeline.ts", timeline],
+    ["./aiMediaVideoContinuity.ts", { extractAiMediaVideoContinuityFrame: async () => {
+      frames += 1;
+      if (mode === "frame-failed") throw new Error("frame unavailable");
+      return { data: Buffer.from("generated-last-frame").toString("base64"), mimeType: "image/jpeg" };
+    } }],
+    ["./aiMediaVideoTemporaryImages.ts", { createAiMediaVideoTemporaryImageStore: () => ({
+      assertPrivateBucket: async () => { privateChecks += 1; if (mode === "storage-failed") throw new Error("private_bucket_required"); },
+      uploadImages: async (images: { data: string; mimeType: string }[]) => {
+        if (mode === "storage-failed") throw new Error("storage unavailable");
+        hostedImages.push(images);
+        return images.map((_, index) => `https://storage.example.com/signed/${hostedImages.length}-${index}?token=secret`);
+      },
+      cleanup: async () => { storageCleanups += 1; },
+    }) }],
+    ["@/lib/aiMediaSensitiveText", sensitiveText],
+    ["./aiMediaVideoProviderContract.ts", boundary],
+    ["@/lib/aiVideoProviderGoogleVeo", {
+      buildGoogleVideoScenePrompt: (args: providerTypes.AiVideoProviderGenerationArgs) => args.canonicalPrompt,
+      buildGoogleVideoTeamSpeechDirection: () => "No native speech.",
+    }],
+    ["@/lib/aiVideoProviderTypes", providerTypes],
+  ]);
+  const nativeRequire = createRequire(import.meta.url);
+  const localRequire = (specifier: string) => {
+    if (stubs.has(specifier)) return stubs.get(specifier);
+    if (specifier.startsWith("node:")) return nativeRequire(specifier);
+    throw new Error(`unexpected_dependency:${specifier}`);
+  };
+  const commonJsModule = { exports: {} };
+  const factory = vm.runInThisContext(`(function(exports,require,module){${javascript}\n})`) as (
+    exports: object, require: typeof localRequire, module: typeof commonJsModule,
+  ) => void;
+  factory(commonJsModule.exports, localRequire, commonJsModule);
+  return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, hostedImages,
+    frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed };
+}
+
+test("Gateway persists a useful warning without a private signed image URL", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime("warnings-with-url");
+    const result = await context.runtime.createGatewayAiVideoProvider("minimax-h3").generate(argsFor("minimax-h3", 1));
+    assert.ok(result.warnings[0].includes("[provider-url-redacted]"));
+    assert.doesNotMatch(result.warnings.join(" "), /https:|storage\.example|token=|secret/);
+    assert.equal(context.storageCleanups(), 1);
+  });
+});
+
+for (const engine of ["minimax-h3", "wan-flash"] as const) {
+  test(`${engine}: URL-only image inputs are privately hosted before any paid call and the generated continuity frame is hosted too`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime();
+      await context.runtime.createGatewayAiVideoProvider(engine).generate(argsFor(engine, 1, 30));
+      assert.equal(context.counters.requests, 2);
+      assert.equal(context.privateChecks(), 1);
+      assert.equal(context.hostedImages.length, 2);
+      assert.equal(context.hostedImages[0][0].data, Buffer.from("image").toString("base64"));
+      assert.equal(context.hostedImages[1][0].data, Buffer.from("generated-last-frame").toString("base64"));
+      assert.equal(context.storageCleanups(), 1);
+      for (const input of context.submissions) assert.match((input.prompt as { image: string }).image, /^https:\/\/storage\.example\.com\/signed\//);
+    });
+  });
+  test(`${engine}: unavailable private input storage fails before economic reservation, including a long text-only H3 film`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime("storage-failed");
+      await assert.rejects(context.runtime.createGatewayAiVideoProvider(engine).generate(argsFor(engine, engine === "wan-flash" ? 1 : 0, 30)), /private_bucket_required/);
+      assert.equal(context.counters.requests, 0);
+      assert.equal(context.counters.reservations, 0);
+      assert.equal(context.storageCleanups(), 1);
+    });
+  });
+}
+
+async function withMockCredentials(run: () => Promise<void>) {
+  const original = process.env.AI_GATEWAY_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "unit-test-mock-credential";
+  try { await run(); }
+  finally {
+    if (original === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = original;
+  }
+}
+
+test("Gateway submits one exact reviewed model with native short duration and no automatic retries", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const args = argsFor("grok-lite", 1, 4);
+    const result = await context.runtime.createGatewayAiVideoProvider("grok-lite").generate(args);
+    assert.equal(result.clips[0].durationSeconds, 4);
+    assert.equal(context.observed()?.model, "spacexai/grok-imagine-video-1.5-lite");
+    assert.equal(context.observed()?.generateAudio, true);
+    assert.equal(context.observed()?.maxRetries, 0);
+    assert.equal(context.observed()?.n, 1);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+  });
+});
+
+test("multiple H3 references reach inputReferences rather than silently dropping photos", () => {
+  const { runtime } = loadRuntime();
+  const input = runtime.buildGatewayAiVideoRequest(argsFor("minimax-h3", 3));
+  assert.equal((input.inputReferences as unknown[]).length, 3);
+  assert.equal(typeof input.prompt, "string");
+  assert.equal(input.resolution, "1366x768");
+});
+
+test("unsupported duration, reference count, and altered brief stop before any reservation or request", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const provider = context.runtime.createGatewayAiVideoProvider("wan-flash");
+    await assert.rejects(provider.generate(argsFor("wan-flash")), /reference_required/);
+    await assert.rejects(provider.generate(argsFor("wan-flash", 2)), /references_unsupported/);
+    const altered = argsFor("wan-flash", 1);
+    altered.canonicalPrompt = "Tampered";
+    await assert.rejects(provider.generate(altered), /integrity_failed/);
+    const invalidDuration = argsFor("wan-flash", 1);
+    invalidDuration.request.durationSeconds = 31;
+    await assert.rejects(provider.generate(invalidDuration), /duration_(invalid|unsupported)/);
+    assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  });
+});
+
+test("unbillable rejection releases reservation and performs exactly one submission", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime("rejected");
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("grok-lite").generate(argsFor("grok-lite")), /provider rejected/);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 0, rollbacks: 1 });
+  });
+});
+
+test("team egress requires consent to this engine even after the portraits have been composed", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const args = argsFor("grok-lite", 1);
+    args.request.identityMode = "reference_team";
+    args.identityTeamPrecomposed = true;
+    args.identityTeamProviderEgressConsent = "minimax-h3";
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("grok-lite").generate(args), /provider_consent_required/);
+    assert.equal(context.counters.requests, 0);
+    assert.equal(context.counters.reservations, 0);
+    args.identityTeamProviderEgressConsent = "grok-lite";
+    await context.runtime.createGatewayAiVideoProvider("grok-lite").generate(args);
+    assert.equal(context.counters.requests, 1);
+  });
+});
+
+for (const mode of ["bad-asset", "download-failed"] as const) {
+  test(`${mode}: an existing provider asset stays billable without resubmitting to another engine`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime(mode);
+      await assert.rejects(
+        context.runtime.createGatewayAiVideoProvider("grok-lite").generate(argsFor("grok-lite")),
+        (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error),
+      );
+      assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+    });
+  });
+}
+
+for (const sceneMode of ["single", "multi"] as const) {
+  test(`Gateway 30-second ${sceneMode} film submits two native clips with correct frames and per-clip supplier cost`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime();
+      const args = argsFor("grok-lite", 0, 30, sceneMode);
+      const result = await context.runtime.createGatewayAiVideoProvider("grok-lite").generate(args);
+      assert.deepEqual(result.clips.map((clip) => clip.durationSeconds), [15, 15]);
+      assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+      assert.equal(context.frames(), sceneMode === "single" ? 1 : 0);
+      assert.equal(context.submissions[0].duration, 15);
+      assert.equal(context.submissions[1].duration, 15);
+      assert.equal(context.costs.reduce((sum, value) => sum + value, 0), sceneMode === "single" ? 910_000 : 900_000);
+      if (sceneMode === "single") assert.deepEqual((context.submissions[1].prompt as { image: Buffer }).image, Buffer.from("generated-last-frame"));
+      else assert.equal(typeof context.submissions[1].prompt, "string");
+      assert.ok(context.submissions.every((input) => input.maxRetries === 0 && input.model === "spacexai/grok-imagine-video-1.5-lite"));
+    });
+  });
+}
+
+test("Gateway multi film retains the original photo for each plan and bills each transmission", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    await context.runtime.createGatewayAiVideoProvider("grok-lite").generate(argsFor("grok-lite", 1, 30, "multi"));
+    assert.deepEqual(context.costs, [460_000, 460_000]);
+    for (const input of context.submissions) assert.deepEqual((input.prompt as { image: Buffer }).image, Buffer.from("image"));
+  });
+});
+
+for (const mode of ["second-rejected", "frame-failed"] as const) {
+  test(`${mode}: a first paid clip prevents blind regeneration or an unbillable film classification`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime(mode);
+      await assert.rejects(context.runtime.createGatewayAiVideoProvider("grok-lite").generate(argsFor("grok-lite", 0, 30)),
+        (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error));
+      assert.equal(context.counters.requests, mode === "second-rejected" ? 2 : 1);
+      assert.equal(context.counters.commits, 1);
+      assert.equal(context.counters.rollbacks, mode === "second-rejected" ? 1 : 0);
+      assert.deepEqual(context.costs, [450_000]);
+    });
+  });
+}

@@ -508,11 +508,14 @@ test("RLS autorise la lecture du compte mais toutes les mutations passent par se
 
 test("le helper serveur transmet toujours accountId et actorAuthUserId aux RPC de lecture/reservation", () => {
   assert.match(helper, /import "server-only"/);
-  assert.match(helper, /"get_ai_media_generation_quota_v3", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
+  assert.match(helper, /const rpcArgs = \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
+  assert.match(helper, /client\.rpc\("get_ai_media_generation_quota_v4", rpcArgs\)/);
+  assert.match(helper, /"get_ai_media_generation_quota_v3", rpcArgs/);
   assert.match(helper, /"reserve_ai_media_generation_v2", \{\s+p_account_id: accountId,\s+p_actor_auth_user_id: actorAuthUserId/);
   assert.match(helper, /p_quota_amount: quotaAmount/);
-  assert.match(helper, /"complete_ai_media_generation_v2", \{\s+p_account_id: assertUuid\(params\.accountId/);
-  assert.match(helper, /"fail_ai_media_generation_v2", \{\s+p_account_id: assertUuid\(params\.accountId/);
+  assert.match(helper, /const args = \{\s+p_account_id: assertUuid\(params\.accountId/);
+  assert.match(helper, /callTransitionRpc\(params\.supabase \?\? supabaseAdmin, "complete", args, params\.quotaUnit\)/);
+  assert.match(helper, /callTransitionRpc\(params\.supabase \?\? supabaseAdmin, "fail", args, params\.quotaUnit\)/);
   assert.match(helper, /export const commitAiMediaGeneration = completeAiMediaGeneration/);
   assert.match(helper, /export const releaseAiMediaGeneration = failAiMediaGeneration/);
 });

@@ -16,10 +16,11 @@ const sharedOutput = ts.transpileModule(readFileSync(new URL("../../lib/boutique
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
 }).outputText;
 
-function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolean; uncertain?: boolean; customerAccount?: string; mutateSession?: (row: Row) => void; mutatePrice?: (row: Row) => void; refunded?: number; disputed?: boolean; disputes?: Row[] } = {}) {
-  const price: Row = { id:"price_video_50",currency:"eur",unit_amount:800,tax_behavior:"exclusive",type:"one_time",active:true,livemode:false };
+function fixture(options: { currentPrice?: boolean; paid?: boolean; expired?: boolean; prepared?: boolean; uncertain?: boolean; customerAccount?: string; mutateSession?: (row: Row) => void; mutatePrice?: (row: Row) => void; refunded?: number; disputed?: boolean; disputes?: Row[] } = {}) {
+  const amount=options.currentPrice?1900:800,total=Math.round(amount*1.2);
+  const price: Row = { id:"price_video_50",currency:"eur",unit_amount:amount,tax_behavior:"exclusive",type:"one_time",active:true,livemode:false };
   options.mutatePrice?.(price);
-  const order: Row = { id:orderId,account_id:accountId,actor_auth_user_id:actorId,pack_key:"video_50",seconds:50,amount_ht_cents:800,
+  const order: Row = { id:orderId,account_id:accountId,actor_auth_user_id:actorId,pack_key:"video_50",seconds:50,amount_ht_cents:amount,
     currency:"eur",tax_behavior:"exclusive",stripe_price_id:price.id,status:"pending",stripe_customer_id:"cus_test",stripe_livemode:false,
     stripe_checkout_session_id:options.prepared ? "cs_test" : null,stripe_payment_intent_id:null,granted_at:null,
     checkout_attempted_at: options.prepared || options.uncertain ? new Date(Date.now()-(options.uncertain ? 24*60*60*1000 : 0)).toISOString() : null,
@@ -27,11 +28,11 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
     refunded_amount_cents:0,revoked_seconds:0,held_seconds:0,dispute_revoked_seconds:0,created_at:new Date().toISOString() };
   const session: Row = { id:"cs_test",mode:"payment",client_reference_id:accountId,metadata:{...hints},customer:"cus_test",livemode:false,
     status: options.expired ? "expired" : options.paid ? "complete" : "open",payment_status:options.paid ? "paid" : "unpaid",
-    url:"https://checkout.stripe.com/c/pay/test",currency:"eur",amount_subtotal:800,amount_total:960,total_details:{amount_discount:0},
+    url:"https://checkout.stripe.com/c/pay/test",currency:"eur",amount_subtotal:amount,amount_total:total,total_details:{amount_discount:0},
     automatic_tax:{enabled:true,status:"complete"},payment_intent:"pi_test" };
   options.mutateSession?.(session);
-  const intent: Row = { id:"pi_test",status:"succeeded",currency:"eur",amount_received:960,customer:"cus_test",livemode:false,metadata:{...hints},
-    latest_charge:{id:"ch_test",payment_intent:"pi_test",currency:"eur",paid:true,amount:960,amount_refunded:options.refunded ?? 0,livemode:false,disputed:options.disputed ?? false} };
+  const intent: Row = { id:"pi_test",status:"succeeded",currency:"eur",amount_received:total,customer:"cus_test",livemode:false,metadata:{...hints},
+    latest_charge:{id:"ch_test",payment_intent:"pi_test",currency:"eur",paid:true,amount:total,amount_refunded:options.refunded ?? 0,livemode:false,disputed:options.disputed ?? false} };
   const disputes = options.disputes ?? [{id:"du_test",charge:"ch_test",payment_intent:"pi_test",amount:960,currency:"eur",livemode:false,status:"needs_response"}];
   const calls: Array<{ name: string; args: Row }> = [];
   const posts: Array<{ path: string; params: string; config: unknown }> = [];
@@ -55,6 +56,7 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
     return query;
   };
   const modules: Record<string,unknown> = {
+    "@/lib/aiMediaPlanLimits":{AI_MEDIA_LEGACY_CREDIT_FACTORS:{image:7,video:10}},
     "server-only":{}, "@/lib/boutique/videoCreditPacks":packs,
     "@/lib/supabaseAdmin": {supabaseAdmin:{ from, async rpc(name: string,args: Row) {
       calls.push({name,args});
@@ -98,17 +100,17 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
 process.env.STRIPE_VIDEO_CREDITS_50_PRICE_ID="price_video_50";
 process.env.STRIPE_SECRET_KEY="sk_test_SYNTHETIC_NOT_A_CREDENTIAL";
 
-test("the four accepted packs use HT amounts and exact seconds",()=>{
-  assert.deepEqual(packs.VIDEO_CREDIT_PACKS.map(({seconds,priceEurHt})=>[seconds,priceEurHt]),[[50,8],[100,15],[200,29],[500,69]]);
+test("new shared packs use the reviewed HT amounts while historical unit quantities remain unchanged",()=>{
+  assert.deepEqual(packs.VIDEO_CREDIT_PACKS.map(({seconds,credits,priceEurHt})=>[seconds,credits,priceEurHt]),[[50,500,19],[100,1000,35],[200,2000,65],[500,5000,155]]);
 });
 test("unpaid completed checkout remains pending and never grants seconds",async()=>{
-  const f=fixture({prepared:true,mutateSession:s=>{s.status="complete";}});
+  const f=fixture({currentPrice:true,prepared:true,mutateSession:s=>{s.status="complete";}});
   const result=await f.start(); assert.equal(result.completed,false); assert.equal(result.pending,true);
   assert.ok(!f.calls.some(c=>c.name==="fulfill_ai_media_video_credit_order"));
 });
 test("server verified payment checks line items, intent and charge before grant",async()=>{
   const f=fixture({paid:true,prepared:true});
-  assert.equal((await f.start()).completed,true);
+  assert.equal(await f.api.fulfillVideoCreditCheckout("cs_test","evt_original_verified"),true);
   const grant=f.calls.find(c=>c.name==="fulfill_ai_media_video_credit_order");
   assert.equal(grant?.args.p_amount_subtotal_cents,800); assert.equal(grant?.args.p_amount_total_cents,960);
   assert.equal(grant?.args.p_account_id,accountId); assert.equal(grant?.args.p_refunded_amount_cents,0);
@@ -128,7 +130,7 @@ test("paid historic order retains its original amount after a later catalogue pr
   assert.equal(f.calls.find(c=>c.name==="fulfill_ai_media_video_credit_order")?.args.p_amount_subtotal_cents,700);
 });
 test("Stripe checkout uses frozen server amounts, tax/invoice setup and account metadata",async()=>{
-  const f=fixture(); const result=await f.start(); assert.equal(result.url,f.session.url);
+  const f=fixture({currentPrice:true}); const result=await f.start(); assert.equal(result.url,f.session.url);
   const params=new URLSearchParams(f.posts[0].params);
   assert.equal(params.get("mode"),"payment"); assert.equal(params.get("line_items[0][price]"),"price_video_50");
   assert.equal(params.get("line_items[0][quantity]"),"1"); assert.equal(params.get("automatic_tax[enabled]"),"true");
@@ -138,14 +140,14 @@ test("Stripe checkout uses frozen server amounts, tax/invoice setup and account 
   await f.start(); assert.equal(f.posts.length,1);
 });
 test("verified expired checkout returns a safe reset signal; uncertain timeout stays fenced",async()=>{
-  const expired=fixture({prepared:true,expired:true});
+  const expired=fixture({currentPrice:true,prepared:true,expired:true});
   assert.equal((await expired.start()).expired,true); assert.equal(expired.order.status,"expired");
   assert.equal(expired.posts.length,0);
-  const uncertain=fixture({uncertain:true});
+  const uncertain=fixture({currentPrice:true,uncertain:true});
   await assert.rejects(uncertain.start(),/RECONCILIATION_REQUIRED/); assert.equal(uncertain.posts.length,0);
 });
 test("complete unpaid session is bound to its order for later authenticated reconciliation",async()=>{
-  const f=fixture({mutateSession:s=>{s.status="complete";}});
+  const f=fixture({currentPrice:true,mutateSession:s=>{s.status="complete";}});
   const result=await f.start(); assert.equal(result.pending,true); assert.equal(f.order.stripe_checkout_session_id,"cs_test");
 });
 for (const [label,mutate] of [
@@ -162,12 +164,22 @@ for (const [label,mutate] of [
   assert.ok(!f.calls.some(c=>c.name==="fulfill_ai_media_video_credit_order"));
 });
 test("wrong recurring/inclusive or modified Stripe prices cannot create a checkout",async()=>{
-  for (const mutation of [(p: Row)=>{p.unit_amount=1;},(p: Row)=>{p.tax_behavior="inclusive";},(p: Row)=>{p.type="recurring";},(p: Row)=>{p.active=false;}]) {
-    const f=fixture({mutatePrice:mutation}); await assert.rejects(f.start(),/PRICE_CONFIGURATION_INVALID/); assert.equal(f.calls.length,0); assert.equal(f.posts.length,0);
+  for (const mutation of [(p: Row)=>{p.unit_amount=1;},(p: Row)=>{p.tax_behavior="inclusive";},(p: Row)=>{p.type="recurring";},(p: Row)=>{p.active=false;},(p: Row)=>{p.currency="usd";},(p: Row)=>{p.recurring={interval:"month"};},(p: Row)=>{p.id="price_other";}]) {
+    const f=fixture({currentPrice:true,mutatePrice:mutation}); await assert.rejects(f.start(),/PRICE_CONFIGURATION_INVALID/); assert.equal(f.calls.length,0); assert.equal(f.posts.length,0);
   }
 });
+test("the old eight-euro Stripe ID cannot open a new nineteen-euro recharge",async()=>{
+  const f=fixture();await assert.rejects(f.start(),/PRICE_CONFIGURATION_INVALID/);
+  assert.deepEqual(f.reads,["/prices/price_video_50"]);assert.equal(f.calls.length,0);assert.equal(f.posts.length,0);
+});
+test("an unapplied database pricing migration blocks before customer or payment creation",async()=>{
+  const f=fixture({currentPrice:true});f.order.amount_ht_cents=800;
+  await assert.rejects(f.start(),/PRICE_CONFIGURATION_INVALID/);
+  assert.equal(f.calls.length,1);assert.equal(f.calls[0].name,"create_ai_media_video_credit_order");
+  assert.deepEqual(f.reads,["/prices/price_video_50"]);assert.equal(f.posts.length,0);
+});
 test("a customer linked to another account is rejected without email recovery",async()=>{
-  const f=fixture({customerAccount:"other-account"}); await assert.rejects(f.start(),/CUSTOMER_SCOPE_MISMATCH/); assert.equal(f.posts.length,0);
+  const f=fixture({currentPrice:true,customerAccount:"other-account"}); await assert.rejects(f.start(),/CUSTOMER_SCOPE_MISMATCH/); assert.equal(f.posts.length,0);
 });
 test("refund uses the current live cumulative Stripe charge",async()=>{
   const f=fixture({paid:true,refunded:480}); await f.api.reconcileVideoCreditRefund("ch_test","evt_refund");
@@ -210,11 +222,11 @@ test("existing suspended credit is reread even when charge.disputed becomes fals
   assert.equal((f.calls.find(c=>c.name==="fulfill_ai_media_video_credit_order")?.args.p_disputes as Row[])[0].status,"prevented");
 });
 test("confirmed asynchronous failure resets safely while processing and transient errors remain pending",async()=>{
-  const f=fixture({prepared:true,mutateSession:s=>{s.status="complete";}});
+  const f=fixture({currentPrice:true,prepared:true,mutateSession:s=>{s.status="complete";}});
   f.intent.status="requires_payment_method";f.intent.last_payment_error={code:"payment_failed"};
   let result=await f.start();assert.equal(result.failed,true);assert.equal(result.pending,false);assert.equal(f.order.status,"failed");
   assert.ok(!f.calls.some(c=>c.name==="fulfill_ai_media_video_credit_order"));
-  const pending=fixture({prepared:true,mutateSession:s=>{s.status="complete";}});
+  const pending=fixture({currentPrice:true,prepared:true,mutateSession:s=>{s.status="complete";}});
   pending.intent.status="processing";
   result=await pending.start();assert.equal(result.pending,true);assert.equal(result.failed,false);assert.equal(pending.order.status,"pending");
 });

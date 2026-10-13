@@ -33,7 +33,9 @@ export async function loadAiMediaSoundtrack(
   options: AiMediaSoundtrackLoadOptions = {},
 ): Promise<LoadedAiMediaSoundtrack> {
   const definition = selectAiMediaSoundtrack(prompt, options);
-  const durationSeconds = options.durationSeconds ?? 24;
+  const requestedDuration = options.durationSeconds ?? 24;
+  // The compositor loops/trims this original asset to the requested duration.
+  const durationSeconds = requestedDuration <= 8 ? 8 : requestedDuration <= 16 ? 16 : 24;
   const fileName = `${definition.id}-${durationSeconds}s.wav`;
   const absolutePath = path.join(
     process.cwd(),

@@ -487,7 +487,7 @@ export function buildAiMediaCreativePlan(args: {
   const typology = safeTypology(request);
   const targetCount =
     request.kind === "video"
-      ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
+      ? getAiMediaVideoSegmentCount(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode)
       : 1;
   const oneShotInstruction = cleanStructuredText(request.aiInstruction, 2_400);
   const priorityBrief = cleanStructuredText(

@@ -85,8 +85,8 @@ test("Libre ne peut pas détourner Modifier, Booster ni un mode inconnu", () => 
   }
 });
 
-test("les contrôles vidéo explicites restent prioritaires et utilisent Omni", () => {
-  for (const durationSeconds of [8, 16, 24]) {
+test("les contrôles vidéo explicites restent prioritaires, moteur compris", () => {
+  for (const durationSeconds of [4, 8, 16]) {
     const request = normalizeAiMediaGenerationRequest(freeInput({
       kind: "video", format: "story", durationSeconds,
       freePrompt: "Une animation dessinée dans un monde fantastique, avec une voix off chaleureuse.",
@@ -95,7 +95,7 @@ test("les contrôles vidéo explicites restent prioritaires et utilisent Omni", 
     }));
     assert.equal(request.durationSeconds, durationSeconds);
     assert.equal(request.format, "story");
-    assert.equal(request.videoEngine, "omni");
+    assert.equal(request.videoEngine, "veo");
     assert.equal(request.withNarration, true);
     assert.equal(request.narrationVoice, "male");
     assert.equal(request.narrationVoiceVariant, "Puck");
@@ -160,7 +160,7 @@ test("les validations de référence et de voix s'appliquent aussi au mode Libre
     { inspirationImages: [reference("product", "")] },
     { inspirationImages: [reference("inspiration", "required")] },
     { inspirationImages: [reference("character", "required", { characterIndex: 1 })], identityConsent: false },
-    { kind: "video", durationSeconds: 12 },
+    { kind: "video", durationSeconds: 21 },
     { kind: "video", withNarration: true, narrationVoice: "male", narrationVoiceVariant: "Kore" },
   ]) {
     assert.throws(() => normalizeAiMediaGenerationRequest(freeInput(overrides)), AiMediaRequestValidationError);

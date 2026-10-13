@@ -3,6 +3,12 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import {
+  getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
+  normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine,
+  type AiMediaVideoEngine, type AiMediaImageEngine, type AiMediaVideoResolution,
+} from "./aiMediaModelCatalog.ts";
+export type { AiMediaVideoEngine, AiMediaImageEngine, AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
 
 export type AiMediaKind = "image" | "video";
 export type AiMediaOperation = "generate" | "modify";
@@ -55,9 +61,8 @@ export type AiMediaShotType = "auto" | "close" | "medium" | "wide";
 export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
 export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
-export type AiMediaVideoDuration = 8 | 16 | 24;
+export type AiMediaVideoDuration = number;
 export type AiMediaVideoSceneMode = "single" | "multi";
-export type AiMediaVideoEngine = "omni" | "veo";
 export type AiMediaTeamVideoMode = "cinematic" | "montage";
 export type AiMediaTeamVideoSpeechMode = "voiceover" | "characters";
 export type AiMediaNarrationVoice = "female" | "male";
@@ -249,6 +254,11 @@ export type AiMediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: AiMediaLogoMode;
   videoEngine: AiMediaVideoEngine | null;
+  imageEngine?: AiMediaImageEngine | null;
+  videoResolution?: AiMediaVideoResolution | null;
+  expectedCredits?: number;
+  creditTariffVersion?: string;
+  creditQuoteId?: string;
   identityMode: AiMediaIdentityMode;
   /** @deprecated Alias de compatibilité pour les anciennes générations vidéo. */
   videoCharacterMode: AiMediaVideoCharacterMode;
@@ -266,6 +276,8 @@ export type AiMediaGenerationRequest = {
   teamVideoSpeechMode: AiMediaTeamVideoSpeechMode;
   /** Accord ponctuel pour transmettre à Google la seule image de groupe déjà composée. */
   teamVideoVeoConsent: boolean;
+  /** Consentement ponctuel pour le fournisseur choisi, lié à son identifiant. */
+  teamVideoProviderConsent?: AiMediaVideoEngine | null;
   /** Identifiant aléatoire du jeu de références, jamais dérivé de leur contenu. */
   identityReferenceSetId: string;
   durationSeconds: AiMediaVideoDuration | null;
@@ -581,12 +593,16 @@ export function normalizeAiMediaGenerationRequest(
       identityReferenceSetId: body.identityReferenceSetId,
       identityConsent: body.identityConsent,
       teamVideoVeoConsent: body.teamVideoVeoConsent,
+      teamVideoProviderConsent: body.teamVideoProviderConsent,
       durationSeconds: body.durationSeconds, sceneMode: body.sceneMode,
       connectScenes: body.connectScenes,
       withMusic: body.withMusic,
       withNarration: body.teamVideoSpeechMode === "characters" ? false : body.withNarration,
       narrationVoice: body.narrationVoice, narrationVoiceVariant: body.narrationVoiceVariant,
-      videoEngine: "omni", teamVideoMode: "cinematic",
+      videoEngine: body.videoEngine, imageEngine: body.imageEngine,
+      videoResolution: body.videoResolution,
+      expectedCredits: body.expectedCredits, creditTariffVersion: body.creditTariffVersion,
+      creditQuoteId: body.creditQuoteId, teamVideoMode: "cinematic",
       teamVideoSpeechMode: body.teamVideoSpeechMode,
       useBrandColors: false, logoMode: "none", textMode: "none",
     };
@@ -756,7 +772,23 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Présence du logo invalide.");
   }
 
-  const requestedDuration = Number(body.durationSeconds || 16);
+  const rawVideoEngine = cleanText(body.videoEngine, 80) ||
+    (creationMode !== "free" && inputMode === "essential" && body.teamVideoSpeechMode === "characters" ? "veo" : "omni");
+  const videoEngine = normalizeAiMediaVideoEngine(rawVideoEngine);
+  if (kind === "video" && !videoEngine) {
+    throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
+  }
+  const imageEngine = normalizeAiMediaImageEngine(body.imageEngine || "openai");
+  if (kind === "image" && !imageEngine) {
+    throw new AiMediaRequestValidationError("Moteur image invalide.");
+  }
+  let videoResolution: AiMediaVideoResolution | null = null;
+  try {
+    if (kind === "video" && videoEngine) videoResolution = getAiMediaVideoResolution(videoEngine, body.videoResolution as string | undefined);
+  } catch {
+    throw new AiMediaRequestValidationError("Résolution indisponible pour ce moteur.");
+  }
+  const requestedDuration = Number(body.durationSeconds ?? 8);
   if (
     body.connectScenes !== undefined &&
     typeof body.connectScenes !== "boolean"
@@ -765,32 +797,31 @@ export function normalizeAiMediaGenerationRequest(
       "L’option de raccord des scènes est invalide."
     );
   }
-  if (kind === "video" && ![8, 16, 24].includes(requestedDuration)) {
-    throw new AiMediaRequestValidationError(
-      "Durée vidéo invalide : choisissez 8, 16 ou 24 secondes."
-    );
-  }
   const rawSceneMode = cleanText(body.sceneMode, 24);
   if (rawSceneMode && !["single", "multi"].includes(rawSceneMode)) {
     throw new AiMediaRequestValidationError("Mode de scènes invalide.");
   }
-  // Produit : `single` désigne une séquence continue raccordée sur plusieurs
-  // segments de 8 s ; `multi` assemble des plans indépendants. Le booléen
-  // historique est conservé comme alias moteur pour les anciens clients.
+  // Une scène continue est le choix par défaut. Deux scènes demandent deux
+  // clips natifs valides ; aucun chemin de création ne produit un troisième.
   const normalizedRequestedSceneMode: AiMediaVideoSceneMode =
-    kind !== "video" || requestedDuration <= 8
-      ? "single"
-      : rawSceneMode
-      ? (rawSceneMode as AiMediaVideoSceneMode)
-      : body.connectScenes === true
-      ? "single"
-      : creationMode === "free"
-      ? "single"
-      : "multi";
+    kind === "video" && rawSceneMode === "multi" ? "multi" : "single";
+  if (kind === "video" && (!Number.isInteger(requestedDuration) || requestedDuration < 4 || requestedDuration > 30)) {
+    throw new AiMediaRequestValidationError("Choisissez une durée entière entre 4 et 30 secondes.");
+  }
+  if (kind === "video" && normalizedRequestedSceneMode === "multi" && requestedDuration < 8) {
+    throw new AiMediaRequestValidationError("Deux scènes demandent au moins 8 secondes, soit 4 secondes par scène.");
+  }
+  if (kind === "video" && !getAiMediaVideoDurations(videoEngine!, videoResolution!, normalizedRequestedSceneMode).includes(requestedDuration)) {
+    throw new AiMediaRequestValidationError("Ce moteur ne peut pas produire cette durée avec deux clips maximum. Choisissez un moteur compatible.");
+  }
+  if (kind === "video" && videoEngine === "wan-flash" &&
+    (creationMode === "free" ? freePrompt.length : `${body.idea || ""} ${body.aiInstruction || ""}`.trim().length) > 1_500) {
+    throw new AiMediaRequestValidationError("Ce moteur accepte des demandes plus courtes. Choisissez un autre moteur pour conserver toute votre demande.");
+  }
   const requestedSceneConnection =
     kind === "video" &&
-    requestedDuration > 8 &&
-    normalizedRequestedSceneMode === "single";
+    normalizedRequestedSceneMode === "single" &&
+    !getAiMediaVideoNativeDurations(videoEngine!, videoResolution!).includes(requestedDuration);
 
   // Modifier has only a source canvas and an instruction. Generation controls
   // must not add a slogan, exact-text overlay or branding after the edit.
@@ -854,14 +885,6 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError(
       "Variante de voix de narration invalide."
     );
-  }
-  const rawVideoEngine =
-    cleanText(body.videoEngine, 24) ||
-    (inputMode === "essential" && body.teamVideoSpeechMode === "characters"
-      ? "veo"
-      : "omni");
-  if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
-    throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
   }
   // Le rôle et l'usage sont normalisés avant l'identité : une référence de
   // personnage marquée obligatoire doit activer la fidélité même si un ancien
@@ -1100,11 +1123,14 @@ export function normalizeAiMediaGenerationRequest(
     identityMode === "reference_team" &&
     teamVideoMode === "cinematic" &&
     body.teamVideoVeoConsent === true;
+  const teamVideoProviderConsent = identityMode === "reference_team" &&
+    teamVideoMode === "cinematic" && body.teamVideoProviderConsent === videoEngine
+    ? videoEngine : null;
   if (
     inputMode === "essential" &&
     kind === "video" &&
     identityMode === "reference_team" &&
-    !teamVideoVeoConsent
+    !teamVideoProviderConsent && !((videoEngine === "omni" || videoEngine === "veo") && teamVideoVeoConsent)
   ) {
     throw new AiMediaRequestValidationError(
       "Confirmez l’animation de la scène composée avec ces personnages."
@@ -1117,6 +1143,9 @@ export function normalizeAiMediaGenerationRequest(
     identityMode,
     peopleMode: normalizedPeopleMode,
     teamVideoMode,
+    videoEngine,
+    videoResolution,
+    sceneMode: normalizedRequestedSceneMode,
   });
   const sceneMode = normalizedRequestedSceneMode;
 
@@ -1161,8 +1190,12 @@ export function normalizeAiMediaGenerationRequest(
     creativity: creativity as AiMediaCreativity,
     useBrandColors: operation !== "modify" && body.useBrandColors !== false,
     logoMode: logoMode as AiMediaLogoMode,
-    videoEngine:
-      kind === "video" ? (rawVideoEngine as AiMediaVideoEngine) : null,
+    videoEngine: kind === "video" ? videoEngine : null,
+    imageEngine: kind === "image" ? imageEngine : null,
+    videoResolution,
+    expectedCredits: body.expectedCredits === undefined ? undefined : readExpectedCredits(body.expectedCredits),
+    creditTariffVersion: cleanText(body.creditTariffVersion, 120) || undefined,
+    creditQuoteId: cleanText(body.creditQuoteId, 100) || undefined,
     identityMode,
     videoCharacterMode: identityMode,
     identityConsent:
@@ -1170,6 +1203,7 @@ export function normalizeAiMediaGenerationRequest(
     teamVideoMode,
     teamVideoSpeechMode,
     teamVideoVeoConsent,
+    teamVideoProviderConsent,
     identityReferenceSetId: operation === "modify"
       ? ""
       : inspirationImages.length
@@ -1193,14 +1227,19 @@ export function shouldConnectAiMediaVideoScenes(request: {
   videoCharacterMode?: string;
   peopleMode?: string;
   teamVideoMode?: string;
+  videoEngine?: string | null;
+  videoResolution?: AiMediaVideoResolution | null;
+  sceneMode?: AiMediaVideoSceneMode;
 }): boolean {
-  if (
-    request.kind !== "video" ||
-    (request.durationSeconds ?? 16) <= 8 ||
-    request.connectScenes !== true
-  ) {
-    return false;
-  }
+  if (request.kind !== "video" || request.connectScenes !== true || request.sceneMode === "multi") return false;
+  const engine = normalizeAiMediaVideoEngine(request.videoEngine || "omni");
+  if (!engine) return false;
+  const duration = request.durationSeconds ?? 8;
+  let resolution: AiMediaVideoResolution;
+  try { resolution = getAiMediaVideoResolution(engine, request.videoResolution); }
+  catch { return false; }
+  if (!getAiMediaVideoDurations(engine, resolution, "single").includes(duration) ||
+    getAiMediaVideoNativeDurations(engine, resolution).includes(duration)) return false;
   const requestedIdentity =
     request.identityMode || request.videoCharacterMode || "auto";
   const identity =
@@ -1208,6 +1247,13 @@ export function shouldConnectAiMediaVideoScenes(request: {
       ? requestedIdentity
       : "auto";
   return identity === "auto" || request.teamVideoMode === "cinematic";
+}
+
+function readExpectedCredits(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0 || value > 100_000) {
+    throw new AiMediaRequestValidationError("Devis de crédits invalide.");
+  }
+  return value;
 }
 
 export function buildAiMediaTitle(idea: string, kind: AiMediaKind) {

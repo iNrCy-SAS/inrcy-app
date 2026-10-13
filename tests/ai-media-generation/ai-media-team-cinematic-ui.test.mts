@@ -38,14 +38,16 @@ test("les photos sont présentées comme personnages, décor et produit distinct
   assert.match(styles, /\.referenceTileRemove\s*\{/);
 });
 
-test("le bloc 3 vidéo place le scénario sous la durée et l'identité à droite en 16 ou 24 secondes", () => {
+test("le bloc 3 vidéo propose deux scènes dès huit secondes, indépendamment du moteur", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
   assert.match(
     generator,
-    /data-has-scene-mode=\{[\s\S]*?kind === "video" && durationSeconds > 8/,
+    /data-has-scene-mode=\{[\s\S]*?kind === "video" && durationSeconds >= 8/,
   );
+  assert.match(generator, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
+  assert.match(generator, /mode === "multi" && durationSeconds < 8/);
   assert.match(
     styles,
     /\.directionCard\[data-media-kind="video"\]\[data-has-scene-mode="true"\][\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
@@ -93,16 +95,20 @@ test("le bloc 1 distingue la voix off des personnages parlants sans mélanger le
   );
 });
 
-test("le consentement Google\/Veo est demandé à chaque génération et transmis séparément", () => {
+test("le consentement du fournisseur choisi est demandé à chaque génération et transmis séparément", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
   assert.match(generator, /teamCinematicConsentRequired[\s\S]*?setTeamVideoConsentOpen\(true\)/);
   assert.match(generator, /handleConfirmTeamVideoConsent[\s\S]*?performGeneration\(true\)/);
-  assert.match(generator, /role="dialog"[\s\S]*?ai_generator_team_video_consent_checkbox/);
+  assert.match(generator, /role="dialog"[\s\S]*?ai_generator_team_video_provider_consent[\s\S]*?provider: videoModel\.providerLabel/);
+  assert.match(generator, /teamVideoProviderConsent: teamCinematicConsentRequired && veoConsentForAttempt \? enginePreference\.videoEngine/);
+  assert.match(generator, /videoModel\.provider === "google" && veoConsentForAttempt/);
   assert.match(generator, /setTeamVideoVeoConsent\(false\)/);
   assert.match(hook, /teamVideoMode\?: MediaGenerationTeamVideoMode/);
   assert.match(hook, /teamVideoVeoConsent\?: boolean/);
+  assert.match(hook, /teamVideoProviderConsent\?: MediaGenerationVideoEngine/);
+  assert.match(hook, /teamVideoProviderConsent: request\.kind === "video" \? request\.teamVideoProviderConsent/);
   assert.match(hook, /teamVideoMode:[\s\S]*?request\.teamVideoMode \|\| "montage"/);
   assert.match(hook, /teamVideoVeoConsent:[\s\S]*?Boolean\(request\.teamVideoVeoConsent\)/);
 });

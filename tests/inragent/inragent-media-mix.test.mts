@@ -6,6 +6,7 @@ import {
 } from "../../lib/aiMediaGenerationPreferences.ts";
 import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { normalizeInrAgentStudioMediaPreferencePercent } from "../../lib/inrAgentSettings.ts";
+import { buildInrAgentMediaGenerationRequest } from "../../lib/inrAgentMediaRequest.ts";
 
 test("le curseur iNrAgent est borné et ses décisions sont déterministes", () => {
   assert.equal(normalizeInrAgentStudioMediaPreferencePercent(94, 80), 100);
@@ -43,6 +44,37 @@ test("le curseur iNrAgent est borné et ses décisions sont déterministes", () 
     seed: "same-action:0",
   });
   assert.deepEqual(retry, first);
+});
+
+test("les durées sauvegardées d'un autre moteur deviennent compatibles avec Omni sans changer les autres préférences",()=>{
+  const preferences=normalizeAiMediaGeneratorPreferences(null);
+  preferences.blocks[6].saved=true;
+  preferences.blocks[6].defaults={...preferences.blocks[6].defaults,durationSeconds:15,withNarration:true,withMusic:false,connectScenes:true,narrationVoice:"male"};
+  const mix=(maxVideoDurationSeconds=30)=>resolveInrAgentMediaMix({kind:"video",theme:"services",studioMediaPreferencePercent:100,studioPreferences:preferences,seed:"saved-grok-duration",maxVideoDurationSeconds});
+  const result=mix();
+  assert.equal(result.durationSeconds,15);assert.equal(result.withNarration,true);assert.equal(result.withMusic,false);
+  assert.equal(result.narrationVoice,"male");assert.equal(result.connectScenes,true);
+  assert.equal(mix(8).durationSeconds,8);
+  const request=buildInrAgentMediaGenerationRequest({requestId:"automation-price-compatible",idea:"Montrer le travail de l'équipe",theme:"services",kind:"video",mediaMix:result});
+  assert.equal(request.videoEngine,"omni");assert.equal(request.durationSeconds,15);
+  for(const duration of [8,16,20]) {
+    preferences.blocks[6].defaults.durationSeconds=duration;
+    assert.equal(mix().durationSeconds,duration);
+  }
+  preferences.blocks[6].defaults.durationSeconds=24;
+  assert.equal(mix().durationSeconds,20);
+});
+
+test("les voix automatiques ont au moins quatre secondes sans dépasser le plafond du compte",()=>{
+  const preferences=normalizeAiMediaGeneratorPreferences(null);
+  preferences.blocks[6].saved=true;
+  preferences.blocks[6].defaults={...preferences.blocks[6].defaults,durationSeconds:1,withNarration:true};
+  const args={kind:"video" as const,theme:"services" as const,studioMediaPreferencePercent:100,studioPreferences:preferences,seed:"short-voice"};
+  assert.equal(resolveInrAgentMediaMix({...args,maxVideoDurationSeconds:30}).durationSeconds,4);
+  assert.throws(()=>resolveInrAgentMediaMix({...args,maxVideoDurationSeconds:3}),/duration_not_supported/);
+  preferences.blocks[6].defaults.withNarration=false;
+  assert.equal(resolveInrAgentMediaMix({...args,maxVideoDurationSeconds:30}).durationSeconds,4);
+  assert.throws(()=>resolveInrAgentMediaMix({...args,maxVideoDurationSeconds:3}),/duration_not_supported/);
 });
 
 test("le pourcentage produit bien un mix borné entre Studio et variations", () => {

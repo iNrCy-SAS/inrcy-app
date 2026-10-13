@@ -425,7 +425,7 @@ function buildFilter(args: {
 export async function composeOriginalAiVideo(args: {
   clips: Array<{
     buffer: Buffer;
-    durationSeconds: 4 | 6 | 8;
+    durationSeconds: number;
     sourceStartSeconds?: number;
   }>;
   overlays: Buffer[];
@@ -448,10 +448,12 @@ export async function composeOriginalAiVideo(args: {
     0
   );
   if (
+    !Number.isInteger(args.durationSeconds) || args.durationSeconds < 4 || args.durationSeconds > 30 ||
+    args.clips.some((clip) => !Number.isInteger(clip.durationSeconds) || clip.durationSeconds < 4 || clip.durationSeconds > 30) ||
     args.overlays.length !== args.clips.length ||
     clipDurationTotal !== args.durationSeconds ||
     args.clips.length < 1 ||
-    args.clips.length > 4
+    args.clips.length > 2
   ) {
     throw new Error("ai_original_video_clip_count_invalid");
   }
@@ -464,7 +466,7 @@ export async function composeOriginalAiVideo(args: {
     args.signal?.throwIfAborted();
     // Une extension Omni cumulative est exposée sous forme de tranches
     // logiques qui partagent le même Buffer final. Ne pas recopier ce MP4 de
-    // 16/24 s trois fois sur le disque éphémère de la fonction serveur.
+    // une scène continue plusieurs fois sur le disque éphémère de la fonction serveur.
     const clipFileByBuffer = new Map<Buffer, Promise<string>>();
     const clipPaths = await Promise.all(
       args.clips.map((clip, index) => {

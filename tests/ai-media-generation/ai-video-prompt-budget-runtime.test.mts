@@ -87,12 +87,12 @@ function longBrief(language: string, identity: typeof identities[number], format
       shotType: "close", peopleMode: "team", creativity: "faithful", useBrandColors: true,
       logoMode: "discreet", videoEngine: "omni", identityMode: identity, videoCharacterMode: identity,
       identityConsent: identity !== "auto", teamVideoMode: "cinematic", teamVideoSpeechMode: speech,
-      durationSeconds: 24, sceneMode: "multi", connectScenes: false,
+      durationSeconds: 16, sceneMode: "multi", connectScenes: false,
       inspirationImages: [{ data: "AA==", mimeType: "image/jpeg", role: "inspiration", usage: "inspiration" }],
     },
     plan: {
       companyName: "Notre Atelier", headline: "Le travail des fleurs", cta: "Venez nous découvrir",
-      scenes: [0, 1, 2].map((index) => ({
+      scenes: [0, 1].map((index) => ({
         title: "Le détail du bouquet", body: "Les fleurs s’assemblent dans un bouquet précis.",
         visualBrief: "Le personnage place une rose blanche avec précision et ajuste les orchidées environnantes dans le vase transparent. ".repeat(5),
         spokenLine: dialogue.getAiMediaDialogueFallbackPair(language, index)[0],
@@ -309,7 +309,7 @@ test("le prompt réellement envoyé à Veo et Omni conserve tout le contrat Stud
   const criteriaPrompt = runtime.buildGoogleVideoScenePrompt(args, 0, 8);
   assert.ok(criteriaPrompt.length <= 3_200);
   for (const expected of [
-    "film=24s",
+    "film=16s",
     "fmt=story",
     "type=offer",
     "mode=ai_criteria",

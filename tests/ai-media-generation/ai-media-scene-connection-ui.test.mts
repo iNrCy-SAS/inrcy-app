@@ -13,14 +13,17 @@ test("le type reste dans le header et la durée vidéo dans le bloc réalisation
   const diagnostics = (parsed as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
   assert.equal(diagnostics.length, 0, "le composant TSX est syntaxiquement valide");
   const directionCard = source.indexOf('data-generator-block="direction"');
-  const durations = source.indexOf('<span>Durée</span>', directionCard);
+  const durations = source.indexOf('<MediaVideoDurationSelect', directionCard);
   const format = source.indexOf('ai_generator_format_title', durations);
   assert.ok(directionCard > 0 && durations > directionCard && format > durations);
   assert.match(modal, /\(\["image", "video"\] as const\)\.filter\(\(mediaType\) => !imageOnly \|\| mediaType === "image"\)\.map/);
   assert.match(modal, /studioTab === "modify" && mediaType === "video"/);
-  assert.match(source, /\[8, 16, 24\] as const/);
-  assert.match(source, /creditInsufficient/);
-  assert.match(source, /duration > videoRemainingSeconds/);
+  assert.match(source, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
+  assert.match(source, /canGenerateAiMediaVideoDuration\(enginePreference\.videoEngine, durationSeconds, videoResolution, videoSceneMode\)/);
+  assert.doesNotMatch(source, /setDurationSeconds\(\(current\)/);
+  assert.match(source, /creditQuote\.insufficient/);
+  assert.match(source, /!creditQuote\.ready/);
+  assert.doesNotMatch(source, /duration > videoRemainingSeconds/);
   assert.doesNotMatch(source, /expandedStep|sceneConnectionChoice/);
 });
 
@@ -33,7 +36,9 @@ test("le Studio transmet le scénario et les choix visuels structurés sans anci
   assert.match(generation, /visualStyle: structuredVisualStyle/);
   assert.match(generation, /visualDirection,/);
   assert.match(generation, /imageStyle,/);
-  assert.doesNotMatch(generation, /shotType\s*:|creativity\s*:|videoEngine\s*:/);
+  assert.doesNotMatch(generation, /shotType\s*:|creativity\s*:/);
+  assert.match(generation, /videoEngine: enginePreference\.videoEngine/);
+  assert.match(generation, /\.\.\.creditQuote\.authorization/);
   assert.doesNotMatch(source, /setConnectScenes|SceneConnectionNotice/);
 });
 
@@ -45,14 +50,16 @@ test("les sélecteurs essentiels restent sombres et la grille passe de 2×2 à u
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
-test("les neuf langues affichent 1, 2 et 3 séquences et une mise en garde traduite", () => {
+test("les neuf langues affichent une ou deux scènes et leur durée minimale", () => {
   for (const locale of ["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const messages = JSON.parse(readFileSync(`messages/${locale}/media.json`, "utf8")) as Record<string, string>;
-    for (const key of ["ai_generator_connect_scenes_label", "ai_generator_connect_scenes_hint", "ai_generator_connect_scenes_notice", "ai_generator_connect_scenes_understood", "ai_generator_sequence_count"]) {
+    for (const key of ["ai_generator_free_scene_single", "ai_generator_free_scene_multi", "ai_generator_two_scenes_minimum", "ai_generator_connect_scenes_label", "ai_generator_connect_scenes_hint", "ai_generator_connect_scenes_notice", "ai_generator_connect_scenes_understood", "ai_generator_sequence_count"]) {
       assert.ok(messages[key]?.trim(), `${locale}: ${key}`);
     }
     const formatter = new IntlMessageFormat(messages.ai_generator_sequence_count, locale);
-    for (const count of [1, 2, 3]) {
+    assert.ok(messages.ai_generator_free_scene_multi.includes("2"));
+    assert.ok(messages.ai_generator_two_scenes_minimum.includes("8"));
+    for (const count of [1, 2]) {
       const label = String(formatter.format({ count }));
       assert.ok(label.includes(String(count)), `${locale}: nombre ${count} présent`);
       assert.doesNotMatch(label, /[{}]/);
@@ -61,5 +68,5 @@ test("les neuf langues affichent 1, 2 et 3 séquences et une mise en garde tradu
   const fr = JSON.parse(readFileSync("messages/fr-FR/media.json", "utf8")) as Record<string, string>;
   assert.equal(fr.ai_generator_connect_scenes_notice, "Attention : raccorder les scènes peut entraîner un temps de création plus long que sans raccord.");
   assert.equal(new IntlMessageFormat(fr.ai_generator_sequence_count, "fr-FR").format({ count: 1 }), "1 séquence");
-  assert.equal(new IntlMessageFormat(fr.ai_generator_sequence_count, "fr-FR").format({ count: 3 }), "3 séquences");
+  assert.equal(new IntlMessageFormat(fr.ai_generator_sequence_count, "fr-FR").format({ count: 2 }), "2 séquences");
 });

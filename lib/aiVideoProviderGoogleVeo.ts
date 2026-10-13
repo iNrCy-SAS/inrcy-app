@@ -57,6 +57,7 @@ import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const PROVIDER_ID = "google-gemini";
 const DEFAULT_FAST_COST_MICRO_USD_PER_SECOND = 100_000;
+const DEFAULT_FAST_1080P_COST_MICRO_USD_PER_SECOND = 120_000;
 const DEFAULT_LITE_COST_MICRO_USD_PER_SECOND = 50_000;
 const DEFAULT_STANDARD_COST_MICRO_USD_PER_SECOND = 400_000;
 // Google annonce une latence pouvant atteindre six minutes en période de
@@ -85,7 +86,7 @@ function positiveInt(value: unknown, fallback: number, maximum: number) {
     : fallback;
 }
 
-function costMicroUsdPerSecond(model: string) {
+function costMicroUsdPerSecond(model: string, resolution: "720p" | "1080p" = "720p") {
   const normalized = model.toLocaleLowerCase();
   if (normalized.includes("-lite-")) {
     return positiveInt(
@@ -98,7 +99,7 @@ function costMicroUsdPerSecond(model: string) {
     return positiveInt(
       process.env.AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND ||
         process.env.AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND,
-      DEFAULT_FAST_COST_MICRO_USD_PER_SECOND,
+      resolution === "1080p" ? DEFAULT_FAST_1080P_COST_MICRO_USD_PER_SECOND : DEFAULT_FAST_COST_MICRO_USD_PER_SECOND,
       1_000_000,
     );
   }
@@ -522,7 +523,7 @@ function subjectSafetyDirection(value: string) {
 /** Every UI choice is encoded once, without depending on optional prose. */
 export function buildGoogleVideoParameterContract(
   request: AiVideoProviderGenerationArgs["request"],
-  durationSeconds: 4 | 6 | 8,
+  durationSeconds: number,
   colors: string,
 ) {
   return buildAiMediaVideoParameterContract({
@@ -589,6 +590,12 @@ export function buildGoogleVideoTeamSpeechDirection(
   }
 
   const language = String(args.contentLanguage || "fr").toLowerCase();
+  const segmentDuration = getAiMediaVideoSegmentDurations(
+    args.request.durationSeconds || 8, args.request.videoEngine, args.request.videoResolution, args.request.sceneMode,
+  )[index] || 8;
+  const speechEnd = (segmentDuration > 8
+    ? segmentDuration - 1
+    : Math.min(5.5, Math.max(0.5, segmentDuration - 0.3))).toFixed(1);
   const firstLine = resolveAiMediaDialogueSequence({
     scenes: args.plan.scenes,
     headline: args.plan.headline,
@@ -597,11 +604,11 @@ export function buildGoogleVideoTeamSpeechDirection(
   })[index];
   if (!firstLine) return "DIALOGUE: no speech in this shot; keep mouths closed. The requested line belongs to another shot; never repeat it. No narrator, lyrics or music.";
   if (args.request.identityMode !== "reference_team") {
-    return `DIALOGUE: recurring character lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice swap; stable adult synthetic voice.`;
+    return `DIALOGUE: recurring character lip-syncs once 0.2–${speechEnd}s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice swap; stable adult synthetic voice.`;
   }
   const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
   const firstSpeaker = (index % teamSize) + 1;
-  return `DIALOGUE: Person ${firstSpeaker} left-to-right lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice-face swap; stable adult synthetic voice.`;
+  return `DIALOGUE: Person ${firstSpeaker} left-to-right lip-syncs once 0.2–${speechEnd}s: “${firstLine}” Then mouth closed/silent. Then silent/closed mouth for the rest of the shot. No repeat/old line/narrator/music/cloning/voice-face swap; stable adult synthetic voice.`;
 }
 
 export function buildGoogleVideoSequenceDirection(
@@ -639,7 +646,7 @@ function buildGoogleVideoContinuityCast(
 }
 
 /**
- * Compact deterministic continuity contract repeated in every 8 s act.
+ * Compact deterministic continuity contract repeated in each native clip.
  * Keeping this below a fixed budget is essential: the immutable anchors must
  * remain alongside the visual continuation frame, never the optional part
  * that disappears when a professional writes a long instruction.
@@ -714,7 +721,7 @@ function isIdentityReferenceRejected(error: unknown) {
 export function buildGoogleVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
-  durationSeconds: 4 | 6 | 8,
+  durationSeconds: number,
   options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean } = {},
 ) {
   const scene = args.plan.scenes[index];
@@ -809,7 +816,7 @@ export function buildGoogleVideoScenePrompt(
     ? `prior generated frame; preserve its visible cast/design/place/framing; continue action; original reference policies: ${providerContract.references}`
     : providerContract.references;
   // Depuis le plan v18, visualBrief commence par le rôle propre de l'acte. Le
-  // garder avant son titre évite que les actes 1–8, 9–16 et 17–24 rejouent la
+  // garder avant son titre évite que les deux plans rejouent la
   // même pose ou que seule la seconde tranche anime la référence.
   let actAction = priorityPromptSnippet(actionSource, actionBudget);
   let compactGeneratedDirections = false;
@@ -907,7 +914,8 @@ async function submitOperation(args: {
   backend: VeoApiBackend;
   model: string;
   prompt: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
+  resolution?: "720p" | "1080p";
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   continuityFrame?: AiMediaVideoContinuityFrame;
@@ -920,6 +928,8 @@ async function submitOperation(args: {
     durationSeconds: args.durationSeconds,
     imageCount: args.inspirationImages?.length || 0,
   });
+  // Multiple style references require 8 s; never silently keep only the first.
+  if (args.durationSeconds !== 8 && (args.inspirationImages?.length || 0) > 1) throw new Error("ai_media_video_references_require_eight_seconds");
   let transientAttempt = 0;
   // Preview trials can disable automatic resubmission to bound paid requests.
   // Production retains the existing four-attempt policy unless configured.
@@ -955,10 +965,10 @@ async function submitOperation(args: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
+          resolution: args.resolution || "720p",
           ...(args.backend === "vertex" ? {
             numberOfVideos: 1,
             generateAudio: true,
-            resolution: "720p",
           } : {}),
           // Les routes Veo 3/3.1 européennes n'acceptent que allow_adult pour
           // les personnes. L'expliciter avec une référence évite que le visage
@@ -1099,7 +1109,8 @@ async function generateClip(args: {
   backend: VeoApiBackend;
   models: string[];
   prompt: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
+  resolution?: "720p" | "1080p";
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   continuityFrame?: AiMediaVideoContinuityFrame;
@@ -1336,15 +1347,21 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       DEFAULT_POLL_MS,
       15_000,
     );
+    const videoResolution = args.request.videoResolution === "1080p" ? "1080p" : "720p";
     const requestedDurations = getAiMediaVideoSegmentDurations(
-      args.request.durationSeconds || 16,
+      args.request.durationSeconds || 8, "veo", args.request.videoResolution, args.request.sceneMode,
     );
     // Keep exact commercial durations for both independent and connected acts.
-    const durations: Array<4 | 6 | 8> = [...requestedDurations];
+    const durations: number[] = [...requestedDurations];
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_veo_scene_count_invalid");
     }
-    const connectScenes = durations.length > 1 && args.request.connectScenes === true;
+    durations.forEach((duration, index) => buildGoogleVideoScenePrompt(args, index, duration));
+    if (args.request.inspirationImages.length > 1 &&
+      (args.request.sceneMode === "multi" ? durations.some((duration) => duration !== 8) : durations[0] !== 8)) {
+      throw new Error("ai_media_video_references_require_eight_seconds");
+    }
+    const connectScenes = durations.length > 1 && args.request.sceneMode !== "multi";
     const configuredConcurrency = positiveInt(
       process.env.AI_MEDIA_VEO_CONCURRENCY,
       DEFAULT_CONCURRENCY,
@@ -1357,7 +1374,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       (total, duration) => total + duration,
       0,
     );
-    // A commercial 16/24 s film must never change renderer between acts.
+    // A film assembled from two clips must never change renderer between acts.
     // Model fallback remains useful for a single 8 s clip, but a long film
     // locks its primary model and lets the server recover locally if that
     // model cannot deliver the complete set.
@@ -1365,7 +1382,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
     // Reserve the most expensive configured candidate so a model fallback can
     // never make the actual charge exceed the economic guard reservation.
     const reservedCostPerSecond = Math.max(
-      ...filmModels.map((model) => costMicroUsdPerSecond(model)),
+      ...filmModels.map((model) => costMicroUsdPerSecond(model, videoResolution)),
     );
     const estimatedCostMicroUsd = totalDurationSeconds * reservedCostPerSecond;
     const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
@@ -1412,11 +1429,12 @@ export const googleVeoVideoProvider: AiVideoProvider = {
                 continuationFrame: Boolean(continuityFrame),
               }),
               durationSeconds,
+              resolution: videoResolution,
               aspectRatio: resolveGoogleVideoAspectRatio(
                 args.request.format,
               ),
               inspirationImages:
-                index === 0 || (!connectScenes && preserveIdentityReferences)
+                index === 0 || !connectScenes
                   ? args.request.inspirationImages
                   : [],
               continuityFrame,
@@ -1426,7 +1444,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
               signal: args.signal,
               onBillable: (usedModel) => {
                 actualCostMicroUsd +=
-                  durationSeconds * costMicroUsdPerSecond(usedModel);
+                  durationSeconds * costMicroUsdPerSecond(usedModel, videoResolution);
                 billableModels.add(usedModel);
               },
             });

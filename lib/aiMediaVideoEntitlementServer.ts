@@ -2,12 +2,14 @@ import "server-only";
 
 import {
   getAiMediaVideoMaxDuration,
+  AI_MEDIA_VIDEO_DURATION_OPTIONS,
+  AI_MEDIA_VIDEO_MAX_DURATION_SECONDS,
   type AiMediaEdition,
   type AiMediaVideoDurationLimit,
 } from "@/lib/aiMediaGenerationQuotaPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export const AI_MEDIA_VIDEO_DURATIONS = Object.freeze([8, 16, 24] as const);
+export const AI_MEDIA_VIDEO_DURATIONS = AI_MEDIA_VIDEO_DURATION_OPTIONS;
 
 export type AiMediaVideoEntitlement = {
   maxDurationSeconds: AiMediaVideoDurationLimit;
@@ -47,7 +49,9 @@ async function readAccountDuration(accountId: string) {
 
 function validDurationLimit(value: unknown): AiMediaVideoDurationLimit | null {
   const parsed = Number(value);
-  return (AI_MEDIA_VIDEO_DURATIONS as readonly number[]).includes(parsed)
+  // A historical ceiling below four seconds keeps the account restricted.
+  // It cannot become a new output duration or silently lift the account cap.
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= AI_MEDIA_VIDEO_MAX_DURATION_SECONDS
     ? (parsed as AiMediaVideoDurationLimit)
     : null;
 }

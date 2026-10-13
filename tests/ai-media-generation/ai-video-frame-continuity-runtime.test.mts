@@ -47,7 +47,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
+function generationArgs(engine: Engine, durationSeconds: number, sceneMode: "single" | "multi" = "single") {
   const request = {
     requestId: "frame-continuity-test-request",
     kind: "video", subjectSource: "profile", source: "studio",
@@ -63,7 +63,7 @@ function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
     videoEngine: engine, identityMode: "auto", videoCharacterMode: "auto",
     identityConsent: false, teamVideoMode: "cinematic", teamVideoSpeechMode: "voiceover",
     teamVideoVeoConsent: false, identityReferenceSetId: "frame-test",
-    durationSeconds, sceneMode: "single", connectScenes: true,
+    durationSeconds, sceneMode, connectScenes: sceneMode === "single",
     inspirationImages: [{ data: "b3JpZ2luYWw=", mimeType: "image/jpeg" }],
   } as unknown as providerTypes.AiVideoProviderGenerationArgs["request"];
   const canonicalPrompt = "PROMPT CANONIQUE TEST CONTINUITÉ";
@@ -72,7 +72,7 @@ function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
     request,
     plan: {
       companyName: "Atelier floral", headline: "Notre savoir-faire", cta: "Découvrir",
-      scenes: getAiMediaVideoSegmentDurations(durationSeconds).map((_, index) => ({
+      scenes: getAiMediaVideoSegmentDurations(durationSeconds, engine, undefined, sceneMode).map((_, index) => ({
         title: `Étape ${index + 1}`, body: "Les fleurs prennent place.",
         visualBrief: "Même atelier et mêmes adultes, le geste progresse.",
         spokenLine: "", spokenReply: "", layout: "editorial",
@@ -88,6 +88,33 @@ function generationArgs(engine: Engine, durationSeconds: 8 | 16 | 24) {
     creativeBrief: "Un atelier de décoration florale.",
     brandColors: [], profession: "Fleuriste", contentLanguage: "fr",
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
+}
+
+for (const [engine, durations] of [["omni", [11, 13, 20]], ["veo", [10, 12, 14]]] as const) {
+  for (const duration of durations) test(`${engine}: ${duration}s reste exact avec deux clips natifs raccordés`, async () => {
+    const harness = createHarness(engine);
+    const result = await harness.provider.generate(generationArgs(engine, duration));
+    const expected = getAiMediaVideoSegmentDurations(duration, engine);
+    assert.deepEqual(Array.from(result.clips, (clip) => clip.durationSeconds), expected);
+    assert.equal(harness.submissions.length, 2);
+    assert.equal(harness.extracted.length, 1);
+    assert.equal(harness.charged.reduce((sum, value) => sum + value, 0), duration * (engine === "veo" ? 100_000 : 100_000));
+  });
+  test(`${engine}: deux scènes de 8s donnent deux appels de 4s même si un clip natif unique est possible`, async () => {
+    const harness = createHarness(engine);
+    const result = await harness.provider.generate(generationArgs(engine, 8, "multi"));
+    assert.deepEqual(Array.from(result.clips, (clip) => clip.durationSeconds), [4, 4]);
+    assert.equal(harness.extracted.length, 0);
+    assert.equal(harness.submissions.length, 2);
+  });
+  test(`${engine}: une durée impossible échoue avant toute soumission payante`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, 8);
+    args.request.durationSeconds = engine === "veo" ? 15 : 24;
+    await assert.rejects(harness.provider.generate(args), /duration_unsupported/);
+    assert.equal(harness.submissions.length, 0);
+    assert.equal(harness.charged.length, 0);
+  });
 }
 
 function refreshProviderBoundary(
@@ -136,6 +163,7 @@ function createHarness(engine: Engine, options: {
   const extracted: Array<{ buffer: Buffer; durationSeconds: number; sourceStartSeconds?: number }> = [];
   const buffers: Buffer[] = [];
   const charged: number[] = [];
+  const reservedCosts: number[] = [];
   const clipTimeouts: number[] = [];
   const polls: RecordValue[] = [];
   let completedOperation: RecordValue | undefined;
@@ -210,7 +238,10 @@ function createHarness(engine: Engine, options: {
       VideoGenerationReferenceType: { ASSET: "ASSET" },
     }],
     ["@/lib/aiGatewayAccountGuard", {
-      reserveAiGatewayAccountAttempt: async () => ({ id: ++reservationNumber }),
+      reserveAiGatewayAccountAttempt: async (input: { estimatedCostMicroUsd: number } | string, details?: { estimatedCostMicroUsd: number }) => {
+        reservedCosts.push((typeof input === "string" ? details : input)!.estimatedCostMicroUsd);
+        return { id: ++reservationNumber };
+      },
       commitAiGatewayAccountAttempt: async (args: { actualCostMicroUsd: number }) => { charged.push(args.actualCostMicroUsd); },
       rollbackAiGatewayAccountAttempt: async () => {},
       recordAiGatewayAccountFailure: async () => {},
@@ -296,14 +327,63 @@ function createHarness(engine: Engine, options: {
   });
   const provider = (engine === "veo" ? veo.googleVeoVideoProvider : loadModule("aiVideoProviderGoogleOmni.ts").googleOmniVideoProvider) as providerTypes.AiVideoProvider;
   return {
-    provider, submissions, clients, extracted, buffers, charged, clipTimeouts, polls,
+    provider, submissions, clients, extracted, buffers, charged, reservedCosts, clipTimeouts, polls,
     promptRuntime: veo as unknown as typeof import("../../lib/aiVideoProviderGoogleVeo.ts"),
     get maximumInFlight() { return maximumInFlight; },
     get fallbackCalls() { return fallbackCalls; },
   };
 }
 
-for (const duration of [8, 16, 24] as const) {
+for (const [engine, durations] of [["omni", [4, 5, 10]], ["veo", [4, 6, 8]]] as const) {
+  for (const duration of durations) test(`${engine}: la durée native ${duration}s atteint le fournisseur sans arrondi à 8s`, async () => {
+    const harness = createHarness(engine);
+    const args = generationArgs(engine, duration);
+    args.request.sceneMode = "single"; args.request.connectScenes = false;
+    const result = await harness.provider.generate(args);
+    assert.equal(result.clips.length, 1);
+    assert.equal(result.clips[0].durationSeconds, duration);
+    assert.equal(harness.submissions.length, 1);
+    assert.equal(harness.charged.reduce((sum, value) => sum + value, 0), duration * (engine === "veo" ? 100_000 : 100_000));
+    if (engine === "omni") {
+      assert.equal((harness.submissions[0] as unknown as OmniSubmission).response_format?.duration, `${duration}s`);
+    } else {
+      const submission = harness.submissions[0] as unknown as VeoSubmission;
+      assert.equal(submission.config.durationSeconds, duration);
+      if (duration < 8) {
+        assert.equal(submission.source.image?.imageBytes, "b3JpZ2luYWw=");
+        assert.equal(submission.config.referenceImages, undefined);
+      }
+    }
+  });
+}
+
+for (const vertex of [false, true]) for (const duration of [8, 16]) {
+  test(`Veo Fast ${vertex ? "Vertex" : "Gemini"}: ${duration}s en1080p réserve et comptabilise 0,12USD par seconde`, async () => {
+    const harness = createHarness("veo", { vertex });
+    const args = generationArgs("veo", duration);
+    args.request.videoResolution = "1080p";
+    const result = await harness.provider.generate(args);
+    assert.ok((harness.submissions as unknown as VeoSubmission[]).every((submission) => submission.config.resolution === "1080p"));
+    assert.equal(result.estimatedCostMicroUsd, duration * 120_000);
+    assert.deepEqual(harness.reservedCosts, [duration * 120_000]);
+    assert.deepEqual(harness.charged, [duration * 120_000]);
+  });
+}
+
+test("un dialogue long conserve une fenêtre de parole adaptée au clip natif de 15s", () => {
+  const harness = createHarness("omni");
+  const args = generationArgs("omni", 8);
+  args.request.videoEngine = "minimax-h3";
+  args.request.durationSeconds = 15;
+  args.request.videoResolution = "768p";
+  args.request.teamVideoSpeechMode = "characters";
+  args.plan.scenes[0].spokenLine = "Dans notre atelier, nous choisissons chaque fleur avec soin pour composer votre bouquet.";
+  const direction = harness.promptRuntime.buildGoogleVideoTeamSpeechDirection(args, 0);
+  assert.match(direction, /lip-syncs once 0\.2–14\.0s/);
+  assert.ok(direction.includes(args.plan.scenes[0].spokenLine));
+});
+
+for (const duration of [8, 16] as const) {
   for (const format of ["square", "portrait", "story", "landscape"] as const) {
     test(`Veo Vertex conserve ${duration}s, ${format}, les références et les raccords`, async () => {
       const harness = createHarness("veo", { vertex: true });
@@ -397,7 +477,7 @@ test("l'activation Veo Cloud conserve le modèle et l'accès Gemini existants d'
 });
 
 for (const engine of ["veo", "omni"] as const) {
-  for (const duration of [8, 16, 24] as const) {
+  for (const duration of [8, 16] as const) {
     for (const useBrandColors of [false, true]) {
       test(`${engine}: sujet custom ${duration}s isolé de l’ADN, marque ${useBrandColors ? "activée" : "désactivée"}`, async () => {
         const harness = createHarness(engine);
@@ -551,7 +631,7 @@ for (const engine of ["veo", "omni"] as const) {
     const harness = createHarness(engine);
     const args = generationArgs(engine, 16);
     args.request.teamVideoMode = "montage";
-    args.request.connectScenes = false;
+    args.request.sceneMode = "multi"; args.request.connectScenes = false;
     args.request.inspirationImages = [{ data: "cHJvZHVpdA==", mimeType: "image/jpeg", role: "product", usage: "required" }];
     refreshProviderBoundary(args);
     await harness.provider.generate(args);
@@ -603,9 +683,9 @@ for (const engine of ["veo", "omni"] as const) {
     assert.ok(submitted?.includes(args.request.aiInstruction));
   });
 
-  test(`${engine}: chaque scène 24 s envoyée au fournisseur reçoit le contrat Studio complet`, async () => {
+  test(`${engine}: chaque scène 16 s envoyée au fournisseur reçoit le contrat Studio complet`, async () => {
     const harness = createHarness(engine);
-    const args = generationArgs(engine, 24);
+    const args = generationArgs(engine, 16);
     Object.assign(args.request as unknown as Record<string, unknown>, {
       generationMode: "ai_criteria",
       peopleCriterion: "two",
@@ -663,7 +743,7 @@ for (const engine of ["veo", "omni"] as const) {
       .join("/");
 
     await harness.provider.generate(refreshProviderBoundary(args));
-    assert.equal(harness.submissions.length, 3);
+    assert.equal(harness.submissions.length, 2);
     for (const [index, rawSubmission] of harness.submissions.entries()) {
       const prompt =
         engine === "veo"
@@ -698,9 +778,9 @@ for (const engine of ["veo", "omni"] as const) {
       }
 
       assert.ok(prompt.length <= 3_200, `${engine}/scène ${index + 1}: prompt trop long`);
-      assert.match(prompt, new RegExp(`SHOT ${index + 1}/3`));
+      assert.match(prompt, new RegExp(`SHOT ${index + 1}/2`));
       for (const expected of [
-        "film=24s",
+        "film=16s",
         "fmt=story",
         "type=offer",
         "mode=ai_criteria",
@@ -758,7 +838,7 @@ for (const engine of ["veo", "omni"] as const) {
 }
 
 for (const engine of ["veo", "omni"] as const) {
-  for (const duration of [16, 24] as const) {
+  for (const duration of [16] as const) {
     test(`${engine}: ${duration}s enchaîne les dernières frames, sans actes indépendants parallèles`, async () => {
       const firstOutput = deferred();
       const harness = createHarness(engine, { holdFirstOutput: firstOutput.promise });
@@ -816,24 +896,24 @@ for (const engine of ["veo", "omni"] as const) {
         holdOutputs: { 0: outputs.promise, 1: outputs.promise, 2: outputs.promise },
         statefulEnabled: true,
       });
-      const args = generationArgs(engine, 24);
-      if (connectScenes === undefined) Reflect.deleteProperty(args.request, "connectScenes");
+      const args = generationArgs(engine, 16);
+      args.request.sceneMode = "multi"; if (connectScenes === undefined) Reflect.deleteProperty(args.request, "connectScenes");
       else args.request.connectScenes = connectScenes;
       const original = JSON.stringify(args);
       const pending = harness.provider.generate(args);
       try {
         await nextTurn();
-        assert.equal(harness.submissions.length, engine === "omni" ? 3 : 2);
+        assert.equal(harness.submissions.length, 2);
         assert.equal(harness.extracted.length, 0);
         outputs.resolve();
         const result = await pending;
-        assert.equal(harness.maximumInFlight, engine === "omni" ? 3 : 2);
-        assert.equal(result.clips.length, 3);
+        assert.equal(harness.maximumInFlight, 2);
+        assert.equal(result.clips.length, 2);
         assert.equal(harness.extracted.length, 0);
         assert.equal(JSON.stringify(args), original);
         assert.deepEqual(Array.from(result.clips, (clip) => clip.requestId), engine === "omni"
-          ? ["interaction-1", "interaction-2", "interaction-3"]
-          : ["operations/clip-1", "operations/clip-2", "operations/clip-3"]);
+          ? ["interaction-1", "interaction-2"]
+          : ["operations/clip-1", "operations/clip-2"]);
         for (const input of harness.submissions) {
           if (engine === "veo") {
             const submission = input as unknown as VeoSubmission;
@@ -847,7 +927,7 @@ for (const engine of ["veo", "omni"] as const) {
             assert.doesNotMatch(submission.input.map((part) => part.text ?? "").join(" "), /<FIRST_FRAME>|<PREVIOUS_VIDEO>/);
           }
         }
-        assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 2_400_000);
+        assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 16 * (engine === "veo" ? 100_000 : 100_000));
         assert.equal(harness.fallbackCalls, 0);
       } finally {
         outputs.resolve();
@@ -856,29 +936,29 @@ for (const engine of ["veo", "omni"] as const) {
     });
   }
 
-  test(`${engine}: les inspirations génériques du mode rapide restent limitées au premier acte`, async () => {
+  test(`${engine}: les deux plans indépendants conservent leurs inspirations génériques`, async () => {
     const harness = createHarness(engine);
     const args = generationArgs(engine, 16);
-    args.request.connectScenes = false;
+    args.request.sceneMode = "multi"; args.request.connectScenes = false;
     args.request.teamVideoMode = "montage";
     await harness.provider.generate(args);
     if (engine === "veo") {
       const submission = harness.submissions[1] as unknown as VeoSubmission;
       assert.equal(submission.source.image, undefined);
-      assert.equal(submission.config.referenceImages, undefined);
+      assert.equal(submission.config.referenceImages?.[0].image.imageBytes, "b3JpZ2luYWw=");
     } else {
       const submission = harness.submissions[1] as unknown as OmniSubmission;
-      assert.equal(submission.input.filter((part) => part.type === "image").length, 0);
+      assert.equal(submission.input.filter((part) => part.type === "image").length, 1);
     }
     assert.equal(harness.extracted.length, 0);
   });
 
   test(`${engine}: le mode rapide respecte la limite de concurrence configurée`, async () => {
     const harness = createHarness(engine, { concurrency: 1 });
-    const args = generationArgs(engine, 24);
-    args.request.connectScenes = false;
+    const args = generationArgs(engine, 16);
+    args.request.sceneMode = "multi"; args.request.connectScenes = false;
     const result = await harness.provider.generate(args);
-    assert.equal(result.clips.length, 3);
+    assert.equal(result.clips.length, 2);
     assert.equal(harness.maximumInFlight, 1);
     assert.equal(harness.extracted.length, 0, "limiter la concurrence n’active pas implicitement les raccords");
   });
@@ -887,7 +967,7 @@ for (const engine of ["veo", "omni"] as const) {
     const lastOutput = deferred();
     const harness = createHarness(engine, { holdOutputs: { 1: lastOutput.promise }, failSubmission: 0 });
     const args = generationArgs(engine, 16);
-    args.request.connectScenes = false;
+    args.request.sceneMode = "multi"; args.request.connectScenes = false;
     let settled = false;
     const pending = harness.provider.generate(args);
     void pending.then(() => { settled = true; }, () => { settled = true; });
@@ -899,7 +979,7 @@ for (const engine of ["veo", "omni"] as const) {
       lastOutput.resolve();
       await assert.rejects(pending, (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error));
       assert.equal(harness.buffers.length, 1);
-      assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 800_000);
+      assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 8 * (engine === "veo" ? 100_000 : 100_000));
       assert.equal(harness.fallbackCalls, 0);
       assert.equal(harness.extracted.length, 0);
     } finally {
@@ -919,19 +999,19 @@ for (const engine of ["veo", "omni"] as const) {
       const submission = harness.submissions[0] as unknown as VeoSubmission;
       assert.equal(submission.config.numberOfVideos, undefined);
       assert.equal(submission.config.generateAudio, undefined);
-      assert.equal(submission.config.resolution, undefined);
+      assert.equal(submission.config.resolution, "720p");
     }
   });
 
   test(`${engine}: la durée du film reste bornée sans réduire le budget du premier acte`, async () => {
-    const harness = createHarness(engine, { simulatedClipMs: 310_000 });
+    const harness = createHarness(engine, { simulatedClipMs: 610_000 });
     await assert.rejects(
-      harness.provider.generate(generationArgs(engine, 24)),
+      harness.provider.generate(generationArgs(engine, 16)),
       (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error),
     );
-    assert.equal(harness.submissions.length, 2, "un troisième appel ne part pas après 600 secondes cumulées");
-    assert.deepEqual(harness.clipTimeouts, [420_000, 290_000], "420 s par acte au plus, avec un budget total de 600 s");
-    assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 1_600_000);
+    assert.equal(harness.submissions.length, 1, "le deuxième appel ne part pas après expiration du budget du film");
+    assert.deepEqual(harness.clipTimeouts, [420_000], "420 s par acte au plus, avec un budget total de 600 s");
+    assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 8 * (engine === "veo" ? 100_000 : 100_000));
     assert.equal(harness.fallbackCalls, 0);
   });
 
@@ -939,14 +1019,14 @@ for (const engine of ["veo", "omni"] as const) {
     test(`${engine}: ${failure} échoue proprement sans génération aveugle ni second paiement`, async () => {
       const harness = createHarness(engine, { failExtraction: failure === "extraction", rejectFrame: failure === "rejected-frame" });
       await assert.rejects(
-        harness.provider.generate(generationArgs(engine, 24)),
+        harness.provider.generate(generationArgs(engine, 16)),
         (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error),
       );
       assert.equal(harness.submissions.length, failure === "extraction" ? 1 : 2);
       assert.equal(harness.extracted.length, 1);
       assert.equal(harness.buffers.length, 1, "seul le premier résultat a été généré");
       assert.equal(harness.fallbackCalls, 0);
-      assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 800_000, "seul le premier acte est comptabilisé");
+      assert.equal(harness.charged.reduce((sum, cost) => sum + cost, 0), 8 * (engine === "veo" ? 100_000 : 100_000), "seul le premier acte est comptabilisé");
     });
   }
 }

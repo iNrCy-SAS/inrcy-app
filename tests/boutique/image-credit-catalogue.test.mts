@@ -37,9 +37,9 @@ function fixture({role="owner",status="active",unavailable=false,authenticated=t
 test("image catalogue scopes history to the active establishment and returns exact image fields",async()=>{
   const f=fixture(),response=await f.get(),body=await response.json();
   assert.equal(response.status,200);assert.match(response.headers.get("cache-control")??"",/no-store/);
-  assert.equal(body.accountId,account);assert.equal(body.actorAuthUserId,actor);assert.equal(body.canPurchase,true);
-  assert.deepEqual(body.packs.map((pack:Row)=>[pack.key,pack.images,pack.priceEurHt]),[["image_20",20,5],["image_50",50,10],["image_100",100,19]]);
-  assert.deepEqual(body.orders,f.history);
+  assert.equal(body.accountId,account);assert.equal(body.actorAuthUserId,actor);assert.equal(body.canPurchase,false);
+  assert.deepEqual(body.packs,[]);
+  assert.deepEqual(body.orders,f.history.map(order=>({...order,credits:140})));
   assert.ok(f.reads.some(row=>row.table==="ai_media_image_credit_orders" && row.key==="account_id" && row.value===account));
   assert.ok(!f.reads.some(row=>String(row.table).includes("video_credit")));
 });
@@ -47,7 +47,7 @@ test("readable image catalogue does not offer purchase permission to members or 
   for(const options of [{role:"member"},{status:"past_due"},{status:"canceled"}]) {
     assert.equal((await (await fixture(options).get()).json()).canPurchase,false);
   }
-  assert.equal((await (await fixture({role:"admin",status:"trialing"}).get()).json()).canPurchase,true);
+  assert.equal((await (await fixture({role:"admin",status:"trialing"}).get()).json()).canPurchase,false);
 });
 test("unauthenticated or failed history read cannot expose an image catalogue",async()=>{
   const auth=fixture({authenticated:false});assert.equal((await auth.get()).status,401);assert.equal(auth.reads.length,0);

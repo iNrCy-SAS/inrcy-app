@@ -531,7 +531,7 @@ test("la normalisation conserve la matrice complète des choix visibles Image/Vi
     assert.equal(request.focusCriterion, focusCriterion);
   }
 
-  for (const durationSeconds of [8, 16, 24] as const) {
+  for (const durationSeconds of [8, 16, 20] as const) {
     for (const sceneMode of durationSeconds === 8
       ? (["single"] as const)
       : (["single", "multi"] as const)) {
@@ -1019,7 +1019,7 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
         textMode: "exact",
         exactText,
         withText: true,
-        durationSeconds: kind === "video" ? 24 : 8,
+        durationSeconds: kind === "video" ? 20 : 8,
         sceneMode: kind === "video" ? "multi" : "single",
         connectScenes: false,
         withMusic: kind === "video",
@@ -1060,7 +1060,7 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
     assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION/);
     if (kind === "video") {
       assert.ok(prompt.includes(exactText), "video: texte exact tronqué");
-      assert.match(prompt, /DURÉE EXACTE : 24 secondes/);
+      assert.match(prompt, /DURÉE EXACTE : 20 secondes/);
       assert.match(prompt, /AUDIO ET PAROLE/);
     } else {
       assert.doesNotMatch(prompt, /TEXTE EXACT VALIDÉ/);

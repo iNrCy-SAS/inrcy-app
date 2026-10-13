@@ -18,6 +18,8 @@ export async function GET(_req: Request, context: { params: Promise<{ orderId: s
     }
     return NextResponse.json({ order: order ? {
       id: order.id, images: order.images, status: order.status, granted: Boolean(order.granted_at),
+      unit: "credit", credits: order.images * 7,
+      revokedCredits: order.revoked_images * 7, heldCredits: order.held_images * 7, disputeRevokedCredits: order.dispute_revoked_images * 7,
       revokedImages: order.revoked_images, createdAt: order.created_at,
       heldImages: order.held_images, disputeRevokedImages: order.dispute_revoked_images,
       packKey: order.pack_key,

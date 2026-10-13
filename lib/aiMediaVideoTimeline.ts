@@ -1,25 +1,43 @@
-import type { AiMediaVideoDuration } from "@/lib/aiMediaGenerationContracts";
+import {
+  getAiMediaVideoDurations, getAiMediaVideoNativeDurations,
+  type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode,
+} from "./aiMediaModelCatalog.ts";
 
-const SEGMENTS: Readonly<Record<AiMediaVideoDuration, readonly (4 | 6 | 8)[]>> =
-  Object.freeze({
-    8: Object.freeze([8] as const),
-    16: Object.freeze([8, 8] as const),
-    24: Object.freeze([8, 8, 8] as const),
-  });
-
-/**
- * Veo genere nativement des plans de 4, 6 ou 8 secondes. Ces timelines
- * alignent les durees commerciales iNrCy sur le format natif de 8 secondes :
- * aucun plan partiel, aucune seconde generee puis jetee.
- */
+/** One continuous scene uses one native clip when possible, otherwise two connected clips. */
 export function getAiMediaVideoSegmentDurations(
-  durationSeconds: AiMediaVideoDuration,
-): readonly (4 | 6 | 8)[] {
-  return SEGMENTS[durationSeconds];
+  durationSeconds: number,
+  engine: AiMediaVideoEngine | null = "omni",
+  resolution?: AiMediaVideoResolution | null,
+  sceneMode: AiMediaVideoSceneMode | null = "single",
+): readonly number[] {
+  const selected = engine || "omni";
+  const mode = sceneMode || "single";
+  if ((mode !== "single" && mode !== "multi") || !Number.isSafeInteger(durationSeconds) ||
+    !getAiMediaVideoDurations(selected, resolution, mode).includes(durationSeconds)) {
+    throw new Error("ai_media_video_duration_unsupported");
+  }
+  const native = getAiMediaVideoNativeDurations(selected, resolution);
+  if (mode === "single" && native.includes(durationSeconds)) return [durationSeconds];
+  // Balanced valid halves make the two plans comparable; never invent a provider duration.
+  const first = [...native].filter((value) => native.includes(durationSeconds - value))
+    .sort((a, b) => Math.abs(a - durationSeconds / 2) - Math.abs(b - durationSeconds / 2) || b - a)[0];
+  if (first === undefined) throw new Error("ai_media_video_duration_unsupported");
+  return [first, durationSeconds - first];
+}
+
+export function canGenerateAiMediaVideoDuration(
+  engine: AiMediaVideoEngine | null, durationSeconds: number,
+  resolution?: AiMediaVideoResolution | null, sceneMode: AiMediaVideoSceneMode | null = "single",
+): boolean {
+  try { getAiMediaVideoSegmentDurations(durationSeconds, engine, resolution, sceneMode); return true; }
+  catch { return false; }
 }
 
 export function getAiMediaVideoSegmentCount(
-  durationSeconds: AiMediaVideoDuration,
+  durationSeconds: number,
+  engine: AiMediaVideoEngine | null = "omni",
+  resolution?: AiMediaVideoResolution | null,
+  sceneMode: AiMediaVideoSceneMode | null = "single",
 ) {
-  return getAiMediaVideoSegmentDurations(durationSeconds).length;
+  return getAiMediaVideoSegmentDurations(durationSeconds, engine, resolution, sceneMode).length;
 }

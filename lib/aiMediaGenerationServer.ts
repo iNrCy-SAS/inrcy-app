@@ -33,6 +33,7 @@ import {
   type AiMediaLibraryPickerItem,
   type AiMediaSoundtrackResponse,
   type AiMediaVisualStyle,
+  type AiMediaVideoEngine,
 } from "@/lib/aiMediaGenerationContracts";
 import {
   generateAiMediaImage,
@@ -98,6 +99,9 @@ import {
   getAiMediaVideoMaxDuration,
   type AiMediaVideoDurationLimit,
 } from "@/lib/aiMediaGenerationQuotaPolicy";
+import { quoteAiMediaRequest } from "@/lib/aiMediaCreditQuoteServer";
+import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
+import { preflightAiMediaVideoTemporaryImages } from "@/lib/aiMediaVideoTemporaryImages";
 
 type SupabaseLike = Parameters<
   typeof getBoosterGenerationContext
@@ -108,8 +112,7 @@ export type AiMediaGenerationServerResult = {
   soundtrack: AiMediaSoundtrackResponse | null;
   model: string;
   videoEngineResult:
-    | "omni"
-    | "veo"
+    | AiMediaVideoEngine
     | "omni_veo_fallback"
     | "veo_omni_fallback"
     | "local_fallback"
@@ -379,6 +382,9 @@ export async function generateAndSaveAiMedia(args: {
     ...args.request,
     inspirationImages: preparedIdentityReferences.providerImages,
   };
+  if (providerRequest.kind === "video") {
+    await measure("video_transport_preflight", () => preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal }));
+  }
   const isFreeCreation = providerRequest.creationMode === "free";
   const activePromptVersion = isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
   const castingEligible = chooseAiMediaCastingVariation({
@@ -652,10 +658,14 @@ export async function generateAndSaveAiMedia(args: {
     let gateway: AiMediaGatewayResult;
     try {
       gateway = await measure("image_provider", () =>
-        generateAiMediaImage(imageProviderRequest)
+        providerRequest.imageEngine === "gemini"
+          ? generateAiMediaImageWithGoogle(imageProviderRequest)
+          : generateAiMediaImage(imageProviderRequest)
       );
     } catch (primaryError) {
       args.signal?.throwIfAborted();
+      // An explicit engine selection never silently generates with a different engine.
+      if (providerRequest.imageEngine) throw primaryError;
       if (
         primaryError instanceof AiGatewayAccountLimitError ||
         primaryError instanceof AiGatewayGuardUnavailableError
@@ -814,6 +824,7 @@ export async function generateAndSaveAiMedia(args: {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
     const durationSeconds = providerRequest.durationSeconds || 8;
+    const segmentDurations = getAiMediaVideoSegmentDurations(durationSeconds, providerRequest.videoEngine, providerRequest.videoResolution, providerRequest.sceneMode);
     const nativeVoiceoverRequested = isFreeCreation &&
       providerRequest.withNarration &&
       providerRequest.teamVideoSpeechMode !== "characters";
@@ -825,13 +836,14 @@ export async function generateAndSaveAiMedia(args: {
           request: providerRequest,
           profile,
           plan: creativePlan,
+          maximumSpeechUnits: segmentDurations.reduce((sum, duration) => sum + Math.floor((duration - 1) * 2), 0),
         }))
       : null;
     if (nativeVoiceoverRequested && !nativeVoiceoverNarration) {
       throw new Error("ai_media_native_voiceover_copy_unavailable");
     }
     const nativeNarrationLines = nativeVoiceoverNarration
-      ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length)
+      ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length, segmentDurations)
       : undefined;
     const narrationController = new AbortController();
     const abortNarrationFromCaller = () =>
@@ -870,6 +882,7 @@ export async function generateAndSaveAiMedia(args: {
       | "identityTeamPrecomposed"
       | "identityTeamMemberCount"
       | "identityTeamGoogleEgressConsent"
+      | "identityTeamProviderEgressConsent"
     >;
     const recordVideoEngineFailure = (failureArgs: {
       engine: NonNullable<AiMediaGenerationRequest["videoEngine"]>;
@@ -915,7 +928,7 @@ export async function generateAndSaveAiMedia(args: {
           : "";
       const providerContract = buildAiMediaVideoProviderContract({
         request,
-        durationSeconds: 8,
+        durationSeconds: getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode)[0],
         brandColors: effectiveColors,
         profileFallback,
         nativeNarrationLines,
@@ -938,6 +951,7 @@ export async function generateAndSaveAiMedia(args: {
         contentLanguage: profile.preferences.language,
         nativeNarrationLines,
         ...overrides,
+        identityTeamProviderEgressConsent: request.teamVideoProviderConsent,
         signal: args.signal,
       };
       try {
@@ -961,7 +975,7 @@ export async function generateAndSaveAiMedia(args: {
         // Omni avec exactement le même plan et
         // les mêmes références avant le mouvement local évite une fausse
         // "animation réelle" presque fixe.
-        if (request.videoEngine !== "veo") throw primaryError;
+        if (request.videoEngine !== "veo" || ![8, 16].includes(request.durationSeconds || 8)) throw primaryError;
         pipelineWarnings.push("veo_fallback_to_omni");
         try {
           return await generateOriginalAiVideoClips({
@@ -990,7 +1004,7 @@ export async function generateAndSaveAiMedia(args: {
       ) {
         if (
           providerRequest.identityMode === "reference_team" &&
-          !providerRequest.teamVideoVeoConsent
+          !providerRequest.teamVideoProviderConsent && !providerRequest.teamVideoVeoConsent
         ) {
           throw new Error("ai_media_team_video_consent_required");
         }
@@ -1071,7 +1085,7 @@ export async function generateAndSaveAiMedia(args: {
                 identityTeamMemberCount: preparedCharacterBuffers.length as
                   | 2
                   | 3,
-                identityTeamGoogleEgressConsent: true,
+                identityTeamGoogleEgressConsent: providerRequest.teamVideoVeoConsent,
               }
             : {}
         );
@@ -1089,6 +1103,9 @@ export async function generateAndSaveAiMedia(args: {
           width: format.width,
           height: format.height,
           durationSeconds,
+          videoEngine: providerRequest.videoEngine,
+          videoResolution: providerRequest.videoResolution,
+          sceneMode: providerRequest.sceneMode,
           signal: args.signal,
         });
         return {
@@ -1134,7 +1151,7 @@ export async function generateAndSaveAiMedia(args: {
           );
           if (
             providerRequest.teamVideoMode === "cinematic" &&
-            providerRequest.teamVideoVeoConsent
+            (providerRequest.teamVideoProviderConsent || providerRequest.teamVideoVeoConsent)
           ) {
             try {
               // Google ne reçoit jamais les 2–3 portraits d'origine. La seule
@@ -1160,7 +1177,7 @@ export async function generateAndSaveAiMedia(args: {
                   identityTeamMemberCount: preparedCharacterBuffers.length as
                     | 2
                     | 3,
-                  identityTeamGoogleEgressConsent: true,
+                  identityTeamGoogleEgressConsent: providerRequest.teamVideoVeoConsent,
                 }
               );
             } catch {
@@ -1187,6 +1204,9 @@ export async function generateAndSaveAiMedia(args: {
             width: format.width,
             height: format.height,
             durationSeconds,
+            videoEngine: providerRequest.videoEngine,
+            videoResolution: providerRequest.videoResolution,
+          sceneMode: providerRequest.sceneMode,
             signal: args.signal,
           });
           return {
@@ -1220,6 +1240,9 @@ export async function generateAndSaveAiMedia(args: {
             width: format.width,
             height: format.height,
             durationSeconds,
+            videoEngine: providerRequest.videoEngine,
+            videoResolution: providerRequest.videoResolution,
+          sceneMode: providerRequest.sceneMode,
             signal: args.signal,
           });
         }
@@ -1236,6 +1259,9 @@ export async function generateAndSaveAiMedia(args: {
           width: format.width,
           height: format.height,
           durationSeconds,
+          videoEngine: providerRequest.videoEngine,
+          videoResolution: providerRequest.videoResolution,
+          sceneMode: providerRequest.sceneMode,
           signal: args.signal,
         });
       }
@@ -1394,6 +1420,18 @@ export async function generateAndSaveAiMedia(args: {
             .join("\n"),
         })
       : [];
+    // Reject speech that cannot fit before paying for a video, never trim literal dialogue.
+    if (characterDialogueRequested) {
+      const speechDurations = getAiMediaVideoSegmentDurations(durationSeconds, providerRequest.videoEngine, providerRequest.videoResolution, providerRequest.sceneMode);
+      expectedDialogueLines.forEach((line, index) => {
+        if (!line) return;
+        const maxUnits = Math.max(1, Math.floor((speechDurations[index] - 1) * 2));
+        const units = ["zh", "th"].includes(profile.preferences.language)
+          ? Array.from(line.replace(/[^\p{L}\p{N}]/gu, "")).length / 3
+          : line.split(/\s+/u).filter(Boolean).length;
+        if (units > maxUnits) throw new AiMediaRequestValidationError("Les paroles sont trop longues pour cette durée. Choisissez une durée supérieure ou raccourcissez la réplique.");
+      });
+    }
     const videoGatewayTask = generateVideoGateway();
     const soundtrackTask = measure("soundtrack", async () => {
       if (!providerRequest.withMusic) {
@@ -1510,7 +1548,7 @@ export async function generateAndSaveAiMedia(args: {
         : null;
     // Une bouche qui bouge sans voix ou une réplique rejetée ne constitue pas
     // un média Libre valide. Ne jamais coller une voix TTS sur ces lèvres.
-    if (isFreeCreation && characterDialogueRequested && (
+    if (characterDialogueRequested && (
       characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected"
     )) {
       // Only QA issue codes leave this boundary, never the spoken transcript
@@ -1849,7 +1887,7 @@ export async function generateAndSaveAiMedia(args: {
       ? "omni_veo_fallback"
       : videoGateway.provider === "google-gemini-omni"
       ? "omni"
-      : "veo";
+      : providerRequest.videoEngine || "veo";
     providerMetadata = {
       provider: videoGateway.provider,
       model: videoGateway.model,
@@ -1948,6 +1986,9 @@ export async function generateAndSaveAiMedia(args: {
           use_brand_colors: providerRequest.useBrandColors,
           logo_mode: providerRequest.logoMode,
           video_engine: providerRequest.videoEngine,
+          image_engine: providerRequest.imageEngine || (providerRequest.kind === "image" ? "openai" : null),
+          video_resolution: providerRequest.videoResolution,
+          credit_quote: quoteAiMediaRequest(args.accountId, args.request),
           team_video_mode: providerRequest.teamVideoMode,
           team_video_speech_mode: providerRequest.teamVideoSpeechMode,
           identity_mode: providerRequest.identityMode,

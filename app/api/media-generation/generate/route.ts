@@ -41,6 +41,8 @@ import type { AiMediaVideoDurationLimit } from "@/lib/aiMediaGenerationQuotaPoli
 import { getAiMediaVideoEntitlement } from "@/lib/aiMediaVideoEntitlementServer";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { assertAiMediaCreditQuote, quoteAiMediaRequest } from "@/lib/aiMediaCreditQuoteServer";
+import type { AiMediaGenerationServerResult } from "@/lib/aiMediaGenerationServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -505,12 +507,18 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
     videoEngine: request.videoEngine,
+    imageEngine: request.imageEngine,
+    videoResolution: request.videoResolution,
+    creditTariffVersion: request.creditTariffVersion,
+    expectedCredits: request.expectedCredits,
+    creditQuoteId: request.creditQuoteId,
     identityMode: request.identityMode,
     videoCharacterMode: request.videoCharacterMode,
     identityConsent: request.identityConsent,
     teamVideoMode: request.teamVideoMode,
     teamVideoSpeechMode: request.teamVideoSpeechMode,
     teamVideoVeoConsent: request.teamVideoVeoConsent,
+    teamVideoProviderConsent: request.teamVideoProviderConsent,
     identityReferenceSetId: request.identityReferenceSetId,
     durationSeconds: request.durationSeconds,
     sceneMode: request.sceneMode,
@@ -594,15 +602,9 @@ export async function POST(request: Request) {
   let persistedMediaId: string | null = null;
   let persistedItem: AiMediaLibraryPickerItem | null = null;
   let persistedSoundtrack: AiMediaSoundtrackResponse | null = null;
-  let persistedVideoEngineResult:
-    | "omni"
-    | "veo"
-    | "omni_veo_fallback"
-    | "veo_omni_fallback"
-    | "local_fallback"
-    | null = null;
+  let persistedVideoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
   let accountEdition: DashboardEdition | null = null;
-  let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 24;
+  let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 30;
   let adminUnlimited = false;
 
   try {
@@ -653,7 +655,7 @@ export async function POST(request: Request) {
         edition,
       });
       videoMaxDurationSeconds = adminUnlimited
-        ? 24
+        ? 30
         : videoEntitlement.maxDurationSeconds;
     }
     if (
@@ -677,6 +679,19 @@ export async function POST(request: Request) {
     const identityConsentRecordedAt = normalizedRequest.identityConsent
       ? new Date().toISOString()
       : null;
+    let quote: ReturnType<typeof quoteAiMediaRequest>;
+    try {
+      quote = quoteAiMediaRequest(context.accountId, normalizedRequest);
+    } catch {
+      throw new AiMediaRequestValidationError("Ces paramètres ne sont pas disponibles pour le moteur choisi. Actualisez le devis ou choisissez une autre durée.");
+    }
+    if (!assertAiMediaCreditQuote(normalizedRequest, quote)) {
+      return jsonError({ status: 409, code: "AI_MEDIA_CREDIT_QUOTE_CHANGED", message: "Le devis a changé. Actualisez le coût en crédits avant de générer." });
+    }
+    const wallet = await getAiMediaQuotaSnapshot({ accountId: context.accountId, actorAuthUserId: context.authUserId, edition });
+    if (!wallet.creditsReady) {
+      return jsonError({ status: 503, code: "AI_MEDIA_CREDITS_NOT_READY", message: "Le portefeuille de crédits média doit être activé avant la génération." });
+    }
     const reservation = await reserveAiMediaGeneration({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
@@ -686,14 +701,18 @@ export async function POST(request: Request) {
       surface: normalizedRequest.source,
       edition,
       reservationTtlSeconds: normalizedRequest.kind === "video" ? 3_600 : 900,
-      quotaAmount:
-        normalizedRequest.kind === "video"
-          ? normalizedRequest.durationSeconds || 16
-          : 1,
+      quotaUnit: "credit",
+      quotaAmount: quote.totalCredits,
       limitOverride: adminUnlimited
         ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
         : undefined,
       metadata: {
+        credit_tariff_version: quote.tariffVersion,
+        credit_quote_id: quote.quoteId,
+        credit_amount: quote.totalCredits,
+        credit_breakdown: quote.breakdown,
+        image_engine: normalizedRequest.imageEngine,
+        video_resolution: normalizedRequest.videoResolution,
         admin_unlimited: adminUnlimited,
         source: normalizedRequest.source,
         prompt_version: AI_MEDIA_PROMPT_VERSION,
@@ -748,10 +767,7 @@ export async function POST(request: Request) {
       return jsonError({
         status: 429,
         code: "AI_MEDIA_QUOTA_REACHED",
-        message:
-          normalizedRequest.kind === "video"
-            ? `Le crédit vidéo restant (${reservation.quota.remaining} s) est insuffisant pour générer ${normalizedRequest.durationSeconds || 16} s.`
-            : "Le plafond mensuel d’images de cet établissement est atteint.",
+        message: `Crédits média insuffisants : ${reservation.quota.remaining} disponibles, ${quote.totalCredits} nécessaires.`,
         quota: presentAiMediaQuotaCounter(
           reservation.quota,
           adminUnlimited,

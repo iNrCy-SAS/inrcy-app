@@ -1,5 +1,5 @@
 "use client";
-import { VideoCreditBalance, ImageCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
+import { StudioCreditBalance } from "@/app/dashboard/_components/VideoCreditRecharge";
 
 import { useLocale, useTranslations } from "next-intl";
 
@@ -750,8 +750,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       </section>
     </div>
     <p className={styles.quotaNote}>{i18nT("subscription_quota_note")}{clientBillingPlatform === "web" && premiumOffer.taxBehavior === "exclusive" ? ` ${i18nT("standard_taxes_checkout")}` : ""}</p>
-    <VideoCreditBalance />
-    <ImageCreditBalance />
+    <StudioCreditBalance />
   </SubscriptionWorkspace>{premiumActivationOpen && typeof document !== "undefined" ? createPortal(
     <div className={styles.premiumActivationOverlay} onMouseDown={(event) => {
       if (event.target === event.currentTarget) closePremiumActivationChoice();

@@ -292,7 +292,7 @@ export function supportsVeoReferenceImages(model: string) {
 /** Google only accepts referenceImages on the full/Fast Veo 3.1 models at 8s. */
 export function selectVeoInspirationMode(args: {
   model: string;
-  durationSeconds: 4 | 6 | 8;
+  durationSeconds: number;
   imageCount: number;
 }): VeoInspirationMode {
   if (args.imageCount <= 0) return "none";

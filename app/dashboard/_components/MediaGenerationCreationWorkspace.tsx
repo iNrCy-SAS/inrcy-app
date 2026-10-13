@@ -9,6 +9,8 @@ import type {
   MediaGenerationResult,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import { resolveAiMediaPreviewFormat } from "@/lib/aiMediaGenerationContracts";
+import { AI_MEDIA_VIDEO_MODELS } from "@/lib/aiMediaModelCatalog";
+import { MediaGenerationActions } from "./MediaEngineCreditControls";
 import styles from "./MediaGenerator.module.css";
 
 type RegenerationConsent = {
@@ -48,6 +50,8 @@ type Props = {
   editLabel?: string;
   overlay?: ReactNode;
   regenerationConsents?: RegenerationConsent[];
+  creditSummary?: ReactNode;
+  engineControls?: ReactNode;
 };
 
 const FORMATS: Array<{ id: MediaGenerationFormat; ratio: string }> = [
@@ -103,6 +107,8 @@ export default function MediaGenerationCreationWorkspace({
   handleConfirm,
   handleSaveToLibrary,
   handleGenerate,
+  creditSummary,
+  engineControls,
   handleEditCriteria,
   disabled,
   acceptMode,
@@ -285,9 +291,9 @@ export default function MediaGenerationCreationWorkspace({
                     "fallback"
                   )}
                 >
-                  {t(
-                    `ai_generator_video_engine_result_${generationResult.videoEngineResult}`
-                  )}
+                  {AI_MEDIA_VIDEO_MODELS.some((model) => model.id === generationResult.videoEngineResult)
+                    ? t("ai_generator_generated_model", { model: AI_MEDIA_VIDEO_MODELS.find((model) => model.id === generationResult.videoEngineResult)?.label || generationResult.videoEngineResult })
+                    : t(`ai_generator_video_engine_result_${generationResult.videoEngineResult}`)}
                 </span>
               ) : null}
             </div>
@@ -378,6 +384,9 @@ export default function MediaGenerationCreationWorkspace({
                   : t("ai_generator_open_library")}
               </button>
             ) : null}
+            <MediaGenerationActions>
+            {engineControls}
+            {creditSummary}
             <button
               type="button"
               className={styles.regenerateButton}
@@ -386,6 +395,7 @@ export default function MediaGenerationCreationWorkspace({
             >
               ↻ {t("ai_generator_regenerate")}
             </button>
+            </MediaGenerationActions>
             <button
               type="button"
               className={styles.editButton}
@@ -408,6 +418,9 @@ export default function MediaGenerationCreationWorkspace({
             disabled={operationLocked}
           />
           <div>
+            <MediaGenerationActions>
+            {engineControls}
+            {creditSummary}
             <button
               type="button"
               onClick={() => void handleGenerate()}
@@ -415,6 +428,7 @@ export default function MediaGenerationCreationWorkspace({
             >
               {t("ai_generator_retry")}
             </button>
+            </MediaGenerationActions>
             <button type="button" onClick={() => void handleEditCriteria()}>
               {editLabel || t("ai_generator_edit_criteria")}
             </button>

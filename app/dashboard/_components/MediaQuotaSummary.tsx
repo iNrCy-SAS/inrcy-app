@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { MediaGenerationQuotaCounter } from "../_hooks/useMediaGeneration";
 import { MediaCreditRechargeButton } from "./VideoCreditRecharge";
 import styles from "./MediaQuotaSummary.module.css";
@@ -9,35 +9,35 @@ type Props = {
   kind: "image" | "video";
   counter?: MediaGenerationQuotaCounter | null;
   unlimited?: boolean;
+  creditsReady?: boolean;
   resetDate: string;
   locked: boolean;
   onRefresh: () => void;
 };
 
-/** Both Studio modes show included and purchased balances separately. */
-export default function MediaQuotaSummary({ kind, counter, unlimited, resetDate, locked, onRefresh }: Props) {
+/** One available balance belongs to every media engine and image/video operation. */
+export default function MediaQuotaSummary({ kind, counter, unlimited, creditsReady, resetDate, locked, onRefresh }: Props) {
   const t = useTranslations("media");
-  const unit = kind === "video" ? " s" : "";
+  const locale = useLocale();
+  const unit = counter?.unit === "credit" ? ` ${t("ai_generator_credits_unit")}` : kind === "video" ? " s" : "";
   const included = counter?.includedRemaining ?? counter?.remaining;
   const purchased = counter?.purchasedRemaining;
-  return <div className={styles.summary} data-kind={kind}>
+  const number = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const resetSubtitle = resetDate ? t("ai_generator_credit_reset_short", { date: resetDate }) : "";
+  const subtitle = [creditsReady === false ? t("ai_generator_credits_unavailable_short") : "", resetSubtitle].filter(Boolean).join(" · ");
+  const balanceDetails = !unlimited && typeof included === "number" && typeof purchased === "number"
+    ? t("ai_generator_credit_balance_breakdown", { included: number(included), purchased: number(purchased) }) : "";
+  const subtitleDetails = [creditsReady === false ? t("ai_generator_credits_unavailable") : balanceDetails,
+    resetDate ? t("ai_generator_reset", { date: resetDate }) : ""].filter(Boolean).join(" · ");
+  return <div className={styles.summary} data-kind={kind} data-media-credit-balance>
     <span className={styles.icon} aria-hidden="true">◴</span>
     <div className={styles.balances}>
-      <div className={styles.balance}>
         <div className={styles.headline}>
-          <span>{t("ai_generator_included_balance")}</span>
-          <strong>{unlimited ? t("ai_generator_unlimited") : typeof included === "number" ? `${included}${unit}` : "—"}</strong>
+          <strong>{unlimited ? t("ai_generator_unlimited") : creditsReady === false ? "—" : typeof counter?.remaining === "number" ? `${number(counter.remaining)}${unit}` : "—"}</strong>
+          <span>{t("ai_generator_available_credits")}</span>
+          {!unlimited ? <MediaCreditRechargeButton mediaKind={kind} disabled={locked || creditsReady === false} onRefresh={onRefresh} className={styles.recharge} /> : null}
         </div>
-        <small>{t("ai_generator_included_report")}{resetDate ? ` · ${t("ai_generator_reset", { date: resetDate })}` : ""}</small>
-      </div>
-      {!unlimited ? <div className={styles.balance}>
-        <div className={styles.headline}>
-          <span>{t("ai_generator_purchased_balance")}</span>
-          <strong>{typeof purchased === "number" ? `${purchased}${unit}` : "—"}</strong>
-          <MediaCreditRechargeButton mediaKind={kind} disabled={locked} onRefresh={onRefresh} className={styles.recharge} />
-        </div>
-        <small>{t("ai_generator_purchased_keep")}</small>
-      </div> : null}
+        {subtitle ? <small title={subtitleDetails}>{subtitle}</small> : null}
     </div>
   </div>;
 }
