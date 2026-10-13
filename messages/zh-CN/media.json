@@ -871,5 +871,6 @@
   "ai_generator_editor_stop": "停止",
   "ai_generator_editor_stop_locked": "模型已开始生成，无法停止。",
   "ai_generator_editor_stop_pending": "正在核实停止请求…",
-  "ai_generator_editor_recover": "找回结果"
+  "ai_generator_editor_recover": "找回结果",
+  "ai_generator_editor_abandon": "放弃本次尝试"
 }

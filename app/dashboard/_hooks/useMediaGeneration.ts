@@ -680,6 +680,20 @@ function recoveryRequest(pointer: AiMediaGenerationRecoveryPointer): MediaGenera
   };
 }
 
+async function requestGenerationCancellation(requestId: string, kind: MediaGenerationKind, surface: MediaGenerationSource, expectedAccountId?: string) {
+  const response = await fetch("/api/media-generation/cancel", {
+    method: "POST", credentials: "include", cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId, mediaKind: kind, surface, ...(expectedAccountId ? { expectedAccountId } : {}) }),
+  });
+  const payload: unknown = (response.headers.get("content-type") || "").includes("application/json") ? await response.json().catch(() => null) : null;
+  const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : null;
+  if (!response.ok || data?.ok !== true || !["failed", "expired", "processing", "completed"].includes(String(data.status))) {
+    throw new Error("L’arrêt de la tentative n’a pas encore pu être confirmé.");
+  }
+  return { status: String(data.status) };
+}
+
 function isRetryableDraftAcceptanceStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
@@ -738,6 +752,7 @@ export default function useMediaGeneration() {
     requestId: string;
     epoch: number;
     run: () => Promise<MediaGenerationResult>;
+    cancel: () => Promise<MediaGenerationResult | null>;
   } | null>(null);
   const generationAbortRef = useRef<{
     controller: AbortController;
@@ -746,6 +761,8 @@ export default function useMediaGeneration() {
     cancelRequested: boolean;
     recovering: boolean;
     recoveryController: AbortController | null;
+    cancel: () => Promise<{ status: string }>;
+    cancelTask: Promise<{ status: string }> | null;
   } | null>(null);
   const quotaRequestRef = useRef<{
     epoch: number;
@@ -902,7 +919,7 @@ export default function useMediaGeneration() {
   }, [loadQuota]);
 
   const executeGeneration = useCallback(
-    async (request: MediaGenerationRequest, recoveryPointer?: AiMediaGenerationRecoveryPointer): Promise<MediaGenerationResult> => {
+    async (request: MediaGenerationRequest, recoveryPointer?: AiMediaGenerationRecoveryPointer, cancelBeforeRecovery = false): Promise<MediaGenerationResult> => {
       if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
       if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
       if (pendingRecoveryRef.current && !recoveryPointer) throw new Error("Récupérez le résultat de la tentative précédente avant de générer un autre média.");
@@ -957,8 +974,10 @@ export default function useMediaGeneration() {
       const requestEpoch = accountEpochRef.current;
       const controller = new AbortController();
       const activeGeneration = {
-        controller, requestId, billingLocked: Boolean(recoveryPointer), cancelRequested: false,
+        controller, requestId, billingLocked: Boolean(recoveryPointer), cancelRequested: cancelBeforeRecovery,
         recovering: Boolean(recoveryPointer), recoveryController: null as AbortController | null,
+        cancel: () => requestGenerationCancellation(requestId, request.kind, request.source, originAccountId),
+        cancelTask: null as Promise<{ status: string }> | null,
       };
       generationAbortRef.current = activeGeneration;
       generationKindRef.current = request.kind;
@@ -979,6 +998,15 @@ export default function useMediaGeneration() {
         setCancellable(false);
         const recoveryController = new AbortController();
         activeGeneration.recoveryController = recoveryController;
+        if (activeGeneration.cancelTask) {
+          const acknowledgement = await activeGeneration.cancelTask.catch(() => null);
+          if (!mountedRef.current || requestEpoch !== accountEpochRef.current) throw new MediaGenerationAccountChangedError();
+          if (acknowledgement?.status === "failed" || acknowledgement?.status === "expired") {
+            clearCurrentAttempt();
+            void loadQuota({ force: true });
+            throw new MediaGenerationCancelledError();
+          }
+        }
         let missingChecks = 0;
         let unavailableChecks = 0;
         for (let check = 0; check < GENERATION_RECOVERY_MAX_CHECKS; check += 1) {
@@ -1212,8 +1240,15 @@ export default function useMediaGeneration() {
       };
 
       const recover = () => runAttempt(() => recoverExistingAttempt().then(finishGeneration));
+      const abandon = async () => {
+        activeGeneration.cancelRequested = true;
+        activeGeneration.cancelTask = activeGeneration.cancel();
+        try { return await recover(); }
+        catch (error) { if (error instanceof MediaGenerationCancelledError) return null; throw error; }
+      };
       if (recoveryPointer) {
-        pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+        pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover, cancel: abandon };
+        if (cancelBeforeRecovery) activeGeneration.cancelTask = activeGeneration.cancel();
         return recover();
       }
       return runAttempt(async () => {
@@ -1367,13 +1402,13 @@ export default function useMediaGeneration() {
           if (mountedRef.current && requestEpoch === accountEpochRef.current && generationAbortRef.current === activeGeneration) setCancellable(false);
         });
         } catch {
-          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover, cancel: abandon };
           publicResponse = await recoverExistingAttempt();
         }
         const finalPayload = publicResponse.payload && typeof publicResponse.payload === "object" ? publicResponse.payload as Record<string, unknown> : null;
         if ((publicResponse.ok && (finalPayload?.ok !== true || !finalPayload.item || typeof finalPayload.item !== "object")) ||
           shouldKeepGenerationRequestId(publicResponse.status, readErrorCode(finalPayload))) {
-          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover };
+          pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover, cancel: abandon };
           publicResponse = await recoverExistingAttempt();
         }
         return finishGeneration(publicResponse);
@@ -1392,6 +1427,10 @@ export default function useMediaGeneration() {
     pendingRecoveryRef.current = {
       requestId: pointer.requestId, epoch: accountEpochRef.current,
       run: () => executeGeneration(recoveryRequest(pointer), pointer),
+      cancel: async () => {
+        try { return await executeGeneration(recoveryRequest(pointer), pointer, true); }
+        catch (error) { if (error instanceof MediaGenerationCancelledError) return null; throw error; }
+      },
     };
     setCanRecover(true);
   }, [quota?.accountId, executeGeneration]);
@@ -1401,6 +1440,10 @@ export default function useMediaGeneration() {
     if (!active || active.billingLocked) return false;
     active.cancelRequested = true;
     active.billingLocked = true;
+    active.cancelTask = active.cancel();
+    // The stream may be disconnected, but this scoped cancellation request
+    // durably closes an absent key instead of treating a 404 as an ACK.
+    void active.cancelTask.catch(() => undefined);
     active.controller.abort();
     if (mountedRef.current) {
       setCancellable(false);
@@ -1416,6 +1459,14 @@ export default function useMediaGeneration() {
     const pending = pendingRecoveryRef.current;
     if (!pending || pending.epoch !== accountEpochRef.current) throw new Error("Aucune génération en attente de récupération.");
     return pending.run();
+  }, []);
+
+  const cancelRecovery = useCallback(() => {
+    if (!mountedRef.current) throw new MediaGenerationAccountChangedError();
+    if (generationAbortRef.current) throw new Error("Une génération est déjà en cours.");
+    const pending = pendingRecoveryRef.current;
+    if (!pending || pending.epoch !== accountEpochRef.current) throw new Error("Aucune génération en attente de récupération.");
+    return pending.cancel();
   }, []);
 
   const acceptDraft = useCallback(
@@ -1577,6 +1628,7 @@ export default function useMediaGeneration() {
     generate,
     cancelGeneration,
     retryRecovery,
+    cancelRecovery,
     acceptDraft,
     discardDraft,
     reset,

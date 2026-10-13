@@ -871,5 +871,6 @@
   "ai_generator_editor_stop": "Detener",
   "ai_generator_editor_stop_locked": "La generación ya se ha iniciado en el motor y no se puede detener.",
   "ai_generator_editor_stop_pending": "Comprobando la solicitud de parada…",
-  "ai_generator_editor_recover": "Recuperar el resultado"
+  "ai_generator_editor_recover": "Recuperar el resultado",
+  "ai_generator_editor_abandon": "Abandonar el intento"
 }

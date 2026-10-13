@@ -871,5 +871,6 @@
   "ai_generator_editor_stop": "Stop",
   "ai_generator_editor_stop_locked": "Het genereren is bij het model gestart en kan niet meer worden gestopt.",
   "ai_generator_editor_stop_pending": "Stopverzoek controleren…",
-  "ai_generator_editor_recover": "Resultaat ophalen"
+  "ai_generator_editor_recover": "Resultaat ophalen",
+  "ai_generator_editor_abandon": "Poging beëindigen"
 }

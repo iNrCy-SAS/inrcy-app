@@ -408,7 +408,9 @@ test("toutes les options visibles quittent MediaGenerator comme champs structur�
   assert.ok(generateStart >= 0 && generateEnd > generateStart);
   const generateCall = GENERATOR_SOURCE.slice(generateStart, generateEnd);
 
-  const payloadStart = HOOK_SOURCE.indexOf("body: JSON.stringify({");
+  const generationFetchStart = HOOK_SOURCE.indexOf('fetch("/api/media-generation/generate"');
+  assert.ok(generationFetchStart >= 0, "la vérification cible la requête de génération");
+  const payloadStart = HOOK_SOURCE.indexOf("body: JSON.stringify({", generationFetchStart);
   const payloadEnd = HOOK_SOURCE.indexOf("}),", payloadStart);
   assert.ok(payloadStart >= 0 && payloadEnd > payloadStart);
   const payload = HOOK_SOURCE.slice(payloadStart, payloadEnd);

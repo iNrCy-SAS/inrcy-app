@@ -29,7 +29,7 @@ type ReservationCall = {
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void> } = {}) {
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void> } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal }> = [];
   const lifetimes: Promise<unknown>[] = [];
@@ -59,6 +59,8 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
       createAiMediaRequestFingerprint,
       reserveAiMediaGeneration: async (args: ReservationCall) => {
         reservationCalls.push(args);
+        if (options.cancellationConflictKey === args.requestKey) throw Object.assign(new QuotaError("Cette tentative a été fermée avant sa réservation."), { code: "AI_MEDIA_IDEMPOTENCY_CONFLICT", httpStatus: 409 });
+        if (options.cancelledKey === args.requestKey) return { outcome: "replayed", status: "failed", jobId: "cancelled-job-a" };
         if (options.quotaReached) return { outcome: "quota_reached", quota: { remaining: 0 } };
         const completed = completedRequests.get(args.requestKey);
         if (completed) {
@@ -160,6 +162,20 @@ test("a preparation stop while authentication is delayed cannot create a later r
   controller.abort(); releaseAuth();
   const response = await generationTransport.readAiMediaGenerationResponse(await task, () => { assert.fail("An aborted preparation cannot lock billing"); });
   assert.equal(response.status, 499); assert.equal(route.reservationCalls.length, 0); assert.equal(route.paidCalls(), 0); assert.equal(route.completionCalls.length, 0);
+});
+
+test("a durable cancelled request key cannot start paid work even when the original disconnect signal was lost", async () => {
+  const input = body(); const route = loadRoute({ cancelledKey: input.requestId as string });
+  const response = await route.post(input); const payload = await response.json();
+  assert.equal(response.status, 409); assert.equal(payload.code, "AI_MEDIA_REQUEST_ALREADY_CLOSED");
+  assert.equal(route.paidCalls(), 0); assert.equal(route.generationCalls.length, 0); assert.equal(route.completionCalls.length, 0); assert.equal(route.failureCalls.length, 0);
+});
+
+test("the live v3 tombstone fingerprint conflict rejects the original request before any provider or quota finalization", async () => {
+  const input = body(); const route = loadRoute({ cancellationConflictKey: input.requestId as string });
+  const response = await route.post(input); const payload = await response.json();
+  assert.equal(response.status, 409); assert.equal(payload.code, "AI_MEDIA_IDEMPOTENCY_CONFLICT");
+  assert.equal(route.paidCalls(), 0); assert.equal(route.generationCalls.length, 0); assert.equal(route.completionCalls.length, 0); assert.equal(route.failureCalls.length, 0);
 });
 
 function deferred() {

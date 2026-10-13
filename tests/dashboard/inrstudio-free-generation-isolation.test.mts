@@ -45,6 +45,8 @@ function resultContext() {
   return {
     events, sequence, operationInFlight, result,
     operationLocked: false,
+    busy: false,
+    canRecover: false,
     instanceId: "free-test",
     setActiveSettingsTab: (value: string) => { events.push(`tab:${value}`); },
     setActiveAttempt: () => { events.push("attempt-snapshot"); },
@@ -177,6 +179,21 @@ test("une récupération Libre devenue obsolète ne modifie pas le nouveau compt
   pending.reject(new Error("Ancienne récupération"));
   await request;
   assert.deepEqual(context.events, []);
+});
+
+test("abandonner Libre clôture seulement une tentative absente et conserve un résultat engagé", async () => {
+  for (const recovered of [null, { draft: true, item: { id: "engaged-draft" } }]) {
+    const context = resultContext();
+    const run = handler("handleAbandonRecovery", {
+      ...context, canRecover: true,
+      cancelRecovery: async () => { context.events.push("cancel-existing-request"); return recovered; },
+      generate: () => assert.fail("Abandonner ne doit pas générer"),
+      discardDraft: () => assert.fail("Abandonner ne doit pas supprimer un média"),
+    });
+    await run();
+    assert.deepEqual(context.events, recovered ? ["error:", "cancel-existing-request"] : ["error:", "cancel-existing-request", "creation:false"]);
+    assert.equal(context.operationInFlight.current, false);
+  }
 });
 
 test("le double clic Accepter ne promeut le média et ne rappelle le parent qu’une fois", async () => {

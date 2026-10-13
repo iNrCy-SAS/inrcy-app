@@ -137,6 +137,7 @@ export default function MediaFreeGenerator({
     loadQuota,
     generate,
     retryRecovery,
+    cancelRecovery,
     cancelGeneration,
     acceptDraft,
     discardDraft,
@@ -517,6 +518,23 @@ export default function MediaFreeGenerator({
     }
   };
 
+  const handleAbandonRecovery = async () => {
+    if (!canRecover || operationLocked || operationInFlight.current) return;
+    operationInFlight.current = true;
+    const currentSequence = sequence.current;
+    setActionError("");
+    try {
+      const recovered = await cancelRecovery();
+      if (sequence.current === currentSequence && !recovered) setCreationScreen(false);
+    } catch (caught) {
+      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
+        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+      }
+    } finally {
+      if (sequence.current === currentSequence) operationInFlight.current = false;
+    }
+  };
+
   const handleAccept = async () => {
     if (!result || operationLocked || operationInFlight.current) return;
     operationInFlight.current = true;
@@ -578,6 +596,10 @@ export default function MediaFreeGenerator({
 
   const handleConfirmGenerationStop = () => {
     setStopConfirmOpen(false);
+    if (canRecover && !busy) {
+      void handleAbandonRecovery();
+      return;
+    }
     if (cancelGeneration()) {
       setActionError("");
       setCreationScreen(false);
@@ -596,6 +618,16 @@ export default function MediaFreeGenerator({
             onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
   );
 
+  const generationAction = <button
+    type="button" className={styles.primaryButton} data-media-primary-action
+    disabled={busy ? !cancellable : canRecover ? operationLocked : !canGenerate}
+    title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
+    onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
+  >
+    <span aria-hidden="true">{busy ? "■" : result ? "↻" : "✦"}</span>
+    {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
+  </button>;
+
   const preview = (
       <MediaGenerationCreationWorkspace
         variant="embedded"
@@ -611,7 +643,7 @@ export default function MediaFreeGenerator({
         operationLocked={operationLocked}
         finishing={finishing}
         generationResult={result}
-        generationCancellable={cancellable}
+        generationCancellable={cancellable || (canRecover && !operationLocked)}
         cancelConfirmationOpen={stopConfirmOpen}
         setCancelConfirmationOpen={setStopConfirmOpen}
         handleRequestGenerationStop={() => setStopConfirmOpen(true)}
@@ -670,7 +702,7 @@ export default function MediaFreeGenerator({
     >
       <div className={editorStyles.editorBody}>
         <div className={editorStyles.settingsPane}>
-          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "criteria", label: t("ai_generator_editor_tab_criteria") }, { id: "prompt", label: t("ai_generator_editor_tab_prompt") }]} />
+          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "prompt", label: t("ai_generator_editor_tab_prompt") }, { id: "criteria", label: t("ai_generator_editor_tab_criteria") }]} />
           <div className={editorStyles.settingsPanels}>
         <section
           className={`${styles.parameters} ${editorStyles.tabPanel}`}
@@ -1087,19 +1119,15 @@ export default function MediaFreeGenerator({
         <MediaGenerationActions>
           {engineControls}
           <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
-          <button
-            type="button"
-            className={styles.primaryButton}
-            disabled={busy ? !cancellable : canRecover ? operationLocked : !canGenerate}
-            title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
-            onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
-          >
-            <span aria-hidden="true">{busy ? "■" : result ? "↻" : "✦"}</span>
-            {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
-          </button>
+          {canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
+            {generationAction}
+            <button type="button" className={styles.recoveryStop} disabled={operationLocked}
+              aria-label={t("ai_generator_editor_abandon")} title={t("ai_generator_editor_abandon")}
+              onClick={() => setStopConfirmOpen(true)}>{t("ai_generator_editor_stop")}</button>
+          </div> : generationAction}
         </MediaGenerationActions>
       </div>
-      {exhausted || creditInsufficient || durationUnavailable ? (
+      {!canRecover && !busy && (exhausted || creditInsufficient || durationUnavailable) ? (
         <p className={styles.error} role="status">
           {t(
             exhausted

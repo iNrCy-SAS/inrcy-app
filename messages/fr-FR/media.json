@@ -871,5 +871,6 @@
   "ai_generator_editor_stop": "Stop",
   "ai_generator_editor_stop_locked": "Génération engagée auprès du moteur, arrêt indisponible.",
   "ai_generator_editor_stop_pending": "Vérification de l’arrêt…",
-  "ai_generator_editor_recover": "Récupérer le résultat"
+  "ai_generator_editor_recover": "Récupérer le résultat",
+  "ai_generator_editor_abandon": "Abandonner la tentative"
 }

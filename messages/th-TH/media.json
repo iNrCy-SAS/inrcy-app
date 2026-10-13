@@ -871,5 +871,6 @@
   "ai_generator_editor_stop": "หยุด",
   "ai_generator_editor_stop_locked": "โมเดลเริ่มสร้างผลงานแล้ว จึงไม่สามารถหยุดได้",
   "ai_generator_editor_stop_pending": "กำลังตรวจสอบคำขอหยุด…",
-  "ai_generator_editor_recover": "เรียกคืนผลลัพธ์"
+  "ai_generator_editor_recover": "เรียกคืนผลลัพธ์",
+  "ai_generator_editor_abandon": "ยกเลิกความพยายามนี้"
 }

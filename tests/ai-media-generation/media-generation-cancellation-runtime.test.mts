@@ -13,6 +13,7 @@ type Hook = {
   generate: (request: MediaGenerationRequest) => Promise<MediaGenerationResult>;
   cancelGeneration: () => boolean; reset: () => void;
   retryRecovery: () => Promise<MediaGenerationResult>;
+  cancelRecovery: () => Promise<MediaGenerationResult | null>;
   loadQuota: (options?: { force?: boolean }) => Promise<unknown>;
 };
 type Slot = { value?: unknown; deps?: readonly unknown[]; cleanup?: () => void };
@@ -26,9 +27,9 @@ const input = (): MediaGenerationRequest => ({
 const quota = (accountId = "account-a") => ({ accountId, creditsReady: true, credits: { unit: "credit", remaining: 100, reserved: 0 } });
 
 /** Real hook, controlled HTTP streams and effects; no provider or database requests. */
-function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem">) {
+function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem">, cancellationStatus = "processing") {
   const slots: Slot[] = []; const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
-  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100;
+  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; const cancellations: Record<string, unknown>[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100;
   const changed = (first?: readonly unknown[], second?: readonly unknown[]) => !first || !second || first.length !== second.length || first.some((value, index) => value !== second[index]);
   const react = {
     useState(initial: unknown) {
@@ -53,6 +54,10 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   };
   const fetch = (url: string, init: RequestInit = {}): Promise<Response> => {
     if (url.endsWith("/quota")) return Promise.resolve(Response.json({ quota: { ...quota(account), credits: { unit: "credit", remaining, reserved: 0 } } }));
+    if (url === "/api/media-generation/cancel") {
+      assert.equal(init.method, "POST"); cancellations.push(JSON.parse(String(init.body)));
+      return Promise.resolve(Response.json({ ok: true, status: cancellationStatus }));
+    }
     if (url.startsWith("/api/media-generation/status?")) return new Promise((resolve, reject) => {
       const signal = init.signal!;
       signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
@@ -96,7 +101,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     };
   };
   render();
-  return { attempts, recoveries, render, flush, startStream, status: () => status,
+  return { attempts, recoveries, cancellations, render, flush, startStream, status: () => status,
     async refreshRemaining(value: number) { remaining = value; await status.loadQuota({ force: true }); return render(); },
     changeAccount(nextAccount = "account-b") { account = nextAccount; for (const callback of listeners.get("account-change") || []) callback(); return render(); },
     dispose() { for (const slot of slots) slot.cleanup?.(); },
@@ -123,6 +128,21 @@ test("the hook stops preparation but refuses a user stop immediately after the a
   await assert.rejects(after.status().generate(input()), /déjà en cours/);
   assert.equal(after.attempts[0].signal.aborted, false); assert.equal(after.attempts.length, 1);
   stream.send(successfulResult()); stream.close(); assert.equal((await task).item.id, "draft-a"); await after.flush(); after.dispose();
+});
+
+test("a stop before delayed authentication receives a durable cancelled-key ACK and leaves the UI usable without a job", async () => {
+  const storage = memoryStorage(); const h = harness(storage, "failed"); await h.refreshRemaining(2);
+  const task = h.status().generate(input()).catch((error: Error) => error); h.render();
+  // No response headers, job-registration event or billing frame arrived.
+  assert.equal(h.status().cancelGeneration(), true); await h.flush();
+  assert.equal((await task as Error).name, "MediaGenerationCancelledError");
+  assert.equal(h.status().busy, false); assert.equal(h.status().canRecover, false); assert.equal(storage.entries.size, 0); assert.equal(h.recoveries.length, 0);
+  assert.deepEqual(h.cancellations[0], { requestId: h.attempts[0].body.requestId, mediaKind: "image", surface: "studio", expectedAccountId: "account-a" });
+  assert.equal(h.attempts.length, 1); assert.equal(h.attempts[0].signal.aborted, true);
+  // Another creation requires a fresh, explicit generation action.
+  const next = h.status().generate(input()); h.render(); assert.equal(h.attempts.length, 2);
+  assert.notEqual(h.attempts[0].body.requestId, h.attempts[1].body.requestId);
+  const stream = h.startStream(1); stream.send(successfulResult()); stream.close(); await next; h.dispose();
 });
 
 test("an uncertain truncated response retrieves the existing result without an automatic second paid attempt", async () => {
@@ -174,6 +194,7 @@ test("a manual recovery after eight unavailable reads is independent of an exhau
     h.status().reset(); h.render(); assert.equal(h.status().canRecover, true);
     await assert.rejects(h.status().generate(input()), /Récupérez/);
     const retry = h.status().retryRecovery(); h.render(); assert.equal(h.status().busy, true);
+    await h.flush();
     assert.equal(h.recoveries[8].requestId, h.attempts[0].body.requestId);
     h.recoveries[8].resolve(Response.json({ ...successfulResult().payload, status: "completed" }));
     const restored = await retry; await h.flush();
@@ -230,6 +251,24 @@ test("account changes hide another account pointer and recover it only after ret
   const task = h.status().retryRecovery(); h.render(); assert.equal(h.recoveries[0].requestId, "stored-request-0001");
   h.recoveries[0].resolve(Response.json({ ...successfulResult().payload, status: "completed" }));
   assert.equal((await task).format, "portrait"); assert.equal(h.attempts.length, 0); h.dispose();
+});
+
+test("a missing stored attempt can be explicitly abandoned by a zero-credit cancellation marker instead of generation", async () => {
+  const storage = memoryStorage(); recovery.writeAiMediaGenerationRecovery(storage, "account-a", { requestId: "missing-request-0001", kind: "video", format: "story" });
+  const h = harness(storage, "failed"); await h.refreshRemaining(0); assert.equal(h.status().canRecover, true);
+  const task = h.status().cancelRecovery(); h.render(); assert.equal(h.status().busy, true); assert.equal(h.status().cancellationPending, true);
+  assert.equal(await task, null); await h.flush();
+  assert.equal(h.status().busy, false); assert.equal(h.status().canRecover, false); assert.equal(h.status().cancellationPending, false);
+  assert.equal(h.attempts.length, 0); assert.equal(h.recoveries.length, 0); assert.equal(storage.entries.size, 0);
+  assert.deepEqual(h.cancellations, [{ requestId: "missing-request-0001", mediaKind: "video", surface: "studio", expectedAccountId: "account-a" }]); h.dispose();
+});
+
+test("abandoning an already registered stored attempt retrieves its paid result without cancelling or refunding that job", async () => {
+  const storage = memoryStorage(); recovery.writeAiMediaGenerationRecovery(storage, "account-a", { requestId: "paid-request-0001", kind: "video", format: "story" });
+  const h = harness(storage, "processing"); await h.refreshRemaining(0);
+  const task = h.status().cancelRecovery(); h.render(); await h.flush(); assert.equal(h.recoveries[0].requestId, "paid-request-0001");
+  h.recoveries[0].resolve(Response.json({ ok: true, status: "completed", item: { ...successfulResult().payload.item, media_type: "video" }, draft: true }));
+  assert.equal((await task)?.item.id, "draft-a"); assert.equal(h.attempts.length, 0); assert.equal(h.cancellations.length, 1); assert.equal(storage.entries.size, 0); h.dispose();
 });
 
 test("an authoritative deleted result clears a restored pointer without polling, refunding or submitting generation", async () => {
