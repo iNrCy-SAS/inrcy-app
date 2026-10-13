@@ -23,6 +23,8 @@ import {
 import { isPublicEmbedPath } from "./lib/actusWidgetEmbed";
 import { CHECKOUT_RETURN_HEADER, checkoutReturnQuery } from "./lib/checkoutReturnRouting";
 import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "./lib/multicompte/constants";
+import { isUuidLike, normalizeAccountSummary, pickDefaultAccount } from "./lib/multicompte/normalize";
+import { hasFullProductReviewerAccess } from "./lib/reviewerAccess";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -358,6 +360,39 @@ async function getTrustedUserRole(userId: string | null): Promise<string | null>
 async function isAdminUser(userId: string | null): Promise<boolean> {
   const role = await getTrustedUserRole(userId);
   return role === "admin" || role === "staff";
+}
+
+async function resolveTrustedReviewerActiveAccountId(
+  authUserId: string,
+  requestedAccountId: string | null,
+): Promise<string | null> {
+  try {
+    const headers = getSupabaseHeaders();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!headers || !supabaseUrl) return null;
+
+    const url = new URL(`${supabaseUrl}/rest/v1/inrcy_account_members`);
+    url.searchParams.set("select", "account_id,role,is_default,inrcy_accounts!inner(display_name)");
+    url.searchParams.set("auth_user_id", `eq.${authUserId}`);
+    url.searchParams.set("order", "is_default.desc,created_at.asc");
+    const response = await fetch(url.toString(), { headers, cache: "no-store" });
+    if (!response.ok) return null;
+    const rows: unknown = await response.json();
+    if (!Array.isArray(rows)) return null;
+    const accounts = rows
+      .filter((row): row is Record<string, unknown> => Boolean(row && typeof row === "object" && isUuidLike(row.account_id)))
+      .map((row) => normalizeAccountSummary(row as Record<string, unknown>, authUserId))
+      .filter((account) => isUuidLike(account.id));
+    // The application resolver rejects an empty membership list; never use
+    // pickDefaultAccount's display fallback as authorization evidence here.
+    if (!accounts.length) return null;
+    const requested = requestedAccountId
+      ? accounts.find((account) => account.id === requestedAccountId)
+      : null;
+    return (requested || pickDefaultAccount(accounts, authUserId)).id;
+  } catch {
+    return null;
+  }
 }
 
 function isPublicBypassPath(pathname: string): boolean {
@@ -742,10 +777,21 @@ export async function proxy(req: NextRequest) {
     trustedUserRole = await getTrustedUserRole(authenticatedUserId);
     return trustedUserRole;
   };
-  // An account-switch hint can only remove the review exception here. The
-  // application still verifies membership before serving account data.
-  const reviewerActiveAccountMatches = !req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value
-    || req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value === authenticatedUserId;
+  const requestedReviewerAccountId = req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value || null;
+  let reviewerActiveAccountMatches: boolean | undefined;
+  const getReviewerToolRole = async () => {
+    // An account-switch hint can only remove the exception. With no cookie,
+    // resolve the real default membership instead of assuming the actor ID.
+    if (!authenticatedUserId || (requestedReviewerAccountId && requestedReviewerAccountId !== authenticatedUserId)) return null;
+    const role = await getCurrentUserRole();
+    if (!hasFullProductReviewerAccess(role, authenticatedUserId)) return null;
+    if (reviewerActiveAccountMatches === undefined) {
+      reviewerActiveAccountMatches = await resolveTrustedReviewerActiveAccountId(
+        authenticatedUserId, requestedReviewerAccountId,
+      ) === authenticatedUserId;
+    }
+    return reviewerActiveAccountMatches ? role : null;
+  };
 
   const isDashboardPath = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 
@@ -768,7 +814,7 @@ export async function proxy(req: NextRequest) {
 
     if (await getCurrentUserId()) {
       const [currentSubscriptionGate, role] = await Promise.all([
-        getCurrentSubscriptionGate(), getCurrentUserRole(),
+        getCurrentSubscriptionGate(), getReviewerToolRole(),
       ]);
 
       if (!isAllowedSubscription(currentSubscriptionGate)) {
@@ -783,7 +829,7 @@ export async function proxy(req: NextRequest) {
         edition: currentSubscriptionGate?.app_edition,
         plan: currentSubscriptionGate?.plan,
         developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
-      }), reviewerActiveAccountMatches ? role : null, authenticatedUserId);
+      }), role, authenticatedUserId);
       if (!isDashboardRouteAllowedForEdition(pathname, req.nextUrl.searchParams, edition)) {
         const url = req.nextUrl.clone();
         url.pathname = "/dashboard";
@@ -823,7 +869,7 @@ export async function proxy(req: NextRequest) {
       edition: currentSubscriptionGate?.app_edition,
       plan: currentSubscriptionGate?.plan,
       developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
-    }), reviewerActiveAccountMatches ? await getCurrentUserRole() : null, authenticatedUserId);
+    }), await getReviewerToolRole(), authenticatedUserId);
 
     if (
       currentUserId &&
