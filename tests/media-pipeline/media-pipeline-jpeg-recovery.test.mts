@@ -42,9 +42,11 @@ test("un JPEG sain garde le chemin normal sans indicateur de récupération", as
 
 test("un JPEG tronqué est récupéré sans modifier l'original ni perdre sa provenance", async () => {
   const complete = await jpegFixture(6);
-  const buffer = complete.subarray(0, complete.length - 80);
+  // Remove only the JPEG end marker, keeping every encoded pixel intact.
+  // A fixed byte count from the scan depends on the platform's JPEG encoder.
+  assert.equal(complete.readUInt16BE(complete.length - 2), 0xffd9);
+  const buffer = complete.subarray(0, complete.length - 2);
   const originalBytes = Buffer.from(buffer);
-  await assert.rejects(sharp(buffer, { failOn: "error" }).raw().toBuffer(), /premature end/i);
   const normalized = await normalizeImageBuffer({
     buffer,
     // The bytes, not a user-supplied extension or MIME type, authorize recovery.
@@ -77,6 +79,9 @@ test("un JPEG tronqué est récupéré sans modifier l'original ni perdre sa pro
     assert.equal(decoded.info.height, 96);
     assert.equal(decoded.data.length, 64 * 96 * 3);
   }
+  // Keep the independent strict rejection after the recovery path and its
+  // validations, so its native decoder warnings cannot precede that path.
+  await assert.rejects(sharp(buffer, { failOn: "error" }).raw().toBuffer(), /premature end/i);
 });
 
 test("les préparations aperçu et miniature propagent aussi la récupération", async () => {
