@@ -5,6 +5,14 @@
 .recoveryStop:disabled { opacity:.5; cursor:default; }
 .recoveryStop:focus-visible { outline:3px solid #a5b4fc; outline-offset:2px; }
 
+.textConflictWarning { display:flex;align-items:center;gap:12px;pointer-events:auto; }
+.textConflictWarning > span { flex:1;min-width:0; }
+.textConflictWarning > button { flex-shrink:0;padding:8px 10px;border:1px solid currentColor;border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
+.textConflictWarning > button:disabled { opacity:.5;cursor:default; }
+.textConflictWarning > button:focus-visible { outline:3px solid #a5b4fc;outline-offset:2px; }
+@media(max-width:620px) { .textConflictWarning { flex-wrap:wrap; } }
+@media(min-width:1101px) { .generator[data-layout="editor"] .generatorAlerts:has(.textConflictWarning) { bottom:110px; } }
+
 .generator,
 .creationWorkspace {
   min-width: 0;

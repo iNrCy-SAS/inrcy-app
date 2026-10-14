@@ -1553,8 +1553,8 @@ export default function MediaGenerator({
   const generationAction = <button
     type="button" className={styles.generateButton} data-media-primary-action
     disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked : disabled}
-    title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    aria-describedby={identityConsentMissing ? "ai-media-footer-consent-status" : undefined}
+    title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : !canRecover && !generationBusy && visibleTextModeConflict ? "Votre brief demande du texte visible. Choisissez « Texte rédigé par l’IA » ou « Texte exact » avant de générer." : undefined}
+    aria-describedby={[identityConsentMissing ? "ai-media-footer-consent-status" : "", !canRecover && !generationBusy && visibleTextModeConflict ? `${instanceId}-text-conflict-status` : ""].filter(Boolean).join(" ") || undefined}
     onClick={() => { if (generationBusy) handleRequestGenerationStop(); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
   >
     <span aria-hidden="true">{generationBusy ? "■" : generationResult ? "↻" : "✦"}</span>
@@ -2342,13 +2342,6 @@ export default function MediaGenerator({
               ))}
             </div>
 
-            {visibleTextModeConflict ? (
-              <small className={styles.fieldAlert} role="alert">
-                Votre brief demande du texte visible. Choisissez « Texte rédigé
-                par l’IA » ou « Texte exact » avant de générer.
-              </small>
-            ) : null}
-
             {textMode === "exact" ? (
               <label
                 className={`${styles.essentialTextareaField} ${styles.exactTextField}`}
@@ -2578,6 +2571,14 @@ export default function MediaGenerator({
       </div>
 
       <div className={styles.generatorAlerts} aria-live="polite">
+        {!canRecover && !generationBusy && visibleTextModeConflict ? (
+          <div className={`${styles.warning} ${styles.textConflictWarning}`} role="status" id={`${instanceId}-text-conflict-status`}>
+            <span>Votre brief demande du texte visible. Choisissez « Texte rédigé par l’IA » ou « Texte exact » avant de générer.</span>
+            <button type="button" disabled={operationLocked} onClick={() => setActiveSettingsTab("finish")}>
+              {t(kind === "video" ? "ai_generator_editor_tab_text_voice" : "ai_generator_redesign_image_finish_title")} <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        ) : null}
         {preferencesError ? (
           <div className={styles.preferencesError} role="alert">
             {t(
