@@ -136,6 +136,14 @@ export default function MediaEngineCreditControls(props: Props) {
     if (props.referenceCount > option.maxReferenceImages) return t("ai_generator_model_reference_limit", { count: option.maxReferenceImages });
     return "";
   };
+  const videoCompatibilityReason = (engine: AiMediaVideoEngine) => {
+    const option = getAiMediaVideoModel(engine);
+    if (props.referenceCount === 0 && !option.supportsTextToVideo) return t("ai_generator_model_photo_required");
+    if (props.referenceCount > 0 && !option.supportsImageToVideo) return t("ai_generator_model_text_only");
+    if (!isMediaVideoReferenceCompatible(engine, props.referenceCount)) return t("ai_generator_model_reference_limit", { count: option.maxReferenceImages });
+    if (!isMediaVideoBriefCompatible(engine, props.brief ?? "")) return t("ai_generator_engine_brief_too_long");
+    return "";
+  };
   const model = getAiMediaVideoModel(props.videoEngine);
   const selectedResolution = model.resolutions.includes(props.resolution) ? props.resolution : model.defaultResolution;
   const compatible = props.kind !== "video" || isMediaVideoReferenceCompatible(props.videoEngine, props.referenceCount);
@@ -160,7 +168,7 @@ export default function MediaEngineCreditControls(props: Props) {
   const recommendedPair = recommendedPairs.find((choice) => choice.resolution === getAiMediaVideoModel(choice.engine).defaultResolution) ??
     recommendedPairs.sort((first, second) => first.creditsPerSecond - second.creditsPerSecond)[0];
   const selectDescription = [
-    !isMediaVideoBriefCompatible(props.videoEngine, props.brief ?? "") ? t("ai_generator_engine_brief_too_long") : "",
+    videoCompatibilityReason(props.videoEngine),
     recommended && props.recommendation ? t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) }) : "",
   ].filter(Boolean).join(" ");
   const selectVideoPair = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) => {
@@ -186,7 +194,7 @@ export default function MediaEngineCreditControls(props: Props) {
       {(["Google", "MiniMax", "Alibaba", "Grok"] as const).map((family) => <optgroup key={family} label={family}>
         {choices.filter((option) => option.family === family).map((option) => <option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>
           {option.label} · {option.resolution} · {t("ai_generator_model_credit_rate_short", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}
-          {!pairSelectable(option.engine, option.resolution) ? ` · ${t(isMediaVideoBriefCompatible(option.engine, props.brief ?? "") ? "ai_generator_model_unavailable_short" : "ai_generator_engine_brief_too_long")}` : ""}
+          {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine)}` : ""}
           {recommendedPair?.value === option.value ? ` · ${t("ai_generator_model_recommended_short")}` : ""}
         </option>)}
       </optgroup>)}

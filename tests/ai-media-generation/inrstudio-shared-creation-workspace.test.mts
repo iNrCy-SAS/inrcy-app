@@ -393,3 +393,15 @@ test("un critère manquant indique précisément son onglet et disparaît une fo
   assert.equal(elements(complete).filter((node) => node.props.className === "tabWarning").length, 0);
   assert.equal(button(complete, "Texte").props["aria-describedby"], undefined);
 });
+
+test("une alerte d’onglet explique précisément le champ manquant", () => {
+  const reason = "Ajoutez une image de départ pour ce moteur.";
+  const tree = record.exports.MediaGenerationSettingsTabs({ idPrefix: "free-video", activeTab: "criteria", onChange() {},
+    tabs: [{ id: "prompt", label: "Prompt" }, { id: "criteria", label: "Critères", warning: reason }] });
+  const criteria = button(tree, "Critères");
+  assert.equal(criteria.props.title, reason);
+  assert.equal(criteria.props["aria-label"], "Critères");
+  const description = find(tree, (node) => node.props.id === criteria.props["aria-describedby"]);
+  assert.equal(text(description), reason);
+  assert.doesNotMatch(text(description), /ai_generator_editor_criteria_incomplete/);
+});

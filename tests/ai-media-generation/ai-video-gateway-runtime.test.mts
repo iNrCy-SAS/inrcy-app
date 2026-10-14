@@ -10,6 +10,7 @@ import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
+import { AiMediaRequestValidationError } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 
@@ -75,6 +76,7 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
       recordAiGatewayAccountFailure: async () => noOp(),
     }],
     ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
+    ["@/lib/aiMediaGenerationContracts", { AiMediaRequestValidationError }],
     ["./aiMediaModelCatalog.ts", catalog],
     ["./aiMediaCreditsPricing.ts", pricing],
     ["./aiMediaVideoTimeline.ts", timeline],
@@ -170,6 +172,93 @@ test("Gateway submits one exact reviewed model with native short duration and no
     assert.equal(context.observed()?.generateAudio, true);
     assert.equal(context.observed()?.maxRetries, 0);
     assert.equal(context.observed()?.n, 1);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+  });
+});
+
+for (const engine of ["grok-lite", "grok"] as const) {
+  for (const resolution of ["720p", "1080p"] as const) {
+    for (const [format, aspectRatio] of [["landscape", "16:9"], ["portrait", "3:4"], ["story", "9:16"]] as const) {
+      test(`${engine}: ${resolution} ${format} reaches xAI as a native tier without a dimensions warning`, async () => {
+        await withMockCredentials(async () => {
+          const context = loadRuntime();
+          const args = argsFor(engine, 1, 4);
+          args.request.videoResolution = resolution;
+          args.request.format = format;
+          const result = await context.runtime.createGatewayAiVideoProvider(engine).generate(args);
+          const input = context.observed();
+          assert.deepEqual(input?.providerOptions, { xai: { resolution } });
+          assert.equal(input?.resolution, undefined);
+          assert.equal(input?.aspectRatio, aspectRatio);
+          assert.equal((input?.prompt as { text: string }).text, args.canonicalPrompt);
+          assert.equal(input?.generateAudio, true);
+          assert.equal(result.clips[0].durationSeconds, 4);
+          assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+        });
+      });
+    }
+  }
+}
+
+for (const [resolution, format, dimensions] of [
+  ["720p", "landscape", "1280x720"], ["720p", "story", "720x1280"],
+  ["1080p", "landscape", "1920x1080"], ["1080p", "story", "1080x1920"],
+] as const) {
+  test(`Wan Flash: ${resolution} ${format} keeps explicit dimensions and native audio without unsupported aspectRatio`, () => {
+    const { runtime } = loadRuntime();
+    const args = argsFor("wan-flash", 1, 4);
+    args.request.videoResolution = resolution;
+    args.request.format = format;
+    const input = runtime.buildGatewayAiVideoRequest(args);
+    assert.equal(input.resolution, dimensions);
+    assert.equal(input.aspectRatio, undefined);
+    assert.equal(input.providerOptions, undefined);
+    assert.equal(input.generateAudio, true);
+  });
+}
+
+test("Grok 1.5 accepts two references in 720p without losing either reference", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const args = argsFor("grok", 2, 4);
+    await context.runtime.createGatewayAiVideoProvider("grok").generate(args);
+    const input = context.observed();
+    assert.deepEqual(input?.providerOptions, { xai: { resolution: "720p" } });
+    assert.equal((input?.inputReferences as unknown[]).length, 2);
+    assert.equal(input?.prompt, args.canonicalPrompt);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+  });
+});
+
+test("Grok 1.5 refuses two references in 1080p before any supplier reservation or submission", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const args = argsFor("grok", 2, 4);
+    args.request.videoResolution = "1080p";
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("grok").generate(args), (error: unknown) => {
+      assert.ok(error instanceof AiMediaRequestValidationError);
+      assert.equal(error.code, "invalid_ai_media_request");
+      assert.match(error.message, /720p uniquement/);
+      return true;
+    });
+    assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  });
+});
+
+test("H3 keeps its reviewed request and speech prompt without an unsupported audio switch", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const args = argsFor("minimax-h3", 0, 4);
+    args.canonicalPrompt = "La femme dit exactement : Bonjour, bienvenue dans notre atelier.";
+    args.canonicalPromptSha256 = boundary.hashAiMediaCanonicalPrompt(args.canonicalPrompt);
+    await context.runtime.createGatewayAiVideoProvider("minimax-h3").generate(args);
+    const input = context.observed();
+    assert.equal(input?.model, "minimax/minimax-h3");
+    assert.equal(input?.prompt, args.canonicalPrompt);
+    assert.equal(input?.resolution, "1366x768");
+    assert.equal(input?.aspectRatio, "16:9");
+    assert.equal(input?.generateAudio, undefined);
+    assert.equal(input?.providerOptions, undefined);
     assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
   });
 });

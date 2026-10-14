@@ -8,6 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
+import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
   getAiMediaVideoResolution,
@@ -74,6 +75,9 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   const references = continuityFrame ? [continuityFrame] : args.request.inspirationImages;
   if (!references.length && !model.supportsTextToVideo) throw new Error("ai_media_video_reference_required");
   if (references.length && (!model.supportsImageToVideo || references.length > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
+  if (model.id === "grok" && resolution === "1080p" && references.length > 1) {
+    throw new AiMediaRequestValidationError("Grok Imagine 1.5 accepte plusieurs références en 720p uniquement. Choisissez 720p ou une seule image de référence pour générer en 1080p.");
+  }
   assertAiVideoReferenceTeamProviderEgress(args, model.provider);
   const completePrompt = buildGoogleVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) });
   const text = model.id === "wan-flash" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
@@ -95,9 +99,12 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
     prompt: imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
     ...(imageInputs.length > 1 ? { inputReferences: imageInputs } : {}),
     duration,
-    resolution: `${width}x${height}` as `${number}x${number}`,
-    aspectRatio: aspectRatio as `${number}:${number}`,
-    generateAudio: model.nativeAudio,
+    // xAI expects its native resolution tier independently of orientation.
+    ...(model.provider === "spacexai"
+      ? { providerOptions: { xai: { resolution } } }
+      : { resolution: `${width}x${height}` as `${number}x${number}` }),
+    ...(model.id !== "wan-flash" ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+    ...(model.id !== "minimax-h3" ? { generateAudio: model.nativeAudio } : {}),
     n: 1,
     // An uncertain timeout must never cause a second paid submission.
     maxRetries: 0,

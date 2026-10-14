@@ -59,17 +59,17 @@ type Props = {
   engineControls?: ReactNode;
 };
 
-export function MediaGenerationSettingsTabs({ idPrefix, tabs, activeTab, onChange }: { idPrefix: string; tabs: readonly { id: string; label: string; warning?: boolean }[]; activeTab: string; onChange: (id: string) => void }) {
+export function MediaGenerationSettingsTabs({ idPrefix, tabs, activeTab, onChange }: { idPrefix: string; tabs: readonly { id: string; label: string; warning?: boolean | string }[]; activeTab: string; onChange: (id: string) => void }) {
   const t = useTranslations("media");
   return <div className={editorStyles.tabs} role="tablist" aria-label={t("ai_generator_editor_settings_label")}>
-    {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`${idPrefix}-tab-${tab.id}`} aria-controls={`${idPrefix}-panel-${tab.id}`} aria-label={tab.label} aria-describedby={tab.warning ? `${idPrefix}-warning-${tab.id}` : undefined} title={tab.warning ? t("ai_generator_editor_criteria_incomplete") : undefined} aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={(event) => {
+    {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`${idPrefix}-tab-${tab.id}`} aria-controls={`${idPrefix}-panel-${tab.id}`} aria-label={tab.label} aria-describedby={tab.warning ? `${idPrefix}-warning-${tab.id}` : undefined} title={tab.warning ? (typeof tab.warning === "string" ? tab.warning : t("ai_generator_editor_criteria_incomplete")) : undefined} aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} onKeyDown={(event) => {
       const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length : null;
       if (next === null) return;
       event.preventDefault(); onChange(tabs[next].id);
       document.getElementById(`${idPrefix}-tab-${tabs[next].id}`)?.focus();
     }}><span>{tab.label}</span>{tab.warning && <>
       <span className={editorStyles.tabWarning} aria-hidden="true">⚠︎</span>
-      <span id={`${idPrefix}-warning-${tab.id}`} className={editorStyles.warningDescription}>{t("ai_generator_editor_criteria_incomplete")}</span>
+      <span id={`${idPrefix}-warning-${tab.id}`} className={editorStyles.warningDescription}>{(typeof tab.warning === "string" ? tab.warning : t("ai_generator_editor_criteria_incomplete"))}</span>
     </>}</button>)}
   </div>;
 }

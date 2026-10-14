@@ -48,7 +48,7 @@ import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
 import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
-import { getAiMediaVideoModel, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
+import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
@@ -144,6 +144,7 @@ export default function MediaFreeGenerator({
     reset,
   } = useMediaGeneration();
   const enginePreference = useMediaEnginePreference(quota?.accountId);
+  const imageModel = getAiMediaImageModel(enginePreference.imageEngine);
   const videoModel = getAiMediaVideoModel(enginePreference.videoEngine);
   const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
     ? enginePreference.videoResolution : videoModel.defaultResolution;
@@ -203,6 +204,26 @@ export default function MediaFreeGenerator({
   const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(enginePreference.videoEngine, references.length) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, effectivePrompt);
   const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
+  const promptWarning = operationLocked ? "" : !promptReady
+    ? t("ai_generator_idea_required")
+    : !briefCompatible ? t("ai_generator_engine_brief_too_long") : "";
+  const referenceCompatibilityReason = kind === "video"
+    ? references.length === 0 && !videoModel.supportsTextToVideo
+      ? t("ai_generator_model_photo_required")
+      : !videoModel.supportsImageToVideo
+        ? t("ai_generator_model_text_only")
+        : t("ai_generator_model_reference_limit", { count: videoModel.maxReferenceImages })
+    : references.length > imageModel.maxReferenceImages && imageModel.supportsReferences
+      ? t("ai_generator_model_reference_limit", { count: imageModel.maxReferenceImages })
+      : t("ai_generator_image_references_unavailable");
+  const criteriaWarning = operationLocked ? "" : !referenceCompatible
+    ? referenceCompatibilityReason
+    : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
+    : roleLimitExceeded ? t("ai_generator_free_role_limit")
+    : identityRequired && !identityConsent ? t("ai_generator_video_character_consent_required")
+    : teamConsentRequired && !teamConsent ? t("ai_generator_team_video_consent_required") : "";
+  const photoRequiredHint = kind === "video" && !videoModel.supportsTextToVideo
+    ? t("ai_generator_model_photo_required") : "";
   const creditQuote = useMediaCreditQuote({ kind, format: fixedFormat || format, operation: "generate", creationMode: "free",
     inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto",
     videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
@@ -706,8 +727,8 @@ export default function MediaFreeGenerator({
       <div className={editorStyles.editorBody}>
         <div className={editorStyles.settingsPane}>
           <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[
-            { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: !operationLocked && (!promptReady || !briefCompatible) },
-            { id: "criteria", label: t("ai_generator_editor_tab_criteria"), warning: !operationLocked && (!referenceCompatible || referenceCriteriaIncomplete || roleLimitExceeded || (identityRequired && !identityConsent) || (teamConsentRequired && !teamConsent)) },
+            { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: promptWarning },
+            { id: "criteria", label: t("ai_generator_editor_tab_criteria"), warning: criteriaWarning },
           ]} />
           <div className={editorStyles.settingsPanels}>
         <section
@@ -755,12 +776,14 @@ export default function MediaFreeGenerator({
           <div className={styles.referencesSection}>
             <div className={styles.sectionHeading}>
               <h3>{t("ai_generator_free_references_title")}</h3>
-              <span>{t("ai_generator_free_optional")}</span>
+              {kind !== "video" || videoModel.supportsTextToVideo ? <span>{t("ai_generator_free_optional")}</span> : null}
             </div>
-            <p className={styles.muted}>
-              {t("ai_generator_free_references_hint", {
-                count: AI_MEDIA_INSPIRATION_MAX_COUNT,
-              })}
+            <p className={styles.muted} role={criteriaWarning && criteriaWarning === photoRequiredHint ? "alert" : undefined}>
+              {photoRequiredHint
+                ? photoRequiredHint
+                : t("ai_generator_free_references_hint", {
+                    count: AI_MEDIA_INSPIRATION_MAX_COUNT,
+                  })}
             </p>
             <div className={styles.referenceActions}>
               <label
@@ -903,15 +926,8 @@ export default function MediaFreeGenerator({
                 {t("ai_generator_free_references_video_hint")}
               </p>
             ) : null}
-            {referenceCriteriaIncomplete ? (
-              <p className={styles.referenceCriteriaHint} role="status">
-                {t("ai_generator_free_reference_criteria_required")}
-              </p>
-            ) : null}
-            {roleLimitExceeded ? (
-              <p className={styles.error} role="alert">
-                {t("ai_generator_free_role_limit")}
-              </p>
+            {criteriaWarning && criteriaWarning !== photoRequiredHint ? (
+              <p className={styles.muted} role="alert">{criteriaWarning}</p>
             ) : null}
           </div>
           {identityRequired ? (
