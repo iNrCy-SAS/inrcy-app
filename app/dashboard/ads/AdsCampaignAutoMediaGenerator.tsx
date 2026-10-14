@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import useMediaGeneration, {
+  type MediaGenerationRequest,
   type MediaGenerationResult,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import {
@@ -88,6 +89,65 @@ export default function AdsCampaignAutoMediaGenerator({
     // effect rehearsal from spending a media credit then immediately aborting
     // the only generation attempt.
     let disposed = false;
+    const quoteController = new AbortController();
+    const generateConfirmedMedia = async (request: MediaGenerationRequest) => {
+      // Keep one set of parameters for the quote and the generation. Studio's
+      // legacy automatic video path used 16 seconds, whereas quotes default to 8.
+      const mediaRequest: MediaGenerationRequest = {
+        ...request,
+        operation: "generate",
+        inputMode: "essential",
+        imageEngine: request.kind === "image" ? request.imageEngine || "openai" : undefined,
+        videoEngine: request.kind === "video" ? request.videoEngine || "omni" : undefined,
+        videoResolution: request.kind === "video" ? request.videoResolution || "720p" : undefined,
+        durationSeconds: request.kind === "video" ? request.durationSeconds || 16 : undefined,
+        sceneMode: request.kind === "video" ? request.sceneMode || "single" : undefined,
+      };
+      const response = await fetch("/api/media-generation/quote", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: quoteController.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: mediaRequest.kind,
+          operation: mediaRequest.operation,
+          creationMode: mediaRequest.creationMode,
+          inputMode: mediaRequest.inputMode,
+          imageEngine: mediaRequest.imageEngine,
+          format: mediaRequest.format,
+          videoEngine: mediaRequest.videoEngine,
+          videoResolution: mediaRequest.videoResolution,
+          durationSeconds: mediaRequest.durationSeconds,
+          sceneMode: mediaRequest.sceneMode,
+          inspirationImagesCount: mediaRequest.inspirationImages?.length || 0,
+          identityMode: mediaRequest.identityMode || "auto",
+          withNarration: Boolean(mediaRequest.withNarration),
+          teamVideoSpeechMode: mediaRequest.teamVideoSpeechMode || "voiceover",
+        }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        ok?: boolean;
+        error?: string;
+        quote?: { totalCredits?: unknown; tariffVersion?: unknown; quoteId?: unknown };
+      } | null;
+      if (disposed || quoteController.signal.aborted) throw new Error("Création du média annulée.");
+      if (!response.ok || payload?.ok !== true) {
+        throw new Error(payload?.error || "Le devis du média est momentanément indisponible.");
+      }
+      const quote = payload.quote;
+      if (!quote || typeof quote.totalCredits !== "number" || !Number.isSafeInteger(quote.totalCredits) || quote.totalCredits < 0
+        || typeof quote.tariffVersion !== "string" || !quote.tariffVersion.trim()
+        || typeof quote.quoteId !== "string" || !/^[a-f0-9]{64}$/.test(quote.quoteId)) {
+        throw new Error("Le devis du média est incomplet. Réessayez l’analyse.");
+      }
+      return generate({
+        ...mediaRequest,
+        expectedCredits: quote.totalCredits,
+        creditTariffVersion: quote.tariffVersion,
+        creditQuoteId: quote.quoteId,
+      });
+    };
     const timer = window.setTimeout(() => {
       if (disposed || startedRef.current) return;
       startedRef.current = true;
@@ -128,7 +188,7 @@ export default function AdsCampaignAutoMediaGenerator({
               const slot = slots[index];
               batchProgressRef.current = { index, total: slots.length };
               const metaPrompt = slot === "feed" ? metaFeedImagePrompt(plan) : metaStoryReelImagePrompt(plan);
-              const generated = await generate({
+              const generated = await generateConfirmedMedia({
                 creationMode: "free",
                 freePrompt: metaPrompt,
                 kind: "image",
@@ -153,7 +213,7 @@ export default function AdsCampaignAutoMediaGenerator({
             return;
           }
 
-          const generated = await generate({
+          const generated = await generateConfirmedMedia({
             creationMode: "free",
             freePrompt: prompt,
             kind,
@@ -192,6 +252,7 @@ export default function AdsCampaignAutoMediaGenerator({
 
     return () => {
       disposed = true;
+      quoteController.abort();
       window.clearTimeout(timer);
       // Closing the campaign studio must not let a background iNr'Studio
       // generation continue and consume a credit after the professional has

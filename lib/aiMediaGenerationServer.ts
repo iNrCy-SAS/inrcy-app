@@ -16,6 +16,7 @@ import { chooseAiMediaCastingVariation } from "@/lib/aiMediaCastingVariation";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
 import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
+import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import {
   AiGatewayAccountLimitError,
   AiGatewayGuardUnavailableError,
@@ -635,7 +636,7 @@ export async function generateAndSaveAiMedia(args: {
         )}. Aucun texte ni logo.`
       : "";
   const essentialScenePrecompositionPrompt =
-    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || officialLogo)
+    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || officialLogo || needsControlledAiMediaFreeFirstFrame(providerRequest))
       ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: effectiveColors, hasLogo: Boolean(officialLogo) })
       : providerRequest.inputMode === "essential" &&
     providerRequest.kind === "video" &&
@@ -891,9 +892,10 @@ export async function generateAndSaveAiMedia(args: {
     const segmentDurations = getAiMediaVideoSegmentDurations(durationSeconds, providerRequest.videoEngine, providerRequest.videoResolution, providerRequest.sceneMode);
     const nativeVoiceoverRequested = isFreeCreation &&
       providerRequest.withNarration &&
-      providerRequest.teamVideoSpeechMode !== "characters";
-    // Libre prépare uniquement les mots avant le coût vidéo. La voix est
-    // d'abord produite par Omni/Veo avec l'image ; aucun TTS n'est lancé ici.
+      providerRequest.teamVideoSpeechMode !== "characters" &&
+      !usesSeparateAiMediaFreeVoiceover(providerRequest);
+    // Les autres moteurs conservent leur voix native. Grok prépare la piste
+    // TTS séparée et la valide avant tout appel vidéo facturé.
     const nativeVoiceoverNarration = nativeVoiceoverRequested
       ? await measure("native_voiceover_copy", () => writeAiMediaFreeNarration({
           accountId: args.accountId,
@@ -976,6 +978,9 @@ export async function generateAndSaveAiMedia(args: {
       request: AiMediaGenerationRequest,
       overrides: Partial<VideoProviderOverrides> = {}
     ): Promise<AiVideoProviderResult> => {
+      const modelRequest = usesSeparateAiMediaFreeVoiceover(request)
+        ? { ...request, withNarration: false }
+        : request;
       // Le mode ADN autorise volontairement une consigne vide dans l'UI.
       // Le contrat fournisseur doit néanmoins recevoir un sujet concret :
       // réutiliser le plan déjà construit, sans inventer de fait métier.
@@ -991,7 +996,7 @@ export async function generateAndSaveAiMedia(args: {
               .join(" ")
           : "";
       const providerContract = buildAiMediaVideoProviderContract({
-        request,
+        request: modelRequest,
         durationSeconds: getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode)[0],
         brandColors: effectiveColors,
         profileFallback,
@@ -1001,7 +1006,7 @@ export async function generateAndSaveAiMedia(args: {
       });
       const providerArgs: AiVideoProviderGenerationArgs = {
         accountId: args.accountId,
-        request,
+        request: modelRequest,
         plan: creativePlan,
         canonicalPrompt: prompt,
         canonicalPromptSha256: promptHash,
@@ -1058,13 +1063,12 @@ export async function generateAndSaveAiMedia(args: {
       }
     };
 
-    // En Guidé, le préflight TTS précède toujours l'appel vidéo. En Libre,
-    // seule l'écriture du script natif précède l'appel ; la synthèse TTS est
-    // différée jusqu'à un éventuel échec du contrôle de la voix native.
+    // Le préflight TTS de Grok Libre et du parcours Guidé précède les appels
+    // image/vidéo. Les autres moteurs Libre conservent leur voix native.
     const generateVideoGateway = () => measure("video_generation", async () => {
       if (
         providerRequest.inputMode === "essential" &&
-        (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo))
+        (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
       ) {
         if (
           providerRequest.identityMode === "reference_team" &&
@@ -1090,6 +1094,8 @@ export async function generateAndSaveAiMedia(args: {
           );
         } catch (primaryError) {
           args.signal?.throwIfAborted();
+          // Grok's controlled frame is one attempt; an ambiguous failure must not fund a second image provider.
+          if (needsControlledAiMediaFreeFirstFrame(providerRequest)) throw primaryError;
           if (
             primaryError instanceof AiGatewayAccountLimitError ||
             primaryError instanceof AiGatewayGuardUnavailableError
@@ -1696,8 +1702,8 @@ export async function generateAndSaveAiMedia(args: {
     ) {
       throw new Error("ai_media_narration_unavailable");
     }
-    // Le dialogue de personnage reste natif ; la voix off Libre utilise un
-    // TTS séparé uniquement après un contrôle natif non concluant.
+    // Le dialogue reste natif. La voix off Libre Grok est composée séparément ;
+    // les autres moteurs gardent leur secours TTS après contrôle natif.
     if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
         "native_character_dialogue_qa_rejected_native_audio_muted"

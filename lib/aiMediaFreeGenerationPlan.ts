@@ -7,7 +7,7 @@ import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { AiMediaRequestValidationError, type AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
-import { buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogue, resolveAiMediaFreeDialogueSequence, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT, buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogue, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeQuotedSpeech, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
 
 function cleaned(value: unknown) {
   return typeof value === "string" ? value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim() : "";
@@ -54,7 +54,8 @@ export async function prepareAiMediaFreeCreativePlan(args: {
     throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
   exactDialogue.forEach((line) => validateAiMediaFreeDialogueLine(line, (args.request.durationSeconds || 8) / base.scenes.length));
-  const protectedTerms = literalTerms(prompt).filter((term) => !exactDialogue.includes(term));
+  const { visualPrompt, audioOnlyQuotes } = splitAiMediaFreeQuotedSpeech(prompt);
+  const protectedTerms = literalTerms(visualPrompt);
   const generated = await aiGenerateJSON<{ direction?: unknown; scenes?: unknown }>({
     accountId: args.accountId,
     feature: "media.video",
@@ -64,18 +65,20 @@ export async function prepareAiMediaFreeCreativePlan(args: {
       args.request.useBusinessDna
         ? "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Le professionnel a choisi son ADN comme source de faits utiles à son brief ; sa demande créative reste prioritaire. Ne convertis pas une demande artistique en publicité, ne force pas un logo, une palette, un slogan ni un appel à l’action."
         : "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Ne convertis pas une demande artistique en publicité. L'entreprise n'est utile que si le brief s'y réfère.",
-      "direction contient l'ensemble des contraintes nécessaires au film, avec tous les textes/valeurs littérales fournis. Ne récite pas les consignes dans le film. Les paroles ne sont pas du texte visible.",
+      "direction et visualBrief contiennent la mise en scène et les textes/valeurs visuels demandés, conservés dans exact_terms. Les citations audio_only_quotes restent exclusivement dans le canal audio : ne pas recopier leurs paroles dans direction ou visualBrief ni les convertir en texte visible. Une même phrase explicitement demandée aussi à l'écran reste conservée dans exact_terms. Ne récite pas les consignes dans le film ; les contrôles audio restent autoritaires.",
+      AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT,
       args.request.sceneMode === "single"
         ? "scenes contient exactement le nombre de segments demandé (durée indiquée dans les paramètres) pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
         : "scenes contient exactement le nombre de plans demandé (durée indiquée dans les paramètres). Chaque plan apporte une étape visuelle distincte de la réalisation ; les changements de cadrage ou de lieu suivent le brief et conservent une cohérence d'ensemble.",
       nativeDialogue
         ? "Pour chaque plan, visualBrief décrit l'action et identifie clairement le personnage qui parle. spokenLine contient une seule réplique naturelle, complète, de 14 mots et 90 caractères maximum. Voix synthétiques, pas de clonage. Respecte la langue demandée, sinon celle du brief. Les répliques exactes fournies sont attribuées dans l'ordre, une par plan ; après la dernière, spokenLine reste vide. Si aucune réplique n'est fournie, écris les paroles pertinentes pour cette création, sans slogan commercial imposé. La direction ne répète pas les paroles : spokenLine est leur seule source autoritaire. Pas de narrateur ajouté."
-        : "Aucun dialogue des personnages : si une voix off est demandée, elle sera produite nativement par le moteur vidéo à partir d'un script transmis séparément pour chaque plan. Ne pas animer les bouches pour cette voix off.",
+        : "Aucun dialogue des personnages : si une voix off est demandée, elle sera produite à partir d'un script transmis séparément au canal audio pour chaque plan. Ne pas animer les bouches pour cette voix off.",
       "Conserve les informations exactes ; n'invente pas de prix, de coordonnées ou de faits d'entreprise. Réponds dans la langue du brief. Les options explicites de format, durée, références et audio sont autoritaires.",
     ].join(" "),
     input: JSON.stringify({
       brief: prompt,
       exact_terms: protectedTerms,
+      audio_only_quotes: audioOnlyQuotes,
       count: base.scenes.length,
       format: args.request.format,
       duration: args.request.durationSeconds,

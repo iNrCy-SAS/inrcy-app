@@ -8,6 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
+import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT } from "./aiMediaFreeGenerationPrompt.ts";
 import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
@@ -54,7 +55,7 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
     audio,
     `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
     args.request.creationMode === "free"
-      ? "Draw words only when explicitly requested; speech is never visual text."
+      ? AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT
       : "No visual text, numbers, UI, logos or technical annotations; iNrCy adds overlays.",
   ].filter(Boolean).join("\n");
   if (prompt.length > 1500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);

@@ -10,6 +10,7 @@ import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as imageRequest from "../../lib/aiMediaImageProviderRequest.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import * as freeVoiceoverPolicy from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 
 type RecordValue = Record<string, unknown>;
@@ -69,6 +70,7 @@ function serverHarness(providerFailure = false) {
     ["@/lib/aiMediaCopywriter", { writeAiMediaHeadline: async () => { counts.headline += 1; return plan; } }],
     ["@/lib/aiMediaFreeGenerationPlan", { buildAiMediaFreeBasePlan: () => plan, prepareAiMediaFreeCreativePlan: async () => { counts.creative += 1; return plan; } }],
     ["@/lib/aiMediaFreeGenerationPrompt", freePrompt],
+    ["@/lib/aiMediaFreeVoiceoverPolicy", freeVoiceoverPolicy],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: class extends Error {}, AiGatewayGuardUnavailableError: class extends Error {} }],
     ["@/lib/aiGeneratedMediaRegistry", { getExistingGeneratedAiMedia: async () => null, saveGeneratedAiMedia: async (args: RecordValue) => { counts.saved += 1; saved.push(args); return { id: "test-media", media_type: "image" }; } }],
     ["@/lib/boosterGenerationContext", { getBoosterGenerationContext: async () => ({ profile: {}, business: {}, recentPublications: [], cacheSource: "test" }) }],

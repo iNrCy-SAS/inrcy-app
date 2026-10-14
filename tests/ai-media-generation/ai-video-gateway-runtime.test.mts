@@ -12,6 +12,7 @@ import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import { AiMediaRequestValidationError } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
+import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 
 type Runtime = {
@@ -76,6 +77,7 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
       recordAiGatewayAccountFailure: async () => noOp(),
     }],
     ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
+    ["./aiMediaFreeGenerationPrompt.ts", freePrompt],
     ["@/lib/aiMediaGenerationContracts", { AiMediaRequestValidationError }],
     ["./aiMediaModelCatalog.ts", catalog],
     ["./aiMediaCreditsPricing.ts", pricing],
@@ -116,6 +118,19 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
   return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, hostedImages,
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed };
 }
+
+test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son transport compact", () => {
+  const context = loadRuntime();
+  const args = argsFor("wan-flash", 1, 4);
+  args.request.creationMode = "free";
+  args.request.freePrompt = args.providerContract.instruction;
+  const input = context.runtime.buildGatewayAiVideoRequest(args);
+  const prompt = (input.prompt as { text: string }).text;
+  assert.ok(prompt.includes(freePrompt.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
+  assert.ok(prompt.includes(`USER: ${args.request.freePrompt}`));
+  assert.ok(prompt.length <= 1500);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+});
 
 test("Gateway persists a useful warning without a private signed image URL", async () => {
   await withMockCredentials(async () => {
