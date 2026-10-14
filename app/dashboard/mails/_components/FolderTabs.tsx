@@ -8,7 +8,7 @@ type Props = {
   counts: FolderCounts;
   countsLoading?: boolean;
   onSelectFolder: (folder: Folder) => void;
-  adsTab?: { active: boolean; count: number | null; onSelect: () => void };
+  adsTab?: { active: boolean; count: number | null; countError?: string; onSelect: () => void };
 };
 
 export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, countsLoading = false, onSelectFolder, adsTab }: Props) {
@@ -37,8 +37,9 @@ export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, coun
         className={`${styles.folderTabBtn} ${adsTab.active ? styles.folderTabBtnActive : ""}`}
         onClick={adsTab.onSelect}
         type="button"
-        title="ADS"
-      ><span className={styles.folderTabLabel}>ADS</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
+        title={adsTab.countError || "ADS"}
+        aria-label={adsTab.countError ? `ADS : ${adsTab.countError}` : undefined}
+      ><span className={styles.folderTabLabel}>ADS</span><span className={styles.badgeCount}>{adsTab.countError ? "—" : adsTab.count ?? "…"}</span></button>}
     </div>
   );
 }

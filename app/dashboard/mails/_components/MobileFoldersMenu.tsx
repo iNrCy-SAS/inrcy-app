@@ -11,7 +11,7 @@ type Props = {
   countsLoading?: boolean;
   onClose: () => void;
   onSelectFolder: (folder: Folder) => void;
-  adsTab?: { active: boolean; count: number | null; onSelect: () => void };
+  adsTab?: { active: boolean; count: number | null; countError?: string; onSelect: () => void };
 };
 
 export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder, counts, countsLoading = false, onClose, onSelectFolder, adsTab }: Props) {
@@ -49,7 +49,9 @@ export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder,
             className={`${styles.mobileFolderBtn} ${adsTab.active ? styles.mobileFolderBtnActive : ""}`}
             onClick={() => { adsTab.onSelect(); onClose(); }}
             type="button"
-          ><span>ADS</span><span className={styles.badgeCount}>{adsTab.count ?? "…"}</span></button>}
+            title={adsTab.countError || "ADS"}
+            aria-label={adsTab.countError ? `ADS : ${adsTab.countError}` : undefined}
+          ><span>ADS</span><span className={styles.badgeCount}>{adsTab.countError ? "—" : adsTab.count ?? "…"}</span></button>}
         </div>
       </div>
     </div>

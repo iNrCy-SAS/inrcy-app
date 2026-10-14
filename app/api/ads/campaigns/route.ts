@@ -34,11 +34,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Filtre de campagnes invalide." }, { status: 400 });
   }
   const offset = Number(requestedOffset);
+  const countsOnly = searchParams.get("countsOnly") === "1";
   let query = supabaseAdmin.from("ads_campaigns")
-    .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact" })
+    .select("id,provider,ad_account_id,name,daily_budget_cents,end_date,draft,status,provider_resources,last_error,published_at,created_at", { count: "exact", head: countsOnly })
     .eq("user_id", user.activeUserId);
   if (!(await isAdsPilotAdmin(user.authUserId, user.activeUserId))) query = query.in("provider", [...ADS_PUBLIC_CHANNELS]);
   if (requestedStatus === "draft") query = query.eq("status", "draft");
+  if (countsOnly) {
+    const { error, count } = await query;
+    if (error || typeof count !== "number" || !Number.isInteger(count) || count < 0) {
+      return NextResponse.json({ error: "Impossible de charger le nombre de campagnes ADS." }, { status: 503 });
+    }
+    return NextResponse.json({ total: count }, { headers: { "Cache-Control": "no-store" } });
+  }
   const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })

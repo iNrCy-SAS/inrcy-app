@@ -47,6 +47,7 @@ import PublishAiConfigurationDrawer from "../booster/publier/components/PublishA
 import MobileFoldersMenu from "./_components/MobileFoldersMenu";
 import FolderTabs from "./_components/FolderTabs";
 import AdsCampaignsFolder from "./_components/AdsCampaignsFolder";
+import { useAdsCampaignCount } from "./_hooks/useAdsCampaignCount";
 import MailboxToolbar from "./_components/MailboxToolbar";
 import MailboxList from "./_components/MailboxList";
 import MailboxSearchPanel from "./_components/MailboxSearchPanel";
@@ -251,14 +252,14 @@ export default function MailboxClient({
   founderMode?: boolean;
   adsEnabled?: boolean;
 }) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
   const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const adsCampaignsSelected = adsEnabled && searchParams?.get("folder") === "campagnes-ads";
-  const [adsCampaignCount, setAdsCampaignCount] = useState<number | null>(null);
+  const { count: adsCampaignCount, error: adsCampaignCountError, refresh: refreshAdsCampaignCount } = useAdsCampaignCount(adsEnabled, activeAccountId);
   const supabase = useMemo(() => createClient(), []);
   const visibleFolders = useMemo(
     () => standardMode ? ALL_FOLDERS.filter((candidate) => candidate === "publications")
@@ -5737,7 +5738,7 @@ export default function MailboxClient({
             countsLoading={!historyCountsLoadedOnce}
             onClose={() => setMobileFoldersOpen(false)}
             onSelectFolder={updateFolder}
-            adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
+            adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, countError: adsCampaignCountError, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
           />
         ) : null}
 
@@ -5750,11 +5751,11 @@ export default function MailboxClient({
                 counts={counts}
                 countsLoading={!historyCountsLoadedOnce}
                 onSelectFolder={updateFolder}
-                adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
+                adsTab={adsEnabled ? { active: Boolean(adsCampaignsSelected), count: adsCampaignCount, countError: adsCampaignCountError, onSelect: () => router.replace("/dashboard/mails?folder=campagnes-ads") } : undefined}
               />
             ) : null}
 
-            {adsCampaignsSelected ? <AdsCampaignsFolder onCountChange={setAdsCampaignCount} draftOnly={searchParams?.get("boxView") === "drafts"} /> : <>
+            {adsCampaignsSelected ? <AdsCampaignsFolder key={activeAccountId} onCountChange={refreshAdsCampaignCount} draftOnly={searchParams?.get("boxView") === "drafts"} /> : <>
             <MailboxToolbar
               publicationOnly={standardMode}
               folder={folder}
