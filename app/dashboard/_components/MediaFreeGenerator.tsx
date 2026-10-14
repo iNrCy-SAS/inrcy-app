@@ -1185,11 +1185,6 @@ export default function MediaFreeGenerator({
           {t("ai_generator_free_retry_quota")}
         </button>
       ) : null}
-      {actionError || error ? (
-        <p className={styles.error} role="alert">
-          {actionError || error}
-        </p>
-      ) : null}
       {originChangedNotice ? (
         <p className={styles.muted} role="status">
           {t("ai_generator_origin_changed")}

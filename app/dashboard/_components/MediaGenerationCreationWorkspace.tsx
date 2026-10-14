@@ -150,6 +150,9 @@ export default function MediaGenerationCreationWorkspace({
   const instanceId = useId();
   const embedded = variant === "embedded";
   const rendering = generationInProgress ?? operationLocked;
+  const creationError = actionError || error;
+  const showCreationError = !rendering && !generationResult &&
+    (embedded ? Boolean(creationError) : creationStarted);
   const previewKind = generationResult?.item.media_type ?? kind;
   const resultPreviewFormat = generationResult
     ? resolveAiMediaPreviewFormat({
@@ -197,7 +200,7 @@ export default function MediaGenerationCreationWorkspace({
       data-media-kind={previewKind}
       data-creation-mode={creationMode}
       data-media-creation-stage={
-        generationResult ? "result" : rendering ? "progress" : creationStarted && (actionError || error || !embedded) ? "error" : "idle"
+        generationResult ? "result" : rendering ? "progress" : showCreationError ? "error" : "idle"
       }
     >
       <div className={styles.creationBackdrop} aria-hidden="true">
@@ -208,7 +211,7 @@ export default function MediaGenerationCreationWorkspace({
 
       {overlay}
 
-      {!generationResult && !rendering && (!creationStarted || (embedded && !actionError && !error)) ? <div className={editorStyles.idle}>
+      {!generationResult && !rendering && !showCreationError ? <div className={editorStyles.idle}>
         <span className={editorStyles.idleIcon} aria-hidden="true">✦</span>
         <p className={styles.creationEyebrow}>iNr’Studio</p>
         <h3>{t("ai_generator_editor_preview_title")}</h3>
@@ -442,11 +445,11 @@ export default function MediaGenerationCreationWorkspace({
         </div>
       ) : null}
 
-      {!rendering && !generationResult && creationStarted && (!embedded || Boolean(actionError || error)) ? (
-        <div className={styles.creationErrorPanel}>
+      {showCreationError ? (
+        <div className={styles.creationErrorPanel} role="alert">
           <span aria-hidden="true">!</span>
           <h3>{t("ai_generator_creation_failed_title")}</h3>
-          <p>{actionError || error || t("ai_generator_error")}</p>
+          <p>{creationError || t("ai_generator_error")}</p>
           {!embedded ? <RegenerationAuthorization
             consents={regenerationConsents}
             disabled={operationLocked}
@@ -470,9 +473,9 @@ export default function MediaGenerationCreationWorkspace({
         </div>
       ) : null}
 
-      {actionError && generationResult ? (
+      {creationError && generationResult ? (
         <div className={styles.error} role="alert">
-          {actionError}
+          {creationError}
         </div>
       ) : null}
       {originChangedNotice ? (

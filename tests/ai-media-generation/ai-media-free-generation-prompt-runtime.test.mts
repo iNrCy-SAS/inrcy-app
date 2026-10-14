@@ -84,7 +84,7 @@ function loadPlan(response: unknown, generate?: (input: AiGenerateJsonOptions) =
 
 /** Execute the real Gateway fallback orchestration with in-memory provider responses. */
 function loadDialogueGateway(responses: unknown[]) {
-  const calls: Array<{ model: string; deadlineAt: number; timeoutMs: number }> = [];
+  const calls: Array<{ model: string; deadlineAt: number; timeoutMs: number; input: string; maxOutputTokens: number }> = [];
   const engines = { getAiEngineOption: (engine: string) => ({ model: `${engine}/test`, jsonMode: "strict", shortLabel: engine }) };
   const config = {
     cleanAiGatewayEnv: (value: unknown) => String(value || "").trim(),
@@ -129,9 +129,9 @@ function loadDialogueGateway(responses: unknown[]) {
     }],
     ["@/lib/aiModelCapabilities", { resolveModelTemperature: () => undefined }],
     ["@/lib/observability/fetch", { fetchWithRetry: async (_url: string, init: { body: string; deadlineAt: number; timeoutMs: number }) => {
-      const { model } = JSON.parse(init.body);
+      const { model, input, max_output_tokens } = JSON.parse(init.body);
       const response = responses[calls.length];
-      calls.push({ model, deadlineAt: init.deadlineAt, timeoutMs: init.timeoutMs });
+      calls.push({ model, deadlineAt: init.deadlineAt, timeoutMs: init.timeoutMs, input: input[1].content[0].text, maxOutputTokens: max_output_tokens });
       assert.ok(response, "Aucun appel supplémentaire n'est autorisé après les réponses prévues.");
       return Response.json({ output_text: JSON.stringify(response), usage: { input_tokens: 20, output_tokens: 40, total_tokens: 60 } });
     } }],
@@ -353,6 +353,31 @@ test("generated narration exceeding the duration uses the existing bounded text 
   assert.equal(gateway.calls.length, 2); assert.equal(runtime.calls.length, 1);
   assert.equal(gateway.calls[0].deadlineAt, gateway.calls[1].deadlineAt);
   assert.equal(JSON.parse(runtime.calls[0].input).brief, input.freePrompt);
+  assert.ok(gateway.calls.every((call) => call.maxOutputTokens === 1_600));
+  const firstAttempt = JSON.parse(gateway.calls[0].input);
+  const retry = JSON.parse(gateway.calls[1].input);
+  assert.equal(firstAttempt.rewrite, undefined);
+  assert.equal(retry.brief, input.freePrompt);
+  assert.equal(retry.max_words, 14);
+  assert.equal(retry.rewrite.word_count, 30);
+  assert.equal(retry.rewrite.draft, "mot ".repeat(30).trim());
+  assert.match(retry.rewrite.instruction, /1 à 14 mots/);
+  assert.ok(narration!.wordCount <= retry.max_words);
+});
+
+test("a shorter TTS budget reaches every narration attempt and its rewrite feedback", async () => {
+  const gateway = loadDialogueGateway([
+    { script: "Le drainage lymphatique est une technique de massage douce qui accompagne la circulation.", language: "fr" },
+    { script: "Un massage doux accompagne la circulation.", language: "fr" },
+  ]);
+  const runtime = loadPlan(null, gateway.generate);
+  const input = request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: "Une femme explique une technique de massage." });
+  const narration = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan: runtime.buildAiMediaFreeBasePlan(input), maximumSpeechUnits: 6 });
+  assert.equal(narration?.script, "Un massage doux accompagne la circulation.");
+  assert.equal(narration?.wordCount, 6);
+  assert.equal(gateway.calls.length, 2);
+  assert.ok(gateway.calls.every((call) => JSON.parse(call.input).max_words === 6));
+  assert.match(JSON.parse(gateway.calls[1].input).rewrite.instruction, /1 à 6 mots/);
 });
 
 test("exhausted generated narration is an application failure, never an accusation that the short user prompt is too long", async () => {
