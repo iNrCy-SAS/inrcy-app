@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 import {
   adsConnectionDisplay,
@@ -39,6 +40,29 @@ test("la navigation iNr’ADS envoie le suivi vers le nouvel onglet iNr’Send",
   const mailbox = readFileSync(new URL("../app/dashboard/mails/MailboxClient.tsx", import.meta.url), "utf8");
   assert.match(adsClient, /href="\/dashboard\/mails\?folder=campagnes-ads"/);
   assert.match(draftsMenu, /href="\/dashboard\/mails\?folder=campagnes-ads&boxView=drafts"/);
-  assert.match(mailbox, /<AdsCampaignsFolder onCountChange=\{setAdsCampaignCount\}/);
+  assert.match(mailbox, /<AdsCampaignsFolder key=\{activeAccountId\} onCountChange=\{refreshAdsCampaignCount\}/);
   assert.match(mailbox, /adsCampaignsSelected/);
+
+  // The count hook must mount with the mailbox, even before ADS is selected.
+  const source = ts.createSourceFile("MailboxClient.tsx", mailbox, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const component = source.statements.find((statement) => ts.isFunctionDeclaration(statement) && statement.name?.text === "MailboxClient");
+  assert.ok(component && ts.isFunctionDeclaration(component) && component.body);
+  const counter = component.body.statements.filter(ts.isVariableStatement)
+    .flatMap((statement) => Array.from(statement.declarationList.declarations))
+    .find((declaration) => declaration.initializer && ts.isCallExpression(declaration.initializer)
+      && declaration.initializer.expression.getText(source) === "useAdsCampaignCount");
+  assert.ok(counter?.initializer && ts.isCallExpression(counter.initializer));
+  assert.deepEqual(counter.initializer.arguments.map((argument) => argument.getText(source)), ["adsEnabled", "activeAccountId"]);
+  assert.match(counter.name.getText(source), /count: adsCampaignCount/);
+  assert.match(counter.name.getText(source), /error: adsCampaignCountError/);
+  assert.match(counter.name.getText(source), /refresh: refreshAdsCampaignCount/);
+
+  // Mobile and desktop receive the same total and error instead of keeping
+  // a permanent loading badge or replacing an unavailable count with zero.
+  assert.equal((mailbox.match(/adsTab=\{adsEnabled \? \{[^}]*count: adsCampaignCount, countError: adsCampaignCountError/g) || []).length, 2);
+  for (const filename of ["FolderTabs.tsx", "MobileFoldersMenu.tsx"]) {
+    const tabs = readFileSync(new URL(`../app/dashboard/mails/_components/${filename}`, import.meta.url), "utf8");
+    assert.match(tabs, /title=\{adsTab\.countError \|\| "ADS"\}/);
+    assert.match(tabs, /adsTab\.countError \? "—" : adsTab\.count \?\? "…"/);
+  }
 });
