@@ -370,12 +370,14 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
 
 test("les rejets de voix native exposent une cause utile sans transcript", () => {
   const route = read("app/api/media-generation/generate/route.ts");
+  const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
-  assert.match(route, /AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED/);
-  assert.match(route, /spoken_dialogue_missing/);
-  assert.match(route, /spoken_dialogue_repeated/);
-  assert.match(route, /spoken_dialogue_incomplete/);
-  assert.match(route, /spoken_dialogue_mismatch/);
+  assert.match(route, /classifyAiMediaGenerationError/);
+  assert.match(publicErrors, /AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED/);
+  assert.match(publicErrors, /spoken_dialogue_missing/);
+  assert.match(publicErrors, /spoken_dialogue_repeated/);
+  assert.match(publicErrors, /spoken_dialogue_incomplete/);
+  assert.match(publicErrors, /spoken_dialogue_mismatch/);
   assert.match(server, /nativeDialogueQa\?\.clips\.flatMap\(\(clip\) => clip\.issues\)/);
   assert.doesNotMatch(server.slice(server.indexOf("const issues = characterDialogueProviderFallback"), server.indexOf("const nativeVoiceoverQa")), /clip\.transcript/);
 });

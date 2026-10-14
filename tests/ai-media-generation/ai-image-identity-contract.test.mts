@@ -43,6 +43,7 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   const gateway = read("lib/aiMediaGateway.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
   const route = read("app/api/media-generation/generate/route.ts");
+  const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
   const imageBranchStart = server.indexOf(
     'if (providerRequest.kind === "image")',
   );
@@ -89,10 +90,10 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   assert.doesNotMatch(imageBranch, /createReferenceIdentityMontage\(/);
   assert.doesNotMatch(imageBranch, /inrcy-local-composer/);
   assert.doesNotMatch(imageBranch, /image_local_fallback/);
-  assert.match(route, /AI_MEDIA_IMAGE_IDENTITY_REFERENCE_REJECTED/);
-  assert.match(route, /AI_MEDIA_IMAGE_PROVIDERS_UNAVAILABLE/);
-  assert.match(route, /Aucun visage générique n’a été substitué/);
-  assert.match(route, /photo du professionnel n’a pas été réutilisée comme faux résultat/);
+  assert.match(route, /classifyAiMediaGenerationError/);
+  assert.match(publicErrors, /AI_MEDIA_IMAGE_IDENTITY_REFERENCE_REJECTED/);
+  assert.match(publicErrors, /AI_MEDIA_IMAGE_PROVIDERS_UNAVAILABLE/);
+  assert.match(publicErrors, /Le moteur n’a pas pu respecter l’identité/);
 });
 
 test("aucune photo ni empreinte de photo n'est persistée dans les traces", () => {

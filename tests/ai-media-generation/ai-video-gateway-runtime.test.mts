@@ -119,6 +119,18 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed };
 }
 
+test("Veo Lite sends canonical resolution tiers independently of portrait orientation before any paid request", () => {
+  for (const format of ["story", "portrait", "landscape"] as const) for (const resolution of ["720p", "1080p"] as const) {
+    const context = loadRuntime(); const args = argsFor("veo-lite", 0, 8);
+    args.request.format = format; args.request.videoResolution = resolution;
+    const input = context.runtime.buildGatewayAiVideoRequest(args);
+    assert.equal(input.resolution, resolution === "1080p" ? "1920x1080" : "1280x720");
+    assert.equal(input.aspectRatio, format === "landscape" ? "16:9" : "9:16");
+    assert.equal(input.duration, 8); assert.equal(input.maxRetries, 0); assert.equal(input.n, 1);
+    assert.equal(context.counters.reservations, 0); assert.equal(context.counters.requests, 0);
+  }
+});
+
 test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son transport compact", () => {
   const context = loadRuntime();
   const args = argsFor("wan-flash", 1, 4);

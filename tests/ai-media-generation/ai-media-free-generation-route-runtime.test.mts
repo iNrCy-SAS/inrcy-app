@@ -10,6 +10,7 @@ import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuot
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
 import * as generationTransport from "../../lib/aiMediaGenerationTransport.ts";
+import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 const quoteOutput = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaCreditQuoteServer.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -47,6 +48,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class GuardUnavailableError extends Error {}
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
+    ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["next/server", { after: (task: Promise<unknown>) => { lifetimes.push(task); }, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationTransport", generationTransport],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
@@ -152,6 +154,22 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(response.status, 401);
   assert.equal(route.reservationCalls.length, 0);
   assert.equal(route.generationCalls.length, 0);
+});
+
+test("generation persists the same safe actionable cause that status recovery will return", async () => {
+  for (const [error, code] of [
+    [new Error("ai_media_narration_unavailable:La voix off est trop longue pour cette durée."), "AI_MEDIA_NARRATION_TOO_LONG"],
+    [new Error("ai_video_omni_rate_limited:Your project has exceeded its monthly spending cap. https://private.invalid/?token=secret"), "AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED"],
+    [new Error("Invalid resolution: 720x1280"), "AI_MEDIA_VIDEO_CONFIGURATION_REJECTED"],
+    [new Error("ai_media_generated_narration_invalid"), "AI_MEDIA_GENERATED_NARRATION_INVALID"],
+  ] as const) {
+    const route = loadRoute({ providerError: error }); const response = await route.post(body()); const payload = await response.json();
+    assert.equal(payload.code, code); assert.equal(payload.error, publicErrors.getAiMediaGenerationPublicError(error).message);
+    assert.equal(route.failureCalls.length, 1); assert.equal(route.completionCalls.length, 0); assert.equal(route.generationCalls.length, 1);
+    const failure = route.failureCalls[0] as { errorCode: string; errorMessage: string };
+    assert.equal(failure.errorCode, payload.code); assert.equal(failure.errorMessage, payload.error);
+    assert.doesNotMatch(JSON.stringify(payload), /https:|token|secret|720x1280|monthly spending cap/);
+  }
 });
 
 test("a preparation stop while authentication is delayed cannot create a later reservation or paid call", async () => {
@@ -446,7 +464,7 @@ test("des voix IA invalides après les secours renvoient une erreur fournisseur 
   const route = loadRoute({ providerError: new AiJsonResponseNormalizationError("normalizer_failed") });
   const response = await route.post(body({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }));
   assert.equal(response.status, 502);
-  assert.equal((await response.json()).code, "AI_MEDIA_GENERATION_FAILED");
+  assert.equal((await response.json()).code, "AI_MEDIA_PREPARATION_OUTPUT_INVALID");
   assert.equal(route.reservationCalls[0]!.quotaAmount, 87);
   assert.equal(route.failureCalls.length, 1);
   assert.equal(route.completionCalls.length, 0);

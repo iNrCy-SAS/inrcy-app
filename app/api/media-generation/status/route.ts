@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getExistingGeneratedAiMediaContext } from "@/lib/aiGeneratedMediaRegistry";
+import { getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -13,7 +14,9 @@ const FORMATS = ["square", "portrait", "story", "landscape"] as const;
 type Job = {
   id: string;
   status: "reserved" | "processing" | "completed" | "failed" | "expired";
-  metadata: { format?: unknown } | null;
+  error_code: string | null;
+  error_message: string | null;
+  metadata: { format?: unknown; error_details?: unknown } | null;
 };
 
 /** Recover an existing attempt without reserving credits or starting AI work. */
@@ -31,7 +34,7 @@ export async function GET(request: Request) {
     );
     const accountId = current.scope.activeUserId;
     const result = await supabaseAdmin.from("ai_media_generation_jobs")
-      .select("id,status,metadata").eq("account_id", accountId)
+      .select("id,status,error_code,error_message,metadata").eq("account_id", accountId)
       .eq("request_key", requestId).maybeSingle();
     if (result.error) throw result.error;
     const job = result.data as Job | null;
@@ -51,9 +54,15 @@ export async function GET(request: Request) {
         soundtrack: null, videoEngineResult: null, recovered: true,
       }, { headers: NO_STORE_HEADERS });
     }
-    if (job.status === "failed" || job.status === "expired") return NextResponse.json(
-      { ok: true, status: job.status }, { headers: NO_STORE_HEADERS },
-    );
+    if (job.status === "failed" || job.status === "expired") {
+      const failure = getAiMediaGenerationPublicError({
+        code: job.error_code, message: job.error_message, error_details: job.metadata?.error_details,
+      }, { expired: job.status === "expired" });
+      return NextResponse.json(
+        { ok: true, status: job.status, code: failure.code, error: failure.message },
+        { headers: NO_STORE_HEADERS },
+      );
+    }
     return NextResponse.json({ ok: true, status: "processing" }, { status: 202, headers: NO_STORE_HEADERS });
   } catch {
     // Provider diagnostics and raw job metadata never belong in this response.

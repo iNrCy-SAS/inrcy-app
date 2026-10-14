@@ -158,7 +158,8 @@ test("le contrat v3 neutralise toujours les références et v4 exige un identifi
     /body\.contractVersion === 3[\s\S]*?inspirationImages: \[\][\s\S]*?identityConsent: false[\s\S]*?identityReferenceSetId: ""/,
   );
   assert.match(route, /IDENTITY_REFERENCE_SET_ID_PATTERN\.test\(referenceSetId\)/);
-  assert.match(route, /AI_MEDIA_IMAGE_IDENTITY_MODEL_UNSUPPORTED/);
+  assert.match(route, /classifyAiMediaGenerationError/);
+  assert.match(read("lib/aiMediaGenerationPublicErrors.ts"), /AI_MEDIA_IMAGE_IDENTITY_MODEL_UNSUPPORTED/);
   assert.match(route, /safeAiMediaErrorMessage\(finalizationError\)/);
   assert.match(route, /safeAiMediaErrorMessage\(releaseError\)/);
   assert.match(route, /safeAiMediaErrorMessage\(error\)/);

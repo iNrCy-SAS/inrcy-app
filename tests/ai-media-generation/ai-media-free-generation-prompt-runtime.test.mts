@@ -341,6 +341,31 @@ test("sans option voix off, Libre ne lance aucune génération de narration", as
   assert.equal(runtime.calls.length, 0);
 });
 
+test("generated narration exceeding the duration uses the existing bounded text fallback without changing the brief", async () => {
+  const gateway = loadDialogueGateway([
+    { script: "mot ".repeat(30).trim(), language: "fr" },
+    { script: "Découvrez un monde merveilleux dans les nuages.", language: "fr" },
+  ]);
+  const runtime = loadPlan(null, gateway.generate);
+  const input = request({ kind: "video", durationSeconds: 8, withNarration: true });
+  const narration = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan: runtime.buildAiMediaFreeBasePlan(input) });
+  assert.equal(narration?.script, "Découvrez un monde merveilleux dans les nuages.");
+  assert.equal(gateway.calls.length, 2); assert.equal(runtime.calls.length, 1);
+  assert.equal(gateway.calls[0].deadlineAt, gateway.calls[1].deadlineAt);
+  assert.equal(JSON.parse(runtime.calls[0].input).brief, input.freePrompt);
+});
+
+test("exhausted generated narration is an application failure, never an accusation that the short user prompt is too long", async () => {
+  const invalid = { script: "mot ".repeat(30).trim(), language: "fr" };
+  const gateway = loadDialogueGateway([invalid, invalid]); const runtime = loadPlan(null, gateway.generate);
+  const input = request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: "Une baleine dans le ciel." });
+  await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan: runtime.buildAiMediaFreeBasePlan(input) }), (error: Error) => {
+    assert.equal(error.message, "ai_media_generated_narration_invalid");
+    assert.ok(!(error instanceof contracts.AiMediaRequestValidationError)); return true;
+  });
+  assert.equal(gateway.calls.length, 2);
+});
+
 test("le prompt Omni libre exploite ses plans distincts et la continuité sans gabarit guidé", () => {
   const input = request({ kind: "video", durationSeconds: 16, withNarration: true, narrationVoiceVariant: "Sulafat" });
   const nativeNarrationLines = ["La baleine découvre les nuages.", "Le soleil lui répond avec douceur."];

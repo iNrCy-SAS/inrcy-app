@@ -173,6 +173,16 @@ test("an uncertain truncated response retrieves the existing result without an a
   assert.equal((await task).item.id, "draft-a"); assert.equal(h.attempts.length, 1); h.dispose();
 });
 
+test("a recovered failure keeps its actionable server explanation without posting another paid attempt", async () => {
+  const h = harness(); const task = h.status().generate(input()).catch((error: Error) => error); h.render();
+  const stream = h.startStream(0); stream.send({ type: "billing_locked" }); stream.close(); await h.flush();
+  const message = "La voix off préparée est trop longue pour la durée choisie. Choisissez une durée plus longue.";
+  h.recoveries[0].resolve(Response.json({ ok: true, status: "failed", code: "AI_MEDIA_NARRATION_TOO_LONG", error: message }));
+  assert.equal((await task as Error).message, message); await h.flush();
+  assert.equal(h.status().error, message); assert.equal(h.status().busy, false);
+  assert.equal(h.attempts.length, 1); assert.equal(h.status().canRecover, false); h.dispose();
+});
+
 test("an incomplete success or an in-progress replay retrieves the existing attempt without a second POST", async () => {
   for (const response of [Response.json({ ok: true }), Response.json({ ok: false, code: "AI_MEDIA_GENERATION_IN_PROGRESS" }, { status: 409 })]) {
     const h = harness(); const task = h.status().generate(input()); h.render(); h.attempts[0].resolve(response); await h.flush();

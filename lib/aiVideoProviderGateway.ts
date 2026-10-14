@@ -100,10 +100,13 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
     prompt: imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
     ...(imageInputs.length > 1 ? { inputReferences: imageInputs } : {}),
     duration,
-    // xAI expects its native resolution tier independently of orientation.
+    // xAI expects its tier; Google expects canonical landscape dimensions even
+    // for portrait output. aspectRatio controls the orientation independently.
     ...(model.provider === "spacexai"
       ? { providerOptions: { xai: { resolution } } }
-      : { resolution: `${width}x${height}` as `${number}x${number}` }),
+      : { resolution: model.provider === "google"
+        ? (resolution === "1080p" ? "1920x1080" : "1280x720")
+        : `${width}x${height}` as `${number}x${number}` }),
     ...(model.id !== "wan-flash" ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
     ...(model.id !== "minimax-h3" ? { generateAudio: model.nativeAudio } : {}),
     n: 1,

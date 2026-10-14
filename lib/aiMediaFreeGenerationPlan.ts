@@ -168,7 +168,7 @@ export async function writeAiMediaFreeNarration(args: {
         "Écris uniquement la voix off souhaitée pour ce film créatif. Respecte le sujet, le ton et la langue explicitement demandés ; sinon utilise la langue du brief.",
         "Ne récite pas les consignes de réalisation ni des descriptions techniques. Aucune publicité, accroche, promesse ni invitation imposée. Aucune information commerciale inventée.",
         ...(args.request.useBusinessDna ? ["L’ADN choisi est une source de faits pertinents uniquement. La demande créative et ses exclusions restent prioritaires ; les réglages éditoriaux historiques de l’entreprise ne sont pas des consignes à appliquer."] : []),
-        `Le texte doit former une ou plusieurs phrases complètes, naturelles et terminées, de ${maxWords} mots maximum. Conserve les nombres et noms exacts pertinents pour la voix off.`,
+        `Le texte doit former une ou plusieurs phrases complètes, naturelles et terminées. Vise ${Math.max(1, Math.floor(maxWords * 0.8))} mots ; ne dépasse jamais ${maxWords} mots. Conserve les nombres et noms exacts pertinents pour la voix off.`,
         args.plan.scenes.length > 1
           ? args.request.sceneMode === "single"
             ? `La scène continue est produite en ${args.plan.scenes.length} segments successifs de durées natives compatibles : écris une narration fluide, avec une phrase complète par segment et sans répéter l'introduction.`
@@ -176,21 +176,34 @@ export async function writeAiMediaFreeNarration(args: {
           : "",
       ].join(" "),
       input: JSON.stringify({ brief: prompt, film: args.plan.subline, max_words: maxWords, company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null }),
+      // Validate generated copy inside the existing bounded Gateway fallback,
+      // before TTS or any video submission. Exact user wording bypasses this.
+      normalizeResponseBeforeValidation: (output) => {
+        const generatedScript = cleaned(output.script);
+        if (!generatedScript || generatedScript.length > 620 || generatedScript.split(/\s+/u).length > maxWords) {
+          throw new Error("ai_media_generated_narration_invalid");
+        }
+        return { ...output, script: generatedScript };
+      },
       responseSchema: { name: "inrcy_free_narration", strict: true, schema: {
         type: "object", additionalProperties: false,
         properties: { script: { type: "string", minLength: 3, maxLength: 620 }, language: { type: "string", minLength: 2, maxLength: 8 } },
         required: ["script", "language"],
       } },
       maxOutputTokens: 650, temperature: 0.4, retries: 0, timeoutMs: 30_000, deadlineAt: Date.now() + 31_000,
+    }).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && error.code === "ai_gateway_invalid_output") {
+        throw new Error("ai_media_generated_narration_invalid", { cause: error });
+      }
+      throw error;
     });
     script = cleaned(generated.script);
     language = /^[a-z]{2}(?:-[A-Z]{2})?$/.test(String(generated.language)) ? String(generated.language) : language;
   }
   const wordCount = script.split(/\s+/).filter(Boolean).length;
   if (!script || script.length > 620 || wordCount > maxWords) {
-    throw new AiMediaRequestValidationError(exact
-      ? "Le texte exact de la voix off est trop long pour cette durée. Raccourcissez-le ou choisissez une durée supérieure."
-      : "La voix off est trop longue pour cette durée. Précisez un texte plus court dans votre demande.");
+    if (exact) throw new AiMediaRequestValidationError("Le texte exact de la voix off est trop long pour cette durée. Raccourcissez-le ou choisissez une durée supérieure.");
+    throw new Error("ai_media_generated_narration_invalid");
   }
   return { script, language, wordCount, source: "ai", sha256: createHash("sha256").update(script).digest("hex") };
 }

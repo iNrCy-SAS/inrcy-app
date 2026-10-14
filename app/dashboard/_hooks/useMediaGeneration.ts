@@ -1029,7 +1029,10 @@ export default function useMediaGeneration() {
               clearCurrentAttempt();
               void loadQuota({ force: true });
               if (activeGeneration.cancelRequested) throw new MediaGenerationCancelledError();
-              return { ok: false, status: 502, payload: { ok: false, error: "La génération n’a pas abouti. Vous pouvez réessayer." } };
+              return { ok: false, status: 502, payload: {
+                ok: false, code: readErrorCode(payload) || "AI_MEDIA_GENERATION_FAILED",
+                error: readErrorMessage(payload, "La génération a échoué sans cause identifiable. Réessayez ou contactez l’assistance avec le moteur et l’heure de la tentative."),
+              } };
             }
             if (response.status === 404 && data?.status === "missing") {
               missingChecks += 1;

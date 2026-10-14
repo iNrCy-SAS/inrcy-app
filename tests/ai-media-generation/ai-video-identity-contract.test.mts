@@ -72,7 +72,7 @@ test("les identités gardent leurs références en parallèle et héritent des f
 test("un fournisseur qui refuse l’identité échoue explicitement sans rendu générique", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
-  const route = read("app/api/media-generation/generate/route.ts");
+  const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
 
   for (const provider of [veo, omni]) {
     assert.match(provider, /ai_video_identity_reference_rejected/);
@@ -85,8 +85,8 @@ test("un fournisseur qui refuse l’identité échoue explicitement sans rendu g
     omni,
     /const canDropInspiration =\s*!args\.preserveIdentityReferences/
   );
-  assert.match(route, /AI_MEDIA_VIDEO_IDENTITY_REFERENCE_REJECTED/);
-  assert.match(route, /Aucune personne générique n’a été substituée/);
+  assert.match(publicErrors, /AI_MEDIA_VIDEO_IDENTITY_REFERENCE_REJECTED/);
+  assert.match(publicErrors, /Le moteur vidéo n’a pas pu préserver l’identité/);
 });
 
 test("l’équipe cinématique conserve le moteur choisi, tente Omni après Veo puis retombe en local", () => {

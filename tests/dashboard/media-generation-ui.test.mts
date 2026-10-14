@@ -148,7 +148,8 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
     assert.match(parent, /handleConfirmGenerationStop=\{handleConfirmGenerationStop\}/);
     assert.match(parent, /cancelGeneration\(\)/);
   }
-  assert.match(route, /AI_MEDIA_GENERATION_CANCELLED/);
+  assert.match(route, /classifyAiMediaGenerationError/);
+  assert.match(read("lib/aiMediaGenerationPublicErrors.ts"), /AI_MEDIA_GENERATION_CANCELLED/);
   assert.match(route, /createAiMediaBillingGate\(request\.signal/);
   assert.match(route, /signal: gate\.signal, onBillingStarted: \(\) => gate\.lock\(\)/);
   assert.match(route, /gate\.disconnect\(\)/);
