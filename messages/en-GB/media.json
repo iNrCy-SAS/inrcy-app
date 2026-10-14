@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "Generation has started with the engine and can no longer be stopped.",
   "ai_generator_editor_stop_pending": "Checking the stop request…",
   "ai_generator_editor_recover": "Recover the result",
-  "ai_generator_editor_abandon": "Abandon this attempt"
+  "ai_generator_editor_abandon": "Abandon this attempt",
+  "ai_generator_editor_criteria_incomplete": "Complete a criterion in this tab before generating.",
+  "ai_generator_use_business_dna_label": "Use my business DNA",
+  "ai_generator_use_business_dna_hint": "Add relevant information about my business to my request."
 }

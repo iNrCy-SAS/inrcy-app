@@ -212,6 +212,8 @@ export type AiMediaGenerationRequest = {
   /** Independent free-form creative path; never the legacy `ai_free` casting option. */
   creationMode?: AiMediaCreationMode;
   freePrompt?: string;
+  /** Optional verified business facts; never restores hidden guided settings. */
+  useBusinessDna?: boolean;
   /** `modify` conserve une image source et applique uniquement la consigne. */
   operation?: AiMediaOperation;
   /** Le Studio essentiel omet les anciens réglages décoratifs du payload. */
@@ -571,8 +573,12 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Parcours de création invalide.");
   }
   const creationMode: AiMediaCreationMode = body.creationMode === "free" ? "free" : "guided";
+  const useBusinessDna = creationMode === "free" && body.useBusinessDna === true;
   let freePrompt = "";
   if (creationMode === "free") {
+    if (body.useBusinessDna !== undefined && typeof body.useBusinessDna !== "boolean") {
+      throw new AiMediaRequestValidationError("L’option ADN de l’entreprise est invalide.");
+    }
     if (body.operation === "modify" || body.source !== "studio") {
       throw new AiMediaRequestValidationError("Le mode Libre est disponible dans Générer du Studio.");
     }
@@ -1162,6 +1168,7 @@ export function normalizeAiMediaGenerationRequest(
     requestId,
     creationMode,
     freePrompt: creationMode === "free" ? freePrompt : undefined,
+    useBusinessDna: creationMode === "free" ? useBusinessDna : undefined,
     operation,
     inputMode,
     generationMode,

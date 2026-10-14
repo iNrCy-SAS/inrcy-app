@@ -69,6 +69,27 @@ test("Libre ignore les réglages guidés résiduels au lieu de les appliquer ou 
   assert.deepEqual(polluted, pristine);
 });
 
+test("l’ADN Libre est facultatif, désactivé par défaut et commun aux images et vidéos", () => {
+  for (const kind of ["image", "video"]) {
+    const original = normalizeAiMediaGenerationRequest(freeInput({ kind }));
+    const disabled = normalizeAiMediaGenerationRequest(freeInput({ kind, useBusinessDna: false }));
+    assert.equal(original.useBusinessDna, false);
+    assert.deepEqual(disabled, original);
+    const enabled = normalizeAiMediaGenerationRequest(freeInput({ kind, useBusinessDna: true }));
+    assert.equal(enabled.useBusinessDna, true);
+    assert.deepEqual({ ...enabled, useBusinessDna: false }, original);
+    assert.equal(enabled.useBrandColors, false);
+    assert.equal(enabled.logoMode, "none");
+    assert.equal(enabled.withText, false, "La case ADN ne réactive pas la grille de texte guidée.");
+  }
+});
+
+test("une valeur ADN non booléenne est refusée plutôt que d’activer le profil implicitement", () => {
+  for (const useBusinessDna of ["true", "false", 1, 0, null, {}, []]) {
+    assert.throws(() => normalizeAiMediaGenerationRequest(freeInput({ useBusinessDna })), AiMediaRequestValidationError);
+  }
+});
+
 test("Libre valide le prompt avant génération sans troncature silencieuse", () => {
   for (const freePrompt of [undefined, null, 123, {}, [], "", "  ", "xy", "x".repeat(AI_MEDIA_FREE_PROMPT_MAX_CHARS + 1)]) {
     assert.throws(() => normalizeAiMediaGenerationRequest(freeInput({ freePrompt })), AiMediaRequestValidationError);
@@ -177,7 +198,7 @@ test("les anciens formulaires restent guidés et ignorent le prompt Libre résid
     format: "square", textMode: "none", useBrandColors: true, logoMode: "discreet",
   };
   const legacyGuided = normalizeAiMediaGenerationRequest(guidedInput);
-  const explicitGuided = normalizeAiMediaGenerationRequest({ ...guidedInput, creationMode: "guided", freePrompt: "BRIEF_LIBRE_RESIDUEL" });
+  const explicitGuided = normalizeAiMediaGenerationRequest({ ...guidedInput, creationMode: "guided", freePrompt: "BRIEF_LIBRE_RESIDUEL", useBusinessDna: true });
   assert.deepEqual(explicitGuided, legacyGuided);
   assert.equal(legacyGuided.creationMode, "guided");
   assert.equal(legacyGuided.freePrompt, undefined);

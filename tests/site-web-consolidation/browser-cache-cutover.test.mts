@@ -25,12 +25,12 @@ function harness() {
     "@/lib/generator/channelBlocks": {},
     "./stats.shared.core": { safeNum: (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback },
   };
-  const load = (file: string): Record<string, (...args: any[]) => any> => {
+  const load = <TExports extends object>(file: string): TExports => {
     const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
     const compiled = ts.transpileModule(source, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText;
-    const loaded = { exports: {} };
+    const loaded = { exports: {} as TExports };
     vm.runInNewContext(compiled, {
       module: loaded, exports: loaded.exports, Date,
       require: (name: string) => {
@@ -42,9 +42,9 @@ function harness() {
   };
   return {
     storage,
-    generator: load("app/dashboard/dashboard.client-cache.ts"),
-    stats: load("app/dashboard/stats/stats.shared.cache.ts"),
-    checks: load("lib/dailyStatsRefreshClient.ts"),
+    generator: load<typeof import("../../app/dashboard/dashboard.client-cache.ts")>("app/dashboard/dashboard.client-cache.ts"),
+    stats: load<typeof import("../../app/dashboard/stats/stats.shared.cache.ts")>("app/dashboard/stats/stats.shared.cache.ts"),
+    checks: load<typeof import("../../lib/dailyStatsRefreshClient.ts")>("lib/dailyStatsRefreshClient.ts"),
   };
 }
 

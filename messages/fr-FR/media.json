@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "Génération engagée auprès du moteur, arrêt indisponible.",
   "ai_generator_editor_stop_pending": "Vérification de l’arrêt…",
   "ai_generator_editor_recover": "Récupérer le résultat",
-  "ai_generator_editor_abandon": "Abandonner la tentative"
+  "ai_generator_editor_abandon": "Abandonner la tentative",
+  "ai_generator_editor_criteria_incomplete": "Un critère de cet onglet doit être complété avant de générer.",
+  "ai_generator_use_business_dna_label": "Utiliser mon ADN",
+  "ai_generator_use_business_dna_hint": "Ajouter les informations utiles de mon entreprise à ma demande."
 }

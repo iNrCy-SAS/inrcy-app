@@ -11,10 +11,10 @@ import {
   type MediaGenerationResult,
   type MediaGenerationSource,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
-import MediaGenerator, {
-  type MediaGeneratorAcceptMode,
-  type MediaGeneratorOrigin,
-  type MediaGeneratorStudioMode,
+import type {
+  MediaGeneratorAcceptMode,
+  MediaGeneratorOrigin,
+  MediaGeneratorStudioMode,
 } from "./MediaGenerator";
 import MediaModifier from "./MediaModifier";
 import MediaFreeGenerator from "./MediaFreeGenerator";
@@ -30,7 +30,6 @@ import MediaVideoRetoucher, {
 import {
   canSwitchInrStudioMediaType,
   isInrStudioTabUnavailable,
-  getInrStudioInitialCreationMode,
 } from "@/lib/inrStudioModalPolicy";
 
 import styles from "./MediaGeneratorModal.module.css";
@@ -65,7 +64,6 @@ type MediaGeneratorModalProps = {
 };
 
 type StudioMediaType = "image" | "video";
-type StudioCreationMode = "guided" | "free";
 
 function getFocusableElements(container: HTMLElement | null) {
   if (!container) return [];
@@ -88,7 +86,6 @@ export default function MediaGeneratorModal({
   initialSourceAvailable,
   initialMediaType = "image",
   imageOnly = false,
-  freeOnly = false,
   initialFreePrompt = "",
   requiredFreePromptSuffix = "",
   fixedFreeFormat,
@@ -114,8 +111,12 @@ export default function MediaGeneratorModal({
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
   const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
-  const defaultCreationMode = getInrStudioInitialCreationMode({ source, origin, publicationBrief, freeOnly });
-  const [creationMode, setCreationMode] = useState<StudioCreationMode>(defaultCreationMode);
+  const initialGenerationPrompt = initialFreePrompt.trim()
+    ? initialFreePrompt
+    : source === "booster" || origin === "booster"
+    ? publicationBrief.trim()
+    : "";
+  const [generationPrompt, setGenerationPrompt] = useState(initialGenerationPrompt);
   const openedRef = useRef(false);
   const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>(initialFreeMediaType);
   const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([initialFreeMediaType]);
@@ -145,7 +146,7 @@ export default function MediaGeneratorModal({
     initialSourceAvailable ??
     Boolean(initialSource || initialPreview || initialSourceLoading);
   const studioWordmark = t("ai_generator_made_inrcy");
-  const activeMediaType = studioTab === "generate" && creationMode === "free"
+  const activeMediaType = studioTab === "generate"
     ? freeMediaType
     : mediaTypeByTab[studioTab];
 
@@ -160,14 +161,15 @@ export default function MediaGeneratorModal({
     return () => { background.forEach(({ node, inert }) => { node.inert = inert; }); };
   }, [embedded, mounted, open]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const newOpening = open && !openedRef.current;
     openedRef.current = open;
-    // Changes to the originating brief must not override a mode the pro has
-    // already chosen during this session. Reopening uses the latest subject.
+    // The originating subject fills the prompt only when the Studio opens.
+    // A later change outside the Studio must not replace the pro's edits.
     if (!newOpening) return;
     setStudioTab(initialTab);
-    setCreationMode(defaultCreationMode);
+    setGenerationPrompt(initialGenerationPrompt);
+    setGenerationSession((value) => value + 1);
     setFreeMediaType(initialFreeMediaType);
     setVisitedFreeTypes([initialFreeMediaType]);
     setMediaTypeByTab({
@@ -176,7 +178,7 @@ export default function MediaGeneratorModal({
       retouch: initialTab === "retouch" ? initialMediaType : "image",
     });
     setRetoucherDirty(false);
-  }, [defaultCreationMode, initialFreeMediaType, initialMediaType, initialTab, open]);
+  }, [initialGenerationPrompt, initialFreeMediaType, initialMediaType, initialTab, open]);
 
   useEffect(() => {
     // Hidden Activity forms suspend their listeners: invalidate all of them
@@ -184,7 +186,7 @@ export default function MediaGeneratorModal({
     const resetGenerationSession = () => {
       setGenerationSession((value) => value + 1);
       setVisitedFreeTypes([initialFreeMediaType]);
-      setCreationMode("free");
+      setGenerationPrompt("");
       setFreeMediaType(initialFreeMediaType);
       currentResultRef.current = null;
       setCurrentResult(null);
@@ -247,7 +249,7 @@ export default function MediaGeneratorModal({
         setCloseConfirmOpen(true);
         return;
       }
-      if (studioTab === "generate" && creationMode === "free") {
+      if (studioTab === "generate") {
         setFreeMediaType(mediaType);
         setVisitedFreeTypes((current) => current.includes(mediaType) ? current : [...current, mediaType]);
         return;
@@ -257,17 +259,8 @@ export default function MediaGeneratorModal({
         [studioTab]: mediaType,
       }));
     },
-    [activeMediaType, creationMode, hasExternalHandoff, hasPendingWork, imageOnly, locked, studioTab]
+    [activeMediaType, hasExternalHandoff, hasPendingWork, imageOnly, locked, studioTab]
   );
-
-  const requestCreationMode = (mode: StudioCreationMode) => {
-    if (freeOnly && mode !== "free") return;
-    if (mode === creationMode || locked || hasPendingWork) return;
-    if (mode === "free") {
-      setVisitedFreeTypes((current) => current.includes(freeMediaType) ? current : [...current, freeMediaType]);
-    }
-    setCreationMode(mode);
-  };
 
   const cancelClose = useCallback(() => {
     setCloseConfirmOpen(false);
@@ -454,7 +447,7 @@ export default function MediaGeneratorModal({
         ref={dialogRef}
         className={styles.dialog}
         data-studio-tab={studioTab}
-        data-creation-mode={studioTab === "generate" ? creationMode : undefined}
+        data-creation-mode={studioTab === "generate" ? "free" : undefined}
         role="dialog"
         aria-modal="true"
         aria-hidden={closeConfirmOpen ? true : undefined}
@@ -477,7 +470,7 @@ export default function MediaGeneratorModal({
               <p>{t("ai_generator_made_inrcy_hint")}</p>
             </div>
           </div>
-          <div className={styles.heading} data-generation-controls={studioTab === "generate" ? "true" : undefined}>
+          <div className={styles.heading}>
             <nav
               className={styles.studioTabs}
               aria-label={t("ai_generator_studio_tabs_label")}
@@ -541,23 +534,6 @@ export default function MediaGeneratorModal({
                 );
               })}
             </div>
-            {studioTab === "generate" ? (
-              <div className={styles.creationModeTabs} role="radiogroup" aria-label={t("ai_generator_free_mode_label")}>
-                {(["free", "guided"] as const).filter((mode) => !freeOnly || mode === "free").map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={creationMode === mode}
-                    data-active={creationMode === mode ? "true" : "false"}
-                    disabled={locked || hasPendingWork}
-                    onClick={() => requestCreationMode(mode)}
-                  >
-                    {t(mode === "free" ? "ai_generator_free_mode_free" : "ai_generator_free_mode_guided")}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
           <div className={styles.headerActions}>
             <Link
@@ -654,27 +630,13 @@ export default function MediaGeneratorModal({
             />
           ) : (
             <div key={generationSession} className={styles.generationWorkspace}>
-              <Activity mode={creationMode === "guided" ? "visible" : "hidden"}>
-                <MediaGenerator
-                  key="generate"
-                  source={source}
-                  origin={origin}
-                  publicationBrief={publicationBrief}
-                  acceptMode={acceptMode}
-                  studioMode="generate"
-                  mediaType={mediaTypeByTab.generate}
-                  onAccepted={onAccepted}
-                  onResultChange={handleResultChange}
-                  onBusyChange={setLocked}
-                />
-              </Activity>
               {visitedFreeTypes.map((kind) => (
-                <Activity key={kind} mode={creationMode === "free" && freeMediaType === kind ? "visible" : "hidden"}>
+                <Activity key={kind} mode={freeMediaType === kind ? "visible" : "hidden"}>
                   <MediaFreeGenerator
-                    source={source}
+                    source="studio"
                     acceptMode={acceptMode}
                     mediaType={kind}
-                    initialPrompt={initialFreePrompt}
+                    initialPrompt={generationPrompt}
                     requiredPromptSuffix={requiredFreePromptSuffix}
                     fixedFormat={fixedFreeFormat}
                     onAccepted={onAccepted}

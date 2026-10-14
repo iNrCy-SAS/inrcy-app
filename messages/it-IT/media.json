@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "La generazione è stata avviata sul motore e non può più essere interrotta.",
   "ai_generator_editor_stop_pending": "Verifica della richiesta di interruzione…",
   "ai_generator_editor_recover": "Recupera il risultato",
-  "ai_generator_editor_abandon": "Abbandona il tentativo"
+  "ai_generator_editor_abandon": "Abbandona il tentativo",
+  "ai_generator_editor_criteria_incomplete": "Completa un criterio in questa scheda prima di generare.",
+  "ai_generator_use_business_dna_label": "Usa il mio DNA aziendale",
+  "ai_generator_use_business_dna_hint": "Aggiungi alla richiesta le informazioni utili sulla mia azienda."
 }

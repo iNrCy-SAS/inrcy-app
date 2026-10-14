@@ -109,6 +109,25 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
 }
 const successfulResult = () => ({ type: "result", status: 200, payload: { ok: true, draft: true, item: { id: "draft-a", media_type: "image", signed_url: "https://example.invalid/media.jpg" }, quota: quota() } });
 
+test("le hook transporte l’option ADN sans altérer le brief ni les réglages Libre image et vidéo", async () => {
+  for (const kind of ["image", "video"] as const) for (const useBusinessDna of [false, true]) {
+    const h = harness();
+    const request: MediaGenerationRequest = { ...input(), kind, durationSeconds: kind === "video" ? 4 : undefined, useBusinessDna };
+    const task = h.status().generate(request); h.render();
+    assert.equal(h.attempts[0].body.useBusinessDna, useBusinessDna);
+    assert.equal(h.attempts[0].body.freePrompt, request.freePrompt);
+    assert.equal(h.attempts[0].body.creationMode, "free");
+    const normalized = contracts.normalizeAiMediaGenerationRequest(h.attempts[0].body);
+    assert.equal(normalized.useBusinessDna, useBusinessDna);
+    assert.equal(normalized.freePrompt, request.freePrompt);
+    assert.equal(normalized.logoMode, "none");
+    assert.equal(normalized.useBrandColors, false);
+    assert.equal(normalized.withText, false);
+    const stream = h.startStream(0); stream.send(successfulResult()); stream.close();
+    await task; await h.flush(); h.dispose();
+  }
+});
+
 test("the hook stops preparation but refuses a user stop immediately after the actual billing event", async () => {
   const before = harness(); const cancelled = before.status().generate(input()).catch((error: Error) => error);
   before.render(); const preparation = before.startStream(0); await before.flush();

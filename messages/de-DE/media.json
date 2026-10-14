@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "Die Generierung wurde beim Modell gestartet und kann nicht mehr gestoppt werden.",
   "ai_generator_editor_stop_pending": "Stopp-Anfrage wird geprüft…",
   "ai_generator_editor_recover": "Ergebnis abrufen",
-  "ai_generator_editor_abandon": "Versuch beenden"
+  "ai_generator_editor_abandon": "Versuch beenden",
+  "ai_generator_editor_criteria_incomplete": "Vervollständigen Sie ein Kriterium in diesem Tab, bevor Sie generieren.",
+  "ai_generator_use_business_dna_label": "Meine Unternehmens-DNA nutzen",
+  "ai_generator_use_business_dna_hint": "Relevante Informationen über mein Unternehmen zur Anfrage hinzufügen."
 }

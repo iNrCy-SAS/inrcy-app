@@ -247,6 +247,7 @@ export type MediaGenerationResult = {
 export type MediaGenerationRequest = {
   creationMode?: "guided" | "free";
   freePrompt?: string;
+  useBusinessDna?: boolean;
   operation?: MediaGenerationOperation;
   inputMode?: MediaGenerationInputMode;
   generationMode?: MediaGenerationMode;
@@ -548,6 +549,7 @@ function buildGenerationAttemptKey(
   return JSON.stringify({
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+    ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
     generationMode:
@@ -932,6 +934,7 @@ export default function useMediaGeneration() {
           ...request,
           operation: "generate", inputMode: "essential", subjectSource: "custom",
           freePrompt, idea: freePrompt.slice(0, 2_000), aiInstruction: "",
+          useBusinessDna: request.useBusinessDna === true,
           generationMode: request.inspirationImages?.length ? "inspiration" : "ai_free",
           peopleCriterion: "auto", settingCriterion: "auto", focusCriterion: "auto",
           textMode: "none", exactText: "", withText: false, textKeywords: [],
@@ -1264,6 +1267,7 @@ export default function useMediaGeneration() {
             contractVersion: 4,
             creationMode: request.creationMode || "guided",
             freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+            useBusinessDna: request.creationMode === "free" ? request.useBusinessDna === true : undefined,
             operation: request.operation || "generate",
             inputMode: request.inputMode || "legacy",
             generationMode:

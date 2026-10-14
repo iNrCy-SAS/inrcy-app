@@ -148,6 +148,7 @@ export default function MediaFreeGenerator({
   const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
     ? enginePreference.videoResolution : videoModel.defaultResolution;
   const [prompt, setPrompt] = useState(initialPrompt);
+  const [useBusinessDna, setUseBusinessDna] = useState(false);
   const [format, setFormat] = useState<MediaGenerationFormat>(
     fixedFormat || (kind === "video" ? "story" : "square")
   );
@@ -256,6 +257,7 @@ export default function MediaFreeGenerator({
     const clearAccountState = () => {
       sequence.current += 1;
       setPrompt("");
+      setUseBusinessDna(false);
       setReferences([]);
       setFormat(fixedFormat || (kind === "video" ? "story" : "square"));
       setDuration(8);
@@ -434,6 +436,7 @@ export default function MediaFreeGenerator({
         operation: "generate",
         creationMode: "free",
         freePrompt: effectivePrompt,
+        useBusinessDna,
         inputMode: "essential",
         source,
         kind,
@@ -702,7 +705,10 @@ export default function MediaFreeGenerator({
     >
       <div className={editorStyles.editorBody}>
         <div className={editorStyles.settingsPane}>
-          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "prompt", label: t("ai_generator_editor_tab_prompt") }, { id: "criteria", label: t("ai_generator_editor_tab_criteria") }]} />
+          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[
+            { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: !operationLocked && (!promptReady || !briefCompatible) },
+            { id: "criteria", label: t("ai_generator_editor_tab_criteria"), warning: !operationLocked && (!referenceCompatible || referenceCriteriaIncomplete || roleLimitExceeded || (identityRequired && !identityConsent) || (teamConsentRequired && !teamConsent)) },
+          ]} />
           <div className={editorStyles.settingsPanels}>
         <section
           className={`${styles.parameters} ${editorStyles.tabPanel}`}
@@ -908,6 +914,37 @@ export default function MediaFreeGenerator({
               </p>
             ) : null}
           </div>
+          {identityRequired ? (
+            <label className={styles.consent}>
+              <input
+                type="checkbox"
+                checked={identityConsent}
+                disabled={locked}
+                onChange={(event) => {
+                  setIdentityConsent(event.target.checked);
+                  setTeamConsent(false);
+                }}
+              />
+              <span>
+                {t(
+                  personReferences.length > 1
+                    ? "ai_generator_reference_team_consent_label"
+                    : "ai_generator_video_character_consent_label"
+                )}
+              </span>
+            </label>
+          ) : null}
+          {teamConsentRequired ? (
+            <label className={styles.consent}>
+              <input
+                type="checkbox"
+                checked={teamConsent}
+                disabled={locked}
+                onChange={(event) => setTeamConsent(event.target.checked)}
+              />
+              <span>{t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}</span>
+            </label>
+          ) : null}
           {kind === "video" ? (
             <div className={styles.audioSection}>
               <h3>{t("ai_generator_essential_sound_title")}</h3>
@@ -1036,6 +1073,21 @@ export default function MediaFreeGenerator({
               <p>{t("ai_generator_free_prompt_hint")}</p>
             </div>
           </div>
+          <label className={styles.businessDnaOption}>
+            <input
+              type="checkbox"
+              checked={useBusinessDna}
+              disabled={operationLocked}
+              onChange={(event) => setUseBusinessDna(event.target.checked)}
+              aria-describedby={`${instanceId}-business-dna-help`}
+            />
+            <span>
+              <strong>{t("ai_generator_use_business_dna_label")}</strong>
+              <small id={`${instanceId}-business-dna-help`}>
+                {t("ai_generator_use_business_dna_hint")}
+              </small>
+            </span>
+          </label>
           <div className={styles.promptContainer}>
             <label
               className={styles.srOnly}
@@ -1077,37 +1129,6 @@ export default function MediaFreeGenerator({
           <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
             {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}
           </p>
-          {identityRequired ? (
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={identityConsent}
-                disabled={locked}
-                onChange={(event) => {
-                  setIdentityConsent(event.target.checked);
-                  setTeamConsent(false);
-                }}
-              />
-              <span>
-                {t(
-                  personReferences.length > 1
-                    ? "ai_generator_reference_team_consent_label"
-                    : "ai_generator_video_character_consent_label"
-                )}
-              </span>
-            </label>
-          ) : null}
-          {teamConsentRequired ? (
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={teamConsent}
-                disabled={locked}
-                onChange={(event) => setTeamConsent(event.target.checked)}
-              />
-              <span>{t("ai_generator_team_video_provider_consent", { provider: videoModel.providerLabel })}</span>
-            </label>
-          ) : null}
         </section>
           </div>
         </div>

@@ -47,7 +47,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
   if (args.request.kind !== "video") return base;
   args.signal?.throwIfAborted();
   const prompt = args.request.freePrompt || "";
-  const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName);
+  const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName, args.request.useBusinessDna);
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
   const exactDialogue = nativeDialogue ? getAiMediaFreeRequestedDialogue(prompt) : [];
   if (exactDialogue.length > base.scenes.length) {
@@ -61,7 +61,9 @@ export async function prepareAiMediaFreeCreativePlan(args: {
     model: model(),
     system: [
       "Tu es réalisateur du mode Libre iNrStudio. Transforme le brief en direction créative et plans exécutables, sans gabarit publicitaire, accroche, CTA ni photo réaliste imposés.",
-      "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Ne convertis pas une demande artistique en publicité. L'entreprise n'est utile que si le brief s'y réfère.",
+      args.request.useBusinessDna
+        ? "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Le professionnel a choisi son ADN comme source de faits utiles à son brief ; sa demande créative reste prioritaire. Ne convertis pas une demande artistique en publicité, ne force pas un logo, une palette, un slogan ni un appel à l’action."
+        : "Respecte le style voulu, toutes les entités, actions, relations et exclusions. Ne convertis pas une demande artistique en publicité. L'entreprise n'est utile que si le brief s'y réfère.",
       "direction contient l'ensemble des contraintes nécessaires au film, avec tous les textes/valeurs littérales fournis. Ne récite pas les consignes dans le film. Les paroles ne sont pas du texte visible.",
       args.request.sceneMode === "single"
         ? "scenes contient exactement le nombre de segments demandé (durée indiquée dans les paramètres) pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
@@ -153,7 +155,7 @@ export async function writeAiMediaFreeNarration(args: {
   const duration = args.request.durationSeconds || 8;
   const maxWords = Math.max(1, Math.min(Math.max(1, Math.floor((duration - 1) * 2)), args.maximumSpeechUnits ?? Infinity));
   const exact = prompt.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
-  const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName);
+  const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName, args.request.useBusinessDna);
   let script = exact || "";
   let language: string = args.profile.preferences.language || "fr";
   if (!script) {
@@ -162,6 +164,7 @@ export async function writeAiMediaFreeNarration(args: {
       system: [
         "Écris uniquement la voix off souhaitée pour ce film créatif. Respecte le sujet, le ton et la langue explicitement demandés ; sinon utilise la langue du brief.",
         "Ne récite pas les consignes de réalisation ni des descriptions techniques. Aucune publicité, accroche, promesse ni invitation imposée. Aucune information commerciale inventée.",
+        ...(args.request.useBusinessDna ? ["L’ADN choisi est une source de faits pertinents uniquement. La demande créative et ses exclusions restent prioritaires ; les réglages éditoriaux historiques de l’entreprise ne sont pas des consignes à appliquer."] : []),
         `Le texte doit former une ou plusieurs phrases complètes, naturelles et terminées, de ${maxWords} mots maximum. Conserve les nombres et noms exacts pertinents pour la voix off.`,
         args.plan.scenes.length > 1
           ? args.request.sceneMode === "single"

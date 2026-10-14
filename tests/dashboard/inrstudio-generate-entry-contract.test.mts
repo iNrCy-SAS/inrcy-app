@@ -104,6 +104,27 @@ test("Booster ouvre le générateur sans fabriquer de média source", () => {
   assert.match(generatorEntry, /openStudio\(href\)/);
 });
 
+test("le clic Générer de Booster transmet seulement le dernier sujet saisi", async () => {
+  const requests: Record<string, unknown>[] = [];
+  const opened: string[] = [];
+  for (const idea of ["  Notre menu du dimanche  ", "Notre nouvelle prestation", " \n\t "]) {
+    await handler<() => Promise<void>>(publishPath, "openInrStudioGenerator", {
+      idea,
+      mediaGenerationBrief: "Ancien titre et contenu commercial à ne pas importer",
+      preparePublicationDraftForStudio: async () => ({ draftId: "current-draft", returnHref: "/dashboard?action=publish", videoDraft: null }),
+      createInrStudioHandoff: async (input: Record<string, unknown>) => {
+        requests.push(input);
+        return { href: "test:studio-handoff" };
+      },
+      openStudio: (href: string) => { opened.push(href); },
+      setImgError: () => { assert.fail("Un sujet valide ou vide doit ouvrir le Studio sans erreur"); },
+    })();
+  }
+  assert.deepEqual(requests.map((input) => input.publicationBrief), ["Notre menu du dimanche", "Notre nouvelle prestation", ""]);
+  assert.ok(requests.every((input) => input.tab === "generate" && input.origin === "booster-publish"));
+  assert.deepEqual(opened, Array(3).fill("test:studio-handoff"));
+});
+
 test("le client transmet explicitement la présence de la source au modal", () => {
   const client = read(
     "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"
@@ -124,61 +145,75 @@ test("le client transmet explicitement la présence de la source au modal", () =
   );
 });
 
-test("Libre et Guidé restent sélectionnables avec un handoff et chaque type initial", () => {
-  const source = parsed(modalPath);
-  const tabs = findNode(source, (node): node is ts.JsxElement =>
-    ts.isJsxElement(node) && node.openingElement.attributes.properties.some((attribute) =>
-      ts.isJsxAttribute(attribute) && attribute.name.getText(source) === "className" &&
-      attribute.initializer?.getText(source) === "{styles.creationModeTabs}"));
-  const disabled = findNode(tabs.getSourceFile(), (node): node is ts.JsxAttribute =>
-    node.pos >= tabs.pos && node.end <= tabs.end && ts.isJsxAttribute(node) && node.name.getText(source) === "disabled");
-  assert.ok(disabled.initializer && ts.isJsxExpression(disabled.initializer) && disabled.initializer.expression);
-  const expression = disabled.initializer.expression;
+test("la création image et vidéo utilise seulement Libre sans retirer Modifier ou Retoucher", () => {
+  const modal = read(modalPath);
+  assert.doesNotMatch(modal, /<MediaGenerator\s|creationModeTabs|requestCreationMode/);
+  assert.match(modal, /<MediaFreeGenerator[\s\S]*?source="studio"[\s\S]*?mediaType=\{kind\}/);
+  assert.match(modal, /<MediaModifier/);
+  assert.match(modal, /<MediaRetoucher/);
+  assert.match(modal, /<MediaVideoRetoucher/);
+});
 
-  for (const hasExternalHandoff of [false, true]) {
-    for (const initialMediaType of ["image", "video"] as const) {
-      for (const mode of ["free", "guided"] as const) {
-        const changed: string[] = [];
-        const context = {
-          hasExternalHandoff, initialMediaType, freeOnly: false, locked: false, hasPendingWork: false,
-          creationMode: mode === "free" ? "guided" : "free", freeMediaType: initialMediaType,
-          setCreationMode: (value: string) => { changed.push(value); },
-          setVisitedFreeTypes: (update: (current: string[]) => string[]) => { assert.deepEqual(update([]), [initialMediaType]); },
-        };
-        assert.equal(execute<boolean>(expression, source, context), false);
-        handler<(value: string) => void>(modalPath, "requestCreationMode", context)(mode);
-        assert.deepEqual(changed, [mode]);
-        for (const guard of [{ locked: true }, { hasPendingWork: true }]) {
-          changed.length = 0;
-          assert.equal(execute<boolean>(expression, source, { ...context, ...guard }), true);
-          handler<(value: string) => void>(modalPath, "requestCreationMode", { ...context, ...guard })(mode);
-          assert.deepEqual(changed, []);
-        }
-      }
-    }
+test("le sujet Booster préremplit le prompt, avec priorité à une consigne explicite", () => {
+  const base = { initialFreePrompt: "", source: "studio", origin: "booster", publicationBrief: "  Notre menu du dimanche  " };
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", base), "Notre menu du dimanche");
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, source: "booster", origin: "menu" }), "Notre menu du dimanche");
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, initialFreePrompt: "Ma consigne personnalisée" }), "Ma consigne personnalisée");
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, initialFreePrompt: "   " }), "Notre menu du dimanche");
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, publicationBrief: " \n\t " }), "");
+  for (const origin of ["menu", "ads", "inragent", "inrsend"]) {
+    assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, origin }), "");
   }
 });
 
-test("Générer permet de changer Image/Vidéo dans les deux modes sans abandonner Booster", () => {
-  for (const creationMode of ["free", "guided"] as const) {
-    for (const initialMediaType of ["image", "video"] as const) {
-      const target = initialMediaType === "image" ? "video" : "image";
-      const changed: string[] = [];
-      handler<(value: string) => void>(modalPath, "requestMediaType", {
-        creationMode, initialMediaType, activeMediaType: initialMediaType,
-        studioTab: "generate", hasExternalHandoff: true, imageOnly: false, locked: false, hasPendingWork: false,
-        canSwitchInrStudioMediaType,
-        setCloseConfirmOpen: () => { assert.fail("Changer le type ne doit pas abandonner le retour Booster"); },
-        setFreeMediaType: (value: string) => { changed.push(`free:${value}`); },
-        setVisitedFreeTypes: (update: (current: string[]) => string[]) => { assert.deepEqual(update([initialMediaType]), [initialMediaType, target]); },
-        setMediaTypeByTab: (update: (current: Record<string, string>) => Record<string, string>) => {
-          const result = update({ generate: initialMediaType, modify: "image", retouch: "video" });
-          assert.equal(result.modify, "image");
-          assert.equal(result.retouch, "video");
-          changed.push(`guided:${result.generate}`);
-        },
-      })(target);
-      assert.deepEqual(changed, [`${creationMode}:${target}`]);
+test("une nouvelle ouverture reprend le dernier sujet sans écraser les éditions de la session ouverte", () => {
+  const source = parsed(modalPath);
+  const openingEffect = findNode(source, (node): node is ts.CallExpression =>
+    ts.isCallExpression(node) && node.expression.getText(source) === "useLayoutEffect" &&
+    Boolean(node.arguments[0]?.getText(source).includes("const newOpening = open && !openedRef.current")));
+  const prompts: string[] = [];
+  let session = 0;
+  const openedRef = { current: false };
+  const context = {
+    openedRef, initialTab: "generate", initialFreeMediaType: "image", initialMediaType: "image",
+    setStudioTab() {}, setFreeMediaType() {}, setVisitedFreeTypes() {}, setMediaTypeByTab() {}, setRetoucherDirty() {},
+    setGenerationPrompt: (value: string) => { prompts.push(value); },
+    setGenerationSession: (update: (current: number) => number) => { session = update(session); },
+  };
+  const run = (open: boolean, initialGenerationPrompt: string) =>
+    execute<() => void>(openingEffect.arguments[0], source, { ...context, open, initialGenerationPrompt })();
+  run(true, "Premier sujet");
+  assert.deepEqual(prompts, ["Premier sujet"]);
+  assert.equal(session, 1);
+  run(true, "Sujet modifié ailleurs pendant la création");
+  assert.deepEqual(prompts, ["Premier sujet"]);
+  assert.equal(session, 1);
+  run(false, "Deuxième sujet");
+  run(true, "Deuxième sujet");
+  assert.deepEqual(prompts, ["Premier sujet", "Deuxième sujet"]);
+  assert.equal(session, 2);
+});
+
+test("Générer permet de changer Image/Vidéo sans abandonner Booster", () => {
+  for (const initialMediaType of ["image", "video"] as const) {
+    const target = initialMediaType === "image" ? "video" : "image";
+    const changed: string[] = [];
+    const context = {
+      activeMediaType: initialMediaType,
+      studioTab: "generate", hasExternalHandoff: true, imageOnly: false, locked: false, hasPendingWork: false,
+      canSwitchInrStudioMediaType,
+      setCloseConfirmOpen: () => { assert.fail("Changer le type ne doit pas abandonner le retour Booster"); },
+      setFreeMediaType: (value: string) => { changed.push(value); },
+      setVisitedFreeTypes: (update: (current: string[]) => string[]) => { assert.deepEqual(update([initialMediaType]), [initialMediaType, target]); },
+      setMediaTypeByTab: () => { assert.fail("Une création ne doit pas utiliser l'état d'un autre outil"); },
+    };
+    handler<(value: string) => void>(modalPath, "requestMediaType", context)(target);
+    assert.deepEqual(changed, [target]);
+    for (const guard of [{ locked: true }, { hasPendingWork: true }, { imageOnly: target === "video" }]) {
+      if ("imageOnly" in guard && !guard.imageOnly) continue;
+      changed.length = 0;
+      handler<(value: string) => void>(modalPath, "requestMediaType", { ...context, ...guard })(target);
+      assert.deepEqual(changed, []);
     }
   }
 });

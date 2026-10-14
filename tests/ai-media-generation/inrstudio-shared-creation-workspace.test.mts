@@ -372,3 +372,24 @@ test("les onglets de réglage ne font que sélectionner un panneau et gardent un
   assert.equal(prevented, true); assert.deepEqual(selected, ["prompt", "prompt"]);
   assert.equal(focusedElements.at(-1), "free-image-tab-prompt");
 });
+
+test("un critère manquant indique précisément son onglet et disparaît une fois complété", () => {
+  const selected: string[] = [];
+  const props = { idPrefix: "guided-image", activeTab: "subject", onChange: (id: string) => selected.push(id) };
+  const tree = record.exports.MediaGenerationSettingsTabs({ ...props,
+    tabs: [{ id: "subject", label: "Sujet" }, { id: "finish", label: "Texte", warning: true }] });
+  const subject = button(tree, "Sujet"); const finish = button(tree, "Texte");
+  assert.equal(subject.props["aria-describedby"], undefined);
+  assert.equal(finish.props["aria-label"], "Texte");
+  assert.equal(finish.props["aria-describedby"], "guided-image-warning-finish");
+  assert.equal(finish.props["aria-controls"], "guided-image-panel-finish");
+  const icon = byClass(tree, "tabWarning");
+  assert.equal(icon.props["aria-hidden"], "true");
+  assert.equal(elements(finish).filter((node) => node.props.className === "tabWarning").length, 1);
+  assert.equal(find(tree, (node) => node.props.id === finish.props["aria-describedby"]).props.className, "warningDescription");
+  click(finish); assert.deepEqual(selected, ["finish"]);
+  const complete = record.exports.MediaGenerationSettingsTabs({ ...props,
+    tabs: [{ id: "subject", label: "Sujet" }, { id: "finish", label: "Texte", warning: false }] });
+  assert.equal(elements(complete).filter((node) => node.props.className === "tabWarning").length, 0);
+  assert.equal(button(complete, "Texte").props["aria-describedby"], undefined);
+});

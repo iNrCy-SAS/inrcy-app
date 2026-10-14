@@ -99,15 +99,15 @@ test("iNrAgent traduit le casting du mix en vrai mode IA avec critères", () => 
   assert.deepEqual(team.inspirationImages, []);
 });
 
-test("iNrAgent conserve la distinction scène continue et multiscène sur 8/16/24 s", () => {
+test("iNrAgent conserve la scène continue sur les durées Omni de 8 et 16 secondes", () => {
   const continuous = buildInrAgentMediaGenerationRequest({
-    requestId: "inr-agent:video-continue-24",
+    requestId: "inr-agent:video-continue-16",
     idea: "Filmer la rénovation complète d'une façade en un mouvement continu",
     theme: "realisations",
     kind: "video",
     mediaMix: mediaMix({
       format: "story",
-      durationSeconds: 24,
+      durationSeconds: 16,
       connectScenes: true,
       withMusic: true,
       withNarration: true,
@@ -131,6 +131,8 @@ test("iNrAgent conserve la distinction scène continue et multiscène sur 8/16/2
 
   assert.equal(continuous.sceneMode, "single");
   assert.equal(continuous.connectScenes, true);
+  assert.equal(continuous.durationSeconds, 16);
+  assert.equal(continuous.videoEngine, "omni");
   assert.equal(short.sceneMode, "single");
   assert.equal(short.connectScenes, false);
 });
@@ -161,7 +163,7 @@ test("iNrAgent ne transforme jamais un mix sans référence en dialogue biométr
   assert.equal(request.identityMode, "auto");
 });
 
-test("le nouveau format huit secondes prime sur le mix Studio sans altérer les appels historiques", () => {
+test("le format huit secondes prime sur le mix Studio et les anciennes durées Omni incompatibles restent refusées", () => {
   const args = {
     requestId: "inr-agent:nouveau-format-video",
     idea: "Montrer le geste de finition d'un menuisier",
@@ -173,8 +175,9 @@ test("le nouveau format huit secondes prime sur le mix Studio sans altérer les 
   assert.equal(short.durationSeconds, 8);
   assert.equal(short.sceneMode, "single");
   assert.equal(short.connectScenes, false);
-  const legacy = buildInrAgentMediaGenerationRequest(args);
-  assert.equal(legacy.durationSeconds, 24);
+  assert.throws(() => buildInrAgentMediaGenerationRequest(args), /deux clips maximum/);
+  const legacy = buildInrAgentMediaGenerationRequest({ ...args, mediaMix: mediaMix({ durationSeconds: 16, connectScenes: true }) });
+  assert.equal(legacy.durationSeconds, 16);
   assert.equal(legacy.connectScenes, true);
   const image = buildInrAgentMediaGenerationRequest({ ...args, kind: "image", videoDurationSeconds: 8 });
   assert.equal(image.durationSeconds, null);

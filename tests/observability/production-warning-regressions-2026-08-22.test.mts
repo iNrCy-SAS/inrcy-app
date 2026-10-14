@@ -29,7 +29,7 @@ test("la clé i18n e-réputation correspond aux catalogues", () => {
   }
 });
 
-test("les URL Storage privées passent toutes par le service de signature protégé", () => {
+test("les URL Storage privées utilisent le service protégé ou le store de nouveaux fichiers temporaires fournisseur", () => {
   const helper = read("lib/safeStorageSignedUrl.ts");
   const exportedService = helper.slice(
     helper.indexOf("export async function createSafeStorageSignedUrl"),
@@ -42,9 +42,32 @@ test("les URL Storage privées passent toutes par le service de signature proté
   assert.match(helper, /const signingInFlight = new Map/);
   assert.match(helper, /if \(isMissingStorageObjectError\(error\)\)/);
 
+  const temporaryImageServicePath = path.join("lib", "aiMediaVideoTemporaryImages.ts");
+  const temporaryImages = read(temporaryImageServicePath);
+  assert.match(temporaryImages, /import "server-only"/);
+  assert.match(temporaryImages, /const BUCKET = "inrcy-pro-media"/);
+  assert.match(temporaryImages, /const SIGNED_URL_SECONDS = 30 \* 60/);
+  assert.match(temporaryImages, /const folder = `\$\{args\.accountId\}\/_provider-temp\/\$\{randomUUID\(\)\}`/);
+  assert.match(temporaryImages, /bucket\.data\.public !== false/);
+  assert.match(temporaryImages, /await assertPrivateBucket\(\)/);
+  assert.match(temporaryImages, /upsert: false/);
+  assert.match(temporaryImages, /if \(uploaded\.error\) throw new Error\("ai_video_input_storage_upload_failed"\)/);
+  assert.match(temporaryImages, /paths\.push\(path\);[\s\S]*?\.createSignedUrl\(path, SIGNED_URL_SECONDS\)/);
+  assert.match(temporaryImages, /storage\.from\(BUCKET\)\.remove\(\[\.\.\.paths\]\)/);
+  assert.ok(temporaryImages.includes('if (!/^[a-zA-Z0-9_-]{1,128}$/.test(args.accountId))'));
+  assert.match(temporaryImages, /buffer\.byteLength > MAX_IMAGE_BYTES/);
+  assert.match(temporaryImages, /url\.protocol !== "https:" \|\| url\.username \|\| url\.password/);
+  assert.equal(temporaryImages.match(/\.createSignedUrl\s*\(/g)?.length, 1);
+  const privatePreflight = temporaryImages.indexOf("await assertPrivateBucket();");
+  const upload = temporaryImages.indexOf(".upload(path, image.buffer");
+  const uploadFailure = temporaryImages.indexOf('if (uploaded.error) throw new Error("ai_video_input_storage_upload_failed")');
+  const signing = temporaryImages.indexOf(".createSignedUrl(");
+  assert.ok(privatePreflight >= 0 && privatePreflight < upload && upload < uploadFailure && uploadFailure < signing);
+  assert.doesNotMatch(temporaryImages, /getPublicUrl\(|list\(|signedUrl\(args\./);
   const offenders = [...sourceFiles("app"), ...sourceFiles("lib")].filter(
     (relativePath) =>
       relativePath !== path.join("lib", "safeStorageSignedUrl.ts") &&
+      relativePath !== temporaryImageServicePath &&
       /\.createSignedUrl\s*\(/.test(read(relativePath)),
   );
   assert.deepEqual(offenders, []);

@@ -704,6 +704,11 @@
 }
 
 @media (max-width: 760px) {
+  .instructionField textarea {
+    overscroll-behavior-y: auto;
+    touch-action: pan-y pinch-zoom;
+  }
+
   .workspace {
     height: auto;
     min-height: 100%;

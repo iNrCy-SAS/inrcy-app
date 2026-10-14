@@ -16,7 +16,7 @@ const actionApi = read("app/api/agent/actions/route.ts");
 const executeApi = read("app/api/agent/actions/execute/route.ts");
 const scheduleApi = read("app/api/agent/actions/schedule/route.ts");
 
-test("the Channel card only renders format choices for Meta and a board choice for Pinterest", () => {
+test("the Channel card renders Meta formats, pilot-gated Threads modes and the Pinterest board", () => {
   const cardStart = client.indexOf(
     '<span className={styles.publishChannelCardMain}>',
   );
@@ -29,10 +29,15 @@ test("the Channel card only renders format choices for Meta and a board choice f
     /\) : activePreviewChannel === "pinterest" \? \(/,
   );
   assert.match(cardSource, /savePublishPinterestBoard/);
+  assert.match(cardSource, /\) : activePreviewChannel === "threads" && metaPilotEnabled \? \(/);
+  assert.match(cardSource, /value=\{activeThreadsPublicationMode\}/);
+  assert.match(cardSource, /saveThreadsPublicationMode/);
+  assert.match(cardSource, /getEnabledThreadsPublicationModes\(threadsPublicationPreferences\)/);
+  assert.match(cardSource, /!threadsModeEnabled \? <option value="ghost" disabled>/);
   assert.match(cardSource, /\) : null\}/);
   assert.equal(
     cardSource.match(/className=\{styles\.publishPlacementSelect\}/g)?.length,
-    2,
+    3,
   );
   assert.doesNotMatch(cardSource, /publication_mode_classic_only/);
 });

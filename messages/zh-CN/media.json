@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "模型已开始生成，无法停止。",
   "ai_generator_editor_stop_pending": "正在核实停止请求…",
   "ai_generator_editor_recover": "找回结果",
-  "ai_generator_editor_abandon": "放弃本次尝试"
+  "ai_generator_editor_abandon": "放弃本次尝试",
+  "ai_generator_editor_criteria_incomplete": "请先填写此选项卡中的必要条件，再开始生成。",
+  "ai_generator_use_business_dna_label": "使用我的企业资料",
+  "ai_generator_use_business_dna_hint": "将与需求相关的企业信息加入我的请求。"
 }

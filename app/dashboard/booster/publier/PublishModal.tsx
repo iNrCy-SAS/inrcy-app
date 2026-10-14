@@ -7736,19 +7736,6 @@ export default function PublishModal({
     tiktokSettingsMediaMode === "video"
       ? 1
       : tiktokSettingsPreviewAny?.imageCount || images.length || 0;
-  const activeMediaGenerationPost = getDisplayPost(activeCard);
-  const mediaGenerationBrief = [
-    idea,
-    stripSiteTextFormatting(activeMediaGenerationPost.title || ""),
-    stripSiteTextFormattingPreserveLayout(
-      activeMediaGenerationPost.content || "",
-    ),
-  ]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, 1_600);
-
   const preparePublicationDraftForStudio = async (): Promise<{
     draftId: string | null;
     returnHref: string | null;
@@ -7789,7 +7776,7 @@ export default function PublishModal({
         tab: "generate",
         origin: "booster-publish",
         returnHref: draftState.returnHref,
-        publicationBrief: mediaGenerationBrief,
+        publicationBrief: idea.trim(),
         context: {
           draftId: draftState.draftId,
         },

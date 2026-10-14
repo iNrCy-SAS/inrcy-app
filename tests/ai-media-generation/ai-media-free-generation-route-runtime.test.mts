@@ -382,6 +382,28 @@ test("l'empreinte sépare les parcours et couvre la fin d'un long prompt Libre",
   assert.equal(new Set(fingerprints).size, 3);
 });
 
+test("l’ADN atteint les deux parcours média et change l’idempotence sans modifier le tarif", async () => {
+  for (const kind of ["image", "video"]) {
+    const fingerprints: string[] = [];
+    const credits: number[] = [];
+    for (const option of [{}, { useBusinessDna: false }, { useBusinessDna: true }]) {
+      const route = loadRoute();
+      const response = await route.post(body({ kind, durationSeconds: kind === "video" ? 8 : undefined, ...option }));
+      assert.equal(response.status, 200);
+      assert.equal(route.generationCalls[0]!.request.useBusinessDna, "useBusinessDna" in option && option.useBusinessDna === true);
+      fingerprints.push(route.reservationCalls[0]!.requestFingerprint);
+      credits.push(route.reservationCalls[0]!.quotaAmount);
+    }
+    assert.equal(fingerprints[0], fingerprints[1], "Une case décochée garde le contrat des créations existantes.");
+    assert.notEqual(fingerprints[0], fingerprints[2], "Cocher l’ADN ne doit pas rejouer un résultat préparé sans ADN.");
+    assert.equal(new Set(credits).size, 1, "L’option de contexte ne change pas les crédits facturés.");
+  }
+  const invalid = loadRoute();
+  assert.equal((await invalid.post(body({ useBusinessDna: "true" }))).status, 400);
+  assert.equal(invalid.reservationCalls.length, 0);
+  assert.equal(invalid.generationCalls.length, 0);
+});
+
 test("les quotas épuisés et les durées non autorisées bloquent aussi Libre", async () => {
   const exhausted = loadRoute({ quotaReached: true });
   assert.equal((await exhausted.post(body())).status, 429);

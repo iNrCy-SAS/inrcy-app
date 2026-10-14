@@ -8,7 +8,8 @@ test("dashboard boot receives the canonical channel state from the server", () =
   const page = read("app/dashboard/page.tsx");
 
   assert.match(page, /getCurrentInrcyAccountScope\(\)/);
-  assert.match(page, /getChannelConnectionStates\(current\.supabase, current\.scope\.activeUserId\)/);
+  assert.match(page, /isMetaChannelPilotEnabledForActorAndAccount\(current\.supabase, current\.scope\.activeUserId\)/);
+  assert.match(page, /getChannelConnectionStates\(current\.supabase, current\.scope\.activeUserId, undefined, \{ metaPilotEnabled \}\)/);
   assert.match(page, /initialOfficialChannelStates=\{initialOfficialChannelSnapshot\?\.states \?\? null\}/);
   assert.match(page, /initialOfficialChannelStatesUserId=\{initialOfficialChannelSnapshot\?\.activeUserId \?\? null\}/);
 });

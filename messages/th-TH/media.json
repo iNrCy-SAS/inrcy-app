@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "โมเดลเริ่มสร้างผลงานแล้ว จึงไม่สามารถหยุดได้",
   "ai_generator_editor_stop_pending": "กำลังตรวจสอบคำขอหยุด…",
   "ai_generator_editor_recover": "เรียกคืนผลลัพธ์",
-  "ai_generator_editor_abandon": "ยกเลิกความพยายามนี้"
+  "ai_generator_editor_abandon": "ยกเลิกความพยายามนี้",
+  "ai_generator_editor_criteria_incomplete": "กรุณาระบุเกณฑ์ในแท็บนี้ให้ครบก่อนสร้าง",
+  "ai_generator_use_business_dna_label": "ใช้ข้อมูลธุรกิจของฉัน",
+  "ai_generator_use_business_dna_hint": "เพิ่มข้อมูลธุรกิจที่เกี่ยวข้องลงในคำขอของฉัน"
 }

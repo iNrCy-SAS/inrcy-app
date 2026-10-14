@@ -55,6 +55,7 @@ function resultContext() {
     creditQuote: { authorization: { expectedCredits: 160, creditTariffVersion: "test", creditQuoteId: "confirmed" } },
     enginePreference: { videoEngine: "omni", imageEngine: "openai" },
     videoResolution: "720p",
+    useBusinessDna: false,
     videoModel: { provider: "google" },
     setCreationScreen: (value: boolean) => { events.push(`creation:${value}`); },
     setFinishing: (value: boolean) => { events.push(`finishing:${value}`); },
@@ -68,7 +69,7 @@ function resultContext() {
   };
 }
 
-test("Libre garde ses brouillons image/vidéo et ne lit aucun réglage Guidé", () => {
+test("le parcours unique garde ses brouillons image/vidéo et ne lit aucun réglage Guidé", () => {
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
   assert.match(source, /const \[prompt, setPrompt\] = useState\(initialPrompt\)/);
   assert.match(source, /const effectivePrompt = \[prompt\.trim\(\), requiredPromptSuffix\.trim\(\)\]/);
@@ -76,9 +77,9 @@ test("Libre garde ses brouillons image/vidéo et ne lit aucun réglage Guidé", 
   assert.doesNotMatch(source, /localStorage|sessionStorage|loadPreferences|savePreferences|publicationBrief|from ["']\.\/MediaGenerator["']/);
   assert.match(source, /useMediaGeneration\(\)/);
   assert.match(source, /void loadQuota\(\)/);
-  assert.match(modal, /<Activity mode=\{creationMode === "guided" \? "visible" : "hidden"\}>/);
+  assert.doesNotMatch(modal, /<MediaGenerator\s|creationModeTabs|requestCreationMode/);
   assert.match(modal, /visitedFreeTypes\.map\(\(kind\) =>/);
-  assert.match(modal, /<Activity key=\{kind\} mode=\{creationMode === "free" && freeMediaType === kind/);
+  assert.match(modal, /<Activity key=\{kind\} mode=\{freeMediaType === kind/);
   assert.match(modal, /<MediaFreeGenerator[\s\S]*?mediaType=\{kind\}/);
 });
 
@@ -91,7 +92,7 @@ test("un changement de compte invalide aussi les formulaires Libre masqués", ()
   assert.match(modal, /<div key=\{generationSession\}/);
   const localReset = source.slice(source.indexOf("const clearAccountState"), source.indexOf("const resetConsent"));
   assert.match(localReset, /sequence\.current \+= 1/);
-  for (const call of ['setPrompt("")', "setReferences([])", "setIdentityConsent(false)", "setTeamConsent(false)", 'setSpeechMode("voiceover")']) {
+  for (const call of ['setPrompt("")', "setUseBusinessDna(false)", "setReferences([])", "setIdentityConsent(false)", "setTeamConsent(false)", 'setSpeechMode("voiceover")']) {
     assert.ok(localReset.includes(call), `Le changement de compte doit effacer ${call}`);
   }
   assert.match(localReset, /return \(\) => \{\s*sequence\.current \+= 1/);
@@ -290,6 +291,35 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
     assert.equal(request.withMusic, false);
     assert.equal(request.inspirationImages, references);
     assert.equal(request.durationSeconds, 16);
+  }
+});
+
+test("l'ADN facultatif transmet uniquement le choix explicite pour les images et vidéos", async () => {
+  for (const kind of ["image", "video"] as const) {
+    for (const useBusinessDna of [false, true]) {
+      const requests: Record<string, unknown>[] = [];
+      const context = resultContext();
+      await handler("handleGenerate", {
+        ...context, result: null, canGenerate: true, useBusinessDna,
+        setStopConfirmOpen() {}, setIdentityConsent() {}, setTeamConsent() {},
+        generate: async (request: Record<string, unknown>) => { requests.push(request); },
+        discardDraft: async () => {},
+        effectivePrompt: "Mon scénario libre", source: "studio", kind,
+        format: "square", fixedFormat: undefined, duration: 8, sceneMode: "single",
+        withMusic: false, effectiveWithNarration: false, voice: "female", voiceVariant: "Kore",
+        speechMode: "voiceover", references: [], referencesForRequest: (value: unknown) => value,
+        personReferences: [], identityRequired: false, identityConsent: false,
+        teamConsentRequired: false, teamConsent: false, referenceSetId: { current: "" },
+        MediaGenerationCancelledError: class extends Error {},
+      })();
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].useBusinessDna, useBusinessDna);
+      assert.equal(requests[0].freePrompt, "Mon scénario libre");
+      assert.equal(requests[0].creationMode, "free");
+      assert.equal(requests[0].useBrandColors, false);
+      assert.equal(requests[0].logoMode, "none");
+      assert.deepEqual(requests[0].textKeywords, []);
+    }
   }
 });
 

@@ -479,6 +479,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     promptVersion: request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+    ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),
     operation: request.operation || "generate",
     inputMode: request.inputMode || "legacy",
     generationMode: request.generationMode,

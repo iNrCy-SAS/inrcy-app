@@ -511,7 +511,7 @@ export async function generateAndSaveAiMedia(args: {
   ]);
   args.signal?.throwIfAborted();
   const freeBrandPolicy = isFreeCreation
-    ? getAiMediaFreeBrandPolicy(providerRequest.freePrompt || "", profile.business.companyName)
+    ? getAiMediaFreeBrandPolicy(providerRequest.freePrompt || "", profile.business.companyName, providerRequest.useBusinessDna)
     : null;
   const officialLogo =
     isFreeCreation ? (freeBrandPolicy?.useLogo ? brandKit.logo : null) :

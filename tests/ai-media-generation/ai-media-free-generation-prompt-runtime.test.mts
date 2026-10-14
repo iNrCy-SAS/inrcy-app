@@ -167,6 +167,35 @@ test("l'ADN et le logo sont activés uniquement par une demande compatible", () 
   }
 });
 
+test("l’option ADN conserve le brief Libre, sans importer de règles guidées ni de marque automatique", () => {
+  const freePrompt = "Une galaxie dessinée à la main, avec une baleine bleue, sans texte ni publicité.";
+  for (const build of [freePrompts.buildAiMediaFreeImagePrompt, freePrompts.buildAiMediaFreeSceneFramePrompt, freePrompts.buildAiMediaFreeVideoPrompt]) {
+    const original = build(args({ freePrompt }));
+    assert.equal(build(args({ freePrompt, useBusinessDna: false })), original);
+    const prompt = build(args({ freePrompt, useBusinessDna: true }));
+    assert.ok(prompt.includes(freePrompt));
+    assert.match(prompt, /METIER_ADN_NON_SOLLICITE/);
+    assert.match(prompt, /demande créative reste prioritaire/);
+    assert.doesNotMatch(prompt, /configuration_ia|INSTRUCTION_GUIDEE_RESIDUELLE|#abcdef|logo officiel/);
+  }
+  assert.deepEqual(freePrompts.getAiMediaFreeBrandPolicy(freePrompt, "Atelier Test", true), {
+    useCompanyContext: true, useLogo: false, useBrandColors: false,
+  });
+  assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Un nouveau logo pour une autre marque", "Atelier Test", true).useLogo, false);
+  assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Une affiche sans logo, sans charte", "Atelier Test", true).useLogo, false);
+  assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Une affiche sans logo, sans charte", "Atelier Test", true).useBrandColors, false);
+  const branded = freePrompts.buildAiMediaFreeImagePrompt(args({ freePrompt: "Une affiche avec le logo et notre charte.", useBusinessDna: true }));
+  assert.match(branded, /logo officiel/);
+  assert.match(branded, /#abcdef/);
+});
+
+test("décocher l’ADN préserve la prise en compte des faits explicitement demandés dans le prompt", () => {
+  const freePrompt = "Une affiche pour mon entreprise avec notre charte et le logo de mon entreprise.";
+  const original = freePrompts.buildAiMediaFreeImagePrompt(args({ freePrompt }));
+  assert.equal(freePrompts.buildAiMediaFreeImagePrompt(args({ freePrompt, useBusinessDna: false })), original);
+  assert.match(original, /METIER_ADN_NON_SOLLICITE|logo officiel/);
+});
+
 test("la vidéo libre respecte la durée, les menus de référence et l'absence ou présence de voix off", () => {
   for (const withNarration of [false, true]) {
     const input = args({
@@ -261,6 +290,31 @@ test("le réalisateur vidéo libre reçoit le brief entier et restaure les valeu
   assert.match(plan.subline, /39,90 €/);
   assert.deepEqual(plan.scenes.map((scene) => scene.visualBrief), ["Une baleine apparaît.", "Elle traverse les nuages."]);
   assert.equal(plan.cta, "");
+});
+
+test("l’ADN choisi atteint le réalisateur et la voix off comme contexte facultatif, sans copie commerciale guidée", async () => {
+  for (const useBusinessDna of [false, true]) {
+    const input = request({ kind: "video", durationSeconds: 8, withNarration: true, useBusinessDna });
+    const director = loadPlan({ direction: "Une baleine traverse les nuages.", scenes: ["La baleine avance lentement."] });
+    const plan = await director.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+    const narration = loadPlan({ script: "Une baleine traverse les nuages.", language: "fr" });
+    await narration.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan });
+    for (const call of [...director.calls, ...narration.calls]) {
+      const parsed = JSON.parse(call.input);
+      assert.equal(parsed.brief, input.freePrompt);
+      if (useBusinessDna) {
+        assert.ok(parsed.company);
+        assert.match(JSON.stringify(parsed.company), /METIER_ADN_NON_SOLLICITE/);
+        assert.match(call.system, /prioritaire/);
+        assert.doesNotMatch(call.input, /configuration_ia|INSTRUCTION_GUIDEE_RESIDUELLE/);
+      } else {
+        assert.equal(parsed.company, null);
+      }
+    }
+    assert.equal(plan.headline, "");
+    assert.equal(plan.cta, "");
+    assert.equal(plan.companyName, "");
+  }
 });
 
 test("un découpage vidéo incomplet est refusé avant les appels média", async () => {

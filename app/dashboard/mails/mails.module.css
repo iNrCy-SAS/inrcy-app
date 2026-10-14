@@ -1214,9 +1214,14 @@
   flex-direction: column;
 }
 
-/* Variante "Détails" : plus large et plus haute (fenêtre pleine page) */
+/* Only the Details window uses minimal margins; other mail dialogs keep their width. */
+.modalOverlay:has(> .detailsModalCard) {
+  padding: 12px;
+}
+
+/* Variante "Détails" : toute la largeur disponible, avec 12px de marge par côté. */
 .detailsModalCard {
-  width: min(1320px, calc(100vw - 24px));
+  width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
   height: calc(100vh - 24px);
 }
@@ -1612,6 +1617,10 @@
 }
 
 @media (max-width: 980px) {
+  .modalOverlay:has(> .detailsModalCard) {
+    padding: 8px;
+  }
+
   .detailsModalCard {
     width: calc(100vw - 16px);
     height: calc(100dvh - 16px);

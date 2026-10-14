@@ -11,6 +11,7 @@ import * as timing from "../../lib/businessDnaAnalysisTiming.ts";
 import * as documentBudget from "../../lib/businessDnaDocumentBudget.ts";
 import { createAiOperationBudget } from "../../lib/aiGatewayPolicy.ts";
 import * as safe from "../../lib/tsSafe.ts";
+import { withoutThreadsData } from "../../lib/stats/metaPilotData.ts";
 import { buildBusinessDnaWorkspaceSavePatch } from "../../lib/businessDnaManualAnalysisJob.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -213,6 +214,11 @@ async function harness(options: HarnessOptions = {}) {
   const sources = options.noSources ? [] : [{ key: "website", label: "Site web", status: "analyzed", itemCount: 1,
     recentItemCount: 0, contentChars: 150, content: "Entreprise de rénovation. Travaux de qualité. Service nouveau.", url: null, message: null }];
   const route = load<{ POST: (request: Request) => Promise<Response>; GET: () => Promise<Response> }>("app/api/ai-memory/analyze-channels/route.ts", {
+    "@/lib/metaChannelRolloutServer": {
+      isMetaChannelPilotEnabledForActorAndAccount: async () => false,
+      isMetaChannelPilotEnabledForAccount: async () => false,
+    },
+    "@/lib/stats/metaPilotData": { withoutThreadsData },
     "next/server": { NextResponse: { json: (value: unknown, init?: ResponseInit) => Response.json(value, init) },
       after: (callback: () => Promise<void>) => { afterCallbacks.push(callback); } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (_error: unknown, config: { fallback: string; status: number }) => Response.json({ user_message: config.fallback }, { status: config.status }) },

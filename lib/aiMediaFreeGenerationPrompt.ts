@@ -96,12 +96,12 @@ export function getAiMediaFreeImageSize(format: AiMediaGenerationRequest["format
   return { square: "1024x1024", portrait: "1024x1280", story: "864x1536", landscape: "1536x864" }[format] as `${number}x${number}`;
 }
 
-/** Explicit references to this business authorize using its verified context. */
-export function getAiMediaFreeBrandPolicy(prompt: string, companyName = "") {
+/** Optional DNA or explicit business references authorize facts, not automatic branding. */
+export function getAiMediaFreeBrandPolicy(prompt: string, companyName = "", useBusinessDna = false) {
   const normalized = prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const company = companyName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const companyNamed = company.length > 2 && new RegExp(`(?:^|[^a-z0-9])${company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^a-z0-9])`).test(normalized);
-  const useCompanyContext = companyNamed || /\b(?:mon|notre|ma|mes|nos)\s+(?:entreprise|marque|activite|societe|commerce|logo|charte|couleurs|site)\b|\b(?:my|our)\s+(?:company|business|brand|logo|colors|website)\b|\badn\b/.test(normalized);
+  const useCompanyContext = useBusinessDna === true || companyNamed || /\b(?:mon|notre|ma|mes|nos)\s+(?:entreprise|marque|activite|societe|commerce|logo|charte|couleurs|site)\b|\b(?:my|our)\s+(?:company|business|brand|logo|colors|website)\b|\badn\b/.test(normalized);
   const logoExcluded = /\b(?:sans|aucun|pas|no|without)\b[^.!?\n]{0,36}\blogo\b|\blogo\b[^.!?\n]{0,24}\b(?:interdit|exclu|absent)\b/.test(normalized);
   const colorsExcluded = /\b(?:sans|aucune?|pas|no|without)\b[^.!?\n]{0,36}\b(?:charte|couleurs|palette|brand colors)\b/.test(normalized);
   const newLogo = /\b(?:nouveau|nouvel|new)\s+logo\b|\b(?:creer|dessiner|concevoir|create|design)\s+(?:un|a|my|mon|notre)\s+logo\b/.test(normalized);
@@ -133,10 +133,11 @@ export function buildAiMediaFreeBusinessContext(args: AiMediaPromptBuilderArgs) 
 }
 
 function businessContext(args: AiMediaPromptBuilderArgs) {
-  const policy = getAiMediaFreeBrandPolicy(args.request.freePrompt || "", args.profile.business.companyName);
+  const policy = getAiMediaFreeBrandPolicy(args.request.freePrompt || "", args.profile.business.companyName, args.request.useBusinessDna);
   if (!policy.useCompanyContext) return "";
   return [
     "CONTEXTE D'ENTREPRISE FACULTATIF : utiliser seulement les faits utiles à la demande ; ne pas transformer une scène libre en publicité par défaut.",
+    args.request.useBusinessDna ? "Le professionnel a choisi d’utiliser son ADN comme source de faits pertinents. Sa demande créative reste prioritaire, y compris ses exclusions. Aucun style, slogan, appel à l’action, logo ni palette n’est imposé par cette option." : "",
     JSON.stringify(buildAiMediaFreeBusinessContext(args)),
     policy.useBrandColors && args.brandColors?.length ? `Palette officielle demandée : ${args.brandColors.join(", ")}.` : "",
     policy.useLogo && args.hasLogo ? "Le dernier fichier est le logo officiel : le placer uniquement selon la demande, avec ses proportions et lettres exactes." : "",

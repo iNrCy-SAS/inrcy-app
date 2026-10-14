@@ -4,12 +4,18 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as websiteCompatibility from "../../lib/siteWebChannel.ts";
+import * as instagramDeletionStatus from "../../lib/inrsend/instagramDeletionStatus.ts";
 
 const source = readFileSync(new URL("../../app/dashboard/mails/_lib/mailboxPhase1.tsx", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText;
-const loaded = { exports: {} as Record<string, (...args: any[]) => any> };
+type MailboxContract = Pick<
+  typeof import("../../app/dashboard/mails/_lib/mailboxPhase1.tsx"),
+  "getPublicationChannelStatuses" | "extractChannelPublications"
+>;
+const loaded = { exports: {} as MailboxContract };
 const dependencies: Record<string, unknown> = {
   "@/lib/siteWebChannel": websiteCompatibility,
+  "@/lib/inrsend/instagramDeletionStatus": instagramDeletionStatus,
   react: {},
   "../mails.module.css": { default: new Proxy({}, { get: (_target, key) => key }) },
   "@/lib/mailDeliveryErrors": { getUserFacingMailError: () => "" },

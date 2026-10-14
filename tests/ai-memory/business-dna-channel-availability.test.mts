@@ -76,7 +76,9 @@ test("the analysis endpoint and hero use current Dashboard states, not the last 
   assert.match(content, /data-channel-status=\{channel\.status\}/);
   assert.match(content, /useState<BusinessDnaDashboardChannelAvailability\[\]>\(disconnectedAnalysisChannels\)/);
   assert.match(content, /if \(!Array\.isArray\(value\)\) return disconnectedAnalysisChannels\(\)/);
-  assert.doesNotMatch(content, /analysisChannels\.filter\(/);
+  assert.match(content, /analysisChannels\.filter\(\(channel\) => channel\.key !== "threads" \|\| metaPilotEnabled\)\.map/);
+  assert.doesNotMatch(content, /analysisChannels\.filter\([^\n]*(?:channel\.status|analyzed|not_connected)/);
+  assert.doesNotMatch(content, /analysisSummary\?\.sources\.filter\(/);
 });
 
 test("all Dashboard locales explain connection and analysis coverage states", () => {

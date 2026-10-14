@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "A geração já foi iniciada no motor e não pode ser interrompida.",
   "ai_generator_editor_stop_pending": "A verificar o pedido de paragem…",
   "ai_generator_editor_recover": "Recuperar o resultado",
-  "ai_generator_editor_abandon": "Abandonar a tentativa"
+  "ai_generator_editor_abandon": "Abandonar a tentativa",
+  "ai_generator_editor_criteria_incomplete": "Complete um critério neste separador antes de gerar.",
+  "ai_generator_use_business_dna_label": "Usar o ADN da minha empresa",
+  "ai_generator_use_business_dna_hint": "Adicionar informações relevantes sobre a minha empresa ao pedido."
 }

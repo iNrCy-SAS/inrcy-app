@@ -149,7 +149,9 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
     assert.match(parent, /cancelGeneration\(\)/);
   }
   assert.match(route, /AI_MEDIA_GENERATION_CANCELLED/);
-  assert.match(route, /signal: request\.signal/);
+  assert.match(route, /createAiMediaBillingGate\(request\.signal/);
+  assert.match(route, /signal: gate\.signal, onBillingStarted: \(\) => gate\.lock\(\)/);
+  assert.match(route, /gate\.disconnect\(\)/);
   assert.match(provider, /args\.signal\?\.addEventListener\("abort"/);
   assert.match(
     omniProvider,
@@ -158,12 +160,14 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(composer, /signal: args\.signal/);
 });
 
-test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () => {
+test("iNrStudio conserve ses quatre réglages en onglets avec l'aperçu sur la même page", () => {
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const generatorStyles = read(
     "app/dashboard/_components/MediaGenerator.module.css"
   );
+  const editorStyles = read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css");
+  const engineControls = read("app/dashboard/_components/MediaEngineCreditControls.tsx");
 
   assert.deepEqual(
     [...generator.matchAll(/data-generator-block="([^"]+)"/g)].map(
@@ -171,7 +175,12 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
     ),
     ["subject", "selection", "direction", "finish"]
   );
-  assert.match(generator, /className=\{styles\.essentialGrid\}/);
+  assert.match(generator, /className=\{`\$\{styles\.essentialGrid\} \$\{editorStyles\.settingsPanels\}`\}/);
+  assert.match(generator, /<MediaGenerationSettingsTabs/);
+  for (const id of ["subject", "selection", "direction", "finish"]) {
+    assert.match(generator, new RegExp(`hidden=\\{activeSettingsTab !== "${id}"\\}`));
+  }
+  assert.match(generator, /className=\{editorStyles\.previewPane\}>\{preview\}/);
   assert.doesNotMatch(generator, /expandedStep|footerEnginePicker/);
   assert.equal(
     (generator.match(/<RememberPreferenceControl/g) || []).length,
@@ -199,9 +208,11 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(generator, /kind === "image" \? \([\s\S]*?<span>Type de création<\/span>/);
   assert.match(generator, /value=\{imagePurpose\}[\s\S]*?IMAGE_PURPOSES\.map/);
   assert.match(generator, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
-  assert.match(generator, /mode === "multi" && durationSeconds < 8/);
+  assert.match(generator, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDurationSeconds\(seconds\); setVideoSceneMode\(mode\); \}\}/);
+  assert.match(engineControls, /getAiMediaVideoDurationSceneOptions\(props\.videoEngine, selectedResolution\)\.filter\(\(option\) => option\.durationSeconds <= maximumDuration\)/);
   assert.doesNotMatch(generator, /setDurationSeconds\(\(current\)/);
-  assert.match(generator, /\(\["single", "multi"\] as const\)\.map/);
+  assert.doesNotMatch(generator, /\(\["single", "multi"\] as const\)\.map/);
+  assert.match(engineControls, /durationSceneOptions\.map/);
   assert.match(generator, /\["none", "ai_generator_redesign_text_none"\]/);
   assert.match(generator, /\["ai", "ai_generator_redesign_text_ai"\]/);
   assert.match(generator, /\["exact", "ai_generator_redesign_text_exact"\]/);
@@ -230,23 +241,13 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(generation, /connectScenes:/);
   assert.match(hook, /request\.inputMode === "essential"/);
 
-  assert.match(
-    generatorStyles,
-    /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
-  );
-  assert.match(
-    generatorStyles,
-    /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a/
-  );
-  assert.match(
-    generatorStyles,
-    /\.studioSelect\s*\{[\s\S]*?background-image:\s*url\(/
-  );
+  assert.match(editorStyles, /\.editorBody\s*\{[^}]*grid-template-columns:minmax\(350px,35%\) minmax\(0,1fr\)/);
+  const selectStyles = generatorStyles.match(/\.studioSelect[^{}]*\{([^}]+)\}/)?.[1];
+  assert.ok(selectStyles, "Studio select style block is present");
+  assert.match(selectStyles, /background-color:\s*#10244a/);
+  assert.match(selectStyles, /background-image:\s*url\(/);
   assert.match(generatorStyles, /\.essentialCardHeader \.rememberPreference/);
-  assert.match(
-    generatorStyles,
-    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/
-  );
+  assert.match(editorStyles, /@media\s*\(max-width:760px\)\s*\{\s*\.editorBody\s*\{[^}]*flex-direction:column/);
 });
 
 test("les références s’ajoutent immédiatement avec deux choix manuels par photo", () => {

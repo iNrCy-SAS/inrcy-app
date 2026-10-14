@@ -872,5 +872,8 @@
   "ai_generator_editor_stop_locked": "Het genereren is bij het model gestart en kan niet meer worden gestopt.",
   "ai_generator_editor_stop_pending": "Stopverzoek controleren…",
   "ai_generator_editor_recover": "Resultaat ophalen",
-  "ai_generator_editor_abandon": "Poging beëindigen"
+  "ai_generator_editor_abandon": "Poging beëindigen",
+  "ai_generator_editor_criteria_incomplete": "Vul een criterium op dit tabblad aan voordat je genereert.",
+  "ai_generator_use_business_dna_label": "Mijn bedrijfs-DNA gebruiken",
+  "ai_generator_use_business_dna_hint": "Voeg relevante informatie over mijn bedrijf toe aan mijn verzoek."
 }
