@@ -41,7 +41,7 @@ export async function readTikTokConfiguredCapabilityEvidence(scope: TikTokTraffi
       || Date.parse(expires) <= now || Date.parse(expires) > Date.parse(created) + TIKTOK_NATIVE_AUTHORITY_MAX_AGE_MS
       || flags.some((flag) => !["verified", "unverified"].includes(String(row[flag])))
       || !Array.isArray(row.allowedNonSparkIdentityTypes) || row.allowedNonSparkIdentityTypes.length > 3
-      || row.allowedNonSparkIdentityTypes.some((type) => !["TT_USER", "BC_AUTH_TT", "CUSTOMIZED_USER"].includes(String(type)))
+      || row.allowedNonSparkIdentityTypes.some((type) => !["TT_USER", "BC_AUTH_TT"].includes(String(type)))
       || new Set(row.allowedNonSparkIdentityTypes).size !== row.allowedNonSparkIdentityTypes.length
       || !Array.isArray(row.callToActions) || row.callToActions.length > 50 || row.callToActions.some((cta) => typeof cta !== "string" || !/^[A-Z][A-Z_]{1,50}$/.test(cta))
       || new Set(row.callToActions).size !== row.callToActions.length) continue;

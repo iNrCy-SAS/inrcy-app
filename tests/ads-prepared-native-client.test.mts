@@ -74,11 +74,14 @@ test("Public paused checks reject foreign accounts, active targets and malformed
   assert.equal(preparedNativeCheck(check(), "tiktok", draft().adAccountId).publicationEnabled, false);
 });
 test("Automatic TikTok defaults pick only a unique real identity and preserve account-bound fields", () => {
-  const resources = { selectedAccountId: "12345678901", identities: [{ id: "identity1", type: "TT_USER", displayName: "Entreprise" }] } as TikTokAdsResources;
+  const resources = { selectedAccountId: "12345678901", identities: [{ id: "identity1", type: "TT_USER", displayName: "Entreprise", availableStatus: "AVAILABLE", canPushVideo: true, isGpppa: false }] } as TikTokAdsResources;
   const selected = automaticTikTokNativeSelections(resources);
   assert.equal(selected.identity?.id, "identity1"); assert.equal(selected.isAiGenerated, null);
   assert.equal(automaticTikTokNativeSelections({ ...resources, identities: [...resources.identities, { ...resources.identities[0], id: "other" }] }).identity, null);
   assert.deepEqual(automaticTikTokNativeSelections({ ...resources, selectedAccountId: "98765432100" }, { ...selected, locationIds: ["123"], thumbnailMediaId: campaignId }).locationIds, []);
+  for (const identity of [{ ...resources.identities[0], availableStatus: undefined }, { ...resources.identities[0], canPushVideo: undefined }, { ...resources.identities[0], isGpppa: undefined }, { ...resources.identities[0], type: "CUSTOMIZED_USER" as const }, { ...resources.identities[0], type: "AUTH_CODE" as const }]) {
+    assert.equal(automaticTikTokNativeSelections({ ...resources, identities: [identity] }, selected).identity, null);
+  }
 });
 test("X automatically selects unique eligible funding and FULL user, never an unrelated existing post", () => {
   const resources = { selectedAccountId: "ab12", fundingInstruments: [{ id: "fund", currency: "EUR", ableToFund: true, deleted: false, cancelled: false }, { id: "wrong", currency: "USD", ableToFund: true, deleted: false, cancelled: false }],

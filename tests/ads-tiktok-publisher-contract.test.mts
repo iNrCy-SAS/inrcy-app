@@ -25,12 +25,12 @@ const input: TikTokTrafficVideoInput = {
   advertiserId, name: "Campagne test Traffic", adGroupName: "Groupe test Traffic", adName: "Vidéo test Traffic",
   destinationUrl: "https://example.com/offre?utm_source=tiktok", adText: "Découvrir l’offre", callToAction: "LEARN_MORE",
   totalBudgetEuros: 200, startAt: "2026-10-09T07:00:00Z", endAt: "2026-10-14T21:59:59Z",
-  identity: { id: "native-identity", type: "CUSTOMIZED_USER", displayName: "Annonceur test" }, locationIds: ["3012822"],
+  identity: { id: "native-identity", type: "TT_USER", displayName: "Annonceur test", availableStatus: "AVAILABLE", canPushVideo: true, isGpppa: false }, locationIds: ["3012822"],
   videoMediaId: "06dd9f9a-213f-4c55-9a70-23e9d0c5c7dc", thumbnailMediaId: "175665c1-5941-4b09-8107-6a3b2117f3da", isAiGenerated: true,
 };
 const evidence: TikTokTrafficNativeEvidence = {
   advertiserId, currency: "EUR", status: "STATUS_ENABLE", timeZone: "Europe/Paris",
-  identity: input.identity, locationIds: input.locationIds, callToActions: ["LEARN_MORE"], allowedNonSparkIdentityTypes: ["CUSTOMIZED_USER"],
+  identity: input.identity, locationIds: input.locationIds, callToActions: ["LEARN_MORE"], allowedNonSparkIdentityTypes: ["TT_USER"],
   manualTrafficV13: "verified", nativeWriteAccess: "verified", videoUpload: "verified", imageUpload: "verified", mediaRead: "verified", objectRead: "verified",
   minimumLifetimeBudgetEuros: 100, scheduleTimeBasis: "utc",
   scheduleOffsetMinutes: null, budgetCalendar: { startAt: input.startAt, endAt: input.endAt },
@@ -114,12 +114,30 @@ test("TikTok Traffic adapter stays dormant and all three native creation payload
   assert.equal(TIKTOK_TRAFFIC_NATIVE_CREATION_ENABLED, false);
   const bodies = prepareTikTokTrafficNativeBodies(input, evidence);
   assert.equal(bodies.campaign.operation_status, "DISABLE"); assert.equal(bodies.adGroup.operation_status, "DISABLE"); assert.equal(bodies.creative.operation_status, "DISABLE");
+  assert.equal(bodies.creative.dark_post_status, "ON"); assert.equal(bodies.creative.identity_type, "TT_USER");
   assert.equal(bodies.campaign.budget_optimize_on, false); assert.equal(bodies.campaign.budget_mode, "BUDGET_MODE_INFINITE");
   assert.equal(bodies.adGroup.budget_mode, "BUDGET_MODE_TOTAL"); assert.equal(bodies.adGroup.budget, 200);
   assert.equal(bodies.adGroup.optimization_goal, "CLICK"); assert.equal(bodies.adGroup.billing_event, "CPC"); assert.equal(bodies.adGroup.bid_type, "BID_TYPE_NO_BID");
   assert.deepEqual(bodies.adGroup.placements, ["PLACEMENT_TIKTOK"]); assert.deepEqual(bodies.adGroup.location_ids, input.locationIds);
   assert.equal(bodies.creative.landing_page_url, input.destinationUrl); assert.equal(bodies.creative.aigc_disclosure_type, "SELF_DISCLOSURE");
   assert.ok(!("pixel_id" in bodies.adGroup) && !("budget" in bodies.campaign));
+});
+
+test("Spark Push rejects legacy identities and unverified availability before any native mutation", async () => {
+  for (const type of ["CUSTOMIZED_USER", "AUTH_CODE"] as const) {
+    const h = harness();
+    await assert.rejects(h.run({ ...input, identity: { ...input.identity, type } }), rejectsCode("identity_type_unsupported"));
+    assert.equal(h.calls.length, 0); assert.equal(h.checkpoints.length, 0);
+  }
+  for (const patch of [{ availableStatus: undefined }, { availableStatus: "UNAVAILABLE" }, { canPushVideo: undefined }, { canPushVideo: false }, { canPushVideo: "true" }, { isGpppa: undefined }, { isGpppa: true }, { isGpppa: "false" }]) {
+    const h = harness();
+    const identity = { ...input.identity, ...patch } as TikTokTrafficVideoInput["identity"];
+    await assert.rejects(h.run({ ...input, identity }), rejectsCode("identity_push_unavailable"));
+    assert.equal(h.calls.length, 0); assert.equal(h.checkpoints.length, 0);
+  }
+  const missingEvidence = harness({ evidence: { identity: { ...input.identity, canPushVideo: undefined } } });
+  await assert.rejects(missingEvidence.run(), rejectsCode("identity_unverified"));
+  assert.equal(missingEvidence.calls.length, 0);
 });
 
 test("Unverified write, identity, geography, media, and read capabilities prevent every provider mutation", async () => {
@@ -196,10 +214,27 @@ test("A paused hierarchy uses exact current native IDs and verifies all three di
   assert.equal(group.campaign_id, result.campaignId); assert.equal(ad.adgroup_id, result.adGroupId);
   const creative = (ad.creatives as Array<Record<string, unknown>>)[0];
   assert.equal(creative.video_id, result.videoId); assert.deepEqual(creative.image_ids, [result.imageId]); assert.equal(creative.identity_id, input.identity.id);
+  assert.equal(creative.dark_post_status, "ON"); assert.equal(creative.identity_type, "TT_USER");
   assert.ok(objects.every((call) => call.path === "ad/create" ? (call.body as { creatives: Array<{ operation_status: string }> }).creatives.every((row) => row.operation_status === "DISABLE") : (call.body as { operation_status: string }).operation_status === "DISABLE"));
   assert.deepEqual(h.calls.slice(-3).map((call) => call.path), ["campaign/get", "adgroup/get", "ad/get"]);
   assert.equal(result.inputKey, tikTokTrafficInputKey(input));
   assert.ok(!JSON.stringify(h.checkpoints).includes("private-") && !JSON.stringify(h.checkpoints).includes("https://"));
+});
+
+test("A Business Center Spark Push identity keeps its exact authorization and ads-only mode on the whole paused hierarchy", async () => {
+  const identity = { ...input.identity, type: "BC_AUTH_TT" as const, authorizedBusinessCenterId: "1234567890" };
+  const h = harness({ evidence: { identity, allowedNonSparkIdentityTypes: ["BC_AUTH_TT"] } });
+  const result = await h.run({ ...input, identity });
+  assert.equal(result.stage, "paused_verified");
+  const objects = objectWrites(h.calls);
+  const creative = (objects[2].body as { creatives: Array<Record<string, unknown>> }).creatives[0];
+  assert.equal(creative.identity_type, "BC_AUTH_TT"); assert.equal(creative.identity_authorized_bc_id, identity.authorizedBusinessCenterId);
+  assert.equal(creative.dark_post_status, "ON"); assert.equal(creative.operation_status, "DISABLE");
+  assert.ok(objects.slice(0, 2).every((call) => (call.body as Record<string, unknown>).operation_status === "DISABLE"));
+  assert.deepEqual(h.calls.slice(-3).map((call) => call.path), ["campaign/get", "adgroup/get", "ad/get"]);
+  const missingBusinessCenter = harness({ evidence: { identity, allowedNonSparkIdentityTypes: ["BC_AUTH_TT"] } });
+  await assert.rejects(missingBusinessCenter.run({ ...input, identity: { ...identity, authorizedBusinessCenterId: undefined } }), rejectsCode("identity_unverified"));
+  assert.equal(missingBusinessCenter.calls.length, 0);
 });
 
 test("Unsafe or unrelated source media is rejected before upload", async () => {

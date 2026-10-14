@@ -39,7 +39,8 @@ function runtime(options: { expired?: boolean; account?: Record<string, unknown>
       assert.equal(new Headers(init?.headers).get("Access-Token"), "private-token");
       if (path === "oauth2/advertiser/get/") return Response.json({ code: 0, data: { advertiser_ids: [accountId] } });
       if (path === "advertiser/info/") return Response.json({ code: 0, data: { list: [{ advertiser_id: accountId, name: "Compte natif", currency: "EUR", status: "STATUS_ENABLE", timezone: "Europe/Paris", ...options.account }] } });
-      if (path === "identity/get/") return options.identityFailure ? Response.json({ code: 9, message: "private-token" }, { status: options.identityFailure }) : Response.json({ code: 0, data: { identity_list: [{ identity_id: "native-user", identity_type: "TT_USER", display_name: "Profil natif" }], page_info: { total_page: 1 } } });
+      if (path === "identity/get/") return options.identityFailure ? Response.json({ code: 9, message: "private-token" }, { status: options.identityFailure }) : Response.json({ code: 0, data: { identity_list: url.searchParams.get("identity_type") === "TT_USER" ? [{ identity_id: "native-user", identity_type: "TT_USER", display_name: "Profil natif" }] : [], page_info: { total_page: 1 } } });
+      if (path === "identity/info/") return Response.json({ code: 0, data: { identity_info: { identity_id: "native-user", identity_type: "TT_USER", available_status: "AVAILABLE", can_push_video: true, is_gpppa: false } } });
       if (path === "tool/region/") {
         assert.equal(url.searchParams.get("advertiser_id"), accountId);
         assert.deepEqual(JSON.parse(url.searchParams.get("placements")!), ["PLACEMENT_TIKTOK"]);
@@ -131,7 +132,7 @@ test("TikTok preparation can verify selections while all publication capabilitie
   assert.equal(result.capabilities.minimumLifetimeBudgetEuros, null); assert.equal(result.capabilities.budgetCalendar, null); assert.equal(result.capabilities.scheduleTimeBasis, null); assert.equal(result.capabilities.scheduleOffsetMinutes, null);
   for (const blocker of ["campaign_write_unverified", "budget_minimum_unverified", "schedule_time_basis_unverified", "cta_options_unverified", "non_spark_identity_type_unverified"]) assert.ok(result.blockers.includes(blocker));
   assert.equal(typeof result.resourcesKey, "string"); assert.doesNotMatch(JSON.stringify(result), /private-|cipher|access_token|secret/);
-  assert.deepEqual(sample.calls.map((call) => call.path), ["oauth2/advertiser/get/", "advertiser/info/", "identity/get/", "tool/region/"]);
+  assert.deepEqual(sample.calls.map((call) => call.path), ["oauth2/advertiser/get/", "advertiser/info/", "identity/get/", "identity/get/", "identity/info/", "tool/region/"]);
 });
 
 test("TikTok preparation refuses unavailable native IDs/identities, missing timezone and connection drift", async () => {

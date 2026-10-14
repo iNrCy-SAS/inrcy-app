@@ -2,7 +2,7 @@ import "server-only";
 import { decryptToken } from "./oauthCrypto.ts";
 import { readTikTokAdsIntegration, TikTokAdsConnectionError, type TikTokAdsIntegration } from "./adsTikTokServer.ts";
 import { TIKTOK_ADS_API_BASE, parseTikTokAdvertiserIds, tikTokAdsAccessTokenIsFresh, tikTokAdsAccountCanAssociate } from "./adsTikTokPolicy.ts";
-import { parseTikTokAdsIdentities, parseTikTokAdsResourceAccount, type TikTokAdsIdentity, type TikTokAdsResources, type TikTokAdsResourceBlocker, TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT, parseTikTokAdsTrafficRegions, normalizeTikTokAdsGeoQueries, normalizeTikTokAdsLocationIds, resolveTikTokAdsGeoQueries, tikTokAdsResourcesConsentKey, type TikTokAdsGeoTarget, type TikTokAdsGeography, type TikTokAdsTrafficPreparation } from "./adsTikTokResources.ts";
+import { parseTikTokAdsIdentities, parseTikTokAdsResourceAccount, verifiedTikTokSparkPushIdentity, type TikTokAdsIdentity, type TikTokAdsResources, type TikTokAdsResourceBlocker, TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT, parseTikTokAdsTrafficRegions, normalizeTikTokAdsGeoQueries, normalizeTikTokAdsLocationIds, resolveTikTokAdsGeoQueries, tikTokAdsResourcesConsentKey, type TikTokAdsGeoTarget, type TikTokAdsGeography, type TikTokAdsTrafficPreparation } from "./adsTikTokResources.ts";
 
 export type TikTokAdsResourceDependencies = {
   readIntegration: (userId: string) => Promise<TikTokAdsIntegration | null>;
@@ -16,7 +16,7 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 const context = (row: TikTokAdsIntegration) => JSON.stringify([row.id, row.status, row.resource_id, row.access_token_enc, row.refresh_token_enc, row.expires_at, record(row.meta).token_lifecycle]);
 
 /** Strict GET-only transport; neither OAuth refresh nor provider writes are used by this preparation endpoint. */
-async function readApi(path: "oauth2/advertiser/get" | "advertiser/info" | "identity/get" | "tool/region", params: URLSearchParams, accessToken: string, deps: TikTokAdsResourceDependencies) {
+async function readApi(path: "oauth2/advertiser/get" | "advertiser/info" | "identity/get" | "identity/info" | "tool/region", params: URLSearchParams, accessToken: string, deps: TikTokAdsResourceDependencies) {
   let response: Response;
   try {
     response = await deps.fetchImpl(`${TIKTOK_ADS_API_BASE}/${path}/?${params}`, {
@@ -36,7 +36,7 @@ async function readApi(path: "oauth2/advertiser/get" | "advertiser/info" | "iden
 type TikTokAdsReadOnlyContext = {
   selectedAccountId: string; account: TikTokAdsResources["account"]; now: () => number;
   appId: string; integrationFingerprint: string;
-  read: (path: "identity/get" | "tool/region", params: URLSearchParams) => Promise<Record<string, unknown>>;
+  read: (path: "identity/get" | "identity/info" | "tool/region", params: URLSearchParams) => Promise<Record<string, unknown>>;
   assertCurrent: () => Promise<void>;
 };
 /** An owned fresh snapshot and a GET-only closure; access tokens remain inside the server module. */
@@ -83,20 +83,43 @@ async function readResourcesInContext(ctx: TikTokAdsReadOnlyContext): Promise<Ti
   let identities: TikTokAdsIdentity[] = [], identityRead: TikTokAdsResources["identityRead"] = { status: "verified" };
   try {
     const byId = new Map<string, TikTokAdsIdentity>();
-    for (let page = 1; page <= 10; page++) {
-      // Omitting identity_type requests all identities; no identity is created.
-      const payload = await ctx.read("identity/get", new URLSearchParams({ advertiser_id: accountId, page: String(page), page_size: "100" }));
-      const rows = parseTikTokAdsIdentities(payload);
-      if (!rows) throw new TikTokAdsConnectionError("La réponse des identités TikTok Ads doit être revérifiée.", "identity_response_invalid");
-      rows.forEach((identity) => byId.set(`${identity.type}:${identity.id}:${identity.authorizedBusinessCenterId || ""}`, identity));
-      const pageInfo = record(record(payload.data).page_info), totalPages = Number(pageInfo.total_page);
-      const more = Number.isSafeInteger(totalPages) && totalPages > page ? true : rows.length >= 100 && !Number.isSafeInteger(totalPages);
-      if (!more) break;
-      if (page === 10) throw new TikTokAdsConnectionError("Les identités TikTok Ads dépassent la limite de lecture du contrôle.", "identity_read_limit");
+    let identityPageReads = 0;
+    async function readIdentityPages(identityType: "TT_USER" | "BC_AUTH_TT", businessCenterId?: string) {
+      // TikTok documents pagination only with an explicit identity type.
+      for (let page = 1; page <= 10; page++) {
+        if (++identityPageReads > 20) throw new TikTokAdsConnectionError("Les identités TikTok Ads dépassent la limite de lecture du contrôle.", "identity_read_limit");
+        const params = new URLSearchParams({ advertiser_id: accountId, identity_type: identityType, page: String(page), page_size: "100" });
+        if (businessCenterId) params.set("identity_authorized_bc_id", businessCenterId);
+        const payload = await ctx.read("identity/get", params);
+        const rows = parseTikTokAdsIdentities(payload);
+        if (!rows || (identityType === "TT_USER" && rows.some((identity) => identity.type !== identityType))) throw new TikTokAdsConnectionError("La réponse des identités TikTok Ads doit être revérifiée.", "identity_response_invalid");
+        // A BC-scoped response may also contain other advertiser-linked types.
+        // Only the requested BC's identities can enter this catalogue.
+        rows.filter((identity) => identity.type === identityType && (identityType !== "BC_AUTH_TT" || identity.authorizedBusinessCenterId === businessCenterId))
+          .forEach((identity) => byId.set(`${identity.type}:${identity.id}:${identity.authorizedBusinessCenterId || ""}`, identity));
+        const pageInfo = record(record(payload.data).page_info), totalPages = Number(pageInfo.total_page);
+        const more = Number.isSafeInteger(totalPages) && totalPages > page ? true : rows.length >= 100 && !Number.isSafeInteger(totalPages);
+        if (!more) break;
+        if (page === 10) throw new TikTokAdsConnectionError("Les identités TikTok Ads dépassent la limite de lecture du contrôle.", "identity_read_limit");
+      }
     }
-    identities = [...byId.values()];
+    await readIdentityPages("TT_USER");
+    // The untyped endpoint returns all identity types without reliable pagination.
+    // Use it only to discover actual BC IDs; no row here proves Spark Push availability.
+    const discovered = parseTikTokAdsIdentities(await ctx.read("identity/get", new URLSearchParams({ advertiser_id: accountId })));
+    if (!discovered) throw new TikTokAdsConnectionError("La réponse des identités TikTok Ads doit être revérifiée.", "identity_response_invalid");
+    const businessCenters = [...new Set(discovered.filter((identity) => identity.type === "BC_AUTH_TT").map((identity) => identity.authorizedBusinessCenterId!))];
+    if (businessCenters.length > 10 || businessCenters.some((businessCenterId) => !/^\d{5,30}$/.test(businessCenterId))) throw new TikTokAdsConnectionError("Les identités TikTok Ads dépassent la limite de lecture du contrôle.", "identity_read_limit");
+    for (const businessCenterId of businessCenters) await readIdentityPages("BC_AUTH_TT", businessCenterId);
+    for (const identity of byId.values()) {
+      const params = new URLSearchParams({ advertiser_id: accountId, identity_id: identity.id, identity_type: identity.type });
+      if (identity.authorizedBusinessCenterId) params.set("identity_authorized_bc_id", identity.authorizedBusinessCenterId);
+      const verified = verifiedTikTokSparkPushIdentity(identity, await ctx.read("identity/info", params));
+      if (verified) identities.push(verified);
+    }
   } catch (error) {
     if (!(error instanceof TikTokAdsConnectionError) || ["needs_reconnect", "account_mismatch"].includes(error.code)) throw error;
+    identities = [];
     identityRead = { status: "unavailable", code: error.code };
   }
   await ctx.assertCurrent();

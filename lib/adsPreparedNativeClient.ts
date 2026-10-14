@@ -1,5 +1,5 @@
 import type { AdsCampaignInput } from "./adsValidation.ts";
-import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT, type TikTokAdsResources } from "./adsTikTokResources.ts";
+import { TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT, isTikTokSparkPushIdentity, type TikTokAdsResources } from "./adsTikTokResources.ts";
 import type { TikTokAdsNativeSelections } from "./adsTikTokNativeSelections.ts";
 import { xAdsTrackedDestination, type XAdsNativeSelections, type XAdsResources } from "./adsXResources.ts";
 
@@ -18,9 +18,10 @@ export function ownedPreparedVideoId(url: string): string | null {
 }
 export function automaticTikTokNativeSelections(resources: TikTokAdsResources, current?: TikTokAdsNativeSelections): TikTokAdsNativeSelections {
   const previous = current?.advertiserId === resources.selectedAccountId ? current : undefined;
-  const matches = resources.identities.filter((identity) => previous?.identity?.id === identity.id && previous.identity.type === identity.type
+  const eligible = resources.identities.filter(isTikTokSparkPushIdentity);
+  const matches = eligible.filter((identity) => previous?.identity?.id === identity.id && previous.identity.type === identity.type
     && previous.identity.authorizedBusinessCenterId === identity.authorizedBusinessCenterId);
-  const chosen = matches[0] || (resources.identities.length === 1 ? resources.identities[0] : null);
+  const chosen = matches[0] || (eligible.length === 1 ? eligible[0] : null);
   return { schemaVersion: 1, advertiserId: resources.selectedAccountId, context: structuredClone(TIKTOK_TRAFFIC_GEOGRAPHY_CONTEXT),
     identity: chosen ? { id: chosen.id, type: chosen.type, ...(chosen.authorizedBusinessCenterId ? { authorizedBusinessCenterId: chosen.authorizedBusinessCenterId } : {}) } : null,
     locationIds: previous?.locationIds || [], callToAction: previous?.callToAction || "LEARN_MORE", thumbnailMediaId: previous?.thumbnailMediaId || null,
@@ -83,6 +84,8 @@ export function preparedNativeBlockerLabel(code: string): string {
     native_capabilities_unverified: "Les permissions natives de cette application restent à confirmer auprès de TikTok.",
     identity_required: "L’identité publicitaire n’est pas encore disponible ou doit être précisée.",
     identity_not_authorized: "L’identité choisie n’est plus autorisée sur ce compte.",
+    identity_type_unsupported: "Ce parcours nécessite une identité TikTok autorisée à importer une vidéo publicitaire.",
+    identity_push_unavailable: "TikTok n’a pas confirmé la disponibilité de cette identité et son autorisation d’importer la vidéo.",
     location_required: "Les zones doivent être vérifiées dans le catalogue du compte.",
     location_not_available: "Une zone n’est plus disponible sur ce compte.",
     thumbnail_required: "La miniature vidéo doit encore être préparée.",

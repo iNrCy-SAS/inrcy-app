@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { TikTokAdsIdentity } from "./adsTikTokResources.ts";
+import { isTikTokSparkPushIdentity } from "./adsTikTokResources.ts";
 import { preparedAdsInstant } from "./adsPreparedCampaignSettings.ts";
 
 /** A narrow, dormant v1.3 manual Traffic adapter. No activation endpoint exists here.
@@ -88,7 +89,8 @@ export function tikTokTrafficInputKey(input: TikTokTrafficVideoInput): string {
 /** Structural preparation checks do not manufacture provider capability evidence. */
 export function validateTikTokTrafficVideoFields(input: TikTokTrafficVideoInput, now: number, resumed = false): void {
   if (!id(input.advertiserId)) fail("advertiser_mismatch");
-  if (!input.identity || !tikTokTrafficAssetId(input.identity.id) || input.identity.type === "AUTH_CODE") fail("identity_unverified");
+  if (!input.identity || !tikTokTrafficAssetId(input.identity.id) || !["TT_USER", "BC_AUTH_TT"].includes(input.identity.type)) fail("identity_type_unsupported");
+  if (!isTikTokSparkPushIdentity(input.identity)) fail("identity_push_unavailable");
   if (!Array.isArray(input.locationIds) || !input.locationIds.length || input.locationIds.length > 20
     || new Set(input.locationIds).size !== input.locationIds.length || input.locationIds.some((zone) => typeof zone !== "string" || !/^\d{1,30}$/.test(zone) || /^0+$/.test(zone))) fail("location_unverified");
   if (!/^[A-Z][A-Z_]{1,50}$/.test(input.callToAction)) fail("cta_unverified");
@@ -126,6 +128,7 @@ export function validateTikTokTrafficVideoInput(input: TikTokTrafficVideoInput, 
   if (!Number.isFinite(evidence.minimumLifetimeBudgetEuros) || !evidence.minimumLifetimeBudgetEuros || evidence.minimumLifetimeBudgetEuros <= 0) fail("minimum_budget_unverified");
   if (evidence.budgetCalendar?.startAt !== input.startAt || evidence.budgetCalendar?.endAt !== input.endAt) fail("minimum_budget_calendar_unverified");
   if (!input.identity || !tikTokTrafficAssetId(input.identity.id) || identityKey(input.identity) !== identityKey(evidence.identity)
+    || !isTikTokSparkPushIdentity(evidence.identity)
     || !evidence.allowedNonSparkIdentityTypes.includes(input.identity.type)
     || (input.identity.type === "BC_AUTH_TT" && !id(input.identity.authorizedBusinessCenterId))) fail("identity_unverified");
   if (input.locationIds.some((zone) => !evidence.locationIds.includes(zone))) fail("location_unverified");
@@ -139,7 +142,7 @@ export function prepareTikTokTrafficNativeBodies(input: TikTokTrafficVideoInput,
   return {
     campaign: { advertiser_id: input.advertiserId, campaign_name: input.name, objective_type: "TRAFFIC", budget_optimize_on: false, budget_mode: "BUDGET_MODE_INFINITE", operation_status: "DISABLE" },
     adGroup: { advertiser_id: input.advertiserId, adgroup_name: input.adGroupName, promotion_type: "WEBSITE", optimization_goal: "CLICK", billing_event: "CPC", bid_type: "BID_TYPE_NO_BID", pacing: "PACING_MODE_SMOOTH", budget_mode: "BUDGET_MODE_TOTAL", budget: input.totalBudgetEuros, schedule_type: "SCHEDULE_START_END", schedule_start_time: nativeTime(input.startAt, scheduleOffset), schedule_end_time: nativeTime(input.endAt, scheduleOffset), placement_type: "PLACEMENT_TYPE_NORMAL", placements: ["PLACEMENT_TIKTOK"], location_ids: [...input.locationIds], operation_status: "DISABLE" },
-    creative: { ad_name: input.adName, ad_format: "SINGLE_VIDEO", identity_type: input.identity.type, identity_id: input.identity.id, ...(input.identity.authorizedBusinessCenterId ? { identity_authorized_bc_id: input.identity.authorizedBusinessCenterId } : {}), ad_text: input.adText, call_to_action: input.callToAction, landing_page_url: input.destinationUrl, aigc_disclosure_type: input.isAiGenerated ? "SELF_DISCLOSURE" : "NOT_DECLARED", operation_status: "DISABLE" },
+    creative: { ad_name: input.adName, ad_format: "SINGLE_VIDEO", identity_type: input.identity.type, identity_id: input.identity.id, ...(input.identity.authorizedBusinessCenterId ? { identity_authorized_bc_id: input.identity.authorizedBusinessCenterId } : {}), dark_post_status: "ON", ad_text: input.adText, call_to_action: input.callToAction, landing_page_url: input.destinationUrl, aigc_disclosure_type: input.isAiGenerated ? "SELF_DISCLOSURE" : "NOT_DECLARED", operation_status: "DISABLE" },
   };
 }
 function assertCheckpoint(checkpoint: TikTokTrafficCheckpoint, input: TikTokTrafficVideoInput, operationKey: string) {

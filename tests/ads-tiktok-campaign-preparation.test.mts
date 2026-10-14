@@ -34,7 +34,7 @@ function capabilities(scope: TikTokTrafficCapabilityScope): TikTokTrafficCapabil
   const budget = draft().preparedDeliverySettings!.budget;
   return { scope, manualTrafficV13: "verified", nativeWriteAccess: "verified", videoUpload: "verified", imageUpload: "verified", mediaRead: "verified", objectRead: "verified", callToActions: ["LEARN_MORE"], allowedNonSparkIdentityTypes: ["TT_USER"], minimumLifetimeBudgetEuros: 100, budgetCalendar: { startAt: budget.startAt!, endAt: budget.endAt! }, scheduleTimeBasis: "utc", scheduleOffsetMinutes: null, verifiedAt: new Date(now - 1000).toISOString(), validUntil: new Date(now + 60_000).toISOString() };
 }
-function fixture(options: { enabled?: boolean; proof?: "verified" | "missing"; patchProof?: (record: TikTokTrafficCapabilityEvidence) => TikTokTrafficCapabilityEvidence; drift?: boolean } = {}) {
+function fixture(options: { enabled?: boolean; proof?: "verified" | "missing"; patchProof?: (record: TikTokTrafficCapabilityEvidence) => TikTokTrafficCapabilityEvidence; drift?: boolean; identityInfo?: Record<string, unknown> } = {}) {
   const calls: string[] = [];
   let reads = 0, proofReads = 0;
   const integration = { id: "integration", status: "connected", resource_id: accountId, resource_label: "Compte", access_token_enc: "private-cipher", refresh_token_enc: null, expires_at: null, meta: { token_lifecycle: "long_lived" } };
@@ -60,7 +60,8 @@ function fixture(options: { enabled?: boolean; proof?: "verified" | "missing"; p
         assert.equal(init?.method, "GET"); assert.equal(init?.body, undefined); assert.equal(init?.redirect, "error");
         if (path === "oauth2/advertiser/get/") return Response.json({ code: 0, data: { advertiser_ids: [accountId] } });
         if (path === "advertiser/info/") return Response.json({ code: 0, data: { list: [{ advertiser_id: accountId, name: "Compte natif", currency: "EUR", status: "STATUS_ENABLE", timezone: "Europe/Paris" }] } });
-        if (path === "identity/get/") return Response.json({ code: 0, data: { identity_list: [{ identity_id: "native-profile", identity_type: "TT_USER", display_name: "Profil natif" }], page_info: { total_page: 1 } } });
+        if (path === "identity/get/") return Response.json({ code: 0, data: { identity_list: url.searchParams.get("identity_type") === "TT_USER" ? [{ identity_id: "native-profile", identity_type: "TT_USER", display_name: "Profil natif" }] : [], page_info: { total_page: 1 } } });
+        if (path === "identity/info/") return Response.json({ code: 0, data: { identity_info: { identity_id: "native-profile", identity_type: "TT_USER", available_status: "AVAILABLE", can_push_video: true, is_gpppa: false, ...options.identityInfo } } });
         if (path === "tool/region/") return Response.json({ code: 0, data: { region_info: [
           { location_id: "250", parent_id: "0", name: "France", level: "COUNTRY", region_code: "FR", area_type: "ADMIN" },
           { location_id: "3200", parent_id: "250", name: "Hauts-de-France", level: "PROVINCE", region_code: "FR", area_type: "ADMIN" },
@@ -81,7 +82,7 @@ test("Complete TikTok selections are freshly native-verified while unknown capab
   assert.equal(result.consentKey, result.preparationKey); assert.match(result.consentKey, /^[0-9a-f]{64}$/);
   assert.ok(result.blockers.includes("native_capabilities_unverified")); assert.ok(result.blockers.includes("paused_creation_disabled"));
   assert.doesNotMatch(JSON.stringify(result), /private-|cipher|nativeEvidence|integrationFingerprint|accessToken|allowedNonSparkIdentityTypes/);
-  assert.deepEqual(f.calls, ["oauth2/advertiser/get/", "advertiser/info/", "identity/get/", "tool/region/"]);
+  assert.deepEqual(f.calls, ["oauth2/advertiser/get/", "advertiser/info/", "identity/get/", "identity/get/", "identity/info/", "tool/region/"]);
 });
 test("Enabling the paused adapter never replaces a missing native capability proof", async () => {
   const f = fixture({ enabled: true }), result = await f.preparation.checkTikTokAdsCampaignPreparation("owner", draft(), f.dependencies);
@@ -127,6 +128,29 @@ test("Incomplete AIGC, unknown identity and unavailable locations never become v
     const f = fixture({ enabled: true, proof: "verified" }), result = await f.preparation.checkTikTokAdsCampaignPreparation("owner", { ...original, tiktokNativeSelections: { ...original.tiktokNativeSelections!, ...patch } }, f.dependencies);
     assert.equal(result.ready, false); assert.equal(result.preparationReady, false);
   }
+});
+
+test("Native write proof never authorizes an unavailable or legacy TikTok identity", async () => {
+  for (const identityInfo of [{ available_status: "UNAVAILABLE" }, { can_push_video: false }, { can_push_video: "true" }, { is_gpppa: true }, { is_gpppa: undefined }]) {
+    const f = fixture({ enabled: true, proof: "verified", identityInfo });
+    const result = await f.preparation.checkTikTokAdsCampaignPreparation("owner", draft(), f.dependencies);
+    assert.equal(result.ready, false); assert.equal(result.preparationReady, false);
+    assert.ok(result.blockers.includes("identity_not_authorized"));
+    assert.ok(f.calls.every((path) => !/create|upload|update/.test(path)));
+  }
+  for (const type of ["CUSTOMIZED_USER", "AUTH_CODE"] as const) {
+    const f = fixture({ enabled: true, proof: "verified" });
+    const legacy = { ...draft(), tiktokNativeSelections: { ...draft().tiktokNativeSelections!, identity: { id: "native-profile", type } } };
+    const result = await f.preparation.checkTikTokAdsCampaignPreparation("owner", legacy, f.dependencies);
+    assert.equal(result.ready, false); assert.ok(result.blockers.includes("identity_type_unsupported"));
+  }
+});
+
+test("Client-supplied identity availability cannot replace the server-native check", async () => {
+  const f = fixture({ enabled: true, proof: "verified" }), original = draft();
+  const injected = { ...original, tiktokNativeSelections: { ...original.tiktokNativeSelections!, identity: { ...original.tiktokNativeSelections!.identity!, availableStatus: "AVAILABLE", canPushVideo: true, isGpppa: false } } };
+  await assert.rejects(f.preparation.checkTikTokAdsCampaignPreparation("owner", injected, f.dependencies), /native_selections_invalid/);
+  assert.equal(f.calls.length, 0); assert.equal(f.proofReads(), 0);
 });
 test("Consent binds effective spend, calendar, destination, creative and explicit native choices", async () => {
   const f = fixture({ enabled: true, proof: "verified" }), original = draft(), key = (await f.preparation.checkTikTokAdsCampaignPreparation("owner", original, f.dependencies)).consentKey;

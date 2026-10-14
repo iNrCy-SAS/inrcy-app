@@ -93,6 +93,7 @@ export async function prepareTikTokAdsCampaignForPublication(userId: string, dra
   const selectedIdentity = selection.identity ? resources.identities.find((identity) => identityKey(identity) === identityKey(selection.identity!)) || null : null;
   const verifiedLocations = selection.locationIds.flatMap((id) => { const found = ctx.locations.find((target) => target.id === id); return found ? [found] : []; });
   const blockers: string[] = [];
+  if (selection.identity && !["TT_USER", "BC_AUTH_TT"].includes(selection.identity.type)) blockers.push("identity_type_unsupported");
   if (!selectedIdentity) blockers.push(selection.identity ? "identity_not_authorized" : "identity_required");
   if (!selection.locationIds.length) blockers.push("location_required");
   else if (verifiedLocations.length !== selection.locationIds.length) blockers.push("location_not_available");

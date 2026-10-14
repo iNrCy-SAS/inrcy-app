@@ -6,6 +6,10 @@ export type TikTokAdsIdentity = {
   type: (typeof TIKTOK_ADS_IDENTITY_TYPES)[number];
   displayName: string;
   authorizedBusinessCenterId?: string;
+  /** Verified by the advertiser-scoped identity/info response, never client input. */
+  availableStatus?: "AVAILABLE";
+  canPushVideo?: true;
+  isGpppa?: false;
 };
 export type TikTokAdsResourceBlocker = "campaign_write_unverified" | "publication_adapter_unavailable" | "active_publication_disabled" | "identity_read_unavailable" | "identity_required" | "account_timezone_unverified";
 /** Public, read-only evidence. A successful GET never proves permission to create ads. */
@@ -52,11 +56,28 @@ export function parseTikTokAdsIdentities(payload: unknown): TikTokAdsIdentity[] 
   return [...identities.values()];
 }
 
+/** Spark Push is the supported video path; customized and authorization-code identities are not interchangeable with it. */
+export function isTikTokSparkPushIdentity(identity: TikTokAdsIdentity): boolean {
+  return (identity.type === "TT_USER" || identity.type === "BC_AUTH_TT")
+    && identity.availableStatus === "AVAILABLE" && identity.canPushVideo === true && identity.isGpppa === false;
+}
+
+/** https://business-api.tiktok.com/portal/docs/get-info-about-an-identity/v1.3 */
+export function verifiedTikTokSparkPushIdentity(identity: TikTokAdsIdentity, payload: unknown): TikTokAdsIdentity | null {
+  const info = object(object(object(payload).data).identity_info);
+  if ((identity.type !== "TT_USER" && identity.type !== "BC_AUTH_TT")
+    || info.available_status !== "AVAILABLE" || info.can_push_video !== true || info.is_gpppa !== false
+    || info.identity_id !== identity.id || info.identity_type !== identity.type
+    || (identity.type === "BC_AUTH_TT" ? info.identity_authorized_bc_id !== identity.authorizedBusinessCenterId : info.identity_authorized_bc_id != null)) return null;
+  return { ...identity, availableStatus: "AVAILABLE", canPushVideo: true, isGpppa: false };
+}
+
 export function tikTokAdsResourcesConsentKey(resources: TikTokAdsResources | null): string | null {
   if (!resources || resources.account.id !== resources.selectedAccountId || !/^\d{5,30}$/.test(resources.selectedAccountId)) return null;
   const { id, name, currency, status, timezone } = resources.account;
   return JSON.stringify({ account: { id, name, currency, status, timezone }, identityRead: resources.identityRead,
-    identities: resources.identities.map((identity) => ({ id: identity.id, type: identity.type, displayName: identity.displayName, authorizedBusinessCenterId: identity.authorizedBusinessCenterId || null }))
+    identities: resources.identities.map((identity) => ({ id: identity.id, type: identity.type, displayName: identity.displayName, authorizedBusinessCenterId: identity.authorizedBusinessCenterId || null,
+      availableStatus: identity.availableStatus || null, canPushVideo: identity.canPushVideo === true, isGpppa: identity.isGpppa ?? null }))
       .sort((left, right) => `${left.type}:${left.id}:${left.authorizedBusinessCenterId}`.localeCompare(`${right.type}:${right.id}:${right.authorizedBusinessCenterId}`)),
     readiness: { ...resources.readiness, blockers: [...resources.readiness.blockers].sort() }, publicationEnabled: false });
 }
