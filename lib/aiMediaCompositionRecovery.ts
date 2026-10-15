@@ -18,7 +18,8 @@ export type AiMediaCompositionRecoveryOutcome =
   | { status: "completed"; accountId: string; jobId: string; mediaId: string }
   | { status: "retry_pending" | "failed"; accountId: string; jobId: string };
 
-const BUCKET = "inrcy-pro-media";
+const BUCKET = "inrcy-ai-composition";
+const LEGACY_BUCKET = "inrcy-pro-media";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 const MAX_AUX_BYTES = 32 * 1024 * 1024;
@@ -30,7 +31,7 @@ function parameters(checkpoint: AiMediaCompositionCheckpoint) {
 }
 async function rpc(name: string, args: Record<string, unknown> = {}) {
   const result = await supabaseAdmin.rpc(name, args);
-  if (result.error) throw new Error(`ai_media_composition_rpc_failed:${name}`);
+  if (result.error) throw new Error(`ai_media_composition_rpc_failed:${name}`, { cause: result.error });
   return result.data;
 }
 
@@ -86,26 +87,33 @@ export async function persistAiMediaCompositionCheckpoint(args: {
   if (args.checkpoint && (args.checkpoint.accountId !== checkpoint.accountId || args.checkpoint.jobId !== checkpoint.jobId)) throw new Error("ai_media_composition_scope_invalid");
   const layout = { ...args.input, nativeAudioMode: args.input.nativeAudioMode || "ambience" as const };
   validateLayout(layout as unknown as Manifest);
-  const bucket = await supabaseAdmin.storage.getBucket(BUCKET);
-  if (bucket.error || !bucket.data || bucket.data.public) throw new Error("ai_media_composition_private_bucket_required");
-  await rpc("start_ai_media_composition_checkpoint", { ...parameters(checkpoint), p_actor_auth_user_id: uuid(args.authUserId) });
   const folder = `${prefix(checkpoint.accountId, checkpoint.jobId)}${randomUUID()}/`;
+  let stage = "bucket";
+  let checkpointStarted = false;
   const upload = async (file: string, buffer: Buffer, contentType: string, maximum = MAX_AUX_BYTES): Promise<Asset> => {
     if (!buffer.length || buffer.length > maximum) throw new Error("ai_media_composition_asset_size_invalid");
     const result = await supabaseAdmin.storage.from(BUCKET).upload(folder + file, buffer, { contentType, upsert: false, cacheControl: "0" });
-    if (result.error) throw new Error("ai_media_composition_upload_failed");
+    if (result.error) throw new Error("ai_media_composition_upload_failed", { cause: result.error });
     return { file, bytes: buffer.length, sha256: hash(buffer) };
   };
   try {
+    const bucket = await supabaseAdmin.storage.getBucket(BUCKET);
+    if (bucket.error || !bucket.data || bucket.data.public) throw new Error("ai_media_composition_private_bucket_required", { cause: bucket.error });
+    stage = "start";
+    await rpc("start_ai_media_composition_checkpoint_v2", { ...parameters(checkpoint), p_actor_auth_user_id: uuid(args.authUserId) });
+    checkpointStarted = true;
+    stage = "clips";
     const clips = [];
     for (const [i, clip] of args.input.clips.entries()) clips.push({
       ...await upload(`clip-${i}.mp4`, clip.buffer, "video/mp4", MAX_CLIP_BYTES),
       durationSeconds: clip.durationSeconds, ...(clip.sourceStartSeconds !== undefined ? { sourceStartSeconds: clip.sourceStartSeconds } : {}),
     });
+    stage = "overlays";
     const overlays = [];
     for (const [i, buffer] of args.input.overlays.entries()) overlays.push(await upload(`overlay-${i}.png`, buffer, "image/png"));
     let narration: Manifest["narration"] = null;
     if (args.input.narration) {
+      stage = "narration";
       const audio = args.input.narration;
       if (!["wav", "mp3", "ogg", "aac"].includes(audio.extension)) throw new Error("ai_media_composition_audio_invalid");
       narration = { ...await upload(`narration.${audio.extension}`, audio.buffer, audio.mimeType),
@@ -113,6 +121,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     }
     let soundtrack: Manifest["soundtrack"] = null;
     if (args.input.soundtrack) {
+      stage = "soundtrack";
       const track = args.input.soundtrack;
       const expectedPath = path.resolve(process.cwd(), "assets", "media-generation", "soundtracks", `${track.id}-${track.durationSeconds}s.wav`);
       if (!AI_MEDIA_SOUNDTRACKS.some(s => s.id === track.id) || path.resolve(track.absolutePath) !== expectedPath) throw new Error("ai_media_composition_soundtrack_invalid");
@@ -123,14 +132,26 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     const manifest: Manifest = { version: 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
       clips, overlays, narration, soundtrack, metadata: safeMetadata(args.metadata) };
+    stage = "manifest";
     await upload("manifest.json", Buffer.from(JSON.stringify(manifest)), "application/json", 32_768);
+    stage = "ready";
     await rpc("ready_ai_media_composition_checkpoint", { ...parameters(checkpoint), p_manifest_path: folder + "manifest.json" });
     return checkpoint;
   } catch (error) {
+    const failure = error as { message?: unknown; cause?: { code?: unknown; statusCode?: unknown; status?: unknown } };
+    const code = typeof failure?.message === "string" && /^ai_media_composition_[a-z_]+(?::[a-z_]+)?$/.test(failure.message)
+      ? failure.message : "ai_media_composition_persistence_failed";
+    const providerCode = failure?.cause?.code;
+    const status = Number(failure?.cause?.statusCode ?? failure?.cause?.status);
+    console.warn("[ai-media] composition checkpoint persistence failed", {
+      jobId: checkpoint.jobId, stage, code,
+      ...(typeof providerCode === "string" && /^[a-z0-9_]{1,64}$/i.test(providerCode) ? { storageCode: providerCode } : {}),
+      ...(Number.isInteger(status) && status >= 100 && status <= 599 ? { status } : {}),
+    });
     // No immediate object deletion: a lost ready-RPC response may have committed.
     // A healthy main composition may continue after this advisory failure.
     // Never release its credits or its ready lease while it is still running.
-    await rpc("abandon_ai_media_composition_checkpoint", parameters(checkpoint)).catch(() => undefined);
+    if (checkpointStarted) await rpc("abandon_ai_media_composition_checkpoint", parameters(checkpoint)).catch(() => undefined);
     throw error;
   }
 }
@@ -147,7 +168,7 @@ export async function finishAiMediaCompositionCheckpoint(checkpoint: AiMediaComp
 
 /** Claim one paid result and finish locally. This module never imports a generation provider. */
 export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMediaCompositionRecoveryOutcome> {
-  const rows = await rpc("claim_ai_media_composition_checkpoint");
+  const rows = await rpc("claim_ai_media_composition_checkpoint_v2");
   const row = Array.isArray(rows) ? rows[0] : null;
   if (!row) return { status: "idle" };
   const checkpoint: AiMediaCompositionCheckpoint = { accountId: uuid(row.account_id), jobId: uuid(row.job_id), leaseToken: uuid(row.lease_token) };
@@ -161,13 +182,15 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
       return { status: "completed", accountId: checkpoint.accountId, jobId: checkpoint.jobId, mediaId: existing.id };
     }
     const manifestPath = String(row.manifest_path || "");
+    const storageBucket = String(row.storage_bucket || "");
+    if (![BUCKET, LEGACY_BUCKET].includes(storageBucket)) throw new Error("ai_media_composition_bucket_invalid");
     stage = "download";
     const expectedPrefix = prefix(checkpoint.accountId, checkpoint.jobId);
     const suffix = manifestPath.slice(expectedPrefix.length);
     if (!manifestPath.startsWith(expectedPrefix) || !suffix.endsWith("/manifest.json") || !UUID.test(suffix.slice(0, -"/manifest.json".length))) throw new Error("ai_media_composition_path_invalid");
     const folder = manifestPath.slice(0, -"manifest.json".length);
     const download = async (storagePath: string, maximum: number) => {
-      const result = await supabaseAdmin.storage.from(BUCKET).download(storagePath);
+      const result = await supabaseAdmin.storage.from(storageBucket).download(storagePath);
       if (result.error || !result.data || result.data.size > maximum) throw new Error("ai_media_composition_download_failed");
       return Buffer.from(await result.data.arrayBuffer());
     };
@@ -242,12 +265,18 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
 }
 
 export async function purgeExpiredAiMediaCompositionObjects(limit = 100): Promise<number> {
-  const rows = await rpc("list_expired_ai_media_composition_objects", { p_batch_size: Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 100 });
+  const rows = await rpc("list_expired_ai_media_composition_objects_v2", { p_batch_size: Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 100 });
   const id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   const allowed = new RegExp(`^${id}/_composition-recovery/${id}/${id}/(manifest[.]json|clip-[01][.]mp4|overlay-[01][.]png|narration[.](wav|mp3|ogg|aac)|soundtrack[.]wav)$`);
-  const paths = (Array.isArray(rows) ? rows : []).map(row => String(row.storage_path)).filter(storagePath => allowed.test(storagePath)).slice(0, 100);
-  if (!paths.length) return 0;
-  const result = await supabaseAdmin.storage.from(BUCKET).remove(paths);
-  if (result.error) throw new Error("ai_media_composition_cleanup_failed");
-  return paths.length;
+  const candidates = (Array.isArray(rows) ? rows : []).filter(row =>
+    [BUCKET, LEGACY_BUCKET].includes(row.storage_bucket) && allowed.test(String(row.storage_path))).slice(0, 100);
+  let removed = 0;
+  for (const bucket of [BUCKET, LEGACY_BUCKET]) {
+    const paths = [...new Set(candidates.filter(row => row.storage_bucket === bucket).map(row => String(row.storage_path)))];
+    if (!paths.length) continue;
+    const result = await supabaseAdmin.storage.from(bucket).remove(paths);
+    if (result.error) throw new Error("ai_media_composition_cleanup_failed");
+    removed += paths.length;
+  }
+  return removed;
 }
