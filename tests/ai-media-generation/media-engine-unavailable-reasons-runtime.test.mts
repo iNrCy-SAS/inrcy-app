@@ -121,7 +121,7 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" });
   modules.set("@/lib/aiMediaGenerationContracts", contracts); modules.set("@/lib/aiMediaNarrationVoices", voices); modules.set("@/lib/mediaRules", mediaRules);
   modules.set("@/lib/mediaGenerationReferenceClient", {});
-  for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary"]) modules.set(path, { __esModule: true, default: path });
+  for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp"]) modules.set(path, { __esModule: true, default: path });
   modules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" });
   modules.set("./MediaGenerationCreationWorkspace.module.css", styles); modules.set("./MediaFreeGenerator.module.css", styles);
   modules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => ({ videoEngine: options.engine || "omni", imageEngine: options.imageEngine || "openai", videoResolution: "720p", update() {} }) });
