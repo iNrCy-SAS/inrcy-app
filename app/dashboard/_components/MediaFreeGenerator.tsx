@@ -168,9 +168,8 @@ export default function MediaFreeGenerator({
   const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
   const [references, setReferences] = useState<Reference[]>([]);
   const [withMusic, setWithMusic] = useState(true);
-  const [withNarration, setWithNarration] = useState(true);
   const [speechMode, setSpeechMode] =
-    useState<MediaGenerationTeamVideoSpeechMode>("voiceover");
+    useState<"voiceover" | "characters" | "silent">("voiceover");
   const [voice, setVoice] = useState<MediaGenerationNarrationVoice>("female");
   const [voiceVariant, setVoiceVariant] =
     useState<MediaGenerationNarrationVoiceVariant>("Kore");
@@ -204,7 +203,9 @@ export default function MediaFreeGenerator({
   const identityRequired = personReferences.length > 0;
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
   const effectiveWithNarration =
-    kind === "video" && speechMode === "voiceover" && withNarration;
+    kind === "video" && speechMode === "voiceover";
+  const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
+    speechMode === "characters" ? "characters" : "voiceover";
   const referenceCriteriaIncomplete = references.some(
     (reference) => !reference.role || !reference.usage
   );
@@ -243,12 +244,12 @@ export default function MediaFreeGenerator({
     videoResolution, durationSeconds: kind === "video" ? duration : undefined,
     sceneMode: kind === "video" ? sceneMode : undefined,
     inspirationImagesCount: references.length, withNarration: effectiveWithNarration,
-    teamVideoSpeechMode: speechMode,
+    teamVideoSpeechMode: requestSpeechMode,
   }, quota, !durationUnavailable && referenceCompatible && briefCompatible);
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     durationSeconds: duration, sceneMode, withNarration: effectiveWithNarration,
-    teamVideoSpeechMode: speechMode, language: locale, inspirationImagesCount: references.length,
+    teamVideoSpeechMode: requestSpeechMode, language: locale, inspirationImagesCount: references.length,
     inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto" });
   const canGenerate =
     !operationLocked &&
@@ -304,7 +305,6 @@ export default function MediaFreeGenerator({
       setDuration(8);
       setSceneMode("single");
       setWithMusic(true);
-      setWithNarration(true);
       setSpeechMode("voiceover");
       setVoice("female");
       setVoiceVariant("Kore");
@@ -492,7 +492,7 @@ export default function MediaFreeGenerator({
         narrationVoiceVariant:
           effectiveWithNarration ? voiceVariant : undefined,
         videoEngine: enginePreference.videoEngine,
-        teamVideoSpeechMode: kind === "video" ? speechMode : undefined,
+        teamVideoSpeechMode: kind === "video" ? requestSpeechMode : undefined,
         teamVideoMode: "cinematic",
         inspirationImages: referencesForRequest(references),
         identityMode:
@@ -1004,7 +1004,7 @@ export default function MediaFreeGenerator({
                 <legend className={styles.srOnly}>
                   {t("ai_generator_essential_sound_title")}
                 </legend>
-                {(["voiceover", "characters"] as const).map((mode) => (
+                {(["voiceover", "characters", "silent"] as const).map((mode) => (
                   <label
                     className={styles.soundChoice}
                     data-selected={speechMode === mode}
@@ -1022,32 +1022,20 @@ export default function MediaFreeGenerator({
                     />
                     <span>
                       <strong>
-                        {t(`ai_generator_essential_sound_${mode}`)}
+                        {t(`ai_generator_free_audio_${mode}`)}
                       </strong>
                       <small>
-                        {t(`ai_generator_team_speech_${mode}_hint`)}
+                        {t(`ai_generator_free_audio_${mode}_hint`)}
                       </small>
                     </span>
                   </label>
                 ))}
               </fieldset>
-              {speechMode === "voiceover" ? (
-                <label className={styles.toggle}>
-                  <span>{t("ai_generator_free_narration")}</span>
-                  <input
-                    type="checkbox"
-                    checked={withNarration}
-                    disabled={locked}
-                    onChange={(event) =>
-                      setWithNarration(event.target.checked)
-                    }
-                  />
-                </label>
-              ) : (
+              {speechMode === "characters" ? (
                 <p className={styles.muted} role="note">
                   {t("ai_generator_essential_character_speech_notice")}
                 </p>
-              )}
+              ) : null}
               {effectiveWithNarration ? (
                 <div className={styles.voiceOptions}>
                   <label>
@@ -1098,14 +1086,14 @@ export default function MediaFreeGenerator({
                   </label>
                 </div>
               ) : null}
-              <label className={styles.toggle}>
-                <span>{t("ai_generator_free_music")}</span>
+              <label className={styles.musicOption}>
                 <input
                   type="checkbox"
                   checked={withMusic}
                   disabled={locked}
                   onChange={(event) => setWithMusic(event.target.checked)}
                 />
+                <span>{t("ai_generator_free_music")}</span>
               </label>
             </div>
           ) : null}

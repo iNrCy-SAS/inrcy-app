@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "เสียงบรรยาย",
+  "ai_generator_free_audio_voiceover_hint": "เสียงบรรยายประกอบฉาก โดยตัวละครไม่พูด",
+  "ai_generator_free_audio_characters": "ตัวละคร",
+  "ai_generator_free_audio_characters_hint": "ตัวละครพูดในฉาก โดยไม่มีเสียงบรรยายเพิ่ม",
+  "ai_generator_free_audio_silent": "ไม่มีเสียงพูด",
+  "ai_generator_free_audio_silent_hint": "ไม่มีเสียงพูด แต่สามารถเพิ่มเพลงได้",
   "ai_generator_engine_info_use_label": "การใช้งานที่แนะนำ",
   "ai_generator_engine_info_limits_label": "สิ่งที่ควรทราบ",
   "ai_generator_engine_info_video_use_omni": "สำหรับนำเสนอแนวคิด สินค้า หรือบริการจากข้อความหรือภาพถ่าย การตั้งค่าเสียงช่วยให้ขอเสียงบรรยากาศ เสียงบรรยาย หรือให้ตัวละครพูดได้",

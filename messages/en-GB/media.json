@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voiceover",
+  "ai_generator_free_audio_voiceover_hint": "Narration accompanies the scene, with no character dialogue.",
+  "ai_generator_free_audio_characters": "Characters",
+  "ai_generator_free_audio_characters_hint": "The characters speak in the scene, with no added voiceover.",
+  "ai_generator_free_audio_silent": "No speech",
+  "ai_generator_free_audio_silent_hint": "No voices. Music can be added.",
   "ai_generator_engine_info_use_label": "Suggested uses",
   "ai_generator_engine_info_limits_label": "Things to know",
   "ai_generator_engine_info_video_use_omni": "Stage an idea, product or service from text or photos. Audio settings let you request ambience, a voiceover or a speaking character.",

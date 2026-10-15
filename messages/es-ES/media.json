@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voz en off",
+  "ai_generator_free_audio_voiceover_hint": "Una narración acompaña la escena, sin que hablen los personajes.",
+  "ai_generator_free_audio_characters": "Personajes",
+  "ai_generator_free_audio_characters_hint": "Los personajes hablan en la escena, sin voz en off añadida.",
+  "ai_generator_free_audio_silent": "Sin voces",
+  "ai_generator_free_audio_silent_hint": "Sin voces. Se puede añadir música.",
   "ai_generator_engine_info_use_label": "Usos recomendados",
   "ai_generator_engine_info_limits_label": "Qué conviene saber",
   "ai_generator_engine_info_video_use_omni": "Para poner en escena una idea, un producto o un servicio a partir de texto o fotos. Los ajustes de audio permiten pedir sonido ambiente, voz en off o un personaje que habla.",

@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voice-over",
+  "ai_generator_free_audio_voiceover_hint": "Een vertelstem begeleidt de scène, zonder dialoog van de personages.",
+  "ai_generator_free_audio_characters": "Personages",
+  "ai_generator_free_audio_characters_hint": "De personages spreken in de scène, zonder toegevoegde voice-over.",
+  "ai_generator_free_audio_silent": "Zonder spraak",
+  "ai_generator_free_audio_silent_hint": "Geen stemmen. Muziek kan worden toegevoegd.",
   "ai_generator_engine_info_use_label": "Aanbevolen toepassingen",
   "ai_generator_engine_info_limits_label": "Goed om te weten",
   "ai_generator_engine_info_video_use_omni": "Voor het uitbeelden van een idee, product of dienst op basis van tekst of foto’s. Met de audio-instellingen kunt u om omgevingsgeluid, een voice-over of een sprekend personage vragen.",

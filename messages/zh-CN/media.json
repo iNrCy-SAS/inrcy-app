@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "旁白",
+  "ai_generator_free_audio_voiceover_hint": "旁白伴随画面，角色没有对白。",
+  "ai_generator_free_audio_characters": "角色",
+  "ai_generator_free_audio_characters_hint": "角色在画面中说话，不添加旁白。",
+  "ai_generator_free_audio_silent": "无语音",
+  "ai_generator_free_audio_silent_hint": "不含语音，可添加音乐。",
   "ai_generator_engine_info_use_label": "建议用途",
   "ai_generator_engine_info_limits_label": "使用须知",
   "ai_generator_engine_info_video_use_omni": "根据文字或照片呈现创意、产品或服务。通过音频设置，可以要求环境音、画外音或让角色说话。",

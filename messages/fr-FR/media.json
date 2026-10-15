@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voix off",
+  "ai_generator_free_audio_voiceover_hint": "Une narration accompagne la scène, sans dialogue des personnages.",
+  "ai_generator_free_audio_characters": "Personnages",
+  "ai_generator_free_audio_characters_hint": "Les personnages parlent dans la scène, sans voix off ajoutée.",
+  "ai_generator_free_audio_silent": "Sans parole",
+  "ai_generator_free_audio_silent_hint": "Aucune voix. Une musique peut être ajoutée.",
   "image_recovery_badge": "Image récupérée",
   "image_recovery_notice": "Une copie utilisable a été créée à partir d’un fichier incomplet. Vérifiez l’aperçu ; les détails manquants ne sont pas restaurés.",
   "image_recovery_failed": "Image illisible. Remplacez-la ou utilisez Modifier Média dans iNrStudio.",

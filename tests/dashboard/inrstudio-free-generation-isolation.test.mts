@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -12,7 +13,7 @@ const parsed = ts.createSourceFile(
 
 // Execute the actual UI handlers, with only their external closures stubbed.
 // No network, provider call, React renderer or copy of production control flow.
-function handler(name: string, context: Record<string, unknown>) {
+function initializer(name: string) {
   let expression: ts.Expression | undefined;
   function visit(node: ts.Node) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) {
@@ -21,13 +22,29 @@ function handler(name: string, context: Record<string, unknown>) {
     ts.forEachChild(node, visit);
   }
   visit(parsed);
-  assert.ok(expression, `Missing UI handler: ${name}`);
+  assert.ok(expression, `Missing UI initializer: ${name}`);
+  return expression;
+}
+
+function evaluate(expression: ts.Expression, context: Record<string, unknown>) {
   const code = ts.transpileModule(`const run = ${expression.getText(parsed)};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
   return new Function(...Object.keys(context), `${code}; return run;`)(
     ...Object.values(context),
-  ) as () => Promise<void>;
+  );
+}
+
+function handler(name: string, context: Record<string, unknown>) {
+  return evaluate(initializer(name), context) as () => Promise<void>;
+}
+
+function audioControls(kind: "image" | "video", speechMode: "voiceover" | "characters" | "silent") {
+  const context = { kind, speechMode };
+  return {
+    effectiveWithNarration: evaluate(initializer("effectiveWithNarration"), context) as boolean,
+    requestSpeechMode: evaluate(initializer("requestSpeechMode"), context) as "voiceover" | "characters",
+  };
 }
 
 function deferred<T>() {
@@ -276,20 +293,17 @@ test("Libre exige les deux critères choisis sans imposer un personnage", () => 
 });
 
 test("les commandes UI Libre transmettent le son choisi sans fuite des paramètres voix off", async () => {
-  assert.match(source, /kind === "video" && speechMode === "voiceover" && withNarration/);
-  assert.match(source, /\["voiceover", "characters"\] as const/);
-  for (const sound of ["voiceover", "characters", "none"] as const) {
+  for (const sound of ["voiceover", "characters", "silent"] as const) for (const withMusic of [false, true]) {
     const context = resultContext();
     const requests: Record<string, unknown>[] = [];
-    const references = [{ role: "product", usage: "inspiration", data: "example", mimeType: "image/png" }];
+    const references = [{ role: "product", usage: "inspiration", data: "A".repeat(64), mimeType: "image/png" }];
     const run = handler("handleGenerate", {
       ...context, result: null, canGenerate: true,
       setStopConfirmOpen() {}, setIdentityConsent() {}, setTeamConsent() {},
       generate: async (request: Record<string, unknown>) => { requests.push(request); },
       discardDraft: async () => {},
       prompt: "  Mon scénario libre  ", effectivePrompt: "Mon scénario libre", source: "studio", kind: "video", format: "story", fixedFormat: undefined, duration: 16, sceneMode: "single",
-      withMusic: false, effectiveWithNarration: sound === "voiceover", voice: "male", voiceVariant: "Charon",
-      speechMode: sound === "none" ? "voiceover" : sound,
+      withMusic, ...audioControls("video", sound), voice: "male", voiceVariant: "Charon",
       references, referencesForRequest: (value: unknown) => value,
       personReferences: [], identityRequired: false, identityConsent: false,
       teamConsentRequired: false, teamConsent: false, referenceSetId: { current: "refs-session-a" },
@@ -302,14 +316,87 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
     const request = requests[0];
     assert.equal(request.creationMode, "free");
     assert.equal(request.freePrompt, "Mon scénario libre");
-    assert.equal(request.teamVideoSpeechMode, sound === "none" ? "voiceover" : sound);
+    assert.equal(request.teamVideoSpeechMode, sound === "characters" ? "characters" : "voiceover");
     assert.equal(request.withNarration, sound === "voiceover");
     assert.equal(request.narrationVoice, sound === "voiceover" ? "male" : undefined);
     assert.equal(request.narrationVoiceVariant, sound === "voiceover" ? "Charon" : undefined);
-    assert.equal(request.withMusic, false);
+    assert.equal(request.withMusic, withMusic);
     assert.equal(request.inspirationImages, references);
     assert.equal(request.durationSeconds, 16);
+    // The hook adds this opaque ID; all sound fields below are the real UI payload.
+    const normalized = normalizeAiMediaGenerationRequest({ ...request, requestId: `ui-audio-${sound}-${withMusic}` });
+    assert.equal(normalized.teamVideoSpeechMode, request.teamVideoSpeechMode);
+    assert.equal(normalized.withNarration, sound === "voiceover");
+    assert.equal(normalized.withMusic, withMusic);
+    assert.equal(normalized.narrationVoice, sound === "voiceover" ? "male" : null);
+    assert.equal(normalized.narrationVoiceVariant, sound === "voiceover" ? "Charon" : null);
   }
+});
+
+test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la musique reste indépendante", () => {
+  const nodes: ts.Node[] = [];
+  const visit = (node: ts.Node) => { nodes.push(node); ts.forEachChild(node, visit); };
+  visit(parsed);
+  const attribute = (node: ts.JsxSelfClosingElement | ts.JsxOpeningElement, name: string) => {
+    const item = node.attributes.properties.find((property): property is ts.JsxAttribute =>
+      ts.isJsxAttribute(property) && property.name.getText(parsed) === name);
+    assert.ok(item?.initializer && ts.isJsxExpression(item.initializer) && item.initializer.expression, `Missing expression attribute: ${name}`);
+    return item.initializer.expression;
+  };
+  const radio = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
+    node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("-speech-mode"));
+  assert.ok(radio);
+  assert.match(radio.getText(parsed), /type="radio"/);
+  const ancestors: ts.Node[] = [];
+  for (let node = radio.parent; node; node = node.parent) ancestors.push(node);
+  const map = ancestors.find((node): node is ts.CallExpression =>
+    ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "map");
+  assert.ok(map && ts.isPropertyAccessExpression(map.expression));
+  const modes = evaluate(map.expression.expression, {}) as string[];
+  assert.deepEqual(modes, ["voiceover", "characters", "silent"]);
+  const fieldset = ancestors.find((node): node is ts.JsxElement =>
+    ts.isJsxElement(node) && node.openingElement.tagName.getText(parsed) === "fieldset");
+  assert.ok(fieldset);
+  for (const locked of [false, true]) assert.equal(evaluate(attribute(fieldset.openingElement, "disabled"), { locked }), locked);
+  const voiceOptions = nodes.find((node): node is ts.ConditionalExpression =>
+    ts.isConditionalExpression(node) && node.condition.getText(parsed) === "effectiveWithNarration" &&
+      node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
+  assert.ok(voiceOptions);
+  assert.doesNotMatch(source, /setWithNarration|checked=\{withNarration\}/);
+
+  let speechMode: "voiceover" | "characters" | "silent" = "voiceover";
+  let withMusic = true;
+  const consentChanges: boolean[] = [];
+  for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
+    const onChange = evaluate(attribute(radio, "onChange"), {
+      mode: next,
+      setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
+      setTeamConsent: (value: boolean) => { consentChanges.push(value); },
+    }) as () => void;
+    onChange();
+    assert.equal(speechMode, next);
+    assert.deepEqual(modes.filter((mode) => evaluate(attribute(radio, "checked"), { speechMode, mode })), [next]);
+    assert.equal(new Set(modes.map((mode) => evaluate(attribute(radio, "name"), { instanceId: "audio-test", mode }))).size, 1);
+    const derived = audioControls("video", speechMode);
+    assert.equal(evaluate(voiceOptions.condition, derived), next === "voiceover");
+    assert.equal(withMusic, true, "Changing the speech radio must not change music.");
+  }
+  assert.deepEqual(consentChanges, [false, false, false, false, false, false]);
+
+  const music = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
+    node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("checked={withMusic}"));
+  assert.ok(music);
+  assert.match(music.getText(parsed), /type="checkbox"/);
+  for (const locked of [false, true]) assert.equal(evaluate(attribute(music, "disabled"), { locked }), locked);
+  const changeMusic = evaluate(attribute(music, "onChange"), {
+    setWithMusic: (value: boolean) => { withMusic = value; },
+  }) as (event: { target: { checked: boolean } }) => void;
+  for (const checked of [false, true]) {
+    changeMusic({ target: { checked } });
+    assert.equal(evaluate(attribute(music, "checked"), { withMusic }), checked);
+    assert.equal(speechMode, "voiceover", "Changing music must not change the speech radio.");
+  }
+  for (const mode of ["voiceover", "characters", "silent"] as const) assert.equal(audioControls("image", mode).effectiveWithNarration, false);
 });
 
 test("l'ADN facultatif transmet uniquement le choix explicite pour les images et vidéos", async () => {
@@ -324,8 +411,8 @@ test("l'ADN facultatif transmet uniquement le choix explicite pour les images et
         discardDraft: async () => {},
         effectivePrompt: "Mon scénario libre", source: "studio", kind,
         format: "square", fixedFormat: undefined, duration: 8, sceneMode: "single",
-        withMusic: false, effectiveWithNarration: false, voice: "female", voiceVariant: "Kore",
-        speechMode: "voiceover", references: [], referencesForRequest: (value: unknown) => value,
+        withMusic: false, ...audioControls(kind, "silent"), voice: "female", voiceVariant: "Kore",
+        references: [], referencesForRequest: (value: unknown) => value,
         personReferences: [], identityRequired: false, identityConsent: false,
         teamConsentRequired: false, teamConsent: false, referenceSetId: { current: "" },
         MediaGenerationCancelledError: class extends Error {},
@@ -365,10 +452,9 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
       duration: 16,
       sceneMode: "single",
       withMusic: false,
-      effectiveWithNarration: false,
+      ...audioControls("video", "characters"),
       voice: "female",
       voiceVariant: "Kore",
-      speechMode: "characters",
       references: [{ role: "character", usage: "required", data: "test", mimeType: "image/png" }],
       referencesForRequest: (value: unknown) => value,
       personReferences: [{ role: "character", usage: "required" }],

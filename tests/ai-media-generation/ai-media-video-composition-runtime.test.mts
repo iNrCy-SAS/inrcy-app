@@ -39,7 +39,8 @@ type ComposerModule = {
       extension: "wav";
       model: string;
       voice: string;
-    };
+    } | null;
+    soundtrack?: { absolutePath: string } | null;
   }) => Promise<{ buffer: Buffer }>;
 };
 
@@ -253,13 +254,7 @@ test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, av
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test("une voix off séparée exclut réellement tout l’audio natif même demandé en ambiance", async (context) => {
-  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
-  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-exclusive-narration-test-"));
-  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
-  const sourcePath = path.join(directory, "native-440hz.mp4");
-  const narrationPath = path.join(directory, "narration-880hz.wav");
-  const outputPath = path.join(directory, "composed.mp4");
+function createAudioProbe(ffmpegPath: string, directory: string) {
   const sampleRate = 48_000;
   const toneAmplitude = (pcm: Buffer, frequency: number, startSeconds: number, seconds: number) => {
     const start = Math.round(startSeconds * sampleRate);
@@ -284,6 +279,17 @@ test("une voix off séparée exclut réellement tout l’audio natif même deman
     ], { windowsHide: true, timeout: 30_000 });
     return readFile(decodedPath);
   };
+  return { sampleRate, toneAmplitude, decodeAudio };
+}
+
+test("une voix off séparée exclut réellement tout l’audio natif même demandé en ambiance", async (context) => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-exclusive-narration-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const sourcePath = path.join(directory, "native-440hz.mp4");
+  const narrationPath = path.join(directory, "narration-880hz.wav");
+  const outputPath = path.join(directory, "composed.mp4");
+  const { sampleRate, toneAmplitude, decodeAudio } = createAudioProbe(ffmpegPath, directory);
   try {
     await execFileAsync(ffmpegPath, [
       "-hide_banner", "-nostdin", "-y",
@@ -323,6 +329,58 @@ test("une voix off séparée exclut réellement tout l’audio natif même deman
     assert.ok(outputVoice > 0.03, "la voix off de 880 Hz reste audible dans le MP4 final");
     assert.ok(outputNativeDuringVoice < 0.0005, "aucun son natif ne se superpose à la voix off");
     assert.ok(outputNativeAfterVoice < 0.0005, "le son natif ne revient pas après la voix off");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("le mode sans parole supprime l’audio natif et conserve uniquement la musique lorsqu’elle est demandée", async (context) => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-speechless-music-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const sourcePath = path.join(directory, "native-440hz.mp4");
+  const soundtrackPath = path.join(directory, "instrumental-880hz.wav");
+  const { sampleRate, toneAmplitude, decodeAudio } = createAudioProbe(ffmpegPath, directory);
+  try {
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y",
+      "-f", "lavfi", "-i", "color=c=0x2563eb:s=320x320:r=30:d=4",
+      "-f", "lavfi", "-i", `sine=frequency=440:sample_rate=${sampleRate}:duration=4`,
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-shortest", sourcePath,
+    ], { windowsHide: true, timeout: 45_000 });
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y",
+      "-f", "lavfi", "-i", `sine=frequency=880:sample_rate=${sampleRate}:duration=4`,
+      "-c:a", "pcm_s16le", soundtrackPath,
+    ], { windowsHide: true, timeout: 30_000 });
+    const sourcePcm = await decodeAudio(sourcePath, "source-audio");
+    const sourceNative = toneAmplitude(sourcePcm, 440, 0.5, 2);
+    assert.ok(sourceNative > 0.05, "le clip source contient réellement le son natif de 440 Hz");
+    const overlay = await sharp({
+      create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).png().toBuffer();
+    for (const withMusic of [false, true]) {
+      const outputPath = path.join(directory, `composed-${withMusic ? "music" : "silent"}.mp4`);
+      const composed = await runtime.composeOriginalAiVideo({
+        clips: [{ buffer: await readFile(sourcePath), durationSeconds: 4 }],
+        overlays: [overlay], width: 320, height: 320, durationSeconds: 4,
+        nativeAudioMode: "mute", narration: null,
+        soundtrack: withMusic ? { absolutePath: soundtrackPath } : null,
+      });
+      await writeFile(outputPath, composed.buffer);
+      const probe = await probeVideoSource({ ffmpegPath, inputPath: outputPath, timeoutMs: 30_000 });
+      assert.equal(probe.hasAudio, withMusic, "sans musique, le MP4 ne possède aucune piste audio");
+      assert.ok(Math.abs(probe.durationSeconds - 4) < 0.35, "la vidéo garde sa durée complète");
+      if (withMusic) {
+        const outputPcm = await decodeAudio(outputPath, "output-music");
+        const outputMusic = toneAmplitude(outputPcm, 880, 0.5, 2);
+        const outputNative = toneAmplitude(outputPcm, 440, 0.5, 2);
+        context.diagnostic(JSON.stringify({ sourceNative, outputMusic, outputNative }));
+        assert.ok(outputMusic > 0.005, "la musique de 880 Hz reste audible dans le MP4 final");
+        assert.ok(outputNative < 0.0005, "aucune parole native de 440 Hz ne se mélange à la musique");
+      }
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

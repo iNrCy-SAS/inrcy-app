@@ -1502,7 +1502,7 @@ export async function generateAndSaveAiMedia(args: {
       }
     };
     const narrationTask =
-      providerRequest.teamVideoSpeechMode === "characters" || nativeVoiceoverRequested
+      providerRequest.teamVideoSpeechMode === "characters" || nativeVoiceoverRequested || !providerRequest.withNarration
         ? Promise.resolve(emptyNarrationResult())
         : measure("narration_pipeline", () =>
             generateNarrationResult(providerRequest)
@@ -1808,11 +1808,13 @@ export async function generateAndSaveAiMedia(args: {
     const compositionInput: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal"> = {
       clips, overlays, width: format.width, height: format.height, durationSeconds,
       soundtrack, narration: narrationAudio,
+      // "Sans parole" must also remove unexpected provider speech; lowering
+      // the native track to ambience would still leave audible voices.
       nativeAudioMode: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved
         ? "dialogue"
         : characterDialogueRequested
         ? "mute"
-        : narrationAudio
+        : narrationAudio || isFreeCreation
         ? "mute"
         : "ambience",
     };

@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voiceover",
+  "ai_generator_free_audio_voiceover_hint": "Eine Erzählerstimme begleitet die Szene, ohne Dialog der Figuren.",
+  "ai_generator_free_audio_characters": "Figuren",
+  "ai_generator_free_audio_characters_hint": "Die Figuren sprechen in der Szene, ohne zusätzliche Erzählerstimme.",
+  "ai_generator_free_audio_silent": "Ohne Sprache",
+  "ai_generator_free_audio_silent_hint": "Keine Stimmen. Musik kann hinzugefügt werden.",
   "ai_generator_engine_info_use_label": "Empfohlene Anwendungen",
   "ai_generator_engine_info_limits_label": "Gut zu wissen",
   "ai_generator_engine_info_video_use_omni": "Für die Inszenierung einer Idee, eines Produkts oder einer Dienstleistung anhand von Text oder Fotos. In den Audioeinstellungen können Sie Umgebungsgeräusche, einen Off-Kommentar oder eine sprechende Figur anfordern.",

@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voz-off",
+  "ai_generator_free_audio_voiceover_hint": "Uma narração acompanha a cena, sem diálogo das personagens.",
+  "ai_generator_free_audio_characters": "Personagens",
+  "ai_generator_free_audio_characters_hint": "As personagens falam na cena, sem voz-off adicional.",
+  "ai_generator_free_audio_silent": "Sem fala",
+  "ai_generator_free_audio_silent_hint": "Sem vozes. É possível adicionar música.",
   "ai_generator_engine_info_use_label": "Utilizações sugeridas",
   "ai_generator_engine_info_limits_label": "O que deve saber",
   "ai_generator_engine_info_video_use_omni": "Para representar uma ideia, um produto ou um serviço a partir de texto ou fotografias. As definições de áudio permitem pedir som ambiente, uma voz-off ou uma personagem a falar.",

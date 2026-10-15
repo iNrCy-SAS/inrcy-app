@@ -18,6 +18,8 @@ const canonicalPrompt = "Canonical professional request with its original narrat
 const narration = { script, language: "fr", wordCount: script.split(/\s+/u).length, source: "ai",
   sha256: createHash("sha256").update(script).digest("hex") };
 const audio = { buffer: Buffer.from("synthetic-tts"), mimeType: "audio/wav", extension: "wav", model: "test-tts", voice: "Puck" };
+const soundtrack = { id: "test-instrumental", name: "Instrumental test", absolutePath: "unused-test-soundtrack.wav",
+  fileName: "instrumental.wav", durationSeconds: 8, license: "test", sha256: "test-soundtrack-sha256", sizeBytes: 32 };
 
 function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
   return contracts.normalizeAiMediaGenerationRequest({ requestId: "separate-free-voiceover-test", source: "studio", operation: "generate",
@@ -27,12 +29,13 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
 }
 
 function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string } = {}) {
-  const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
+  const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
     scenes: [{ eyebrow: "", title: "", body: "", visualBrief: "Une céramiste façonne un vase.", spokenLine: "Bonjour, je façonne un vase.", layout: "editorial" }] };
   const normalized = { kind: "video", buffer: Buffer.from("synthetic-composed-video"), mimeType: "video/mp4", extension: "mp4", width: 720, height: 1280, durationSeconds: 15 };
   const freeNarration = async (args: { request: contracts.AiMediaGenerationRequest }) => {
+    narrationCalls.push(args);
     if (!args.request.withNarration || args.request.teamVideoSpeechMode === "characters") return null;
     events.push("copy"); return options.narrationLanguage ? { ...narration, language: options.narrationLanguage } : narration;
   };
@@ -55,6 +58,9 @@ function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "compo
       buildAiMediaFreeSceneFramePrompt: () => "One controlled full-frame initial instant, no storyboard.",
       resolveAiMediaFreeDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaFreeVoiceoverPolicy", { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover }],
+    ["@/lib/aiMediaGenerationSoundtracks", { loadAiMediaSoundtrack: async (prompt: string, args: Row) => {
+      soundtrackCalls.push({ prompt, ...args }); return soundtrack;
+    } }],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: class extends Error {}, AiGatewayGuardUnavailableError: class extends Error {} }],
     ["@/lib/aiGeneratedMediaRegistry", { getExistingGeneratedAiMedia: async () => null, saveGeneratedAiMedia: async (args: Row) => {
       events.push("save"); saved.push(args); return { id: "test-media", media_type: "video" };
@@ -110,7 +116,7 @@ function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "compo
     if (name.startsWith("node:")) return nativeRequire(name);
     throw new Error(`unexpected_test_dependency:${name}`);
   }, { info() {}, warn() {}, error() {} });
-  return { events, videoCalls, ttsCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls,
+  return { events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls,
     generate: (original: contracts.AiMediaGenerationRequest, execution: Row = {}) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, ...execution }) };
 }
 
@@ -239,9 +245,45 @@ for (const engine of ["grok", "grok-lite"] as const) {
   test(`${engine}: silent free video still gets one initial frame without TTS`, async () => {
     const env = harness(); await env.generate(request(engine, { withNarration: false }));
     assert.equal(env.ttsCalls.length, 0); assert.equal(env.seedCalls.length, 1); assert.equal(env.videoCalls.length, 1);
-    assert.equal(env.videoCalls[0].nativeNarrationLines, undefined); assert.equal(env.composeCalls[0].nativeAudioMode, "ambience");
+    assert.equal(env.videoCalls[0].nativeNarrationLines, undefined); assert.equal(env.composeCalls[0].nativeAudioMode, "mute");
   });
 }
+
+test("all nine free engines without speech mute native audio and preserve optional instrumental music without any narration call", async () => {
+  for (const engine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
+    for (const withMusic of [false, true]) {
+      const label = `${engine}, music=${withMusic}`;
+      const env = harness();
+      const original = request(engine, {
+        durationSeconds: 8, videoResolution: engine === "minimax-h3" || engine === "heygen" ? "768p" : "720p",
+        withNarration: false, teamVideoSpeechMode: "voiceover", withMusic,
+        freePrompt: "Une céramiste façonne un vase, sans parole.",
+      });
+      const before = structuredClone(original);
+      await env.generate(original);
+      assert.deepEqual(original, before, label);
+      assert.equal(env.narrationCalls.length, 0, `${label}: no narration script requested`);
+      assert.equal(env.ttsCalls.length, 0, `${label}: no TTS requested`);
+      assert.equal(env.events.includes("audio-preflight"), false, label);
+      assert.equal(env.events.includes("native-qa"), false, label);
+      assert.equal(env.videoCalls.length, 1, label);
+      const providerRequest = env.videoCalls[0].request as contracts.AiMediaGenerationRequest;
+      assert.equal(providerRequest.videoEngine, engine, label);
+      assert.equal(providerRequest.withNarration, false, label);
+      assert.equal(providerRequest.withMusic, withMusic, `${label}: provider music choice preserved`);
+      assert.equal(providerRequest.teamVideoSpeechMode, "voiceover", label);
+      assert.equal(env.videoCalls[0].nativeNarrationLines, undefined, label);
+      assert.equal((env.contractCalls[0].request as contracts.AiMediaGenerationRequest).withMusic, withMusic, label);
+      assert.equal(env.composeCalls.length, 1, label);
+      assert.equal(env.composeCalls[0].narration, null, label);
+      assert.equal(env.composeCalls[0].nativeAudioMode, "mute", `${label}: no native speech may leak into the final media`);
+      assert.equal(env.soundtrackCalls.length, Number(withMusic), label);
+      assert.equal(env.composeCalls[0].soundtrack, withMusic ? soundtrack : null, `${label}: requested music reaches composition`);
+      assert.equal(env.seedCalls.length, engine === "grok" || engine === "grok-lite" ? 1 : 0, label);
+      assert.equal(env.saved.length, 1, label);
+    }
+  }
+});
 
 test("all other free engines prepare one TTS before video and mute native audio; guided narration is unchanged", async () => {
   for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {

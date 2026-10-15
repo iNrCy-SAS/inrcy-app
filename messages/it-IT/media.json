@@ -1,4 +1,10 @@
 {
+  "ai_generator_free_audio_voiceover": "Voce fuori campo",
+  "ai_generator_free_audio_voiceover_hint": "Una voce narrante accompagna la scena, senza dialoghi dei personaggi.",
+  "ai_generator_free_audio_characters": "Personaggi",
+  "ai_generator_free_audio_characters_hint": "I personaggi parlano nella scena, senza una voce fuori campo aggiunta.",
+  "ai_generator_free_audio_silent": "Senza parlato",
+  "ai_generator_free_audio_silent_hint": "Nessuna voce. È possibile aggiungere musica.",
   "ai_generator_engine_info_use_label": "Usi consigliati",
   "ai_generator_engine_info_limits_label": "Da sapere",
   "ai_generator_engine_info_video_use_omni": "Per mettere in scena un’idea, un prodotto o un servizio a partire da testo o foto. Le impostazioni audio consentono di richiedere suoni ambientali, una voce fuori campo o un personaggio che parla.",
