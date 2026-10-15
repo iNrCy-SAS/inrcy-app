@@ -257,7 +257,11 @@ test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
   const execute = read("app/api/agent/actions/execute/route.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
 
-  assert.match(normalizer, /fit: "contain"/);
+  // The complete foreground is fitted inside the target; only its background
+  // extension may use cover. Pixel preservation is tested by image-fidelity-runtime.
+  assert.match(normalizer, /const foreground = await base\.clone\(\)\.resize\(\{ width, height, fit: "inside" \}\)/);
+  assert.match(normalizer, /input: foreground\.data/);
+  assert.match(normalizer, /left: Math\.floor\(\(width - foreground\.info\.width\) \/ 2\)/);
   assert.match(schedule, /automaticFit: "contain"/);
   assert.match(execute, /automaticFit: "contain"/);
   assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/);

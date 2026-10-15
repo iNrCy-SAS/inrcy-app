@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { getAppBaseUrl } from "./tiktokMediaUrl";
+import { isInternalStorageReference, normalizeStorageDeliveryPath } from "./storageDeliveryPolicy";
 
 function signingSecret() {
   return String(
@@ -16,6 +17,7 @@ function signaturePayload(bucket: string, storagePath: string) {
 }
 
 function sign(bucket: string, storagePath: string) {
+  if (isInternalStorageReference(bucket, storagePath) || !normalizeStorageDeliveryPath(storagePath)) return "";
   const secret = signingSecret();
   if (!secret || !bucket || !storagePath) return "";
   return createHmac("sha256", secret)
@@ -25,7 +27,7 @@ function sign(bucket: string, storagePath: string) {
 
 export function buildStorageContentUrl(bucket: string, storagePath: string) {
   const cleanBucket = String(bucket || "").trim();
-  const cleanPath = String(storagePath || "").trim().replace(/^\/+/, "");
+  const cleanPath = normalizeStorageDeliveryPath(storagePath);
   const token = sign(cleanBucket, cleanPath);
   if (!cleanBucket || !cleanPath || !token) return null;
 

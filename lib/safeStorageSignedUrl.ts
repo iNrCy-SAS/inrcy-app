@@ -6,6 +6,7 @@ import {
   isTransientStorageError,
 } from "@/lib/storageSignedUrlError";
 import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
+import { isInternalStorageReference } from "@/lib/storageDeliveryPolicy";
 
 function normalizePath(value: unknown) {
   const path = String(value ?? "").trim().replace(/^\/+/, "");
@@ -127,7 +128,7 @@ export async function probeStorageObject(
 ): Promise<StorageObjectProbe> {
   const normalizedBucket = String(bucket || "").trim();
   const path = normalizePath(storagePath);
-  if (!normalizedBucket || !path) return "missing";
+  if (!normalizedBucket || !path || isInternalStorageReference(normalizedBucket, path)) return "missing";
   if (isKnownMissingObject(normalizedBucket, path)) return "missing";
 
   try {
@@ -222,7 +223,7 @@ export async function createSafeStorageSignedUrl(
   const normalizedBucket = String(bucket || "").trim();
   const normalizedPath = normalizePath(storagePath);
   const ttlSeconds = Math.max(60, Math.floor(Number(expiresIn) || 0));
-  if (!normalizedBucket || !normalizedPath) return null;
+  if (!normalizedBucket || !normalizedPath || isInternalStorageReference(normalizedBucket, normalizedPath)) return null;
 
   const key = cacheKey(normalizedBucket, normalizedPath, ttlSeconds);
   const now = Date.now();

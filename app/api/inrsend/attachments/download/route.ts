@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { safeErrorMessage } from "@/lib/tsSafe";
+import { ATTACHMENT_DOWNLOAD_BUCKETS, canAccountUseStorageReference, normalizeStorageDeliveryPath } from "@/lib/storageDeliveryPolicy";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const bucket = String(url.searchParams.get("bucket") || "").trim();
-    const path = String(url.searchParams.get("path") || "").trim();
+    const path = normalizeStorageDeliveryPath(String(url.searchParams.get("path") || ""));
     const requestedName = String(url.searchParams.get("name") || "").trim();
 
     if (!bucket || !path) {
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
 
     // Les pièces jointes iNr'Send sont stockées sous le préfixe utilisateur.
     // Cela évite qu'un pro puisse télécharger une pièce jointe d'un autre compte.
-    if (!path.startsWith(`${activeUserId}/`)) {
+    if (!ATTACHMENT_DOWNLOAD_BUCKETS.has(bucket) || !canAccountUseStorageReference(bucket, path, activeUserId)) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
     }
 

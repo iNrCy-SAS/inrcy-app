@@ -7,7 +7,7 @@ import {
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
-import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
+import { compactInrAgentScheduledPayload, hasUnauthorizedScheduledStorageReference } from "@/lib/inrAgentScheduledPayload";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 
 export const runtime = "nodejs";
@@ -53,11 +53,13 @@ function sanitizeText(value: unknown, fallback = "", maxLength = 180) {
 function scheduledActionForResponse(
   row: Parameters<typeof rowToInrAgentScheduledAction>[0],
   requestUrl: string,
+  accountId: string,
 ) {
   const action = rowToInrAgentScheduledAction(row);
   return {
     ...action,
     payload: compactInrAgentScheduledPayload(action.payload, {
+      accountId,
       storageUrl: (bucket, storagePath) =>
         buildAbsoluteStorageContentUrl(bucket, storagePath, requestUrl),
     }),
@@ -92,7 +94,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     return premiumRequiredApiResponse();
   }
   return NextResponse.json({
-    scheduledAction: scheduledActionForResponse(data, request.url),
+    scheduledAction: scheduledActionForResponse(data, request.url, activeUserId),
     tableMissing: false,
   });
 }
@@ -141,7 +143,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!payload) {
       return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
     }
+    if (hasUnauthorizedScheduledStorageReference(payload, activeUserId)) {
+      return NextResponse.json({ error: "Référence média non autorisée." }, { status: 403 });
+    }
     updates.payload = compactInrAgentScheduledPayload(payload, {
+      accountId: activeUserId,
       storageUrl: (bucket, storagePath) =>
         buildAbsoluteStorageContentUrl(bucket, storagePath, request.url),
     });
@@ -216,7 +222,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
   return NextResponse.json({
-    scheduledAction: scheduledActionForResponse(data, request.url),
+    scheduledAction: scheduledActionForResponse(data, request.url, activeUserId),
     tableMissing: false,
   });
 }
@@ -271,7 +277,7 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
 
   if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
   return NextResponse.json({
-    scheduledAction: scheduledActionForResponse(data, request.url),
+    scheduledAction: scheduledActionForResponse(data, request.url, activeUserId),
     cancelled: true,
     tableMissing: false,
   });

@@ -1,6 +1,9 @@
+import { canAccountUseStorageReference, isInternalStorageReference } from "./storageDeliveryPolicy.ts";
+
 type JsonRecord = Record<string, unknown>;
 
 export type InrAgentScheduledPayloadCompactionOptions = {
+  accountId?: string;
   storageUrl?: (bucket: string, storagePath: string) => string | null;
 };
 
@@ -136,7 +139,8 @@ function compactNode(
   const hasInlineMedia = Object.entries(compacted).some(
     ([key, item]) => INLINE_MEDIA_KEYS.has(key) && isInlineMediaUrl(item),
   );
-  const canUseStorageReference = Boolean(bucket && storagePath);
+  const canUseStorageReference = Boolean(bucket && storagePath && !isInternalStorageReference(bucket, storagePath) &&
+    (!options.accountId || canAccountUseStorageReference(bucket, storagePath, options.accountId)));
 
   // Older iNrAgent schedules embedded every rendered image as a data URL.
   // The original Storage identity was nevertheless kept in imageMeta. Promote
@@ -194,4 +198,15 @@ export function containsInlineInrAgentScheduledMedia(
   return Object.values(record).some((item) =>
     containsInlineInrAgentScheduledMedia(item),
   );
+}
+
+/** Reject untrusted schedule references before storing them or minting any URL. */
+export function hasUnauthorizedScheduledStorageReference(value: unknown, accountId: string): boolean {
+  if (Array.isArray(value)) return value.some(item => hasUnauthorizedScheduledStorageReference(item, accountId));
+  const source = asRecord(value);
+  if (!source) return false;
+  const reference = durableReferenceFromNode(source);
+  if (reference.bucket && (isInternalStorageReference(reference.bucket, reference.storagePath) ||
+    (reference.storagePath && !canAccountUseStorageReference(reference.bucket, reference.storagePath, accountId)))) return true;
+  return Object.values(source).some(item => hasUnauthorizedScheduledStorageReference(item, accountId));
 }

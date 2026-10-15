@@ -20,7 +20,7 @@ import {
   filterStandardAgentItems,
   isStandardAgentActionDescriptor,
 } from "@/lib/standardAgentPolicy";
-import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
+import { compactInrAgentScheduledPayload, hasUnauthorizedScheduledStorageReference } from "@/lib/inrAgentScheduledPayload";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 import {
   applyScheduledPublicationMediaSnapshot,
@@ -97,11 +97,13 @@ function isCampaignSchedule(row: ReturnType<typeof scheduledActionToDbRow>) {
 function scheduledActionForResponse(
   row: Parameters<typeof rowToInrAgentScheduledAction>[0],
   requestUrl: string,
+  accountId: string,
 ) {
   const action = rowToInrAgentScheduledAction(row);
   return {
     ...action,
     payload: compactInrAgentScheduledPayload(action.payload, {
+      accountId,
       storageUrl: (bucket, storagePath) =>
         buildAbsoluteStorageContentUrl(bucket, storagePath, requestUrl),
     }),
@@ -154,7 +156,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(
       {
-        scheduledAction: scheduledActionForResponse(exact.data, request.url),
+        scheduledAction: scheduledActionForResponse(exact.data, request.url, activeUserId),
         tableMissing: false,
         recoveredByRequestId: true,
         scheduleRequestId: requestId,
@@ -213,7 +215,7 @@ export async function GET(request: Request) {
       : mergedRows
     : [];
   const scheduledActions = visibleRows.map((row) =>
-    scheduledActionForResponse(row, request.url),
+    scheduledActionForResponse(row, request.url, activeUserId),
   );
   return NextResponse.json({ scheduledActions, tableMissing: false });
 }
@@ -251,12 +253,16 @@ export async function POST(request: Request) {
     : "agent";
   const source: InrAgentScheduledActionSource = record?.source === "automatic" ? "automatic" : "manual";
 
+  if (hasUnauthorizedScheduledStorageReference(record?.payload, activeUserId)) {
+    return NextResponse.json({ error: "Référence média non autorisée." }, { status: 403 });
+  }
   const scheduledPayload = compactInrAgentScheduledPayload(
     {
       ...(asRecord(record?.payload) || {}),
       ...(scheduleRequestId ? { scheduleRequestId } : {}),
     },
     {
+      accountId: activeUserId,
       storageUrl: (bucket, storagePath) =>
         buildAbsoluteStorageContentUrl(bucket, storagePath, request.url),
     },
@@ -292,7 +298,7 @@ export async function POST(request: Request) {
         return premiumRequiredApiResponse();
       }
       return NextResponse.json({
-        scheduledAction: scheduledActionForResponse(existing.data, request.url),
+        scheduledAction: scheduledActionForResponse(existing.data, request.url, activeUserId),
         tableMissing: false,
         idempotent: true,
         scheduleRequestId,
@@ -367,7 +373,7 @@ export async function POST(request: Request) {
           return premiumRequiredApiResponse();
         }
         return NextResponse.json({
-          scheduledAction: scheduledActionForResponse(existing.data, request.url),
+          scheduledAction: scheduledActionForResponse(existing.data, request.url, activeUserId),
           tableMissing: false,
           idempotent: true,
           scheduleRequestId,
@@ -501,7 +507,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    scheduledAction: scheduledActionForResponse(storedRow, request.url),
+    scheduledAction: scheduledActionForResponse(storedRow, request.url, activeUserId),
     tableMissing: false,
     idempotent: false,
     ...(scheduleRequestId ? { scheduleRequestId } : {}),

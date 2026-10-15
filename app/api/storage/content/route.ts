@@ -5,6 +5,7 @@ import {
   probeStorageObject,
 } from "@/lib/safeStorageSignedUrl";
 import { verifyStorageContentToken } from "@/lib/storageContentUrl";
+import { isInternalStorageReference } from "@/lib/storageDeliveryPolicy";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ async function redirectToFreshStorageUrl(request: NextRequest) {
     !storagePath ||
     storagePath.length > 1000 ||
     storagePath.includes("..") ||
+    isInternalStorageReference(bucket, storagePath) ||
     !verifyStorageContentToken(bucket, storagePath, token)
   ) {
     return notFound();
