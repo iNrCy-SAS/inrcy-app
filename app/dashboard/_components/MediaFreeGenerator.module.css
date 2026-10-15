@@ -588,9 +588,14 @@
   overflow: hidden;
   transition: border-color 150ms, box-shadow 150ms;
 }
+.businessDnaRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .businessDnaOption {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 9px;
   color: #d9e7fa;
   cursor: pointer;
@@ -599,20 +604,91 @@
   flex: none;
   width: 16px;
   height: 16px;
-  margin: 2px 0 0;
+  margin: 0;
   accent-color: #53d8f3;
-}
-.businessDnaOption > span {
-  display: grid;
-  gap: 3px;
 }
 .businessDnaOption strong {
   font-size: 12px;
 }
-.businessDnaOption small {
-  color: #9fb4d3;
-  font-size: 11px;
-  line-height: 1.4;
+.businessDnaInfoButton {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #9adcf5;
+  cursor: pointer;
+}
+.businessDnaInfoButton > span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font: 700 12px Georgia, serif;
+}
+.businessDnaInfoButton:hover {
+  background: rgba(83, 216, 243, 0.12);
+}
+.businessDnaInfoButton:focus-visible,
+.businessDnaInfoClose:focus-visible {
+  outline: 2px solid #9adcf5;
+  outline-offset: 2px;
+}
+.businessDnaInfo {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #49678e;
+  border-radius: 16px;
+  background: #101c35;
+  color: #d9e7fa;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.55);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.businessDnaInfoHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.businessDnaInfoHeader h3 {
+  margin: 0;
+  color: #f5f7ff;
+  font-size: 16px;
+}
+.businessDnaInfoClose {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #49678e;
+  border-radius: 9px;
+  background: #1b2c4a;
+  color: #d9e7fa;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.businessDnaInfo p {
+  margin: 0 0 12px;
+}
+.businessDnaInfo p:last-child {
+  margin-bottom: 0;
 }
 .promptContainer:focus-within {
   border-color: rgba(125, 161, 250, 0.8);
