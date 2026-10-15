@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getExistingGeneratedAiMediaContext } from "@/lib/aiGeneratedMediaRegistry";
 import { getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
+import { normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -16,7 +17,7 @@ type Job = {
   status: "reserved" | "processing" | "completed" | "failed" | "expired";
   error_code: string | null;
   error_message: string | null;
-  metadata: { format?: unknown; error_details?: unknown } | null;
+  metadata: { format?: unknown; error_details?: unknown; video_engine_result?: unknown; credit_amount?: unknown } | null;
 };
 
 /** Recover an existing attempt without reserving credits or starting AI work. */
@@ -49,9 +50,14 @@ export async function GET(request: Request) {
         { status: 410, headers: NO_STORE_HEADERS },
       );
       const format = FORMATS.find((value) => value === job.metadata?.format);
+      const recordedEngine = job.metadata?.video_engine_result;
+      const videoEngineResult = normalizeAiMediaVideoEngine(recordedEngine) ||
+        (["omni_veo_fallback", "veo_omni_fallback", "local_fallback"].includes(String(recordedEngine)) ? recordedEngine : null);
+      const recordedCredits = job.metadata?.credit_amount;
+      const creditsUsed = typeof recordedCredits === "number" && Number.isSafeInteger(recordedCredits) && recordedCredits >= 0 ? recordedCredits : null;
       return NextResponse.json({
         ok: true, status: "completed", ...context, ...(format ? { format } : {}),
-        soundtrack: null, videoEngineResult: null, recovered: true,
+        soundtrack: null, videoEngineResult, creditsUsed, recovered: true,
       }, { headers: NO_STORE_HEADERS });
     }
     if (job.status === "failed" || job.status === "expired") {

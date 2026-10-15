@@ -48,7 +48,7 @@ import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
 import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
-import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
+import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaRecoveredCreditSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
 import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
@@ -59,12 +59,15 @@ type Props = {
   source: MediaGenerationSource;
   acceptMode: "library" | "insert";
   mediaType?: MediaGenerationKind;
+  imageOnly?: boolean;
   initialPrompt?: string;
   requiredPromptSuffix?: string;
   fixedFormat?: MediaGenerationFormat;
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  /** Select the owning panel before recovering; changing it afterwards hides its result. */
+  onRecoveryKind?: (kind: MediaGenerationKind) => void;
   onReset?: () => void;
 };
 
@@ -114,12 +117,14 @@ export default function MediaFreeGenerator({
   source,
   acceptMode,
   mediaType = "image",
+  imageOnly = false,
   initialPrompt = "",
   requiredPromptSuffix = "",
   fixedFormat,
   onAccepted,
   onResultChange,
   onBusyChange,
+  onRecoveryKind,
   onReset,
 }: Props) {
   const t = useTranslations("media");
@@ -137,6 +142,7 @@ export default function MediaFreeGenerator({
     cancellable,
     cancellationPending,
     canRecover,
+    recoveryContext,
     loadQuota,
     generate,
     retryRecovery,
@@ -146,6 +152,8 @@ export default function MediaFreeGenerator({
     discardDraft,
     reset,
   } = useMediaGeneration();
+  const recoveryIncompatible = Boolean(recoveryContext && ((imageOnly && recoveryContext.kind !== "image") || (fixedFormat && recoveryContext.format !== fixedFormat)));
+  const recoveredFormat = result?.recovered ? result.format : recoveryContext?.format;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const imageModel = getAiMediaImageModel(enginePreference.imageEngine);
   const videoModel = getAiMediaVideoModel(enginePreference.videoEngine);
@@ -174,6 +182,8 @@ export default function MediaFreeGenerator({
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("prompt");
+  const [editingRecoveredId, setEditingRecoveredId] = useState<string | null>(null);
+  const reviewingRecovery = Boolean(recoveryContext || canRecover || (result?.recovered && editingRecoveredId !== result.item.id));
   const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
@@ -242,6 +252,7 @@ export default function MediaFreeGenerator({
     inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto" });
   const canGenerate =
     !operationLocked &&
+    !reviewingRecovery &&
     promptReady &&
     Boolean(quota) &&
     !quotaLoading &&
@@ -276,6 +287,12 @@ export default function MediaFreeGenerator({
   useLayoutEffect(() => {
     onResultChange?.(result);
   }, [onResultChange, result]);
+
+  useLayoutEffect(() => {
+    if (recoveryIncompatible) return;
+    if (recoveredFormat) setFormat(recoveredFormat);
+    if (recoveryContext && recoveryContext.kind !== mediaType) onRecoveryKind?.(recoveryContext.kind);
+  }, [recoveredFormat, recoveryContext, recoveryIncompatible, mediaType, onRecoveryKind]);
 
   useEffect(() => {
     const clearAccountState = () => {
@@ -525,12 +542,13 @@ export default function MediaFreeGenerator({
 
   const handleEdit = () => {
     if (operationLocked) return;
+    if (result?.recovered) setEditingRecoveredId(result.item.id);
     setActiveSettingsTab("prompt");
     window.requestAnimationFrame(() => document.getElementById(`${instanceId}-prompt`)?.focus());
   };
 
   const handleRecoverResult = async () => {
-    if (!canRecover || operationLocked || operationInFlight.current) return;
+    if (!canRecover || recoveryIncompatible || operationLocked || operationInFlight.current) return;
     operationInFlight.current = true;
     const currentSequence = sequence.current;
     setActionError("");
@@ -546,7 +564,7 @@ export default function MediaFreeGenerator({
   };
 
   const handleAbandonRecovery = async () => {
-    if (!canRecover || operationLocked || operationInFlight.current) return;
+    if (!canRecover || recoveryIncompatible || operationLocked || operationInFlight.current) return;
     operationInFlight.current = true;
     const currentSequence = sequence.current;
     setActionError("");
@@ -633,7 +651,7 @@ export default function MediaFreeGenerator({
     }
   };
 
-  const engineControls = (
+  const engineControls = reviewingRecovery ? null : (
     <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={enginePreference.videoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
             durationSeconds={duration} sceneMode={sceneMode} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
@@ -644,10 +662,13 @@ export default function MediaFreeGenerator({
             onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
             onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
   );
+  const creditSummary = reviewingRecovery
+    ? <MediaRecoveredCreditSummary creditsUsed={result?.creditsUsed} />
+    : <MediaCreditQuoteSummary status={creditQuote} quota={quota} />;
 
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
-    disabled={busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate}
+    disabled={recoveryIncompatible || (busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate)}
     title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
     onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}
   >
@@ -670,7 +691,7 @@ export default function MediaFreeGenerator({
         operationLocked={operationLocked}
         finishing={finishing}
         generationResult={result}
-        generationCancellable={cancellable || (canRecover && !operationLocked)}
+        generationCancellable={cancellable || (canRecover && !recoveryIncompatible && !operationLocked)}
         cancelConfirmationOpen={stopConfirmOpen}
         setCancelConfirmationOpen={setStopConfirmOpen}
         handleRequestGenerationStop={() => setStopConfirmOpen(true)}
@@ -681,7 +702,7 @@ export default function MediaFreeGenerator({
         handleEditCriteria={handleEdit}
         handleReset={canRecover ? undefined : onReset}
         disabled={!canGenerate || canRecover}
-        creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
+        creditSummary={creditSummary}
         engineControls={engineControls}
         acceptMode={acceptMode}
         savingToLibrary={savingToLibrary}
@@ -1209,8 +1230,10 @@ export default function MediaFreeGenerator({
           resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />
         <MediaGenerationActions>
           {engineControls}
-          <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
-          {canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
+          {creditSummary}
+          {recoveryIncompatible ? <a className={styles.secondaryButton} href="/dashboard/generer-media" data-media-recovery-studio-link>
+            {t("ai_generator_editor_recover")} · iNrStudio
+          </a> : canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
             {generationAction}
             <button type="button" className={styles.recoveryStop} disabled={operationLocked}
               aria-label={t("ai_generator_editor_abandon")} title={t("ai_generator_editor_abandon")}

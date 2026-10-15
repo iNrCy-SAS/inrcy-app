@@ -237,6 +237,9 @@ export type MediaGenerationResult = {
   quota: MediaGenerationQuota;
   soundtrack: MediaGenerationSoundtrack | null;
   videoEngineResult: MediaGenerationVideoEngineResult | null;
+  /** A recovered result uses its recorded cost, never the current form quote. */
+  recovered?: boolean;
+  creditsUsed?: number | null;
   /**
    * A draft is private and temporary. It only becomes a regular library item
    * after the explicit accept call succeeds.
@@ -743,6 +746,7 @@ export default function useMediaGeneration() {
   const [cancellable, setCancellable] = useState(false);
   const [cancellationPending, setCancellationPending] = useState(false);
   const [canRecover, setCanRecover] = useState(false);
+  const [recoveryContext, setRecoveryContext] = useState<Pick<AiMediaGenerationRecoveryPointer, "kind" | "format"> | null>(null);
   const [originChangedNotice, setOriginChangedNotice] = useState(false);
   const quotaRef = useRef<MediaGenerationQuota | null>(null);
   const resultRef = useRef<MediaGenerationResult | null>(null);
@@ -901,6 +905,7 @@ export default function useMediaGeneration() {
       setCancellable(false);
       setCancellationPending(false);
       setCanRecover(false);
+      setRecoveryContext(null);
       completionStartedRef.current = false;
       progressRef.current = 0;
       setProgress(0);
@@ -970,7 +975,7 @@ export default function useMediaGeneration() {
         }
         if (pendingRecoveryRef.current?.requestId === requestId) pendingRecoveryRef.current = null;
         if (!keepDeliveredDraft) clearAiMediaGenerationRecovery(recoveryStorage(), originAccountId, requestId);
-        if (mountedRef.current) setCanRecover(false);
+        if (mountedRef.current) { setCanRecover(false); setRecoveryContext(null); }
       };
 
       const requestEpoch = accountEpochRef.current;
@@ -1147,6 +1152,8 @@ export default function useMediaGeneration() {
           quota: normalizedQuota,
           soundtrack,
           videoEngineResult,
+          recovered: data.recovered === true || Boolean(recoveryPointer) || activeGeneration.recovering,
+          creditsUsed: typeof data.creditsUsed === "number" && Number.isSafeInteger(data.creditsUsed) && data.creditsUsed >= 0 ? data.creditsUsed : null,
           draft: data.draft !== false,
         };
         if (mountedRef.current) {
@@ -1433,6 +1440,7 @@ export default function useMediaGeneration() {
     if (!accountId || generationAbortRef.current || pendingRecoveryRef.current || resultRef.current) return;
     const pointer = readAiMediaGenerationRecovery(recoveryStorage(), accountId);
     if (!pointer) return;
+    setRecoveryContext({ kind: pointer.kind, format: pointer.format });
     pendingRecoveryRef.current = {
       requestId: pointer.requestId, epoch: accountEpochRef.current,
       run: () => executeGeneration(recoveryRequest(pointer), pointer),
@@ -1621,6 +1629,7 @@ export default function useMediaGeneration() {
     setCancellable(false);
     setCancellationPending(false);
     setCanRecover(false);
+    setRecoveryContext(null);
   }, []);
 
   return {
@@ -1633,6 +1642,7 @@ export default function useMediaGeneration() {
     cancellable,
     cancellationPending,
     canRecover,
+    recoveryContext,
     busy: status === "generating",
     quotaLoading: status === "loading-quota",
     loadQuota,

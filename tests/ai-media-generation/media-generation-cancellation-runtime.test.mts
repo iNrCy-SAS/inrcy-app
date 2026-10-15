@@ -9,6 +9,7 @@ import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
 import type { MediaGenerationRequest, MediaGenerationResult } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 
 type Hook = {
+  recoveryContext: { kind: "image" | "video"; format: string } | null;
   cancellable: boolean; cancellationPending: boolean; canRecover: boolean; busy: boolean; result: MediaGenerationResult | null; error: string;
   generate: (request: MediaGenerationRequest) => Promise<MediaGenerationResult>;
   cancelGeneration: () => boolean; reset: () => void;
@@ -268,10 +269,12 @@ test("a reload recovers a scoped paid result from a pointer containing no prompt
   stream.send(successfulResult()); stream.close(); assert.equal((await task as Error).name, "MediaGenerationAccountChangedError");
 
   const reloaded = harness(storage); await reloaded.refreshRemaining(0); assert.equal(reloaded.status().canRecover, true);
+  assert.deepEqual(reloaded.status().recoveryContext, { kind: "video", format: "story" }, "The UI can select the right panel before recovery starts");
   const recovering = reloaded.status().retryRecovery(); reloaded.render();
   assert.equal(reloaded.recoveries[0].requestId, requestId); assert.equal(reloaded.attempts.length, 0);
-  reloaded.recoveries[0].resolve(Response.json({ ok: true, status: "completed", item: { ...successfulResult().payload.item, media_type: "video" }, draft: true }));
+  reloaded.recoveries[0].resolve(Response.json({ ok: true, status: "completed", item: { ...successfulResult().payload.item, media_type: "video" }, draft: true, recovered: true, videoEngineResult: "veo", creditsUsed: 103 }));
   const result = await recovering; assert.equal(result.format, "story"); assert.equal(result.item.media_type, "video"); assert.equal(result.quota.credits.remaining, 0);
+  assert.equal(result.recovered, true); assert.equal(result.videoEngineResult, "veo"); assert.equal(result.creditsUsed, 103);
   assert.equal(storage.entries.size, 1); assert.equal(reloaded.attempts.length, 0); reloaded.dispose();
 });
 

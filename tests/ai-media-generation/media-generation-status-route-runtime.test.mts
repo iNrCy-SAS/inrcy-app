@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
 
 type Job = { id: string; status: string; error_code?: string; error_message?: string; metadata?: Record<string, unknown> };
 function route(options: { authenticated?: boolean; job?: Job | null; draft?: boolean; missingMedia?: boolean; readFails?: boolean } = {}) {
@@ -14,6 +15,7 @@ function route(options: { authenticated?: boolean; job?: Job | null; draft?: boo
   };
   const dependencies = new Map<string, unknown>([
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
+    ["@/lib/aiMediaModelCatalog", models],
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/multicompte/server", { getCurrentInrcyAccountScope: async () => options.authenticated === false ? null : { scope: { activeUserId: "active-account-a", authUserId: "actor-a" } } }],
     ["@/lib/supabaseAdmin", { supabaseAdmin: { from(table: string) { assert.equal(table, "ai_media_generation_jobs"); return chain; } } }],
@@ -41,6 +43,22 @@ test("recovery authenticates before reading and scopes the request ID to the ser
   assert.deepEqual(completed.mediaReads, [{ accountId: "active-account-a", jobId: "job-a" }]); assert.equal(payload.item.id, "media-a"); assert.equal(payload.format, "portrait"); assert.equal(payload.draft, true);
   assert.equal(payload.quota, undefined); assert.equal(payload.metadata, undefined); assert.doesNotMatch(JSON.stringify(payload), /private-provider/);
   assert.match(response.headers.get("cache-control")!, /private, no-store/);
+});
+
+test("recovery restores only recorded, allowlisted engine and credit details without leaking the brief", async () => {
+  const current = route({ job: { id: "job-veo", status: "completed", metadata: {
+    format: "story", video_engine_result: "veo", credit_amount: 103,
+    freePrompt: "SECRET_BRIEF", provider_url: "https://private.invalid/?token=secret",
+  } } });
+  const payload = await (await current.get()).json();
+  assert.equal(payload.videoEngineResult, "veo"); assert.equal(payload.creditsUsed, 103);
+  assert.equal(payload.recovered, true); assert.equal(payload.format, "story");
+  assert.doesNotMatch(JSON.stringify(payload), /SECRET_BRIEF|private.invalid|token/);
+  for (const metadata of [{}, { video_engine_result: "private diagnostics", credit_amount: -4 }, { video_engine: "veo", credit_amount: "103" }]) {
+    const unknown = await (await route({ job: { id: "job-old", status: "completed", metadata } }).get()).json();
+    assert.equal(unknown.videoEngineResult, null, "A requested engine is not proof of the engine that produced the result");
+    assert.equal(unknown.creditsUsed, null, "Legacy unknown costs must not become a fresh-generation quote");
+  }
 });
 
 test("read-only recovery distinguishes pending, absent and terminal jobs without touching the wallet", async () => {

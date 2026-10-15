@@ -251,3 +251,14 @@ export function MediaCreditQuoteSummary({ status, quota }: { status: ReturnType<
     </div>
   </details>;
 }
+
+/** Read-only historical cost: no new estimate, remaining-balance forecast or retry action. */
+export function MediaRecoveredCreditSummary({ creditsUsed }: { creditsUsed?: number | null }) {
+  const t = useTranslations("media");
+  const locale = useLocale();
+  if (typeof creditsUsed !== "number" || !Number.isSafeInteger(creditsUsed) || creditsUsed < 0) return null;
+  return <div className={styles.quote} data-media-recovered-credit-cost role="status">
+    <span className={styles.priceLabel}>{t("ai_generator_credit_cost")}</span>{" "}
+    <span className={styles.priceValue}>{t("ai_generator_credit_quantity", { credits: new Intl.NumberFormat(locale).format(creditsUsed) })}</span>
+  </div>;
+}

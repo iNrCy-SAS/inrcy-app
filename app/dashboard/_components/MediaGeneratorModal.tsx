@@ -269,6 +269,16 @@ export default function MediaGeneratorModal({
     [activeMediaType, hasExternalHandoff, hasPendingWork, imageOnly, locked, studioTab]
   );
 
+  const handleRecoveryKind = useCallback((kind: StudioMediaType) => {
+    // Hydrate before any recovery request: each Activity owns a distinct hook.
+    // Never switch away from a component that already owns a returned result.
+    if (currentResultRef.current || studioTab !== "generate" || (imageOnly && kind === "video")) return;
+    setFreeMediaType(kind);
+    // Remove the provisional wrong-type hook so its stale recovery state cannot
+    // reappear after this attempt is accepted or abandoned in the owning panel.
+    setVisitedFreeTypes([kind]);
+  }, [imageOnly, studioTab]);
+
   const requestReset = useCallback(() => {
     if (locked || closeInFlightRef.current) return;
     setResetRequested(true);
@@ -675,12 +685,14 @@ export default function MediaGeneratorModal({
                     source="studio"
                     acceptMode={acceptMode}
                     mediaType={kind}
+                    imageOnly={imageOnly}
                     initialPrompt={generationPrompt}
                     requiredPromptSuffix={requiredFreePromptSuffix}
                     fixedFormat={fixedFreeFormat}
                     onAccepted={onAccepted}
                     onResultChange={handleResultChange}
                     onBusyChange={setLocked}
+                    onRecoveryKind={handleRecoveryKind}
                     onReset={requestReset}
                   />
                 </Activity>
