@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "Poging beëindigen",
   "ai_generator_editor_criteria_incomplete": "Vul een criterium op dit tabblad aan voordat je genereert.",
   "ai_generator_use_business_dna_label": "Mijn bedrijfs-DNA gebruiken",
-  "ai_generator_use_business_dna_hint": "Voeg relevante informatie over mijn bedrijf toe aan mijn verzoek.",
+  "ai_generator_use_business_dna_hint": "Standaard je logo en kleuren. Bedrijfs- en contactgegevens op verzoek. Je prompt heeft voorrang.",
   "ai_generator_prompt_helper_title_image": "Hoe beschrijft u uw afbeelding?",
   "ai_generator_prompt_helper_title_video": "Hoe beschrijft u uw video?",
   "ai_generator_prompt_helper_intro": "Beschrijf het resultaat dat u wilt zien. Deze tips zijn optioneel.",

@@ -240,9 +240,10 @@ async function getProfessionalContext(args: {
   supabase: SupabaseLike;
   userId: string;
   edition: DashboardEdition;
+  freshProfessional?: boolean;
 }): Promise<ProfessionalContext & { source: CacheSource }> {
   const redis = getRedis();
-  if (redis) {
+  if (redis && !args.freshProfessional) {
     const cached = await readProfessionalCache(redis, args.userId, args.edition);
     if (cached) return { ...cached, source: "hit" };
   }
@@ -305,6 +306,7 @@ export async function getAiProfessionalGenerationContext(args: {
   supabase: SupabaseLike;
   userId: string;
   edition?: DashboardEdition;
+  freshProfessional?: boolean;
 }): Promise<AiProfessionalGenerationContext> {
   const edition = args.edition || await getDashboardEditionForAccountId(args.userId);
   const professional = await getProfessionalContext({ ...args, edition });
@@ -321,6 +323,7 @@ export async function getBoosterGenerationContext(args: {
   supabase: SupabaseLike;
   userId: string;
   edition?: DashboardEdition;
+  freshProfessional?: boolean;
 }): Promise<BoosterGenerationContext> {
   const [professional, publications] = await Promise.all([
     getAiProfessionalGenerationContext(args),

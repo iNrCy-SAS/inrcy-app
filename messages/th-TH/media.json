@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "ยกเลิกความพยายามนี้",
   "ai_generator_editor_criteria_incomplete": "กรุณาระบุเกณฑ์ในแท็บนี้ให้ครบก่อนสร้าง",
   "ai_generator_use_business_dna_label": "ใช้ข้อมูลธุรกิจของฉัน",
-  "ai_generator_use_business_dna_hint": "เพิ่มข้อมูลธุรกิจที่เกี่ยวข้องลงในคำขอของฉัน",
+  "ai_generator_use_business_dna_hint": "ใช้โลโก้และสีของธุรกิจเป็นค่าเริ่มต้น เพิ่มข้อมูลธุรกิจและช่องทางติดต่อเมื่อร้องขอ โดยยึดคำสั่งของคุณเป็นหลัก",
   "ai_generator_prompt_helper_title_image": "เขียนคำอธิบายภาพอย่างไรดี",
   "ai_generator_prompt_helper_title_video": "เขียนคำอธิบายวิดีโออย่างไรดี",
   "ai_generator_prompt_helper_intro": "อธิบายผลลัพธ์ที่ต้องการเห็น คำแนะนำเหล่านี้เป็นตัวเลือก",

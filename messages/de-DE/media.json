@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "Versuch beenden",
   "ai_generator_editor_criteria_incomplete": "Vervollständigen Sie ein Kriterium in diesem Tab, bevor Sie generieren.",
   "ai_generator_use_business_dna_label": "Meine Unternehmens-DNA nutzen",
-  "ai_generator_use_business_dna_hint": "Relevante Informationen über mein Unternehmen zur Anfrage hinzufügen.",
+  "ai_generator_use_business_dna_hint": "Logo und Farben standardmäßig. Unternehmens- und Kontaktdaten auf Wunsch. Ihr Prompt hat Vorrang.",
   "ai_generator_prompt_helper_title_image": "Wie beschreiben Sie Ihr Bild?",
   "ai_generator_prompt_helper_title_video": "Wie beschreiben Sie Ihr Video?",
   "ai_generator_prompt_helper_intro": "Beschreiben Sie das gewünschte Ergebnis. Diese Tipps sind freiwillig.",

@@ -917,7 +917,7 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
   assert.match(
     server,
-    /const creativePlanTask =\s*isFreeCreation\s*\? measure\("free_creative_plan", \(\) => prepareAiMediaFreeCreativePlan\([\s\S]*?\)\)\s*: providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
+    /const creativePlanTask =\s*isFreeCreation\s*\? measure\("free_creative_plan", async \(\) => \{[\s\S]*?if \(!useFreeDna\) return prepareAiMediaFreeCreativePlan\([\s\S]*?\}\)\s*: providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
   );
 });
 
@@ -1313,7 +1313,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const effectiveColors: \[string, string, string\] = isFreeCreation \? \(freeBrandPolicy\?\.useBrandColors \? brandKit\.colors : \["#000000", "#FFFFFF", "#808080"\]\) : providerRequest\.useBrandColors/
+    /const effectiveColors: \[string, string, string\] = isFreeCreation \? \(promptBrandColors\.length \? brandKit\.colors : \["#000000", "#FFFFFF", "#808080"\]\) : providerRequest\.useBrandColors/
   );
   assert.match(server, /authorized_identity_and_official_logo/);
   assert.doesNotMatch(server, /inspiration_image_sha256/);

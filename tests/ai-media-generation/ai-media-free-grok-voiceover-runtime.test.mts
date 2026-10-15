@@ -9,6 +9,7 @@ import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
+import { getAiMediaFreeBrandPolicy } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 
 type Row = Record<string, unknown>;
 const script = "Dans cet atelier, chaque vase prend doucement forme entre les mains de la céramiste.";
@@ -24,7 +25,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "seed") {
+function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdentity = false) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
@@ -41,14 +42,15 @@ function harness(failure?: "tts" | "audio-preflight" | "seed") {
     ["server-only", {}], ["sharp", () => ({ png() { return this; }, toBuffer: async () => Buffer.from("transparent-overlay") })],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBusinessDna", { buildAiMediaVideoDnaBrief: () => "" }],
-    ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ logo: null, colors: ["#000000", "#FFFFFF", "#808080"] }) }],
+    ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ logo: withOfficialIdentity ? Buffer.from("official-test-logo") : null, colors: ["#123456", "#654321", "#abcdef"], hasOfficialPalette: withOfficialIdentity }) }],
+    ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: {}, liens: {}, informations_demandees: [] }) }],
     ["@/lib/aiMediaBrandRenderer", { renderAiMediaVideoOverlay: async () => Buffer.from("overlay") }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCopywriter", { writeAiMediaHeadline: async () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaFreeGenerationPlan", { buildAiMediaFreeBasePlan: () => plan, prepareAiMediaFreeCreativePlan: async () => plan, writeAiMediaFreeNarration: freeNarration }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", getAiMediaFreeImageSize: () => "1024x1536",
-      getAiMediaFreeBrandPolicy: () => ({ useLogo: false, useBrandColors: false }), splitAiMediaFreeNarrationByScene: () => [script],
+      getAiMediaFreeBrandPolicy, splitAiMediaFreeNarrationByScene: () => [script],
       buildAiMediaFreeSceneFramePrompt: () => "One controlled full-frame initial instant, no storyboard.",
       resolveAiMediaFreeDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaFreeVoiceoverPolicy", { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover }],
@@ -107,6 +109,25 @@ function harness(failure?: "tts" | "audio-preflight" | "seed") {
   return { events, videoCalls, ttsCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls,
     generate: (original: contracts.AiMediaGenerationRequest) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {} }) };
 }
+
+test("checked ADN retains the same video path and adds only the official identity, without an extra paid frame", async () => {
+  for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "grok", "grok-lite"] as const) {
+    const env = harness(undefined, true);
+    const input = request(engine, { useBusinessDna: true, durationSeconds: 8, videoResolution: engine === "minimax-h3" ? "768p" : "720p", withNarration: false, freePrompt: "Une céramiste façonne un vase." });
+    const before = structuredClone(input);
+    await env.generate(input);
+    assert.deepEqual(input, before);
+    assert.equal(env.videoCalls.length, 1, engine);
+    assert.equal(env.seedCalls.length, engine === "grok" || engine === "grok-lite" ? 1 : 0, engine);
+    assert.equal(env.ttsCalls.length, 0);
+    assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).videoEngine, engine);
+    assert.match(String(env.videoCalls[0].businessDnaDirection), /#123456|logo is added locally/);
+    assert.equal(env.composeCalls.length, 1);
+    const metadata = env.saved[0].metadata as { provenance: Row };
+    assert.equal(metadata.provenance.business_dna_used, true);
+    assert.equal(metadata.provenance.exact_logo_applied, true);
+  }
+});
 
 test("separate narration policy is limited to free Grok video, never characters or transforms", () => {
   for (const videoEngine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash"] as const) {

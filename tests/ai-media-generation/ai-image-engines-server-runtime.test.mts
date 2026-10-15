@@ -63,7 +63,8 @@ function serverHarness(providerFailure = false) {
   const overrides: Array<[string, unknown]> = [
     ["server-only", {}], ["sharp", {}],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
-    ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], logo, logoVersion: "test" }) }],
+    ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
+    ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],
     ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); return Buffer.from("locally-branded-output"); } }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
@@ -75,7 +76,10 @@ function serverHarness(providerFailure = false) {
     ["@/lib/aiGeneratedMediaRegistry", { getExistingGeneratedAiMedia: async () => null, saveGeneratedAiMedia: async (args: RecordValue) => { counts.saved += 1; saved.push(args); return { id: "test-media", media_type: "image" }; } }],
     ["@/lib/boosterGenerationContext", { getBoosterGenerationContext: async () => ({ profile: {}, business: {}, recentPublications: [], cacheSource: "test" }) }],
     ["@/lib/aiMediaGenerationContracts", contracts],
-    ["@/lib/aiMediaGateway", { generateAiMediaImage: image, generateAiMediaImageWithGoogle: async () => { counts.fallback += 1; throw new Error("unexpected_google_fallback"); } }],
+    ["@/lib/aiMediaGateway", { generateAiMediaImage: image, generateAiMediaImageWithGoogle: async (args: RecordValue) => {
+      if (args.imageEngine === "gemini") return image(args);
+      counts.fallback += 1; throw new Error("unexpected_google_fallback");
+    } }],
     ["@/lib/aiMediaImageProviderRequest", imageRequest],
     ["./aiMediaImageProviderGateway.ts", { assertAiMediaGatewayImageInputs: realCapabilityGate() }],
     ["@/lib/aiMediaIdentityReferences", { AiMediaIdentityReferenceValidationError: class extends Error {}, prepareAiMediaIdentityReferences: async (images: contracts.AiMediaInspirationImage[]) => ({ providerImages: images, buffers: images.map(() => Buffer.from("sanitized-image")) }) }],
@@ -152,6 +156,40 @@ test("free official logo is composed only when explicitly requested, without hid
       const metadata = harness.saved[0].metadata as { provenance: RecordValue };
       assert.equal(metadata.provenance.local_logo_composition_applied, useLogo);
     }
+  });
+});
+
+test("checked ADN preserves the free request and selected engine while composing the exact logo locally on every image engine", async () => {
+  await withCredentials(async () => {
+    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
+      const harness = serverHarness();
+      const input = request(engine, { creationMode: "free", useBusinessDna: true, freePrompt: "Une création artisanale originale avec mon téléphone et le lien du site." });
+      const original = structuredClone(input);
+      await harness.generate(input);
+      assert.deepEqual(input, original);
+      assert.equal(harness.providerCalls.length, 1);
+      assert.equal(harness.providerCalls[0].imageEngine, engine);
+      assert.equal(harness.providerCalls[0].officialLogo, null);
+      assert.deepEqual(harness.providerCalls[0].identityReferences, []);
+      assert.equal(harness.counts.headline, 0);
+      assert.equal(harness.counts.fallback, 0);
+      assert.equal(harness.composerCalls.length, 1);
+      assert.equal(harness.composerCalls[0].logo, harness.logo);
+      assert.equal(harness.composerCalls[0].withText, false);
+      const context = harness.promptCalls[0].businessDnaContext as { coordonnees: RecordValue; liens: RecordValue };
+      assert.equal(context.coordonnees.telephone, "01 23 45 67 89");
+      assert.equal(context.liens.site_web, "https://atelier.example/");
+    }
+  });
+});
+
+test("checked ADN respects a request without a logo", async () => {
+  await withCredentials(async () => {
+    const harness = serverHarness();
+    await harness.generate(request("recraft", { creationMode: "free", useBusinessDna: true, freePrompt: "Une création sans logo et sans charte." }));
+    assert.equal(harness.counts.provider, 1);
+    assert.equal(harness.composerCalls.length, 0);
+    assert.deepEqual(harness.promptCalls[0].brandColors, []);
   });
 });
 

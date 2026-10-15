@@ -105,6 +105,8 @@ export type AiVideoProviderGenerationArgs = {
   contentLanguage?: string;
   /** Script de voix off native du mode Libre, découpé sur deux clips maximum. */
   nativeNarrationLines?: readonly string[];
+  /** Short, server-resolved ADN direction for the visual provider, never a raw profile. */
+  businessDnaDirection?: string;
   /**
    * Marqueur interne exclusivement positionné par le serveur après avoir
    * transformé 2–3 portraits distincts en une seule composition de groupe.

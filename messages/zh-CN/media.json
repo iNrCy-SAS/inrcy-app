@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "放弃本次尝试",
   "ai_generator_editor_criteria_incomplete": "请先填写此选项卡中的必要条件，再开始生成。",
   "ai_generator_use_business_dna_label": "使用我的企业资料",
-  "ai_generator_use_business_dna_hint": "将与需求相关的企业信息加入我的请求。",
+  "ai_generator_use_business_dna_hint": "默认使用企业标志和配色。按要求使用企业资料和联系方式。你的提示词优先。",
   "ai_generator_prompt_helper_title_image": "如何描述您想要的图片？",
   "ai_generator_prompt_helper_title_video": "如何描述您想要的视频？",
   "ai_generator_prompt_helper_intro": "描述您希望看到的结果。以下建议均可自由选择。",

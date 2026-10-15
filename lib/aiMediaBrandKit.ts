@@ -18,6 +18,8 @@ export type AiMediaBrandKit = {
   logoPath: string | null;
   logoVersion: string | null;
   colors: [string, string, string];
+  /** False when these are application fallback colours, not the professional's palette. */
+  hasOfficialPalette: boolean;
 };
 
 const FALLBACK_COLORS: [string, string, string] = [
@@ -53,7 +55,7 @@ function saturation(color: [number, number, number]) {
   return Math.max(...color) - Math.min(...color);
 }
 
-async function extractPalette(buffer: Buffer): Promise<[string, string, string]> {
+async function extractPalette(buffer: Buffer): Promise<[string, string, string] | null> {
   try {
     const sample = await sharp(buffer, { failOn: "none", pages: 1 })
       .rotate()
@@ -97,7 +99,7 @@ async function extractPalette(buffer: Buffer): Promise<[string, string, string]>
       }
       if (selected.length === 3) break;
     }
-    if (!selected.length) return FALLBACK_COLORS;
+    if (!selected.length) return null;
     while (selected.length < 3) {
       const base = selected[0];
       const factor = selected.length === 1 ? 0.72 : 1.2;
@@ -105,7 +107,7 @@ async function extractPalette(buffer: Buffer): Promise<[string, string, string]>
     }
     return selected.map((color) => toHex(...color)) as [string, string, string];
   } catch {
-    return FALLBACK_COLORS;
+    return null;
   }
 }
 
@@ -214,13 +216,14 @@ export async function loadAiMediaBrandKit(args: {
     args.profile,
   );
   const ownedLogo = await loadOwnedLogo(args.accountId, currentProfile);
-  const colors = ownedLogo.logo
+  const officialPalette = ownedLogo.logo
     ? await extractPalette(ownedLogo.logo)
-    : FALLBACK_COLORS;
+    : null;
   return {
     logo: ownedLogo.logo,
     logoPath: ownedLogo.logoPath,
     logoVersion: ownedLogo.logoVersion,
-    colors,
+    colors: officialPalette || FALLBACK_COLORS,
+    hasOfficialPalette: Boolean(officialPalette),
   };
 }

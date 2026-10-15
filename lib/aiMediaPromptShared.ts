@@ -1,6 +1,7 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
+import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
 
 export const AI_MEDIA_PROMPT_VERSION =
   "inrcy-media-v25-rotating-synthetic-casting";
@@ -21,6 +22,10 @@ export type AiMediaPromptBuilderArgs = {
   castingDirection?: string;
   brandColors?: readonly string[];
   hasLogo?: boolean;
+  /** Server-resolved public facts; used only when the free ADN option is checked. */
+  businessDnaContext?: AiMediaFreeDnaContext;
+  /** Official logo is applied locally, without asking the model to redraw it. */
+  logoComposedLocally?: boolean;
   /** Le texte, le téléphone et le logo exacts seront posés localement. */
   deferVisibleElementsToComposer?: boolean;
   copy?: {

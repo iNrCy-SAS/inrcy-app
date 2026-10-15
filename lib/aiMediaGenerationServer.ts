@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaVideoDnaBrief } from "@/lib/aiMediaBusinessDna";
 import { loadAiMediaBrandKit } from "@/lib/aiMediaBrandKit";
+import { loadAiMediaFreeDnaContext } from "@/lib/aiMediaFreeDnaContextServer";
 import {
   composeAiMediaBrandedImage,
   renderAiMediaVideoOverlay,
@@ -356,6 +357,7 @@ export async function generateAndSaveAiMedia(args: {
         supabase: args.supabase,
         userId: args.accountId,
         edition: args.edition,
+        ...(args.request.creationMode === "free" && args.request.useBusinessDna ? { freshProfessional: true } : {}),
       })
     ),
   ]);
@@ -466,6 +468,14 @@ export async function generateAndSaveAiMedia(args: {
       context: "",
     },
   });
+  const useFreeDna = isFreeCreation && providerRequest.useBusinessDna === true && providerRequest.operation !== "modify";
+  const businessDnaContextTask = useFreeDna
+    ? measure("free_business_dna", () => loadAiMediaFreeDnaContext({
+        supabase: args.supabase, accountId: args.accountId, profile,
+        publicProfile: generationContext.profile, business: generationContext.business,
+        prompt: providerRequest.freePrompt || "",
+      }))
+    : Promise.resolve(undefined);
   const profilePhoneDisplayRequested =
     !isFreeCreation &&
     providerRequest.operation !== "modify" &&
@@ -491,7 +501,12 @@ export async function generateAndSaveAiMedia(args: {
   });
   const creativePlanTask =
     isFreeCreation
-      ? measure("free_creative_plan", () => prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: providerRequest, profile, signal: args.signal }))
+      ? measure("free_creative_plan", async () => {
+          if (!useFreeDna) return prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: providerRequest, profile, signal: args.signal });
+          const [kit, context] = await Promise.all([brandKitTask, businessDnaContextTask]);
+          return prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: providerRequest, profile, businessDnaContext: context,
+            brandColors: kit.hasOfficialPalette ? kit.colors : [], signal: args.signal });
+        })
       : providerRequest.withText ||
     (providerRequest.kind === "video" &&
       (providerRequest.teamVideoSpeechMode === "characters" ||
@@ -506,9 +521,10 @@ export async function generateAndSaveAiMedia(args: {
           })
         )
       : Promise.resolve(initialCreativePlan);
-  const [brandKit, creativePlan] = await Promise.all([
+  const [brandKit, creativePlan, businessDnaContext] = await Promise.all([
     brandKitTask,
     creativePlanTask,
+    businessDnaContextTask,
   ]);
   args.signal?.throwIfAborted();
   const freeBrandPolicy = isFreeCreation
@@ -519,10 +535,14 @@ export async function generateAndSaveAiMedia(args: {
     providerRequest.operation === "modify" || providerRequest.logoMode === "none"
       ? null
       : brandKit.logo;
+  // Checked ADN uses the existing local compositor for the exact official file.
+  // It must not add a paid first-frame call or change the free video engine.
+  const localDnaLogo = useFreeDna && Boolean(officialLogo);
+  const promptBrandColors = freeBrandPolicy?.useBrandColors && (!useFreeDna || brandKit.hasOfficialPalette) ? brandKit.colors : [];
   const localLogoOnlyComposition = providerRequest.kind === "image" &&
     providerRequest.operation !== "modify" && Boolean(officialLogo) &&
-    (providerRequest.imageEngine === "flux" || providerRequest.imageEngine === "grok" || providerRequest.imageEngine === "recraft");
-  const effectiveColors: [string, string, string] = isFreeCreation ? (freeBrandPolicy?.useBrandColors ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
+    (localDnaLogo || providerRequest.imageEngine === "flux" || providerRequest.imageEngine === "grok" || providerRequest.imageEngine === "recraft");
+  const effectiveColors: [string, string, string] = isFreeCreation ? (promptBrandColors.length ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
   const castingVariation = castingEligible
@@ -535,8 +555,10 @@ export async function generateAndSaveAiMedia(args: {
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
-    brandColors: providerRequest.useBrandColors || freeBrandPolicy?.useBrandColors ? brandKit.colors : [],
-    hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition && !localLogoOnlyComposition,
+    brandColors: isFreeCreation ? promptBrandColors : providerRequest.useBrandColors ? brandKit.colors : [],
+    hasLogo: Boolean(officialLogo) && !localDnaLogo && !useDeterministicImageComposition && !localLogoOnlyComposition,
+    businessDnaContext,
+    logoComposedLocally: localDnaLogo,
     deferVisibleElementsToComposer: useDeterministicImageComposition,
     copy: creativePlan,
     castingDirection: castingVariation?.direction,
@@ -636,8 +658,8 @@ export async function generateAndSaveAiMedia(args: {
         )}. Aucun texte ni logo.`
       : "";
   const essentialScenePrecompositionPrompt =
-    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || officialLogo || needsControlledAiMediaFreeFirstFrame(providerRequest))
-      ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: effectiveColors, hasLogo: Boolean(officialLogo) })
+    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || (officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
+      ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: useFreeDna ? promptBrandColors : effectiveColors, hasLogo: Boolean(officialLogo) && !localDnaLogo, businessDnaContext, logoComposedLocally: localDnaLogo })
       : providerRequest.inputMode === "essential" &&
     providerRequest.kind === "video" &&
     providerRequest.inspirationImages.length
@@ -902,6 +924,7 @@ export async function generateAndSaveAiMedia(args: {
           request: providerRequest,
           profile,
           plan: creativePlan,
+          businessDnaContext,
           maximumSpeechUnits: segmentDurations.reduce((sum, duration) => sum + Math.floor((duration - 1) * 2), 0),
         }))
       : null;
@@ -921,6 +944,13 @@ export async function generateAndSaveAiMedia(args: {
     let minimalOverlaysTask: Promise<Buffer[]> | null = null;
     const renderMinimalOverlays = () => {
       if (isFreeCreation) {
+        if (localDnaLogo) {
+          minimalOverlaysTask ||= Promise.all(creativePlan.scenes.map((scene) => renderAiMediaVideoOverlay({
+            scene, logo: officialLogo, colors: effectiveColors, companyName: "", visualStyle: providerRequest.visualStyle,
+            logoMode: "discreet", withText: false, width: format.width, height: format.height,
+          })));
+          return minimalOverlaysTask;
+        }
         minimalOverlaysTask ||= sharp({ create: { width: format.width, height: format.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
           .png().toBuffer().then((empty) => creativePlan.scenes.map(() => empty));
         return minimalOverlaysTask;
@@ -1019,6 +1049,11 @@ export async function generateAndSaveAiMedia(args: {
           creativePlan.companyName,
         contentLanguage: profile.preferences.language,
         nativeNarrationLines,
+        ...(useFreeDna ? { businessDnaDirection: [
+          promptBrandColors.length ? `Use the official palette ${promptBrandColors.join(", ")} unless the brief specifies other colours.` : "",
+          localDnaLogo ? "The exact official logo is added locally afterwards; do not draw or duplicate it in the scene." : "",
+          "Use exact requested business facts from the creative direction only; no automatic contact text, slogans, captions or subtitles. Explicit brief overrides business defaults.",
+        ].filter(Boolean).join(" ") } : {}),
         ...overrides,
         identityTeamProviderEgressConsent: request.teamVideoProviderConsent,
         signal: args.signal,
@@ -1068,7 +1103,7 @@ export async function generateAndSaveAiMedia(args: {
     const generateVideoGateway = () => measure("video_generation", async () => {
       if (
         providerRequest.inputMode === "essential" &&
-        (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
+        (preparedIdentityReferences.buffers.length > 0 || (isFreeCreation && officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
       ) {
         if (
           providerRequest.identityMode === "reference_team" &&
@@ -1087,7 +1122,7 @@ export async function generateAndSaveAiMedia(args: {
                 identityMode: providerRequest.identityMode,
                 identityReferences: preparedIdentityReferences.buffers,
                 referenceRoles: preparedReferenceRoles,
-                officialLogo: isFreeCreation ? officialLogo : null,
+                officialLogo: isFreeCreation && !localDnaLogo ? officialLogo : null,
                 size: imageGenerationSize,
                 signal: args.signal,
               })
@@ -1112,7 +1147,7 @@ export async function generateAndSaveAiMedia(args: {
                 identityMode: providerRequest.identityMode,
                 identityReferences: preparedIdentityReferences.buffers,
                 referenceRoles: preparedReferenceRoles,
-                officialLogo: isFreeCreation ? officialLogo : null,
+                officialLogo: isFreeCreation && !localDnaLogo ? officialLogo : null,
                 size: imageGenerationSize,
                 signal: args.signal,
               })
@@ -1352,7 +1387,7 @@ export async function generateAndSaveAiMedia(args: {
           const narration = preparedNativeNarration && preflightAttempt === 0
             ? preparedNativeNarration
             : await measure(`narration_copy${stageSuffix}`, () =>
-            isFreeCreation ? writeAiMediaFreeNarration({ accountId: args.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits }) : writeAiMediaNarration({
+            isFreeCreation ? writeAiMediaFreeNarration({ accountId: args.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits, businessDnaContext }) : writeAiMediaNarration({
               accountId: args.accountId,
               request: narrationRequest,
               profile,
@@ -2054,6 +2089,7 @@ export async function generateAndSaveAiMedia(args: {
           people_mode: providerRequest.peopleMode,
           creativity: providerRequest.creativity,
           use_brand_colors: providerRequest.useBrandColors,
+          ...(useFreeDna ? { business_dna_used: true, business_dna_contacts_policy: "only-when-requested", business_dna_identity_policy: "prompt-overrides-defaults" } : {}),
           logo_mode: providerRequest.logoMode,
           video_engine: providerRequest.videoEngine,
           image_engine: providerRequest.imageEngine || (providerRequest.kind === "image" ? "openai" : null),
@@ -2081,9 +2117,7 @@ export async function generateAndSaveAiMedia(args: {
           local_logo_composition_applied: localLogoOnlyComposition,
           profile_phone_display_requested: profilePhoneDisplayRequested,
           profile_phone_display_applied: Boolean(profilePhone),
-          brand_palette_applied: providerRequest.useBrandColors
-            ? brandKit.colors
-            : [],
+          brand_palette_applied: isFreeCreation ? promptBrandColors : providerRequest.useBrandColors ? brandKit.colors : [],
           professional_library_images_used: 0,
           original_ai_video:
             providerRequest.kind === "video" && !localFallbackUsed,

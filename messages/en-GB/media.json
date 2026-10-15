@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "Abandon this attempt",
   "ai_generator_editor_criteria_incomplete": "Complete a criterion in this tab before generating.",
   "ai_generator_use_business_dna_label": "Use my business DNA",
-  "ai_generator_use_business_dna_hint": "Add relevant information about my business to my request.",
+  "ai_generator_use_business_dna_hint": "Logo and colours by default. Business details and contact information when requested. Your prompt takes priority.",
   "ai_generator_prompt_helper_title_image": "How to describe your image",
   "ai_generator_prompt_helper_title_video": "How to describe your video",
   "ai_generator_prompt_helper_intro": "Describe the result you want to see. These tips are optional.",

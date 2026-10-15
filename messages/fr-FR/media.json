@@ -875,7 +875,7 @@
   "ai_generator_editor_abandon": "Abandonner la tentative",
   "ai_generator_editor_criteria_incomplete": "Un critère de cet onglet doit être complété avant de générer.",
   "ai_generator_use_business_dna_label": "Utiliser mon ADN",
-  "ai_generator_use_business_dna_hint": "Ajouter les informations utiles de mon entreprise à ma demande.",
+  "ai_generator_use_business_dna_hint": "Logo et couleurs par défaut. Coordonnées et informations de l’entreprise sur demande. Votre prompt reste prioritaire.",
   "ai_generator_prompt_helper_title_image": "Comment bien décrire votre image ?",
   "ai_generator_prompt_helper_title_video": "Comment bien décrire votre vidéo ?",
   "ai_generator_prompt_helper_intro": "Décrivez le résultat que vous voulez voir. Ces conseils sont facultatifs.",

@@ -167,7 +167,7 @@ test("l'ADN et le logo sont activés uniquement par une demande compatible", () 
   }
 });
 
-test("l’option ADN conserve le brief Libre, sans importer de règles guidées ni de marque automatique", () => {
+test("l’option ADN conserve le brief Libre et ajoute une identité par défaut sans règles guidées", () => {
   const freePrompt = "Une galaxie dessinée à la main, avec une baleine bleue, sans texte ni publicité.";
   for (const build of [freePrompts.buildAiMediaFreeImagePrompt, freePrompts.buildAiMediaFreeSceneFramePrompt, freePrompts.buildAiMediaFreeVideoPrompt]) {
     const original = build(args({ freePrompt }));
@@ -176,10 +176,12 @@ test("l’option ADN conserve le brief Libre, sans importer de règles guidées 
     assert.ok(prompt.includes(freePrompt));
     assert.match(prompt, /METIER_ADN_NON_SOLLICITE/);
     assert.match(prompt, /demande créative reste prioritaire/);
-    assert.doesNotMatch(prompt, /configuration_ia|INSTRUCTION_GUIDEE_RESIDUELLE|#abcdef|logo officiel/);
+    assert.doesNotMatch(prompt, /configuration_ia|INSTRUCTION_GUIDEE_RESIDUELLE/);
+    assert.match(prompt, /#abcdef/);
+    assert.match(prompt, /logo officiel/);
   }
   assert.deepEqual(freePrompts.getAiMediaFreeBrandPolicy(freePrompt, "Atelier Test", true), {
-    useCompanyContext: true, useLogo: false, useBrandColors: false,
+    useCompanyContext: true, useLogo: true, useBrandColors: true,
   });
   assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Un nouveau logo pour une autre marque", "Atelier Test", true).useLogo, false);
   assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Une affiche sans logo, sans charte", "Atelier Test", true).useLogo, false);
