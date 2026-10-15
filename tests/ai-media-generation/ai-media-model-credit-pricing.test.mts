@@ -15,9 +15,9 @@ import {
 import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd, estimateAiMediaImageSupplierCostMicroUsd } from "../../lib/aiMediaCreditsPricing.ts";
 import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
-test("Studio offers eight choices from four video families with distinct capabilities", () => {
-  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 8);
-  assert.equal(new Set(AI_MEDIA_VIDEO_MODELS.map((model) => model.provider)).size, 4);
+test("Studio offers nine choices from five video families with distinct capabilities", () => {
+  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 9);
+  assert.equal(new Set(AI_MEDIA_VIDEO_MODELS.map((model) => model.provider)).size, 5);
   assert.equal(getAiMediaVideoModel("veo-lite").maxReferenceImages, 1);
   assert.equal(getAiMediaVideoModel("minimax-h3").defaultResolution, "768p");
   assert.equal(getAiMediaVideoModel("wan-flash").supportsTextToVideo, false);

@@ -136,6 +136,6 @@ export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQu
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
   const referenceCount = segments.length === 1 ? effectiveReferences
     : input.sceneMode === "multi" ? effectiveReferences * segments.length : effectiveReferences + 1;
-  const referenceUsd = model.provider === "spacexai" ? referenceCount * 0.01 : 0;
-  return Math.ceil(((quote.durationSeconds ?? 0) * rate + referenceUsd) * 1_000_000);
+  return Math.ceil((quote.durationSeconds ?? 0) * rate * 1_000_000)
+    + referenceCount * model.supplierReferenceCostMicroUsd;
 }

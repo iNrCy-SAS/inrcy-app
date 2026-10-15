@@ -1,0 +1,104 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import ts from "typescript";
+import { IntlMessageFormat } from "intl-messageformat";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
+import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
+import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
+
+type Element = { type: unknown; props: Record<string, unknown> };
+type ControlsProps = Parameters<typeof import("../../app/dashboard/_components/MediaEngineCreditControls.tsx").default>[0];
+const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+const jsx = (type: unknown, props: Record<string, unknown> | null): Element => ({ type, props: props || {} });
+const elements = (tree: unknown): Element[] => Array.isArray(tree) ? tree.flatMap(elements) : tree && typeof tree === "object" && "props" in tree ? [tree as Element, ...elements((tree as Element).props.children)] : [];
+const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
+function find(tree: unknown, predicate: (element: Element) => boolean) {
+  const element = elements(tree).find(predicate);
+  assert.ok(element, "Expected rendered control is missing");
+  return element;
+}
+
+function controls(overrides: Partial<ControlsProps> = {}, locale = "fr-FR") {
+  const messages = JSON.parse(read(`messages/${locale}/media.json`)) as Record<string, string>;
+  const t = (key: string, values: Record<string, string | number> = {}) => {
+    assert.equal(typeof messages[key], "string", `Missing ${locale} translation: ${key}`);
+    return String(new IntlMessageFormat(messages[key], locale).format(values));
+  };
+  const states: unknown[] = []; let cursor = 0;
+  const changes: unknown[][] = [];
+  const modules = new Map<string, unknown>([
+    ["react", { useId: () => "heygen-controls", useRef: () => ({ current: null }), useEffect() {}, useState(initial: unknown) {
+      const index = cursor++;
+      if (!(index in states)) states[index] = initial;
+      return [states[index], (value: unknown) => { states[index] = typeof value === "function" ? (value as (current: unknown) => unknown)(states[index]) : value; }];
+    } }],
+    ["react/jsx-runtime", { jsx, jsxs: jsx, Fragment: "fragment" }],
+    ["next-intl", { useLocale: () => locale, useTranslations: () => t }],
+    ["@/lib/aiMediaModelCatalog", models], ["@/lib/aiMediaVideoTimeline", timeline],
+    ["@/lib/aiMediaVideoClientOptions", videoOptions],
+    ["./MediaEngineCreditControls.module.css", { __esModule: true, default: new Proxy({}, { get: (_target, key) => key }) }],
+  ]);
+  const file = "app/dashboard/_components/MediaEngineCreditControls.tsx";
+  const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const record = { exports: {} as { default: (props: ControlsProps) => Element } };
+  new Function("module", "exports", "require", output)(record, record.exports, (name: string) => {
+    assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`);
+    return modules.get(name);
+  });
+  const props: ControlsProps = { kind: "video", videoEngine: "heygen", imageEngine: "openai", resolution: "768p", referenceCount: 0, brief: "Une personne salue devant son atelier.", disabled: false, durationSeconds: 8, sceneMode: "single", videoMaxDurationSeconds: 30,
+    onVideoEngineChange: (...value) => changes.push(["engine", ...value]), onImageEngineChange: (...value) => changes.push(["image", ...value]), onResolutionChange: (...value) => changes.push(["resolution", ...value]), onDurationSceneChange: (...value) => changes.push(["duration", ...value]), ...overrides };
+  const render = () => { cursor = 0; return record.exports.default(props); };
+  return { render, changes, t, openInfo() {
+    const trigger = find(render(), (element) => element.props["aria-haspopup"] === "dialog");
+    (trigger.props.onClick as () => void)();
+    const opened = render();
+    assert.equal(find(opened, (element) => element.props["aria-haspopup"] === "dialog").props["aria-expanded"], true);
+    const modal = find(opened, (element) => typeof element.type === "function");
+    return (modal.type as (props: Record<string, unknown>) => Element)(modal.props);
+  } };
+}
+
+test("HeyGen appears in its family with both supported qualities and can be selected from another engine", () => {
+  const runtime = controls({ videoEngine: "omni", resolution: "720p" });
+  const tree = runtime.render();
+  const family = find(tree, (element) => element.type === "optgroup" && element.props.label === "HeyGen");
+  const options = elements(family).filter((element) => element.type === "option");
+  assert.deepEqual(options.map((option) => option.props.value), ["heygen:768p", "heygen:1080p"]);
+  assert.ok(options.every((option) => option.props.disabled === false));
+  const select = find(tree, (element) => element.type === "select" && String(element.props.id).endsWith("-engine"));
+  (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "heygen:1080p" } });
+  assert.deepEqual(runtime.changes, [["engine", "heygen", "1080p"]]);
+  assert.equal(find(controls().render(), (element) => element.type === "select" && String(element.props.id).endsWith("-engine")).props.value, "heygen:768p");
+});
+
+test("HeyGen info explains native clips, French verification and only the assembled duration available to the account", () => {
+  for (const maximum of [15, 20, 30]) {
+    const runtime = controls({ videoMaxDurationSeconds: maximum });
+    const dialog = runtime.openInfo();
+    assert.equal(dialog.type, "dialog");
+    const card = find(dialog, (element) => element.type === "section" && elements(element).some((child) => child.type === "h3" && text(child) === "HeyGen Video"));
+    assert.equal(card.props["data-active"], true);
+    assert.ok(text(card).includes("5 à 15 secondes par scène"));
+    assert.ok(text(card).includes("qualité des dialogues en français reste à vérifier"));
+    assert.ok(text(card).includes(runtime.t("ai_generator_engine_info_heygen_framing")));
+    const assembled = elements(card).filter((element) => element.type === "p" && text(element).includes("scènes assemblées"));
+    assert.equal(assembled.length, maximum > 15 ? 1 : 0);
+    if (maximum > 15) assert.equal(text(assembled[0]), runtime.t("ai_generator_engine_info_assembled_duration", { seconds: maximum }));
+    assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_cost_note")), "The guide still explains what the displayed Studio cost covers");
+    assert.doesNotMatch(text(card), /50\s*%|\$|USD|31 octobre/, "Wholesale promotions must not imply a permanent client discount");
+    const close = find(dialog, (element) => element.type === "button" && element.props["aria-label"] === runtime.t("ai_generator_engine_info_close"));
+    (close.props.onClick as () => void)();
+    assert.equal(find(runtime.render(), (element) => element.props["aria-haspopup"] === "dialog").props["aria-expanded"], false);
+  }
+});
+
+test("engine information resolves every dynamic model key and assembled duration in all supported locales", () => {
+  for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
+    const runtime = controls({}, locale);
+    const dialog = runtime.openInfo();
+    assert.ok(text(dialog).includes(runtime.t("ai_generator_model_description_heygen")), locale);
+    assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_assembled_duration", { seconds: 30 })), locale);
+    assert.doesNotMatch(text(dialog), /ai_generator_|\{seconds\}/);
+  }
+});

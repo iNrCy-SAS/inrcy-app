@@ -3,7 +3,7 @@
  */
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
-  | "wan-flash" | "wan3" | "grok-lite" | "grok";
+  | "wan-flash" | "wan3" | "grok-lite" | "grok" | "heygen";
 export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
 export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
 export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
@@ -32,8 +32,8 @@ export type AiMediaVideoSceneMode = "single" | "multi";
 export type AiMediaVideoModel = Readonly<{
   id: AiMediaVideoEngine;
   label: string;
-  family: "Google" | "MiniMax" | "Alibaba" | "Grok";
-  provider: "google" | "minimax" | "alibaba" | "spacexai";
+  family: "Google" | "MiniMax" | "Alibaba" | "Grok" | "HeyGen";
+  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen";
   providerLabel: string;
   transport: "google-direct" | "gateway";
   modelId: string;
@@ -51,6 +51,7 @@ export type AiMediaVideoModel = Readonly<{
   supportsImageToVideo: boolean;
   maxReferenceImages: number;
   pricingUsdPerSecond: Readonly<Partial<Record<AiMediaVideoResolution, number>>>;
+  supplierReferenceCostMicroUsd: number;
   referenceInputCredits: number;
 }>;
 
@@ -65,7 +66,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 10, creditsByResolution: { "720p": 10 },
     durationsSeconds: range(4, 10), maxDurationSeconds: 20, resolutions: ["720p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.1 }, referenceInputCredits: 0,
+    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.1 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "veo", label: "Veo 3.1 Fast", family: "Google", provider: "google", providerLabel: "Google",
@@ -74,7 +75,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 10, creditsByResolution: { "720p": 10, "1080p": 12 },
     durationsSeconds: [4, 6, 8], maxDurationSeconds: 16, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 3, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.12 }, referenceInputCredits: 0,
+    maxReferenceImages: 3, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.12 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "veo-lite", label: "Veo 3.1 Lite", family: "Google", provider: "google", providerLabel: "Google",
@@ -85,7 +86,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true,
     // Google's spec supports one starting image; multiple style references are unavailable.
     supportsImageToVideo: true, maxReferenceImages: 1,
-    pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.08 }, referenceInputCredits: 0,
+    pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.08 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "minimax-h3", label: "MiniMax H3", family: "MiniMax", provider: "minimax", providerLabel: "MiniMax",
@@ -94,7 +95,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 8, creditsByResolution: { "768p": 8 },
     durationsSeconds: range(4, 15), maxDurationSeconds: 30, resolutions: ["768p"], defaultResolution: "768p",
     nativeAudio: true, frenchDialogue: "supported", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 9, pricingUsdPerSecond: { "768p": 0.08 }, referenceInputCredits: 0,
+    maxReferenceImages: 9, pricingUsdPerSecond: { "768p": 0.08 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "wan-flash", label: "Wan 2.6 Flash", family: "Alibaba", provider: "alibaba", providerLabel: "Alibaba",
@@ -103,7 +104,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 5, creditsByResolution: { "720p": 5, "1080p": 7.5 },
     durationsSeconds: range(4, 15), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: false, supportsImageToVideo: true,
-    maxReferenceImages: 1, pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.075 }, referenceInputCredits: 0,
+    maxReferenceImages: 1, pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.075 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "wan3", label: "Wan 3.0", family: "Alibaba", provider: "alibaba", providerLabel: "Alibaba",
@@ -112,7 +113,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 10, creditsByResolution: { "720p": 10, "1080p": 20 },
     durationsSeconds: range(4, 30), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 10, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.2 }, referenceInputCredits: 0,
+    maxReferenceImages: 10, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.2 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "grok-lite", label: "Grok Imagine Lite", family: "Grok", provider: "spacexai", providerLabel: "Grok",
@@ -121,7 +122,7 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 3, creditsByResolution: { "720p": 3, "1080p": 14 },
     durationsSeconds: range(4, 15), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 1, pricingUsdPerSecond: { "720p": 0.03, "1080p": 0.14 }, referenceInputCredits: 1,
+    maxReferenceImages: 1, pricingUsdPerSecond: { "720p": 0.03, "1080p": 0.14 }, supplierReferenceCostMicroUsd: 10_000, referenceInputCredits: 1,
   },
   {
     id: "grok", label: "Grok Imagine 1.5", family: "Grok", provider: "spacexai", providerLabel: "Grok",
@@ -130,7 +131,20 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
     creditsPerSecond: 14, creditsByResolution: { "720p": 14, "1080p": 25 },
     durationsSeconds: range(4, 15), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 7, pricingUsdPerSecond: { "720p": 0.14, "1080p": 0.25 }, referenceInputCredits: 1,
+    maxReferenceImages: 7, pricingUsdPerSecond: { "720p": 0.14, "1080p": 0.25 }, supplierReferenceCostMicroUsd: 10_000, referenceInputCredits: 1,
+  },
+  {
+    id: "heygen", label: "HeyGen Video", family: "HeyGen", provider: "heygen", providerLabel: "HeyGen",
+    transport: "gateway", modelId: "heygen/heygen-video-1",
+    description: "Clips avec dialogues et ambiance synchronisés, à partir d'un texte ou d'une image de départ.", costTier: "balanced",
+    creditsPerSecond: 4, creditsByResolution: { "768p": 4, "1080p": 10 },
+    durationsSeconds: range(5, 15), maxDurationSeconds: 30, resolutions: ["768p", "1080p"], defaultResolution: "768p",
+    nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
+    // Only first-frame I2V is enabled: multiple references use a different tariff.
+    maxReferenceImages: 1,
+    // Conservative non-promotional bounds: the launch offer ends 2026-10-31.
+    // The endpoint also lists an image input fee despite its prose description.
+    pricingUsdPerSecond: { "768p": 0.036, "1080p": 0.1 }, supplierReferenceCostMicroUsd: 40_000, referenceInputCredits: 4,
   },
 ].map((model) => Object.freeze(model)) as AiMediaVideoModel[]);
 

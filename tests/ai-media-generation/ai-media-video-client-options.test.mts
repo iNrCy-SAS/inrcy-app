@@ -28,7 +28,7 @@ test("two-scene choices require two clips of at least four seconds", () => {
 
 test("the single dropdown contains only real engine/resolution pairs and their exact credit rates", () => {
   const choices = getMediaVideoEngineQualityChoices();
-  assert.equal(choices.length, 14);
+  assert.equal(choices.length, 16);
   assert.equal(new Set(choices.map((choice) => choice.value)).size, choices.length);
   for (const choice of choices) {
     const model = getAiMediaVideoModel(choice.engine);
@@ -38,6 +38,12 @@ test("the single dropdown contains only real engine/resolution pairs and their e
   assert.deepEqual(choices.filter((choice) => choice.engine === "omni").map((choice) => choice.resolution), ["720p"]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "minimax-h3").map((choice) => choice.resolution), ["768p"]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "grok-lite").map((choice) => choice.creditsPerSecond), [3, 14]);
+  assert.deepEqual(choices.filter((choice) => choice.engine === "heygen").map((choice) => ({
+    resolution: choice.resolution, creditsPerSecond: choice.creditsPerSecond,
+  })), [
+    { resolution: "768p", creditsPerSecond: 4 },
+    { resolution: "1080p", creditsPerSecond: 10 },
+  ]);
 });
 
 test("the Wan Flash brief limit cannot be bypassed by choosing another resolution", () => {

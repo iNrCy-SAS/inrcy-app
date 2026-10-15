@@ -16,7 +16,7 @@ import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 
 type Runtime = {
-  buildGatewayAiVideoRequest: (args: providerTypes.AiVideoProviderGenerationArgs) => Record<string, unknown>;
+  buildGatewayAiVideoRequest: (args: providerTypes.AiVideoProviderGenerationArgs, index?: number, continuityFrame?: { data: string; mimeType: "image/jpeg" }) => Record<string, unknown>;
   createGatewayAiVideoProvider: (engine: catalog.AiMediaVideoEngine) => providerTypes.AiVideoProvider;
 };
 
@@ -32,14 +32,14 @@ function argsFor(engine: catalog.AiMediaVideoEngine, references = 0, duration = 
     providerContract: { ...base, sha256: boundary.hashAiMediaVideoProviderContract(base) },
     request: {
       requestId: "generation-test", kind: "video", videoEngine: engine, durationSeconds: duration, sceneMode,
-      videoResolution: engine === "minimax-h3" ? "768p" : "720p", format: "landscape", identityMode: "auto",
+      videoResolution: catalog.getAiMediaVideoModel(engine).defaultResolution, format: "landscape", identityMode: "auto",
       inspirationImages: Array.from({ length: references }, () => ({ data: Buffer.from("image").toString("base64"), mimeType: "image/png" })),
     },
     plan: { scenes: timeline.getAiMediaVideoSegmentDurations(duration, engine, undefined, sceneMode).map(() => ({ visualBrief: "Avancée lente." })) },
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
 }
 
-function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" = "success") {
+function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
   const counters = { requests: 0, reservations: 0, commits: 0, rollbacks: 0 };
   let observed: Record<string, unknown> | undefined;
   const submissions: Record<string, unknown>[] = [];
@@ -48,6 +48,8 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
   let storageCleanups = 0;
   let privateChecks = 0;
   const hostedImages: { data: string; mimeType: string }[][] = [];
+  let expireTimeout: (() => void) | undefined;
+  let timeoutDelay: number | undefined;
   const source = readFileSync(path.join(process.cwd(), "lib/aiVideoProviderGateway.ts"), "utf8");
   const javascript = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -59,6 +61,13 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
       createDownload: () => async () => { throw new Error("download unavailable"); },
       experimental_generateVideo: async (input: Record<string, unknown>) => {
         counters.requests += 1; observed = input; submissions.push(input);
+        if (mode === "await-abort") {
+          const signal = input.abortSignal as AbortSignal;
+          await new Promise<never>((_resolve, reject) => {
+            if (signal.aborted) reject(signal.reason);
+            else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
+        }
         if (mode === "rejected") throw new Error("provider rejected before output");
         if (mode === "second-rejected" && counters.requests === 2) throw new Error("second provider rejected before output");
         if (mode === "download-failed") {
@@ -111,12 +120,16 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
     throw new Error(`unexpected_dependency:${specifier}`);
   };
   const commonJsModule = { exports: {} };
-  const factory = vm.runInThisContext(`(function(exports,require,module){${javascript}\n})`) as (
-    exports: object, require: typeof localRequire, module: typeof commonJsModule,
+  const factory = vm.runInThisContext(`(function(exports,require,module,setTimeout){${javascript}\n})`) as (
+    exports: object, require: typeof localRequire, module: typeof commonJsModule, schedule: typeof setTimeout,
   ) => void;
-  factory(commonJsModule.exports, localRequire, commonJsModule);
+  const schedule = mode === "await-abort" ? ((callback: () => void, delay: number) => {
+    expireTimeout = callback; timeoutDelay = delay; return 0;
+  }) as unknown as typeof setTimeout : setTimeout;
+  factory(commonJsModule.exports, localRequire, commonJsModule, schedule);
   return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, hostedImages,
-    frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed };
+    frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed,
+    timeoutDelay: () => timeoutDelay, expireTimeout: () => { assert.ok(expireTimeout); expireTimeout(); } };
 }
 
 test("Veo Lite sends canonical resolution tiers independently of portrait orientation before any paid request", () => {
@@ -129,6 +142,142 @@ test("Veo Lite sends canonical resolution tiers independently of portrait orient
     assert.equal(input.duration, 8); assert.equal(input.maxRetries, 0); assert.equal(input.n, 1);
     assert.equal(context.counters.reservations, 0); assert.equal(context.counters.requests, 0);
   }
+});
+
+for (const resolution of ["768p", "1080p"] as const) {
+  for (const format of ["square", "portrait", "story", "landscape"] as const) {
+    test(`HeyGen ${resolution}/${format}: explicit T2V tier, safe framing and untouched native audio`, async () => {
+      await withMockCredentials(async () => {
+        const context = loadRuntime(); const args = argsFor("heygen", 0, 5);
+        args.request.videoResolution = resolution; args.request.format = format;
+        const result = await context.runtime.createGatewayAiVideoProvider("heygen").generate(args);
+        const input = context.observed()!;
+        const expectedRatio = format === "story" ? "9:16" : format === "landscape" ? "16:9"
+          : format === "portrait" ? resolution === "1080p" ? "9:16" : "3:4"
+            : resolution === "1080p" ? "16:9" : "1:1";
+        assert.equal(input.model, "heygen/heygen-video-1");
+        assert.deepEqual(input.providerOptions, { heygen: { resolution, mode: "text_to_video", promptEnhancement: "disabled" } });
+        assert.equal(input.resolution, undefined); assert.equal(input.aspectRatio, expectedRatio);
+        assert.equal(input.generateAudio, true); assert.equal(input.seed, undefined);
+        assert.equal(input.maxRetries, 0); assert.equal(input.n, 1); assert.equal(input.duration, 5);
+        assert.ok(String(input.prompt).startsWith(args.canonicalPrompt));
+        const adapted = resolution === "1080p" && (format === "square" || format === "portrait");
+        assert.equal(String(input.prompt).includes("SAFE FRAME"), adapted);
+        assert.equal(result.warnings.some((warning) => warning.startsWith("video_provider_aspect_ratio_adapted:")), adapted);
+        assert.deepEqual(context.costs, [resolution === "768p" ? 180_000 : 500_000]);
+        assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+      });
+    });
+    test(`HeyGen ${resolution}/${format}: one inline first frame never selects the more expensive reference mode`, async () => {
+      await withMockCredentials(async () => {
+        const context = loadRuntime(); const args = argsFor("heygen", 1, 5);
+        args.request.videoResolution = resolution; args.request.format = format;
+        await context.runtime.createGatewayAiVideoProvider("heygen").generate(args);
+        const input = context.observed()!;
+        assert.deepEqual(input.providerOptions, { heygen: { resolution, mode: "image_to_video", promptEnhancement: "disabled" } });
+        assert.equal(input.resolution, undefined); assert.equal(input.aspectRatio, undefined);
+        assert.equal(input.inputReferences, undefined);
+        assert.deepEqual((input.prompt as { image: Buffer }).image, Buffer.from("image"));
+        assert.equal((input.prompt as { text: string }).text, args.canonicalPrompt);
+        assert.equal(input.generateAudio, true); assert.equal(input.maxRetries, 0);
+        assert.equal(context.hostedImages.length, 0);
+        assert.deepEqual(context.costs, [resolution === "768p" ? 220_000 : 540_000]);
+      });
+    });
+  }
+}
+
+test("HeyGen rejects four seconds, extra references and oversized inline/continuity images before reservation", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime(); const provider = context.runtime.createGatewayAiVideoProvider("heygen");
+    const short = argsFor("heygen"); short.request.durationSeconds = 4;
+    await assert.rejects(provider.generate(short), /duration_unsupported/);
+    await assert.rejects(provider.generate(argsFor("heygen", 2)), /references_unsupported/);
+    const large = argsFor("heygen", 1);
+    large.request.inspirationImages[0].data = Buffer.alloc(5_000_001).toString("base64");
+    await assert.rejects(provider.generate(large), /dépasse 5 Mo/);
+    assert.throws(() => context.runtime.buildGatewayAiVideoRequest(argsFor("heygen"), 0,
+      { data: large.request.inspirationImages[0].data, mimeType: "image/jpeg" }), /dépasse 5 Mo/);
+    assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  });
+});
+
+test("HeyGen validates the complete prompt including framing instructions before reservation", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime(); const args = argsFor("heygen", 0, 5);
+    args.canonicalPrompt = "x".repeat(32_000);
+    args.canonicalPromptSha256 = boundary.hashAiMediaCanonicalPrompt(args.canonicalPrompt);
+    assert.equal(String(context.runtime.buildGatewayAiVideoRequest(args).prompt).length, 32_000);
+    args.request.videoResolution = "1080p"; args.request.format = "square";
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("heygen").generate(args), /32 000 caractères/);
+    args.request.format = "landscape"; args.canonicalPrompt += "x";
+    args.canonicalPromptSha256 = boundary.hashAiMediaCanonicalPrompt(args.canonicalPrompt);
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("heygen").generate(args), /32 000 caractères/);
+    assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  });
+});
+
+for (const sceneMode of ["single", "multi"] as const) {
+  test(`HeyGen 30s ${sceneMode} bills each transmitted frame once and keeps the same model`, async () => {
+    await withMockCredentials(async () => {
+      const context = loadRuntime();
+      const result = await context.runtime.createGatewayAiVideoProvider("heygen").generate(argsFor("heygen", 1, 30, sceneMode));
+      assert.deepEqual(result.clips.map((clip) => clip.durationSeconds), [15, 15]);
+      assert.deepEqual(context.costs, [580_000, 580_000]);
+      assert.equal(result.estimatedCostMicroUsd, 1_160_000);
+      assert.equal(context.frames(), sceneMode === "single" ? 1 : 0);
+      assert.ok(context.submissions.every((input) => input.maxRetries === 0 && input.model === "heygen/heygen-video-1"));
+      assert.deepEqual((context.submissions[1].prompt as { image: Buffer }).image,
+        Buffer.from(sceneMode === "single" ? "generated-last-frame" : "image"));
+      assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+    });
+  });
+}
+
+test("HeyGen timeout aborts the single in-flight SDK request without resubmitting", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime("await-abort");
+    const pending = context.runtime.createGatewayAiVideoProvider("heygen").generate(argsFor("heygen"));
+    for (let turn = 0; turn < 10 && !context.counters.requests; turn++) await Promise.resolve();
+    assert.equal(context.counters.requests, 1); assert.equal(context.timeoutDelay(), 600_000);
+    context.expireTimeout();
+    await assert.rejects(pending, /ai_video_gateway_timeout/);
+    assert.equal((context.observed()?.abortSignal as AbortSignal).aborted, true);
+    assert.equal(context.counters.requests, 1); assert.equal(context.counters.reservations, 1);
+  });
+});
+
+test("HeyGen failure after a first paid clip never retries the failed scene or forgets the paid asset", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime("second-rejected");
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("heygen").generate(argsFor("heygen", 0, 30)),
+      (error: unknown) => providerTypes.isAiVideoProviderBillableFailure(error));
+    assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
+    assert.deepEqual(context.costs, [540_000]);
+  });
+});
+
+test("the installed AI SDK serializes HeyGen native options and an inline first frame through Gateway without a network call", async () => {
+  const { createGateway, experimental_generateVideo } = await import("ai");
+  const context = loadRuntime(); const args = argsFor("heygen", 1, 5);
+  args.request.videoResolution = "1080p"; args.request.format = "story";
+  const input = context.runtime.buildGatewayAiVideoRequest(args);
+  let calls = 0;
+  const gateway = createGateway({ apiKey: "unit-test-mock-credential", fetch: async (url, init) => {
+    calls++;
+    assert.ok(String(url).endsWith("/video-model"));
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get("ai-model-id"), "heygen/heygen-video-1");
+    const body = JSON.parse(String(init?.body));
+    assert.deepEqual(body.providerOptions, { heygen: { resolution: "1080p", mode: "image_to_video", promptEnhancement: "disabled" } });
+    assert.equal(body.resolution, undefined); assert.equal(body.aspectRatio, undefined);
+    assert.equal(body.inputReferences, undefined); assert.equal(body.generateAudio, true);
+    assert.equal(body.image.data, Buffer.from("image").toString("base64"));
+    const output = { type: "result", videos: [{ type: "base64", mediaType: "video/mp4", data: Buffer.from("local-test-video").toString("base64") }], warnings: [] };
+    return new Response(`data: ${JSON.stringify(output)}\n\n`, { headers: { "content-type": "text/event-stream" } });
+  } });
+  const result = await experimental_generateVideo({ ...input, model: gateway.video("heygen/heygen-video-1") } as Parameters<typeof experimental_generateVideo>[0]);
+  assert.equal(calls, 1); assert.equal(result.videos.length, 1);
 });
 
 test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son transport compact", () => {

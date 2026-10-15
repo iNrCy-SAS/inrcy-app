@@ -53,7 +53,7 @@ export function MediaVideoDurationSelect({ value, durations, disabled, onChange,
   </div>;
 }
 
-function MediaEngineInfoModal({ kind, activeEngine, format, onClose }: { kind: "image" | "video"; activeEngine: string; format?: MediaGenerationFormat; onClose: () => void }) {
+function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeconds, onClose }: { kind: "image" | "video"; activeEngine: string; format?: MediaGenerationFormat; videoMaxDurationSeconds: number; onClose: () => void }) {
   const t = useTranslations("media");
   const locale = useLocale();
   const titleId = useId();
@@ -61,6 +61,8 @@ function MediaEngineInfoModal({ kind, activeEngine, format, onClose }: { kind: "
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const videoModels = [...AI_MEDIA_VIDEO_MODELS].sort((first, second) => Number(second.id === activeEngine) - Number(first.id === activeEngine));
+  const imageModels = [...AI_MEDIA_IMAGE_MODELS].sort((first, second) => Number(second.id === activeEngine) - Number(first.id === activeEngine));
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -94,9 +96,19 @@ function MediaEngineInfoModal({ kind, activeEngine, format, onClose }: { kind: "
     <div className={styles.engineInfoBody}>
       <p id={descriptionId} className={styles.engineInfoIntro}>{t("ai_generator_engine_info_intro")}</p>
       <div className={styles.engineInfoGrid}>
-        {kind === "video" ? AI_MEDIA_VIDEO_MODELS.map((option) => <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
+        {kind === "video" ? videoModels.map((option) => {
+          const assembledDuration = Math.max(0, ...option.resolutions.flatMap((resolution) => getAiMediaVideoDurationSceneOptions(option.id, resolution)
+            .filter((duration) => duration.sceneCount === 2 && duration.durationSeconds <= videoMaxDurationSeconds)
+            .map((duration) => duration.durationSeconds)));
+          return <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
           <div className={styles.engineInfoCardHeading}><h3>{option.label}</h3>{option.id === activeEngine ? <span>{t("ai_generator_engine_info_selected")}</span> : null}</div>
           <p>{t(`ai_generator_model_description_${option.id}`)}</p>
+          <div className={styles.engineInfoDetails}>
+            <p><strong>{t("ai_generator_engine_info_use_label")}</strong>{t(`ai_generator_engine_info_video_use_${option.id}`)}</p>
+            <p><strong>{t("ai_generator_engine_info_limits_label")}</strong>{t(`ai_generator_engine_info_video_limits_${option.id}`)}</p>
+          </div>
+          {option.id === "heygen" ? <p>{t("ai_generator_engine_info_heygen_framing")}</p> : null}
+          {option.id === "heygen" && assembledDuration > 15 ? <p>{t("ai_generator_engine_info_assembled_duration", { seconds: number(assembledDuration) })}</p> : null}
           <ul className={styles.engineInfoRates}>{option.resolutions.map((resolution) => {
             const durations = getAiMediaVideoDurations(option.id, resolution);
             return <li key={resolution}><strong>{resolution}</strong><span>{t("ai_generator_model_credit_rate_short", { credits: number(option.creditsByResolution[resolution] ?? option.creditsPerSecond) })}</span><span>{t("ai_generator_engine_info_max_duration", { seconds: number(Math.max(...durations)) })}</span></li>;
@@ -105,9 +117,13 @@ function MediaEngineInfoModal({ kind, activeEngine, format, onClose }: { kind: "
             <span>{t(option.supportsTextToVideo ? "ai_generator_engine_info_text_photo" : "ai_generator_engine_info_photo_required")}</span>
             {option.nativeAudio ? <span>{t("ai_generator_engine_info_audio")}</span> : null}
           </div>
-        </section>) : AI_MEDIA_IMAGE_MODELS.map((option) => <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
+        </section>; }) : imageModels.map((option) => <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
           <div className={styles.engineInfoCardHeading}><h3>{option.label}</h3>{option.id === activeEngine ? <span>{t("ai_generator_engine_info_selected")}</span> : null}</div>
           <p>{t(`ai_generator_engine_info_image_${option.id}`)}</p>
+          <div className={styles.engineInfoDetails}>
+            <p><strong>{t("ai_generator_engine_info_use_label")}</strong>{t(`ai_generator_engine_info_image_use_${option.id}`)}</p>
+            <p><strong>{t("ai_generator_engine_info_limits_label")}</strong>{t(`ai_generator_engine_info_image_limits_${option.id}`)}</p>
+          </div>
           <strong className={styles.engineInfoImageRate}>{t("ai_generator_model_image_credits", { credits: number(getAiMediaImageBaseCredits(option.id, format)) })}</strong>
           <div className={styles.engineInfoCapabilities}>
             <span>{t(option.supportsModify ? "ai_generator_image_creation_editing" : "ai_generator_image_generation_only")}</span>
@@ -191,7 +207,7 @@ export default function MediaEngineCreditControls(props: Props) {
       const choice = choices.find((option) => option.value === event.target.value);
       if (choice) selectVideoPair(choice.engine, choice.resolution);
     }}>
-      {(["Google", "MiniMax", "Alibaba", "Grok"] as const).map((family) => <optgroup key={family} label={family}>
+      {[...new Set(choices.map((option) => option.family))].map((family) => <optgroup key={family} label={family}>
         {choices.filter((option) => option.family === family).map((option) => <option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>
           {option.label} · {option.resolution} · {t("ai_generator_model_credit_rate_short", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}
           {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine)}` : ""}
@@ -217,7 +233,7 @@ export default function MediaEngineCreditControls(props: Props) {
       {!isMediaVideoBriefCompatible(props.videoEngine, props.brief ?? "") ? <p className={styles.notice} role="status">{t("ai_generator_engine_brief_too_long")}</p> : null}
     </> : null}
     {recommended && props.recommendation && (props.kind === "image" || selectable(recommended.id as AiMediaVideoEngine)) ? <small className={styles.recommendation} title={t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) })}>{t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) })}</small> : null}
-  </fieldset>{infoOpen ? <MediaEngineInfoModal kind={props.kind} activeEngine={props.kind === "video" ? props.videoEngine : props.imageEngine} format={props.format} onClose={() => setInfoOpen(false)} /> : null}</>;
+  </fieldset>{infoOpen ? <MediaEngineInfoModal kind={props.kind} activeEngine={props.kind === "video" ? props.videoEngine : props.imageEngine} format={props.format} videoMaxDurationSeconds={maximumDuration} onClose={() => setInfoOpen(false)} /> : null}</>;
 }
 
 /** Model, confirmed price and action stay together in every Studio path. */

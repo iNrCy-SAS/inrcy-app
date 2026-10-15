@@ -121,6 +121,18 @@ Une future modification du barème doit conserver la récupération des anciens 
 
 ## Sources techniques vérifiées
 
+### Ajout HeyGen Video — 15 octobre 2026
+
+Le moteur `heygen/heygen-video-1` est proposé en 768p et 1080p via l'accès AI Gateway existant. Il accepte 5 à 15 secondes par clip ; le Studio peut assembler deux clips jusqu'à 30 secondes dans la limite du compte. Les modes activés sont texte-vers-vidéo et image-de-départ-vers-vidéo, avec une seule image transmise (les références du parcours essentiel sont précomposées). Le mode fournisseur `reference_to_video`, qui a un autre tarif, n'est pas activé.
+
+Le barème commercial est fixe : 4 crédits/s en 768p, 10 crédits/s en 1080p et 4 crédits par image effectivement transmise, auxquels s'ajoutent les postes de préparation existants. Les autres moteurs conservent leurs prix et leurs choix par défaut. La version de devis reste inchangée : aucun tarif préexistant n'est modifié et le devis signé lie déjà le moteur et la résolution.
+
+Le catalogue public consulté affiche 0,018 USD/s en 768p et 0,05 USD/s en 1080p pour ces deux modes. La fiche Vercel annonce une remise de 50 % jusqu'au 31 octobre 2026, tandis que l'API d'endpoints indique `discount: 0` : le tarif futur n'est donc pas garanti. Les réserves internes utilisent les bornes prudentes hors promotion déduites de cette remise (0,036 / 0,10 USD/s). L'endpoint déclare aussi 0,02 USD par image en entrée malgré une description indiquant l'absence de supplément : la réserve utilise 0,04 USD/image par prudence. Ces montants restent des estimations internes, jamais une preuve du montant réellement facturé par Vercel.
+
+Le transport envoie explicitement le mode, le niveau de résolution et la désactivation de la réécriture automatique du prompt. En 1080p texte-vers-vidéo, le fournisseur accepte le paysage ou le vertical ; les formats carré et portrait sont recadrés au centre par le montage existant, avec une consigne de cadrage protectrice. Avec une image de départ, son ratio est suivi. Le panneau « i » précise les usages, les durées, cette adaptation de cadrage et le fait que la qualité des dialogues en français reste à vérifier. Aucun nouvel essai de génération payant n'a été effectué pour cet ajout.
+
+Sources : [fiche Vercel](https://vercel.com/ai-gateway/models/heygen-video-1), [contrat HeyGen](https://developers.heygen.com/docs/models/heygen-video), [options du fournisseur AI SDK](https://ai-sdk.dev/providers/ai-sdk-providers/heygen), [endpoint public](https://ai-gateway.vercel.sh/v1/models/heygen/heygen-video-1/endpoints).
+
 - [Catalogue public AI Gateway](https://ai-gateway.vercel.sh/v1/models)
 - [Génération vidéo avec AI Gateway](https://vercel.com/docs/ai-gateway/modalities/video-generation)
 - [Tarification Google Gemini API](https://ai.google.dev/gemini-api/docs/pricing)

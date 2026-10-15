@@ -159,7 +159,7 @@ export function assertAiVideoReferenceTeamGoogleEgress(
 
 export function assertAiVideoReferenceTeamProviderEgress(
   args: Pick<AiVideoProviderGenerationArgs, "request" | "identityTeamPrecomposed" | "identityTeamProviderEgressConsent" | "identityTeamGoogleEgressConsent">,
-  provider: "google" | "minimax" | "alibaba" | "spacexai",
+  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen",
 ) {
   if (args.request.identityMode !== "reference_team") return;
   if (provider === "google") return assertAiVideoReferenceTeamGoogleEgress(args);

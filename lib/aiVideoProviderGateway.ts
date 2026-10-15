@@ -76,17 +76,33 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   const references = continuityFrame ? [continuityFrame] : args.request.inspirationImages;
   if (!references.length && !model.supportsTextToVideo) throw new Error("ai_media_video_reference_required");
   if (references.length && (!model.supportsImageToVideo || references.length > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
+  if (model.id === "heygen" && !signedImageUrls && references.some((image) => Buffer.byteLength(image.data, "base64") > 5_000_000)) {
+    throw new AiMediaRequestValidationError("L’image transmise à HeyGen dépasse 5 Mo. Réduisez sa taille avant de générer.");
+  }
   if (model.id === "grok" && resolution === "1080p" && references.length > 1) {
     throw new AiMediaRequestValidationError("Grok Imagine 1.5 accepte plusieurs références en 720p uniquement. Choisissez 720p ou une seule image de référence pour générer en 1080p.");
   }
   assertAiVideoReferenceTeamProviderEgress(args, model.provider);
   const completePrompt = buildGoogleVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) });
-  const text = model.id === "wan-flash" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
-  const aspectRatio = model.provider === "google"
+  let text = model.id === "wan-flash" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
+  const requestedAspectRatio = model.provider === "google"
     ? (args.request.format === "story" || args.request.format === "portrait" ? "9:16" : "16:9")
     : args.request.format === "square" ? "1:1"
       : args.request.format === "story" ? "9:16"
         : args.request.format === "portrait" ? "3:4" : "16:9";
+  // HeyGen 1080p text-to-video only accepts landscape/vertical. The final
+  // composer crops centrally, so protect the requested canvas in the prompt.
+  const aspectRatio = model.id === "heygen" && resolution === "1080p"
+    ? (args.request.format === "story" || args.request.format === "portrait" ? "9:16" : "16:9")
+    : requestedAspectRatio;
+  if (model.id === "heygen" && !references.length && resolution === "1080p" && requestedAspectRatio !== aspectRatio) {
+    text += args.request.format === "square"
+      ? "\nFINAL 1:1 SAFE FRAME: keep every essential subject, full face and important detail inside the central square (middle 56% of the width); the sides will be cropped. This is a composition instruction, never on-screen text."
+      : "\nFINAL 4:5 SAFE FRAME: keep every essential subject, full face and important detail inside the centred 4:5 area (middle 70% of the height); the top and bottom will be cropped. This is a composition instruction, never on-screen text.";
+  }
+  if (model.id === "heygen" && text.length > 32_000) {
+    throw new AiMediaRequestValidationError("La consigne complète dépasse la limite de 32 000 caractères de HeyGen. Raccourcissez le brief avant de générer.");
+  }
   const shortSide = resolution === "1080p" ? 1080 : resolution === "768p" ? 768 : 720;
   const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);
   const width = aspectWidth >= aspectHeight ? Math.round(shortSide * aspectWidth / aspectHeight / 2) * 2 : shortSide;
@@ -95,19 +111,30 @@ export function buildGatewayAiVideoRequest(args: AiVideoProviderGenerationArgs, 
   const imageInputs = references.map((image, imageIndex) => ({
     data: signedImageUrls ? signedImageUrls[imageIndex] : Buffer.from(image.data, "base64"), mediaType: image.mimeType,
   }));
+  let providerOptions: NonNullable<Parameters<typeof generateVideo>[0]["providerOptions"]> | undefined;
+  if (model.provider === "spacexai") providerOptions = { xai: { resolution } };
+  if (model.provider === "heygen") providerOptions = { heygen: {
+    resolution,
+    mode: imageInputs.length ? "image_to_video" : "text_to_video",
+    // Preserve the already-reviewed prompt, including exact dialogue.
+    promptEnhancement: "disabled",
+  } };
   return {
     model: model.modelId,
     prompt: imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
     ...(imageInputs.length > 1 ? { inputReferences: imageInputs } : {}),
     duration,
-    // xAI expects its tier; Google expects canonical landscape dimensions even
-    // for portrait output. aspectRatio controls the orientation independently.
-    ...(model.provider === "spacexai"
-      ? { providerOptions: { xai: { resolution } } }
+    // xAI/HeyGen accept explicit tiers. HeyGen's actual frame dimensions differ
+    // from a mathematical 16:9 canvas, so do not infer width/height for its API.
+    ...(providerOptions
+      ? { providerOptions }
       : { resolution: model.provider === "google"
         ? (resolution === "1080p" ? "1920x1080" : "1280x720")
         : `${width}x${height}` as `${number}x${number}` }),
-    ...(model.id !== "wan-flash" ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+    // HeyGen image-to-video follows its first frame; aspectRatio is ignored
+    // with a provider warning, so do not send a contradictory shape.
+    ...(model.id !== "wan-flash" && !(model.id === "heygen" && imageInputs.length)
+      ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
     ...(model.id !== "minimax-h3" ? { generateAudio: model.nativeAudio } : {}),
     n: 1,
     // An uncertain timeout must never cause a second paid submission.
@@ -158,7 +185,7 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
           const rate = model.pricingUsdPerSecond[resolution];
           if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
           const referenceCount = continuityFrame ? 1 : args.request.inspirationImages.length;
-          const clipCost = Math.ceil((input.duration * rate + (model.provider === "spacexai" ? referenceCount * 0.01 : 0)) * 1_000_000);
+          const clipCost = Math.ceil(input.duration * rate * 1_000_000) + referenceCount * model.supplierReferenceCostMicroUsd;
           const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
             feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: clipCost,
           });
@@ -185,6 +212,10 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
             await commit();
             estimatedCostMicroUsd += clipCost;
             const clipWarnings = result.warnings.map((warning) => `gateway:${diagnostic(warning)}`).slice(0, 30);
+            if (model.id === "heygen" && !referenceCount && resolution === "1080p" &&
+              (args.request.format === "square" || args.request.format === "portrait")) {
+              clipWarnings.push(`video_provider_aspect_ratio_adapted:${args.request.format}:${input.aspectRatio}`);
+            }
             if (continuityFrame) clipWarnings.push("video_last_frame_continuity");
             warnings.push(...clipWarnings);
             clips.push({ buffer, mediaType: "video/mp4", durationSeconds: input.duration,
