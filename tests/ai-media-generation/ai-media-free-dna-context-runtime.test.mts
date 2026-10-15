@@ -5,7 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import type { NormalizedAiGenerationProfile } from "../../lib/aiGenerationProfile.ts";
 import { buildAiMediaFreeDnaContext, normalizeAiMediaBusinessUrl, selectAiMediaFreeDnaEvidence, AI_MEDIA_FREE_DNA_MAX_CHARS } from "../../lib/aiMediaFreeDnaContext.ts";
-import { buildAiMediaFreeBusinessContext, buildAiMediaFreeImagePrompt, buildAiMediaFreeVideoPrompt, buildAiMediaFreeVideoScenePrompt, getAiMediaFreeBrandPolicy } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { buildAiMediaFreeBusinessContext, buildAiMediaFreeImagePrompt, buildAiMediaFreeVideoPrompt, buildAiMediaFreeVideoScenePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { normalizeAiMediaGenerationRequest, AiMediaRequestValidationError } from "../../lib/aiMediaGenerationContracts.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
 import * as dna from "../../lib/aiMediaFreeDnaContext.ts";
@@ -22,6 +22,33 @@ const profile = {
 const publicProfile = { company_legal_name: "Atelier Cosmos", phone: "01 23 45 67 89", contact_email: "contact@cosmos.example",
   email: "private-login@example.invalid", hq_address: "12 rue du Soleil", hq_zip: "62000", hq_city: "Arras", access_token_enc: "SECRET_MUST_NOT_APPEAR" };
 const context = buildAiMediaFreeDnaContext({ profile, publicProfile, publicLinks: { site_web: "https://cosmos.example/reserver", instagram: "https://www.instagram.com/cosmos/" }, prompt: "Annonce notre atelier poterie avec le tarif et le lien du site." });
+
+test("ADN exclusions stay attached to their object and an attached logo overrides the official file", () => {
+  for (const brief of ["Sans texte, avec notre logo", "Ne pas oublier le logo", "Sans texte aux couleurs de notre entreprise"]) {
+    assert.equal(getAiMediaFreeBrandPolicy(brief, "Atelier Cosmos", true).useLogo, true, brief);
+    assert.equal(getAiMediaFreeBrandPolicy(brief, "Atelier Cosmos", true).useBrandColors, true, brief);
+  }
+  assert.equal(getAiMediaFreeBrandPolicy("Utilise le logo ci-joint", "Atelier Cosmos", true).useLogo, false);
+  assert.equal(getAiMediaFreeBrandPolicy("Une photo sans logo", "Atelier Cosmos", true).useLogo, false);
+  assert.equal(getAiMediaFreeBrandPolicy("Ne pas ajouter le logo", "Atelier Cosmos", true).useLogo, false);
+  assert.equal(getAiMediaFreeBrandPolicy("Ne jamais utiliser notre logo", "Atelier Cosmos", true).useLogo, false);
+  assert.equal(getAiMediaFreeBrandPolicy("Une photo sans couleurs de marque", "Atelier Cosmos", true).useBrandColors, false);
+  assert.deepEqual(getAiMediaFreeLogoPlacement("Notre logo en grand en bas à gauche."), { horizontal: "left", vertical: "bottom", size: "large" });
+  assert.equal(getAiMediaFreeLogoPlacement("Une belle image avec notre logo."), undefined);
+  assert.equal(getAiMediaFreeLogoPlacement("Une grande affiche avec notre logo."), undefined);
+  assert.equal(getAiMediaFreeLogoPlacement("Notre logo et un grand titre à droite."), undefined);
+  assert.deepEqual(getAiMediaFreeLogoPlacement("Notre logo en bas à gauche, un grand titre en haut à droite."), { horizontal: "left", vertical: "bottom" });
+  assert.equal(getAiMediaFreeLogoPlacement("Notre logo pas en haut à droite."), undefined);
+});
+
+test("Recraft reserves its complete prompt budget without truncating a 4000-character brief or exact business facts", () => {
+  const brief = (`Une affiche avec notre logo. Afficher 49,90 € et le téléphone exact. ${"Matières et ombres raffinées. ".repeat(160)}`).slice(0, 4_000);
+  const richProfile = { ...profile, memory: { ...profile.memory, detailedDescription: "Histoire de notre atelier. ".repeat(400) } } as NormalizedAiGenerationProfile;
+  const result = buildAiMediaFreeImagePrompt({ request: request({ imageEngine: "recraft", freePrompt: brief }), profile: richProfile, businessDnaContext: context, brandColors: ["#123456"], logoComposedLocally: true });
+  assert.ok(result.length <= 9_000, String(result.length));
+  assert.ok(result.includes(brief));
+  for (const exact of ["49,90 €", "01 23 45 67 89", "https://cosmos.example/reserver"]) assert.ok(result.includes(exact), exact);
+});
 function request(overrides: Record<string, unknown> = {}) {
   return normalizeAiMediaGenerationRequest({ requestId: "business-dna-context-test", source: "studio", operation: "generate", creationMode: "free",
     kind: "image", freePrompt: "Un flyer pour notre atelier avec mon téléphone et le lien de mon site.", format: "story", useBusinessDna: true, ...overrides });

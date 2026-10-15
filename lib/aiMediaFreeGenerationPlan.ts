@@ -7,8 +7,8 @@ import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { AiMediaRequestValidationError, type AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
 import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
-import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
-import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT, buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogue, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeQuotedSpeech, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
+import { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
+import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT, buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogue, getAiMediaFreeRequestedLanguage, getAiMediaFreeSpeechBudget, resolveAiMediaFreeSpeechLanguage, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeQuotedSpeech, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
 
 function cleaned(value: unknown) {
   return typeof value === "string" ? value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim() : "";
@@ -52,11 +52,14 @@ export async function prepareAiMediaFreeCreativePlan(args: {
   const prompt = args.request.freePrompt || "";
   const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName, args.request.useBusinessDna);
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
+  const segmentDurations = getAiMediaVideoSegmentDurations(args.request.durationSeconds || 8, args.request.videoEngine, args.request.videoResolution, args.request.sceneMode);
+  const speechLanguage = resolveAiMediaFreeSpeechLanguage(prompt, prompt, args.profile.preferences.language);
+  const dialogueBudgets = segmentDurations.map((duration) => ({ duration_seconds: duration, ...getAiMediaFreeSpeechBudget(duration, speechLanguage) }));
   const exactDialogue = nativeDialogue ? getAiMediaFreeRequestedDialogue(prompt) : [];
   if (exactDialogue.length > base.scenes.length) {
     throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
-  exactDialogue.forEach((line) => validateAiMediaFreeDialogueLine(line, (args.request.durationSeconds || 8) / base.scenes.length));
+  exactDialogue.forEach((line, index) => validateAiMediaFreeDialogueLine(line, segmentDurations[index], speechLanguage));
   const { visualPrompt, audioOnlyQuotes } = splitAiMediaFreeQuotedSpeech(prompt);
   const protectedTerms = literalTerms(visualPrompt);
   const generated = await aiGenerateJSON<{ direction?: unknown; scenes?: unknown }>({
@@ -74,7 +77,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
         ? "scenes contient exactement le nombre de segments demandé (durée indiquée dans les paramètres) pour UNE SEULE scène continue. Chaque segment décrit la suite immédiate de la même action, dans le même décor avec les mêmes personnages et objets ; pas de nouvelle introduction, de coupe, de changement de lieu ni de nouveau plan autonome."
         : "scenes contient exactement le nombre de plans demandé (durée indiquée dans les paramètres). Chaque plan apporte une étape visuelle distincte de la réalisation ; les changements de cadrage ou de lieu suivent le brief et conservent une cohérence d'ensemble.",
       nativeDialogue
-        ? "Pour chaque plan, visualBrief décrit l'action et identifie clairement le personnage qui parle. spokenLine contient une seule réplique naturelle, complète, de 14 mots et 90 caractères maximum. Voix synthétiques, pas de clonage. Respecte la langue demandée, sinon celle du brief. Les répliques exactes fournies sont attribuées dans l'ordre, une par plan ; après la dernière, spokenLine reste vide. Si aucune réplique n'est fournie, écris les paroles pertinentes pour cette création, sans slogan commercial imposé. La direction ne répète pas les paroles : spokenLine est leur seule source autoritaire. Pas de narrateur ajouté."
+        ? "Pour chaque plan, visualBrief décrit l'action et identifie clairement le personnage qui parle. spokenLine contient une seule réplique naturelle et complète respectant le budget propre à ce plan dans dialogue_budgets (maxUnits et maxCharacters). Vise 80 % de ce budget pour garder un débit naturel. Voix synthétiques, pas de clonage. Respecte speech_language. Les répliques exactes fournies sont attribuées dans l'ordre, une par plan ; après la dernière, spokenLine reste vide. Si aucune réplique n'est fournie, écris les paroles pertinentes pour cette création, sans slogan commercial imposé. La direction ne répète pas les paroles : spokenLine est leur seule source autoritaire. Pas de narrateur ajouté."
         : "Aucun dialogue des personnages : si une voix off est demandée, elle sera produite à partir d'un script transmis séparément au canal audio pour chaque plan. Ne pas animer les bouches pour cette voix off.",
       "Conserve les informations exactes ; n'invente pas de prix, de coordonnées ou de faits d'entreprise. Réponds dans la langue du brief. Les options explicites de format, durée, références et audio sont autoritaires.",
     ].join(" "),
@@ -88,6 +91,8 @@ export async function prepareAiMediaFreeCreativePlan(args: {
       scene_mode: args.request.sceneMode,
       voiceover: args.request.withNarration,
       native_dialogue: nativeDialogue,
+      speech_language: speechLanguage,
+      dialogue_budgets: dialogueBudgets,
       exact_dialogue: exactDialogue,
       music: args.request.withMusic,
       references: args.request.inspirationImages.map(({ role, usage }) => ({ role, usage })),
@@ -105,7 +110,11 @@ export async function prepareAiMediaFreeCreativePlan(args: {
         const spokenLine = exactDialogue.length
           ? exactDialogue[index] || ""
           : cleaned(scene.spokenLine);
-        if (!exactDialogue.length) validateAiMediaFreeDialogueLine(spokenLine, (args.request.durationSeconds || 8) / base.scenes.length);
+        if (!exactDialogue.length) {
+          if (!spokenLine) throw new Error("ai_media_dialogue_empty");
+          try { validateAiMediaFreeDialogueLine(spokenLine, segmentDurations[index] || segmentDurations[0], speechLanguage); }
+          catch { throw new Error("ai_media_dialogue_budget"); }
+        }
         return { ...scene, spokenLine };
       }) : output.scenes,
     }) : undefined,
@@ -120,7 +129,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
               type: "object", additionalProperties: false,
               properties: {
                 visualBrief: { type: "string", minLength: 3, maxLength: 300 },
-                spokenLine: { type: "string", minLength: exactDialogue.length ? 0 : 1, maxLength: 90 },
+                spokenLine: { type: "string", minLength: exactDialogue.length ? 0 : 1, maxLength: Math.max(...dialogueBudgets.map((budget) => budget.maxCharacters)) },
               },
               required: ["visualBrief", "spokenLine"],
             } : { type: "string", minLength: 3, maxLength: 300 } },
@@ -165,7 +174,7 @@ export async function writeAiMediaFreeNarration(args: {
   const exact = prompt.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
   const policy = getAiMediaFreeBrandPolicy(prompt, args.profile.business.companyName, args.request.useBusinessDna);
   let script = exact || "";
-  let language: string = args.profile.preferences.language || "fr";
+  let language = resolveAiMediaFreeSpeechLanguage(prompt, script || prompt, args.profile.preferences.language);
   if (!script) {
     let rewrite: { draft: string; word_count: number; instruction: string } | undefined;
     const generated = await aiGenerateJSON<{ script?: unknown; language?: unknown }>({
@@ -186,7 +195,7 @@ export async function writeAiMediaFreeNarration(args: {
       // Give the next model concrete feedback without adding another call or
       // modifying the professional's brief or any exact quoted narration.
       get input() {
-        return JSON.stringify({ brief: prompt, film: args.plan.subline, max_words: maxWords, company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null, ...(rewrite ? { rewrite } : {}) });
+        return JSON.stringify({ brief: prompt, film: args.plan.subline, max_words: maxWords, requested_language: getAiMediaFreeRequestedLanguage(prompt) || null, company: policy.useCompanyContext ? buildAiMediaFreeBusinessContext(args) : null, ...(rewrite ? { rewrite } : {}) });
       },
       // Validate generated copy inside the existing bounded Gateway fallback,
       // before TTS or any video submission. Exact user wording bypasses this.
@@ -199,9 +208,9 @@ export async function writeAiMediaFreeNarration(args: {
             word_count: generatedWords,
             instruction: `Le script doit contenir de 1 à ${maxWords} mots et au maximum 620 caractères. Produis une phrase complète plus courte, adaptée à ${duration} secondes, en gardant le sujet et la langue demandés.`,
           };
-          throw new Error("ai_media_generated_narration_invalid");
+          throw new Error(!generatedScript ? "ai_media_narration_script_empty" : generatedScript.length > 620 ? "ai_media_narration_character_budget" : "ai_media_narration_speech_budget");
         }
-        return { ...output, script: generatedScript };
+        return { ...output, script: generatedScript, language: resolveAiMediaFreeSpeechLanguage(prompt, generatedScript, language, String(output.language || "")) };
       },
       responseSchema: { name: "inrcy_free_narration", strict: true, schema: {
         type: "object", additionalProperties: false,
@@ -218,7 +227,7 @@ export async function writeAiMediaFreeNarration(args: {
       throw error;
     });
     script = cleaned(generated.script);
-    language = /^[a-z]{2}(?:-[A-Z]{2})?$/.test(String(generated.language)) ? String(generated.language) : language;
+    language = resolveAiMediaFreeSpeechLanguage(prompt, script, language, String(generated.language || ""));
   }
   const wordCount = script.split(/\s+/).filter(Boolean).length;
   if (!script || script.length > 620 || wordCount > maxWords) {

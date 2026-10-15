@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { purgeExpiredGeneratedAiMediaDrafts } from "@/lib/aiGeneratedMediaRegistry";
+import { purgeExpiredAiMediaProviderImages } from "@/lib/aiMediaProviderImageCleanup";
+import { purgeExpiredAiMediaCompositionObjects } from "@/lib/aiMediaCompositionRecovery";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -39,6 +41,14 @@ async function runCleanup(request: Request) {
       },
     ],
   }));
+
+  const providerImages = await purgeExpiredAiMediaProviderImages().catch(() => ({
+    inspected: 0, removed: 0, errors: ["provider_temp_cleanup_failed"],
+  }));
+  const compositionObjects = await purgeExpiredAiMediaCompositionObjects().then(
+    (removed) => ({ removed, errors: [] as string[] }),
+    () => ({ removed: 0, errors: ["composition_cleanup_failed"] }),
+  );
 
   const now = new Date().toISOString();
   const candidates = await supabaseAdmin
@@ -141,12 +151,14 @@ async function runCleanup(request: Request) {
   }
 
   return NextResponse.json({
-    ok: errors.length === 0 && generatedDrafts.errors.length === 0,
+    ok: errors.length === 0 && generatedDrafts.errors.length === 0 && providerImages.errors.length === 0 && compositionObjects.errors.length === 0,
     inspected: candidates.data?.length || 0,
     removed,
     retained,
     errors,
     generatedDrafts,
+    providerImages,
+    compositionObjects,
   });
 }
 

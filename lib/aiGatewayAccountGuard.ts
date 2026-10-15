@@ -57,6 +57,8 @@ export type AiGatewayAccountAttemptReservation = {
   estimatedInputTokens: number;
   reservedOutputTokens: number;
   estimatedCostMicroUsd: number;
+  /** UTC windows captured once; commit/rollback must release the same counters. */
+  windowIds: Readonly<Record<GuardWindow, string>>;
   state: "reserved" | "committed" | "rolled_back" | "bypassed";
 };
 
@@ -141,8 +143,8 @@ type GuardMetric =
   | "reserved_output"
   | "reserved_cost_microusd";
 
-function buildKey(args: { window: GuardWindow; accountId: string; metric: GuardMetric }) {
-  return `inrcy_aig:v2:${args.window}:${getUtcWindowId(args.window)}:${args.accountId}:${args.metric}`;
+function buildKey(args: { window: GuardWindow; accountId: string; metric: GuardMetric; windowId?: string }) {
+  return `inrcy_aig:v2:${args.window}:${args.windowId ?? getUtcWindowId(args.window)}:${args.accountId}:${args.metric}`;
 }
 
 function reservationKey(accountId: string, reservationId: string) {
@@ -161,25 +163,25 @@ function newReservationId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function windowKeys(window: GuardWindow, accountId: string) {
+function windowKeys(window: GuardWindow, accountId: string, windowId: string) {
   return [
-    buildKey({ window, accountId, metric: "attempts" }),
-    buildKey({ window, accountId, metric: "calls" }),
-    buildKey({ window, accountId, metric: "input" }),
-    buildKey({ window, accountId, metric: "output" }),
-    buildKey({ window, accountId, metric: "total" }),
-    buildKey({ window, accountId, metric: "cost_microusd" }),
-    buildKey({ window, accountId, metric: "reserved_calls" }),
-    buildKey({ window, accountId, metric: "reserved_input" }),
-    buildKey({ window, accountId, metric: "reserved_output" }),
-    buildKey({ window, accountId, metric: "reserved_cost_microusd" }),
+    buildKey({ window, accountId, windowId, metric: "attempts" }),
+    buildKey({ window, accountId, windowId, metric: "calls" }),
+    buildKey({ window, accountId, windowId, metric: "input" }),
+    buildKey({ window, accountId, windowId, metric: "output" }),
+    buildKey({ window, accountId, windowId, metric: "total" }),
+    buildKey({ window, accountId, windowId, metric: "cost_microusd" }),
+    buildKey({ window, accountId, windowId, metric: "reserved_calls" }),
+    buildKey({ window, accountId, windowId, metric: "reserved_input" }),
+    buildKey({ window, accountId, windowId, metric: "reserved_output" }),
+    buildKey({ window, accountId, windowId, metric: "reserved_cost_microusd" }),
   ];
 }
 
-function reservationKeys(accountId: string, id: string) {
+function reservationKeys(accountId: string, id: string, windowIds: Readonly<Record<GuardWindow, string>>) {
   return [
-    ...windowKeys("day", accountId),
-    ...windowKeys("month", accountId),
+    ...windowKeys("day", accountId, windowIds.day),
+    ...windowKeys("month", accountId, windowIds.month),
     reservationKey(accountId, id),
   ];
 }
@@ -352,7 +354,9 @@ export async function reserveAiGatewayAccountAttempt(
   const reservedOutputTokens = Math.max(0, Math.floor(Number(estimate.reservedOutputTokens || 0)));
   const estimatedCostMicroUsd = Math.max(1, Math.floor(Number(estimate.estimatedCostMicroUsd || 0)));
   const id = newReservationId();
-  const keys = reservationKeys(accountId, id);
+  const now = new Date();
+  const windowIds = Object.freeze({ day: getUtcWindowId("day", now), month: getUtcWindowId("month", now) });
+  const keys = reservationKeys(accountId, id, windowIds);
 
   let result: Array<number | string>;
   try {
@@ -398,6 +402,7 @@ export async function reserveAiGatewayAccountAttempt(
     estimatedInputTokens,
     reservedOutputTokens,
     estimatedCostMicroUsd,
+    windowIds,
     state: "reserved",
   };
 }
@@ -431,7 +436,7 @@ export async function commitAiGatewayAccountAttempt(args: {
   const costMicroUsd = Number.isFinite(explicitCost) && explicitCost >= 0
     ? Math.floor(explicitCost)
     : estimateAiGatewayCostMicroUsd(args.model, safeUsage);
-  const keys = reservationKeys(reservation.accountId, reservation.id);
+  const keys = reservationKeys(reservation.accountId, reservation.id, reservation.windowIds);
 
   const committed = Number(await (redis as any).eval(
     COMMIT_ATTEMPT_SCRIPT,
@@ -448,15 +453,24 @@ export async function commitAiGatewayAccountAttempt(args: {
       WINDOW_TTL_SECONDS.month,
     ],
   ));
-  if (committed === 1) reservation.state = "committed";
+  if (committed !== 1) return;
+  reservation.state = "committed";
 
   // Dimensions de diagnostic non critiques, après le commit économique atomique.
-  const featureKey = `inrcy_aig:v2:day:${getUtcWindowId("day")}:${reservation.accountId}:feature:${args.feature}`;
-  const modelKey = `inrcy_aig:v2:day:${getUtcWindowId("day")}:${reservation.accountId}:model:${args.model}`;
-  await Promise.all([
-    redis.incr(featureKey).then(async (next) => ensureExpiry(redis, featureKey, Number(next), "day")),
-    redis.incr(modelKey).then(async (next) => ensureExpiry(redis, modelKey, Number(next), "day")),
-  ]);
+  const featureKey = `inrcy_aig:v2:day:${reservation.windowIds.day}:${reservation.accountId}:feature:${args.feature}`;
+  const modelKey = `inrcy_aig:v2:day:${reservation.windowIds.day}:${reservation.accountId}:model:${args.model}`;
+  try {
+    await Promise.all([
+      redis.incr(featureKey).then(async (next) => ensureExpiry(redis, featureKey, Number(next), "day")),
+      redis.incr(modelKey).then(async (next) => ensureExpiry(redis, modelKey, Number(next), "day")),
+    ]);
+  } catch {
+    // Delivery must not fail after a successful economic commit just because
+    // optional telemetry is unavailable. The mandatory reservation stays intact.
+    console.warn("[ai-gateway-guard] diagnostic counters unavailable after commit", {
+      accountId: reservation.accountId,
+    });
+  }
 }
 
 export async function rollbackAiGatewayAccountAttempt(
@@ -470,7 +484,7 @@ export async function rollbackAiGatewayAccountAttempt(
   }
   const rolledBack = Number(await (redis as any).eval(
     ROLLBACK_ATTEMPT_SCRIPT,
-    reservationKeys(reservation.accountId, reservation.id),
+    reservationKeys(reservation.accountId, reservation.id, reservation.windowIds),
     [reservation.estimatedInputTokens, reservation.reservedOutputTokens, reservation.estimatedCostMicroUsd],
   ));
   if (rolledBack === 1) reservation.state = "rolled_back";

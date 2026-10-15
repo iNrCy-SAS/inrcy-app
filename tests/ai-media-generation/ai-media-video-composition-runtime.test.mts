@@ -63,6 +63,7 @@ type BrandRendererModule = {
     companyName: string;
     visualStyle: "clean";
     logoMode: "discreet" | "visible" | "none";
+    logoPlacement?: { horizontal?: "left" | "center" | "right"; vertical?: "top" | "center" | "bottom"; size?: "small" | "large" };
     scene: {
       eyebrow: string;
       title: string;
@@ -801,6 +802,27 @@ test("le compositeur conserve l’image jusqu’au bord inférieur depuis un pla
     await rm(directory, { recursive: true, force: true });
   }
 });
+test("an explicit large bottom-left logo is composed at that position with more visible area", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>("../../lib/aiMediaBrandRenderer.ts");
+  const logo = await sharp({ create: { width: 500, height: 200, channels: 4, background: "#db2777" } }).png().toBuffer();
+  const base = { width: 1080, height: 1080, logo, colors: ["#000000", "#ffffff", "#777777"] as [string,string,string], companyName: "", visualStyle: "clean" as const, logoMode: "discreet" as const, scene: { eyebrow: "", title: "", body: "", layout: "editorial" as const }, withText: false };
+  const defaultOverlay = await runtime.renderAiMediaVideoOverlay(base);
+  const positioned = await runtime.renderAiMediaVideoOverlay({ ...base, logoPlacement: { horizontal: "left", vertical: "bottom", size: "large" } });
+  const bounds = async (input: Buffer) => {
+    const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let minX = info.width, minY = info.height, maxX = 0, maxY = 0, pixels = 0;
+    for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) if (data[(y * info.width + x) * 4 + 3] > 20) {
+      minX = Math.min(minX,x); minY = Math.min(minY,y); maxX = Math.max(maxX,x); maxY = Math.max(maxY,y); pixels++;
+    }
+    return { minX,minY,maxX,maxY,pixels };
+  };
+  const ordinary = await bounds(defaultOverlay), explicit = await bounds(positioned);
+  assert.ok(ordinary.minX > 700 && ordinary.minY < 150);
+  assert.ok(explicit.minX < 100 && explicit.minY > 750);
+  assert.ok(explicit.pixels > ordinary.pixels * 2);
+  assert.ok(explicit.maxX < 1080 && explicit.maxY < 1080);
+});
+
 test("le logo transparent reste discret, sans pastille blanche et en zone sûre", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
     "../../lib/aiMediaBrandRenderer.ts"

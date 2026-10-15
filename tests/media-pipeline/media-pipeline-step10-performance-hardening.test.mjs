@@ -60,7 +60,7 @@ test("les formats annoncés disposent d'un décodeur serveur", () => {
   assert.match(normalizer, /convertBmpSource/);
   assert.match(
     normalizer,
-    /normalizeWithSharp\(converted,\s*"bmp-js",\s*params\.purposes\)/,
+    /normalizeWithSharp\(converted,\s*"bmp-js",\s*params\.purposes,\s*params\.losslessCanonical\)/,
   );
   assert.match(policy, /IMAGE_NORMALIZATION_BMP_MAX_INPUT_PIXELS\s*=\s*25_000_000/);
 });

@@ -1282,7 +1282,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.doesNotMatch(renderer, /font-family="Arial, Helvetica, sans-serif"/);
   assert.match(nextConfig, /Geist-Regular\.ttf/);
   assert.match(renderer, /background: \{ r: 0, g: 0, b: 0, alpha: 0 \}/);
-  assert.match(renderer, /width \* \(visible \? 0\.16 : 0\.12\)/);
+  assert.match(renderer, /placement\?\.size === "large" \? 0\.32[\s\S]*?visible \? 0\.16 : 0\.12/);
   assert.match(
     renderer,
     /args\.width - logoLayout\.marginX - preparedLogo\.width/

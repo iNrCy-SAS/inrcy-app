@@ -15,6 +15,8 @@ type Hook = {
   retryRecovery: () => Promise<MediaGenerationResult>;
   cancelRecovery: () => Promise<MediaGenerationResult | null>;
   loadQuota: (options?: { force?: boolean }) => Promise<unknown>;
+  acceptDraft: () => Promise<MediaGenerationResult>;
+  discardDraft: () => Promise<void>;
 };
 type Slot = { value?: unknown; deps?: readonly unknown[]; cleanup?: () => void };
 type Attempt = { body: Record<string, unknown>; signal: AbortSignal; headers: Headers; resolve: (response: Response) => void };
@@ -29,7 +31,7 @@ const quota = (accountId = "account-a") => ({ accountId, creditsReady: true, cre
 /** Real hook, controlled HTTP streams and effects; no provider or database requests. */
 function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem">, cancellationStatus = "processing") {
   const slots: Slot[] = []; const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
-  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; const cancellations: Record<string, unknown>[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100;
+  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; const cancellations: Record<string, unknown>[] = []; const discarded: string[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100;
   const changed = (first?: readonly unknown[], second?: readonly unknown[]) => !first || !second || first.length !== second.length || first.some((value, index) => value !== second[index]);
   const react = {
     useState(initial: unknown) {
@@ -54,6 +56,8 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   };
   const fetch = (url: string, init: RequestInit = {}): Promise<Response> => {
     if (url.endsWith("/quota")) return Promise.resolve(Response.json({ quota: { ...quota(account), credits: { unit: "credit", remaining, reserved: 0 } } }));
+    if (url === "/api/media-generation/drafts/draft-a/accept") return Promise.resolve(Response.json({ ok: true, item: successfulResult().payload.item }));
+    if (url === "/api/media-generation/drafts/draft-a" && init.method === "DELETE") { discarded.push(url); return Promise.resolve(Response.json({ ok: true, discarded: true })); }
     if (url === "/api/media-generation/cancel") {
       assert.equal(init.method, "POST"); cancellations.push(JSON.parse(String(init.body)));
       return Promise.resolve(Response.json({ ok: true, status: cancellationStatus }));
@@ -101,7 +105,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     };
   };
   render();
-  return { attempts, recoveries, cancellations, render, flush, startStream, status: () => status,
+  return { attempts, recoveries, cancellations, discarded, render, flush, startStream, status: () => status,
     async refreshRemaining(value: number) { remaining = value; await status.loadQuota({ force: true }); return render(); },
     changeAccount(nextAccount = "account-b") { account = nextAccount; for (const callback of listeners.get("account-change") || []) callback(); return render(); },
     dispose() { for (const slot of slots) slot.cleanup?.(); },
@@ -268,7 +272,53 @@ test("a reload recovers a scoped paid result from a pointer containing no prompt
   assert.equal(reloaded.recoveries[0].requestId, requestId); assert.equal(reloaded.attempts.length, 0);
   reloaded.recoveries[0].resolve(Response.json({ ok: true, status: "completed", item: { ...successfulResult().payload.item, media_type: "video" }, draft: true }));
   const result = await recovering; assert.equal(result.format, "story"); assert.equal(result.item.media_type, "video"); assert.equal(result.quota.credits.remaining, 0);
-  assert.equal(storage.entries.size, 0); assert.equal(reloaded.attempts.length, 0); reloaded.dispose();
+  assert.equal(storage.entries.size, 1); assert.equal(reloaded.attempts.length, 0); reloaded.dispose();
+});
+
+test("a completed paid draft survives reload until it is accepted or explicitly discarded", async () => {
+  for (const action of ["acceptDraft", "discardDraft"] as const) {
+    const storage = memoryStorage(); const original = harness(storage); await original.refreshRemaining(5);
+    const task = original.status().generate(input()); original.render();
+    const stream = original.startStream(0); stream.send(successfulResult()); stream.close();
+    await task; await original.flush();
+    const pointer = recovery.readAiMediaGenerationRecovery(storage, "account-a");
+    assert.equal(pointer?.mediaId, "draft-a"); original.dispose();
+    const reloaded = harness(storage); await reloaded.refreshRemaining(0);
+    assert.equal(reloaded.status().canRecover, true);
+    const restored = reloaded.status().retryRecovery(); reloaded.render();
+    reloaded.recoveries[0].resolve(Response.json({ ...successfulResult().payload, status: "completed" }));
+    assert.equal((await restored).item.id, "draft-a"); await reloaded.flush();
+    assert.equal(reloaded.attempts.length, 0);
+    await reloaded.status()[action]();
+    assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a"), null);
+    reloaded.dispose();
+  }
+});
+
+test("accepting an older media cannot erase a newer recovery pointer", () => {
+  const storage = memoryStorage();
+  recovery.writeAiMediaGenerationRecovery(storage, "account-a", { requestId: "request-new-001", kind: "image", format: "square", mediaId: "media-new" });
+  recovery.clearAiMediaGenerationRecoveryForMedia(storage, "account-a", "media-old");
+  assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a")?.requestId, "request-new-001");
+});
+
+test("persistent recovery upgrades an old session pointer and falls back when local storage is blocked", () => {
+  const persistent = memoryStorage(); const legacy = memoryStorage();
+  const pointer = { requestId: "request-legacy-001", kind: "image" as const, format: "square" as const };
+  recovery.writeAiMediaGenerationRecovery(legacy, "account-a", pointer);
+  const combined = recovery.createAiMediaRecoveryStorage(persistent, legacy);
+  assert.deepEqual(recovery.readAiMediaGenerationRecovery(combined, "account-a"), pointer);
+  recovery.writeAiMediaGenerationRecovery(combined, "account-a", { ...pointer, mediaId: "draft-a" });
+  assert.equal(legacy.entries.size, 0);
+  assert.equal(recovery.readAiMediaGenerationRecovery(persistent, "account-a")?.mediaId, "draft-a");
+  recovery.clearAiMediaGenerationRecoveryForMedia(combined, "account-a", "draft-a");
+  assert.equal(persistent.entries.size, 0);
+  const blocked = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("full"); }, removeItem() { throw new Error("blocked"); } };
+  const fallback = recovery.createAiMediaRecoveryStorage(blocked, legacy);
+  recovery.writeAiMediaGenerationRecovery(fallback, "account-a", pointer);
+  assert.deepEqual(recovery.readAiMediaGenerationRecovery(fallback, "account-a"), pointer);
+  recovery.clearAiMediaGenerationRecovery(fallback, "account-a", pointer.requestId);
+  assert.equal(legacy.entries.size, 0);
 });
 
 test("account changes hide another account pointer and recover it only after returning to its scope", async () => {
@@ -280,6 +330,26 @@ test("account changes hide another account pointer and recover it only after ret
   const task = h.status().retryRecovery(); h.render(); assert.equal(h.recoveries[0].requestId, "stored-request-0001");
   h.recoveries[0].resolve(Response.json({ ...successfulResult().payload, status: "completed" }));
   assert.equal((await task).format, "portrait"); assert.equal(h.attempts.length, 0); h.dispose();
+});
+
+test("switching accounts preserves a delivered paid draft without sending any deletion", async () => {
+  const storage = memoryStorage(); const h = harness(storage); await h.refreshRemaining(5);
+  const task = h.status().generate(input()); h.render(); const stream = h.startStream(0);
+  stream.send(successfulResult()); stream.close(); await task; await h.flush();
+  h.changeAccount(); await h.flush();
+  assert.equal(h.status().result, null); assert.equal(h.status().canRecover, false);
+  assert.equal(h.discarded.length, 0);
+  assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a")?.mediaId, "draft-a");
+  h.changeAccount("account-a"); await h.flush(); assert.equal(h.status().canRecover, true); h.dispose();
+});
+
+test("a stale persistent pointer cannot mask a newer session fallback when persistent writes and removal fail", () => {
+  const local = memoryStorage(); const session = memoryStorage();
+  recovery.writeAiMediaGenerationRecovery(local, "account-a", { requestId: "request-old-001", kind: "image", format: "square" });
+  const broken = { getItem: (key: string) => local.getItem(key), setItem() { throw new Error("full"); }, removeItem() { throw new Error("blocked"); } };
+  const combined = recovery.createAiMediaRecoveryStorage(broken, session);
+  recovery.writeAiMediaGenerationRecovery(combined, "account-a", { requestId: "request-new-001", kind: "video", format: "story" });
+  assert.equal(recovery.readAiMediaGenerationRecovery(combined, "account-a")?.requestId, "request-new-001");
 });
 
 test("a missing stored attempt can be explicitly abandoned by a zero-credit cancellation marker instead of generation", async () => {
@@ -297,7 +367,8 @@ test("abandoning an already registered stored attempt retrieves its paid result 
   const h = harness(storage, "processing"); await h.refreshRemaining(0);
   const task = h.status().cancelRecovery(); h.render(); await h.flush(); assert.equal(h.recoveries[0].requestId, "paid-request-0001");
   h.recoveries[0].resolve(Response.json({ ok: true, status: "completed", item: { ...successfulResult().payload.item, media_type: "video" }, draft: true }));
-  assert.equal((await task)?.item.id, "draft-a"); assert.equal(h.attempts.length, 0); assert.equal(h.cancellations.length, 1); assert.equal(storage.entries.size, 0); h.dispose();
+  assert.equal((await task)?.item.id, "draft-a"); assert.equal(h.attempts.length, 0); assert.equal(h.cancellations.length, 1);
+  assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a")?.mediaId, "draft-a"); h.dispose();
 });
 
 test("an authoritative deleted result clears a restored pointer without polling, refunding or submitting generation", async () => {

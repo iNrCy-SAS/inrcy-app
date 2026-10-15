@@ -22,6 +22,7 @@ import {
   DEFAULT_VEO_MODEL,
   DEFAULT_VEO_VERTEX_MODEL,
   classifyVeoFailure,
+  isAmbiguousVideoCreationFailure,
   nextVeoInspirationMode,
   resolveVeoModelCandidates,
   resolveVeoApiBackend,
@@ -931,8 +932,8 @@ async function submitOperation(args: {
   // Multiple style references require 8 s; never silently keep only the first.
   if (args.durationSeconds !== 8 && (args.inspirationImages?.length || 0) > 1) throw new Error("ai_media_video_references_require_eight_seconds");
   let transientAttempt = 0;
-  // Preview trials can disable automatic resubmission to bound paid requests.
-  // Production retains the existing four-attempt policy unless configured.
+  // Only explicit rejections (e.g. 429) can be retried. A timeout, transport
+  // failure or 5xx can hide an accepted operation and must never be resubmitted.
   const submitAttempts = positiveInt(
     process.env.AI_MEDIA_VEO_SUBMIT_ATTEMPTS,
     DEFAULT_SUBMIT_ATTEMPTS,
@@ -963,6 +964,7 @@ async function submitOperation(args: {
         // Vertex returns bytes inline because no outputGcsUri is requested.
         config: {
           abortSignal: args.signal,
+          httpOptions: { retryOptions: { attempts: 1 } },
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
           resolution: args.resolution || "720p",
@@ -994,6 +996,12 @@ async function submitOperation(args: {
       });
       return { operation, warnings };
     } catch (error) {
+      if (isAmbiguousVideoCreationFailure(error)) {
+        throw new AiVideoProviderBillableFailure({
+          provider: PROVIDER_ID, model: args.model, stage: "submission_unknown",
+          details: "creation_outcome_unknown", cause: error,
+        });
+      }
       lastError = error;
       const failure = classifyVeoFailure(error);
       // Generic inspiration is optional. Approved identity references are a
@@ -1166,6 +1174,7 @@ async function generateClip(args: {
         attemptIndex += 1
       ) {
         const attempt = contentAttempts[attemptIndex];
+        let operationPending = false;
         try {
           const submitted = await submitOperation({
             ...args,
@@ -1179,6 +1188,7 @@ async function generateClip(args: {
           });
           accumulatedWarnings.push(...submitted.warnings);
           let operation = submitted.operation;
+          operationPending = true;
           const requestId = compact(operation.name, 220);
           if (!requestId) throw new Error("ai_video_veo_operation_id_missing");
 
@@ -1207,13 +1217,17 @@ async function generateClip(args: {
               await delay(retryDelayMs(error, 0), controller.signal);
             }
           }
+          operationPending = false;
           if (operation.error) throw providerError(operation);
           const response = operation.response;
           if (response?.raiMediaFilteredCount) {
             throw safetyFilteredError(response.raiMediaFilteredReasons);
           }
           const video = response?.generatedVideos?.[0]?.video;
-          if (!video) throw new Error("ai_video_veo_video_missing");
+          if (!video) {
+            operationPending = true;
+            throw new Error("ai_video_veo_video_missing");
+          }
 
           // From this point the provider can charge the clip. Never submit a
           // replacement model if its download fails: only retry the download.
@@ -1238,6 +1252,15 @@ async function generateClip(args: {
         } catch (error) {
           lastError = error;
           if (billableOutputExists) throw error;
+          if (operationPending || isAiVideoProviderBillableFailure(error)) {
+            // Keep the conservative supplier estimate when acceptance/output
+            // cannot be established. This does not debit the user's SQL wallet.
+            args.onBillable(model);
+            throw isAiVideoProviderBillableFailure(error) ? error : new AiVideoProviderBillableFailure({
+              provider: PROVIDER_ID, model, stage: "operation_unresolved",
+              details: "accepted_operation_outcome_unknown", cause: error,
+            });
+          }
           const failure = classifyVeoFailure(error);
           if (
             (args.continuityFrame || (args.preserveIdentityReferences &&
@@ -1293,6 +1316,7 @@ async function generateClip(args: {
     }
     throw lastError;
   } catch (error) {
+    if (isAiVideoProviderBillableFailure(error)) throw error;
     if (timedOut) throw new Error("ai_video_veo_timeout");
     if (args.signal?.aborted || controller.signal.aborted) {
       throw generationCancelledError();

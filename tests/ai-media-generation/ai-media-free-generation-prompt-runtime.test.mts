@@ -8,7 +8,7 @@ import type { NormalizedAiGenerationProfile } from "../../lib/aiGenerationProfil
 import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "../../lib/aiMediaBusinessDna.ts";
-import { getAiMediaVideoSegmentCount } from "../../lib/aiMediaVideoTimeline.ts";
+import { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import {
   assertAiMediaVideoProviderContract,
   buildAiMediaVideoProviderContract,
@@ -70,7 +70,7 @@ function loadPlan(response: unknown, generate?: (input: AiGenerateJsonOptions) =
     } }],
     ["@/lib/aiEnginePreference", { getAiEngineOption: () => ({ model: "test-planner" }) }],
     ["@/lib/aiMediaGenerationContracts", contracts],
-    ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount }],
+    ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations }],
     ["@/lib/aiMediaBusinessDna", { buildAiMediaBusinessDnaPayload }],
     ["@/lib/aiMediaFreeGenerationPrompt", freePrompts],
   ]));
@@ -485,7 +485,7 @@ test("le dialogue Libre conserve une citation même courte et située après 2 0
 });
 
 test("un dialogue IA absent ou trop long est une sortie fournisseur invalide, pas une demande utilisateur invalide", async () => {
-  for (const spokenLine of ["", " \n\t ", "mot ".repeat(15), "a".repeat(91), 123]) {
+  for (const spokenLine of ["", " \n\t ", "mot ".repeat(15), "a".repeat(141), 123]) {
     const scenes = [{ visualBrief: "La baleine parle.", spokenLine }];
     const runtime = loadPlan({ direction: "Court film animé.", scenes });
     await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), (error: unknown) => {
@@ -495,6 +495,37 @@ test("un dialogue IA absent ou trop long est une sortie fournisseur invalide, pa
       return true;
     });
   }
+});
+
+test("dialogue budgets follow actual duration and non-space languages without a fixed 90-character ceiling", async () => {
+  const spokenLine = "Bienvenue dans notre atelier où nous fabriquons chaque jour vos meubles sur mesure avec passion et beaucoup de soin.";
+  assert.ok(spokenLine.length > 90);
+  assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine(spokenLine, 30, "fr"));
+  assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine(spokenLine, 8, "fr"), contracts.AiMediaRequestValidationError);
+  assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(42), 8, "zh"));
+  assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(43), 8, "zh"), contracts.AiMediaRequestValidationError);
+  const runtime = loadPlan({ direction: "Le personnage visite son atelier.", scenes: [{ visualBrief: "Un artisan s'adresse à la caméra.", spokenLine }] });
+  const input = request({ kind: "video", videoEngine: "wan3", durationSeconds: 30, teamVideoSpeechMode: "characters", freePrompt: `L'artisan dit « ${spokenLine} ».` });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+  assert.equal(plan.scenes[0].spokenLine, spokenLine);
+  const payload = JSON.parse(runtime.calls[0].input);
+  assert.equal(payload.dialogue_budgets[0].duration_seconds, 30);
+  assert.equal(payload.dialogue_budgets[0].maxUnits, 58);
+  assertAiJsonMatchesSchema({ direction: "Le personnage visite son atelier.", scenes: [{ visualBrief: "Un artisan s'adresse à la caméra.", spokenLine }] }, runtime.calls[0].responseSchema.schema);
+});
+
+test("quoted and generated voiceovers share the explicitly requested language over the profile default", async () => {
+  const line = "Discover our workshop and meet the people behind every creation.";
+  const runtime = loadPlan({ script: line, language: "fr" });
+  const quoted = request({ kind: "video", videoEngine: "veo", durationSeconds: 8, withNarration: true, freePrompt: `Une visite, voix off en anglais. Narration exacte : « ${line} »` });
+  const exact = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: quoted, profile, plan: runtime.buildAiMediaFreeBasePlan(quoted) });
+  assert.equal(exact?.language, "en");
+  assert.equal(exact?.script, line);
+  assert.equal(runtime.calls.length, 0);
+  const generated = { ...quoted, freePrompt: "Une visite avec une voix off en anglais." };
+  assert.equal((await runtime.writeAiMediaFreeNarration({ accountId: "test", request: generated, profile, plan: runtime.buildAiMediaFreeBasePlan(generated) }))?.language, "en");
+  assert.equal(freePrompts.resolveAiMediaFreeSpeechLanguage("Narration exacte", line, "fr"), "en");
+  assert.equal(freePrompts.resolveAiMediaFreeSpeechLanguage("Film", "Bonjour", "fr"), "fr");
 });
 
 test("les citations trop longues ou trop nombreuses restent rejetées avant tout appel IA", async () => {

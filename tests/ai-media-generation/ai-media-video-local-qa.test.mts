@@ -15,6 +15,16 @@ import { resolveVideoNormalizationFfmpegPath } from "../../lib/mediaVideoNormali
 
 const execFileAsync = promisify(execFile);
 
+test("a freeze continuing to EOF is counted from zero without double-counting closed intervals", () => {
+  const still = parseAiMediaVideoVisualQa("[freezedetect] lavfi.freezedetect.freeze_start: 0", 8);
+  assert.equal(still.frozenSeconds, 8);
+  assert.equal(still.likelyFrozen, true);
+  const partly = parseAiMediaVideoVisualQa("freeze_start: 0\nfreeze_duration: 3\nfreeze_end: 3\nfreeze_start: 7", 8);
+  assert.equal(partly.frozenSeconds, 4);
+  assert.equal(partly.longestFrozenSeconds, 3);
+  assert.equal(partly.likelyFrozen, false);
+});
+
 test("la détection visuelle ignore les fondus et plans éditoriaux courts", () => {
   const result = parseAiMediaVideoVisualQa(
     [

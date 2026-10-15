@@ -332,7 +332,8 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(server, /nativeAudioMode: "mute"/);
   assert.match(server, /native_character_dialogue_preserved/);
   assert.match(server, /quality_assurance/);
-  assert.match(server, /status: "compositor_validated"/);
+  assert.match(server, /inspectAiMediaVideoBufferLocally\(\{/);
+  assert.match(server, /video_local_qa_\$\{advisory\}/);
   assert.match(server, /checks: \["duration", "frame_layout", "audio_policy"\] as const/);
   assert.match(server, /caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT/);
   assert.match(server, /inrcy\/video-composer-v6-full-frame-overlay/);

@@ -4,14 +4,16 @@ export type AiJsonResponseNormalizer = (value: AiJsonObject) => unknown;
 
 export class AiJsonResponseNormalizationError extends Error {
   readonly code = "ai_gateway_invalid_output";
+  readonly validationReason?: "script_empty" | "script_character_budget" | "script_speech_budget" | "dialogue_empty" | "dialogue_budget";
 
-  constructor(reason: "normalizer_failed" | "not_an_object") {
+  constructor(reason: "normalizer_failed" | "not_an_object", validationReason?: AiJsonResponseNormalizationError["validationReason"]) {
     super(
       reason === "normalizer_failed"
-        ? "Service IA : la normalisation de la sortie JSON a échoué."
+        ? `Service IA : la normalisation de la sortie JSON a échoué.${validationReason ? ` [${validationReason}]` : ""}`
         : "Service IA : la normalisation de la sortie JSON n'a pas produit un objet.",
     );
     this.name = "AiJsonResponseNormalizationError";
+    this.validationReason = validationReason;
   }
 }
 
@@ -36,8 +38,18 @@ export function normalizeAiJsonResponseBeforeValidation(
   let normalized: unknown;
   try {
     normalized = normalizer(value);
-  } catch {
-    throw new AiJsonResponseNormalizationError("normalizer_failed");
+  } catch (error) {
+    // Strict allowlist: report a business validation category, never the draft,
+    // exception text, or user data. Gateway retries retain their existing code.
+    const reasons: Record<string, AiJsonResponseNormalizationError["validationReason"]> = {
+      ai_media_narration_script_empty: "script_empty",
+      ai_media_narration_character_budget: "script_character_budget",
+      ai_media_narration_speech_budget: "script_speech_budget",
+      ai_media_dialogue_empty: "dialogue_empty",
+      ai_media_dialogue_budget: "dialogue_budget",
+    };
+    const reason = error instanceof Error && Object.hasOwn(reasons, error.message) ? reasons[error.message] : undefined;
+    throw new AiJsonResponseNormalizationError("normalizer_failed", reason);
   }
 
   if (!isJsonObject(normalized)) {

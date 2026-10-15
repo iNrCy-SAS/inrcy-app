@@ -1,10 +1,11 @@
 import type { BackgroundMode } from "@/app/dashboard/_components/channel-image-adapter/types";
 import {
   getImageOverlayItems,
-  resolveImageOverlayCoordinates,
   type ImageOverlay,
   type ImageOverlayItem,
 } from "@/lib/imageOverlay";
+import { imageOverlayFont, resolveImageOverlayTextLayout } from "./imageOverlayLayout.ts";
+import { resolveRetoucherGeometry } from "./mediaRetoucherGeometry.ts";
 
 export type MediaRetoucherRenderTransform = {
   fit: "contain" | "cover";
@@ -18,10 +19,6 @@ export type MediaRetoucherRenderTransform = {
 
 const MAX_OUTPUT_SIDE = 4_096;
 const MAX_OUTPUT_PIXELS = 20_000_000;
-
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
-}
 
 function backgroundFill(mode: BackgroundMode, customColor: string) {
   if (mode === "black") return "#0d1320";
@@ -72,13 +69,6 @@ function outputDimensions(width: number, height: number) {
   };
 }
 
-function overlayCanvasFontFamily(value: ImageOverlayItem["fontFamily"]) {
-  if (value === "arial") return "Arial, sans-serif";
-  if (value === "georgia") return "Georgia, serif";
-  if (value === "verdana") return "Verdana, sans-serif";
-  return "Inter, Arial, sans-serif";
-}
-
 function drawOverlayItem(
   context: CanvasRenderingContext2D,
   width: number,
@@ -87,85 +77,19 @@ function drawOverlayItem(
 ) {
   if (!overlay?.text) return;
 
-  const fontSize = Math.max(
-    14,
-    Math.min(160, Math.round(width * ((overlay.fontSize ?? 4.6) / 100))),
-  );
-  const lineHeight = Math.round(fontSize * 1.2);
-  const paddingX = Math.round(fontSize * 0.72);
-  const paddingY = Math.round(fontSize * 0.5);
-  const edge = Math.round(fontSize * 0.8);
-  const requestedBlockWidth = overlay.width
-    ? (width * overlay.width) / 100
-    : null;
-  const maxTextWidth = Math.max(
-    fontSize * 2,
-    (requestedBlockWidth ?? width * 0.9) - paddingX * 2,
-  );
-  const lines: string[] = [];
-  const fontWeight = overlay.bold === false ? 400 : 800;
-  const fontStyle = overlay.italic ? "italic " : "";
-  context.font = `${fontStyle}${fontWeight} ${fontSize}px ${overlayCanvasFontFamily(overlay.fontFamily)}`;
-  for (const paragraph of overlay.text.split(/\r?\n/)) {
-    if (!paragraph) {
-      lines.push("");
-      continue;
-    }
-    let line = "";
-    for (const character of paragraph) {
-      const candidate = `${line}${character}`;
-      if (line && context.measureText(candidate).width > maxTextWidth) {
-        lines.push(line);
-        line = character === " " ? "" : character;
-      } else {
-        line = candidate;
-      }
-    }
-    lines.push(line);
-  }
-  if (!lines.length) return;
-
-  const blockWidth = Math.min(
-    Math.max(1, width - edge * 2),
-    requestedBlockWidth ??
-      Math.max(
-        fontSize * 4,
-        Math.max(...lines.map((value) => context.measureText(value).width)) +
-          paddingX * 2,
-      ),
-  );
-  const naturalBlockHeight = lines.length * lineHeight + paddingY * 2;
-  const blockHeight = Math.min(
-    Math.max(1, height - edge * 2),
-    overlay.height ? (height * overlay.height) / 100 : naturalBlockHeight,
-  );
-  const visibleLineCount = Math.max(
-    1,
-    Math.floor(Math.max(lineHeight, blockHeight - paddingY * 2) / lineHeight),
-  );
-  const visibleLines = lines.slice(0, visibleLineCount);
-  const coordinates = resolveImageOverlayCoordinates(overlay);
-  const blockX = clamp(
-    (width * coordinates.x) / 100 - blockWidth / 2,
-    edge,
-    Math.max(edge, width - blockWidth - edge),
-  );
-  const blockY = clamp(
-    (height * coordinates.y) / 100 - blockHeight / 2,
-    edge,
-    Math.max(edge, height - blockHeight - edge),
-  );
-
   context.save();
+  const layout = resolveImageOverlayTextLayout(width, height, overlay, (text, font) => {
+    context.font = font;
+    return context.measureText(text).width;
+  });
+  const { x: blockX, y: blockY, width: blockWidth, height: blockHeight, fontSize, lineHeight, lines } = layout;
+  context.font = imageOverlayFont(overlay, fontSize);
   context.fillStyle =
     overlay.style === "glass"
       ? "rgba(255,255,255,0.2)"
       : "rgba(6,10,20,0.78)";
   context.strokeStyle = overlay.borderColor || "transparent";
-  context.lineWidth = Math.max(
-    1,
-    Math.round((overlay.borderWidth ?? 0) * Math.max(1, width / 1000)),
-  );
+  context.lineWidth = layout.borderWidth || 1;
   context.beginPath();
   if (typeof context.roundRect === "function") {
     context.roundRect(
@@ -173,7 +97,7 @@ function drawOverlayItem(
       blockY,
       blockWidth,
       blockHeight,
-      Math.round(fontSize * 0.45),
+      layout.radius,
     );
   } else {
     context.rect(blockX, blockY, blockWidth, blockHeight);
@@ -183,21 +107,15 @@ function drawOverlayItem(
   context.fillStyle = overlay.color || "#ffffff";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  const textBlockHeight = visibleLines.length * lineHeight;
-  const firstLineY = blockY + (blockHeight - textBlockHeight) / 2 + lineHeight / 2;
-  visibleLines.forEach((value, index) => {
-    const textY = firstLineY + lineHeight * index;
+  lines.forEach((value, index) => {
+    const textY = layout.firstLineY + lineHeight * index;
     context.fillText(
       value,
       blockX + blockWidth / 2,
       textY,
-      maxTextWidth,
     );
     if (overlay.underline && value) {
-      const measuredWidth = Math.min(
-        maxTextWidth,
-        context.measureText(value).width,
-      );
+      const measuredWidth = context.measureText(value).width;
       context.strokeStyle = overlay.color || "#ffffff";
       context.lineWidth = Math.max(1, fontSize / 18);
       context.beginPath();
@@ -229,6 +147,8 @@ export async function renderMediaRetoucherFile(params: {
   const objectUrl = URL.createObjectURL(params.sourceFile);
   try {
     const image = await loadImage(objectUrl);
+    // Export with the same loaded font metrics as the text preview.
+    if (document.fonts?.ready) await document.fonts.ready;
     const dimensions = outputDimensions(params.width, params.height);
     const canvas = document.createElement("canvas");
     canvas.width = dimensions.width;
@@ -238,21 +158,13 @@ export async function renderMediaRetoucherFile(params: {
 
     const sourceWidth = image.naturalWidth || params.width || 1;
     const sourceHeight = image.naturalHeight || params.height || 1;
-    const baseScale =
-      params.transform.fit === "cover"
-        ? Math.max(canvas.width / sourceWidth, canvas.height / sourceHeight)
-        : Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
-    const scale = baseScale * clamp(params.transform.zoom || 1, 0.4, 3);
-    const drawWidth = sourceWidth * scale;
-    const drawHeight = sourceHeight * scale;
-    const maxX = Math.abs(drawWidth - canvas.width) / 2;
-    const maxY = Math.abs(drawHeight - canvas.height) / 2;
-    const drawX =
-      (canvas.width - drawWidth) / 2 -
-      (maxX * clamp(params.transform.offsetX || 0, -100, 100)) / 100;
-    const drawY =
-      (canvas.height - drawHeight) / 2 -
-      (maxY * clamp(params.transform.offsetY || 0, -100, 100)) / 100;
+    const { drawX, drawY, drawWidth, drawHeight } = resolveRetoucherGeometry({
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      sourceWidth,
+      sourceHeight,
+      ...params.transform,
+    });
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (params.transform.backgroundMode !== "transparent") {

@@ -403,3 +403,16 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
 
   return { kind, status, details, retryable, modelFallbackEligible };
 }
+
+/**
+ * Creation POSTs have no provider idempotency key. Only a definite rejection
+ * proves a second POST cannot create a duplicate paid clip. Polling/download
+ * retries keep using classifyVeoFailure, because they do not create assets.
+ */
+export function isAmbiguousVideoCreationFailure(error: unknown): boolean {
+  const { kind, status } = classifyVeoFailure(error);
+  // HTTP failure wins over suggestive error text (a proxy 503 can mention a
+  // rate limit or safety filter without proving the creation was rejected).
+  if (status === 408 || status >= 500) return true;
+  return !["invalid_argument", "rate_limited", "authentication", "permission", "not_found", "safety"].includes(kind);
+}

@@ -11,6 +11,7 @@ import {
   type ImageOverlayFontFamily,
   type ImageOverlayItem,
 } from "@/lib/imageOverlay";
+import { imageOverlayFontFamily, resolveImageOverlayTextLayout } from "@/lib/imageOverlayLayout";
 
 import type { BackgroundMode, ModalProps } from "./types";
 
@@ -45,13 +46,6 @@ function clampOverlayCenter(value: number, size: number) {
 function createOverlayId() {
   return globalThis.crypto?.randomUUID?.() ||
     `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function overlayFontFamily(value: ImageOverlayFontFamily | undefined) {
-  if (value === "arial") return "Arial, sans-serif";
-  if (value === "georgia") return "Georgia, serif";
-  if (value === "verdana") return "Verdana, sans-serif";
-  return "Inter, ui-sans-serif, system-ui, sans-serif";
 }
 
 
@@ -108,6 +102,10 @@ export function ChannelImageAdapterModal({
   const overlayKeyboardInstructionsId = useId();
   const overlayGestureRef = useRef<OverlayGesture | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const previewBoxRef = useRef<HTMLDivElement | null>(null);
+  const [previewBox, setPreviewBox] = useState({ width: 0, height: 0 });
+  const [textMeasure, setTextMeasure] = useState<CanvasRenderingContext2D | null>(null);
+  const [, setFontRevision] = useState(0);
   const adapterSnapshot = JSON.stringify({ backgroundMode, backgroundColor, fitLabel, zoomLabel, overlay });
 
   useEffect(() => {
@@ -153,6 +151,38 @@ export function ChannelImageAdapterModal({
     return () => observer.disconnect();
   }, [embedded, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const box = previewBoxRef.current;
+    if (!box) return;
+    const update = () => {
+      const style = window.getComputedStyle(box);
+      const next = {
+        width: Math.max(1, box.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0")),
+        height: Math.max(1, box.clientHeight - parseFloat(style.paddingTop || "0") - parseFloat(style.paddingBottom || "0")),
+      };
+      setPreviewBox((current) => current.width === next.width && current.height === next.height ? current : next);
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setTextMeasure(document.createElement("canvas").getContext("2d"));
+    void document.fonts?.ready.then(() => {
+      if (active) setFontRevision((current) => current + 1);
+    });
+    return () => { active = false; };
+  }, [open]);
+
   const overlayItemCount = getImageOverlayItems(overlay).length;
   useEffect(() => {
     setActiveOverlayIndex((current) =>
@@ -163,6 +193,10 @@ export function ChannelImageAdapterModal({
   if (!open) return null;
 
   const hasLayout = !!previewLayout;
+  const [ratioWidth, ratioHeight = 1] = aspectRatio.split("/").map(Number);
+  const canvasRatio = ratioWidth > 0 && ratioHeight > 0 ? ratioWidth / ratioHeight : 1;
+  const stageWidth = previewBox.width ? Math.min(previewBox.width, previewBox.height * canvasRatio) : undefined;
+  const stageHeight = stageWidth ? stageWidth / canvasRatio : undefined;
   const normalizedBgMode = normalizedMode(backgroundMode);
   const bgMode = normalizedBgMode;
   const bgFill = legacyColorFromMode(backgroundMode, backgroundColor);
@@ -603,7 +637,7 @@ export function ChannelImageAdapterModal({
         <div style={{ minHeight: 0, minWidth: 0, width: "100%", maxWidth: "100%", display: isMobile ? "flex" : "grid",
     flexDirection: isMobile ? "column" : undefined, gridTemplateColumns: contentGridTemplateColumns, gridTemplateRows: contentGridTemplateRows, gap: isMobile ? 18 : 18, alignItems: "stretch", overflowY: embedded ? (isCompact ? "visible" : "hidden") : "auto", overflowX: "hidden", paddingRight: 0, paddingBottom: isMobile && !embedded ? "max(72px, var(--inrcy-safe-area-bottom))" : 0, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", boxSizing: "border-box" }}>
           <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, gridTemplateRows: isMobile || isCompact ? undefined : "minmax(0, 1fr) auto", gap: isMobile ? 10 : undefined, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
-            <div style={{ minWidth: 0, width: "100%", minHeight: previewMinHeight, height: previewHeight, maxHeight: isMobile ? "42dvh" : undefined, display: "grid", placeItems: "center", borderRadius: isMobile ? 18 : 24, border: "1px solid rgba(255,255,255,0.10)", background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.02))", padding: isMobile ? 6 : 14, overflow: "hidden", flex: isMobile ? "0 0 auto" : undefined, boxSizing: "border-box" }}>
+            <div ref={previewBoxRef} style={{ minWidth: 0, width: "100%", minHeight: previewMinHeight, height: previewHeight, maxHeight: isMobile ? "42dvh" : undefined, display: "grid", placeItems: "center", borderRadius: isMobile ? 18 : 24, border: "1px solid rgba(255,255,255,0.10)", background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.02))", padding: isMobile ? 6 : 14, overflow: "hidden", flex: isMobile ? "0 0 auto" : undefined, boxSizing: "border-box" }}>
               <div
                 ref={previewRef}
                 data-adapter-preview-stage="true"
@@ -613,7 +647,7 @@ export function ChannelImageAdapterModal({
                 onPointerUp={onPointerUp}
                 onPointerCancel={onPointerCancel}
                 onDoubleClick={onDoubleClick}
-                style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", aspectRatio, containerType: "inline-size", borderRadius: isMobile ? 16 : 22, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)", ...previewBg, cursor: isDragging ? "grabbing" : "grab", touchAction: "none", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03)" }}
+                style={{ position: "relative", width: stageWidth ?? "100%", height: stageHeight ?? "100%", maxWidth: "100%", maxHeight: "100%", aspectRatio, containerType: "inline-size", overflow: "hidden", outline: "1px solid rgba(255,255,255,0.14)", ...previewBg, cursor: isDragging ? "grabbing" : "grab", touchAction: "none", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03)" }}
               >
                 {showBefore ? (
                   <img src={previewSrc} alt={i18nT("apercu_avant_eb65d0c1")} draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", userSelect: "none", pointerEvents: "none", background: "rgba(255,255,255,0.04)" }} />
@@ -624,8 +658,11 @@ export function ChannelImageAdapterModal({
                 )}
                 {overlayItems.map((overlayItem, overlayIndex) => {
                   if (!overlayItem.text) return null;
-                  const coordinates =
-                    resolveImageOverlayCoordinates(overlayItem);
+                  const textLayout = resolveImageOverlayTextLayout(1000, 1000 / canvasRatio, overlayItem, (text, font) => {
+                    if (!textMeasure) return text.length * Number(font.match(/([\d.]+)px/)?.[1] || 46) * 0.6;
+                    textMeasure.font = font;
+                    return textMeasure.measureText(text).width;
+                  });
                   const isActive = overlayIndex === activeOverlayIndex;
                   return (
                     <div
@@ -634,7 +671,7 @@ export function ChannelImageAdapterModal({
                       data-active={isActive ? "true" : "false"}
                       role="group"
                       tabIndex={0}
-                      aria-label={`Bloc texte ${overlayIndex + 1}`}
+                      aria-label={`Bloc texte ${overlayIndex + 1} : ${overlayItem.text}`}
                       aria-describedby={overlayKeyboardInstructionsId}
                       onKeyDown={(event) =>
                         handleOverlayKeyDown(event, overlayIndex)
@@ -656,41 +693,22 @@ export function ChannelImageAdapterModal({
                       onDoubleClick={(event) => event.stopPropagation()}
                       style={{
                         position: "absolute",
-                        left: `${coordinates.x}%`,
-                        top: `${coordinates.y}%`,
-                        width: `${overlayItem.width ?? 68}%`,
-                        height: overlayItem.height
-                          ? `${overlayItem.height}%`
-                          : undefined,
-                        minHeight: overlayItem.height ? undefined : "12%",
-                        transform: "translate(-50%, -50%)",
+                        left: `${textLayout.x / 10}%`,
+                        top: `${textLayout.y / (1000 / canvasRatio) * 100}%`,
+                        width: `${textLayout.width / 10}%`,
+                        height: `${textLayout.height / (1000 / canvasRatio) * 100}%`,
                         boxSizing: "border-box",
-                        display: "grid",
-                        placeItems: "center",
-                        padding:
-                          "clamp(6px, 1.8%, 16px) clamp(10px, 3%, 24px)",
-                        borderRadius: 14,
-                        background:
-                          overlayItem.style === "glass"
-                            ? "rgba(255,255,255,0.2)"
-                            : "rgba(6,10,20,0.78)",
-                        border: `${overlayItem.borderWidth ?? 0}px solid ${overlayItem.borderColor || "transparent"}`,
                         outline: isActive
                           ? "1px dashed rgba(255,255,255,0.88)"
                           : undefined,
                         outlineOffset: isActive ? 3 : undefined,
                         color: overlayItem.color || "#ffffff",
-                        fontFamily: overlayFontFamily(overlayItem.fontFamily),
+                        fontFamily: imageOverlayFontFamily(overlayItem.fontFamily),
                         fontWeight: overlayItem.bold === false ? 400 : 800,
                         fontStyle: overlayItem.italic ? "italic" : "normal",
                         textDecoration: overlayItem.underline
                           ? "underline"
                           : "none",
-                        fontSize: `clamp(10px, ${overlayItem.fontSize ?? 4.6}cqw, 64px)`,
-                        lineHeight: 1.2,
-                        textAlign: "center",
-                        whiteSpace: "pre-wrap",
-                        overflowWrap: "anywhere",
                         overflow: "visible",
                         userSelect: "none",
                         touchAction: "none",
@@ -698,7 +716,16 @@ export function ChannelImageAdapterModal({
                         zIndex: isActive ? 4 : 2,
                       }}
                     >
-                      <span style={{ maxWidth: "100%", maxHeight: "100%", overflow: "hidden" }}>{overlayItem.text}</span>
+                      <svg width="100%" height="100%" viewBox={`0 0 ${textLayout.width} ${textLayout.height}`} aria-hidden="true" style={{ display: "block", overflow: "visible", pointerEvents: "none" }}>
+                        <rect x="0" y="0" width={textLayout.width} height={textLayout.height} rx={textLayout.radius}
+                          fill={overlayItem.style === "glass" ? "rgba(255,255,255,0.2)" : "rgba(6,10,20,0.78)"}
+                          stroke={overlayItem.borderColor || "transparent"} strokeWidth={textLayout.borderWidth} />
+                        <text textAnchor="middle" dominantBaseline="central" fontSize={textLayout.fontSize} fill={overlayItem.color || "#ffffff"} xmlSpace="preserve">
+                          {textLayout.lines.map((line, lineIndex) => (
+                            <tspan key={lineIndex} x={textLayout.width / 2} y={textLayout.firstLineY - textLayout.y + lineIndex * textLayout.lineHeight}>{line}</tspan>
+                          ))}
+                        </text>
+                      </svg>
                       {isActive ? (
                         <button
                           type="button"

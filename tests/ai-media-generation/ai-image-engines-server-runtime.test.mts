@@ -46,7 +46,7 @@ function serverHarness(providerFailure = false) {
   const profile = { business: { companyName: "Atelier Test", phone: "" } };
   const logo = Buffer.from("synthetic-official-logo");
   const unused = ["@/lib/aiMediaBusinessDna", "@/lib/aiMediaImageContactComposer", "@/lib/aiMediaGeneratedVideo", "@/lib/aiMediaVideoLayout",
-    "@/lib/aiMediaVideoProviderContract", "@/lib/aiMediaReferenceTeam", "@/lib/aiMediaNarration", "@/lib/aiMediaNarrationAudio",
+    "@/lib/aiMediaVideoProviderContract", "@/lib/aiMediaVideoLocalQa", "@/lib/aiMediaReferenceTeam", "@/lib/aiMediaNarration", "@/lib/aiMediaNarrationAudio",
     "@/lib/aiMediaNativeDialogueQaGoogle", "@/lib/aiMediaDialogue", "@/lib/aiMediaGenerationSoundtracks", "@/lib/aiVideoProvider",
     "@/lib/aiVideoReliability", "@/lib/aiVideoProviderTypes", "@/lib/aiMediaGenerationQuotaPolicy", "@/lib/aiMediaVideoTimeline", "@/lib/aiMediaVideoTemporaryImages"];
   const modules = new Map<string, unknown>(unused.map(id => [id, {}]));

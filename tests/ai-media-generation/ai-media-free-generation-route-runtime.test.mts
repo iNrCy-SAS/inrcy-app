@@ -30,7 +30,7 @@ type ReservationCall = {
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void> } = {}) {
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal }> = [];
   const lifetimes: Promise<unknown>[] = [];
@@ -38,6 +38,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   let paidCalls = 0;
   const completionCalls: unknown[] = [];
   const failureCalls: unknown[] = [];
+  const releasedCheckpoints: unknown[] = [];
   const completedRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const pendingRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const item = {
@@ -49,6 +50,15 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
+    ["@/lib/aiMediaCompositionRecovery", {
+      persistAiMediaCompositionCheckpoint: async (args: Record<string, unknown>) => {
+        if (options.checkpoint !== "saved") throw new Error("checkpoint unavailable");
+        return { accountId: args.accountId, jobId: args.jobId, leaseToken: "lease-a" };
+      },
+      hasAiMediaCompositionCheckpoint: async () => options.checkpoint === "lost_ack",
+      releaseAiMediaCompositionCheckpoint: async (args: unknown) => { releasedCheckpoints.push(args); },
+      finishAiMediaCompositionCheckpoint: async () => { if (options.cleanupFails) throw new Error("cleanup unavailable"); },
+    }],
     ["next/server", { after: (task: Promise<unknown>) => { lifetimes.push(task); }, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationTransport", generationTransport],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
@@ -87,12 +97,14 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     }],
     ["@/lib/aiUsageQuota", { isAdminUserForAi: async () => false }],
     ["@/lib/aiMediaGenerationServer", {
-      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; onBillableWorkStarted?: () => void | Promise<void> }) => {
+      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; onBillableWorkStarted?: () => void | Promise<void>; onCompositionReady?: (args: unknown) => Promise<void> }) => {
         generationCalls.push(args);
         await options.preparation;
         args.signal?.throwIfAborted();
         await args.onBillableWorkStarted?.();
         paidCalls += 1;
+        if (options.checkpoint) await args.onCompositionReady?.({ input: {}, metadata: {} });
+        if (options.compositionFails) throw new Error("ffmpeg timeout");
         await options.work;
         if (options.providerError) throw options.providerError;
         if (options.providerFails) throw new Error("ai_image_provider_output_invalid");
@@ -127,7 +139,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     return modules.get(specifier);
   }, { info() {}, warn() {}, error() {} });
   return {
-    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes,
+    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints,
     paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
     post: (body: unknown, init: RequestInit = {}) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...init,
@@ -448,6 +460,33 @@ test("le dialogue Libre atteint le serveur avec son quota vidéo et une empreint
     fingerprints.push(route.reservationCalls[0]!.requestFingerprint);
   }
   assert.equal(new Set(fingerprints).size, 2);
+});
+
+test("a recoverable montage failure retains the paid attempt without regeneration or credit release", async () => {
+  for (const checkpoint of ["saved", "lost_ack"] as const) {
+    const route = loadRoute({ checkpoint, compositionFails: true });
+    const response = await route.post(body({ kind: "video", durationSeconds: 8 }));
+    assert.equal(response.status, 202);
+    assert.equal((await response.json()).code, "AI_MEDIA_FINALIZATION_PENDING");
+    assert.equal(route.paidCalls(), 1);
+    assert.equal(route.failureCalls.length, 0);
+    assert.equal(route.completionCalls.length, 0);
+    assert.equal(route.releasedCheckpoints.length, checkpoint === "saved" ? 1 : 0);
+  }
+});
+
+test("recovery storage and cleanup outages do not invalidate an otherwise successful montage", async () => {
+  for (const checkpoint of ["saved", "unavailable"] as const) {
+    const route = loadRoute({ checkpoint, cleanupFails: true });
+    const response = await route.post(body({ kind: "video", durationSeconds: 8 }));
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ok, true);
+    assert.equal(route.failureCalls.length, 0);
+    assert.equal(route.completionCalls.length, 1);
+  }
+  const failed = loadRoute({ checkpoint: "unavailable", compositionFails: true });
+  assert.equal((await failed.post(body({ kind: "video", durationSeconds: 8 }))).status, 502);
+  assert.equal(failed.failureCalls.length, 1);
 });
 
 test("un échec fournisseur Libre libère une seule réservation et ne débite aucun résultat", async () => {

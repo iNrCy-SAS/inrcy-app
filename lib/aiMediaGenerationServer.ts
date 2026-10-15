@@ -16,7 +16,7 @@ import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { chooseAiMediaCastingVariation } from "@/lib/aiMediaCastingVariation";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
-import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import {
   AiGatewayAccountLimitError,
@@ -53,6 +53,7 @@ import {
   prepareAiMediaNarrationAudioForVideo,
 } from "@/lib/aiMediaGeneratedVideo";
 import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
+import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
 import { buildAiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 import {
   AiMediaIdentityReferenceValidationError,
@@ -305,6 +306,11 @@ export async function generateAndSaveAiMedia(args: {
   signal?: AbortSignal;
   /** Locks cancellation before the first potentially billable provider phase. */
   onBillableWorkStarted?: () => void | Promise<void>;
+  /** Durable recovery may store these already generated assets; never the brief or script. */
+  onCompositionReady?: (checkpoint: {
+    input: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
+    metadata: Record<string, unknown>;
+  }) => Promise<void>;
 }): Promise<AiMediaGenerationServerResult> {
   const pipelineStartedAt = performance.now();
   const pipelineTimingsMs: Record<string, number> = {};
@@ -530,6 +536,7 @@ export async function generateAndSaveAiMedia(args: {
   const freeBrandPolicy = isFreeCreation
     ? getAiMediaFreeBrandPolicy(providerRequest.freePrompt || "", profile.business.companyName, providerRequest.useBusinessDna)
     : null;
+  const freeLogoPlacement = isFreeCreation ? getAiMediaFreeLogoPlacement(providerRequest.freePrompt || "") : undefined;
   const officialLogo =
     isFreeCreation ? (freeBrandPolicy?.useLogo ? brandKit.logo : null) :
     providerRequest.operation === "modify" || providerRequest.logoMode === "none"
@@ -564,7 +571,7 @@ export async function generateAndSaveAiMedia(args: {
     castingDirection: castingVariation?.direction,
   });
   const prompt = localLogoOnlyComposition
-    ? `${compiledPrompt}\n\nLe logo officiel sera ajouté exactement par iNrStudio après la génération. Ne pas dessiner ni inventer de logo ; conserver une zone dégagée dans le coin supérieur droit. Conserver les autres textes explicitement demandés.`
+    ? `${compiledPrompt}\n\nLe logo officiel sera ajouté exactement par iNrStudio après la génération. Ne pas dessiner ni inventer de logo ; conserver une zone dégagée ${freeLogoPlacement ? `à la position demandée pour le logo dans le brief` : "dans le coin supérieur droit"}. Conserver les autres textes explicitement demandés.`
     : compiledPrompt;
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
@@ -706,6 +713,9 @@ export async function generateAndSaveAiMedia(args: {
 
   if (providerRequest.kind === "image") {
     args.signal?.throwIfAborted();
+    if (providerRequest.imageEngine === "recraft" && prompt.length > 10_000) {
+      throw new AiMediaRequestValidationError("Cette demande dépasse la capacité du moteur Recraft. Réduisez le brief ou choisissez un autre moteur image.");
+    }
     const imageProviderRequest = buildAiMediaImageProviderRequest({
       accountId: args.accountId,
       prompt,
@@ -882,6 +892,7 @@ export async function generateAndSaveAiMedia(args: {
           companyName: creativePlan.companyName,
           visualStyle: providerRequest.visualStyle,
           logoMode: isFreeCreation ? "discreet" : providerRequest.logoMode,
+          logoPlacement: freeLogoPlacement,
           imagePurpose: providerRequest.imagePurpose,
           withText: false,
         })
@@ -934,6 +945,9 @@ export async function generateAndSaveAiMedia(args: {
     const nativeNarrationLines = nativeVoiceoverNarration
       ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length, segmentDurations)
       : undefined;
+    const speechLanguage = isFreeCreation
+      ? nativeVoiceoverNarration?.language || resolveAiMediaFreeSpeechLanguage(providerRequest.freePrompt || "", creativePlan.scenes.map((scene) => scene.spokenLine || "").join(" "), profile.preferences.language)
+      : profile.preferences.language;
     const narrationController = new AbortController();
     const abortNarrationFromCaller = () =>
       narrationController.abort(args.signal?.reason);
@@ -947,7 +961,7 @@ export async function generateAndSaveAiMedia(args: {
         if (localDnaLogo) {
           minimalOverlaysTask ||= Promise.all(creativePlan.scenes.map((scene) => renderAiMediaVideoOverlay({
             scene, logo: officialLogo, colors: effectiveColors, companyName: "", visualStyle: providerRequest.visualStyle,
-            logoMode: "discreet", withText: false, width: format.width, height: format.height,
+            logoMode: "discreet", logoPlacement: freeLogoPlacement, withText: false, width: format.width, height: format.height,
           })));
           return minimalOverlaysTask;
         }
@@ -1047,7 +1061,7 @@ export async function generateAndSaveAiMedia(args: {
           profile.business.professionLabel ||
           profile.business.sectorLabel ||
           creativePlan.companyName,
-        contentLanguage: profile.preferences.language,
+        contentLanguage: speechLanguage,
         nativeNarrationLines,
         ...(useFreeDna ? { businessDnaDirection: [
           promptBrandColors.length ? `Use the official palette ${promptBrandColors.join(", ")} unless the brief specifies other colours.` : "",
@@ -1080,6 +1094,14 @@ export async function generateAndSaveAiMedia(args: {
         // les mêmes références avant le mouvement local évite une fausse
         // "animation réelle" presque fixe.
         if (request.videoEngine !== "veo" || ![8, 16].includes(request.durationSeconds || 8)) throw primaryError;
+        // A fallback must retain both output quality and the prepared shot plan.
+        // Omni currently has no 1080p tier; never silently downgrade to 720p.
+        try {
+          const fallbackDurations = getAiMediaVideoSegmentDurations(request.durationSeconds || 8, "omni", request.videoResolution, request.sceneMode);
+          if (JSON.stringify(fallbackDurations) !== JSON.stringify(segmentDurations)) throw primaryError;
+        } catch {
+          throw primaryError;
+        }
         pipelineWarnings.push("veo_fallback_to_omni");
         try {
           return await generateOriginalAiVideoClips({
@@ -1093,7 +1115,8 @@ export async function generateAndSaveAiMedia(args: {
             stage: "cross_engine",
             error: fallbackError,
           });
-          throw fallbackError;
+          if (isAiVideoProviderBillableFailure(fallbackError)) throw fallbackError;
+          throw primaryError;
         }
       }
     };
@@ -1637,7 +1660,7 @@ export async function generateAndSaveAiMedia(args: {
         ? await measure("native_character_dialogue_qa", () =>
             auditAiMediaNativeDialogueWithGoogle({
               accountId: args.accountId,
-              language: profile.preferences.language,
+              language: speechLanguage,
               signal: args.signal,
               clips: videoGateway.clips.map((clip, index) => ({
                 sceneIndex: index,
@@ -1782,29 +1805,49 @@ export async function generateAndSaveAiMedia(args: {
       durationSeconds: clip.durationSeconds,
       sourceStartSeconds: clip.sourceStartSeconds,
     }));
+    const compositionInput: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal"> = {
+      clips, overlays, width: format.width, height: format.height, durationSeconds,
+      soundtrack, narration: narrationAudio,
+      nativeAudioMode: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved
+        ? "dialogue"
+        : characterDialogueRequested
+        ? "mute"
+        : narrationAudio
+        ? "mute"
+        : "ambience",
+    };
+    const composeCheckpointedVideo = async (input: Parameters<typeof composeOriginalAiVideo>[0]) => {
+      const { signal, ...durableInput } = input;
+      await args.onCompositionReady?.({
+      input: durableInput,
+      metadata: {
+        provider: videoGateway.provider, model: videoGateway.model,
+        provider_request_ids: videoGateway.clips.map((clip) => clip.requestId),
+        warnings: [...new Set([...videoGateway.warnings, ...pipelineWarnings])],
+        estimated_cost_micro_usd: videoGateway.estimatedCostMicroUsd,
+        prompt_version: activePromptVersion, prompt_sha256: promptHash,
+        format: providerRequest.format, video_engine: providerRequest.videoEngine,
+        video_resolution: providerRequest.videoResolution, creation_mode: providerRequest.creationMode,
+        casting_variant_key: castingVariation?.key || null,
+        native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
+        native_voiceover_preserved: nativeVoiceoverPreserved,
+        soundtrack: soundtrack ? { id: soundtrack.id, name: soundtrack.name, sha256: soundtrack.sha256 } : null,
+        native_audio_mode: input.nativeAudioMode,
+        narration_audio_present: Boolean(input.narration),
+      },
+      });
+      return composeOriginalAiVideo({ ...durableInput, signal });
+    };
     try {
       normalized = await measure("video_composition", () =>
-        composeOriginalAiVideo({
-          clips,
-          overlays,
-          width: format.width,
-          height: format.height,
-          durationSeconds,
-          soundtrack,
-          narration: narrationAudio,
-          nativeAudioMode: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved
-            ? "dialogue"
-            : characterDialogueRequested
-            ? "mute"
-            : narrationAudio
-            ? "mute"
-            : "ambience",
+        composeCheckpointedVideo({
+          ...compositionInput,
           signal: args.signal,
         })
       );
     } catch (compositionError) {
       args.signal?.throwIfAborted();
-      if (providerRequest.inputMode === "essential") {
+      if (providerRequest.inputMode === "essential" || providerRequest.withNarration || characterDialogueRequested || providerRequest.withMusic) {
         const compositionDetails = safeAiMediaErrorDetails(compositionError)
           .map((detail) =>
             [detail.name, detail.code, detail.message]
@@ -1836,7 +1879,7 @@ export async function generateAndSaveAiMedia(args: {
           normalized = await measure(
             "video_composition_without_overspeed_narration",
             () =>
-              composeOriginalAiVideo({
+              composeCheckpointedVideo({
                 clips,
                 overlays,
                 width: format.width,
@@ -1878,7 +1921,7 @@ export async function generateAndSaveAiMedia(args: {
             normalized = await measure(
               "video_composition_minimal_native_dialogue",
               () =>
-                composeOriginalAiVideo({
+                composeCheckpointedVideo({
                   clips,
                   overlays,
                   width: format.width,
@@ -1916,7 +1959,7 @@ export async function generateAndSaveAiMedia(args: {
           nativeCharacterDialoguePreserved = false;
           try {
             normalized = await measure("video_composition_fallback", () =>
-              composeOriginalAiVideo({
+              composeCheckpointedVideo({
                 clips,
                 overlays,
                 width: format.width,
@@ -1949,7 +1992,7 @@ export async function generateAndSaveAiMedia(args: {
             normalized = await measure(
               "video_composition_silent_fallback",
               () =>
-                composeOriginalAiVideo({
+                composeCheckpointedVideo({
                   clips,
                   overlays,
                   width: format.width,
@@ -1965,13 +2008,16 @@ export async function generateAndSaveAiMedia(args: {
         }
       }
     }
-    // Le compositeur a déjà décodé, recadré et normalisé chaque piste. Une
-    // seconde lecture FFmpeg purement consultative ajoutait jusqu'à 4 s sans
-    // pouvoir réparer le média : les scans lourds restent disponibles pour
-    // les canaris/tests, hors du chemin critique payé par le professionnel.
+    // Local, bounded advisory inspection only: no paid retry and no blocking
+    // decision based on a deliberate still shot or an unavailable scanner.
+    const inspectedVideoQa = await measure("final_video_local_qa", () => inspectAiMediaVideoBufferLocally({
+      buffer: normalized.buffer, expectedDurationSeconds: durationSeconds,
+      audioExpectation: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved || narrationAudio ? "required" : "optional",
+      timeoutMs: 4_000,
+    }));
+    pipelineWarnings.push(...inspectedVideoQa.advisories.map((advisory) => `video_local_qa_${advisory}`));
     const finalVideoQa = {
-      version: 1,
-      status: "compositor_validated" as const,
+      ...inspectedVideoQa,
       checks: ["duration", "frame_layout", "audio_policy"] as const,
       caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT,
     };

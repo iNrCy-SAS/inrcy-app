@@ -13,6 +13,29 @@ import { normalizeBoosterStructuredResponse } from "../../lib/boosterStructuredR
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (relativePath: string) => readFileSync(resolve(ROOT, relativePath), "utf8");
 
+test("business validation diagnostics distinguish speech budgets without exposing rejected content", () => {
+  for (const [message, category] of [
+    ["ai_media_narration_script_empty", "script_empty"],
+    ["ai_media_narration_character_budget", "script_character_budget"],
+    ["ai_media_narration_speech_budget", "script_speech_budget"],
+    ["ai_media_dialogue_empty", "dialogue_empty"],
+    ["ai_media_dialogue_budget", "dialogue_budget"],
+  ]) assert.throws(() => normalizeAiJsonResponseBeforeValidation({}, () => { throw new Error(message); }), (error: unknown) => {
+    assert.ok(error instanceof AiJsonResponseNormalizationError);
+    assert.equal(error.code, "ai_gateway_invalid_output");
+    assert.equal(error.validationReason, category);
+    return true;
+  });
+  for (const message of ["PRIVATE SCRIPT: client confidentiel", "constructor", "toString"]) {
+    assert.throws(() => normalizeAiJsonResponseBeforeValidation({}, () => { throw new Error(message); }), (error: unknown) => {
+      assert.ok(error instanceof AiJsonResponseNormalizationError);
+      assert.equal(error.validationReason, undefined);
+      assert.ok(!error.message.includes(message));
+      return true;
+    });
+  }
+});
+
 function boosterSchema(channels: string[]) {
   const post = {
     type: "object",

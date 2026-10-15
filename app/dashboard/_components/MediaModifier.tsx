@@ -33,6 +33,7 @@ import {
   isInrMediaImageFile,
 } from "@/lib/mediaRules";
 import { prepareMediaGenerationImageReference } from "./MediaGenerator";
+import { prepareMediaImageEditMaster } from "@/lib/mediaImageEditMasterClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import type { MediaStudioInitialPreview } from "./MediaRetoucher";
 import useMediaEnginePreference from "../_hooks/useMediaEnginePreference";
@@ -128,28 +129,6 @@ function readImageDimensions(previewUrl: string) {
       finish({ ok: false, error: new Error("image_source_unreadable") });
     image.src = previewUrl;
   });
-}
-
-function preparedReferencePreviewFile(
-  reference: MediaGenerationInspirationImage,
-  sourceName: string,
-) {
-  const binary = window.atob(reference.data);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  const extension =
-    reference.mimeType === "image/png"
-      ? "png"
-      : reference.mimeType === "image/webp"
-        ? "webp"
-        : "jpg";
-  return new File(
-    [bytes],
-    `${sourceName.replace(/\.[^.]+$/, "") || "image-source"}.${extension}`,
-    { type: reference.mimeType, lastModified: Date.now() },
-  );
 }
 
 function libraryItemName(item: MediaLibraryPickerItem) {
@@ -284,13 +263,11 @@ export default function MediaModifier({
         dimensions = await readImageDimensions(previewUrl);
       } catch {
         URL.revokeObjectURL(previewUrl);
-        preparedReference = await prepareMediaGenerationImageReference(file);
-        const previewFile = preparedReferencePreviewFile(
-          preparedReference,
-          file.name,
-        );
-        previewUrl = URL.createObjectURL(previewFile);
-        dimensions = await readImageDimensions(previewUrl);
+        const master = await prepareMediaImageEditMaster(file);
+        previewUrl = URL.createObjectURL(master.file);
+        await readImageDimensions(previewUrl);
+        dimensions = { width: master.width, height: master.height };
+        preparedReference = await prepareMediaGenerationImageReference(master.file);
       }
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = previewUrl;

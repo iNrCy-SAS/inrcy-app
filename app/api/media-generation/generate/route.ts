@@ -6,6 +6,7 @@ import {
 } from "@/lib/aiGatewayAccountGuard";
 import {
   AiMediaRequestValidationError,
+  AI_MEDIA_GENERATION_MAX_BODY_BYTES,
   normalizeAiMediaGenerationRequest,
   type AiMediaLibraryPickerItem,
   type AiMediaGenerationRequest,
@@ -29,6 +30,10 @@ import {
 } from "@/lib/aiMediaQuotaPresentation";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
+import {
+  persistAiMediaCompositionCheckpoint, releaseAiMediaCompositionCheckpoint,
+  finishAiMediaCompositionCheckpoint, hasAiMediaCompositionCheckpoint,
+} from "@/lib/aiMediaCompositionRecovery";
 import { safeAiMediaErrorDetails, safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import {
   getExistingGeneratedAiMedia,
@@ -57,9 +62,9 @@ export const maxDuration = 800;
 
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 // Chaque image d'inspiration est compressée sous 560 ko par le navigateur.
-// Trois images encodées en base64, le brief et l'enveloppe JSON restent ainsi
+// Cinq images encodées en base64, le brief et l'enveloppe JSON restent ainsi
 // sous cette limite, avant tout appel payant.
-const MAX_BODY_BYTES = 3 * 1024 * 1024;
+const MAX_BODY_BYTES = AI_MEDIA_GENERATION_MAX_BODY_BYTES;
 const IDENTITY_REFERENCE_SET_ID_PATTERN =
   /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|identity-\d{10,16}-[a-z0-9]{8,16})$/i;
 
@@ -137,7 +142,7 @@ async function readRequestBody(request: Request) {
   } catch {
     throw new AiMediaRequestValidationError("Corps JSON invalide.");
   }
-  if (rawBody.length > MAX_BODY_BYTES) {
+  if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
     throw new AiMediaRequestValidationError("Demande de média trop volumineuse.");
   }
   try {
@@ -288,6 +293,8 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
   let persistedItem: AiMediaLibraryPickerItem | null = null;
   let persistedSoundtrack: AiMediaSoundtrackResponse | null = null;
   let persistedVideoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
+  let compositionCheckpoint: Awaited<ReturnType<typeof persistAiMediaCompositionCheckpoint>> | null = null;
+  let compositionCheckpointAttempted = false;
   let accountEdition: DashboardEdition | null = null;
   let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 30;
   let adminUnlimited = false;
@@ -566,8 +573,21 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       edition: accountEdition || undefined,
       request: normalizedRequest,
       videoMaxDurationSeconds,
-      signal: options.signal,
+      // Leave time for persistence/finalization before the platform's 800s limit.
+      signal: AbortSignal.any([options.signal, AbortSignal.timeout(720_000)]),
       onBillableWorkStarted: options.onBillingStarted,
+      onCompositionReady: async ({ input, metadata }) => {
+        compositionCheckpointAttempted = true;
+        try {
+          compositionCheckpoint = await persistAiMediaCompositionCheckpoint({
+            accountId: context.accountId, jobId: context.jobId!, authUserId: context.authUserId,
+            input, metadata, ...(compositionCheckpoint ? { checkpoint: compositionCheckpoint } : {}),
+          });
+        } catch {
+          // A recovery-store outage must not prevent a healthy local montage.
+          console.warn("[ai-media] composition checkpoint unavailable", { jobId: context.jobId });
+        }
+      },
     });
     mediaPersisted = true;
     persistedMediaId = generated.item.id;
@@ -594,6 +614,9 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       performance.now() - finalizationStartedAt,
     );
     quotaCompleted = true;
+    if (compositionCheckpoint) await finishAiMediaCompositionCheckpoint(compositionCheckpoint).catch(() => {
+      console.warn("[ai-media] completed checkpoint cleanup deferred", { jobId: context.jobId });
+    });
 
     const quotaSnapshotStartedAt = performance.now();
     const quota = await getAiMediaQuotaSnapshot({
@@ -673,6 +696,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
           metadata: { recovered_after_persistence_error: true },
         });
         quotaCompleted = true;
+        if (compositionCheckpoint) await finishAiMediaCompositionCheckpoint(compositionCheckpoint).catch(() => undefined);
         if (!persistedItem) {
           persistedItem = await getExistingGeneratedAiMedia({
             accountId: context.accountId,
@@ -729,6 +753,23 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
           code: "AI_MEDIA_FINALIZATION_PENDING",
           message:
             "Le média est enregistré et sa finalisation est en cours. Réessayez dans quelques instants.",
+          retryAfterSeconds: 5,
+        });
+      }
+    }
+
+    if (quotaReserved && !quotaCompleted && !mediaPersisted && context.accountId && context.jobId && compositionCheckpointAttempted) {
+      // The paid assets may already be durable, even if the acknowledgement
+      // was lost. Never launch AI again or release credits during reconciliation.
+      const recoverable = Boolean(compositionCheckpoint) || await hasAiMediaCompositionCheckpoint({
+        accountId: context.accountId, jobId: context.jobId,
+      }).catch(() => true);
+      if (recoverable) {
+        if (compositionCheckpoint) await releaseAiMediaCompositionCheckpoint(compositionCheckpoint).catch(() => undefined);
+        console.warn("[ai-media] composition recovery pending", { jobId: context.jobId });
+        return jsonError({
+          status: 202, code: "AI_MEDIA_FINALIZATION_PENDING",
+          message: "Le montage a été interrompu. La récupération se poursuit sans relancer la génération IA.",
           retryAfterSeconds: 5,
         });
       }

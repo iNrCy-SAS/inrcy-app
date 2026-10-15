@@ -215,6 +215,7 @@ async function normalizeWithSharp(
   input: SharpInput,
   decoder: "sharp" | "heic-convert" | "bmp-js",
   purposes: readonly ImageNormalizationPurpose[],
+  losslessCanonical = false,
 ): Promise<PartialNormalizedImageBundle> {
   const meta = await sharp(input, {
     failOn: "error",
@@ -245,7 +246,7 @@ async function normalizeWithSharp(
       if (purpose === "canonical") {
         return [
           purpose,
-          await renderCanonical({ input, hasAlpha, sourceMetadata }),
+          await renderCanonical({ input, hasAlpha: hasAlpha || losslessCanonical, sourceMetadata }),
         ] as const;
       }
       if (purpose === "ai_preview") {
@@ -292,15 +293,15 @@ async function readSharpInput(input: SharpInput) {
   return typeof input === "string" ? await readFile(input) : input;
 }
 
-async function convertHeicSource(source: SharpInput) {
+async function convertHeicSource(source: SharpInput, lossless = false) {
   const input = await readSharpInput(source);
   if (input.byteLength > IMAGE_NORMALIZATION_HEIC_FALLBACK_MAX_BYTES) {
     throw new Error("heic_fallback_source_too_large");
   }
   const converted = await heicConvert({
     buffer: input,
-    format: "JPEG",
-    quality: 0.94,
+    format: lossless ? "PNG" : "JPEG",
+    ...(lossless ? {} : { quality: 0.94 }),
   });
   const buffer = Buffer.from(converted);
   if (!buffer.byteLength) throw new Error("heic_conversion_empty");
@@ -385,14 +386,15 @@ async function normalizeImageInput(params: {
   mimeType: string;
   originalFileName?: string | null;
   purposes: readonly ImageNormalizationPurpose[];
+  losslessCanonical?: boolean;
 }) {
   try {
-    return await normalizeWithSharp(params.input, "sharp", params.purposes);
+    return await normalizeWithSharp(params.input, "sharp", params.purposes, params.losslessCanonical);
   } catch (sharpError) {
     const recovered = await recoverTruncatedJpeg(params.input, sharpError);
     if (recovered) {
       try {
-        const normalized = await normalizeWithSharp(recovered.buffer, "sharp", params.purposes);
+        const normalized = await normalizeWithSharp(recovered.buffer, "sharp", params.purposes, params.losslessCanonical);
         const oriented = getOrientedDimensions(recovered.metadata);
         const recovery: ImageSourceRecovery = {
           kind: "truncated_jpeg",
@@ -427,16 +429,17 @@ async function normalizeImageInput(params: {
       }
     }
     if (isHeicMimeOrName(params.mimeType, params.originalFileName || "")) {
-      const converted = await convertHeicSource(params.input);
+      const converted = await convertHeicSource(params.input, params.losslessCanonical);
       return await normalizeWithSharp(
         converted,
         "heic-convert",
         params.purposes,
+        params.losslessCanonical,
       );
     }
     if (isBmpMimeOrName(params.mimeType, params.originalFileName || "")) {
       const converted = await convertBmpSource(params.input);
-      return await normalizeWithSharp(converted, "bmp-js", params.purposes);
+      return await normalizeWithSharp(converted, "bmp-js", params.purposes, params.losslessCanonical);
     }
     throw sharpError;
   }
@@ -522,4 +525,22 @@ export async function normalizeImageAiPreviewBuffer(params: {
   const aiPreview = normalized.variants.ai_preview;
   if (!aiPreview) throw new Error("image_ai_preview_missing");
   return { source: normalized.source, aiPreview };
+}
+
+/** Editable master: no AI-preview size/byte budget and no extra JPEG loss. */
+export async function normalizeImageEditMasterBuffer(params: {
+  buffer: Buffer;
+  mimeType: string;
+  originalFileName?: string | null;
+}) {
+  const normalized = await normalizeImageInput({
+    input: params.buffer,
+    mimeType: params.mimeType,
+    originalFileName: params.originalFileName,
+    purposes: ["canonical"],
+    losslessCanonical: true,
+  });
+  const master = normalized.variants.canonical;
+  if (!master) throw new Error("image_edit_master_missing");
+  return { source: normalized.source, master };
 }

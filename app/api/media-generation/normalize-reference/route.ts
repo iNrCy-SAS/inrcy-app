@@ -7,7 +7,7 @@ import {
   AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES,
   AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
 } from "@/lib/aiMediaGenerationContracts";
-import { normalizeImageAiPreviewBuffer } from "@/lib/mediaImageNormalizer";
+import { normalizeImageAiPreviewBuffer, normalizeImageEditMasterBuffer } from "@/lib/mediaImageNormalizer";
 import {
   INR_MEDIA_IMAGE_MAX_MB_LABEL,
   isInrMediaImageFile,
@@ -173,6 +173,41 @@ export async function POST(request: Request) {
         413,
         "identity_reference_size_invalid",
       );
+    }
+
+    if (body?.purpose === "edit_master") {
+      const normalized = await normalizeImageEditMasterBuffer({
+        buffer: source,
+        mimeType,
+        originalFileName: fileName,
+      });
+      await removeTransientReference(storagePath);
+      storagePath = "";
+      // Stream the lossless master, rather than applying the provider-reference
+      // byte budget or serializing a large PNG as base64 in a JSON response.
+      let offset = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (offset >= normalized.master.buffer.length) {
+            controller.close();
+            return;
+          }
+          controller.enqueue(new Uint8Array(normalized.master.buffer.subarray(offset, offset + 65_536)));
+          offset += 65_536;
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          ...NO_STORE_HEADERS,
+          "Content-Type": normalized.master.mimeType,
+          "X-Content-Type-Options": "nosniff",
+          "X-Image-Source-Width": String(normalized.source.width),
+          "X-Image-Source-Height": String(normalized.source.height),
+          "X-Image-Master-Width": String(normalized.master.width),
+          "X-Image-Master-Height": String(normalized.master.height),
+          "X-Image-Source-Has-Alpha": String(normalized.source.hasAlpha),
+        },
+      });
     }
 
     const normalized = await normalizeImageAiPreviewBuffer({

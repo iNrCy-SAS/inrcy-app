@@ -107,6 +107,7 @@ test("the registry recovery helper reads the scoped lifecycle without promoting 
     new Function("module", "exports", "require", output)(record, record.exports, (id: string) => { assert.ok(modules.has(id), id); return modules.get(id); });
     const result = await record.exports.getExistingGeneratedAiMediaContext({ accountId: "account-a", jobId: "job-a" });
     assert.equal(result.draft, draft); assert.deepEqual(filters, [["user_id", "account-a"], ["client_media_key", "ai-media:job-a"]]);
-    assert.equal(signatures, draft ? 1 : 0); assert.equal(result.item.signed_url, draft ? "https://example.invalid/private-preview.jpg" : "/api/media-library/media-a/content");
+    assert.equal(signatures, 0, "Recovery returns an authenticated application URL without issuing a temporary Storage signature");
+    assert.equal(result.item.signed_url, draft ? "/api/media-generation/drafts/media-a/content" : "/api/media-library/media-a/content");
   }
 });

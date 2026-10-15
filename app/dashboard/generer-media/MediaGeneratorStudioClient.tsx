@@ -278,6 +278,7 @@ export default function MediaGeneratorStudioClient({
         metadata: {
           studio_action: "retouch",
           source_name: value.sourceFile.name,
+          source_metadata: value.sourceMetadata,
           transform: value.transform,
           ...(overlayLinkUrl ? { link_url: overlayLinkUrl } : {}),
           ...(imageInteractions ? { image_interactions: imageInteractions } : {}),

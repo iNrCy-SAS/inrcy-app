@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import type {
   MediaGenerationFormat,
   MediaGenerationKind,
@@ -107,6 +107,20 @@ function RegenerationAuthorization({
       ))}
     </fieldset>
   );
+}
+
+/** Retry only the authenticated preview endpoint, never an expired provider URL. */
+function GeneratedMediaPreview({ item, alt }: { item: MediaGenerationResult["item"]; alt: string }) {
+  const [reload, setReload] = useState(0);
+  const source = item.signed_url || "";
+  const renewable = source.startsWith("/api/media-generation/drafts/");
+  const src = reload && renewable ? `${source}${source.includes("?") ? "&" : "?"}previewRetry=${reload}` : source;
+  const retry = () => { if (renewable && reload < 1) setReload(reload + 1); };
+  return item.media_type === "video" ? <video src={src} controls playsInline preload="metadata" onError={retry}
+    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", minWidth: 0, minHeight: 0,
+      objectFit: "contain", objectPosition: "center", background: "#000" }} /> :
+    <Image src={src} fill unoptimized sizes="(max-width: 760px) 100vw, 70vw" onError={retry}
+      style={{ objectFit: "contain", objectPosition: "center" }} alt={alt} />;
 }
 
 /** Presentation only: both creation paths retain their own requests and lifecycle. */
@@ -344,37 +358,8 @@ export default function MediaGenerationCreationWorkspace({
               style={{ position: "relative" }}
             >
               {generationResult.item.signed_url ? (
-                generationResult.item.media_type === "video" ? (
-                  <video
-                    src={generationResult.item.signed_url}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      height: "100%",
-                      minWidth: 0,
-                      minHeight: 0,
-                      objectFit: "contain",
-                      objectPosition: "center",
-                      background: "#000",
-                    }}
-                  />
-                ) : (
-                  <Image
-                    src={generationResult.item.signed_url}
-                    fill
-                    unoptimized
-                    sizes="(max-width: 760px) 100vw, 70vw"
-                    style={{ objectFit: "contain", objectPosition: "center" }}
-                    alt={
-                      generationResult.item.title ||
-                      t("ai_generator_preview_alt")
-                    }
-                  />
-                )
+                <GeneratedMediaPreview key={`${generationResult.item.id}:${generationResult.item.signed_url}`}
+                  item={generationResult.item} alt={generationResult.item.title || t("ai_generator_preview_alt")} />
               ) : (
                 <span>{t("apercu_indisponible_d0ce704a")}</span>
               )}

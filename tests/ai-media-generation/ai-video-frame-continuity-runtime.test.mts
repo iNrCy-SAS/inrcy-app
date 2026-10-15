@@ -147,6 +147,10 @@ function createHarness(engine: Engine, options: {
   holdOutputs?: Partial<Record<number, Promise<void>>>;
   failSubmission?: number;
   transientFailures?: number;
+  creationFailure?: Error;
+  missingCreationOutput?: boolean;
+  pollFailure?: Error;
+  transientPollFailures?: number;
   submitAttempts?: number;
   disableVeoFallback?: boolean;
   safetySubmissions?: number[];
@@ -183,6 +187,8 @@ function createHarness(engine: Engine, options: {
       if (options.holdOutputs?.[index]) await options.holdOutputs[index];
       await nextTurn();
       wallTime += options.simulatedClipMs ?? 0;
+      if (options.creationFailure && index === 0) throw options.creationFailure;
+      if (options.missingCreationOutput) return {};
       if (index < (options.transientFailures ?? 0)) {
         throw Object.assign(new Error("503 UNAVAILABLE: temporary fixture failure"), { status: 503 });
       }
@@ -231,6 +237,8 @@ function createHarness(engine: Engine, options: {
           if (!options.holdPoll) throw new Error("unexpected_poll");
           polls.push(input);
           await options.holdPoll;
+          if (options.pollFailure) throw options.pollFailure;
+          if (polls.length <= (options.transientPollFailures ?? 0)) throw new Error("503 UNAVAILABLE");
           return completedOperation;
         } };
         files = { download: () => { throw new Error("unexpected_download"); } };
@@ -415,10 +423,10 @@ for (const duration of [8, 16] as const) {
   }
 }
 
-test("Veo Vertex conserve sa reprise habituelle après une erreur temporaire", async () => {
+test("Veo Vertex ne resoumet pas une création dont le 503 peut masquer une acceptation", async () => {
   const harness = createHarness("veo", { vertex: true, transientFailures: 1, disableVeoFallback: true });
-  await harness.provider.generate(generationArgs("veo", 8));
-  assert.equal(harness.submissions.length, 2);
+  await assert.rejects(harness.provider.generate(generationArgs("veo", 8)), providerTypes.isAiVideoProviderBillableFailure);
+  assert.equal(harness.submissions.length, 1);
   assert.deepEqual(harness.charged, [800_000]);
 });
 
@@ -428,8 +436,49 @@ test("un essai Veo Vertex limité ne relance aucune soumission après une erreur
   });
   await assert.rejects(harness.provider.generate(generationArgs("veo", 8)));
   assert.equal(harness.submissions.length, 1);
-  assert.deepEqual(harness.charged, []);
+  assert.deepEqual(harness.charged, [800_000]);
   assert.equal(harness.fallbackCalls, 0);
+});
+
+for (const engine of ["veo", "omni"] as const) {
+  for (const reason of ["503 UNAVAILABLE", "503 rate limit at proxy", "504 DEADLINE_EXCEEDED", "fetch failed ECONNRESET"]) {
+    test(`${engine}: ${reason} après création ne déclenche aucun second POST ni fallback`, async () => {
+      const h = createHarness(engine, { creationFailure: new Error(reason) });
+      await assert.rejects(h.provider.generate(generationArgs(engine, 8)), providerTypes.isAiVideoProviderBillableFailure);
+      assert.equal(h.submissions.length, 1);
+      assert.equal(h.fallbackCalls, 0);
+      assert.deepEqual(h.charged, [800_000], "le garde conserve une estimation prudente, pas un débit client SQL");
+    });
+  }
+  test(`${engine}: une création sans identifiant ou résultat ne provoque pas un second paiement`, async () => {
+    const h = createHarness(engine, { missingCreationOutput: true });
+    await assert.rejects(h.provider.generate(generationArgs(engine, 8)), providerTypes.isAiVideoProviderBillableFailure);
+    assert.equal(h.submissions.length, 1);
+    assert.equal(h.fallbackCalls, 0);
+  });
+  test(`${engine}: un rejet 429 explicite reste réessayable sans doubler le coût`, async () => {
+    const h = createHarness(engine, { creationFailure: new Error("429 RESOURCE_EXHAUSTED retry in 0.001s") });
+    await h.provider.generate(generationArgs(engine, 8));
+    assert.equal(h.submissions.length, 2);
+    assert.deepEqual(h.charged, [800_000]);
+    assert.equal(h.fallbackCalls, 0);
+  });
+}
+
+test("Veo: une erreur de polling réessaie la même opération, jamais sa création", async () => {
+  const h = createHarness("veo", { holdPoll: Promise.resolve(), transientPollFailures: 1 });
+  await h.provider.generate(generationArgs("veo", 8));
+  assert.equal(h.submissions.length, 1);
+  assert.equal(h.polls.length, 2);
+  assert.deepEqual(h.polls[0].operation, h.polls[1].operation);
+});
+
+test("Veo: un polling refusé après acceptation ne provoque aucun modèle de remplacement", async () => {
+  const h = createHarness("veo", { holdPoll: Promise.resolve(), pollFailure: new Error("404 NOT_FOUND") });
+  await assert.rejects(h.provider.generate(generationArgs("veo", 8)), providerTypes.isAiVideoProviderBillableFailure);
+  assert.equal(h.submissions.length, 1);
+  assert.equal(h.polls.length, 1);
+  assert.deepEqual(h.charged, [800_000]);
 });
 
 test("Veo Vertex ne régénère pas un résultat facturable sans bytes et n'appelle pas Files", async () => {

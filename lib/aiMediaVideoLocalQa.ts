@@ -97,6 +97,16 @@ export function parseAiMediaVideoVisualQa(
   const duration = finitePositive(analyzedSeconds);
   const blackDurations = numericFilterValues(stderr, "black_duration");
   const frozenDurations = numericFilterValues(stderr, "freeze_duration");
+  // FFmpeg emits freeze_duration only when motion resumes. A still frame up
+  // to EOF therefore has just freeze_start (which can legitimately be zero).
+  let openFreezeStart: number | null = null;
+  for (const match of stderr.matchAll(/\bfreeze_(start|end)\s*[:=]\s*(-?\d+(?:\.\d+)?)/gi)) {
+    const timestamp = Number(match[2]);
+    if (!Number.isFinite(timestamp)) continue;
+    if (match[1].toLowerCase() === "start") openFreezeStart = Math.max(0, timestamp);
+    else openFreezeStart = null;
+  }
+  if (openFreezeStart !== null && openFreezeStart < duration) frozenDurations.push(duration - openFreezeStart);
   const blackSeconds = Math.min(
     duration,
     blackDurations.reduce((sum, value) => sum + value, 0),
@@ -267,7 +277,8 @@ export async function inspectAiMediaVideoLocally(args: {
     }
 
     let visual = emptyVisualQa();
-    if (args.scanVisualQuality !== false) {
+    const scanTimeoutMs = timeoutMs - (Date.now() - startedAt);
+    if (args.scanVisualQuality !== false && scanTimeoutMs >= 250) {
       const analyzedSeconds = Math.min(
         MAX_SCAN_SECONDS,
         probe.durationSeconds,
@@ -276,13 +287,13 @@ export async function inspectAiMediaVideoLocally(args: {
         ffmpegPath,
         inputPath: args.inputPath,
         analyzedSeconds,
-        timeoutMs,
+        timeoutMs: scanTimeoutMs,
       });
       visual = scan.visual;
       if (!scan.completed) advisories.push("visual_scan_unavailable");
       if (scan.completed && visual.likelyBlack) advisories.push("mostly_black");
       if (scan.completed && visual.likelyFrozen) advisories.push("mostly_frozen");
-    }
+    } else if (args.scanVisualQuality !== false) advisories.push("visual_scan_unavailable");
 
     return {
       version: 1,

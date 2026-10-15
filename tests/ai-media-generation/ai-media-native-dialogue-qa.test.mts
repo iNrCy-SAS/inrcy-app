@@ -12,6 +12,34 @@ import {
 
 const ROOT = process.cwd();
 
+test("critical prices, times and negations cannot pass on high overall word overlap", () => {
+  const pairs = [
+    ["Notre offre est disponible pour 50 euros seulement.", "Notre offre est disponible pour 500 euros seulement."],
+    ["Retrouvez notre équipe samedi à 10 heures.", "Retrouvez notre équipe samedi à 18 heures."],
+    ["Nous sommes ouverts tous les jours sauf le dimanche.", "Nous sommes ouverts tous les jours le dimanche."],
+    ["Notre offre ne comprend pas la livraison.", "Notre offre comprend la livraison."],
+    ["Retrouvez notre équipe samedi à 10 heures.", "Retrouvez notre équipe dimanche à 10 heures."],
+    ["Retrouvez notre équipe à Bordeaux pour préparer votre prochain projet.", "Retrouvez notre équipe à Lyon pour préparer votre prochain projet."],
+  ];
+  for (const [expectedLine, transcript] of pairs) {
+    const result = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, language: "fr" });
+    assert.equal(result.status, "rejected", transcript);
+    assert.ok(result.issues.includes("spoken_critical_value_mismatch"));
+    assert.ok(!JSON.stringify(result).includes(transcript));
+  }
+});
+
+test("ASR written French and English numbers are equivalent to figures", () => {
+  for (const [language, expectedLine, transcript] of [
+    ["fr", "Notre offre coûte 50 euros seulement.", "Notre offre coûte cinquante euros seulement."],
+    ["fr", "Notre offre coûte 500 euros seulement.", "Notre offre coûte cinq cents euros seulement."],
+    ["fr", "Notre offre coûte 49,90 euros seulement.", "Notre offre coûte quarante-neuf virgule quatre-vingt-dix euros seulement."],
+    ["fr", "Notre offre coûte 1 500 euros seulement.", "Notre offre coûte mille cinq cents euros seulement."],
+    ["fr", "Retrouvez notre équipe à 10 heures.", "Retrouvez notre équipe à dix heures."],
+    ["en", "Our offer costs 50 dollars today.", "Our offer costs fifty dollars today."],
+  ]) assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript, language }).status, "passed", transcript);
+});
+
 function fakeClip(overrides: Partial<AiMediaNativeDialogueQaClip> = {}): AiMediaNativeDialogueQaClip {
   return {
     sceneIndex: 0,

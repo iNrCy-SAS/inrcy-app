@@ -9,7 +9,8 @@ import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
-import { getAiMediaFreeBrandPolicy } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 type Row = Record<string, unknown>;
 const script = "Dans cet atelier, chaque vase prend doucement forme entre les mains de la céramiste.";
@@ -25,7 +26,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdentity = false) {
+function harness(failure?: "tts" | "audio-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
@@ -33,7 +34,7 @@ function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdent
   const normalized = { kind: "video", buffer: Buffer.from("synthetic-composed-video"), mimeType: "video/mp4", extension: "mp4", width: 720, height: 1280, durationSeconds: 15 };
   const freeNarration = async (args: { request: contracts.AiMediaGenerationRequest }) => {
     if (!args.request.withNarration || args.request.teamVideoSpeechMode === "characters") return null;
-    events.push("copy"); return narration;
+    events.push("copy"); return options.narrationLanguage ? { ...narration, language: options.narrationLanguage } : narration;
   };
   const modules = new Map<string, unknown>();
   for (const name of ["aiMediaImageContactComposer", "aiMediaCopywriter", "aiMediaGateway", "aiMediaImageProviderRequest", "aiMediaReferenceTeam",
@@ -50,7 +51,7 @@ function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdent
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaFreeGenerationPlan", { buildAiMediaFreeBasePlan: () => plan, prepareAiMediaFreeCreativePlan: async () => plan, writeAiMediaFreeNarration: freeNarration }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", getAiMediaFreeImageSize: () => "1024x1536",
-      getAiMediaFreeBrandPolicy, splitAiMediaFreeNarrationByScene: () => [script],
+      getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene: () => [script],
       buildAiMediaFreeSceneFramePrompt: () => "One controlled full-frame initial instant, no storyboard.",
       resolveAiMediaFreeDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaFreeVoiceoverPolicy", { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover }],
@@ -70,8 +71,9 @@ function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdent
     ["@/lib/aiMediaGeneratedVideo", { AiMediaNarrationTooLongError: class extends Error {}, prepareAiMediaNarrationAudioForVideo: async (args: { audio: Row }) => {
       events.push("audio-preflight"); if (failure === "audio-preflight") throw new Error("synthetic-audio-unusable");
       return { audio: args.audio, silenceCompacted: false };
-    }, composeOriginalAiVideo: async (args: Row) => { events.push("compose"); composeCalls.push(args); return normalized; } }],
+    }, composeOriginalAiVideo: async (args: Row) => { events.push("compose"); composeCalls.push(args); if (failure === "composition") throw new Error("ai_narration_too_long_for_natural_pace"); return normalized; } }],
     ["@/lib/aiMediaVideoLayout", { AI_MEDIA_VIDEO_TEXT_LAYOUT: "test-full-frame" }],
+    ["@/lib/aiMediaVideoLocalQa", { inspectAiMediaVideoBufferLocally: async () => ({ version: 1, status: options.qaAdvisories?.length ? "advisory" : "ok", blocking: false, advisories: options.qaAdvisories || [] }) }],
     ["@/lib/aiMediaVideoProviderContract", { buildAiMediaVideoProviderContract: (args: Row) => { contractCalls.push(args); return { version: "test" }; } }],
     ["@/lib/aiMediaIdentityReferences", { AiMediaIdentityReferenceValidationError: class extends Error {}, prepareAiMediaIdentityReferences: async (images: contracts.AiMediaInspirationImage[]) => ({ providerImages: images, buffers: images.map(() => Buffer.from("sanitized-reference")) }) }],
     ["@/lib/aiMediaNarration", { writeAiMediaNarration: freeNarration }],
@@ -87,13 +89,15 @@ function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdent
     ["@/lib/aiMediaSensitiveText", sensitive], ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
     ["@/lib/aiVideoProvider", { generateOriginalAiVideoClips: async (args: Row) => {
       events.push("video"); videoCalls.push(args);
+      if (failure === "video") throw new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
       return { provider: "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
         clips: [{ buffer: Buffer.from("synthetic-native-video"), mediaType: "video/mp4", requestId: "test-provider-request", durationSeconds: 15, sourceStartSeconds: 0 }] };
     } }],
     ["@/lib/aiVideoProviderTypes", { isAiVideoProviderBillableFailure: () => false }],
+    ["@/lib/aiVideoReliability", { classifyVeoFailure: () => ({ kind: "transient" }) }],
     ["@/lib/aiMediaGenerationQuotaPolicy", { getAiMediaVideoMaxDuration: () => 30 }],
     ["@/lib/aiMediaCreditQuoteServer", { quoteAiMediaRequest: (_id: string, original: contracts.AiMediaGenerationRequest) => ({ withNarration: original.withNarration }) }],
-    ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations: () => [15] }],
+    ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations }],
     ["@/lib/aiMediaVideoTemporaryImages", { preflightAiMediaVideoTemporaryImages: async () => {} }],
   ];
   for (const [name, value] of entries) modules.set(name, value);
@@ -107,8 +111,54 @@ function harness(failure?: "tts" | "audio-preflight" | "seed", withOfficialIdent
     throw new Error(`unexpected_test_dependency:${name}`);
   }, { info() {}, warn() {}, error() {} });
   return { events, videoCalls, ttsCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls,
-    generate: (original: contracts.AiMediaGenerationRequest) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {} }) };
+    generate: (original: contracts.AiMediaGenerationRequest, execution: Row = {}) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, ...execution }) };
 }
+
+test("Veo fallback keeps resolution and the original failure instead of calling incompatible Omni", async () => {
+  for (const videoResolution of ["1080p", "720p"] as const) {
+    const env = harness("video");
+    await assert.rejects(env.generate(request("veo", { durationSeconds: 8, withNarration: false, videoResolution })), /selected_video_unavailable/);
+    assert.equal(env.videoCalls.length, videoResolution === "1080p" ? 1 : 2);
+    assert.ok(env.videoCalls.every((call) => (call.request as Row).videoResolution === videoResolution));
+  }
+});
+
+test("native voiceover provider uses the script language and local QA remains advisory without regeneration", async () => {
+  const env = harness(undefined, false, { narrationLanguage: "en", qaAdvisories: ["mostly_frozen"] });
+  await env.generate(request("veo", { durationSeconds: 8 }));
+  assert.equal(env.videoCalls[0].contentLanguage, "en");
+  assert.equal(env.videoCalls.length, 1);
+  const metadata = env.saved[0].metadata as Row;
+  const gateway = metadata.gateway as Row;
+  assert.ok((gateway.warnings as string[]).includes("video_local_qa_mostly_frozen"));
+  assert.equal(((gateway.quality_assurance as Row).final_video as Row).blocking, false);
+});
+
+test("composition recovery callback receives reusable assets before composition and no prompt or script", async () => {
+  const env = harness();
+  const checkpoints: Row[] = [];
+  await env.generate(request("grok"), { onCompositionReady: async (checkpoint: Row) => {
+    checkpoints.push(checkpoint); assert.ok(!env.events.includes("compose"));
+  } });
+  assert.equal(checkpoints.length, 1);
+  assert.equal((checkpoints[0].input as Row).narration, audio);
+  assert.equal((checkpoints[0].input as Row).nativeAudioMode, "mute");
+  assert.ok(!("signal" in (checkpoints[0].input as Row)));
+  assert.ok(!JSON.stringify(checkpoints[0].metadata).includes(script));
+  assert.ok(!JSON.stringify(checkpoints[0].metadata).includes(canonicalPrompt));
+});
+
+test("a composition failure cannot silently remove requested narration in free or legacy generation", async () => {
+  for (const creationMode of ["free", "guided"]) {
+    const env = harness("composition");
+    const original = request("grok", { creationMode, inputMode: "legacy", identityMode: "auto", idea: "Un atelier" });
+    await assert.rejects(env.generate(original), /video_composition_failed/);
+    assert.equal(env.composeCalls.length, 1);
+    assert.equal(env.composeCalls[0].narration, audio);
+    assert.equal(env.videoCalls.length, 1);
+    assert.equal(env.saved.length, 0);
+  }
+});
 
 test("checked ADN retains the same video path and adds only the official identity, without an extra paid frame", async () => {
   for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "grok", "grok-lite"] as const) {

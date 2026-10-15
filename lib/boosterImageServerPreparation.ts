@@ -1,3 +1,4 @@
+import { buildImageOverlaySvg } from "./imageOverlaySvg.ts";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import {
@@ -18,9 +19,7 @@ import {
   type ComparableImageTransform,
 } from "@/lib/boosterImageDecision";
 import {
-  getImageOverlayItems,
   normalizeImageOverlay,
-  resolveImageOverlayCoordinates,
   type ImageOverlay,
 } from "@/lib/imageOverlay";
 import { transformImageInteractionsForLayout } from "@/lib/imageInteractions";
@@ -725,141 +724,6 @@ function normalizeTransform(value: unknown, fallback: ServerImageTransform): Ser
     backgroundColor: String(raw.backgroundColor || fallback.backgroundColor || "").trim() || undefined,
     overlay: normalizeImageOverlay(raw.overlay ?? fallback.overlay),
   };
-}
-
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/**
- * Render the optional Adapter text into the server-side publication canvas.
- *
- * The browser preview uses the same broad visual treatment, but the image
- * sent to channels is rendered here as well so queued/async publications do
- * not silently lose the retouch when they are prepared after the browser has
- * gone away. The destination URL remains metadata (a raster image cannot
- * carry a clickable link).
- */
-function buildImageOverlaySvg(
-  value: unknown,
-  width: number,
-  height: number,
-) {
-  if (width <= 0 || height <= 0) return null;
-  const items = getImageOverlayItems(value).filter((item) => item.text);
-  if (!items.length) return null;
-  const fragments = items.map((overlay) => {
-    const fontSize = clamp(
-      Math.round(width * ((overlay.fontSize ?? 4.6) / 100)),
-      14,
-      160,
-      42,
-    );
-    const lineHeight = Math.round(fontSize * 1.2);
-    const paddingY = Math.round(fontSize * 0.5);
-    const paddingX = Math.round(fontSize * 0.72);
-    const edge = Math.round(fontSize * 0.8);
-    const panelWidth = Math.max(
-      1,
-      Math.min(
-        Math.max(1, width - edge * 2),
-        Math.round((width * (overlay.width ?? 68)) / 100),
-      ),
-    );
-    const maxChars = Math.max(
-      4,
-      Math.min(
-        120,
-        Math.floor(
-          Math.max(fontSize * 2, panelWidth - paddingX * 2) /
-            (fontSize * 0.54),
-        ),
-      ),
-    );
-    const lines: string[] = [];
-    for (const paragraph of String(overlay.text || "").split(/\r?\n/)) {
-      if (!paragraph) {
-        lines.push("");
-        continue;
-      }
-      let line = "";
-      for (const character of paragraph) {
-        if (line.length >= maxChars) {
-          lines.push(line);
-          line = character === " " ? "" : character;
-        } else {
-          line += character;
-        }
-      }
-      lines.push(line);
-    }
-    const limitedLines = lines.slice(0, 12);
-    const naturalPanelHeight = limitedLines.length * lineHeight + paddingY * 2;
-    const panelHeight = Math.max(
-      1,
-      Math.min(
-        Math.max(1, height - edge * 2),
-        overlay.height
-          ? Math.round((height * overlay.height) / 100)
-          : naturalPanelHeight,
-      ),
-    );
-    const visibleLineCount = Math.max(
-      1,
-      Math.floor(
-        Math.max(lineHeight, panelHeight - paddingY * 2) / lineHeight,
-      ),
-    );
-    const visibleLines = limitedLines.slice(0, visibleLineCount);
-    const coordinates = resolveImageOverlayCoordinates(overlay);
-    const panelX = clamp(
-      Math.round((width * coordinates.x) / 100 - panelWidth / 2),
-      edge,
-      Math.max(edge, width - panelWidth - edge),
-      edge,
-    );
-    const panelY = clamp(
-      Math.round((height * coordinates.y) / 100 - panelHeight / 2),
-      edge,
-      Math.max(edge, height - panelHeight - edge),
-      edge,
-    );
-    const radius = Math.round(fontSize * 0.45);
-    const fill =
-      overlay.style === "glass"
-        ? "rgba(255,255,255,0.20)"
-        : "rgba(6,10,20,0.78)";
-    const textBlockHeight = visibleLines.length * lineHeight;
-    const firstLineY =
-      panelY + (panelHeight - textBlockHeight) / 2 + lineHeight / 2;
-    const tspans = visibleLines
-      .map((line, index) => {
-        const y = firstLineY + lineHeight * index;
-        return `<tspan x="${panelX + panelWidth / 2}" y="${y}">${escapeXml(line)}</tspan>`;
-      })
-      .join("");
-    const fontFamily =
-      overlay.fontFamily === "georgia"
-        ? "Georgia,serif"
-        : overlay.fontFamily === "verdana"
-          ? "Verdana,sans-serif"
-          : overlay.fontFamily === "arial"
-            ? "Arial,sans-serif"
-            : "Inter,Arial,sans-serif";
-    const borderWidth = Math.max(
-      0,
-      Math.round((overlay.borderWidth ?? 0) * Math.max(1, width / 1000)),
-    );
-    return `<g><rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${radius}" fill="${fill}" stroke="${borderWidth ? overlay.borderColor || "#38bdf8" : "none"}" stroke-width="${borderWidth}"/><text xml:space="preserve" x="${panelX + panelWidth / 2}" fill="${overlay.color || "#ffffff"}" font-family="${fontFamily}" font-size="${fontSize}px" font-weight="${overlay.bold === false ? 400 : 800}" font-style="${overlay.italic ? "italic" : "normal"}" text-decoration="${overlay.underline ? "underline" : "none"}" text-anchor="middle" dominant-baseline="middle">${tspans}</text></g>`;
-  });
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${fragments.join("")}</svg>`,
-  );
 }
 
 function normalizeChannelSettings(value: unknown): ChannelSettings {

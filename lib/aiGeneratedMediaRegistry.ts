@@ -67,24 +67,21 @@ function buildStoragePath(args: {
   return `users/${safePathSegment(args.accountId, "account")}/ai-generated/${args.kind}/${year}/${month}/${safePathSegment(args.jobId, "job")}.${args.extension}`;
 }
 
-async function toPickerItem(
-  row: RegistryRow,
-  options: { signedUrl?: string | null } = {},
-): Promise<AiMediaLibraryPickerItem> {
+async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem> {
   // La signature est un confort de réponse court terme, pas une condition de
   // persistance. Une panne Storage après l'INSERT ne doit jamais faire croire
   // au quota que le média n'existe pas.
   // Une fois accepté, renvoyer l'URL applicative stable utilisée par toute la
   // Médiathèque. Elle recrée une signature Storage à chaque lecture : Booster
   // peut donc rejouer une insertion après une coupure mobile sans régénérer le
-  // média. Le brouillon privé conserve une signature directe pour son aperçu,
-  // car la route publique authentifiée refuse volontairement les lignes inactives.
+  // média. Le brouillon utilise sa propre route authentifiée : une session
+  // ouverte plus de dix minutes peut continuer à lire son résultat privé.
   const signedUrl =
     (isAcceptedGeneratedMedia(row)
       ? buildMediaLibraryContentUrl(String(row.id || ""))
       : null) ||
-    (options.signedUrl !== undefined
-      ? options.signedUrl
+    (isGeneratedDraft(row)
+      ? `/api/media-generation/drafts/${encodeURIComponent(row.id)}/content`
       : await createSafeStorageSignedUrl(
           String(row.bucket_name || BUCKET),
           row.storage_path,
@@ -257,15 +254,6 @@ export async function saveGeneratedAiMediaDraft(args: {
   );
   if (uploaded.error) throw uploaded.error;
 
-  // L'objet vient d'être confirmé par Storage : sa signature peut être créée
-  // pendant l'INSERT du registre au lieu d'ajouter deux allers-retours réseau
-  // après celui-ci. L'échec éventuel reste non bloquant comme auparavant.
-  const draftSignedUrlTask = createSafeStorageSignedUrl(
-    BUCKET,
-    storagePath,
-    CONTENT_URL_TTL_SECONDS,
-  ).catch(() => null);
-
   const payload = {
     user_id: args.accountId,
     created_by_auth_user_id: args.authUserId,
@@ -309,28 +297,36 @@ export async function saveGeneratedAiMediaDraft(args: {
     },
   };
 
-  const inserted = await supabaseAdmin
-    .from("pro_media_library")
-    .insert(payload)
-    .select(REGISTRY_SELECT)
-    .single();
-
   let row: RegistryRow | null = null;
-  if (!inserted.error && inserted.data) {
-    row = inserted.data as RegistryRow;
-  } else if (inserted.error?.code === "23505") {
-    row = await readRegistryRow(args.accountId, args.jobId);
+  let insertError: unknown;
+  try {
+    const inserted = await supabaseAdmin
+      .from("pro_media_library")
+      .insert(payload)
+      .select(REGISTRY_SELECT)
+      .single();
+    insertError = inserted.error;
+    if (!inserted.error && inserted.data) row = inserted.data as RegistryRow;
+  } catch (error) {
+    insertError = error;
   }
 
   if (!row) {
-    await supabaseAdmin.storage
-      .from(BUCKET)
-      .remove([storagePath])
-      .catch(() => undefined);
-    throw inserted.error || new Error("ai_media_registry_insert_failed");
+    // A response can be lost after PostgreSQL committed the INSERT (and its
+    // quota trigger). Reconcile every error, including thrown network errors.
+    // Even an empty read is not proof the write cannot still commit: preserve
+    // Storage on uncertainty instead of destroying a possibly paid result.
+    row = await readRegistryRow(args.accountId, args.jobId).catch(() => null);
+    if (!isReplayableGeneratedMedia(row)) {
+      console.warn("[ai-media] registry persistence unresolved; uploaded object retained", {
+        accountId: args.accountId,
+        jobId: args.jobId,
+      });
+      throw insertError || new Error("ai_media_registry_insert_failed");
+    }
   }
 
-  return await toPickerItem(row, { signedUrl: await draftSignedUrlTask });
+  return await toPickerItem(row!);
 }
 
 /**

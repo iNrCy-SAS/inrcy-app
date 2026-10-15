@@ -4,6 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 
 import type { AiMediaCreativeScene } from "@/lib/aiMediaCreativePlan";
+import type { AiMediaFreeLogoPlacement } from "@/lib/aiMediaFreeGenerationPrompt";
 import type {
   AiMediaImagePurpose,
   AiMediaLogoMode,
@@ -27,6 +28,7 @@ type RenderBaseArgs = {
   companyName: string;
   visualStyle: AiMediaVisualStyle;
   logoMode: AiMediaLogoMode;
+  logoPlacement?: AiMediaFreeLogoPlacement;
   imagePurpose?: AiMediaImagePurpose;
   /**
    * Copie saisie par l'utilisateur en mode `exact`. Elle suit un compositeur
@@ -335,7 +337,8 @@ async function prepareLogo(
   logo: Buffer | null,
   width: number,
   height: number,
-  logoMode: AiMediaLogoMode
+  logoMode: AiMediaLogoMode,
+  placement?: AiMediaFreeLogoPlacement
 ) {
   if (!logo) return null;
   const visible = logoMode === "visible";
@@ -370,8 +373,8 @@ async function prepareLogo(
         threshold: 8,
       })
       .resize({
-        width: Math.round(width * (visible ? 0.16 : 0.12)),
-        height: Math.round(height * (visible ? 0.06 : 0.048)),
+        width: Math.round(width * (placement?.size === "large" ? 0.32 : placement?.size === "small" ? 0.09 : visible ? 0.16 : 0.12)),
+        height: Math.round(height * (placement?.size === "large" ? 0.22 : placement?.size === "small" ? 0.04 : visible ? 0.06 : 0.048)),
         fit: "inside",
         withoutEnlargement: true,
       })
@@ -1070,7 +1073,8 @@ async function buildBrandOverlays(
     args.logo,
     args.width,
     args.height,
-    args.logoMode
+    args.logoMode,
+    args.logoPlacement
   );
   if (!preparedLogo) return overlays;
 
@@ -1081,8 +1085,12 @@ async function buildBrandOverlays(
   const { logo: logoLayout } = resolveAiMediaVideoOverlayLayout(args);
   overlays.push({
     input: preparedLogo.buffer,
-    left: Math.max(0, args.width - logoLayout.marginX - preparedLogo.width),
-    top: logoLayout.marginY,
+    left: args.logoPlacement?.horizontal === "left" ? logoLayout.marginX
+      : args.logoPlacement?.horizontal === "center" ? Math.round((args.width - preparedLogo.width) / 2)
+      : Math.max(0, args.width - logoLayout.marginX - preparedLogo.width),
+    top: args.logoPlacement?.vertical === "bottom" ? Math.max(0, args.height - logoLayout.marginY - preparedLogo.height)
+      : args.logoPlacement?.vertical === "center" ? Math.round((args.height - preparedLogo.height) / 2)
+      : logoLayout.marginY,
   });
   return overlays;
 }

@@ -13,7 +13,7 @@ import {
 import { normalizeAiMediaVideoEngine, type AiMediaVideoEngine, type AiMediaImageEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
 import {
-  clearAiMediaGenerationRecovery, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
+  createAiMediaRecoveryStorage, clearAiMediaGenerationRecovery, clearAiMediaGenerationRecoveryForMedia, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
   type AiMediaGenerationRecoveryPointer,
 } from "@/lib/aiMediaGenerationRecovery";
 
@@ -670,7 +670,12 @@ function waitForDraftAcceptanceRetry(delayMs: number) {
 }
 
 function recoveryStorage() {
-  try { return window.sessionStorage || null; } catch { return null; }
+  // Only opaque per-account identifiers are persisted, never briefs or media.
+  let persistent: Storage | null = null;
+  let session: Storage | null = null;
+  try { persistent = window.localStorage || null; } catch { /* Private browser mode. */ }
+  try { session = window.sessionStorage || null; } catch { /* Storage disabled. */ }
+  return createAiMediaRecoveryStorage(persistent, session);
 }
 
 function recoveryRequest(pointer: AiMediaGenerationRecoveryPointer): MediaGenerationRequest {
@@ -882,14 +887,8 @@ export default function useMediaGeneration() {
       generationAbortRef.current?.recoveryController?.abort();
       if (!generationAbortRef.current?.billingLocked) generationAbortRef.current?.controller.abort();
       generationAbortRef.current = null;
-      const previousResult = resultRef.current;
-      if (previousResult?.draft) {
-        // The endpoint is idempotent. If the account switch already reached
-        // the server, the 24 h cleanup remains the final safety net.
-        void discardMediaGenerationDraft(previousResult.item.id).catch(
-          () => undefined
-        );
-      }
+      // Switching accounts only hides the previous account's result. Its paid
+      // draft and scoped recovery pointer remain available until explicit discard.
       accountEpochRef.current += 1;
       quotaRef.current = null;
       resultRef.current = null;
@@ -962,7 +961,7 @@ export default function useMediaGeneration() {
       const originAccountId = quotaRef.current?.accountId || "";
       writeAiMediaGenerationRecovery(recoveryStorage(), originAccountId, { requestId, kind: request.kind, format: request.format });
       pendingGenerationAttemptRef.current = { key: attemptKey, requestId };
-      const clearCurrentAttempt = () => {
+      const clearCurrentAttempt = (keepDeliveredDraft = false) => {
         if (
           pendingGenerationAttemptRef.current?.key === attemptKey &&
           pendingGenerationAttemptRef.current.requestId === requestId
@@ -970,7 +969,7 @@ export default function useMediaGeneration() {
           pendingGenerationAttemptRef.current = null;
         }
         if (pendingRecoveryRef.current?.requestId === requestId) pendingRecoveryRef.current = null;
-        clearAiMediaGenerationRecovery(recoveryStorage(), originAccountId, requestId);
+        if (!keepDeliveredDraft) clearAiMediaGenerationRecovery(recoveryStorage(), originAccountId, requestId);
         if (mountedRef.current) setCanRecover(false);
       };
 
@@ -1183,7 +1182,10 @@ export default function useMediaGeneration() {
           setResult(nextResult);
           setStatus("success");
           setCancellationPending(false);
-          clearCurrentAttempt();
+          if (nextResult.draft) writeAiMediaGenerationRecovery(recoveryStorage(), originAccountId, {
+            requestId, kind: request.kind, format: nextResult.format, mediaId: nextResult.item.id,
+          });
+          clearCurrentAttempt(nextResult.draft);
         }
         if (!hasReturnedQuota) {
           void loadQuota({ force: true });
@@ -1574,6 +1576,7 @@ export default function useMediaGeneration() {
       };
       resultRef.current = acceptedResult;
       setResult(acceptedResult);
+      clearAiMediaGenerationRecoveryForMedia(recoveryStorage(), quotaRef.current?.accountId || "", requested.item.id);
       return acceptedResult;
     },
     []
@@ -1585,6 +1588,7 @@ export default function useMediaGeneration() {
       if (!requested || !requested.draft) return;
 
       await discardMediaGenerationDraft(requested.item.id);
+      clearAiMediaGenerationRecoveryForMedia(recoveryStorage(), quotaRef.current?.accountId || "", requested.item.id);
       if (resultRef.current?.item.id === requested.item.id) {
         resultRef.current = null;
         setResult(null);

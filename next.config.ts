@@ -70,6 +70,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["heic-convert"],
   outputFileTracingIncludes: {
     "/api/cron/*": sharpRuntimeFiles,
+    "/api/cron/media-generation-recovery": aiMediaGenerationRuntimeFiles,
     "/api/agent/**/*": sharpRuntimeFiles,
     "/api/booster/**/*": sharpRuntimeFiles,
     "/api/media-generation/**/*": aiMediaGenerationRuntimeFiles,

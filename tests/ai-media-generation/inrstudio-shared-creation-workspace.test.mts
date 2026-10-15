@@ -13,8 +13,30 @@ const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta
 type Element = { type: unknown; props: Record<string, unknown> };
 type Props = Record<string, unknown>;
 
-function element(type: unknown, props: Record<string, unknown> | null): Element {
-  return typeof type === "function" ? type(props || {}) : { type, props: props || {} };
+type HookStore = Map<unknown, Map<string, unknown[]>>;
+let hookStore: HookStore = new Map();
+let hookFrame: { values: unknown[]; cursor: number } | null = null;
+
+function element(type: unknown, props: Record<string, unknown> | null, key?: string): Element {
+  if (typeof type !== "function") return { type, props: props || {} };
+  let instances = hookStore.get(type);
+  if (!instances) { instances = new Map(); hookStore.set(type, instances); }
+  const instanceKey = key ?? "default";
+  let values = instances.get(instanceKey);
+  if (!values) { values = []; instances.set(instanceKey, values); }
+  const previous = hookFrame;
+  hookFrame = { values, cursor: 0 };
+  try { return type(props || {}); } finally { hookFrame = previous; }
+}
+
+function useState<T>(initial: T | (() => T)): [T, (next: T | ((previous: T) => T)) => void] {
+  assert.ok(hookFrame, "A stateful component must have a mounted hook frame");
+  const { values } = hookFrame;
+  const index = hookFrame.cursor++;
+  if (index >= values.length) values[index] = typeof initial === "function" ? (initial as () => T)() : initial;
+  return [values[index] as T, (next) => {
+    values[index] = typeof next === "function" ? (next as (previous: T) => T)(values[index] as T) : next;
+  }];
 }
 
 function elements(tree: unknown): Element[] {
@@ -56,7 +78,7 @@ function click(node: Element) {
 let instanceCount = 0;
 const modules = new Map<string, unknown>([
   ["react/jsx-runtime", { jsx: element, jsxs: element, Fragment: "fragment" }],
-  ["react", { useId: () => `creation-test-${++instanceCount}` }],
+  ["react", { useId: () => `creation-test-${++instanceCount}`, useState }],
   ["next/image", { __esModule: true, default: (props: Props) => element("img", props) }],
   ["next-intl", { useTranslations: () => (key: string) => key }],
   ["@/lib/aiMediaGenerationContracts", contracts],
@@ -85,12 +107,13 @@ const output = ts.transpileModule(source, {
 }).outputText;
 const record = { exports: {} as { default: (props: Props) => Element; MediaGenerationSettingsTabs: (props: Props) => Element } };
 const focusedElements: string[] = [];
-new Function("module", "exports", "require", "document", output)(record, record.exports, (specifier: string) => {
+new Function("module", "exports", "require", "document", "fetch", output)(record, record.exports, (specifier: string) => {
   assert.ok(modules.has(specifier), `Unexpected presentation dependency: ${specifier}`);
   return modules.get(specifier);
-}, { getElementById: (id: string) => ({ focus: () => focusedElements.push(id) }) });
+}, { getElementById: (id: string) => ({ focus: () => focusedElements.push(id) }) }, () => assert.fail("Preview rendering must never request a new generation"));
 
-function render(overrides: Props = {}) {
+function render(overrides: Props = {}, mountedState: HookStore = new Map()) {
+  hookStore = mountedState;
   return record.exports.default({
     kind: "image", format: "square", durationSeconds: 8, creationMode: "guided", origin: "menu",
     progress: 0, operationLocked: false, finishing: false, generationResult: null,
@@ -100,6 +123,43 @@ function render(overrides: Props = {}) {
     ...overrides,
   });
 }
+
+test("an image or video preview retries its authenticated draft URL once without generating again", () => {
+  for (const kind of ["image", "video"] as const) {
+    for (const source of ["/api/media-generation/drafts/draft-test/content", "/api/media-generation/drafts/draft-test/content?variant=source"]) {
+      const mountedState: HookStore = new Map();
+      const result = mediaResult(kind);
+      result.item.signed_url = source;
+      const actions: string[] = [];
+      const props = { generationResult: result, handleGenerate: () => actions.push("paid-generation") };
+      const preview = () => find(render(props, mountedState), (node) => node.type === (kind === "video" ? "video" : "img"));
+      let node = preview();
+      assert.equal(node.props.src, source);
+      (node.props.onError as () => void)();
+      node = preview();
+      const retryUrl = `${source}${source.includes("?") ? "&" : "?"}previewRetry=1`;
+      assert.equal(node.props.src, retryUrl);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        (node.props.onError as () => void)();
+        node = preview();
+        assert.equal(node.props.src, retryUrl, "Subsequent failures must not create a reload loop");
+      }
+      assert.deepEqual(actions, []);
+      result.item.id = "another-draft";
+      assert.equal(preview().props.src, source, "A different keyed result gets its own retry budget");
+    }
+    for (const source of ["https://provider.invalid/expired?token=old", "/api/media-library/accepted/content"]) {
+      const mountedState: HookStore = new Map();
+      const result = mediaResult(kind); result.item.signed_url = source;
+      const props = { generationResult: result, handleGenerate: () => assert.fail("No generation from onError") };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const node = find(render(props, mountedState), (item) => item.type === (kind === "video" ? "video" : "img"));
+        assert.equal(node.props.src, source);
+        (node.props.onError as () => void)();
+      }
+    }
+  }
+});
 
 function mediaResult(kind: "image" | "video", width = 1080, height = 1920) {
   return {

@@ -24,7 +24,7 @@ import {
   googleVeoVideoProvider,
   resolveGoogleVideoAspectRatio,
 } from "@/lib/aiVideoProviderGoogleVeo";
-import { classifyVeoFailure } from "@/lib/aiVideoReliability";
+import { classifyVeoFailure, isAmbiguousVideoCreationFailure } from "@/lib/aiVideoReliability";
 import { assertAiMediaVideoProviderBoundary } from "@/lib/aiMediaVideoProviderContract";
 import {
   probeVideoSource,
@@ -185,7 +185,7 @@ function statefulContinuationEnabled() {
 }
 
 function mayUseVeoFallback(error: unknown, signal?: AbortSignal) {
-  if (signal?.aborted) return false;
+  if (signal?.aborted || isAiVideoProviderBillableFailure(error)) return false;
   const details = compact(
     error instanceof Error ? error.message : error,
     1_000,
@@ -490,6 +490,7 @@ async function generateClip(args: {
         transientAttempt += 1
       ) {
         let billableOutputExists = false;
+        let creationUnresolved = true;
         try {
           const input = [
             ...(args.continuityFrame ? [{
@@ -536,6 +537,7 @@ async function generateClip(args: {
               retries: { strategy: "none" },
             },
           );
+          creationUnresolved = false;
           if (!interaction.output_video) {
             const details = compact(
               JSON.stringify(interaction.errors || interaction.status),
@@ -544,6 +546,7 @@ async function generateClip(args: {
             if (/safety|rai|responsible|blocked|prohibited/i.test(details)) {
               throw safetyFilteredError(details);
             }
+            creationUnresolved = true;
             throw new Error(
               details
                 ? `ai_video_omni_video_missing:${details}`
@@ -574,6 +577,15 @@ async function generateClip(args: {
             warnings: Array.from(new Set(warnings)),
           };
         } catch (error) {
+          if (!billableOutputExists && creationUnresolved && isAmbiguousVideoCreationFailure(error)) {
+            // A lost creation response may already have consumed supplier cost.
+            // Stop every paid fallback and keep that estimate in the guard.
+            args.onBillable();
+            throw new AiVideoProviderBillableFailure({
+              provider: PROVIDER_ID, model: args.model, stage: "submission_unknown",
+              details: "creation_outcome_unknown", cause: error,
+            });
+          }
           if (billableOutputExists) {
             const details = compact(
               error instanceof Error ? error.message : error,
@@ -623,6 +635,7 @@ async function generateClip(args: {
     }
     throw lastError || new Error("ai_video_omni_operation_failed");
   } catch (error) {
+    if (isAiVideoProviderBillableFailure(error)) throw error;
     if (timedOut) throw new Error("ai_video_omni_timeout");
     if (args.generationArgs.signal?.aborted) throw generationCancelledError();
     throw error;

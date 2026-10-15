@@ -13,6 +13,7 @@ export type AiMediaNativeDialogueQaIssue =
   | "spoken_dialogue_missing"
   | "spoken_dialogue_incomplete"
   | "spoken_dialogue_mismatch"
+  | "spoken_critical_value_mismatch"
   | "spoken_dialogue_repeated";
 
 export type AiMediaNativeDialogueQaClip = {
@@ -85,6 +86,85 @@ export function tokenizeAiMediaNativeDialogue(value: unknown): string[] {
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
     .trim();
   return normalized.match(/[\p{L}\p{N}\p{M}]+/gu) || [];
+}
+
+const SPEECH_NUMBERS: Record<string, number> = {
+  zero: 0, un: 1, une: 1, one: 1, deux: 2, two: 2, trois: 3, three: 3,
+  quatre: 4, four: 4, cinq: 5, five: 5, six: 6, sept: 7, seven: 7,
+  huit: 8, eight: 8, neuf: 9, nine: 9, dix: 10, ten: 10, onze: 11, eleven: 11,
+  douze: 12, twelve: 12, treize: 13, thirteen: 13, quatorze: 14, fourteen: 14,
+  quinze: 15, fifteen: 15, seize: 16, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, vingt: 20, vingts: 20, twenty: 20, trente: 30, thirty: 30,
+  quarante: 40, forty: 40, cinquante: 50, fifty: 50, soixante: 60, sixty: 60,
+  septante: 70, seventy: 70, huitante: 80, octante: 80, eighty: 80,
+  nonante: 90, ninety: 90, cent: 100, cents: 100, hundred: 100,
+  mille: 1000, thousand: 1000, million: 1_000_000, millions: 1_000_000,
+};
+
+/** Values are compared separately from fuzzy wording; transcripts never leave QA. */
+function criticalSpeechValues(text: string, language: string) {
+  const normalized = text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/\b(can|could|would|should|is|are|was|were|has|have|had|do|does|did)n['’]t\b/g, "$1 not")
+    .replace(/\bwon['’]t\b/g, "will not").replace(/\bcan['’]t\b/g, "can not")
+    .replace(/\b\d{1,3}(?:[ \u00a0\u202f]\d{3})+\b/g, (value) => value.replace(/\s/g, ""))
+    .replace(/\b(\d{1,2})h(?=\d|\b)/g, "$1 heures ")
+    .replace(/€/g, " euros ").replace(/\$/g, " dollars ").replace(/£/g, " pounds ").replace(/%/g, " percent ")
+    .replace(/\b(?:pour\s*cent|per\s+cent)\b/g, "percent");
+  const tokens = normalized.match(/\d+(?:[.,]\d+)?|[\p{L}]+/gu) || [];
+  const canonical: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (/^\d/.test(token)) {
+      const value = String(Number(token.replace(",", ".")));
+      canonical.push(value); continue;
+    }
+    // Written number parsing is deliberately limited to supported languages.
+    if (/^(?:fr|en)(?:-|$)/.test(language) && token in SPEECH_NUMBERS) {
+      let cursor = index;
+      let total = 0;
+      let part = 0;
+      while (cursor < tokens.length) {
+        const current = tokens[cursor];
+        if ((current === "et" || current === "and") && tokens[cursor + 1] in SPEECH_NUMBERS) { cursor += 1; continue; }
+        const value = SPEECH_NUMBERS[current];
+        if (value === undefined) break;
+        if (current === "quatre" && /^vingts?$/.test(tokens[cursor + 1] || "")) { part += 80; cursor += 2; continue; }
+        if (value >= 1000) { total += Math.max(1, part) * value; part = 0; }
+        else if (value === 100) part = Math.max(1, part) * 100;
+        else part += value;
+        cursor += 1;
+      }
+      const value = String(total + part);
+      const ambiguousArticle = cursor === index + 1 && /^(?:un|une|one)$/.test(token) && !/^(?:euros?|dollars?|pounds?|percent|heures?|hours?|jours?|days?|mois|months?|ans?|years?)$/.test(tokens[cursor] || "");
+      canonical.push(ambiguousArticle ? token : value);
+      index = cursor - 1;
+    } else canonical.push(token);
+  }
+  // ASR can spell the decimal separator: “49,90” / “quarante-neuf virgule
+  // quatre-vingt-dix”. Preserve the value, not its typographic representation.
+  for (let index = 1; index < canonical.length - 1; index += 1) {
+    if (/^(?:virgule|point|comma)$/.test(canonical[index]) && /^\d+$/.test(canonical[index - 1]) && /^\d+$/.test(canonical[index + 1])) {
+      canonical.splice(index - 1, 3, String(Number(`${canonical[index - 1]}.${canonical[index + 1]}`)));
+      index -= 1;
+    }
+  }
+  const numbers = canonical.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
+  const negations = canonical.filter((token) => /^(?:pas|jamais|sans|sauf|aucun|aucune|ni|non|not|never|without|except|no|neither|nicht|nie|ohne|kein|keine|sin|nunca|senza)$/.test(token));
+  if (canonical.some((token, index) => token === "plus" && canonical.slice(Math.max(0, index - 4), index).some((previous) => previous === "ne" || previous === "n"))) negations.push("ne_plus");
+  const units = canonical.filter((token) => /^(?:euros?|dollars?|pounds?|percent)$/.test(token)).map((token) => token.replace(/s$/, ""));
+  const calendar = canonical.filter((token) => /^(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday|saturday|sunday|janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|january|february|march|april|may|june|july|august|september|october|november|december)$/.test(token));
+  return { numbers, negations, units, calendar, canonical };
+}
+
+function missingWrittenName(expected: string, transcript: string) {
+  const detected = new Set(tokenizeAiMediaNativeDialogue(transcript));
+  return Array.from(expected.matchAll(/[\p{L}][\p{L}\p{N}]{2,}/gu)).some((match) => {
+    const word = match[0];
+    const before = expected.slice(0, match.index).trimEnd();
+    const distinctiveCase = /[a-z][A-Z]|^[A-Z]{3,}$/.test(word);
+    const interiorProperName = /^\p{Lu}\p{Ll}/u.test(word) && before.length > 0 && !/[.!?]$/.test(before);
+    return (distinctiveCase || interiorProperName) && tokenizeAiMediaNativeDialogue(word).some((token) => !detected.has(token));
+  });
 }
 
 function levenshteinDistance(left: readonly string[], right: readonly string[]) {
@@ -269,8 +349,11 @@ export function evaluateAiMediaNativeDialogue(args: {
   language?: string;
   expectSilence?: boolean;
 }): AiMediaNativeDialogueQaClipResult {
-  const expected = tokenizeAiMediaNativeDialogue(args.expectedLine);
-  const detected = tokenizeAiMediaNativeDialogue(args.transcript);
+  const language = String(args.language || "fr").trim().toLowerCase() || "fr";
+  const expectedValues = criticalSpeechValues(args.expectedLine, language);
+  const detectedValues = criticalSpeechValues(args.transcript, language);
+  const expected = tokenizeAiMediaNativeDialogue(expectedValues.canonical.join(" "));
+  const detected = tokenizeAiMediaNativeDialogue(detectedValues.canonical.join(" "));
   const emptyMetrics: AiMediaNativeDialogueQaMetrics = {
     expectedTokenCount: expected.length,
     detectedTokenCount: detected.length,
@@ -305,7 +388,10 @@ export function evaluateAiMediaNativeDialogue(args: {
   const extraTokenCount = Math.max(0, detected.length - expected.length);
   const repeatCount = dialogueRepeatCount(expected, detected);
   const issues: AiMediaNativeDialogueQaIssue[] = [];
-  const language = String(args.language || "fr").trim().toLowerCase() || "fr";
+  if (["numbers", "negations", "units", "calendar"].some((key) => {
+    const field = key as "numbers" | "negations" | "units" | "calendar";
+    return JSON.stringify(expectedValues[field]) !== JSON.stringify(detectedValues[field]);
+  }) || missingWrittenName(args.expectedLine, args.transcript)) issues.push("spoken_critical_value_mismatch");
 
   const incomplete =
     !hasCompleteAiMediaSpeechEnding(args.transcript, language) ||

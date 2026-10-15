@@ -66,32 +66,50 @@ export async function normalizeGeneratedAiImage(
 ): Promise<NormalizedAiImage> {
   const { width, height } = resolveImageCanvasDimensions(options);
   const preservesSourceCanvas = options.canvasMode === "source";
-  const framing = preservesSourceCanvas
-    ? ({ fit: "cover", position: "attention" } as const)
-    : ({ fit: "contain", position: "centre" } as const);
-  const rendered = await sharp(input, {
+  const base = sharp(input, {
     failOn: "error",
     limitInputPixels: 50_000_000,
     pages: 1,
   })
     .rotate()
-    .resize({
+    .toColourspace("srgb");
+  let canvas: Buffer;
+  if (preservesSourceCanvas) {
+    canvas = await base.resize({
       width,
       height,
-      // Les presets de génération conservent historiquement tout le rendu.
-      // Modifier, lui, doit supprimer le letterbox éventuel du fournisseur et
-      // remplir exactement le canvas source, sans fabriquer de bandes.
-      ...framing,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      fit: "cover", position: "attention",
       withoutEnlargement: false,
-    })
+    }).png().toBuffer();
+  } else {
+    // Preserve the complete supplier composition, including text and faces.
+    // The small ratio gap is filled from a blurred background copy; only that
+    // background is cropped. The foreground is never stretched or cropped.
+    const foreground = await base.clone().resize({ width, height, fit: "inside" })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .png().toBuffer({ resolveWithObject: true });
+    if (foreground.info.width === width && foreground.info.height === height) {
+      canvas = foreground.data;
+    } else {
+      const background = await base.clone()
+        .resize({ width, height, fit: "cover", position: "centre" })
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .blur(Math.max(8, Math.min(width, height) / 30))
+        .png().toBuffer();
+      canvas = await sharp(background).composite([{
+        input: foreground.data,
+        left: Math.floor((width - foreground.info.width) / 2),
+        top: Math.floor((height - foreground.info.height) / 2),
+      }]).png().toBuffer();
+    }
+  }
+  const rendered = await sharp(canvas)
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .toColourspace("srgb")
     .jpeg({
-      quality: 90,
+      quality: 92,
       mozjpeg: true,
       progressive: true,
-      chromaSubsampling: "4:2:0",
+      chromaSubsampling: "4:4:4",
       optimiseCoding: true,
       optimiseScans: true,
     })

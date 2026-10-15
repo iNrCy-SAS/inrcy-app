@@ -77,8 +77,8 @@ class MemoryCache {
 test("Retoucher accepte le catalogue image commun et normalise les formats non décodables", () => {
   assert.match(retoucher, /INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES/);
   assert.match(retoucher, /INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS/);
-  assert.match(retoucher, /prepareMediaGenerationImageReference\(file\)/);
-  assert.match(retoucher, /renderFile = new File\(\[normalizedBlob\]/);
+  assert.match(retoucher, /prepareMediaImageEditMaster\(file\)/);
+  assert.match(retoucher, /renderFile = master\.file/);
   assert.doesNotMatch(retoucher, /JPG, PNG ou WebP/);
 });
 
@@ -187,11 +187,11 @@ test("Modifier et Retoucher bornent le décodage navigateur avant normalisation"
   }
   assert.match(
     retoucher,
-    /catch \{[\s\S]*?prepareMediaGenerationImageReference\(file\)/
+    /catch \{[\s\S]*?prepareMediaImageEditMaster\(file\)/
   );
   assert.match(
     modifier,
-    /catch \{[\s\S]*?prepareMediaGenerationImageReference\(file\)/
+    /catch \{[\s\S]*?prepareMediaImageEditMaster\(file\)/
   );
 });
 

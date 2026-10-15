@@ -116,14 +116,17 @@ test("les aperçus et les rendus client et serveur respectent position et dimens
   assert.match(frames, /width:\s*`\$\{overlay\.width \?\? 68\}%`/);
   assert.match(frames, /height:\s*overlay\.height/);
 
-  for (const renderer of [clientRenderer, serverRenderer]) {
+  const layout = read("lib/imageOverlayLayout.ts");
+  const svgRenderer = read("lib/imageOverlaySvg.ts");
+  for (const renderer of [clientRenderer, svgRenderer]) {
     assert.match(renderer, /getImageOverlayItems/);
-    assert.match(renderer, /resolveImageOverlayCoordinates\(overlay\)/);
-    assert.match(renderer, /overlay\.width/);
-    assert.match(renderer, /overlay\.height/);
+    assert.match(renderer, /resolveImageOverlayTextLayout/);
   }
+  assert.match(layout, /resolveImageOverlayCoordinates\(overlay\)/);
+  assert.match(layout, /overlay\.width/);
+  assert.match(layout, /overlay\.height/);
   assert.match(clientRenderer, /blockX \+ blockWidth \/ 2/);
-  assert.match(serverRenderer, /panelX \+ panelWidth \/ 2/);
+  assert.match(serverRenderer, /buildImageOverlaySvg/);
 });
 
 test("les listes déroulantes de l'atelier suivent le thème sombre iNrStudio", () => {

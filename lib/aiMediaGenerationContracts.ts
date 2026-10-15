@@ -122,6 +122,8 @@ export const AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES = INR_MEDIA_IMAGE_MAX_BYTES;
 export const AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES = 560_000;
 export const AI_MEDIA_INSPIRATION_MAX_DIMENSION = 1_280;
 export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
+/** Five encoded references plus the brief, below the platform's 4.5 MB body cap. */
+export const AI_MEDIA_GENERATION_MAX_BODY_BYTES = 4 * 1024 * 1024;
 /** Limite propre au brief de Modifier Image, de l'interface au fournisseur. */
 export const AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS = 1_200;
 export const AI_MEDIA_FREE_PROMPT_MAX_CHARS = 4_000;

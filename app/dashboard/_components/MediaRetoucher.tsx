@@ -17,9 +17,10 @@ import { ChannelImageAdapterModal } from "./ChannelImageAdapterTool";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
-import { prepareMediaGenerationImageReference } from "./MediaGenerator";
+import { prepareMediaImageEditMaster } from "@/lib/mediaImageEditMasterClient";
 import type { BackgroundMode } from "./channel-image-adapter/types";
 import type { ImageOverlay } from "@/lib/imageOverlay";
+import { resolveRetoucherGeometry } from "@/lib/mediaRetoucherGeometry";
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
@@ -91,6 +92,7 @@ type RetouchSource = {
   width: number;
   height: number;
   metadata?: Record<string, unknown>;
+  preserveAlpha: boolean;
 };
 
 const DEFAULT_TRANSFORM: MediaRetoucherTransform = {
@@ -157,15 +159,6 @@ function readPreviewDimensions(previewUrl: string) {
       finish({ ok: false, error: new Error("image_preview_unreadable") });
     image.src = previewUrl;
   });
-}
-
-function base64ImageBlob(data: string, mimeType: string) {
-  const binary = window.atob(data);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return new Blob([bytes], { type: mimeType || "image/jpeg" });
 }
 
 function cloneTransform(
@@ -318,6 +311,8 @@ export default function MediaRetoucher({
     void (async () => {
       let renderFile = file;
       let previewUrl = URL.createObjectURL(renderFile);
+      let preserveAlpha = /image\/(png|webp)/i.test(file.type);
+      let sourceMetadata = metadata;
       try {
         let dimensions: { width: number; height: number };
         try {
@@ -328,25 +323,17 @@ export default function MediaRetoucher({
 
           // Certains formats pris en charge par iNrCy (HEIC/HEIF/TIFF et
           // quelques AVIF/BMP) ne sont pas décodables par tous les navigateurs.
-          // Le normaliseur commun fournit uniquement un JPEG d’aperçu : le
-          // fichier original et ses métadonnées restent ceux transmis en sortie.
-          const normalized = await prepareMediaGenerationImageReference(file);
+          // A lossless editing master is distinct from the small AI reference.
+          const master = await prepareMediaImageEditMaster(file);
           if (!mountedRef.current || sourceRequestRef.current !== requestId) {
             return;
           }
-          const normalizedBlob = base64ImageBlob(
-            normalized.data,
-            normalized.mimeType,
-          );
-          const normalizedStem =
-            file.name.replace(/\.[^.]+$/, "").slice(0, 120) ||
-            "image-source";
-          renderFile = new File([normalizedBlob], `${normalizedStem}.jpg`, {
-            type: normalizedBlob.type || "image/jpeg",
-            lastModified: file.lastModified || Date.now(),
-          });
+          renderFile = master.file;
+          preserveAlpha = master.hasAlpha;
           previewUrl = URL.createObjectURL(renderFile);
-          dimensions = await readPreviewDimensions(previewUrl);
+          await readPreviewDimensions(previewUrl);
+          dimensions = { width: master.width, height: master.height };
+          sourceMetadata = { ...metadata, edit_master: { width: master.masterWidth, height: master.masterHeight, sourceWidth: master.width, sourceHeight: master.height } };
         }
 
         if (!mountedRef.current || sourceRequestRef.current !== requestId) {
@@ -354,6 +341,7 @@ export default function MediaRetoucher({
           return;
         }
         const nextTransform = cloneTransform(DEFAULT_TRANSFORM);
+        if (preserveAlpha) nextTransform.backgroundMode = "transparent";
         baselineRef.current = cloneTransform(nextTransform);
         setTransform(nextTransform);
         setSource({
@@ -362,7 +350,8 @@ export default function MediaRetoucher({
           previewUrl,
           width: dimensions.width,
           height: dimensions.height,
-          metadata,
+          metadata: sourceMetadata,
+          preserveAlpha,
         });
         setLoadingSource(false);
       } catch (previewError) {
@@ -545,7 +534,7 @@ export default function MediaRetoucher({
 
   const resetTransform = () => {
     setSaved(false);
-    setTransform(cloneTransform(DEFAULT_TRANSFORM));
+    setTransform({ ...cloneTransform(DEFAULT_TRANSFORM), ...(source?.preserveAlpha ? { backgroundMode: "transparent" as const } : {}) });
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -602,16 +591,20 @@ export default function MediaRetoucher({
     selectSource(event.dataTransfer.files?.[0], false);
   };
 
+  const previewGeometry = resolveRetoucherGeometry({
+    canvasWidth: source?.width || 1,
+    canvasHeight: source?.height || 1,
+    sourceWidth: source?.width || 1,
+    sourceHeight: source?.height || 1,
+    ...transform,
+  });
   const previewImageStyle: CSSProperties = {
     position: "absolute",
-    left: "50%",
-    top: "50%",
-    width: "100%",
-    height: "100%",
+    left: `${previewGeometry.drawX / (source?.width || 1) * 100}%`,
+    top: `${previewGeometry.drawY / (source?.height || 1) * 100}%`,
+    width: `${previewGeometry.drawWidth / (source?.width || 1) * 100}%`,
+    height: `${previewGeometry.drawHeight / (source?.height || 1) * 100}%`,
     maxWidth: "none",
-    objectFit: transform.fit,
-    transform: `translate(calc(-50% + ${transform.offsetX}%), calc(-50% + ${transform.offsetY}%)) scale(${transform.zoom})`,
-    transformOrigin: "center",
     display: "block",
     userSelect: "none",
     pointerEvents: "none",
