@@ -339,8 +339,10 @@ test("le résultat intégré conserve son type et son format pendant l’éditio
   assert.match(text(tree), /ai_generator_video_ready_title/);
   assert.equal(byClass(tree, "previewFrame").props["data-format"], "landscape");
   assert.equal(find(tree, (node) => node.type === "video").props.src, result.item.signed_url);
-  assert.equal(elements(byClass(tree, "resultActions")).filter((node) => node.type === "button").length, 3);
-  assert.doesNotMatch(text(tree), /ai_generator_regenerate|CONTROLES_FOOTER|DEVIS_FOOTER/);
+  assert.equal(elements(byClass(tree, "resultActions")).filter((node) => node.type === "button").length, 4);
+  assert.match(text(tree), /ai_generator_regenerate/);
+  assert.equal(button(tree, "ai_generator_regenerate").props.disabled, true);
+  assert.doesNotMatch(text(tree), /CONTROLES_FOOTER|DEVIS_FOOTER/);
   click(button(tree, "ai_generator_edit_criteria"));
   click(button(tree, "ai_generator_open_library"));
   click(button(tree, "ai_generator_confirm_insert"));
@@ -404,4 +406,29 @@ test("une alerte d’onglet explique précisément le champ manquant", () => {
   const description = find(tree, (node) => node.props.id === criteria.props["aria-describedby"]);
   assert.equal(text(description), reason);
   assert.doesNotMatch(text(description), /ai_generator_editor_criteria_incomplete/);
+});
+
+test("image et vidéo regroupent Enregistrer, Réajuster, Régénérer et Réinitialiser sous l’aperçu", () => {
+  for (const kind of ["image", "video"] as const) {
+    for (const draft of [true, false]) {
+      const actions: string[] = [];
+      const props = { variant: "embedded", kind, generationResult: { ...mediaResult(kind), draft },
+        editLabel: "Réajuster", handleConfirm: () => actions.push("save"),
+        handleEditCriteria: () => actions.push("edit"), handleGenerate: () => actions.push("regenerate"),
+        handleReset: () => actions.push("reset"), disabled: false };
+      const tree = render(props);
+      const buttons = elements(byClass(tree, "resultActions")).filter((node) => node.type === "button");
+      assert.deepEqual(buttons.map(text), ["ai_generator_open_library", "Réajuster", "↻ ai_generator_regenerate", "↺ ai_generator_workspace_reset_action"]);
+      for (const node of buttons) click(node);
+      assert.deepEqual(actions, ["save", "edit", "regenerate", "reset"]);
+      for (const disabled of [false, true]) {
+        const locked = render({ ...props, operationLocked: true, disabled });
+        assert.equal(button(locked, "ai_generator_regenerate").props.disabled, true);
+        assert.equal(button(locked, "ai_generator_workspace_reset_action").props.disabled, true);
+      }
+      const unavailable = render({ ...props, disabled: true });
+      assert.equal(button(unavailable, "ai_generator_regenerate").props.disabled, true);
+      assert.equal(button(unavailable, "ai_generator_open_library").props.disabled, false);
+    }
+  }
 });

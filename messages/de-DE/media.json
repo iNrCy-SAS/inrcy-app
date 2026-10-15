@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "Sprecherstimme hinzufügen",
   "ai_generator_free_music": "Hintergrundmusik hinzufügen",
   "ai_generator_free_shared_quota": "Dasselbe Kontingent wie im geführten Modus.",
-  "ai_generator_free_edit_prompt": "Zurück zu meiner Anfrage",
+  "ai_generator_free_edit_prompt": "Anpassen",
   "ai_generator_free_retry_quota": "Mein Kontingent aktualisieren",
   "ai_generator_free_prompt_min": "Beschreiben Sie Ihre Idee, um die Erstellung zu starten.",
   "ai_generator_free_quota_required": "Ihr Kontingent wird vor der Erstellung geladen.",

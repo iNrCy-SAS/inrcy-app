@@ -647,12 +647,12 @@ export default function MediaFreeGenerator({
 
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
-    disabled={busy ? !cancellable : canRecover ? operationLocked : !canGenerate}
+    disabled={busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate}
     title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
+    onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}
   >
-    <span aria-hidden="true">{busy ? "■" : result ? "↻" : "✦"}</span>
-    {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
+    <span aria-hidden="true">{busy ? "■" : "✦"}</span>
+    {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
   </button>;
 
   const preview = (
@@ -680,7 +680,7 @@ export default function MediaFreeGenerator({
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEdit}
         handleReset={canRecover ? undefined : onReset}
-        disabled={!canGenerate}
+        disabled={!canGenerate || canRecover}
         creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
         engineControls={engineControls}
         acceptMode={acceptMode}

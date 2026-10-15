@@ -426,14 +426,6 @@ export default function MediaGenerationCreationWorkspace({
             {!embedded ? <MediaGenerationActions>
             {engineControls}
             {creditSummary}
-            <button
-              type="button"
-              className={styles.regenerateButton}
-              onClick={() => void handleGenerate()}
-              disabled={disabled}
-            >
-              ↻ {t("ai_generator_regenerate")}
-            </button>
             </MediaGenerationActions> : null}
             <button
               type="button"
@@ -442,6 +434,15 @@ export default function MediaGenerationCreationWorkspace({
               disabled={operationLocked}
             >
               {editLabel || t("ai_generator_edit_criteria")}
+            </button>
+            <button
+              type="button"
+              className={styles.regenerateButton}
+              onClick={() => void handleGenerate()}
+              disabled={disabled || operationLocked}
+              data-media-regenerate
+            >
+              ↻ {t("ai_generator_regenerate")}
             </button>
             {handleReset ? <button type="button" className={styles.editButton}
               onClick={handleReset} disabled={operationLocked} data-media-reset>

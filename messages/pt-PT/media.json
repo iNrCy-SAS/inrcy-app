@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "Adicionar voz-off",
   "ai_generator_free_music": "Adicionar música de fundo",
   "ai_generator_free_shared_quota": "A mesma quota do modo guiado.",
-  "ai_generator_free_edit_prompt": "Voltar ao meu pedido",
+  "ai_generator_free_edit_prompt": "Reajustar",
   "ai_generator_free_retry_quota": "Atualizar a minha quota",
   "ai_generator_free_prompt_min": "Descreva a sua ideia para iniciar a criação.",
   "ai_generator_free_quota_required": "A carregar a sua quota antes da geração.",

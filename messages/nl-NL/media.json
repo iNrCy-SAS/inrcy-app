@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "Voice-over toevoegen",
   "ai_generator_free_music": "Achtergrondmuziek toevoegen",
   "ai_generator_free_shared_quota": "Hetzelfde tegoed als in de begeleide modus.",
-  "ai_generator_free_edit_prompt": "Terug naar mijn opdracht",
+  "ai_generator_free_edit_prompt": "Bijstellen",
   "ai_generator_free_retry_quota": "Mijn tegoed vernieuwen",
   "ai_generator_free_prompt_min": "Beschrijf uw idee om de creatie te starten.",
   "ai_generator_free_quota_required": "Uw tegoed wordt geladen voordat de generatie begint.",

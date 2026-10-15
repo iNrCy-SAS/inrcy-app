@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "Añadir voz en off",
   "ai_generator_free_music": "Añadir música de fondo",
   "ai_generator_free_shared_quota": "El mismo cupo que en el modo guiado.",
-  "ai_generator_free_edit_prompt": "Volver a mi solicitud",
+  "ai_generator_free_edit_prompt": "Ajustar",
   "ai_generator_free_retry_quota": "Actualizar mi cupo",
   "ai_generator_free_prompt_min": "Describe tu idea para empezar la creación.",
   "ai_generator_free_quota_required": "Cargando tu cupo antes de generar.",

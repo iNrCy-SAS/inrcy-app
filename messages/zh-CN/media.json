@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "添加旁白",
   "ai_generator_free_music": "添加背景音乐",
   "ai_generator_free_shared_quota": "与引导模式共用同一配额。",
-  "ai_generator_free_edit_prompt": "返回我的要求",
+  "ai_generator_free_edit_prompt": "调整",
   "ai_generator_free_retry_quota": "刷新我的配额",
   "ai_generator_free_prompt_min": "描述您的创意以开始创作。",
   "ai_generator_free_quota_required": "生成前正在加载您的配额。",

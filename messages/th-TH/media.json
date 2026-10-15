@@ -49,7 +49,7 @@
   "ai_generator_free_narration": "เพิ่มเสียงบรรยาย",
   "ai_generator_free_music": "เพิ่มเพลงประกอบ",
   "ai_generator_free_shared_quota": "ใช้โควตาร่วมกับโหมดมีตัวช่วย",
-  "ai_generator_free_edit_prompt": "กลับไปยังคำอธิบายของฉัน",
+  "ai_generator_free_edit_prompt": "ปรับแต่ง",
   "ai_generator_free_retry_quota": "รีเฟรชโควตาของฉัน",
   "ai_generator_free_prompt_min": "อธิบายไอเดียของคุณเพื่อเริ่มสร้าง",
   "ai_generator_free_quota_required": "กำลังโหลดโควตาของคุณก่อนเริ่มสร้าง",

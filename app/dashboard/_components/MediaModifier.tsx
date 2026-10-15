@@ -612,7 +612,7 @@ export default function MediaModifier({
                 handleEditCriteria={handleEditInstruction}
                 handleReset={canRecover ? undefined : onReset}
                 editLabel={t("ai_modifier_edit_instruction")}
-                disabled={operationLocked || !sourceImage || !creditQuote.ready || creditQuote.insufficient}
+                disabled={operationLocked || canRecover || !sourceImage || instruction.trim().length < 3 || quotaLoading || imageQuotaExhausted || !creditQuote.ready || creditQuote.insufficient}
                 acceptMode={acceptMode}
                 savingToLibrary={savingToLibrary}
                 actionError={actionError}
@@ -714,22 +714,23 @@ export default function MediaModifier({
           <button
             type="button"
             className={styles.primaryButton}
+            data-media-primary-action
             onClick={() => {
               if (generationBusy) handleRequestGenerationStop();
               else if (canRecover) void handleRecovery();
-              else void handleGenerate();
+              else if (!result) void handleGenerate();
             }}
             title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
             disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked :
-              operationLocked ||
+              Boolean(result) || operationLocked ||
               !sourceImage ||
               instruction.trim().length < 3 ||
               quotaLoading || !creditQuote.ready || creditQuote.insufficient ||
               imageQuotaExhausted
             }
           >
-            <span aria-hidden="true">{generationBusy ? "■" : result ? "↻" : "✦"}</span>
-            {t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : result ? "ai_generator_regenerate" : "ai_modifier_action")}
+            <span aria-hidden="true">{generationBusy ? "■" : "✦"}</span>
+            {t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : "ai_modifier_action")}
           </button>
         </MediaGenerationActions>
       </footer>
