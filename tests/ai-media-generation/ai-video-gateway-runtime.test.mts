@@ -10,7 +10,7 @@ import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
-import { AiMediaRequestValidationError } from "../../lib/aiMediaGenerationContracts.ts";
+import { AiMediaRequestValidationError, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
@@ -320,8 +320,10 @@ test("Wan compact keeps the visual silence contract before USER and removes only
     "Un atelier lumineux. Narration : « Chaque geste compte. »");
   const input = context.runtime.buildGatewayAiVideoRequest(args);
   const prompt = (input.prompt as { text: string }).text;
-  assert.ok(prompt.indexOf(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT) < prompt.indexOf("USER:"));
-  assert.ok(prompt.indexOf(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT) < prompt.indexOf("SUBJECT:"));
+  assert.ok(prompt.indexOf("VISUAL SPEECH:") >= 0);
+  assert.ok(prompt.indexOf("VISUAL SPEECH:") < prompt.indexOf("USER:"));
+  assert.ok(prompt.indexOf("VISUAL SPEECH:") < prompt.indexOf("SUBJECT:"));
+  assert.match(prompt, /No speaking\/articulation\/mimed speech\/lip-sync/);
   assert.ok(prompt.includes("Un artisan montre ses outils."));
   assert.ok(prompt.includes("Un atelier lumineux."));
   assert.ok(prompt.includes("« Bienvenue à l’atelier »"));
@@ -339,7 +341,7 @@ test("Wan compact preserves explicitly displayed speech wording while native cha
   assert.equal(visual.split(line).length, 2, "The explicitly displayed occurrence remains exactly once.");
   assert.match(visual, /Affiche le sous-titre/);
   assert.match(visual, /No native voices or dialogue/);
-  assert.ok(visual.includes(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT));
+  assert.match(visual, /VISUAL SPEECH: No speaking\/articulation\/mimed speech\/lip-sync/);
   assert.ok(visual.length <= 1_500);
 
   const dialogue = wanFreeArgs("characters", `Un artisan parle face caméra. Il dit : « ${line} »`);
@@ -349,6 +351,41 @@ test("Wan compact preserves explicitly displayed speech wording while native cha
   assert.match(native, /Synchronize the mouth and audible speech/);
   assert.doesNotMatch(native, /VISUAL SPEECH:|No native voices|NATIVE VOICEOVER:/);
   assert.ok(native.length <= 1_500);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+});
+
+test("Wan visual silence fits previously valid full briefs with the real normalized provider contract", () => {
+  const context = loadRuntime();
+  for (const length of [560, 720, 900]) {
+    const brief = "Une personne se promène dans un atelier lumineux. ".repeat(40).slice(0, length).trim();
+    const args = argsFor("wan-flash", 1, 8);
+    args.request = normalizeAiMediaGenerationRequest({
+      requestId: "wan-silent-budget-0001", source: "studio", operation: "generate",
+      creationMode: "free", kind: "video", freePrompt: brief, withNarration: false,
+      teamVideoSpeechMode: "voiceover", durationSeconds: 8, videoEngine: "wan-flash",
+      format: "landscape", sceneMode: "single",
+      inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role: "environment", usage: "required" }],
+    });
+    args.plan.subline = "Promenade silencieuse dans un atelier.";
+    args.plan.scenes[0].visualBrief = "Une personne observe les outils avec un sourire.";
+    args.providerContract = boundary.buildAiMediaVideoProviderContract({ request: args.request, durationSeconds: 8, brandColors: [] });
+    args.canonicalPrompt = freePrompt.buildAiMediaFreeVideoScenePrompt(args, 0, 8);
+    args.canonicalPromptSha256 = boundary.hashAiMediaCanonicalPrompt(args.canonicalPrompt);
+    if (length === 900) {
+      assert.throws(() => context.runtime.buildGatewayAiVideoRequest(args), /ai_video_instruction_contract_too_long/,
+        "A truly oversized brief must still be refused, never silently truncated.");
+      continue;
+    }
+    const prompt = (context.runtime.buildGatewayAiVideoRequest(args).prompt as { text: string }).text;
+    assert.ok(prompt.includes(`USER: ${brief}`), "Keep the entire user brief.");
+    assert.ok(prompt.includes(`ACTION: ${args.plan.scenes[0].visualBrief}`));
+    assert.ok(prompt.includes(`PARAMS: ${args.providerContract.parameters}`));
+    assert.ok(prompt.includes(`REFERENCES: ${args.providerContract.references}`));
+    assert.match(prompt, /VISUAL SPEECH: No speaking\/articulation\/mimed speech\/lip-sync/);
+    assert.ok(prompt.indexOf("VISUAL SPEECH:") < prompt.indexOf("USER:"));
+    assert.match(prompt, /No native voices or dialogue/);
+    assert.ok(prompt.length <= 1_500, `Full ${length}-character brief must fit: ${prompt.length}`);
+  }
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
 });
 

@@ -47,21 +47,26 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
   const visualSpeech = args.request.creationMode === "free"
     ? validatedPrompt.split("\n").find((line) => line.startsWith("VISUAL SPEECH:")) || ""
     : "";
+  // Wan has only 1,500 characters. Compress our envelope, never the user's
+  // wording, so the new silence rule does not crowd out previously valid briefs.
+  const compactSilence = separateVoiceover && Boolean(visualSpeech);
   const audio = args.request.creationMode === "free"
     ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|No native voices)/.test(line)).join("\n")
     : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
     `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Animate continuously from the first frame.`,
-    visualSpeech,
+    compactSilence ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures, gaze, smiles. Overrides speaking below." : visualSpeech,
     subject ? `SUBJECT: ${subject}` : "",
     `USER: ${user}`,
     `PARAMS: ${contract.parameters}`,
     `REFERENCES: ${contract.references}`,
     action ? `ACTION: ${action}` : "",
     audio,
-    `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
+    compactSilence ? "" : `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
     args.request.creationMode === "free"
-      ? AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT
+      ? compactSilence
+        ? "Full-frame action over time; no split screen/panels/collage/duplicate views unless requested. Speech is audio: no subtitles/captions/quote cards unless requested. Exact text; write wording only if asked."
+        : AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT
       : "No visual text, numbers, UI, logos or technical annotations; iNrCy adds overlays.",
   ].filter(Boolean).join("\n");
   if (prompt.length > 1500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);
