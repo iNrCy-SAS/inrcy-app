@@ -23,7 +23,7 @@ function footerAction(name: "MediaFreeGenerator" | "MediaModifier", overrides: R
   const events: string[] = [];
   const context = {
     busy: false, generationBusy: false, cancellable: true, generationCancellable: true,
-    canRecover: false, operationLocked: false, canGenerate: true, result: null, kind: "image",
+    canRecover: false, recoveryIncompatible: false, operationLocked: false, canGenerate: true, result: null, kind: "image",
     sourceImage: {}, instruction: "Update the background", quotaLoading: false,
     creditQuote: { ready: true, insufficient: false }, imageQuotaExhausted: false,
     styles: { primaryButton: "primaryButton" }, t: (key: string) => key,
@@ -94,4 +94,19 @@ test("a fresh workspace generates normally while Stop and recovery retain their 
 test("the French result action uses the agreed single word Réajuster", () => {
   const messages = JSON.parse(read("messages/fr-FR/media.json"));
   assert.equal(messages.ai_generator_free_edit_prompt, "Réajuster");
+});
+
+test("an incompatible stored result cannot activate the free-generation footer recovery button", () => {
+  const incompatible = footerAction("MediaFreeGenerator", {
+    canRecover: true, recoveryIncompatible: true, canGenerate: false,
+  });
+  assert.equal(incompatible.action.props.disabled, true);
+  assert.match(text(incompatible.action), /ai_generator_editor_recover/);
+  assert.deepEqual(incompatible.events, []);
+  const compatible = footerAction("MediaFreeGenerator", {
+    canRecover: true, recoveryIncompatible: false, canGenerate: false,
+  });
+  assert.equal(compatible.action.props.disabled, false);
+  invoke(compatible.action);
+  assert.deepEqual(compatible.events, ["recover"]);
 });

@@ -47,6 +47,7 @@ function resultContext() {
     operationLocked: false,
     busy: false,
     canRecover: false,
+    recoveryIncompatible: false,
     instanceId: "free-test",
     setActiveSettingsTab: (value: string) => { events.push(`tab:${value}`); },
     setActiveAttempt: () => { events.push("attempt-snapshot"); },
@@ -194,6 +195,23 @@ test("abandonner Libre clôture seulement une tentative absente et conserve un r
     await run();
     assert.deepEqual(context.events, recovered ? ["error:", "cancel-existing-request"] : ["error:", "cancel-existing-request", "creation:false"]);
     assert.equal(context.operationInFlight.current, false);
+  }
+});
+
+test("un résultat incompatible ne peut être récupéré ni abandonné depuis ce contexte", async () => {
+  for (const name of ["handleRecoverResult", "handleAbandonRecovery"]) {
+    const context = resultContext();
+    const run = handler(name, {
+      ...context, canRecover: true, recoveryIncompatible: true,
+      retryRecovery: () => assert.fail("La récupération incompatible appartient au Studio général"),
+      cancelRecovery: () => assert.fail("Un contexte incompatible ne doit pas abandonner la tentative"),
+      generate: () => assert.fail("Le média ne doit pas être régénéré"),
+      discardDraft: () => assert.fail("Le brouillon payé doit être conservé"),
+    });
+    await run();
+    assert.deepEqual(context.events, []);
+    assert.equal(context.operationInFlight.current, false);
+    assert.equal(context.result.item.id, "draft-for-account-a");
   }
 });
 
