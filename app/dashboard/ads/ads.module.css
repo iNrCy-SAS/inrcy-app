@@ -44,7 +44,7 @@
 .channelStatus[data-status=select-account]::before{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#ffc15b;box-shadow:0 0 0 3px #ffc15b20;content:""}
 .channelConfigure{min-height:36px;padding:7px 14px;border:1px solid #baa2fa59;border-radius:999px;color:#f2eaff;background:#9870db29;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 .channelConfigure span{font-size:15px;margin-right:4px}
-.channelConfigure:hover{background:#9870db4d;box-shadow:0 0 15px #9675fc20}
+.channelConfigure:not(:disabled):hover{background:#9870db4d;box-shadow:0 0 15px #9675fc20}
 .channelActions{display:grid;justify-items:center;gap:6px}
 .channelViewAccount{display:inline-flex;min-height:29px;align-items:center;justify-content:center;gap:5px;padding:5px 12px;border:1px solid #81dec396;border-radius:999px;color:#d9fff2;background:linear-gradient(115deg,#197b7770,#256b9a6b);box-shadow:inset 0 1px #ffffff26,0 6px 17px #0d756638;font-size:10px;font-weight:850;line-height:1;text-decoration:none;white-space:nowrap;transition:transform 160ms ease,border-color 160ms ease,background 160ms ease}
 .channelViewAccount:hover{border-color:#a9ffe0;background:linear-gradient(115deg,#229a8d88,#357db189);transform:translateY(-1px)}
@@ -769,7 +769,7 @@
 .pinterestLocationOptions strong{color:#edf2ff;font-size:12px}.pinterestLocationOptions small{color:#bfcde5;font-size:10px}
 .pinterestLocationSearch button:disabled,.channelRail button:disabled,.miniSelect:disabled{cursor:not-allowed;opacity:.55}
 .channelRail button[data-locked=true]{opacity:.45;filter:grayscale(1)}
-.channelRail button[data-locked=true]:hover{opacity:.58}
+.channelRail button[data-locked=true]:not(:disabled):hover{opacity:.58}
 .channelRail button[data-locked=true][aria-pressed=true]{opacity:.65;filter:grayscale(1)}
 .channel[data-locked=true] .channelLogo{filter:grayscale(1);opacity:.68}
 .channel[data-locked=true] .channelStatus{color:#c6cbd7}
@@ -1643,3 +1643,7 @@
 .metaLocationSearch{display:grid;min-width:0;gap:8px;padding-top:10px;border-top:1px solid rgba(var(--ads-wizard-primary-rgb,24,119,242),.2)}
 .metaLocationSearch .field{margin:0}
 @media(max-width:540px){.metaLocationSearch .pinterestLocationSearchActions{grid-template-columns:minmax(0,1fr)}.metaLocationSearch .pinterestLocationSearchActions>.secondaryButton{width:100%}}
+
+/* Unreleased channels remain visible while their actions are unavailable. */
+.channelRail button:disabled,.miniSelect:disabled{cursor:not-allowed}
+.cubeStage .channelConfigure:disabled{color:#b8bfcd;background:#818a9c1c;border-color:#8a93a63d;box-shadow:none;filter:grayscale(1);opacity:.65;cursor:not-allowed}

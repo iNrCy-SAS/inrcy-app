@@ -10,7 +10,7 @@ const connectionStyles = readFileSync(new URL("../app/dashboard/ads/AdsConnectio
 const adsStyles = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 const drawer = readFileSync(new URL("../app/dashboard/SettingsDrawer.tsx", import.meta.url), "utf8");
 
-test("les sept modales iNrADS suivent le même cycle sans fermer le panneau", () => {
+test("les modales autorisées iNrADS suivent le même cycle sans fermer le panneau", () => {
   const catalog = client.split("const CHANNEL_CATALOG")[1]?.split("];", 1)[0] || "";
   const order = ["meta", "google", "linkedin", "tiktok", "pinterest", "x", "openai"];
   let cursor = -1;
@@ -19,6 +19,7 @@ test("les sept modales iNrADS suivent le même cycle sans fermer le panneau", ()
     assert.ok(next > cursor, `${channel} doit suivre l’ordre global des canaux`);
     cursor = next;
   }
+  assert.match(client, /accessibleChannels = CHANNEL_CATALOG\.filter\(\(channel\) => pilotChannelsEnabled \|\| isAdsPublicChannel\(channel\.id\)\)/);
   assert.match(client, /previousConnectionChannel[\s\S]*connectionChannelIndex - 1/);
   assert.match(client, /nextConnectionChannel[\s\S]*connectionChannelIndex \+ 1/);
   assert.match(client, /openChannelConfiguration\(previousConnectionChannel\.id\)/);

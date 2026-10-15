@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEv
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
@@ -1192,6 +1193,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   pilotChannelsEnabled: boolean;
 }) {
   const router = useRouter();
+  const channelT = useTranslations("dashboard.signatureTools");
+  const comingSoonLabel = channelT("comingSoon");
   const [provider, setProvider] = useState<AdsProvider>(() => isAdsProvider(initialChannel) ? initialChannel : "google");
   const [channelId, setChannelId] = useState<AdsChannelId>(initialChannel);
   const [channelIndex, setChannelIndex] = useState(() => CHANNEL_CATALOG.findIndex((channel) => channel.id === initialChannel));
@@ -1774,8 +1777,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     : undefined;
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
   const campaignCreationTitle = `Créer une campagne ${CAMPAIGN_CHANNEL_NAMES[channelId]}`;
-  // Keep every configuration discoverable. Unreleased channels are read-only for pros.
-  const accessibleChannels = CHANNEL_CATALOG;
+  // Configuration arrows follow only the channels this account can use.
+  const accessibleChannels = CHANNEL_CATALOG.filter((channel) => pilotChannelsEnabled || isAdsPublicChannel(channel.id));
   const connectionChannelIndex = Math.max(0, accessibleChannels.findIndex((channel) => channel.id === channelId));
   const previousConnectionChannel = accessibleChannels[(connectionChannelIndex - 1 + accessibleChannels.length) % accessibleChannels.length];
   const nextConnectionChannel = accessibleChannels[(connectionChannelIndex + 1) % accessibleChannels.length];
@@ -2089,6 +2092,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
 
   function openChannelConfiguration(channel: AdsChannelId) {
+    if (!pilotChannelsEnabled && !isAdsPublicChannel(channel)) return;
     const nextIndex = CHANNEL_CATALOG.findIndex((candidate) => candidate.id === channel);
     if (nextIndex >= 0 && channel !== channelId) selectChannel(nextIndex);
 
@@ -4122,7 +4126,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         <div className={styles.sectionHeading}><div><span>AMPLIFIEZ VOTRE PORTÉE</span><h2>Choisissez votre terrain de jeu.</h2></div><p>Sélectionnez un canal, puis configurez votre compte.</p></div>
         <nav className={styles.channelRail} aria-label="Choisir un canal publicitaire">{CHANNEL_CATALOG.map((channel, index) => {
           const locked = !pilotChannelsEnabled && !isAdsPublicChannel(channel.id);
-          return <button type="button" key={channel.id} aria-label={`${channel.label}${locked ? " · canal verrouillé" : ""}`} title={locked ? `${channel.label} · Réservé à l’administration` : channel.label} data-channel={channel.id} data-locked={locked || undefined} data-near={index === channelIndex || index === (channelIndex + 1) % CHANNEL_CATALOG.length || index === (channelIndex - 1 + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length || undefined} onClick={() => selectChannel(index)} aria-pressed={index === channelIndex}><span className={styles.channelRailLogo} aria-hidden="true"><Image src={channel.logo} width={40} height={40} alt="" draggable={false} /></span><span className={styles.channelRailLabel}>{channel.label}</span></button>;
+          return <button type="button" key={channel.id} aria-label={`${channel.label}${locked ? ` · ${comingSoonLabel}` : ""}`} title={locked ? `${channel.label} · ${comingSoonLabel}` : channel.label} disabled={locked} data-channel={channel.id} data-locked={locked || undefined} data-near={index === channelIndex || index === (channelIndex + 1) % CHANNEL_CATALOG.length || index === (channelIndex - 1 + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length || undefined} onClick={() => selectChannel(index)} aria-pressed={index === channelIndex}><span className={styles.channelRailLogo} aria-hidden="true"><Image src={channel.logo} width={40} height={40} alt="" draggable={false} /></span><span className={styles.channelRailLabel}>{channel.label}</span></button>;
         })}</nav>
         <div className={styles.channelCarousel} data-testid="ads-channel-carousel">
           <button type="button" onClick={() => selectChannel(channelIndex - 1)} aria-label="Canal précédent">‹</button>
@@ -4136,18 +4140,18 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
               ? getAdsAdvertiserAccountUrl(externalChannel, externalStatuses[externalChannel].selectedAccountId)
               : null;
             return <div key={`${offset}-${channel.id}`} data-provider={channel.id} data-locked={locked || undefined} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
-              {offset !== 0 && <button className={styles.miniSelect} type="button" aria-label={`Afficher ${channel.label}${locked ? " · canal verrouillé" : ""}`} onClick={() => selectChannel(index)} />}
+              {offset !== 0 && <button className={styles.miniSelect} type="button" disabled={locked} aria-label={`Afficher ${channel.label}${locked ? ` · ${comingSoonLabel}` : ""}`} onClick={() => selectChannel(index)} />}
               <span className={styles.channelLogo}><Image src={channel.logo} width={56} height={56} alt="" draggable={false} /></span>
-              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{locked ? <span className={styles.channelStatus}>Verrouillé · en validation</span> : channel.provider ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots[channel.provider]).tone}>{adsConnectionDisplay(connectionSnapshots[channel.provider]).label}</span> : channel.id === "openai" ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots.openai).tone}>{adsConnectionDisplay(connectionSnapshots.openai).label}</span> : externalChannel ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
+              <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.format}</small>{locked ? <span className={styles.channelStatus}>{comingSoonLabel}</span> : channel.provider ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots[channel.provider]).tone}>{adsConnectionDisplay(connectionSnapshots[channel.provider]).label}</span> : channel.id === "openai" ? <span className={styles.channelStatus} data-status={adsConnectionDisplay(connectionSnapshots.openai).tone}>{adsConnectionDisplay(connectionSnapshots.openai).label}</span> : externalChannel ? <span className={styles.channelStatus} data-status={externalStatusDisplay(externalStatuses[externalChannel]).tone}>{externalStatusDisplay(externalStatuses[externalChannel]).label}</span> : null}</div>
               {offset === 0 && (channel.provider ? <div className={styles.channelActions}>
                 {!locked && configuredAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={configuredAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} onClick={() => openConfiguration(channel.provider!)}><span aria-hidden="true">⚙</span> Configurer</button>
+                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openConfiguration(channel.provider!)}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
               </div> : externalChannel ? <div className={styles.channelActions}>
                 {!locked && externalAdvertiserAccountUrl ? <a className={styles.channelViewAccount} href={externalAdvertiserAccountUrl} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} onClick={() => openExternalConfiguration(externalChannel)}><span aria-hidden="true">⚙</span> Configurer</button>
+                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openExternalConfiguration(externalChannel)}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
               </div> : channel.id === "openai" ? <div className={styles.channelActions}>
                 {!locked && connectionSnapshots.openai.accountId ? <a className={styles.channelViewAccount} href={getAdsAdvertiserAccountUrl("openai", connectionSnapshots.openai.accountId) || "https://ads.openai.com/"} target="_blank" rel="noreferrer">Voir le compte</a> : null}
-                <button type="button" className={styles.channelConfigure} onClick={() => openChannelConfiguration("openai")}><span aria-hidden="true">⚙</span> Configurer</button>
+                <button type="button" className={styles.channelConfigure} disabled={locked} onClick={() => openChannelConfiguration("openai")}>{locked ? comingSoonLabel : <><span aria-hidden="true">⚙</span> Configurer</>}</button>
               </div> : null)}
             </div>;
           })}
@@ -4157,7 +4161,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </section>
 
       <div className={styles.launchArea}>
-        <button ref={launchButtonRef} type="button" onClick={startNewCampaign} disabled={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> {!pilotChannelsEnabled && !isAdsPublicChannel(channelId) ? "Canal verrouillé" : "Lancer une campagne"} <span aria-hidden="true">↗</span></button>
+        <button ref={launchButtonRef} type="button" onClick={startNewCampaign} disabled={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> {!pilotChannelsEnabled && !isAdsPublicChannel(channelId) ? comingSoonLabel : "Lancer une campagne"} <span aria-hidden="true">↗</span></button>
       </div>
 
       <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerLead={<div className={styles.modalBrand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>} headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
