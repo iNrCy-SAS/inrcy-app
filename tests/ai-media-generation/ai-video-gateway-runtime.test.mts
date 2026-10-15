@@ -293,6 +293,65 @@ test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son t
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
 });
 
+function wanFreeArgs(speech: "voiceover" | "characters", instruction: string, subject = "") {
+  const args = argsFor("wan-flash", 1, 8);
+  args.request.creationMode = "free";
+  args.request.withNarration = false; // The orchestrator owns the separate narration track.
+  args.request.teamVideoSpeechMode = speech;
+  args.request.freePrompt = instruction;
+  args.plan.subline = "Un artisan accueille une cliente dans son atelier.";
+  args.plan.scenes[0].visualBrief = "Il présente ses outils avec des gestes et un sourire.";
+  args.plan.scenes[0].spokenLine = speech === "characters" ? "Bienvenue dans notre atelier." : "";
+  const contract = { ...args.providerContract, instruction, subject,
+    parameters: `mode=free;characters=${speech === "characters" ? "native-dialogue" : "silent"};voiceover=none`,
+  };
+  args.providerContract = { ...contract, sha256: boundary.hashAiMediaVideoProviderContract(contract) };
+  // Keep the actual free scene compiler in this test; only the Google module
+  // loading boundary is mocked by the generic Gateway harness.
+  args.canonicalPrompt = freePrompt.buildAiMediaFreeVideoScenePrompt(args, 0, 8);
+  args.canonicalPromptSha256 = boundary.hashAiMediaCanonicalPrompt(args.canonicalPrompt);
+  return args;
+}
+
+test("Wan compact keeps the visual silence contract before USER and removes only audio quotations from instruction and subject", () => {
+  const context = loadRuntime();
+  const args = wanFreeArgs("voiceover",
+    "Un artisan montre ses outils. Voix off exacte : « Votre projet prend forme. » Affiche le titre « Bienvenue à l’atelier ».",
+    "Un atelier lumineux. Narration : « Chaque geste compte. »");
+  const input = context.runtime.buildGatewayAiVideoRequest(args);
+  const prompt = (input.prompt as { text: string }).text;
+  assert.ok(prompt.indexOf(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT) < prompt.indexOf("USER:"));
+  assert.ok(prompt.indexOf(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT) < prompt.indexOf("SUBJECT:"));
+  assert.ok(prompt.includes("Un artisan montre ses outils."));
+  assert.ok(prompt.includes("Un atelier lumineux."));
+  assert.ok(prompt.includes("« Bienvenue à l’atelier »"));
+  assert.doesNotMatch(prompt, /Votre projet prend forme|Chaque geste compte|NATIVE VOICEOVER:/);
+  assert.match(prompt, /No native voices or dialogue/);
+  assert.ok(prompt.length <= 1_500);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+});
+
+test("Wan compact preserves explicitly displayed speech wording while native character dialogue stays intentional", () => {
+  const context = loadRuntime();
+  const line = "Bienvenue dans notre atelier.";
+  const voiceover = wanFreeArgs("voiceover", `Un artisan sourit. Voix off exacte : « ${line} » Affiche le sous-titre « ${line} ».`);
+  const visual = (context.runtime.buildGatewayAiVideoRequest(voiceover).prompt as { text: string }).text;
+  assert.equal(visual.split(line).length, 2, "The explicitly displayed occurrence remains exactly once.");
+  assert.match(visual, /Affiche le sous-titre/);
+  assert.match(visual, /No native voices or dialogue/);
+  assert.ok(visual.includes(freePrompt.AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT));
+  assert.ok(visual.length <= 1_500);
+
+  const dialogue = wanFreeArgs("characters", `Un artisan parle face caméra. Il dit : « ${line} »`);
+  const native = (context.runtime.buildGatewayAiVideoRequest(dialogue).prompt as { text: string }).text;
+  assert.ok(native.includes(`USER: ${dialogue.providerContract.instruction}`));
+  assert.ok(native.includes(`says exactly once: “${line}”`));
+  assert.match(native, /Synchronize the mouth and audible speech/);
+  assert.doesNotMatch(native, /VISUAL SPEECH:|No native voices|NATIVE VOICEOVER:/);
+  assert.ok(native.length <= 1_500);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+});
+
 test("Gateway persists a useful warning without a private signed image URL", async () => {
   await withMockCredentials(async () => {
     const context = loadRuntime("warnings-with-url");

@@ -123,10 +123,11 @@ test("Veo fallback keeps resolution and the original failure instead of calling 
   }
 });
 
-test("native voiceover provider uses the script language and local QA remains advisory without regeneration", async () => {
+test("separate voiceover uses the script language and local QA remains advisory without regeneration", async () => {
   const env = harness(undefined, false, { narrationLanguage: "en", qaAdvisories: ["mostly_frozen"] });
   await env.generate(request("veo", { durationSeconds: 8 }));
-  assert.equal(env.videoCalls[0].contentLanguage, "en");
+  assert.equal((env.ttsCalls[0].narration as typeof narration).language, "en");
+  assert.equal(env.videoCalls[0].nativeNarrationLines, undefined);
   assert.equal(env.videoCalls.length, 1);
   const metadata = env.saved[0].metadata as Row;
   const gateway = metadata.gateway as Row;
@@ -179,10 +180,10 @@ test("checked ADN retains the same video path and adds only the official identit
   }
 });
 
-test("separate narration policy is limited to free Grok video, never characters or transforms", () => {
-  for (const videoEngine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash"] as const) {
+test("all free engines separate narration, never characters or transforms; only Grok needs a seed", () => {
+  for (const videoEngine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
     const base = { ...request("grok"), videoEngine };
-    assert.equal(usesSeparateAiMediaFreeVoiceover(base), videoEngine === "grok" || videoEngine === "grok-lite", videoEngine);
+    assert.equal(usesSeparateAiMediaFreeVoiceover(base), true, videoEngine);
     assert.equal(needsControlledAiMediaFreeFirstFrame(base), videoEngine === "grok" || videoEngine === "grok-lite", videoEngine);
     for (const patch of [{ creationMode: "guided" }, { operation: "modify" }, { kind: "image" }, { withNarration: false }, { teamVideoSpeechMode: "characters" }] as const)
       assert.equal(usesSeparateAiMediaFreeVoiceover({ ...base, ...patch }), false);
@@ -242,13 +243,29 @@ for (const engine of ["grok", "grok-lite"] as const) {
   });
 }
 
-test("other free engines preserve their native narration and guided Grok keeps its existing TTS", async () => {
-  for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash"] as const) {
-    const env = harness(), original = request(engine, { durationSeconds: 8, videoResolution: engine === "minimax-h3" ? "768p" : "720p" });
+test("all other free engines prepare one TTS before video and mute native audio; guided narration is unchanged", async () => {
+  for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
+    const env = harness(), original = request(engine, { durationSeconds: 8, videoResolution: engine === "minimax-h3" || engine === "heygen" ? "768p" : "720p" });
+    const before = structuredClone(original);
     await env.generate(original);
-    assert.equal(env.ttsCalls.length, 0, engine); assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, true, engine);
+    assert.deepEqual(original, before);
+    assert.equal(env.ttsCalls.length, 1, engine); assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false, engine);
     assert.equal(env.seedCalls.length, 0, engine);
-    assert.deepEqual(env.videoCalls[0].nativeNarrationLines, [script]); assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue");
+    assert.equal(env.videoCalls[0].nativeNarrationLines, undefined);
+    assert.deepEqual(env.events, ["copy", "tts", "audio-preflight", "video", "compose", "save"]);
+    assert.equal(env.composeCalls[0].narration, audio);
+    assert.equal(env.composeCalls[0].nativeAudioMode, "mute");
+    assert.equal((env.contractCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false);
+    assert.equal(env.videoCalls[0].canonicalPromptSha256, createHash("sha256").update(canonicalPrompt).digest("hex"));
+    const failed = harness("tts");
+    await assert.rejects(failed.generate(original), /ai_media_narration_unavailable/u);
+    assert.equal(failed.videoCalls.length, 0);
+    assert.equal(failed.saved.length, 0);
+    const talking = harness();
+    await talking.generate({ ...original, teamVideoSpeechMode: "characters", withNarration: false });
+    assert.equal(talking.ttsCalls.length, 0);
+    assert.equal(talking.composeCalls[0].narration, null);
+    assert.equal(talking.composeCalls[0].nativeAudioMode, "dialogue");
   }
   const env = harness(); await env.generate(request("grok", { creationMode: "guided", inputMode: "essential", subjectSource: "custom", idea: "Une céramiste façonne un vase.", textMode: "none", withText: false, logoMode: "none" }));
   assert.equal(env.ttsCalls.length, 1); assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, true);

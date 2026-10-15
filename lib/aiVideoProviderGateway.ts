@@ -8,7 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
-import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT } from "./aiMediaFreeGenerationPrompt.ts";
+import { AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
 import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
@@ -38,15 +38,21 @@ const diagnostic = (value: unknown) => redactAiMediaSensitiveText(value, 1000)
 /** Dense Wan transport retains the complete user contract and exact spoken line. */
 export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, validatedPrompt: string, index = 0, duration = args.request.durationSeconds ?? 8): string {
   const { providerContract: contract } = args;
-  const user = contract.instruction;
-  const subject = contract.subject && contract.subject !== user && !user.includes(contract.subject) ? contract.subject : "";
+  const separateVoiceover = args.request.creationMode === "free" && args.request.teamVideoSpeechMode !== "characters";
+  const user = separateVoiceover ? splitAiMediaFreeQuotedSpeech(contract.instruction).visualPrompt : contract.instruction;
+  const visualSubject = separateVoiceover ? splitAiMediaFreeQuotedSpeech(contract.subject).visualPrompt : contract.subject;
+  const subject = visualSubject && visualSubject !== user && !user.includes(visualSubject) ? visualSubject : "";
   const scene = String(args.plan.scenes[index]?.visualBrief || "").trim();
   const action = scene.length <= 150 ? scene : `${scene.slice(0, 100).replace(/\s+\S*$/, "")}… ${scene.slice(-40).replace(/^\S*\s/, "")}`;
+  const visualSpeech = args.request.creationMode === "free"
+    ? validatedPrompt.split("\n").find((line) => line.startsWith("VISUAL SPEECH:")) || ""
+    : "";
   const audio = args.request.creationMode === "free"
     ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|No native voices)/.test(line)).join("\n")
     : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
     `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Animate continuously from the first frame.`,
+    visualSpeech,
     subject ? `SUBJECT: ${subject}` : "",
     `USER: ${user}`,
     `PARAMS: ${contract.parameters}`,

@@ -64,11 +64,15 @@ Suppléments affichés dans le devis :
 - Vidéo Libre sans photo : **7 crédits de préparation créative**, couvrant notamment le réalisateur IA et la préparation éventuelle du logo officiel.
 - Vidéo avec références précomposées : **7 + 2 crédits par référence originale** pour préparer l'image de départ ; cela remplace le forfait Libre et ne se cumule pas avec lui. Le moteur vidéo reçoit une seule image composée.
 - Grok : **1 crédit par image transmise et par clip fournisseur**, donc un par clip après précomposition.
-- Voix off séparée du parcours Guidé : **2 crédits**. Les dialogues et voix off natifs font partie du tarif vidéo. Le TTS de secours du parcours Libre est absorbé dans le prix affiché.
+- Voix off séparée du parcours Guidé : **2 crédits**. Les dialogues natifs font partie du tarif vidéo. En parcours Libre, la voix off TTS est préparée séparément pour tous les moteurs et reste absorbée dans le prix affiché.
 
 Exemples sans photo : Omni 8 s Guidé sans voix off = 80 crédits ; Omni 8 s Libre = 87 ; Grok Lite 5 s Libre = 22 ; MiniMax H3 10 s Guidé sans voix off = 80 ; Veo Fast 8 s Guidé sans voix off = 80 en 720p ou 96 en 1080p. Avec trois photos, Grok Lite 5 s Libre = 29 (15 vidéo + 13 préparation + 1 référence moteur).
 
 Tous les modèles sélectionnés annoncent de l'audio natif. iNrStudio conserve la voix off synthétique existante et les contrôles de parole. Les voix sont disponibles à partir de **4 secondes** pour que les phrases puissent tenir ; un dialogue trop long est refusé avant l'appel vidéo payant. Un dialogue natif rejeté par le contrôle ne devient pas une vidéo silencieuse facturée comme une réussite.
+
+Les sources de parole sont exclusives : en voix off Libre, le texte et la piste TTS sont préparés et validés avant la génération vidéo ; le moteur reçoit une mise en scène silencieuse sans script de narration natif, puis son audio est entièrement retiré au montage. En mode personnages parlants, seule la parole native est conservée, sans TTS ajouté. La consigne visuelle interdit articulation et imitation de parole dans les autres modes, tout en conservant gestes, regards et sourires naturels. Ce cadrage réduit le risque de lèvres qui parlent ; les tests de code et le contrôle audio ne garantissent pas l'obéissance visuelle du moteur.
+
+Si le planificateur invente une réplique trop longue, la tentative de secours déjà bornée reçoit le budget exact du plan et une demande de réécriture concise. Une citation fournie par le professionnel reste intacte : trop longue, elle est refusée avant tout appel vidéo plutôt que tronquée.
 
 MiniMax documente le français parmi ses langues natives. La qualité française des autres modèles doit être évaluée avec de vrais rendus avant de promettre une équivalence. Une voix synthétique distincte ne produit pas à elle seule une synchronisation des lèvres. Aucune promesse de clonage de voix réelle n'a été ajoutée.
 

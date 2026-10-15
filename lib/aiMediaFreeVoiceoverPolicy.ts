@@ -8,10 +8,10 @@ export function needsControlledAiMediaFreeFirstFrame(request: Pick<AiMediaGenera
     (request.videoEngine === "grok" || request.videoEngine === "grok-lite");
 }
 
-/** Keep Grok's visual generation independent from the separately composed narration. */
+/** Voice-over has one owner: Studio TTS. Native speech belongs only to talking characters. */
 export function usesSeparateAiMediaFreeVoiceover(request: Pick<AiMediaGenerationRequest,
   "creationMode" | "operation" | "kind" | "withNarration" | "teamVideoSpeechMode" | "videoEngine"
 >): boolean {
-  return needsControlledAiMediaFreeFirstFrame(request) && request.withNarration &&
+  return request.creationMode === "free" && request.operation !== "modify" && request.kind === "video" && request.withNarration &&
     request.teamVideoSpeechMode !== "characters";
 }

@@ -139,7 +139,8 @@ test("Grok reçoit un film temporel plein cadre sans script de la voix off à de
     assert.ok(!prompt.includes(line), "La piste de voix off séparée ne doit jamais être envoyée au modèle visuel.");
     assert.match(prompt, /No native voices or dialogue/);
     assert.doesNotMatch(prompt, /PARAMETERS:|narration_sha256=|mode=free;/);
-    assert.ok(args.providerContract.parameters.includes("narration_sha256="), "L’empreinte de vérification reste présente dans le contrat interne.");
+    assert.match(args.providerContract.parameters, /voiceover=separate/);
+    assert.doesNotMatch(args.providerContract.parameters, /narration_sha256=/, "La narration séparée ne fait plus partie du contrat audio du moteur vidéo.");
   }
 });
 
@@ -156,15 +157,16 @@ test("une réplique exacte reste audible sans devenir un texte à incruster", as
   assert.doesNotMatch(transport, /No narrator, repeated\/previous lines, subtitles/);
 });
 
-test("une narration native conserve ses mots et n’interdit pas les sous-titres explicitement demandés", async () => {
+test("une narration séparée reste absente du moteur visuel sans interdire les sous-titres explicitement demandés", async () => {
   const line = "Notre équipe imagine ensemble sa prochaine campagne.";
   const input = request({ videoEngine: "minimax-h3", withNarration: true, freePrompt: `${brief} Affiche les sous-titres de la voix off.` });
   const runtime = loadPlanner({ direction: "La femme marche vers la salle de réunion avec ses collègues ; les sous-titres demandés accompagnent la voix off.", scenes: ["Les collègues entrent dans la salle de réunion."] });
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan, [line]), 0, 15);
   assert.equal(JSON.parse(runtime.calls[0].input).brief, input.freePrompt);
-  assert.equal(transport.split(line).length, 2);
-  assert.match(transport, /NATIVE VOICEOVER:/);
+  assert.ok(!transport.includes(line));
+  assert.doesNotMatch(transport, /NATIVE VOICEOVER:/);
+  assert.match(transport, /No native voices or dialogue/);
   assert.ok(transport.includes(plan.subline));
   assert.doesNotMatch(transport, /No repeated\/previous lines, subtitles/);
   assert.match(transport, /Render requested text faithfully/);

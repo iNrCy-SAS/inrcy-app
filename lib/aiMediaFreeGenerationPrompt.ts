@@ -8,13 +8,16 @@ import { AI_MEDIA_FREE_DNA_MAX_CHARS } from "./aiMediaFreeDnaContext.ts";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v6-language-duration-brand-policy";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v7-visual-speech-separation";
 
 /** Video-only defaults; explicit requests for typography or multiple views stay authoritative. */
 export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
   "VISUALS: One full-frame view; actions unfold in time. No split screen, panels, collage or duplicate views unless requested.",
   "TEXT: Speech/dialogue/narration are audio only; no subtitles, captions or quote cards unless requested. Render requested text faithfully; write wording only if asked.",
 ].join(" ");
+
+/** Visual performance is independent of whether narration is native or added later. */
+export const AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT = "VISUAL SPEECH: Characters stay silent: no speaking, word articulation, mimed speech or lip-sync. Natural gestures, gaze and smiles remain. This overrides any speaking implied below.";
 
 /** One native voice-over cue per generated clip; two clips maximum. */
 export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: number, segmentDurations?: readonly number[]): string[] {
@@ -367,6 +370,7 @@ export function buildAiMediaFreeVideoScenePrompt(
         : `FREE CREATIVE FILM, shot ${index + 1}/${args.plan.scenes.length}, ${durationSeconds}s.`;
   const prompt = [
     opening,
+    ...(!nativeDialogue ? [AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
     `CREATIVE DIRECTION: ${args.plan.subline || args.request.freePrompt || ""}`,
     `THIS SHOT: ${scene?.visualBrief || "Follow the requested action."}`,
     // The integrity/fingerprint contract is checked in code. xAI receives the
@@ -383,7 +387,7 @@ export function buildAiMediaFreeVideoScenePrompt(
         : "NATIVE DIALOGUE: no speech in this shot; keep mouths closed. The requested lines belong to other shots; never repeat them. No narrator, lyrics or music."
       : nativeVoiceover
         ? narrationLine
-          ? `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once${isGrok ? ", as audio only, with no words displayed" : ""}: ${isGrok ? narrationLine : `“${narrationLine}”`} The voice is generated together with this shot's action and ambience, naturally paced and fully audible before the shot ends. Keep the narrator's vocal identity consistent across shots. No on-screen character speaks or moves their mouth for this narration. No repeated/previous lines or lyrics.`
+          ? `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator, never a visible character, speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once${isGrok ? ", as audio only, with no words displayed" : ""}: ${isGrok ? narrationLine : `“${narrationLine}”`} Keep this voice separate from the characters' actions, consistent across shots, naturally paced and fully audible before the shot ends. No on-screen speech or mouth-sync, repeated/previous lines or lyrics.`
           : "NATIVE VOICEOVER: this shot has no narration. Do not repeat a previous line or invent speech; keep all characters silent."
         : "No native voices or dialogue. Keep all characters silent.",
   ].join("\n");

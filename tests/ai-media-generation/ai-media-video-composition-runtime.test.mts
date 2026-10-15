@@ -33,6 +33,13 @@ type ComposerModule = {
     height: number;
     durationSeconds: number;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
+    narration?: {
+      buffer: Buffer;
+      mimeType: string;
+      extension: "wav";
+      model: string;
+      voice: string;
+    };
   }) => Promise<{ buffer: Buffer }>;
 };
 
@@ -244,6 +251,81 @@ test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, av
     assert.ok(Math.abs(joinedProbe.durationSeconds - 30) < 0.35);
     assert.equal(joinedProbe.hasAudio, true, "l'audio natif survit à l'assemblage des deux clips");
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("une voix off séparée exclut réellement tout l’audio natif même demandé en ambiance", async (context) => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-exclusive-narration-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const sourcePath = path.join(directory, "native-440hz.mp4");
+  const narrationPath = path.join(directory, "narration-880hz.wav");
+  const outputPath = path.join(directory, "composed.mp4");
+  const sampleRate = 48_000;
+  const toneAmplitude = (pcm: Buffer, frequency: number, startSeconds: number, seconds: number) => {
+    const start = Math.round(startSeconds * sampleRate);
+    const count = Math.round(seconds * sampleRate);
+    assert.ok(pcm.length >= (start + count) * 2, "échantillon PCM complet");
+    let real = 0;
+    let imaginary = 0;
+    for (let index = 0; index < count; index += 1) {
+      const sample = pcm.readInt16LE((start + index) * 2) / 32_768;
+      const phase = (2 * Math.PI * frequency * index) / sampleRate;
+      real += sample * Math.cos(phase);
+      imaginary += sample * Math.sin(phase);
+    }
+    return (2 * Math.hypot(real, imaginary)) / count;
+  };
+  const decodeAudio = async (inputPath: string, name: string) => {
+    const decodedPath = path.join(directory, `${name}.pcm`);
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y", "-i", inputPath,
+      "-map", "0:a:0", "-vn", "-ac", "1", "-ar", String(sampleRate),
+      "-c:a", "pcm_s16le", "-f", "s16le", decodedPath,
+    ], { windowsHide: true, timeout: 30_000 });
+    return readFile(decodedPath);
+  };
+  try {
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y",
+      "-f", "lavfi", "-i", "color=c=0x2563eb:s=320x320:r=30:d=4",
+      "-f", "lavfi", "-i", `sine=frequency=440:sample_rate=${sampleRate}:duration=4`,
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-shortest", sourcePath,
+    ], { windowsHide: true, timeout: 45_000 });
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y",
+      "-f", "lavfi", "-i", `sine=frequency=880:sample_rate=${sampleRate}:duration=2.5`,
+      "-c:a", "pcm_s16le", narrationPath,
+    ], { windowsHide: true, timeout: 30_000 });
+    const overlay = await sharp({
+      create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    }).png().toBuffer();
+    const composed = await runtime.composeOriginalAiVideo({
+      clips: [{ buffer: await readFile(sourcePath), durationSeconds: 4 }],
+      overlays: [overlay], width: 320, height: 320, durationSeconds: 4,
+      // A provider can return speech inside its alleged ambience track.
+      // Narration must override that request even when a caller forgets mute.
+      nativeAudioMode: "ambience",
+      narration: {
+        buffer: await readFile(narrationPath), mimeType: "audio/wav", extension: "wav",
+        model: "local-ffmpeg-fixture", voice: "local-880hz-fixture",
+      },
+    });
+    await writeFile(outputPath, composed.buffer);
+    const sourcePcm = await decodeAudio(sourcePath, "source-audio");
+    const outputPcm = await decodeAudio(outputPath, "output-audio");
+    const sourceNative = toneAmplitude(sourcePcm, 440, 0.25, 2);
+    const outputVoice = toneAmplitude(outputPcm, 880, 0.25, 2);
+    const outputNativeDuringVoice = toneAmplitude(outputPcm, 440, 0.25, 2);
+    const outputNativeAfterVoice = toneAmplitude(outputPcm, 440, 2.9, 1);
+    context.diagnostic(JSON.stringify({ sourceNative, outputVoice, outputNativeDuringVoice, outputNativeAfterVoice }));
+    assert.ok(sourceNative > 0.05, "le clip source contient réellement le son natif de 440 Hz");
+    assert.ok(outputVoice > 0.03, "la voix off de 880 Hz reste audible dans le MP4 final");
+    assert.ok(outputNativeDuringVoice < 0.0005, "aucun son natif ne se superpose à la voix off");
+    assert.ok(outputNativeAfterVoice < 0.0005, "le son natif ne revient pas après la voix off");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("le compositeur refuse explicitement trois clips ou une durée hors de 4 à 30 secondes avant tout décodage", async () => {

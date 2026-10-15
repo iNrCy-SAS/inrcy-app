@@ -927,8 +927,8 @@ export async function generateAndSaveAiMedia(args: {
       providerRequest.withNarration &&
       providerRequest.teamVideoSpeechMode !== "characters" &&
       !usesSeparateAiMediaFreeVoiceover(providerRequest);
-    // Les autres moteurs conservent leur voix native. Grok prépare la piste
-    // TTS séparée et la valide avant tout appel vidéo facturé.
+    // La voix off Libre est préparée séparément pour tous les moteurs, avant
+    // tout appel vidéo facturé. Seuls les personnages demandent une voix native.
     const nativeVoiceoverNarration = nativeVoiceoverRequested
       ? await measure("native_voiceover_copy", () => writeAiMediaFreeNarration({
           accountId: args.accountId,
@@ -1760,8 +1760,8 @@ export async function generateAndSaveAiMedia(args: {
     ) {
       throw new Error("ai_media_narration_unavailable");
     }
-    // Le dialogue reste natif. La voix off Libre Grok est composée séparément ;
-    // les autres moteurs gardent leur secours TTS après contrôle natif.
+    // Le dialogue reste natif. La voix off Libre est toujours composée
+    // séparément ; le contrôle natif reste disponible pour les anciens parcours.
     if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
         "native_character_dialogue_qa_rejected_native_audio_muted"

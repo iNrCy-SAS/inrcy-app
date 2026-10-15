@@ -72,7 +72,7 @@ function providerArgs(input: contracts.AiMediaGenerationRequest, plan: AiMediaCr
   };
 }
 
-test("exact voiceover stays out of visual literals and reaches the native audio builder unchanged", async () => {
+test("exact voiceover remains intact for separate narration and stays out of native video prompts", async () => {
   const line = "Notre équipe prépare votre projet avec soin.";
   const input = request({ videoEngine: "minimax-h3", freePrompt: `Une femme marche dans une agence. Voix off exacte : « ${line} »` });
   const runtime = loadPlanner(visualResponse);
@@ -91,12 +91,11 @@ test("exact voiceover stays out of visual literals and reaches the native audio 
   assert.equal(narration?.script, line);
   assert.equal(runtime.calls.length, 1, "Exact narration requires no additional generated copy.");
   const nativeNarrationLines = prompts.splitAiMediaFreeNarrationByScene(narration!.script, plan.scenes.length, [15]);
-  assert.equal(usesSeparateAiMediaFreeVoiceover(input), false);
+  assert.equal(usesSeparateAiMediaFreeVoiceover(input), true);
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(providerArgs(input, plan, nativeNarrationLines), 0, 15);
-  assert.equal(transport.split(line).length, 2);
-  const audioLine = transport.split("\n").find((value) => value.startsWith("NATIVE VOICEOVER:"));
-  assert.ok(audioLine?.includes(line));
-  assert.ok(!transport.split("NATIVE VOICEOVER:")[0].includes(line));
+  assert.ok(!transport.includes(line), "Even stale native narration lines must never reach the visual provider.");
+  assert.doesNotMatch(transport, /NATIVE VOICEOVER:/);
+  assert.match(transport, /No native voices or dialogue/);
   const firstFrame = prompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile });
   assert.ok(!firstFrame.includes(line));
   assert.ok(prompts.buildAiMediaFreeVideoPrompt({ request: input, profile }).includes(input.freePrompt!));

@@ -210,7 +210,7 @@ test("la vidéo libre respecte la durée, les menus de référence et l'absence 
     assert.match(prompt, /une action continue/);
     assert.match(prompt, /rôle product, usage obligatoire/);
     assert.match(prompt, /Aucune musique/);
-    assert.match(prompt, withNarration ? /voix off native/ : /Aucune voix off/);
+    assert.match(prompt, withNarration ? /voix off est produite séparément/ : /Aucune voix off/);
   }
 });
 
@@ -262,7 +262,7 @@ test("le contrat vidéo libre garde les 4 000 caractères sans style guidé ni p
   assert.equal(contract.subject, "");
   assert.match(contract.parameters, /mode=free/);
   assert.match(contract.parameters, /film=16s/);
-  assert.match(contract.parameters, /voiceover=native/);
+  assert.match(contract.parameters, /voiceover=separate/);
   assert.doesNotMatch(contract.parameters, /look=|faithful|photo|#abcdef/);
   assert.doesNotThrow(() => assertAiMediaVideoProviderContract(contract));
 });
@@ -408,15 +408,14 @@ test("le prompt Omni libre exploite ses plans distincts et la continuité sans g
   assert.match(prompt, /ETAPE_UNIQUE_DEUX/);
   assert.doesNotMatch(prompt, /ETAPE_UNIQUE_UN/);
   assert.match(prompt, /<FIRST_FRAME>@Image1/);
-  assert.match(prompt, /NATIVE VOICEOVER/);
-  assert.match(prompt, /Le soleil lui répond avec douceur/);
-  assert.match(prompt, /warm, gentle and welcoming tone/);
-  assert.doesNotMatch(prompt, /La baleine découvre les nuages/);
+  assert.match(prompt, /No native voices or dialogue/);
+  assert.match(prompt, /VISUAL SPEECH:/);
+  assert.doesNotMatch(prompt, /NATIVE VOICEOVER|La baleine découvre les nuages|Le soleil lui répond avec douceur/);
   assert.ok(prompt.length <= 3_200);
   assert.throws(() => freePrompts.buildAiMediaFreeVideoScenePrompt({ ...provider, plan: { ...provider.plan, subline: "x".repeat(4_000) } }, 0, 8), /too_long/);
 });
 
-test("le script de voix off Libre est réparti sans perte et lié au contrat fournisseur", () => {
+test("le script de voix off Libre est réparti sans perte et ne contamine pas le moteur visuel", () => {
   const lines = freePrompts.splitAiMediaFreeNarrationByScene("Bonjour à tous. Voici notre atelier. Nous façonnons des pièces avec soin.", 2);
   assert.equal(lines.length, 2);
   assert.throws(() => freePrompts.splitAiMediaFreeNarrationByScene("Bonjour à tous.", 3), contracts.AiMediaRequestValidationError);
@@ -439,9 +438,14 @@ test("le script de voix off Libre est réparti sans perte et lié au contrat fou
   const provider = { request: input, providerContract, nativeNarrationLines: lines, plan: {
     subline: "Un atelier artisanal.", scenes: [{ visualBrief: "Entrée" }, { visualBrief: "L'établi" }],
   } } as unknown as AiVideoProviderGenerationArgs;
-  assert.match(providerContract.parameters, /voiceover=native;narration_sha256=[a-f0-9]{64}/);
-  assert.match(freePrompts.buildAiMediaFreeVideoScenePrompt(provider, 1, 8), /this shot has no narration/);
-  assert.throws(() => freePrompts.buildAiMediaFreeVideoScenePrompt({ ...provider, nativeNarrationLines: ["Texte modifié", ""] }, 0, 8), /contract_incomplete/);
+  assert.match(providerContract.parameters, /voiceover=separate/);
+  assert.doesNotMatch(providerContract.parameters, /narration_sha256=/);
+  for (const nativeNarrationLines of [lines, ["Texte modifié", ""]]) {
+    const prompt = freePrompts.buildAiMediaFreeVideoScenePrompt({ ...provider, nativeNarrationLines }, 0, 8);
+    assert.match(prompt, /No native voices or dialogue/);
+    assert.doesNotMatch(prompt, /NATIVE VOICEOVER|Bonjour à tous|Texte modifié/);
+    assert.match(prompt, /Un atelier artisanal/);
+  }
 });
 
 test("le réalisateur Libre prépare des personnages parlants sans rédacteur ou réplique commerciale guidés", async () => {
@@ -576,4 +580,67 @@ test("deux réponses IA invalides épuisent les secours sans boucle ni erreur de
   await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), AiJsonResponseNormalizationError);
   assert.equal(runtime.calls.length, 1);
   assert.equal(gateway.calls.length, 2);
+});
+
+test("dialogue rewrite feedback repairs only automatic over-budget lines in the existing bounded fallback", async () => {
+  const goodLine = "Bonjour, petit nuage !";
+  const longLine = "Nous explorons ensemble ce merveilleux ciel pour découvrir les secrets de chaque petit nuage blanc.";
+  const response = (spokenLine: string) => ({ direction: "Une baleine explore les nuages.", scenes: [
+    { visualBrief: "La baleine salue le nuage.", spokenLine: goodLine },
+    { visualBrief: "Le nuage lui répond.", spokenLine },
+  ] });
+  const gateway = loadDialogueGateway([response(longLine), response("Explorons ce ciel ensemble !")]);
+  const runtime = loadPlan(null, gateway.generate);
+  const input = request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters" });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+  assert.deepEqual(plan.scenes.map((scene) => scene.spokenLine), [goodLine, "Explorons ce ciel ensemble !"]);
+  assert.equal(runtime.calls.length, 1, "Reuse the existing Gateway chain instead of opening another operation.");
+  assert.equal(gateway.calls.length, 2);
+  assert.equal(gateway.calls[0].deadlineAt, gateway.calls[1].deadlineAt);
+  const first = JSON.parse(gateway.calls[0].input);
+  const retry = JSON.parse(gateway.calls[1].input);
+  assert.equal(first.rewrite_dialogue, undefined);
+  assert.equal(retry.brief, input.freePrompt);
+  assert.deepEqual(retry.exact_dialogue, []);
+  assert.equal(retry.rewrite_dialogue.length, 1);
+  assert.equal(retry.rewrite_dialogue[0].scene, 2);
+  assert.equal(retry.rewrite_dialogue[0].duration_seconds, 8);
+  assert.equal(retry.rewrite_dialogue[0].draft, longLine);
+  assert.equal(retry.rewrite_dialogue[0].units, 15);
+  assert.equal(retry.rewrite_dialogue[0].maxUnits, 14);
+  assert.equal(retry.rewrite_dialogue[0].maxCharacters, 140);
+  assert.match(retry.rewrite_dialogue[0].instruction, /phrase complète/i);
+});
+
+test("dialogue rewrite feedback respects character and non-space budgets and stops when fallback is exhausted", async () => {
+  for (const [spokenLine, freePrompt, units, unit] of [
+    ["a".repeat(141), "Un personnage parle dans les nuages.", 1, "mots"],
+    ["让".repeat(43), "Un personnage parle en chinois dans les nuages.", 43, "caractères prononcés"],
+  ] as const) {
+    const invalid = { direction: "Court film animé.", scenes: [{ visualBrief: "Le personnage parle.", spokenLine }] };
+    const gateway = loadDialogueGateway([invalid, invalid]);
+    const runtime = loadPlan(null, gateway.generate);
+    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters", freePrompt }), profile }), AiJsonResponseNormalizationError);
+    assert.equal(runtime.calls.length, 1);
+    assert.equal(gateway.calls.length, 2, "No outer retry is added when both allowed model attempts fail.");
+    const feedback = JSON.parse(gateway.calls[1].input).rewrite_dialogue[0];
+    assert.equal(feedback.units, units);
+    assert.equal(feedback.unit, unit);
+    assert.equal(feedback.draft, spokenLine);
+  }
+});
+
+test("planner requires silent staging for both voiceover and silent video without changing the user's brief", async () => {
+  for (const withNarration of [true, false]) {
+    const runtime = loadPlan({ direction: "Une femme présente son agence par des gestes.", scenes: ["Elle montre les bureaux en silence."] });
+    const input = request({ kind: "video", durationSeconds: 8, withNarration, teamVideoSpeechMode: "voiceover", freePrompt: "Une femme explique les services de son agence." });
+    const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
+    assert.equal(runtime.calls.length, 1);
+    assert.match(runtime.calls[0].system, /direction et visualBrief.*mise en scène silencieuse/u);
+    assert.match(runtime.calls[0].system, /gestes.*regards/u);
+    assert.match(runtime.calls[0].system, /sans articulation.*lèvres/u);
+    assert.equal(JSON.parse(runtime.calls[0].input).brief, input.freePrompt);
+    assert.equal(JSON.parse(runtime.calls[0].input).native_dialogue, false);
+    assert.equal(plan.scenes[0].spokenLine, "");
+  }
 });

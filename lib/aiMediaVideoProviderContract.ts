@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { describeAiMediaBrandColors } from "./aiMediaColorDirection.ts";
+import { usesSeparateAiMediaFreeVoiceover } from "./aiMediaFreeVoiceoverPolicy.ts";
 import type {
   AiMediaGenerationRequest,
   AiMediaInspirationImage,
@@ -219,14 +220,15 @@ export function buildAiMediaVideoProviderContract(args: {
   profileFallback?: string;
 }): AiMediaVideoProviderContract {
   if (args.request.creationMode === "free") {
-    const nativeNarrationFingerprint = args.nativeNarrationLines?.length
+    const separateVoiceover = usesSeparateAiMediaFreeVoiceover(args.request);
+    const nativeNarrationFingerprint = !separateVoiceover && args.nativeNarrationLines?.length
       ? `;narration_sha256=${createHash("sha256").update(args.nativeNarrationLines.join("\n")).digest("hex")}`
       : "";
     const base = {
       version: AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION,
       subject: "",
       instruction: clean(args.request.freePrompt, 4_000),
-      parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${args.request.withNarration ? "native" : "none"}${nativeNarrationFingerprint};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
+      parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${args.request.withNarration ? separateVoiceover ? "separate" : "native" : "none"}${nativeNarrationFingerprint};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
       references: buildAiMediaVideoReferenceContract(args),
     } satisfies Omit<AiMediaVideoProviderContract, "sha256">;
     return Object.freeze({ ...base, sha256: hashAiMediaVideoProviderContract(base) });
