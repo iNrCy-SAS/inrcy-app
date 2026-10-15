@@ -108,6 +108,8 @@ export default function MediaGeneratorModal({
   const [currentResult, setCurrentResult] =
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [resetRequested, setResetRequested] = useState(false);
+  const sessionVersionRef = useRef(0);
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
   const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
@@ -167,6 +169,8 @@ export default function MediaGeneratorModal({
     // The originating subject fills the prompt only when the Studio opens.
     // A later change outside the Studio must not replace the pro's edits.
     if (!newOpening) return;
+    sessionVersionRef.current += 1;
+    setResetRequested(false);
     setStudioTab(initialTab);
     setGenerationPrompt(initialGenerationPrompt);
     setGenerationSession((value) => value + 1);
@@ -184,6 +188,8 @@ export default function MediaGeneratorModal({
     // Hidden Activity forms suspend their listeners: invalidate all of them
     // here so an establishment change can never restore another account's brief.
     const resetGenerationSession = () => {
+      sessionVersionRef.current += 1;
+      setResetRequested(false);
       setGenerationSession((value) => value + 1);
       setVisitedFreeTypes([initialFreeMediaType]);
       setGenerationPrompt("");
@@ -208,6 +214,7 @@ export default function MediaGeneratorModal({
 
   const requestClose = useCallback(() => {
     if (locked) return;
+    setResetRequested(false);
     if (hasExternalHandoff || hasPendingWork) {
       setCloseConfirmOpen(true);
       return;
@@ -262,8 +269,54 @@ export default function MediaGeneratorModal({
     [activeMediaType, hasExternalHandoff, hasPendingWork, imageOnly, locked, studioTab]
   );
 
+  const requestReset = useCallback(() => {
+    if (locked || closeInFlightRef.current) return;
+    setResetRequested(true);
+    setCloseConfirmOpen(true);
+  }, [locked]);
+
+  const confirmReset = useCallback(async () => {
+    if (locked || closeInFlightRef.current) return;
+    closeInFlightRef.current = true;
+    setLocked(true);
+    const sessionVersion = sessionVersionRef.current;
+    const resultToDiscard = currentResultRef.current;
+    try {
+      // Saved media stay in the library. Only the private temporary preview
+      // belongs to this reset; its already-consumed credits are unchanged.
+      if (resultToDiscard?.draft) {
+        await discardMediaGenerationDraft(resultToDiscard.item.id);
+      }
+    } catch {
+      // Keep reset available during a cleanup outage, like closing Studio.
+      // The server purges any remaining private draft after 24 hours.
+    } finally {
+      closeInFlightRef.current = false;
+      if (sessionVersionRef.current === sessionVersion && openedRef.current) {
+        sessionVersionRef.current += 1;
+        currentResultRef.current = null;
+        setCurrentResult(null);
+        setGenerationPrompt("");
+        setVisitedFreeTypes([activeMediaType]);
+        setFreeMediaType(activeMediaType);
+        setGenerationSession((value) => value + 1);
+        setStudioTab("generate");
+        setMediaTypeByTab({ generate: activeMediaType, modify: "image", retouch: "image" });
+        setRetoucherDirty(false);
+        setResetRequested(false);
+        setCloseConfirmOpen(false);
+        setLocked(false);
+        window.requestAnimationFrame(() => dialogRef.current
+          ?.querySelector<HTMLButtonElement>('[data-studio-tab="generate"]')
+          ?.focus({ preventScroll: true }));
+      }
+    }
+  }, [activeMediaType, locked]);
+
   const cancelClose = useCallback(() => {
+    if (closeInFlightRef.current) return;
     setCloseConfirmOpen(false);
+    setResetRequested(false);
   }, []);
 
   const confirmClose = useCallback(async () => {
@@ -627,6 +680,7 @@ export default function MediaGeneratorModal({
               onAccepted={onAccepted}
               onResultChange={handleResultChange}
               onBusyChange={setLocked}
+              onReset={requestReset}
             />
           ) : (
             <div key={generationSession} className={styles.generationWorkspace}>
@@ -642,6 +696,7 @@ export default function MediaGeneratorModal({
                     onAccepted={onAccepted}
                     onResultChange={handleResultChange}
                     onBusyChange={setLocked}
+                    onReset={requestReset}
                   />
                 </Activity>
               ))}
@@ -656,6 +711,7 @@ export default function MediaGeneratorModal({
             type="button"
             className={styles.closeConfirmBackdrop}
             aria-label={t("ai_generator_close_confirm_cancel")}
+            disabled={locked}
             onClick={cancelClose}
           />
           <section
@@ -666,9 +722,12 @@ export default function MediaGeneratorModal({
             tabIndex={-1}
             aria-labelledby={closeTitleId}
             aria-describedby={closeDescriptionId}
+            aria-busy={locked || undefined}
           >
             <h3 id={closeTitleId}>
-              {hasExternalHandoff
+              {resetRequested
+                ? t("ai_generator_workspace_reset_title")
+                : hasExternalHandoff
                 ? t("ai_studio_origin_exit_title", {
                     origin: handoffOriginLabel || "iNrCy",
                   })
@@ -679,7 +738,9 @@ export default function MediaGeneratorModal({
                   )}
             </h3>
             <p id={closeDescriptionId}>
-              {hasExternalHandoff
+              {resetRequested
+                ? t(currentResult?.draft ? "ai_generator_workspace_reset_draft_description" : "ai_generator_workspace_reset_description")
+                : hasExternalHandoff
                 ? t(embedded ? "ai_studio_embedded_exit_description" : "ai_studio_origin_exit_description", {
                     origin: handoffOriginLabel || "iNrCy",
                   })
@@ -689,23 +750,28 @@ export default function MediaGeneratorModal({
                       : "ai_generator_close_library_description"
                   )}
             </p>
+            {resetRequested && currentResult ? <p>{t("ai_generator_workspace_reset_cost_note")}</p> : null}
             <div className={styles.closeConfirmActions}>
               <button
                 ref={closeConfirmCancelRef}
                 type="button"
                 className={styles.closeConfirmCancel}
+                disabled={locked}
                 onClick={cancelClose}
               >
                 {t(
-                  hasExternalHandoff
+                  resetRequested
+                    ? "ai_generator_workspace_reset_cancel"
+                    : hasExternalHandoff
                     ? "ai_studio_origin_stay"
                     : "ai_generator_close_confirm_cancel"
                 )}
               </button>
-              {hasExternalHandoff && !embedded ? (
+              {!resetRequested && hasExternalHandoff && !embedded ? (
                 <button
                   type="button"
                   className={styles.closeConfirmAbandon}
+                  disabled={locked}
                   onClick={() => void confirmAbandonHandoff()}
                 >
                   {t("ai_studio_origin_abandon")}
@@ -714,9 +780,12 @@ export default function MediaGeneratorModal({
               <button
                 type="button"
                 className={styles.closeConfirmLeave}
-                onClick={() => void confirmClose()}
+                disabled={locked}
+                onClick={() => void (resetRequested ? confirmReset() : confirmClose())}
               >
-                {hasExternalHandoff
+                {resetRequested
+                  ? t("ai_generator_workspace_reset_action")
+                  : hasExternalHandoff
                   ? t("ai_studio_origin_return", {
                       origin: handoffOriginLabel || "iNrCy",
                     })

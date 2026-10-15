@@ -44,6 +44,7 @@ type Props = {
   handleSaveToLibrary?: () => void | Promise<void>;
   handleGenerate: () => void | Promise<void>;
   handleEditCriteria: () => void | Promise<void>;
+  handleReset?: () => void;
   disabled: boolean;
   acceptMode: "library" | "insert";
   savingToLibrary?: boolean;
@@ -134,6 +135,7 @@ export default function MediaGenerationCreationWorkspace({
   creditSummary,
   engineControls,
   handleEditCriteria,
+  handleReset,
   disabled,
   acceptMode,
   savingToLibrary = false,
@@ -441,6 +443,10 @@ export default function MediaGenerationCreationWorkspace({
             >
               {editLabel || t("ai_generator_edit_criteria")}
             </button>
+            {handleReset ? <button type="button" className={styles.editButton}
+              onClick={handleReset} disabled={operationLocked} data-media-reset>
+              ↺ {t("ai_generator_workspace_reset_action")}
+            </button> : null}
           </div>
         </div>
       ) : null}
@@ -469,6 +475,10 @@ export default function MediaGenerationCreationWorkspace({
             <button type="button" onClick={() => void handleEditCriteria()}>
               {editLabel || t("ai_generator_edit_criteria")}
             </button>
+            {handleReset ? <button type="button" className={styles.editButton}
+              onClick={handleReset} disabled={operationLocked} data-media-reset>
+              ↺ {t("ai_generator_workspace_reset_action")}
+            </button> : null}
           </div>
         </div>
       ) : null}

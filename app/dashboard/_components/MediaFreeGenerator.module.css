@@ -1125,3 +1125,7 @@
     transition: none;
   }
 }
+
+.promptHeadingCopy { flex: 1; min-width: 0; }
+.promptTitleRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.promptTitleRow h2 { flex: 1; min-width: 0; }

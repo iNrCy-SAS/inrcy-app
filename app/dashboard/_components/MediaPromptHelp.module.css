@@ -1,0 +1,52 @@
+.trigger {
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-top: -3px;
+  border: 1px solid rgba(111, 212, 255, .42);
+  border-radius: 50%;
+  background: rgba(51, 157, 211, .13);
+  color: #b8eeff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.trigger:hover { background: rgba(51, 157, 211, .25); border-color: #7dd3fc; }
+.trigger:focus-visible, .close:focus-visible { outline: 2px solid #70ddff; outline-offset: 3px; }
+.dialog {
+  width: min(640px, calc(100vw - 28px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  border: 1px solid rgba(135, 184, 255, .34);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #102a46, #10152d 70%);
+  color: #eef5ff;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .55);
+}
+.dialog::backdrop { background: rgba(2, 7, 21, .75); backdrop-filter: blur(5px); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 22px 14px; }
+.header h2 { margin: 0; font-size: clamp(19px, 2.2vw, 23px); line-height: 1.3; font-weight: 750; }
+.close { flex: 0 0 36px; width: 36px; height: 36px; border: 1px solid rgba(169, 198, 255, .25); border-radius: 11px; background: rgba(255,255,255,.06); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; }
+.body { display: grid; gap: 17px; padding: 0 22px 22px; font-size: 14px; line-height: 1.6; }
+.intro, .note, .example p { margin: 0; }
+.intro { color: #c2d6eb; }
+.tips { display: grid; gap: 12px; margin: 0; padding-left: 22px; }
+.tips li::marker { color: #7dd3fc; }
+.example { padding: 15px 17px; border: 1px solid rgba(112, 218, 255, .25); border-radius: 14px; background: rgba(21, 123, 169, .1); }
+.example h3 { margin: 0 0 7px; color: #a8e7ff; font-size: 13px; font-weight: 800; }
+.example p { color: #edf5ff; }
+.note { color: #a9bdd5; font-size: 12px; }
+@media (max-width: 760px) {
+  .trigger { flex-basis: 40px; width: 40px; height: 40px; }
+  .header { padding: 18px 16px 12px; gap: 10px; }
+  .body { padding: 0 16px 18px; gap: 14px; }
+  .dialog { max-height: calc(100dvh - 24px); border-radius: 18px; }
+}

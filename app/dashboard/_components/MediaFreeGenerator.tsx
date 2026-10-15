@@ -42,6 +42,7 @@ import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
+import MediaPromptHelp from "./MediaPromptHelp";
 import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
@@ -64,6 +65,7 @@ type Props = {
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  onReset?: () => void;
 };
 
 type Reference = Omit<
@@ -118,6 +120,7 @@ export default function MediaFreeGenerator({
   onAccepted,
   onResultChange,
   onBusyChange,
+  onReset,
 }: Props) {
   const t = useTranslations("media");
   const locale = useLocale();
@@ -676,6 +679,7 @@ export default function MediaFreeGenerator({
         handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEdit}
+        handleReset={canRecover ? undefined : onReset}
         disabled={!canGenerate}
         creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
         engineControls={engineControls}
@@ -1082,10 +1086,13 @@ export default function MediaFreeGenerator({
             <span className={styles.promptIcon} aria-hidden="true">
               ✦
             </span>
-            <div>
-              <h2 id={`${instanceId}-prompt-title`}>
-                {t("ai_generator_free_prompt_title")}
-              </h2>
+            <div className={styles.promptHeadingCopy}>
+              <div className={styles.promptTitleRow}>
+                <h2 id={`${instanceId}-prompt-title`}>
+                  {t("ai_generator_free_prompt_title")}
+                </h2>
+                <MediaPromptHelp kind={kind} />
+              </div>
               <p>{t("ai_generator_free_prompt_hint")}</p>
             </div>
           </div>

@@ -175,7 +175,8 @@ test("une nouvelle ouverture reprend le dernier sujet sans écraser les édition
   let session = 0;
   const openedRef = { current: false };
   const context = {
-    openedRef, initialTab: "generate", initialFreeMediaType: "image", initialMediaType: "image",
+    openedRef, sessionVersionRef: { current: 0 }, setResetRequested() {},
+    initialTab: "generate", initialFreeMediaType: "image", initialMediaType: "image",
     setStudioTab() {}, setFreeMediaType() {}, setVisitedFreeTypes() {}, setMediaTypeByTab() {}, setRetoucherDirty() {},
     setGenerationPrompt: (value: string) => { prompts.push(value); },
     setGenerationSession: (update: (current: number) => number) => { session = update(session); },

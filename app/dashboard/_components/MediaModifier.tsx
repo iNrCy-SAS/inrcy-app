@@ -54,6 +54,7 @@ type MediaModifierProps = {
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  onReset?: () => void;
 };
 
 type SourceImage = {
@@ -169,6 +170,7 @@ export default function MediaModifier({
   onAccepted,
   onResultChange,
   onBusyChange,
+  onReset,
 }: MediaModifierProps) {
   const t = useTranslations("media");
   const locale = useLocale();
@@ -608,6 +610,7 @@ export default function MediaModifier({
                 handleSaveToLibrary={handleSaveToLibrary}
                 handleGenerate={handleGenerate}
                 handleEditCriteria={handleEditInstruction}
+                handleReset={canRecover ? undefined : onReset}
                 editLabel={t("ai_modifier_edit_instruction")}
                 disabled={operationLocked || !sourceImage || !creditQuote.ready || creditQuote.insufficient}
                 acceptMode={acceptMode}
