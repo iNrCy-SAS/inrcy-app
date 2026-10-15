@@ -24,10 +24,12 @@ export async function loadAiMediaFreeDnaContext(args: {
       "linkedin_url:settings->linkedin->>url", "x:settings->x->>profileUrl", "x_url:settings->x->>url",
       "tiktok:settings->tiktok->>profileUrl", "pinterest:settings->pinterest->>publicProfileUrl",
       "youtube:settings->youtube_shorts->>channelUrl", "service_details:settings->inrSearch->serviceDescriptions",
+      "google_business:settings->gmb->>url",
     ].join(",")).eq("user_id", args.accountId).maybeSingle(),
     args.supabase.from("integrations").select([
       "source", "product", "resource_id", "resource_label", "profile_url:meta->>profile_url",
       "page_url:meta->>page_url", "org_url:meta->>org_url", "channel_url:meta->>channel_url", "url:meta->>url",
+      "username:meta->>username",
     ].join(",")).eq("user_id", args.accountId).order("updated_at", { ascending: false }).limit(40),
   ]);
   // Do not silently omit a requested telephone or website after a failed read.
@@ -38,6 +40,7 @@ export async function loadAiMediaFreeDnaContext(args: {
     facebook: config.facebook, instagram: config.instagram, threads: config.threads,
     linkedin: config.linkedin_company || config.linkedin || config.linkedin_url,
     x: config.x || config.x_url, tiktok: config.tiktok, pinterest: config.pinterest, youtube: config.youtube,
+    google_business: config.google_business,
   };
   for (const value of Array.isArray(integrationResult.data) ? integrationResult.data : []) {
     const row = record(value);
@@ -47,6 +50,11 @@ export async function loadAiMediaFreeDnaContext(args: {
     const candidate = row.org_url || row.page_url || row.profile_url || row.channel_url || row.url;
     if (!links[key] && candidate) links[key] = candidate;
     if (!links[key] && key === "facebook" && /^\d+$/.test(String(row.resource_id || ""))) links[key] = `https://www.facebook.com/${row.resource_id}`;
+    const username = String(row.username || row.resource_label || "").replace(/^@/, "").trim();
+    if (!links[key] && /^[a-zA-Z0-9_.-]{1,100}$/.test(username)) {
+      const prefixes: Record<string, string> = { instagram: "https://www.instagram.com/", threads: "https://www.threads.com/@", x: "https://x.com/", tiktok: "https://www.tiktok.com/@", pinterest: "https://www.pinterest.com/" };
+      if (prefixes[key]) links[key] = `${prefixes[key]}${encodeURIComponent(username)}`;
+    }
   }
   return buildAiMediaFreeDnaContext({
     profile: args.profile, publicProfile: args.publicProfile, publicLinks: links, prompt: args.prompt,

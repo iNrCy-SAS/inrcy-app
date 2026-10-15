@@ -113,8 +113,8 @@ test("les lectures ADN sont bornées au compte actif et sélectionnent seulement
   const queries: Array<{ table: string; select: string; owner?: string }> = [];
   const supabase = { from(table: string) {
     const query = { table, select: "", owner: undefined as string | undefined }; queries.push(query);
-    const result = table === "pro_tools_configs" ? { data: { website: "https://cosmos.example/" }, error: null }
-      : { data: [{ source: "instagram", profile_url: "https://www.instagram.com/cosmos/" }, { source: "mail", profile_url: "https://private-mail.example/" }], error: null };
+    const result = table === "pro_tools_configs" ? { data: { website: "https://cosmos.example/", google_business: "https://maps.google.com/?cid=123" }, error: null }
+      : { data: [{ source: "instagram", profile_url: "https://www.instagram.com/cosmos/" }, { source: "x", username: "@atelier_cosmos" }, { source: "mail", profile_url: "https://private-mail.example/" }], error: null };
     const builder = { select(value: string) { query.select = value; return builder; }, eq(column: string, value: string) { assert.equal(column, "user_id"); query.owner = value; return builder; }, order() { return builder; }, limit(count: number) { assert.equal(count, 40); return builder; }, maybeSingle: async () => result,
       then(resolve: (value: unknown) => unknown) { return Promise.resolve(result).then(resolve); } };
     return builder;
@@ -127,6 +127,8 @@ test("les lectures ADN sont bornées au compte actif et sélectionnent seulement
   }
   assert.equal(result.liens.site_web, "https://cosmos.example/");
   assert.equal(result.liens.instagram, "https://www.instagram.com/cosmos/");
+  assert.equal(result.liens.google_business, "https://maps.google.com/?cid=123");
+  assert.equal(result.liens.x, "https://x.com/atelier_cosmos");
   assert.doesNotMatch(JSON.stringify(result), /private-mail/);
 });
 
