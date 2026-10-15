@@ -402,24 +402,9 @@ export default function MediaGeneratorModal({
     };
   }, [hasExternalHandoff, hasPendingWork, locked, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const discardOnCommittedNavigation = () => {
-      const pending = currentResultRef.current;
-      if (pending?.draft) {
-        void discardMediaGenerationDraft(pending.item.id).catch(
-          () => undefined
-        );
-      }
-    };
-    window.addEventListener("pagehide", discardOnCommittedNavigation);
-    return () => {
-      window.removeEventListener("pagehide", discardOnCommittedNavigation);
-      // Also covers an App Router navigation or an external owner closing the
-      // shared modal without going through its close controls.
-      discardOnCommittedNavigation();
-    };
-  }, [open]);
+  // Reload, navigation and React cleanup must preserve the paid draft so the
+  // durable per-account pointer can recover it. Delete only after an explicit
+  // confirmed abandonment above; the server expires untouched drafts after 24h.
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
     // Portal events must never reach the still-mounted editor's shortcuts.

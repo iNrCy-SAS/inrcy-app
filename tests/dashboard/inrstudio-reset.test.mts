@@ -160,3 +160,77 @@ test("all Studio locales provide help and reset warnings, including the unsaved 
     for (const key of keys) assert.ok(typeof messages[key] === "string" && messages[key].trim(), `${locale}: ${key}`);
   }
 });
+
+/** Execute the actual component effect callbacks, including their cleanups. */
+function mountLifecycle(ctx: ReturnType<typeof context>) {
+  const listeners = new Map<string, Set<() => void>>();
+  const environment = {
+    ...ctx, open: true, mounted: false, embedded: false, hasPendingWork: true,
+    hasExternalHandoff: false, closeConfirmOpen: false, initialFreeMediaType: "image",
+    initialGenerationPrompt: "", initialTab: "generate", initialMediaType: "image",
+    ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed", setMounted() {}, layerRef: { current: null },
+    window: {
+      ...ctx.window,
+      addEventListener(name: string, listener: () => void) {
+        if (!listeners.has(name)) listeners.set(name, new Set());
+        listeners.get(name)!.add(listener);
+      },
+      removeEventListener(name: string, listener: () => void) { listeners.get(name)?.delete(listener); },
+    },
+  };
+  const cleanups: Array<() => void> = [];
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+      ["useEffect", "useLayoutEffect"].includes(node.expression.text)) {
+      const code = ts.transpileModule(`const run = ${node.arguments[0].getText(source)};`, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText;
+      const run = new Function(...Object.keys(environment), `${code}; return run;`)(...Object.values(environment));
+      const cleanup = run();
+      if (typeof cleanup === "function") cleanups.push(cleanup);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return {
+    emit(name: string) { for (const listener of listeners.get(name) || []) listener(); },
+    unmount() { for (const cleanup of cleanups.reverse()) cleanup(); },
+  };
+}
+
+test("page reload and React unmount preserve a paid draft for authenticated recovery", async () => {
+  for (const event of ["pagehide", "unmount"]) {
+    const ctx = context();
+    const lifecycle = mountLifecycle(ctx);
+    if (event === "pagehide") lifecycle.emit("pagehide");
+    lifecycle.unmount();
+    await Promise.resolve();
+    assert.equal(ctx.events.some((entry) => entry.startsWith("discard:")), false, event);
+    assert.equal(ctx.currentResultRef.current, ctx.state.currentResult);
+    assert.notEqual(ctx.currentResultRef.current, null);
+  }
+});
+
+test("changing establishment drops local preview state without deleting the prior account's draft", async () => {
+  const ctx = context();
+  const lifecycle = mountLifecycle(ctx);
+  lifecycle.emit("account-changed");
+  lifecycle.unmount();
+  await Promise.resolve();
+  assert.equal(ctx.currentResultRef.current, null);
+  assert.equal(ctx.state.currentResult, null);
+  assert.equal(ctx.events.some((entry) => entry.startsWith("discard:")), false);
+});
+
+test("explicit confirmed close and handoff abandonment still discard only temporary drafts", async () => {
+  for (const name of ["confirmClose", "confirmAbandonHandoff"]) for (const draft of [true, false]) {
+    const ctx = context(draft);
+    await handler(name, { ...ctx,
+      onClose() { ctx.events.push("close"); },
+      async onAbandonHandoff() { ctx.events.push("abandon"); },
+    })();
+    assert.equal(ctx.events.filter((entry) => entry.startsWith("discard:")).length, draft ? 1 : 0);
+    assert.ok(ctx.events.includes(name === "confirmClose" ? "close" : "abandon"));
+  }
+});
