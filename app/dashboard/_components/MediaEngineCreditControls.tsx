@@ -60,9 +60,10 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [viewedEngine, setViewedEngine] = useState(activeEngine);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
-  const videoModels = [...AI_MEDIA_VIDEO_MODELS].sort((first, second) => Number(second.id === activeEngine) - Number(first.id === activeEngine));
-  const imageModels = [...AI_MEDIA_IMAGE_MODELS].sort((first, second) => Number(second.id === activeEngine) - Number(first.id === activeEngine));
+  const models = kind === "video" ? AI_MEDIA_VIDEO_MODELS : AI_MEDIA_IMAGE_MODELS;
+  const viewedModel = models.find((model) => model.id === viewedEngine) ?? models[0];
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -79,8 +80,16 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
   return <dialog ref={dialogRef} className={styles.engineInfoDialog} aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}
     onKeyDown={(event) => {
       event.stopPropagation();
-      // This read-only guide has one focusable control; keep Tab inside it.
-      if (event.key === "Tab") { event.preventDefault(); closeRef.current?.focus(); }
+      if (event.key !== "Tab") return;
+      const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]')]
+        .filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !event.currentTarget.contains(document.activeElement))) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !event.currentTarget.contains(document.activeElement))) {
+        event.preventDefault(); first?.focus();
+      }
     }}
     onCancel={(event) => { event.preventDefault(); event.stopPropagation(); onClose(); }}
     onClick={(event) => {
@@ -95,8 +104,17 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
     </header>
     <div className={styles.engineInfoBody}>
       <p id={descriptionId} className={styles.engineInfoIntro}>{t("ai_generator_engine_info_intro")}</p>
-      <div className={styles.engineInfoGrid}>
-        {kind === "video" ? videoModels.map((option) => {
+      <div className={styles.engineInfoLayout}>
+        <div className={styles.engineInfoNavigation} role="group" aria-label={t(kind === "video" ? "ai_generator_engine_info_video_title" : "ai_generator_engine_info_image_title")}>
+          {models.map((option) => <button key={option.id} type="button" className={styles.engineInfoChoice}
+            aria-label={option.label} aria-pressed={option.id === viewedModel.id} data-media-engine-info-choice={option.id}
+            onClick={() => setViewedEngine(option.id)}>
+            <span>{option.label}</span>
+            {option.id === activeEngine ? <small>{t("ai_generator_engine_info_selected")}</small> : null}
+          </button>)}
+        </div>
+        <div key={viewedModel.id} className={styles.engineInfoPanel} role="region" aria-label={viewedModel.label} tabIndex={0}>
+        {kind === "video" ? AI_MEDIA_VIDEO_MODELS.filter((option) => option.id === viewedModel.id).map((option) => {
           const assembledDuration = Math.max(0, ...option.resolutions.flatMap((resolution) => getAiMediaVideoDurationSceneOptions(option.id, resolution)
             .filter((duration) => duration.sceneCount === 2 && duration.durationSeconds <= videoMaxDurationSeconds)
             .map((duration) => duration.durationSeconds)));
@@ -117,7 +135,7 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
             <span>{t(option.supportsTextToVideo ? "ai_generator_engine_info_text_photo" : "ai_generator_engine_info_photo_required")}</span>
             {option.nativeAudio ? <span>{t("ai_generator_engine_info_audio")}</span> : null}
           </div>
-        </section>; }) : imageModels.map((option) => <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
+        </section>; }) : AI_MEDIA_IMAGE_MODELS.filter((option) => option.id === viewedModel.id).map((option) => <section key={option.id} className={styles.engineInfoCard} data-active={option.id === activeEngine}>
           <div className={styles.engineInfoCardHeading}><h3>{option.label}</h3>{option.id === activeEngine ? <span>{t("ai_generator_engine_info_selected")}</span> : null}</div>
           <p>{t(`ai_generator_engine_info_image_${option.id}`)}</p>
           <div className={styles.engineInfoDetails}>
@@ -131,9 +149,10 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
           </div>
           {option.transport === "gateway-image" ? <p>{t("ai_generator_engine_info_logo_overlay")}</p> : null}
         </section>)}
-      </div>
       <p className={styles.engineInfoNote}>{t(kind === "video" ? "ai_generator_engine_info_cost_note" : "ai_generator_image_model_hint")}</p>
       {kind === "video" ? <p className={styles.engineInfoNote}>{t("ai_generator_engine_info_settings_note")}</p> : null}
+        </div>
+      </div>
     </div>
   </dialog>;
 }

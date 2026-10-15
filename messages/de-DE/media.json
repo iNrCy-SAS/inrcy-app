@@ -874,7 +874,7 @@
   "ai_generator_engine_info_video_title": "Welches Videomodell wählen?",
   "ai_generator_engine_info_image_title": "Welches Bildmodell wählen?",
   "ai_generator_engine_info_close": "Modellinformationen schließen",
-  "ai_generator_engine_info_intro": "Wählen Sie nach Ihrem Projekt, der gewünschten Qualität und Ihrem Credit-Budget.",
+  "ai_generator_engine_info_intro": "Klicken Sie auf ein Modell, um Einsatzmöglichkeiten, Grenzen und Preise zu sehen. Ihre Auswahl für die Generierung bleibt unverändert.",
   "ai_generator_engine_info_selected": "Ausgewählt",
   "ai_generator_engine_info_max_duration": "Bis zu {seconds} s",
   "ai_generator_engine_info_text_photo": "Text oder Fotoreferenzen",

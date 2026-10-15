@@ -874,7 +874,7 @@
   "ai_generator_engine_info_video_title": "ควรเลือกโมเดลวิดีโอใด?",
   "ai_generator_engine_info_image_title": "ควรเลือกโมเดลภาพใด?",
   "ai_generator_engine_info_close": "ปิดข้อมูลเกี่ยวกับโมเดล",
-  "ai_generator_engine_info_intro": "เลือกตามโครงการ คุณภาพที่ต้องการ และงบประมาณเครดิตของคุณ",
+  "ai_generator_engine_info_intro": "คลิกโมเดลเพื่อดูการใช้งาน ข้อจำกัด และราคา การดูข้อมูลนี้จะไม่เปลี่ยนโมเดลที่เลือกไว้สำหรับสร้างสื่อ",
   "ai_generator_engine_info_selected": "เลือกอยู่",
   "ai_generator_engine_info_max_duration": "สูงสุด {seconds} วินาที",
   "ai_generator_engine_info_text_photo": "ข้อความหรือภาพอ้างอิง",

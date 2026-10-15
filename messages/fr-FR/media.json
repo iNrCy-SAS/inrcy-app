@@ -844,7 +844,7 @@
   "ai_generator_engine_info_video_title": "Quel moteur vidéo choisir ?",
   "ai_generator_engine_info_image_title": "Quel moteur image choisir ?",
   "ai_generator_engine_info_close": "Fermer les informations sur les moteurs",
-  "ai_generator_engine_info_intro": "Choisissez selon votre projet, la qualité souhaitée et votre budget de crédits.",
+  "ai_generator_engine_info_intro": "Cliquez sur un moteur pour voir ses usages, ses limites et ses tarifs. Cela ne change pas votre sélection de génération.",
   "ai_generator_engine_info_selected": "Sélectionné",
   "ai_generator_engine_info_use_label": "Usages conseillés",
   "ai_generator_engine_info_limits_label": "À savoir",

@@ -874,7 +874,7 @@
   "ai_generator_engine_info_video_title": "¿Qué motor de vídeo elegir?",
   "ai_generator_engine_info_image_title": "¿Qué motor de imagen elegir?",
   "ai_generator_engine_info_close": "Cerrar la información sobre los motores",
-  "ai_generator_engine_info_intro": "Elige según tu proyecto, la calidad deseada y tu presupuesto de créditos.",
+  "ai_generator_engine_info_intro": "Haz clic en un motor para ver sus usos, límites y tarifas. Esto no cambia el motor seleccionado para generar.",
   "ai_generator_engine_info_selected": "Seleccionado",
   "ai_generator_engine_info_max_duration": "Hasta {seconds} s",
   "ai_generator_engine_info_text_photo": "Texto o fotos de referencia",

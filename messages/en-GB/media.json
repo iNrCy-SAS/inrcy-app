@@ -874,7 +874,7 @@
   "ai_generator_engine_info_video_title": "Which video engine should I choose?",
   "ai_generator_engine_info_image_title": "Which image engine should I choose?",
   "ai_generator_engine_info_close": "Close engine information",
-  "ai_generator_engine_info_intro": "Choose according to your project, preferred quality and credit budget.",
+  "ai_generator_engine_info_intro": "Click a model to view its uses, limitations and prices. This does not change the model selected for generation.",
   "ai_generator_engine_info_selected": "Selected",
   "ai_generator_engine_info_max_duration": "Up to {seconds} s",
   "ai_generator_engine_info_text_photo": "Text or photo references",

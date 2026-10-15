@@ -49,13 +49,17 @@ function controls(overrides: Partial<ControlsProps> = {}, locale = "fr-FR") {
   const props: ControlsProps = { kind: "video", videoEngine: "heygen", imageEngine: "openai", resolution: "768p", referenceCount: 0, brief: "Une personne salue devant son atelier.", disabled: false, durationSeconds: 8, sceneMode: "single", videoMaxDurationSeconds: 30,
     onVideoEngineChange: (...value) => changes.push(["engine", ...value]), onImageEngineChange: (...value) => changes.push(["image", ...value]), onResolutionChange: (...value) => changes.push(["resolution", ...value]), onDurationSceneChange: (...value) => changes.push(["duration", ...value]), ...overrides };
   const render = () => { cursor = 0; return record.exports.default(props); };
-  return { render, changes, t, openInfo() {
+  const renderInfo = () => {
+    const opened = render();
+    const modal = find(opened, (element) => typeof element.type === "function");
+    return (modal.type as (props: Record<string, unknown>) => Element)(modal.props);
+  };
+  return { render, renderInfo, changes, t, openInfo() {
     const trigger = find(render(), (element) => element.props["aria-haspopup"] === "dialog");
     (trigger.props.onClick as () => void)();
     const opened = render();
     assert.equal(find(opened, (element) => element.props["aria-haspopup"] === "dialog").props["aria-expanded"], true);
-    const modal = find(opened, (element) => typeof element.type === "function");
-    return (modal.type as (props: Record<string, unknown>) => Element)(modal.props);
+    return renderInfo();
   } };
 }
 
@@ -93,12 +97,29 @@ test("HeyGen info explains native clips, French verification and only the assemb
   }
 });
 
-test("engine information resolves every dynamic model key and assembled duration in all supported locales", () => {
+test("the compact guide keeps every model accessible while showing one translated detail without changing the generation engine", () => {
   for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
-    const runtime = controls({}, locale);
-    const dialog = runtime.openInfo();
-    assert.ok(text(dialog).includes(runtime.t("ai_generator_model_description_heygen")), locale);
-    assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_assembled_duration", { seconds: 30 })), locale);
-    assert.doesNotMatch(text(dialog), /ai_generator_|\{seconds\}/);
+    for (const kind of ["video", "image"] as const) {
+      const runtime = controls({ kind }, locale);
+      let dialog = runtime.openInfo();
+      const catalogue = kind === "video" ? models.AI_MEDIA_VIDEO_MODELS : models.AI_MEDIA_IMAGE_MODELS;
+      for (const model of catalogue) {
+        const choices = elements(dialog).filter((element) => element.type === "button" && "aria-pressed" in element.props);
+        assert.equal(choices.length, catalogue.length, `${locale}: all ${kind} choices remain available`);
+        const choice = choices.find((element) => text(element).includes(model.label));
+        assert.ok(choice, `${locale}: ${model.label}`);
+        (choice.props.onClick as () => void)();
+        dialog = runtime.renderInfo();
+        const headings = elements(dialog).filter((element) => element.type === "h3");
+        assert.deepEqual(headings.map(text), [model.label], "Only the viewed model has a detailed card");
+        assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_use_${model.id}`)), locale);
+        assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_limits_${model.id}`)), locale);
+        if (kind === "video" && model.id === "heygen") {
+          assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_assembled_duration", { seconds: 30 })), locale);
+        }
+        assert.doesNotMatch(text(dialog), /ai_generator_|\{seconds\}/);
+      }
+      assert.deepEqual(runtime.changes, [], "Browsing information must not alter generation settings");
+    }
   }
 });

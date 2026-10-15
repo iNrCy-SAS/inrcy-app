@@ -874,7 +874,7 @@
   "ai_generator_engine_info_video_title": "Welk videomodel kiezen?",
   "ai_generator_engine_info_image_title": "Welk beeldmodel kiezen?",
   "ai_generator_engine_info_close": "Modelinformatie sluiten",
-  "ai_generator_engine_info_intro": "Kies op basis van je project, de gewenste kwaliteit en je creditbudget.",
+  "ai_generator_engine_info_intro": "Klik op een model om toepassingen, beperkingen en tarieven te bekijken. Dit verandert niet welk model voor het genereren is geselecteerd.",
   "ai_generator_engine_info_selected": "Geselecteerd",
   "ai_generator_engine_info_max_duration": "Tot {seconds} s",
   "ai_generator_engine_info_text_photo": "Tekst of referentiefoto’s",

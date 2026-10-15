@@ -8,15 +8,23 @@
 .engineLabel { display:flex; align-items:center; gap:5px; }
 .engineInfoTrigger { display:inline-grid; place-items:center; flex:0 0 12px; width:12px; height:12px; padding:0; border:1px solid rgba(125,211,252,.44); border-radius:50%; background:rgba(125,211,252,.12); color:#bae6fd; font-size:9px; font-weight:850; line-height:1; cursor:pointer; }
 .engineInfoTrigger:focus-visible { outline:3px solid #a5b4fc; outline-offset:3px; }
-.engineInfoDialog { box-sizing:border-box; width:min(1080px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; border:1px solid #415578; border-radius:18px; background:#101d35; color:#f5f9ff; box-shadow:0 24px 90px rgba(0,0,0,.5); overflow:auto; overscroll-behavior:contain; scroll-padding-top:88px; }
+.engineInfoDialog { box-sizing:border-box; width:min(1080px,calc(100vw - 32px)); height:min(820px,calc(100dvh - 32px)); max-height:calc(100dvh - 32px); margin:auto; padding:0; border:1px solid #415578; border-radius:18px; background:#101d35; color:#f5f9ff; box-shadow:0 24px 90px rgba(0,0,0,.5); overflow:hidden; }
+.engineInfoDialog[open] { display:flex; flex-direction:column; }
 .engineInfoDialog::backdrop { background:rgba(2,6,23,.72); backdrop-filter:blur(5px); }
-.engineInfoHeader { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 24px; border-bottom:1px solid #2d4263; background:#101d35; }
+.engineInfoHeader { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 24px; border-bottom:1px solid #2d4263; background:#101d35; }
 .engineInfoHeader h2 { margin:0; font-size:22px; line-height:1.3; }
 .engineInfoClose { flex:0 0 40px; width:40px; height:40px; padding:0; border:1px solid #536a8d; border-radius:50%; background:#192d4d; color:inherit; font-size:24px; cursor:pointer; }
 .engineInfoClose:focus-visible { outline:3px solid #a5b4fc; outline-offset:3px; }
-.engineInfoBody { padding:20px 24px 24px; }
-.engineInfoIntro { margin:0 0 18px; color:#c0d0e5; font-size:14px; line-height:1.6; }
-.engineInfoGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.engineInfoBody { display:flex; flex:1; flex-direction:column; min-height:0; padding:20px 24px 24px; }
+.engineInfoIntro { flex-shrink:0; margin:0 0 18px; color:#c0d0e5; font-size:14px; line-height:1.6; }
+.engineInfoLayout { display:grid; flex:1; grid-template-columns:230px minmax(0,1fr); gap:20px; min-height:0; }
+.engineInfoNavigation { display:flex; flex-direction:column; gap:6px; min-height:0; overflow:auto; overscroll-behavior:contain; padding:2px 4px 2px 2px; }
+.engineInfoChoice { display:flex; flex-shrink:0; align-items:center; justify-content:space-between; gap:8px; min-height:46px; width:100%; padding:10px 12px; border:1px solid #314563; border-radius:10px; background:#142442; color:#dce8f9; font:inherit; font-size:13px; line-height:1.35; text-align:start; cursor:pointer; }
+.engineInfoChoice[aria-pressed=true] { border-color:#74bce0; background:#153b58; color:#fff; }
+.engineInfoChoice:hover { border-color:#6283aa; }
+.engineInfoChoice small { flex-shrink:0; font-size:10px; color:#a1ddf5; }
+.engineInfoChoice:focus-visible,.engineInfoPanel:focus-visible { outline:2px solid #a5b4fc; outline-offset:-2px; }
+.engineInfoPanel { min-width:0; min-height:0; overflow:auto; overscroll-behavior:contain; padding:2px 6px 4px 2px; }
 .engineInfoCard { min-width:0; padding:18px; border:1px solid #314563; border-radius:14px; background:#142442; overflow-wrap:anywhere; }
 .engineInfoCard[data-active=true] { border-color:#74bce0; background:#15304d; }
 .engineInfoCardHeading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; }
@@ -34,8 +42,8 @@
 .engineInfoCapabilities>span { padding:4px 8px; border-radius:6px; background:#1c3554; color:#c8d9ef; font-size:11px; line-height:1.5; }
 .engineInfoImageRate { display:block; margin:14px 0; font-size:13px; color:#c1e8fa; }
 .engineInfoNote { margin:16px 0 0; font-size:13px; color:#aebfd8; line-height:1.6; }
-@media(max-width:760px) { .engineInfoGrid { grid-template-columns:minmax(0,1fr); } }
-@media(max-width:560px) { .engineInfoDialog { width:calc(100vw - 24px); max-height:calc(100dvh - 24px); } .engineInfoHeader { padding:13px 15px; } .engineInfoHeader h2 { font-size:18px; } .engineInfoBody { padding:16px 15px 18px; } .engineInfoCard { padding:16px; } }
+@media(max-width:760px) { .engineInfoLayout { display:flex; flex-direction:column; gap:14px; } .engineInfoNavigation { display:grid; flex-shrink:0; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; max-height:40%; padding:2px; } .engineInfoChoice { flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; min-height:42px; padding:7px 9px; font-size:12px; } .engineInfoPanel { flex:1; } }
+@media(max-width:560px) { .engineInfoDialog { width:calc(100vw - 24px); height:calc(100dvh - 24px); max-height:calc(100dvh - 24px); } .engineInfoHeader { padding:11px 15px; } .engineInfoHeader h2 { font-size:18px; } .engineInfoBody { padding:12px 12px 14px; } .engineInfoIntro { margin-bottom:10px; font-size:12px; line-height:1.5; } .engineInfoCard { padding:14px; } }
 .controls label { color:#c6d7ee; font-size:11px; font-weight:650; }
 .controls select { width:100%; min-width:0; min-height:44px; border:1px solid rgba(125,211,252,.3); border-radius:12px; background:#142442; color:#f5f9ff; padding:10px 12px; font:inherit; font-size:12px; font-weight:650; }
 .controls select:focus-visible,.quote summary:focus-visible,.quote button:focus-visible { outline:3px solid #a5b4fc; outline-offset:2px; }
