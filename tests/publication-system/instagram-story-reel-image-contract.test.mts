@@ -337,7 +337,7 @@ test("ordered Instagram images become one vertical MP4 while Reels retain their 
     /instagramPublicationSettings\?\.placement === "story"[\s\S]*?\? ""[\s\S]*?: buildBoosterInstagramCaption/,
   );
   assert.match(motion, /imageStoragePaths[\s\S]*?\.slice\(0, 5\)/);
-  assert.match(motion, /buildMotionFilter\(framePaths\.length\)/);
+  assert.match(motion, /buildMotionFilter\(framePaths\.length, args\.preserveComposition\)/);
   assert.match(motion, /const OUTPUT_WIDTH = 1_080/);
   assert.match(motion, /const OUTPUT_HEIGHT = 1_920/);
   assert.match(motion, /const OUTPUT_DURATION_SECONDS = 8/);

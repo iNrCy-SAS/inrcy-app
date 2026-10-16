@@ -39,6 +39,7 @@ type Asset = { file: string; bytes: number; sha256: string };
 type Manifest = {
   version: 1; accountId: string; jobId: string; width: number; height: number; durationSeconds: number;
   nativeAudioMode: "ambience" | "dialogue" | "mute";
+  preserveComposition?: boolean;
   clips: Array<Asset & { durationSeconds: number; sourceStartSeconds?: number }>;
   overlays: Asset[];
   narration: (Asset & { extension: "wav" | "mp3" | "ogg" | "aac"; mimeType: string; model: string; voice: string }) | null;
@@ -131,6 +132,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     }
     const manifest: Manifest = { version: 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
+      preserveComposition: args.input.preserveComposition === true,
       clips, overlays, narration, soundtrack, metadata: safeMetadata(args.metadata) };
     stage = "manifest";
     await upload("manifest.json", Buffer.from(JSON.stringify(manifest)), "application/json", 32_768);
@@ -226,7 +228,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "compose";
     const media = await composeOriginalAiVideo({ clips, overlays, width: manifest.width, height: manifest.height,
-      durationSeconds: manifest.durationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration });
+      durationSeconds: manifest.durationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration, preserveComposition: manifest.preserveComposition === true });
     const qa = await inspectAiMediaVideoBufferLocally({ buffer: media.buffer, expectedDurationSeconds: manifest.durationSeconds,
       audioExpectation: manifest.nativeAudioMode === "dialogue" || narration ? "required" : "optional", timeoutMs: 4_000 });
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));

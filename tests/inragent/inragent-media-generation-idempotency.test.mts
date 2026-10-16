@@ -9,7 +9,7 @@ import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
 
 type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string };
-type Args = { accountId?: string; generationRequestId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8 };
+type Args = { accountId?: string; generationRequestId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
 const source = readFileSync(new URL("../../lib/inrAgentMediaGeneration.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 
@@ -24,7 +24,7 @@ function harness(options: {
 } = {}) {
   const jobs = new Map<string, Job>();
   const media = new Map<string, { id: string; accountId: string; media_type: string }>();
-  const providerCalls: Array<{ accountId: string; request: ReturnType<typeof buildInrAgentMediaGenerationRequest> }> = [];
+  const providerCalls: Array<{ accountId: string; request: ReturnType<typeof buildInrAgentMediaGenerationRequest>; preserveOutputComposition?: boolean }> = [];
   const reservations: Array<{ requestKey: string; quotaAmount: number }> = [];
   const counts = { completions: 0, failures: 0, used: 0 };
   const failures = { ...options };
@@ -120,6 +120,18 @@ test("une génération terminée est réutilisée pour la même partie sans seco
   const replay = await h.run();
   assert.equal(first.outcome, "generated"); assert.equal(replay.item?.id, first.item?.id);
   assert.equal(h.providerCalls.length, 1); assert.equal(h.jobs.size, 1); assert.equal(h.counts.used, 7);
+});
+
+test("les groupes natifs utilisent le contrôle sans recadrage et gardent un seul débit par format", async () => {
+  const h = harness();
+  await h.run({ generationRequestId: "native:format:portrait:part:0", outputFormat: "portrait" });
+  await h.run({ generationRequestId: "native:format:story:part:0", outputFormat: "story" });
+  await h.run({ generationRequestId: "native:format:portrait:part:0", outputFormat: "portrait" });
+  assert.equal(h.providerCalls.length, 2);
+  assert.deepEqual(h.providerCalls.map((call) => call.request.format), ["portrait", "story"]);
+  assert.ok(h.providerCalls.every((call) => call.preserveOutputComposition === true));
+  assert.equal(h.counts.completions, 2);
+  assert.equal(h.counts.used, 14);
 });
 
 test("trois parties cohérentes gardent leurs idées distinctes et leurs propres reprises", async () => {

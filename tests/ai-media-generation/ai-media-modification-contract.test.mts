@@ -601,7 +601,7 @@ test("Modifier transmet au fournisseur un canvas multiple de 16 proche du ratio 
   );
   assert.match(
     server,
-    /size: modificationCanvas\s*\? resolveAiMediaImageEditSize\(modificationCanvas\)\s*: imageGenerationSize/,
+    /size: modificationCanvas\s*\? resolveAiMediaImageEditSize\(modificationCanvas\)\s*: args\.preserveOutputComposition \? resolveAiMediaNativeImageSize\(providerRequest\.format\) : imageGenerationSize/,
   );
   assert.match(
     server,

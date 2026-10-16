@@ -1,4 +1,7 @@
 {
+  "media_photo_shared_format": "4:5 图片 · 多渠道共用",
+  "media_photo_fullscreen_format": "9:16 图片 · 全屏显示",
+  "media_native_formats_credits_help": "新格式会消耗 iNrStudio 积分，已创建的版本会重复使用。",
   "publication_media_types": "媒体类型",
   "publication_media_single_image": "1 张图片",
   "publication_media_video": "8 秒视频",

@@ -4,7 +4,9 @@ import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { POST as publishNowBooster } from "@/app/api/booster/publish-now/route";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
-import { prepareBoosterImagesByChannelOnServer } from "@/lib/boosterImageServerPreparation";
+import { inrAgentChannelImages } from "@/lib/inrAgentMediaFormats";
+import { prepareInrAgentPublicationImages } from "@/lib/inrAgentMediaPreparation";
+import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
 import { POST as createCrmCampaign } from "@/app/api/crm/campaigns/route";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -322,6 +324,7 @@ async function buildImagePayloadFromAgentAction(
     getMediaImageInteractions(media);
   const preservedImageMeta = {
     ...imageMeta,
+    ...(Number(media.width) > 0 && Number(media.height) > 0 ? { width: Number(media.width), height: Number(media.height) } : {}),
     ...(imageInteractions ? { interactions: imageInteractions } : {}),
   };
   const sourceMetadata = asRecord(media.sourceMetadata) || {};
@@ -450,9 +453,12 @@ async function buildImagePayloadsFromAgentAction(
   payload: JsonRecord,
   actionId: string,
   actionImageAssets: unknown[],
+  channel?: string,
+  override?: unknown[],
 ) {
   const publishPayload = asRecord(payload.publishPayload) || {};
-  const candidates = [
+  const selected = override || inrAgentChannelImages(payload, channel);
+  const candidates = (selected || [
     ...imageCandidatesFromChannelMap(payload.imagesByChannel),
     ...imageCandidatesFromChannelMap(publishPayload.imagesByChannel),
     ...(Array.isArray(payload.images) ? payload.images : []),
@@ -460,7 +466,7 @@ async function buildImagePayloadsFromAgentAction(
     ...(Array.isArray(payload.mediaAssets) ? payload.mediaAssets : []),
     ...(Array.isArray(actionImageAssets) ? actionImageAssets : []),
     getAgentMediaRecord(payload),
-  ]
+  ])
     .map((item) => asRecord(item))
     .filter((item): item is JsonRecord => Boolean(item) && !isVideoMedia(item));
   const seen = new Set<string>();
@@ -973,13 +979,21 @@ async function executeAgentActionHandler(request: Request) {
     );
   }
 
-  const payload = action.payload || {};
+  let payload = action.payload || {};
   const nestedPublishPayload = asRecord(payload.publishPayload) || {};
   const selectedChannels = hasChannelOverride
     ? requestedChannels
     : normalizeBoosterChannels(
         payload.selectedChannels || payload.channels || action.targetChannels,
       );
+  if (payload.mediaFormatVariants) {
+    try {
+      payload = (await ensureInrAgentMediaFormats({ supabase, accountId: userId, actorAuthUserId: authUserId || userId,
+        actionId, payload, channels: selectedChannels, fallbackAssets: action.imageAssets, allowGeneration: false })).payload;
+    } catch (formatError) {
+      return NextResponse.json({ error: formatError instanceof Error ? formatError.message : "Le format du média n’est pas prêt.", code: "INR_AGENT_FORMAT_REVIEW_REQUIRED" }, { status: 409 });
+    }
+  }
   if (selectedChannels.includes("threads") && !(await isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId))) return metaChannelPilotDeniedResponse();
   const tiktokPublicationSettings = selectedChannels.includes("tiktok")
     ? normalizeTiktokPublicationSettings(
@@ -1005,6 +1019,7 @@ async function executeAgentActionHandler(request: Request) {
     payload,
     actionId,
     action.imageAssets,
+      selectedChannels.length === 1 ? selectedChannels[0] : undefined,
   );
   const imagePayload = imagePayloads[0] || null;
   const videoPayload = await buildVideoPayloadFromAgentAction(
@@ -1131,17 +1146,18 @@ async function executeAgentActionHandler(request: Request) {
         : {};
     const preparedImages =
       activeMediaMode === "images" && imagePayloads.length
-        ? await prepareBoosterImagesByChannelOnServer({
+        ? await prepareInrAgentPublicationImages({
             accountId: userId,
             channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost"),
-            images: imagePayloads,
-            automaticFit: "contain",
+            payload,
+            readImages: (channel, override) => buildImagePayloadsFromAgentAction(payload, actionId, action.imageAssets, channel, override),
           })
         : {
             imagesByChannel: {},
             imageSettingsByChannel: {},
             warnings: [],
             failuresByChannel: {},
+            imagesByPlacement: {},
           };
 
     const publishBody = projectInrAgentThreadsPublishPayload({
@@ -1154,6 +1170,9 @@ async function executeAgentActionHandler(request: Request) {
       videoSettingsByChannel,
       images: imagePayloads,
       imagesByChannel: preparedImages.imagesByChannel,
+      imagesByPlacement: preparedImages.imagesByPlacement,
+      mediaFormatVariants: payload.mediaFormatVariants,
+      clientPreflightFailuresByChannel: preparedImages.failuresByChannel,
       imageSettingsByChannel: preparedImages.imageSettingsByChannel,
       imagePreparationWarnings: preparedImages.warnings,
       video: videoPayload,

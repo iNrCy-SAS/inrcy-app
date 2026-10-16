@@ -263,8 +263,9 @@ test("les médias générés remplissent leur format avant l’adaptation iNrAge
   assert.match(normalizer, /fit: "cover", position: preservesSourceCanvas \? "attention" : "centre"/);
   assert.match(normalizer, /detectAiMediaUniformBorderCrop/);
   assert.doesNotMatch(normalizer, /input: foreground\.data|\.blur\(/);
-  assert.match(schedule, /automaticFit: "contain"/);
-  assert.match(execute, /automaticFit: "contain"/);
+  assert.match(schedule, /prepareInrAgentPublicationImages/);
+  assert.match(execute, /prepareInrAgentPublicationImages/);
+  assert.match(read("lib/inrAgentMediaPreparation.ts"), /automaticFit: "contain", preserveSourceComposition: true/);
   assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/);
   assert.match(client, /createInrStudioHandoff\(\{[\s\S]*?tab,[\s\S]*?source: \{/);
   assert.match(client, /source:[\s\S]*?url: publishMediaPreview\.url/);

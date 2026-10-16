@@ -2,6 +2,8 @@ import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResp
 import { normalizeThreadsPublicationMode, normalizeThreadsPublicationPreferences, isThreadsPublicationModeEnabled } from "@/lib/threadsPublicationPreferences";
 import { applyInrAgentThreadsPublicationSettings, readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { NextResponse } from "next/server";
+import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
+import { readInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
 import {
   rowToInrAgentAction,
   sanitizeInrAgentActionStatus,
@@ -77,7 +79,7 @@ import {
 } from "./actionPublishDraft.foundations";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 800;
 
 function isMissingTableError(
   error: { code?: string; message?: string } | null | undefined,
@@ -1393,6 +1395,7 @@ export async function PATCH(request: Request) {
     channel?: unknown;
     placement?: unknown;
     includeStory?: unknown;
+    fullScreen?: unknown;
     mode?: unknown;
     boardId?: unknown;
     boardName?: unknown;
@@ -1841,17 +1844,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ action: await refreshActionImageUrls(rowToInrAgentAction(data)), saved: true });
   }
 
-  if (editType === "publish_channel_placement") {
+  if (editType === "publish_channel_placement" || editType === "publish_photo_format") {
     if (!actionId) {
       return NextResponse.json({ error: "Action invalide" }, { status: 400 });
     }
 
     const channel = cleanPublishChannel(requestBody?.channel);
-    if (!isInrAgentMetaChannel(channel)) {
+    const isTiktokPhotoFormat = editType === "publish_photo_format" && channel === "tiktok";
+    if (!channel || (!(editType === "publish_channel_placement" && isInrAgentMetaChannel(channel)) && !isTiktokPhotoFormat)) {
       return NextResponse.json(
         {
           error:
-            "Les formats Classique, Reel et Story sont réservés à Facebook et Instagram.",
+            "Le choix de format ne correspond pas au canal sélectionné.",
         },
         { status: 400 },
       );
@@ -1860,7 +1864,7 @@ export async function PATCH(request: Request) {
       requestBody?.placement,
     );
     const includeStory =
-      placement !== "story" && requestBody?.includeStory === true;
+      !isTiktokPhotoFormat && placement !== "story" && requestBody?.includeStory === true;
     const requestedPlacements: Array<"classic" | "reel" | "story"> = [
       placement,
       ...(includeStory ? (["story"] as const) : []),
@@ -1901,6 +1905,7 @@ export async function PATCH(request: Request) {
     }
 
     const currentPayload = currentAction.payload || {};
+    if (isTiktokPhotoFormat && readInrAgentMediaFormatVariants(currentPayload)?.kind !== "image") return NextResponse.json({ error: "Régénérez les médias de cette publication pour activer les formats photo partagés." }, { status: 409 });
     const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
     const currentChannels = normalizePublishChannels([
       ...currentAction.targetChannels,
@@ -1921,7 +1926,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (requestedPlacements.some((value) => value !== "classic")) {
+    if (isInrAgentMetaChannel(channel) && requestedPlacements.some((value) => value !== "classic")) {
       const { data: configRow, error: configError } = await supabaseAdmin
         .from("pro_tools_configs")
         .select("settings")
@@ -2011,21 +2016,34 @@ export async function PATCH(request: Request) {
     }
 
     const editedAt = new Date().toISOString();
-    const nextPayload = applyInrAgentPublicationPlacement(
-      currentPayload,
-      channel,
-      placement,
-      includeStory,
-    );
+    let nextPayload = isInrAgentMetaChannel(channel) ? applyInrAgentPublicationPlacement(
+      currentPayload, channel, placement, includeStory,
+    ) : { ...currentPayload, tiktokPhotoFullScreen: requestBody?.fullScreen === true };
+    if (!["prepared", "pending_validation", "pending", "draft", "failed"].includes(currentAction.status)) {
+      return NextResponse.json({ error: "Cette publication ne peut plus changer de média." }, { status: 409 });
+    }
+    let createdMediaFormats: string[] = [];
+    try {
+      const formatted = await ensureInrAgentMediaFormats({
+        supabase: supabaseAdmin, accountId: activeUserId, actorAuthUserId: authUserId || activeUserId,
+        actionId, payload: nextPayload, channels: currentChannels, fallbackAssets: currentAction.imageAssets,
+        rebindChannels: [channel],
+      });
+      nextPayload = formatted.payload;
+      createdMediaFormats = formatted.createdFormats;
+    } catch (generationError) {
+      return NextResponse.json({ error: generationError instanceof Error ? generationError.message : "Création du nouveau format impossible." }, { status: 503 });
+    }
     nextPayload.lastManualEdit = {
       channel,
       placement,
       includeStory,
       editedAt,
-      editType: "publish_channel_placement",
+      editType,
+      ...(isTiktokPhotoFormat ? { fullScreen: requestBody?.fullScreen === true } : {}),
     };
 
-    const { data, error } = await supabaseAdmin
+    let placementUpdate = supabaseAdmin
       .from("inr_agent_actions")
       .update({
         payload: nextPayload,
@@ -2034,8 +2052,9 @@ export async function PATCH(request: Request) {
       })
       .eq("id", actionId)
       .eq("user_id", activeUserId)
-      .select(ACTION_SELECT)
-      .single();
+      .eq("status", currentRow.status);
+    placementUpdate = currentRow.updated_at ? placementUpdate.eq("updated_at", currentRow.updated_at) : placementUpdate.eq("payload", JSON.stringify(currentRow.payload ?? {}));
+    const { data, error } = await placementUpdate.select(ACTION_SELECT).maybeSingle();
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -2054,8 +2073,10 @@ export async function PATCH(request: Request) {
       );
     }
 
+    if (!data) return NextResponse.json({ error: "La publication a changé pendant la création. Rechargez-la : les médias créés restent disponibles pour la reprise.", code: "INR_AGENT_PUBLICATION_CHANGED" }, { status: 409 });
+
     const action = await refreshActionImageUrls(rowToInrAgentAction(data));
-    return NextResponse.json({ action, saved: true });
+    return NextResponse.json({ action, saved: true, createdMediaFormats });
   }
 
   if (editType === "publish_pinterest_board") {
@@ -2721,8 +2742,12 @@ export async function PATCH(request: Request) {
           ? [primaryMedia]
           : [];
 
+    const manualFormatPatch = { mediaFormatVariants: null, imagesByPlacement: Object.fromEntries(Object.entries(
+      asRecord(currentPayload.imagesByPlacement) || asRecord(currentPublishPayload.imagesByPlacement) || {},
+    ).filter(([key]) => !targetChannels.includes(key as PublishChannelKey))) };
     const nextPublishPayload = {
       ...currentPublishPayload,
+      ...manualFormatPatch,
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
       videoByChannel: nextVideoByChannel,
@@ -2740,6 +2765,7 @@ export async function PATCH(request: Request) {
 
     const nextPayload = {
       ...currentPayload,
+      ...manualFormatPatch,
       media: primaryMedia,
       mediaAsset: primaryMedia,
       mediaType: primaryMode === "images" ? "image" : primaryMode,

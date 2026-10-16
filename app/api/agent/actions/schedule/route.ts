@@ -3,7 +3,9 @@ import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorA
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { NextResponse } from "next/server";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
-import { prepareBoosterImagesByChannelOnServer } from "@/lib/boosterImageServerPreparation";
+import { inrAgentChannelImages, readInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
+import { prepareInrAgentPublicationImages } from "@/lib/inrAgentMediaPreparation";
+import { ensureInrAgentMediaFormats } from "@/lib/inrAgentMediaFormatGeneration";
 import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
@@ -578,7 +580,8 @@ async function buildImagePayloadFromAgentAction(
   const media = mediaOverride || getAgentMediaRecord(payload);
   if (!media || isVideoMedia(media)) return null;
 
-  const imageMeta = asRecord(media.imageMeta) || {};
+  const imageMeta: JsonRecord = { ...(asRecord(media.imageMeta) || {}),
+    ...(Number(media.width) > 0 && Number(media.height) > 0 ? { width: Number(media.width), height: Number(media.height) } : {}) };
   const sourceMetadata = asRecord(media.sourceMetadata) || {};
   const bucket =
     cleanText(
@@ -695,9 +698,12 @@ async function buildImagePayloadsFromAgentAction(
   payload: JsonRecord,
   actionId: string,
   actionImageAssets: unknown[],
+  channel?: string,
+  override?: unknown[],
 ) {
   const publishPayload = asRecord(payload.publishPayload) || {};
-  const candidates = [
+  const selected = override || inrAgentChannelImages(payload, channel);
+  const candidates = (selected || [
     ...imageCandidatesFromChannelMap(payload.imagesByChannel),
     ...imageCandidatesFromChannelMap(publishPayload.imagesByChannel),
     ...(Array.isArray(payload.images) ? payload.images : []),
@@ -705,7 +711,7 @@ async function buildImagePayloadsFromAgentAction(
     ...(Array.isArray(payload.mediaAssets) ? payload.mediaAssets : []),
     ...(Array.isArray(actionImageAssets) ? actionImageAssets : []),
     getAgentMediaRecord(payload),
-  ]
+  ])
     .map((item) => asRecord(item))
     .filter((item): item is JsonRecord => Boolean(item) && !isVideoMedia(item));
   const seen = new Set<string>();
@@ -908,8 +914,14 @@ async function buildScheduledPayload(
   action: ReturnType<typeof rowToInrAgentAction>,
   accountId: string,
   requestedTiktokPublicationSettings?: unknown,
+  actorAuthUserId?: string,
 ) {
-  const payload = action.payload || {};
+  let payload = action.payload || {};
+  if (payload.mediaFormatVariants && isManualEditorialPublicationAction(action)) {
+    payload = (await ensureInrAgentMediaFormats({ supabase: supabaseAdmin, accountId,
+      actorAuthUserId: actorAuthUserId || accountId, actionId: action.id, payload,
+      channels: normalizeBoosterChannels(payload.selectedChannels || payload.channels || action.targetChannels), fallbackAssets: action.imageAssets, allowGeneration: false })).payload;
+  }
   const nestedPublishPayload = asRecord(payload.publishPayload) || {};
   const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
     requestedTiktokPublicationSettings ||
@@ -996,14 +1008,17 @@ async function buildScheduledPayload(
     // Preserve the workspace identity when the action was prepared from the
     // unified media pipeline. It is replaced by a private snapshot immediately
     // after this endpoint creates each scheduled row.
-    const sourceMediaWorkspaceId = getScheduledPublicationMediaWorkspaceId(payload);
+    // Native format groups can contain more than one source per carousel
+    // position. A former single-source workspace must not replace those files.
+    const hasNativeFormatGroups = readInrAgentMediaFormatVariants(payload) !== null;
+    const sourceMediaWorkspaceId = hasNativeFormatGroups ? "" : getScheduledPublicationMediaWorkspaceId(payload);
     const sourceMediaWorkspaceClientKey = cleanText(
       payload.mediaWorkspaceClientKey || nestedPublishPayload.mediaWorkspaceClientKey,
       180,
     );
     const sourceMediaPipelineCutoverV1 =
-      payload.mediaPipelineCutoverV1 === true ||
-      nestedPublishPayload.mediaPipelineCutoverV1 === true;
+      !hasNativeFormatGroups && (payload.mediaPipelineCutoverV1 === true ||
+      nestedPublishPayload.mediaPipelineCutoverV1 === true);
     const selectedChannels = normalizeBoosterChannels(
       payload.selectedChannels || payload.channels || action.targetChannels,
     );
@@ -1012,6 +1027,7 @@ async function buildScheduledPayload(
       payload,
       action.id,
       action.imageAssets,
+      selectedChannels.length === 1 ? selectedChannels[0] : undefined,
     );
     const imagePayload = imagePayloads[0] || null;
     const videoPayload = await buildVideoPayloadFromAgentAction(payload);
@@ -1133,17 +1149,18 @@ async function buildScheduledPayload(
         : {};
     const preparedImages =
       activeMediaMode === "images" && imagePayloads.length
-          ? await prepareBoosterImagesByChannelOnServer({
+        ? await prepareInrAgentPublicationImages({
             accountId,
             channels: publishChannels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost"),
-            images: imagePayloads,
-            automaticFit: "contain",
+            payload,
+            readImages: (channel, override) => buildImagePayloadsFromAgentAction(payload, action.id, action.imageAssets, channel, override),
           })
         : {
             imagesByChannel: {},
             imageSettingsByChannel: {},
             warnings: [],
             failuresByChannel: {},
+            imagesByPlacement: {},
           };
     return {
       actionType: "publication" as const,
@@ -1172,6 +1189,9 @@ async function buildScheduledPayload(
           videoSettingsByChannel,
           images: imagePayloads,
           imagesByChannel: preparedImages.imagesByChannel,
+          imagesByPlacement: preparedImages.imagesByPlacement,
+          mediaFormatVariants: payload.mediaFormatVariants,
+          clientPreflightFailuresByChannel: preparedImages.failuresByChannel,
           videoByChannel: filterRecordByChannels(
             sourceVideoByChannel,
             publishChannels,
@@ -1467,6 +1487,7 @@ async function scheduleAgentActionHandler(request: Request) {
       action,
       activeUserId,
       body?.tiktokPublicationSettings,
+      context.authUserId,
     );
     const timezone = cleanText(body?.timezone, 80) || "Europe/Paris";
     if (scheduledPayload.actionType !== "publication" && !scheduledAt) {

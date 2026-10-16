@@ -13,6 +13,7 @@ export async function createFacebookImageMotionVideo(args: {
   imageStoragePaths: readonly string[];
   placement: "reel" | "story";
   soundtrackPrompt: string;
+  preserveComposition?: boolean;
   signal?: AbortSignal;
 }) {
   return createInstagramImageMotionVideo(args);

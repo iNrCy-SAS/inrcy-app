@@ -78,7 +78,7 @@ export function normalizeClientPreflightFailuresByChannel(
   ) as Partial<Record<BoosterPublicationChannelKey, JsonRecord>>;
 }
 
-function buildDurablePreparationInput(body: JsonRecord) {
+export function buildDurablePreparationInput(body: JsonRecord) {
   const rawPostsByChannel = asRecord(body.postByChannel);
   const facebookPost = asRecord(rawPostsByChannel.facebook);
   const instagramPost = asRecord(rawPostsByChannel.instagram);
@@ -122,6 +122,7 @@ function buildDurablePreparationInput(body: JsonRecord) {
     video: body.video,
     images: body.images,
     imagesByChannel: body.imagesByChannel,
+    imagesByPlacement: body.imagesByPlacement,
     imageSettingsByChannel: body.imageSettingsByChannel,
     tiktokPublicationSettings: body.tiktokPublicationSettings,
     instagramPublicationSettings: body.instagramPublicationSettings,

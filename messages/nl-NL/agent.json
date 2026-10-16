@@ -1,4 +1,7 @@
 {
+  "media_photo_shared_format": "Foto 4:5 · gedeeld tussen kanalen",
+  "media_photo_fullscreen_format": "Foto 9:16 · volledig scherm",
+  "media_native_formats_credits_help": "Een nieuw formaat gebruikt iNrStudio-credits. Bestaande versies worden opnieuw gebruikt.",
   "publication_media_types": "Mediatypen",
   "publication_media_single_image": "1 afbeelding",
   "publication_media_video": "Video van 8 s",

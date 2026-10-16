@@ -12,11 +12,12 @@ test("iNrAgent immediate and scheduled publications use the shared intelligent i
   ]);
 
   for (const source of [execute, schedule]) {
-    assert.match(source, /prepareBoosterImagesByChannelOnServer/);
+    assert.match(source, /prepareInrAgentPublicationImages/);
     assert.match(source, /imagesByChannel: preparedImages\.imagesByChannel/);
     assert.match(source, /imageSettingsByChannel: preparedImages\.imageSettingsByChannel/);
   }
   assert.match(helper, /getBoosterImageDecision/);
+  assert.match(await read("lib/inrAgentMediaPreparation.ts"), /prepareBoosterImagesByChannelOnServer/);
   assert.match(helper, /getBoosterImageSequenceTargetRatio/);
   assert.match(helper, /canUseAutomaticCover/);
   assert.match(helper, /"booster_intelligent_matrix_v1"/);

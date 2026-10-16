@@ -50,7 +50,7 @@ test("iNrAgent regenerates content for the selected channel or atomically for ev
   assert.doesNotMatch(contentBranch, /setChannelValue/);
 });
 
-test("media regeneration is atomic, generated once and applied to every publication channel", () => {
+test("media regeneration is atomic and shares each required format across its compatible channels", () => {
   const route = read("app/api/agent/actions/regenerate-channel/route.ts");
   const mediaBranch = route.slice(route.indexOf("const mediaModeByChannel"));
 
@@ -63,15 +63,16 @@ test("media regeneration is atomic, generated once and applied to every publicat
   assert.match(route, /for \(let index = 0; index < expectedCount; index \+= 1\)/);
   assert.match(route, /variantSeed: `\$\{actionId\}:global:\$\{mediaKind\}/);
   assert.match(route, /if \(generatedMedia\.length !== expectedCount/);
-  assert.match(route, /generationRequestId: `\$\{actionId\}:global:\$\{mediaKind\}:\$\{generationRevision\}:\$\{generationIntent\}:\$\{index\}`/);
+  assert.match(route, /generationRequestId: `\$\{actionId\}:global:\$\{mediaKind\}:\$\{generationRevision\}:\$\{generationIntent\}:format:\$\{outputFormat\}:\$\{index\}`/);
+  assert.match(route, /Promise\.allSettled\(formatPlan\.formats\.map\(async \(outputFormat\)/);
   assert.match(route, /Aucun média de la publication n’a été remplacé/);
   assert.match(
     mediaBranch,
-    /const nextImagesByChannel = setChannelsValue\(imagesByChannel, actionChannels, nextImages\)/,
+    /const nextImagesByChannel = \{ \.\.\.setChannelsValue\(imagesByChannel, actionChannels, nextImages\), \.\.\.formatBindings\.imagesByChannel \}/,
   );
   assert.match(
     mediaBranch,
-    /const nextVideoByChannel = setChannelsValue\(videoByChannel, actionChannels, nextVideo\)/,
+    /const nextVideoByChannel = \{ \.\.\.setChannelsValue\(videoByChannel, actionChannels, nextVideo\), \.\.\.formatBindings\.videoByChannel \}/,
   );
   assert.match(
     mediaBranch,

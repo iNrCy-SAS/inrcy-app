@@ -63,6 +63,8 @@ export async function normalizeGeneratedAiImage(
     width?: number;
     height?: number;
     canvasMode?: AiImageNormalizationCanvasMode;
+    /** Agent native frames may never lose picture content to force a preset. */
+    preserveComposition?: boolean;
   } = {},
 ): Promise<NormalizedAiImage> {
   const { width, height } = resolveImageCanvasDimensions(options);
@@ -81,12 +83,20 @@ export async function normalizeGeneratedAiImage(
         .flatten({ background: "#ffffff" }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
     ]);
     const detected = detectAiMediaUniformBorderCrop({ data: sample.data, ...sample.info });
+    const rotated = Number(metadata.orientation || 1) >= 5 && Number(metadata.orientation || 1) <= 8;
+    let contentWidth = rotated ? metadata.height : metadata.width;
+    let contentHeight = rotated ? metadata.width : metadata.height;
     if (detected && metadata.width && metadata.height) {
-      const rotated = Number(metadata.orientation || 1) >= 5 && Number(metadata.orientation || 1) <= 8;
-      base.extract(scaleAiMediaFrameCrop(detected, sample.info, {
+      const crop = scaleAiMediaFrameCrop(detected, sample.info, {
         width: rotated ? metadata.height : metadata.width,
         height: rotated ? metadata.width : metadata.height,
-      }));
+      });
+      base.extract(crop);
+      contentWidth = crop.width;
+      contentHeight = crop.height;
+    }
+    if (options.preserveComposition && (!contentWidth || !contentHeight || Math.abs(contentWidth * height - contentHeight * width) > 1)) {
+      throw new Error("ai_image_native_frame_mismatch");
     }
   }
   const rendered = await base.resize({

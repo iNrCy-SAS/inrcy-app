@@ -111,7 +111,7 @@ test("chaque worker canal reçoit un type média strictement isolé", () => {
   );
   assert.match(
     dispatchPayload,
-    /channelMediaMode === "images"[\s\S]{0,120}preparedImagesByChannel\[channel\]/,
+    /channelMediaMode === "images"[\s\S]{0,120}targetImages/,
   );
   assert.doesNotMatch(dispatchPayload, /\n\s*mediaType,\s*\n/);
 });

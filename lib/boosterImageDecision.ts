@@ -337,6 +337,8 @@ export function getBoosterImageDecision(params: {
    * ratios for every item, not just visually close ratios.
    */
   forceRequiredTargetCanvas?: boolean;
+  /** Meta full-screen placements have a different contract from feed photos. */
+  publicationPlacement?: "classic" | "reel" | "story";
 }): BoosterImageDecision {
   const {
     channel,
@@ -347,7 +349,13 @@ export function getBoosterImageDecision(params: {
     requiredTargetRatio,
     forceRequiredTargetCanvas = false,
   } = params;
-  const policy = BOOSTER_IMAGE_CHANNEL_POLICIES[channel];
+  const fullScreenMeta = (channel === "facebook" || channel === "instagram") && params.publicationPlacement && params.publicationPlacement !== "classic";
+  const policy = fullScreenMeta ? {
+    supportsImages: true,
+    originalRatioRange: { min: 9 / 16, max: 9 / 16 },
+    tooTallTargetRatio: 9 / 16,
+    tooWideTargetRatio: 9 / 16,
+  } : BOOSTER_IMAGE_CHANNEL_POLICIES[channel];
   const sourceRatio = getBoosterImageRatio(meta);
   const geometry = classifyBoosterImageGeometry(meta);
   const base = {

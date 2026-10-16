@@ -76,7 +76,7 @@ export type BoosterServerImagePreparationResult = {
     Record<
       BoosterImageChannel,
       {
-        code: "workspace_image_source_unavailable" | "workspace_image_preparation_failed";
+        code: "workspace_image_source_unavailable" | "workspace_image_preparation_failed" | "agent_image_format_requires_generation";
         error: string;
         imageKeys: string[];
         retryable: boolean;
@@ -967,6 +967,9 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
   settingsByChannel?: Partial<Record<BoosterImageChannel, unknown>>;
   /** iNrAgent protège toujours la composition IA complète avant validation. */
   automaticFit?: "contain";
+  /** Agent creates the required format; publishing never crops/pads it to fit. */
+  preserveSourceComposition?: boolean;
+  placementsByChannel?: Partial<Record<BoosterImageChannel, "classic" | "reel" | "story">>;
 }): Promise<BoosterServerImagePreparationResult> {
   const channels = Array.from(new Set(params.channels));
   const sourceImages = params.images.slice(0, 5);
@@ -1068,7 +1071,8 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
       requestedSettings.customizedImageKeys,
       firstImageKey,
     );
-    const sequenceTargetRatio = getBoosterImageSequenceTargetRatio({
+    const placement = params.placementsByChannel?.[channel];
+    const sequenceTargetRatio = (channel === "facebook" || channel === "instagram") && placement && placement !== "classic" ? 9 / 16 : getBoosterImageSequenceTargetRatio({
       channel,
       metas: channelSources.map((entry) => entry.meta),
       firstImageCustomizedTargetRatio:
@@ -1091,6 +1095,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           meta: entry.meta,
           requiredTargetRatio: sequenceTargetRatio,
           forceRequiredTargetCanvas: forcePinterestSequenceCanvas,
+          publicationPlacement: placement,
         });
         if (initialDecision.mode === "unsupported") {
           warnings.push({
@@ -1129,7 +1134,14 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           automaticTransform: automaticTransform as ComparableImageTransform,
           requiredTargetRatio: sequenceTargetRatio,
           forceRequiredTargetCanvas: forcePinterestSequenceCanvas,
+          publicationPlacement: placement,
         });
+
+        if (params.preserveSourceComposition && displayPlan.decision.mode === "adapted" &&
+          Math.abs(sourceRatio - Number(displayPlan.decision.targetRatio || sourceRatio)) / sourceRatio > 0.001) {
+          warnings.push({ channel, imageKey: entry.imageKey, reason: "agent_image_format_requires_generation" });
+          continue;
+        }
 
         const originalUrl = getStableOriginalUrl(entry.image);
         const common = {
@@ -1484,17 +1496,20 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
     ) {
       failuresByChannel[channel] = {
         code:
-          unavailableRequestedImageKeys.length > 0
+          channelWarnings.some((warning) => warning.reason === "agent_image_format_requires_generation")
+            ? "agent_image_format_requires_generation" : unavailableRequestedImageKeys.length > 0
             ? "workspace_image_source_unavailable"
             : "workspace_image_preparation_failed",
         error:
-          unavailableRequestedImageKeys.length > 0
+          channelWarnings.some((warning) => warning.reason === "agent_image_format_requires_generation")
+            ? "Cette image nécessite une création au format de ce canal. Régénérez les médias : l’image entière sera conservée, sans bandes ni recadrage automatique."
+            : unavailableRequestedImageKeys.length > 0
             ? "Une ou plusieurs images de cette publication sont indisponibles pour ce canal."
             : "Une ou plusieurs images n’ont pas pu être préparées pour ce canal.",
         imageKeys: failedImageKeys.length
           ? failedImageKeys
           : requestedSettings.imageKeys,
-        retryable: unavailableRequestedImageKeys.length === 0,
+        retryable: unavailableRequestedImageKeys.length === 0 && !channelWarnings.some((warning) => warning.reason === "agent_image_format_requires_generation"),
       };
       return;
     }

@@ -45,6 +45,7 @@ import {
 import {
   buildAiMediaImageProviderRequest,
   resolveAiMediaImageEditSize,
+  resolveAiMediaNativeImageSize,
 } from "@/lib/aiMediaImageProviderRequest";
 import { assertAiMediaGatewayImageInputs } from "./aiMediaImageProviderGateway.ts";
 import {
@@ -303,6 +304,8 @@ export async function generateAndSaveAiMedia(args: {
   request: AiMediaGenerationRequest;
   /** Autorisation résolue avant réservation, contrôlée une seconde fois ici. */
   videoMaxDurationSeconds?: AiMediaVideoDurationLimit;
+  /** Internal Agent contract; Studio's existing composition policy is unchanged. */
+  preserveOutputComposition?: boolean;
   signal?: AbortSignal;
   /** Locks cancellation before the first potentially billable provider phase. */
   onBillableWorkStarted?: () => void | Promise<void>;
@@ -729,7 +732,7 @@ export async function generateAndSaveAiMedia(args: {
       officialLogo: useDeterministicImageComposition || localLogoOnlyComposition ? null : officialLogo,
       size: modificationCanvas
         ? resolveAiMediaImageEditSize(modificationCanvas)
-        : imageGenerationSize,
+        : args.preserveOutputComposition ? resolveAiMediaNativeImageSize(providerRequest.format) : imageGenerationSize,
       signal: args.signal,
     });
     let gateway: AiMediaGatewayResult;
@@ -786,6 +789,7 @@ export async function generateAndSaveAiMedia(args: {
           width: modificationCanvas?.width || format.width,
           height: modificationCanvas?.height || format.height,
           canvasMode: modificationCanvas ? "source" : "preset",
+          preserveComposition: args.preserveOutputComposition,
         })
       );
     } catch (error) {
@@ -1807,6 +1811,7 @@ export async function generateAndSaveAiMedia(args: {
     }));
     const compositionInput: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal"> = {
       clips, overlays, width: format.width, height: format.height, durationSeconds,
+      preserveComposition: args.preserveOutputComposition,
       soundtrack, narration: narrationAudio,
       // "Sans parole" must also remove unexpected provider speech; lowering
       // the native track to ambience would still leave audible voices.

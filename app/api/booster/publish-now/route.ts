@@ -5,6 +5,7 @@ import { threadsPublish, buildThreadsMediaSourceIdentity } from "@/lib/threadsPu
 import { parseThreadsPublicationSettings, hasSelectedThreadsPublicationMedia, type ThreadsPublicationSettings } from "@/lib/threadsPublicationPreferences";
 import { getThreadsPublicationPreflightFailure } from "@/lib/threadsPublicationPreferencesServer";
 import { NextResponse, after } from "next/server";
+import { inrAgentImagesForPlacement } from "@/lib/inrAgentMediaFormats";
 import { requireUser } from "@/lib/requireUser";
 import {
   buildInternalCronHeaders,
@@ -1568,6 +1569,21 @@ async function publishNowHandler(req: Request) {
         ? publicationVideo?.duration ?? null
         : null;
 
+    // Agent generates native channel formats ahead of publication. Never turn
+    // an old incompatible clip into a letterboxed/cropped Reel behind the pro.
+    if (requestedOriginSource.startsWith("inr_agent") && trustedPublicationVideoMetadata) {
+      const sourceRatio = Number(trustedPublicationVideoMetadata.width) / Number(trustedPublicationVideoMetadata.height);
+      for (const channel of activePreparationSelected) {
+        if (mediaModeByChannel[channel] !== "video") continue;
+        const format = videoSettingsByChannel[channel]?.format;
+        const targetRatio = format === "9_16" ? 9 / 16 : format === "16_9" ? 16 / 9 : format === "1_1" ? 1 : null;
+        if (targetRatio && sourceRatio > 0 && Math.abs(sourceRatio - targetRatio) / targetRatio > 0.001) {
+          setPreflightFailure(channel, { code: "agent_video_format_requires_generation", retryable: false,
+            error: "Cette vidéo nécessite une version au format du canal. Régénérez ses médias dans iNr’Agent : aucun fond ni recadrage automatique ne sera ajouté." });
+        }
+      }
+    }
+
     if (strictMediaCutover && hasAnyVideoChannel && publicationVideo) {
       const sourceWidth = Number(trustedPublicationVideoMetadata?.width || 0) || null;
       const sourceHeight = Number(trustedPublicationVideoMetadata?.height || 0) || null;
@@ -2734,6 +2750,9 @@ async function publishNowHandler(req: Request) {
 
         const channelRows = publicationTargets.map((target) => {
           const channel = target.channel;
+          const targetImages = inrAgentImagesForPlacement<ImagePayload>({ source: requestedOriginSource,
+            imagesByPlacement: body.imagesByPlacement, channel, placement: target.placement,
+            fallback: preparedImagesByChannel[channel] || [] });
           const preflightFailure = preflightFailuresByChannel[channel] || null;
           const preparationDeferred =
             deferredPreparationChannels.has(channel);
@@ -2796,11 +2815,15 @@ async function publishNowHandler(req: Request) {
             imagesByChannel: {
               [channel]:
                 channelMediaMode === "images"
-                  ? preparedImagesByChannel[channel] || []
+                  ? targetImages
                   : [],
             },
             imageSettingsByChannel: {
-              [channel]: imageSettingsByChannel[channel],
+              [channel]: targetImages !== preparedImagesByChannel[channel] ? {
+                imageKeys: targetImages.map((image) => image.imageKey || image.mediaId),
+                transforms: Object.fromEntries(targetImages.map((image) => [image.imageKey || image.mediaId || "", image.transform || {}])),
+                customizedImageKeys: [], policy: "inr_agent_native_format_v1",
+              } : imageSettingsByChannel[channel],
             },
             ...(channel === "tiktok"
               ? { tiktokPublicationSettings }
@@ -2829,7 +2852,7 @@ async function publishNowHandler(req: Request) {
             _asyncTargetPlacement: target.placement,
             _asyncTargetCount: targetCountByChannel[channel] || 1,
             _asyncExpectedImageCount:
-              expectedImageCountByChannel[channel] || 0,
+              channelMediaMode === "images" ? targetImages.length : expectedImageCountByChannel[channel] || 0,
             _asyncParentEventId: publicationId,
             _asyncParentIdempotencyLockId: publishIdempotencyLockId || null,
             _asyncParentIdempotencyKey: publishIdempotencyKey || null,
@@ -4656,6 +4679,7 @@ async function publishNowHandler(req: Request) {
                 publicationId,
                 imageStoragePaths: facebookSourceStoragePaths,
                 placement: facebookPublicationSettings.placement,
+                preserveComposition: requestedOriginSource.startsWith("inr_agent"),
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,
@@ -4941,6 +4965,7 @@ async function publishNowHandler(req: Request) {
                 publicationId,
                 imageStoragePaths: instagramSourceStoragePaths,
                 placement: instagramPublicationSettings.placement,
+                preserveComposition: requestedOriginSource.startsWith("inr_agent"),
                 soundtrackPrompt: [
                   idea,
                   channelPost.title,

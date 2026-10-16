@@ -734,6 +734,7 @@ export default function AgentClient() {
   const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
     "idle" | "saving"
   >("idle");
+  const [publishStoryPreviewKey, setPublishStoryPreviewKey] = useState("");
   const initialPinterestBoardCache = useMemo(
     () => readPinterestBoardUiCache(),
     []
@@ -1031,7 +1032,7 @@ export default function AgentClient() {
   );
   const canReviewSelectedAction = isAgentActionAwaitingValidation(
     selectedPreparedAction
-  );
+  ) && publishPlacementSaveState !== "saving";
   const publicationViewerActions = buildPublicationViewerItems(
     publicationCarouselActions,
     selectedKey === "publish" ? selectedPreparedAction : null,
@@ -1454,9 +1455,20 @@ export default function AgentClient() {
   const preparedParagraphs = previewParagraphs(
     preparedChannelPreview?.body || selectedPreparedAction?.summary || ""
   );
+  const metaPreviewChannel = activePreviewChannel === "facebook" || activePreviewChannel === "instagram" ? activePreviewChannel : null;
+  const secondaryStoryImages = selectedPreparedAction && metaPreviewChannel && readInrAgentPublicationSelection(selectedPreparedAction.payload, metaPreviewChannel).includeStory
+    ? asRecord(asRecord(selectedPreparedAction.payload.imagesByPlacement)?.[metaPreviewChannel])?.story : null;
+  const secondaryStoryAvailable = Array.isArray(secondaryStoryImages) && secondaryStoryImages.length > 0;
+  const secondaryStoryKey = `${selectedPreparedAction?.id || ""}:${metaPreviewChannel || ""}`;
+  const showingSecondaryStory = secondaryStoryAvailable && publishStoryPreviewKey === secondaryStoryKey;
+  const mediaPreviewAction = showingSecondaryStory && selectedPreparedAction && metaPreviewChannel ? {
+    ...selectedPreparedAction, payload: { ...selectedPreparedAction.payload, imagesByChannel: {
+      ...(asRecord(selectedPreparedAction.payload.imagesByChannel) || {}), [metaPreviewChannel]: secondaryStoryImages,
+    } },
+  } : selectedPreparedAction;
   const publishMediaPreview = isPublishView
     ? extractPublishMediaPreview(
-        selectedPreparedAction,
+        mediaPreviewAction,
         activePreviewChannel,
         publishMediaActiveIndex
       )
@@ -2802,6 +2814,24 @@ export default function AgentClient() {
     } finally {
       setPublishPlacementSaveState("idle");
     }
+  }
+
+  async function saveTiktokPhotoFormat(fullScreen: boolean) {
+    if (!selectedPreparedAction || activePreviewChannel !== "tiktok" || scheduledEditSession || publishPlacementSaveState === "saving") return;
+    setPublishPlacementSaveState("saving");
+    setNotice(null);
+    try {
+      const response = await fetch("/api/agent/actions", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId: selectedPreparedAction.id, editType: "publish_photo_format", channel: "tiktok", fullScreen }),
+      });
+      const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
+      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+      const updatedAction = payload.action;
+      setActions((current) => current.map((action) => action.id === updatedAction.id ? updatedAction : action));
+      showNotice(i18nT(fullScreen ? "media_photo_fullscreen_format" : "media_photo_shared_format"));
+    } catch (error) { showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed")); }
+    finally { setPublishPlacementSaveState("idle"); }
   }
 
   async function saveThreadsPublicationMode(mode: ThreadsPublicationMode) {
@@ -5302,6 +5332,7 @@ export default function AgentClient() {
 
   const agentWorking =
     saveState === "saving" ||
+    publishPlacementSaveState === "saving" ||
     publishSaveState === "saving" ||
     prepareActionState === "saving" ||
     Boolean(testNowKey) ||
@@ -5326,7 +5357,8 @@ export default function AgentClient() {
             channel: agentChannelLabel(publishRegeneration.channel, runtimeT),
           })
       : i18nT("agent_working_regenerating_media")
-    : prepareActionState === "saving" ||
+    : publishPlacementSaveState === "saving" ||
+      prepareActionState === "saving" ||
       Boolean(testNowKey) ||
       publishPreparationInProgress
     ? i18nT("agent_working_preparing")
@@ -6308,8 +6340,7 @@ export default function AgentClient() {
                                 disabled={
                                   !selectedPreparedAction ||
                                   !canReviewSelectedAction ||
-                                  actionMutationState === "saving" ||
-                                  publishPlacementSaveState === "saving"
+                                  actionMutationState === "saving"
                                 }
                                 aria-label={i18nT("publication_mode_label")}
                                 title={i18nT("publication_mode_help")}
@@ -6362,8 +6393,7 @@ export default function AgentClient() {
                                     disabled={
                                       !selectedPreparedAction ||
                                       !canReviewSelectedAction ||
-                                      actionMutationState === "saving" ||
-                                      publishPlacementSaveState === "saving"
+                                      actionMutationState === "saving"
                                     }
                                     aria-label={`+ ${i18nT(
                                       "publication_mode_story"
@@ -6374,6 +6404,25 @@ export default function AgentClient() {
                                   </span>
                                 </label>
                               ) : null}
+                              {publishIncludeStory && publishPlacement === "classic" && secondaryStoryAvailable ? (
+                                <button type="button" className={styles.publishStoryOption} aria-pressed={showingSecondaryStory}
+                                  onClick={() => setPublishStoryPreviewKey(showingSecondaryStory ? "" : secondaryStoryKey)}>
+                                  {i18nT("preview_label")} · {i18nT(showingSecondaryStory ? "publication_mode_classic" : "publication_mode_story")}
+                                </button>
+                              ) : null}
+                              <small className={styles.publishFormatHelp}>{i18nT("media_native_formats_credits_help")}</small>
+                            </span>
+                          ) : activePreviewChannel === "tiktok" && publishMediaPreview?.kind === "image" && asRecord(selectedPreparedAction?.payload.mediaFormatVariants)?.kind === "image" && !scheduledEditSession ? (
+                            <span className={styles.publishPlacementControls}>
+                              <select className={styles.publishPlacementSelect}
+                                value={selectedPreparedAction?.payload.tiktokPhotoFullScreen !== false ? "fullscreen" : "shared"}
+                                onChange={(event) => { void saveTiktokPhotoFormat(event.target.value === "fullscreen"); }}
+                                disabled={!canReviewSelectedAction || actionMutationState === "saving"}
+                                aria-label={i18nT("publication_mode_label")}>
+                                <option value="shared">{i18nT("media_photo_shared_format")}</option>
+                                <option value="fullscreen">{i18nT("media_photo_fullscreen_format")}</option>
+                              </select>
+                              <small className={styles.publishFormatHelp}>{i18nT("media_native_formats_credits_help")}</small>
                             </span>
                           ) : activePreviewChannel === "threads" && metaPilotEnabled ? (
                             <span className={styles.publishPlacementControls}>

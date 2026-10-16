@@ -1,4 +1,7 @@
 {
+  "media_photo_shared_format": "Foto 4:5 · condivisa tra i canali",
+  "media_photo_fullscreen_format": "Foto 9:16 · schermo intero",
+  "media_native_formats_credits_help": "Un nuovo formato utilizza crediti iNrStudio. Le versioni già create vengono riutilizzate.",
   "publication_media_types": "Tipi di contenuti",
   "publication_media_single_image": "1 immagine",
   "publication_media_video": "Video di 8 s",

@@ -35,6 +35,7 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "@/lib/inrAgentMediaFormats";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
 import { INR_AGENT_IMAGES_PER_PUBLICATION } from "@/lib/inrAgentEditorialPlanning";
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
@@ -506,10 +507,14 @@ export async function POST(request: Request) {
       loadInrAgentStudioMediaPreferences({ supabase: supabaseAdmin, accountId: activeUserId }),
     ]);
     const generationIntent = createHash("sha256").update(JSON.stringify([
-      mediaIdea, theme, studioPreferences, expectedCount, videoDurationSeconds,
+      mediaIdea, theme, studioPreferences, expectedCount, videoDurationSeconds, "shared-formats-v1",
     ])).digest("hex").slice(0, 16);
-    const results = [];
-    for (let index = 0; index < expectedCount; index += 1) {
+    const formatPlan = buildInrAgentMediaFormatPlan({ kind: mediaKind, channels: actionChannels, payload });
+    const results: Array<Awaited<ReturnType<typeof generateInrAgentMedia>>> = [];
+    const generatedByFormat: Partial<Record<typeof formatPlan.defaultFormat, NonNullable<ReturnType<typeof cleanPublishMedia>>[]>> = {};
+    const formatAttempts = await Promise.allSettled(formatPlan.formats.map(async (outputFormat) => {
+      const formatMedia: NonNullable<ReturnType<typeof cleanPublishMedia>>[] = [];
+      for (let index = 0; index < expectedCount; index += 1) {
       const result = await generateInrAgentMedia({
         supabase: supabaseAdmin,
         accountId: activeUserId,
@@ -528,18 +533,22 @@ export async function POST(request: Request) {
         studioPreferences,
         videoDurationSeconds,
         variantSeed: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
-        generationRequestId: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:${index}`,
+        generationRequestId: `${actionId}:global:${mediaKind}:${generationRevision}:${generationIntent}:format:${outputFormat}:${index}`,
+        outputFormat,
       });
       results.push(result);
       if (!result.item) break;
-    }
-    const generatedMedia = results
-      .map((result) => result.item ? generatedItemToAgentMedia(result.item) : null)
-      .filter((item): item is NonNullable<ReturnType<typeof cleanPublishMedia>> => Boolean(item)
-        && item?.kind === mediaKind
-        && (!videoDurationSeconds || Math.abs(Number(item?.duration) - videoDurationSeconds) <= 0.1));
+      const item = generatedItemToAgentMedia(result.item);
+      if (item && item.kind === mediaKind && (!videoDurationSeconds || Math.abs(Number(item.duration) - videoDurationSeconds) <= 0.1)) formatMedia.push(item);
+      }
+      generatedByFormat[outputFormat] = formatMedia;
+    }));
+    const rejectedFormat = formatAttempts.find((attempt) => attempt.status === "rejected");
+    if (rejectedFormat?.status === "rejected") throw rejectedFormat.reason;
+    const generatedMedia = generatedByFormat[formatPlan.defaultFormat] || [];
     if (generatedMedia.length !== expectedCount
-      || new Set(generatedMedia.map((item) => item.id || item.storagePath || item.url)).size !== expectedCount) {
+      || formatPlan.formats.some((format) => generatedByFormat[format]?.length !== expectedCount)
+      || new Set(Object.values(generatedByFormat).flatMap((items) => items.map((item) => item.id || item.storagePath || item.url))).size !== expectedCount * formatPlan.formats.length) {
       const quotaReached = results.some((result) => result.outcome === "quota_reached");
       return NextResponse.json(
         {
@@ -561,32 +570,36 @@ export async function POST(request: Request) {
     const nextImages = mediaKind === "image" ? generatedMedia : [];
     const nextVideo = mediaKind === "video" ? generatedMedia[0] : null;
     const effectiveMedia = generatedMedia[0];
-    const nextImagesByChannel = setChannelsValue(imagesByChannel, actionChannels, nextImages);
-    const nextVideoByChannel = setChannelsValue(videoByChannel, actionChannels, nextVideo);
+    const formatBindings = bindInrAgentMediaFormatVariants<NonNullable<ReturnType<typeof cleanPublishMedia>>>({ variants: {
+      version: 1, kind: mediaKind, defaultFormat: formatPlan.defaultFormat, byFormat: generatedByFormat,
+    }, channels: actionChannels, payload });
+    const nextImagesByChannel = { ...setChannelsValue(imagesByChannel, actionChannels, nextImages), ...formatBindings.imagesByChannel };
+    const nextVideoByChannel = { ...setChannelsValue(videoByChannel, actionChannels, nextVideo), ...formatBindings.videoByChannel };
     const nextMediaModeByChannel = setChannelsValue(mediaModeByChannel, actionChannels, nextMode);
     const nextReadiness = { ...readinessByChannel };
     const nextAdaptation = { ...adaptationByChannel };
     const nextPostByChannel = { ...postByChannel };
     for (const targetChannel of actionChannels) {
+      const channelMedia = formatBindings.imagesByChannel[targetChannel]?.[0] || formatBindings.videoByChannel[targetChannel] || effectiveMedia;
       nextReadiness[targetChannel] = buildPublishMediaReadiness(
         targetChannel,
-        effectiveMedia,
+        channelMedia,
       );
       nextAdaptation[targetChannel] = buildPublishMediaAdaptation(
         targetChannel,
-        effectiveMedia,
+        channelMedia,
       );
       const targetPost = readPublishPost(postByChannel, targetChannel);
       nextPostByChannel[targetChannel] = {
         ...targetPost,
-        media: effectiveMedia,
-        mediaAsset: effectiveMedia,
+        media: channelMedia,
+        mediaAsset: channelMedia,
         mediaMode: nextMode,
-        image: mediaKind === "image" ? effectiveMedia : null,
-        imageAsset: mediaKind === "image" ? effectiveMedia : null,
-        imageUrl: mediaKind === "image" ? effectiveMedia.url : "",
-        video: mediaKind === "video" ? effectiveMedia : null,
-        videoAsset: mediaKind === "video" ? effectiveMedia : null,
+        image: mediaKind === "image" ? channelMedia : null,
+        imageAsset: mediaKind === "image" ? channelMedia : null,
+        imageUrl: mediaKind === "image" ? channelMedia.url : "",
+        video: mediaKind === "video" ? channelMedia : null,
+        videoAsset: mediaKind === "video" ? channelMedia : null,
       };
     }
     const globalMediaPatch = {
@@ -602,6 +615,12 @@ export async function POST(request: Request) {
       image_assets: generatedMedia,
     };
     const mapPatch = {
+      mediaFormatVariants: formatBindings.mediaFormatVariants,
+      imagesByPlacement: formatBindings.imagesByPlacement,
+      ...(mediaKind === "video" ? { videoSettingsByChannel: setChannelsValue(
+        asRecord(payload.videoSettingsByChannel) || asRecord(nested.videoSettingsByChannel) || {},
+        actionChannels, { format: "original", adaptationMode: "safe_frame" },
+      ) } : {}),
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
       videoByChannel: nextVideoByChannel,

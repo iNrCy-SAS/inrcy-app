@@ -57,6 +57,8 @@ export function buildInrAgentMediaGenerationRequest(args: {
   mediaMix: InrAgentMediaMixResolution;
   /** Les nouveaux formats Publier utilisent un seul clip de huit secondes. */
   videoDurationSeconds?: 8;
+  /** Destination format is chosen once for a group of compatible channels. */
+  outputFormat?: AiMediaGenerationRequest["format"];
 }): AiMediaGenerationRequest {
   const peopleCriterion = peopleCriterionForMode(args.mediaMix.peopleMode);
   const generationMode: AiMediaGenerationMode =
@@ -87,7 +89,7 @@ export function buildInrAgentMediaGenerationRequest(args: {
     withNarration: args.mediaMix.withNarration,
     narrationVoice: args.mediaMix.narrationVoice,
     narrationVoiceVariant: null,
-    format: args.mediaMix.format,
+    format: args.outputFormat || args.mediaMix.format,
     typology: typologyForTheme(args.theme),
     visualStyle: args.mediaMix.visualStyle,
     imageStyle: args.mediaMix.imageStyle,

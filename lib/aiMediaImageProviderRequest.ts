@@ -27,6 +27,11 @@ export type AiMediaImageProviderRequest = {
 const AI_MEDIA_IMAGE_EDIT_MAX_EDGE = 1_536;
 const AI_MEDIA_IMAGE_EDIT_MIN_PIXELS = 655_360;
 
+/** Native, multiple-of-16 canvases: no 2:3/3:2 preset needs cropping later. */
+export function resolveAiMediaNativeImageSize(format: AiMediaOutputFormat): `${number}x${number}` {
+  return { square: "1024x1024", portrait: "1024x1280", story: "864x1536", landscape: "1536x864" }[format] as `${number}x${number}`;
+}
+
 function positiveDimension(value: number) {
   return Number.isFinite(value) ? Math.max(1, Math.trunc(value)) : 1;
 }

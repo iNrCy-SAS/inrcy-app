@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { normalizeAiMediaGeneratorPreferences } from "../../lib/aiMediaGenerationPreferences.ts";
 import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
+import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 
 type RecordValue = Record<string, unknown>;
 type Media = { id: string; mediaType: "image"; kind: "image"; source: string; librarySource: string; storagePath: string };
@@ -107,6 +108,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
         const item = proMedia(`image-${generated.size + 1}`); generated.set(key, { item, request }); events.push("media-generated");
         return { item, outcome: "generated", kind: "image" };
       },
+      buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants,
       generatedPickerItemToAgentMedia: ({ item }: { item: Media }) => item,
       getRecentMediaTrace: () => ({}), isRecentlyUsedMediaRow: () => false, isValidJobForSector: () => true,
       shouldUseFastAgentMediaContext: () => true,

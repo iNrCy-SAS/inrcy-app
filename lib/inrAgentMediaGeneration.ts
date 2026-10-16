@@ -8,6 +8,7 @@ import {
 } from "@/lib/aiGeneratedMediaRegistry";
 import {
   type AiMediaKind,
+  type AiMediaGenerationRequest,
   type AiMediaLibraryPickerItem,
 } from "@/lib/aiMediaGenerationContracts";
 import {
@@ -72,6 +73,7 @@ export async function generateInrAgentMedia(args: {
   videoDurationSeconds?: 8;
   /** Identifie un emplacement et une partie de carrousel, stable au retry. */
   generationRequestId?: string;
+  outputFormat?: AiMediaGenerationRequest["format"];
 }): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
   const videoEntitlement =
@@ -104,6 +106,7 @@ export async function generateInrAgentMedia(args: {
     kind: args.kind,
     mediaMix,
     videoDurationSeconds: args.videoDurationSeconds,
+    outputFormat: args.outputFormat,
   });
   const fingerprint = createAiMediaRequestFingerprint({
     contract: "inrcy-agent-ai-media-v1",
@@ -136,6 +139,7 @@ export async function generateInrAgentMedia(args: {
       automation_key: "publish",
       theme: args.theme,
       duration_seconds: request.durationSeconds,
+      output_format: request.format,
       studio_media_preference_percent: mediaMix.studioMediaPreferencePercent,
       studio_media_preference_mode: mediaMix.mode,
       studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
@@ -219,6 +223,7 @@ export async function generateInrAgentMedia(args: {
       edition,
       request,
       videoMaxDurationSeconds,
+      preserveOutputComposition: Boolean(args.outputFormat),
     });
     mediaPersisted = true;
     await completeAiMediaGeneration({

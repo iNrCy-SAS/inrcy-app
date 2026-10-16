@@ -62,6 +62,7 @@ import {
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants, type InrAgentMediaFormatPlan } from "@/lib/inrAgentMediaFormats";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
 import { normalizeAiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
@@ -133,6 +134,8 @@ type ImageBankAsset = {
   mimeType?: string;
   size?: number | null;
   duration?: number | null;
+  width?: number | null;
+  height?: number | null;
 };
 
 type RecentMediaUsage = {
@@ -1498,6 +1501,8 @@ function generatedPickerItemToAgentMedia(args: {
       (mediaType === "video" ? "video/mp4" : "image/jpeg"),
     size: Number(args.item.size_bytes || 0) || null,
     duration: Number(args.item.duration_seconds || 0) || null,
+    width: width || null,
+    height: height || null,
   } satisfies ImageBankAsset;
 }
 
@@ -2368,6 +2373,14 @@ export async function POST(request: Request) {
   if (!ghostOnlyPublication && reuseMediaSnapshot && Array.isArray(savedMediaSnapshot.existingAssets)) {
     existingMediaAssets = savedMediaSnapshot.existingAssets as ImageBankAsset[];
   }
+  // A retry of a historical snapshot keeps its historical requests. New
+  // preparations freeze the format plan before the first billable call.
+  const generationFormatPlan: InrAgentMediaFormatPlan | null = reuseMediaSnapshot
+    ? asRecord(savedMediaSnapshot.formatPlan).version === 1
+      ? savedMediaSnapshot.formatPlan as InrAgentMediaFormatPlan : null
+    : desiredMediaCount > existingMediaAssets.length
+      ? buildInrAgentMediaFormatPlan({ kind: generatedKind, channels: channels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost") })
+      : null;
   if (editorialTarget && !reuseMediaSnapshot) {
     // Figer les entrées avant le premier débit assure un retry identique, même
     // si le profil, l’historique ou les réglages Studio évoluent entre-temps.
@@ -2377,6 +2390,7 @@ export async function POST(request: Request) {
         signature: mediaSnapshotSignature, idea, theme: agentTheme,
         studioPreferences: studioMediaPreferences,
         existingAssets: existingMediaAssets,
+        formatPlan: generationFormatPlan,
       },
     };
     const saved = await supabaseAdmin.from("inr_agent_actions")
@@ -2385,7 +2399,9 @@ export async function POST(request: Request) {
       .select("id").maybeSingle();
     if (saved.error || !saved.data) throw new Error("editorial_media_snapshot_unavailable");
   }
-  const requestedGenerationCount = Math.max(0, desiredMediaCount - existingMediaAssets.length);
+  const formatGroups = generationFormatPlan?.formats || [undefined];
+  const requestedGenerationCount = formatGroups.reduce((count, format) => count + Math.max(0,
+    desiredMediaCount - (!generationFormatPlan || format === generationFormatPlan.defaultFormat ? existingMediaAssets.length : 0)), 0);
   const shouldGenerateMedia = requestedGenerationCount > 0;
   const generatedMediaResults: Array<
     Awaited<ReturnType<typeof generateInrAgentMedia>>
@@ -2393,42 +2409,49 @@ export async function POST(request: Request) {
   const mediaRequestScope = editorialTarget
     ? `${editorialTarget.id}:${mediaSnapshotSignature.slice(0, 16)}`
     : randomUUID();
-  for (let index = 0; index < requestedGenerationCount; index += 1) {
-    generatedMediaResults.push(
-      await generateInrAgentMedia({
+  const generatedAssetsByFormat: Record<string, ImageBankAsset[]> = {};
+  // At most the feed and fullscreen groups run together. Each group keeps its
+  // own stable, sequential carousel parts and atomic credit reservations.
+  const formatAttempts = await Promise.allSettled(formatGroups.map(async (outputFormat) => {
+    const formatExisting = !generationFormatPlan || outputFormat === generationFormatPlan.defaultFormat ? existingMediaAssets : [];
+    const formatAssets = [...formatExisting];
+    for (let index = formatExisting.length; index < desiredMediaCount; index += 1) {
+      const result = await generateInrAgentMedia({
         supabase: supabaseAdmin,
         accountId: userId,
         actorAuthUserId: actorUserId,
         idea: requestedImageCount === 3
-          ? `${generationIdea}\n\nCARROUSEL COHÉRENT DE 3 IMAGES — visuel ${existingMediaAssets.length + index + 1}/3. Même sujet et identité visuelle, cadrage et détail complémentaires aux autres visuels. Aucun fait, résultat client ou chantier inventé.`
+          ? `${generationIdea}\n\nCARROUSEL COHÉRENT DE 3 IMAGES — visuel ${index + 1}/3. Même sujet et identité visuelle, cadrage et détail complémentaires aux autres visuels. Aucun fait, résultat client ou chantier inventé.`
           : generationIdea,
         theme: generationTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,
         studioMediaPreferencePercent: automation.studioMediaPreferencePercent,
         studioPreferences: generationStudioPreferences,
-        variantSeed: `${mediaRequestScope}:${existingMediaAssets.length + index}`,
-        generationRequestId: `${mediaRequestScope}:part:${existingMediaAssets.length + index}`,
+        variantSeed: `${mediaRequestScope}:${index}`,
+        generationRequestId: `${mediaRequestScope}${outputFormat ? `:format:${outputFormat}` : ""}:part:${index}`,
         videoDurationSeconds,
-      })
-    );
-  }
+        outputFormat,
+      });
+      generatedMediaResults.push(result);
+      if (result.item) formatAssets.push(generatedPickerItemToAgentMedia({ item: result.item, business }));
+    }
+    generatedAssetsByFormat[outputFormat || "legacy"] = formatAssets;
+  }));
+  const rejectedFormat = formatAttempts.find((attempt) => attempt.status === "rejected");
+  if (rejectedFormat?.status === "rejected") throw rejectedFormat.reason;
   const generatedMediaResult =
     generatedMediaResults.find((result) => Boolean(result.item)) ||
     generatedMediaResults[0] ||
     null;
-  const generatedMediaAssets = generatedMediaResults.flatMap((result) =>
-    result.item
-      ? [generatedPickerItemToAgentMedia({ item: result.item, business })]
-      : []
-  );
+  const generatedMediaAssets = (generatedAssetsByFormat[generationFormatPlan?.defaultFormat || "legacy"] || []).slice(existingMediaAssets.length);
   const selectedMediaAssets = [...existingMediaAssets, ...generatedMediaAssets];
   const mediaAssets: ImageBankAsset[] = selectedMediaAssets.length === desiredMediaCount
     ? selectedMediaAssets
     : fallbackAssets.length === desiredMediaCount && generatedMediaAssets.length === 0 ? fallbackAssets : selectedMediaAssets;
   const media = mediaAssets[0] || null;
   if (
-    mediaAssets.length !== desiredMediaCount
+    mediaAssets.length !== desiredMediaCount || Object.values(generatedAssetsByFormat).some((assets) => assets.length !== desiredMediaCount)
   ) {
     const outcomes = generatedMediaResults.map((result) => result.outcome);
     const primaryOutcome = outcomes.includes("quota_reached") ? "quota_reached"
@@ -2509,7 +2532,7 @@ export async function POST(request: Request) {
           outcome: generatedMediaResult.outcome,
           errorCode: generatedMediaResult.errorCode || null,
           requestedCount: requestedGenerationCount,
-          generatedCount: generatedMediaAssets.length,
+          generatedCount: generatedMediaResults.filter((result) => Boolean(result.item)).length,
           outcomes: generatedMediaResults.map((result) => result.outcome),
           consumedSharedStudioQuota: generatedMediaResults.some(
             (result) => result.outcome === "generated"
@@ -2668,11 +2691,16 @@ export async function POST(request: Request) {
   // Même logique que Booster / Publier : l'absence de média ne bloque jamais
   // la préparation du texte. Les canaux compatibles restent prêts en texte seul,
   // les canaux qui exigent un média sont marqués comme incomplets canal par canal.
+  const mediaFormatBindings = generationFormatPlan ? bindInrAgentMediaFormatVariants<ImageBankAsset>({
+    variants: { version: 1, kind: generatedKind, defaultFormat: generationFormatPlan.defaultFormat, byFormat: generatedAssetsByFormat }, channels,
+  }) : null;
+  const channelSelectedMedia = (channel: string) => channel === "threads" && threadsPublicationSettings?.mode === "ghost" ? null
+    : mediaFormatBindings ? mediaFormatBindings.imagesByChannel[channel]?.[0] || mediaFormatBindings.videoByChannel[channel] || null : media;
   const mediaReadinessByChannel = Object.fromEntries(
-    channels.map((channel) => [channel, channelMediaReadiness(channel, channel === "threads" && threadsPublicationSettings?.mode === "ghost" ? null : media)])
+    channels.map((channel) => [channel, channelMediaReadiness(channel, channelSelectedMedia(channel))])
   );
   const mediaAdaptationByChannel = Object.fromEntries(
-    channels.map((channel) => [channel, channelMediaAdaptation(channel, channel === "threads" && threadsPublicationSettings?.mode === "ghost" ? null : media)])
+    channels.map((channel) => [channel, channelMediaAdaptation(channel, channelSelectedMedia(channel))])
   );
 
   try {
@@ -2761,6 +2789,7 @@ export async function POST(request: Request) {
       media,
       mediaAsset: media,
       mediaAssets,
+      ...(mediaFormatBindings || {}),
       mediaSelectionTrace,
       mediaType: media ? mediaKind : "none",
       ...videoAiContextReferenceAliases(videoAiContextRef),

@@ -352,6 +352,7 @@ function buildFilter(args: {
   narrationInputIndex: number | null;
   narrationDurationSeconds: number | null;
   nativeAudioMode: AiMediaNativeAudioMode;
+  preserveComposition?: boolean;
 }) {
   const filters: string[] = [];
   // Un ancien rendu carré pouvait encore recevoir une source 9:16. On garde
@@ -373,7 +374,9 @@ function buildFilter(args: {
     // plan entier, mais gravait de larges piliers noirs autour des sources
     // verticales. La composition du prompt protège déjà le sujet dans la zone
     // sûre ; le crop est donc préférable à une vidéo visuellement réduite.
-    const framing = `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
+    const framing = args.preserveComposition
+      ? `scale=${args.width}:${args.height}`
+      : `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
       `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${removeMatte}${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`
@@ -488,6 +491,8 @@ export async function composeOriginalAiVideo(args: {
   narration?: GeneratedAiNarrationAudio | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
+  /** Agent clips must already match their destination; no picture may be cut. */
+  preserveComposition?: boolean;
   signal?: AbortSignal;
 }): Promise<NormalizedAiVideo> {
   args.signal?.throwIfAborted();
@@ -569,6 +574,11 @@ export async function composeOriginalAiVideo(args: {
       durationSeconds: args.clips[index].durationSeconds, signal: args.signal,
     })));
     args.signal?.throwIfAborted();
+    if (args.preserveComposition && probes.some((probe, index) => {
+      const width = clipCrops[index]?.width || probe.orientedWidth;
+      const height = clipCrops[index]?.height || probe.orientedHeight;
+      return Math.abs(width * args.height - height * args.width) > 1;
+    })) throw new Error("ai_original_video_native_frame_mismatch");
     // Une piste Veo dite « ambiance » peut malgré le prompt contenir une voix
     // résiduelle. Dès qu'une voix off iNrCy existe, couper toute la piste
     // native garantit qu'aucune seconde voix ne puisse se superposer.
@@ -625,6 +635,7 @@ export async function composeOriginalAiVideo(args: {
         narrationInputIndex,
         narrationDurationSeconds,
         nativeAudioMode,
+        preserveComposition: args.preserveComposition,
       }),
       "-map",
       "[video]"

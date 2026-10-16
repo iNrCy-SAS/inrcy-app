@@ -1,4 +1,7 @@
 {
+  "media_photo_shared_format": "Foto 4:5 · kanalübergreifend geteilt",
+  "media_photo_fullscreen_format": "Foto 9:16 · Vollbild",
+  "media_native_formats_credits_help": "Ein neues Format verbraucht iNrStudio-Guthaben. Bereits erstellte Versionen werden wiederverwendet.",
   "publication_media_types": "Medientypen",
   "publication_media_single_image": "1 Bild",
   "publication_media_video": "8-Sekunden-Video",

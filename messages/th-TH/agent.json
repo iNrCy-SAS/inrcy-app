@@ -1,4 +1,7 @@
 {
+  "media_photo_shared_format": "ภาพ 4:5 · ใช้ร่วมกันทุกช่องทาง",
+  "media_photo_fullscreen_format": "ภาพ 9:16 · เต็มหน้าจอ",
+  "media_native_formats_credits_help": "รูปแบบใหม่ใช้เครดิต iNrStudio โดยจะนำเวอร์ชันที่สร้างแล้วกลับมาใช้ซ้ำ",
   "publication_media_types": "ประเภทสื่อ",
   "publication_media_single_image": "1 รูป",
   "publication_media_video": "วิดีโอ 8 วินาที",

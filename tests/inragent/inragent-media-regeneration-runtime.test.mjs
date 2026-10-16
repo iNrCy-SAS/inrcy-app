@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 
 const source = readFileSync(new URL("../../app/api/agent/actions/regenerate-channel/route.ts", import.meta.url), "utf8");
 const parsed = ts.createSourceFile("route.ts", source, ts.ScriptTarget.Latest, true);
@@ -33,6 +34,7 @@ function action(images = [image("old-1"), image("old-2"), image("old-3")]) {
 function harness({ failAt = 0, duplicate = false, wrongKind = false, wrongDuration = false, studioPreferences = null } = {}) {
   const calls = [], writes = [];
   const dependencies = {
+    buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants,
     createHash,
     asRecord: (value) => value && typeof value === "object" && !Array.isArray(value) ? value : null,
     cleanText: (value, limit = 500) => String(value || "").trim().slice(0, limit),

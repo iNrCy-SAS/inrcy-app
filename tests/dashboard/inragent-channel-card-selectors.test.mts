@@ -16,12 +16,14 @@ const actionApi = read("app/api/agent/actions/route.ts");
 const executeApi = read("app/api/agent/actions/execute/route.ts");
 const scheduleApi = read("app/api/agent/actions/schedule/route.ts");
 
-test("the Channel card renders Meta formats, pilot-gated Threads modes and the Pinterest board", () => {
+test("the Channel card renders Meta and TikTok formats, pilot-gated Threads modes and the Pinterest board", () => {
   const cardStart = client.indexOf(
     '<span className={styles.publishChannelCardMain}>',
   );
   assert.ok(cardStart >= 0);
-  const cardSource = client.slice(cardStart, cardStart + 7_000);
+  const cardEnd = client.indexOf("</article>", cardStart);
+  assert.ok(cardEnd > cardStart);
+  const cardSource = client.slice(cardStart, cardEnd);
 
   assert.match(cardSource, /\{activeMetaPublicationChannel \? \(/);
   assert.match(
@@ -29,6 +31,9 @@ test("the Channel card renders Meta formats, pilot-gated Threads modes and the P
     /\) : activePreviewChannel === "pinterest" \? \(/,
   );
   assert.match(cardSource, /savePublishPinterestBoard/);
+  assert.match(cardSource, /saveTiktokPhotoFormat/);
+  assert.match(cardSource, /media_photo_shared_format/);
+  assert.match(cardSource, /media_photo_fullscreen_format/);
   assert.match(cardSource, /\) : activePreviewChannel === "threads" && metaPilotEnabled \? \(/);
   assert.match(cardSource, /value=\{activeThreadsPublicationMode\}/);
   assert.match(cardSource, /saveThreadsPublicationMode/);
@@ -37,7 +42,7 @@ test("the Channel card renders Meta formats, pilot-gated Threads modes and the P
   assert.match(cardSource, /\) : null\}/);
   assert.equal(
     cardSource.match(/className=\{styles\.publishPlacementSelect\}/g)?.length,
-    3,
+    4,
   );
   assert.doesNotMatch(cardSource, /publication_mode_classic_only/);
 });

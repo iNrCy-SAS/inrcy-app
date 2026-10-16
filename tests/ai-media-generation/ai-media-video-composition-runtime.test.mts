@@ -34,6 +34,7 @@ type ComposerModule = {
     height: number;
     durationSeconds: number;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
+    preserveComposition?: boolean;
     narration?: {
       buffer: Buffer;
       mimeType: string;
@@ -405,6 +406,26 @@ test("le compositeur refuse explicitement trois clips ou une durée hors de 4 à
     clips: [{ buffer: unused, durationSeconds: 3 }, { buffer: unused, durationSeconds: 3 }],
     overlays: [unused, unused], width: 320, height: 320, durationSeconds: 6,
   }), /ai_original_video_clip_count_invalid/);
+});
+
+test("un clip natif iNrAgent conserve tout son cadre et refuse une conversion qui rognerait l’image", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-agent-native-frame-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  try {
+    const inputPath = path.join(directory, "native.mp4");
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=s=360x640:r=30:d=4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", inputPath], { windowsHide: true, timeout: 30_000 });
+    const clip = { buffer: await readFile(inputPath), durationSeconds: 4 };
+    const overlay = await sharp({ create: { width: 360, height: 640, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const output = await runtime.composeOriginalAiVideo({ clips: [clip], overlays: [overlay], width: 360, height: 640, durationSeconds: 4, nativeAudioMode: "mute", preserveComposition: true });
+    const outputPath = path.join(directory, "native-output.mp4");
+    await writeFile(outputPath, output.buffer);
+    const probe = await probeVideoSource({ ffmpegPath, inputPath: outputPath, timeoutMs: 30_000 });
+    assert.deepEqual([probe.orientedWidth, probe.orientedHeight], [360, 640]);
+    assert.ok(Math.abs(probe.durationSeconds - 4) < 0.25);
+    const squareOverlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    await assert.rejects(runtime.composeOriginalAiVideo({ clips: [clip], overlays: [squareOverlay], width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "mute", preserveComposition: true }), /ai_original_video_native_frame_mismatch/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("le compositeur retire les bandes déjà présentes chez le moteur avant de remplir le cadre et poser le logo", async () => {

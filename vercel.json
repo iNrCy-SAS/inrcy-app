@@ -125,6 +125,15 @@
     "app/api/media-generation/generate/route.ts": {
       "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
     },
+    "app/api/agent/actions/route.ts": {
+      "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
+    },
+    "app/api/agent/actions/prepare-publish/route.ts": {
+      "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
+    },
+    "app/api/agent/actions/regenerate-channel/route.ts": {
+      "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
+    },
     "app/api/cron/media-generation-recovery/route.ts": {
       "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
     }

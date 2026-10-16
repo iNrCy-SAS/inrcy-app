@@ -120,10 +120,21 @@ async function downloadSourceImage(storagePath: string) {
   return Buffer.from(await result.data.arrayBuffer());
 }
 
-async function composeVerticalFrame(source: Buffer) {
+async function composeVerticalFrame(source: Buffer, preserveComposition = false) {
   const metadata = await sharp(source, { failOn: "error" }).metadata();
   if (!metadata.width || !metadata.height) {
     throw new Error("instagram_image_motion_dimensions_missing");
+  }
+  if (preserveComposition) {
+    const rotated = Number(metadata.orientation || 1) >= 5 && Number(metadata.orientation || 1) <= 8;
+    const width = rotated ? metadata.height : metadata.width;
+    const height = rotated ? metadata.width : metadata.height;
+    if (Math.abs(width * OUTPUT_HEIGHT - height * OUTPUT_WIDTH) > 1) {
+      throw new Error("instagram_image_motion_native_frame_mismatch");
+    }
+    return sharp(source, { failOn: "error" }).rotate()
+      .resize(OUTPUT_WIDTH, OUTPUT_HEIGHT)
+      .jpeg({ quality: 91, chromaSubsampling: "4:2:0" }).toBuffer();
   }
 
   const background = await sharp(source, { failOn: "error" })
@@ -148,7 +159,7 @@ async function composeVerticalFrame(source: Buffer) {
     .toBuffer();
 }
 
-function buildMotionFilter(imageCount: number) {
+function buildMotionFilter(imageCount: number, preserveComposition = false) {
   const clipDuration =
     (OUTPUT_DURATION_SECONDS + TRANSITION_SECONDS * (imageCount - 1)) /
     imageCount;
@@ -156,8 +167,11 @@ function buildMotionFilter(imageCount: number) {
 
   for (let index = 0; index < imageCount; index += 1) {
     const zoomStep = index % 2 === 0 ? "0.00016" : "0.00012";
+    const framing = preserveComposition
+      ? `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},fps=${OUTPUT_FPS}`
+      : `scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},zoompan=z='min(zoom+${zoomStep},1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}:fps=${OUTPUT_FPS}`;
     filters.push(
-      `[${index}:v]scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT},zoompan=z='min(zoom+${zoomStep},1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}:fps=${OUTPUT_FPS},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`,
+      `[${index}:v]${framing},trim=duration=${clipDuration.toFixed(4)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${index}]`,
     );
   }
 
@@ -190,6 +204,8 @@ export async function createInstagramImageMotionVideo(args: {
   imageStoragePaths: readonly string[];
   placement: InstagramImageMotionPlacement;
   soundtrackPrompt: string;
+  /** Agent supplies a native 9:16 image: no inset, background or zoom crop. */
+  preserveComposition?: boolean;
   signal?: AbortSignal;
 }): Promise<PersistedVideoAttachment> {
   args.signal?.throwIfAborted();
@@ -213,7 +229,7 @@ export async function createInstagramImageMotionVideo(args: {
   const signature = createHash("sha256")
     .update(
       JSON.stringify({
-        version: PIPELINE_VERSION,
+        version: args.preserveComposition ? `${PIPELINE_VERSION}-native-v1` : PIPELINE_VERSION,
         accountId: args.accountId,
         publicationId: args.publicationId,
         placement: args.placement,
@@ -240,7 +256,7 @@ export async function createInstagramImageMotionVideo(args: {
   try {
     const sources = await Promise.all(imageStoragePaths.map(downloadSourceImage));
     args.signal?.throwIfAborted();
-    const frameBuffers = await Promise.all(sources.map(composeVerticalFrame));
+    const frameBuffers = await Promise.all(sources.map((source) => composeVerticalFrame(source, args.preserveComposition)));
     const framePaths = await Promise.all(
       frameBuffers.map(async (buffer, index) => {
         const framePath = path.join(temporaryDirectory, `frame-${index}.jpg`);
@@ -250,7 +266,7 @@ export async function createInstagramImageMotionVideo(args: {
     );
     const outputPath = path.join(temporaryDirectory, "instagram-motion.mp4");
     const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
-    const { filter, clipDuration } = buildMotionFilter(framePaths.length);
+    const { filter, clipDuration } = buildMotionFilter(framePaths.length, args.preserveComposition);
     const command = ["-hide_banner", "-nostdin", "-y"];
     for (const framePath of framePaths) {
       command.push(
