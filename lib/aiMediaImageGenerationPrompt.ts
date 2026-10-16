@@ -504,7 +504,7 @@ export function buildAiMediaImageGenerationPrompt(
     )}. Cette variation ne peut jamais altérer les faits, identités, références obligatoires ni la consigne du professionnel.`,
     getAiMediaImageQualityBar(request),
     `FORMAT ET ZONES SÛRES : ${getAiMediaImageSafeCompositionGuide(request)}`,
-    "COMPOSITION IMAGE : sujet immédiatement lisible, profondeur naturelle, lumière soignée, marges sûres et hiérarchie visuelle équilibrée. Ne jamais couper un mot, un visage, le logo ou le sujet principal.",
+    "COMPOSITION IMAGE : le décor et la composition occupent toute la surface jusqu’aux quatre bords, sans bandes blanches/noires ni copie floutée autour. Les marges sûres des textes sont internes au visuel, jamais un cadre autour d’une image réduite. Sujet immédiatement lisible, profondeur naturelle, lumière soignée et hiérarchie visuelle équilibrée. Ne jamais couper un mot, un visage, le logo ou le sujet principal.",
     request.inputMode !== "essential"
       ? `Direction de communication : ${preferenceLine}.`
       : "",
@@ -540,7 +540,7 @@ export function buildAiMediaImageGenerationPrompt(
   // verbeux.
   const compactRequiredSections = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
-    "CONTRAT GÉNÉRER IMAGE CONDENSÉ — produire une nouvelle image originale plein cadre ; ne jamais modifier une source ni préparer une animation.",
+    "CONTRAT GÉNÉRER IMAGE CONDENSÉ — produire une nouvelle image originale jusqu’aux quatre bords, sans bandes blanches/noires ni fond flouté autour ; ne jamais modifier une source ni préparer une animation.",
     `SUJET CENTRAL OBLIGATOIRE (${request.subjectSource}) : ${
       cleanAiMediaPromptText(request.idea, 2_000) ||
       "déduire un sujet professionnel factuel de l’ADN compact ci-dessous"

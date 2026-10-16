@@ -2027,7 +2027,7 @@ export async function generateAndSaveAiMedia(args: {
       teamPrecompositionModel,
       videoGateway.model,
       narrationAudio?.model,
-      "inrcy/video-composer-v6-full-frame-overlay",
+      "inrcy/video-composer-v7-edge-to-edge",
     ]
       .filter(Boolean)
       .join("+");

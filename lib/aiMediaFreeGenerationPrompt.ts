@@ -8,11 +8,11 @@ import { AI_MEDIA_FREE_DNA_MAX_CHARS } from "./aiMediaFreeDnaContext.ts";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v7-visual-speech-separation";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "inrcy-free-creative-v8-edge-to-edge";
 
 /** Video-only defaults; explicit requests for typography or multiple views stay authoritative. */
 export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
-  "VISUALS: One full-frame view; actions unfold in time. No split screen, panels, collage or duplicate views unless requested.",
+  "VISUALS: One full-frame view; no bars. Actions unfold in time. No split screen, panels, collage or duplicate views unless requested.",
   "TEXT: Speech/dialogue/narration are audio only; no subtitles, captions or quote cards unless requested. Render requested text faithfully; write wording only if asked.",
 ].join(" ");
 
@@ -292,6 +292,7 @@ export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
   const instructions = [
     "MODE LIBRE — création visuelle complète, conçue sur mesure à partir du brief.",
     `Livrer une seule image finale au format ${spec.aspectRatio}, ${spec.width} × ${spec.height}.`,
+    "PLEIN CADRE : l’image et son décor remplissent la surface jusqu’aux quatre bords, sans bandes blanches ou noires, cadre extérieur, letterboxing, pillarboxing ni copie floutée autour. Les marges de sécurité du texte restent à l’intérieur de la composition, jamais autour d’une image réduite. Garder les textes, logos et sujets essentiels dans les 80 % centraux pour tolérer le léger recadrage d’un moteur au ratio voisin.",
     "Interpréter le type de création, l'esthétique, les sujets, le cadrage, la hiérarchie et la mise en page à partir de la demande. Un flyer, une affiche ou une infographie doit être une composition graphique aboutie, pas une photographie d'un document ni un fond à compléter.",
     "Le fournisseur dessine le résultat ENTIER, y compris les textes demandés. Aucun gabarit, bandeau, slogan, CTA ou grille publicitaire ne sera ajouté ensuite. Ne pas inventer ces éléments lorsqu'ils ne sont pas demandés.",
     "Reproduire intégralement et fidèlement les textes cités, noms propres, prix, dates, coordonnées et chiffres fournis. Respecter accents, orthographe et ponctuation. Adapter la taille, les marges et la hiérarchie pour que tout reste lisible ; ne jamais tronquer un texte ni inventer des informations commerciales.",

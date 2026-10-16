@@ -73,7 +73,7 @@ test("le réalisateur et le transport gardent la demande brute avec un cadre uni
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan), 0, 15);
   for (const prompt of [canonical, transport]) {
     assert.ok(prompt.includes(prompts.AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT));
-    assert.match(prompt, /One full-frame view; actions unfold in time/);
+    assert.match(prompt, /One full-frame view; no bars\. Actions unfold in time/);
     assert.match(prompt, /No split screen, panels, collage or duplicate views unless requested/);
     assert.match(prompt, /Speech\/dialogue\/narration are audio only/);
     assert.match(prompt, /no subtitles, captions or quote cards unless requested/);

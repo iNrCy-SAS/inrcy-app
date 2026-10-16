@@ -11,6 +11,12 @@ import type { AiMediaVideoDuration } from "@/lib/aiMediaGenerationContracts";
 import type { GeneratedAiNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import type { NormalizedAiVideo } from "@/lib/aiMediaNormalizer";
 import {
+  agreeAiMediaFrameCrops,
+  detectAiMediaUniformBorderCrop,
+  scaleAiMediaFrameCrop,
+  type AiMediaFrameCrop,
+} from "./aiMediaFullFrame.ts";
+import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
@@ -62,6 +68,49 @@ function compactError(error: unknown) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 2_000);
+}
+
+/** A stable provider matte is removed before scaling and before local overlays. */
+async function detectClipMatte(args: {
+  ffmpegPath: string;
+  inputPath: string;
+  sourceWidth: number;
+  sourceHeight: number;
+  sourceStartSeconds: number;
+  durationSeconds: number;
+  signal?: AbortSignal;
+}): Promise<AiMediaFrameCrop | null> {
+  const scale = Math.min(1, 256 / Math.max(args.sourceWidth, args.sourceHeight));
+  const width = Math.max(32, Math.round(args.sourceWidth * scale / 2) * 2);
+  const height = Math.max(32, Math.round(args.sourceHeight * scale / 2) * 2);
+  const frameBytes = width * height * 3;
+  try {
+    const { stdout } = await execFileAsync(args.ffmpegPath, [
+      "-hide_banner", "-loglevel", "error", "-nostdin",
+      "-ss", String(args.sourceStartSeconds), "-i", args.inputPath,
+      "-t", String(args.durationSeconds), "-map", "0:v:0", "-an",
+      "-vf", `fps=${3 / args.durationSeconds},scale=${width}:${height}:flags=fast_bilinear,setsar=1`,
+      "-frames:v", "3", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+    ], { encoding: "buffer", timeout: 12_000, maxBuffer: frameBytes * 4, windowsHide: true, signal: args.signal });
+    if (stdout.length < frameBytes * 3) return null;
+    const agreed = agreeAiMediaFrameCrops(Array.from({ length: 3 }, (_, index) => detectAiMediaUniformBorderCrop({
+      data: stdout.subarray(index * frameBytes, (index + 1) * frameBytes), width, height, channels: 3,
+    })));
+    if (!agreed) return null;
+    const crop = scaleAiMediaFrameCrop(agreed, { width, height }, { width: args.sourceWidth, height: args.sourceHeight });
+    const left = Math.ceil(crop.left / 2) * 2;
+    const top = Math.ceil(crop.top / 2) * 2;
+    return {
+      left, top,
+      width: Math.floor((crop.left + crop.width) / 2) * 2 - left,
+      height: Math.floor((crop.top + crop.height) / 2) * 2 - top,
+    };
+  } catch {
+    args.signal?.throwIfAborted();
+    // A heuristic scan cannot invalidate a paid, otherwise decodable clip.
+    // The compositor still fills the output canvas without adding padding.
+    return null;
+  }
 }
 
 function parseMediaDurationSeconds(stderr: string) {
@@ -294,6 +343,7 @@ export async function prepareAiMediaNarrationAudioForVideo(args: {
 function buildFilter(args: {
   clipDurations: readonly number[];
   clipSourceStarts: readonly number[];
+  clipCrops: readonly (AiMediaFrameCrop | null)[];
   width: number;
   height: number;
   durationSeconds: number;
@@ -317,13 +367,15 @@ function buildFilter(args: {
     const clipSeconds = args.clipDurations[index];
     const sourceStartSeconds = Math.max(0, args.clipSourceStarts[index] || 0);
     const overlayIndex = args.clipDurations.length + index;
+    const crop = args.clipCrops[index];
+    const removeMatte = crop ? `crop=${crop.width}:${crop.height}:${crop.left}:${crop.top},` : "";
     // Le plan remplit toujours sa zone. `decrease + pad` conservait certes le
     // plan entier, mais gravait de larges piliers noirs autour des sources
     // verticales. La composition du prompt protège déjà le sujet dans la zone
     // sûre ; le crop est donc préférable à une vidéo visuellement réduite.
     const framing = `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
-      `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
+      `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${removeMatte}${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`
     );
     if (args.hasNativeAudio) {
@@ -511,6 +563,12 @@ export async function composeOriginalAiVideo(args: {
     ) {
       throw new Error("ai_original_video_clip_contract_failed");
     }
+    const clipCrops = await Promise.all(clipPaths.map((inputPath, index) => detectClipMatte({
+      ffmpegPath, inputPath, sourceWidth: probes[index].orientedWidth, sourceHeight: probes[index].orientedHeight,
+      sourceStartSeconds: args.clips[index].sourceStartSeconds || 0,
+      durationSeconds: args.clips[index].durationSeconds, signal: args.signal,
+    })));
+    args.signal?.throwIfAborted();
     // Une piste Veo dite « ambiance » peut malgré le prompt contenir une voix
     // résiduelle. Dès qu'une voix off iNrCy existe, couper toute la piste
     // native garantit qu'aucune seconde voix ne puisse se superposer.
@@ -558,6 +616,7 @@ export async function composeOriginalAiVideo(args: {
         clipSourceStarts: args.clips.map(
           (clip) => clip.sourceStartSeconds || 0
         ),
+        clipCrops,
         width: args.width,
         height: args.height,
         durationSeconds: args.durationSeconds,

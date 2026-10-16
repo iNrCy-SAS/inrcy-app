@@ -562,7 +562,7 @@ function selectedVideoFraming(shotType: AiVideoProviderGenerationArgs["request"]
 export function buildGoogleVideoFramingDirection(
   request: AiVideoProviderGenerationArgs["request"],
 ) {
-  const common = selectedVideoFraming(request.shotType).direction;
+  const common = `${selectedVideoFraming(request.shotType).direction} Fill frame; no bars.`;
   const identityIsAnimated =
     request.teamVideoMode === "cinematic" &&
     request.inspirationImages.length > 0;

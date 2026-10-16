@@ -54,7 +54,7 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
     ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|No native voices)/.test(line)).join("\n")
     : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
-    `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Animate continuously from the first frame.`,
+    `SHOT ${index + 1}/${args.plan.scenes.length}; ${duration}s. Motion from frame 1; fill frame, no bars.`,
     compactSilence ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures, gaze, smiles. Overrides speaking below." : visualSpeech,
     subject ? `SUBJECT: ${subject}` : "",
     `USER: ${user}`,
@@ -65,7 +65,7 @@ export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, va
     compactSilence ? "" : `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
     args.request.creationMode === "free"
       ? compactSilence
-        ? "Full-frame action over time; no split screen/panels/collage/duplicate views unless requested. Speech is audio: no subtitles/captions/quote cards unless requested. Exact text; write wording only if asked."
+        ? "Fill frame, no borders/bars/matte. No split/panels/collage/duplicate views unless asked. Speech is audio: no subtitles/captions/quote cards unless asked. Exact text; wording only if asked."
         : AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT
       : "No visual text, numbers, UI, logos or technical annotations; iNrCy adds overlays.",
   ].filter(Boolean).join("\n");

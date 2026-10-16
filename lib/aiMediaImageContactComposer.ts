@@ -190,9 +190,8 @@ export async function composeAiMediaContactImage(args: {
   })
     .rotate()
     .resize(width, height, {
-      fit: "contain",
+      fit: "cover",
       position: "centre",
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
     })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .composite(composites)

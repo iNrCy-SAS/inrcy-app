@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import ts from "typescript";
+import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
 
 import { resolveAiMediaDialogueSequence } from "../../lib/aiMediaDialogue.ts";
 import {
@@ -49,6 +50,7 @@ function transpilePreflightModule() {
   const moduleRecord: { exports: Record<string, unknown> } = { exports: {} };
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
+    if (specifier === "./aiMediaFullFrame.ts") return fullFrame;
     if (specifier === "@/lib/mediaVideoNormalizer") {
       return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
     }

@@ -4,7 +4,7 @@ import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts"
 import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
 
 export const AI_MEDIA_PROMPT_VERSION =
-  "inrcy-media-v25-rotating-synthetic-casting";
+  "inrcy-media-v26-edge-to-edge";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 export type AiMediaPromptRecentPublication = {
@@ -444,11 +444,11 @@ export function getAiMediaImageSafeCompositionGuide(
     square:
       "Canvas natif et export final 1:1. Conserver textes, logo, visages et sujet essentiel à au moins 10 % de chaque bord.",
     portrait:
-      "Le canvas natif 2:3 sera recadré au centre en 4:5. Garder tous les textes, le logo, les visages et le sujet essentiel dans les 78 % centraux de la hauteur, avec de larges marges libres en haut et en bas.",
+      "Le canvas natif 2:3 sera recadré au centre en 4:5. Garder tous les textes, le logo, les visages et le sujet essentiel dans les 78 % centraux de la hauteur. Le décor continue jusqu’aux bords, sans bandes ni cadre extérieur.",
     story:
       "Le canvas natif 2:3 sera recadré au centre en 9:16. Garder tous les textes, le logo, les visages et le sujet essentiel dans les 78 % centraux de la largeur, loin des bords latéraux et des zones d’interface.",
     landscape:
-      "Le canvas natif 3:2 sera recadré au centre en 16:9. Garder tous les textes, le logo, les visages et le sujet essentiel dans les 78 % centraux de la hauteur, avec de larges marges libres en haut et en bas.",
+      "Le canvas natif 3:2 sera recadré au centre en 16:9. Garder tous les textes, le logo, les visages et le sujet essentiel dans les 78 % centraux de la hauteur. Le décor continue jusqu’aux bords, sans bandes ni cadre extérieur.",
   };
   return guides[request.format];
 }

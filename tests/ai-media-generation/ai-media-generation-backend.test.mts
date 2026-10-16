@@ -731,7 +731,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v25-rotating-synthetic-casting"/
+    /AI_MEDIA_PROMPT_VERSION =\s*\n?\s*"inrcy-media-v26-edge-to-edge"/
   );
   assert.match(source, /CONTRAT GÉNÉRER IMAGE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
@@ -1054,7 +1054,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     normalizer,
     /options:\s*\{[\s\S]*?width\?: number;[\s\S]*?height\?: number;[\s\S]*?canvasMode\?: AiImageNormalizationCanvasMode;/
   );
-  assert.match(normalizer, /position: "centre"/);
+  assert.match(normalizer, /fit: "cover", position: preservesSourceCanvas \? "attention" : "centre"/);
   assert.equal(
     existsSync(path.join(ROOT, "lib/aiMediaStoryboardVideo.ts")),
     false

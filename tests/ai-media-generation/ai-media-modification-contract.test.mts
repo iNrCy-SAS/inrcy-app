@@ -727,8 +727,8 @@ test("le client et le serveur réservent le canvas source au chemin Modifier", (
   );
   assert.match(server, /providerRequest\.operation === "modify"/);
   assert.match(server, /canvasMode: modificationCanvas \? "source" : "preset"/);
-  assert.match(normalizer, /fit: "cover", position: "attention"/);
-  assert.match(normalizer, /foreground = await base\.clone\(\)\.resize\(\{ width, height, fit: "inside" \}\)/);
+  assert.match(normalizer, /fit: "cover", position: preservesSourceCanvas \? "attention" : "centre"/);
+  assert.doesNotMatch(normalizer, /\.blur\(|foreground =|\.composite\(/);
 });
 
 test("les deux moteurs image reçoivent le contrat de modification", () => {

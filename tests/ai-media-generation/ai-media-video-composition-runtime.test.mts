@@ -17,6 +17,7 @@ import {
 } from "../../lib/mediaVideoNormalizer.ts";
 import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
 import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
+import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
 
 const execFileAsync = promisify(execFile);
 const requireFromTest = createRequire(import.meta.url);
@@ -212,6 +213,7 @@ function transpileRuntimeModule<T>(relativePath: string): T {
   const moduleRecord: { exports: Record<string, unknown> } = { exports: {} };
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
+    if (specifier === "./aiMediaFullFrame.ts") return fullFrame;
     if (specifier === "@/lib/mediaVideoNormalizer") {
       return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
     }
@@ -403,6 +405,45 @@ test("le compositeur refuse explicitement trois clips ou une durée hors de 4 à
     clips: [{ buffer: unused, durationSeconds: 3 }, { buffer: unused, durationSeconds: 3 }],
     overlays: [unused, unused], width: 320, height: 320, durationSeconds: 6,
   }), /ai_original_video_clip_count_invalid/);
+});
+
+test("le compositeur retire les bandes déjà présentes chez le moteur avant de remplir le cadre et poser le logo", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-provider-matte-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: Buffer.from('<svg width="30" height="30"><rect width="30" height="30" fill="#ff00ff"/></svg>'), left: 275, top: 15 }]).png().toBuffer();
+  try {
+    for (const [name, sourceSize, padding] of [
+      ["black-pillars", "256x320", "pad=320:320:32:0:black"],
+      ["white-letterbox", "320x256", "pad=320:320:0:32:white"],
+    ]) {
+      const source = path.join(directory, `${name}.mp4`);
+      await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+        "-f", "lavfi", "-i", `color=c=0x2266ac:s=${sourceSize}:r=30:d=8`,
+        "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-vf", padding,
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source,
+      ], { timeout: 45_000, windowsHide: true });
+      const output = await runtime.composeOriginalAiVideo({
+        clips: [{ buffer: await readFile(source), durationSeconds: 4, sourceStartSeconds: 4 }], overlays: [overlay],
+        width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "dialogue",
+      });
+      const outputPath = path.join(directory, `${name}-output.mp4`);
+      const framePath = path.join(directory, `${name}-frame.png`);
+      await writeFile(outputPath, output.buffer);
+      const probe = await probeVideoSource({ ffmpegPath, inputPath: outputPath, timeoutMs: 30_000 });
+      assert.ok(Math.abs(probe.durationSeconds - 4) < 0.25);
+      assert.equal(probe.hasAudio, true, `${name}: border correction must preserve native dialogue`);
+      await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", "2", "-i", outputPath, "-frames:v", "1", framePath], { timeout: 30_000, windowsHide: true });
+      const { data, info } = await sharp(await readFile(framePath)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const pixel = (x: number, y: number) => Array.from(data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3));
+      for (const [x, y] of [[5, 5], [315, 5], [5, 315], [315, 315]]) {
+        assert.ok(pixel(x, y).every((value, index) => Math.abs(value - [34, 102, 172][index]) < 15), `${name}: picture reaches every corner`);
+      }
+      assert.ok(pixel(290, 30)[0] > 220 && pixel(290, 30)[1] < 50 && pixel(290, 30)[2] > 220,
+        `${name}: local logo is not cropped or shifted`);
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", async () => {

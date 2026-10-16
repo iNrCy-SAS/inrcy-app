@@ -1,6 +1,7 @@
 import "server-only";
 
 import sharp from "sharp";
+import { detectAiMediaUniformBorderCrop, scaleAiMediaFrameCrop } from "./aiMediaFullFrame.ts";
 
 export type NormalizedAiImage = {
   kind: "image";
@@ -52,9 +53,9 @@ function resolveImageCanvasDimensions(options: {
 
 /**
  * Contrat de sortie unique pour toutes les images IA. La génération standard
- * conserve le rendu fournisseur en entier dans son preset. Une modification
- * remplit au contraire le canvas autoritaire de la source : le padding imposé
- * par les tailles fournisseur est recadré au lieu de devenir une bordure.
+ * remplit le format choisi sans canvas ajouté, bandes ni copie floutée.
+ * Une modification garde le canvas autoritaire de sa source ; ses marges
+ * graphiques existantes ne sont jamais assimilées à du padding fournisseur.
  */
 export async function normalizeGeneratedAiImage(
   input: Buffer,
@@ -73,37 +74,25 @@ export async function normalizeGeneratedAiImage(
   })
     .rotate()
     .toColourspace("srgb");
-  let canvas: Buffer;
-  if (preservesSourceCanvas) {
-    canvas = await base.resize({
-      width,
-      height,
-      fit: "cover", position: "attention",
-      withoutEnlargement: false,
-    }).png().toBuffer();
-  } else {
-    // Preserve the complete supplier composition, including text and faces.
-    // The small ratio gap is filled from a blurred background copy; only that
-    // background is cropped. The foreground is never stretched or cropped.
-    const foreground = await base.clone().resize({ width, height, fit: "inside" })
-      .flatten({ background: { r: 255, g: 255, b: 255 } })
-      .png().toBuffer({ resolveWithObject: true });
-    if (foreground.info.width === width && foreground.info.height === height) {
-      canvas = foreground.data;
-    } else {
-      const background = await base.clone()
-        .resize({ width, height, fit: "cover", position: "centre" })
-        .flatten({ background: { r: 255, g: 255, b: 255 } })
-        .blur(Math.max(8, Math.min(width, height) / 30))
-        .png().toBuffer();
-      canvas = await sharp(background).composite([{
-        input: foreground.data,
-        left: Math.floor((width - foreground.info.width) / 2),
-        top: Math.floor((height - foreground.info.height) / 2),
-      }]).png().toBuffer();
+  if (!preservesSourceCanvas) {
+    const [metadata, sample] = await Promise.all([
+      base.metadata(),
+      base.clone().resize({ width: 384, height: 384, fit: "inside", withoutEnlargement: true })
+        .flatten({ background: "#ffffff" }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ]);
+    const detected = detectAiMediaUniformBorderCrop({ data: sample.data, ...sample.info });
+    if (detected && metadata.width && metadata.height) {
+      const rotated = Number(metadata.orientation || 1) >= 5 && Number(metadata.orientation || 1) <= 8;
+      base.extract(scaleAiMediaFrameCrop(detected, sample.info, {
+        width: rotated ? metadata.height : metadata.width,
+        height: rotated ? metadata.width : metadata.height,
+      }));
     }
   }
-  const rendered = await sharp(canvas)
+  const rendered = await base.resize({
+      width, height, fit: "cover", position: preservesSourceCanvas ? "attention" : "centre",
+      withoutEnlargement: false,
+    })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .jpeg({
       quality: 92,

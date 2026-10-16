@@ -127,7 +127,7 @@ test("HEIC fallback uses lossless PNG for editing only and preserves the existin
   assert.equal((await sharp(result.master.buffer).metadata()).hasAlpha, true);
 });
 
-test("generated image ratios retain the complete foreground and replace only added white padding", async () => {
+test("generated image ratios fill the chosen canvas without adding white padding", async () => {
   const { normalizeGeneratedAiImage } = loadRuntime<typeof import("../../lib/aiMediaNormalizer.ts")>("lib/aiMediaNormalizer.ts");
   for (const [sourceWidth, sourceHeight, width, height] of [[768, 1024, 1080, 1350], [896, 1152, 1080, 1350], [768, 1344, 1080, 1920], [1344, 768, 1920, 1080]]) {
     const source = await sharp({ create: { width: sourceWidth, height: sourceHeight, channels: 3, background: "#2468ac" } }).composite([{ input: Buffer.from('<svg width="80" height="80"><rect width="80" height="80" fill="#dc2828"/></svg>'), left: Math.floor(sourceWidth / 2) - 40, top: Math.floor(sourceHeight / 2) - 40 }]).png().toBuffer();
