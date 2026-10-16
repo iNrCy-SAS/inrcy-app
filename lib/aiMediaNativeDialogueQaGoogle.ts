@@ -20,6 +20,7 @@ import {
   type AiMediaNativeDialogueQaClip,
   type AiMediaNativeDialogueQaResult,
   type AiMediaNativeDialogueTranscript,
+  type AiMediaNativeDialogueTranscriber,
 } from "@/lib/aiMediaNativeDialogueQa";
 import { resolveVideoNormalizationFfmpegPath } from "@/lib/mediaVideoNormalizer";
 
@@ -179,12 +180,13 @@ async function transcribeAudioWithGoogle(args: {
   model: string;
   timeoutMs: number;
   costMicroUsd: number;
+  maxOutputTokens: number;
 }): Promise<AiMediaNativeDialogueTranscript> {
   args.signal?.throwIfAborted();
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
     feature: "media.video",
     estimatedInputTokens: 640,
-    reservedOutputTokens: 128,
+    reservedOutputTokens: args.maxOutputTokens,
     estimatedCostMicroUsd: args.costMicroUsd,
   });
   const ai = new GoogleGenAI({ apiKey: apiKey() });
@@ -221,13 +223,11 @@ async function transcribeAudioWithGoogle(args: {
             required: ["transcript"],
           },
         },
-        generation_config: { max_output_tokens: 160 },
+        generation_config: { max_output_tokens: args.maxOutputTokens },
       },
       {
         timeout: args.timeoutMs,
-        // Un échec du contrôle déclenche déjà le repli voix off/silence. Une
-        // seconde tentative réseau retarderait la livraison sans améliorer la
-        // sécurité du média remis au professionnel.
+        // A targeted confirmation below shares this deadline; no hidden SDK retry.
         maxRetries: 0,
         ...(args.signal ? { fetchOptions: { signal: args.signal } } : {}),
       },
@@ -333,22 +333,32 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
       args.clips.map((clip, index) => [clip, extractedAudio[index]] as const),
     );
 
+    const transcribe: AiMediaNativeDialogueTranscriber = async (clip, options) => {
+      const audio = audioByClip.get(clip);
+      if (!audio) throw new Error("ai_media_dialogue_qa_audio_missing");
+      return await transcribeAudioWithGoogle({
+        accountId: args.accountId,
+        audio,
+        language: options.language,
+        signal: qaSignal,
+        model,
+        timeoutMs: remainingTimeoutMs(),
+        costMicroUsd,
+        // A 30s dialogue must not be truncated by the old 160-token ASR cap.
+        maxOutputTokens: Math.min(512, Math.max(160, Math.ceil(clip.durationSeconds * 12))),
+      });
+    };
     return await auditAiMediaNativeDialogueClips({
       clips: args.clips,
       language: args.language,
-      signal: qaSignal,
-      transcribe: async (clip, options) => {
-        const audio = audioByClip.get(clip);
-        if (!audio) throw new Error("ai_media_dialogue_qa_audio_missing");
-        return await transcribeAudioWithGoogle({
-          accountId: args.accountId,
-          audio,
-          language: options.language,
-          signal: options.signal,
-          model,
-          timeoutMs: remainingTimeoutMs(),
-          costMicroUsd,
-        });
+      // A QA deadline during confirmation must preserve a known rejection.
+      // Only the caller's cancellation may discard that evidence.
+      signal: args.signal,
+      transcribe,
+      confirm: async (clip, options) => {
+        // Confirmation consumes only audio already extracted, never new video.
+        if (deadlineAt - Date.now() < 1_500) throw new Error("ai_media_dialogue_qa_confirmation_deadline");
+        return transcribe(clip, options);
       },
     });
   } catch (error) {

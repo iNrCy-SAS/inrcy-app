@@ -52,6 +52,55 @@ function fakeClip(overrides: Partial<AiMediaNativeDialogueQaClip> = {}): AiMedia
   };
 }
 
+test("a near-complete transcript is independently confirmed without relaxing dialogue validation", async () => {
+  const expectedLine = "Nous accompagnons votre projet avec une écoute attentive et des conseils personnalisés.";
+  const initial = "Nous accompagnons votre projet avec une écoute attentive et des conseils";
+  for (const outcome of ["complete", "still-cut", "unavailable"] as const) {
+    let confirmations = 0;
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })],
+      transcribe: async () => ({ text: initial, model: "offline-asr" }),
+      confirm: async () => {
+        confirmations++;
+        if (outcome === "unavailable") throw new Error("QA deadline");
+        return { text: outcome === "complete" ? expectedLine : initial, model: "offline-asr" };
+      },
+    });
+    assert.equal(confirmations, 1);
+    assert.equal(result.status, outcome === "complete" ? "passed" : "rejected");
+    assert.equal(result.clips[0].confirmation, outcome === "complete" ? "passed" : outcome === "still-cut" ? "rejected" : "unavailable");
+    if (outcome !== "complete") assert.ok(result.clips[0].issues.includes("spoken_dialogue_incomplete"));
+    assert.doesNotMatch(JSON.stringify(result), /personnalisés|attentive|transcript/);
+  }
+});
+
+test("confirmation never overrides missing critical values, repetitions, silence or a clearly wrong sentence", async () => {
+  const expectedLine = "Notre offre ne comprend pas la livraison et reste disponible pour 50 euros seulement.";
+  for (const transcript of [
+    "Notre offre comprend la livraison et reste disponible pour 50 euros seulement.",
+    "Notre offre ne comprend pas la livraison et reste disponible pour 500 euros seulement.",
+    `${expectedLine} ${expectedLine}`,
+    "Notre offre ne comprend",
+    "",
+  ]) {
+    const checked = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine })], transcribe: async () => ({ text: transcript }),
+      confirm: async () => { assert.fail("Unambiguous errors must remain rejected without another ASR call."); },
+    });
+    assert.equal(checked.status, "rejected"); assert.equal(checked.clips[0].confirmation, undefined);
+  }
+});
+
+test("caller cancellation still interrupts an ambiguous-dialogue confirmation", async () => {
+  const controller = new AbortController();
+  const expectedLine = "Nous accompagnons votre projet avec une écoute attentive et des conseils personnalisés.";
+  await assert.rejects(auditAiMediaNativeDialogueClips({
+    clips: [fakeClip({ expectedLine })], signal: controller.signal,
+    transcribe: async () => ({ text: expectedLine.replace(" personnalisés.", "") }),
+    confirm: async () => { controller.abort(); throw new DOMException("cancelled", "AbortError"); },
+  }), { name: "AbortError" });
+});
+
 test("la QA accepte la réplique complète malgré ponctuation, accents et une petite variation ASR", () => {
   assert.deepEqual(
     tokenizeAiMediaNativeDialogue("L’équipe prend rendez-vous."),

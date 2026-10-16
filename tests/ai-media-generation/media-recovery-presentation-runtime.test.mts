@@ -145,3 +145,21 @@ test("the recovered cost summary renders a known historical cost and hides unkno
   assert.match(text(tree), /103/); assert.doesNotMatch(text(tree), /estimate|remaining|retry/);
   for (const creditsUsed of [undefined, null, -1, NaN, "103"]) assert.equal(controls.render({ creditsUsed }, "MediaRecoveredCreditSummary"), null);
 });
+
+test("uncertain recovery is presented separately from a confirmed generation failure", () => {
+  const deps = new Map(common);
+  deps.set("next/image", { __esModule: true, default: "image" });
+  deps.set("./MediaEngineCreditControls", { MediaGenerationActions: "actions" });
+  const view = runtime("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx", deps);
+  const props = { variant: "embedded", kind: "video", format: "story", durationSeconds: 15, progress: 0, operationLocked: false, generationInProgress: false, finishing: false, generationResult: null, generationCancellable: false, disabled: true, error: "Le résultat n'a pas encore pu être vérifié.", acceptMode: "library" };
+  const pending = view.render({ ...props, recoveryPending: true });
+  assert.match(text(pending), /ai_generator_editor_recover/);
+  assert.doesNotMatch(text(pending), /ai_generator_creation_failed_title/);
+  assert.equal(elements(pending).some((node) => node.props.role === "alert"), false);
+  const failed = view.render({ ...props, recoveryPending: false });
+  assert.match(text(failed), /ai_generator_creation_failed_title/);
+  assert.equal(elements(failed).some((node) => node.props.role === "alert"), true);
+  const saved = view.render({ ...props, recoveryPending: false, generationResult: { ...result, draft: false } });
+  assert.doesNotMatch(text(saved), /ai_generator_creation_failed_title/);
+  view.dispose();
+});

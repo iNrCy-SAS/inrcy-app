@@ -1567,6 +1567,7 @@ export default function MediaGenerator({
         variant="embedded"
         creationStarted={creationScreen}
         generationInProgress={generationBusy}
+        recoveryPending={canRecover}
         cancellationPending={cancellationPending}
         kind={generationBusy && activeAttempt ? activeAttempt.kind : kind}
         format={generationBusy && activeAttempt ? activeAttempt.format : format}

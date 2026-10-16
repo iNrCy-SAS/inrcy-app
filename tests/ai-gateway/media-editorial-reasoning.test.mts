@@ -11,8 +11,16 @@ test("media copy retains output budget on gateway and direct GPT-5.6 paths", () 
 });
 
 test("does not send unsupported reasoning options to another provider or workflow", () => {
-  for (const model of ["google/gemini-3-flash", "anthropic/claude-sonnet-4.6", "gpt-6-astra", "gpt-5"]) {
+  for (const model of ["google/gemini-3-pro", "google/gemini-3.1-flash-lite", "anthropic/claude-sonnet-4.6", "gpt-6-astra", "gpt-5"]) {
     assert.equal(resolveAiMediaEditorialReasoning("media.video", model), undefined);
   }
   assert.equal(resolveAiMediaEditorialReasoning("booster", "openai/gpt-5.6-luna"), undefined);
+  assert.equal(resolveAiMediaEditorialReasoning("booster", "google/gemini-3-flash"), undefined);
+  assert.equal(resolveAiMediaEditorialReasoning("ads.generate", "google/gemini-3-flash"), undefined);
+});
+
+test("the Gemini media fallback uses its supported low effort to leave room for complete JSON", () => {
+  for (const feature of ["media.image", "media.video"]) {
+    assert.deepEqual(resolveAiMediaEditorialReasoning(feature, "google/gemini-3-flash"), { effort: "low" });
+  }
 });

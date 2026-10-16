@@ -43,6 +43,7 @@ export type AiMediaNativeDialogueQaClipResult = {
   status: AiMediaNativeDialogueQaStatus;
   issues: AiMediaNativeDialogueQaIssue[];
   metrics: AiMediaNativeDialogueQaMetrics;
+  confirmation?: "passed" | "rejected" | "unavailable";
 };
 
 export type AiMediaNativeDialogueQaResult = {
@@ -449,6 +450,8 @@ export async function auditAiMediaNativeDialogueClips(args: {
   clips: AiMediaNativeDialogueQaClip[];
   language?: string;
   transcribe: AiMediaNativeDialogueTranscriber;
+  /** One independent listen on an ambiguous near-complete line, never a rewrite. */
+  confirm?: AiMediaNativeDialogueTranscriber;
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
@@ -456,19 +459,44 @@ export async function auditAiMediaNativeDialogueClips(args: {
   const results = await Promise.all(args.clips.map(async (clip) => {
     try {
       args.signal?.throwIfAborted();
-      const transcription = await args.transcribe(clip, {
+      let transcription = await args.transcribe(clip, {
         language,
         signal: args.signal,
       });
       args.signal?.throwIfAborted();
+      let result = evaluateAiMediaNativeDialogue({
+        sceneIndex: clip.sceneIndex,
+        expectedLine: clip.expectedLine,
+        transcript: transcription.text,
+        language,
+        expectSilence: clip.expectSilence,
+      });
+      const missing = result.metrics.expectedTokenCount - result.metrics.detectedTokenCount;
+      if (args.confirm && !clip.expectSilence &&
+        result.issues.length === 1 && result.issues[0] === "spoken_dialogue_incomplete" &&
+        result.metrics.expectedTokenCount >= 5 && result.metrics.expectedCoverage >= 0.8 &&
+        missing >= 0 && missing <= 2) {
+        // No expected script is sent to ASR by the adapter. Only a fresh,
+        // independently valid transcript may overturn the initial rejection.
+        // A timeout or a second rejection preserves the original evidence.
+        try {
+          const confirmed = await args.confirm(clip, { language, signal: args.signal });
+          args.signal?.throwIfAborted();
+          const checked = evaluateAiMediaNativeDialogue({
+            sceneIndex: clip.sceneIndex, expectedLine: clip.expectedLine,
+            transcript: confirmed.text, language, expectSilence: clip.expectSilence,
+          });
+          if (checked.status === "passed") {
+            result = { ...checked, confirmation: "passed" };
+            transcription = confirmed;
+          } else result.confirmation = checked.status;
+        } catch (error) {
+          if (args.signal?.aborted) throw error;
+          result.confirmation = "unavailable";
+        }
+      }
       return {
-        result: evaluateAiMediaNativeDialogue({
-          sceneIndex: clip.sceneIndex,
-          expectedLine: clip.expectedLine,
-          transcript: transcription.text,
-          language,
-          expectSilence: clip.expectSilence,
-        }),
+        result,
         model: transcription.model,
         expectedTokens: tokenizeAiMediaNativeDialogue(clip.expectedLine),
         detectedTokens: tokenizeAiMediaNativeDialogue(transcription.text),

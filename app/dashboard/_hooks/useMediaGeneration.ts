@@ -1423,6 +1423,11 @@ export default function useMediaGeneration() {
         }
         const finalPayload = publicResponse.payload && typeof publicResponse.payload === "object" ? publicResponse.payload as Record<string, unknown> : null;
         if ((publicResponse.ok && (finalPayload?.ok !== true || !finalPayload.item || typeof finalPayload.item !== "object")) ||
+          // An error response can follow durable persistence or a lost ACK.
+          // Only the scoped job status can confirm failure; this GET never
+          // reserves credits or submits another provider generation.
+          (!activeGeneration.recovering && publicResponse.status >= 500 &&
+            !["AI_MEDIA_CREDITS_NOT_READY", "AI_MEDIA_STUDIO_DISABLED"].includes(readErrorCode(finalPayload))) ||
           shouldKeepGenerationRequestId(publicResponse.status, readErrorCode(finalPayload))) {
           pendingRecoveryRef.current = { requestId, epoch: requestEpoch, run: recover, cancel: abandon };
           publicResponse = await recoverExistingAttempt();
@@ -1569,9 +1574,28 @@ export default function useMediaGeneration() {
         }
         const isLastAttempt =
           attempt === DRAFT_ACCEPT_RETRY_DELAYS_MS.length - 1;
-        if (!retryableFailure || isLastAttempt) throw lastAcceptanceError;
+        if (!retryableFailure || isLastAttempt) break;
       }
 
+      // A successful library promotion can outlive every lost HTTP reply.
+      // Read the owning job once before reporting failure, using only the
+      // recovery pointer for this exact media and account. No generation POST.
+      if (!acceptedItem && mountedRef.current && requestEpoch === accountEpochRef.current) {
+        const pointer = readAiMediaGenerationRecovery(recoveryStorage(), quotaRef.current?.accountId || "");
+        if (pointer?.mediaId === requested.item.id) {
+          try {
+            const response = await fetch(`/api/media-generation/status?requestId=${encodeURIComponent(pointer.requestId)}`, {
+              credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000),
+            });
+            const payload = await readJson(response);
+            const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : null;
+            const item = data?.item && typeof data.item === "object" ? data.item as MediaLibraryPickerItem : null;
+            if (response.ok && data?.ok === true && data.status === "completed" && data.draft === false && item?.id === requested.item.id) {
+              acceptedItem = item;
+            }
+          } catch { /* Keep the paid draft and its recovery pointer on an uncertain read. */ }
+        }
+      }
       if (!acceptedItem) throw lastAcceptanceError;
       if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
         throw new MediaGenerationAccountChangedError();

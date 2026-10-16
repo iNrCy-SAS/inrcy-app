@@ -32,7 +32,7 @@ const quota = (accountId = "account-a") => ({ accountId, creditsReady: true, cre
 /** Real hook, controlled HTTP streams and effects; no provider or database requests. */
 function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeItem">, cancellationStatus = "processing") {
   const slots: Slot[] = []; const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
-  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; const cancellations: Record<string, unknown>[] = []; const discarded: string[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100;
+  const attempts: Attempt[] = []; const recoveries: Recovery[] = []; const cancellations: Record<string, unknown>[] = []; const discarded: string[] = []; let cursor = 0; let dirty = false; let status!: Hook; let account = "account-a"; let now = 0; let remaining = 100; let loseAcceptanceReplies = false; let acceptCalls = 0;
   const changed = (first?: readonly unknown[], second?: readonly unknown[]) => !first || !second || first.length !== second.length || first.some((value, index) => value !== second[index]);
   const react = {
     useState(initial: unknown) {
@@ -57,7 +57,10 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   };
   const fetch = (url: string, init: RequestInit = {}): Promise<Response> => {
     if (url.endsWith("/quota")) return Promise.resolve(Response.json({ quota: { ...quota(account), credits: { unit: "credit", remaining, reserved: 0 } } }));
-    if (url === "/api/media-generation/drafts/draft-a/accept") return Promise.resolve(Response.json({ ok: true, item: successfulResult().payload.item }));
+    if (url === "/api/media-generation/drafts/draft-a/accept") {
+      acceptCalls++;
+      return Promise.resolve(loseAcceptanceReplies ? new Response('{"ok":', { headers: { "Content-Type": "application/json" } }) : Response.json({ ok: true, item: successfulResult().payload.item }));
+    }
     if (url === "/api/media-generation/drafts/draft-a" && init.method === "DELETE") { discarded.push(url); return Promise.resolve(Response.json({ ok: true, discarded: true })); }
     if (url === "/api/media-generation/cancel") {
       assert.equal(init.method, "POST"); cancellations.push(JSON.parse(String(init.body)));
@@ -107,6 +110,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   };
   render();
   return { attempts, recoveries, cancellations, discarded, render, flush, startStream, status: () => status,
+    loseAcceptanceReplies() { loseAcceptanceReplies = true; }, acceptCalls: () => acceptCalls,
     async refreshRemaining(value: number) { remaining = value; await status.loadQuota({ force: true }); return render(); },
     changeAccount(nextAccount = "account-b") { account = nextAccount; for (const callback of listeners.get("account-change") || []) callback(); return render(); },
     dispose() { for (const slot of slots) slot.cleanup?.(); },
@@ -415,6 +419,83 @@ test("the hook negotiates NDJSON and locks a legacy JSON response conservatively
   assert.equal(h.attempts[0].headers.get("accept"), transport.AI_MEDIA_GENERATION_STREAM_TYPE);
   h.attempts[0].resolve(Response.json(successfulResult().payload)); await task; await h.flush();
   assert.equal(h.status().cancellable, false); assert.equal(h.status().cancelGeneration(), false); h.dispose();
+});
+
+test("a 15s video survives an error response when the scoped job confirms its saved result", async () => {
+  for (const status of [500, 502, 503, 504]) {
+    const h = harness();
+    const task = h.status().generate({ ...input(), kind: "video", durationSeconds: 15, videoEngine: "omni", teamVideoSpeechMode: "characters", withNarration: false });
+    h.render(); const stream = h.startStream(0);
+    stream.send({ type: "billing_locked" });
+    stream.send({ type: "result", status, payload: { ok: false, error: "La génération a échoué." } }); stream.close();
+    await h.flush();
+    assert.equal(h.status().busy, true, "An error response is reconciled before showing failure.");
+    assert.equal(h.recoveries.length, 1);
+    assert.equal(h.recoveries[0].requestId, h.attempts[0].body.requestId);
+    h.recoveries[0].resolve(Response.json({ ok: true, status: "completed", draft: false, item: { ...successfulResult().payload.item, media_type: "video", duration_seconds: 15 }, videoEngineResult: "omni", creditsUsed: 159 }));
+    const restored = await task; await h.flush();
+    assert.equal(restored.item.media_type, "video"); assert.equal(restored.draft, false);
+    assert.equal(restored.creditsUsed, 159); assert.equal(h.status().error, "");
+    assert.equal(h.status().result?.item.id, "draft-a");
+    assert.equal(h.attempts.length, 1, "Reconciliation only reads; never another paid generation.");
+    assert.equal(h.cancellations.length, 0); h.dispose();
+  }
+});
+
+test("an authoritative failed job remains a failure after one reconciliation", async () => {
+  const h = harness(); const task = h.status().generate(input()).catch((error: Error) => error); h.render();
+  const stream = h.startStream(0);
+  stream.send({ type: "result", status: 502, payload: { ok: false, error: "Erreur de génération." } }); stream.close();
+  await h.flush();
+  h.recoveries[0].resolve(Response.json({ ok: true, status: "failed", code: "AI_MEDIA_PREPARATION_OUTPUT_INVALID", error: "Les dialogues n'ont pas pu être préparés." }));
+  assert.match((await task as Error).message, /dialogues/); await h.flush();
+  assert.equal(h.status().result, null); assert.equal(h.status().canRecover, false);
+  assert.equal(h.recoveries.length, 1); assert.equal(h.attempts.length, 1); h.dispose();
+});
+
+test("explicit preflight refusals still fail immediately without looking for a nonexistent paid job", async () => {
+  for (const code of ["AI_MEDIA_CREDITS_NOT_READY", "AI_MEDIA_STUDIO_DISABLED"]) {
+    const h = harness(); const task = h.status().generate(input()).catch((error: Error) => error); h.render();
+    const stream = h.startStream(0);
+    stream.send({ type: "result", status: 503, payload: { ok: false, code, error: "Génération indisponible pour cet établissement." } }); stream.close();
+    assert.match((await task as Error).message, /indisponible/); await h.flush();
+    assert.equal(h.recoveries.length, 0); assert.equal(h.status().canRecover, false); h.dispose();
+  }
+});
+
+test("a complete terminal result is delivered without waiting for the network connection to close", async () => {
+  let cancelled = 0;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(encoder.encode(`${JSON.stringify(successfulResult())}\n`)); },
+    // Intentionally no close: a delayed FIN used to keep the completed result pending.
+    cancel() { cancelled++; },
+  });
+  const result = await transport.readAiMediaGenerationResponse(new Response(stream, { headers: { "Content-Type": transport.AI_MEDIA_GENERATION_STREAM_TYPE } }), () => {});
+  assert.equal(result.ok, true); assert.equal((result.payload as { item: { id: string } }).item.id, "draft-a");
+  assert.equal(cancelled, 1);
+});
+
+test("a saved library video is recovered after every acceptance ACK is lost", async () => {
+  for (const saved of [true, false]) {
+    const storage = memoryStorage(); const h = harness(storage); await h.refreshRemaining(100);
+    const task = h.status().generate(input()); h.render(); const stream = h.startStream(0);
+    stream.send(successfulResult()); stream.close(); await task; await h.flush();
+    h.loseAcceptanceReplies();
+    const accepting = h.status().acceptDraft().catch((error: Error) => error); await h.flush();
+    assert.equal(h.recoveries.length, 1); assert.ok(h.acceptCalls() >= 2 && h.acceptCalls() <= 4);
+    assert.equal(h.recoveries[0].requestId, h.attempts[0].body.requestId);
+    h.recoveries[0].resolve(Response.json({ ...successfulResult().payload, status: "completed", draft: !saved }));
+    const result = await accepting; await h.flush();
+    if (saved) {
+      assert.equal((result as MediaGenerationResult).draft, false);
+      assert.equal(h.status().result?.draft, false); assert.equal(storage.entries.size, 0);
+    } else {
+      assert.ok(result instanceof Error); assert.equal(h.status().result?.draft, true);
+      assert.equal(storage.entries.size, 1, "A still-unaccepted paid draft is never falsely marked saved.");
+    }
+    assert.equal(h.attempts.length, 1); h.dispose();
+  }
 });
 
 test("the server billing gate deduplicates notifications and rejects cancellation before committing the gate", async () => {

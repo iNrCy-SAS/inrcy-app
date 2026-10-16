@@ -570,6 +570,7 @@ export default function MediaModifier({
                 variant="embedded"
                 creationStarted
                 generationInProgress={sourceBusy || generationBusy || recovering}
+                recoveryPending={canRecover}
                 cancellationPending={cancellationPending}
                 kind="image"
                 format={sourceFormat}

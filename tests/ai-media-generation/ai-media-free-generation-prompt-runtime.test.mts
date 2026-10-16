@@ -571,6 +571,32 @@ test("une voix IA vide est récupérée par le secours Gateway dans la même dea
   assert.notEqual(gateway.calls[0]!.model, gateway.calls[1]!.model);
   assert.equal(gateway.calls[0]!.deadlineAt, gateway.calls[1]!.deadlineAt);
   assert.ok(gateway.calls.every((call) => call.timeoutMs <= 30_000));
+  const feedback = JSON.parse(gateway.calls[1].input).rewrite_dialogue;
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0].reason, "empty");
+  assert.equal(feedback[0].scene, 1);
+  assert.equal(feedback[0].draft, "");
+  assert.match(feedback[0].instruction, /paroles manquantes dans spokenLine/);
+  assert.ok(gateway.calls.every((call) => call.maxOutputTokens === 2_000), "Uses the preparation budget within the Gateway policy cap.");
+});
+
+test("a fallback receives every missing or oversized automatic line", async () => {
+  const gateway = loadDialogueGateway([
+    { direction: "Une visite de l'atelier.", scenes: [
+      { visualBrief: "La guide salue.", spokenLine: "" },
+      { visualBrief: "La guide présente une pièce.", spokenLine: "mot ".repeat(20) },
+    ] },
+    { direction: "Une visite de l'atelier.", scenes: [
+      { visualBrief: "La guide salue.", spokenLine: "Bienvenue dans notre atelier !" },
+      { visualBrief: "La guide présente une pièce.", spokenLine: "Chaque pièce est façonnée avec soin." },
+    ] },
+  ]);
+  const runtime = loadPlan(null, gateway.generate);
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters" }), profile });
+  assert.equal(plan.scenes.length, 2);
+  assert.deepEqual(JSON.parse(gateway.calls[1].input).rewrite_dialogue.map((entry: { scene: number; reason: string }) => [entry.scene, entry.reason]), [[1, "empty"], [2, "budget"]]);
+  assert.equal(gateway.calls.length, 2);
+  assert.equal(gateway.calls[0].deadlineAt, gateway.calls[1].deadlineAt);
 });
 
 test("deux réponses IA invalides épuisent les secours sans boucle ni erreur de demande utilisateur", async () => {

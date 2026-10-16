@@ -26,6 +26,7 @@ type Props = {
   creationStarted?: boolean;
   generationInProgress?: boolean;
   cancellationPending?: boolean;
+  recoveryPending?: boolean;
   kind: MediaGenerationKind;
   format: MediaGenerationFormat;
   durationSeconds: number;
@@ -129,6 +130,7 @@ export default function MediaGenerationCreationWorkspace({
   creationStarted = true,
   generationInProgress,
   cancellationPending = false,
+  recoveryPending = false,
   kind,
   format,
   durationSeconds,
@@ -438,9 +440,9 @@ export default function MediaGenerationCreationWorkspace({
       ) : null}
 
       {showCreationError ? (
-        <div className={styles.creationErrorPanel} role="alert">
+        <div className={styles.creationErrorPanel} role={recoveryPending ? "status" : "alert"}>
           <span aria-hidden="true">!</span>
-          <h3>{t("ai_generator_creation_failed_title")}</h3>
+          <h3>{t(recoveryPending ? "ai_generator_editor_recover" : "ai_generator_creation_failed_title")}</h3>
           <p>{creationError || t("ai_generator_error")}</p>
           {!embedded ? <RegenerationAuthorization
             consents={regenerationConsents}

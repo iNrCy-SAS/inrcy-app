@@ -12,6 +12,9 @@ export function resolveAiMediaEditorialReasoning(feature: string, model: string)
   }
 
   if (feature !== "media.image" && feature !== "media.video") return undefined;
+  // The live Gateway catalog advertises low/high for this exact fallback.
+  // Its default reasoning exhausted short editorial JSON budgets in production.
+  if (model.trim() === "google/gemini-3-flash") return { effort: "low" as const };
   if (!/^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id)) return undefined;
   return { effort: "none" as const };
 }

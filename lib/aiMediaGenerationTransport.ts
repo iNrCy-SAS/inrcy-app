@@ -84,6 +84,9 @@ export async function readAiMediaGenerationResponse(response: Response, onBillin
       while (newline >= 0) {
         consume(buffered.slice(0, newline));
         buffered = buffered.slice(newline + 1);
+        // A complete terminal frame is authoritative. Waiting for the socket
+        // to close can turn a saved success into a network error afterwards.
+        if (result) return result as { status: number; ok: boolean; payload: unknown };
         newline = buffered.indexOf("\n");
       }
       if (buffered.length > MAX_EVENT_CHARS) throw incompleteResponse();
@@ -92,5 +95,10 @@ export async function readAiMediaGenerationResponse(response: Response, onBillin
     consume(buffered);
     if (!result) throw incompleteResponse();
     return result as { status: number; ok: boolean; payload: unknown };
-  } finally { reader.releaseLock(); }
+  } finally {
+    // Cancellation only releases this reader after a terminal result/error;
+    // it never submits or cancels a provider generation.
+    void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
