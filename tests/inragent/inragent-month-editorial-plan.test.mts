@@ -251,17 +251,18 @@ test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
   assert.doesNotMatch(prepare, /automaticMediaKind === "existing"/);
 });
 
-test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
+test("les médias générés remplissent leur format avant l’adaptation iNrAgent sans rognage supplémentaire", () => {
   const normalizer = read("lib/aiMediaNormalizer.ts");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
   const execute = read("app/api/agent/actions/execute/route.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
 
-  // The complete foreground is fitted inside the target; only its background
-  // extension may use cover. Pixel preservation is tested by image-fidelity-runtime.
-  assert.match(normalizer, /const foreground = await base\.clone\(\)\.resize\(\{ width, height, fit: "inside" \}\)/);
-  assert.match(normalizer, /input: foreground\.data/);
-  assert.match(normalizer, /left: Math\.floor\(\(width - foreground\.info\.width\) \/ 2\)/);
+  // Generated files fill their chosen canvas; source modifications retain their
+  // own canvas. Publishing still preserves that finished file without another
+  // automatic crop. Actual pixels are covered by ai-media-full-frame-runtime.
+  assert.match(normalizer, /fit: "cover", position: preservesSourceCanvas \? "attention" : "centre"/);
+  assert.match(normalizer, /detectAiMediaUniformBorderCrop/);
+  assert.doesNotMatch(normalizer, /input: foreground\.data|\.blur\(/);
   assert.match(schedule, /automaticFit: "contain"/);
   assert.match(execute, /automaticFit: "contain"/);
   assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/);
