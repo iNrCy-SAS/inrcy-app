@@ -153,6 +153,7 @@ import {
 } from "./_hooks/useAgentRuntimeData";
 import { useAgentRichTextEditors } from "./_hooks/useAgentRichTextEditors";
 import { useAgentAutomationController } from "./_hooks/useAgentAutomationController";
+import { useAgentManualCredits } from "./_hooks/useAgentManualCredits";
 import {
   INSTANT_PUBLICATION_PREPARATION_ID,
   buildPublicationViewerItems,
@@ -909,6 +910,14 @@ export default function AgentClient() {
     );
   }, [actions, publicationVisibilityNow]);
 
+  const manualCredits = useAgentManualCredits(JSON.stringify([agentSettings, actions.map(action => action.id), saveState]));
+  const manualCreditHelp = !manualCredits.availability
+    ? i18nT("manual_credits_checking")
+    : !manualCredits.availability.ready
+      ? i18nT("manual_credits_unavailable")
+      : !manualCredits.availability.allowed
+        ? i18nT("manual_credits_insufficient_help") : "";
+
   const {
     prepareActionState,
     prepareProgress,
@@ -945,6 +954,11 @@ export default function AgentClient() {
     selectedPreparedActionId,
     setSelectedPreparedActionId,
     showNotice,
+    checkManualPublishCredits: async () => {
+      const latest = await manualCredits.refresh();
+      if (!latest.allowed) showNotice(i18nT(latest.ready ? "manual_credits_insufficient_help" : "manual_credits_unavailable"));
+      return latest.allowed;
+    },
   });
 
   const instantPublishPreparationInProgress = instantPublicationPreparing;
@@ -5695,6 +5709,7 @@ export default function AgentClient() {
                   agentConnectedChannels
                 ).length === 0
             );
+            const manualCreditsBlocked = automation.key === "publish" && !manualCredits.availability?.allowed;
 
             return (
               <article
@@ -5702,6 +5717,7 @@ export default function AgentClient() {
                 data-automation={automation.key}
                 data-has-instant-action={hasInstantAction ? "true" : undefined}
                 data-has-ideas-action={automation.key === "publish" ? "true" : undefined}
+                data-manual-credit-blocked={manualCreditsBlocked || undefined}
                 className={`${styles.automationCard} ${
                   selectedCard ? styles.automationCardActive : ""
                 }`}
@@ -5770,11 +5786,12 @@ export default function AgentClient() {
                         loadState === "loading" ||
                         prepareActionState === "saving" ||
                         Boolean(testNowKey) ||
-                        instantActionUnavailable
+                        instantActionUnavailable || manualCreditsBlocked
                       }
                       aria-label={instantActionLabel}
                       aria-busy={testNowKey === automation.key}
-                      title={`${instantActionLabel} — ${instantActionHelp}`}
+                      aria-describedby={manualCreditsBlocked ? "manual-publish-credit-help" : undefined}
+                      title={`${instantActionLabel} — ${manualCreditsBlocked ? manualCreditHelp : instantActionHelp}`}
                     >
                       <span aria-hidden>⚡</span>
                     </button>
@@ -5828,6 +5845,9 @@ export default function AgentClient() {
                     <AutomationSettingsIcon />
                   </button>
                 </div>
+                {manualCreditsBlocked ? <small id="manual-publish-credit-help" className={styles.manualCreditHelp} role="status">
+                  {manualCredits.availability?.ready ? i18nT("manual_credits_insufficient") : manualCreditHelp}
+                </small> : null}
               </article>
             );
           })}

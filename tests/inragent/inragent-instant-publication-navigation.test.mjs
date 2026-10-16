@@ -29,7 +29,7 @@ async function flush() {
   for (let index = 0; index < 16; index += 1) await Promise.resolve();
 }
 
-function createController({ selectedId = "previous-publication", selectedKey = "publish" } = {}) {
+function createController({ selectedId = "previous-publication", selectedKey = "publish", checkManualPublishCredits } = {}) {
   const state = [];
   const timeouts = [];
   const intervals = new Map();
@@ -99,6 +99,7 @@ function createController({ selectedId = "previous-publication", selectedKey = "
       selectedPublicationId = typeof next === "function" ? next(selectedPublicationId) : next;
     },
     showNotice: (notice) => notices.push(notice),
+    checkManualPublishCredits,
   });
   return {
     controller, state, timeouts, intervals, notices,
@@ -127,6 +128,17 @@ function createController({ selectedId = "previous-publication", selectedKey = "
 const preparedPublication = {
   id: "new-publication", automationKey: "publish", actionType: "publication", title: "Nouvelle publication",
 };
+
+test("un éclair sans crédits s'arrête avant la progression et tout appel de génération", async () => {
+  const runtime = createController({checkManualPublishCredits:async()=>false});
+  runtime.controller.testAutomationNow("publish");await flush();
+  assert.equal(runtime.snapshot().selectedId,"previous-publication");
+  assert.equal(runtime.state[2],null);
+  assert.equal(runtime.preparationActive(),false);
+  assert.equal(runtime.intervals.size,0);
+  assert.equal(runtime.timeouts.length,0);
+  runtime.assertOriginalActionsUnchanged();
+});
 
 test("l'éclair sélectionne immédiatement une case provisoire sans créer de fausse action", () => {
   const runtime = createController({ selectedKey: "grow" });

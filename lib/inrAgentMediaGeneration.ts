@@ -74,6 +74,8 @@ export async function generateInrAgentMedia(args: {
   /** Identifie un emplacement et une partie de carrousel, stable au retry. */
   generationRequestId?: string;
   outputFormat?: AiMediaGenerationRequest["format"];
+  /** Server-owned automatic calendar slot, never a client-supplied credit flag. */
+  automaticEditorialActionId?: string;
 }): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
   const videoEntitlement =
@@ -127,6 +129,7 @@ export async function generateInrAgentMedia(args: {
     reservationTtlSeconds: args.kind === "video" ? 3_600 : 900,
     quotaUnit: "credit" as const,
     quotaAmount: quote.totalCredits,
+    automaticEditorialActionId: args.automaticEditorialActionId,
     limitOverride: args.adminUnlimited
       ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
       : undefined,

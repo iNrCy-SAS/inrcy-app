@@ -9,7 +9,7 @@ import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
 
 type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string };
-type Args = { accountId?: string; generationRequestId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
+type Args = { accountId?: string; generationRequestId?: string; automaticEditorialActionId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
 const source = readFileSync(new URL("../../lib/inrAgentMediaGeneration.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 
@@ -25,7 +25,7 @@ function harness(options: {
   const jobs = new Map<string, Job>();
   const media = new Map<string, { id: string; accountId: string; media_type: string }>();
   const providerCalls: Array<{ accountId: string; request: ReturnType<typeof buildInrAgentMediaGenerationRequest>; preserveOutputComposition?: boolean }> = [];
-  const reservations: Array<{ requestKey: string; quotaAmount: number }> = [];
+  const reservations: Array<{ requestKey: string; quotaAmount: number; automaticEditorialActionId?: string }> = [];
   const counts = { completions: 0, failures: 0, used: 0 };
   const failures = { ...options };
   const jobById = (id: string, accountId: string) => {
@@ -120,6 +120,15 @@ test("une génération terminée est réutilisée pour la même partie sans seco
   const replay = await h.run();
   assert.equal(first.outcome, "generated"); assert.equal(replay.item?.id, first.item?.id);
   assert.equal(h.providerCalls.length, 1); assert.equal(h.jobs.size, 1); assert.equal(h.counts.used, 7);
+});
+
+test("seule la préparation avec un créneau automatique transmet le contexte d'avance", async () => {
+  const manual = harness(); await manual.run();
+  assert.equal(manual.reservations[0].automaticEditorialActionId,undefined);
+  const automatic = harness(); const id="33333333-3333-4333-8333-333333333333";
+  await automatic.run({automaticEditorialActionId:id});
+  assert.equal(automatic.reservations[0].automaticEditorialActionId,id);
+  assert.equal(automatic.counts.used,7);
 });
 
 test("les groupes natifs utilisent le contrôle sans recadrage et gardent un seul débit par format", async () => {

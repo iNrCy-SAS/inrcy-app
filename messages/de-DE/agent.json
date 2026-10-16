@@ -1,4 +1,8 @@
 {
+  "manual_credits_insufficient": "Nicht genügend KI-Credits",
+  "manual_credits_insufficient_help": "Laden Sie Credits auf oder warten Sie auf die monatliche Aufladung. Die automatische Planung läuft weiter.",
+  "manual_credits_checking": "Credits werden geprüft…",
+  "manual_credits_unavailable": "Credits sind nicht verfügbar. Bitte versuchen Sie es gleich erneut.",
   "media_photo_shared_format": "Foto 4:5 · kanalübergreifend geteilt",
   "media_photo_fullscreen_format": "Foto 9:16 · Vollbild",
   "media_native_formats_credits_help": "Ein neues Format verbraucht iNrStudio-Guthaben. Bereits erstellte Versionen werden wiederverwendet.",

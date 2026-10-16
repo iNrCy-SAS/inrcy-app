@@ -1,4 +1,8 @@
 {
+  "manual_credits_insufficient": "Crediti IA insufficienti",
+  "manual_credits_insufficient_help": "Ricarica i crediti o attendi la ricarica mensile. La pianificazione automatica continua.",
+  "manual_credits_checking": "Verifica dei crediti…",
+  "manual_credits_unavailable": "Crediti non disponibili. Riprova tra poco.",
   "media_photo_shared_format": "Foto 4:5 · condivisa tra i canali",
   "media_photo_fullscreen_format": "Foto 9:16 · schermo intero",
   "media_native_formats_credits_help": "Un nuovo formato utilizza crediti iNrStudio. Le versioni già create vengono riutilizzate.",

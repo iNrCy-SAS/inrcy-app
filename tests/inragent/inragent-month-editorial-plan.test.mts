@@ -238,10 +238,11 @@ test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
 
   assert.match(prepare, /loadInstantMediaMixState/);
-  assert.match(prepare, /inrAgentPublicationMediaAt\(preparedPublications \+ 1, mediaTypes\)/);
-  assert.match(prepare, /preparedManually:\s*true/);
-  assert.match(prepare, /editorialPlan:\s*false/);
-  assert.match(prepare, /contains\("payload", \{ mediaType: "video" \}\)/);
+  const instantMix = read("lib/inrAgentInstantMediaState.ts");
+  assert.match(instantMix, /inrAgentPublicationMediaAt\(preparedPublications\s*\+\s*1,\s*mediaTypes\)/);
+  assert.match(instantMix, /preparedManually:\s*true/);
+  assert.match(instantMix, /editorialPlan:\s*false/);
+  assert.match(instantMix, /contains\("payload",\s*\{mediaType:"video"\}\)/);
   assert.match(prepare, /automaticMediaKind === "image"/);
   assert.match(
     prepare,

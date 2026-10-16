@@ -30,6 +30,7 @@ import {
   inrAgentEditorialRetryDecision,
   isTerminalInrAgentEditorialFailure,
   shouldRecoverInrAgentEditorialFailure,
+  shouldResumeInrAgentMediaCreditFailure,
 } from "@/lib/inrAgentEditorialRetryPolicy";
 import {
   deterministicEditorialActionId,
@@ -943,10 +944,36 @@ export async function reconcileInrAgentEditorialPlan(args: {
       cleanText(currentPlan.scheduleSignature, 2_000) !==
         slot.scheduleSignature;
     if (!criteriaChanged) {
+      const rowMetadata = asRecord(row.metadata);
+      if (shouldResumeInrAgentMediaCreditFailure({
+        status: row.status,
+        editorialPlan: rowMetadata.editorialPlan,
+        scheduledFor: row.scheduled_for,
+        refusedAt: row.refused_at,
+        error: rowMetadata.editorialLastError,
+        nowMs: now.getTime(),
+      })) {
+        const { error } = await args.supabase.from("inr_agent_actions").update({
+          status: "draft",
+          last_error: null,
+          metadata: {
+            ...rowMetadata,
+            editorialState: "retry",
+            editorialAttempts: 0,
+            editorialNextRetryAt: nowIso,
+            editorialLastError: null,
+            editorialRetryReason: "media_credit_advance_enabled",
+            editorialIdeaReservationTerminal: false,
+            editorialRecoveredAt: nowIso,
+          },
+          updated_at: nowIso,
+        }).eq("id", row.id).eq("user_id", args.userId).eq("status", row.status);
+        if (!error) requeued += 1;
+        continue;
+      }
       // Un échec définitif reste historique : ni réparation de canal ni
       // récupération automatique ne doivent relancer ce même créneau.
       if (isTerminalEditorialFailureRow(row)) continue;
-      const rowMetadata = asRecord(row.metadata);
       const missingEditorialFocus =
         !normalizeInrAgentEditorialFocus(currentPlan.focus) &&
         Boolean(slot.focus) &&

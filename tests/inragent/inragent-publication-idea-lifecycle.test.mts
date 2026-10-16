@@ -195,9 +195,9 @@ test("une ancienne action peut régénérer sa propre idée même si une nouvell
   assert.match(sql, /action\.payload -> 'publishPayload' -> 'postByChannel'/);
 });
 
-test("un failed définitif ne reprend pas son idée lors d'une réconciliation sans changement", () => {
+test("un failed définitif reste arrêté, sauf le manque de crédits médias devenu récupérable", () => {
   const planner = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
   assert.match(planner, /if \(isTerminalEditorialFailureRow\(row\)\) \{[\s\S]*?existingFocusBySlotKey\.set\(slotKey, focus\);[\s\S]*?continue;/);
-  assert.match(planner, /if \(!criteriaChanged\) \{\s*\/\/ Un échec définitif[\s\S]*?if \(isTerminalEditorialFailureRow\(row\)\) continue;/);
+  assert.match(planner, /if \(!criteriaChanged\) \{[\s\S]*?shouldResumeInrAgentMediaCreditFailure\([\s\S]*?editorialAttempts: 0,[\s\S]*?editorialRetryReason: "media_credit_advance_enabled",[\s\S]*?continue;[\s\S]*?if \(isTerminalEditorialFailureRow\(row\)\) continue;/);
   assert.match(planner, /editorialIdeaReservationTerminal: !retry/);
 });

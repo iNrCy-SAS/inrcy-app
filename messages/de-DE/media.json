@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "Guthaben",
+  "ai_generator_credit_advance_short": "iNr’Agent-Vorschuss",
+  "ai_generator_credit_advance_help": "iNr’Agent arbeitet automatisch weiter. Der Vorschuss wird mit den nächsten Aufladungen verrechnet. Manuelle Generierungen benötigen ausreichend Guthaben.",
   "ai_generator_free_audio_voiceover": "Voiceover",
   "ai_generator_free_audio_voiceover_hint": "Eine Erzählerstimme begleitet die Szene, ohne Dialog der Figuren.",
   "ai_generator_free_audio_characters": "Figuren",

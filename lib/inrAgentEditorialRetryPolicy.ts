@@ -10,6 +10,24 @@ function normalizedError(value: unknown) {
     .toLowerCase();
 }
 
+/** Resume future calendar slots stopped by the former media-wallet rule only. */
+export function shouldResumeInrAgentMediaCreditFailure(args: {
+  status: string;
+  editorialPlan: unknown;
+  scheduledFor: string | null;
+  refusedAt?: string | null;
+  error: unknown;
+  nowMs: number;
+}) {
+  const message = normalizedError(args.error);
+  return args.editorialPlan === true &&
+    (args.status === "draft" || args.status === "failed") &&
+    !args.refusedAt &&
+    Date.parse(args.scheduledFor || "") > args.nowMs &&
+    (message.includes("le quota de medias est insuffisant pour terminer cette publication") ||
+      message.includes("inr_agent_ai_media_quota_reached"));
+}
+
 /**
  * Provider quotas and the account-level AI Gateway fuse are temporary limits.
  * They must never turn an autonomous editorial slot into a permanent failure.

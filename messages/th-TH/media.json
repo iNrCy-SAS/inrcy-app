@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "ยอดคงเหลือ",
+  "ai_generator_credit_advance_short": "เครดิตล่วงหน้า iNr’Agent",
+  "ai_generator_credit_advance_help": "iNr’Agent ทำงานอัตโนมัติต่อไป เครดิตล่วงหน้าจะถูกหักจากการเติมครั้งถัดไป การสร้างด้วยตนเองต้องมีเครดิตเพียงพอ",
   "ai_generator_free_audio_voiceover": "เสียงบรรยาย",
   "ai_generator_free_audio_voiceover_hint": "เสียงบรรยายประกอบฉาก โดยตัวละครไม่พูด",
   "ai_generator_free_audio_characters": "ตัวละคร",

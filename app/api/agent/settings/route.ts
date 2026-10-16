@@ -21,6 +21,7 @@ import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 import { getAiMediaQuotaSnapshot } from "@/lib/aiMediaGenerationQuota";
+import { getInrAgentManualPublishCreditAvailability } from "@/lib/inrAgentManualCreditAvailabilityServer";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import {
   inrAgentMonthlyDateCount,
@@ -541,11 +542,16 @@ async function getAgentSettingsHandler() {
     settings,
     activeUserId,
   );
+  const manualPublishCredits = await getInrAgentManualPublishCreditAvailability({
+    accountId: activeUserId, actorAuthUserId: authUserId,
+    automation: connectedSettings.automations.publish,
+  }).catch(() => ({ready:false,allowed:false,unlimited:false,remaining:null,required:0}));
   return NextResponse.json({
     settings: standardMode
       ? restrictInrAgentSettingsForStandard(connectedSettings)
       : connectedSettings,
     tableMissing: false,
+    manualPublishCredits,
   });
 }
 

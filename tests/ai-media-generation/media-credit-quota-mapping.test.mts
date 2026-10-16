@@ -74,6 +74,29 @@ test("unified snapshot exposes one credit pool and compatibility counters are de
   assert.equal((q.image as Row).remaining,Math.floor(1124/7));
   assert.equal((q.video as Row).remaining,Math.floor(1124/10));
 });
+
+test("a credit advance remains signed; legacy equivalents and non-balance counts remain nonnegative",async()=>{
+  const row={...base("media"),...breakdown("image"),quota_unit:"credit",wallet_ready:true,
+    limit_count:735,used_count:835,reserved_count:0,remaining_count:-100,
+    included_limit_count:735,included_used_count:835,included_reserved_count:0,included_remaining_count:-100,purchased_remaining_count:0};
+  const q=await fixture([row],true).get();
+  assert.equal((q.credits as Row).remaining,-100);assert.equal((q.credits as Row).includedRemaining,-100);
+  for(const kind of ["image","video"]){assert.equal((q[kind] as Row).remaining,0);assert.equal((q[kind] as Row).includedRemaining,0);}
+  await assert.rejects(fixture([{...row,used_count:-1}],true).get(),/used_count/);
+  await assert.rejects(fixture([{...row,purchased_remaining_count:-1}],true).get(),/purchased_remaining_count/);
+});
+
+test("only the explicit automatic server context selects the private advance RPC",async()=>{
+  const row={...base("image"),quota_unit:"credit",quota_amount:7,remaining_count:-7,outcome:"reserved",job_id:account,job_status:"reserved",is_replay:false};
+  const args={accountId:account,actorAuthUserId:actor,edition:"standard",requestKey:"automatic-request",requestFingerprint:"a".repeat(64),mediaKind:"image",surface:"booster",quotaUnit:"credit",quotaAmount:7};
+  const f=fixture([row],true);await f.api.reserveAiMediaGeneration({...args,automaticEditorialActionId:actor});
+  assert.equal(f.calls[0].name,"reserve_inr_agent_media_generation_v1");
+  assert.equal((f.calls[0].args as Row).p_editorial_action_id,actor);
+  const manual=fixture([row],true);await manual.api.reserveAiMediaGeneration({...args,metadata:{credit_overdraft_allowed:true,automatic_editorial_action_id:actor}});
+  assert.equal(manual.calls[0].name,"reserve_ai_media_generation_v3");
+  assert.equal(Object.hasOwn(manual.calls[0].args as Row,"p_editorial_action_id"),false);
+  await assert.rejects(f.api.reserveAiMediaGeneration({...args,surface:"studio",automaticEditorialActionId:actor}),/automatiques/);
+});
 test("month2 image mapping keeps lifetime bought consumption out of included monthly usage",async()=>{
   const image={...base("image"),...breakdown("image"),limit_count:45,used_count:1,remaining_count:44,purchased_remaining_count:19};
   const q=await fixture([image,{...base("video"),...breakdown("video")}]).get();

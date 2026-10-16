@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "Saldo",
+  "ai_generator_credit_advance_short": "Anticipo iNr’Agent",
+  "ai_generator_credit_advance_help": "iNr’Agent continua automaticamente. L’anticipo viene detratto dalle prossime ricariche. Le generazioni manuali richiedono un saldo sufficiente.",
   "ai_generator_free_audio_voiceover": "Voce fuori campo",
   "ai_generator_free_audio_voiceover_hint": "Una voce narrante accompagna la scena, senza dialoghi dei personaggi.",
   "ai_generator_free_audio_characters": "Personaggi",

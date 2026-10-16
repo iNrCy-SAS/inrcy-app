@@ -1,4 +1,8 @@
 {
+  "manual_credits_insufficient": "AI 额度不足",
+  "manual_credits_insufficient_help": "请充值或等待每月额度补充。自动规划将继续运行。",
+  "manual_credits_checking": "正在检查额度…",
+  "manual_credits_unavailable": "额度暂不可用，请稍后重试。",
   "media_photo_shared_format": "4:5 图片 · 多渠道共用",
   "media_photo_fullscreen_format": "9:16 图片 · 全屏显示",
   "media_native_formats_credits_help": "新格式会消耗 iNrStudio 积分，已创建的版本会重复使用。",

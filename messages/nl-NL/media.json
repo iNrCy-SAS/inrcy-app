@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "Saldo",
+  "ai_generator_credit_advance_short": "iNr’Agent-voorschot",
+  "ai_generator_credit_advance_help": "iNr’Agent werkt automatisch verder. Het voorschot wordt verrekend met volgende aanvullingen. Handmatige generaties vereisen voldoende saldo.",
   "ai_generator_free_audio_voiceover": "Voice-over",
   "ai_generator_free_audio_voiceover_hint": "Een vertelstem begeleidt de scène, zonder dialoog van de personages.",
   "ai_generator_free_audio_characters": "Personages",

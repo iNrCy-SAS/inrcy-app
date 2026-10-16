@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "Balance",
+  "ai_generator_credit_advance_short": "iNr’Agent advance",
+  "ai_generator_credit_advance_help": "iNr’Agent continues automatically. The advance is deducted from future refills. Manual generation requires sufficient credits.",
   "ai_generator_free_audio_voiceover": "Voiceover",
   "ai_generator_free_audio_voiceover_hint": "Narration accompanies the scene, with no character dialogue.",
   "ai_generator_free_audio_characters": "Characters",

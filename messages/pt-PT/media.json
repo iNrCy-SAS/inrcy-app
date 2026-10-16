@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "Saldo",
+  "ai_generator_credit_advance_short": "Adiantamento iNr’Agent",
+  "ai_generator_credit_advance_help": "O iNr’Agent continua automaticamente. O adiantamento é deduzido dos próximos carregamentos. As gerações manuais exigem saldo suficiente.",
   "ai_generator_free_audio_voiceover": "Voz-off",
   "ai_generator_free_audio_voiceover_hint": "Uma narração acompanha a cena, sem diálogo das personagens.",
   "ai_generator_free_audio_characters": "Personagens",

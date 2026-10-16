@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import {
   useState,
+  useRef,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -75,6 +76,7 @@ type UseAgentAutomationControllerParams = {
   selectedPreparedActionId: string | null;
   setSelectedPreparedActionId: Setter<string | null>;
   showNotice: (message: string) => void;
+  checkManualPublishCredits?: () => Promise<boolean>;
 };
 
 function wait(ms: number) {
@@ -100,9 +102,11 @@ export function useAgentAutomationController({
   selectedPreparedActionId,
   setSelectedPreparedActionId,
   showNotice,
+  checkManualPublishCredits,
 }: UseAgentAutomationControllerParams) {
   const i18nT = useTranslations("agent");
   const runtimeT = i18nT as unknown as AgentTranslator;
+  const runningNow = useRef(false);
   const [prepareActionState, setPrepareActionState] =
     useState<PrepareActionState>("idle");
   const [prepareProgress, setPrepareProgress] =
@@ -302,8 +306,15 @@ export function useAgentAutomationController({
   }
 
   async function runAutomationNow(key: AutomationKey) {
-    if (testNowKey || prepareActionState === "saving" || saveState === "saving")
+    if (runningNow.current || testNowKey || prepareActionState === "saving" || saveState === "saving")
       return;
+
+    runningNow.current = true;
+    if (key === "publish" && checkManualPublishCredits) {
+      try {
+        if (!(await checkManualPublishCredits())) { runningNow.current = false; return; }
+      } catch { runningNow.current = false; return; }
+    }
 
     const progressKey = key === "stats" ? null : key;
     let progressTimer: number | null = null;
@@ -396,6 +407,7 @@ export function useAgentAutomationController({
       }
       if (key === "publish") setInstantPublicationPreparing(false);
       setTestNowKey(null);
+      runningNow.current = false;
     }
   }
 

@@ -20707,6 +20707,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
+.automationCard[data-manual-credit-blocked] { padding-bottom: 23px; }
+.automationGrid .automationCard[data-manual-credit-blocked] .automationCardActions,
+.automationGridStandard .automationCard[data-manual-credit-blocked] .automationCardActions { top: calc(50% - 11px) !important; }
+.manualCreditHelp { position: absolute; left: 10px; right: 10px; bottom: 5px; color: #e4cb9c; font-size: 10px; line-height: 13px; text-align: center; overflow-wrap: anywhere; }
+.automationCard[data-manual-credit-blocked] .instantActionButton { filter: grayscale(1); }
+
 /* iNrAgent Publier — rail de canaux uniforme et stable au zoom. */
 .previewMetaPublish .channelScroller button {
   box-sizing: border-box !important;

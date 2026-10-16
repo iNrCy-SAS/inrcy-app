@@ -62,6 +62,9 @@ import {
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import { getAiMediaQuotaSnapshot } from "@/lib/aiMediaGenerationQuota";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { inrAgentManualCreditAvailability, inrAgentManualPublishCreditBudget } from "@/lib/inrAgentManualCreditPolicy";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants, type InrAgentMediaFormatPlan } from "@/lib/inrAgentMediaFormats";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
 import { normalizeAiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
@@ -90,7 +93,7 @@ import {
   releaseAbandonedInrAgentPublicationIdeas,
   releaseInrAgentPublicationIdea,
 } from "@/lib/inrAgentPublicationIdeaLifecycle";
-import { inrAgentPublicationMediaAt } from "@/lib/inrAgentEditorialMediaPolicy";
+import { loadInstantMediaMixState } from "@/lib/inrAgentInstantMediaState";
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
@@ -144,14 +147,6 @@ type RecentMediaUsage = {
   proMediaIds: Set<string>;
   imageBankIds: Set<string>;
   storageKeys: Set<string>;
-};
-
-type InstantMediaMixState = {
-  preparedPublications: number;
-  videoPublications: number;
-  mediaKind: "image" | "video";
-  imageCount: 0 | 1 | 3;
-  historyAvailable: boolean;
 };
 
 type MediaSelectionAttempt = {
@@ -613,58 +608,6 @@ async function loadRecentMediaUsage(userId: string): Promise<RecentMediaUsage> {
   }
 
   return usage;
-}
-
-async function loadInstantMediaMixState(
-  userId: string,
-  mediaTypes: unknown,
-): Promise<InstantMediaMixState> {
-  const instantActionMetadata = {
-    preparedManually: true,
-    editorialPlan: false,
-  };
-  const totalQuery = supabaseAdmin
-    .from("inr_agent_actions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("automation_key", "publish")
-    .contains("metadata", instantActionMetadata);
-  const videoQuery = supabaseAdmin
-    .from("inr_agent_actions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("automation_key", "publish")
-    .contains("metadata", instantActionMetadata)
-    .contains("payload", { mediaType: "video" });
-  const [totalResult, videoResult] = await Promise.all([
-    totalQuery,
-    videoQuery,
-  ]);
-
-  if (totalResult.error || videoResult.error) {
-    console.warn("[inr-agent] instant media mix history unavailable", {
-      userId,
-      totalError: totalResult.error?.message,
-      videoError: videoResult.error?.message,
-    });
-    return {
-      preparedPublications: 0,
-      videoPublications: 0,
-      // Fail closed on quota cost: a history outage must never force a video.
-      mediaKind: "image",
-      imageCount: 1,
-      historyAvailable: false,
-    };
-  }
-
-  const preparedPublications = Math.max(0, totalResult.count || 0);
-  const videoPublications = Math.max(0, videoResult.count || 0);
-  return {
-    preparedPublications,
-    videoPublications,
-    ...inrAgentPublicationMediaAt(preparedPublications + 1, mediaTypes),
-    historyAvailable: true,
-  };
 }
 
 function isRecentlyUsedMediaRow(
@@ -2090,7 +2033,7 @@ export async function POST(request: Request) {
       : Promise.resolve(null);
   const instantMediaMixPromise = editorialTarget
     ? Promise.resolve(null)
-    : loadInstantMediaMixState(userId, automation.publicationMediaTypes);
+    : loadInstantMediaMixState(supabaseAdmin, userId, automation.publicationMediaTypes);
 
   const [
     availableChannels,
@@ -2162,6 +2105,20 @@ export async function POST(request: Request) {
       },
       { status: 400 }
     );
+  }
+
+  // A manual flash needs the complete media budget before any paid text or
+  // image/video generation. Automatic claimed calendar slots may borrow.
+  if (!isCron) {
+    const edition = await getDashboardEditionForAccountId(userId);
+    const wallet = await getAiMediaQuotaSnapshot({accountId:userId,actorAuthUserId:actorUserId,edition});
+    const required = inrAgentManualPublishCreditBudget({kind:automaticMediaKind,imageCount:requestedImageCount,channels});
+    const availability = inrAgentManualCreditAvailability({ready:wallet.creditsReady,unlimited:isAdmin,remaining:wallet.credits.remaining,required});
+    if (!availability.allowed) return NextResponse.json({
+      code: "INR_AGENT_MANUAL_CREDITS_INSUFFICIENT",
+      error: "Crédits IA insuffisants pour cette génération ponctuelle. Rechargez vos crédits ou attendez la recharge mensuelle. Le planning automatique continue.",
+      manualPublishCredits: availability,
+    },{status:wallet.creditsReady ? 429 : 503});
   }
 
   const { profile, business, recentPublications } = generationContext;
@@ -2432,6 +2389,7 @@ export async function POST(request: Request) {
         generationRequestId: `${mediaRequestScope}${outputFormat ? `:format:${outputFormat}` : ""}:part:${index}`,
         videoDurationSeconds,
         outputFormat,
+        automaticEditorialActionId: isCron ? editorialTarget?.id : undefined,
       });
       generatedMediaResults.push(result);
       if (result.item) formatAssets.push(generatedPickerItemToAgentMedia({ item: result.item, business }));

@@ -24,7 +24,10 @@ test("Publier, Propulser et Fidéliser proposent l'action instantanée à côté
   assert.match(cards, /onAfterExit: \(\) => testAutomationNow\(automation\.key\)/);
   assert.match(cards, /i18nT\("instant_publish_action_label"\)/);
   assert.match(cards, /i18nT\("instant_campaign_action_label"\)/);
-  assert.match(cards, /title=\{`\$\{instantActionLabel\} — \$\{instantActionHelp\}`\}/);
+  assert.match(cards, /title=\{`\$\{instantActionLabel\} — \$\{manualCreditsBlocked \? manualCreditHelp : instantActionHelp\}`\}/);
+  assert.match(cards, /instantActionUnavailable \|\| manualCreditsBlocked/);
+  assert.match(cards, /aria-describedby=\{manualCreditsBlocked \? "manual-publish-credit-help"/);
+  assert.match(cards, /id="manual-publish-credit-help"/);
   assert.match(cards, /<span aria-hidden>⚡<\/span>/);
   assert.match(
     styles,

@@ -1,4 +1,7 @@
 {
+  "ai_generator_credit_balance_label": "余额",
+  "ai_generator_credit_advance_short": "iNr’Agent 预支额度",
+  "ai_generator_credit_advance_help": "iNr’Agent 将继续自动运行。预支额度将从后续充值中扣除。手动生成需要足够的余额。",
   "ai_generator_free_audio_voiceover": "旁白",
   "ai_generator_free_audio_voiceover_hint": "旁白伴随画面，角色没有对白。",
   "ai_generator_free_audio_characters": "角色",

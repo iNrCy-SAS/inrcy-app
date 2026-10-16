@@ -201,9 +201,9 @@ function normalizeMetadata(value: AiMediaQuotaMetadata | undefined): AiMediaQuot
   return value;
 }
 
-function numberValue(value: unknown, label: string): number {
+function numberValue(value: unknown, label: string, signed = false): number {
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
+  if (!Number.isInteger(parsed) || (!signed && parsed < 0)) {
     throw new AiMediaGenerationQuotaError(
       "ai_media_invalid_rpc_response",
       `Reponse de quota invalide (${label}).`,
@@ -247,6 +247,7 @@ function rpcError(rpcName: string, error: unknown): never {
     .join(" ");
 
   const known: Array<[string, string, number, string]> = [
+    ["AI_MEDIA_AUTOMATIC_CREDIT_CONTEXT_DENIED", "ai_media_automatic_credit_context_denied", 403, "L’avance de crédits est réservée aux préparations automatiques iNr’Agent."],
     ["AI_MEDIA_ACCOUNT_ACCESS_DENIED", "ai_media_account_access_denied", 403, "Cet etablissement n'est pas accessible."],
     ["AI_MEDIA_IDEMPOTENCY_CONFLICT", "ai_media_idempotency_conflict", 409, "Cette demande existe deja avec un contenu different."],
     ["AI_MEDIA_JOB_NOT_FOUND", "ai_media_job_not_found", 404, "La generation media est introuvable."],
@@ -294,7 +295,7 @@ function quotaFromRow(row: QuotaRpcRow): AiMediaQuotaCounter & { periodStart: st
     limit: numberValue(row.limit_count, "limit_count"),
     used: numberValue(row.used_count, "used_count"),
     reserved: numberValue(row.reserved_count, "reserved_count"),
-    remaining: numberValue(row.remaining_count, "remaining_count"),
+    remaining: numberValue(row.remaining_count, "remaining_count", unit === "credit"),
     periodStart: stringValue(row.period_start, "period_start"),
     resetAt: stringValue(row.reset_at, "reset_at"),
   };
@@ -314,10 +315,10 @@ function equivalentCounter(credits: AiMediaQuotaCounter, kind: AiMediaKind): AiM
     limit: Math.floor(credits.limit / factor),
     used: Math.floor(credits.used / factor),
     reserved: Math.floor(credits.reserved / factor),
-    remaining: Math.floor(credits.remaining / factor),
+    remaining: Math.max(0, Math.floor(credits.remaining / factor)),
   };
   for (const key of ["includedRemaining", "includedLimit", "includedUsed", "includedReserved", "purchasedRemaining", "purchasedReserved", "purchasedDebt", "purchasedHeld", "purchasedSuspendedDeficit"] as const) {
-    if (typeof credits[key] === "number") result[key] = Math.floor(credits[key]! / factor);
+    if (typeof credits[key] === "number") result[key] = Math.max(0, Math.floor(credits[key]! / factor));
   }
   return result;
 }
@@ -325,7 +326,7 @@ function equivalentCounter(credits: AiMediaQuotaCounter, kind: AiMediaKind): AiM
 function purchasedQuotaFromRow(row: QuotaRpcRow): Partial<AiMediaQuotaCounter> {
   if (typeof row.purchased_remaining_count === "undefined") return {};
   return {
-    includedRemaining: numberValue(row.included_remaining_count, "included_remaining_count"),
+    includedRemaining: numberValue(row.included_remaining_count, "included_remaining_count", row.quota_unit === "credit"),
     includedLimit: numberValue(row.included_limit_count, "included_limit_count"),
     includedUsed: numberValue(row.included_used_count, "included_used_count"),
     includedReserved: numberValue(row.included_reserved_count, "included_reserved_count"),
@@ -450,6 +451,8 @@ export async function reserveAiMediaGeneration(params: {
   quotaAmount?: number;
   quotaUnit?: "item" | "second" | "credit";
   metadata?: AiMediaQuotaMetadata;
+  /** Only trusted automatic preparation may pass a claimed editorial slot. */
+  automaticEditorialActionId?: string;
 }): Promise<AiMediaGenerationReservation> {
   const accountId = assertUuid(params.accountId, "accountId");
   const actorAuthUserId = assertUuid(params.actorAuthUserId, "actorAuthUserId");
@@ -490,7 +493,10 @@ export async function reserveAiMediaGeneration(params: {
     );
   }
 
-  const [row] = await callRpc<ReservationRpcRow>(params.supabase ?? supabaseAdmin, quotaUnit === "credit" ? "reserve_ai_media_generation_v3" : "reserve_ai_media_generation_v2", {
+  const automaticEditorialActionId = params.automaticEditorialActionId ? assertUuid(params.automaticEditorialActionId, "automaticEditorialActionId") : null;
+  if (automaticEditorialActionId && (quotaUnit !== "credit" || surface !== "booster")) inputError("ai_media_invalid_automatic_credit_context", "L’avance de crédits est réservée aux préparations automatiques iNr’Agent.");
+  const [row] = await callRpc<ReservationRpcRow>(params.supabase ?? supabaseAdmin, automaticEditorialActionId ? "reserve_inr_agent_media_generation_v1" : quotaUnit === "credit" ? "reserve_ai_media_generation_v3" : "reserve_ai_media_generation_v2", {
+    ...(automaticEditorialActionId ? { p_editorial_action_id: automaticEditorialActionId } : {}),
     p_account_id: accountId,
     p_actor_auth_user_id: actorAuthUserId,
     p_request_key: requestKey,

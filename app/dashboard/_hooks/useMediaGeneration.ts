@@ -470,7 +470,7 @@ function normalizeCounter(
   const paidFields: Partial<MediaGenerationQuotaCounter> = {};
   for (const key of ["includedRemaining", "includedLimit", "includedUsed", "includedReserved", "purchasedRemaining", "purchasedReserved", "purchasedDebt", "purchasedHeld", "purchasedSuspendedDeficit"] as const) {
     const parsed = finiteNumber(source[key]);
-    if (parsed !== null && parsed >= 0) paidFields[key] = parsed;
+    if (parsed !== null && (parsed >= 0 || key === "includedRemaining")) paidFields[key] = parsed;
   }
   return { unit, limit, used, reserved, remaining, ...paidFields };
 }
