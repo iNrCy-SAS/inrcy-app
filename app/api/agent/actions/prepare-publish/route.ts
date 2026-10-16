@@ -2116,7 +2116,7 @@ export async function POST(request: Request) {
     const availability = inrAgentManualCreditAvailability({ready:wallet.creditsReady,unlimited:isAdmin,remaining:wallet.credits.remaining,required});
     if (!availability.allowed) return NextResponse.json({
       code: "INR_AGENT_MANUAL_CREDITS_INSUFFICIENT",
-      error: "Crédits IA insuffisants pour cette génération ponctuelle. Rechargez vos crédits ou attendez la recharge mensuelle. Le planning automatique continue.",
+      error: "Cette génération ponctuelle nécessite des crédits IA disponibles. Le planning automatique d’iNr’Agent continue normalement.",
       manualPublishCredits: availability,
     },{status:wallet.creditsReady ? 429 : 503});
   }

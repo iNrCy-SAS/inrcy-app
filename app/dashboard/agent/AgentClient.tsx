@@ -916,7 +916,7 @@ export default function AgentClient() {
     : !manualCredits.availability.ready
       ? i18nT("manual_credits_unavailable")
       : !manualCredits.availability.allowed
-        ? i18nT("manual_credits_insufficient_help") : "";
+        ? `${i18nT("manual_credits_insufficient")} — ${i18nT("manual_credits_insufficient_help")}` : "";
 
   const {
     prepareActionState,
@@ -5717,7 +5717,6 @@ export default function AgentClient() {
                 data-automation={automation.key}
                 data-has-instant-action={hasInstantAction ? "true" : undefined}
                 data-has-ideas-action={automation.key === "publish" ? "true" : undefined}
-                data-manual-credit-blocked={manualCreditsBlocked || undefined}
                 className={`${styles.automationCard} ${
                   selectedCard ? styles.automationCardActive : ""
                 }`}
@@ -5790,7 +5789,7 @@ export default function AgentClient() {
                       }
                       aria-label={instantActionLabel}
                       aria-busy={testNowKey === automation.key}
-                      aria-describedby={manualCreditsBlocked ? "manual-publish-credit-help" : undefined}
+                      aria-description={manualCreditsBlocked ? manualCreditHelp : undefined}
                       title={`${instantActionLabel} — ${manualCreditsBlocked ? manualCreditHelp : instantActionHelp}`}
                     >
                       <span aria-hidden>⚡</span>
@@ -5845,9 +5844,6 @@ export default function AgentClient() {
                     <AutomationSettingsIcon />
                   </button>
                 </div>
-                {manualCreditsBlocked ? <small id="manual-publish-credit-help" className={styles.manualCreditHelp} role="status">
-                  {manualCredits.availability?.ready ? i18nT("manual_credits_insufficient") : manualCreditHelp}
-                </small> : null}
               </article>
             );
           })}

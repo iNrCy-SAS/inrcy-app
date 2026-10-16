@@ -1,6 +1,6 @@
 {
   "manual_credits_insufficient": "Crédits IA insuffisants",
-  "manual_credits_insufficient_help": "Rechargez vos crédits ou attendez la recharge mensuelle. Le planning automatique continue.",
+  "manual_credits_insufficient_help": "Cette génération ponctuelle nécessite des crédits IA disponibles. Le planning automatique d’iNr’Agent continue normalement.",
   "manual_credits_checking": "Vérification des crédits…",
   "manual_credits_unavailable": "Crédits indisponibles. Réessayez dans un instant.",
   "media_photo_shared_format": "Photo 4:5 · partagée entre les canaux",

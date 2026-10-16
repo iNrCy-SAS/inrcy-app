@@ -1,6 +1,6 @@
 {
   "manual_credits_insufficient": "Insufficient AI credits",
-  "manual_credits_insufficient_help": "Top up your credits or wait for the monthly refill. Automatic planning continues.",
+  "manual_credits_insufficient_help": "This one-off generation requires available AI credits. Automatic iNr’Agent scheduling continues normally.",
   "manual_credits_checking": "Checking credits…",
   "manual_credits_unavailable": "Credits unavailable. Please try again shortly.",
   "media_photo_shared_format": "4:5 photo · shared across channels",
