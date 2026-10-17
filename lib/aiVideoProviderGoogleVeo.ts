@@ -838,12 +838,16 @@ export function buildGoogleVideoScenePrompt(
   const requiredSections = () => [
     compactGeneratedDirections && options.continuationFrame
       ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue prior frame's motion; no reset/cut.`
-      : sequenceHeader,
+      : compactGeneratedDirections && !options.continuation
+        ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; continuous take.`
+        : sequenceHeader,
     subjectRepeatedInInstruction
       ? "SUBJECT: see USER; keep all entities/actions/relations; no swaps."
       : `SUBJECT: ${subjectSource}. Keep entities/actions/relations; no swaps.`,
     userDirection
-      ? `USER: ${userDirection}. Obey; never show/recite.`
+      ? compactGeneratedDirections && punctualInstruction === exactIdea
+        ? "USER: same as SUBJECT. Obey; never show/recite."
+        : `USER: ${userDirection}. Obey; never show/recite.`
       : "",
     `REFERENCE: ${compactGeneratedDirections && options.continuationFrame
       ? `prior frame: keep cast/design/place/framing and continue action; refs: ${providerContract.references}`
@@ -852,9 +856,13 @@ export function buildGoogleVideoScenePrompt(
       ? "Motion from 0.0s; no still/freeze/slideshow/pan-zoom/reset/cut."
       : "Animate from 0.0s throughout; no still/freeze/slideshow/pan-zoom/reset/cut."}`,
     "NO VISUAL TEXT: blank surfaces; no text/pseudo-text/numbers/UI/logos/watermarks/swatches/color charts/hex codes/technical annotations, even from refs. Never draw PARAMS.",
-    speechDirection,
+    compactGeneratedDirections && !nativeDialogueRequested
+      ? `${args.request.teamVideoMode === "cinematic" ? "VOICE-OVER" : "AUDIO"}: ambience only; no native speech/vocals/lyrics/music; no speaking/articulation/lip-sync. Natural gestures/gaze/smiles; iNrCy adds final audio.`
+      : speechDirection,
     `PARAMS: ${selectedParameters}.`,
-    buildAiMediaOriginalityContract(args.request),
+    compactGeneratedDirections
+      ? "ORIGINALITY: brief-led, distinctive, not stock; vary only unspecified opening/action/camera. No unrequested tablet/laptop/phone/office. Keep explicit criteria/facts/required identities/objects/places."
+      : buildAiMediaOriginalityContract(args.request),
     adultSafety,
     args.plan.scenes.length > 1
       ? `CONTINUITY: ${promptSnippet(buildGoogleVideoContinuityContract(args), 170)}.`
