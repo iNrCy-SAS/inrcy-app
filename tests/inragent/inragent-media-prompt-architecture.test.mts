@@ -132,7 +132,7 @@ test("iNrAgent conserve la scène continue sur les durées Omni de 8 et 16 secon
   assert.equal(continuous.sceneMode, "single");
   assert.equal(continuous.connectScenes, true);
   assert.equal(continuous.durationSeconds, 16);
-  assert.equal(continuous.videoEngine, "omni");
+  assert.equal(continuous.videoEngine, "veo-lite");
   assert.equal(short.sceneMode, "single");
   assert.equal(short.connectScenes, false);
 });

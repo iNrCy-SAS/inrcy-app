@@ -93,6 +93,7 @@ import {
   isAiMediaProfilePhoneDisplayRequested,
 } from "@/lib/aiMediaVisibleContact";
 import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
+import { generateInrAgentVideoWithFallback } from "./inrAgentVideoFallback.ts";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
   isAiVideoProviderBillableFailure,
@@ -306,6 +307,8 @@ export async function generateAndSaveAiMedia(args: {
   videoMaxDurationSeconds?: AiMediaVideoDurationLimit;
   /** Internal Agent contract; Studio's existing composition policy is unchanged. */
   preserveOutputComposition?: boolean;
+  /** Trusted Agent orchestration only; never accepted from the Studio request. */
+  agentVideoFallback?: boolean;
   signal?: AbortSignal;
   /** Locks cancellation before the first potentially billable provider phase. */
   onBillableWorkStarted?: () => void | Promise<void>;
@@ -1077,7 +1080,9 @@ export async function generateAndSaveAiMedia(args: {
         signal: args.signal,
       };
       try {
-        return await generateOriginalAiVideoClips(providerArgs);
+        return args.agentVideoFallback
+          ? await generateInrAgentVideoWithFallback(providerArgs, generateOriginalAiVideoClips)
+          : await generateOriginalAiVideoClips(providerArgs);
       } catch (primaryError) {
         args.signal?.throwIfAborted();
         recordVideoEngineFailure({
@@ -2049,6 +2054,8 @@ export async function generateAndSaveAiMedia(args: {
     providerMetadata = {
       provider: videoGateway.provider,
       model: videoGateway.model,
+      selected_video_engine: providerRequest.videoEngine,
+      agent_video_fallback_used: videoGateway.warnings.includes("inr_agent_veo_lite_fallback_to_grok_lite"),
       original_clip_count: videoGateway.clips.length,
       provider_request_ids: videoGateway.clips.map((clip) => clip.requestId),
       estimated_cost_micro_usd: videoGateway.estimatedCostMicroUsd,

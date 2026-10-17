@@ -1331,7 +1331,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(server, /video_enhancements_unavailable_video_continued/);
   assert.match(server, /soundtrack:\s*null/);
   assert.match(server, /narration:\s*null/);
-  assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 3);
+  assert.match(server, /args\.agentVideoFallback\s*\? await generateInrAgentVideoWithFallback\(providerArgs, generateOriginalAiVideoClips\)\s*: await generateOriginalAiVideoClips\(providerArgs\)/);
   assert.match(
     server,
     /const durationSeconds = providerRequest\.durationSeconds \|\| 8/

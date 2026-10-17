@@ -39,7 +39,7 @@ function argsFor(engine: catalog.AiMediaVideoEngine, references = 0, duration = 
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
 }
 
-function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
+function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
   const counters = { requests: 0, reservations: 0, commits: 0, rollbacks: 0 };
   let observed: Record<string, unknown> | undefined;
   const submissions: Record<string, unknown>[] = [];
@@ -69,6 +69,7 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
           });
         }
         if (mode === "rejected") throw new Error("provider rejected before output");
+        if (mode === "http-rejected") throw Object.assign(new Error("Provider unavailable"),{statusCode:503,requestBodyValues:{prompt:"private-brief-sentinel"}});
         if (mode === "second-rejected" && counters.requests === 2) throw new Error("second provider rejected before output");
         if (mode === "download-failed") {
           const download = input.download as (options: { url: URL }) => Promise<unknown>;
@@ -131,6 +132,19 @@ function loadRuntime(mode: "success" | "rejected" | "bad-asset" | "download-fail
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed,
     timeoutDelay: () => timeoutDelay, expireTimeout: () => { assert.ok(expireTimeout); expireTimeout(); } };
 }
+
+test("a definite Gateway rejection keeps safe fallback evidence without retaining the private SDK request",async()=>{
+  await withMockCredentials(async()=>{
+    const context=loadRuntime("http-rejected");
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("veo-lite").generate(argsFor("veo-lite",0,8)),(error)=>{
+      assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(error),503);
+      assert.equal((error as Error).cause,undefined);
+      assert.doesNotMatch(JSON.stringify(error),/private-brief-sentinel|requestBodyValues/);
+      return true;
+    });
+    assert.deepEqual(context.counters,{requests:1,reservations:1,commits:0,rollbacks:1});
+  });
+});
 
 test("Veo Lite sends canonical resolution tiers independently of portrait orientation before any paid request", () => {
   for (const format of ["story", "portrait", "landscape"] as const) for (const resolution of ["720p", "1080p"] as const) {

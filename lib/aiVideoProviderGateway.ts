@@ -23,6 +23,7 @@ import { assertAiMediaVideoProviderBoundary } from "./aiMediaVideoProviderContra
 import { buildGoogleVideoScenePrompt, buildGoogleVideoTeamSpeechDirection } from "@/lib/aiVideoProviderGoogleVeo";
 import {
   AiVideoProviderBillableFailure,
+  getAiVideoProviderRecoverableStatus,
   assertAiVideoReferenceTeamProviderEgress,
   type AiVideoProvider,
   type AiVideoProviderGenerationArgs,
@@ -244,7 +245,9 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
           provider: providerId, model: model.modelId, stage: "gateway_output_processing",
           details: diagnostic(error), cause: new Error(diagnostic(error)),
         });
-        throw new Error(diagnostic(error));
+        // Retain only safe retry evidence. SDK errors may contain prompts,
+        // private reference URLs and credentials in their request bodies.
+        throw Object.assign(new Error(diagnostic(error)), { statusCode: getAiVideoProviderRecoverableStatus(error) });
       } finally {
         clearTimeout(timeout);
         args.signal?.removeEventListener("abort", cancel);

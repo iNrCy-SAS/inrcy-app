@@ -32,6 +32,16 @@ function isTransientThrownError(error: unknown) {
   );
 }
 
+/** Auth and Storage SDKs put HTTP status on the error rather than the result. */
+export function isTransientSupabaseReadError(error: unknown): boolean {
+  if (!error) return false;
+  const value = error as { status?: unknown; statusCode?: unknown };
+  const status = Number(value.statusCode || value.status || 0);
+  // An explicit authentication/permission failure must never be reclassified.
+  if (status >= 400 && status < 500 && !TRANSIENT_POSTGREST_STATUSES.has(status)) return false;
+  return TRANSIENT_POSTGREST_STATUSES.has(status) || isTransientThrownError(error);
+}
+
 export function shouldRetryPostgrestRead(result: PostgrestLikeResult<unknown>): boolean {
   if (!result?.error) return false;
   const status = Number(result.status || 0);

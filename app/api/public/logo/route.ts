@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { LOGO_BUCKET } from "@/lib/profileLogo";
+import { isTransientSupabaseReadError, runTransientPostgrestRead } from "@/lib/supabaseTransientRetry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,12 +24,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Logo invalide." }, { status: 400 });
   }
 
-  const { data, error } = await supabaseAdmin.storage.from(LOGO_BUCKET).download(path);
+  const { data, error } = await runTransientPostgrestRead(async () => {
+    try {
+      const result = await supabaseAdmin.storage.from(LOGO_BUCKET).download(path);
+      return { ...result, status: isTransientSupabaseReadError(result.error) ? 503 : 0 };
+    } catch (error) {
+      if (!isTransientSupabaseReadError(error)) throw error;
+      // Return a retryable result; a second failure becomes a proper 503.
+      return { data: null, error, status: 503 };
+    }
+  });
   if (error || !data) {
-    const status = Number((error as { statusCode?: string | number } | null)?.statusCode || 0);
+    const storageError = error as { statusCode?: string | number; status?: number } | null;
+    const status = Number(storageError?.statusCode || storageError?.status || 0);
     return NextResponse.json(
       { error: "Logo introuvable." },
-      { status: status === 404 || status === 400 ? 404 : 503 },
+      { status: status === 404 || status === 400 ? 404 : 503,
+        headers: { "Cache-Control": "no-store", ...([400, 404].includes(status) ? {} : { "Retry-After": "3" }) } },
     );
   }
 

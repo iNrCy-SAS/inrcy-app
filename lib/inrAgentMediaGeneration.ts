@@ -6,6 +6,8 @@ import {
   acceptGeneratedAiMediaDraft,
   getPersistedGeneratedAiMediaId,
 } from "@/lib/aiGeneratedMediaRegistry";
+import { getInrAgentPreviousMediaJob } from "./inrAgentPreviousMediaJob.ts";
+import { inrAgentVideoFailureNeedsRecovery } from "./inrAgentVideoPolicy.ts";
 import {
   type AiMediaKind,
   type AiMediaGenerationRequest,
@@ -47,6 +49,7 @@ export type InrAgentGeneratedMediaResult = {
 };
 
 function errorCode(error: unknown) {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") return error.code.slice(0, 120);
   const value = error instanceof Error ? error.message : String(error || "");
   return value.trim().slice(0, 120) || "inr_agent_ai_media_generation_failed";
 }
@@ -150,7 +153,35 @@ export async function generateInrAgentMedia(args: {
   };
   let reservation: Awaited<ReturnType<typeof reserveAiMediaGeneration>> | null = null;
   for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
-    reservation = await reserveAiMediaGeneration(reservationArgs);
+    try {
+      reservation = await reserveAiMediaGeneration(reservationArgs);
+    } catch (error) {
+      if (args.kind === "video" && errorCode(error) === "ai_media_idempotency_conflict" && attempt === 0) {
+        // Changing engines changes both quote and fingerprint. A stable old
+        // slot must first recover its output or wait for its running job.
+        try {
+          const previous = await getInrAgentPreviousMediaJob(args.accountId, reservationArgs.requestKey);
+          const legacyFingerprint = createAiMediaRequestFingerprint({ contract: "inrcy-agent-ai-media-v1", request: { ...request, videoEngine: "omni" } });
+          if (previous && previous.requestFingerprint === legacyFingerprint) {
+            const mediaId = await getPersistedGeneratedAiMediaId({ accountId: args.accountId, jobId: previous.id });
+            if (mediaId) {
+              await completeAiMediaGeneration({ accountId: args.accountId, jobId: previous.id, mediaId, metadata: { source: "inr_agent", recovered_before_engine_migration: true } });
+              const item = await acceptGeneratedAiMediaDraft({ accountId: args.accountId, authUserId: args.actorAuthUserId, mediaId });
+              return { item, outcome: item ? "generated" : "finalization_failed", kind: args.kind };
+            }
+            if (previous.status === "failed" && !inrAgentVideoFailureNeedsRecovery(previous.errorCode) && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
+              reservationArgs.requestKey = `${request.requestId}:veo-lite-v1`;
+              continue;
+            }
+            return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_previous_job_requires_recovery" };
+          }
+        } catch {
+          return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_previous_job_check_unavailable" };
+        }
+      }
+      // Preserve the key on retry: an interrupted RPC may have reserved a job.
+      return { item: null, outcome: "generation_failed", kind: args.kind, errorCode: errorCode(error) };
+    }
     if (reservation.outcome === "quota_reached") {
       return { item: null, outcome: "quota_reached", kind: args.kind };
     }
@@ -193,6 +224,16 @@ export async function generateInrAgentMedia(args: {
     }
 
     if (reservation.status === "failed" && generationRequestId && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
+      if (args.kind === "video") {
+        try {
+          const failed = await getInrAgentPreviousMediaJob(args.accountId, reservationArgs.requestKey);
+          if (!failed || inrAgentVideoFailureNeedsRecovery(failed.errorCode)) {
+            return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_video_requires_recovery" };
+          }
+        } catch {
+          return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_video_check_unavailable" };
+        }
+      }
       // Le ledger ne rouvre pas les jobs terminaux. Deux retries concurrents
       // dérivent la même clé du job échoué : un seul peut réserver la suite.
       reservationArgs.requestKey = `${request.requestId}:retry:${reservation.jobId}`;
@@ -227,6 +268,7 @@ export async function generateInrAgentMedia(args: {
       request,
       videoMaxDurationSeconds,
       preserveOutputComposition: Boolean(args.outputFormat),
+      agentVideoFallback: args.kind === "video",
     });
     mediaPersisted = true;
     await completeAiMediaGeneration({

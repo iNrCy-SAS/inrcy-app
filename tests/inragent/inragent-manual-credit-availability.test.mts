@@ -8,7 +8,7 @@ test("the complete manual publication budget shares native formats and includes 
   assert.equal(inrAgentManualPublishCreditBudget(args),7);
   assert.equal(inrAgentManualPublishCreditBudget({...args,channels:[...args.channels,"tiktok"]}),14);
   assert.equal(inrAgentManualPublishCreditBudget({...args,imageCount:3,channels:[...args.channels,"tiktok"]}),42);
-  assert.equal(inrAgentManualPublishCreditBudget({...args,kind:"video",imageCount:0,channels:[...args.channels,"tiktok","youtube_shorts"]}),87);
+  assert.equal(inrAgentManualPublishCreditBudget({...args,kind:"video",imageCount:0,channels:[...args.channels,"tiktok","youtube_shorts"]}),47);
 });
 
 test("manual availability rejects negative, zero and positive-but-insufficient balances",()=>{

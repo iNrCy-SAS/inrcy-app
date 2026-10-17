@@ -85,6 +85,23 @@ export function isAiVideoProviderBillableFailure(
   );
 }
 
+/** Only a definite upstream rejection permits a second video submission.
+ * Return a safe status, never retain the SDK's request body or private URLs.
+ */
+export function getAiVideoProviderRecoverableStatus(error: unknown): number {
+  let candidate = error;
+  let status = 0;
+  for (let depth = 0; candidate && typeof candidate === "object" && depth < 6; depth++) {
+    if (isAiVideoProviderBillableFailure(candidate)) return 0;
+    const failure = candidate as { name?: unknown; message?: unknown; code?: unknown; statusCode?: unknown; status?: unknown; cause?: unknown };
+    const text = [failure.name, failure.message, failure.code].join(" ");
+    if (/abort|cancel|timeout|timed.?out|fetch failed|socket|econn|network|content.?filter|policy|safety|moderation|credential|account.?limit|guard.?unavailable/i.test(text)) return 0;
+    status ||= Number(failure.statusCode || failure.status || 0);
+    candidate = failure.cause;
+  }
+  return [429, 500, 502, 503].includes(status) ? status : 0;
+}
+
 export type AiVideoProviderGenerationArgs = {
   accountId: string;
   request: AiMediaGenerationRequest;

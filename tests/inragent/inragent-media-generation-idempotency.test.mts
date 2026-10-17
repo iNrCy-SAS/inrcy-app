@@ -7,8 +7,9 @@ import { createAiMediaRequestFingerprint } from "../../lib/aiMediaGenerationQuot
 import { buildInrAgentMediaGenerationRequest } from "../../lib/inrAgentMediaRequest.ts";
 import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
+import { inrAgentVideoFailureNeedsRecovery } from "../../lib/inrAgentVideoPolicy.ts";
 
-type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string };
+type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string; errorCode?: string };
 type Args = { accountId?: string; generationRequestId?: string; automaticEditorialActionId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
 const source = readFileSync(new URL("../../lib/inrAgentMediaGeneration.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
@@ -17,10 +18,14 @@ const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.Scri
 // terminal jobs replay unchanged, completion debits once, failure releases only
 // a reservation. The real orchestration, request adapter, mix and hash execute.
 function harness(options: {
-  providerFailures?: number; persistThenThrow?: number; completionFailures?: number;
+  providerFailures?: number; providerError?: string; persistThenThrow?: number; completionFailures?: number;
   acceptanceFailures?: number; registryFailures?: number; gate?: () => Promise<void>;
   reservationOutcome?: "quota_reached" | "premium_required";
   creditsReady?: boolean;
+  legacyStatus?: "failed" | "processing" | "completed";
+  legacyOutput?: boolean;
+  legacyDifferentIdea?: boolean;
+  legacyBillable?: boolean;
 } = {}) {
   const jobs = new Map<string, Job>();
   const media = new Map<string, { id: string; accountId: string; media_type: string }>();
@@ -35,6 +40,11 @@ function harness(options: {
   };
   const deps: Record<string, unknown> = {
     "server-only": {}, "node:crypto": crypto,
+    "./inrAgentVideoPolicy.ts": { inrAgentVideoFailureNeedsRecovery },
+    "./inrAgentPreviousMediaJob.ts": { getInrAgentPreviousMediaJob: async (accountId:string,requestKey:string) => {
+      const job=jobs.get(`${accountId}:${requestKey}`);
+      return job?{id:job.id,status:job.status,errorCode:job.errorCode||null,requestFingerprint:job.fingerprint}:null;
+    } },
     "@/lib/aiMediaGenerationQuotaPolicy": { createAiMediaRequestFingerprint },
     "@/lib/aiMediaCreditQuoteServer": { quoteAiMediaRequest: (accountId:string,request:ReturnType<typeof buildInrAgentMediaGenerationRequest>) => {
       const quote=quoteAiMediaCredits({...request,inspirationImagesCount:request.inspirationImages.length});
@@ -67,7 +77,7 @@ function harness(options: {
         const key = `${args.accountId}:${args.requestKey}`;
         const existing = jobs.get(key);
         if (existing) {
-          if (existing.fingerprint !== args.requestFingerprint || existing.amount !== args.quotaAmount || existing.kind !== args.mediaKind) throw new Error("AI_MEDIA_IDEMPOTENCY_CONFLICT");
+          if (existing.fingerprint !== args.requestFingerprint || existing.amount !== args.quotaAmount || existing.kind !== args.mediaKind) throw Object.assign(new Error("AI_MEDIA_IDEMPOTENCY_CONFLICT"),{code:"ai_media_idempotency_conflict"});
           return { outcome: "replayed", jobId: existing.id, status: existing.status };
         }
         const job = { id: `job-${jobs.size + 1}`, accountId: args.accountId, status: "reserved", fingerprint: args.requestFingerprint, amount: args.quotaAmount, kind: args.mediaKind };
@@ -82,17 +92,17 @@ function harness(options: {
         if (job.status !== "completed") { counts.used += job.amount; counts.completions++; }
         job.status = "completed";
       },
-      failAiMediaGeneration: async ({ accountId, jobId }: { accountId: string; jobId: string }) => {
+      failAiMediaGeneration: async ({ accountId, jobId, errorCode }: { accountId: string; jobId: string; errorCode?: string }) => {
         const job = jobById(jobId, accountId);
         assert.equal(job.mediaId, undefined, "a persisted media must never release its reservation");
-        job.status = "failed"; counts.failures++;
+        job.status = "failed"; job.errorCode=errorCode; counts.failures++;
       },
     },
     "@/lib/aiMediaGenerationServer": {
       generateAndSaveAiMedia: async (args: { accountId: string; jobId: string; request: ReturnType<typeof buildInrAgentMediaGenerationRequest> }) => {
         providerCalls.push(args);
         if (options.gate) await options.gate();
-        if ((failures.providerFailures ?? 0) > 0) { failures.providerFailures!--; throw new Error("provider_failed"); }
+        if ((failures.providerFailures ?? 0) > 0) { failures.providerFailures!--; throw new Error(options.providerError||"provider_failed"); }
         const job = jobById(args.jobId, args.accountId);
         const item = { id: `media-${job.id}`, accountId: args.accountId, media_type: args.request.kind };
         media.set(item.id, item); job.mediaId = item.id;
@@ -111,6 +121,17 @@ function harness(options: {
     idea: "Montrer les étapes de la rénovation d'une cuisine", theme: "realisations", kind: "image",
     generationRequestId: "target-1:signature-1:part-0", variantSeed: "target-1:part-0", ...args,
   });
+  if(options.legacyStatus){
+    const request=buildInrAgentMediaGenerationRequest({requestId:`inr-agent:${crypto.createHash("sha256").update("target-1:signature-1:part-0").digest("hex")}`,
+      idea:options.legacyDifferentIdea?"Une autre prestation":"Montrer les étapes de la rénovation d'une cuisine",theme:"realisations",kind:"video",videoDurationSeconds:8,
+      mediaMix:resolveInrAgentMediaMix({kind:"video",theme:"realisations",studioMediaPreferencePercent:0,maxVideoDurationSeconds:24,seed:"target-1:part-0"})});
+    request.videoEngine="omni";
+    const old:Job={id:"job-legacy",accountId:"account-A",status:options.legacyStatus,fingerprint:createAiMediaRequestFingerprint({contract:"inrcy-agent-ai-media-v1",request}),
+      amount:quoteAiMediaCredits({...request,inspirationImagesCount:0}).totalCredits,kind:"video",...(options.legacyBillable?{errorCode:"ai_video_provider_billable_failure"}:{})};
+    if(options.legacyOutput){old.mediaId="media-legacy";media.set(old.mediaId,{id:old.mediaId,accountId:old.accountId,media_type:"video"});}
+    if(options.legacyStatus==="completed"){counts.completions=1;counts.used=old.amount;}
+    jobs.set(`account-A:${request.requestId}`,old);
+  }
   return { run, jobs, media, providerCalls, reservations, counts };
 }
 
@@ -231,9 +252,40 @@ test("un résultat supprimé ou un job expiré reste bloqué sans nouvel appel p
 
 test("la clé ne permet ni de changer l'idée silencieusement ni de récupérer le média d'un autre compte", async () => {
   const h = harness(); const first = await h.run();
-  await assert.rejects(h.run({ idea: "Une autre prestation" }), /IDEMPOTENCY_CONFLICT/);
+  const changed = await h.run({ idea: "Une autre prestation" });
+  assert.equal(changed.outcome, "generation_failed");
+  assert.match(changed.errorCode || "", /idempotency_conflict/i);
+  assert.equal(h.providerCalls.length, 1);
   const other = await h.run({ accountId: "account-B" });
   assert.notEqual(other.item?.id, first.item?.id); assert.equal(h.providerCalls.length, 2);
+});
+
+test("a failed Omni slot migrates once to Veo Lite while keeping a stable retry key",async()=>{
+  const h=harness({legacyStatus:"failed"});
+  const first=await h.run({kind:"video",videoDurationSeconds:8});
+  const replay=await h.run({kind:"video",videoDurationSeconds:8});
+  assert.equal(first.outcome,"generated");assert.equal(replay.item?.id,first.item?.id);
+  assert.equal(h.providerCalls.length,1);assert.equal(h.providerCalls[0].request.videoEngine,"veo-lite");
+  assert.equal(h.jobs.size,2);assert.equal(h.counts.completions,1);
+});
+
+test("a paid partial film or a lost video response cannot create another paid job on cron retry",async()=>{
+  for(const providerError of ["ai_video_provider_billable_failure:download","ai_video_gateway_timeout","fetch failed: socket closed"]){
+    const h=harness({providerFailures:1,providerError});
+    await h.run({kind:"video",videoDurationSeconds:8});
+    const replay=await h.run({kind:"video",videoDurationSeconds:8});
+    assert.equal(replay.outcome,"finalization_failed");assert.equal(h.providerCalls.length,1);assert.equal(h.jobs.size,1);
+  }
+});
+
+test("engine migration recovers old output and never resubmits running, billable or changed-content jobs",async()=>{
+  const completed=harness({legacyStatus:"completed",legacyOutput:true});
+  const result=await completed.run({kind:"video",videoDurationSeconds:8});
+  assert.equal(result.item?.id,"media-legacy");assert.equal(completed.providerCalls.length,0);assert.equal(completed.counts.completions,1);
+  for(const options of [{legacyStatus:"processing"},{legacyStatus:"failed",legacyBillable:true},{legacyStatus:"failed",legacyDifferentIdea:true}] as const){
+    const h=harness(options);const blocked=await h.run({kind:"video",videoDurationSeconds:8});
+    assert.notEqual(blocked.outcome,"generated");assert.equal(h.providerCalls.length,0);assert.equal(h.jobs.size,1);
+  }
 });
 
 test("le clip court garde sa durée technique et réserve le devis en crédits", async () => {

@@ -12,6 +12,7 @@ import * as imageRequest from "../../lib/aiMediaImageProviderRequest.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as freeVoiceoverPolicy from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
+import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 
 type RecordValue = Record<string, unknown>;
 function compile(file: string, modules: Map<string, unknown>, quiet = false) {
@@ -61,6 +62,7 @@ function serverHarness(providerFailure = false) {
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
+    ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["server-only", {}], ["sharp", {}],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],

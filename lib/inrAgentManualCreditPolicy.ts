@@ -1,5 +1,6 @@
 import { quoteAiMediaCredits } from "./aiMediaCreditsPricing.ts";
 import { buildInrAgentMediaFormatPlan } from "./inrAgentMediaFormats.ts";
+import { INR_AGENT_VIDEO_ENGINE, INR_AGENT_VIDEO_RESOLUTION } from "./inrAgentVideoPolicy.ts";
 
 export type InrAgentManualCreditAvailability = {
   ready: boolean;
@@ -22,7 +23,7 @@ export function inrAgentManualPublishCreditBudget(args: {
   const plan = buildInrAgentMediaFormatPlan({kind: args.kind, channels});
   return plan.formats.reduce((sum, format) => sum + quoteAiMediaCredits({
     kind: args.kind, format, operation: "generate", creationMode: "free", imageEngine: "openai",
-    videoEngine: "omni", videoResolution: "720p", durationSeconds: 8,
+    videoEngine: INR_AGENT_VIDEO_ENGINE, videoResolution: INR_AGENT_VIDEO_RESOLUTION, durationSeconds: 8,
     withNarration: true, teamVideoSpeechMode: "voiceover", inputMode: "essential",
   }).totalCredits * (args.kind === "image" ? Math.max(1, Math.min(3, args.imageCount)) : 1), 0);
 }

@@ -1,3 +1,4 @@
+import { INR_AGENT_VIDEO_ENGINE, INR_AGENT_VIDEO_RESOLUTION } from "./inrAgentVideoPolicy.ts";
 import type {
   AiMediaGenerationRequest,
   AiMediaKind,
@@ -220,11 +221,10 @@ function applyVideoDurationLimit(
     };
   }
 
-  // Automated publishing still uses Omni. A saved Studio duration can belong
-  // to another engine. Its total is limited to two Omni clips (20 seconds),
-  // while an existing 24-second preference becomes a 20-second film.
+  // Saved Studio preferences can belong to another engine. Keep only durations
+  // supported by the automatic route, without exceeding the account cap.
   const minimumDuration = 4;
-  const supported = getAiMediaVideoDurations("omni")
+  const supported = getAiMediaVideoDurations(INR_AGENT_VIDEO_ENGINE, INR_AGENT_VIDEO_RESOLUTION)
     .filter((duration) => duration >= minimumDuration && duration <= maxVideoDurationSeconds);
   if (!supported.length) throw new Error("inr_agent_ai_media_duration_not_supported");
   const requestedDuration = Math.max(parameters.durationSeconds || 8, minimumDuration);
@@ -232,7 +232,7 @@ function applyVideoDurationLimit(
   return {
     ...parameters,
     durationSeconds,
-    connectScenes: !getAiMediaVideoNativeDurations("omni").includes(durationSeconds) && parameters.connectScenes,
+    connectScenes: !getAiMediaVideoNativeDurations(INR_AGENT_VIDEO_ENGINE, INR_AGENT_VIDEO_RESOLUTION).includes(durationSeconds) && parameters.connectScenes,
   };
 }
 
@@ -293,7 +293,7 @@ export function resolveInrAgentMediaMix(args: {
   studioMediaPreferencePercent: number;
   studioPreferences?: AiMediaGeneratorPreferences | null;
   seed: string;
-  /** Account cap; the automatic Omni route applies its own supported durations. */
+  /** Account cap; the automatic video route applies its own supported durations. */
   maxVideoDurationSeconds?: AiMediaVideoDurationLimit;
 }): InrAgentMediaMixResolution {
   const percent = normalizeInrAgentStudioMediaPreferencePercent(

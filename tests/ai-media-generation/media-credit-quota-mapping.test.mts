@@ -4,8 +4,27 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as policy from "../../lib/aiMediaGenerationQuotaPolicy.ts";
+import { deterministicEditorialActionId } from "../../lib/inrAgentEditorialRecoveryPolicy.ts";
 
 type Row=Record<string,unknown>;
+
+test("hashed editorial UUIDs reach the owner-checked RPC without changing stable IDs", async () => {
+  const row={...base("image"),quota_unit:"credit",quota_amount:7,outcome:"reserved",job_id:account,job_status:"reserved",is_replay:false};
+  const args={accountId:account,actorAuthUserId:actor,edition:"standard",requestKey:"automatic-id-regression",requestFingerprint:"a".repeat(64),mediaKind:"image",surface:"booster",quotaUnit:"credit",quotaAmount:7};
+  const ids=["40e44c0e-51df-8aaf-6da6-641ab73f1177","618816e0-0ac5-de22-87e6-ce6ee848215b","1eb7c1f0-3a8f-ca5a-c512-9a0d88ce960b",
+    ...Array.from({length:64},(_,i)=>deterministicEditorialActionId({version:1,userId:account,slotKey:`slot-${i}`}))];
+  for(const id of ids) {
+    const f=fixture([row],true);
+    await f.api.reserveAiMediaGeneration({...args,automaticEditorialActionId:id});
+    assert.equal(f.calls[0].name,"reserve_inr_agent_media_generation_v1");
+    assert.equal((f.calls[0].args as Row).p_editorial_action_id,id);
+  }
+  const invalid=fixture([row],true);
+  for(const id of ["not-a-uuid",`${account}' OR true`,account.replaceAll("-","")])
+    await assert.rejects(invalid.api.reserveAiMediaGeneration({...args,automaticEditorialActionId:id}),/invalide/);
+  await assert.rejects(invalid.api.reserveAiMediaGeneration({...args,accountId:ids[0]}),/invalide/);
+  assert.equal(invalid.calls.length,0);
+});
 const account="11111111-1111-4111-8111-111111111111",actor="22222222-2222-4222-8222-222222222222";
 const output=ts.transpileModule(readFileSync(new URL("../../lib/aiMediaGenerationQuota.ts",import.meta.url),"utf8"),{
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},

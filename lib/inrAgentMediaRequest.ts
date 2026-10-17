@@ -1,3 +1,4 @@
+import { INR_AGENT_VIDEO_ENGINE, INR_AGENT_VIDEO_RESOLUTION } from "./inrAgentVideoPolicy.ts";
 import {
   normalizeAiMediaGenerationRequest,
   type AiMediaGenerationMode,
@@ -98,7 +99,8 @@ export function buildInrAgentMediaGenerationRequest(args: {
     creativity: args.mediaMix.creativity,
     useBrandColors: args.mediaMix.useBrandColors,
     logoMode: args.mediaMix.logoMode,
-    videoEngine: args.kind === "video" ? "omni" : null,
+    videoEngine: args.kind === "video" ? INR_AGENT_VIDEO_ENGINE : null,
+    videoResolution: args.kind === "video" ? INR_AGENT_VIDEO_RESOLUTION : null,
     identityMode: "auto",
     videoCharacterMode: "auto",
     identityConsent: false,

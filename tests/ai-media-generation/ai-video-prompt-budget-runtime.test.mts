@@ -15,6 +15,8 @@ import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as reliability from "../../lib/aiVideoReliability.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
+import { buildInrAgentMediaGenerationRequest } from "../../lib/inrAgentMediaRequest.ts";
+import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 
 function loadPromptRuntime() {
   const filename = path.join(process.cwd(), "lib/aiVideoProviderGoogleVeo.ts");
@@ -61,6 +63,20 @@ function loadPromptRuntime() {
 }
 
 const runtime = loadPromptRuntime();
+
+test("real Agent requests fit the video prompt budget in every format and creative mix", () => {
+  for (let variant=0;variant<24;variant++) for(const format of ["square","portrait","story","landscape"] as const) {
+    const request=buildInrAgentMediaGenerationRequest({requestId:`agent-budget-${variant}-${format}`,kind:"video",theme:"services",idea:"Une consultation de voyance dans un cadre accueillant et professionnel.",
+      mediaMix:resolveInrAgentMediaMix({kind:"video",theme:"services",seed:`agent-budget-${variant}`,studioMediaPreferencePercent:0}),videoDurationSeconds:8,outputFormat:format});
+    const base=longBrief("fr","auto",format,"voiceover");
+    const args={...base,request,plan:{...base.plan,scenes:[{...base.plan.scenes[0],title:"Le conseil",body:"Un moment d'écoute.",visualBrief:"Une adulte consulte son jeu de cartes, gestes naturels et mesurés."}]}};
+    args.providerContract=providerContract.buildAiMediaVideoProviderContract({request,durationSeconds:8,brandColors:args.brandColors});
+    const prompt=runtime.buildGoogleVideoScenePrompt(args,0,8);
+    assert.ok(prompt.length<=3200,`${variant}/${format}: ${prompt.length}`);
+    assert.ok(prompt.includes(request.idea));
+    assert.match(prompt,/no native speech|No native voices|No speaking/i);
+  }
+});
 const languages = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"] as const;
 const identities = ["auto", "professional", "brand_avatar", "reference_team"] as const;
 const formats = ["square", "portrait", "story", "landscape"] as const;

@@ -583,7 +583,7 @@ export function buildGoogleVideoTeamSpeechDirection(
   index: number,
 ) {
   if (args.request.teamVideoMode !== "cinematic") {
-    return "AUDIO: natural ambience only; no speech, voice-over, lyrics or music. iNrCy adds final audio.";
+    return "AUDIO: natural ambience only; no speech, voice-over, lyrics or music. iNrCy adds final audio. VISUAL SPEECH: No speaking/articulation/lip-sync; natural gestures, gaze and smiles.";
   }
 
   if (args.request.teamVideoSpeechMode !== "characters") {

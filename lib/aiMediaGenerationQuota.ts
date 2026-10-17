@@ -140,6 +140,9 @@ type TransitionRpcRow = QuotaRpcRow & {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Editorial IDs are stable SHA-256 keys stored as PostgreSQL UUIDs. They do
+// not carry RFC version/variant bits; changing them would duplicate slots.
+const EDITORIAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/;
 
 const KNOWN_JOB_STATUSES = new Set<AiMediaGenerationJobStatus>([
@@ -176,6 +179,13 @@ function inputError(code: string, message: string): never {
 function assertUuid(value: string, label: string): string {
   const normalized = String(value ?? "").trim();
   if (!UUID_PATTERN.test(normalized)) inputError("ai_media_invalid_id", `${label} invalide.`);
+  return normalized;
+}
+
+function assertEditorialActionId(value: string): string {
+  const normalized = String(value ?? "").trim();
+  if (!EDITORIAL_UUID_PATTERN.test(normalized)) inputError("ai_media_invalid_id", "automaticEditorialActionId invalide.");
+  // The private RPC still verifies owner, executing state and editorial scope.
   return normalized;
 }
 
@@ -493,7 +503,7 @@ export async function reserveAiMediaGeneration(params: {
     );
   }
 
-  const automaticEditorialActionId = params.automaticEditorialActionId ? assertUuid(params.automaticEditorialActionId, "automaticEditorialActionId") : null;
+  const automaticEditorialActionId = params.automaticEditorialActionId ? assertEditorialActionId(params.automaticEditorialActionId) : null;
   if (automaticEditorialActionId && (quotaUnit !== "credit" || surface !== "booster")) inputError("ai_media_invalid_automatic_credit_context", "L’avance de crédits est réservée aux préparations automatiques iNr’Agent.");
   const [row] = await callRpc<ReservationRpcRow>(params.supabase ?? supabaseAdmin, automaticEditorialActionId ? "reserve_inr_agent_media_generation_v1" : quotaUnit === "credit" ? "reserve_ai_media_generation_v3" : "reserve_ai_media_generation_v2", {
     ...(automaticEditorialActionId ? { p_editorial_action_id: automaticEditorialActionId } : {}),
