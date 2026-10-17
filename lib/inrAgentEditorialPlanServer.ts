@@ -26,6 +26,7 @@ import {
   matchingInrAgentPublicationIdeaRow,
 } from "@/lib/inrAgentPublicationIdeaSelection";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
+import { isAiMediaContentPolicyRejection } from "@/lib/aiMediaGenerationPublicErrors";
 import {
   inrAgentEditorialRetryDecision,
   isTerminalInrAgentEditorialFailure,
@@ -1586,16 +1587,16 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       } catch {
         parsed = {};
       }
-      throw new Error(
+      throw Object.assign(new Error(
         cleanText(parsed.error || parsed.message || responseText, 1_000) ||
           `Préparation éditoriale refusée (${response.status}).`,
-      );
+      ), { code: cleanText(parsed.code, 120) });
     }
     return { status: "prepared" as const, actionId: candidate.id };
   } catch (cause) {
     const message = errorMessage(cause);
     const retryDecision = inrAgentEditorialRetryDecision({
-      error: message,
+      error: cause,
       attempts,
       nowMs: now.getTime(),
     });
@@ -1621,7 +1622,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
           editorialIdeaReservationTerminal: !retry,
           editorialLastError: message,
           editorialLastErrorAt: new Date().toISOString(),
-          editorialRetryReason: isQuotaLimited ? "quota" : "transient_error",
+          editorialRetryReason: isAiMediaContentPolicyRejection(cause) ? "content_policy" : isQuotaLimited ? "quota" : "transient_error",
         },
         updated_at: new Date().toISOString(),
       })

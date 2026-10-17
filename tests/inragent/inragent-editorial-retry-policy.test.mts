@@ -103,3 +103,15 @@ test("un échec 500 générique reste transitoire au-delà de quatre essais", ()
     false,
   );
 });
+
+test("a content refusal stops identical retries immediately without confusing account safety quotas", () => {
+  const error = Object.assign(new Error("Le moteur a refusé le rendu."), { code: "AI_MEDIA_CONTENT_POLICY_REJECTED" });
+  assert.deepEqual(inrAgentEditorialRetryDecision({ error, attempts: 1, nowMs: 0 }), { quotaLimited: false, retry: false, retryAt: null });
+  const row = { status: "failed", editorialState: "failed", attempts: 1, error: error.message, retryReason: "content_policy" };
+  assert.equal(shouldRecoverInrAgentEditorialFailure(row), false);
+  assert.equal(isTerminalInrAgentEditorialFailure(row), true);
+  const legacy = { ...row, error: "Your request was rejected by the safety system", retryReason: "transient_error" };
+  assert.equal(shouldRecoverInrAgentEditorialFailure(legacy), false);
+  assert.equal(isTerminalInrAgentEditorialFailure(legacy), true);
+  assert.equal(inrAgentEditorialRetryDecision({ error: "La limite quotidienne de sécurité IA est atteinte.", attempts: 1, nowMs: 0 }).quotaLimited, true);
+});

@@ -48,6 +48,7 @@ import {
   resolveAiMediaNativeImageSize,
 } from "@/lib/aiMediaImageProviderRequest";
 import { assertAiMediaGatewayImageInputs } from "./aiMediaImageProviderGateway.ts";
+import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
 import {
   AiMediaNarrationTooLongError,
   composeOriginalAiVideo,
@@ -749,6 +750,7 @@ export async function generateAndSaveAiMedia(args: {
       args.signal?.throwIfAborted();
       // An explicit engine selection never silently generates with a different engine.
       if (providerRequest.imageEngine) throw primaryError;
+      if (isAiMediaContentPolicyRejection(primaryError)) throw primaryError;
       if (
         primaryError instanceof AiGatewayAccountLimitError ||
         primaryError instanceof AiGatewayGuardUnavailableError
@@ -1161,6 +1163,7 @@ export async function generateAndSaveAiMedia(args: {
           );
         } catch (primaryError) {
           args.signal?.throwIfAborted();
+          if (isAiMediaContentPolicyRejection(primaryError)) throw primaryError;
           // Grok's controlled frame is one attempt; an ambiguous failure must not fund a second image provider.
           if (needsControlledAiMediaFreeFirstFrame(providerRequest)) throw primaryError;
           if (

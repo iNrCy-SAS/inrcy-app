@@ -8,6 +8,7 @@ import { buildInrAgentMediaGenerationRequest } from "../../lib/inrAgentMediaRequ
 import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
 import { quoteAiMediaCredits } from "../../lib/aiMediaCreditsPricing.ts";
 import { inrAgentVideoFailureNeedsRecovery } from "../../lib/inrAgentVideoPolicy.ts";
+import { isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 type Job = { id: string; accountId: string; status: string; fingerprint: string; amount: number; kind: string; mediaId?: string; errorCode?: string };
 type Args = { accountId?: string; generationRequestId?: string; automaticEditorialActionId?: string; idea?: string; kind?: "image" | "video"; videoDurationSeconds?: 8; outputFormat?: "portrait" | "story" };
@@ -41,8 +42,10 @@ function harness(options: {
   const deps: Record<string, unknown> = {
     "server-only": {}, "node:crypto": crypto,
     "./inrAgentVideoPolicy.ts": { inrAgentVideoFailureNeedsRecovery },
-    "./inrAgentPreviousMediaJob.ts": { getInrAgentPreviousMediaJob: async (accountId:string,requestKey:string) => {
+    "./aiMediaGenerationPublicErrors.ts": { isAiMediaContentPolicyRejection },
+    "./inrAgentPreviousMediaJob.ts": { getInrAgentPreviousMediaJob: async (accountId:string,requestKey:string,kind="video") => {
       const job=jobs.get(`${accountId}:${requestKey}`);
+      if (job && job.kind !== kind) return null;
       return job?{id:job.id,status:job.status,errorCode:job.errorCode||null,requestFingerprint:job.fingerprint}:null;
     } },
     "@/lib/aiMediaGenerationQuotaPolicy": { createAiMediaRequestFingerprint },
@@ -197,6 +200,34 @@ test("un échec confirmé peut être retenté puis rejoué avec une seule consom
   assert.equal((await h.run()).item?.id, retry.item?.id);
   assert.equal(h.providerCalls.length, 2); assert.equal(h.jobs.size, 2);
   assert.equal(h.counts.failures, 1); assert.equal(h.counts.used, 7);
+});
+
+test("a policy refusal never creates another provider submission on repeated cron replay, including historical messages", async () => {
+  const raw = "Your request was rejected by the safety system. If you believe this is an error";
+  for (const kind of ["image", "video"] as const) {
+    const h = harness({ providerFailures: 1, providerError: raw });
+    assert.equal((await h.run({ kind })).outcome, "content_rejected");
+    const job = [...h.jobs.values()][0];
+    assert.equal(job.errorCode, "AI_MEDIA_CONTENT_POLICY_REJECTED");
+    // Existing rows may still contain the old, truncated supplier text.
+    job.errorCode = raw;
+    for (let index = 0; index < 10; index++) assert.equal((await h.run({ kind })).outcome, "content_rejected");
+    assert.equal(h.providerCalls.length, 1); assert.equal(h.jobs.size, 1);
+    assert.equal(h.counts.failures, 1); assert.equal(h.counts.used, 0);
+  }
+});
+
+test("a refused format keeps the other completed format reusable with its single debit", async () => {
+  const h = harness({ providerFailures: 1, providerError: "content_policy_violation" });
+  const portrait = { generationRequestId: "native:format:portrait:part:0", outputFormat: "portrait" } as const;
+  const story = { generationRequestId: "native:format:story:part:0", outputFormat: "story" } as const;
+  assert.equal((await h.run(portrait)).outcome, "content_rejected");
+  const complete = await h.run(story);
+  assert.equal(complete.outcome, "generated");
+  assert.equal((await h.run(portrait)).outcome, "content_rejected");
+  assert.equal((await h.run(story)).item?.id, complete.item?.id);
+  assert.equal(h.providerCalls.length, 2); assert.equal(h.jobs.size, 2);
+  assert.equal(h.counts.used, 7); assert.equal(h.media.size, 1);
 });
 
 test("deux reprises du même échec partagent une seule nouvelle réservation", async () => {

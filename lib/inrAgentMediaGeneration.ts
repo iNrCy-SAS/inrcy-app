@@ -8,6 +8,7 @@ import {
 } from "@/lib/aiGeneratedMediaRegistry";
 import { getInrAgentPreviousMediaJob } from "./inrAgentPreviousMediaJob.ts";
 import { inrAgentVideoFailureNeedsRecovery } from "./inrAgentVideoPolicy.ts";
+import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
 import {
   type AiMediaKind,
   type AiMediaGenerationRequest,
@@ -39,6 +40,7 @@ export type InrAgentGeneratedMediaOutcome =
   | "quota_reached"
   | "studio_unavailable"
   | "generation_failed"
+  | "content_rejected"
   | "finalization_failed";
 
 export type InrAgentGeneratedMediaResult = {
@@ -169,6 +171,9 @@ export async function generateInrAgentMedia(args: {
               const item = await acceptGeneratedAiMediaDraft({ accountId: args.accountId, authUserId: args.actorAuthUserId, mediaId });
               return { item, outcome: item ? "generated" : "finalization_failed", kind: args.kind };
             }
+            if (isAiMediaContentPolicyRejection(previous.errorCode)) {
+              return { item: null, outcome: "content_rejected", kind: args.kind, errorCode: "AI_MEDIA_CONTENT_POLICY_REJECTED" };
+            }
             if (previous.status === "failed" && !inrAgentVideoFailureNeedsRecovery(previous.errorCode) && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
               reservationArgs.requestKey = `${request.requestId}:veo-lite-v1`;
               continue;
@@ -223,21 +228,24 @@ export async function generateInrAgentMedia(args: {
       return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: errorCode(error) };
     }
 
-    if (reservation.status === "failed" && generationRequestId && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
-      if (args.kind === "video") {
-        try {
-          const failed = await getInrAgentPreviousMediaJob(args.accountId, reservationArgs.requestKey);
-          if (!failed || inrAgentVideoFailureNeedsRecovery(failed.errorCode)) {
-            return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_video_requires_recovery" };
-          }
-        } catch {
-          return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_video_check_unavailable" };
+    if (reservation.status === "failed" && generationRequestId) {
+      try {
+        const failed = await getInrAgentPreviousMediaJob(args.accountId, reservationArgs.requestKey, args.kind);
+        if (failed && isAiMediaContentPolicyRejection(failed.errorCode)) {
+          return { item: null, outcome: "content_rejected", kind: args.kind, errorCode: "AI_MEDIA_CONTENT_POLICY_REJECTED" };
         }
+        if (!failed || (args.kind === "video" && inrAgentVideoFailureNeedsRecovery(failed.errorCode))) {
+          return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_job_requires_recovery" };
+        }
+      } catch {
+        return { item: null, outcome: "finalization_failed", kind: args.kind, errorCode: "inr_agent_ai_media_failed_job_check_unavailable" };
       }
       // Le ledger ne rouvre pas les jobs terminaux. Deux retries concurrents
       // dérivent la même clé du job échoué : un seul peut réserver la suite.
-      reservationArgs.requestKey = `${request.requestId}:retry:${reservation.jobId}`;
-      continue;
+      if (attempt + 1 < MAX_GENERATION_ATTEMPTS) {
+        reservationArgs.requestKey = `${request.requestId}:retry:${reservation.jobId}`;
+        continue;
+      }
     }
     return {
       item: null,
@@ -303,6 +311,7 @@ export async function generateInrAgentMedia(args: {
     }
     return { item: accepted, outcome: "generated", kind: args.kind };
   } catch (error) {
+    const failureCode = isAiMediaContentPolicyRejection(error) ? "AI_MEDIA_CONTENT_POLICY_REJECTED" : errorCode(error);
     if (!mediaPersisted && !quotaCompleted) {
       try {
         mediaPersisted = Boolean(await getPersistedGeneratedAiMediaId({
@@ -318,7 +327,7 @@ export async function generateInrAgentMedia(args: {
         await failAiMediaGeneration({
           accountId: args.accountId,
           jobId: reservation.jobId,
-          errorCode: errorCode(error),
+          errorCode: failureCode,
           errorMessage: error instanceof Error ? error.message : String(error),
           metadata: { source: "inr_agent" },
         }).catch(() => undefined);
@@ -326,9 +335,9 @@ export async function generateInrAgentMedia(args: {
     }
     return {
       item: null,
-      outcome: mediaPersisted ? "finalization_failed" : "generation_failed",
+      outcome: mediaPersisted ? "finalization_failed" : failureCode === "AI_MEDIA_CONTENT_POLICY_REJECTED" ? "content_rejected" : "generation_failed",
       kind: args.kind,
-      errorCode: errorCode(error),
+      errorCode: failureCode,
     };
   }
 }

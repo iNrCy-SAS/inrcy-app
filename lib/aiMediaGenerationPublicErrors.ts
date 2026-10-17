@@ -170,6 +170,11 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Le fournisseur a refusé une image de référence selon ses règles de sécurité.",
     action: "Retirez ou remplacez la référence concernée, puis réessayez. Un autre moteur peut appliquer des règles différentes.",
   },
+  AI_MEDIA_CONTENT_POLICY_REJECTED: {
+    status: 422,
+    reason: "Le moteur a refusé la demande ou le rendu lors de son contrôle de sécurité.",
+    action: "Vérifiez le brief et les références avant de modifier la demande. Les médias déjà créés sont conservés.",
+  },
   AI_MEDIA_AUDIO_SAFETY_FILTERED: {
     status: 422,
     reason: "Le fournisseur a bloqué le rendu pendant le contrôle de sa piste audio.",
@@ -311,6 +316,17 @@ function explanation(code: AiMediaPublicErrorCode): AiMediaPublicError {
   return { ...entry, code, message: `${entry.reason} ${entry.action}` };
 }
 
+const CONTENT_POLICY_REJECTION = /\bai_media_content_policy_rejected\b|\bcontent_policy_violation\b|\bmoderation_blocked\b|\bsafety_violation\b|\bcontent_filter\b|request was rejected by the safety system/;
+const SAFETY_FILTER_REJECTION = /safety_filtered|content.moderat|safety filter|responsible ai|\bai_media_(?:reference_policy_rejected|audio_safety_filtered|video_safety_filtered)\b/;
+
+/** A content refusal requires review, not another identical paid submission.
+ * Account spending/safety limits and transport failures remain retryable.
+ */
+export function isAiMediaContentPolicyRejection(error: unknown): boolean {
+  const text = diagnosticText(error).toLowerCase();
+  return CONTENT_POLICY_REJECTION.test(text) || SAFETY_FILTER_REJECTION.test(text);
+}
+
 /** Order matters: a precise nested cause takes priority over a generic wrapper. */
 export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicError | null {
   const raw = diagnosticText(error);
@@ -345,6 +361,7 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
     return result("AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED");
   }
   if (match(/photorealistic children|input images.{0,100}(?:not allowed|not supported)|reference.{0,50}image.{0,60}reject/)) return result("AI_MEDIA_REFERENCE_POLICY_REJECTED");
+  if (CONTENT_POLICY_REJECTION.test(text)) return result("AI_MEDIA_CONTENT_POLICY_REJECTED");
   if (match(/(?:safety_filtered|content.moderat|safety filter|responsible ai)/)) {
     if (match(/audio|soundtrack|piste sonore/)) return result("AI_MEDIA_AUDIO_SAFETY_FILTERED");
     return result("AI_MEDIA_VIDEO_SAFETY_FILTERED");

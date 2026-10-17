@@ -62,6 +62,7 @@ import {
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import { getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
 import { getAiMediaQuotaSnapshot } from "@/lib/aiMediaGenerationQuota";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { inrAgentManualCreditAvailability, inrAgentManualPublishCreditBudget } from "@/lib/inrAgentManualCreditPolicy";
@@ -2393,6 +2394,7 @@ export async function POST(request: Request) {
       });
       generatedMediaResults.push(result);
       if (result.item) formatAssets.push(generatedPickerItemToAgentMedia({ item: result.item, business }));
+      if (result.outcome === "content_rejected") break;
     }
     generatedAssetsByFormat[outputFormat || "legacy"] = formatAssets;
   }));
@@ -2412,6 +2414,10 @@ export async function POST(request: Request) {
     mediaAssets.length !== desiredMediaCount || Object.values(generatedAssetsByFormat).some((assets) => assets.length !== desiredMediaCount)
   ) {
     const outcomes = generatedMediaResults.map((result) => result.outcome);
+    if (outcomes.includes("content_rejected")) {
+      const refusal = getAiMediaGenerationPublicError("AI_MEDIA_CONTENT_POLICY_REJECTED");
+      return NextResponse.json({ error: refusal.message, code: refusal.code, outcomes }, { status: refusal.status });
+    }
     const primaryOutcome = outcomes.includes("quota_reached") ? "quota_reached"
       : outcomes.find((outcome) => outcome !== "generated") || "generation_failed";
     return NextResponse.json(

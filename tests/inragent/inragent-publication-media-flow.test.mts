@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { normalizeAiMediaGeneratorPreferences } from "../../lib/aiMediaGenerationPreferences.ts";
 import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
+import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 
 type RecordValue = Record<string, unknown>;
@@ -71,6 +72,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
     fallbackIndex = 0;
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences,
+      getAiMediaGenerationPublicError,
       supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
       isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: "image", requestedImageCount: options.ghostOnly ? 0 : 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },
@@ -199,7 +201,7 @@ test("un quota média épuisé après une première image reste une attente quot
   assert.equal(h.credits.rolledBack, 1); assert.equal(h.textCalls.length, 0);
 });
 
-function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean; priorAttempts?: number; error?: string } = {}) {
+function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean; priorAttempts?: number; error?: string; code?: string } = {}) {
   const serverFile = "lib/inrAgentEditorialPlanServer.ts";
   const ast = ts.createSourceFile(serverFile, readFileSync(new URL(`../../${serverFile}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
   const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "prepareNextInrAgentEditorialSlot");
@@ -234,6 +236,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
   };
   const scope = {
     EDITORIAL_ACTION_SELECT: "id,status,metadata,payload", inrAgentEditorialRetryDecision,
+    isAiMediaContentPolicyRejection,
     asRecord: (value: unknown) => value && typeof value === "object" ? value : {},
     cleanText: (value: unknown, length: number) => String(value || "").trim().slice(0, length),
     errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
@@ -241,7 +244,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
     fetch: async () => {
       row.metadata = { ...(row.metadata as RecordValue), editorialMediaGeneration: snapshot };
       if (options.concurrentCompletion) row.status = "pending_validation";
-      return { ok: false, status: 503, text: async () => JSON.stringify({ error: options.error || "Préparation temporairement indisponible" }) };
+      return { ok: false, status: options.code ? 422 : 503, text: async () => JSON.stringify({ error: options.error || "Préparation temporairement indisponible", code: options.code }) };
     },
   };
   const execute = new Function(...Object.keys(scope), `${code}\nreturn prepareNextInrAgentEditorialSlot;`)(...Object.values(scope));
@@ -281,6 +284,27 @@ test("le coordinateur marque uniquement l'échec sans retry comme terminal pour 
   const quota = retryCoordinatorHarness({ priorAttempts: 7, error: "Quota IA atteint" });
   assert.equal((await quota.run()).status, "retry");
   assert.equal((quota.row.metadata as RecordValue).editorialIdeaReservationTerminal, false);
+});
+
+test("a refused carousel stops later parts and returns a specific 422 while preserving successful images", async () => {
+  const h = harness({ failedPart: 1, mediaFailureOutcome: "content_rejected" });
+  const result = await h.run();
+  assert.equal(result.status, 422);
+  assert.equal(result.body.code, "AI_MEDIA_CONTENT_POLICY_REJECTED");
+  assert.equal(h.generated.size, 1); assert.equal(h.mediaCalls.length, 2);
+  assert.equal(h.textCalls.length, 0); assert.equal(h.storedAction, null);
+  assert.equal(h.credits.rolledBack, 1); assert.equal(h.credits.committed, 0);
+  assert.ok(h.metadata.editorialMediaGeneration);
+});
+
+test("the coordinator preserves the refusal code across HTTP and never schedules another identical request", async () => {
+  const h = retryCoordinatorHarness({ error: "Le moteur a refusé le rendu lors de son contrôle de sécurité.", code: "AI_MEDIA_CONTENT_POLICY_REJECTED" });
+  assert.equal((await h.run()).status, "failed");
+  const metadata = h.row.metadata as RecordValue;
+  assert.equal(metadata.editorialRetryReason, "content_policy");
+  assert.equal(metadata.editorialNextRetryAt, null);
+  assert.equal(metadata.editorialIdeaReservationTerminal, true);
+  assert.deepEqual(metadata.editorialMediaGeneration, h.snapshot);
 });
 
 test("Ghost Threads seul prépare le texte sans générer ni analyser de média", async () => {

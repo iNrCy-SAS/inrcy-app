@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AI_MEDIA_PUBLIC_ERROR_CATALOG, getAiMediaGenerationPublicError as explain } from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { AI_MEDIA_PUBLIC_ERROR_CATALOG, getAiMediaGenerationPublicError as explain, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 // Diagnostic shapes observed in historical jobs; no customer data or prompts.
 const historical = [
@@ -73,4 +73,21 @@ test("every canonical public code round trips without diagnostics or a promise a
     assert.equal(result.code, code); assert.equal(result.message, `${entry.reason} ${entry.action}`);
     assert.doesNotMatch(result.message, /PRIVATE_DETAIL|aucun quota|aucun crédit|deux moteurs/i);
   }
+});
+
+test("an image safety rejection is classified without exposing the supplier's private diagnostics", () => {
+  const refusal = new Error("Image provider failed", { cause: { code: "content_policy_violation", message: "Your request was rejected by the safety system. PRIVATE_REQUEST_ID" } });
+  assert.equal(isAiMediaContentPolicyRejection(refusal), true);
+  const result = explain(refusal);
+  assert.equal(result.code, "AI_MEDIA_CONTENT_POLICY_REJECTED");
+  assert.equal(result.status, 422);
+  assert.doesNotMatch(result.message, /PRIVATE|help\.openai|réessayez|autre moteur/i);
+  assert.equal(explain("Your request was rejected by the safety system. If you believe this is an error").code, result.code);
+});
+
+test("content refusals stay distinct from spending fuses, temporary limits and arbitrary prompt metadata", () => {
+  for (const code of ["AI_MEDIA_CONTENT_POLICY_REJECTED", "AI_MEDIA_REFERENCE_POLICY_REJECTED", "AI_MEDIA_AUDIO_SAFETY_FILTERED", "AI_MEDIA_VIDEO_SAFETY_FILTERED"])
+    assert.equal(isAiMediaContentPolicyRejection({ code }), true);
+  for (const error of ["AI_GATEWAY_ACCOUNT_LIMIT_REACHED", "La limite quotidienne de sécurité IA est atteinte", "AI safety limit", "Rate limit 429", "Request timed out", { message: "provider unavailable", metadata: { prompt: "safety filter" } }])
+    assert.equal(isAiMediaContentPolicyRejection(error), false);
 });

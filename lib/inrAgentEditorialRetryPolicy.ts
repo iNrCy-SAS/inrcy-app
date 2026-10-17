@@ -1,3 +1,5 @@
+import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
+
 export const INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 8;
 export const INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12;
 export const INR_AGENT_EDITORIAL_TRANSIENT_RETRY_DELAY_MS = 15 * 60 * 1000;
@@ -54,6 +56,9 @@ export function inrAgentEditorialRetryDecision(args: {
   attempts: number;
   nowMs: number;
 }) {
+  if (isAiMediaContentPolicyRejection(args.error)) {
+    return { quotaLimited: false, retry: false, retryAt: null } as const;
+  }
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
   const maxAttempts = maxAttemptsFor(args.error);
   const retry = Math.max(0, args.attempts) < maxAttempts;
@@ -74,6 +79,7 @@ export function shouldRecoverInrAgentEditorialFailure(args: {
   error: unknown;
   retryReason?: unknown;
 }) {
+  if (normalizedError(args.retryReason) === "content_policy" || isAiMediaContentPolicyRejection(args.error)) return false;
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
   const retryReason = normalizedError(args.retryReason);
   const transientFailure = retryReason === "transient_error";
@@ -96,5 +102,6 @@ export function isTerminalInrAgentEditorialFailure(args: {
 }) {
   return args.status === "failed" &&
     args.editorialState === "failed" &&
-    Math.max(0, args.attempts) >= maxAttemptsFor(args.error, args.retryReason);
+    (normalizedError(args.retryReason) === "content_policy" || isAiMediaContentPolicyRejection(args.error) ||
+      Math.max(0, args.attempts) >= maxAttemptsFor(args.error, args.retryReason));
 }

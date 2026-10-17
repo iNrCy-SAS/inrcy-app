@@ -13,6 +13,7 @@ import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as freeVoiceoverPolicy from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
+import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 type RecordValue = Record<string, unknown>;
 function compile(file: string, modules: Map<string, unknown>, quiet = false) {
@@ -36,7 +37,7 @@ function realCapabilityGate() {
   ])).assertAiMediaGatewayImageInputs;
 }
 
-function serverHarness(providerFailure = false) {
+function serverHarness(providerFailure: boolean | Error = false) {
   const counts = { creative: 0, headline: 0, provider: 0, fallback: 0, branded: 0, saved: 0 };
   const providerCalls: RecordValue[] = [];
   const composerCalls: RecordValue[] = [];
@@ -53,7 +54,7 @@ function serverHarness(providerFailure = false) {
   const modules = new Map<string, unknown>(unused.map(id => [id, {}]));
   const image = async (args: RecordValue) => {
     counts.provider += 1; providerCalls.push(args);
-    if (providerFailure) throw new Error("selected_provider_failed");
+    if (providerFailure) throw providerFailure instanceof Error ? providerFailure : new Error("selected_provider_failed");
     const engine = args.imageEngine as catalog.AiMediaImageEngine;
     const references = args.identityReferences as Buffer[];
     return { kind: "image", provider: "vercel-ai-gateway", engine, upstreamProvider: catalog.getAiMediaImageModel(engine).provider,
@@ -63,6 +64,7 @@ function serverHarness(providerFailure = false) {
   };
   const overrides: Array<[string, unknown]> = [
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
+    ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["sharp", {}],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
@@ -106,6 +108,18 @@ async function withCredentials(run: () => Promise<void>) {
   const original = process.env.AI_GATEWAY_API_KEY; process.env.AI_GATEWAY_API_KEY = "synthetic-test";
   try { await run(); } finally { if (original === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = original; }
 }
+
+test("a legacy automatic image fallback never changes supplier after a safety refusal", async () => {
+  await withCredentials(async () => {
+    const error = new Error("Your request was rejected by the safety system.");
+    const h = serverHarness(error);
+    const input = request("openai", { logoMode: "none" });
+    input.imageEngine = undefined;
+    await assert.rejects(h.generate(input), value => value === error);
+    assert.equal(h.counts.provider, 1); assert.equal(h.counts.fallback, 0);
+    assert.equal(h.counts.saved, 0);
+  });
+});
 
 for (const engine of ["flux", "grok", "recraft"] as const) {
   for (const withText of [false, true]) {
