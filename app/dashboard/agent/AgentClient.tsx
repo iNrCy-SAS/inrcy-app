@@ -6578,6 +6578,7 @@ export default function AgentClient() {
                           {publishMediaPreview?.items.length ? (
                             <span
                               className={styles.publishMediaInfoThumbs}
+                              data-count={Math.min(publishMediaPreview.items.length, 3)}
                               aria-hidden="true"
                             >
                               {publishMediaPreview.items
