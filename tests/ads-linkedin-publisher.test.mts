@@ -220,7 +220,7 @@ function finalizingProgress(target: "ACTIVE" | "PAUSED", overrides: Partial<Link
 function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
   remoteStatus?: string; campaign?: Record<string, unknown>; creative?: Record<string, unknown>;
   timeoutAfterFinalMutation?: boolean; failReads?: boolean; canServe?: boolean;
-  scopes?: string; mappedAccount?: string;
+  scopes?: string; mappedAccount?: string; accessTier?: string;
   geoTargets?: Array<{ urn: string; name: string }>;
   resourcePayloads?: { groups?: unknown; organizations?: unknown; locales?: unknown; geos?: unknown; typeahead?: unknown };
 } = {}) {
@@ -278,7 +278,7 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
       assert.ok(modules.has(specifier), `Unisolated publisher dependency: ${specifier}`);
       return modules.get(specifier);
     },
-    { env: { LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: options.mappedAccount ?? account.id } },
+    { env: { LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: options.mappedAccount ?? account.id, LINKEDIN_ADS_ACCESS_TIER: options.accessTier } },
   );
   const campaignPath = `/rest/adAccounts/${account.id}/adCampaigns/1001`;
   const fetchImpl: typeof fetch = async (url, init) => {
@@ -353,6 +353,16 @@ function recoveryRuntime(target: "ACTIVE" | "PAUSED", options: {
 const selectedGeo = {
   urn: "urn:li:geo:105015875", name: "France", facetUrn: "urn:li:adTargetingFacet:locations",
 };
+
+test("Standard Tier publication evidence accepts an authorized account outside the Development mapping", async () => {
+  const runtime = recoveryRuntime("PAUSED", { mappedAccount: "9999", accessTier: "standard" });
+  await runtime.evidence();
+  assert.ok(runtime.requests.length > 0);
+  assert.ok(runtime.requests.every((request) => request.method === "GET"));
+  const denied = recoveryRuntime("PAUSED", { mappedAccount: "9999", accessTier: "standard", scopes: "r_ads" });
+  await assert.rejects(denied.evidence());
+  assert.equal(denied.requests.length, 0);
+});
 
 test("initial publication evidence keeps a selected verified location when an unrelated provider row is malformed", async () => {
   const runtime = recoveryRuntime("ACTIVE", { resourcePayloads: {

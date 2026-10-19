@@ -90,7 +90,7 @@ function textOf(value: unknown): string {
 }
 
 test("public Ads controls configure and create on all four released channels", () => {
-  for (const channel of ["meta", "google", "pinterest", "openai"] as const) {
+  for (const channel of ["meta", "google", "linkedin", "pinterest", "openai"] as const) {
     const view = controls(channel);
     const configure = view.elements.find((element) => element.type === "button" && element.props.className === "channelConfigure");
     const launch = view.elements.find((element) => element.type === "button" && element.props.className?.includes("launchButton"));
@@ -103,8 +103,8 @@ test("public Ads controls configure and create on all four released channels", (
   }
 });
 
-test("ordinary users see disabled À venir controls on LinkedIn, TikTok and X", () => {
-  for (const channel of ["linkedin", "tiktok", "x"] as const) {
+test("ordinary users see disabled À venir controls on TikTok and X", () => {
+  for (const channel of ["tiktok", "x"] as const) {
     const view = controls(channel);
     const configure = view.elements.find((element) => element.type === "button" && element.props.className === "channelConfigure");
     const launch = view.elements.find((element) => element.type === "button" && element.props.className?.includes("launchButton"));
@@ -129,7 +129,7 @@ test("validation accounts keep enabled configuration controls on every channel",
 
 test("direct configuration calls cannot open an unreleased channel for a user", () => {
   const configure = actualFunction("app/dashboard/ads/AdsClient.tsx", "openChannelConfiguration", { pilotChannelsEnabled: false, isAdsPublicChannel });
-  for (const channel of ["linkedin", "tiktok", "x"]) assert.doesNotThrow(() => configure(channel));
+  for (const channel of ["tiktok", "x"]) assert.doesNotThrow(() => configure(channel));
 });
 
 test("Meta configuration still opens its existing account and Page journey", () => {
@@ -142,6 +142,21 @@ test("Meta configuration still opens its existing account and Page journey", () 
   });
   configure("meta");
   assert.deepEqual(calls, [["openai", false], ["external", false], ["provider", true]]);
+});
+
+test("ordinary users can open LinkedIn configuration without initiating OAuth or mutating an account", () => {
+  const calls: unknown[] = [];
+  const configure = actualFunction("app/dashboard/ads/AdsClient.tsx", "openChannelConfiguration", {
+    pilotChannelsEnabled: false, isAdsPublicChannel, CHANNEL_CATALOG: catalog, channelId: "linkedin", isAdsProvider,
+    setOpenaiConfiguring: () => {}, setConfiguring: () => {}, setExternalError: () => {},
+    setExternalConfiguring: (value: unknown) => calls.push(["modal", value]),
+    externalAccountsCache: { current: { linkedin: { accounts: [], choice: "", loaded: false, failed: false } } },
+    externalStatuses: { linkedin: { connected: false, selectedAccountId: "" } },
+    setExternalAccounts: () => {}, setExternalAccountsLoadFailed: () => {}, setExternalAccountChoice: () => {},
+    setExternalAccountsLoading: (value: unknown) => calls.push(["loading", value]),
+  });
+  configure("linkedin");
+  assert.deepEqual(calls, [["loading", false], ["modal", true]]);
 });
 
 function authorization(role: string, actor = FULL_PRODUCT_REVIEWER_ACCOUNT_ID, edition = "premium", roleReadError = false) {
@@ -157,11 +172,11 @@ function authorization(role: string, actor = FULL_PRODUCT_REVIEWER_ACCOUNT_ID, e
 test("server access releases Meta without removing commercial or reviewer ownership controls", async () => {
   for (const edition of ["premium", "founder"]) {
     const allowed = authorization("user", "ordinary-user", edition);
-    for (const channel of ["meta", "google", "pinterest", "openai"] as const) assert.equal(await allowed(channel), true, `${edition}/${channel}`);
-    for (const channel of ["linkedin", "tiktok", "x"] as const) assert.equal(await allowed(channel), false, `${edition}/${channel}`);
+    for (const channel of ["meta", "google", "linkedin", "pinterest", "openai"] as const) assert.equal(await allowed(channel), true, `${edition}/${channel}`);
+    for (const channel of ["tiktok", "x"] as const) assert.equal(await allowed(channel), false, `${edition}/${channel}`);
   }
   for (const { id } of ADS_CHANNELS) assert.equal(await authorization("user", "standard-user", "standard")(id), false, id);
-  for (const channel of ["linkedin", "tiktok", "x"] as const) {
+  for (const channel of ["tiktok", "x"] as const) {
     assert.equal(await authorization("admin", "internal-admin")(channel), true, channel);
     assert.equal(await authorization("reviewer")(channel), true, channel);
     assert.equal(await authorization("reviewer")(channel, "another-company"), false, channel);

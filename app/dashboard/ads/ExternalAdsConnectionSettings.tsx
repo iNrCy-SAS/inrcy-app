@@ -289,7 +289,7 @@ export default function ExternalAdsConnectionSettings({
       </section>
 
       {effectiveError ? <p role="alert" className={styles.inlineError}>{effectiveError}</p> : null}
-      {!locked && channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette autorisation Ads permet de préparer la création, la modification, l’archivage et les statistiques. La diffusion LinkedIn reste désactivée tant que le compte Development et chaque ressource ne sont pas vérifiés." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
+      {!locked && channel !== "pinterest" ? <p className={styles.footnote}>{channel === "linkedin" ? "Cette connexion permet de créer et gérer vos campagnes LinkedIn Ads et de consulter leurs statistiques, selon vos autorisations sur le compte publicitaire." : `La préparation et l’enregistrement des campagnes sont disponibles. La publication sur ${current.label} n’est pas encore activée : aucune annonce n’est diffusée depuis cet écran.`}</p> : null}
 
       <div className={styles.footer}>
         <button type="button" className={styles.previous} disabled={step === 0} onClick={() => setStep(0)}>← Précédent</button>

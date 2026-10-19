@@ -1,6 +1,6 @@
 import "server-only";
 
-import { linkedInAdsHasAccessMode, linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
+import { linkedInAdsAccountAllowedByTier, linkedInAdsHasAccessMode, linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
 import {
   archiveLinkedInAdsCampaignCore,
   deleteLinkedInAdsCampaignCore,
@@ -23,11 +23,6 @@ import {
 export { LinkedInAdsLifecycleError };
 
 const LINKEDIN_REST_ORIGIN = "https://api.linkedin.com";
-
-function allowedDevelopmentAccountIds(): Set<string> {
-  return new Set(String(process.env.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
-    .split(/[\s,]+/).map((value) => value.trim()).filter((value) => /^\d{1,25}$/.test(value)));
-}
 
 function providerMessage(payload: unknown, status: number): string {
   const row = payload && typeof payload === "object" && !Array.isArray(payload)
@@ -86,7 +81,7 @@ async function liveContext(userId: string, accountId: string, reporting = false)
     throw new LinkedInAdsConnectionError("Reconnectez LinkedIn Ads avec les autorisations de gestion et statistiques.", "missing_scopes", 403);
   }
   const account = (await listLinkedInAdsAccounts(userId, integration)).find((entry) => entry.id === accountId);
-  if (!account || !allowedDevelopmentAccountIds().has(accountId)) {
+  if (!account || !linkedInAdsAccountAllowedByTier(accountId, process.env)) {
     throw new LinkedInAdsConnectionError("Ce compte n’est pas mappé à l’application LinkedIn Advertising API.", "development_account_mapping_required", 403);
   }
   if (account.currency !== "EUR" || !account.canManageCampaigns) {

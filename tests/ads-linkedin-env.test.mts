@@ -100,3 +100,13 @@ test("LinkedIn Ads uses a provider-specific publication gate", () => {
   const malformed = validateLinkedInAdsEnv(env({ INRCY_LINKEDIN_ADS_PUBLISH_ENABLED: "yes" }));
   assert.equal(malformed.ok, false);
 });
+
+test("Standard Tier accepts authorized customer accounts without a Development mapping", () => {
+  const result = validateLinkedInAdsEnv(env({
+    LINKEDIN_ADS_ACCESS_TIER: "standard", LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: "",
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.details?.accessTier, "standard");
+  assert.deepEqual(result.details?.developmentAccountIds, []);
+  assert.equal(validateLinkedInAdsEnv(env({ LINKEDIN_ADS_ACCESS_TIER: "invalid" })).ok, false);
+});

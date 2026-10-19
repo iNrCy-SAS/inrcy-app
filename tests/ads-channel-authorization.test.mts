@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import { ADS_PUBLIC_CHANNELS, adsAccessAllowed } from "../lib/adsAccessPolicy.ts";
 import { isAdsChannelId, isAdsProvider, type AdsChannelId } from "../lib/adsValidation.ts";
+import { linkedInAdsAccountAllowedByTier, linkedInAdsHasAccessMode, LINKEDIN_ADS_MANAGE_SCOPES } from "../lib/adsLinkedInPolicy.ts";
 
 function actualFunction(path: string, name: string, scope: Record<string, unknown>) {
   const source = ts.createSourceFile(path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
@@ -28,7 +29,7 @@ const baseScope = {
   enforceRateLimit: async () => null,
 };
 
-test("a Premium user lists Meta, Google, Pinterest and ChatGPT campaigns", async () => {
+test("a Premium user lists every released channel including LinkedIn campaigns", async () => {
   let providerFilter: unknown[] = [];
   const query = {
     select() { return this; },
@@ -48,11 +49,11 @@ test("a Premium user lists Meta, Google, Pinterest and ChatGPT campaigns", async
   });
   const result = await get(new Request("https://app.example/api/ads/campaigns"));
   assert.equal(result.status, 200);
-  assert.deepEqual(providerFilter, ["meta", "google", "pinterest", "openai"]);
+  assert.deepEqual(providerFilter, ["meta", "google", "linkedin", "pinterest", "openai"]);
 });
 
 test("a Premium user cannot trigger private-channel recovery before the channel guard", async () => {
-  for (const provider of ["linkedin", "tiktok", "x"] as const) {
+  for (const provider of ["tiktok", "x"] as const) {
     let recoveries = 0;
     const query = {
       select() { return this; }, eq() { return this; },
@@ -70,7 +71,7 @@ test("a Premium user cannot trigger private-channel recovery before the channel 
 });
 
 test("a public-channel payload cannot overwrite an existing private-channel draft", async () => {
-  for (const provider of ["linkedin", "tiktok", "x"] as const) {
+  for (const provider of ["tiktok", "x"] as const) {
     let writes = 0;
     const query = {
       select() { return this; }, eq() { return this; },
@@ -90,5 +91,37 @@ test("a public-channel payload cannot overwrite an existing private-channel draf
     const result = await post(new Request("https://app.example/api/ads/campaigns", { method: "POST", body: JSON.stringify({ id: campaignId }) }));
     assert.equal(result.status, 403, provider);
     assert.equal(writes, 0, provider);
+  }
+});
+
+test("a Premium user can manage a Standard Tier LinkedIn account with current ownership and roles", async () => {
+  for (const permitted of [true, false]) {
+    const query = {
+      select() { return this; },
+      eq(column: string, value: string) {
+        if (column === "user_id") assert.equal(value, user.activeUserId);
+        return this;
+      },
+      maybeSingle: async () => ({ data: {
+        id: campaignId, provider: "linkedin", status: "paused", ad_account_id: "123",
+        draft: { provider: "linkedin", adAccountId: "123" },
+      }, error: null }),
+    };
+    const authorize = actualFunction("app/api/ads/campaigns/[id]/lifecycle/route.ts", "authorizeRemoteLifecycle", {
+      ...baseScope, supabaseAdmin: { from: () => query }, canManageRemoteAdsCampaign: () => true,
+      record: (value: unknown) => value, linkedInAdsAccountAllowedByTier, linkedInAdsHasAccessMode,
+      process: { env: { LINKEDIN_ADS_ACCESS_TIER: "standard" } },
+      readLinkedInAdsIntegration: async () => ({ status: "connected", resource_id: "123" }),
+      linkedInAdsAuthorization: async () => ({ scopes: LINKEDIN_ADS_MANAGE_SCOPES.join(" ") }),
+      listLinkedInAdsAccounts: async () => [{ id: "123", currency: "EUR", canManageCampaigns: permitted }],
+    });
+    const result = await authorize(new Request("https://app.example/api/ads/campaigns/id/lifecycle"), {
+      params: Promise.resolve({ id: campaignId }),
+    }, "update");
+    if (permitted) {
+      assert.equal(result.campaign.provider, "linkedin");
+      assert.equal(result.account.id, "123");
+      assert.equal(result.localCleanupOnly, false);
+    } else assert.equal(result.response.status, 403);
   }
 });

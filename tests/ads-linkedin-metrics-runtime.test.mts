@@ -33,7 +33,7 @@ function compile<T>(path: string, modules: Record<string, unknown>, fetchImpl?: 
   return exports;
 }
 
-type Options = { localStatus?: string; scopes?: string; currency?: string; manage?: boolean; mapped?: boolean;
+type Options = { localStatus?: string; scopes?: string; currency?: string; manage?: boolean; mapped?: boolean; accessTier?: string;
   connectionChanged?: boolean; foreignOwner?: boolean; missing?: boolean; resources?: unknown; nativeAccount?: string;
   nativeCampaign?: string; nativeStatus?: string; report?: unknown; providerStatus?: number; jsonFailure?: boolean;
   provider?: "linkedin" | "google" | "meta"; denied?: boolean; limited?: boolean; allowed?: boolean };
@@ -70,7 +70,7 @@ function runtime(options: Options = {}) {
       listLinkedInAdsAccounts: async () => [{ id: "123", currency: options.currency || "EUR",
         canManageCampaigns: options.manage !== false, canServeCampaigns: false }],
     },
-  }, fetchImpl, { LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: options.mapped === false ? "999" : "123" });
+  }, fetchImpl, { LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS: options.mapped === false ? "999" : "123", LINKEDIN_ADS_ACCESS_TIER: options.accessTier });
   const filters = new Map<string, unknown>();
   const query = {
     select: () => query,
@@ -149,6 +149,17 @@ test("reporting scope, current connection, native role, EUR and account mapping 
     assert.equal(response.status, expected);
     assert.equal(run.nativeCalls.length, 0);
     assert.doesNotMatch(JSON.stringify(await response.json()), /fixture-token|PRIVATE/);
+  }
+});
+
+test("Standard Tier reporting removes only the Development mapping restriction", async () => {
+  const run = runtime({ mapped: false, accessTier: "standard" });
+  assert.equal((await run.get()).status, 200);
+  assert.equal(run.nativeCalls.length, 2);
+  for (const options of [{ manage: false }, { connectionChanged: true }, { scopes: "r_ads" }, { currency: "USD" }]) {
+    const denied = runtime({ mapped: false, accessTier: "standard", ...options });
+    assert.ok((await denied.get()).status >= 400);
+    assert.equal(denied.nativeCalls.length, 0);
   }
 });
 

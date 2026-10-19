@@ -4,7 +4,6 @@ const REQUIRED = [
   "LINKEDIN_ADS_REDIRECT_URI",
   "NEXT_PUBLIC_APP_URL",
   "INRCY_CREDENTIALS_SECRET",
-  "LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS",
 ];
 
 const PUBLIC_SECRETS = [
@@ -86,10 +85,15 @@ export function validateLinkedInAdsEnv(env) {
     errors.push("INRCY_CREDENTIALS_SECRET doit décoder exactement 32 octets en base64.");
   }
 
+  const accessTier = value(env, "LINKEDIN_ADS_ACCESS_TIER") || "development";
+  if (accessTier !== "development" && accessTier !== "standard") {
+    errors.push("LINKEDIN_ADS_ACCESS_TIER doit valoir development ou standard.");
+  }
   const developmentAccountValues = value(env, "LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS")
     .split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
   const developmentAccountIds = [...new Set(developmentAccountValues)];
-  if (!developmentAccountIds.length || developmentAccountIds.some((id) => !/^\d{1,25}$/.test(id))) {
+  if ((accessTier === "development" && !developmentAccountIds.length)
+    || developmentAccountIds.some((id) => !/^\d{1,25}$/.test(id))) {
     errors.push("LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS doit contenir uniquement les IDs numériques mappés dans View Ad Accounts.");
   }
   const rawPublishGate = value(env, "INRCY_LINKEDIN_ADS_PUBLISH_ENABLED");
@@ -118,6 +122,7 @@ export function validateLinkedInAdsEnv(env) {
       readScope: LINKEDIN_ADS_READ_SCOPE,
       manageScopes: [...LINKEDIN_ADS_MANAGE_SCOPES],
       developmentAccountIds,
+      accessTier,
       publicationEnabled,
       credentialLabel: sameApp ? "explicit shared LinkedIn app" : "dedicated LinkedIn Ads pair",
     },

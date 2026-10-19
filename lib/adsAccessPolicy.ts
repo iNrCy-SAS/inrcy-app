@@ -1,7 +1,7 @@
 import { hasPremiumDashboardAccess, type DashboardEdition } from "./dashboardEdition.ts";
 import type { AdsChannelId } from "./adsValidation.ts";
 
-export const ADS_PUBLIC_CHANNELS: readonly AdsChannelId[] = ["meta", "google", "pinterest", "openai"];
+export const ADS_PUBLIC_CHANNELS: readonly AdsChannelId[] = ["meta", "google", "linkedin", "pinterest", "openai"];
 
 export function isAdsPublicChannel(channel: AdsChannelId): boolean {
   return ADS_PUBLIC_CHANNELS.includes(channel);

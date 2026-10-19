@@ -1,10 +1,20 @@
 # LinkedIn Ads — dossier de validation iNrCy
 
+## Mise en service Standard — 19 octobre 2026
+
+L’utilisateur a confirmé l’approbation Advertising API **Standard Tier** pour l’app dédiée **iNrCy Ads** ; sa capture du portail LinkedIn affiche ce niveau. Le canal LinkedIn rejoint les canaux publics d’iNrAds pour les éditions Premium et Fondateur. Cette ouverture ne change aucun abonnement ni tarif.
+
+La production utilise `LINKEDIN_ADS_ACCESS_TIER=standard` et `INRCY_LINKEDIN_ADS_PUBLISH_ENABLED=true`. Le niveau Standard supprime uniquement la liste locale de comptes Development. Les contrôles OAuth, de compte actif, de rôle, de propriété des ressources et de diffusion restent obligatoires. Une valeur de tier inconnue bloque l’accès ; en l’absence de configuration, le code conserve le mode Development et sa liste de comptes autorisés. Le verrou de publication LinkedIn reste indépendant des autres canaux.
+
+La validation de cette ouverture couvre les contrôles d’accès et les parcours préflight, publication et statistiques avec des fournisseurs simulés. Elle ne crée ni n’active de publicité réelle. Chaque utilisateur doit connecter son propre compte LinkedIn Ads et choisir un compte annonceur autorisé.
+
+## Dossier historique — 30 septembre 2026
+
 État du dossier : **Advertising API Development approuvé**. Constat officiel fourni par l’utilisateur et revérifié en lecture seule dans le portail LinkedIn le **30 septembre 2026** pour l’app dédiée **iNrCy Ads**. La demande Standard n’est ni prête ni soumise.
 
 Ce dossier rassemble les éléments nécessaires pour activer puis faire valider l’intégration LinkedIn Ads d’iNrCy. Il ne contient aucun Client Secret, jeton OAuth, identifiant personnel ni preuve d’approbation qui n’existe pas encore.
 
-## Verdict actuel
+## État historique au 30 septembre
 
 | Élément | État | Conséquence |
 | --- | --- | --- |
