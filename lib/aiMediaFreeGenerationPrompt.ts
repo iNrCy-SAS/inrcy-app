@@ -74,7 +74,10 @@ function nativeNarrationTone(variant: AiMediaGenerationRequest["narrationVoiceVa
 
 /** Free dialogue has no commercial fallback and never rewrites quoted speech. */
 export function getAiMediaFreeRequestedDialogue(prompt: string) {
-  const pattern = /(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent|says?|speak|speaks|reply|replies|dice|diga|dicono|sagt|zegt|diz)\b|\b(?:réplique|dialogue|dialog|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"\n]{0,90}[«“"]([^»”"]+)[»”"]/giu;
+  // A first-person presentation followed by a colon is an explicit script,
+  // just like "dit". Keep it out of the planner's visual protected literals.
+  // Requiring a human subject avoids treating a sign/title's presentation as speech.
+  const pattern = /(?:(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent|says?|speak|speaks|reply|replies|dice|diga|dicono|sagt|zegt|diz)\b|\b(?:réplique|dialogue|dialog|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"\n]{0,90}|\b(?:je|tu|il|elle|on|nous|vous|ils|elles|personnage|présentateur|présentatrice|professionnel|professionnelle|homme|femme)\s+(?:pr[ée]sent(?:e|es|ent|ons|ez|era|eront)|expliqu(?:e|es|ent|ons|ez|era|eront))\b[^«“"\n]{0,90}:\s*)[«“"]([^»”"]+)[»”"]/giu;
   return Array.from(prompt.matchAll(pattern), (match) => match[1]!.replace(/\s+/g, " ").trim());
 }
 
@@ -359,6 +362,11 @@ export function buildAiMediaFreeVideoScenePrompt(
   const nativeVoiceover = !nativeDialogue && args.request.withNarration && !usesSeparateAiMediaFreeVoiceover(args.request);
   const nativeNarrationLines = args.nativeNarrationLines;
   const spokenLine = nativeDialogue ? resolveAiMediaFreeDialogueSequence(args)[index] : "";
+  // Spoken quotes belong to the authoritative audio line only. A planner may
+  // still echo a quote in its directions; do not submit it a second time as an
+  // action while retaining any explicitly requested visual wording.
+  const direction = args.plan.subline || args.request.freePrompt || "";
+  const visualBrief = scene?.visualBrief || "Follow the requested action.";
   if (nativeVoiceover && (
     !nativeNarrationLines || nativeNarrationLines.length !== args.plan.scenes.length ||
     !args.providerContract.parameters.includes(`narration_sha256=${hashAiMediaFreeNarrationLines(nativeNarrationLines)}`)
@@ -377,8 +385,8 @@ export function buildAiMediaFreeVideoScenePrompt(
   const prompt = [
     opening,
     ...(!nativeDialogue ? [AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
-    `CREATIVE DIRECTION: ${args.plan.subline || args.request.freePrompt || ""}`,
-    `THIS SHOT: ${scene?.visualBrief || "Follow the requested action."}`,
+    `CREATIVE DIRECTION: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(direction).visualPrompt : direction}`,
+    `THIS SHOT: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(visualBrief).visualPrompt : visualBrief}`,
     // The integrity/fingerprint contract is checked in code. xAI receives the
     // visual brief, not technical hashes that can be interpreted as lettering.
     ...(isGrok ? [] : [`PARAMETERS: ${args.providerContract.parameters}`]),

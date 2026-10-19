@@ -367,6 +367,10 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (/preparation des voix des personnages est incomplete/.test(plain)) return result("AI_MEDIA_CHARACTER_DIALOGUE_MISSING");
   if (match(/ai_media_free_native_character_speech_unusable|ai_media_character_dialogue_quality_unverified/)) {
     if (match(/spoken_dialogue_missing|provider_fallback/)) return result("AI_MEDIA_VIDEO_SPEECH_MISSING");
+    // A wrong name, value or negation is the primary problem even when the
+    // unrelated transcript also contains a loop. A conforming line with an
+    // extra repetition keeps the more precise repeated-speech explanation.
+    if (match(/spoken_critical_value_mismatch/)) return result("AI_MEDIA_VIDEO_SPEECH_MISMATCH");
     if (match(/spoken_dialogue_incomplete/)) return result("AI_MEDIA_VIDEO_SPEECH_INCOMPLETE");
     if (match(/spoken_dialogue_repeated/)) return result("AI_MEDIA_VIDEO_SPEECH_REPEATED");
     if (match(/spoken_dialogue_mismatch/)) return result("AI_MEDIA_VIDEO_SPEECH_MISMATCH");

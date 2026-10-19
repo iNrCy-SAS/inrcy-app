@@ -2,42 +2,57 @@
   display: grid;
   gap: 7px;
   min-width: 0;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(150, 178, 228, .15);
 }
 
-.voice > label {
-  color: #d4def3;
-  font-size: 11px;
-  font-weight: 700;
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .voice > select {
   width: 100%;
   min-width: 0;
-  min-height: 36px;
-  padding: 7px 9px;
+  min-height: 34px;
+  padding: 6px 4px;
   border: 1px solid rgba(150, 178, 228, .24);
-  border-radius: 9px;
+  border-radius: 8px;
   color: #e7f1ff;
-  background: #18243f;
+  background: #142440;
   font: inherit;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .sample { display: grid; gap: 8px; min-width: 0; }
 .sample small { color: #aebfdd; font-size: 10px; line-height: 1.45; }
 .sample .fileName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sampleHeading { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
 .sample audio { display: block; width: 100%; min-width: 0; height: 34px; color-scheme: dark; }
 .fileInput { display: none; }
-.actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.actions, .sourceActions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .recorder { display: grid; gap: 9px; padding: 9px; border: 1px solid rgba(150, 178, 228, .22); border-radius: 9px; background: rgba(9, 17, 37, .36); }
-.actions button { padding: 7px 9px; border: 1px solid rgba(113, 183, 238, .3); border-radius: 8px; background: rgba(48, 111, 164, .18); color: #d9f3ff; font: inherit; font-size: 10px; cursor: pointer; }
-.actions button:disabled, .voice > select:disabled { opacity: .6; cursor: default; }
+.actions button, .sourceActions > button:not(.infoButton) { min-height: 30px; padding: 6px 7px; border: 1px solid rgba(113, 183, 238, .3); border-radius: 8px; background: rgba(48, 111, 164, .18); color: #d9f3ff; font: inherit; font-size: 10px; cursor: pointer; }
+.actions button:disabled, .sourceActions button:disabled, .removeButton:disabled, .voice > select:disabled { opacity: .6; cursor: default; }
+.removeButton { flex: none; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #b6c8e7; font: inherit; font-size: 19px; line-height: 1; cursor: pointer; }
+.removeButton:hover { background: rgba(150, 178, 228, .12); color: #fff; }
 .sample .error { color: #ffc4c4; }
 .voice :is(button, select):focus-visible { outline: 2px solid #7ce4ff; outline-offset: 3px; }
-.libraryDialog { width: min(560px, calc(100vw - 32px)); max-height: 80dvh; overflow: auto; padding: 20px; border: 1px solid #536a9a; border-radius: 16px; background: #101d37; color: #e7f1ff; color-scheme: dark; }
+.infoButton { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #9adcf5; cursor: pointer; }
+.infoButton > span { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid currentColor; border-radius: 50%; font: 700 11px Georgia, serif; }
+.infoButton:hover { background: rgba(83, 216, 243, .12); }
+.info { position: fixed; inset: 0; box-sizing: border-box; width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #49678e; border-radius: 16px; background: #101c35; color: #d9e7fa; box-shadow: 0 16px 64px rgba(0, 0, 0, .55); font-size: 13px; line-height: 1.6; }
+.infoHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.infoHeader h3 { margin: 0; color: #f5f7ff; font-size: 15px; }
+.infoClose { flex: none; width: 30px; height: 30px; padding: 0; border: 1px solid #49678e; border-radius: 9px; background: #1b2c4a; color: #d9e7fa; font: inherit; font-size: 21px; line-height: 1; cursor: pointer; }
+.info p { margin: 0 0 10px; }
+.info p:last-child { margin-bottom: 0; }
+.libraryDialog { position: fixed; inset: 0; box-sizing: border-box; width: min(560px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); margin: auto; overflow: auto; overscroll-behavior: contain; padding: 20px; border: 1px solid #536a9a; border-radius: 16px; background: #101d37; color: #e7f1ff; color-scheme: dark; }
 .libraryDialog::backdrop { background: rgba(0, 6, 20, .75); }
 .libraryHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .libraryHeader h3 { margin: 0; }

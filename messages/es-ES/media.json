@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "Eliminar la muestra",
   "ai_generator_character_voice_uploading": "Subiendo la muestra de voz…",
   "ai_generator_character_voice_limits": "MP3 o WAV · De 1 a 10 segundos · Máximo 3 MB",
+  "ai_generator_character_voice_info_label": "Información sobre los audios de voz",
+  "ai_generator_character_voice_info_close": "Cerrar la información sobre los audios de voz",
+  "ai_generator_character_voice_storage_help": "Los audios de voz importados o grabados se guardan en la biblioteca multimedia.",
   "ai_generator_character_voice_upload_error": "No se pudo subir esta muestra de voz. Inténtalo de nuevo.",
   "ai_generator_character_voice_file_error": "Elige un archivo MP3 o WAV de hasta 3 MB.",
   "ai_generator_character_voice_duration_error": "La muestra de voz debe durar entre 1 y 10 segundos.",
@@ -992,7 +995,7 @@
   "library_audio_duration": "Duración",
   "library_audio_help_title": "🎙 Audio",
   "library_audio_help_description": "Guarda tus muestras de voz MP3 y WAV para encontrarlas en iNr’Studio.",
-  "ai_generator_character_voice_library": "Elegir de la biblioteca multimedia",
+  "ai_generator_character_voice_library": "Biblioteca",
   "ai_generator_character_voice_library_title": "Elegir una muestra de voz",
   "ai_generator_character_voice_library_subtitle": "Selecciona una muestra de voz guardada en tu biblioteca multimedia.",
   "ai_generator_character_voice_library_confirm": "Usar esta muestra de voz",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "Muestra de voz guardada en la biblioteca multimedia.",
   "ai_generator_character_voice_library_empty": "No hay muestras de voz en la biblioteca multimedia.",
   "ai_generator_character_voice_library_loading": "Cargando muestras de voz…",
-  "ai_generator_character_voice_library_duration_error": "Para Wan 2.7, elige una muestra de voz de 1 a 10 segundos y de hasta 3 MB.",
+  "ai_generator_character_voice_library_duration_error": "Elige un audio de voz de entre 1 y 10 segundos y de un máximo de 3 MB.",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 admite hasta 15 segundos de muestras de voz en total. Acorta las muestras o elige Wan 2.7 o HeyGen."
 }

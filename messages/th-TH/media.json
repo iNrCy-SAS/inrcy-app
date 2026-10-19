@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "ลบตัวอย่างเสียง",
   "ai_generator_character_voice_uploading": "กำลังอัปโหลดตัวอย่างเสียง…",
   "ai_generator_character_voice_limits": "MP3 หรือ WAV · 1 ถึง 10 วินาที · ไม่เกิน 3 MB",
+  "ai_generator_character_voice_info_label": "ข้อมูลเกี่ยวกับไฟล์เสียงพูด",
+  "ai_generator_character_voice_info_close": "ปิดข้อมูลเกี่ยวกับไฟล์เสียงพูด",
+  "ai_generator_character_voice_storage_help": "ไฟล์เสียงพูดที่นำเข้าหรือบันทึกจะถูกเก็บไว้ในคลังสื่อ",
   "ai_generator_character_voice_upload_error": "ไม่สามารถอัปโหลดตัวอย่างเสียงนี้ได้ โปรดลองอีกครั้ง",
   "ai_generator_character_voice_file_error": "เลือกไฟล์ MP3 หรือ WAV ขนาดไม่เกิน 3 MB",
   "ai_generator_character_voice_duration_error": "ตัวอย่างเสียงต้องมีความยาว 1 ถึง 10 วินาที",
@@ -992,7 +995,7 @@
   "library_audio_duration": "ระยะเวลา",
   "library_audio_help_title": "🎙 เสียง",
   "library_audio_help_description": "เก็บตัวอย่างเสียง MP3 และ WAV เพื่อเรียกใช้ใน iNr’Studio",
-  "ai_generator_character_voice_library": "เลือกจากคลังสื่อ",
+  "ai_generator_character_voice_library": "คลังสื่อ",
   "ai_generator_character_voice_library_title": "เลือกตัวอย่างเสียง",
   "ai_generator_character_voice_library_subtitle": "เลือกตัวอย่างเสียงที่บันทึกไว้ในคลังสื่อของคุณ",
   "ai_generator_character_voice_library_confirm": "ใช้ตัวอย่างเสียงนี้",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "บันทึกตัวอย่างเสียงในคลังสื่อแล้ว",
   "ai_generator_character_voice_library_empty": "ไม่มีตัวอย่างเสียงในคลังสื่อ",
   "ai_generator_character_voice_library_loading": "กำลังโหลดตัวอย่างเสียง…",
-  "ai_generator_character_voice_library_duration_error": "สำหรับ Wan 2.7 ให้เลือกตัวอย่างเสียงที่ยาว 1 ถึง 10 วินาทีและขนาดไม่เกิน 3 MB",
+  "ai_generator_character_voice_library_duration_error": "เลือกไฟล์เสียงพูดที่มีความยาว 1 ถึง 10 วินาที และมีขนาดไม่เกิน 3 MB",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 รองรับตัวอย่างเสียงรวมกันได้ไม่เกิน 15 วินาที โปรดย่อตัวอย่างเสียงหรือเลือก Wan 2.7 หรือ HeyGen"
 }

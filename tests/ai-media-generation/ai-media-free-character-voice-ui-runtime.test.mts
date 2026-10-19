@@ -132,7 +132,14 @@ test("the actual active Free editor shows the real voice selector on video Perso
   for (const usage of ["required", "inspiration"]) {
     const h = harness(); await h.addPhoto(); h.criteria(0, "character", usage);
     const selector = find(h.renderVoice(0), (node) => node.type === "select"); assert.equal(selector.props.value, "ai");
+    assert.equal(selector.props["aria-label"], "ai_generator_character_voice_label");
     assert.equal(elements(selector).filter((node) => node.type === "option").length, 2);
+    assert.equal(elements(h.cards()[0]).filter((node) => node.type === "select").length + elements(h.renderVoice(0)).filter((node) => node.type === "select").length, 3, "Role, usage and voice are the three reference menus");
+    assert.equal(find(h.renderVoice(0), (node) => node.type === "label").props.className, "srOnly", "The voice name stays accessible without a separate visible heading");
+    h.chooseVoice(0, "provided");
+    const directActions = elements(h.renderVoice(0)).filter((node) => node.type === "button").map((node) => node.props.children);
+    for (const action of ["import", "record", "library"]) assert.ok(directActions.includes(`ai_generator_character_voice_${action}`));
+    assert.equal(directActions.includes("ai_generator_character_voice_upload"), false);
     assert.equal(find(h.tree(), (node) => node.props["data-character-voices"] !== undefined).props["data-character-voices"], "true"); h.dispose();
   }
   const image = harness("image"); await image.addPhoto(); image.criteria(0, "character", "required");

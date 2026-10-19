@@ -16,6 +16,7 @@ export default function MediaCharacterVoiceLibraryPicker({ onClose, onSelect }: 
   const [items, setItems] = useState<AudioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [previewErrors, setPreviewErrors] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -36,10 +37,14 @@ export default function MediaCharacterVoiceLibraryPicker({ onClose, onSelect }: 
     {error ? <p role="alert">{t("ai_generator_character_voice_library_unavailable")}</p> : null}
     {!loading && !error && !items.length ? <p>{t("ai_generator_character_voice_library_empty")}</p> : null}
     <div className={styles.libraryList}>{items.map((item) => {
-      const compatible = Number(item.duration_seconds) >= 1 && Number(item.duration_seconds) <= 10 && Number(item.size_bytes) > 0 && Number(item.size_bytes) <= AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES;
+      const duration = Number(item.duration_seconds);
+      const compatible = duration >= 1 && duration <= 10 && Number(item.size_bytes) > 0 && Number(item.size_bytes) <= AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES;
+      const title = item.title || t("library_audio");
       return <div key={item.id} className={styles.libraryItem}>
-        <strong>{item.title || "Vocal"}</strong>
-        {item.signed_url ? <audio controls preload="none" src={item.signed_url} aria-label={item.title || "Vocal"} /> : null}
+        <strong>{title}</strong>
+        {Number.isFinite(duration) && duration > 0 ? <small>{t("library_audio_duration")}: {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, "0")}</small> : null}
+        {item.signed_url ? <audio controls preload="metadata" src={item.signed_url} aria-label={t("library_audio_preview", { name: title })} onError={() => setPreviewErrors((previous) => ({ ...previous, [item.id]: true }))} /> : null}
+        {previewErrors[item.id] || !item.signed_url ? <small role="alert">{t("ai_generator_character_voice_library_unavailable")}</small> : null}
         {!compatible ? <small>{t("ai_generator_character_voice_library_duration_error")}</small> : null}
         <button type="button" disabled={!compatible} onClick={() => onSelect(item.id)}>{t("ai_generator_character_voice_library_confirm")}</button>
       </div>;

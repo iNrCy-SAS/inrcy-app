@@ -23,12 +23,13 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
   const t = useTranslations("media");
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
+  const infoFocusDismissedRef = useRef(false);
   const uploadRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<CharacterVoiceRecorderSession | null>(null);
   const previewUrlRef = useRef("");
   const ownsBusyRef = useRef(false);
   const [uploading, setUploading] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [recordingState, setRecordingState] = useState<RecordingState>("closed");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [recording, setRecording] = useState<CharacterVoiceRecording | null>(null);
@@ -73,7 +74,7 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
     if (uploadRef.current || externallyLocked) return;
     if (source === "import" && !isCharacterVoiceUploadFileAllowed(file)) { setError(t("ai_generator_character_voice_file_error")); return; }
     const controller = new AbortController(); uploadRef.current = controller;
-    setError(""); setMenuOpen(false); setUploading(true); setBusy(true);
+    setError(""); setUploading(true); setBusy(true);
     try {
       const form = new FormData(); form.append("file", file);
       if (source === "recording") form.append("source", "recording");
@@ -148,33 +149,46 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
   };
 
   return <div className={styles.voice} data-character-voice-mode={mode}>
-    <label htmlFor={`${id}-mode`}>{t("ai_generator_character_voice_label")}</label>
-    <select id={`${id}-mode`} value={mode} disabled={disabled || uploading || recordingOpen} onChange={(event) => {
-      setError(""); setMenuOpen(false); onModeChange(event.target.value === "provided" ? "provided" : "ai");
+    <label className={styles.srOnly} htmlFor={`${id}-mode`}>{t("ai_generator_character_voice_label")}</label>
+    <select id={`${id}-mode`} aria-label={t("ai_generator_character_voice_label")} value={mode} disabled={disabled || uploading || recordingOpen} onChange={(event) => {
+      setError(""); onModeChange(event.target.value === "provided" ? "provided" : "ai");
     }}>
       <option value="ai">{t("ai_generator_character_voice_ai")}</option>
       <option value="provided">{t("ai_generator_character_voice_provided")}</option>
     </select>
     {mode === "provided" ? <div className={styles.sample}>
-      <small id={`${id}-limits`}>{t("ai_generator_character_voice_limits")}</small>
       <input ref={inputRef} id={`${id}-file`} className={styles.fileInput} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" disabled={disabled || uploading || recordingOpen} aria-label={t("ai_generator_character_voice_import")} aria-describedby={`${id}-limits`} onChange={(event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void uploadSample(file);
       }} />
+      {!recordingOpen ? <div className={styles.sourceActions}>
+        <button type="button" disabled={disabled || uploading} onClick={() => inputRef.current?.click()}>{t("ai_generator_character_voice_import")}</button>
+        <button type="button" disabled={disabled || uploading} onClick={() => { setError(""); setRecordingState("idle"); }}>{t("ai_generator_character_voice_record")}</button>
+        <button type="button" disabled={disabled || uploading} onClick={() => { setLibraryOpen(true); setBusy(true); }}>{t("ai_generator_character_voice_library")}</button>
+        <button type="button" className={styles.infoButton} popoverTarget={`${id}-info`} popoverTargetAction="show" aria-haspopup="dialog" aria-label={t("ai_generator_character_voice_info_label")} title={t("ai_generator_character_voice_info_label")}
+          onFocus={() => { if (!infoFocusDismissedRef.current) infoRef.current?.showPopover(); }}
+          onBlur={() => { infoFocusDismissedRef.current = false; }}
+          onClick={() => { infoFocusDismissedRef.current = false; }}
+        ><span aria-hidden="true">i</span></button>
+      </div> : null}
+      <div ref={infoRef} id={`${id}-info`} className={styles.info} popover="auto" role="dialog" aria-labelledby={`${id}-info-title`} onBeforeToggle={(event) => {
+        // Closing a popover can return focus to its trigger. Keep that focus return from reopening it.
+        if (event.newState === "closed") infoFocusDismissedRef.current = true;
+      }}>
+        <header className={styles.infoHeader}>
+          <h3 id={`${id}-info-title`}>{t("ai_generator_character_voice_info_label")}</h3>
+          <button type="button" className={styles.infoClose} popoverTarget={`${id}-info`} popoverTargetAction="hide" aria-label={t("ai_generator_character_voice_info_close")}>×</button>
+        </header>
+        <p id={`${id}-limits`}>{t("ai_generator_character_voice_limits")}</p>
+        <p role={sample?.libraryMediaId ? "status" : undefined}>{t(sample?.libraryMediaId ? "ai_generator_character_voice_saved" : "ai_generator_character_voice_storage_help")}</p>
+      </div>
       {sample && !recordingOpen ? <>
-        <small className={styles.fileName} title={sample.name}>{sample.name}</small>
-        <audio key={sample.path} controls preload="none" src={getCharacterVoicePreviewUrl(sample)} aria-label={t("ai_generator_character_voice_preview")} />
+        <div className={styles.sampleHeading}>
+          <small className={styles.fileName} title={sample.name}>{sample.name}</small>
+          <button type="button" className={styles.removeButton} disabled={disabled || uploading} aria-label={t("ai_generator_character_voice_remove")} title={t("ai_generator_character_voice_remove")} onClick={() => { setError(""); onSampleChange(undefined); }}>×</button>
+        </div>
+        <audio key={sample.path} controls preload="metadata" src={getCharacterVoicePreviewUrl(sample)} aria-label={t("ai_generator_character_voice_preview")} />
       </> : null}
-      {!recordingOpen ? <div className={styles.actions}>
-        <button type="button" disabled={disabled || uploading} aria-expanded={menuOpen} aria-controls={`${id}-choices`} onClick={() => setMenuOpen((open) => !open)}>{t(uploading ? "ai_generator_character_voice_uploading" : sample ? "ai_generator_character_voice_replace" : "ai_generator_character_voice_upload")}</button>
-        {sample ? <button type="button" disabled={disabled || uploading} onClick={() => { setError(""); onSampleChange(undefined); }}>{t("ai_generator_character_voice_remove")}</button> : null}
-        <button type="button" disabled={disabled || uploading} onClick={() => { setMenuOpen(false); setLibraryOpen(true); setBusy(true); }}>{t("ai_generator_character_voice_library")}</button>
-      </div> : null}
-      {sample?.libraryMediaId ? <small role="status">{t("ai_generator_character_voice_saved")}</small> : null}
       {libraryOpen ? <MediaCharacterVoiceLibraryPicker onClose={() => { setLibraryOpen(false); setBusy(false); }} onSelect={(mediaId) => void selectLibrarySample(mediaId)} /> : null}
-      {menuOpen && !recordingOpen ? <div id={`${id}-choices`} className={styles.actions} role="group" aria-label={t("ai_generator_character_voice_upload")}>
-        <button type="button" disabled={disabled || uploading} onClick={() => { setMenuOpen(false); inputRef.current?.click(); }}>{t("ai_generator_character_voice_import")}</button>
-        <button type="button" disabled={disabled || uploading} onClick={() => { setMenuOpen(false); setError(""); setRecordingState("idle"); }}>{t("ai_generator_character_voice_record")}</button>
-      </div> : null}
       {recordingOpen ? <div className={styles.recorder}>
         {recordingState === "starting" ? <small role="status">{t("ai_generator_character_voice_record_starting")}</small> : null}
         {recordingState === "recording" ? <small role="timer" aria-live="off">{t("ai_generator_character_voice_record_elapsed", { seconds: elapsedSeconds })}</small> : null}

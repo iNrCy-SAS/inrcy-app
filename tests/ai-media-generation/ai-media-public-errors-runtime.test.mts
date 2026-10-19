@@ -54,6 +54,15 @@ test("audio QA explains missing, repeated, incomplete and mismatched speech sepa
   ]) assert.equal(explain(new Error(`ai_media_free_native_character_speech_unusable:${issue}`)).code, code);
 });
 
+test("a critical speech mismatch takes priority over incidental repeated words", () => {
+  assert.equal(explain(new Error("ai_media_free_native_character_speech_unusable:spoken_critical_value_mismatch,spoken_dialogue_repeated,spoken_dialogue_mismatch")).code,
+    "AI_MEDIA_VIDEO_SPEECH_MISMATCH");
+  assert.equal(explain(new Error("ai_media_free_native_character_speech_unusable:spoken_critical_value_mismatch")).code,
+    "AI_MEDIA_VIDEO_SPEECH_MISMATCH");
+  assert.equal(explain(new Error("ai_media_free_native_character_speech_unusable:spoken_dialogue_repeated,spoken_dialogue_mismatch")).code,
+    "AI_MEDIA_VIDEO_SPEECH_REPEATED", "a correctly pronounced script replayed twice is still explained as repetition");
+});
+
 test("unknown and malicious diagnostics never become public output, including getter and cycle traps", () => {
   const secret = "PRIVATE_PROMPT https://private.invalid/?token=secret data:image/png;base64,AAAA sk-test-secret";
   const error: Record<string, unknown> = { message: secret, metadata: { code: "ai_media_generation_cancelled" } };

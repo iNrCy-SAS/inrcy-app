@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "Remove voice sample",
   "ai_generator_character_voice_uploading": "Uploading voice sample…",
   "ai_generator_character_voice_limits": "MP3 or WAV · 1 to 10 seconds · Maximum 3 MB",
+  "ai_generator_character_voice_info_label": "Voice recording information",
+  "ai_generator_character_voice_info_close": "Close voice recording information",
+  "ai_generator_character_voice_storage_help": "Imported and recorded voice samples are saved in the media library.",
   "ai_generator_character_voice_upload_error": "Could not upload this voice sample. Try again.",
   "ai_generator_character_voice_file_error": "Choose an MP3 or WAV file up to 3 MB.",
   "ai_generator_character_voice_duration_error": "The voice sample must last between 1 and 10 seconds.",
@@ -992,7 +995,7 @@
   "library_audio_duration": "Duration",
   "library_audio_help_title": "🎙 Audio",
   "library_audio_help_description": "Keep your MP3 and WAV voice samples to find them in iNr’Studio.",
-  "ai_generator_character_voice_library": "Choose from the media library",
+  "ai_generator_character_voice_library": "Media library",
   "ai_generator_character_voice_library_title": "Choose a voice sample",
   "ai_generator_character_voice_library_subtitle": "Select a voice sample saved in your media library.",
   "ai_generator_character_voice_library_confirm": "Use this voice sample",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "Voice sample saved in the media library.",
   "ai_generator_character_voice_library_empty": "No voice samples in the media library.",
   "ai_generator_character_voice_library_loading": "Loading voice samples…",
-  "ai_generator_character_voice_library_duration_error": "For Wan 2.7, choose a voice sample lasting 1 to 10 seconds and no larger than 3 MB.",
+  "ai_generator_character_voice_library_duration_error": "Choose a voice recording lasting 1 to 10 seconds and no larger than 3 MB.",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepts up to 15 seconds of voice samples in total. Shorten the samples or choose Wan 2.7 or HeyGen."
 }

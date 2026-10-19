@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "Sprachaufnahme entfernen",
   "ai_generator_character_voice_uploading": "Sprachaufnahme wird hochgeladen…",
   "ai_generator_character_voice_limits": "MP3 oder WAV · 1 bis 10 Sekunden · Höchstens 3 MB",
+  "ai_generator_character_voice_info_label": "Informationen zu Sprachaufnahmen",
+  "ai_generator_character_voice_info_close": "Informationen zu Sprachaufnahmen schließen",
+  "ai_generator_character_voice_storage_help": "Importierte und aufgezeichnete Sprachaufnahmen werden in der Mediathek gespeichert.",
   "ai_generator_character_voice_upload_error": "Diese Sprachaufnahme konnte nicht hochgeladen werden. Versuchen Sie es erneut.",
   "ai_generator_character_voice_file_error": "Wählen Sie eine MP3- oder WAV-Datei mit höchstens 3 MB.",
   "ai_generator_character_voice_duration_error": "Die Sprachaufnahme muss zwischen 1 und 10 Sekunden lang sein.",
@@ -992,7 +995,7 @@
   "library_audio_duration": "Dauer",
   "library_audio_help_title": "🎙 Audio",
   "library_audio_help_description": "Speichern Sie Ihre MP3- und WAV-Sprachaufnahmen, um sie in iNr’Studio wiederzufinden.",
-  "ai_generator_character_voice_library": "Aus der Mediathek auswählen",
+  "ai_generator_character_voice_library": "Mediathek",
   "ai_generator_character_voice_library_title": "Sprachaufnahme auswählen",
   "ai_generator_character_voice_library_subtitle": "Wählen Sie eine in Ihrer Mediathek gespeicherte Sprachaufnahme.",
   "ai_generator_character_voice_library_confirm": "Diese Sprachaufnahme verwenden",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "Sprachaufnahme in der Mediathek gespeichert.",
   "ai_generator_character_voice_library_empty": "Keine Sprachaufnahmen in der Mediathek.",
   "ai_generator_character_voice_library_loading": "Sprachaufnahmen werden geladen…",
-  "ai_generator_character_voice_library_duration_error": "Wählen Sie für Wan 2.7 eine Sprachaufnahme mit 1 bis 10 Sekunden und höchstens 3 MB.",
+  "ai_generator_character_voice_library_duration_error": "Wählen Sie eine Sprachaufnahme von 1 bis 10 Sekunden und höchstens 3 MB.",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 erlaubt insgesamt höchstens 15 Sekunden an Sprachaufnahmen. Kürzen Sie die Aufnahmen oder wählen Sie Wan 2.7 oder HeyGen."
 }

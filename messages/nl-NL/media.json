@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "Stemfragment verwijderen",
   "ai_generator_character_voice_uploading": "Stemfragment uploaden…",
   "ai_generator_character_voice_limits": "MP3 of WAV · 1 tot 10 seconden · Maximaal 3 MB",
+  "ai_generator_character_voice_info_label": "Informatie over stemopnamen",
+  "ai_generator_character_voice_info_close": "Informatie over stemopnamen sluiten",
+  "ai_generator_character_voice_storage_help": "Geïmporteerde en opgenomen stemopnamen worden opgeslagen in de mediabibliotheek.",
   "ai_generator_character_voice_upload_error": "Dit stemfragment kon niet worden geüpload. Probeer het opnieuw.",
   "ai_generator_character_voice_file_error": "Kies een MP3- of WAV-bestand van maximaal 3 MB.",
   "ai_generator_character_voice_duration_error": "Het stemfragment moet tussen 1 en 10 seconden duren.",
@@ -992,7 +995,7 @@
   "library_audio_duration": "Duur",
   "library_audio_help_title": "🎙 Audio",
   "library_audio_help_description": "Bewaar uw MP3- en WAV-stemfragmenten om ze terug te vinden in iNr’Studio.",
-  "ai_generator_character_voice_library": "Kiezen uit de mediatheek",
+  "ai_generator_character_voice_library": "Mediabibliotheek",
   "ai_generator_character_voice_library_title": "Een stemfragment kiezen",
   "ai_generator_character_voice_library_subtitle": "Selecteer een stemfragment dat in uw mediatheek is opgeslagen.",
   "ai_generator_character_voice_library_confirm": "Dit stemfragment gebruiken",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "Stemfragment opgeslagen in de mediatheek.",
   "ai_generator_character_voice_library_empty": "Geen stemfragmenten in de mediatheek.",
   "ai_generator_character_voice_library_loading": "Stemfragmenten laden…",
-  "ai_generator_character_voice_library_duration_error": "Kies voor Wan 2.7 een stemfragment van 1 tot 10 seconden en maximaal 3 MB.",
+  "ai_generator_character_voice_library_duration_error": "Kies een stemopname van 1 tot 10 seconden en maximaal 3 MB.",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accepteert in totaal maximaal 15 seconden aan stemfragmenten. Kort de fragmenten in of kies Wan 2.7 of HeyGen."
 }

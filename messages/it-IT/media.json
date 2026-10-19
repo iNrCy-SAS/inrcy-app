@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "Rimuovi il campione",
   "ai_generator_character_voice_uploading": "Caricamento del campione vocale…",
   "ai_generator_character_voice_limits": "MP3 o WAV · Da 1 a 10 secondi · Massimo 3 MB",
+  "ai_generator_character_voice_info_label": "Informazioni sulle registrazioni vocali",
+  "ai_generator_character_voice_info_close": "Chiudi le informazioni sulle registrazioni vocali",
+  "ai_generator_character_voice_storage_help": "Le registrazioni vocali importate o registrate vengono salvate nella libreria multimediale.",
   "ai_generator_character_voice_upload_error": "Impossibile caricare questo campione vocale. Riprova.",
   "ai_generator_character_voice_file_error": "Scegli un file MP3 o WAV di massimo 3 MB.",
   "ai_generator_character_voice_duration_error": "Il campione vocale deve durare da 1 a 10 secondi.",
@@ -992,7 +995,7 @@
   "library_audio_duration": "Durata",
   "library_audio_help_title": "🎙 Audio",
   "library_audio_help_description": "Conserva i tuoi campioni vocali MP3 e WAV per ritrovarli in iNr’Studio.",
-  "ai_generator_character_voice_library": "Scegli dalla raccolta multimediale",
+  "ai_generator_character_voice_library": "Libreria",
   "ai_generator_character_voice_library_title": "Scegli un campione vocale",
   "ai_generator_character_voice_library_subtitle": "Seleziona un campione vocale salvato nella tua raccolta multimediale.",
   "ai_generator_character_voice_library_confirm": "Usa questo campione vocale",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "Campione vocale salvato nella raccolta multimediale.",
   "ai_generator_character_voice_library_empty": "Nessun campione vocale nella raccolta multimediale.",
   "ai_generator_character_voice_library_loading": "Caricamento dei campioni vocali…",
-  "ai_generator_character_voice_library_duration_error": "Per Wan 2.7, scegli un campione vocale da 1 a 10 secondi e di massimo 3 MB.",
+  "ai_generator_character_voice_library_duration_error": "Scegli una registrazione vocale da 1 a 10 secondi e di massimo 3 MB.",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 accetta fino a 15 secondi complessivi di campioni vocali. Accorcia i campioni o scegli Wan 2.7 o HeyGen."
 }

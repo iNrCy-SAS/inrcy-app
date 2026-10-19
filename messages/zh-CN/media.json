@@ -955,6 +955,9 @@
   "ai_generator_character_voice_remove": "移除声音样本",
   "ai_generator_character_voice_uploading": "正在上传声音样本…",
   "ai_generator_character_voice_limits": "MP3 或 WAV · 1 至 10 秒 · 最大 3 MB",
+  "ai_generator_character_voice_info_label": "语音录音信息",
+  "ai_generator_character_voice_info_close": "关闭语音录音信息",
+  "ai_generator_character_voice_storage_help": "导入或录制的语音会保存在媒体库中。",
   "ai_generator_character_voice_upload_error": "无法上传此声音样本，请重试。",
   "ai_generator_character_voice_file_error": "请选择不超过 3 MB 的 MP3 或 WAV 文件。",
   "ai_generator_character_voice_duration_error": "声音样本时长必须为 1 至 10 秒。",
@@ -992,7 +995,7 @@
   "library_audio_duration": "时长",
   "library_audio_help_title": "🎙 音频",
   "library_audio_help_description": "保存您的 MP3 和 WAV 声音样本，以便在 iNr’Studio 中使用。",
-  "ai_generator_character_voice_library": "从媒体库选择",
+  "ai_generator_character_voice_library": "媒体库",
   "ai_generator_character_voice_library_title": "选择声音样本",
   "ai_generator_character_voice_library_subtitle": "选择已保存在媒体库中的声音样本。",
   "ai_generator_character_voice_library_confirm": "使用此声音样本",
@@ -1000,6 +1003,6 @@
   "ai_generator_character_voice_saved": "声音样本已保存到媒体库。",
   "ai_generator_character_voice_library_empty": "媒体库中没有声音样本。",
   "ai_generator_character_voice_library_loading": "正在加载声音样本…",
-  "ai_generator_character_voice_library_duration_error": "使用 Wan 2.7 时，请选择时长 1 至 10 秒、大小不超过 3 MB 的声音样本。",
+  "ai_generator_character_voice_library_duration_error": "请选择时长为 1 至 10 秒且不超过 3 MB 的语音录音。",
   "ai_generator_character_voice_wan3_duration_limit": "Wan 3.0 接受的声音样本总时长最多为 15 秒。请缩短样本，或选择 Wan 2.7 或 HeyGen。"
 }
