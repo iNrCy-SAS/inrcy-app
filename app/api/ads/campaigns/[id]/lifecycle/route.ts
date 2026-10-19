@@ -48,7 +48,7 @@ import {
   updateLinkedInAdsCampaign,
 } from "@/lib/adsLinkedInLifecycle";
 import { LinkedInAdsPublishError, publishLinkedInAdsCampaign } from "@/lib/adsLinkedInPublisherServer";
-import { linkedInAdsHasAccessMode } from "@/lib/adsLinkedInPolicy";
+import { linkedInAdsAccountAllowedByTier, linkedInAdsHasAccessMode } from "@/lib/adsLinkedInPolicy";
 import { linkedInAdsAuthorization, listLinkedInAdsAccounts, readLinkedInAdsIntegration } from "@/lib/adsLinkedInServer";
 import type { LinkedInAdsPublishProgress } from "@/lib/adsLinkedInPublisherCore";
 import {
@@ -374,9 +374,7 @@ async function authorizeRemoteLifecycle(request: Request, context: RouteContext,
       }
       const account = (await listLinkedInAdsAccounts(user.activeUserId, connection))
         .find((entry) => entry.id === campaign.ad_account_id && entry.currency === "EUR" && entry.canManageCampaigns);
-      const allowlisted = String(process.env.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
-        .split(/[\s,]+/).includes(campaign.ad_account_id);
-      if (!account || !allowlisted) {
+      if (!account || !linkedInAdsAccountAllowedByTier(campaign.ad_account_id, process.env)) {
         return { response: NextResponse.json({ error: "Ce compte LinkedIn Ads n’est plus gérable ou mappé à l’application." }, { status: 403 }) };
       }
       return { id, user, campaign, account: { ...account, loginCustomerId: undefined }, localCleanupOnly: false as const };

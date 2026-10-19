@@ -118,6 +118,19 @@ export function isLinkedInAdsAccountId(value: unknown): value is string {
   return typeof value === "string" && /^\d{1,25}$/.test(value);
 }
 
+/** Application-tier gate only; the caller must still verify OAuth and current account membership. */
+export function linkedInAdsAccountAllowedByTier(
+  accountId: string,
+  environment: Record<string, string | undefined>,
+): boolean {
+  if (!isLinkedInAdsAccountId(accountId)) return false;
+  const tier = environment.LINKEDIN_ADS_ACCESS_TIER?.trim() || "development";
+  if (tier === "standard") return true;
+  if (tier !== "development") return false;
+  return String(environment.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
+    .split(/[\s,]+/).includes(accountId);
+}
+
 export function normalizeLinkedInAdsAccountUser(value: unknown): LinkedInAdsAccountUser | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;

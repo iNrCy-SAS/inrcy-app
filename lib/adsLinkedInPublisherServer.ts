@@ -8,6 +8,7 @@ import { assessAdsChannelDraft, type LinkedInAdsDraft } from "./adsChannelDrafts
 import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding, linkedInTrackedDestination, type LinkedInProfessionalTarget } from "./adsLinkedInCampaignSettings.ts";
 import { resolveLinkedInAdsProfessionalTargets, resolveLinkedInAdsConversions } from "./adsLinkedInResourcesServer.ts";
 import {
+  linkedInAdsAccountAllowedByTier,
   linkedInAdsHasAccessMode,
   LINKEDIN_ADS_API_VERSION,
   type LinkedInAdsAccount,
@@ -120,11 +121,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function allowedDevelopmentAccountIds(): Set<string> {
-  return new Set(String(process.env.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
-    .split(/[\s,]+/).map((value) => value.trim()).filter((value) => /^\d{1,25}$/.test(value)));
 }
 
 function providerHeaders(token: string, json = false): Record<string, string> {
@@ -362,7 +358,7 @@ async function readPublicationAccount(
     throw new LinkedInAdsConnectionError("Reconnectez LinkedIn Ads pour accorder les autorisations de gestion complètes.", "missing_scopes", 403);
   }
   const account = accounts.find((item) => item.id === draft.adAccountId);
-  if (!account || !allowedDevelopmentAccountIds().has(account.id)) {
+  if (!account || !linkedInAdsAccountAllowedByTier(account.id, process.env)) {
     throw new LinkedInAdsConnectionError("Ce compte n’est pas mappé à l’application LinkedIn Advertising API en Development Tier.", "development_account_mapping_required", 403);
   }
   if (account.currency !== "EUR") throw new LinkedInAdsConnectionError("Le compte LinkedIn Ads doit être en EUR.", "unsupported_account_currency", 422);

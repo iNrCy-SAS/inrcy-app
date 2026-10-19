@@ -8,6 +8,7 @@ import { test } from "node:test";
 import ts from "typescript";
 import * as linkedInPreflightPolicy from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as geoResolution from "../lib/adsLinkedInGeoResolution.ts";
+import * as linkedInPolicy from "../lib/adsLinkedInPolicy.ts";
 import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 import {
   buildLinkedInAdsAudienceCountPath,
@@ -222,10 +223,7 @@ function loadPreflightRuntime(fetchImpl: typeof fetch) {
       resolveLinkedInAdsConversions: async (input: { conversionUrns: string[] }) => { assert.deepEqual(input.conversionUrns, []); return { verifiedConversions: [], unresolvedUrns: [] }; },
     }],
 
-    ["./adsLinkedInPolicy.ts", {
-      LINKEDIN_ADS_API_VERSION: "202609",
-      linkedInAdsScopes: (value: unknown) => String(value || "").split(/\s+/).filter(Boolean),
-    }],
+    ["./adsLinkedInPolicy.ts", linkedInPolicy],
     ["./adsLinkedInServer.ts", {
       LinkedInAdsConnectionError: RuntimeConnectionError,
       readLinkedInAdsIntegration: async () => ({ resource_id: account.id }),
@@ -686,7 +684,7 @@ test("LinkedIn resource preflight remains GET-only while publication is isolated
   assert.doesNotMatch(route, /export async function POST/);
   assert.match(server, /publicationEnabled:\s*false/);
   assert.doesNotMatch(server, /method:\s*["']POST["']/);
-  assert.match(server, /LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS/);
+  assert.match(server, /linkedInAdsAccountAllowedByTier\(account.id, process.env\)/);
   assert.match(server, /selectLinkedInAdsCampaignGroup\(campaignGroups/);
   assert.match(server, /organizations\.length === 1/);
   assert.match(server, /selectUnambiguousLinkedInAdsGeoTarget/);

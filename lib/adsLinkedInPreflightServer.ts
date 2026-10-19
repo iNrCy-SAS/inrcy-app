@@ -4,7 +4,7 @@ import { resolveLinkedInAdsGeoTargets } from "./adsLinkedInGeoResolution.ts";
 import { normalizeLinkedInDeliverySettings, linkedInDeliveryBidding, type LinkedInDeliverySettings } from "./adsLinkedInCampaignSettings.ts";
 import { resolveLinkedInAdsProfessionalTargets, resolveLinkedInAdsConversions } from "./adsLinkedInResourcesServer.ts";
 import { linkedInAdsCampaignScheduleIssues } from "./adsLinkedInPublish.ts";
-import { linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
+import { linkedInAdsAccountAllowedByTier, linkedInAdsScopes, LINKEDIN_ADS_API_VERSION } from "./adsLinkedInPolicy.ts";
 import { linkedInAdsContextualGeoDefaults } from "./adsLinkedInClientDefaults.ts";
 import { log } from "./observability/logger.ts";
 import {
@@ -102,11 +102,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function allowedDevelopmentAccountIds(): Set<string> {
-  return new Set(String(process.env.LINKEDIN_ADS_DEVELOPMENT_ACCOUNT_IDS || "")
-    .split(/[\s,]+/).map((value) => value.trim()).filter((value) => /^\d{1,25}$/.test(value)));
 }
 
 function rejectedOperationCode(operation: LinkedInAdsPreflightOperation): string {
@@ -487,7 +482,7 @@ export async function runLinkedInAdsPreflight(userId: string, input: LinkedInAds
   const audienceCount = audiencePayload ? normalizeLinkedInAdsAudienceCount(audiencePayload) : null;
   const pricing = pricingPayload ? normalizeLinkedInAdsBudgetPricing(pricingPayload) : null;
   const bidAmount = deliverySettings?.bidding.strategy === "maximum_delivery" ? null : recommendedLinkedInAdsBid(pricing, deliverySettings?.bidding.amountEuros ?? requestedBidAmount, deliverySettings?.budget.type === "total" ? deliverySettings.budget.totalEuros : dailyBudget);
-  const developmentAccountMapped = allowedDevelopmentAccountIds().has(account.id);
+  const developmentAccountMapped = linkedInAdsAccountAllowedByTier(account.id, process.env);
   const blockers = linkedInAdsPreflightBlockers({
     scopes,
     accountCurrency: account.currency,

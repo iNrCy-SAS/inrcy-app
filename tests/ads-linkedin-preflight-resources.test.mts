@@ -8,6 +8,7 @@ import { test } from "node:test";
 import ts from "typescript";
 import * as policy from "../lib/adsLinkedInPreflightPolicy.ts";
 import * as geoResolution from "../lib/adsLinkedInGeoResolution.ts";
+import * as linkedInPolicy from "../lib/adsLinkedInPolicy.ts";
 import { linkedInAdsContextualGeoDefaults } from "../lib/adsLinkedInClientDefaults.ts";
 import { log } from "../lib/observability/logger.ts";
 
@@ -49,10 +50,7 @@ function loadPreflight(fetchImpl: typeof fetch) {
       resolveLinkedInAdsConversions: async (input: { conversionUrns: string[] }) => { assert.deepEqual(input.conversionUrns, []); return { verifiedConversions: [], unresolvedUrns: [] }; },
     }],
 
-    ["./adsLinkedInPolicy.ts", {
-      LINKEDIN_ADS_API_VERSION: "202609",
-      linkedInAdsScopes: (value: unknown) => String(value || "").split(/\s+/).filter(Boolean),
-    }],
+    ["./adsLinkedInPolicy.ts", linkedInPolicy],
     ["./adsLinkedInServer.ts", {
       LinkedInAdsConnectionError: ConnectionError,
       readLinkedInAdsIntegration: async () => ({ resource_id: account.id }),
