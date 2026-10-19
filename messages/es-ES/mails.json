@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "bodyText",
   "boite_d_envoi_8af123c1": "Bandeja de salida",
+  "select_send_account": "Selecciona un buzón de envío.",
   "boite_gmail_deconnectee_3d83ef35": "✅ Cuenta de Gmail desconectada.",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ Cuenta IMAP conectada. Ya puedes usarla para enviar correos electrónicos.",
   "boite_imap_deconnectee_392ad047": "✅ Cuenta IMAP desconectada.",

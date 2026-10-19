@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "正文HTML",
   "bodytext_fb9442a2": "正文",
   "boite_d_envoi_8af123c1": "发件箱",
+  "select_send_account": "请选择发件邮箱。",
   "boite_gmail_deconnectee_3d83ef35": "✅ Gmail 邮箱已断开连接。",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ 连接 IMAP 盒子。您现在可以使用它来发送邮件。",
   "boite_imap_deconnectee_392ad047": "✅ IMAP 框已断开连接。",

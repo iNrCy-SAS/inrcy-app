@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "เนื้อความ",
   "boite_d_envoi_8af123c1": "กล่องขาออก",
+  "select_send_account": "เลือกกล่องจดหมายสำหรับส่ง",
   "boite_gmail_deconnectee_3d83ef35": "✅ กล่อง Gmail ถูกตัดการเชื่อมต่อ",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ เชื่อมต่อกล่อง IMAP ตอนนี้คุณสามารถใช้สำหรับการส่งจดหมายของคุณได้แล้ว",
   "boite_imap_deconnectee_392ad047": "✅ กล่อง IMAP ถูกตัดการเชื่อมต่อ",

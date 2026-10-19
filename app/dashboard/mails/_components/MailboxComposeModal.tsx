@@ -693,10 +693,16 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
 
               <select
                 className={`${styles.selectDark} ${styles.composeSelect}`}
+                aria-label={i18nT("boite_d_envoi_8af123c1")}
                 value={selectedAccountId}
                 onChange={(e) => setSelectedAccountId(e.target.value)}
                 style={composeInputStyle}
               >
+                {!selectedAccountId ? (
+                  <option value="" disabled>
+                    {i18nT("select_send_account")}
+                  </option>
+                ) : null}
                 {mailAccounts.map((a) => {
                   const needsUpdate =
                     a.connection_status === "needs_update" || a.requires_update;

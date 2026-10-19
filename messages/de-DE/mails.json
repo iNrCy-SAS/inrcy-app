@@ -116,6 +116,7 @@
   "bodyhtml_47de9289": "bodyHtml",
   "bodytext_fb9442a2": "bodyText",
   "boite_d_envoi_8af123c1": "Box Senden",
+  "select_send_account": "Wählen Sie ein Postfach zum Senden aus.",
   "boite_gmail_deconnectee_3d83ef35": "✅ Gmail-Konto getrennt.",
   "boite_imap_connectee_vous_pouvez_maintenant_4d98651e": "✅ IMAP-Konto verbunden. Sie können es jetzt zum Senden von E-Mails verwenden.",
   "boite_imap_deconnectee_392ad047": "✅ IMAP-Konto getrennt.",
