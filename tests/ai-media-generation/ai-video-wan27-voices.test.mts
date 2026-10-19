@@ -203,9 +203,22 @@ test("the creative planner and canonical prompt retain voice choices without fil
   assert.match(observed.system, /propre échantillon vocal/);
   assert.doesNotMatch(observed.system, /Voix synthétiques, pas de clonage/);
   assert.deepEqual(JSON.parse(observed.input).character_voices, [
-    { reference: 1, character: 1, voice: "provided" }, { reference: 2, character: 2, voice: "provided" },
+    { reference: 1, character: "character1", studio_character: 1, voice: "provided" }, { reference: 2, character: "character2", studio_character: 2, voice: "provided" },
   ]);
   assert.doesNotMatch(observed.input, /private-sample-name-sentinel|_character-voices|voiceSample|\.wav/);
+  args.request.inspirationImages[0] = { ...args.request.inspirationImages[0], usage: "inspiration", characterIndex: undefined, voiceMode: "ai", voiceSample: undefined };
+  args.request.inspirationImages[1] = { ...args.request.inspirationImages[1], characterIndex: 1 };
+  await planner.prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: args.request, profile });
+  assert.deepEqual(JSON.parse(observed.input).character_voices, [
+    { reference: 1, character: "character1", voice: "ai" },
+    { reference: 2, character: "character2", studio_character: 1, voice: "provided" },
+  ], "unindexed inspiration characters must never take a provided voice's Studio character number");
+  assert.match(observed.system, /characterN lié à Image N/);
+  args.request.inspirationImages[0] = { ...args.request.inspirationImages[0], role: "product", usage: "required", voiceMode: undefined };
+  await planner.prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: args.request, profile });
+  assert.deepEqual(JSON.parse(observed.input).character_voices, [
+    { reference: 2, character: "character2", studio_character: 1, voice: "provided" },
+  ], "a preceding product occupies Image 1 and must not renumber the supplied character voice");
 });
 
 test("real Studio normalization preserves two distinct voice samples into the Wan request", () => {
@@ -221,4 +234,49 @@ test("real Studio normalization preserves two distinct voice samples into the Wa
   const { runtime } = loadRuntime();
   const input = runtime.buildGatewayAiVideoRequest({ ...args, request: normalized }, 0, undefined, imageUrls(2), voiceUrls(2));
   assert.deepEqual(mediaFor(input).map((image) => image.referenceVoice), voiceUrls(2));
+});
+
+test("the actual Free payload preserves a provided voice on an inspiration character through its whitelist and native Wan prompt", () => {
+  const now = Date.now(); const date = new Date(now).toISOString().slice(0, 10);
+  const samplePath = `_studio-voice-references/${date}/account-test__${now}__${crypto.randomUUID()}.wav`;
+  // These are the fields MediaFreeGenerator sends to useMediaGeneration;
+  // the hook serializes the image metadata unchanged into generation JSON.
+  const normalized = normalizeAiMediaGenerationRequest({
+    requestId: "actual-free-inspiration-voice", contractVersion: 4,
+    creationMode: "free", operation: "generate", inputMode: "essential", source: "studio", kind: "video",
+    freePrompt: 'Le second personnage dit « Bonjour, bienvenue ! » pendant que le premier sourit.',
+    subjectSource: "custom", format: "story", durationSeconds: 8, sceneMode: "single",
+    videoEngine: "wan27", videoResolution: "720p", teamVideoMode: "cinematic", teamVideoSpeechMode: "characters",
+    withNarration: true, withMusic: false, identityMode: "professional", identityConsent: true,
+    identityReferenceSetId: crypto.randomUUID(),
+    inspirationImages: [
+      { mimeType: "image/webp", data: "A".repeat(64), role: "character", usage: "required", characterIndex: 1, voiceMode: "ai" },
+      { mimeType: "image/webp", data: "B".repeat(64), role: "character", usage: "inspiration", characterIndex: 2, voiceMode: "provided",
+        voiceSample: { path: samplePath, name: "second-character.wav", mimeType: "audio/wav", durationSeconds: 2, sizeBytes: 64_044 } },
+    ],
+  });
+  assert.equal(normalized.creationMode, "free"); assert.equal(normalized.teamVideoSpeechMode, "characters");
+  assert.equal(normalized.withNarration, false); assert.equal(normalized.narrationVoice, null);
+  assert.equal(normalized.identityConsent, true); assert.equal(normalized.identityMode, "professional");
+  assert.deepEqual(normalized.inspirationImages.map(({ usage, characterIndex, voiceMode }) => ({ usage, characterIndex, voiceMode })), [
+    { usage: "required", characterIndex: 1, voiceMode: "ai" }, { usage: "inspiration", characterIndex: 2, voiceMode: "provided" },
+  ]);
+  assert.equal(normalized.inspirationImages[1].voiceSample?.path, samplePath);
+  const profile = { business: { companyName: "" }, preferences: { language: "fr" } };
+  const canonicalPrompt = freePrompt.buildAiMediaFreeVideoPrompt({ request: normalized, profile } as never);
+  const providerContract = boundary.buildAiMediaVideoProviderContract({ request: normalized, durationSeconds: 8, brandColors: [] });
+  const args = { ...argsFor(), request: normalized, canonicalPrompt, canonicalPromptSha256: boundary.hashAiMediaCanonicalPrompt(canonicalPrompt), providerContract,
+    plan: { ...argsFor().plan, scenes: [{ visualBrief: "character2 salue pendant que character1 sourit.", spokenLine: "Bonjour, bienvenue !" }] },
+  } as providerTypes.AiVideoProviderGenerationArgs;
+  const { runtime } = loadRuntime();
+  const input = runtime.buildGatewayAiVideoRequest(args, 0, undefined, imageUrls(2), [null, "https://private.example.com/second-character.wav"]);
+  assert.deepEqual(mediaFor(input), [
+    { type: "reference_image", url: imageUrls(2)[0] },
+    { type: "reference_image", url: imageUrls(2)[1], referenceVoice: "https://private.example.com/second-character.wav" },
+  ]);
+  assert.match(String(input.prompt), /NATIVE DIALOGUE:.*Bonjour, bienvenue !/);
+  assert.match(String(input.prompt), /Image 2 = character2 = Studio character 2; use only its attached referenceVoice/);
+  assert.equal(input.generateAudio, true);
+  assert.doesNotMatch(String(input.prompt), /Never clone|synthetic voices|NATIVE VOICEOVER|No native voices/);
+  assert.doesNotMatch(canonicalPrompt, /ni clonage|second-character\.wav|_studio-voice-references/);
 });

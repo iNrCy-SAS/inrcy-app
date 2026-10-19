@@ -72,6 +72,8 @@ function resultContext() {
     document: { getElementById(id: string) { return { focus() { events.push(`focus:${id}`); } }; } },
     creditQuote: { authorization: { expectedCredits: 160, creditTariffVersion: "test", creditQuoteId: "confirmed" } },
     enginePreference: { videoEngine: "omni", imageEngine: "openai" },
+    selectedVideoEngine: "omni",
+    identityMode: "auto",
     videoResolution: "720p",
     useBusinessDna: false,
     videoModel: { provider: "google" },

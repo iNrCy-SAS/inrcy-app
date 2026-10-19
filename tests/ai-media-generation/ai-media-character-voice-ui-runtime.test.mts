@@ -77,6 +77,7 @@ function harness() {
     click(suffix: string) { const button = elements("button").find((item) => item.props.children === label(suffix)); assert.ok(button, `${suffix} is visible`); assert.ok(!button.props.disabled, `${suffix} is enabled`); (button.props.onClick as () => void)(); render(); },
     async flush() { for (let index = 0; index < 4; index++) { await new Promise((resolve) => setImmediate(resolve)); if (dirty) render(); } },
     denyMicrophone() { rejectRecorder = true; },
+    setExternalBusy(value: boolean) { disabled = value; render(); },
     changeAccount() { listeners.get("account-change")?.(); if (dirty) render(); },
     selectLibrary(id: string) { (elements("library-picker")[0].props.onSelect as (id: string) => void)(id); render(); },
     closeLibrary() { (elements("library-picker")[0].props.onClose as () => void)(); render(); },
@@ -119,6 +120,15 @@ test("microphone denial exposes an accessible error and cancel releases the loca
   const h = harness(); h.selectProvided(); h.click("upload"); h.click("record"); h.denyMicrophone(); h.click("record_start"); await h.flush();
   assert.equal(h.elements("small").find((item) => item.props.role === "alert")?.props.children, label("record_denied"));
   assert.equal(h.disabled(), false); assert.equal(h.uploaded.length, 0); h.click("record_cancel"); h.dispose();
+});
+
+test("canceling an idle recording preserves another character's active operation lock", () => {
+  const h = harness(); h.selectProvided(); h.click("upload"); h.click("record");
+  h.setExternalBusy(true);
+  assert.equal(h.elements("button").find((item) => item.props.children === label("record_start"))?.props.disabled, true);
+  h.click("record_cancel");
+  assert.equal(h.disabled(), true, "an idle recorder does not own the shared busy lock");
+  assert.equal(h.beginCalls(), 0); assert.equal(h.requests.length, 0); h.dispose();
 });
 
 test("retry discards the old preview and unmount or account changes cancel active capture", async () => {

@@ -42,6 +42,8 @@ import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
+import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
+import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
 import MediaPromptHelp from "./MediaPromptHelp";
 import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
@@ -104,7 +106,7 @@ const VIDEO_ACCEPT = [
 function referencesForRequest(references: Reference[]) {
   let characterIndex = 0;
   return references.map(({ id: _id, fromVideo: _fromVideo, ...reference }) => {
-    if (reference.role !== "character" || reference.usage !== "required") {
+    if (reference.role !== "character" || (reference.usage !== "required" && reference.voiceMode !== "provided")) {
       return reference;
     }
     characterIndex += 1;
@@ -156,9 +158,6 @@ export default function MediaFreeGenerator({
   const recoveredFormat = result?.recovered ? result.format : recoveryContext?.format;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const imageModel = getAiMediaImageModel(enginePreference.imageEngine);
-  const videoModel = getAiMediaVideoModel(enginePreference.videoEngine);
-  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
-    ? enginePreference.videoResolution : videoModel.defaultResolution;
   const [prompt, setPrompt] = useState(initialPrompt);
   const [useBusinessDna, setUseBusinessDna] = useState(false);
   const [format, setFormat] = useState<MediaGenerationFormat>(
@@ -176,6 +175,7 @@ export default function MediaFreeGenerator({
   const [identityConsent, setIdentityConsent] = useState(false);
   const [teamConsent, setTeamConsent] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [characterVoiceBusy, setCharacterVoiceBusy] = useState(false);
   const [referencesBusy, setReferencesBusy] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
@@ -190,8 +190,14 @@ export default function MediaFreeGenerator({
   const sequence = useRef(0);
   const operationInFlight = useRef(false);
   const referenceSetId = useRef("");
-  const operationLocked = busy || finishing || voiceBusy || referencesBusy;
+  const operationLocked = busy || finishing || voiceBusy || referencesBusy || characterVoiceBusy;
   const locked = operationLocked;
+  const characterVoiceSelection = getCharacterVoiceSelectionState(kind === "video" ? references : []);
+  const selectedVideoEngine = characterVoiceSelection.requiresWan27 ? "wan27" : enginePreference.videoEngine;
+  const videoModel = getAiMediaVideoModel(selectedVideoEngine);
+  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
+    ? enginePreference.videoResolution : videoModel.defaultResolution;
+  const characterVoiceSpeechConflict = characterVoiceSelection.requiresWan27 && speechMode !== "characters";
   const counter = quota?.credits;
   const maxDuration = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(maxDuration);
@@ -200,7 +206,8 @@ export default function MediaFreeGenerator({
     (reference) =>
       reference.role === "character" && reference.usage === "required"
   );
-  const identityRequired = personReferences.length > 0;
+  const identityRequired = personReferences.length > 0 || characterVoiceSelection.requiresWan27;
+  const identityMode = personReferences.length > 1 ? "reference_team" : personReferences.length === 1 ? "professional" : "auto";
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
   const effectiveWithNarration =
     kind === "video" && speechMode === "voiceover";
@@ -211,12 +218,13 @@ export default function MediaFreeGenerator({
   );
   // Exact identity preservation is limited to three people. Inspiration-only
   // images and all other roles can freely share the five available slots.
-  const roleLimitExceeded = personReferences.length > 3;
+  const roleLimitExceeded = references.filter((reference) => reference.role === "character" &&
+    (reference.usage === "required" || (kind === "video" && reference.voiceMode === "provided"))).length > 3;
   const maxUserPromptLength = Math.max(0, MAX_PROMPT - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
   const effectivePrompt = [prompt.trim(), requiredPromptSuffix.trim()].filter(Boolean).join(" ");
-  const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(enginePreference.videoEngine, duration, videoResolution, sceneMode));
-  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(enginePreference.videoEngine, references.length) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
-  const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(enginePreference.videoEngine, effectivePrompt);
+  const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(selectedVideoEngine, duration, videoResolution, sceneMode));
+  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, references.length) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
+  const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, effectivePrompt);
   const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
   const promptWarning = operationLocked ? "" : !promptReady
     ? t("ai_generator_idea_required")
@@ -234,13 +242,15 @@ export default function MediaFreeGenerator({
     ? referenceCompatibilityReason
     : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
     : roleLimitExceeded ? t("ai_generator_free_role_limit")
+    : characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
+    : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
     : identityRequired && !identityConsent ? t("ai_generator_video_character_consent_required")
     : teamConsentRequired && !teamConsent ? t("ai_generator_team_video_consent_required") : "";
   const photoRequiredHint = kind === "video" && !videoModel.supportsTextToVideo
     ? t("ai_generator_model_photo_required") : "";
   const creditQuote = useMediaCreditQuote({ kind, format: fixedFormat || format, operation: "generate", creationMode: "free",
-    inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto",
-    videoEngine: enginePreference.videoEngine, imageEngine: enginePreference.imageEngine,
+    inputMode: "essential", identityMode,
+    videoEngine: selectedVideoEngine, imageEngine: enginePreference.imageEngine,
     videoResolution, durationSeconds: kind === "video" ? duration : undefined,
     sceneMode: kind === "video" ? sceneMode : undefined,
     inspirationImagesCount: references.length, withNarration: effectiveWithNarration,
@@ -250,7 +260,7 @@ export default function MediaFreeGenerator({
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     durationSeconds: duration, sceneMode, withNarration: effectiveWithNarration,
     teamVideoSpeechMode: requestSpeechMode, language: locale, inspirationImagesCount: references.length,
-    inputMode: "essential", identityMode: personReferences.length > 1 ? "reference_team" : identityRequired ? "professional" : "auto" });
+    inputMode: "essential", identityMode });
   const canGenerate =
     !operationLocked &&
     !reviewingRecovery &&
@@ -266,6 +276,8 @@ export default function MediaFreeGenerator({
     briefCompatible &&
     !referenceCriteriaIncomplete &&
     !roleLimitExceeded &&
+    !characterVoiceSelection.missingSample &&
+    !characterVoiceSpeechConflict &&
     (!identityRequired || identityConsent) &&
     (!teamConsentRequired || teamConsent);
   const resetDate =
@@ -314,6 +326,7 @@ export default function MediaFreeGenerator({
       setStopConfirmOpen(false);
       setActionError("");
       setReferencesBusy(false);
+      setCharacterVoiceBusy(false);
       setFinishing(false);
       setSavingToLibrary(false);
       setCreationScreen(false);
@@ -437,8 +450,13 @@ export default function MediaFreeGenerator({
 
   const updateReference = (
     id: string,
-    patch: Partial<Pick<Reference, "role" | "usage">>
+    patch: Partial<Pick<Reference, "role" | "usage" | "voiceMode" | "voiceSample">>
   ) => {
+    const previous = references.find((reference) => reference.id === id);
+    const clearsVoice = (Object.hasOwn(patch, "role") && patch.role !== "character") || patch.voiceMode === "ai";
+    if (previous?.voiceSample && (clearsVoice || (Object.hasOwn(patch, "voiceSample") && previous.voiceSample.path !== patch.voiceSample?.path))) {
+      void deleteCharacterVoiceSample(previous.voiceSample);
+    }
     setReferences((current) =>
       current.map((reference) =>
         reference.id !== id
@@ -446,6 +464,7 @@ export default function MediaFreeGenerator({
           : {
               ...reference,
               ...patch,
+              ...(clearsVoice ? { voiceMode: "ai" as const, voiceSample: undefined } : {}),
               // A usage belongs to a role. Clearing it avoids carrying an
               // authoritative choice from a product or person onto another role.
               ...(Object.hasOwn(patch, "role") && patch.role !== reference.role
@@ -454,6 +473,13 @@ export default function MediaFreeGenerator({
             }
       )
     );
+    if (patch.voiceMode === "provided") setSpeechMode("characters");
+    resetConsent();
+  };
+
+  const removeReference = (id: string) => {
+    void deleteCharacterVoiceSample(references.find((reference) => reference.id === id)?.voiceSample);
+    setReferences((current) => current.filter((reference) => reference.id !== id));
     resetConsent();
   };
 
@@ -491,19 +517,14 @@ export default function MediaFreeGenerator({
         narrationVoice: effectiveWithNarration ? voice : undefined,
         narrationVoiceVariant:
           effectiveWithNarration ? voiceVariant : undefined,
-        videoEngine: enginePreference.videoEngine,
+        videoEngine: selectedVideoEngine,
         teamVideoSpeechMode: kind === "video" ? requestSpeechMode : undefined,
         teamVideoMode: "cinematic",
         inspirationImages: referencesForRequest(references),
-        identityMode:
-          personReferences.length > 1
-            ? "reference_team"
-            : identityRequired
-            ? "professional"
-            : "auto",
+        identityMode,
         identityConsent: identityRequired && identityConsent,
         teamVideoVeoConsent: videoModel.provider === "google" && teamConsentRequired && teamConsent,
-        teamVideoProviderConsent: teamConsentRequired && teamConsent ? enginePreference.videoEngine : undefined,
+        teamVideoProviderConsent: teamConsentRequired && teamConsent ? selectedVideoEngine : undefined,
         identityReferenceSetId: references.length
           ? referenceSetId.current || undefined
           : undefined,
@@ -652,12 +673,14 @@ export default function MediaFreeGenerator({
   };
 
   const engineControls = reviewingRecovery ? null : (
-    <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={enginePreference.videoEngine}
+    <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={selectedVideoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
             durationSeconds={duration} sceneMode={sceneMode} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
             recommendation={modelRecommendation}
             brief={effectivePrompt}
             referenceCount={references.length} disabled={locked}
+            requiredVideoEngine={characterVoiceSelection.requiresWan27 ? "wan27" : undefined}
+            requiredVideoEngineReason={characterVoiceSelection.requiresWan27 ? t("ai_generator_character_voice_engine_required") : undefined}
             onVideoEngineChange={(videoEngine, resolution) => { resetConsent(); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
             onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
             onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />
@@ -719,7 +742,9 @@ export default function MediaFreeGenerator({
                 {
                   id: "identity",
                   label: t(
-                    personReferences.length > 1
+                    characterVoiceSelection.requiresWan27
+                      ? "ai_generator_character_voice_consent_label"
+                      : personReferences.length > 1
                       ? "ai_generator_reference_team_consent_label"
                       : "ai_generator_video_character_consent_label"
                   ),
@@ -865,9 +890,9 @@ export default function MediaFreeGenerator({
               </p>
             ) : null}
             {references.length ? (
-              <div className={styles.references}>
+              <div className={styles.references} data-character-voices={kind === "video" ? "true" : undefined}>
                 {references.map((reference, index) => (
-                  <div className={styles.reference} key={reference.id}>
+                  <div className={styles.reference} key={reference.id} data-reference-id={reference.id}>
                     <div className={styles.referenceImage}>
                       <img
                         src={`data:${reference.mimeType};base64,${reference.data}`}
@@ -883,14 +908,7 @@ export default function MediaFreeGenerator({
                           { index: index + 1 }
                         )}
                         disabled={locked}
-                        onClick={() => {
-                          setReferences((current) =>
-                            current.filter(
-                              (entry) => entry.id !== reference.id
-                            )
-                          );
-                          resetConsent();
-                        }}
+                        onClick={() => removeReference(reference.id)}
                       >
                         ×
                       </button>
@@ -954,6 +972,12 @@ export default function MediaFreeGenerator({
                         {t("ai_generator_free_usage_inspiration")}
                       </option>
                     </select>
+                    {kind === "video" && reference.role === "character" ? <MediaCharacterVoiceInput
+                      mode={reference.voiceMode} sample={reference.voiceSample} disabled={locked}
+                      onModeChange={(voiceMode) => updateReference(reference.id, { voiceMode })}
+                      onSampleChange={(voiceSample) => updateReference(reference.id, { voiceSample })}
+                      onBusyChange={setCharacterVoiceBusy}
+                    /> : null}
                   </div>
                 ))}
               </div>
@@ -966,6 +990,7 @@ export default function MediaFreeGenerator({
             {criteriaWarning && criteriaWarning !== photoRequiredHint ? (
               <p className={styles.muted} role="alert">{criteriaWarning}</p>
             ) : null}
+            {characterVoiceSpeechConflict ? <button type="button" className={styles.secondaryButton} disabled={locked} onClick={() => setSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button> : null}
           </div>
           {identityRequired ? (
             <label className={styles.consent}>
@@ -980,7 +1005,9 @@ export default function MediaFreeGenerator({
               />
               <span>
                 {t(
-                  personReferences.length > 1
+                  characterVoiceSelection.requiresWan27
+                    ? "ai_generator_character_voice_consent_label"
+                    : personReferences.length > 1
                     ? "ai_generator_reference_team_consent_label"
                     : "ai_generator_video_character_consent_label"
                 )}
@@ -1179,7 +1206,7 @@ export default function MediaFreeGenerator({
               id={`${instanceId}-prompt`}
               value={prompt}
               maxLength={maxUserPromptLength}
-              disabled={busy || finishing || referencesBusy}
+              disabled={busy || finishing || referencesBusy || characterVoiceBusy}
               readOnly={voiceBusy}
               aria-describedby={`${instanceId}-prompt-help`}
               placeholder={t(
@@ -1198,7 +1225,7 @@ export default function MediaFreeGenerator({
                 value={prompt}
                 onChange={setPrompt}
                 onBusyChange={setVoiceBusy}
-                disabled={busy || finishing || referencesBusy}
+                disabled={busy || finishing || referencesBusy || characterVoiceBusy}
                 maxLength={maxUserPromptLength}
                 purpose="instruction"
                 contextLabel={t("ai_generator_free_prompt_label")}

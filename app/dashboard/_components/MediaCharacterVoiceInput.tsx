@@ -39,7 +39,11 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
   const externallyLocked = disabled && !locallyBusy;
   const recordingOpen = recordingState !== "closed";
 
-  const setBusy = (busy: boolean) => { ownsBusyRef.current = busy; onBusyChange(busy); };
+  const setBusy = (busy: boolean) => {
+    if (!busy && !ownsBusyRef.current) return;
+    ownsBusyRef.current = busy;
+    onBusyChange(busy);
+  };
   const clearPreview = () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = ""; setPreviewUrl(""); setRecording(null);

@@ -9,6 +9,7 @@ import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
+import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props };
@@ -84,10 +85,11 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   freeModules.set("@/app/dashboard/_hooks/useMediaGeneration", hookModule);
   freeModules.set("@/lib/aiMediaNarrationVoices", voices); freeModules.set("@/lib/mediaRules", rules);
   freeModules.set("@/lib/mediaGenerationReferenceClient", {});
+  freeModules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
   freeModules.set("@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null });
   freeModules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => ({ imageEngine: "recraft", videoEngine: "omni", videoResolution: "720p", update() {} }) });
   freeModules.set("../_hooks/useMediaCreditQuote", { __esModule: true, default: () => ({ ready: true, insufficient: false, quote: { totalCredits: 4 }, authorization: {} }) });
-  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaQuotaSummary"]) freeModules.set(name, { __esModule: true, default: name });
+  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceInput"]) freeModules.set(name, { __esModule: true, default: name });
   freeModules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings" });
   freeModules.set("./MediaEngineCreditControls", { __esModule: true, default: "engines", isMediaVideoReferenceCompatible: () => true, MediaCreditQuoteSummary: "new-quote", MediaRecoveredCreditSummary: "recorded-cost", MediaGenerationActions: "actions" });
   const imagePanel = runtime("app/dashboard/_components/MediaFreeGenerator.tsx", freeModules);

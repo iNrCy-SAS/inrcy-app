@@ -220,7 +220,7 @@ test("Libre conserve le scénario choisi dans le sélecteur partagé du bandeau"
   assert.match(freeGeneratorSource, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
   assert.doesNotMatch(freeGeneratorSource, /<MediaVideoDurationSelect|className=\{styles\.sceneOptions\}/);
   assert.match(freeGeneratorSource, /getMediaVideoDurationChoices\(maxDuration\)/);
-  assert.match(freeGeneratorSource, /canGenerateAiMediaVideoDuration\(enginePreference\.videoEngine, duration, videoResolution, sceneMode\)/);
+  assert.match(freeGeneratorSource, /canGenerateAiMediaVideoDuration\(selectedVideoEngine, duration, videoResolution, sceneMode\)/);
   assert.doesNotMatch(freeGeneratorSource, /setDuration\(\(current\)/);
   assert.doesNotMatch(freeGeneratorSource, /const DURATIONS = \[8, 16, 24\]/);
   assert.match(freeGeneratorSource, /sceneMode: kind === "video" \? sceneMode : undefined/);
