@@ -6623,13 +6623,13 @@ export default function AgentClient() {
                                 </option>
                               ))}
                             </select>
-                          ) : null}
+                          ) : <span aria-hidden>—</span>}
                           {activePreviewChannel === "pinterest" &&
                           pinterestBoardsError ? (
                             <small className={styles.publishPlacementError}>
                               {pinterestBoardsError}
                             </small>
-                          ) : <span aria-hidden>—</span>}
+                          ) : null}
 
                         </div>
                       </article>
