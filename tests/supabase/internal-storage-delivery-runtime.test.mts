@@ -119,6 +119,7 @@ function scheduledRoute(file: string) {
     "@/lib/requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: other, user: { id: other }, errorResponse: null }) },
     "@/lib/dashboardEditionServer": { getDashboardEditionForAuthUser: async () => "premium" },
     "@/lib/standardAgentPolicy": {}, "@/lib/inrAgentPublicationHistory": {}, "@/lib/scheduledPublicationDedupe": {},
+    "@/lib/inrAgentPublicationChannelSelectionServer": { saveAgentPublicationChannels: () => assert.fail("Storage-only updates must not change publication channel selection") },
     "@/lib/scheduledCampaignDedupe": {}, "@/lib/mediaWorkspaceConsumption": {}, "@/lib/scheduledPublicationMediaSnapshot": {},
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => query } },
     "@/lib/storageContentUrl": { buildAbsoluteStorageContentUrl: (bucket: string, path: string) => { minted.push(`${bucket}:${path}`); return `https://app.test/signed/${bucket}/${path}`; } },

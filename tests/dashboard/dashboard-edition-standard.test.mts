@@ -769,62 +769,32 @@ test("les fonctions Standard récentes restent accessibles de bout en bout", () 
   }
 });
 
-test("iNr’Agent retire un canal, refuse le dernier et garde un pupitre responsive lisible", () => {
-  assert.match(agentClientSource, /editType: "remove_publish_channel"/);
-  assert.match(agentClientSource, /styles\.removePublishChannelButton/);
-  assert.match(agentClientSource, /styles\.publishMobileStatus/);
-  assert.match(agentClientSource, /remove_publication_last_channel/);
-  assert.match(
-    agentClientSource,
-    /if \(preparedChannels\.length <= 1\) \{\s*await updateActionStatus\("refused"\);/,
-  );
-  assert.match(agentScheduleSource, /removeScheduledEditPublishChannel/);
-
-  assert.match(agentActionsApiSource, /editType === "remove_publish_channel"/);
-  assert.match(agentActionsApiSource, /\.eq\("user_id", activeUserId\)/);
-  assert.match(agentActionsApiSource, /currentChannels\.length <= 1/);
-  assert.match(agentActionsApiSource, /status: "refused"/);
-  assert.match(agentActionsApiSource, /publicationRefused: true/);
-  assert.match(agentActionsApiSource, /target_channels: remainingTargetChannels/);
-
-  assert.match(agentStylesSource, /"save edit remove"/);
-  assert.match(agentStylesSource, /"status status status"/);
-  assert.match(
-    agentStylesSource,
-    /\.previewMetaPublish \.channelScroller button \{[\s\S]*?width: 32px !important;/,
-  );
+test("iNr’Agent conserve les contenus en changeant les canaux et bloque la validation des canaux vides", () => {
+  assert.match(agentClientSource, /<AgentPublicationChannelList\b/);
+  assert.match(agentClientSource, /onChange=\{channels => void savePublicationChannelSelection\(channels\)\}/);
+  assert.match(agentClientSource, /editType: "publish_channel_selection"/);
+  assert.match(agentActionsApiSource, /editType === "publish_channel_selection"/);
+  assert.match(agentActionsApiSource, /saveAgentPublicationChannels\(\{ userId: activeUserId/);
+  assert.match(agentActionsApiSource, /expectedUpdatedAt: requestBody\?\.expectedUpdatedAt/);
+  assert.doesNotMatch(agentClientSource, /styles\.removePublishChannelButton/);
+  assert.match(agentClientSource, /!selectedPublishChannels\.length \|\| pendingPublicationChannels\.length > 0/);
+  assert.match(agentStylesSource, /@media \(max-width: 760px\) \{\s*\.publishPreview > \.publishInfoGrid \{[^}]*grid-template-columns: repeat\(2,minmax\(0,1fr\)\)/);
 });
 
-test("le compteur de publication desktop est dans Statut et le pupitre réserve la place à la date", () => {
+test("le compteur global précède les cinq cadres et le statut reste près de la validation", () => {
   assert.match(
     agentClientSource,
-    /styles\.publishInfoStatus[\s\S]*?styles\.publishStatusHeading[\s\S]*?styles\.publishStatusCounter[\s\S]*?publishValidationLabel/,
+    /<nav className=\{styles\.publicationNavigation\}[\s\S]*?publication_counter[\s\S]*?<\/nav>\s*<div className=\{`\$\{styles\.publishInfoGrid\} \$\{styles\.publishInfoGridWithFormat\}`\}/,
   );
-  assert.doesNotMatch(agentClientSource, /styles\.publishPostCounter/);
-  assert.doesNotMatch(agentClientSource, /\+ \{Math\.max\(0, selectedPublicationIndex\)/);
-  assert.match(
-    agentStylesSource,
-    /\.publishInfoStatus \.publishStatusHeading \{[\s\S]*?justify-content: space-between;/,
-  );
-  assert.match(
-    agentStylesSource,
-    /\.previewMetaPublish \.channelScrollerWrapPublish \{[\s\S]*?width: min\(100%, 380px\) !important;/,
-  );
-  assert.match(
-    agentStylesSource,
-    /\.previewMetaPublish \.channelNavArrow \{[\s\S]*?width: 28px !important;/,
-  );
-  assert.match(
-    agentStylesSource,
-    /\.automationGrid \.automationCard \.cardPendingCount::after,[\s\S]*?content: none !important;/,
-  );
-  assert.match(
-    agentStylesSource,
-    /button\[data-channel="linkedin"\][\s\S]*?img\.channelLogoLinkedin \{[\s\S]*?width: 32px !important;[\s\S]*?max-height: 32px !important;/,
-  );
+  assert.match(agentStylesSource, /\.publishPreview > \.publishInfoGridWithFormat \{ grid-template-columns: repeat\(5,minmax\(0,1fr\)\);/);
+  assert.match(agentClientSource, /className=\{styles\.publishFooterStatus\}[\s\S]*?publishValidationLabel[\s\S]*?className=\{styles\.previewActions\}/);
+  assert.match(agentStylesSource, /\.publishReviewFooter \.dateItem \{\s*order: 0 !important;/);
+  assert.match(agentStylesSource, /\.publishReviewFooter > button \{\s*order: 1 !important;/);
+  assert.match(agentStylesSource, /\.publishFooterStatus \{\s*order: 2;/);
+  assert.match(agentStylesSource, /\.publishReviewFooter \.previewActions \{\s*order: 3 !important;/);
   assert.doesNotMatch(
-    agentStylesSource,
-    /img\.channelLogoLinkedin \{[\s\S]{0,180}?width: 18px !important;/,
+    agentClientSource,
+    /styles\.publishStatusCounter|styles\.publishFooterStatusCounter/,
   );
 });
 
