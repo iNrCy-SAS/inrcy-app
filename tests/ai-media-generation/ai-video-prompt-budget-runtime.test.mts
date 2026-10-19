@@ -75,7 +75,7 @@ test("a divination cabinet keeps its actual profession in guided video without b
     args.request.aiInstruction = "Montrer un échange calme entre deux personnes adultes dans le lieu décrit.";
     args.request.inspirationImages = [];
     args.creativeBrief = idea;
-    args.plan = { companyName: "Cabinet exemple", headline: "La consultation", cta: "Découvrez la pratique", scenes: [{ ...args.plan.scenes[0], title: "La consultation", body: "Un échange professionnel.", visualBrief: idea, spokenLine: "" }] };
+    args.plan = { ...args.plan, companyName: "Cabinet exemple", headline: "La consultation", cta: "Découvrez la pratique", scenes: [{ ...args.plan.scenes[0], title: "La consultation", body: "Un échange professionnel.", visualBrief: idea, spokenLine: "" }] };
     return runtime.buildGoogleVideoScenePrompt(args, 0, 8);
   };
   for (const profession of ["Voyant / Voyante", "Médium", "Tarologue", "Cartomancien / Cartomancienne", "Astrologue", "Numérologue", "Chiromancien / Chiromancienne", "Radiesthésiste divinatoire", "Cabinet de voyance"]) {
